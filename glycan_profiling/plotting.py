@@ -12,7 +12,8 @@ from scipy.ndimage import gaussian_filter1d
 import glypy
 from glycresoft_sqlalchemy.report import colors
 
-from .trace import count_charge_states, total_intensity
+from .chromatogram_tree import count_charge_states
+from .scoring import total_intensity
 
 
 def label_count_charge_states(chromatogram, **kwargs):
@@ -264,7 +265,7 @@ class SmoothingChromatogramArtist(ChromatogramArtist):
 
 class ChargeSeparatingChromatogramArtist(ChromatogramArtist):
 
-    def process_group(self, composition, chroma):
+    def process_group(self, composition, chroma, label_function=None):
         charge_map = defaultdict(OrderedDict)
         for scan, peaks in zip(chroma.scan_ids, chroma.peaks):
             for peak in peaks:
@@ -276,7 +277,7 @@ class ChargeSeparatingChromatogramArtist(ChromatogramArtist):
             peaks = obs.values()[part]
             ids = obs.keys()[part]
 
-            color = next(self.color_generator)
+            color = self.default_colorizer(chroma)
 
             rt = [self.tracker.scan_generator.time_cache[id] for id in ids]
             heights = [(peak).intensity for peak in peaks]
@@ -297,7 +298,7 @@ class AggregatedAbundanceArtist(object):
         self.ax = ax
         self.chromatograms = [c for c in chromatograms if c.composition is not None]
 
-    def draw(self):
+    def draw(self, logscale=False):
         chroma = sorted(
             self.chromatograms, lambda x, y: colors.NGlycanCompositionOrderer(x.composition, y.composition))
         indices = np.arange(len(chroma))
@@ -308,8 +309,11 @@ class AggregatedAbundanceArtist(object):
         xtick_labeler = colors.GlycanLabelTransformer(keys, colors.NGlycanCompositionOrderer)
 
         color = map(colors.NGlycanCompositionColorizer, keys)
+        heights = [c.total_signal for c in chroma]
+        if logscale:
+            heights = np.log(heights)
         self.bars = self.ax.bar(
-            indices + bar_width, [c.total_signal for c in chroma],
+            indices + bar_width, heights,
             width=bar_width, color=color, alpha=alpha, lw=0)
 
         ax = self.ax
@@ -358,6 +362,9 @@ class LCMSSurfaceArtist(object):
         self.times = rt
 
         self.heights = list(map(self.make_z_array, self.chromatograms))
+        scaler = max(map(max, self.heights)) / 100.
+        for height in self.heights:
+            height /= scaler
 
     def make_z_array(self, chroma):
         z = []
@@ -376,22 +383,46 @@ class LCMSSurfaceArtist(object):
         z = gaussian_filter1d(np.concatenate((z, np.zeros(len(self.times) - len(z)))), 1)
         return z
 
-    def draw(self):
+    def make_sparse(self, width=0.05):
+        i = 0
+        masses = []
+        heights = []
+
+        flat = self.heights[0] * 0
+
+        masses.append(self.masses[0] - 200)
+        heights.append(flat)
+
+        while i < len(self.masses):
+            mass = self.masses[i]
+            masses.append(mass - width)
+            heights.append(flat)
+            masses.append(mass)
+            heights.append(self.heights[i])
+            masses.append(mass + width)
+            heights.append(flat)
+            i += 1
+
+        self.masses = masses
+        self.heights = heights
+
+    def draw(self, alpha=0.8, **kwargs):
         fig = plt.figure()
         ax = fig.gca(projection='3d')
         self.ax = ax
 
         self.build_map()
+        self.make_sparse()
 
         X, Y = np.meshgrid(self.times, self.masses)
         ax.plot_surface(X, Y, self.heights, rstride=1, cstride=1,
                         linewidth=0, antialiased=False, shade=True,
-                        alpha=1)
+                        alpha=alpha)
         ax.view_init()
         ax.azim += 20
-        ax.set_xlim(self.times.min(), self.times.max())
-        ax.set_ylim(min(self.masses) - 100, max(self.masses))
-        ax.set_xlabel("Retention Time", fontsize=18)
+        ax.set_xlim3d(self.times.min(), self.times.max())
+        ax.set_ylim3d(min(self.masses) - 100, max(self.masses))
+        ax.set_xlabel("Retention Time (Min)", fontsize=18)
         ax.set_ylabel("Neutral Mass", fontsize=18)
-        ax.set_zlabel("Relative Abundance", fontsize=18)
+        ax.set_zlabel("Relative Abundance (%)", fontsize=18)
         return self

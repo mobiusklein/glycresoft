@@ -1,4 +1,10 @@
 from collections import namedtuple, defaultdict
+from operator import mul
+
+try:
+    reduce
+except:
+    from functools import reduce
 
 import numpy as np
 from scipy.optimize import leastsq
@@ -8,12 +14,22 @@ from scipy.ndimage import gaussian_filter1d
 
 from ms_peak_picker import search
 from ms_deisotope.scoring import g_test_scaled
-from ms_deisotope.averagine import glycan, Averagine, PROTON
+from ms_deisotope.averagine import glycan, PROTON, mass_charge_ratio
 from ms_peak_picker.peak_set import FittedPeak
+from brainpy import isotopic_variants
 
-from .trace import total_intensity
+import glypy
+
 
 epsilon = 1e-6
+
+
+def total_intensity(peaks):
+    return sum(p.intensity for p in peaks)
+
+
+def ppm_error(x, y):
+    return (x - y) / y
 
 
 def skewgauss(xs, center, amplitude, sigma, gamma):
@@ -128,16 +144,6 @@ def scale_theoretical_isotopic_pattern(eid, tid):
         p.intensity *= total
 
 
-def score_isotopic_pattern_averagine(deconvoluted_peak, averagine=glycan, charge_carrier=PROTON):
-    eid = envelope_to_peak_list(deconvoluted_peak.envelope)
-    tid = averagine.isotopic_cluster(
-        deconvoluted_peak.mz, deconvoluted_peak.charge,
-        charge_carrier=charge_carrier)
-    scale_theoretical_isotopic_pattern(eid, tid)
-    tid = align_peak_list(eid, tid)
-    return g_test_scaled(None, eid, tid)
-
-
 def get_nearest_index(query_mz, peak_list):
     best_index = None
     best_error = float('inf')
@@ -157,23 +163,47 @@ def align_peak_list(experimental, theoretical):
     return retain
 
 
-def chromatogram_to_peaks(chromatogram):
-    for scan in chromatogram.peaks:
-        for peak in scan:
-            yield peak
+def unspool_nodes(node):
+    yield node
+    for child in (node).children:
+        for x in unspool_nodes(child):
+            yield x
 
 
-def evaluate_chromatogram_isotopic_fit(chromatogram, averagine=glycan, charge_carrier=PROTON):
-    scores = []
-    intensity = []
-    for scan in chromatogram.peaks:
-        for peak in scan:
-            score = score_isotopic_pattern_averagine(peak, averagine=averagine, charge_carrier=charge_carrier)
-            scores.append(score)
-            intensity.append(peak.intensity)
-    intensity = np.array(intensity)
-    scores = np.array(scores)
-    return np.average(scores, weights=intensity / intensity.sum())
+class MassAccuracyTrendFitter(object):
+    def __init__(self, chromatogram):
+        self.chromatogram = chromatogram
+        self.mass_errors = []
+        self.intensities = []
+        self.mean_mass_error = None
+        self.std_dev_mass_error = None
+        self.target_mass = None
+
+        self.find_target_mass()
+        self.fit()
+
+    def find_target_mass(self):
+        if self.chromatogram.composition is None:
+            self.target_mass = self.chromatogram.weighted_neutral_mass
+        else:
+            self.target_mass = glypy.GlycanComposition.parse(
+                self.chromatogram.composition).mass()
+
+    def fit(self):
+        mass_errors = []
+        intensities = []
+        for nodes in self.chromatogram.nodes:
+            for node in unspool_nodes(nodes):
+                for peak in node.members:
+                    error = ppm_error(self.target_mass + node.node_type.mass, peak.neutral_mass)
+                    intensity = peak.intensity
+                    mass_errors.append(error)
+                    intensities.append(intensity)
+        self.mass_errors = np.array(mass_errors)
+        self.intensities = np.array(intensities)
+
+        self.mean_mass_error = np.average(self.mass_errors)
+        self.std_dev_mass_error = np.std(self.mass_errors)
 
 
 class IsotopicPatternConsistencyFitter(object):
@@ -185,16 +215,47 @@ class IsotopicPatternConsistencyFitter(object):
         self.intensity = []
         self.mean_fit = None
 
+        if chromatogram.composition is not None:
+            self.composition = glypy.GlycanComposition.parse(chromatogram.composition).total_composition()
+        else:
+            self.composition = None
+
         self.fit()
 
     def __repr__(self):
         return "IsotopicPatternConsistencyFitter(%s, %0.4f)" % (self.chromatogram, self.mean_fit)
 
+    def generate_isotopic_pattern(self, charge):
+        if self.composition is not None:
+            tid = isotopic_variants(self.composition, charge=charge, charge_carrier=self.charge_carrier)
+            out = []
+            total = 0.
+            for p in tid:
+                out.append(p)
+                total += p.intensity
+                if total >= 0.95:
+                    break
+            return out
+        else:
+            tid = self.averagine.isotopic_cluster(
+                mass_charge_ratio(
+                    self.chromatogram.neutral_mass,
+                    charge, charge_carrier=self.charge_carrier),
+                charge,
+                charge_carrier=self.charge_carrier)
+            return tid
+
+    def score_isotopic_pattern(self, deconvoluted_peak):
+        tid = self.generate_isotopic_pattern(deconvoluted_peak.charge)
+        eid = envelope_to_peak_list(deconvoluted_peak.envelope)
+        scale_theoretical_isotopic_pattern(eid, tid)
+        tid = align_peak_list(eid, tid)
+        return g_test_scaled(None, eid, tid)
+
     def fit(self):
         for scan in self.chromatogram.peaks:
             for peak in scan:
-                score = score_isotopic_pattern_averagine(
-                    peak, averagine=self.averagine, charge_carrier=self.charge_carrier)
+                score = self.score_isotopic_pattern(peak)
                 self.scores.append(score)
                 self.intensity.append(peak.intensity)
         self.intensity = np.array(self.intensity)
@@ -209,6 +270,13 @@ class ChargeStateDistributionScoringModelBase(object):
     def score(self, chromatogram, *args, **kwargs):
         return 0
 
+    def save(self, file_obj):
+        pass
+
+    @classmethod
+    def load(cls, file_obj):
+        return cls()
+
 
 class UniformChargeStateScoringModel(ChargeStateDistributionScoringModelBase):
     def score(self, chromatogram, *args, **kwargs):
@@ -219,27 +287,28 @@ def ones(x):
     return (x - (np.floor(x / 10.) * 10))
 
 
-def neighborhood_of(x):
-    n = x / 100.
+def neighborhood_of(x, scale=100.):
+    n = x / scale
     up = ones(n) > 5
     if up:
         neighborhood = (np.floor(n / 10.) + 1) * 10
     else:
         neighborhood = (np.floor(n / 10.) + 1) * 10
-    return neighborhood * 100
+    return neighborhood * scale
 
 
-class NegativeModeMassScalingChargeStateScoringModel(ChargeStateDistributionScoringModelBase):
-    def __init__(self, table):
+class MassScalingChargeStateScoringModel(ChargeStateDistributionScoringModelBase):
+    def __init__(self, table, neighborhood_width=100.):
         self.table = table
+        self.neighborhood_width = neighborhood_width
 
     def score(self, chromatogram, *args, **kwargs):
         total = 0.
-        neighborhood = neighborhood_of(chromatogram.neutral_mass)
+        neighborhood = neighborhood_of(chromatogram.neutral_mass, self.neighborhood_width)
         if neighborhood not in self.table:
             import warnings
             warnings.warn(
-                ("%f is too large for this charge state "
+                ("%f was not found for this charge state "
                  "scoring model. Defaulting to uniform model") % neighborhood)
             return UniformChargeStateScoringModel().score(chromatogram, *args, **kwargs)
         bins = self.table[neighborhood]
@@ -249,12 +318,14 @@ class NegativeModeMassScalingChargeStateScoringModel(ChargeStateDistributionScor
         return total
 
     @classmethod
-    def fit(cls, observations, missing=0.01):
+    def fit(cls, observations, missing=0.01, neighborhood_width=100., ignore_singly_charged=False):
         bins = defaultdict(lambda: defaultdict(float))
 
         for sol in observations:
-            neighborhood = neighborhood_of(sol.neutral_mass)
+            neighborhood = neighborhood_of(sol.neutral_mass, neighborhood_width)
             for c in sol.charge_states:
+                if ignore_singly_charged and abs(c) == 1:
+                    continue
                 bins[neighborhood][c] += 1
 
         model_table = {}
@@ -262,6 +333,8 @@ class NegativeModeMassScalingChargeStateScoringModel(ChargeStateDistributionScor
         all_states = set()
         for level in bins.values():
             all_states.update(level.keys())
+
+        all_states.add(1 * (min(all_states) / abs(min(all_states))))
 
         for neighborhood, counts in bins.items():
             for c in all_states:
@@ -271,25 +344,45 @@ class NegativeModeMassScalingChargeStateScoringModel(ChargeStateDistributionScor
             entry = {k: v / total for k, v in counts.items()}
             model_table[neighborhood] = entry
 
-        return cls(model_table)
+        return cls(model_table, neighborhood_width)
+
+    def save(self, file_obj):
+        import json
+        json.dump(
+            {"neighborhood_width": self.neighborhood_width, "table": self.table},
+            file_obj, indent=4, sort_keys=True)
+
+    @classmethod
+    def load(cls, file_obj):
+        import json
+        data = json.load(file_obj)
+        table = data.pop("table")
+        width = float(data.pop("neighborhood_width"))
+
+        def numeric_keys(table, dtype=float, convert_value=lambda x: x):
+            return {dtype(k): convert_value(v) for k, v in table.items()}
+
+        table = numeric_keys(table, convert_value=lambda x: numeric_keys(x, int))
+
+        return cls(table=table, neighborhood_width=width)
 
 
-def score_chromatogram(chromatogram):
+def score_chromatogram(chromatogram, charge_scoring_model=UniformChargeStateScoringModel()):
     line_score = max(1 - ChromatogramShapeFitter(chromatogram).line_test, epsilon)
     isotopic_fit = max(1 - IsotopicPatternConsistencyFitter(chromatogram).mean_fit, epsilon)
     spacing_fit = max(1 - ChromatogramSpacingFitter(chromatogram).score * 2, epsilon)
-    charge_count = UniformChargeStateScoringModel().score(chromatogram)
+    charge_count = charge_scoring_model.score(chromatogram)
     return (line_score * isotopic_fit * spacing_fit * charge_count)
 
 
 scores = namedtuple("scores", ["line_score", "isotopic_fit", "spacing_fit", "charge_count"])
 
 
-def score_chromatogram2(chromatogram):
+def score_chromatogram2(chromatogram, charge_scoring_model=UniformChargeStateScoringModel()):
     line_score = max(1 - ChromatogramShapeFitter(chromatogram).line_test, epsilon)
     isotopic_fit = max(1 - IsotopicPatternConsistencyFitter(chromatogram).mean_fit, epsilon)
     spacing_fit = max(1 - ChromatogramSpacingFitter(chromatogram).score * 2, epsilon)
-    charge_count = UniformChargeStateScoringModel().score(chromatogram)
+    charge_count = charge_scoring_model.score(chromatogram)
     return scores(line_score, isotopic_fit, spacing_fit, charge_count)
 
 
@@ -322,9 +415,32 @@ class NetworkScoreDistributor(object):
                 sol.score *= base_coef
 
 
+class ChromatogramScorer(object):
+    def __init__(self, shape_fitter_type=ChromatogramShapeFitter,
+                 isotopic_fitter_type=IsotopicPatternConsistencyFitter,
+                 charge_scoring_model=UniformChargeStateScoringModel(),
+                 spacing_fitter_type=ChromatogramSpacingFitter):
+        self.shape_fitter_type = shape_fitter_type
+        self.isotopic_fitter_type = isotopic_fitter_type
+        self.spacing_fitter_type = spacing_fitter_type
+        self.charge_scoring_model = charge_scoring_model
+
+    def compute_scores(self, chromatogram):
+        line_score = max(1 - self.shape_fitter_type(chromatogram).line_test, epsilon)
+        isotopic_fit = max(1 - self.isotopic_fitter_type(chromatogram).mean_fit, epsilon)
+        spacing_fit = max(1 - self.spacing_fitter_type(chromatogram).score * 2, epsilon)
+        charge_count = self.charge_scoring_model.score(chromatogram)
+        return scores(line_score, isotopic_fit, spacing_fit, charge_count)
+
+    def score(self, chromatogram):
+        score = reduce(mul, self.compute_scores(chromatogram), 1.0)
+        return score
+
+
 class ChromatogramSolution(object):
-    def __init__(self, chromatogram, score=None):
+    def __init__(self, chromatogram, score=None, scorer=ChromatogramScorer()):
         self.chromatogram = chromatogram
+        self.scorer = scorer
         self.score = score
 
         if score is None:
@@ -340,7 +456,7 @@ class ChromatogramSolution(object):
         return iter(self.chromatogram)
 
     def compute_score(self):
-        self.score = score_chromatogram(self.chromatogram)
+        self.score = self.scorer.score(self.chromatogram)
 
     def __repr__(self):
         return "ChromatogramSolution(%s, %0.4f, %d, %0.4f)" % (

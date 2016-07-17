@@ -2,36 +2,15 @@ import numpy as np
 from scipy.ndimage import gaussian_filter1d
 
 from collections import defaultdict, OrderedDict, namedtuple
-import itertools
+# import itertools
 
+from .chromatogram_tree import (
+    Chromatogram, ChromatogramForest)
 
 dummyscan = namedtuple('dummyscan', ["id", "index", "scan_time"])
 
 
 fake_scan = dummyscan("--not-a-real-scan--", -1, -1)
-
-
-def group_by(ungrouped_list, key_fn=lambda x: x, transform_fn=lambda x: x):
-    groups = defaultdict(list)
-    for item in ungrouped_list:
-        key_value = key_fn(item)
-        groups[key_value].append(transform_fn(item))
-    return groups
-
-
-class MassShift(object):
-    def __init__(self, name, mass):
-        self.name = name
-        self.mass = mass
-
-    def __repr__(self):
-        return "MassShift(%s, %f)" % (self.name, self.mass)
-
-    def __mul__(self, n):
-        if isinstance(n, int):
-            return self.__class__("%d * %s" % (n, self.name), self.mass * n)
-        else:
-            raise TypeError("Cannot multiply MassShift by non-integer")
 
 
 class Tracer(object):
@@ -43,6 +22,7 @@ class Tracer(object):
         self.mass_error_tolerance = mass_error_tolerance
         self.total_ion_chromatogram = SimpleChromatogram(self)
         self.base_peak_chromatogram = SimpleChromatogram(self)
+        self.scan_map = {}
 
     def configure_iteration(self, *args, **kwargs):
         self.scan_generator.configure_iteration(*args, **kwargs)
@@ -54,14 +34,26 @@ class Tracer(object):
         self.total_ion_chromatogram[scan.id] = sum(p.intensity for p in scan)
         self.base_peak_chromatogram[scan.id] = max(p.intensity for p in scan)
 
+    def store_scan(self, scan):
+        # self.scan_map[scan.id] = scan
+        pass
+
+    def next_scan(self):
+        scan = next(self.scan_generator)
+        self.store_scan(scan)
+        while scan.ms_level != 1:
+            scan = next(self.scan_generator)
+            self.store_scan(scan)
+        return scan
+
     def next(self):
         idents = defaultdict(list)
         try:
-            scan = next(self.scan_generator)
+            scan = self.next_scan()
+            self._handle_generic_chromatograms(scan)
         except (ValueError, IndexError), e:
             print(e)
             return idents, fake_scan
-        self._handle_generic_chromatograms(scan)
         for peak in scan.deconvoluted_peak_set:
             for match in self.database.search_mass_ppm(
                     peak.neutral_mass, self.mass_error_tolerance):
@@ -85,13 +77,15 @@ class Tracer(object):
             out.append(c)
         return out
 
-    def chromatograms(self):
+    def chromatograms(self, truncate=True):
         chroma = [
-            Chromatogram(composition, observations.keys(), observations.values(), map(
-                self.scan_generator.convert_scan_id_to_retention_time, observations))
+            Chromatogram.from_parts(composition, map(
+                self.scan_id_to_rt, observations), observations.keys(),
+                observations.values())
             for composition, observations in self.tracker.items()
         ]
-        chroma = self.truncate_chromatograms(chroma)
+        if truncate:
+            chroma = self.truncate_chromatograms(chroma)
         return chroma
 
 
@@ -108,11 +102,11 @@ class IncludeUnmatchedTracer(Tracer):
     def next(self):
         idents = defaultdict(list)
         try:
-            scan = next(self.scan_generator)
+            scan = self.next_scan()
+            self._handle_generic_chromatograms(scan)
         except (ValueError, IndexError), e:
             print(e)
             return idents, fake_scan
-        self._handle_generic_chromatograms(scan)
         for peak in scan.deconvoluted_peak_set:
             matches = self.database.search_mass_ppm(
                 peak.neutral_mass, self.mass_error_tolerance)
@@ -128,41 +122,16 @@ class IncludeUnmatchedTracer(Tracer):
     def __next__(self):
         return self.next()
 
-    def chromatograms(self, minimum_mass=300, minimum_intensity=1000., grouping_tolerance=None):
+    def chromatograms(self, minimum_mass=300, minimum_intensity=1000., grouping_tolerance=None, truncate=True):
         if grouping_tolerance is None:
             grouping_tolerance = self.mass_error_tolerance
-        chroma = sorted(map(ChromatogramBuilder.from_chromatogram, (super(
-            IncludeUnmatchedTracer, self).chromatograms())), key=lambda x: x.neutral_mass)
-        assert is_sorted(chroma)
-        unmatched = (sorted(self.unmatched, key=lambda x: x[
-            1].intensity, reverse=True))
-        for scan_id, peak in unmatched:
-            if peak.neutral_mass < minimum_mass or peak.intensity < minimum_intensity:
-                continue
-            index, matched = binary_search_with_flag(
-                chroma, peak.neutral_mass, grouping_tolerance)
-
-            if matched:
-                chroma[index].add(
-                    scan_id, peak,
-                    self.scan_generator.convert_scan_id_to_retention_time(scan_id))
-            else:
-                new = ChromatogramBuilder(peak.neutral_mass)
-                new.add(
-                    scan_id, peak,
-                    self.scan_generator.convert_scan_id_to_retention_time(scan_id))
-                if index != 0:
-                    chroma.insert(index + 1, new)
-                else:
-                    x = chroma[index]
-                    if x.neutral_mass < new.neutral_mass:
-                        new_index = index + 1
-                    else:
-                        new_index = index
-                    chroma.insert(new_index, new)
-
-        chroma = [c.to_chromatogram() for c in chroma]
-        chroma = self.truncate_chromatograms(chroma)
+        chroma = sorted(super(
+            IncludeUnmatchedTracer, self).chromatograms(truncate=True), key=lambda x: x.neutral_mass)
+        forest = ChromatogramForest(chroma, grouping_tolerance, self.scan_id_to_rt)
+        forest.aggregate_unmatched_peaks(self.unmatched, minimum_mass, minimum_intensity)
+        chroma = list(forest)
+        if truncate:
+            chroma = self.truncate_chromatograms(chroma)
         return chroma
 
 
@@ -192,87 +161,18 @@ def binary_search_with_flag(array, mass, error_tolerance=1e-5):
     return 0, False
 
 
-def total_intensity(peaks):
-    return sum(p.intensity for p in peaks)
-
-
-class ChromatogramBuilder(object):
-
-    @classmethod
-    def from_chromatogram(cls, chroma):
-        dd = defaultdict(list)
-        peaks = chroma.peaks
-        scan_ids = chroma.scan_ids
-        retention_times = chroma.retention_times
-        for peak, scan_id, rt in zip(peaks, scan_ids, retention_times):
-            dd[rt].extend((peak_i, scan_id) for peak_i in peak)
-        return cls(chroma.neutral_mass, dd, chroma.composition)
-
-    def __init__(self, neutral_mass, mapping=None, composition=None):
-        if mapping is None:
-            mapping = defaultdict(list)
-        self.neutral_mass = neutral_mass
-        self.mapping = mapping
-        self.composition = composition
-
-    def add(self, scan_id, peak, retention_time):
-        region = self.mapping[retention_time]
-        region.append((peak, scan_id))
-
-    def to_chromatogram(self):
-        pairs = sorted(self.mapping.items())
-
-        scan_ids = []
-        peaks = []
-        retention_times = []
-
-        for rt, peak_scan_ids in pairs:
-            by_scan_id = group_by(peak_scan_ids, lambda x: x[1])
-            for scan_id, peaks_i in by_scan_id.items():
-                peak_group = []
-                map(peak_group.append, [x[0] for x in peaks_i])
-                peaks.append(peak_group)
-                scan_ids.append(scan_id)
-                retention_times.append(rt)
-        return Chromatogram(self.composition, scan_ids, peaks, retention_times)
-
-    def __repr__(self):
-        return "ChromatogramBuilder(%f, %d, %s)" % (self.neutral_mass, len(self.mapping), self.composition)
-
-
-def base_removal(chromatogram, p=10):
-    x, y = gaussian_filter1d(chromatogram.as_arrays(), 1)
-    v = np.abs(np.diff(y))
-    flag = v < np.percentile(y, p)
-    return x[1:][~flag], y[1:][~flag]
-
-
-def threshold_unpeaked(chromatogram):
-    peak_data = base_removal(chromatogram)
-    return len(peak_data[0]) > 3
-
-
-def split_by_charge(peaks):
-    return group_by(peaks, lambda x: x.charge)
-
-
-def count_charge_states(peaks):
-    peaks = [j for i in peaks for j in i]
-    return len(split_by_charge(peaks))
-
-
 class ChromatogramDeltaNode(object):
-    def __init__(self, retention_times, delta_intensity, start_time, stop_time, is_below_threshold=True):
+    def __init__(self, retention_times, delta_intensity, start_time, end_time, is_below_threshold=True):
         self.retention_times = retention_times
         self.delta_intensity = delta_intensity
         self.start_time = start_time
-        self.stop_time = stop_time
+        self.end_time = end_time
         self.mean_change = np.mean(delta_intensity)
         self.is_below_threshold = is_below_threshold
 
     def __repr__(self):
         return "ChromatogramDeltaNode(%f, %f, %f)" % (
-            self.mean_change, self.start_time, self.stop_time)
+            self.mean_change, self.start_time, self.end_time)
 
     @classmethod
     def partition(cls, rt, delta_smoothed, window_size=.5):
@@ -322,7 +222,11 @@ def find_truncation_points(rt, signal):
             break
         ending -= 1
     ending = min(ending + 1, len(nodes) - 1)
-    return nodes[leading].start_time, nodes[ending].start_time
+    if len(nodes) == 1:
+        return nodes[0].start_timem, nodes[0].end_time
+    elif len(nodes) == 2:
+        return nodes[0].start_time, nodes[-1].end_time
+    return nodes[leading].start_time, nodes[ending].end_time
 
 
 class SimpleChromatogram(OrderedDict):
@@ -334,121 +238,6 @@ class SimpleChromatogram(OrderedDict):
         return (
             np.array(map(self.time_converter.scan_id_to_rt, self)),
             np.array(self.values()))
-
-
-class Chromatogram(object):
-
-    def __init__(self, composition, scan_ids, peaks, retention_times=None, adducts=None, used_as_adduct=False):
-        if adducts is None:
-            adducts = []
-        self.composition = composition
-        self.peaks = peaks
-        self.scan_ids = scan_ids
-        self.retention_times = retention_times
-        self.total_signal = sum(map(total_intensity, self.peaks))
-        self.neutral_mass = max(itertools.chain.from_iterable(self.peaks),
-                                key=lambda x: x.intensity).neutral_mass
-        self.charge_states = split_by_charge([p_i for p in peaks for p_i in p]).keys()
-        self.n_charge_states = len(self.charge_states)
-        self.adducts = adducts
-        self.used_as_adduct = used_as_adduct
-
-    @property
-    def key(self):
-        if self.composition is not None:
-            return self.composition
-        else:
-            return self.neutral_mass
-
-    @property
-    def start_time(self):
-        return self.retention_times[0]
-
-    @property
-    def end_time(self):
-        return self.retention_times[-1]
-
-    def as_arrays(self):
-        return map(np.array, [self.retention_times, map(total_intensity, self.peaks)])
-
-    def __len__(self):
-        return len(self.scan_ids)
-
-    def __repr__(self):
-        return "Chromatogram(%s, %0.4f)" % (self.composition, self.neutral_mass)
-
-    def __iter__(self):
-        for i in range(len(self)):
-            yield self.scan_ids[i], self.peaks[i], self.retention_times[i]
-
-    def split_sparse(self, delta_rt=1.):
-        chunks = []
-        current_scan_ids = []
-        current_peaks = []
-        current_rts = []
-        groups = zip(self.scan_ids, self.peaks, self.retention_times)
-        scan_id, peaks, rt = groups[0]
-        current_scan_ids.append(scan_id)
-        current_peaks.append(peaks)
-        last_rt = rt
-        current_rts.append(rt)
-
-        for scan_id, peaks, rt in groups[1:]:
-            if rt - last_rt > delta_rt:
-                chunk = Chromatogram(
-                    self.composition, current_scan_ids, current_peaks, current_rts)
-                chunks.append(chunk)
-                current_scan_ids = []
-                current_peaks = []
-                current_rts = []
-            current_scan_ids.append(scan_id)
-            current_peaks.append(peaks)
-            last_rt = rt
-            current_rts.append(rt)
-        chunk = Chromatogram(
-            self.composition, current_scan_ids, current_peaks, current_rts)
-        chunk.adducts = list(self.adducts)
-        chunk.used_as_adduct = self.used_as_adduct
-        chunks.append(chunk)
-        return chunks
-
-    def truncate_before(self, time):
-        for i, rt in enumerate(self.retention_times):
-            if rt >= time:
-                break
-        self.scan_ids = self.scan_ids[i + 1:]
-        self.peaks = self.peaks[i + 1:]
-        self.retention_times = self.retention_times[i + 1:]
-
-    def truncate_after(self, time):
-        for i, rt in enumerate(self.retention_times):
-            if rt >= time:
-                break
-        self.scan_ids = self.scan_ids[:i]
-        self.peaks = self.peaks[:i]
-        self.retention_times = self.retention_times[:i]
-
-    def merge(self, other):
-        builder = ChromatogramBuilder.from_chromatogram(self)
-        for scan_id, peaks, rt in other:
-            for peak in peaks:
-                builder.add(scan_id, peak, rt)
-        new = builder.to_chromatogram()
-        new.adducts = list(self.adducts)
-        new.used_as_adduct = self.used_as_adduct
-        return new
-
-    def slice(self, start, end):
-        builder = ChromatogramBuilder()
-        for scan_id, peaks, rt in self:
-            if start <= rt <= end:
-                for peak in peaks:
-                    builder.add(scan_id, peak, rt)
-        new = builder.to_chromatogram()
-        new = builder.to_chromatogram()
-        new.adducts = list(self.adducts)
-        new.used_as_adduct = self.used_as_adduct
-        return new
 
 
 class ChromatogramFilter(object):
@@ -480,13 +269,6 @@ class ChromatogramFilter(object):
         self.chromatograms = [c for c in self if len(c) >= n]
         return self
 
-    def threshold_unpeaked(self, n=3, p=10):
-        self.chromatograms = [
-            c for c in self
-            if len(base_removal(c, p)[0]) >= n
-        ]
-        return self
-
     def split_sparse(self, delta_rt=1.):
         self.chromatograms = [
             seg for c in self
@@ -508,7 +290,7 @@ class ChromatogramFilter(object):
 
     @classmethod
     def process(cls, chromatograms, n_peaks=5, percentile=10, delta_rt=1.):
-        return cls(chromatograms).split_sparse(delta_rt).min_points(n_peaks)  # .threshold_unpeaked(n_peaks, percentile)
+        return cls(chromatograms).split_sparse(delta_rt).min_points(n_peaks)
 
 
 def span_overlap(self, interval):
@@ -525,8 +307,49 @@ def join_mass_shifted(chromatograms, adducts, mass_error_tolerance=1e-5):
         for adduct in adducts:
             match = chromatograms.find_mass(chroma.neutral_mass + adduct.mass, mass_error_tolerance)
             if match and span_overlap(add, match):
-                match.used_as_adduct = True
-                add = add.merge(match)
+                match.used_as_adduct.append(add.key)
+                add = add.merge(match, node_type=adduct)
                 add.adducts.append(adduct)
         out.append(add)
+    return ChromatogramFilter(out)
+
+
+def reverse_adduction_search(chromatograms, adducts, mass_error_tolerance, database):
+    exclude_compositions = dict()
+    candidate_chromatograms = []
+
+    new_members = {}
+    unmatched = []
+
+    for chroma in chromatograms:
+        if chroma.composition is not None:
+            exclude_compositions[chroma.composition] = chroma
+        else:
+            candidate_chromatograms.append(chroma)
+
+    for chroma in candidate_chromatograms:
+        candidate_mass = chroma.neutral_mass
+        matched = False
+        exclude = False
+        for adduct in adducts:
+            matches = database.search_mass_ppm(
+                candidate_mass - adduct.mass, mass_error_tolerance)
+            for match in matches:
+                name = str(match)
+                if name in exclude_compositions:
+                    exclude = True
+                    continue
+                if name in new_members:
+                    chroma_to_update = new_members[name]
+                else:
+                    chroma_to_update = Chromatogram(name)
+                chroma_to_update = chroma_to_update.merge(chroma, adduct)
+                new_members[name] = chroma_to_update
+                matched = True
+        if not matched and not exclude:
+            unmatched.append(chroma)
+    out = []
+    out.extend(exclude_compositions.values())
+    out.extend(new_members.values())
+    out.extend(unmatched)
     return ChromatogramFilter(out)

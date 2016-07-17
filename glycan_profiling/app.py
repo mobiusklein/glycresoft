@@ -1,16 +1,54 @@
+import re
 import glypy
+import warnings
 
 from glycan_profiling import plotting
 from glycan_profiling.database import build_database
 from glycan_profiling.piped_deconvolve import ScanGenerator as PipedScanGenerator
-from glycan_profiling.scoring import ChromatogramSolution, NetworkScoreDistributor
-from glycan_profiling.trace import IncludeUnmatchedTracer, ChromatogramFilter, join_mass_shifted
+from glycan_profiling.scoring import ChromatogramSolution, NetworkScoreDistributor, ChromatogramScorer
+from glycan_profiling.trace import (
+    IncludeUnmatchedTracer, ChromatogramFilter, join_mass_shifted,
+    reverse_adduction_search)
+
+from brainpy import periodic_table
+
+from ms_deisotope.averagine import Averagine, glycan as n_glycan_averagine
+
+import logging
+
+try:
+    logger = logging.getLogger("glycan_profiler")
+    fmt = logging.Formatter(
+        "%(asctime)s - %(name)s:%(funcName)s:%(lineno)d - %(levelname)s - %(message)s",
+        "%H:%M:%S")
+    handle = logging.StreamHandler()
+    handle.setFormatter(fmt)
+    logger.handlers = []
+    logger.addHandler(handle)
+    logger.propagate = False
+except Exception:
+    logger.exception("An error occurred while configuring logger", exc_info=True)
+
+
+def validate_element(element):
+    valid = element in periodic_table
+    if not valid:
+        warnings.warn("%r is not a valid element" % element)
+    return valid
+
+
+def parse_averagine_formula(formula):
+    return Averagine({k: float(v) for k, v in re.findall(r"([A-Z][a-z]*)([0-9\.]*)", formula)
+                      if float(v or 0) > 0 and validate_element(k)})
 
 
 class GlycanProfiler(object):
-    def __init__(self, mzml_path, database_rules_path):
+    def __init__(self, mzml_path, database_rules_path, averagine=n_glycan_averagine, charge_range=(-1, -8)):
+        if isinstance(averagine, basestring):
+            averagine = parse_averagine_formula(averagine)
+
         self.mzml_path = mzml_path
-        self.scan_generator = PipedScanGenerator(mzml_path)
+        self.scan_generator = PipedScanGenerator(mzml_path, averagine=averagine, charge_range=charge_range)
 
         self.database_rules_path = database_rules_path
         if isinstance(database_rules_path, basestring):
@@ -29,12 +67,13 @@ class GlycanProfiler(object):
         if adducts is None:
             adducts = []
 
+        logger.info("Begin Chromatogram Tracing")
         self.scan_generator.configure_iteration(start_scan=start_scan, end_scan=end_scan, max_scans=max_scans)
         self.tracer = IncludeUnmatchedTracer(self.scan_generator, self.database, mass_error_tolerance)
 
         i = 0
         for case in self.tracer:
-            print i, case[1].index, case[1].scan_time, case[1].id, len(case[0])
+            logger.info("%d, %d, %s, %s, %d", i, case[1].index, case[1].scan_time, case[1].id, len(case[0]))
             i += 1
             if end_scan == case[1].id or i == max_scans:
                 break
@@ -42,16 +81,25 @@ class GlycanProfiler(object):
         if grouping_mass_error_tolerance is None:
             grouping_mass_error_tolerance = mass_error_tolerance * 1.5
 
-        self.chromatograms = join_mass_shifted(
-            ChromatogramFilter(self.tracer.chromatograms(
-                grouping_tolerance=grouping_mass_error_tolerance)), adducts, mass_error_tolerance)
+        self.build_chromatograms(mass_error_tolerance, grouping_mass_error_tolerance, adducts)
 
-    def score(self, base_coef=0.8, support_coef=0.2, rt_delta=0.25):
+    def build_chromatograms(self, mass_error_tolerance, grouping_mass_error_tolerance, adducts, truncate=True):
+        logger.info("Post-Processing Chromatogram Traces (%0.3e, %0.3e, %r, %r)",
+                    mass_error_tolerance, grouping_mass_error_tolerance, adducts, truncate)
+        self.chromatograms = reverse_adduction_search(
+            join_mass_shifted(
+                ChromatogramFilter(self.tracer.chromatograms(
+                    grouping_tolerance=grouping_mass_error_tolerance,
+                    truncate=truncate)), adducts, mass_error_tolerance),
+            adducts, mass_error_tolerance, self.database)
+
+    def score(self, base_coef=0.8, support_coef=0.2, rt_delta=0.25, scoring_model=None):
+        if scoring_model is None:
+            scoring_model = ChromatogramScorer()
         self.solutions = []
         for case in ChromatogramFilter.process(self.chromatograms, delta_rt=rt_delta):
             try:
-                self.solutions.append(ChromatogramSolution(case))
-                # print case
+                self.solutions.append(ChromatogramSolution(case, scorer=scoring_model))
             except (IndexError, ValueError), e:
                 print case, e, len(case)
                 continue
