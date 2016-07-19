@@ -88,6 +88,25 @@ class Chromatogram(object):
             adducts.update(node.node_types())
         self._adducts = list(adducts)
 
+    def __getitem__(self, i):
+        return self.nodes[i]
+
+    def __iter__(self):
+        return iter(self.nodes)
+
+    def total_signal_for(self, node_type=Unmodified):
+        total = 0.
+        for node in self.nodes:
+            node = node._find(node_type)
+            if node is not None:
+                total += node._total_intensity_members()
+        return total
+
+    def adduct_signal_fractions(self):
+        return {
+            k: self.total_signal_for(k) for k in self.adducts
+        }
+
     @property
     def adducts(self):
         if self._adducts is None:
@@ -126,12 +145,13 @@ class Chromatogram(object):
                 maximum_intensity = intensity
                 best_neutral_mass = mass
         if total > 0:
-            self._weighted_neutral_mass = prod / total
+            self._weighted_neutral_mass = prod / total - node_type.mass
         else:
-            self._weighted_neutral_mass = best_neutral_mass
-        self._neutral_mass = best_neutral_mass
-        if self._neutral_mass is 0:
+            self._weighted_neutral_mass = best_neutral_mass - node_type.mass
+        self._neutral_mass = best_neutral_mass - node_type.mass
+        if self._neutral_mass == 0:
             raise KeyError(node_type)
+        return best_neutral_mass
 
     @property
     def neutral_mass(self):
@@ -247,7 +267,7 @@ class Chromatogram(object):
 
     def merge(self, other, node_type=Unmodified):
         new = self.clone()
-        for node in other.nodes:
+        for node in other.nodes.unspool_strip_children():
             node = node.clone()
             node.node_type = node_type
             new.insert_node(node)
@@ -267,6 +287,17 @@ class Chromatogram(object):
             ChromatogramTreeList(node.clone() for node in self.nodes[i:j + 1]),
             used_as_adduct=list(self.used_as_adduct))
         return new
+
+    def bisect_adduct(self, adduct):
+        new_adduct = Chromatogram(self.composition)
+        new_no_adduct = Chromatogram(self.composition)
+        for node in self:
+            for new_node in node._unspool_strip_children():
+                if new_node.node_type == adduct:
+                    new_adduct.insert_node(new_node)
+                else:
+                    new_no_adduct.insert_node(new_node)
+        return new_adduct, new_no_adduct
 
 
 class ChromatogramTreeList(object):
@@ -330,6 +361,28 @@ class ChromatogramTreeList(object):
     def clone(self):
         return ChromatogramTreeList(node.clone() for node in self)
 
+    def unspool(self):
+        out_queue = []
+        for root in self:
+            stack = [root]
+            while len(stack) != 0:
+                node = stack.pop()
+                out_queue.append(node)
+                stack.extend(node.children)
+        return out_queue
+
+    def unspool_strip_children(self):
+        out_queue = []
+        for root in self:
+            stack = [root]
+            while len(stack) != 0:
+                node = stack.pop()
+                node_copy = node.clone()
+                node_copy.children = []
+                out_queue.append(node_copy)
+                stack.extend(node.children)
+        return out_queue
+
 
 class ChromatogramTreeNode(object):
     def __init__(self, retention_time=None, scan_id=None, children=None, members=None,
@@ -354,6 +407,14 @@ class ChromatogramTreeNode(object):
             list(self.members), node_type=self.node_type)
         node.node_id = self.node_id
         return node
+
+    def _unspool_strip_children(self):
+        node = ChromatogramTreeNode(
+            self.retention_time, self.scan_id, [], list(self.members), node_type=self.node_type)
+        yield node
+        for child in self.children:
+            for node in child._unspool_strip_children():
+                yield node
 
     def _recalculate(self):
         self._neutral_mass = max(self.members, key=lambda x: x.intensity).neutral_mass
@@ -390,13 +451,13 @@ class ChromatogramTreeNode(object):
         return self.find(node_type)._neutral_mass
 
     def add(self, node, recalculate=True):
+        assert self.node_id != node.node_id
         if node.node_type == self.node_type:
             self.members.extend(node.members)
-            self.children.extend(node.children)
-            if recalculate:
-                self._recalculate()
         else:
             self.children.append(node)
+        if recalculate:
+            self._recalculate()
 
     def _total_intensity_members(self):
         total = 0.
@@ -415,6 +476,9 @@ class ChromatogramTreeNode(object):
 
     def total_intensity(self):
         return self._total_intensity_children() + self._total_intensity_members()
+
+    def __eq__(self, other):
+        return self.members == other.members
 
     @property
     def peaks(self):
@@ -478,7 +542,6 @@ class ChromatogramForest(object):
             matched = False
         else:
             index, matched = self.find_insertion_point(peak)
-        # print peak.neutral_mass, peak.intensity, self.count, index
         if matched:
             chroma = self.chromatograms[self.find_minimizing_index(peak, index)]
             chroma.insert(scan_id, peak, self.scan_id_to_rt(scan_id))
@@ -505,6 +568,18 @@ class ChromatogramForest(object):
             if peak.neutral_mass < minimum_mass or peak.intensity < minimum_intensity:
                 continue
             self.handle_peak(scan_id, peak)
+
+
+def mask_subsequence(target, masker):
+    unmasked_nodes = []
+    target_nodes = target.nodes.unspool_strip_children()
+    masking_nodes = masker.nodes.unspool()
+    for node in target_nodes:
+        if node not in masking_nodes:
+            unmasked_nodes.append(node)
+    new = Chromatogram(target.composition)
+    map(new.insert_node, unmasked_nodes)
+    return new
 
 
 def is_sorted(mass_list):

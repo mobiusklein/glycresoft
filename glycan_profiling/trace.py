@@ -5,7 +5,8 @@ from collections import defaultdict, OrderedDict, namedtuple
 # import itertools
 
 from .chromatogram_tree import (
-    Chromatogram, ChromatogramForest)
+    Chromatogram, ChromatogramForest, Unmodified,
+    mask_subsequence)
 
 dummyscan = namedtuple('dummyscan', ["id", "index", "scan_time"])
 
@@ -135,14 +136,6 @@ class IncludeUnmatchedTracer(Tracer):
         return chroma
 
 
-def is_sorted(mass_list):
-    for a, b in zip(mass_list[:-1], mass_list[1:]):
-        if not a.neutral_mass <= b.neutral_mass:
-            print a.neutral_mass, b.neutral_mass
-            return False
-    return True
-
-
 def binary_search_with_flag(array, mass, error_tolerance=1e-5):
     lo = 0
     hi = len(array)
@@ -196,7 +189,7 @@ class ChromatogramDeltaNode(object):
         return nodes
 
 
-def find_truncation_points(rt, signal):
+def build_chromatogram_nodes(rt, signal):
     rt = np.array(rt)
     smoothed = gaussian_filter1d(signal, 3)
     delta_smoothed = np.gradient(smoothed, rt)
@@ -208,20 +201,33 @@ def find_truncation_points(rt, signal):
     hi = avg_change + std_change
 
     nodes = ChromatogramDeltaNode.partition(rt, delta_smoothed)
+
     for node in nodes:
         if lo > node.mean_change or node.mean_change > hi:
             node.is_below_threshold = False
+
+    return nodes
+
+
+def find_truncation_points(rt, signal):
+    nodes = build_chromatogram_nodes(rt, signal)
+
     leading = 0
     ending = len(nodes)
+
     for node in nodes:
         if not node.is_below_threshold:
             break
         leading += 1
+    leading -= 3
+    leading = max(leading, 0)
+
     for node in reversed(nodes):
         if not node.is_below_threshold:
             break
         ending -= 1
-    ending = min(ending + 1, len(nodes) - 1)
+
+    ending = min(ending + 2, len(nodes) - 1)
     if len(nodes) == 1:
         return nodes[0].start_timem, nodes[0].end_time
     elif len(nodes) == 2:
@@ -307,7 +313,7 @@ def join_mass_shifted(chromatograms, adducts, mass_error_tolerance=1e-5):
         for adduct in adducts:
             match = chromatograms.find_mass(chroma.neutral_mass + adduct.mass, mass_error_tolerance)
             if match and span_overlap(add, match):
-                match.used_as_adduct.append(add.key)
+                match.used_as_adduct.append((add.key, adduct))
                 add = add.merge(match, node_type=adduct)
                 add.adducts.append(adduct)
         out.append(add)
@@ -343,6 +349,7 @@ def reverse_adduction_search(chromatograms, adducts, mass_error_tolerance, datab
                     chroma_to_update = new_members[name]
                 else:
                     chroma_to_update = Chromatogram(name)
+                chroma, _ = chroma.bisect_adduct(Unmodified)
                 chroma_to_update = chroma_to_update.merge(chroma, adduct)
                 new_members[name] = chroma_to_update
                 matched = True
@@ -352,4 +359,27 @@ def reverse_adduction_search(chromatograms, adducts, mass_error_tolerance, datab
     out.extend(exclude_compositions.values())
     out.extend(new_members.values())
     out.extend(unmatched)
+    return ChromatogramFilter(out)
+
+
+def prune_bad_adduct_branches(solutions):
+    key_map = {c.key: c for c in solutions}
+    updated = set()
+    for case in solutions:
+        if case.used_as_adduct:
+            keepers = []
+            for owning_key, adduct in case.used_as_adduct:
+                owner = key_map.get(owning_key)
+                if owner is None:
+                    continue
+                if case.score > owner.score:
+                    new_masked = mask_subsequence(owner, case)
+                    key_map[owning_key] = new_masked
+                    new_masked.score = owner.score
+                    updated.add(owning_key)
+                else:
+                    keepers.append((owning_key, adduct))
+            case.used_as_adduct = keepers
+    out = [key_map[k].chromatogram for k in set(key_map) - updated]
+    out.extend(key_map[k] for k in updated)
     return ChromatogramFilter(out)

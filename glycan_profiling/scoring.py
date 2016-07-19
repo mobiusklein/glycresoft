@@ -20,6 +20,8 @@ from brainpy import isotopic_variants
 
 import glypy
 
+from .chromatogram_tree import Unmodified
+
 
 epsilon = 1e-6
 
@@ -30,6 +32,10 @@ def total_intensity(peaks):
 
 def ppm_error(x, y):
     return (x - y) / y
+
+
+def prod(*x):
+    return reduce(mul, x, 1)
 
 
 def skewgauss(xs, center, amplitude, sigma, gamma):
@@ -59,13 +65,19 @@ class ChromatogramShapeFitter(object):
         self.line_test = None
         self.off_center = None
 
-        self.extract_arrays()
-        self.peak_shape_fit()
-        self.perform_line_test()
-        self.off_center_factor()
+        if len(chromatogram) < 5:
+            self.handle_invalid()
+        else:
+            self.extract_arrays()
+            self.peak_shape_fit()
+            self.perform_line_test()
+            self.off_center_factor()
 
     def __repr__(self):
         return "ChromatogramShapeFitter(%s, %0.4f)" % (self.chromatogram, self.line_test)
+
+    def handle_invalid(self):
+        self.line_test = 0.0
 
     def off_center_factor(self):
         self.off_center = abs(1 - abs(1 - (2 * abs(
@@ -225,9 +237,11 @@ class IsotopicPatternConsistencyFitter(object):
     def __repr__(self):
         return "IsotopicPatternConsistencyFitter(%s, %0.4f)" % (self.chromatogram, self.mean_fit)
 
-    def generate_isotopic_pattern(self, charge):
+    def generate_isotopic_pattern(self, charge, node_type=Unmodified):
         if self.composition is not None:
-            tid = isotopic_variants(self.composition, charge=charge, charge_carrier=self.charge_carrier)
+            tid = isotopic_variants(
+                self.composition + node_type.composition,
+                charge=charge, charge_carrier=self.charge_carrier)
             out = []
             total = 0.
             for p in tid:
@@ -239,23 +253,27 @@ class IsotopicPatternConsistencyFitter(object):
         else:
             tid = self.averagine.isotopic_cluster(
                 mass_charge_ratio(
-                    self.chromatogram.neutral_mass,
+                    self.chromatogram.neutral_mass + node_type.mass,
                     charge, charge_carrier=self.charge_carrier),
                 charge,
                 charge_carrier=self.charge_carrier)
             return tid
 
-    def score_isotopic_pattern(self, deconvoluted_peak):
-        tid = self.generate_isotopic_pattern(deconvoluted_peak.charge)
+    def score_isotopic_pattern(self, deconvoluted_peak, node_type=Unmodified):
+        eid, tid = self.prepare_isotopic_patterns(deconvoluted_peak, node_type)
+        return g_test_scaled(None, eid, tid)
+
+    def prepare_isotopic_patterns(self, deconvoluted_peak, node_type=Unmodified):
+        tid = self.generate_isotopic_pattern(deconvoluted_peak.charge, node_type)
         eid = envelope_to_peak_list(deconvoluted_peak.envelope)
         scale_theoretical_isotopic_pattern(eid, tid)
         tid = align_peak_list(eid, tid)
-        return g_test_scaled(None, eid, tid)
+        return eid, tid
 
     def fit(self):
-        for scan in self.chromatogram.peaks:
-            for peak in scan:
-                score = self.score_isotopic_pattern(peak)
+        for node in self.chromatogram.nodes.unspool():
+            for peak in node.members:
+                score = self.score_isotopic_pattern(peak, node.node_type)
                 self.scores.append(score)
                 self.intensity.append(peak.intensity)
         self.intensity = np.array(self.intensity)

@@ -5,8 +5,6 @@ import ms_deisotope
 
 import traceback
 
-from numpy.linalg import LinAlgError
-
 from ms_deisotope.processor import MzMLLoader
 
 from multiprocessing import Process, Queue
@@ -91,6 +89,12 @@ class ScanTransformingProcess(Process):
     def log_message(self, message, *args):
         print(message, args, multiprocessing.current_process())
 
+    def skip_scan(self, scan):
+        self.output_queue.put((SCAN_STATUS_SKIP, scan.index, scan.ms_level))
+
+    def send_scan(self, scan):
+        self.output_queue.put((scan.pack(), scan.index, scan.ms_level))
+
     def run(self):
         loader = MzMLLoader(self.mzml_path)
 
@@ -117,9 +121,11 @@ class ScanTransformingProcess(Process):
             try:
                 pick_peaks(scan)
                 deconvolve(scan, averagine_cache, self.charge_range)
-                self.output_queue.put((scan.pack(), scan.index, 0))
+                # self.output_queue.put((scan.pack(), scan.index, 0))
+                self.send_scan(scan)
             except Exception, e:
-                self.output_queue.put((SCAN_STATUS_SKIP, scan.index, 0))
+                # self.output_queue.put((SCAN_STATUS_SKIP, scan.index, 0))
+                self.skip_scan(scan)
                 self.log_error(e, scan_id, scan, (product_scan_ids))
             for product_scan_id in product_scan_ids:
                 try:
@@ -132,9 +138,11 @@ class ScanTransformingProcess(Process):
                 try:
                     pick_peaks(scan)
                     deconvolve(scan, averagine_cache, self.charge_range)
-                    self.output_queue.put((scan.pack(), scan.index, 1))
+                    # self.output_queue.put((scan.pack(), scan.index, 1))
+                    self.send_scan(scan)
                 except Exception, e:
-                    self.output_queue.put((SCAN_STATUS_SKIP, scan.index, 1))
+                    # self.output_queue.put((SCAN_STATUS_SKIP, scan.index, 1))
+                    self.skip_scan(scan)
                     self.log_error(e, product_scan_id, scan, (product_scan_ids))
 
         self.log_message("Done")

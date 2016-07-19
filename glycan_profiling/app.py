@@ -1,6 +1,8 @@
 import re
-import glypy
+import time
 import warnings
+
+import glypy
 
 from glycan_profiling import plotting
 from glycan_profiling.database import build_database
@@ -8,7 +10,7 @@ from glycan_profiling.piped_deconvolve import ScanGenerator as PipedScanGenerato
 from glycan_profiling.scoring import ChromatogramSolution, NetworkScoreDistributor, ChromatogramScorer
 from glycan_profiling.trace import (
     IncludeUnmatchedTracer, ChromatogramFilter, join_mass_shifted,
-    reverse_adduction_search)
+    reverse_adduction_search, prune_bad_adduct_branches)
 
 from brainpy import periodic_table
 
@@ -57,15 +59,19 @@ class GlycanProfiler(object):
             self.database = database_rules_path
 
         self.tracer = None
+        self.adducts = []
 
         self.chromatograms = None
         self.solutions = None
 
     def search(self, mass_error_tolerance=1e-5, grouping_mass_error_tolerance=None, start_scan=None,
-               max_scans=None, end_scan=None, adducts=None):
+               max_scans=None, end_scan=None, adducts=None, truncate=False):
+
+        start = time.time()
 
         if adducts is None:
             adducts = []
+        self.adducts = adducts
 
         logger.info("Begin Chromatogram Tracing")
         self.scan_generator.configure_iteration(start_scan=start_scan, end_scan=end_scan, max_scans=max_scans)
@@ -81,9 +87,10 @@ class GlycanProfiler(object):
         if grouping_mass_error_tolerance is None:
             grouping_mass_error_tolerance = mass_error_tolerance * 1.5
 
-        self.build_chromatograms(mass_error_tolerance, grouping_mass_error_tolerance, adducts)
+        self.build_chromatograms(mass_error_tolerance, grouping_mass_error_tolerance, adducts, truncate)
+        logger.info("Tracing Complete (%r minutes elapsed)", (time.time() - start) / 60.)
 
-    def build_chromatograms(self, mass_error_tolerance, grouping_mass_error_tolerance, adducts, truncate=True):
+    def build_chromatograms(self, mass_error_tolerance, grouping_mass_error_tolerance, adducts, truncate=False):
         logger.info("Post-Processing Chromatogram Traces (%0.3e, %0.3e, %r, %r)",
                     mass_error_tolerance, grouping_mass_error_tolerance, adducts, truncate)
         self.chromatograms = reverse_adduction_search(
@@ -103,12 +110,24 @@ class GlycanProfiler(object):
             except (IndexError, ValueError), e:
                 print case, e, len(case)
                 continue
-        self.solutions = ChromatogramFilter(self.solutions)
         NetworkScoreDistributor(self.solutions, self.database.network).distribute(base_coef, support_coef)
 
-    def plot(self, min_score=0.4, min_signal=0.2, colorizer=None, chromatogram_artist=None):
+        if self.adducts:
+            hold = prune_bad_adduct_branches(self.solutions)
+            self.solutions = []
+            for case in hold:
+                try:
+                    self.solutions.append(ChromatogramSolution(case, scorer=scoring_model))
+                except (IndexError, ValueError, ZeroDivisionError), e:
+                    print case, e, len(case)
+                    continue
+            NetworkScoreDistributor(self.solutions, self.database.network).distribute(base_coef, support_coef)
+
+        self.solutions = ChromatogramFilter(self.solutions)
+
+    def plot(self, min_score=0.4, min_signal=0.2, colorizer=None, chromatogram_artist=None, include_tic=True):
         if chromatogram_artist is None:
-            chromatogram_artist = plotting.ChromatogramArtist
+            chromatogram_artist = plotting.SmoothingChromatogramArtist
         monosaccharides = set()
 
         for sol in self.solutions:
@@ -117,18 +136,19 @@ class GlycanProfiler(object):
 
         label_abundant = plotting.AbundantLabeler(
             plotting.NGlycanLabelProducer(monosaccharides),
-            max(sol.total_signal for sol in self.solutions) * min_signal)
+            max(sol.total_signal for sol in self.solutions if sol.score > min_score) * min_signal)
 
         if colorizer is None:
             colorizer = plotting.n_glycan_colorizer
 
-        results = [sol for sol in self.solutions if sol.score > min_score]
+        results = [sol for sol in self.solutions if sol.score > min_score and not sol.used_as_adduct]
         chrom = chromatogram_artist(results, colorizer=colorizer).draw(label_function=label_abundant)
-        chrom.draw_generic_chromatogram(
-            "TIC",
-            map(self.tracer.scan_id_to_rt, self.tracer.total_ion_chromatogram),
-            self.tracer.total_ion_chromatogram.values(), 'blue')
-        chrom.ax.set_ylim(0, max(self.tracer.total_ion_chromatogram.values()) * 1.1)
+        if include_tic:
+            chrom.draw_generic_chromatogram(
+                "TIC",
+                map(self.tracer.scan_id_to_rt, self.tracer.total_ion_chromatogram),
+                self.tracer.total_ion_chromatogram.values(), 'blue')
+            chrom.ax.set_ylim(0, max(self.tracer.total_ion_chromatogram.values()) * 1.1)
 
         agg = plotting.AggregatedAbundanceArtist(results)
         agg.draw()
