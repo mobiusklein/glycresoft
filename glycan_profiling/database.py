@@ -23,12 +23,18 @@ class MassDatabase(object):
     structures : list
         A list of :class:`FrozenGlycanComposition` instances, sorted by mass
     """
-    def __init__(self, structures, distance_fn=n_glycan_distance):
+    def __init__(self, structures, network=None, distance_fn=n_glycan_distance):
         self.structures = list(map(FrozenGlycanComposition, structures))
         self.structures.sort(key=lambda x: x.mass())
-        self.network = CompositionGraph(self.structures)
-        if distance_fn is not None:
-            self.network._create_edges(1, distance_fn=distance_fn)
+        if network is None:
+            self.network = CompositionGraph(self.structures)
+            if distance_fn is not None:
+                self.network._create_edges(1, distance_fn=distance_fn)
+
+    @classmethod
+    def from_network(cls, network):
+        structures = [node.composition for node in network.nodes]
+        return cls(structures, network)
 
     def __len__(self):
         return len(self.structures)

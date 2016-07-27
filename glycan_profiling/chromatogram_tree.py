@@ -6,6 +6,14 @@ import glypy
 from glypy.utils import uid
 
 
+class EmptyListException(Exception):
+    pass
+
+
+class DuplicateNodeError(Exception):
+    pass
+
+
 def group_by(ungrouped_list, key_fn=lambda x: x, transform_fn=lambda x: x):
     groups = defaultdict(list)
     for item in ungrouped_list:
@@ -53,6 +61,8 @@ Formate = MassShift("Formate", glypy.Composition('HCOOH'))
 
 
 class Chromatogram(object):
+    created_at = "new"
+
     def __init__(self, composition, nodes=None, adducts=None, used_as_adduct=None):
         if nodes is None:
             nodes = ChromatogramTreeList()
@@ -237,13 +247,15 @@ class Chromatogram(object):
         x = Chromatogram(self.composition, ChromatogramTreeList(current_chunk))
         x.used_as_adduct = list(self.used_as_adduct)
         chunks.append(x)
+        for chunk in chunks:
+            chunk.created_at = self.created_at
         return chunks
 
     def truncate_before(self, time):
         _, i = self.nodes.find_time(time)
         if self.nodes[i].retention_time < time:
             i += 1
-        self.nodes = ChromatogramTreeList(self.nodes[i + 1:])
+        self.nodes = ChromatogramTreeList(self.nodes[i:])
         self._invalidate()
 
     def truncate_after(self, time):
@@ -254,8 +266,10 @@ class Chromatogram(object):
         self._invalidate()
 
     def clone(self):
-        return Chromatogram(
+        c = Chromatogram(
             self.composition, self.nodes.clone(), list(self.adducts), list(self.used_as_adduct))
+        c.created_at = self.created_at
+        return c
 
     def insert_node(self, node):
         self.nodes.insert_node(node)
@@ -271,6 +285,7 @@ class Chromatogram(object):
             node = node.clone()
             node.node_type = node_type
             new.insert_node(node)
+        new.created_at = "merge"
         return new
 
     @classmethod
@@ -299,6 +314,31 @@ class Chromatogram(object):
                     new_no_adduct.insert_node(new_node)
         return new_adduct, new_no_adduct
 
+    def bisect_charge(self, charge):
+        new_charge = Chromatogram(self.composition)
+        new_no_charge = Chromatogram(self.composition)
+        for node in self.nodes.unspool():
+            node_t = node.node_type
+            rt = node.retention_time
+            scan_id = node.scan_id
+            peaks = node.members
+            charge_peaks = []
+            no_charge_peaks = []
+            for peak in peaks:
+                if peak.charge == charge:
+                    charge_peaks.append(peak)
+                else:
+                    no_charge_peaks.append(peak)
+            charge_node = ChromatogramTreeNode(
+                retention_time=rt, scan_id=scan_id, children=None,
+                members=charge_peaks, node_type=node_t)
+            new_charge.insert_node(charge_node)
+            no_charge_node = ChromatogramTreeNode(
+                retention_time=rt, scan_id=scan_id, children=None,
+                members=no_charge_peaks, node_type=node_t)
+            new_no_charge.insert_node(no_charge_node)
+        return new_charge, new_no_charge
+
 
 class ChromatogramTreeList(object):
     def __init__(self, roots=None):
@@ -308,7 +348,7 @@ class ChromatogramTreeList(object):
 
     def find_time(self, retention_time):
         if len(self.roots) == 0:
-            raise ValueError("Empty!")
+            raise EmptyListException()
         lo = 0
         hi = len(self.roots)
         while lo != hi:
@@ -337,7 +377,7 @@ class ChromatogramTreeList(object):
             else:
                 root.add(node)
             return i
-        except ValueError:
+        except EmptyListException:
             self.roots.append(node)
             return 0
 
@@ -451,7 +491,8 @@ class ChromatogramTreeNode(object):
         return self.find(node_type)._neutral_mass
 
     def add(self, node, recalculate=True):
-        assert self.node_id != node.node_id
+        if self.node_id == node.node_id:
+            raise DuplicateNodeError("Duplicate Node %s" % node)
         if node.node_type == self.node_type:
             self.members.extend(node.members)
         else:
@@ -472,7 +513,7 @@ class ChromatogramTreeNode(object):
         return total
 
     def max_intensity(self):
-        return max(self.peaks, key=lambda x: x.intensity).intensity
+        return max(self.members, key=lambda x: x.intensity).intensity
 
     def total_intensity(self):
         return self._total_intensity_children() + self._total_intensity_members()
@@ -547,6 +588,7 @@ class ChromatogramForest(object):
             chroma.insert(scan_id, peak, self.scan_id_to_rt(scan_id))
         else:
             chroma = Chromatogram(None)
+            chroma.created_at = "forest"
             chroma.insert(scan_id, peak, self.scan_id_to_rt(scan_id))
             self.insert_chromatogram(chroma, index)
         self.count += 1
@@ -578,6 +620,7 @@ def mask_subsequence(target, masker):
         if node not in masking_nodes:
             unmasked_nodes.append(node)
     new = Chromatogram(target.composition)
+    new.created_at = "mask_subsequence"
     map(new.insert_node, unmasked_nodes)
     return new
 
@@ -639,3 +682,15 @@ def binary_search_with_flag(array, mass, error_tolerance=1e-5):
             elif err < 0:
                 lo = mid
         return 0, False
+
+
+class ChromatogramGraphNode(object):
+    def __init__(self, chromatogram):
+        self.chromatogram = chromatogram
+        self.edges = set()
+
+    def __eq__(self, other):
+        return self.chromatogram == other.chromatogram
+
+    def __hash__(self):
+        return hash(self.chromatogram.key)

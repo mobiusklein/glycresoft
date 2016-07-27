@@ -18,13 +18,18 @@ DONE = b"--NO-MORE--"
 SCAN_STATUS_GOOD = b"good"
 SCAN_STATUS_SKIP = b"skip"
 
+resampler = ms_peak_picker.scan_filter.LinearResampling(0.0001)
+savgol = ms_peak_picker.scan_filter.SavitskyGolayFilter()
+denoise = ms_peak_picker.scan_filter.FTICRBaselineRemoval(scale=2.)
+
 
 def pick_peaks(scan, remove_baseline=True, smooth=True, start_mz=200.):
     transforms = []
     if remove_baseline:
-        transforms.append(ms_peak_picker.scan_filter.FTICRBaselineRemoval(scale=2.))
+        transforms.append(denoise)
     if smooth:
-        transforms.append(ms_peak_picker.scan_filter.SavitskyGolayFilter())
+        # transforms.append(resampler)
+        transforms.append(savgol)
     scan.pick_peaks(transforms=transforms, start_mz=start_mz)
     return scan
 

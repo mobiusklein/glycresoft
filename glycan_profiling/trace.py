@@ -78,6 +78,10 @@ class Tracer(object):
             out.append(c)
         return out
 
+    def find_truncation_points(self):
+        start, stop = find_truncation_points(*self.total_ion_chromatogram.as_arrays())
+        return start, stop
+
     def chromatograms(self, truncate=True):
         chroma = [
             Chromatogram.from_parts(composition, map(
@@ -247,8 +251,11 @@ class SimpleChromatogram(OrderedDict):
 
 
 class ChromatogramFilter(object):
-    def __init__(self, chromatograms):
-        self.chromatograms = [c for c in sorted(chromatograms, key=lambda x: x.neutral_mass) if len(c)]
+    def __init__(self, chromatograms, sort=True):
+        if sort:
+            self.chromatograms = [c for c in sorted([c for c in chromatograms if len(c)], key=lambda x: x.neutral_mass)]
+        else:
+            self.chromatograms = list(chromatograms)
 
     def __iter__(self):
         return iter(self.chromatograms)
@@ -292,7 +299,19 @@ class ChromatogramFilter(object):
         return str(list(self))
 
     def spanning(self, rt):
-        return self.__class__(c for c in self if c.start_time < rt < c.end_time)
+        return self.__class__((c for c in self if c.start_time < rt < c.end_time), sort=False)
+
+    def mass_between(self, low, high):
+        low_index, flag = binary_search_with_flag(self, low, 1e-5)
+        if self[low_index] < low:
+            low_index += 1
+        high_index, flag = binary_search_with_flag(self, high, 1e-5)
+        if self[high_index] > high:
+            high_index -= 1
+        return ChromatogramFilter(self[low_index:high_index], sort=False)
+
+    def filter(self, filter_fn):
+        return self.__class__([x for x in self if filter_fn(x)], sort=False)
 
     @classmethod
     def process(cls, chromatograms, n_peaks=5, percentile=10, delta_rt=1.):
@@ -315,6 +334,7 @@ def join_mass_shifted(chromatograms, adducts, mass_error_tolerance=1e-5):
             if match and span_overlap(add, match):
                 match.used_as_adduct.append((add.key, adduct))
                 add = add.merge(match, node_type=adduct)
+                add.created_at = "join_mass_shifted"
                 add.adducts.append(adduct)
         out.append(add)
     return ChromatogramFilter(out)
@@ -349,8 +369,10 @@ def reverse_adduction_search(chromatograms, adducts, mass_error_tolerance, datab
                     chroma_to_update = new_members[name]
                 else:
                     chroma_to_update = Chromatogram(name)
+                    chroma_to_update.created_at = "reverse_adduction_search"
                 chroma, _ = chroma.bisect_adduct(Unmodified)
                 chroma_to_update = chroma_to_update.merge(chroma, adduct)
+                chroma_to_update.created_at = "reverse_adduction_search"
                 new_members[name] = chroma_to_update
                 matched = True
         if not matched and not exclude:
@@ -374,12 +396,13 @@ def prune_bad_adduct_branches(solutions):
                     continue
                 if case.score > owner.score:
                     new_masked = mask_subsequence(owner, case)
+                    new_masked.created_at = "prune_bad_adduct_branches"
                     key_map[owning_key] = new_masked
                     new_masked.score = owner.score
                     updated.add(owning_key)
                 else:
                     keepers.append((owning_key, adduct))
-            case.used_as_adduct = keepers
+            case.chromatogram.used_as_adduct = keepers
     out = [key_map[k].chromatogram for k in set(key_map) - updated]
     out.extend(key_map[k] for k in updated)
     return ChromatogramFilter(out)

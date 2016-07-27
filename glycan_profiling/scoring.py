@@ -1,6 +1,6 @@
 from collections import namedtuple, defaultdict
 from operator import mul
-
+import warnings
 try:
     reduce
 except:
@@ -19,6 +19,8 @@ from ms_peak_picker.peak_set import FittedPeak
 from brainpy import isotopic_variants
 
 import glypy
+
+from glypy.composition.glycan_composition import FrozenGlycanComposition
 
 from .chromatogram_tree import Unmodified
 
@@ -324,7 +326,6 @@ class MassScalingChargeStateScoringModel(ChargeStateDistributionScoringModelBase
         total = 0.
         neighborhood = neighborhood_of(chromatogram.neutral_mass, self.neighborhood_width)
         if neighborhood not in self.table:
-            import warnings
             warnings.warn(
                 ("%f was not found for this charge state "
                  "scoring model. Defaulting to uniform model") % neighborhood)
@@ -332,7 +333,12 @@ class MassScalingChargeStateScoringModel(ChargeStateDistributionScoringModelBase
         bins = self.table[neighborhood]
 
         for charge in chromatogram.charge_states:
-            total += bins[charge]
+            try:
+                total += bins[charge]
+            except KeyError:
+                warnings.warn("%d not found for this mass range (%f). Using bin average" % (charge, neighborhood))
+                total += sum(bins.values()) / float(len(bins))
+        total = min(total, 1.0)
         return total
 
     @classmethod
@@ -409,28 +415,78 @@ class NetworkScoreDistributor(object):
         self.solutions = solutions
         self.network = network
 
-    def distribute(self, base_coef=0.8, support_coef=0.2):
-        solution_map = {
+    def build_solution_map(self):
+        self.solution_map = {
             sol.chromatogram.composition: sol
             for sol in self.solutions
             if sol.chromatogram.composition is not None
         }
+        return self.solution_map
+
+    def _set_up_temporary_score(self, items, iteration=0):
+        if iteration > 0:
+            for sol in items:
+                sol._temp_score = sol.score
+        else:
+            for sol in items:
+                sol._temp_score = sol.internal_score
+
+    def score_solution(self, solution, base_coef=0.8, support_coef=0.2):
+        sol = solution
+        base = base_coef * sol._temp_score
+        support = 0
+        n_edges_matched = 0
+        if sol.composition is not None:
+            cn = self.network[sol.composition]
+            for edge in cn.edges:
+                other = edge[cn]
+                if other in self.solution_map:
+                    n_edges_matched += 1
+                    other_sol = self.solution_map[other]
+                    support += support_coef * edge.weight * other_sol._temp_score
+            sol.score = base + min(support, support_coef)
+        else:
+            sol.score = base
+        return base, support, sol.score, n_edges_matched
+
+    def distribute(self, base_coef=0.8, support_coef=0.2, iterations=1):
+        self.build_solution_map()
+        for i in range(iterations):
+            self._set_up_temporary_score(self.solutions, i)
+            for sol in self.solutions:
+                self.score_solution(sol, base_coef, support_coef)
+
+    def assign_network(self):
+        solution_map = self.build_solution_map()
 
         cg = self.network
 
-        for sol in self.solutions:
-            if sol.composition is not None:
-                cn = cg[sol.composition]
-                base = base_coef * sol.score
-                support = 0
-                for edge in cn.edges:
-                    other = edge[cn]
-                    if other in solution_map:
-                        other_sol = solution_map[other]
-                        support += support_coef * edge.weight * other_sol.score
-                sol.score = base + min(support, support_coef)
+        for node in cg.nodes:
+            node.internal_score = 0
+            node._temp_score = 0
+
+        for composition, solution in solution_map.items():
+            node = cg[composition]
+            node.internal_score = solution.score
+
+    def update_network(self, base_coef=0.8, support_coef=0.2, iterations=1):
+        cg = self.network
+
+        for i in range(iterations):
+            if i > 0:
+                for node in cg.nodes:
+                    node._temp_score = node.score
             else:
-                sol.score *= base_coef
+                for node in cg.nodes:
+                    node._temp_score = node.internal_score
+
+            for node in cg.nodes:
+                base = node._temp_score * base_coef
+                support = 0
+                for edge in node.edges:
+                    other = edge[node]
+                    support += support_coef * edge.weight * other._temp_score
+                node.score = min(base + (support), 1.0)
 
 
 class ChromatogramScorer(object):
@@ -455,11 +511,71 @@ class ChromatogramScorer(object):
         return score
 
 
+class ModelAveragingScorer(object):
+    def __init__(self, models, weights=None):
+        if weights is None:
+            weights = [1.0 for i in range(len(models))]
+        self.models = models
+        self.weights = weights
+
+        self.prepare_weights()
+
+    def prepare_weights(self):
+        a = np.array(self.weights)
+        a /= a.sum()
+        self.weights = a
+
+    def compute_scores(self, chromatogram):
+        score_set = []
+        for model, weight in zip(self.models, self.weights):
+            score = model.compute_scores(chromatogram)
+            score_set.append(np.array(score) * weight)
+        return scores(*sum(score_set, np.zeros_like(score_set[0])))
+
+    def score(self, chromatogram):
+        return prod(*self.compute_scores(chromatogram))
+
+
+class CompositionDispatchScorer(object):
+    def __init__(self, rule_model_map, default_model=None):
+        if default_model is None:
+            default_model = ChromatogramScorer()
+        self.rule_model_map = rule_model_map
+        self.default_model = default_model
+
+    def get_composition(self, obj):
+        if isinstance(obj.composition, basestring):
+            composition = FrozenGlycanComposition.parse(obj.composition)
+        else:
+            composition = obj.composition
+        return composition
+
+    def find_model(self, composition):
+        if composition is None:
+            return self.default_model
+        for rule in self.rule_model_map:
+            if rule(composition):
+                return self.rule_model_map[rule]
+
+        return self.default_model
+
+    def compute_scores(self, chromatogram):
+        composition = self.get_composition(chromatogram)
+        model = self.find_model(composition)
+        return model.compute_scores(chromatogram)
+
+    def score(self, chromatogram):
+        score = reduce(mul, self.compute_scores(chromatogram), 1.0)
+        return score
+
+
 class ChromatogramSolution(object):
+    _temp_score = 0.0
+
     def __init__(self, chromatogram, score=None, scorer=ChromatogramScorer()):
         self.chromatogram = chromatogram
         self.scorer = scorer
-        self.score = score
+        self.internal_score = self.score = score
 
         if score is None:
             self.compute_score()
@@ -474,7 +590,10 @@ class ChromatogramSolution(object):
         return iter(self.chromatogram)
 
     def compute_score(self):
-        self.score = self.scorer.score(self.chromatogram)
+        self.internal_score = self.score = self.scorer.score(self.chromatogram)
+
+    def score_components(self):
+        return self.scorer.compute_scores(self.chromatogram)
 
     def __repr__(self):
         return "ChromatogramSolution(%s, %0.4f, %d, %0.4f)" % (

@@ -106,6 +106,8 @@ class GlycanProfiler(object):
         self.solutions = []
         for case in ChromatogramFilter.process(self.chromatograms, delta_rt=rt_delta):
             try:
+                if len(case) < 2:
+                    continue
                 self.solutions.append(ChromatogramSolution(case, scorer=scoring_model))
             except (IndexError, ValueError), e:
                 print case, e, len(case)
@@ -117,13 +119,15 @@ class GlycanProfiler(object):
             self.solutions = []
             for case in hold:
                 try:
+                    if len(case) < 2:
+                        continue
                     self.solutions.append(ChromatogramSolution(case, scorer=scoring_model))
                 except (IndexError, ValueError, ZeroDivisionError), e:
                     print case, e, len(case)
                     continue
             NetworkScoreDistributor(self.solutions, self.database.network).distribute(base_coef, support_coef)
 
-        self.solutions = ChromatogramFilter(self.solutions)
+        self.solutions = ChromatogramFilter(sol for sol in self.solutions if sol.score > 1e-5)
 
     def plot(self, min_score=0.4, min_signal=0.2, colorizer=None, chromatogram_artist=None, include_tic=True):
         if chromatogram_artist is None:
