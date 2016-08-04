@@ -185,7 +185,7 @@ class GraphWriter(object):
         self.file_obj.write("%d\t%d\t%d\t%f\n" % (index1, index2, diff, weight))
 
     def handle_graph(self, graph):
-        self.file_obj.write("#COMPOSITIONGRAPH 1.0")
+        self.file_obj.write("#COMPOSITIONGRAPH 1.0\n")
         self.file_obj.write("#NODE\n")
         for node in self.network.nodes:
             self.handle_node(node)
@@ -195,6 +195,11 @@ class GraphWriter(object):
 
 
 class GraphReader(object):
+
+    @classmethod
+    def read(cls, file_obj):
+        return cls(file_obj).network
+
     def __init__(self, file_obj):
         self.file_obj = file_obj
         self.network = CompositionGraph([])
@@ -236,3 +241,7 @@ class GraphReader(object):
                     self.handle_node_line(line)
             elif state == "EDGE":
                 self.handle_edge_line(line)
+
+
+dump = GraphWriter
+load = GraphReader.read

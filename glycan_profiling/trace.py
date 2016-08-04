@@ -1,12 +1,18 @@
+import os
+import tempfile
 import numpy as np
 from scipy.ndimage import gaussian_filter1d
 
 from collections import defaultdict, OrderedDict, namedtuple
-# import itertools
+
+from ms_deisotope.output.db import DatabaseScanSerializer, ScanBunch, DatabaseScanDeserializer
 
 from .chromatogram_tree import (
     Chromatogram, ChromatogramForest, Unmodified,
     mask_subsequence)
+
+from .scan_cache import (
+    DatabaseScanCacheHandler, NullScanCacheHandler, ThreadedDatabaseScanCacheHandler)
 
 dummyscan = namedtuple('dummyscan', ["id", "index", "scan_time"])
 
@@ -15,15 +21,29 @@ fake_scan = dummyscan("--not-a-real-scan--", -1, -1)
 
 
 class Tracer(object):
-
-    def __init__(self, scan_generator, database, mass_error_tolerance=1e-5):
+    def __init__(self, scan_generator, database, mass_error_tolerance=1e-5,
+                 cache_handler_type=ThreadedDatabaseScanCacheHandler):
         self.scan_generator = scan_generator
+
         self.database = database
+
         self.tracker = defaultdict(OrderedDict)
         self.mass_error_tolerance = mass_error_tolerance
+
         self.total_ion_chromatogram = SimpleChromatogram(self)
         self.base_peak_chromatogram = SimpleChromatogram(self)
-        self.scan_map = {}
+
+        self.scan_store = None
+        self._scan_store_type = cache_handler_type
+
+        self.configure_cache()
+
+    @property
+    def scan_source(self):
+        return self.scan_generator.scan_source
+
+    def configure_cache(self):
+        self.scan_store = self._scan_store_type.configure_storage(self.scan_source)
 
     def configure_iteration(self, *args, **kwargs):
         self.scan_generator.configure_iteration(*args, **kwargs)
@@ -36,8 +56,10 @@ class Tracer(object):
         self.base_peak_chromatogram[scan.id] = max(p.intensity for p in scan)
 
     def store_scan(self, scan):
-        # self.scan_map[scan.id] = scan
-        pass
+        self.scan_store.accumulate(scan)
+
+    def commit(self):
+        self.scan_store.commit()
 
     def next_scan(self):
         scan = next(self.scan_generator)
@@ -46,6 +68,12 @@ class Tracer(object):
             scan = next(self.scan_generator)
             self.store_scan(scan)
         return scan
+
+    def __iter__(self):
+        return self
+
+    def __next__(self):
+        return self.next()
 
     def next(self):
         idents = defaultdict(list)
@@ -101,9 +129,6 @@ class IncludeUnmatchedTracer(Tracer):
             scan_generator, database, mass_error_tolerance)
         self.unmatched = []
 
-    def __iter__(self):
-        return self
-
     def next(self):
         idents = defaultdict(list)
         try:
@@ -123,9 +148,6 @@ class IncludeUnmatchedTracer(Tracer):
             else:
                 self.unmatched.append((scan.id, peak))
         return idents, scan
-
-    def __next__(self):
-        return self.next()
 
     def chromatograms(self, minimum_mass=300, minimum_intensity=1000., grouping_tolerance=None, truncate=True):
         if grouping_tolerance is None:
@@ -233,7 +255,7 @@ def find_truncation_points(rt, signal):
 
     ending = min(ending + 2, len(nodes) - 1)
     if len(nodes) == 1:
-        return nodes[0].start_timem, nodes[0].end_time
+        return nodes[0].start_time, nodes[0].end_time
     elif len(nodes) == 2:
         return nodes[0].start_time, nodes[-1].end_time
     return nodes[leading].start_time, nodes[ending].end_time

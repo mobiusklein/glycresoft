@@ -47,25 +47,47 @@ class ECDF(StepFunction):
 #
 
 
-def optimize_composition_distribution(network, solutions, x=1, y=1):
-    W = np.array([node.score if node.score != 0 else 0 for node in network.nodes]) * y + x
+def calculate_relation_matrix(network, phi=2.):
+    N = len(network)
+    P = np.zeros((N, N))
+    for node_i in network.nodes:
+        total = np.sum([np.exp(e.order / phi) for e in node_i.edges])
+        for edge in node_i.edges:
+            j = edge[node_i].index
+            i = node_i.index
+            P[i, j] = np.exp(edge.order / phi) / total
+    return P
 
-    min_shift = 0
-    W[W < W.min() + min_shift] = W.min() + min_shift
+
+def power_iteration(A):
+    b = np.zeros(A.shape[0]) + 1. / A.shape[0]
+    b0 = b
+    while True:
+        b = A.dot(b0)
+        dist = (np.abs(b - b0).sum() / b0.sum())
+        if dist < 1e-4:
+            break
+        else:
+            b0 = b
+    return b
+
+
+def optimize_composition_distribution(network, solutions, common_weight=1, precision_scale=1):
+    W = np.array([node.score for node in network.nodes]) * precision_scale + common_weight
 
     # Dirichlet Mean
     pi = W / W.sum()
 
     sol_map = {sol.composition: sol.score for sol in solutions if sol.composition is not None}
 
-    S = np.array([sol_map.get(node.composition.serialize(), 1e-15) for node in network.nodes])
+    observations = np.array([sol_map.get(node.composition.serialize(), 1e-15) for node in network.nodes])
 
     def update_pi(pi_array):
         pi2 = np.zeros_like(pi_array)
-        total_score_pi = (S * pi_array).sum()
+        total_score_pi = (observations * pi_array).sum()
         total_w = ((W - 1).sum() + 1)
         for i in range(len(W)):
-            pi2[i] = ((W[i] - 1) + (S[i] * pi_array[i]) / total_score_pi) / total_w
+            pi2[i] = ((W[i] - 1) + (observations[i] * pi_array[i]) / total_score_pi) / total_w
             assert pi2[i] > 0, (W[i], pi_array[i])
         return pi2
 
@@ -75,7 +97,7 @@ def optimize_composition_distribution(network, solutions, x=1, y=1):
 
         def convergence():
             d = np.abs(pi_last).sum()
-            v = (np.abs(pi_next).sum() - d) / d
+            v = (np.abs(pi_next - pi_last).sum()) / d
             return v
 
         i = 0

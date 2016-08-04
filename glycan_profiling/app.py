@@ -1,6 +1,7 @@
 import re
 import time
 import warnings
+import logging
 
 import glypy
 
@@ -11,25 +12,11 @@ from glycan_profiling.scoring import ChromatogramSolution, NetworkScoreDistribut
 from glycan_profiling.trace import (
     IncludeUnmatchedTracer, ChromatogramFilter, join_mass_shifted,
     reverse_adduction_search, prune_bad_adduct_branches)
-
 from brainpy import periodic_table
-
 from ms_deisotope.averagine import Averagine, glycan as n_glycan_averagine
 
-import logging
 
-try:
-    logger = logging.getLogger("glycan_profiler")
-    fmt = logging.Formatter(
-        "%(asctime)s - %(name)s:%(funcName)s:%(lineno)d - %(levelname)s - %(message)s",
-        "%H:%M:%S")
-    handle = logging.StreamHandler()
-    handle.setFormatter(fmt)
-    logger.handlers = []
-    logger.addHandler(handle)
-    logger.propagate = False
-except Exception:
-    logger.exception("An error occurred while configuring logger", exc_info=True)
+logger = logging.getLogger("glycan_profiler")
 
 
 def validate_element(element):
@@ -45,12 +32,17 @@ def parse_averagine_formula(formula):
 
 
 class GlycanProfiler(object):
-    def __init__(self, mzml_path, database_rules_path, averagine=n_glycan_averagine, charge_range=(-1, -8)):
+    def __init__(self, mzml_path, database_rules_path, averagine=n_glycan_averagine, charge_range=(-1, -8),
+                 ms1_peak_picking_args=None, msn_peak_picking_args=None, ms1_deconvolution_args=None,
+                 msn_deconvolution_args=None):
         if isinstance(averagine, basestring):
             averagine = parse_averagine_formula(averagine)
 
         self.mzml_path = mzml_path
-        self.scan_generator = PipedScanGenerator(mzml_path, averagine=averagine, charge_range=charge_range)
+        self.scan_generator = PipedScanGenerator(
+            mzml_path, averagine=averagine, charge_range=charge_range, ms1_peak_picking_args=ms1_peak_picking_args,
+            msn_peak_picking_args=msn_peak_picking_args, ms1_deconvolution_args=ms1_deconvolution_args,
+            msn_deconvolution_args=msn_deconvolution_args)
 
         self.database_rules_path = database_rules_path
         if isinstance(database_rules_path, basestring):
@@ -83,6 +75,8 @@ class GlycanProfiler(object):
             i += 1
             if end_scan == case[1].id or i == max_scans:
                 break
+
+        self.tracer.commit()
 
         if grouping_mass_error_tolerance is None:
             grouping_mass_error_tolerance = mass_error_tolerance * 1.5
