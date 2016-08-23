@@ -1,9 +1,15 @@
+from abc import ABCMeta
 from collections import defaultdict
+from operator import attrgetter
 
 import numpy as np
 
-import glypy
 from glypy.utils import uid
+from glypy import Composition
+from glypy.composition.glycan_composition import FrozenGlycanComposition
+
+
+intensity_getter = attrgetter("intensity")
 
 
 class EmptyListException(Exception):
@@ -31,23 +37,13 @@ def count_charge_states(peaks):
     return len(split_by_charge(peaks))
 
 
-class MassShift(object):
-    def __init__(self, name, composition):
-        self.name = name
-        self.composition = composition
-        self.mass = composition.mass
-
-    def __repr__(self):
-        return "MassShift(%s, %s)" % (self.name, self.composition)
-
-    def __mul__(self, n):
-        if isinstance(n, int):
-            return self.__class__("%d * %s" % (n, self.name), self.composition * n)
-        else:
-            raise TypeError("Cannot multiply MassShift by non-integer")
-
+class MassShiftBase(object):
     def __eq__(self, other):
-        return self.name == other.name and abs(self.mass - other.mass) < 1e-6
+        try:
+            return (self.name == other.name and abs(
+                self.mass - other.mass) < 1e-10) or self.composition == other.composition
+        except AttributeError:
+            return False
 
     def __ne__(self, other):
         return not self == other
@@ -56,8 +52,100 @@ class MassShift(object):
         return hash(self.name)
 
 
-Unmodified = MassShift("Unmodified", glypy.Composition())
-Formate = MassShift("Formate", glypy.Composition('HCOOH'))
+class MassShift(MassShiftBase):
+    def __init__(self, name, composition):
+        self.name = intern(name)
+        self.composition = composition
+        self.mass = composition.mass
+
+    def __repr__(self):
+        return "MassShift(%s, %s)" % (self.name, self.composition)
+
+    def __mul__(self, n):
+        if self.composition == {}:
+            return self
+        if isinstance(n, int):
+            return CompoundMassShift({self: n})
+        else:
+            raise TypeError("Cannot multiply MassShift by non-integer")
+
+    def __add__(self, other):
+        if self.composition == {}:
+            return other
+        elif other.composition == {}:
+            return self
+        name = "(%s) + (%s)" % (self.name, other.name)
+        composition = self.composition + other.composition
+        return self.__class__(name, composition)
+
+
+class CompoundMassShift(MassShiftBase):
+    def __init__(self, counts=None):
+        if counts is None:
+            counts = {}
+        self.counts = defaultdict(int, counts)
+        self.composition = None
+        self.name = None
+        self.mass = None
+
+        self._compute_composition()
+        self._compute_name()
+
+    def _compute_composition(self):
+        composition = Composition()
+        for k, v in self.counts.items():
+            composition += k.composition * v
+        self.composition = composition
+        self.mass = composition.mass
+
+    def _compute_name(self):
+        parts = []
+        for k, v in self.counts.items():
+            if v == 1:
+                parts.append(k.name)
+            else:
+                parts.append("%s * %d" % (k.name, v))
+        self.name = intern(" + ".join(sorted(parts)))
+
+    def __add__(self, other):
+        if other == Unmodified:
+            return self
+        elif self == Unmodified:
+            return other
+
+        if isinstance(other, MassShift):
+            counts = defaultdict(int, self.counts)
+            counts[other] += 1
+            return self.__class__(counts)
+        elif isinstance(other, CompoundMassShift):
+            counts = defaultdict(int, self.counts)
+            for k, v in other.counts.items():
+                counts[k] += v
+            return self.__class__(counts)
+        else:
+            return NotImplemented
+
+    def __mul__(self, i):
+        if self.composition == {}:
+            return self
+        if isinstance(i, int):
+            counts = defaultdict(int, self.counts)
+            for k in counts:
+                if k == Unmodified:
+                    continue
+                counts[k] *= i
+            return self.__class__(counts)
+        else:
+            raise TypeError("Cannot multiply MassShift by non-integer")
+
+    def __repr__(self):
+        return "MassShift(%s, %s)" % (self.name, self.composition)
+
+
+Unmodified = MassShift("Unmodified", Composition())
+Formate = MassShift("Formate", Composition('HCOOH'))
+Ammonium = MassShift("Ammonium", Composition("NH4"))
+Sodiated = MassShift("Sodiated", Composition("Na"))
 
 
 class Chromatogram(object):
@@ -74,10 +162,13 @@ class Chromatogram(object):
         self._adducts = adducts
         self.used_as_adduct = used_as_adduct
         self._infer_adducts()
+        self._has_msms = None
 
         self.composition = composition
         self._total_intensity = None
         self._neutral_mass = None
+        self._last_neutral_mass = 0.
+        self._most_abundant_member = 0.
         self._charge_states = None
         self._retention_times = None
         self._peaks = None
@@ -85,12 +176,32 @@ class Chromatogram(object):
 
     def _invalidate(self):
         self._total_intensity = None
+        self._last_neutral_mass = self._neutral_mass if self._neutral_mass is not None else 0.
         self._neutral_mass = None
         self._charge_states = None
         self._retention_times = None
         self._peaks = None
         self._scan_ids = None
         self._adducts = None
+        self._has_msms = None
+        self._last_most_abundant_member = self._most_abundant_member
+        self._most_abundant_member = None
+
+    def retain_most_abundant_member(self):
+        self._neutral_mass = self._last_neutral_mass
+        self._most_abundant_member = self._last_most_abundant_member
+
+    @property
+    def has_msms(self):
+        if self._has_msms is None:
+            self._has_msms = [node for node in self.nodes if node.has_msms]
+        return self._has_msms
+
+    @property
+    def most_abundant_member(self):
+        if self._most_abundant_member is None:
+            self._most_abundant_member = max(node.max_intensity() for node in self.nodes)
+        return self._most_abundant_member
 
     def _infer_adducts(self):
         adducts = set()
@@ -158,7 +269,7 @@ class Chromatogram(object):
             self._weighted_neutral_mass = prod / total - node_type.mass
         else:
             self._weighted_neutral_mass = best_neutral_mass - node_type.mass
-        self._neutral_mass = best_neutral_mass - node_type.mass
+        self._last_neutral_mass = self._neutral_mass = best_neutral_mass - node_type.mass
         if self._neutral_mass == 0:
             raise KeyError(node_type)
         return best_neutral_mass
@@ -283,7 +394,7 @@ class Chromatogram(object):
         new = self.clone()
         for node in other.nodes.unspool_strip_children():
             node = node.clone()
-            node.node_type = node_type
+            node.node_type = node.node_type + node_type
             new.insert_node(node)
         new.created_at = "merge"
         return new
@@ -338,6 +449,24 @@ class Chromatogram(object):
                 members=no_charge_peaks, node_type=node_t)
             new_no_charge.insert_node(no_charge_node)
         return new_charge, new_no_charge
+
+    def __eq__(self, other):
+        if self.key != other.key:
+            return False
+        else:
+            return self.peaks == other.peaks
+
+    def __hash__(self):
+        return hash((self.neutral_mass, self.start_time, self.end_time))
+
+    def overlaps_in_time(self, interval):
+        cond = ((self.start_time <= interval.start_time and self.end_time >= interval.end_time) or (
+            self.start_time >= interval.start_time and self.end_time <= interval.end_time) or (
+            self.start_time >= interval.start_time and self.end_time >= interval.end_time and
+            self.start_time <= interval.end_time) or (
+            self.start_time <= interval.start_time and self.end_time >= interval.start_time) or (
+            self.start_time <= interval.end_time and self.end_time >= interval.end_time))
+        return cond
 
 
 class ChromatogramTreeList(object):
@@ -436,9 +565,11 @@ class ChromatogramTreeNode(object):
         self.children = children
         self.members = members
         self.node_type = node_type
+        self._most_abundant_member = None
         self._neutral_mass = 0
         self._charge_states = set()
         self._recalculate()
+        self._has_msms = None
         self.node_id = uid()
 
     def clone(self):
@@ -456,9 +587,32 @@ class ChromatogramTreeNode(object):
             for node in child._unspool_strip_children():
                 yield node
 
+    def _calculate_most_abundant_member(self):
+        if len(self.members) == 1:
+            self._most_abundant_member = self.members[0]
+        else:
+            if len(self.members) == 0:
+                self._most_abundant_member = None
+            else:
+                self._most_abundant_member = max(self.members, key=intensity_getter)
+
     def _recalculate(self):
-        self._neutral_mass = max(self.members, key=lambda x: x.intensity).neutral_mass
-        self._charge_states = set(split_by_charge(self.members))
+        self._calculate_most_abundant_member()
+        self._neutral_mass = self._most_abundant_member.neutral_mass
+        self._charge_states = None
+        self._has_msms = None
+
+    @property
+    def _contained_charge_states(self):
+        if self._charge_states is None:
+            self._charge_states = set(split_by_charge(self.members))
+        return self._charge_states
+
+    @property
+    def has_msms(self):
+        if self._has_msms is None:
+            self._has_msms = self._has_any_peaks_with_msms()
+        return self._has_msms
 
     def _find(self, node_type=Unmodified):
         if self.node_type == node_type:
@@ -466,7 +620,7 @@ class ChromatogramTreeNode(object):
         else:
             for child in self.children:
                 match = child._find(node_type)
-                if match:
+                if match is not None:
                     return match
 
     def find(self, node_type=Unmodified):
@@ -482,7 +636,7 @@ class ChromatogramTreeNode(object):
 
     def charge_states(self):
         u = set()
-        u.update(self._charge_states)
+        u.update(self._contained_charge_states)
         for child in self.children:
             u.update(child.charge_states())
         return u
@@ -513,13 +667,28 @@ class ChromatogramTreeNode(object):
         return total
 
     def max_intensity(self):
-        return max(self.members, key=lambda x: x.intensity).intensity
+        return self._most_abundant_member.intensity
 
     def total_intensity(self):
         return self._total_intensity_children() + self._total_intensity_members()
 
     def __eq__(self, other):
         return self.members == other.members
+
+    def __ne__(self, other):
+        return not (self == other)
+
+    def __hash__(self):
+        return hash(self.uid)
+
+    def _has_any_peaks_with_msms(self):
+        for peak in self.members:
+            if peak.chosen_for_msms:
+                return True
+        for child in self.children:
+            if child._has_any_peaks_with_msms():
+                return True
+        return False
 
     @property
     def peaks(self):
@@ -585,7 +754,10 @@ class ChromatogramForest(object):
             index, matched = self.find_insertion_point(peak)
         if matched:
             chroma = self.chromatograms[self.find_minimizing_index(peak, index)]
+            most_abundant_member = chroma.most_abundant_member
             chroma.insert(scan_id, peak, self.scan_id_to_rt(scan_id))
+            if peak.intensity < most_abundant_member:
+                chroma.retain_most_abundant_member()
         else:
             chroma = Chromatogram(None)
             chroma.created_at = "forest"
@@ -597,11 +769,14 @@ class ChromatogramForest(object):
         if index[0] != 0:
             self.chromatograms.insert(index[0] + 1, chromatogram)
         else:
-            x = self.chromatograms[index[0]]
-            if x.neutral_mass < chromatogram.neutral_mass:
-                new_index = index[0] + 1
-            else:
+            if len(self) == 0:
                 new_index = index[0]
+            else:
+                x = self.chromatograms[index[0]]
+                if x.neutral_mass < chromatogram.neutral_mass:
+                    new_index = index[0] + 1
+                else:
+                    new_index = index[0]
             self.chromatograms.insert(new_index, chromatogram)
 
     def aggregate_unmatched_peaks(self, scan_id_peaks_list, minimum_mass=300, minimum_intensity=1000.):
@@ -655,6 +830,7 @@ def binary_search_with_flag(array, mass, error_tolerance=1e-5):
             err = (x.neutral_mass - mass) / mass
             if abs(err) <= error_tolerance:
                 i = mid - 1
+                # Begin Sweep forward
                 while i > 0:
                     x = array[i]
                     err = (x.neutral_mass - mass) / mass
@@ -665,6 +841,8 @@ def binary_search_with_flag(array, mass, error_tolerance=1e-5):
                         break
                 low_end = i + 1
                 i = mid + 1
+
+                # Begin Sweep backward
                 while i < n:
                     x = array[i]
                     err = (x.neutral_mass - mass) / mass
@@ -694,3 +872,40 @@ class ChromatogramGraphNode(object):
 
     def __hash__(self):
         return hash(self.chromatogram.key)
+
+
+class ChromatogramInterface(object):
+    __metaclass__ = ABCMeta
+
+
+ChromatogramInterface.register(Chromatogram)
+
+
+class CachedGlycanComposition(FrozenGlycanComposition):
+    _hash = None
+
+    def __hash__(self):
+        if self._hash is None:
+            self._hash = hash(str(self))
+        return self._hash
+
+
+class GlycanCompositionChromatogram(Chromatogram):
+    _composition = None
+    _parsed_composition = None
+
+    @property
+    def composition(self):
+        if self._composition is None:
+            return None
+        elif self._parsed_composition is None:
+            self._parsed_composition = CachedGlycanComposition.parse(self._composition)
+        return self._parsed_composition
+
+    @composition.setter
+    def composition(self, value):
+        if value is None:
+            self._composition = None
+        else:
+            self._composition = str(value)
+            self._parsed_composition = None

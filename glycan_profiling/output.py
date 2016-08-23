@@ -9,14 +9,15 @@ def convert_solution_to_dict(solution):
         "total_signal": str(solution.total_signal),
         "start_time": str(solution.start_time),
         "end_time": str(solution.end_time),
-        "charge_states": ';'.join(map(str, solution.charge_states))
+        "charge_states": ';'.join(map(str, solution.charge_states)),
+        "adducts": ";".join([a.name for a in solution.adducts])
     }
 
 
 def write_solutions_to_csv(solutions, handle):
     writer = csv.DictWriter(
         handle, ["key", "neutral_mass", "score", "total_signal",
-                 "start_time", "end_time", "charge_states"])
+                 "start_time", "end_time", "charge_states", 'adducts'])
     writer.writeheader()
     writer.writerows(map(convert_solution_to_dict, solutions))
 

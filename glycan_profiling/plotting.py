@@ -12,7 +12,7 @@ from scipy.ndimage import gaussian_filter1d
 import glypy
 from glycresoft_sqlalchemy.report import colors
 
-from .chromatogram_tree import count_charge_states
+from .chromatogram_tree import count_charge_states, ChromatogramInterface
 from .scoring import total_intensity
 
 
@@ -65,6 +65,7 @@ class NGlycanLabelProducer(LabelProducer):
         self.stub = glypy.GlycanComposition()
         for x in monosaccharides:
             self.stub[x] = -99
+        self.label_key = colors.GlycanLabelTransformer([self.stub], colors.NGlycanCompositionOrderer).label_key
 
     def __call__(self, chromatogram, *args, **kwargs):
         if chromatogram.composition is not None:
@@ -94,6 +95,8 @@ class ChromatogramArtist(object):
             colorizer = ColorCycler()
         if ax is None:
             fig, ax = plt.subplots(1)
+        if not isinstance(chromatograms[0], ChromatogramInterface):
+            chromatograms = [chromatograms]
         self.chromatograms = chromatograms
         self.minimum_ident_time = float("inf")
         self.maximum_ident_time = 0
@@ -101,6 +104,7 @@ class ChromatogramArtist(object):
         self.scan_id_to_intensity = {}
         self.ax = ax
         self.default_colorizer = colorizer
+        self.legend = None
 
     def draw_generic_chromatogram(self, label, rt, heights, color, fill=False):
         if fill:
@@ -184,7 +188,7 @@ class ChromatogramArtist(object):
                          self.maximum_ident_time + 0.02)
         self.ax.set_ylim(0, self.maximum_intensity * 1.1)
         if legend:
-            self.ax.legend(bbox_to_anchor=(1.7, 1.), ncol=2, fontsize=10)
+            self.legend = self.ax.legend(bbox_to_anchor=(1.7, 1.), ncol=2, fontsize=10)
         self.ax.axes.spines['right'].set_visible(False)
         self.ax.axes.spines['top'].set_visible(False)
         self.ax.yaxis.tick_left()

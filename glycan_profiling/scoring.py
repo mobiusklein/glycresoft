@@ -22,7 +22,7 @@ import glypy
 
 from glypy.composition.glycan_composition import FrozenGlycanComposition
 
-from .chromatogram_tree import Unmodified
+from .chromatogram_tree import Unmodified, ChromatogramInterface
 
 
 epsilon = 1e-6
@@ -317,6 +317,13 @@ def neighborhood_of(x, scale=100.):
     return neighborhood * scale
 
 
+def get_sign(num):
+    if num > 0:
+        return 1
+    else:
+        return -1
+
+
 class MassScalingChargeStateScoringModel(ChargeStateDistributionScoringModelBase):
     def __init__(self, table, neighborhood_width=100.):
         self.table = table
@@ -332,7 +339,15 @@ class MassScalingChargeStateScoringModel(ChargeStateDistributionScoringModelBase
             return UniformChargeStateScoringModel().score(chromatogram, *args, **kwargs)
         bins = self.table[neighborhood]
 
+        bin_sign = get_sign(tuple(bins)[0])
+        chrom_sign = get_sign(tuple(chromatogram.charge_states)[0])
+        if bin_sign != chrom_sign:
+            chrom_sign = -1
+        else:
+            chrom_sign = 1
+
         for charge in chromatogram.charge_states:
+            charge = chrom_sign * charge
             try:
                 total += bins[charge]
             except KeyError:
@@ -590,7 +605,10 @@ class ChromatogramSolution(object):
         return iter(self.chromatogram)
 
     def compute_score(self):
-        self.internal_score = self.score = self.scorer.score(self.chromatogram)
+        try:
+            self.internal_score = self.score = self.scorer.score(self.chromatogram)
+        except ZeroDivisionError:
+            self.internal_score = self.score = 0.0
 
     def score_components(self):
         return self.scorer.compute_scores(self.chromatogram)
@@ -599,3 +617,12 @@ class ChromatogramSolution(object):
         return "ChromatogramSolution(%s, %0.4f, %d, %0.4f)" % (
             self.chromatogram.composition, self.chromatogram.neutral_mass,
             self.chromatogram.n_charge_states, self.score)
+
+    def __getitem__(self, i):
+        return self.chromatogram[i]
+
+    def __dir__(self):
+        return set(('compure_score', 'score_components')) | set(dir(self.chromatogram))
+
+
+ChromatogramInterface.register(ChromatogramSolution)

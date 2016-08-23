@@ -30,6 +30,8 @@ class MassDatabase(object):
             self.network = CompositionGraph(self.structures)
             if distance_fn is not None:
                 self.network._create_edges(1, distance_fn=distance_fn)
+        else:
+            self.network = network
 
     @classmethod
     def from_network(cls, network):
