@@ -277,6 +277,9 @@ class Chromatogram(Base, BoundToAnalysis):
             Chromatogram.nodes).join(ChromatogramTreeNode.members).group_by(
             ChromatogramSolution.id)
 
+    def __repr__(self):
+        return "DB" + repr(self.convert())
+
 
 ChromatogramToChromatogramTreeNode = Table(
     "ChromatogramToChromatogramTreeNode", Base.metadata,
@@ -310,6 +313,9 @@ class CompositionGroup(Base, BoundToAnalysis):
 
     def _key(self):
         return self.composition
+
+    def __repr__(self):
+        return repr(self.convert())
 
 
 class CompositionGroupSerializer(SimpleSerializerCacheBase):
@@ -380,6 +386,9 @@ class ChromatogramSolution(Base, BoundToAnalysis):
             ChromatogramSolution.chromatogram).join(
             Chromatogram.nodes).join(ChromatogramTreeNode.members).group_by(
             ChromatogramSolution.id)
+
+    def __repr__(self):
+        return "DB" + repr(self.convert())
 
 
 class AnalysisSerializer(object):

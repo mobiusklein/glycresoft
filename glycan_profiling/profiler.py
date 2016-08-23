@@ -112,7 +112,7 @@ class GlycanProfiler(object):
         NetworkScoreDistributor(self.solutions, self.database.network).distribute(base_coef, support_coef)
 
         if self.adducts:
-            hold = prune_bad_adduct_branches(self.solutions)
+            hold = prune_bad_adduct_branches(ChromatogramFilter(self.solutions))
             self.solutions = []
             for case in hold:
                 try:
