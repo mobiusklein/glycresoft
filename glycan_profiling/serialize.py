@@ -63,7 +63,12 @@ class Analysis(Base, HasUniqueName):
     sample_run = relationship(SampleRun)
 
     def __repr__(self):
-        return "Analysis(%s)" % self.name
+        sample_run = self.sample_run
+        if sample_run:
+            sample_run_name = sample_run.name
+        else:
+            sample_run_name = "<Detached From Sample>"
+        return "Analysis(%s, %s)" % (self.name, sample_run_name)
 
 
 class MassShift(Base):
@@ -389,6 +394,39 @@ class ChromatogramSolution(Base, BoundToAnalysis):
 
     def __repr__(self):
         return "DB" + repr(self.convert())
+
+
+ChromatogramSolutionAdductedToCompositionGroup = Table(
+    "ChromatogramSolutionAdductedToCompositionGroup", Base.metadata,
+    Column("adducted_solution_id", Integer, ForeignKey(ChromatogramSolution.id, ondelete="CASCADE"), primary_key=True),
+    Column("mass_shift_id", Integer, ForeignKey(CompoundMassShift.id, ondelete='CASCADE'), primary_key=True),
+    Column("owning_composition_id", Integer, ForeignKey(CompositionGroup.id, ondelete="CASCADE"), primary_key=True))
+
+
+class SpectrumMatchBase(BoundToAnalysis):
+
+    score = Column(Numeric(12, 6, asdecimal=False), index=True)
+
+    @declared_attr
+    def scan_id(self):
+        return Column(Integer, ForeignKey(MSScan.id), index=True)
+
+    @declared_attr
+    def scan(self):
+        return relationship(MSScan)
+
+
+class GlycopeptideSpectrumMatch(Base, SpectrumMatchBase):
+    __tablename__ = "GlycopeptideSpectrumMatch"
+
+    id = Column(Integer, primary_key=True)
+
+    q_value = Column(Numeric(8, 7, asdecimal=False), index=True)
+    is_decoy = Column(Boolean, index=True)
+
+    structure_id = Column(
+        Integer,  # ForeignKey(, ondelte='CASCADE')
+        index=True)
 
 
 class AnalysisSerializer(object):

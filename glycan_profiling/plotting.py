@@ -12,13 +12,25 @@ from scipy.ndimage import gaussian_filter1d
 import glypy
 from glycresoft_sqlalchemy.report import colors
 
-from .chromatogram_tree import count_charge_states, ChromatogramInterface
+from .chromatogram_tree import ChromatogramInterface
 from .scoring import total_intensity
 
 
-def label_count_charge_states(chromatogram, **kwargs):
-    return "%s-%d-charges" % (
-        default_label_extractor(chromatogram), count_charge_states(chromatogram.peaks))
+def split_charge_states(chromatogram):
+    charge_states = chromatogram.charge_states
+    versions = {}
+    last = chromatogram
+    for charge_state in charge_states:
+        a, b = last.bisect_charge(charge_state)
+        versions[charge_state] = a
+        last = b
+    return versions
+
+
+def label_include_charges(chromatogram, *args, **kwargs):
+    return "%s-%r" % (
+        default_label_extractor(chromatogram, **kwargs),
+        tuple(chromatogram.charge_states))
 
 
 def default_label_extractor(chromatogram, **kwargs):
@@ -89,7 +101,21 @@ class AbundantLabeler(LabelProducer):
             return self.labeler(chromatogram, *args, **kwargs), False
 
 
-class ChromatogramArtist(object):
+class ArtistBase(object):
+
+    def __repr__(self):
+        return "{self.__class__.__name__}()".format(self=self)
+
+    def _repr_html_(self):
+        if self.ax is None:
+            return repr(self)
+        fig = (self.ax.get_figure())
+        return fig._repr_html_()
+
+
+class ChromatogramArtist(ArtistBase):
+    default_label_function = staticmethod(default_label_extractor)
+
     def __init__(self, chromatograms, ax=None, colorizer=None):
         if colorizer is None:
             colorizer = ColorCycler()
@@ -155,7 +181,9 @@ class ChromatogramArtist(object):
         if label is not None and label_peak:
             self.ax.text(rt_apex, apex + 1200, label, ha='center', fontsize=10)
 
-    def process_group(self, composition, chromatogram, label_function=default_label_extractor):
+    def process_group(self, composition, chromatogram, label_function=None):
+        if label_function is None:
+            label_function = self.default_label_function
         part = slice(None)
         peaks = chromatogram.peaks[part]
         ids = chromatogram.scan_ids[part]
@@ -198,8 +226,10 @@ class ChromatogramArtist(object):
         [t.set(fontsize=20) for t in self.ax.get_xticklabels()]
         [t.set(fontsize=20) for t in self.ax.get_yticklabels()]
 
-    def draw(self, filter_function=lambda x, y: False, label_function=default_label_extractor,
+    def draw(self, filter_function=lambda x, y: False, label_function=None,
              legend=True):
+        if label_function is None:
+            label_function = self.default_label_function
         for chroma in self.chromatograms:
             composition = chroma.composition
             if composition is not None:
@@ -215,8 +245,12 @@ class ChromatogramArtist(object):
 
 
 class SmoothingChromatogramArtist(ChromatogramArtist):
+    def __init__(self, chromatograms, ax=None, colorizer=None, smoothing_factor=1.0):
+        super(SmoothingChromatogramArtist, self).__init__(chromatograms, ax=ax, colorizer=colorizer)
+        self.smoothing_factor = smoothing_factor
+
     def draw_group(self, label, rt, heights, color, label_peak=True):
-        heights = gaussian_filter1d(heights, 1.0)
+        heights = gaussian_filter1d(heights, self.smoothing_factor)
         s = self.ax.fill_between(
             rt,
             heights,
@@ -239,7 +273,7 @@ class SmoothingChromatogramArtist(ChromatogramArtist):
             self.ax.text(rt_apex, apex + 1200, label, ha='center', fontsize=10)
 
     def draw_generic_chromatogram(self, label, rt, heights, color, fill=False):
-        heights = gaussian_filter1d(heights, 1.0)
+        heights = gaussian_filter1d(heights, self.smoothing_factor)
         if fill:
             s = self.ax.fill_between(
                 rt,
@@ -268,34 +302,23 @@ class SmoothingChromatogramArtist(ChromatogramArtist):
 
 
 class ChargeSeparatingChromatogramArtist(ChromatogramArtist):
+    default_label_function = staticmethod(label_include_charges)
 
     def process_group(self, composition, chroma, label_function=None):
-        charge_map = defaultdict(OrderedDict)
-        for scan, peaks in zip(chroma.scan_ids, chroma.peaks):
-            for peak in peaks:
-                charge_map[peak.charge][scan] = peak
-
-        for charge, obs in charge_map.items():
-
-            part = slice(None)
-            peaks = obs.values()[part]
-            ids = obs.keys()[part]
-
-            color = self.default_colorizer(chroma)
-
-            rt = [self.tracker.scan_generator.time_cache[id] for id in ids]
-            heights = [(peak).intensity for peak in peaks]
-            self.scan_id_to_intensity = dict(zip(ids, heights))
-
-            self.maximum_ident_time = max(max(rt), self.maximum_ident_time)
-            self.minimum_ident_time = min(min(rt), self.minimum_ident_time)
-            self.maximum_intensity = max(max(heights), self.maximum_intensity)
-
-            self.draw_group(
-                ''.join(map(str, (composition, charge))), rt, heights, color)
+        if label_function is None:
+            label_function = self.default_label_function
+        charge_state_map = split_charge_states(chroma)
+        for charge_state, component in charge_state_map.items():
+            super(ChargeSeparatingChromatogramArtist, self).process_group(
+                composition, component, label_function=label_function)
 
 
-class EntitySummaryBarChartArtist(object):
+class ChargeSeparatingSmoothingChromatogramArtist(
+        ChargeSeparatingChromatogramArtist, SmoothingChromatogramArtist):
+    pass
+
+
+class EntitySummaryBarChartArtist(ArtistBase):
     bar_width = 0.5
     alpha = 0.5
     y_label = "<SET self.y_label>"

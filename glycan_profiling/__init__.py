@@ -11,6 +11,9 @@ from .trace import (
 from .scan_cache import (
     ThreadedDatabaseScanCacheHandler, DatabaseScanGenerator)
 
+from .database import (
+    MassDatabase, NeutralMassDatabase)
+
 from . import serialize
 from . import profiler
 from . import plotting

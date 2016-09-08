@@ -1,11 +1,9 @@
-import numpy as np
-from scipy.ndimage import gaussian_filter1d
-
 from collections import defaultdict, OrderedDict, namedtuple
 
 from .chromatogram_tree import (
     Chromatogram, ChromatogramForest, Unmodified,
-    mask_subsequence, DuplicateNodeError)
+    mask_subsequence, DuplicateNodeError, smooth_overlaps,
+    SimpleChromatogram, find_truncation_points, build_rt_interval_tree)
 
 from .scan_cache import (
     NullScanCacheHandler, ThreadedDatabaseScanCacheHandler)
@@ -32,8 +30,6 @@ class Tracer(object):
         self.scan_store = None
         self._scan_store_type = cache_handler_type
 
-        self.configure_cache()
-
     @property
     def scan_source(self):
         try:
@@ -41,8 +37,10 @@ class Tracer(object):
         except AttributeError:
             return None
 
-    def configure_cache(self):
-        self.scan_store = self._scan_store_type.configure_storage(self.scan_source)
+    def configure_cache(self, storage_path=None, name=None):
+        if storage_path is None:
+            storage_path = self.scan_source
+        self.scan_store = self._scan_store_type.configure_storage(storage_path, name)
 
     def configure_iteration(self, *args, **kwargs):
         self.scan_generator.configure_iteration(*args, **kwargs)
@@ -56,13 +54,16 @@ class Tracer(object):
         self.base_peak_chromatogram[scan.id] = max(p.intensity for p in scan) if tic > 0 else 0
 
     def store_scan(self, scan):
-        self.scan_store.accumulate(scan)
+        if self.scan_store is not None:
+            self.scan_store.accumulate(scan)
 
     def commit(self):
-        self.scan_store.commit()
+        if self.scan_store is not None:
+            self.scan_store.commit()
 
     def complete(self):
-        self.scan_store.complete()
+        if self.scan_store is not None:
+            self.scan_store.complete()
         self.scan_generator.close()
 
     def next_scan(self):
@@ -204,98 +205,6 @@ def binary_search_with_flag(array, mass, error_tolerance=1e-5):
     return 0, False
 
 
-class ChromatogramDeltaNode(object):
-    def __init__(self, retention_times, delta_intensity, start_time, end_time, is_below_threshold=True):
-        self.retention_times = retention_times
-        self.delta_intensity = delta_intensity
-        self.start_time = start_time
-        self.end_time = end_time
-        self.mean_change = np.mean(delta_intensity)
-        self.is_below_threshold = is_below_threshold
-
-    def __repr__(self):
-        return "ChromatogramDeltaNode(%f, %f, %f)" % (
-            self.mean_change, self.start_time, self.end_time)
-
-    @classmethod
-    def partition(cls, rt, delta_smoothed, window_size=.5):
-        last_rt = rt[1]
-        last_index = 1
-        nodes = []
-        for i, rt_i in enumerate(rt[2:]):
-            if (rt_i - last_rt) >= window_size:
-                nodes.append(
-                    cls(
-                        rt[last_index:i],
-                        delta_smoothed[last_index:i + 1],
-                        last_rt, rt[i]))
-                last_index = i
-                last_rt = rt_i
-        nodes.append(
-            cls(
-                rt[last_index:i],
-                delta_smoothed[last_index:i + 1],
-                last_rt, rt[i]))
-        return nodes
-
-
-def build_chromatogram_nodes(rt, signal):
-    rt = np.array(rt)
-    smoothed = gaussian_filter1d(signal, 3)
-    delta_smoothed = np.gradient(smoothed, rt)
-    change = delta_smoothed[:-1] - delta_smoothed[1:]
-    avg_change = change.mean()
-    std_change = change.std()
-
-    lo = avg_change - std_change
-    hi = avg_change + std_change
-
-    nodes = ChromatogramDeltaNode.partition(rt, delta_smoothed)
-
-    for node in nodes:
-        if lo > node.mean_change or node.mean_change > hi:
-            node.is_below_threshold = False
-
-    return nodes
-
-
-def find_truncation_points(rt, signal):
-    nodes = build_chromatogram_nodes(rt, signal)
-
-    leading = 0
-    ending = len(nodes)
-
-    for node in nodes:
-        if not node.is_below_threshold:
-            break
-        leading += 1
-    leading -= 3
-    leading = max(leading, 0)
-
-    for node in reversed(nodes):
-        if not node.is_below_threshold:
-            break
-        ending -= 1
-
-    ending = min(ending + 2, len(nodes) - 1)
-    if len(nodes) == 1:
-        return nodes[0].start_time, nodes[0].end_time
-    elif len(nodes) == 2:
-        return nodes[0].start_time, nodes[-1].end_time
-    return nodes[leading].start_time, nodes[ending].end_time
-
-
-class SimpleChromatogram(OrderedDict):
-    def __init__(self, time_converter):
-        self.time_converter = time_converter
-        super(SimpleChromatogram, self).__init__()
-
-    def as_arrays(self):
-        return (
-            np.array(map(self.time_converter.scan_id_to_rt, self)),
-            np.array(self.values()))
-
-
 class ChromatogramFilter(object):
     def __init__(self, chromatograms, sort=True):
         if sort:
@@ -312,6 +221,9 @@ class ChromatogramFilter(object):
             self._key_map[chrom.key].append(chrom)
         for key in self._key_map.keys():
             self._key_map[key] = DisjointChromatogramSet(self._key_map[key])
+
+    def _build_rt_interval_tree(self):
+        self._intervals = build_rt_interval_tree(self)
 
     def find_all_instances(self, key):
         if self._key_map is None:
@@ -338,6 +250,9 @@ class ChromatogramFilter(object):
             return self[index]
         else:
             return None
+
+    def _binary_search(self, mass, error_tolerance=1e-5):
+        return binary_search_with_flag(self, mass, error_tolerance)
 
     def _sweep_find_mass(self, mass, error_tolerance=1e-5):
         low = mass - (mass * error_tolerance)
@@ -376,7 +291,7 @@ class ChromatogramFilter(object):
         return str(list(self))
 
     def spanning(self, rt):
-        return self.__class__((c for c in self if c.start_time < rt < c.end_time), sort=False)
+        return self.__class__((c for c in self if c.start_time <= rt <= c.end_time), sort=False)
 
     def contained_in_interval(self, start, end):
         return self.__class__(
@@ -406,10 +321,11 @@ class ChromatogramFilter(object):
 
     def mass_between(self, low, high):
         low_index, flag = binary_search_with_flag(self.chromatograms, low, 1e-5)
-        if self[low_index] < low:
+        if self[low_index].neutral_mass < low:
             low_index += 1
         high_index, flag = binary_search_with_flag(self.chromatograms, high, 1e-5)
-        if self[high_index] > high:
+        high_index += 2
+        if self[high_index].neutral_mass > high:
             high_index -= 1
         return ChromatogramFilter(self[low_index:high_index], sort=False)
 
@@ -419,6 +335,9 @@ class ChromatogramFilter(object):
     @classmethod
     def process(cls, chromatograms, n_peaks=5, percentile=10, delta_rt=1.):
         return cls(chromatograms).split_sparse(delta_rt).min_points(n_peaks)
+
+    def smooth_overlaps(self, mass_error_tolerance=1e-5):
+        return self.__class__(smooth_overlaps(self, mass_error_tolerance))
 
 
 class DisjointChromatogramSet(object):
@@ -530,30 +449,6 @@ def reverse_adduction_search(chromatograms, adducts, mass_error_tolerance, datab
     out.extend(new_members.values())
     out.extend(unmatched)
     return ChromatogramFilter(out)
-
-
-# def prune_bad_adduct_branches(solutions):
-#     key_map = {c.key: c for c in solutions}
-#     updated = set()
-#     for case in solutions:
-#         if case.used_as_adduct:
-#             keepers = []
-#             for owning_key, adduct in case.used_as_adduct:
-#                 owner = key_map.get(owning_key)
-#                 if owner is None:
-#                     continue
-#                 if case.score > owner.score:
-#                     new_masked = mask_subsequence(owner, case)
-#                     new_masked.created_at = "prune_bad_adduct_branches"
-#                     key_map[owning_key] = new_masked
-#                     new_masked.score = owner.score
-#                     updated.add(owning_key)
-#                 else:
-#                     keepers.append((owning_key, adduct))
-#             case.chromatogram.used_as_adduct = keepers
-#     out = [key_map[k].chromatogram for k in set(key_map) - updated]
-#     out.extend(key_map[k] for k in updated)
-#     return ChromatogramFilter(out)
 
 
 def prune_bad_adduct_branches(solutions):

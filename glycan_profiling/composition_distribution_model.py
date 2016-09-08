@@ -1,4 +1,5 @@
 import numpy as np
+import glypy
 
 
 # Taken from `statsmodels.distribution`
@@ -37,6 +38,7 @@ class StepFunction(object):
 
 
 class ECDF(StepFunction):
+
     def __init__(self, x, side='right'):
         x = np.array(x, copy=True)
         x.sort()
@@ -73,21 +75,25 @@ def power_iteration(A):
 
 
 def optimize_composition_distribution(network, solutions, common_weight=1, precision_scale=1):
-    W = np.array([node.score for node in network.nodes]) * precision_scale + common_weight
+    W = np.array([node.score for node in network.nodes]) * \
+        precision_scale + common_weight
 
     # Dirichlet Mean
     pi = W / W.sum()
 
-    sol_map = {sol.composition: sol.score for sol in solutions if sol.composition is not None}
+    sol_map = {
+        sol.composition: sol.score for sol in solutions if sol.composition is not None}
 
-    observations = np.array([sol_map.get(node.composition.serialize(), 1e-15) for node in network.nodes])
+    observations = np.array(
+        [sol_map.get(node.composition.serialize(), 1e-15) for node in network.nodes])
 
     def update_pi(pi_array):
         pi2 = np.zeros_like(pi_array)
         total_score_pi = (observations * pi_array).sum()
         total_w = ((W - 1).sum() + 1)
         for i in range(len(W)):
-            pi2[i] = ((W[i] - 1) + (observations[i] * pi_array[i]) / total_score_pi) / total_w
+            pi2[i] = ((W[i] - 1) + (observations[i] *
+                                    pi_array[i]) / total_score_pi) / total_w
             assert pi2[i] > 0, (W[i], pi_array[i])
         return pi2
 
@@ -109,3 +115,75 @@ def optimize_composition_distribution(network, solutions, common_weight=1, preci
         return pi_next
 
     return optimize_pi(pi)
+
+
+def null_model_probability_of_shift(cases, mass_shift):
+    hits = 0
+    total = len(cases)
+    for case in cases:
+        match = cases.find_mass(case.neutral_mass + mass_shift)
+        if match:
+            hits += 1
+    return hits / float(total)
+
+
+def valid_model_probability_of_shift(cases, mass_shift, validator):
+    hits = 0
+    total = 0
+    for case in cases:
+        if validator(case):
+            match = cases.find_mass(case.neutral_mass + mass_shift)
+            if match:
+                hits += 1
+            total += 1
+    return hits / float(total)
+
+
+def probability_of_shift(cases, mass, validator):
+    alpha = valid_model_probability_of_shift(cases, mass, validator)
+    beta = null_model_probability_of_shift(cases, mass)
+    return alpha / (alpha + beta)
+
+
+def can_gain_fucose(chromatogram):
+    comp = chromatogram.composition
+    if comp is None:
+        return False
+    comp = glypy.GlycanComposition.parse(comp)
+    nfuc = comp["Fuc"]
+    nhexnac = comp['HexNAc']
+    return nfuc < nhexnac - 1 and nfuc < 2
+
+
+def can_lose_fucose(chromatogram):
+    comp = chromatogram.composition
+    if comp is None:
+        return False
+    comp = glypy.GlycanComposition.parse(comp)
+    nfuc = comp["Fuc"]
+    nhexnac = comp['HexNAc']
+    return nfuc < nhexnac - 1 and nfuc > 0
+
+
+def can_gain_neuac(chromatogram):
+    comp = chromatogram.composition
+    if comp is None:
+        return False
+    comp = glypy.GlycanComposition.parse(comp)
+    nhexnac = comp['HexNAc']
+    nneuac = comp["Neu5Ac"]
+    return nneuac < nhexnac - 2 and nneuac < 4
+
+
+def can_lose_neuac(chromatogram):
+    comp = chromatogram.composition
+    if comp is None:
+        return False
+    comp = glypy.GlycanComposition.parse(comp)
+    nhexnac = comp['HexNAc']
+    nneuac = comp["Neu5Ac"]
+    return nneuac < nhexnac - 2 and nneuac > 0
+
+
+def threshold(x, t=0.4):
+    return x.score > t

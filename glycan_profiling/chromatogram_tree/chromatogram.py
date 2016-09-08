@@ -9,6 +9,9 @@ from glypy import Composition
 from glypy.composition.glycan_composition import FrozenGlycanComposition
 
 
+from .mass_shift import Unmodified
+
+
 intensity_getter = attrgetter("intensity")
 
 
@@ -37,115 +40,17 @@ def count_charge_states(peaks):
     return len(split_by_charge(peaks))
 
 
-class MassShiftBase(object):
-    def __eq__(self, other):
-        try:
-            return (self.name == other.name and abs(
-                self.mass - other.mass) < 1e-10) or self.composition == other.composition
-        except AttributeError:
-            return False
-
-    def __ne__(self, other):
-        return not self == other
-
-    def __hash__(self):
-        return hash(self.name)
-
-
-class MassShift(MassShiftBase):
-    def __init__(self, name, composition):
-        self.name = intern(name)
-        self.composition = composition
-        self.mass = composition.mass
-
-    def __repr__(self):
-        return "MassShift(%s, %s)" % (self.name, self.composition)
-
-    def __mul__(self, n):
-        if self.composition == {}:
-            return self
-        if isinstance(n, int):
-            return CompoundMassShift({self: n})
-        else:
-            raise TypeError("Cannot multiply MassShift by non-integer")
-
-    def __add__(self, other):
-        if self.composition == {}:
-            return other
-        elif other.composition == {}:
-            return self
-        name = "(%s) + (%s)" % (self.name, other.name)
-        composition = self.composition + other.composition
-        return self.__class__(name, composition)
-
-
-class CompoundMassShift(MassShiftBase):
-    def __init__(self, counts=None):
-        if counts is None:
-            counts = {}
-        self.counts = defaultdict(int, counts)
-        self.composition = None
-        self.name = None
-        self.mass = None
-
-        self._compute_composition()
-        self._compute_name()
-
-    def _compute_composition(self):
-        composition = Composition()
-        for k, v in self.counts.items():
-            composition += k.composition * v
-        self.composition = composition
-        self.mass = composition.mass
-
-    def _compute_name(self):
-        parts = []
-        for k, v in self.counts.items():
-            if v == 1:
-                parts.append(k.name)
-            else:
-                parts.append("%s * %d" % (k.name, v))
-        self.name = intern(" + ".join(sorted(parts)))
-
-    def __add__(self, other):
-        if other == Unmodified:
-            return self
-        elif self == Unmodified:
-            return other
-
-        if isinstance(other, MassShift):
-            counts = defaultdict(int, self.counts)
-            counts[other] += 1
-            return self.__class__(counts)
-        elif isinstance(other, CompoundMassShift):
-            counts = defaultdict(int, self.counts)
-            for k, v in other.counts.items():
-                counts[k] += v
-            return self.__class__(counts)
-        else:
-            return NotImplemented
-
-    def __mul__(self, i):
-        if self.composition == {}:
-            return self
-        if isinstance(i, int):
-            counts = defaultdict(int, self.counts)
-            for k in counts:
-                if k == Unmodified:
-                    continue
-                counts[k] *= i
-            return self.__class__(counts)
-        else:
-            raise TypeError("Cannot multiply MassShift by non-integer")
-
-    def __repr__(self):
-        return "MassShift(%s, %s)" % (self.name, self.composition)
-
-
-Unmodified = MassShift("Unmodified", Composition())
-Formate = MassShift("Formate", Composition('HCOOH'))
-Ammonium = MassShift("Ammonium", Composition("NH4"))
-Sodiated = MassShift("Sodiated", Composition("Na"))
+def mask_subsequence(target, masker):
+    unmasked_nodes = []
+    target_nodes = target.nodes.unspool_strip_children()
+    masking_nodes = masker.nodes.unspool()
+    for node in target_nodes:
+        if node not in masking_nodes:
+            unmasked_nodes.append(node)
+    new = Chromatogram(target.composition)
+    new.created_at = "mask_subsequence"
+    map(new.insert_node, unmasked_nodes)
+    return new
 
 
 class Chromatogram(object):
@@ -158,6 +63,7 @@ class Chromatogram(object):
             adducts = []
         if used_as_adduct is None:
             used_as_adduct = []
+
         self.nodes = nodes
         self._adducts = adducts
         self.used_as_adduct = used_as_adduct
@@ -173,6 +79,8 @@ class Chromatogram(object):
         self._retention_times = None
         self._peaks = None
         self._scan_ids = None
+        self._start_time = None
+        self._end_time = None
 
     def _invalidate(self):
         self._total_intensity = None
@@ -184,6 +92,8 @@ class Chromatogram(object):
         self._scan_ids = None
         self._adducts = None
         self._has_msms = None
+        self._start_time = None
+        self._end_time = None
         self._last_most_abundant_member = self._most_abundant_member
         self._most_abundant_member = None
 
@@ -245,7 +155,7 @@ class Chromatogram(object):
 
     @property
     def weighted_neutral_mass(self):
-        if self._neutral_mass is None:
+        if self._weighted_neutral_mass is None:
             self._infer_neutral_mass()
         return self._weighted_neutral_mass
 
@@ -323,11 +233,15 @@ class Chromatogram(object):
 
     @property
     def start_time(self):
-        return self.nodes[0].retention_time
+        if self._start_time is None:
+            self._start_time = self.nodes[0].retention_time
+        return self._start_time
 
     @property
     def end_time(self):
-        return self.nodes[-1].retention_time
+        if self._end_time is None:
+            self._end_time = self.nodes[-1].retention_time
+        return self._end_time
 
     def as_arrays(self):
         rts = np.array([node.retention_time for node in self.nodes])
@@ -349,6 +263,7 @@ class Chromatogram(object):
             if (node.retention_time - last_rt) > delta_rt:
                 x = Chromatogram(self.composition, ChromatogramTreeList(current_chunk))
                 x.used_as_adduct = list(self.used_as_adduct)
+
                 chunks.append(x)
                 current_chunk = []
 
@@ -357,9 +272,17 @@ class Chromatogram(object):
 
         x = Chromatogram(self.composition, ChromatogramTreeList(current_chunk))
         x.used_as_adduct = list(self.used_as_adduct)
+
         chunks.append(x)
         for chunk in chunks:
             chunk.created_at = self.created_at
+
+        for member in chunks:
+            for other in chunks:
+                if member == other:
+                    continue
+                assert not member.overlaps_in_time(other)
+
         return chunks
 
     def truncate_before(self, time):
@@ -376,8 +299,10 @@ class Chromatogram(object):
         self.nodes = ChromatogramTreeList(self.nodes[:i])
         self._invalidate()
 
-    def clone(self):
-        c = Chromatogram(
+    def clone(self, cls=None):
+        if cls is None:
+            cls = self.__class__
+        c = cls(
             self.composition, self.nodes.clone(), list(self.adducts), list(self.used_as_adduct))
         c.created_at = self.created_at
         return c
@@ -440,14 +365,16 @@ class Chromatogram(object):
                     charge_peaks.append(peak)
                 else:
                     no_charge_peaks.append(peak)
-            charge_node = ChromatogramTreeNode(
-                retention_time=rt, scan_id=scan_id, children=None,
-                members=charge_peaks, node_type=node_t)
-            new_charge.insert_node(charge_node)
-            no_charge_node = ChromatogramTreeNode(
-                retention_time=rt, scan_id=scan_id, children=None,
-                members=no_charge_peaks, node_type=node_t)
-            new_no_charge.insert_node(no_charge_node)
+            if len(charge_peaks):
+                charge_node = ChromatogramTreeNode(
+                    retention_time=rt, scan_id=scan_id, children=None,
+                    members=charge_peaks, node_type=node_t)
+                new_charge.insert_node(charge_node)
+            if len(no_charge_peaks):
+                no_charge_node = ChromatogramTreeNode(
+                    retention_time=rt, scan_id=scan_id, children=None,
+                    members=no_charge_peaks, node_type=node_t)
+                new_no_charge.insert_node(no_charge_node)
         return new_charge, new_no_charge
 
     def __eq__(self, other):
@@ -632,6 +559,9 @@ class ChromatogramTreeNode(object):
 
     @property
     def neutral_mass(self):
+        if self._neutral_mass is None:
+            if self._most_abundant_member is not None:
+                self._neutral_mass = self._most_abundant_member.neutral_mass
         return self._neutral_mass
 
     def charge_states(self):
@@ -709,176 +639,92 @@ class ChromatogramTreeNode(object):
         return kinds
 
 
-class ChromatogramForest(object):
-    def __init__(self, chromatograms=None, error_tolerance=1e-5, scan_id_to_rt=lambda x: x):
-        if chromatograms is None:
-            chromatograms = []
-        self.chromatograms = sorted(chromatograms, key=lambda x: x.neutral_mass)
-        self.error_tolerance = error_tolerance
-        self.scan_id_to_rt = scan_id_to_rt
-        self.count = 0
-
-    def __len__(self):
-        return len(self.chromatograms)
-
-    def __iter__(self):
-        return iter(self.chromatograms)
-
-    def __getitem__(self, i):
-        if isinstance(i, (int, slice)):
-            return self.chromatograms[i]
-        else:
-            return [self.chromatograms[j] for j in i]
-
-    def find_insertion_point(self, peak):
-        index, matched = binary_search_with_flag(
-            self.chromatograms, peak.neutral_mass, self.error_tolerance)
-        return index, matched
-
-    def find_minimizing_index(self, peak, indices):
-        best_index = None
-        best_error = float('inf')
-        for index_case in indices:
-            chroma = self[index_case]
-            err = abs(chroma.neutral_mass - peak.neutral_mass) / peak.neutral_mass
-            if err < best_error:
-                best_index = index_case
-                best_error = err
-        return best_index
-
-    def handle_peak(self, scan_id, peak):
-        if len(self) == 0:
-            index = [0]
-            matched = False
-        else:
-            index, matched = self.find_insertion_point(peak)
-        if matched:
-            chroma = self.chromatograms[self.find_minimizing_index(peak, index)]
-            most_abundant_member = chroma.most_abundant_member
-            chroma.insert(scan_id, peak, self.scan_id_to_rt(scan_id))
-            if peak.intensity < most_abundant_member:
-                chroma.retain_most_abundant_member()
-        else:
-            chroma = Chromatogram(None)
-            chroma.created_at = "forest"
-            chroma.insert(scan_id, peak, self.scan_id_to_rt(scan_id))
-            self.insert_chromatogram(chroma, index)
-        self.count += 1
-
-    def insert_chromatogram(self, chromatogram, index):
-        if index[0] != 0:
-            self.chromatograms.insert(index[0] + 1, chromatogram)
-        else:
-            if len(self) == 0:
-                new_index = index[0]
-            else:
-                x = self.chromatograms[index[0]]
-                if x.neutral_mass < chromatogram.neutral_mass:
-                    new_index = index[0] + 1
-                else:
-                    new_index = index[0]
-            self.chromatograms.insert(new_index, chromatogram)
-
-    def aggregate_unmatched_peaks(self, scan_id_peaks_list, minimum_mass=300, minimum_intensity=1000.):
-        unmatched = sorted(scan_id_peaks_list, key=lambda x: x[1].intensity, reverse=True)
-        for scan_id, peak in unmatched:
-            if peak.neutral_mass < minimum_mass or peak.intensity < minimum_intensity:
-                continue
-            self.handle_peak(scan_id, peak)
-
-
-def mask_subsequence(target, masker):
-    unmasked_nodes = []
-    target_nodes = target.nodes.unspool_strip_children()
-    masking_nodes = masker.nodes.unspool()
-    for node in target_nodes:
-        if node not in masking_nodes:
-            unmasked_nodes.append(node)
-    new = Chromatogram(target.composition)
-    new.created_at = "mask_subsequence"
-    map(new.insert_node, unmasked_nodes)
-    return new
-
-
-def is_sorted(mass_list):
-    i = 0
-    for a, b in zip(mass_list[:-1], mass_list[1:]):
-        if not a.neutral_mass <= b.neutral_mass:
-            print a.neutral_mass, b.neutral_mass, i
-        i += 1
-    return True
-
-
-def is_sparse(mass_list):
-    i = 0
-    for a, b in zip(mass_list[:-1], mass_list[1:]):
-        err = (a.neutral_mass - b.neutral_mass) / b.neutral_mass
-        if abs(err) < 1e-5 and a.composition is None:
-            print a.neutral_mass, b.neutral_mass, err, i
-            raise ValueError("Not sparse")
-            return False
-        i += 1
-    return True
-
-
-def binary_search_with_flag(array, mass, error_tolerance=1e-5):
-        lo = 0
-        n = hi = len(array)
-        while hi != lo:
-            mid = (hi + lo) / 2
-            x = array[mid]
-            err = (x.neutral_mass - mass) / mass
-            if abs(err) <= error_tolerance:
-                i = mid - 1
-                # Begin Sweep forward
-                while i > 0:
-                    x = array[i]
-                    err = (x.neutral_mass - mass) / mass
-                    if abs(err) <= error_tolerance:
-                        i -= 1
-                        continue
-                    else:
-                        break
-                low_end = i + 1
-                i = mid + 1
-
-                # Begin Sweep backward
-                while i < n:
-                    x = array[i]
-                    err = (x.neutral_mass - mass) / mass
-                    if abs(err) <= error_tolerance:
-                        i += 1
-                        continue
-                    else:
-                        break
-                high_end = i
-                return list(range(low_end, high_end)), True
-            elif (hi - lo) == 1:
-                return [mid], False
-            elif err > 0:
-                hi = mid
-            elif err < 0:
-                lo = mid
-        return 0, False
-
-
-class ChromatogramGraphNode(object):
-    def __init__(self, chromatogram):
-        self.chromatogram = chromatogram
-        self.edges = set()
-
-    def __eq__(self, other):
-        return self.chromatogram == other.chromatogram
-
-    def __hash__(self):
-        return hash(self.chromatogram.key)
-
-
 class ChromatogramInterface(object):
     __metaclass__ = ABCMeta
 
 
 ChromatogramInterface.register(Chromatogram)
+
+
+class ChromatogramWrapper(object):
+    def __init__(self, chromatogram):
+        self.chromatogram = chromatogram
+
+    def __iter__(self):
+        return iter(self.chromatogram)
+
+    def __getitem__(self, i):
+        return self.chromatogram[i]
+
+    def __len__(self):
+        return len(self.chromatogram)
+
+    @property
+    def nodes(self):
+        return self.chromatogram.nodes
+
+    @property
+    def neutral_mass(self):
+        return self.chromatogram.neutral_mass
+
+    @property
+    def weighted_neutral_mass(self):
+        return self.chromatogram.weighted_neutral_mass
+
+    @property
+    def n_charge_states(self):
+        return self.chromatogram.n_charge_states
+
+    @property
+    def charge_states(self):
+        return self.chromatogram.charge_states
+
+    @property
+    def adducts(self):
+        return self.chromatogram.adducts
+
+    @property
+    def total_signal(self):
+        return self.chromatogram.total_signal
+
+    @property
+    def start_time(self):
+        return self.chromatogram.start_time
+
+    @property
+    def end_time(self):
+        return self.chromatogram.end_time
+
+    def as_arrays(self):
+        rts = np.array([node.retention_time for node in self])
+        intens = np.array([node.total_intensity() for node in self])
+        return rts, intens
+
+    @property
+    def key(self):
+        return self.chromatogram.key
+
+    @property
+    def composition(self):
+        return self.chromatogram.composition
+
+    @property
+    def peaks(self):
+        return self.chromatogram.peaks
+
+    @property
+    def scan_ids(self):
+        return self.chromatogram.scan_ids
+
+    @property
+    def retention_times(self):
+        return self.chromatogram.retention_times
+
+    def __repr__(self):
+        return "{self.__class__.__name__}({self.key}, {self.neutral_mass})".format(self=self)
+
+
+ChromatogramInterface.register(ChromatogramWrapper)
 
 
 class CachedGlycanComposition(FrozenGlycanComposition):
@@ -890,7 +736,7 @@ class CachedGlycanComposition(FrozenGlycanComposition):
         return self._hash
 
 
-class GlycanCompositionChromatogram(Chromatogram):
+class EntityChromatogram(Chromatogram):
     _composition = None
     _parsed_composition = None
 
@@ -899,7 +745,7 @@ class GlycanCompositionChromatogram(Chromatogram):
         if self._composition is None:
             return None
         elif self._parsed_composition is None:
-            self._parsed_composition = CachedGlycanComposition.parse(self._composition)
+            self._parsed_composition = self._parse(self._composition)
         return self._parsed_composition
 
     @composition.setter
@@ -909,3 +755,24 @@ class GlycanCompositionChromatogram(Chromatogram):
         else:
             self._composition = str(value)
             self._parsed_composition = None
+
+    @property
+    def glycan_composition(self):
+        return self._parsed_composition
+
+
+class GlycanCompositionChromatogram(EntityChromatogram):
+    @staticmethod
+    def _parse(string):
+        return CachedGlycanComposition.parse(string)
+
+
+class GlycopeptideChromatogram(EntityChromatogram):
+    @staticmethod
+    def _parse(string):
+        from glycresoft_sqlalchemy.structure.sequence import PeptideSequence
+        return PeptideSequence(string)
+
+    @property
+    def glycan_composition(self):
+        return self._parsed_composition.glycan_composition

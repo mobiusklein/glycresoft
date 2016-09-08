@@ -60,6 +60,9 @@ class ScanCacheHandlerBase(object):
     def sync(self):
         self.commit()
 
+    def get_analysis_serializer(self, *args, **kwargs):
+        return None
+
 
 class NullScanCacheHandler(ScanCacheHandlerBase):
     def save_bunch(self, precursor, products):
@@ -71,6 +74,11 @@ class DatabaseScanCacheHandler(ScanCacheHandlerBase):
         self.serializer = DatabaseScanSerializer(connection, sample_name)
         self.commit_counter = 0
         super(DatabaseScanCacheHandler, self).__init__()
+
+    def get_analysis_serializer(self, analysis_name, *args, **kwargs):
+        from .serialize import AnalysisSerializer as DatabaseAnalysisSerializer
+        return DatabaseAnalysisSerializer(
+            self.serializer.session, self.serializer.sample_run_id, analysis_name, *args, **kwargs)
 
     def save_bunch(self, precursor, products):
         self.serializer.save(ScanBunch(precursor, products), commit=False)
@@ -161,20 +169,19 @@ class DatabaseScanGenerator(ScanGeneratorBase):
 
     def configure_iteration(self, start_scan=None, end_scan=None, max_scans=None):
         self.deserializer.reset()
+        self.max_scans = max_scans
+        self.start_scan = start_scan
+        self.end_scan = end_scan
         self._iterator = self.make_iterator(start_scan, end_scan, max_scans)
 
     def make_iterator(self, start_scan=None, end_scan=None, max_scans=None):
         index = 0
         if start_scan is not None:
-            self.loader.start_from_scan(start_scan)
+            self.deserializer.start_from_scan(start_scan)
 
         count = 0
-        if self.max_scans is None:
+        if max_scans is None:
             max_scans = float('inf')
-        else:
-            max_scans = self.max_scans
-
-        end_scan = self.end_scan
 
         while count < max_scans:
             try:
@@ -182,7 +189,9 @@ class DatabaseScanGenerator(ScanGeneratorBase):
                 scan_id = scan.id
                 if scan_id == end_scan:
                     break
-                yield scan, products
+                yield scan
+                for prod in products:
+                    yield prod
 
                 index += 1
                 count += 1
@@ -191,4 +200,4 @@ class DatabaseScanGenerator(ScanGeneratorBase):
                 break
 
     def convert_scan_id_to_retention_time(self, scan_id):
-        return self.deserializer.get_scan_by_id(scan_id).scan_time
+        return self.deserializer.convert_scan_id_to_retention_time(scan_id)
