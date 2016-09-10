@@ -1,9 +1,12 @@
 from collections import namedtuple
+from functools import partial
 
 from ..spectrum_matcher_base import TandemClusterEvaluatorBase
 from ..chromatogram_mapping import ChromatogramMSMSMapper
 from glycan_profiling.database import LRUCache
-from glycresoft_sqlalchemy.structure.sequence import PeptideSequence
+from glycresoft_sqlalchemy.structure.sequence import PeptideSequence, memoize
+from glycresoft_sqlalchemy.structure.glycan import HashableGlycanComposition
+from glycresoft_sqlalchemy.structure.parser import sequence_tokenizer
 from .make_decoys import reverse_preserve_sequon
 from .scoring import TargetDecoyAnalyzer
 
@@ -67,8 +70,32 @@ class TargetDecoyInterleavingGlycopeptideMatcher(TandemClusterEvaluatorBase):
         return target_out, decoy_out
 
 
+hashable_glycan_glycopeptide_parser = partial(
+    sequence_tokenizer, glycan_parser_function=HashableGlycanComposition.parse)
+
+
+class GlycanFragmentCache(object):
+    def __init__(self):
+        self.cache = dict()
+
+    def get_oxonium_ions(self, glycopeptide):
+        try:
+            return self.cache[glycopeptide.glycan]
+        except:
+            oxonium_ions = list(glycopeptide._glycan_fragments())
+            self.cache[glycopeptide.glycan] = oxonium_ions
+            return oxonium_ions
+
+    def __call__(self, glycopeptide):
+        return self.get_oxonium_ions(glycopeptide)
+
+
+oxonium_ion_cache = GlycanFragmentCache()
+
+
 class FragmentCachingGlycopeptide(PeptideSequence):
     def __init__(self, *args, **kwargs):
+        kwargs.setdefault('parser_function', hashable_glycan_glycopeptide_parser)
         super(FragmentCachingGlycopeptide, self).__init__(*args, **kwargs)
         self.fragment_caches = {}
 
@@ -81,23 +108,20 @@ class FragmentCachingGlycopeptide(PeptideSequence):
             self.fragment_caches[key] = result
             return result
 
-    def stub_fragments(self):
-        key = ('stub_fragments',)
+    def stub_fragments(self, *args, **kwargs):
+        key = ('stub_fragments', args, frozenset(kwargs.items()))
         try:
             return self.fragment_caches[key]
         except KeyError:
-            result = list(super(FragmentCachingGlycopeptide, self).stub_fragments())
+            result = list(super(FragmentCachingGlycopeptide, self).stub_fragments(*args, **kwargs))
             self.fragment_caches[key] = result
             return result
 
+    def _glycan_fragments(self):
+        return list(super(FragmentCachingGlycopeptide, self).glycan_fragments(oxonium=True))
+
     def glycan_fragments(self, *args, **kwargs):
-        key = ("glycan_fragments", args, frozenset(kwargs.items()))
-        try:
-            return self.fragment_caches[key]
-        except KeyError:
-            result = list(super(FragmentCachingGlycopeptide, self).glycan_fragments(*args, **kwargs))
-            self.fragment_caches[key] = result
-            return result
+        return oxonium_ion_cache(self)
 
     def clear_caches(self):
         self.fragment_caches.clear()
@@ -211,21 +235,26 @@ class GlycopeptideDatabaseSearchIdentifier(object):
         from datetime import datetime
         print(datetime.now().isoformat(' ') + ' ' + str(message))
 
-    def search(self, precursor_error_tolerance=1e-5, simplify=True, chunk_size=200, *args, **kwargs):
+    def search(self, precursor_error_tolerance=1e-5, simplify=True, chunk_size=200, limit=None, *args, **kwargs):
         target_hits = []
         decoy_hits = []
         total = len(self.tandem_scans)
         count = 0
+        if limit is None:
+            limit = float('inf')
         for bunch in chunkiter(self.tandem_scans, chunk_size):
             count += len(bunch)
             self.log("... Searching %s (%d/%d)" % (bunch[0].precursor_information, count, total))
             if hasattr(bunch[0], 'convert'):
-                bunch = [o.convert() for o in bunch]
+                bunch = [o.convert(fitted=False, deconvoluted=True) for o in bunch]
             t, d = TargetDecoyInterleavingGlycopeptideMatcher(
                 bunch, self.scorer_type, self.structure_database).score_all(
                 precursor_error_tolerance=precursor_error_tolerance, simplify=simplify, *args, **kwargs)
             target_hits.extend(t)
             decoy_hits.extend(d)
+            if count >= limit:
+                self.log("Reached Limit. Halting.")
+                break
         self.log('Search Done')
         return target_hits, decoy_hits
 
@@ -241,3 +270,4 @@ class GlycopeptideDatabaseSearchIdentifier(object):
             self.chromatograms, precursor_error_tolerance, self.scan_id_to_rt)
         mapper.assign_solutions_to_chromatograms(tandem_identifications)
         mapper.distribute_orphans()
+        return mapper.chromatograms

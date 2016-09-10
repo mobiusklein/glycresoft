@@ -177,11 +177,14 @@ class SpectrumSolutionSet(object):
         self.solutions = solutions
         self._is_simplified = True
 
+    def get_top_solutions(self):
+        score = self.best_solution().score
+        return [x for x in self.solutions if abs(x.score - score) < 1e-6]
+
     def select_top(self):
         if self._is_top_only:
             return
-        score = self.best_solution().score
-        self.solutions = [x for x in self.solutions if abs(x.score - score) < 1e-6]
+        self.solutions = self.get_top_solutions()
         self._is_top_only = True
 
 

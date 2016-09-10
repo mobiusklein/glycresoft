@@ -12,7 +12,10 @@ class ChromatogramSpacingFitter(object):
         self.intensity_deltas = []
         self.score = None
 
-        self.fit()
+        if len(chromatogram) < 3:
+            self.score = 1.0
+        else:
+            self.fit()
 
     def fit(self):
         intensities = map(total_intensity, self.chromatogram.peaks)

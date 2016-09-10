@@ -94,3 +94,15 @@ class SimpleChromatogram(OrderedDict):
         return (
             np.array(map(self.time_converter.scan_id_to_rt, self)),
             np.array(self.values()))
+
+
+class PairedArray(object):
+    def __init__(self, x, y):
+        self.x = x
+        self.y = y
+
+    def as_arrays(self):
+        return self.x, self.y
+
+    def __len__(self):
+        return len(self.x)

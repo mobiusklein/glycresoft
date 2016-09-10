@@ -144,7 +144,7 @@ class ChromatogramSolution(object):
         return self.chromatogram[i]
 
     def __dir__(self):
-        return set(('compure_score', 'score_components')) | set(dir(self.chromatogram))
+        return list(set(('compure_score', 'score_components')) | set(dir(self.chromatogram)))
 
 
 ChromatogramInterface.register(ChromatogramSolution)

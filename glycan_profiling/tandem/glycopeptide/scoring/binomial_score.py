@@ -116,7 +116,7 @@ class BinomialSpectrumMatcher(SpectrumMatcherBase):
         solution_map = {}
         spectrum = self.spectrum
         for frag in self.sequence.glycan_fragments(
-                all_series=True, allow_ambiguous=True,
+                all_series=False, allow_ambiguous=False,
                 include_large_glycan_fragments=False,
                 maximum_fragment_size=4):
             peak = spectrum.has_peak(frag.mass, error_tolerance)
@@ -139,7 +139,7 @@ class BinomialSpectrumMatcher(SpectrumMatcherBase):
                 peak = spectrum.has_peak(frag.mass, error_tolerance)
                 if peak:
                     solution_map[frag] = peak
-        for frag in self.sequence.stub_fragments():
+        for frag in self.sequence.stub_fragments(extended=True):
             n_theoretical += 1
             peak = spectrum.has_peak(frag.mass, error_tolerance)
             if peak:
