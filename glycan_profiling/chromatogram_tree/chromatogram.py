@@ -101,13 +101,11 @@ class Chromatogram(object):
         self._neutral_mass = self._last_neutral_mass
         self._most_abundant_member = self._last_most_abundant_member
 
-    @property
     def has_msms(self):
         if self._has_msms is None:
             self._has_msms = [node for node in self.nodes if node.has_msms]
         return self._has_msms
 
-    @property
     def most_abundant_member(self):
         if self._most_abundant_member is None:
             self._most_abundant_member = max(node.max_intensity() for node in self.nodes)
@@ -138,13 +136,11 @@ class Chromatogram(object):
             k: self.total_signal_for(k) for k in self.adducts
         }
 
-    @property
     def adducts(self):
         if self._adducts is None:
             self._infer_adducts()
         return self._adducts
 
-    @property
     def total_signal(self):
         if self._total_intensity is None:
             total = 0.
@@ -153,7 +149,6 @@ class Chromatogram(object):
             self._total_intensity = total
         return self._total_intensity
 
-    @property
     def weighted_neutral_mass(self):
         if self._weighted_neutral_mass is None:
             self._infer_neutral_mass()
@@ -184,7 +179,6 @@ class Chromatogram(object):
             raise KeyError(node_type)
         return best_neutral_mass
 
-    @property
     def neutral_mass(self):
         if self._neutral_mass is None:
             try:
@@ -193,7 +187,6 @@ class Chromatogram(object):
                 self._infer_neutral_mass(self.adducts[0])
         return self._neutral_mass
 
-    @property
     def charge_states(self):
         if self._charge_states is None:
             states = set()
@@ -202,42 +195,35 @@ class Chromatogram(object):
             self._charge_states = states
         return self._charge_states
 
-    @property
     def n_charge_states(self):
         return len(self.charge_states)
 
-    @property
     def key(self):
         if self.composition is not None:
             return self.composition
         else:
             return self.neutral_mass
 
-    @property
     def retention_times(self):
         if self._retention_times is None:
             self._retention_times = tuple(node.retention_time for node in self.nodes)
         return self._retention_times
 
-    @property
     def scan_ids(self):
         if self._scan_ids is None:
             self._scan_ids = tuple(node.scan_id for node in self.nodes)
         return self._scan_ids
 
-    @property
     def peaks(self):
         if self._peaks is None:
             self._peaks = tuple(node.peaks for node in self.nodes)
         return self._peaks
 
-    @property
     def start_time(self):
         if self._start_time is None:
             self._start_time = self.nodes[0].retention_time
         return self._start_time
 
-    @property
     def end_time(self):
         if self._end_time is None:
             self._end_time = self.nodes[-1].retention_time
@@ -394,6 +380,9 @@ class Chromatogram(object):
             self.start_time <= interval.start_time and self.end_time >= interval.start_time) or (
             self.start_time <= interval.end_time and self.end_time >= interval.end_time))
         return cond
+
+    def elemental_composition(self):
+        return None
 
 
 class ChromatogramTreeList(object):
@@ -723,6 +712,23 @@ class ChromatogramWrapper(object):
     def __repr__(self):
         return "{self.__class__.__name__}({self.key}, {self.neutral_mass})".format(self=self)
 
+    @property
+    def entity(self):
+        return self.chromatogram.entity
+
+    @property
+    def glycan_composition(self):
+        return self.chromatogram.glycan_composition
+
+    @property
+    def elemental_composition(self):
+        return self.chromatogram.elemental_composition
+
+
+class ChromatogramProxy(object):
+    def __init__(self, chromatogram):
+        self.chromatogram = chromatogram
+
 
 ChromatogramInterface.register(ChromatogramWrapper)
 
@@ -737,28 +743,40 @@ class CachedGlycanComposition(FrozenGlycanComposition):
 
 
 class EntityChromatogram(Chromatogram):
-    _composition = None
-    _parsed_composition = None
-
-    @property
-    def composition(self):
-        if self._composition is None:
-            return None
-        elif self._parsed_composition is None:
-            self._parsed_composition = self._parse(self._composition)
-        return self._parsed_composition
-
-    @composition.setter
-    def composition(self, value):
-        if value is None:
-            self._composition = None
-        else:
-            self._composition = str(value)
-            self._parsed_composition = None
+    _entity = None
 
     @property
     def glycan_composition(self):
-        return self._parsed_composition
+        return self._entity
+
+    @property
+    def entity(self):
+        return self._entity
+
+    def clone(self, cls=None):
+        if cls is None:
+            cls = self.__class__
+        inst = super(EntityChromatogram, self).clone(cls=cls)
+        inst.entity = self.entity
+        return inst
+
+    @entity.setter
+    def entity(self, value):
+        if isinstance(value, str):
+            value = self._parse(value)
+        self._entity = value
+        if self.composition is None and value is not None:
+            self.composition = str(value)
+
+    @property
+    def elemental_composition(self):
+        try:
+            return self.entity.total_composition()
+        except AttributeError:
+            try:
+                return self._parse(self.composition).total_composition()
+            except:
+                return None
 
 
 class GlycanCompositionChromatogram(EntityChromatogram):
@@ -775,4 +793,4 @@ class GlycopeptideChromatogram(EntityChromatogram):
 
     @property
     def glycan_composition(self):
-        return self._parsed_composition.glycan_composition
+        return self._entity.glycan_composition

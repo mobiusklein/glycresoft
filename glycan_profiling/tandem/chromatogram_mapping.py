@@ -1,5 +1,8 @@
-from glycan_profiling.chromatogram_tree import ChromatogramWrapper, build_rt_interval_tree
-from glycan_profiling.trace import ChromatogramFilter
+from glycan_profiling.chromatogram_tree import ChromatogramWrapper, build_rt_interval_tree, ChromatogramFilter
+from glycan_profiling.chromatogram_tree.chromatogram import GlycopeptideChromatogram
+from collections import defaultdict, namedtuple
+
+SolutionEntry = namedtuple("SolutionEntry", "solution, score, percentile, best_score")
 
 
 class TandemAnnotatedChromatogram(ChromatogramWrapper):
@@ -7,12 +10,13 @@ class TandemAnnotatedChromatogram(ChromatogramWrapper):
         super(TandemAnnotatedChromatogram, self).__init__(chromatogram)
         self.tandem_solutions = []
         self.time_displaced_assignments = []
+        self.best_msms_score = None
 
     def add_solution(self, item):
         self.tandem_solutions.append(item)
 
     def add_displaced_solution(self, item):
-        self.time_displaced_assignments.append(item)
+        self.tandem_solutions.append(item)
 
     def merge(self, other):
         new = self.__class__(self.chromatogram.merge(other.chromatogram))
@@ -25,6 +29,36 @@ class TandemAnnotatedChromatogram(ChromatogramWrapper):
         self.chromatogram = new
         self.tandem_solutions = self.tandem_solutions + other.tandem_solutions
         self.time_displaced_assignments = self.time_displaced_assignments + other.time_displaced_assignments
+
+    def _compute_representative_weights(self, threshold_fn=lambda x: True):
+        scores = defaultdict(float)
+        best_scores = defaultdict(float)
+        for psm in self.tandem_solutions:
+            if threshold_fn(psm):
+                for sol in psm.get_top_solutions():
+                    scores[sol.target] += (sol.score)
+                    if best_scores[sol.target] < sol.score:
+                        best_scores[sol.target] = sol.score
+        total = sum(scores.values())
+        weights = [
+            SolutionEntry(k, v, v / total, best_scores[k]) for k, v in scores.items()
+        ]
+        weights.sort(key=lambda x: x.percentile, reverse=True)
+        return weights
+
+    def most_representative_solutions(self, threshold_fn=lambda x: True):
+        weights = self._compute_representative_weights(threshold_fn)
+        if weights:
+            return [x for x in weights if abs(x.percentile - weights[0].percentile) < 1e-5]
+
+    def assign_entity(self, solution_entry, entity_chromatogram_type=GlycopeptideChromatogram):
+        entity_chroma = entity_chromatogram_type(
+            self.chromatogram.composition,
+            self.chromatogram.nodes, self.chromatogram.adducts,
+            self.chromatogram.used_as_adduct)
+        entity_chroma.entity = solution_entry.solution
+        self.chromatogram = entity_chroma
+        self.best_msms_score = solution_entry.best_score
 
 
 class ScanTimeBundle(object):
@@ -40,6 +74,31 @@ class ScanTimeBundle(object):
 
     def __repr__(self):
         return "ScanTimeBundle(%s, %0.4f)" % (self.solution, self.scan_time)
+
+
+def aggregate_by_assigned_entity(annotated_chromatograms):
+    aggregated = defaultdict(list)
+    finished = []
+    for chroma in annotated_chromatograms:
+        if chroma.composition is not None:
+            if chroma.entity is not None:
+                aggregated[chroma.entity].append(chroma)
+            else:
+                aggregated[chroma.composition].append(chroma)
+        else:
+            finished.append(chroma)
+    for entity, group in aggregated.items():
+        out = []
+        chroma = group[0]
+        for obs in group[1:]:
+            if chroma.chromatogram.overlaps_in_time(obs):
+                chroma = chroma.merge(obs)
+            else:
+                out.append(chroma)
+                chroma = obs
+        out.append(chroma)
+        finished.extend(out)
+    return finished
 
 
 class ChromatogramMSMSMapper(object):
@@ -84,7 +143,39 @@ class ChromatogramMSMSMapper(object):
                         best_index = i
                         best_distance = dist
                     new_owner = candidates[best_index]
-                    new_owner.add_displaced_solution(orphan)
+                    new_owner.add_displaced_solution(orphan.solution)
+
+    def assign_entities(self, threshold_fn=lambda x: x.q_value < 0.05, entity_chromatogram_type=None):
+        if entity_chromatogram_type is None:
+            entity_chromatogram_type = GlycopeptideChromatogram
+        for chromatogram in self:
+            solutions = chromatogram.most_representative_solutions(threshold_fn)
+            if solutions:
+                chromatogram.assign_entity(solutions[0], entity_chromatogram_type=entity_chromatogram_type)
+
+    def merge_common_entities(self, annotated_chromatograms):
+        aggregated = defaultdict(list)
+        finished = []
+        for chroma in annotated_chromatograms:
+            if chroma.composition is not None:
+                if chroma.entity is not None:
+                    aggregated[chroma.entity].append(chroma)
+                else:
+                    aggregated[chroma.composition].append(chroma)
+            else:
+                finished.append(chroma)
+        for entity, group in aggregated.items():
+            out = []
+            chroma = group[0]
+            for obs in group[1:]:
+                if chroma.chromatogram.overlaps_in_time(obs):
+                    chroma = chroma.merge(obs)
+                else:
+                    out.append(chroma)
+                    chroma = obs
+            out.append(chroma)
+            finished.extend(out)
+        return finished
 
     def __len__(self):
         return len(self.chromatograms)

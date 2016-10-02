@@ -4,7 +4,9 @@ import operator
 from ms_deisotope.peak_dependency_network.intervals import SpanningMixin
 
 from sqlalchemy import select
-from glycresoft_sqlalchemy.data_model import DatabaseManager, TheoreticalGlycopeptideComposition, func
+from glycresoft_sqlalchemy.data_model import (
+    DatabaseManager, TheoreticalGlycopeptideComposition, func,
+    Protein, Hypothesis, InformedPeptide)
 
 from .mass_collection import SearchableMassCollection, NeutralMassDatabase
 from .lru import LRUCache
@@ -36,6 +38,8 @@ class DiskBackedStructureDatabase(SearchableMassCollection):
         self.threshold_cache_total_count = threshold_cache_total_count
         self._intervals = LRUIntervalSet([], cache_size)
         self._ignored_intervals = IntervalSet([])
+        self.proteins = _ProteinIndex(self.session, self.hypothesis_id)
+        self.peptides = _PeptideIndex(self.session, self.hypothesis_id)
 
     def __reduce__(self):
         return self.__class__, (
@@ -49,6 +53,10 @@ class DiskBackedStructureDatabase(SearchableMassCollection):
                    self._intervals.total_count >
                    self.threshold_cache_total_count):
                 self._intervals.remove_lru_interval()
+
+    @property
+    def hypothesis(self):
+        return self.session.query(Hypothesis).get(self.hypothesis_id)
 
     @property
     def structures(self):
@@ -146,13 +154,55 @@ class DiskBackedStructureDatabase(SearchableMassCollection):
         return self.session.query(self.model_type).get(reference.id)
 
 
+class _ProteinIndex(object):
+    def __init__(self, session, hypothesis_id):
+        self.session = session
+        self.hypothesis_id = hypothesis_id
+
+    def _get_by_id(self, id):
+        return self.session.query(Protein).get(id)
+
+    def _get_by_name(self, name):
+        return self.session.query(Protein).filter(
+            Protein.hypothesis_id == self.hypothesis_id,
+            Protein.name == name).one()
+
+    def __getitem__(self, key):
+        if isinstance(key, int):
+            return self._get_by_id(key)
+        else:
+            return self._get_by_name(key)
+
+
+class _PeptideIndex(object):
+    def __init__(self, session, hypothesis_id):
+        self.session = session
+        self.hypothesis_id = hypothesis_id
+
+    def _get_by_id(self, id):
+        return self.session.query(InformedPeptide).get(id)
+
+    def _get_by_sequence(self, modified_peptide_sequence, protein_id):
+        return self.session.query(InformedPeptide).filter(
+            InformedPeptide.hypothesis_id == self.hypothesis_id,
+            InformedPeptide.modified_peptide_sequence == modified_peptide_sequence,
+            InformedPeptide.protein_id == protein_id).one()
+
+    def __getitem__(self, key):
+        if isinstance(key, int):
+            return self._get_by_id(key)
+        else:
+            return self._get_by_name(*key)
+
+
 class GlycopeptideDiskBackedStructureDatabase(DiskBackedStructureDatabase):
 
     def _get_record_properties(self):
         table = self.model_type.__table__
         return [
             table.c.id, table.c.calculated_mass, table.c.glycopeptide_sequence,
-            table.c.protein_id, table.c.hypothesis_id
+            table.c.protein_id, table.c.start_position, table.c.end_position,
+            table.c.hypothesis_id
         ]
 
     @property

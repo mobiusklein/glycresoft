@@ -67,8 +67,12 @@ class MassDatabase(SearchableMassCollection):
     structures : list
         A list of :class:`FrozenGlycanComposition` instances, sorted by mass
     """
-    def __init__(self, structures, network=None, distance_fn=n_glycan_distance):
-        self.structures = list(map(FrozenGlycanComposition, structures))
+    def __init__(self, structures, network=None, distance_fn=n_glycan_distance,
+                 glycan_composition_type=FrozenGlycanComposition):
+        self.glycan_composition_type = glycan_composition_type
+        if not isinstance(structures[0], glycan_composition_type):
+            structures = list(map(glycan_composition_type, structures))
+        self.structures = structures
         self.structures.sort(key=lambda x: x.mass())
         if network is None:
             self.network = CompositionGraph(self.structures)

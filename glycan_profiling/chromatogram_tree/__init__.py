@@ -7,7 +7,8 @@ from . import chromatogram
 from .chromatogram import (
     Chromatogram, ChromatogramInterface, ChromatogramTreeNode,
     ChromatogramTreeList, EmptyListException, DuplicateNodeError,
-    mask_subsequence, split_by_charge, group_by, ChromatogramWrapper)
+    mask_subsequence, split_by_charge, group_by, ChromatogramWrapper,
+    GlycanCompositionChromatogram, GlycopeptideChromatogram)
 
 
 from . import grouping
@@ -20,3 +21,6 @@ from .grouping import (
 from . import generic
 from .generic import (
     SimpleChromatogram, find_truncation_points)
+
+from . import index
+from .index import ChromatogramFilter, DisjointChromatogramSet

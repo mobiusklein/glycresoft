@@ -26,6 +26,26 @@ def prod(*x):
     return reduce(mul, x, 1)
 
 
+class DummyScorer(object):
+    def __init__(*args, **kwargs):
+        pass
+
+    def score(self, *args, **kwargs):
+        return 1.0
+
+    @property
+    def line_test(self):
+        return 0.0
+
+    @property
+    def spacing_fit(self):
+        return 0.0
+
+    @property
+    def mean_fit(self):
+        return 0.0
+
+
 class ChromatogramScorer(object):
     def __init__(self, shape_fitter_type=ChromatogramShapeFitter,
                  isotopic_fitter_type=IsotopicPatternConsistencyFitter,
@@ -46,6 +66,10 @@ class ChromatogramScorer(object):
     def score(self, chromatogram):
         score = reduce(mul, self.compute_scores(chromatogram), 1.0)
         return score
+
+    def clone(self):
+        return self.__class__(
+            self.shape_fitter_type, self.isotopic_fitter_type, self.charge_scoring_model, self.spacing_fitter_type)
 
 
 class ModelAveragingScorer(object):
@@ -72,6 +96,9 @@ class ModelAveragingScorer(object):
     def score(self, chromatogram):
         return prod(*self.compute_scores(chromatogram))
 
+    def clone(self):
+        return self.__class__(list(self.models), list(self.weights))
+
 
 class CompositionDispatchScorer(object):
     def __init__(self, rule_model_map, default_model=None):
@@ -79,6 +106,9 @@ class CompositionDispatchScorer(object):
             default_model = ChromatogramScorer()
         self.rule_model_map = rule_model_map
         self.default_model = default_model
+
+    def clone(self):
+        return self.__class__({k: v.clone() for k, v in self.rule_model_map.items()}, self.default_model.clone())
 
     def get_composition(self, obj):
         if isinstance(obj.composition, basestring):
@@ -144,7 +174,7 @@ class ChromatogramSolution(object):
         return self.chromatogram[i]
 
     def __dir__(self):
-        return list(set(('compure_score', 'score_components')) | set(dir(self.chromatogram)))
+        return list(set(('compute_score', 'score_components')) | set(dir(self.chromatogram)))
 
 
 ChromatogramInterface.register(ChromatogramSolution)

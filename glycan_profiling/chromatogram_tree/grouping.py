@@ -1,5 +1,6 @@
 from ms_deisotope.peak_dependency_network.intervals import Interval, IntervalTreeNode
 
+from glycan_profiling.task import TaskBase
 
 from .chromatogram import (
     Chromatogram)
@@ -145,7 +146,7 @@ class ChromatogramMerger(object):
             has_merged = self.merge_overlaps(new_chromatogram, chroma)
             if not has_merged:
                 minimized_index = self.find_minimizing_index(new_chromatogram, index)
-                self.insert_chromatogram([minimized_index], new_chromatogram)
+                self.insert_chromatogram(new_chromatogram, [minimized_index])
         else:
             self.insert_chromatogram(new_chromatogram, index)
         self.count += 1

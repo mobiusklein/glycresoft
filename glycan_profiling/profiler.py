@@ -8,13 +8,14 @@ import glypy
 from glycan_profiling import plotting
 from glycan_profiling.database import build_database
 from glycan_profiling.piped_deconvolve import ScanGenerator as PipedScanGenerator, MzMLLoader
-from glycan_profiling.scoring import ChromatogramSolution, NetworkScoreDistributor, ChromatogramScorer
+from glycan_profiling.scoring import (
+    ChromatogramSolution, NetworkScoreDistributor, ChromatogramScorer)
 
 from glycan_profiling.chromatogram_tree import (
-    ChromatogramOverlapSmoother)
+    ChromatogramOverlapSmoother, GlycanCompositionChromatogram, ChromatogramFilter)
 
 from glycan_profiling.trace import (
-    IncludeUnmatchedTracer, ChromatogramFilter, join_mass_shifted,
+    IncludeUnmatchedTracer, join_mass_shifted,
     reverse_adduction_search, prune_bad_adduct_branches)
 
 from glycan_profiling.scan_cache import (
@@ -25,7 +26,7 @@ from brainpy import periodic_table
 from ms_deisotope.averagine import Averagine, glycan as n_glycan_averagine
 
 
-logger = logging.getLogger("glycan_profiler")
+logger = logging.getLogger("chromatogram_profiler")
 
 
 def validate_element(element):
@@ -40,7 +41,7 @@ def parse_averagine_formula(formula):
                       if float(v or 0) > 0 and validate_element(k)})
 
 
-class GlycanProfiler(object):
+class ChromatogramProfiler(object):
     def __init__(self, mzml_path, database_rules_path, averagine=n_glycan_averagine, charge_range=(-1, -8),
                  ms1_peak_picking_args=None, msn_peak_picking_args=None, ms1_deconvolution_args=None,
                  msn_deconvolution_args=None, storage_path=None, sample_name=None, analysis_name=None,
@@ -116,17 +117,40 @@ class GlycanProfiler(object):
                     mass_error_tolerance, grouping_mass_error_tolerance, adducts, truncate)
         self.chromatograms = reverse_adduction_search(
             join_mass_shifted(
-                ChromatogramFilter(self.tracer.chromatograms(
+                ChromatogramFilter(self.tracer.build_chromatograms(
                     grouping_tolerance=grouping_mass_error_tolerance,
                     truncate=truncate,
                     minimum_mass=minimum_mass)), adducts, mass_error_tolerance),
             adducts, mass_error_tolerance, self.database)
+        self._convert_to_entity_chromatograms()
 
-    def _evaluate_fits(self, chromatograms, base_coef=0.8, support_coef=0.2, rt_delta=0.25, scoring_model=None):
+    def _convert_to_entity_chromatograms(self, entity_chromatogram_type=GlycanCompositionChromatogram):
+        acc = []
+        for chroma in self.chromatograms:
+            copied = chroma.clone(entity_chromatogram_type)
+            copied.entity = copied.composition
+            acc.append(copied)
+        self.chromatograms = ChromatogramFilter(acc, sort=False)
+
+    def _convert_solution_to_entity_chromatogram(self, entity_chromatogram_type=GlycanCompositionChromatogram):
+        for chroma in self.solutions:
+            copied = chroma.chromatogram.clone(entity_chromatogram_type)
+            copied.entity = copied.composition
+            chroma.chromatogram = copied
+
+    def _evaluate_fits(self, chromatograms, base_coef=0.8, support_coef=0.2, rt_delta=0.25,
+                       scoring_model=None, min_points=3, smooth=True):
         solutions = []
         if scoring_model is None:
             scoring_model = ChromatogramScorer()
-        for case in ChromatogramOverlapSmoother(ChromatogramFilter.process(chromatograms, delta_rt=rt_delta)):
+
+        filtered = ChromatogramFilter.process(
+            chromatograms, delta_rt=rt_delta, min_points=min_points)
+
+        if smooth:
+            filtered = ChromatogramOverlapSmoother(filtered)
+
+        for case in filtered:
             try:
                 solutions.append(ChromatogramSolution(case, scorer=scoring_model))
             except (IndexError, ValueError), e:
@@ -137,17 +161,21 @@ class GlycanProfiler(object):
             NetworkScoreDistributor(solutions, self.database.network).distribute(base_coef, support_coef)
         return solutions
 
-    def score(self, base_coef=0.8, support_coef=0.2, rt_delta=0.25, scoring_model=None):
+    def score(self, base_coef=0.8, support_coef=0.2, rt_delta=0.25, scoring_model=None, min_points=3,
+              smooth=True):
         if scoring_model is None:
             scoring_model = ChromatogramScorer()
 
-        self.solutions = self._evaluate_fits(self.chromatograms, base_coef, support_coef, rt_delta, scoring_model)
+        self.solutions = self._evaluate_fits(
+            self.chromatograms, base_coef, support_coef, rt_delta, scoring_model, min_points,
+            smooth)
 
         if self.adducts:
             hold = prune_bad_adduct_branches(ChromatogramFilter(self.solutions))
             self.solutions = self._evaluate_fits(hold, base_coef, support_coef, rt_delta, scoring_model)
 
         self.solutions = ChromatogramFilter(sol for sol in self.solutions if sol.score > 1e-5)
+        self._convert_solution_to_entity_chromatogram()
         return self._filter_accepted()
 
     def _filter_accepted(self, threshold=0.4):
@@ -187,7 +215,7 @@ class GlycanProfiler(object):
         return chrom, agg
 
 
-class ScanDatabaseGlycanProfiler(GlycanProfiler):
+class ScanDatabaseChromatogramProfiler(ChromatogramProfiler):
     def __init__(self, scan_db_path, composition_database_rules_path, averagine=n_glycan_averagine,
                  charge_range=None, ms1_peak_picking_args=None, msn_peak_picking_args=None,
                  ms1_deconvolution_args=None, msn_deconvolution_args=None, storage_path=None,
@@ -222,3 +250,7 @@ class ScanDatabaseGlycanProfiler(GlycanProfiler):
             warnings.warn(
                 "This scan generator type doesn't support new deconvolutions, "
                 "parameter 'charge_range' is ignored")
+
+
+GlycanProfiler = ChromatogramProfiler
+ScanDatabaseGlycanProfiler = ScanDatabaseChromatogramProfiler

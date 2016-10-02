@@ -1,4 +1,4 @@
-from collections import defaultdict, OrderedDict
+from collections import Counter
 from itertools import cycle
 
 from matplotlib import pyplot as plt
@@ -56,9 +56,10 @@ class NGlycanChromatogramColorizer(object):
             return default_color
         else:
             try:
-                return colors.NGlycanCompositionColorizer(chromatogram.composition)
+                return colors.NGlycanCompositionColorizer(chromatogram.glycan_composition)
             except:
                 return default_color
+
 
 n_glycan_colorizer = NGlycanChromatogramColorizer()
 
@@ -82,9 +83,10 @@ class NGlycanLabelProducer(LabelProducer):
     def __call__(self, chromatogram, *args, **kwargs):
         if chromatogram.composition is not None:
             return list(colors.GlycanLabelTransformer(
-                [chromatogram.composition, self.stub], colors.NGlycanCompositionOrderer))[0]
+                [chromatogram.glycan_composition, self.stub], colors.NGlycanCompositionOrderer))[0]
         else:
             return chromatogram.key
+
 
 n_glycan_labeler = NGlycanLabelProducer()
 
@@ -233,7 +235,10 @@ class ChromatogramArtist(ArtistBase):
         for chroma in self.chromatograms:
             composition = chroma.composition
             if composition is not None:
-                gc = glypy.GlycanComposition.parse(composition)
+                if hasattr(chroma, 'entity') and chroma.entity is not None:
+                    gc = chroma.glycan_composition
+                else:
+                    gc = glypy.GlycanComposition.parse(composition)
             else:
                 gc = None
             if filter_function(gc, chroma):
@@ -328,12 +333,12 @@ class EntitySummaryBarChartArtist(ArtistBase):
         if ax is None:
             fig, ax = plt.subplots(1)
         self.ax = ax
-        self.chromatograms = [c for c in chromatograms if c.composition is not None]
+        self.chromatograms = [c for c in chromatograms if c.glycan_composition is not None]
 
     def sort_items(self):
         return sorted(
             self.chromatograms, lambda x, y: colors.NGlycanCompositionOrderer(
-                x.composition, y.composition))
+                x.glycan_composition, y.glycan_composition))
 
     def get_heights(self, items, **kwargs):
         raise NotImplementedError()
@@ -351,7 +356,7 @@ class EntitySummaryBarChartArtist(ArtistBase):
         items = self.sort_items()
         if len(items) == 0:
             raise ValueError("Cannot render. Zero items to plot.")
-        keys = [c.composition for c in items]
+        keys = [c.glycan_composition for c in items]
         include_classes = set(map(colors.NGlycanCompositionColorizer.classify, keys))
         xtick_labeler = colors.GlycanLabelTransformer(keys, colors.NGlycanCompositionOrderer)
         color = map(colors.NGlycanCompositionColorizer, keys)
@@ -391,6 +396,31 @@ class EntitySummaryBarChartArtist(ArtistBase):
         self.configure_axes()
 
         return self
+
+
+class BundledGlycanComposition(object):
+    def __init__(self, glycan_composition, total_signal):
+        self.glycan_composition = glycan_composition
+        self.total_signal = total_signal
+
+    def __hash__(self):
+        return hash(self.glycan_composition)
+
+    def __str__(self):
+        return str(self.glycan_composition)
+
+    def __eq__(self, other):
+        return self.glycan_composition == other
+
+    def __repr__(self):
+        return "BundledGlycanComposition(%s, %e)" % (self.glycan_composition, self.total_signal)
+
+    @classmethod
+    def aggregate(cls, observations):
+        signals = Counter()
+        for obs in observations:
+            signals[obs.glycan_composition] += obs.total_signal
+        return [cls(k, v) for k, v in signals.items()]
 
 
 class AggregatedAbundanceArtist(EntitySummaryBarChartArtist):

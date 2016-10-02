@@ -15,6 +15,7 @@ from scipy.misc import comb
 from ms_peak_picker.utils import draw_peaklist
 
 from ...spectrum_matcher_base import SpectrumMatcherBase
+from ...spectrum_annotation import annotate_matched_deconvoluted_peaks
 from glycresoft_sqlalchemy.utils.memoize import memoize
 
 
@@ -209,5 +210,6 @@ class BinomialSpectrumMatcher(SpectrumMatcherBase):
     def annotate(self, **kwargs):
         ax = draw_peaklist(self.spectrum, alpha=0.3, color='grey', **kwargs)
         draw_peaklist(self._sanitized_spectrum, color='grey', ax=ax, alpha=0.5, **kwargs)
+        annotate_matched_deconvoluted_peaks(self.solution_map.items(), ax)
         return draw_peaklist(
             sorted(self.solution_map.values(), key=lambda x: x.neutral_mass), ax=ax, color='red', **kwargs)

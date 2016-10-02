@@ -1,14 +1,12 @@
-from collections import namedtuple
-from functools import partial
-
-from ..spectrum_matcher_base import TandemClusterEvaluatorBase
+from ..spectrum_matcher_base import TandemClusterEvaluatorBase, oxonium_detector
 from ..chromatogram_mapping import ChromatogramMSMSMapper
-from glycan_profiling.database import LRUCache
-from glycresoft_sqlalchemy.structure.sequence import PeptideSequence, memoize
-from glycresoft_sqlalchemy.structure.glycan import HashableGlycanComposition
-from glycresoft_sqlalchemy.structure.parser import sequence_tokenizer
-from .make_decoys import reverse_preserve_sequon
+from glycan_profiling.chromatogram_tree.chromatogram import GlycopeptideChromatogram
+from glycan_profiling.task import TaskBase
+
 from .scoring import TargetDecoyAnalyzer
+
+from .structure_loader import (
+    CachingGlycopeptideParser, DecoyMakingCachingGlycopeptideParser)
 
 
 class GlycopeptideMatcher(TandemClusterEvaluatorBase):
@@ -46,6 +44,13 @@ class TargetDecoyInterleavingGlycopeptideMatcher(TandemClusterEvaluatorBase):
         self.target_evaluator = GlycopeptideMatcher([], self.scorer_type, self.structure_database)
         self.decoy_evaluator = DecoyGlycopeptideMatcher([], self.scorer_type, self.structure_database)
 
+    def filter_for_oxonium_ions(self, error_tolerance=1e-5):
+        keep = []
+        for scan in self.tandem_cluster:
+            # ratio = oxonium_detector.gscore(scan.deconvoluted_peak_set)
+            keep.append(scan)
+        self.tandem_cluster = keep
+
     def score_one(self, scan, precursor_error_tolerance=1e-5, *args, **kwargs):
         target_result = self.target_evaluator.score_one(scan, precursor_error_tolerance, *args, **kwargs)
         decoy_result = self.decoy_evaluator.score_one(scan, precursor_error_tolerance, *args, **kwargs)
@@ -54,6 +59,8 @@ class TargetDecoyInterleavingGlycopeptideMatcher(TandemClusterEvaluatorBase):
     def score_all(self, precursor_error_tolerance=1e-5, simplify=False, *args, **kwargs):
         target_out = []
         decoy_out = []
+
+        self.filter_for_oxonium_ions()
         for scan in self.tandem_cluster:
             target_result, decoy_result = self.score_one(scan, precursor_error_tolerance, *args, **kwargs)
             if len(target_result) > 0:
@@ -70,152 +77,6 @@ class TargetDecoyInterleavingGlycopeptideMatcher(TandemClusterEvaluatorBase):
         return target_out, decoy_out
 
 
-hashable_glycan_glycopeptide_parser = partial(
-    sequence_tokenizer, glycan_parser_function=HashableGlycanComposition.parse)
-
-
-class GlycanFragmentCache(object):
-    def __init__(self):
-        self.cache = dict()
-
-    def get_oxonium_ions(self, glycopeptide):
-        try:
-            return self.cache[glycopeptide.glycan]
-        except:
-            oxonium_ions = list(glycopeptide._glycan_fragments())
-            self.cache[glycopeptide.glycan] = oxonium_ions
-            return oxonium_ions
-
-    def __call__(self, glycopeptide):
-        return self.get_oxonium_ions(glycopeptide)
-
-
-oxonium_ion_cache = GlycanFragmentCache()
-
-
-class FragmentCachingGlycopeptide(PeptideSequence):
-    def __init__(self, *args, **kwargs):
-        kwargs.setdefault('parser_function', hashable_glycan_glycopeptide_parser)
-        super(FragmentCachingGlycopeptide, self).__init__(*args, **kwargs)
-        self.fragment_caches = {}
-
-    def get_fragments(self, *args, **kwargs):
-        key = ("get_fragments", args, frozenset(kwargs.items()))
-        try:
-            return self.fragment_caches[key]
-        except KeyError:
-            result = list(super(FragmentCachingGlycopeptide, self).get_fragments(*args, **kwargs))
-            self.fragment_caches[key] = result
-            return result
-
-    def stub_fragments(self, *args, **kwargs):
-        key = ('stub_fragments', args, frozenset(kwargs.items()))
-        try:
-            return self.fragment_caches[key]
-        except KeyError:
-            result = list(super(FragmentCachingGlycopeptide, self).stub_fragments(*args, **kwargs))
-            self.fragment_caches[key] = result
-            return result
-
-    def _glycan_fragments(self):
-        return list(super(FragmentCachingGlycopeptide, self).glycan_fragments(oxonium=True))
-
-    def glycan_fragments(self, *args, **kwargs):
-        return oxonium_ion_cache(self)
-
-    def clear_caches(self):
-        self.fragment_caches.clear()
-
-    def clone(self, *args, **kwargs):
-        new = FragmentCachingGlycopeptide(str(self))
-        # Intentionally share caches with offspring
-        new.fragment_caches = self.fragment_caches
-        return new
-
-
-KeyTuple = namedtuple("KeyTuple", ['id', 'sequence'])
-
-
-class GlycopeptideCache(object):
-    def __init__(self):
-        self.sequence_map = dict()
-        self.key_map = dict()
-
-    def __getitem__(self, key):
-        try:
-            result = self.key_map[key]
-            return result
-        except KeyError:
-            value = self.sequence_map[key.sequence]
-            value = value.clone()
-            self.key_map[key] = value
-            return value
-
-    def __setitem__(self, key, value):
-        self.key_map[key] = value
-        self.sequence_map[key.sequence] = value
-
-    def __len__(self):
-        return len(self.key_map)
-
-    def pop(self, key):
-        self.key_map.pop(key)
-        self.sequence_map.pop(key.sequence)
-
-
-class CachingGlycopeptideParser(object):
-    def __init__(self, cache_size=4000):
-        self.cache = GlycopeptideCache()
-        self.cache_size = cache_size
-        self.lru = LRUCache()
-
-    def _check_cache_valid(self):
-        lru = self.lru
-        while len(self.cache) > self.cache_size:
-            key = lru.get_least_recently_used()
-            lru.remove_node(key)
-            value = self.cache.pop(key)
-            try:
-                value.clear_caches()
-            except AttributeError:
-                pass
-
-    def _make_new_value(self, struct):
-        value = FragmentCachingGlycopeptide(struct.glycopeptide_sequence)
-        value.id = struct.id
-        return value
-
-    def _populate_cache(self, struct, key):
-        self._check_cache_valid()
-        value = self._make_new_value(struct)
-        self.cache[key] = value
-        self.lru.add_node(key)
-        return value
-
-    def _extract_key(self, struct):
-        return KeyTuple(struct.id, struct.glycopeptide_sequence)
-
-    def parse(self, struct):
-        struct_key = self._extract_key(struct)
-        try:
-            seq = self.cache[struct_key]
-            self.lru.hit_node(struct_key)
-            return seq
-        except KeyError:
-            return self._populate_cache(struct, struct_key)
-
-    def __call__(self, value):
-        return self.parse(value)
-
-
-class DecoyMakingCachingGlycopeptideParser(CachingGlycopeptideParser):
-
-    def _make_new_value(self, struct):
-        value = FragmentCachingGlycopeptide(str(reverse_preserve_sequon(struct.glycopeptide_sequence)))
-        value.id = struct.id
-        return value
-
-
 def chunkiter(collection, size=200):
     i = 0
     while collection[i:(i + size)]:
@@ -223,7 +84,7 @@ def chunkiter(collection, size=200):
         i += size
 
 
-class GlycopeptideDatabaseSearchIdentifier(object):
+class GlycopeptideDatabaseSearchIdentifier(TaskBase):
     def __init__(self, tandem_scans, scorer_type, structure_database, scan_id_to_rt=lambda x: x):
         self.tandem_scans = sorted(
             tandem_scans, key=lambda x: x.precursor_information.extracted_neutral_mass, reverse=True)
@@ -231,11 +92,7 @@ class GlycopeptideDatabaseSearchIdentifier(object):
         self.structure_database = structure_database
         self.scan_id_to_rt = scan_id_to_rt
 
-    def log(self, message):
-        from datetime import datetime
-        print(datetime.now().isoformat(' ') + ' ' + str(message))
-
-    def search(self, precursor_error_tolerance=1e-5, simplify=True, chunk_size=200, limit=None, *args, **kwargs):
+    def search(self, precursor_error_tolerance=1e-5, simplify=True, chunk_size=100, limit=None, *args, **kwargs):
         target_hits = []
         decoy_hits = []
         total = len(self.tandem_scans)
@@ -247,9 +104,12 @@ class GlycopeptideDatabaseSearchIdentifier(object):
             self.log("... Searching %s (%d/%d)" % (bunch[0].precursor_information, count, total))
             if hasattr(bunch[0], 'convert'):
                 bunch = [o.convert(fitted=False, deconvoluted=True) for o in bunch]
+            self.log("... Spectra Extracted")
             t, d = TargetDecoyInterleavingGlycopeptideMatcher(
                 bunch, self.scorer_type, self.structure_database).score_all(
-                precursor_error_tolerance=precursor_error_tolerance, simplify=simplify, *args, **kwargs)
+                precursor_error_tolerance=precursor_error_tolerance,
+                simplify=simplify, *args, **kwargs)
+            self.log("... Spectra Searched")
             target_hits.extend(t)
             decoy_hits.extend(d)
             if count >= limit:
@@ -262,12 +122,21 @@ class GlycopeptideDatabaseSearchIdentifier(object):
         self.log("Running Target Decoy Analysis")
         tda = TargetDecoyAnalyzer(target_hits, decoy_hits, *args, with_pit=with_pit, **kwargs)
         tda.q_values()
-        return target_hits
+        for sol in target_hits:
+            for hit in sol:
+                tda.score(hit)
+        for sol in decoy_hits:
+            for hit in sol:
+                tda.score(hit)
+        return tda
 
-    def map_to_chromatograms(self, chromatograms, tandem_identifications, precursor_error_tolerance=1e-5):
+    def map_to_chromatograms(self, chromatograms, tandem_identifications,
+                             precursor_error_tolerance=1e-5, threshold_fn=lambda x: x.q_value < 0.05,
+                             entity_chromatogram_type=GlycopeptideChromatogram):
         self.log("Mapping MS/MS Identifications onto Chromatograms")
         mapper = ChromatogramMSMSMapper(
-            self.chromatograms, precursor_error_tolerance, self.scan_id_to_rt)
+            chromatograms, precursor_error_tolerance, self.scan_id_to_rt)
         mapper.assign_solutions_to_chromatograms(tandem_identifications)
         mapper.distribute_orphans()
+        mapper.assign_entities(threshold_fn, entity_chromatogram_type=entity_chromatogram_type)
         return mapper.chromatograms

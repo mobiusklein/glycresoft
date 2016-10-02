@@ -90,6 +90,7 @@ neuac = glycan_composition.FrozenMonosaccharideResidue.from_iupac_lite("NeuAc")
 def is_sialylated(composition):
     return composition[neuac] > 0
 
+
 rule_map = {
     is_sialylated: SialylatedNGlycanScorer,
     lambda x: not is_sialylated(x): UnsialylatedNGlycanScorer

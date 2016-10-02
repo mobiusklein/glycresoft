@@ -56,7 +56,10 @@ class IsotopicPatternConsistencyFitter(object):
         self.mean_fit = None
 
         if chromatogram.composition is not None:
-            self.composition = glypy.GlycanComposition.parse(chromatogram.composition).total_composition()
+            if chromatogram.elemental_composition is not None:
+                self.composition = chromatogram.elemental_composition
+            else:
+                self.composition = glypy.GlycanComposition.parse(chromatogram.composition).total_composition()
         else:
             self.composition = None
 

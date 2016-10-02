@@ -29,7 +29,7 @@ def binsearch(array, value):
     return i
 
 
-class NearestValueTree(object):
+class NearestValueLookUp(object):
     def __init__(self, items):
         if isinstance(items, dict):
             items = items.items()
@@ -51,7 +51,6 @@ class NearestValueTree(object):
                 lo = i
             elif x > value:
                 hi = i
-        raise ValueError("No Matching Index!")
 
     def get_pair(self, key):
         return self.items[self._find_closest_item(key) + 1]
@@ -81,7 +80,7 @@ class ScoreThresholdCounter(object):
 
         self.find_counts()
         self.counts_above_threshold = self.compute_complement()
-        self.counter = NearestValueTree(self.counter)
+        self.counter = NearestValueLookUp(self.counter)
 
     def advance_threshold(self):
         self.threshold_index += 1
@@ -111,7 +110,7 @@ class ScoreThresholdCounter(object):
 
         for k, v in self.counter.items():
             complement[k] = n - v
-        return NearestValueTree(complement)
+        return NearestValueLookUp(complement)
 
 
 class TargetDecoyAnalyzer(object):
@@ -122,6 +121,7 @@ class TargetDecoyAnalyzer(object):
         self.decoy_count = len(decoy_series)
         self.with_pit = with_pit
         self.calculate_thresholds()
+        self._q_value_map = self._calculate_q_values()
 
     def calculate_thresholds(self):
         self.n_targets_at = {}
@@ -183,11 +183,15 @@ class TargetDecoyAnalyzer(object):
                 mapping[threshold] = q_value
             except ZeroDivisionError:
                 mapping[threshold] = 1.
-        return NearestValueTree(mapping)
+        return NearestValueLookUp(mapping)
 
     def q_values(self):
-        q_map = self._calculate_q_values()
+        q_map = self._q_value_map
         for target in self.targets:
             target.q_value = q_map[target.score]
         for decoy in self.decoys:
             decoy.q_value = q_map[decoy.score]
+
+    def score(self, spectrum_match):
+        spectrum_match.q_value = self._q_value_map[spectrum_match.score]
+        return spectrum_match

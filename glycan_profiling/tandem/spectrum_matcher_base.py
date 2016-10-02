@@ -1,4 +1,45 @@
 from .ref import TargetReference, SpectrumReference
+from glypy.composition.glycan_composition import FrozenMonosaccharideResidue
+
+
+_standard_oxonium_ions = [
+    FrozenMonosaccharideResidue.from_iupac_lite("HexNAc"),
+    FrozenMonosaccharideResidue.from_iupac_lite("Hex"),
+    FrozenMonosaccharideResidue.from_iupac_lite('NeuAc'),
+    FrozenMonosaccharideResidue.from_iupac_lite("Fuc")
+]
+
+
+class OxoniumIonScanner(object):
+    def __init__(self, ions_to_search=None):
+        if ions_to_search is None:
+            ions_to_search = _standard_oxonium_ions
+        self.ions_to_search = ions_to_search
+
+    def scan(self, peak_list, charge=0, error_tolerance=2e-5):
+        matches = []
+        for ion in self.ions_to_search:
+            match = peak_list.has_peak(ion.mass(charge=charge), error_tolerance)
+            if match is not None:
+                matches.append(match)
+        return matches
+
+    def ratio(self, peak_list, charge=0, error_tolerance=2e-5):
+        total = sum(p.intensity for p in peak_list)
+        oxonium = sum(p.intensity for p in self.scan(peak_list, charge, error_tolerance))
+        return oxonium / total
+
+    def gscore(self, peak_list, charge=0, error_tolerance=2e-5):
+        maximum = max(p.intensity for p in peak_list)
+        oxonium = sum(p.intensity / maximum for p in self.scan(peak_list, charge, error_tolerance))
+        n = len(self.ions_to_search)
+        return oxonium / n
+
+    def __call__(self, peak_list, charge=0, error_tolerance=2e-5):
+        return self.ratio(peak_list, charge, error_tolerance)
+
+
+oxonium_detector = OxoniumIonScanner()
 
 
 class SpectrumMatchBase(object):
@@ -65,11 +106,14 @@ class SpectrumMatcherBase(SpectrumMatchBase):
 
 
 class SpectrumMatch(SpectrumMatchBase):
-    def __init__(self, scan, target, score, best_match=False):
+    def __init__(self, scan, target, score, best_match=False, data_bundle=None):
+        if data_bundle is None:
+            data_bundle = dict()
         self.scan = scan
         self.target = target
         self.score = score
         self.best_match = best_match
+        self.data_bundle = data_bundle
         # self.clear_caches()
 
     def clear_caches(self):
@@ -96,6 +140,7 @@ class SpectrumMatch(SpectrumMatchBase):
 class SpectrumSolutionSet(object):
     def __init__(self, scan, solutions):
         self.scan = scan
+        # self.oxonium_ratio = oxonium_detector(scan.deconvoluted_peak_set)
         self.solutions = solutions
         self.mean = self._score_mean()
         self.variance = self._score_variance()
@@ -134,7 +179,7 @@ class SpectrumSolutionSet(object):
         for match in self:
             total += (match.score - mean) ** 2
             i += 1.
-        if i == 0:
+        if i < 3:
             return 0
         return total / (i - 2.)
 
@@ -214,7 +259,7 @@ class TandemClusterEvaluatorBase(object):
         if simplify:
             for case in out:
                 case.simplify()
-                case.select_top()
+                # case.select_top()
         return out
 
     def evaluate(self, scan, structure, *args, **kwargs):

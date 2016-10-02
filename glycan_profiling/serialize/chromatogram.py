@@ -6,23 +6,20 @@ from sqlalchemy.ext.associationproxy import association_proxy
 from sqlalchemy.orm.collections import attribute_mapped_collection
 from sqlalchemy.ext.declarative import declared_attr
 
-from sqlalchemy import exc, func
-
-from .chromatogram_tree import (
+from glycan_profiling.chromatogram_tree import (
     ChromatogramTreeNode as MemoryChromatogramTreeNode, ChromatogramTreeList, Chromatogram as MemoryChromatogram,
     MassShift as MemoryMassShift, CompoundMassShift as MemoryCompoundMassShift)
 
-from .scoring import (
+from glycan_profiling.scoring import (
     ChromatogramSolution as MemoryChromatogramSolution)
 
+from .analysis import BoundToAnalysis
+
+from ms_deisotope.output.db import (
+    Base, DeconvolutedPeak, MSScan, Mass)
 
 from glypy.composition.base import formula
 from glypy import Composition
-
-
-from ms_deisotope.output.db import (
-    Base, DeconvolutedPeak, MSScan, Mass, HasUniqueName,
-    SampleRun, DatabaseScanDeserializer)
 
 
 def extract_key(obj):
@@ -53,22 +50,6 @@ class SimpleSerializerCacheBase(object):
             db_obj = self._model_class.serialize(obj, self.session, *args, **kwargs)
             self.store[extract_key(db_obj)] = db_obj
             return db_obj
-
-
-class Analysis(Base, HasUniqueName):
-    __tablename__ = "Analysis"
-
-    id = Column(Integer, primary_key=True)
-    sample_run_id = Column(Integer, ForeignKey(SampleRun.id, ondelete="CASCADE"), index=True)
-    sample_run = relationship(SampleRun)
-
-    def __repr__(self):
-        sample_run = self.sample_run
-        if sample_run:
-            sample_run_name = sample_run.name
-        else:
-            sample_run_name = "<Detached From Sample>"
-        return "Analysis(%s, %s)" % (self.name, sample_run_name)
 
 
 class MassShift(Base):
@@ -224,17 +205,6 @@ ChromatogramTreeNodeToDeconvolutedPeak = Table(
         DeconvolutedPeak.id, ondelete="CASCADE"), primary_key=True))
 
 
-class BoundToAnalysis(object):
-
-    @declared_attr
-    def analysis_id(self):
-        return Column(Integer, ForeignKey(Analysis.id, ondelete="CASCADE"), index=True)
-
-    @declared_attr
-    def analysis(self):
-        return relationship(Analysis)
-
-
 class Chromatogram(Base, BoundToAnalysis):
     __tablename__ = "Chromatogram"
 
@@ -320,7 +290,7 @@ class CompositionGroup(Base, BoundToAnalysis):
         return self.composition
 
     def __repr__(self):
-        return repr(self.convert())
+        return "CompositionGroup(%r, %d)" % (repr(self.convert()), self.id)
 
 
 class CompositionGroupSerializer(SimpleSerializerCacheBase):
@@ -401,138 +371,3 @@ ChromatogramSolutionAdductedToCompositionGroup = Table(
     Column("adducted_solution_id", Integer, ForeignKey(ChromatogramSolution.id, ondelete="CASCADE"), primary_key=True),
     Column("mass_shift_id", Integer, ForeignKey(CompoundMassShift.id, ondelete='CASCADE'), primary_key=True),
     Column("owning_composition_id", Integer, ForeignKey(CompositionGroup.id, ondelete="CASCADE"), primary_key=True))
-
-
-class SpectrumMatchBase(BoundToAnalysis):
-
-    score = Column(Numeric(12, 6, asdecimal=False), index=True)
-
-    @declared_attr
-    def scan_id(self):
-        return Column(Integer, ForeignKey(MSScan.id), index=True)
-
-    @declared_attr
-    def scan(self):
-        return relationship(MSScan)
-
-
-class GlycopeptideSpectrumMatch(Base, SpectrumMatchBase):
-    __tablename__ = "GlycopeptideSpectrumMatch"
-
-    id = Column(Integer, primary_key=True)
-
-    q_value = Column(Numeric(8, 7, asdecimal=False), index=True)
-    is_decoy = Column(Boolean, index=True)
-
-    structure_id = Column(
-        Integer,  # ForeignKey(, ondelte='CASCADE')
-        index=True)
-
-
-class AnalysisSerializer(object):
-    def __init__(self, session, sample_run_id, analysis_name, analysis_id=None):
-        self.session = session
-        self.sample_run_id = sample_run_id
-
-        self._analysis = None
-        self._analysis_id = analysis_id
-        self._analysis_name = None
-        self._seed_analysis_name = analysis_name
-        self._peak_lookup_table = None
-        self._mass_shift_cache = MassShiftSerializer(session)
-        self._composition_cache = CompositionGroupSerializer(session)
-
-    def __repr__(self):
-        return "AnalysisSerializer(%s, %d)" % (self.analysis.name, self.analysis_id)
-
-    def set_peak_lookup_table(self, mapping):
-        self._peak_lookup_table = mapping
-
-    @property
-    def analysis(self):
-        if self._analysis is None:
-            self._construct_analysis()
-        return self._analysis
-
-    @property
-    def analysis_id(self):
-        if self._analysis_id is None:
-            self._construct_analysis()
-        return self._analysis_id
-
-    @property
-    def analysis_name(self):
-        if self._analysis_name is None:
-            self._construct_analysis()
-        return self._analysis_name
-
-    def _retrieve_analysis(self):
-        self._analysis = self.session.query(Analysis).get(self._analysis_id)
-        self._analysis_name = self._analysis.name
-
-    def _create_analysis(self):
-        self._analysis = Analysis(name=self._seed_analysis_name, sample_run_id=self.sample_run_id)
-        self.session.add(self._analysis)
-        self.session.flush()
-        self._analysis_id = self._analysis.id
-        self._analysis_name = self._analysis.name
-
-    def _construct_analysis(self):
-        if self._analysis_id is not None:
-            self._retrieve_analysis()
-        else:
-            self._create_analysis()
-
-    def save_chromatogram_solution(self, solution, commit=False):
-        result = ChromatogramSolution.serialize(
-            solution, self.session, analysis_id=self.analysis_id,
-            peak_lookup_table=self._peak_lookup_table,
-            mass_shift_cache=self._mass_shift_cache,
-            composition_cache=self._composition_cache)
-        if commit:
-            self.commit()
-        return result
-
-    def commit(self):
-        self.session.commit()
-
-
-class AnalysisDeserializer(object):
-    def __init__(self, session, analysis_name=None, analysis_id=None):
-        self.session = session
-
-        self._analysis = None
-        self._analysis_id = analysis_id
-        self._analysis_name = analysis_name
-
-    def _retrieve_analysis(self):
-        if self._analysis_id is not None:
-            self._analysis = self.session.query(Analysis).get(self._analysis_id)
-            self._analysis_name = self._analysis.name
-        elif self._analysis_name is not None:
-            self._analysis = self.session.query(Analysis).filter(Analysis.name == self._analysis_name).one()
-            self._analysis_id = self._analysis.id
-        else:
-            raise ValueError("No Analysis identification information provided")
-
-    @property
-    def analysis(self):
-        if self._analysis is None:
-            self._retrieve_analysis()
-        return self._analysis
-
-    @property
-    def analysis_id(self):
-        if self._analysis_id is None:
-            self._retrieve_analysis()
-        return self._analysis_id
-
-    @property
-    def analysis_name(self):
-        if self._analysis_name is None:
-            self._retrieve_analysis()
-        return self._analysis_name
-
-    def load_chromatograms(self):
-        return self.session.query(ChromatogramSolution).filter(
-            ChromatogramSolution.analysis_id == self.analysis_id).yield_per(1000)
