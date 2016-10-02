@@ -3,7 +3,7 @@ import logging
 
 from sqlalchemy.orm import make_transient
 
-from glycresoft_sqlalchemy.structure import sequence, modification, residue
+from glycopeptidepy.structure import sequence, modification, residue
 from glypy.composition import formula
 
 from glycan_profiling.serialize.utils import temp_table

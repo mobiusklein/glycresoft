@@ -10,7 +10,7 @@ from glycan_profiling import serialize
 
 from glycan_profiling.test.test_constrained_combinatorics import FILE_SOURCE as GLYCAN_RULE_FILE_SOURCE
 
-from glycresoft_sqlalchemy.structure import modification
+from glycopeptidepy.structure import modification
 
 
 FASTA_FILE_SOURCE = """

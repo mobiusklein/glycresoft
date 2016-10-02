@@ -1,5 +1,5 @@
-from glycresoft_sqlalchemy.structure import sequence
-from glycresoft_sqlalchemy.structure.parser import sequence_tokenizer_respect_sequons
+from glycopeptidepy.structure import sequence
+from glycopeptidepy.structure.parser import sequence_tokenizer_respect_sequons
 
 PeptideSequence = sequence.PeptideSequence
 

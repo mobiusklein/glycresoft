@@ -16,7 +16,7 @@ from ms_deisotope.output.db import (
 from .hypothesis import GlycopeptideHypothesis
 from .glycan import GlycanCombination
 
-from glycresoft_sqlalchemy.structure import sequence, residue
+from glycopeptidepy.structure import sequence, residue
 
 
 class Protein(Base):

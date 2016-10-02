@@ -4,9 +4,9 @@ from functools import partial
 from glycan_profiling.database import LRUCache
 from ms_deisotope.peak_dependency_network.intervals import SpanningMixin
 
-from glycresoft_sqlalchemy.structure.sequence import PeptideSequence
-from glycresoft_sqlalchemy.structure.glycan import HashableGlycanComposition
-from glycresoft_sqlalchemy.structure.parser import sequence_tokenizer
+from glycopeptidepy.structure.sequence import PeptideSequence
+from glycopeptidepy.structure.glycan import HashableGlycanComposition
+from glycopeptidepy.structure.parser import sequence_tokenizer
 
 from .make_decoys import reverse_preserve_sequon
 

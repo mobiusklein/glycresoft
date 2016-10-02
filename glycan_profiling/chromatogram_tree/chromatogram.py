@@ -788,7 +788,7 @@ class GlycanCompositionChromatogram(EntityChromatogram):
 class GlycopeptideChromatogram(EntityChromatogram):
     @staticmethod
     def _parse(string):
-        from glycresoft_sqlalchemy.structure.sequence import PeptideSequence
+        from glycopeptidepy.structure.sequence import PeptideSequence
         return PeptideSequence(string)
 
     @property

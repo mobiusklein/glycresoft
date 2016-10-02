@@ -1,6 +1,6 @@
 from collections import defaultdict
 
-from glycresoft_sqlalchemy.structure import sequence
+from glycopeptidepy.structure import sequence
 
 from glycan_profiling.chromatogram_tree.relation_graph import (
     ChromatogramGraph, ChromatogramGraphEdge, ChromatogramGraphNode)

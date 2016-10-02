@@ -5,7 +5,7 @@ import itertools
 from . import enzyme
 
 from glypy.composition import formula
-from glycresoft_sqlalchemy.structure import sequence, modification, residue
+from glycopeptidepy.structure import sequence, modification, residue
 
 from glycan_profiling.serialize.hypothesis.peptide import Peptide, Protein
 

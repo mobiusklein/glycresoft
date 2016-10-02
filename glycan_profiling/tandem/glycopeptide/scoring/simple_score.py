@@ -2,7 +2,7 @@ import math
 
 from ...spectrum_matcher_base import SpectrumMatcherBase
 
-from glycresoft_sqlalchemy.structure.fragment import IonSeries
+from glycopeptidepy.structure.fragment import IonSeries
 
 
 def is_glycosylated(frag):

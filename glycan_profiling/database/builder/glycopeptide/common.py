@@ -13,7 +13,7 @@ from glycan_profiling.task import TaskBase
 
 from glycan_profiling.database.builder.glycan import glycan_combinator
 
-from glycresoft_sqlalchemy.structure.sequence import _n_glycosylation
+from glycopeptidepy.structure.sequence import _n_glycosylation
 
 
 def slurp(session, model, ids, flatten=True):

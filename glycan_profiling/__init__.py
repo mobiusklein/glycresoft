@@ -1,3 +1,5 @@
+from . import startup as _startup
+
 from .piped_deconvolve import (
     ScanGenerator, ScanGeneratorBase)
 
