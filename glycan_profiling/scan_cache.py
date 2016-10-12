@@ -74,6 +74,7 @@ class DatabaseScanCacheHandler(ScanCacheHandlerBase):
         self.serializer = DatabaseScanSerializer(connection, sample_name)
         self.commit_counter = 0
         super(DatabaseScanCacheHandler, self).__init__()
+        logger.info("Serializing scans under %r @ %r", self.serializer.sample_run, self.serializer.engine)
 
     def get_analysis_serializer(self, analysis_name, *args, **kwargs):
         from .serialize import AnalysisSerializer as DatabaseAnalysisSerializer
@@ -89,6 +90,7 @@ class DatabaseScanCacheHandler(ScanCacheHandlerBase):
     def commit(self):
         super(DatabaseScanCacheHandler, self).save()
         self.serializer.session.commit()
+        self.serializer.session.expunge_all()
 
     @classmethod
     def configure_storage(cls, path=None, name=None):
@@ -97,7 +99,7 @@ class DatabaseScanCacheHandler(ScanCacheHandlerBase):
                 sample_name = os.path.basename(path)
             else:
                 sample_name = name
-            if not path.endswith(".db"):
+            if not path.endswith(".db") and "://" not in path:
                 path = os.path.splitext(path)[0] + '.db'
         elif path is None:
             path = tempfile.mkstemp()[1] + '.db'
@@ -128,6 +130,8 @@ class ThreadedDatabaseScanCacheHandler(DatabaseScanCacheHandler):
 
     def _worker_loop(self):
         has_work = True
+        i = 0
+        commit_interval = 100
         while has_work:
             try:
                 next_bunch = self.queue.get(True, 10)
@@ -137,10 +141,16 @@ class ThreadedDatabaseScanCacheHandler(DatabaseScanCacheHandler):
                 if self.log_inserts:
                     logger.info("Inserting %r", next_bunch)
                 self._save_bunch(*next_bunch)
+                i += 1
 
+                if i % commit_interval == 0:
+                    self.serializer.session.commit()
+                    self.serializer.session.expunge_all()
             except Empty:
-                continue
+                self.serializer.session.commit()
+                self.serializer.session.expunge_all()
         self.serializer.session.commit()
+        self.serializer.session.expunge_all()
 
     def sync(self):
         self._end_thread()

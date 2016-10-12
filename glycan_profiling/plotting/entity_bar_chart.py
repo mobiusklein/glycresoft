@@ -3,10 +3,10 @@ from collections import Counter
 import numpy as np
 from matplotlib import pyplot as plt
 
-from . import colors
 from .glycan_visual_classification import (
-    NGlycanCompositionColorizer, NGlycanCompositionOrderer)
+    NGlycanCompositionColorizer, NGlycanCompositionOrderer,
 
+    GlycanLabelTransformer)
 from .chromatogram_artist import ArtistBase
 
 
@@ -24,7 +24,7 @@ class EntitySummaryBarChartArtist(ArtistBase):
 
     def sort_items(self):
         return sorted(
-            self.chromatograms, lambda x, y: colors.NGlycanCompositionOrderer(
+            self.chromatograms, lambda x, y: NGlycanCompositionOrderer(
                 x.glycan_composition, y.glycan_composition))
 
     def get_heights(self, items, **kwargs):
@@ -44,9 +44,9 @@ class EntitySummaryBarChartArtist(ArtistBase):
         if len(items) == 0:
             raise ValueError("Cannot render. Zero items to plot.")
         keys = [c.glycan_composition for c in items]
-        include_classes = set(map(colors.NGlycanCompositionColorizer.classify, keys))
-        xtick_labeler = colors.GlycanLabelTransformer(keys, colors.NGlycanCompositionOrderer)
-        color = map(colors.NGlycanCompositionColorizer, keys)
+        include_classes = set(map(NGlycanCompositionColorizer.classify, keys))
+        xtick_labeler = GlycanLabelTransformer(keys, NGlycanCompositionOrderer)
+        color = map(NGlycanCompositionColorizer, keys)
         self.indices = indices = np.arange(len(items))
 
         self.xtick_labeler = xtick_labeler
@@ -75,7 +75,7 @@ class EntitySummaryBarChartArtist(ArtistBase):
 
         self.configure_x_axis()
 
-        handles = colors.NGlycanCompositionColorizer.make_legend(
+        handles = NGlycanCompositionColorizer.make_legend(
             include_classes, alpha=self.alpha)
         if handles:
             self.ax.legend(handles=handles, bbox_to_anchor=(1.20, 1.0))

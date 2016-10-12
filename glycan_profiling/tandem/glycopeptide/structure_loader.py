@@ -1,7 +1,7 @@
 from collections import namedtuple
 from functools import partial
 
-from glycan_profiling.database import LRUCache
+from glycan_profiling.database.lru import LRUCache
 from ms_deisotope.peak_dependency_network.intervals import SpanningMixin
 
 from glycopeptidepy.structure.sequence import PeptideSequence

@@ -7,7 +7,9 @@ from ms_deisotope.output.db import (
 
 from .analysis import Analysis
 from .chromatogram import (
-    MassShiftSerializer, CompositionGroupSerializer, ChromatogramSolution)
+    MassShiftSerializer, CompositionGroupSerializer, ChromatogramSolution,
+    GlycanCompositionChromatogram, UnidentifiedChromatogram)
+
 from .tandem import (
     GlycopeptideSpectrumCluster)
 
@@ -81,7 +83,30 @@ class AnalysisSerializer(DatabaseBoundOperation):
             solution, self.session, analysis_id=self.analysis_id,
             peak_lookup_table=self._peak_lookup_table,
             mass_shift_cache=self._mass_shift_cache,
-            composition_cache=self._composition_cache)
+            composition_cache=self._composition_cache,
+            scan_lookup_table=self._scan_id_map)
+        if commit:
+            self.commit()
+        return result
+
+    def save_glycan_composition_chromatogram_solution(self, solution, commit=False):
+        result = GlycanCompositionChromatogram.serialize(
+            solution, self.session, analysis_id=self.analysis_id,
+            peak_lookup_table=self._peak_lookup_table,
+            mass_shift_cache=self._mass_shift_cache,
+            composition_cache=self._composition_cache,
+            scan_lookup_table=self._scan_id_map)
+        if commit:
+            self.commit()
+        return result
+
+    def save_unidentified_chromatogram_solution(self, solution, commit=False):
+        result = UnidentifiedChromatogram.serialize(
+            solution, self.session, analysis_id=self.analysis_id,
+            peak_lookup_table=self._peak_lookup_table,
+            mass_shift_cache=self._mass_shift_cache,
+            composition_cache=self._composition_cache,
+            scan_lookup_table=self._scan_id_map)
         if commit:
             self.commit()
         return result
@@ -151,6 +176,14 @@ class AnalysisDeserializer(DatabaseBoundOperation):
             self._retrieve_analysis()
         return self._analysis_name
 
-    def load_chromatograms(self):
-        return self.session.query(ChromatogramSolution).filter(
-            ChromatogramSolution.analysis_id == self.analysis_id).yield_per(1000)
+    def load_unidentified_chromatograms(self):
+        q = self.query(UnidentifiedChromatogram).filter(
+            UnidentifiedChromatogram.analysis_id == self.analysis_id).yield_per(100)
+        chroma = [c.convert() for c in q]
+        return chroma
+
+    def load_glycan_composition_chromatograms(self):
+        q = self.query(GlycanCompositionChromatogram).filter(
+            GlycanCompositionChromatogram.analysis_id == self.analysis_id).yield_per(100)
+        chroma = [c.convert() for c in q]
+        return chroma

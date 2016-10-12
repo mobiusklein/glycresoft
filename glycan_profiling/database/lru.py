@@ -1,4 +1,3 @@
-
 class LRUNode(object):
 
     def __init__(self, data, forward, backward):
@@ -22,7 +21,7 @@ class LRUCache(object):
         self.head = LRUNode(None, None, None)
         self.head.forward = self.head
         self.head.backward = self.head
-        self.mapping = dict()
+        self._mapping = dict()
 
     def move_node_up(self, node):
         was_head_lru = self.head.backward is self.head
@@ -56,6 +55,9 @@ class LRUCache(object):
             raise ValueError("Head became LRU!")
 
     def add_node(self, data):
+        if data in self._mapping:
+            self.hit_node(data)
+            return
         node = LRUNode(data, None, None)
 
         pushed = self.head.forward
@@ -64,7 +66,7 @@ class LRUCache(object):
         node.forward = pushed
         pushed.backward = node
 
-        self.mapping[node.data] = node
+        self._mapping[node.data] = node
 
     def get_least_recently_used(self):
         lru = self.head.backward
@@ -73,7 +75,7 @@ class LRUCache(object):
         return lru.data
 
     def hit_node(self, k):
-        out = self.mapping[k]
+        out = self._mapping[k]
         self.move_node_up(out)
 
     def unspool(self):
@@ -86,9 +88,14 @@ class LRUCache(object):
         return chain
 
     def remove_node(self, data):
-        node = self.mapping[data]
+        # print("Removing ", data, id(data))
+        node = self._mapping[data]
         fwd = node.forward
+        # assert fwd is not node
         bck = node.backward
+        # assert bck is not node
         fwd.backward = bck
         bck.forward = fwd
-        self.mapping.pop(data)
+        self._mapping.pop(data)
+        # assert node not in self.unspool()[1:]
+        # print("Removed")

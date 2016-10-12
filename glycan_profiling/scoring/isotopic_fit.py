@@ -59,7 +59,8 @@ class IsotopicPatternConsistencyFitter(object):
             if chromatogram.elemental_composition is not None:
                 self.composition = chromatogram.elemental_composition
             else:
-                self.composition = glypy.GlycanComposition.parse(chromatogram.composition).total_composition()
+                # self.composition = glypy.GlycanComposition.parse(chromatogram.composition).total_composition()
+                raise Exception(chromatogram.composition)
         else:
             self.composition = None
 

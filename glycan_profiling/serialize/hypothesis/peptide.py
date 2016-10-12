@@ -6,7 +6,7 @@ from sqlalchemy.ext.declarative import declared_attr
 from sqlalchemy.orm import relationship, backref, make_transient, Query, validates
 from sqlalchemy import (
     Column, Numeric, Integer, String, ForeignKey, PickleType,
-    Boolean, Table, Text)
+    Boolean, Table, Text, Index)
 from sqlalchemy.ext.mutable import MutableDict
 
 from ms_deisotope.output.db import (
@@ -17,6 +17,7 @@ from .hypothesis import GlycopeptideHypothesis
 from .glycan import GlycanCombination
 
 from glycopeptidepy.structure import sequence, residue
+from glycan_profiling.tandem.glycopeptide.structure_loader import PeptideProteinRelation, FragmentCachingGlycopeptide
 
 
 class Protein(Base):
@@ -146,7 +147,9 @@ class Peptide(PeptideBase, Base):
     gagylation_sites = Column(MutableList.as_mutable(PickleType))
 
     def convert(self):
-        return sequence.parse(self.modified_peptide_sequence)
+        inst = sequence.parse(self.modified_peptide_sequence)
+        inst.id = self.id
+        return inst
 
     def __repr__(self):
         return "DBPeptideSequence({self.modified_peptide_sequence}, {self.n_glycosylation_sites})".format(self=self)
@@ -165,7 +168,16 @@ class Glycopeptide(PeptideBase, Base):
     glycopeptide_sequence = Column(String(128), index=True)
 
     def convert(self):
-        return sequence.parse(self.glycopeptide_sequence)
+        inst = FragmentCachingGlycopeptide(self.glycopeptide_sequence)
+        inst.id = self.id
+        peptide = self.peptide
+        inst.protein_relation = PeptideProteinRelation(
+            peptide.start_position, peptide.end_position, peptide.protein_id,
+            peptide.hypothesis_id)
+        return inst
 
     def __repr__(self):
         return "DBGlycopeptideSequence({self.glycopeptide_sequence}, {self.calculated_mass})".format(self=self)
+
+
+Glycopeptide._search_index = Index("mass_search_index", Glycopeptide.calculated_mass, Glycopeptide.hypothesis_id)

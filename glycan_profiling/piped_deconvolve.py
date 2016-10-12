@@ -1,7 +1,6 @@
 from collections import deque
 import multiprocessing
 
-import dill
 import ms_peak_picker
 import ms_deisotope
 
@@ -155,6 +154,7 @@ class ScanTransformingProcess(Process):
 
     def log_message(self, message, *args):
         print(message, args, multiprocessing.current_process())
+        logger.info(message + "%r, %r" % (args, multiprocessing.current_process()))
 
     def skip_scan(self, scan):
         self.output_queue.put((SCAN_STATUS_SKIP, scan.index, scan.ms_level))

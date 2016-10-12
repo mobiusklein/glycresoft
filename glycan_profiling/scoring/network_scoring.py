@@ -6,9 +6,9 @@ class NetworkScoreDistributor(object):
 
     def build_solution_map(self):
         self.solution_map = {
-            sol.chromatogram.composition: sol
+            sol.chromatogram.glycan_composition: sol
             for sol in self.solutions
-            if sol.chromatogram.composition is not None
+            if sol.chromatogram.glycan_composition is not None
         }
         return self.solution_map
 
@@ -25,8 +25,8 @@ class NetworkScoreDistributor(object):
         base = base_coef * sol._temp_score
         support = 0
         n_edges_matched = 0
-        if sol.composition is not None:
-            cn = self.network[sol.composition]
+        if sol.glycan_composition is not None:
+            cn = self.network[sol.glycan_composition]
             for edge in cn.edges:
                 other = edge[cn]
                 if other in self.solution_map:

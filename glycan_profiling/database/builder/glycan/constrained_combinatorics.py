@@ -111,7 +111,7 @@ class CombinatorialGlycanHypothesisSerializer(GlycanHypothesisSerializerBase):
 
     def run(self):
         self.make_pipeline()
-        self.log("Generating Glycan Composition combinations from symbolic rules")
+        self.log("Generating Glycan Compositions from Symbolic Rules for %r" % self.hypothesis)
         for composition in self.transformer:
             mass = composition.mass()
             composition_string = composition.serialize()

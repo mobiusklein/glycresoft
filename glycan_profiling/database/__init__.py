@@ -3,6 +3,3 @@ from .mass_collection import (
 
 from .disk_backed_database import (
     DiskBackedStructureDatabase)
-
-from .lru import (
-    LRUCache)

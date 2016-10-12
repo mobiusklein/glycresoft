@@ -66,10 +66,16 @@ class FastaGlycopeptideHypothesisSerializer(GlycopeptideHypothesisSerializerBase
         self.session.commit()
 
     def run(self):
+        self.log("Extracting Proteins")
         self.extract_proteins()
+        self.log("Digesting Proteins")
         self.digest_proteins()
+        self.log("Combinating Glycans")
         self.combinate_glycans(self.max_glycosylation_events)
+        self.log("Building Glycopeptides")
         self.glycosylate_peptides()
+        self._count_produced_glycopeptides()
+        self.log("Done")
 
 
 class MultipleProcessFastaGlycopeptideHypothesisSerializer(FastaGlycopeptideHypothesisSerializer):

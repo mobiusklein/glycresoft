@@ -1,15 +1,21 @@
 import operator
 
+try:
+    from itertools import imap
+except:
+    imap = map
 
 from ms_deisotope.peak_dependency_network.intervals import SpanningMixin
+from glycan_profiling.serialize import (
+    GlycanComposition, Glycopeptide, Peptide,
+    func, Protein, GlycopeptideHypothesis, GlycanHypothesis,
+    DatabaseBoundOperation)
 
-from sqlalchemy import select
-from glycresoft_sqlalchemy.data_model import (
-    DatabaseManager, TheoreticalGlycopeptideComposition, func,
-    Protein, Hypothesis, InformedPeptide)
+from sqlalchemy import select, join
 
 from .mass_collection import SearchableMassCollection, NeutralMassDatabase
 from .lru import LRUCache
+from .structure_loader import CachingGlycanCompositionParser
 
 try:
     basestring
@@ -20,18 +26,15 @@ except:
 _empty_interval = NeutralMassDatabase([])
 
 
-class DiskBackedStructureDatabase(SearchableMassCollection):
+class DiskBackedStructureDatabase(SearchableMassCollection, DatabaseBoundOperation):
     # Good for 10 ppm error intervals on structures up to 1e5 Da
     loading_interval = 1.
-    threshold_cache_total_count = 1e3
+    threshold_cache_total_count = 5e4
 
     def __init__(self, connection, hypothesis_id, cache_size=5, loading_interval=1.,
                  threshold_cache_total_count=1e3,
-                 model_type=TheoreticalGlycopeptideComposition):
-        if isinstance(connection, basestring):
-            connection = DatabaseManager(connection)
-        self.manager = connection
-        self.session = self.manager()
+                 model_type=Glycopeptide):
+        DatabaseBoundOperation.__init__(self, connection)
         self.hypothesis_id = hypothesis_id
         self.model_type = model_type
         self.loading_interval = loading_interval
@@ -43,7 +46,7 @@ class DiskBackedStructureDatabase(SearchableMassCollection):
 
     def __reduce__(self):
         return self.__class__, (
-            self.manager, self.hypothesis_id, self.cache_size, self.loading_interval,
+            self._original_connection, self.hypothesis_id, self.cache_size, self.loading_interval,
             self.threshold_cache_total_count, self.model_type)
 
     def _upkeep_memory_intervals(self):
@@ -52,11 +55,12 @@ class DiskBackedStructureDatabase(SearchableMassCollection):
             while (len(self._intervals) > 1 and
                    self._intervals.total_count >
                    self.threshold_cache_total_count):
+                print("Upkeep Memory Intervals", self._intervals.total_count)
                 self._intervals.remove_lru_interval()
 
     @property
     def hypothesis(self):
-        return self.session.query(Hypothesis).get(self.hypothesis_id)
+        return self.session.query(GlycopeptideHypothesis).get(self.hypothesis_id)
 
     @property
     def structures(self):
@@ -66,6 +70,12 @@ class DiskBackedStructureDatabase(SearchableMassCollection):
 
     def __len__(self):
         return self.structures.count()
+
+    def _get_record_properties(self):
+        return self.fields
+
+    def _limit_to_hypothesis(self, selectable):
+        return selectable.where(Peptide.__table__.c.hypothesis_id == self.hypothesis_id)
 
     def ignore_interval(self, interval):
         self._ignored_intervals.insert_interval(interval)
@@ -85,12 +95,16 @@ class DiskBackedStructureDatabase(SearchableMassCollection):
         # Should an insert be performed if the query just didn't overlap well
         # with the database?
         if nearest_interval is None:
+            # No nearby interval, so we should insert
             self._intervals.insert_interval(node)
             return node.group
         elif not nearest_interval.contains_interval(node):
+            # Nearby interval didn't contain this interval
             self._intervals.insert_interval(node)
             return node.group
         else:
+            # Situation unclear.
+            # Not worth inserting, so just return the group
             return nearest_interval.group
 
     def has_interval(self, mass, ppm_error_tolerance):
@@ -140,12 +154,12 @@ class DiskBackedStructureDatabase(SearchableMassCollection):
     @property
     def lowest_mass(self):
         return self.session.query(func.min(self.model_type.calculated_mass)).filter(
-            self.model_type.hypothesis_id == self.hypothesis_id)
+            self.model_type.hypothesis_id == self.hypothesis_id).first()
 
     @property
     def highest_mass(self):
         return self.session.query(func.max(self.model_type.calculated_mass)).filter(
-            self.model_type.hypothesis_id == self.hypothesis_id)
+            self.model_type.hypothesis_id == self.hypothesis_id).first()
 
     def get_object_by_id(self, id):
         return self.session.query(self.model_type).get(id)
@@ -180,13 +194,13 @@ class _PeptideIndex(object):
         self.hypothesis_id = hypothesis_id
 
     def _get_by_id(self, id):
-        return self.session.query(InformedPeptide).get(id)
+        return self.session.query(Peptide).get(id)
 
     def _get_by_sequence(self, modified_peptide_sequence, protein_id):
-        return self.session.query(InformedPeptide).filter(
-            InformedPeptide.hypothesis_id == self.hypothesis_id,
-            InformedPeptide.modified_peptide_sequence == modified_peptide_sequence,
-            InformedPeptide.protein_id == protein_id).one()
+        return self.session.query(Peptide).filter(
+            Peptide.hypothesis_id == self.hypothesis_id,
+            Peptide.modified_peptide_sequence == modified_peptide_sequence,
+            Peptide.protein_id == protein_id).one()
 
     def __getitem__(self, key):
         if isinstance(key, int):
@@ -195,31 +209,117 @@ class _PeptideIndex(object):
             return self._get_by_name(*key)
 
 
-class GlycopeptideDiskBackedStructureDatabase(DiskBackedStructureDatabase):
+class DeclarativeDiskBackedDatabase(DiskBackedStructureDatabase):
+    def __init__(self, connection, hypothesis_id, cache_size=5, loading_interval=1.,
+                 threshold_cache_total_count=1e3):
+        super(DeclarativeDiskBackedDatabase, self).__init__(
+            connection, hypothesis_id, cache_size, loading_interval,
+            threshold_cache_total_count, None)
+
+    @property
+    def lowest_mass(self):
+        q = select(
+            [func.min(self.mass_field)]).select_from(
+            self.selectable)
+        q = self._limit_to_hypothesis(q)
+        return self.session.execute(q).scalar()
+
+    @property
+    def highest_mass(self):
+        q = select(
+            [func.max(self.mass_field)]).select_from(
+            self.selectable)
+        q = self._limit_to_hypothesis(q)
+        return self.session.execute(q).scalar()
 
     def _get_record_properties(self):
-        table = self.model_type.__table__
-        return [
-            table.c.id, table.c.calculated_mass, table.c.glycopeptide_sequence,
-            table.c.protein_id, table.c.start_position, table.c.end_position,
-            table.c.hypothesis_id
-        ]
+        return self.fields
+
+    def _limit_to_hypothesis(self, selectable):
+        raise NotImplementedError()
 
     @property
     def structures(self):
-        table = self.model_type.__table__
-        return self.session.query(*self._get_record_properties()).filter(
-            table.c.hypothesis_id == self.hypothesis_id).order_by(
-            table.c.calculated_mass)
+        stmt = self._limit_to_hypothesis(
+            select(self._get_record_properties()).select_from(
+                self.selectable)).order_by(
+            self.mass_field)
+        return imap(self._convert, self.session.execute(stmt))
+
+    def __getitem__(self, i):
+        stmt = self._limit_to_hypothesis(
+            select(self._get_record_properties()).select_from(
+                self.selectable)).order_by(
+            self.mass_field).offset(i)
+        return self._convert(self.session.execute(stmt).fetchone())
 
     def search_mass(self, mass, error_tolerance):
-        table = self.model_type.__table__
         conn = self.session.connection()
-
-        stmt = select(self._get_record_properties()).where(
-            (table.c.hypothesis_id == self.hypothesis_id) & table.c.calculated_mass.between(
+        stmt = self._limit_to_hypothesis(
+            select(self._get_record_properties()).select_from(self.selectable)).where(
+            self.mass_field.between(
                 mass - error_tolerance, mass + error_tolerance))
         return conn.execute(stmt).fetchall()
+
+    def get_object_by_id(self, id):
+        return self._convert(self.session.execute(select(self._get_record_properties().select_from(
+            self.selectable)).where(
+            self.identity_field == id)).first())
+
+    def get_object_by_reference(self, reference):
+        return self._convert(self.get_object_by_id(reference.id))
+
+    def __len__(self):
+        stmt = select([func.count(self.identity_field)]).select_from(
+            self.selectable)
+        stmt = self._limit_to_hypothesis(stmt)
+        return self.session.execute(stmt).scalar()
+
+
+class GlycopeptideDiskBackedStructureDatabase(DeclarativeDiskBackedDatabase):
+    selectable = join(Glycopeptide.__table__, Peptide.__table__)
+    fields = [
+        Glycopeptide.__table__.c.id,
+        Glycopeptide.__table__.c.calculated_mass,
+        Glycopeptide.__table__.c.glycopeptide_sequence,
+        Glycopeptide.__table__.c.protein_id,
+        Peptide.__table__.c.start_position,
+        Peptide.__table__.c.end_position,
+        Glycopeptide.__table__.c.hypothesis_id,
+    ]
+    mass_field = Glycopeptide.__table__.c.calculated_mass
+    identity_field = Glycopeptide.__table__.c.id
+
+    def _limit_to_hypothesis(self, selectable):
+        return selectable.where(Peptide.__table__.c.hypothesis_id == self.hypothesis_id)
+
+
+class GlycanCompositionDiskBackedStructureDatabase(DeclarativeDiskBackedDatabase):
+    selectable = (GlycanComposition.__table__)
+    fields = [
+        GlycanComposition.__table__.c.id, GlycanComposition.__table__.c.calculated_mass,
+        GlycanComposition.__table__.c.composition, GlycanComposition.__table__.c.formula,
+        GlycanComposition.__table__.c.hypothesis_id
+    ]
+    mass_field = GlycanComposition.__table__.c.calculated_mass
+    identity_field = GlycanComposition.__table__.c.id
+
+    def __init__(self, connection, hypothesis_id, cache_size=5, loading_interval=1.,
+                 threshold_cache_total_count=1e3):
+        super(GlycanCompositionDiskBackedStructureDatabase, self).__init__(
+            connection, hypothesis_id, cache_size, loading_interval,
+            threshold_cache_total_count)
+        self._convert_cache = CachingGlycanCompositionParser()
+
+    def _convert(self, bundle):
+        return self._convert_cache(bundle)
+
+    @property
+    def hypothesis(self):
+        return self.session.query(GlycanHypothesis).get(self.hypothesis_id)
+
+    def _limit_to_hypothesis(self, selectable):
+        return selectable.where(GlycanComposition.__table__.c.hypothesis_id == self.hypothesis_id)
 
 
 class MassIntervalNode(SpanningMixin):
@@ -380,6 +480,8 @@ class IntervalSet(object):
 
     def insert_interval(self, interval):
         center = interval.center
+        # if interval in self.intervals:
+        #     raise ValueError("Duplicate Insertion")
         if len(self) != 0:
             index, matched = self.find_insertion_point(center)
             index += 1

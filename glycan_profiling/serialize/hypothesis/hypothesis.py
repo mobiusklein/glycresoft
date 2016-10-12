@@ -16,6 +16,10 @@ class HypothesisBase(HasUniqueName):
         return Column(Integer, primary_key=True, autoincrement=True)
 
     parameters = Column(MutableDict.as_mutable(PickleType))
+    status = Column(String(28))
+
+    def __repr__(self):
+        return "{self.__class__.__name__}(id={self.id}, name={self.name})".format(self=self)
 
 
 class GlycanHypothesis(HypothesisBase, Base):
@@ -25,5 +29,5 @@ class GlycanHypothesis(HypothesisBase, Base):
 class GlycopeptideHypothesis(HypothesisBase, Base):
     __tablename__ = "GlycopeptideHypothesis"
 
-    glycan_hypothesis_id = Column(Integer, ForeignKey(GlycanHypothesis.id), index=True)
+    glycan_hypothesis_id = Column(Integer, ForeignKey(GlycanHypothesis.id, ondelete="CASCADE"), index=True)
     glycan_hypothesis = relationship(GlycanHypothesis)

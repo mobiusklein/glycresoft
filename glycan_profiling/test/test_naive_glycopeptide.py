@@ -71,7 +71,7 @@ class NaiveGlycopeptideTests(unittest.TestCase):
             serialize.func.count(Glycopeptide.glycopeptide_sequence)).join(
             Glycopeptide.protein).join(Glycopeptide.peptide).group_by(
                 Glycopeptide.glycopeptide_sequence,
-                Glycopeptide.protein_id,
+                Protein.name,
                 Peptide.start_position,
                 Peptide.end_position).yield_per(1000)
 

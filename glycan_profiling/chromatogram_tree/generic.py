@@ -39,9 +39,9 @@ class ChromatogramDeltaNode(object):
         return nodes
 
 
-def build_chromatogram_nodes(rt, signal):
+def build_chromatogram_nodes(rt, signal, sigma=3):
     rt = np.array(rt)
-    smoothed = gaussian_filter1d(signal, 3)
+    smoothed = gaussian_filter1d(signal, sigma)
     delta_smoothed = np.gradient(smoothed, rt)
     change = delta_smoothed[:-1] - delta_smoothed[1:]
     avg_change = change.mean()
@@ -59,8 +59,8 @@ def build_chromatogram_nodes(rt, signal):
     return nodes
 
 
-def find_truncation_points(rt, signal):
-    nodes = build_chromatogram_nodes(rt, signal)
+def find_truncation_points(rt, signal, sigma=3, pad=3):
+    nodes = build_chromatogram_nodes(rt, signal, sigma=3)
 
     leading = 0
     ending = len(nodes)
@@ -70,14 +70,14 @@ def find_truncation_points(rt, signal):
             break
         leading += 1
     leading -= 3
-    leading = max(leading, 0)
+    leading = max(leading - pad, 0)
 
     for node in reversed(nodes):
         if not node.is_below_threshold:
             break
         ending -= 1
 
-    ending = min(ending + 2, len(nodes) - 1)
+    ending = min(ending + pad, len(nodes) - 1)
     if len(nodes) == 1:
         return nodes[0].start_time, nodes[0].end_time
     elif len(nodes) == 2:

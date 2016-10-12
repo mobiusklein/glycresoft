@@ -9,12 +9,12 @@ from sqlalchemy.ext.declarative import declared_attr
 from .analysis import BoundToAnalysis
 from .chromatogram import ChromatogramSolution
 from .tandem import GlycopeptideSpectrumCluster
+from .hypothesis import Glycopeptide
 
 from glycan_profiling.tandem.glycopeptide.identified_structure import (
     IdentifiedGlycopeptide as MemoryIdentifiedGlycopeptide)
 
-from glycan_profiling.tandem.spectrum_matcher_base import (
-    TargetReference)
+from glycan_profiling.chromatogram_tree import GlycopeptideChromatogram
 
 from ms_deisotope.output.db import (
     Base)
@@ -27,11 +27,14 @@ class IdentifiedStructure(BoundToAnalysis):
 
     @declared_attr
     def chromatogram_solution_id(self):
-        return Column(Integer, ForeignKey(ChromatogramSolution.id), index=True)
+        return Column(Integer, ForeignKey(ChromatogramSolution.id, ondelete="CASCADE"), index=True)
 
     @declared_attr
     def chromatogram(self):
         return relationship(ChromatogramSolution)
+
+    def get_chromatogram(self):
+        return self.chromatogram.get_chromatogram()
 
 
 class AmbiguousGlycopeptideGroup(Base):
@@ -61,8 +64,10 @@ class IdentifiedGlycopeptide(Base, IdentifiedStructure):
     __tablename__ = "IdentifiedGlycopeptide"
 
     structure_id = Column(
-        Integer,  # ForeignKey(, ondelte='CASCADE')
+        Integer, ForeignKey(Glycopeptide.id, ondelete='CASCADE'),
         index=True)
+
+    structure = relationship(Glycopeptide)
 
     ms1_score = Column(Numeric(8, 7, asdecimal=False), index=True)
     ms2_score = Column(Numeric(12, 6, asdecimal=False), index=True)
@@ -106,10 +111,9 @@ class IdentifiedGlycopeptide(Base, IdentifiedStructure):
                     return converted[i]
         else:
             chromatogram = self.chromatogram.convert()
-            # FIXME: When structures are migrated into this database
-            # schema, remove the reference shim
-            structure = TargetReference(self.structure_id)
-            structure.protein_relation = None
+            chromatogram.chromatogram = chromatogram.chromatogram.clone(GlycopeptideChromatogram)
+            structure = self.structure.convert()
+            chromatogram.chromatogram.entity = structure
             spectrum_matches = self.spectrum_cluster.convert()
             inst = MemoryIdentifiedGlycopeptide(structure, spectrum_matches, chromatogram)
             return inst

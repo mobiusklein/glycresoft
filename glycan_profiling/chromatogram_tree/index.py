@@ -4,6 +4,26 @@ from . import (smooth_overlaps, build_rt_interval_tree)
 
 
 def binary_search_with_flag(array, mass, error_tolerance=1e-5):
+    """Binary search an ordered array of objects with :attr:`neutral_mass`
+    using a PPM error tolerance of `error_toler
+
+    Parameters
+    ----------
+    array : list
+        An list of objects, sorted over :attr:`neutral_mass` in increasing order
+    mass : float
+        The mass to search for
+    error_tolerance : float, optional
+        The PPM error tolerance to use when deciding whether a match has been found
+
+    Returns
+    -------
+    int:
+        The index in `array` of the best match
+    bool:
+        Whether or not a match was actually found, used to
+        signal behavior to the caller.
+    """
     lo = 0
     n = hi = len(array)
     while hi != lo:
@@ -41,6 +61,20 @@ def binary_search_with_flag(array, mass, error_tolerance=1e-5):
 
 
 class ChromatogramFilter(object):
+    """An ordered collection of Chromatogram-like objects with fast searching
+    and filtering features. Supports Sequence operations.
+
+    Attributes
+    ----------
+    chromatograms: list of Chromatogram
+        list of chromatogram-like objects, ordered by neutral mass
+    key_map: dict
+        A mapping between values appearing in the :attr:`Chromatogram.key` and :class:`DisjointChromatogramSet`
+        instances containing all occurrences of that key, ordered by time.
+    rt_interval_tree: IntervalTreeNode
+        An interval tree over retention time containing all of the chromatograms in
+        :attr:`chromatograms`
+    """
     def __init__(self, chromatograms, sort=True):
         if sort:
             self.chromatograms = [c for c in sorted([c for c in chromatograms if len(c)], key=lambda x: (
@@ -59,6 +93,18 @@ class ChromatogramFilter(object):
 
     def _build_rt_interval_tree(self):
         self._intervals = build_rt_interval_tree(self)
+
+    @property
+    def key_map(self):
+        if self._key_map is None:
+            self._build_key_map()
+        return self._key_map
+
+    @property
+    def rt_interval_tree(self):
+        if self._intervals is None:
+            self._build_rt_interval_tree()
+        return self._intervals
 
     def find_all_instances(self, key):
         if self._key_map is None:
@@ -106,7 +152,7 @@ class ChromatogramFilter(object):
         return cases[best_index]
 
     def min_points(self, n=3, keep_if_msms=True):
-        self.chromatograms = [c for c in self if len(c) >= n or c.has_msms]
+        self.chromatograms = [c for c in self if (len(c) >= n) or c.has_msms]
         return self
 
     def split_sparse(self, delta_rt=1.):
@@ -208,3 +254,6 @@ class DisjointChromatogramSet(object):
 
     def __str__(self):
         return str(list(self))
+
+    def __len__(self):
+        return len(self.group)

@@ -1,15 +1,15 @@
 import operator
 
-from glypy.composition.glycan_composition import FrozenGlycanComposition
+from glycopeptidepy import HashableGlycanComposition
 
-from glycresoft_sqlalchemy.search_space_builder.glycan_builder import constrained_combinatorics
+from .builder.glycan import constrained_combinatorics
 
 from ..composition_network import CompositionGraph, n_glycan_distance
 
 
 def build_database(rules_path, distance_fn=n_glycan_distance):
     rules_table, constraints = constrained_combinatorics.parse_rules_from_file(rules_path)
-    compositions = [(x) for x, y in constrained_combinatorics.CombinatoricCompositionGenerator(
+    compositions = [(x) for x in constrained_combinatorics.CombinatoricCompositionGenerator(
         rules_table=rules_table, constraints=constraints)]
     db = MassDatabase(compositions, distance_fn=distance_fn)
     return db
@@ -24,6 +24,9 @@ class SearchableMassCollection(object):
 
     def __getitem__(self, index):
         return self.structures[index]
+
+    def _convert(self, bundle):
+        return bundle
 
     @property
     def lowest_mass(self):
@@ -57,7 +60,7 @@ class SearchableMassCollection(object):
 
 
 class MassDatabase(SearchableMassCollection):
-    """A quick-to-search database of :class:`FrozenGlycanComposition` instances
+    """A quick-to-search database of :class:`HashableGlycanComposition` instances
     stored in memory.
 
     Implements the Sequence interface, with `__iter__`, `__len__`, and `__getitem__`.
@@ -65,10 +68,10 @@ class MassDatabase(SearchableMassCollection):
     Attributes
     ----------
     structures : list
-        A list of :class:`FrozenGlycanComposition` instances, sorted by mass
+        A list of :class:`HashableGlycanComposition` instances, sorted by mass
     """
     def __init__(self, structures, network=None, distance_fn=n_glycan_distance,
-                 glycan_composition_type=FrozenGlycanComposition):
+                 glycan_composition_type=HashableGlycanComposition):
         self.glycan_composition_type = glycan_composition_type
         if not isinstance(structures[0], glycan_composition_type):
             structures = list(map(glycan_composition_type, structures))
@@ -140,7 +143,7 @@ class MassDatabase(SearchableMassCollection):
         Returns
         -------
         list
-            The list of :class:`FrozenGlycanComposition` instances which meet the criterion
+            The list of :class:`HashableGlycanComposition` instances which meet the criterion
         """
         if len(self) == 0:
             return []

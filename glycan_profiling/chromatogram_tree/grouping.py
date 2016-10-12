@@ -126,9 +126,10 @@ class ChromatogramMerger(object):
 
     def merge_overlaps(self, new_chromatogram, chromatogram_range):
         has_merged = False
+        query_mass = new_chromatogram.neutral_mass
         for chroma in chromatogram_range:
-            if chroma.overlaps_in_time(chroma) and abs(
-                    (chroma.neutral_mass - new_chromatogram.neutral_mass) / new_chromatogram.neutral_mass):
+            if chroma.overlaps_in_time(new_chromatogram) and abs(
+                    (chroma.neutral_mass - query_mass) / query_mass) < self.error_tolerance:
                 chroma.merge(new_chromatogram)
                 has_merged = True
                 break
@@ -222,19 +223,6 @@ class ChromatogramOverlapSmoother(object):
         for node in nodes:
             self.aggregate_interval(node)
         return self.solution_map[self.retention_interval_tree]
-
-
-def mask_subsequence(target, masker):
-    unmasked_nodes = []
-    target_nodes = target.nodes.unspool_strip_children()
-    masking_nodes = masker.nodes.unspool()
-    for node in target_nodes:
-        if node not in masking_nodes:
-            unmasked_nodes.append(node)
-    new = Chromatogram(target.composition)
-    new.created_at = "mask_subsequence"
-    map(new.insert_node, unmasked_nodes)
-    return new
 
 
 def binary_search_with_flag(array, mass, error_tolerance=1e-5):

@@ -9,6 +9,7 @@ from glycan_profiling.tandem.spectrum_matcher_base import (
     TargetReference)
 
 from .analysis import BoundToAnalysis
+from .hypothesis import Glycopeptide
 
 from ms_deisotope.output.db import (
     Base, MSScan)
@@ -107,8 +108,10 @@ class GlycopeptideSpectrumMatch(Base, SpectrumMatchBase):
     is_best_match = Column(Boolean, index=True)
 
     structure_id = Column(
-        Integer,  # ForeignKey(, ondelte='CASCADE')
+        Integer, ForeignKey(Glycopeptide.id, ondelete='CASCADE'),
         index=True)
+
+    structure = relationship(Glycopeptide)
 
     @classmethod
     def serialize(cls, obj, session, scan_look_up_cache, analysis_id, solution_set_id, is_decoy=False, *args, **kwargs):

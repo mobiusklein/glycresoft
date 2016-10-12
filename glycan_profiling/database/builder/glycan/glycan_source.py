@@ -63,11 +63,12 @@ class GlycanHypothesisSerializerBase(DatabaseBoundOperation, TaskBase):
         self._hypothesis_name = hypothesis_name
         self._hypothesis_id = None
         self._hypothesis = None
+        self.uuid = str(uuid4().hex)
 
     def _construct_hypothesis(self):
         if self._hypothesis_name is None:
             self._hypothesis_name = self._make_name()
-        self._hypothesis = GlycanHypothesis(name=self._hypothesis_name)
+        self._hypothesis = GlycanHypothesis(name=self._hypothesis_name, uuid=self.uuid)
 
         self.session.add(self._hypothesis)
         self.session.commit()
@@ -76,13 +77,13 @@ class GlycanHypothesisSerializerBase(DatabaseBoundOperation, TaskBase):
         self._hypothesis_name = self._hypothesis.name
 
     def _make_name(self):
-        return "GlycanHypothesis-" + str(uuid4().hex)
+        return "GlycanHypothesis-" + self.uuid
 
     @property
     def hypothesis(self):
         if self._hypothesis is None:
             self._construct_hypothesis()
-        return self.hypothesis
+        return self._hypothesis
 
     @property
     def hypothesis_name(self):
@@ -115,7 +116,7 @@ class TextFileGlycanHypothesisSerializer(GlycanHypothesisSerializerBase):
 
     def run(self):
         self.make_pipeline()
-        self.log("Loading Glycan Compositions From File")
+        self.log("Loading Glycan Compositions from File for %r" % self.hypothesis)
         for composition in self.transformer:
             mass = composition.mass()
             composition_string = composition.serialize()

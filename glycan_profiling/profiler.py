@@ -7,7 +7,14 @@ import glypy
 
 from glycan_profiling import plotting
 from glycan_profiling.database import build_database
-from glycan_profiling.piped_deconvolve import ScanGenerator as PipedScanGenerator, MzMLLoader
+from glycan_profiling.database.disk_backed_database import GlycanCompositionDiskBackedStructureDatabase
+
+from glycan_profiling.serialize import (
+    DatabaseScanDeserializer, AnalysisSerializer)
+
+from glycan_profiling.piped_deconvolve import (
+    ScanGenerator as PipedScanGenerator, MzMLLoader)
+
 from glycan_profiling.scoring import (
     ChromatogramSolution, NetworkScoreDistributor, ChromatogramScorer)
 
@@ -16,11 +23,15 @@ from glycan_profiling.chromatogram_tree import (
 
 from glycan_profiling.trace import (
     IncludeUnmatchedTracer, join_mass_shifted,
-    reverse_adduction_search, prune_bad_adduct_branches)
+    reverse_adduction_search, prune_bad_adduct_branches,
+    NonAggregatingTracer, ScanSink, ChromatogramExtractor,
+    ChromatogramProcessor)
 
 from glycan_profiling.scan_cache import (
     NullScanCacheHandler, ThreadedDatabaseScanCacheHandler,
     DatabaseScanGenerator)
+
+from glycan_profiling.task import TaskBase
 
 from brainpy import periodic_table
 from ms_deisotope.averagine import Averagine, glycan as n_glycan_averagine
@@ -41,11 +52,90 @@ def parse_averagine_formula(formula):
                       if float(v or 0) > 0 and validate_element(k)})
 
 
-class ChromatogramProfiler(object):
+class SampleConsumer(TaskBase):
+    def __init__(self, mzml_path, averagine=n_glycan_averagine, charge_range=(-1, -8),
+                 ms1_peak_picking_args=None, msn_peak_picking_args=None, ms1_deconvolution_args=None,
+                 msn_deconvolution_args=None, start_scan_id=None, end_scan_id=None, storage_path=None,
+                 sample_name=None, cache_handler_type=None):
+
+        if cache_handler_type is None:
+            cache_handler_type = ThreadedDatabaseScanCacheHandler
+        if isinstance(averagine, basestring):
+            averagine = parse_averagine_formula(averagine)
+
+        self.mzml_path = mzml_path
+        self.storage_path = storage_path
+        self.sample_name = sample_name
+
+        self.cache_handler_type = cache_handler_type
+
+        self.scan_generator = PipedScanGenerator(
+            mzml_path, averagine=averagine, charge_range=charge_range, ms1_peak_picking_args=ms1_peak_picking_args,
+            msn_peak_picking_args=msn_peak_picking_args, ms1_deconvolution_args=ms1_deconvolution_args,
+            msn_deconvolution_args=msn_deconvolution_args)
+
+        self.start_scan_id = start_scan_id
+        self.end_scan_id = end_scan_id
+
+    def run(self):
+        self.scan_generator.configure_iteration(self.start_scan_id, self.end_scan_id)
+
+        sink = ScanSink(self.scan_generator, self.cache_handler_type)
+        sink.configure_cache(self.storage_path, self.sample_name)
+
+        for scan in sink:
+            self.log("Processed %s (%f)" % (scan.id, scan.scan_time))
+
+        sink.complete()
+        self.log("Completed Sample %s" % (self.sample_name,))
+        sink.commit()
+
+
+class GlycanChromatogramAnalyzer(TaskBase):
+    def __init__(self, database_connection, hypothesis_id, sample_run_id, adducts=None,
+                 mass_error_tolerance=1e-5, grouping_error_tolerance=1.5e-5,
+                 scoring_model=None, analysis_name=None):
+        self.database_connection = database_connection
+        self.hypothesis_id = hypothesis_id
+        self.sample_run_id = sample_run_id
+        self.mass_error_tolerance = mass_error_tolerance
+        self.grouping_error_tolerance = grouping_error_tolerance
+        self.scoring_model = scoring_model
+        self.adducts = adducts
+        self.analysis_name = analysis_name
+
+    def save_solutions(self, solutions, peak_mapping):
+        analysis_saver = AnalysisSerializer(self.database_connection, self.sample_run_id, self.analysis_name)
+        analysis_saver.set_peak_lookup_table(peak_mapping)
+        for chroma in solutions:
+            if chroma.composition:
+                analysis_saver.save_glycan_composition_chromatogram_solution(chroma)
+            else:
+                analysis_saver.save_unidentified_chromatogram_solution(chroma)
+        analysis_saver.commit()
+
+    def run(self):
+        peak_loader = DatabaseScanDeserializer(
+            self.database_connection, sample_run_id=self.sample_run_id)
+
+        database = GlycanCompositionDiskBackedStructureDatabase(
+            self.database_connection, self.hypothesis_id)
+
+        extractor = ChromatogramExtractor(
+            peak_loader, grouping_tolerance=self.grouping_error_tolerance)
+        proc = ChromatogramProcessor(
+            extractor, database, mass_error_tolerance=self.mass_error_tolerance, adducts=self.adducts,
+            scoring_model=self.scoring_model)
+        proc.start()
+        self.save_solutions(proc.solutions, extractor.peak_mapping)
+        return proc
+
+
+class ChromatogramProfiler(TaskBase):
     def __init__(self, mzml_path, database_rules_path, averagine=n_glycan_averagine, charge_range=(-1, -8),
                  ms1_peak_picking_args=None, msn_peak_picking_args=None, ms1_deconvolution_args=None,
                  msn_deconvolution_args=None, storage_path=None, sample_name=None, analysis_name=None,
-                 cache_handler_type=None):
+                 cache_handler_type=None, aggregate=True):
         if cache_handler_type is None:
             cache_handler_type = ThreadedDatabaseScanCacheHandler
         if isinstance(averagine, basestring):
@@ -74,6 +164,7 @@ class ChromatogramProfiler(object):
 
         self.chromatograms = None
         self.solutions = None
+        self._aggregate = aggregate
 
     def search(self, mass_error_tolerance=1e-5, grouping_mass_error_tolerance=None, start_scan=None,
                max_scans=None, end_scan=None, adducts=None, truncate=False, minimum_mass=500):
@@ -87,16 +178,19 @@ class ChromatogramProfiler(object):
         logger.info("Begin Chromatogram Tracing")
         self.scan_generator.configure_iteration(
             start_scan=start_scan, end_scan=end_scan, max_scans=max_scans)
-        self.tracer = IncludeUnmatchedTracer(
-            self.scan_generator, self.database, mass_error_tolerance,
-            cache_handler_type=self.cache_handler_type)
+        if self._aggregate:
+            self.tracer = IncludeUnmatchedTracer(
+                self.scan_generator, self.database, mass_error_tolerance,
+                cache_handler_type=self.cache_handler_type)
+        else:
+            self.tracer = NonAggregatingTracer(
+                self.scan_generator, cache_handler_type=self.cache_handler_type)
         self.tracer.configure_cache(self.storage_path, self.sample_name)
 
         i = 0
         for case in self.tracer:
-            logger.info(
-                "%d, %d, %s, %s, %d", i, case[1].index, case[1].scan_time,
-                case[1].id, len(case[0]))
+            self.log("%d, %d, %s, %s, %d" % (
+                i, case[1].index, case[1].scan_time, case[1].id, len(case[0])))
             i += 1
             if end_scan == case[1].id or i == max_scans:
                 break
@@ -109,18 +203,20 @@ class ChromatogramProfiler(object):
 
         self.build_chromatograms(
             mass_error_tolerance, grouping_mass_error_tolerance, adducts, truncate)
-        logger.info("Tracing Complete (%r minutes elapsed)", (time.time() - start) / 60.)
+        self.log("Tracing Complete (%r minutes elapsed)" % ((time.time() - start) / 60.,))
 
     def build_chromatograms(self, mass_error_tolerance, grouping_mass_error_tolerance, adducts,
                             truncate=False, minimum_mass=500):
-        logger.info("Post-Processing Chromatogram Traces (%0.3e, %0.3e, %r, %r)",
-                    mass_error_tolerance, grouping_mass_error_tolerance, adducts, truncate)
+        self.log("Post-Processing Chromatogram Traces (%0.3e, %0.3e, %r, %r)" % (
+            mass_error_tolerance, grouping_mass_error_tolerance, adducts, truncate))
+        self.chromatograms = self.tracer.build_chromatograms(
+            grouping_tolerance=grouping_mass_error_tolerance,
+            truncate=truncate,
+            minimum_mass=minimum_mass)
+        self._convert_to_entity_chromatograms()
         self.chromatograms = reverse_adduction_search(
             join_mass_shifted(
-                ChromatogramFilter(self.tracer.build_chromatograms(
-                    grouping_tolerance=grouping_mass_error_tolerance,
-                    truncate=truncate,
-                    minimum_mass=minimum_mass)), adducts, mass_error_tolerance),
+                ChromatogramFilter(self.chromatograms), adducts, mass_error_tolerance),
             adducts, mass_error_tolerance, self.database)
         self._convert_to_entity_chromatograms()
 
@@ -179,10 +275,10 @@ class ChromatogramProfiler(object):
         return self._filter_accepted()
 
     def _filter_accepted(self, threshold=0.4):
-        self.accepted_solutions = [
+        self.accepted_solutions = ChromatogramFilter([
             sol for sol in self.solutions
             if sol.score > threshold and not sol.used_as_adduct
-        ]
+        ])
         return self.accepted_solutions
 
     def plot(self, min_score=0.4, min_signal=0.2, colorizer=None, chromatogram_artist=None, include_tic=True):
@@ -191,8 +287,8 @@ class ChromatogramProfiler(object):
         monosaccharides = set()
 
         for sol in self.solutions:
-            if sol.composition:
-                monosaccharides.update(map(str, glypy.GlycanComposition.parse(sol.composition)))
+            if sol.glycan_composition:
+                monosaccharides.update(map(str, sol.glycan_composition))
 
         label_abundant = plotting.AbundantLabeler(
             plotting.NGlycanLabelProducer(monosaccharides),
@@ -215,16 +311,52 @@ class ChromatogramProfiler(object):
         return chrom, agg
 
 
+class SummaryGraphBuilder(object):
+    def __init__(self, solutions):
+        self.solutions = solutions
+
+    def plot(self, min_score=0.4, min_signal=0.2, colorizer=None, total_ion_chromatogram=None,
+             base_peak_chromatogram=None):
+        monosaccharides = set()
+
+        for sol in self.solutions:
+            if sol.glycan_composition:
+                monosaccharides.update(map(str, sol.glycan_composition))
+
+        label_abundant = plotting.AbundantLabeler(
+            plotting.NGlycanLabelProducer(monosaccharides),
+            max(sol.total_signal for sol in self.solutions if sol.score > min_score) * min_signal)
+
+        if colorizer is None:
+            colorizer = plotting.n_glycan_colorizer
+
+        results = [sol for sol in self.solutions if sol.score > min_score and not sol.used_as_adduct]
+        chrom = plotting.SmoothingChromatogramArtist(results, colorizer=colorizer).draw(label_function=label_abundant)
+
+        if total_ion_chromatogram is not None:
+            rt, intens = total_ion_chromatogram.as_arrays()
+            chrom.draw_generic_chromatogram(
+                "TIC", rt, intens, 'blue')
+            chrom.ax.set_ylim(0, max(intens) * 1.1)
+
+        if base_peak_chromatogram is not None:
+            rt, intens = base_peak_chromatogram.as_arrays()
+            chrom.draw_generic_chromatogram(
+                "BPC", rt, intens, 'green')
+
+        agg = plotting.AggregatedAbundanceArtist(results)
+        agg.draw()
+        return chrom, agg
+
+
+ChromatogramProfiler.log_with_logger(logger)
+
+
 class ScanDatabaseChromatogramProfiler(ChromatogramProfiler):
-    def __init__(self, scan_db_path, composition_database_rules_path, averagine=n_glycan_averagine,
-                 charge_range=None, ms1_peak_picking_args=None, msn_peak_picking_args=None,
-                 ms1_deconvolution_args=None, msn_deconvolution_args=None, storage_path=None,
+    def __init__(self, scan_db_path, composition_database_rules_path, storage_path=None,
                  sample_name=None, analysis_name=None, cache_handler_type=None):
         if cache_handler_type is None:
             cache_handler_type = NullScanCacheHandler
-
-        if isinstance(averagine, basestring):
-            averagine = parse_averagine_formula(averagine)
 
         self.scan_generator = DatabaseScanGenerator(scan_db_path, sample_name)
 
@@ -246,10 +378,7 @@ class ScanDatabaseChromatogramProfiler(ChromatogramProfiler):
         self.chromatograms = None
         self.solutions = None
 
-        if charge_range is not None:
-            warnings.warn(
-                "This scan generator type doesn't support new deconvolutions, "
-                "parameter 'charge_range' is ignored")
+        self._aggregate = True
 
 
 GlycanProfiler = ChromatogramProfiler

@@ -1,16 +1,18 @@
 import re
 from collections import defaultdict
 import itertools
+from multiprocessing import Process, Queue, Event
 
 from . import enzyme
+from .utils import slurp
 
 from glypy.composition import formula
-from glycopeptidepy.structure import sequence, modification, residue
+from glycopeptidepy.structure import sequence, modification
+from glycopeptidepy import PeptideSequence, cleave
 
+from glycan_profiling.serialize import DatabaseBoundOperation
 from glycan_profiling.serialize.hypothesis.peptide import Peptide, Protein
 
-PeptideSequence = sequence.PeptideSequence
-cleave = sequence.cleave
 RestrictedModificationTable = modification.RestrictedModificationTable
 combinations = itertools.combinations
 product = itertools.product
@@ -187,3 +189,79 @@ class ProteinDigestor(object):
             peptide.count_glycosylation_sites = len(n_glycosites)
             peptide.n_glycosylation_sites = sorted(n_glycosites)
             yield peptide
+
+
+class ProteinDigestingProcess(Process):
+    def __init__(self, connection, hypothesis_id, input_queue, digestor, done_event=None):
+        Process.__init__(self)
+        self.connection = connection
+        self.input_queue = input_queue
+        self.hypothesis_id = hypothesis_id
+        self.done_event = done_event
+        self.digestor = digestor
+
+    def task(self):
+        database = DatabaseBoundOperation(self.connection)
+        session = database.session
+        has_work = True
+
+        digestor = self.digestor
+
+        while has_work:
+            try:
+                work_items = self.input_queue.get(timeout=5)
+                if work_items is None:
+                    has_work = False
+                    continue
+            except:
+                if self.done_event.is_set():
+                    has_work = False
+                continue
+            proteins = slurp(session, Protein, work_items, flatten=False)
+            for protein in proteins:
+                acc = []
+                for peptide in digestor.process_protein(protein):
+                    acc.append(peptide)
+                    if len(acc) > 100000:
+                        self.session.add_all(acc)
+                        self.session.commit()
+                        acc = []
+                self.session.add_all(acc)
+                self.session.commit()
+                acc = []
+
+    def run(self):
+        self.task()
+
+
+class MultipleProcessProteinDigestor(object):
+    def __init__(self, connection, hypothesis_id, protein_ids, digestor, n_processes=4):
+        self.connection = connection
+        self.hypothesis_id = hypothesis_id
+        self.protein_ids = protein_ids
+        self.digestor = digestor
+        self.n_processes = n_processes
+
+    def run(self):
+        input_queue = Queue(100)
+        done_event = Event()
+        processes = [
+            ProteinDigestingProcess(
+                self.connection, self.hypothesis_id, input_queue,
+                self.digestor, done_event=done_event) for i in range(self.n_processes)
+        ]
+        protein_ids = self.protein_ids
+        i = 0
+        chunk_size = 3
+        for process in processes:
+            input_queue.put(protein_ids[i:(i + chunk_size)])
+            i += chunk_size
+            process.start()
+
+        while i < len(protein_ids):
+            input_queue.put(protein_ids[i:(i + chunk_size)])
+            i += chunk_size
+
+        done_event.set()
+        for process in processes:
+            process.join()

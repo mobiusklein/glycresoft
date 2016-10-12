@@ -6,13 +6,16 @@ from .proteomics import mzid_proteome
 
 
 class MzIdentMLGlycopeptideHypothesisSerializer(GlycopeptideHypothesisSerializerBase):
+    _display_name = "MzIdentML Glycopeptide Hypothesis Serializer"
+
     def __init__(self, mzid_path, connection, glycan_hypothesis_id, hypothesis_name=None,
                  target_proteins=None, max_glycosylation_events=1):
         if target_proteins is None:
             target_proteins = []
         GlycopeptideHypothesisSerializerBase.__init__(self, connection, hypothesis_name, glycan_hypothesis_id)
         self.mzid_path = mzid_path
-        self.proteome = mzid_proteome.Proteome(mzid_path, self._original_connection, self.hypothesis_id)
+        self.proteome = mzid_proteome.Proteome(
+            mzid_path, self._original_connection, self.hypothesis_id, target_proteins=target_proteins)
         self.target_proteins = target_proteins
         self.max_glycosylation_events = max_glycosylation_events
 
@@ -32,6 +35,8 @@ class MzIdentMLGlycopeptideHypothesisSerializer(GlycopeptideHypothesisSerializer
                         Protein.hypothesis_id == self.hypothesis_id).first()
                     if match:
                         result.append(match[0])
+                    else:
+                        self.log("Could not locate protein '%s'" % target)
                 elif isinstance(target, int):
                     result.append(target)
             return result
@@ -66,19 +71,22 @@ class MzIdentMLGlycopeptideHypothesisSerializer(GlycopeptideHypothesisSerializer
         self.combinate_glycans(self.max_glycosylation_events)
         self.log("Building Glycopeptides")
         self.glycosylate_peptides()
+        self._count_produced_glycopeptides()
         self.log("Done")
 
 
-class MultipleProcessFastaGlycopeptideHypothesisSerializer(MzIdentMLGlycopeptideHypothesisSerializer):
+class MultipleProcessMzIdentMLGlycopeptideHypothesisSerializer(MzIdentMLGlycopeptideHypothesisSerializer):
+    _display_name = "Multiple Process MzIdentML Glycopeptide Hypothesis Serializer"
+
     def __init__(self, mzid_path, connection, glycan_hypothesis_id, hypothesis_name=None,
                  target_proteins=None, max_glycosylation_events=1, n_processes=4):
-        super(MultipleProcessFastaGlycopeptideHypothesisSerializer, self).__init__(
+        super(MultipleProcessMzIdentMLGlycopeptideHypothesisSerializer, self).__init__(
             mzid_path, connection, glycan_hypothesis_id, hypothesis_name, target_proteins,
             max_glycosylation_events)
         self.n_processes = n_processes
 
     def glycosylate_peptides(self):
-        input_queue = Queue(100)
+        input_queue = Queue(15)
         done_event = Event()
         processes = [
             PeptideGlycosylatingProcess(
@@ -96,7 +104,9 @@ class MultipleProcessFastaGlycopeptideHypothesisSerializer(MzIdentMLGlycopeptide
         while i < len(peptide_ids):
             input_queue.put(peptide_ids[i:(i + chunk_size)])
             i += chunk_size
+            self.log("... Dealt Peptides %d-%d" % (i - chunk_size, i))
 
+        self.log("... All Peptides Dealt")
         done_event.set()
         for process in processes:
             process.join()

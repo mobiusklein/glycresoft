@@ -111,11 +111,14 @@ class CompositionDispatchScorer(object):
         return self.__class__({k: v.clone() for k, v in self.rule_model_map.items()}, self.default_model.clone())
 
     def get_composition(self, obj):
-        if isinstance(obj.composition, basestring):
-            composition = FrozenGlycanComposition.parse(obj.composition)
-        else:
-            composition = obj.composition
-        return composition
+        # if isinstance(obj.composition, basestring):
+        #     composition = FrozenGlycanComposition.parse(obj.composition)
+        # else:
+        #     composition = obj.composition
+        if obj.composition is not None:
+            if obj.glycan_composition is not None:
+                return obj.glycan_composition
+        return None
 
     def find_model(self, composition):
         if composition is None:
@@ -164,6 +167,9 @@ class ChromatogramSolution(object):
 
     def score_components(self):
         return self.scorer.compute_scores(self.chromatogram)
+
+    def get_chromatogram(self):
+        return self.chromatogram
 
     def __repr__(self):
         return "ChromatogramSolution(%s, %0.4f, %d, %0.4f)" % (

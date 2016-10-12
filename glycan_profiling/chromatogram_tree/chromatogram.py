@@ -47,7 +47,7 @@ def mask_subsequence(target, masker):
     for node in target_nodes:
         if node not in masking_nodes:
             unmasked_nodes.append(node)
-    new = Chromatogram(target.composition)
+    new = target.__class__(target.composition)
     new.created_at = "mask_subsequence"
     map(new.insert_node, unmasked_nodes)
     return new
@@ -55,6 +55,7 @@ def mask_subsequence(target, masker):
 
 class Chromatogram(object):
     created_at = "new"
+    glycan_composition = None
 
     def __init__(self, composition, nodes=None, adducts=None, used_as_adduct=None):
         if nodes is None:
@@ -101,11 +102,13 @@ class Chromatogram(object):
         self._neutral_mass = self._last_neutral_mass
         self._most_abundant_member = self._last_most_abundant_member
 
+    @property
     def has_msms(self):
         if self._has_msms is None:
             self._has_msms = [node for node in self.nodes if node.has_msms]
         return self._has_msms
 
+    @property
     def most_abundant_member(self):
         if self._most_abundant_member is None:
             self._most_abundant_member = max(node.max_intensity() for node in self.nodes)
@@ -136,11 +139,13 @@ class Chromatogram(object):
             k: self.total_signal_for(k) for k in self.adducts
         }
 
+    @property
     def adducts(self):
         if self._adducts is None:
             self._infer_adducts()
         return self._adducts
 
+    @property
     def total_signal(self):
         if self._total_intensity is None:
             total = 0.
@@ -149,6 +154,7 @@ class Chromatogram(object):
             self._total_intensity = total
         return self._total_intensity
 
+    @property
     def weighted_neutral_mass(self):
         if self._weighted_neutral_mass is None:
             self._infer_neutral_mass()
@@ -179,6 +185,7 @@ class Chromatogram(object):
             raise KeyError(node_type)
         return best_neutral_mass
 
+    @property
     def neutral_mass(self):
         if self._neutral_mass is None:
             try:
@@ -187,6 +194,7 @@ class Chromatogram(object):
                 self._infer_neutral_mass(self.adducts[0])
         return self._neutral_mass
 
+    @property
     def charge_states(self):
         if self._charge_states is None:
             states = set()
@@ -195,35 +203,42 @@ class Chromatogram(object):
             self._charge_states = states
         return self._charge_states
 
+    @property
     def n_charge_states(self):
         return len(self.charge_states)
 
+    @property
     def key(self):
         if self.composition is not None:
             return self.composition
         else:
             return self.neutral_mass
 
+    @property
     def retention_times(self):
         if self._retention_times is None:
             self._retention_times = tuple(node.retention_time for node in self.nodes)
         return self._retention_times
 
+    @property
     def scan_ids(self):
         if self._scan_ids is None:
             self._scan_ids = tuple(node.scan_id for node in self.nodes)
         return self._scan_ids
 
+    @property
     def peaks(self):
         if self._peaks is None:
             self._peaks = tuple(node.peaks for node in self.nodes)
         return self._peaks
 
+    @property
     def start_time(self):
         if self._start_time is None:
             self._start_time = self.nodes[0].retention_time
         return self._start_time
 
+    @property
     def end_time(self):
         if self._end_time is None:
             self._end_time = self.nodes[-1].retention_time
@@ -247,7 +262,7 @@ class Chromatogram(object):
 
         for node in self.nodes:
             if (node.retention_time - last_rt) > delta_rt:
-                x = Chromatogram(self.composition, ChromatogramTreeList(current_chunk))
+                x = self.__class__(self.composition, ChromatogramTreeList(current_chunk))
                 x.used_as_adduct = list(self.used_as_adduct)
 
                 chunks.append(x)
@@ -256,7 +271,7 @@ class Chromatogram(object):
             last_rt = node.retention_time
             current_chunk.append(node)
 
-        x = Chromatogram(self.composition, ChromatogramTreeList(current_chunk))
+        x = self.__class__(self.composition, ChromatogramTreeList(current_chunk))
         x.used_as_adduct = list(self.used_as_adduct)
 
         chunks.append(x)
@@ -310,6 +325,19 @@ class Chromatogram(object):
         new.created_at = "merge"
         return new
 
+    def _merge_missing_only(self, other, node_type=Unmodified):
+        new = self.clone()
+        ids = set(node.node_id for node in new.nodes.unspool())
+        for node in other.nodes.unspool_strip_children():
+            if node.node_id in ids:
+                continue
+            else:
+                new_node = node.clone()
+                new_node.node_type = node.node_type + node_type
+                new.insert_node(new_node)
+        new.created_at = "_merge_common_only"
+        return new
+
     @classmethod
     def from_parts(cls, composition, retention_times, scan_ids, peaks):
         nodes = ChromatogramTreeList()
@@ -319,15 +347,15 @@ class Chromatogram(object):
     def slice(self, start, end):
         _, i = self.nodes.find_time(start)
         _, j = self.nodes.find_time(end)
-        new = Chromatogram(
+        new = self.__class__(
             self.composition,
             ChromatogramTreeList(node.clone() for node in self.nodes[i:j + 1]),
             used_as_adduct=list(self.used_as_adduct))
         return new
 
     def bisect_adduct(self, adduct):
-        new_adduct = Chromatogram(self.composition)
-        new_no_adduct = Chromatogram(self.composition)
+        new_adduct = self.__class__(self.composition)
+        new_no_adduct = self.__class__(self.composition)
         for node in self:
             for new_node in node._unspool_strip_children():
                 if new_node.node_type == adduct:
@@ -337,8 +365,8 @@ class Chromatogram(object):
         return new_adduct, new_no_adduct
 
     def bisect_charge(self, charge):
-        new_charge = Chromatogram(self.composition)
-        new_no_charge = Chromatogram(self.composition)
+        new_charge = self.__class__(self.composition)
+        new_no_charge = self.__class__(self.composition)
         for node in self.nodes.unspool():
             node_t = node.node_type
             rt = node.retention_time
@@ -364,10 +392,15 @@ class Chromatogram(object):
         return new_charge, new_no_charge
 
     def __eq__(self, other):
+        if other is None:
+            return False
         if self.key != other.key:
             return False
         else:
             return self.peaks == other.peaks
+
+    def __ne__(self, other):
+        return not self == other
 
     def __hash__(self):
         return hash((self.neutral_mass, self.start_time, self.end_time))
@@ -381,6 +414,7 @@ class Chromatogram(object):
             self.start_time <= interval.end_time and self.end_time >= interval.end_time))
         return cond
 
+    @property
     def elemental_composition(self):
         return None
 
@@ -627,6 +661,9 @@ class ChromatogramTreeNode(object):
             kinds.extend(child.node_types())
         return kinds
 
+    def get_chromatogram(self):
+        return self
+
 
 class ChromatogramInterface(object):
     __metaclass__ = ABCMeta
@@ -749,10 +786,6 @@ class EntityChromatogram(Chromatogram):
     def glycan_composition(self):
         return self._entity
 
-    @property
-    def entity(self):
-        return self._entity
-
     def clone(self, cls=None):
         if cls is None:
             cls = self.__class__
@@ -760,13 +793,17 @@ class EntityChromatogram(Chromatogram):
         inst.entity = self.entity
         return inst
 
+    @property
+    def entity(self):
+        return self._entity
+
     @entity.setter
     def entity(self, value):
         if isinstance(value, str):
             value = self._parse(value)
         self._entity = value
         if self.composition is None and value is not None:
-            self.composition = str(value)
+            self.composition = value
 
     @property
     def elemental_composition(self):
@@ -784,6 +821,12 @@ class GlycanCompositionChromatogram(EntityChromatogram):
     def _parse(string):
         return CachedGlycanComposition.parse(string)
 
+    @property
+    def glycan_composition(self):
+        if isinstance(self.composition, str):
+            self.composition = self._parse(self.composition)
+        return self.composition
+
 
 class GlycopeptideChromatogram(EntityChromatogram):
     @staticmethod
@@ -794,3 +837,15 @@ class GlycopeptideChromatogram(EntityChromatogram):
     @property
     def glycan_composition(self):
         return self._entity.glycan_composition
+
+
+def get_chromatogram(instance):
+    if isinstance(instance, Chromatogram):
+        return instance
+    elif isinstance(instance, ChromatogramWrapper):
+        return instance.chromatogram
+    else:
+        try:
+            return instance.get_chromatogram()
+        except AttributeError:
+            raise TypeError("%s does not contain a chromatogram")

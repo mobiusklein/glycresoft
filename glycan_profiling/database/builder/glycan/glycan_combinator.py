@@ -2,11 +2,13 @@ import itertools
 from collections import Counter
 
 from glypy.composition.glycan_composition import FrozenGlycanComposition
+from glypy.composition import formula, Composition
 
 from glycan_profiling.serialize.hypothesis.glycan import (
     GlycanComposition, GlycanCombination, GlycanCombinationGlycanComposition)
 
 from glycan_profiling.serialize import DatabaseBoundOperation
+from glycan_profiling.task import TaskBase
 
 
 class GlycanCompositionRecord(object):
@@ -16,6 +18,7 @@ class GlycanCompositionRecord(object):
         self._str = str(self.composition)
         self._hash = hash(self._str)
         self.mass = self.composition.mass()
+        self.elemental_composition = self.composition.total_composition()
 
     def __repr__(self):
         return "GlycanCompositionRecord(%d, %s)" % (self.id, self.composition)
@@ -59,10 +62,14 @@ class GlycanCombinationBuilder(object):
             merged = merge_compositions_frozen(comb_compositions)
             composition = str(merged)
             mass = sum(c.mass for c in comb_compositions)
+            elemental_composition = Composition()
+            for c in comb_compositions:
+                elemental_composition += c.elemental_composition
             inst = GlycanCombination(
                 count=n,
                 calculated_mass=mass,
-                composition=composition)
+                composition=composition,
+                formula=formula(elemental_composition))
             yield inst, counts
 
     def combinate_all(self):
@@ -71,11 +78,11 @@ class GlycanCombinationBuilder(object):
                 yield data
 
 
-class GlycanCombinationSerializer(DatabaseBoundOperation):
-    def __init__(self, connection, source_hypothesis_id, target_hypothesis_id=None, max_size=1):
+class GlycanCombinationSerializer(DatabaseBoundOperation, TaskBase):
+    def __init__(self, connection, source_hypothesis_id, target_hypothesis_id, max_size=1):
         DatabaseBoundOperation.__init__(self, connection)
         self.source_hypothesis_id = source_hypothesis_id
-        self.target_hypothesis_id = target_hypothesis_id or source_hypothesis_id
+        self.target_hypothesis_id = target_hypothesis_id
         self.max_size = max_size
 
     def load_compositions(self):
@@ -89,6 +96,7 @@ class GlycanCombinationSerializer(DatabaseBoundOperation):
         relation_acc = []
         i = 0
         hypothesis_id = self.target_hypothesis_id
+        self.log("... Building combinations for Hypothesis %d" % hypothesis_id)
         for comb, counts in combinator.combinate_all():
             comb.hypothesis_id = hypothesis_id
             self.session.add(comb)

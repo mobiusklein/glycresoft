@@ -1,10 +1,9 @@
 from collections import OrderedDict
-from itertools import cycle
+
+from matplotlib import patches as mpatches
 
 from glypy.composition.glycan_composition import FrozenGlycanComposition, FrozenMonosaccharideResidue
 from glycopeptidepy.utils import simple_repr
-
-from matplotlib import patches as mpatches
 
 
 def _degree_monosaccharide_alteration(x):

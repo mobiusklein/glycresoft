@@ -6,11 +6,10 @@ from matplotlib import pyplot as plt
 
 import glypy
 
-from . import colors
 from .glycan_visual_classification import (
-    NGlycanCompositionColorizer, NGlycanCompositionOrderer)
+    NGlycanCompositionColorizer, NGlycanCompositionOrderer,
+    GlycanLabelTransformer)
 from ..chromatogram_tree import ChromatogramInterface
-from ..scoring import total_intensity
 
 
 def split_charge_states(chromatogram):
@@ -75,12 +74,12 @@ class NGlycanLabelProducer(LabelProducer):
         self.stub = glypy.GlycanComposition()
         for x in monosaccharides:
             self.stub[x] = -99
-        self.label_key = colors.GlycanLabelTransformer([self.stub], colors.NGlycanCompositionOrderer).label_key
+        self.label_key = GlycanLabelTransformer([self.stub], NGlycanCompositionOrderer).label_key
 
     def __call__(self, chromatogram, *args, **kwargs):
         if chromatogram.composition is not None:
-            return list(colors.GlycanLabelTransformer(
-                [chromatogram.glycan_composition, self.stub], colors.NGlycanCompositionOrderer))[0]
+            return list(GlycanLabelTransformer(
+                [chromatogram.glycan_composition, self.stub], NGlycanCompositionOrderer))[0]
         else:
             return chromatogram.key
 
@@ -114,6 +113,7 @@ class ArtistBase(object):
 
 class ChromatogramArtist(ArtistBase):
     default_label_function = staticmethod(default_label_extractor)
+    include_points = True
 
     def __init__(self, chromatograms, ax=None, colorizer=None):
         if colorizer is None:
@@ -145,12 +145,13 @@ class ChromatogramArtist(ArtistBase):
             s = self.ax.plot(rt, heights, color=color, label=label, alpha=0.5)[0]
 
         s.set_gid(str(label) + "-area")
-        s = self.ax.scatter(
-            rt,
-            heights,
-            color=color,
-            s=1)
-        s.set_gid(str(label) + "-points")
+        if self.include_points:
+            s = self.ax.scatter(
+                rt,
+                heights,
+                color=color,
+                s=1)
+            s.set_gid(str(label) + "-points")
         apex = max(heights)
         apex_ind = heights.index(apex)
         rt_apex = rt[apex_ind]
@@ -167,12 +168,13 @@ class ChromatogramArtist(ArtistBase):
             label=label
         )
         s.set_gid(str(label) + "-area")
-        s = self.ax.scatter(
-            rt,
-            heights,
-            color=color,
-            s=1)
-        s.set_gid(str(label) + "-points")
+        if self.include_points:
+            s = self.ax.scatter(
+                rt,
+                heights,
+                color=color,
+                s=1)
+            s.set_gid(str(label) + "-points")
         apex = max(heights)
         apex_ind = np.argmax(heights)
         rt_apex = rt[apex_ind]
@@ -189,8 +191,6 @@ class ChromatogramArtist(ArtistBase):
 
         color = self.default_colorizer(chromatogram)
 
-        # rt = chromatogram.retention_times
-        # heights = [total_intensity(peak) for peak in peaks]
         rt, heights = chromatogram.as_arrays()
 
         self.scan_id_to_intensity = dict(zip(ids, heights))

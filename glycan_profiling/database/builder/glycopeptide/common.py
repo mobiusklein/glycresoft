@@ -6,7 +6,7 @@ from multiprocessing import Process, Queue, Event
 from glypy import Composition
 from glypy.composition import formula
 
-from glycan_profiling.serialize import DatabaseBoundOperation
+from glycan_profiling.serialize import DatabaseBoundOperation, func
 from glycan_profiling.serialize.hypothesis import GlycopeptideHypothesis
 from glycan_profiling.serialize.hypothesis.peptide import Glycopeptide, Peptide
 from glycan_profiling.task import TaskBase
@@ -37,6 +37,7 @@ class GlycopeptideHypothesisSerializerBase(DatabaseBoundOperation, TaskBase):
         self._hypothesis_id = None
         self._hypothesis = None
         self._glycan_hypothesis_id = glycan_hypothesis_id
+        self.uuid = str(uuid4().hex)
 
     def _construct_hypothesis(self):
         if self._hypothesis_name is None:
@@ -45,7 +46,8 @@ class GlycopeptideHypothesisSerializerBase(DatabaseBoundOperation, TaskBase):
         if self.glycan_hypothesis_id is None:
             raise ValueError("glycan_hypothesis_id must not be None")
         self._hypothesis = GlycopeptideHypothesis(
-            name=self._hypothesis_name, glycan_hypothesis_id=self._glycan_hypothesis_id)
+            name=self._hypothesis_name, glycan_hypothesis_id=self._glycan_hypothesis_id,
+            uuid=self.uuid)
         self.session.add(self._hypothesis)
         self.session.commit()
 
@@ -54,7 +56,7 @@ class GlycopeptideHypothesisSerializerBase(DatabaseBoundOperation, TaskBase):
         self._glycan_hypothesis_id = self._hypothesis.glycan_hypothesis_id
 
     def _make_name(self):
-        return "GlycopeptideHypothesis-" + str(uuid4().hex)
+        return "GlycopeptideHypothesis-" + self.uuid
 
     @property
     def hypothesis(self):
@@ -86,6 +88,12 @@ class GlycopeptideHypothesisSerializerBase(DatabaseBoundOperation, TaskBase):
             self.hypothesis_id, n)
         combinator.run()
 
+    def _count_produced_glycopeptides(self):
+        count = self.query(
+            func.count(Glycopeptide.id)).filter(
+            Glycopeptide.hypothesis_id == self.hypothesis_id).scalar()
+        self.log("Generated %d glycopeptides" % count)
+
 
 class PeptideGlycosylator(object):
     def __init__(self, session, hypothesis_id):
@@ -104,7 +112,7 @@ class PeptideGlycosylator(object):
 
     def handle_peptide(self, peptide):
         water = Composition("H2O")
-        peptide_composition = Composition(peptide.formula)
+        peptide_composition = Composition(str(peptide.formula))
         glycosylation_mod = _n_glycosylation.name
         unoccupied_sites = set(peptide.n_glycosylation_sites)
         obj = peptide.convert()
@@ -115,7 +123,7 @@ class PeptideGlycosylator(object):
             i += 1
             for gc in self.by_size[i]:
                 total_mass = peptide.calculated_mass + gc.calculated_mass - (gc.count * water.mass)
-                formula_string = formula(peptide_composition + Composition(gc.formula) - (water * gc.count))
+                formula_string = formula(peptide_composition + Composition(str(gc.formula)) - (water * gc.count))
 
                 for site_set in itertools.combinations(unoccupied_sites, i):
                     sequence = peptide.convert()

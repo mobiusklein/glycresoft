@@ -33,29 +33,3 @@ def load_and_marshal_chromatograms(deserializer, minimum_mass=1000., n_peaks=3):
 
 def flatten(iterable):
     return [a for b in iterable for a in b]
-
-
-def glycopeptide_database_search(deserializer, chromatograms, structure_database, structure_hypothesis=None):
-    if isinstance(deserializer, basestring):
-        deserializer = DatabaseScanDeserializer(deserializer)
-    if isinstance(structure_database, basestring):
-        structure_database = disk_backed_database.DiskBackedStructureDatabase(
-            structure_database, structure_hypothesis, 5)
-    target_hits = []
-    decoy_hits = []
-    for f in sorted(chromatograms, key=lambda x: x.neutral_mass, reverse=True):
-        if f.has_msms:
-            print(f, len(f.has_msms))
-            print("Extracting MS/MS")
-            cluster = [x.product.convert() for x in deserializer.msms_for(
-                f.neutral_mass, 1e-5, f.start_time, f.end_time)]
-            print(len(cluster))
-            tce = glycopeptide_matcher.GlycopeptideMatcher(cluster[:], BinomialSpectrumMatcher, structure_database)
-            dce = glycopeptide_matcher.DecoyGlycopeptideMatcher(cluster[:], BinomialSpectrumMatcher, structure_database)
-            print("Scoring Targets")
-            target_hits.extend(tce.score_all(error_tolerance=2e-5, simplify=True))
-            print(len(target_hits))
-            print("Scoring Decoys")
-            decoy_hits.extend(dce.score_all(error_tolerance=2e-5, simplify=True))
-    TargetDecoyAnalyzer(flatten(target_hits), flatten(decoy_hits), with_pit=False).q_values()
-    return target_hits

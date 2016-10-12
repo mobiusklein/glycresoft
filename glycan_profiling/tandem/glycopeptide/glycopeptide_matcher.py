@@ -119,7 +119,8 @@ class GlycopeptideDatabaseSearchIdentifier(TaskBase):
         return target_hits, decoy_hits
 
     def target_decoy(self, target_hits, decoy_hits, with_pit=False, *args, **kwargs):
-        self.log("Running Target Decoy Analysis")
+        self.log("Running Target Decoy Analysis with %d targets and %d decoys" % (
+            len(target_hits), len(decoy_hits)))
         tda = TargetDecoyAnalyzer(target_hits, decoy_hits, *args, with_pit=with_pit, **kwargs)
         tda.q_values()
         for sol in target_hits:

@@ -1,6 +1,7 @@
 import numpy as np
 
-from glypy.composition.glycan_composition import FrozenGlycanComposition, FrozenMonosaccharideResidue
+from glypy.composition.glycan_composition import FrozenMonosaccharideResidue
+from glycopeptidepy import HashableGlycanComposition
 
 
 _hexose = FrozenMonosaccharideResidue.from_iupac_lite("Hex")
@@ -104,7 +105,7 @@ class CompositionGraph(object):
     def _create_nodes(self, compositions):
         i = 0
         if isinstance(compositions[0], basestring):
-            compositions = map(FrozenGlycanComposition.parse, compositions)
+            compositions = map(HashableGlycanComposition.parse, compositions)
 
         for c in compositions:
             n = CompositionGraphNode(c, i)
@@ -214,7 +215,7 @@ class GraphReader(object):
             score = 0.
 
         index = int(index)
-        composition = FrozenGlycanComposition.parse(composition)
+        composition = HashableGlycanComposition.parse(composition)
         node = CompositionGraphNode(composition, index, score)
         self.network.nodes.append(node)
         self.network.node_map[str(node.composition)] = node

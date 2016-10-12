@@ -1,12 +1,5 @@
-from collections import OrderedDict
 from itertools import cycle
-from glypy.composition.glycan_composition import FrozenGlycanComposition, FrozenMonosaccharideResidue
-
 from matplotlib.colors import cnames, hex2color
-from matplotlib import patches as mpatches
-
-
-from glycresoft_sqlalchemy.utils import simple_repr
 
 
 def lighten(rgb, factor=0.25):

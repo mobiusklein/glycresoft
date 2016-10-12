@@ -1,41 +1,40 @@
 import re
 import logging
 
-from sqlalchemy.orm import make_transient
-
 from glycopeptidepy.structure import sequence, modification, residue
 from glypy.composition import formula
 
-from glycan_profiling.serialize.utils import temp_table
 from glycan_profiling.serialize import (
-    Peptide, Protein, DatabaseBoundOperation,
-    TemplateNumberStore)
+    Peptide, Protein, DatabaseBoundOperation)
+
 from glycan_profiling.task import TaskBase
 
 from .enzyme import expasy_rules
 from .mzid_parser import Parser
 from .peptide_permutation import ProteinDigestor
+from .remove_duplicate_peptides import DeduplicatePeptides
+from .share_peptides import PeptideSharer
 
 
 logger = logging.getLogger("mzid")
 
 
-Sequence = sequence.Sequence
+PeptideSequence = sequence.PeptideSequence
 Residue = residue.Residue
 Modification = modification.Modification
 ModificationNameResolutionError = modification.ModificationNameResolutionError
 
 
 PROTEOMICS_SCORE = ["PEAKS:peptideScore", "mascot:score", "PEAKS:proteinScore"]
-WHITELIST_GLYCOSITE_PTMS = ["Deamidation"]
+WHITELIST_GLYCOSITE_PTMS = [Modification("Deamidation"), Modification("HexNAc")]
 
 
 def protein_names(mzid_path, pattern=r'.*'):
     pattern = re.compile(pattern)
-    parser = Parser(mzid_path, retrieve_refs=True,
-                    iterative=False, build_id_cache=True)
+    parser = Parser(mzid_path, retrieve_refs=False,
+                    iterative=False, build_id_cache=False, use_index=False)
     for protein in parser.iterfind(
-            "ProteinDetectionHypothesis", retrieve_refs=True, recursive=False, iterative=True):
+            "DBSequence", retrieve_refs=False, recursive=False, iterative=True):
         name = protein['accession']
         if pattern.match(name):
             yield name
@@ -102,7 +101,7 @@ class PeptideIdentification(object):
         self.missed_cleavages = 0
 
         self.base_sequence = peptide_dict["PeptideSequence"]
-        self.peptide_sequence = Sequence(peptide_dict["PeptideSequence"])
+        self.peptide_sequence = PeptideSequence(peptide_dict["PeptideSequence"])
 
         self.glycosite_candidates = sequence.find_n_glycosylation_sequons(
             self.peptide_sequence, WHITELIST_GLYCOSITE_PTMS)
@@ -126,7 +125,7 @@ class PeptideIdentification(object):
             for sub in subs:
                 pos = sub['location'] - 1
                 replace = Residue(sub["replacementResidue"])
-                self.peptide_sequence[pos][0] = replace
+                self.peptide_sequence.substitute(pos, replace)
                 self.modification_counter += 1
 
     def handle_modifications(self):
@@ -210,26 +209,8 @@ class PeptideIdentification(object):
             evidence_list = [x for sub in evidence_list for x in sub]
         return evidence_list
 
-    def clear_sites(self):
-        occupied_sites = []
-        n_glycosylation_sites = self.peptide_sequence.n_glycan_sequon_sites
-        for site in n_glycosylation_sites:
-            if self.peptide_sequence[site][1]:
-                occupied_sites.append(site)
-        copy = PeptideIdentification(
-            self.peptide_dict, self.enzyme, self.constant_modifications,
-            self.modification_translation_table)
-        for site in occupied_sites:
-            copy.peptide_sequence.drop_modification(site, self.peptide_sequence[site][1][0])
-        return copy
-
-    def has_occupied_glycosites(self):
-        occupied_sites = []
-        n_glycosylation_sites = self.peptide_sequence.n_glycan_sequon_sites
-        for site in n_glycosylation_sites:
-            if self.peptide_sequence[site][1]:
-                occupied_sites.append(site)
-        return len(occupied_sites) > 0
+    def __repr__(self):
+        return "PeptideIdentification(%s, %s)" % (self.peptide_sequence, self.glycosite_candidates)
 
 
 class PeptideConverter(object):
@@ -277,12 +258,62 @@ class PeptideConverter(object):
             protein_id=parent_protein.id,
             hypothesis_id=self.hypothesis_id)
         match.protein = parent_protein
-        assert match.hypothesis_id is not None
         glycosites = parent_sequence_aware_n_glycan_sequon_sites(
             match, parent_protein)
         match.count_glycosylation_sites = len(glycosites)
         match.n_glycosylation_sites = list(glycosites)
+        match.made = "packed"
+        match.identification = peptide_ident
         return match
+
+    def copy_db_peptide(self, db_peptide):
+        dup = Peptide(
+            calculated_mass=db_peptide.calculated_mass,
+            base_peptide_sequence=db_peptide.base_peptide_sequence,
+            modified_peptide_sequence=db_peptide.modified_peptide_sequence,
+            formula=db_peptide.formula,
+            count_glycosylation_sites=db_peptide.count_glycosylation_sites,
+            count_missed_cleavages=db_peptide.count_missed_cleavages,
+            count_variable_modifications=db_peptide.count_variable_modifications,
+            start_position=db_peptide.start_position,
+            end_position=db_peptide.end_position,
+            peptide_score=db_peptide.peptide_score,
+            peptide_score_type=db_peptide.peptide_score_type,
+            sequence_length=db_peptide.sequence_length,
+            protein_id=db_peptide.protein_id,
+            hypothesis_id=db_peptide.hypothesis_id,
+            n_glycosylation_sites=db_peptide.n_glycosylation_sites)
+        dup.made = 'copied'
+        dup.identification = db_peptide
+        return dup
+
+    def has_occupied_glycosites(self, db_peptide):
+        occupied_sites = []
+        n_glycosylation_sites = db_peptide.n_glycosylation_sites
+        peptide_obj = PeptideSequence(db_peptide.modified_peptide_sequence)
+
+        for site in n_glycosylation_sites:
+            if peptide_obj[site][1]:
+                occupied_sites.append(site)
+        return len(occupied_sites) > 0
+
+    def clear_sites(self, db_peptide):
+        occupied_sites = []
+        n_glycosylation_sites = db_peptide.n_glycosylation_sites
+        peptide_obj = PeptideSequence(db_peptide.modified_peptide_sequence)
+
+        for site in n_glycosylation_sites:
+            if peptide_obj[site][1]:
+                occupied_sites.append(site)
+
+        for site in occupied_sites:
+            peptide_obj.drop_modification(site, peptide_obj[site][1][0])
+
+        copy = self.copy_db_peptide(db_peptide)
+        copy.calculated_mass = peptide_obj.mass
+        copy.modified_peptide_sequence = str(peptide_obj)
+        copy.count_variable_modifications -= len(occupied_sites)
+        return copy
 
     def handle_peptide_dict(self, peptide_dict):
         peptide_ident = PeptideIdentification(
@@ -311,14 +342,16 @@ class PeptideConverter(object):
                 end = start + len(peptide_ident.base_sequence)
             match = self.pack_peptide(peptide_ident, start, end, score, score_type, parent_protein)
             self.add_to_save_queue(match)
-            if peptide_ident.has_occupied_glycosites():
-                cleared = peptide_ident.clear_sites()
-                match = self.pack_peptide(cleared, start, end, score, score_type, parent_protein)
-                self.add_to_save_queue(match)
+            if self.has_occupied_glycosites(match):
+                cleared = self.clear_sites(match)
+                # match = self.pack_peptide(cleared, start, end, score, score_type, parent_protein)
+                self.add_to_save_queue(cleared)
 
     def add_to_save_queue(self, match):
-        self.accumulator.append(match)
         self.counter += 1
+        self.accumulator.append(match)
+        assert abs(match.calculated_mass - match.convert().mass) < 0.01, abs(
+            match.calculated_mass - match.convert().mass)
         if len(self.accumulator) > self.chunk_size:
             self.save_accumulation()
 
@@ -329,15 +362,16 @@ class PeptideConverter(object):
 
 
 class Proteome(DatabaseBoundOperation, TaskBase):
-    def __init__(self, mzid_path, connection, hypothesis_id, include_baseline_peptides=True):
+    def __init__(self, mzid_path, connection, hypothesis_id, include_baseline_peptides=True,
+                 target_proteins=None):
         DatabaseBoundOperation.__init__(self, connection)
         self.mzid_path = mzid_path
         self.hypothesis_id = hypothesis_id
-        # TODO: Set build_id_cache to false and test to see if the generalized index works well enough
         self.parser = Parser(mzid_path, retrieve_refs=True, iterative=False, build_id_cache=True)
         self.enzymes = []
         self.constant_modifications = []
         self.modification_translation_table = {}
+        self.target_proteins = target_proteins
 
         self.include_baseline_peptides = True
 
@@ -380,6 +414,8 @@ class Proteome(DatabaseBoundOperation, TaskBase):
                     other=protein,
                     hypothesis_id=self.hypothesis_id)
                 session.add(p)
+                session.flush()
+                # self.log("... Extracted %r" % p)
             except residue.UnknownAminoAcidException:
                 continue
         session.commit()
@@ -389,7 +425,7 @@ class Proteome(DatabaseBoundOperation, TaskBase):
         i = 0
         try:
             enzyme = re.compile(expasy_rules.get(self.enzymes[0]))
-        except Exception, e:
+        except KeyError, e:
             logger.exception("Enzyme not found.", exc_info=e)
             enzyme = None
         session = self.session
@@ -418,148 +454,69 @@ class Proteome(DatabaseBoundOperation, TaskBase):
         self.load_proteins()
         self.log("... Loading Spectrum Matches")
         self.load_spectrum_matches()
-
         self.log("... Sharing Common Peptides")
         self.share_common_peptides()
 
         if self.include_baseline_peptides:
             self.log("... Building Baseline Peptides")
             self.build_baseline_peptides()
-
         self.log("... Removing Duplicate Peptides")
         self.remove_duplicates()
 
-    def target_proteins(self):
-        return self.session.query(Protein).filter(
-            Protein.hypothesis_id == self.hypothesis_id)
+    def retrieve_target_protein_ids(self):
+        if len(self.target_proteins) == 0:
+            return [
+                i[0] for i in
+                self.query(Protein.id).filter(
+                    Protein.hypothesis_id == self.hypothesis_id).all()
+            ]
+        else:
+            result = []
+            for target in self.target_proteins:
+                if isinstance(target, str):
+                    match = self.query(Protein.id).filter(
+                        Protein.name == target,
+                        Protein.hypothesis_id == self.hypothesis_id).first()
+                    if match:
+                        result.append(match[0])
+                    else:
+                        self.log("Could not locate protein '%s'" % target)
+                elif isinstance(target, int):
+                    result.append(target)
+            return result
+
+    def get_target_proteins(self):
+        ids = self.retrieve_target_protein_ids()
+        return [self.session.query(Protein).get(i) for i in ids]
 
     def build_baseline_peptides(self):
         mod_table = modification.RestrictedModificationTable(
             constant_modifications=self.constant_modifications,
             variable_modifications=[])
         const_modifications = [mod_table[c] for c in self.constant_modifications]
-        digestor = ProteinDigestor(self.enzymes[0], const_modifications, max_missed_cleavages=0)
+        digestor = ProteinDigestor(self.enzymes[0], const_modifications, max_missed_cleavages=1)
         accumulator = []
-        for protein in self.target_proteins():
+        i = 0
+        for protein in self.get_target_proteins():
             for peptide in digestor.process_protein(protein):
                 peptide.hypothesis_id = self.hypothesis_id
                 accumulator.append(peptide)
-
+                i += 1
                 if len(accumulator) > 5000:
                     self.session.add_all(accumulator)
                     self.session.commit()
                     accumulator = []
+                if i % 10 == 0:
+                    self.log("... %d Baseline Peptides Created" % i)
 
         self.session.add_all(accumulator)
         self.session.commit()
 
     def share_common_peptides(self):
         sharer = PeptideSharer(self._original_connection, self.hypothesis_id)
-        for protein in self.target_proteins():
+        for protein in self.get_target_proteins():
+            self.log("... Accumulating Proteins for %r" % protein)
             sharer.find_contained_peptides(protein)
 
     def remove_duplicates(self):
         DeduplicatePeptides(self._original_connection, self.hypothesis_id).run()
-
-
-class PeptideSharer(DatabaseBoundOperation):
-    def __init__(self, connection, hypothesis_id):
-        DatabaseBoundOperation.__init__(self, connection)
-        self.hypothesis_id = hypothesis_id
-
-    def find_contained_peptides(self, target_protein):
-        session = self.session
-
-        protein_id = target_protein.id
-
-        i = 0
-        logger.info("Enriching %r", target_protein)
-        target_protein_sequence = target_protein.protein_sequence
-        keepers = []
-        for peptide in self.stream_distinct_peptides(target_protein):
-
-            match = self.decider_fn(peptide.base_peptide_sequence, target_protein_sequence)
-
-            if match is not False:
-                start, end, distance = match
-                make_transient(peptide)
-                peptide.id = None
-                peptide.protein_id = protein_id
-                peptide.start_position = start
-                peptide.end_position = end
-                keepers.append(peptide)
-            i += 1
-            if i % 1000 == 0:
-                logger.info("%d peptides handled for %r", i, target_protein)
-            if len(keepers) > 1000:
-                session.add_all(keepers)
-                session.commit()
-                keepers = []
-
-        session.add_all(keepers)
-        session.commit()
-
-    def decider_fn(self, query_seq, target_seq, **kwargs):
-        match = re.search(query_seq, target_seq)
-        if match:
-            return match.start(), match.end(), 0
-        return False
-
-    def stream_distinct_peptides(self, protein):
-        q = self.session.query(Peptide).join(Protein).filter(
-            Protein.hypothesis_id == self.hypothesis_id).distinct(
-            Peptide.modified_peptide_sequence)
-
-        for i in q:
-            yield i
-
-
-class DeduplicatePeptides(DatabaseBoundOperation):
-    def __init__(self, connection, hypothesis_id):
-        DatabaseBoundOperation.__init__(self, connection)
-        self.hypothesis_id = hypothesis_id
-
-    def run(self):
-        remove_duplicates(self.session, self.hypothesis_id)
-
-
-def find_best_peptides(session, hypothesis_id):
-    q = session.query(
-        Peptide.id, Peptide.peptide_score,
-        Peptide.modified_peptide_sequence, Peptide.protein_id, Peptide.start_position).join(
-        Protein).filter(Protein.hypothesis_id == hypothesis_id).yield_per(10000)
-    keepers = dict()
-    for id, score, modified_peptide_sequence, protein_id, start_position in q:
-        try:
-            old_id, old_score = keepers[modified_peptide_sequence, protein_id, start_position]
-            if score > old_score:
-                keepers[modified_peptide_sequence, protein_id, start_position] = id, score
-        except KeyError:
-            keepers[modified_peptide_sequence, protein_id, start_position] = id, score
-    return keepers
-
-
-def store_best_peptides(session, keepers):
-    table = temp_table(TemplateNumberStore)
-    conn = session.connection()
-    table.create(conn)
-    payload = [{"value": x[0]} for x in keepers.values()]
-    conn.execute(table.insert(), payload)
-    session.commit()
-    return table
-
-
-def remove_duplicates(session, hypothesis_id):
-    keepers = find_best_peptides(session, hypothesis_id)
-    table = store_best_peptides(session, keepers)
-    ids = session.query(table.c.value)
-    q = session.query(Peptide.id).filter(
-        Peptide.protein_id == Protein.id,
-        Protein.hypothesis_id == hypothesis_id,
-        ~Peptide.id.in_(ids.correlate(None)))
-
-    session.execute(Peptide.__table__.delete(
-        Peptide.__table__.c.id.in_(q.selectable)))
-    conn = session.connection()
-    table.drop(conn)
-    session.commit()
