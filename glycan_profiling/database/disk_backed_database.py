@@ -32,7 +32,7 @@ class DiskBackedStructureDatabase(SearchableMassCollection, DatabaseBoundOperati
     threshold_cache_total_count = 5e4
 
     def __init__(self, connection, hypothesis_id, cache_size=5, loading_interval=1.,
-                 threshold_cache_total_count=1e3,
+                 threshold_cache_total_count=5e4,
                  model_type=Glycopeptide):
         DatabaseBoundOperation.__init__(self, connection)
         self.hypothesis_id = hypothesis_id
@@ -55,7 +55,7 @@ class DiskBackedStructureDatabase(SearchableMassCollection, DatabaseBoundOperati
             while (len(self._intervals) > 1 and
                    self._intervals.total_count >
                    self.threshold_cache_total_count):
-                print("Upkeep Memory Intervals", self._intervals.total_count)
+                print("Upkeep Memory Intervals", self._intervals.total_count, len(self._intervals))
                 self._intervals.remove_lru_interval()
 
     @property
@@ -211,7 +211,7 @@ class _PeptideIndex(object):
 
 class DeclarativeDiskBackedDatabase(DiskBackedStructureDatabase):
     def __init__(self, connection, hypothesis_id, cache_size=5, loading_interval=1.,
-                 threshold_cache_total_count=1e3):
+                 threshold_cache_total_count=5e4):
         super(DeclarativeDiskBackedDatabase, self).__init__(
             connection, hypothesis_id, cache_size, loading_interval,
             threshold_cache_total_count, None)
@@ -305,7 +305,7 @@ class GlycanCompositionDiskBackedStructureDatabase(DeclarativeDiskBackedDatabase
     identity_field = GlycanComposition.__table__.c.id
 
     def __init__(self, connection, hypothesis_id, cache_size=5, loading_interval=1.,
-                 threshold_cache_total_count=1e3):
+                 threshold_cache_total_count=5e4):
         super(GlycanCompositionDiskBackedStructureDatabase, self).__init__(
             connection, hypothesis_id, cache_size, loading_interval,
             threshold_cache_total_count)

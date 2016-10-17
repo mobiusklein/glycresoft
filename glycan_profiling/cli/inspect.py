@@ -17,8 +17,8 @@ def list_contents(context, database_connection):
 
     click.echo("\nGlycopeptide Hypothesis")
     for hypothesis in database_connection.query(GlycopeptideHypothesis):
-        click.echo("\t%d\t%s\t%s\t" % (hypothesis.id, hypothesis.name, hypothesis.uuid,
-                                       hypothesis.glycan_hypothesis.name))
+        click.echo("\t%d\t%s\t%s\t%d" % (hypothesis.id, hypothesis.name, hypothesis.uuid,
+                                         hypothesis.glycan_hypothesis.id))
 
     click.echo("\nSample Run")
     for run in database_connection.query(SampleRun):

@@ -356,7 +356,7 @@ class PeptideConverter(object):
             self.save_accumulation()
 
     def save_accumulation(self):
-        self.session.add_all(self.accumulator)
+        self.session.bulk_save_objects(self.accumulator)
         self.session.commit()
         self.accumulator = []
 
@@ -373,7 +373,7 @@ class Proteome(DatabaseBoundOperation, TaskBase):
         self.modification_translation_table = {}
         self.target_proteins = target_proteins
 
-        self.include_baseline_peptides = True
+        self.include_baseline_peptides = include_baseline_peptides
 
     def load_enzyme(self):
         self.enzymes = list({e['name'].lower() for e in self.parser.iterfind(
@@ -503,20 +503,26 @@ class Proteome(DatabaseBoundOperation, TaskBase):
                 accumulator.append(peptide)
                 i += 1
                 if len(accumulator) > 5000:
-                    self.session.add_all(accumulator)
+                    self.session.bulk_save_objects(accumulator)
                     self.session.commit()
                     accumulator = []
-                if i % 10 == 0:
+                if i % 1000 == 0:
                     self.log("... %d Baseline Peptides Created" % i)
 
-        self.session.add_all(accumulator)
+        self.session.bulk_save_objects(accumulator)
         self.session.commit()
 
     def share_common_peptides(self):
         sharer = PeptideSharer(self._original_connection, self.hypothesis_id)
-        for protein in self.get_target_proteins():
+        proteins = self.get_target_proteins()
+        i = 0
+        n = len(proteins)
+        for protein in proteins:
+            i += 1
             self.log("... Accumulating Proteins for %r" % protein)
             sharer.find_contained_peptides(protein)
+            if i % 5 == 0:
+                self.log("... %0.3f%% Done" % (i / float(n),))
 
     def remove_duplicates(self):
         DeduplicatePeptides(self._original_connection, self.hypothesis_id).run()

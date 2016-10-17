@@ -71,6 +71,12 @@ class ConstraintExpression(object):
         """
         return OrCompoundConstraint(self, other)
 
+    def __eq__(self, other):
+        return self.expression == other.expression
+
+    def __ne__(self, other):
+        return self.expression != other.expression
+
 
 class SymbolNode(object):
     """
@@ -120,7 +126,10 @@ class SymbolNode(object):
 
     def __repr__(self):
         if self.symbol is not None:
-            return "{}({})".format(self.coefficient, self.symbol)
+            if self.coefficient != 1:
+                return "{} * ({})".format(self.coefficient, self.symbol)
+            else:
+                return "({})".format(self.symbol)
         else:
             return "{}".format(self.coefficient)
 
@@ -505,6 +514,17 @@ class Addition(Operator):
         left_val = context[left] * left.coefficient
         right_val = context[right] * right.coefficient
         return left_val + right_val
+
+
+@register_operator
+class Multplication(Operator):
+    symbol = '*'
+    precedence = 2
+
+    def __call__(self, left, right, context):
+        left_val = context[left] * left.coefficient
+        right_val = context[right] * right.coefficient
+        return left_val * right_val
 
 
 @register_operator

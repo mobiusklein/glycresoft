@@ -1,6 +1,10 @@
 import logging
 import re
 
+
+from collections import defaultdict
+
+
 from sqlalchemy.orm import make_transient
 from glycan_profiling.serialize import (
     Peptide, Protein, DatabaseBoundOperation)
@@ -14,10 +18,75 @@ from multiprocessing import Process, Queue, Event
 logger = logging.getLogger("share_peptides")
 
 
+class PeptideBlueprint(object):
+    def __init__(self, base_peptide_sequence, modified_peptide_sequence, sequence_length,
+                 calculated_mass, formula, count_glycosylation_sites, count_missed_cleavages,
+                 count_variable_modifications, peptide_score, peptide_score_type, n_glycosylation_sites,
+                 o_glycosylation_sites, gagylation_sites):
+        self.base_peptide_sequence = base_peptide_sequence
+        self.modified_peptide_sequence = modified_peptide_sequence
+        self.sequence_length = sequence_length
+        self.calculated_mass = calculated_mass
+        self.formula = formula
+        self.count_glycosylation_sites = count_glycosylation_sites
+        self.count_missed_cleavages = count_missed_cleavages
+        self.count_variable_modifications = count_variable_modifications
+        self.peptide_score = peptide_score
+        self.peptide_score_type = peptide_score_type
+        self.n_glycosylation_sites = n_glycosylation_sites
+        self.o_glycosylation_sites = o_glycosylation_sites
+        self.gagylation_sites = gagylation_sites
+
+    def as_db_instance(self):
+        return Peptide(
+            base_peptide_sequence=self.base_peptide_sequence, modified_peptide_sequence=self.modified_peptide_sequence,
+            sequence_length=self.sequence_length,
+            calculated_mass=self.calculated_mass, formula=self.formula,
+            count_glycosylation_sites=self.count_glycosylation_sites,
+            count_missed_cleavages=self.count_missed_cleavages,
+            count_variable_modifications=self.count_variable_modifications, peptide_score=self.peptide_score,
+            peptide_score_type=self.peptide_score_type, n_glycosylation_sites=self.n_glycosylation_sites,
+            o_glycosylation_sites=self.o_glycosylation_sites,
+            gagylation_sites=self.gagylation_sites)
+
+    @classmethod
+    def from_db_instance(cls, inst):
+        return cls(
+            base_peptide_sequence=inst.base_peptide_sequence, modified_peptide_sequence=inst.modified_peptide_sequence,
+            sequence_length=inst.sequence_length,
+            calculated_mass=inst.calculated_mass, formula=inst.formula,
+            count_glycosylation_sites=inst.count_glycosylation_sites,
+            count_missed_cleavages=inst.count_missed_cleavages,
+            count_variable_modifications=inst.count_variable_modifications, peptide_score=inst.peptide_score,
+            peptide_score_type=inst.peptide_score_type, n_glycosylation_sites=inst.n_glycosylation_sites,
+            o_glycosylation_sites=inst.o_glycosylation_sites,
+            gagylation_sites=inst.gagylation_sites)
+
+
+class PeptideIndex(object):
+    def __init__(self, store=None):
+        if store is None:
+            store = defaultdict(list)
+        self.store = store
+
+    def all_but(self, key):
+        for bin_key, values in self.store.items():
+            if key == bin_key:
+                continue
+            for v in values:
+                yield v
+
+    def populate(self, iterable):
+        for peptide in iterable:
+            self.store[peptide.protein_id].append(PeptideBlueprint.from_db_instance(peptide))
+
+
 class PeptideSharer(DatabaseBoundOperation):
     def __init__(self, connection, hypothesis_id):
         DatabaseBoundOperation.__init__(self, connection)
         self.hypothesis_id = hypothesis_id
+        self.index = PeptideIndex()
+        self.index.populate(self._get_all_peptides())
 
     def find_contained_peptides(self, target_protein):
         session = self.session
@@ -25,6 +94,7 @@ class PeptideSharer(DatabaseBoundOperation):
         protein_id = target_protein.id
 
         i = 0
+        j = 0
         logger.info("Enriching %r", target_protein)
         target_protein_sequence = target_protein.protein_sequence
         keepers = []
@@ -34,22 +104,25 @@ class PeptideSharer(DatabaseBoundOperation):
 
             if match is not False:
                 start, end, distance = match
-                make_transient(peptide)
-                peptide.id = None
+                peptide = peptide.as_db_instance()
+                peptide.hypothesis_id = self.hypothesis_id
                 peptide.protein_id = protein_id
                 peptide.start_position = start
                 peptide.end_position = end
                 keepers.append(peptide)
+                j += 1
             i += 1
-            if i % 1000 == 0:
+            if i % 100000 == 0:
                 logger.info("%d peptides handled for %r", i, target_protein)
             if len(keepers) > 1000:
-                session.add_all(keepers)
+                session.bulk_save_objects(keepers)
                 session.commit()
                 keepers = []
+                logger.info("%d peptides shared for %r", j, target_protein)
 
-        session.add_all(keepers)
+        session.bulk_save_objects(keepers)
         session.commit()
+        # session.expunge_all()
 
     def decider_fn(self, query_seq, target_seq, **kwargs):
         match = re.search(query_seq, target_seq)
@@ -57,10 +130,12 @@ class PeptideSharer(DatabaseBoundOperation):
             return match.start(), match.end(), 0
         return False
 
+    def _get_all_peptides(self):
+        return self.session.query(Peptide).filter(
+            Peptide.hypothesis_id == self.hypothesis_id).all()
+
     def stream_distinct_peptides(self, protein):
-        q = self.session.query(Peptide).join(Protein).filter(
-            Protein.hypothesis_id == self.hypothesis_id).distinct(
-            Peptide.modified_peptide_sequence)
+        q = self.index.all_but(protein.id)
 
         for i in q:
             yield i

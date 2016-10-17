@@ -149,7 +149,7 @@ class TargetDecoyAnalyzer(object):
         try:
             ratio = decoys_at / float(targets_at)
         except ZeroDivisionError:
-            ratio = 1.
+            ratio = decoys_at
         return ratio, targets_at, decoys_at
 
     def estimate_percent_incorrect_targets(self, cutoff):

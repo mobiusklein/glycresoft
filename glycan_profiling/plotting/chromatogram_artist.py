@@ -120,8 +120,10 @@ class ChromatogramArtist(ArtistBase):
             colorizer = ColorCycler()
         if ax is None:
             fig, ax = plt.subplots(1)
-        if not isinstance(chromatograms[0], ChromatogramInterface):
-            chromatograms = [chromatograms]
+        # if not hasattr(chromatograms[0], "get_chromatogram"):
+        #     chromatograms = [chromatograms]
+        chromatograms = self._resolve_chromatograms_from_argument(chromatograms)
+        chromatograms = [c.get_chromatogram() for c in chromatograms]
         self.chromatograms = chromatograms
         self.minimum_ident_time = float("inf")
         self.maximum_ident_time = 0
@@ -130,6 +132,14 @@ class ChromatogramArtist(ArtistBase):
         self.ax = ax
         self.default_colorizer = colorizer
         self.legend = None
+
+    def _resolve_chromatograms_from_argument(self, chromatograms):
+        try:
+            if not hasattr(chromatograms[0], "get_chromatogram"):
+                chromatograms = [chromatograms]
+        except TypeError:
+            chromatograms = [chromatograms]
+        return chromatograms
 
     def draw_generic_chromatogram(self, label, rt, heights, color, fill=False):
         if fill:

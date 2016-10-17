@@ -144,13 +144,17 @@ class ChromatogramMSMSMapper(object):
                         best_distance = dist
                     new_owner = candidates[best_index]
                     new_owner.add_displaced_solution(orphan.solution)
+            else:
+                print("No chromatogram found for %r, (mass: %0.4f, time: %0.4f)" % (orphan, mass, time))
 
     def assign_entities(self, threshold_fn=lambda x: x.q_value < 0.05, entity_chromatogram_type=None):
         if entity_chromatogram_type is None:
             entity_chromatogram_type = GlycopeptideChromatogram
         for chromatogram in self:
-            solutions = chromatogram.most_representative_solutions(threshold_fn)
+            solutions = chromatogram.most_representative_solutions(
+                threshold_fn)
             if solutions:
+                solutions = sorted(solutions, key=lambda x: x.score, reverse=True)
                 chromatogram.assign_entity(solutions[0], entity_chromatogram_type=entity_chromatogram_type)
 
     def merge_common_entities(self, annotated_chromatograms):

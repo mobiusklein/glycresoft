@@ -110,3 +110,11 @@ MonosaccharideResidueCountToGlycanCombination = Table(
     Column("glycan_id", Integer, ForeignKey(GlycanCombination.id, ondelete='CASCADE'), primary_key=True),
     Column("monosaccharide_id", Integer, ForeignKey(MonosaccharideResidue.id, ondelete='CASCADE'), primary_key=True),
     Column("count", Integer))
+
+
+GlycanCompositionGraphEdge = Table(
+    "GlycanCompositionGraphEdge", Base.metadata,
+    Column("source_id", Integer, ForeignKey(GlycanComposition.id, ondelete="CASCADE"), primary_key=True),
+    Column("terminal_id", Integer, ForeignKey(GlycanComposition.id, ondelete="CASCADE"), primary_key=True),
+    Column("order", Numeric(6, 3, asdecimal=False)),
+    Column('weight', Numeric(8, 4, asdecimal=False)))

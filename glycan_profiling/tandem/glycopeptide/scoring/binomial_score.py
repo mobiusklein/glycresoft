@@ -141,7 +141,7 @@ class BinomialSpectrumMatcher(SpectrumMatcherBase):
                 if peak:
                     solution_map[frag] = peak
         for frag in self.sequence.stub_fragments(extended=True):
-            n_theoretical += 1
+            # n_theoretical += 1
             peak = spectrum.has_peak(frag.mass, error_tolerance)
             if peak:
                 solution_map[frag] = peak
@@ -194,11 +194,10 @@ class BinomialSpectrumMatcher(SpectrumMatcherBase):
 
         if intensity_component == 0:
             intensity_component = 1e-170
-        score = -np.log10(intensity_component) + - \
-            np.log10(fragment_match_component)
+        score = -np.log10(intensity_component) + (-np.log10(fragment_match_component))
 
         if np.isinf(score):
-            print "infinite score", intensity_component, fragment_match_component
+            print("infinite score", intensity_component, fragment_match_component)
 
         return score
 

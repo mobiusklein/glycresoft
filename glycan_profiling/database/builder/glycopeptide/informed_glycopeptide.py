@@ -58,10 +58,10 @@ class MzIdentMLGlycopeptideHypothesisSerializer(GlycopeptideHypothesisSerializer
                 acc.append(glycopeptide)
                 i += 1
                 if len(acc) > 100000:
-                    self.session.add_all(acc)
+                    self.session.bulk_save_objects(acc)
                     self.session.commit()
                     acc = []
-        self.session.add_all(acc)
+        self.session.bulk_save_objects(acc)
         self.session.commit()
 
     def run(self):
@@ -95,7 +95,7 @@ class MultipleProcessMzIdentMLGlycopeptideHypothesisSerializer(MzIdentMLGlycopep
         ]
         peptide_ids = self.peptide_ids()
         i = 0
-        chunk_size = 20
+        chunk_size = 50
         for process in processes:
             input_queue.put(peptide_ids[i:(i + chunk_size)])
             i += chunk_size

@@ -135,6 +135,8 @@ named_reductions = {
 
 
 def validate_reduction(context, reduction_string):
+    if reduction_string is None:
+        return True
     try:
         if reduction_string in named_reductions:
             return True
@@ -147,6 +149,8 @@ def validate_reduction(context, reduction_string):
 
 
 def validate_derivatization(context, derivatization_string):
+    if derivatization_string is None:
+        return True
     subst = Substituent(derivatization_string)
     if len(subst.composition) == 0:
         click.secho("Could not validate derivatization '%s'" % derivatization_string)

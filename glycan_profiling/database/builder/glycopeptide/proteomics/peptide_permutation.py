@@ -7,7 +7,7 @@ from . import enzyme
 from .utils import slurp
 
 from glypy.composition import formula
-from glycopeptidepy.structure import sequence, modification
+from glycopeptidepy.structure import sequence, modification, residue
 from glycopeptidepy import PeptideSequence, cleave
 
 from glycan_profiling.serialize import DatabaseBoundOperation
@@ -83,7 +83,10 @@ def site_modification_assigner(modification_sites_dict):
 
 
 def peptide_isoforms(sequence, constant_modifications, variable_modifications):
-    sequence = get_base_peptide(sequence)
+    try:
+        sequence = get_base_peptide(sequence)
+    except residue.UnknownAminoAcidException:
+        return
     (n_term_modifications,
      c_term_modifications,
      variable_modifications) = split_terminal_modifications(variable_modifications)
@@ -223,10 +226,10 @@ class ProteinDigestingProcess(Process):
                 for peptide in digestor.process_protein(protein):
                     acc.append(peptide)
                     if len(acc) > 100000:
-                        self.session.add_all(acc)
+                        self.session.bulk_save_objects(acc)
                         self.session.commit()
                         acc = []
-                self.session.add_all(acc)
+                self.session.bulk_save_objects(acc)
                 self.session.commit()
                 acc = []
 

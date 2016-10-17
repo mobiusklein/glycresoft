@@ -42,13 +42,14 @@ class IdentifiedStructure(object):
         return hash((self.structure, self.chromatogram))
 
 
-def extract_identified_structures(tandem_annotated_chromatograms, result_type=IdentifiedStructure):
+def extract_identified_structures(tandem_annotated_chromatograms, threshold_fn, result_type=IdentifiedStructure):
     identified_structures = []
+    unassigned = []
 
     for chroma in tandem_annotated_chromatograms:
         if chroma.composition is not None:
             if hasattr(chroma, 'entity'):
-                representers = chroma.most_representative_solutions()
+                representers = chroma.most_representative_solutions(threshold_fn)
                 bunch = []
                 for representer in representers:
                     ident = result_type(representer.solution, chroma.tandem_solutions, chroma, [])
@@ -56,4 +57,8 @@ def extract_identified_structures(tandem_annotated_chromatograms, result_type=Id
                 for i, ident in enumerate(bunch):
                     ident.shared_with = bunch[:i] + bunch[i + 1:]
                 identified_structures.extend(bunch)
-    return identified_structures
+            else:
+                unassigned.append(chroma)
+        else:
+            unassigned.append(chroma)
+    return identified_structures, unassigned

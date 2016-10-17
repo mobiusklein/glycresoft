@@ -56,8 +56,10 @@ def tic_saddle_points(mzml_file):
               help="Minimum score to accept an isotopic pattern fit in an MS1 scan. Scales with intensity.")
 @click.option("-tn", "--msn-score-threshold", type=float, default=2.,
               help="Minimum score to accept an isotopic pattern fit in an MS^n scan. Scales with intensity.")
+@click.option("-m", "--missed-peaks", type=int, default=1,
+              help="Number of missing peaks to permit before an isotopic fit is discarded")
 def preprocess(mzml_file, database_connection, averagine=None, start_time=None, end_time=None, maximum_charge=None,
-               name=None, msn_averagine=None, score_threshold=15., msn_score_threshold=2.):
+               name=None, msn_averagine=None, score_threshold=15., msn_score_threshold=2., missed_peaks=1):
     click.echo("Preprocessing %s" % mzml_file)
     minimum_charge = 1 if maximum_charge > 0 else -1
     charge_range = (minimum_charge, maximum_charge)
@@ -90,13 +92,14 @@ def preprocess(mzml_file, database_connection, averagine=None, start_time=None, 
 
     ms1_deconvolution_args = {
         "scorer": ms_deisotope.scoring.PenalizedMSDeconVFitter(score_threshold),
-        "max_missed_peaks": 1,
+        "max_missed_peaks": missed_peaks,
         "averagine": averagine
     }
 
     msn_deconvolution_args = {
         "scorer": ms_deisotope.scoring.MSDeconVFitter(msn_score_threshold),
-        "averagine": msn_averagine
+        "averagine": msn_averagine,
+        "max_missed_peaks": missed_peaks,
     }
 
     consumer = SampleConsumer(

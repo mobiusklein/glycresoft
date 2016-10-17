@@ -136,8 +136,8 @@ class Peptide(PeptideBase, Base):
     peptide_score = Column(Numeric(12, 6, asdecimal=False), index=True)
     peptide_score_type = Column(String(56))
 
-    base_peptide_sequence = Column(String(128), index=True)
-    modified_peptide_sequence = Column(String(128), index=True)
+    base_peptide_sequence = Column(String(256), index=True)
+    modified_peptide_sequence = Column(String(256), index=True)
 
     sequence_length = Column(Integer)
 
@@ -165,7 +165,7 @@ class Glycopeptide(PeptideBase, Base):
     peptide = relationship(Peptide)
     glycan_combination = relationship(GlycanCombination)
 
-    glycopeptide_sequence = Column(String(128), index=True)
+    glycopeptide_sequence = Column(String(256), index=True)
 
     def convert(self):
         inst = FragmentCachingGlycopeptide(self.glycopeptide_sequence)

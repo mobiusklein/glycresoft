@@ -176,10 +176,10 @@ class PeptideGlycosylatingProcess(Process):
                 for gp in glycosylator.handle_peptide(peptide):
                     result_accumulator.append(gp)
                     if len(result_accumulator) > self.chunk_size:
-                        session.add_all(result_accumulator)
+                        session.bulk_save_objects(result_accumulator)
                         session.commit()
                         result_accumulator = []
-            session.add_all(result_accumulator)
+            session.bulk_save_objects(result_accumulator)
             session.commit()
             result_accumulator = []
 

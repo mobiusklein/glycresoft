@@ -10,8 +10,26 @@ try:
 except ImportError:
     from queue import Queue, Empty
 
-from ms_deisotope.output.db import DatabaseScanSerializer, ScanBunch, DatabaseScanDeserializer
-from .piped_deconvolve import ScanGeneratorBase
+from ms_deisotope.output.db import (
+    DatabaseScanSerializer, ScanBunch, DatabaseScanDeserializer,
+    FittedPeak, DeconvolutedPeak)
+from glycan_profiling.piped_deconvolve import ScanGeneratorBase
+
+
+class PeakTableIndexToggler(object):
+    def __init__(self, session):
+        from glycan_profiling.serialize.utils import toggle_indices
+        self.session = session
+        self.fitted_peak_toggle = toggle_indices(self.session, FittedPeak.__table__)
+        self.deconvoluted_peak_toggle = toggle_indices(self.session, DeconvolutedPeak.__table__)
+
+    def drop(self):
+        self.fitted_peak_toggle.drop()
+        self.deconvoluted_peak_toggle.drop()
+
+    def create(self):
+        self.fitted_peak_toggle.create()
+        self.deconvoluted_peak_toggle.create()
 
 
 DONE = b'---NO-MORE---'
@@ -73,6 +91,8 @@ class DatabaseScanCacheHandler(ScanCacheHandlerBase):
     def __init__(self, connection, sample_name):
         self.serializer = DatabaseScanSerializer(connection, sample_name)
         self.commit_counter = 0
+        self.index_controller = PeakTableIndexToggler(self.serializer.session)
+        self.index_controller.drop()
         super(DatabaseScanCacheHandler, self).__init__()
         logger.info("Serializing scans under %r @ %r", self.serializer.sample_run, self.serializer.engine)
 
@@ -111,6 +131,7 @@ class DatabaseScanCacheHandler(ScanCacheHandlerBase):
 
     def complete(self):
         self.serializer.complete()
+        self.index_controller.create()
 
 
 class ThreadedDatabaseScanCacheHandler(DatabaseScanCacheHandler):
@@ -131,7 +152,7 @@ class ThreadedDatabaseScanCacheHandler(DatabaseScanCacheHandler):
     def _worker_loop(self):
         has_work = True
         i = 0
-        commit_interval = 100
+        commit_interval = 1000
         while has_work:
             try:
                 next_bunch = self.queue.get(True, 10)
@@ -147,8 +168,9 @@ class ThreadedDatabaseScanCacheHandler(DatabaseScanCacheHandler):
                     self.serializer.session.commit()
                     self.serializer.session.expunge_all()
             except Empty:
-                self.serializer.session.commit()
-                self.serializer.session.expunge_all()
+                continue
+                # self.serializer.session.commit()
+                # self.serializer.session.expunge_all()
         self.serializer.session.commit()
         self.serializer.session.expunge_all()
 

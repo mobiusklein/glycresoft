@@ -7,6 +7,7 @@ from glycan_profiling.cli.base import cli
 from glycan_profiling.cli.validators import (
     glycan_source_validators, validate_modifications,
     validate_glycan_source, validate_glycopeptide_hypothesis_name,
+    validate_glycan_hypothesis_name,
     validate_reduction, validate_derivatization, validate_mzid_proteins)
 
 from glycan_profiling.serialize import DatabaseBoundOperation, GlycanHypothesis
@@ -180,8 +181,10 @@ def glycopeptide_mzid(context, mzid_file, database_connection, name, occupied_gl
 @click.option("-n", "--name", default=None, help="The name for the hypothesis to be created")
 def glycan_text(context, text_file, database_connection, reduction, derivatization, name):
     if name is not None:
+        name = validate_glycan_hypothesis_name(context, database_connection, name)
         click.secho("Building Glycan Hypothesis %s" % name, fg='cyan')
     validate_reduction(reduction)
+    validate_derivatization(derivatization)
     builder = TextFileGlycanHypothesisSerializer(
         text_file, database_connection, reduction=reduction, derivatization=derivatization,
         hypothesis_name=name)
@@ -197,7 +200,10 @@ def glycan_text(context, text_file, database_connection, reduction, derivatizati
 @click.option("-n", "--name", default=None, help="The name for the hypothesis to be created")
 def glycan_combinatorial(context, rule_file, database_connection, reduction, derivatization, name):
     if name is not None:
+        name = validate_glycan_hypothesis_name(context, database_connection, name)
         click.secho("Building Glycan Hypothesis %s" % name, fg='cyan')
+    validate_reduction(reduction)
+    validate_derivatization(derivatization)
     builder = CombinatorialGlycanHypothesisSerializer(
         rule_file, database_connection, reduction=reduction, derivatization=derivatization,
         hypothesis_name=name)

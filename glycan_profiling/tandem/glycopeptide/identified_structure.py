@@ -1,5 +1,6 @@
 from collections import defaultdict
 
+from glycopeptidepy.structure.sequence import _n_glycosylation
 from ..identified_structure import IdentifiedStructure, extract_identified_structures as _extract_identified_structures
 
 
@@ -27,7 +28,7 @@ def indices_of_glycosylation(glycopeptide):
     i = 0
     out = []
     for res, mods in glycopeptide:
-        if "N-Glycosylation" in mods:
+        if _n_glycosylation in mods:
             out.append(i)
         i += 1
     return out
@@ -41,18 +42,81 @@ def protein_indices_for_glycosites(glycopeptide):
     ]
 
 
+class GlycopeptideIndex(object):
+    def __init__(self, members=None):
+        if members is None:
+            members = []
+        self.members = list(members)
+
+    def append(self, member):
+        self.members.append(member)
+
+    def __iter__(self):
+        return iter(self.members)
+
+    def __getitem__(self, i):
+        return self.members[i]
+
+    def __setitem__(self, i, v):
+        self.members[i] = v
+
+    def __len__(self):
+        return len(self.members)
+
+    def with_glycan_composition(self, composition):
+        return GlycopeptideIndex([member for member in self if member.glycan_composition == composition])
+
+    def __repr__(self):
+        return repr(self.members)
+
+    def _repr_pretty_(self, p, cycle):
+        return p.pretty(self.members)
+
+
+class SiteMap(object):
+    def __init__(self, store=None):
+        if store is None:
+            store = defaultdict(GlycopeptideIndex)
+        self.store = store
+
+    def __getitem__(self, key):
+        return self.store[key]
+
+    def __setitem__(self, key, value):
+        self.store[key] = value
+
+    @property
+    def sites(self):
+        return sorted(self.store.keys())
+
+    def __iter__(self):
+        return iter(self.store.items())
+
+    def items(self):
+        return self.store.items()
+
+    def __len__(self):
+        return len(self.store)
+
+    def __repr__(self):
+        return repr(self.store)
+
+    def _repr_pretty_(self, p, cycle):
+        return p.pretty(self.store)
+
+
 class IdentifiedGlycoprotein(object):
     def __init__(self, protein, identified_glycopeptides):
         self.protein = protein
         self.n_glycan_sequon_sites = protein.n_glycan_sequon_sites
         self.identified_glycopeptides = identified_glycopeptides
-        self._site_map = defaultdict(list)
+        self._site_map = SiteMap()
         self.microheterogeneity_map = defaultdict(lambda: defaultdict(float))
 
         self._map_glycopeptides_to_glycosites()
 
     def _map_glycopeptides_to_glycosites(self):
-        site_map = defaultdict(list)
+        site_map = SiteMap()
         for gp in self.identified_glycopeptides:
             sites = set(protein_indices_for_glycosites(gp.structure))
             for site in self.n_glycan_sequon_sites:
@@ -99,6 +163,6 @@ class IdentifiedGlycoprotein(object):
         return out
 
 
-def extract_identified_structures(tandem_annotated_chromatograms):
+def extract_identified_structures(tandem_annotated_chromatograms, threshold_fn=lambda x: x.q_value < 0.05):
     return _extract_identified_structures(
-        tandem_annotated_chromatograms, result_type=IdentifiedGlycopeptide)
+        tandem_annotated_chromatograms, threshold_fn, result_type=IdentifiedGlycopeptide)
