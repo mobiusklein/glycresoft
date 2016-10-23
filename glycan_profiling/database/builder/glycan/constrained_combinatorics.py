@@ -179,7 +179,25 @@ def parse_rules_from_file(path):
 
     rules_table = CombinatoricCompositionGenerator.build_rules_table(
         *zip(*ranges))
+    try:
+        stream.close()
+    except:
+        pass
     return rules_table, constraints
+
+
+def write_rules(rules, writer):
+    for key, bounds in rules.items():
+        lo, hi = bounds
+        writer.write("%s %d %d\n" % (key, lo, hi))
+    return writer
+
+
+def write_constraints(constraints, writer):
+    writer.write("\n")
+    for constraint in constraints:
+        writer.write("%s\n" % constraint)
+    return writer
 
 
 class ClassificationConstraint(object):

@@ -1,5 +1,5 @@
 from collections import defaultdict
-
+from uuid import uuid4
 
 from ms_deisotope.output.db import (
     Base, DeconvolutedPeak, MSScan, Mass, HasUniqueName,
@@ -61,12 +61,24 @@ class AnalysisSerializer(DatabaseBoundOperation):
             self._construct_analysis()
         return self._analysis_name
 
+    def set_analysis_type(self, type_string):
+        self.analysis.analysis_type = type_string
+        self.session.add(self.analysis)
+        self.session.commit()
+
+    def set_parameters(self, parameters):
+        self.analysis.parameters = parameters
+        self.session.add(self.analysis)
+        self.commit()
+
     def _retrieve_analysis(self):
         self._analysis = self.session.query(Analysis).get(self._analysis_id)
         self._analysis_name = self._analysis.name
 
     def _create_analysis(self):
-        self._analysis = Analysis(name=self._seed_analysis_name, sample_run_id=self.sample_run_id)
+        self._analysis = Analysis(
+            name=self._seed_analysis_name, sample_run_id=self.sample_run_id,
+            uuid=str(uuid4()))
         self.session.add(self._analysis)
         self.session.flush()
         self._analysis_id = self._analysis.id
@@ -120,7 +132,7 @@ class AnalysisSerializer(DatabaseBoundOperation):
             analysis_id=self.analysis_id)
         cluster_id = cluster.id
         inst = IdentifiedGlycopeptide.serialize(
-            identification, self.session, chromatogram_solution_id, cluster_id)
+            identification, self.session, chromatogram_solution_id, cluster_id, analysis_id=self.analysis_id)
         if commit:
             self.commit()
         return inst
@@ -133,7 +145,7 @@ class AnalysisSerializer(DatabaseBoundOperation):
             cache[case.chromatogram].append(saved)
             out.append(saved)
         for chromatogram, members in cache.items():
-            AmbiguousGlycopeptideGroup.serialize(members, self.session)
+            AmbiguousGlycopeptideGroup.serialize(members, self.session, analysis_id=self.analysis_id)
         return out
 
     def commit(self):

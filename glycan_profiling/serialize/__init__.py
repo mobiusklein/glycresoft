@@ -4,14 +4,17 @@ from ms_deisotope.output.db import (
     Base,
     SampleRun,
     MSScan,
+    PrecursorInformation,
     FittedPeak,
     DeconvolutedPeak)
 
 from .analysis import (
     Analysis,
-    BoundToAnalysis)
+    BoundToAnalysis,
+    AnalysisTypeEnum)
 
 from .chromatogram import (
+    ChromatogramTreeNode,
     Chromatogram,
     ChromatogramSolution,
     MassShift,
@@ -27,7 +30,8 @@ from .tandem import (
     GlycopeptideSpectrumSolutionSet)
 
 from .identification import (
-    IdentifiedGlycopeptide)
+    IdentifiedGlycopeptide,
+    AmbiguousGlycopeptideGroup)
 
 from .serializer import (
     AnalysisSerializer,

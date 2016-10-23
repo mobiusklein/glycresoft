@@ -58,7 +58,7 @@ class GlycopeptideSpectrumSolutionSet(Base, BoundToAnalysis):
         ForeignKey(GlycopeptideSpectrumCluster.id, ondelete="CASCADE"),
         index=True)
 
-    cluster = relationship(GlycopeptideSpectrumCluster, backref=backref("spectrum_solutions", lazy='dynamic'))
+    cluster = relationship(GlycopeptideSpectrumCluster, backref=backref("spectrum_solutions", lazy='subquery'))
 
     is_decoy = Column(Boolean, index=True)
 
@@ -102,7 +102,7 @@ class GlycopeptideSpectrumMatch(Base, SpectrumMatchBase):
         Integer, ForeignKey(
             GlycopeptideSpectrumSolutionSet.id, ondelete='CASCADE'),
         index=True)
-    solution_set = relationship(GlycopeptideSpectrumSolutionSet, backref=backref("spectrum_matches", lazy='dynamic'))
+    solution_set = relationship(GlycopeptideSpectrumSolutionSet, backref=backref("spectrum_matches", lazy='subquery'))
     q_value = Column(Numeric(8, 7, asdecimal=False), index=True)
     is_decoy = Column(Boolean, index=True)
     is_best_match = Column(Boolean, index=True)
@@ -129,7 +129,7 @@ class GlycopeptideSpectrumMatch(Base, SpectrumMatchBase):
         return inst
 
     def convert(self):
-        scan_ref = SpectrumReference(self.solution_set.scan.scan_id, self.scan.precursor_information)
+        scan_ref = SpectrumReference(self.scan.scan_id, self.scan.precursor_information)
         target_ref = TargetReference(self.structure_id)
         inst = MemorySpectrumMatch(scan_ref, target_ref, self.score, self.is_best_match)
         inst.q_value = self.q_value

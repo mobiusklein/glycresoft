@@ -74,6 +74,7 @@ class Chromatogram(object):
         self.composition = composition
         self._total_intensity = None
         self._neutral_mass = None
+        self._weighted_neutral_mass = None
         self._last_neutral_mass = 0.
         self._most_abundant_member = 0.
         self._charge_states = None
@@ -87,6 +88,7 @@ class Chromatogram(object):
         self._total_intensity = None
         self._last_neutral_mass = self._neutral_mass if self._neutral_mass is not None else 0.
         self._neutral_mass = None
+        self._weighted_neutral_mass = None
         self._charge_states = None
         self._retention_times = None
         self._peaks = None
@@ -418,12 +420,24 @@ class Chromatogram(object):
     def elemental_composition(self):
         return None
 
+    def common_nodes(self, other):
+        return self.nodes.common_nodes(other.nodes)
+
+    @property
+    def apex_time(self):
+        rt, intensity = self.as_arrays()
+        return rt[np.argmax(intensity)]
+
 
 class ChromatogramTreeList(object):
     def __init__(self, roots=None):
         if roots is None:
             roots = []
         self.roots = list(roots)
+        self._node_id_hash = None
+
+    def _invalidate(self):
+        self._node_id_hash = None
 
     def find_time(self, retention_time):
         if len(self.roots) == 0:
@@ -442,7 +456,19 @@ class ChromatogramTreeList(object):
             elif node.retention_time > retention_time:
                 hi = i
 
+    def _build_node_id_hash(self):
+        self._node_id_hash = set()
+        for node in self.unspool():
+            self._node_id_hash.add(node.node_id)
+
+    @property
+    def node_id_hash(self):
+        if self._node_id_hash is None:
+            self._build_node_id_hash()
+        return self._node_id_hash
+
     def insert_node(self, node):
+        self._invalidate()
         try:
             root, i = self.find_time(node.retention_time)
             if root is None:
@@ -501,6 +527,9 @@ class ChromatogramTreeList(object):
                 out_queue.append(node_copy)
                 stack.extend(node.children)
         return out_queue
+
+    def common_nodes(self, other):
+        return len(self.node_id_hash & other.node_id_hash)
 
 
 class ChromatogramTreeNode(object):
@@ -761,6 +790,13 @@ class ChromatogramWrapper(object):
     def elemental_composition(self):
         return self.chromatogram.elemental_composition
 
+    def common_nodes(self, other):
+        return self.chromatogram.common_nodes(other)
+
+    @property
+    def apex_time(self):
+        return self.chromatogram.apex_time
+
 
 class ChromatogramProxy(object):
     def __init__(self, chromatogram):
@@ -848,4 +884,4 @@ def get_chromatogram(instance):
         try:
             return instance.get_chromatogram()
         except AttributeError:
-            raise TypeError("%s does not contain a chromatogram")
+            raise TypeError("%s does not contain a chromatogram" % instance)

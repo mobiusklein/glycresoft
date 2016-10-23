@@ -35,6 +35,13 @@ class ScanSink(object):
         except AttributeError:
             return None
 
+    @property
+    def sample_run(self):
+        try:
+            return self.scan_store.sample_run
+        except AttributeError:
+            return None
+
     def configure_cache(self, storage_path=None, name=None):
         if storage_path is None:
             storage_path = self.scan_source
@@ -528,6 +535,7 @@ class ChromatogramEvaluator(object):
             except (IndexError, ValueError), e:
                 print case, e, len(case)
                 continue
+        print(base_coef, self.network)
         if base_coef != 1.0 and self.network is not None:
             NetworkScoreDistributor(solutions, self.network).distribute(base_coef, support_coef)
         return ChromatogramFilter(solutions)
@@ -634,7 +642,7 @@ class ChromatogramProcessor(TaskBase):
     matcher_type = GlycanChromatogramMatcher
 
     def __init__(self, chromatograms, database, adducts=None, mass_error_tolerance=1e-5,
-                 scoring_model=None, network=None, base_coef=1., support_coef=0.,
+                 scoring_model=None, network_sharing=0.,
                  smooth=True, acceptance_threshold=0.4):
         if adducts is None:
             adducts = []
@@ -643,9 +651,9 @@ class ChromatogramProcessor(TaskBase):
         self.adducts = adducts
         self.mass_error_tolerance = mass_error_tolerance
         self.scoring_model = scoring_model
-        self.network = network
-        self.base_coef = base_coef
-        self.support_coef = support_coef
+        self.network = database.glycan_composition_network
+        self.base_coef = 1 - network_sharing
+        self.support_coef = network_sharing
         self.smooth = smooth
         self.acceptance_threshold = acceptance_threshold
 

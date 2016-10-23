@@ -16,6 +16,7 @@ from sqlalchemy import select, join
 from .mass_collection import SearchableMassCollection, NeutralMassDatabase
 from .lru import LRUCache
 from .structure_loader import CachingGlycanCompositionParser
+from .composition_network import CompositionGraph, n_glycan_distance
 
 try:
     basestring
@@ -215,6 +216,11 @@ class DeclarativeDiskBackedDatabase(DiskBackedStructureDatabase):
         super(DeclarativeDiskBackedDatabase, self).__init__(
             connection, hypothesis_id, cache_size, loading_interval,
             threshold_cache_total_count, None)
+        self._glycan_composition_network = None
+
+    @property
+    def glycan_composition_network(self):
+        return self._glycan_composition_network
 
     @property
     def lowest_mass(self):
@@ -313,6 +319,13 @@ class GlycanCompositionDiskBackedStructureDatabase(DeclarativeDiskBackedDatabase
 
     def _convert(self, bundle):
         return self._convert_cache(bundle)
+
+    @property
+    def glycan_composition_network(self):
+        if self._glycan_composition_network is None:
+            self._glycan_composition_network = CompositionGraph(tuple(self.structures))
+            self._glycan_composition_network.create_edges(2, n_glycan_distance)
+        return self._glycan_composition_network
 
     @property
     def hypothesis(self):

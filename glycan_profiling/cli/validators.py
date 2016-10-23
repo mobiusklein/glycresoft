@@ -161,7 +161,8 @@ def validate_derivatization(context, derivatization_string):
 def validate_element(element):
     valid = element in periodic_table
     if not valid:
-        click.secho("%r is not a valid element" % element, fg='yellow')
+        # click.secho("%r is not a valid element" % element, fg='yellow')
+        raise click.Abort("%r is not a valid element" % element)
     return valid
 
 

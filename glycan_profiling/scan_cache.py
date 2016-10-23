@@ -78,8 +78,12 @@ class ScanCacheHandlerBase(object):
     def sync(self):
         self.commit()
 
-    def get_analysis_serializer(self, *args, **kwargs):
+    def _get_sample_run(self):
         return None
+
+    @property
+    def sample_run(self):
+        return self._get_sample_run()
 
 
 class NullScanCacheHandler(ScanCacheHandlerBase):
@@ -95,11 +99,6 @@ class DatabaseScanCacheHandler(ScanCacheHandlerBase):
         self.index_controller.drop()
         super(DatabaseScanCacheHandler, self).__init__()
         logger.info("Serializing scans under %r @ %r", self.serializer.sample_run, self.serializer.engine)
-
-    def get_analysis_serializer(self, analysis_name, *args, **kwargs):
-        from .serialize import AnalysisSerializer as DatabaseAnalysisSerializer
-        return DatabaseAnalysisSerializer(
-            self.serializer.session, self.serializer.sample_run_id, analysis_name, *args, **kwargs)
 
     def save_bunch(self, precursor, products):
         self.serializer.save(ScanBunch(precursor, products), commit=False)
@@ -130,8 +129,14 @@ class DatabaseScanCacheHandler(ScanCacheHandlerBase):
         return cls(path, sample_name)
 
     def complete(self):
+        self.save()
+        print("Completing Serializer")
         self.serializer.complete()
+        print("Recreating Indices")
         self.index_controller.create()
+
+    def _get_sample_run(self):
+        return self.serializer.sample_run
 
 
 class ThreadedDatabaseScanCacheHandler(DatabaseScanCacheHandler):
@@ -155,7 +160,7 @@ class ThreadedDatabaseScanCacheHandler(DatabaseScanCacheHandler):
         commit_interval = 1000
         while has_work:
             try:
-                next_bunch = self.queue.get(True, 10)
+                next_bunch = self.queue.get(True, 2)
                 if next_bunch == DONE:
                     has_work = False
                     continue

@@ -74,47 +74,123 @@ def power_iteration(A):
     return b
 
 
-def optimize_composition_distribution(network, solutions, common_weight=1, precision_scale=1):
-    W = np.array([node.score for node in network.nodes]) * \
-        precision_scale + common_weight
+class CompositionDistributionUpdater(object):
 
-    # Dirichlet Mean
-    pi = W / W.sum()
+    def __init__(self, network, solutions, common_weight=1.1, precision_scale=1):
+        self.network = network
+        self.solutions = solutions
+        self.common_weight = common_weight
+        self.precision_scale = precision_scale
+        self.W = np.array([node.score for node in network.nodes]) * \
+            precision_scale + common_weight
 
-    sol_map = {
-        sol.composition: sol.score for sol in solutions if sol.composition is not None}
+        # Dirichlet Mean
+        self.pi0 = self.W / self.W.sum()
 
-    observations = np.array(
-        [sol_map.get(node.composition.serialize(), 1e-15) for node in network.nodes])
+        self.sol_map = {
+            sol.composition: sol.score for sol in solutions if sol.composition is not None}
 
-    def update_pi(pi_array):
+        self.observations = np.array(
+            [self.sol_map.get(node.composition.serialize(), 0) for node in network.nodes])
+        self.iterations = 0
+
+    def convergence(self, pi_next, pi_last):
+        d = np.abs(pi_last).sum()
+        v = (np.abs(pi_next - pi_last).sum()) / d
+        return v
+
+    def update_pi(self, pi_array):
         pi2 = np.zeros_like(pi_array)
-        total_score_pi = (observations * pi_array).sum()
-        total_w = ((W - 1).sum() + 1)
-        for i in range(len(W)):
-            pi2[i] = ((W[i] - 1) + (observations[i] *
-                                    pi_array[i]) / total_score_pi) / total_w
-            assert pi2[i] > 0, (W[i], pi_array[i])
+        total_score_pi = (self.observations * pi_array).sum()
+        total_w = ((self.W - 1).sum() + 1)
+        for i in range(len(self.W)):
+            pi2[i] = ((self.W[i] - 1) + (self.observations[i] *
+                                         pi_array[i]) / total_score_pi) / total_w
+            assert pi2[i] >= 0, (self.W[i], pi_array[i])
         return pi2
 
-    def optimize_pi(pi, maxiter=100):
+    def optimize_pi(self, pi, maxiter=100, **kwargs):
         pi_last = pi
-        pi_next = update_pi(pi_last)
+        pi_next = self.update_pi(pi_last)
 
-        def convergence():
-            d = np.abs(pi_last).sum()
-            v = (np.abs(pi_next - pi_last).sum()) / d
-            return v
-
-        i = 0
-        while convergence() > 1e-16 and i < maxiter:
+        self.iterations = 0
+        converging = float('inf')
+        while converging > 1e-6 and self.iterations < maxiter:
             pi_last = pi_next
-            pi_next = update_pi(pi_last)
-            i += 1
+            pi_next = self.update_pi(pi_last)
+            self.iterations += 1
+            converging = self.convergence(pi_next, pi_last)
+        if converging < 1e-6:
+            print("Converged in %d iterations" % self.iterations)
+        else:
+            print("Failed to converge in %d iterations (%f)" % (self.iterations, converging))
 
         return pi_next
 
-    return optimize_pi(pi)
+    def fit(self, **kwargs):
+        return self.optimize_pi(self.pi0, **kwargs)
+
+
+class FuzzyCompositionDistributionUpdater(CompositionDistributionUpdater):
+
+    def __init__(self, network, solutions, common_weight=1, precision_scale=1, spread_factor=0.2):
+        super(FuzzyCompositionDistributionUpdater, self).__init__(network, solutions, common_weight, precision_scale)
+        self.spread_factor = spread_factor
+
+        self.adjacency_list = []
+        self.edge_weight_list = []
+        for node in self.network.nodes:
+            row = []
+            weight = []
+            for edge in node.edges:
+                row.append(edge[node].index)
+                weight.append(edge.weight)
+            weight = np.array(weight)
+            self.adjacency_list.append(row)
+            self.edge_weight_list.append(weight)
+
+    def _compute_support(self, pi_array, ix):
+        edges = self.adjacency_list[ix]
+
+        weights = self.edge_weight_list[ix]
+        support_pis = pi_array[edges]
+        support_obs = self.observations[edges]
+
+        norm = (weights * support_obs).sum()
+        if norm == 0:
+            return 0
+
+        return (support_pis * weights * (support_obs * support_obs)).sum() / norm
+
+    def _compute_score(self, pi_array, ix):
+        base = (pi_array[ix]) * (self.observations[ix])
+        support_value = self._compute_support(pi_array, ix)
+        return base * (1 - self.spread_factor) + support_value * self.spread_factor
+
+    def _compute_fuzzy_pi(self, pi_array):
+        out = []
+        for i in range(len(pi_array)):
+            out.append(self._compute_score(pi_array, i))
+        return np.array(out)
+
+    def update_pi(self, pi_array):
+        pi2 = np.zeros_like(pi_array)
+        fuzzed_pi = self._compute_fuzzy_pi(pi_array)
+        total_score_pi = fuzzed_pi.sum()
+        total_w = ((self.W - 1).sum() + 1)
+        for i in range(len(self.W)):
+            pi2[i] = ((self.W[i] - 1) + (fuzzed_pi[i]) / total_score_pi) / total_w
+            assert pi2[i] >= 0, (self.W[i], pi_array[i])
+        return pi2
+
+
+def convert_posterior_to_network(posterior, network):
+    new = network.clone()
+    for i in range(len(new.nodes)):
+        node = new.nodes[i]
+        score = posterior[i]
+        node.score = score
+    return new
 
 
 def null_model_probability_of_shift(cases, mass_shift):

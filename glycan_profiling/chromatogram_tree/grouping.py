@@ -3,7 +3,7 @@ from ms_deisotope.peak_dependency_network.intervals import Interval, IntervalTre
 from glycan_profiling.task import TaskBase
 
 from .chromatogram import (
-    Chromatogram)
+    Chromatogram, DuplicateNodeError)
 
 
 class ChromatogramForest(object):
@@ -128,8 +128,10 @@ class ChromatogramMerger(object):
         has_merged = False
         query_mass = new_chromatogram.neutral_mass
         for chroma in chromatogram_range:
-            if chroma.overlaps_in_time(new_chromatogram) and abs(
-                    (chroma.neutral_mass - query_mass) / query_mass) < self.error_tolerance:
+            cond = (chroma.overlaps_in_time(new_chromatogram) and abs(
+                    (chroma.neutral_mass - query_mass) / query_mass) < self.error_tolerance and
+                    chroma.common_nodes(new_chromatogram) == 0)
+            if cond:
                 chroma.merge(new_chromatogram)
                 has_merged = True
                 break

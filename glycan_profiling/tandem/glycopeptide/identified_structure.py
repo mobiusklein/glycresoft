@@ -23,6 +23,12 @@ class IdentifiedGlycopeptide(IdentifiedStructure):
         return "IdentifiedGlycopeptide(%s, %0.3f, %0.3f, %0.3e)" % (
             self.structure, self.ms2_score, self.ms1_score, self.total_signal)
 
+    def overlaps(self, other):
+        return self.protein_relation.overlaps(other.protein_relation)
+
+    def spans(self, position):
+        return position in self.protein_relation
+
 
 def indices_of_glycosylation(glycopeptide):
     i = 0
@@ -114,6 +120,10 @@ class IdentifiedGlycoprotein(object):
         self.microheterogeneity_map = defaultdict(lambda: defaultdict(float))
 
         self._map_glycopeptides_to_glycosites()
+
+    @property
+    def protein_sequence(self):
+        return self.protein.protein_sequence
 
     def _map_glycopeptides_to_glycosites(self):
         site_map = SiteMap()

@@ -2,6 +2,7 @@ import unittest
 import tempfile
 
 from glycan_profiling.database.builder.glycan import glycan_combinator, glycan_source
+from glycan_profiling.database.builder.glycopeptide.common import GlycopeptideHypothesisSerializerBase
 
 
 class GlycanCombinatoricsTests(unittest.TestCase):
@@ -20,9 +21,15 @@ class GlycanCombinatoricsTests(unittest.TestCase):
 
     def test_combinator(self):
         source_file = self.setup_tempfile()
-        builder = self.setup_compositions(source_file, source_file + '.db')
+        database_path = source_file + '.db'
+        builder = self.setup_compositions(source_file, database_path)
+        self.assertTrue(builder.query(glycan_combinator.GlycanComposition).count() > 0)
+
+        # Create the glycopeptide hypothesis that GlycanCombination objects must be associated with
+        glycopeptide_builder_stub = GlycopeptideHypothesisSerializerBase(database_path, "test", builder.hypothesis_id)
+
         combinator = glycan_combinator.GlycanCombinationSerializer(
-            source_file + '.db', builder.hypothesis_id, builder.hypothesis_id, max_size=2)
+            database_path, builder.hypothesis_id, glycopeptide_builder_stub.hypothesis.id, max_size=2)
         combinator.run()
         inst = builder.query(glycan_combinator.GlycanCombination).filter(
             glycan_combinator.GlycanCombination.hypothesis_id == builder.hypothesis_id,

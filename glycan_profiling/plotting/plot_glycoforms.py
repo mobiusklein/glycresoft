@@ -4,10 +4,7 @@ from matplotlib import pyplot as plt
 from matplotlib import patches as mpatches
 from matplotlib.textpath import TextPath
 
-from ..serialize import IdentifiedGlycopeptide
-from glycopeptidepy.structure import sequence
-
-from .svg_utils import ET, StringIO
+from .svg_utils import ET, StringIO, IDMapper
 from .colors import lighten, darken, get_color
 
 
@@ -15,8 +12,8 @@ font_options = font_manager.FontProperties(family='monospace')
 
 
 def span_overlap(a, b):
-    return a.spans(b.start_position) or a.spans(b.end_position - 1) or\
-        b.spans(a.start_position) or b.spans(a.end_position - 1)
+    return (a.spans(b.start_position + 1) or a.spans(b.end_position - 1) or
+            b.spans(a.start_position + 1) or b.spans(a.end_position - 1))
 
 
 def layout_layers(gpms):
@@ -43,39 +40,13 @@ def layout_layers(gpms):
     return layers
 
 
-class IDMapper(dict):
-    '''
-    A dictionary-like container which uses a format-string
-    key pattern to generate unique identifiers for each entry
-
-    Key Pattern: '<type-name>-%d'
-
-    Associates each generated id with a dictionary of metadata and
-    sets the `gid` of the passed `matplotlib.Artist` to the generated
-    id. Only the id and metadata are stored.
-
-    Used to preserve a mapping of metadata to artists for later SVG
-    serialization.
-    '''
-
-    def __init__(self):
-        dict.__init__(self)
-        self.counter = 0
-
-    def add(self, key, value, meta):
-        label = key % self.counter
-        value.set_gid(label)
-        self[label] = meta
-        self.counter += 1
-        return label
-
-
-def draw_layers(layers, protein, scale_factor=1.0, **kwargs):
+def draw_layers(layers, protein, scale_factor=1.0, ax=None, **kwargs):
     '''
     Render fixed-width stacked peptide identifications across
     a protein. Each shape is rendered with a unique identifier.
     '''
-    figure, ax = plt.subplots(1, 1)
+    if ax is None:
+        figure, ax = plt.subplots(1, 1)
     id_mapper = IDMapper()
     i = 0
     row_width = 70
@@ -95,7 +66,7 @@ def draw_layers(layers, protein, scale_factor=1.0, **kwargs):
     protein_pad = -0.365 * scale_factor
     peptide_pad = protein_pad * (2. / 3.) * scale_factor
 
-    glycosites = set(protein.n_glycosylation_sites)
+    glycosites = set(protein.n_glycan_sequon_sites)
     for layer in layers:
         layer.sort(key=lambda x: x.start_position)
 
@@ -137,21 +108,21 @@ def draw_layers(layers, protein, scale_factor=1.0, **kwargs):
                 c += 1
                 rect = mpatches.Rectangle(
                     (peptide_pad + gpm.start_position - cur_position, cur_y),
-                    width=gpm.sequence_length, height=layer_height,
+                    width=len(gpm.structure), height=layer_height,
                     facecolor='lightblue', edgecolor='black', linewidth=0.15,
                     alpha=min(max(gpm.ms2_score * 2, 0.2), 0.8))
                 label = id_mapper.add("glycopeptide-%d", rect, {
-                    "sequence": gpm.glycopeptide_sequence,
+                    "sequence": str(gpm.structure),
                     "start-position": gpm.start_position,
                     "end-position": gpm.end_position,
                     "ms2-score": gpm.ms2_score,
                     "q-value": gpm.q_value,
-                    "record-id": gpm.id,
-                    "calculated-mass": gpm.calculated_mass,
-                    "spectra-count": gpm.spectrum_matches.filter_by(best_match=True).count()
+                    "record-id": gpm.id if hasattr(gpm, 'id') else None,
+                    "calculated-mass": gpm.structure.total_mass,
+                    "spectra-count": len(gpm.spectrum_matches)
                 })
                 ax.add_patch(rect)
-                seq = sequence.Sequence(gpm.glycopeptide_sequence)
+                seq = gpm.structure
                 for i, pos in enumerate(seq):
                     if len(pos[1]) > 0:
                         color = get_color(pos[1][0].name)
@@ -195,13 +166,13 @@ def plot_glycoforms(protein, identifications, **kwargs):
     return ax, id_mapper
 
 
-def plot_glycoforms_svg(protein, identifications, scale=1.5, **kwargs):
+def plot_glycoforms_svg(protein, identifications, scale=1.5, ax=None, **kwargs):
     '''
     A specialization of :func:`plot_glycoforms` which adds additional features to SVG images, such as
     adding shape metadata to XML tags and properly configuring the viewport and canvas for the figure's
     dimensions.
     '''
-    ax, id_mapper = plot_glycoforms(protein, identifications)
+    ax, id_mapper = plot_glycoforms(protein, identifications, ax=ax, **kwargs)
     old_size = matplotlib.rcParams["figure.figsize"]
     xlim = ax.get_xlim()
     ylim = ax.get_ylim()

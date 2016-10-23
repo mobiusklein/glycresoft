@@ -29,6 +29,7 @@ class Protein(Base):
     other = Column(MutableDict.as_mutable(PickleType))
     hypothesis_id = Column(Integer, ForeignKey(
         GlycopeptideHypothesis.id, ondelete="CASCADE"))
+    hypothesis = relationship(GlycopeptideHypothesis, backref=backref('proteins', lazy='dynamic'))
 
     _n_glycan_sequon_sites = None
 
@@ -146,6 +147,8 @@ class Peptide(PeptideBase, Base):
     o_glycosylation_sites = Column(MutableList.as_mutable(PickleType))
     gagylation_sites = Column(MutableList.as_mutable(PickleType))
 
+    hypothesis = relationship(GlycopeptideHypothesis, backref=backref('peptides', lazy='dynamic'))
+
     def convert(self):
         inst = sequence.parse(self.modified_peptide_sequence)
         inst.id = self.id
@@ -166,6 +169,8 @@ class Glycopeptide(PeptideBase, Base):
     glycan_combination = relationship(GlycanCombination)
 
     glycopeptide_sequence = Column(String(256), index=True)
+
+    hypothesis = relationship(GlycopeptideHypothesis, backref=backref('glycopeptides', lazy='dynamic'))
 
     def convert(self):
         inst = FragmentCachingGlycopeptide(self.glycopeptide_sequence)

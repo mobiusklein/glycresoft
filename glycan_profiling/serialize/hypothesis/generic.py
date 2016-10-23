@@ -14,7 +14,7 @@ from ..utils import get_or_create
 
 
 class ParameterStore(object):
-    parameters = Column(MutableDict.as_mutable(PickleType))
+    parameters = Column(MutableDict.as_mutable(PickleType), default=dict)
 
 
 class Taxon(Base):

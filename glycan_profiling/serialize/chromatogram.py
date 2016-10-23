@@ -1,7 +1,7 @@
 from sqlalchemy import (
     Column, Numeric, Integer, String, ForeignKey, PickleType,
-    Boolean, Table, func)
-from sqlalchemy.orm import relationship, backref
+    Boolean, Table, func, select, join)
+from sqlalchemy.orm import relationship, backref, object_session
 from sqlalchemy.ext.associationproxy import association_proxy
 from sqlalchemy.orm.collections import attribute_mapped_collection
 from sqlalchemy.ext.declarative import declared_attr
@@ -16,12 +16,13 @@ from glycan_profiling.chromatogram_tree import (
 
 from glycan_profiling.scoring import (
     ChromatogramSolution as MemoryChromatogramSolution)
+from glycan_profiling.models import GeneralScorer
 
 from .analysis import BoundToAnalysis
 from .hypothesis import GlycanComposition
 
 from ms_deisotope.output.db import (
-    Base, DeconvolutedPeak, MSScan, Mass)
+    Base, DeconvolutedPeak, MSScan, Mass, make_memory_deconvoluted_peak)
 
 from glypy.composition.base import formula
 from glypy import Composition
@@ -162,13 +163,55 @@ class ChromatogramTreeNode(Base):
     neutral_mass = Mass()
 
     scan = relationship(MSScan)
-    node_type = relationship(CompoundMassShift)
+    node_type = relationship(CompoundMassShift, lazy='joined')
 
     children = association_proxy("_children", "child", creator=_create_chromatogram_tree_node_branch)
 
-    members = relationship(DeconvolutedPeak, secondary=lambda: ChromatogramTreeNodeToDeconvolutedPeak)
+    members = relationship(DeconvolutedPeak, secondary=lambda: ChromatogramTreeNodeToDeconvolutedPeak, lazy="subquery")
 
-    def convert(self):
+    @classmethod
+    def _convert(cls, session, id, node_type_cache=None, scan_id_cache=None):
+        if node_type_cache is None:
+            node_type_cache = dict()
+        if scan_id_cache is None:
+            scan_id_cache = dict()
+
+        node_table = cls.__table__
+        attribs = session.execute(node_table.select().where(node_table.c.id == id)).fetchone()
+
+        peak_table = DeconvolutedPeak.__table__
+
+        selector = select([DeconvolutedPeak.__table__]).select_from(
+            join(peak_table, ChromatogramTreeNodeToDeconvolutedPeak)).where(
+            ChromatogramTreeNodeToDeconvolutedPeak.c.node_id == id)
+
+        members = session.execute(selector).fetchall()
+
+        try:
+            scan_id = scan_id_cache[attribs.scan_id]
+        except KeyError:
+            selector = select([MSScan.__table__.c.scan_id]).where(MSScan.__table__.c.id == attribs.scan_id)
+            scan_id = session.execute(selector).fetchone()
+            scan_id_cache[attribs.scan_id] = scan_id
+
+        members = [make_memory_deconvoluted_peak(m) for m in members]
+
+        try:
+            node_type = node_type_cache[attribs.node_type_id]
+        except KeyError:
+            shift = session.query(CompoundMassShift).get(attribs.node_type_id)
+            node_type = shift.convert()
+            node_type_cache[attribs.node_type_id] = node_type
+
+        children_ids = session.query(ChromatogramTreeNodeBranch.child_id).filter(
+            ChromatogramTreeNodeBranch.parent_id == id)
+        children = [cls._convert(i, node_type_cache) for i in children_ids]
+
+        return MemoryChromatogramTreeNode(
+            attribs.retention_time, scan_id, children, members,
+            node_type)
+
+    def convert(self, node_type_cache=None, scan_id_cache=None):
         inst = MemoryChromatogramTreeNode(
             self.retention_time, self.scan.scan_id, [
                 child.convert() for child in self.children],
@@ -218,7 +261,7 @@ class ChromatogramTreeNodeBranch(Base):
     parent_id = Column(Integer, ForeignKey(ChromatogramTreeNode.id, ondelete="CASCADE"), index=True, primary_key=True)
     child_id = Column(Integer, ForeignKey(ChromatogramTreeNode.id, ondelete="CASCADE"), index=True, primary_key=True)
     child = relationship(ChromatogramTreeNode, backref=backref(
-        "_children"), foreign_keys=[child_id])
+        "_children", lazy='subquery'), foreign_keys=[child_id])
     parent = relationship(ChromatogramTreeNode, backref=backref(
         "parent"),
         foreign_keys=[parent_id])
@@ -250,11 +293,25 @@ class Chromatogram(Base, BoundToAnalysis):
     def get_chromatogram(self):
         return self.convert()
 
-    def convert(self):
-        nodes = [node.convert() for node in self.nodes]
+    def raw_convert(self, node_type_cache=None, scan_id_cache=None):
+        session = object_session(self)
+        node_ids = session.query(ChromatogramToChromatogramTreeNode.c.node_id).filter(
+            ChromatogramToChromatogramTreeNode.c.chromatogram_id == self.id).all()
+        nodes = [ChromatogramTreeNode._convert(
+            session, ni[0], node_type_cache=node_type_cache,
+            scan_id_cache=scan_id_cache) for ni in node_ids]
         nodes.sort(key=lambda x: x.retention_time)
         inst = MemoryChromatogram(None, ChromatogramTreeList(nodes))
         return inst
+
+    def orm_convert(self, *args, **kwargs):
+        nodes = [node.convert(*args, **kwargs) for node in self.nodes]
+        nodes.sort(key=lambda x: x.retention_time)
+        inst = MemoryChromatogram(None, ChromatogramTreeList(nodes))
+        return inst
+
+    def convert(self, node_type_cache=None, scan_id_cache=None):
+        return self.orm_convert(node_type_cache, scan_id_cache)
 
     @classmethod
     def serialize(cls, obj, session, analysis_id, peak_lookup_table=None, mass_shift_cache=None, scan_lookup_table=None,
@@ -361,11 +418,11 @@ class ChromatogramSolution(Base, BoundToAnalysis):
     def composition(self):
         return self.composition_group
 
-    def convert(self):
-        chromatogram = self.chromatogram.convert()
+    def convert(self, *args, **kwargs):
+        chromatogram = self.chromatogram.convert(*args, **kwargs)
         composition = self.composition_group.convert() if self.composition_group else None
         chromatogram.composition = composition
-        sol = MemoryChromatogramSolution(chromatogram, self.score)
+        sol = MemoryChromatogramSolution(chromatogram, self.score, GeneralScorer)
         return sol
 
     @classmethod
@@ -423,6 +480,7 @@ class GlycanCompositionChromatogram(Base, BoundToAnalysis):
         case = solution.chromatogram.clone(MemoryGlycanCompositionChromatogram)
         case.composition = entity
         solution.chromatogram = case
+        solution.id = self.id
         return solution
 
     @classmethod
@@ -437,6 +495,10 @@ class GlycanCompositionChromatogram(Base, BoundToAnalysis):
         session.add(inst)
         session.flush()
         return inst
+
+    @property
+    def glycan_composition(self):
+        return self.entity
 
     def __repr__(self):
         return "DB" + repr(self.convert())
@@ -455,6 +517,7 @@ class UnidentifiedChromatogram(Base, BoundToAnalysis):
 
     def convert(self):
         solution = self.solution.convert()
+        solution.id = self.id
         return solution
 
     @classmethod
@@ -472,6 +535,10 @@ class UnidentifiedChromatogram(Base, BoundToAnalysis):
 
     def __repr__(self):
         return "DBUnidentified" + repr(self.convert())
+
+    @property
+    def glycan_composition(self):
+        return None
 
 
 ChromatogramSolutionAdductedToCompositionGroup = Table(

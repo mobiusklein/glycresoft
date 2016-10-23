@@ -1,9 +1,9 @@
 from sqlalchemy.ext.declarative import declared_attr
 from sqlalchemy.ext.hybrid import hybrid_method
-from sqlalchemy.orm import relationship, backref
+from sqlalchemy.orm import relationship, backref, aliased, object_session
 from sqlalchemy import (
     Column, Numeric, Integer, String, ForeignKey,
-    Boolean, Table)
+    Boolean, Table, PrimaryKeyConstraint)
 
 from ms_deisotope.output.db import (Base)
 
@@ -27,11 +27,15 @@ class GlycanBase(object):
 
     _glycan_composition = None
 
-    @property
     def __getitem__(self, key):
         if self._glycan_composition is None:
-            self._glycan_composition = FrozenGlycanComposition.parse(self.composition)
+            self._glycan_composition = HashableGlycanComposition.parse(self.composition)
         return self._glycan_composition[key]
+
+    def keys(self):
+        if self._glycan_composition is None:
+            self._glycan_composition = HashableGlycanComposition.parse(self.composition)
+        return self._glycan_composition.keys()
 
 
 class GlycanComposition(GlycanBase, Base):
@@ -43,6 +47,13 @@ class GlycanComposition(GlycanBase, Base):
     def hypothesis_id(self):
         return Column(Integer, ForeignKey(
             GlycanHypothesis.id, ondelete="CASCADE"), index=True)
+
+    def __iter__(self):
+        return iter(self.keys())
+
+    @declared_attr
+    def hypothesis(self):
+        return relationship(GlycanHypothesis, backref=backref('glycans', lazy='dynamic'))
 
     def __repr__(self):
         return "DBGlycanComposition(%s)" % (self.composition)
@@ -66,6 +77,10 @@ class GlycanCombination(GlycanBase, Base):
         return Column(Integer, ForeignKey(
             GlycopeptideHypothesis.id, ondelete="CASCADE"), index=True)
 
+    @declared_attr
+    def hypothesis(self):
+        return relationship(GlycopeptideHypothesis, backref=backref('glycan_combinations', lazy='dynamic'))
+
     count = Column(Integer)
 
     components = relationship(
@@ -81,6 +96,13 @@ class GlycanCombination(GlycanBase, Base):
                 yield composition
                 i += 1
 
+    @property
+    def component_ids(self):
+        session = object_session(self)
+        ids = session.query(GlycanCombinationGlycanComposition.c.glycan_id).filter(
+            GlycanCombinationGlycanComposition.c.combination_id == self.id).all()
+        return [i[0] for i in ids]
+
     @hybrid_method
     def dehydrated_mass(self, water_mass=Composition("H2O").mass):
         mass = self.calculated_mass
@@ -95,14 +117,74 @@ class MonosaccharideResidue(Base):
     __tablename__ = "MonosaccharideResidue"
 
     id = Column(Integer, primary_key=True)
-    name = Column(String, index=True)
+    name = Column(String(64), index=True)
+
+    _alias_cache = dict()
+
+    @classmethod
+    def alias(cls, name):
+        try:
+            return cls._alias_cache[name]
+        except KeyError:
+            symbol = aliased(cls)
+            cls._alias_cache[name] = symbol
+            return symbol
 
 
-MonosaccharideResidueCountToGlycanComposition = Table(
-    "MonosaccharideResidueCountToGlycanComposition", Base.metadata,
+class MonosaccharideResidueSerializer(object):
+    def __init__(self, session, store=None):
+        if store is None:
+            store = {}
+        self.session = session
+        self.store = store
+
+    def _make_monosaccharide(self, name):
+        inst = MonosaccharideResidue(name=name)
+        self.session.add(inst)
+        self.session.flush()
+        return inst
+
+    def _extract_key(self, obj):
+        try:
+            return obj.name()
+        except AttributeError:
+            if obj is None:
+                return obj
+            return str(obj)
+
+    def serialize(self, obj):
+        if obj is None:
+            return obj
+        try:
+            db_obj = self.store[self._extract_key(obj)]
+            return db_obj
+        except KeyError:
+            print(obj)
+            db_obj = self._make_monosaccharide(self._extract_key(obj))
+            self.store[db_obj.name] = db_obj
+            return db_obj
+
+
+_MonosaccharideResidueCountToGlycanComposition = Table(
+    "MonosaccharideResidueToGlycanComposition", Base.metadata,
     Column("glycan_id", Integer, ForeignKey(GlycanComposition.id, ondelete='CASCADE'), primary_key=True),
     Column("monosaccharide_id", Integer, ForeignKey(MonosaccharideResidue.id, ondelete='CASCADE'), primary_key=True),
     Column("count", Integer))
+
+
+class MonosaccharideResidueCountToGlycanComposition(Base):
+    __table__ = _MonosaccharideResidueCountToGlycanComposition
+
+    _alias_cache = dict()
+
+    @classmethod
+    def alias(cls, name):
+        try:
+            return cls._alias_cache[name]
+        except KeyError:
+            symbol = aliased(cls)
+            cls._alias_cache[name] = symbol
+            return symbol
 
 
 MonosaccharideResidueCountToGlycanCombination = Table(

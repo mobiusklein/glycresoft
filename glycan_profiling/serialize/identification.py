@@ -37,7 +37,7 @@ class IdentifiedStructure(BoundToAnalysis):
         return self.chromatogram.get_chromatogram()
 
 
-class AmbiguousGlycopeptideGroup(Base):
+class AmbiguousGlycopeptideGroup(Base, BoundToAnalysis):
     __tablename__ = "AmbiguousGlycopeptideGroup"
 
     id = Column(Integer, primary_key=True)
@@ -46,8 +46,8 @@ class AmbiguousGlycopeptideGroup(Base):
         return "AmbiguousGlycopeptideGroup(%d)" % (self.id,)
 
     @classmethod
-    def serialize(cls, members, session, *args, **kwargs):
-        inst = cls()
+    def serialize(cls, members, session, analysis_id, *args, **kwargs):
+        inst = cls(analysis_id=analysis_id)
         session.add(inst)
         session.flush()
         for member in members:
@@ -88,10 +88,11 @@ class IdentifiedGlycopeptide(Base, IdentifiedStructure):
             "members", lazy='dynamic'))
 
     @classmethod
-    def serialize(cls, obj, session, chromatogram_solution_id, tandem_cluster_id, *args, **kwargs):
+    def serialize(cls, obj, session, chromatogram_solution_id, tandem_cluster_id, analysis_id, *args, **kwargs):
         inst = cls(
             chromatogram_solution_id=chromatogram_solution_id,
             spectrum_cluster_id=tandem_cluster_id,
+            analysis_id=analysis_id,
             q_value=obj.q_value,
             ms2_score=obj.ms2_score,
             ms1_score=obj.ms1_score,
@@ -100,17 +101,24 @@ class IdentifiedGlycopeptide(Base, IdentifiedStructure):
         session.flush()
         return inst
 
-    def convert(self, expand_shared_with=True):
+    def get_chromatogram(self, *args, **kwargs):
+        chromatogram = self.chromatogram.convert(*args, **kwargs)
+        chromatogram.chromatogram = chromatogram.chromatogram.clone(GlycopeptideChromatogram)
+        structure = self.structure.convert()
+        chromatogram.chromatogram.entity = structure
+        return chromatogram
+
+    def convert(self, expand_shared_with=True, *args, **kwargs):
         if expand_shared_with and self.shared_with:
             stored = list(self.shared_with)
-            converted = [x.convert(expand_shared_with=False) for x in stored]
+            converted = [x.convert(expand_shared_with=False, *args, **kwargs) for x in stored]
             for i in range(len(stored)):
                 converted[i].shared_with = converted[:i] + converted[i + 1:]
             for i, member in enumerate(stored):
                 if member.id == self.id:
                     return converted[i]
         else:
-            chromatogram = self.chromatogram.convert()
+            chromatogram = self.chromatogram.convert(*args, **kwargs)
             chromatogram.chromatogram = chromatogram.chromatogram.clone(GlycopeptideChromatogram)
             structure = self.structure.convert()
             chromatogram.chromatogram.entity = structure

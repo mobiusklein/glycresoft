@@ -9,7 +9,7 @@ import glypy
 from .glycan_visual_classification import (
     NGlycanCompositionColorizer, NGlycanCompositionOrderer,
     GlycanLabelTransformer)
-from ..chromatogram_tree import ChromatogramInterface
+from ..chromatogram_tree import ChromatogramInterface, get_chromatogram
 
 
 def split_charge_states(chromatogram):
@@ -120,10 +120,9 @@ class ChromatogramArtist(ArtistBase):
             colorizer = ColorCycler()
         if ax is None:
             fig, ax = plt.subplots(1)
-        # if not hasattr(chromatograms[0], "get_chromatogram"):
-        #     chromatograms = [chromatograms]
+
         chromatograms = self._resolve_chromatograms_from_argument(chromatograms)
-        chromatograms = [c.get_chromatogram() for c in chromatograms]
+        chromatograms = [get_chromatogram(c) for c in chromatograms]
         self.chromatograms = chromatograms
         self.minimum_ident_time = float("inf")
         self.maximum_ident_time = 0
@@ -135,7 +134,8 @@ class ChromatogramArtist(ArtistBase):
 
     def _resolve_chromatograms_from_argument(self, chromatograms):
         try:
-            if not hasattr(chromatograms[0], "get_chromatogram"):
+            # if not hasattr(chromatograms[0], "get_chromatogram"):
+            if not get_chromatogram(chromatograms[0]):
                 chromatograms = [chromatograms]
         except TypeError:
             chromatograms = [chromatograms]
@@ -169,7 +169,15 @@ class ChromatogramArtist(ArtistBase):
         if label is not None:
             self.ax.text(rt_apex, apex + 1200, label, ha='center', fontsize=10)
 
-    def draw_group(self, label, rt, heights, color, label_peak=True):
+    def draw_group(self, label, rt, heights, color, label_peak=True, chromatogram=None):
+        if chromatogram is not None:
+            try:
+                key = str(chromatogram.id)
+            except AttributeError:
+                key = str(id(chromatogram))
+        else:
+            key = str(label)
+
         s = self.ax.fill_between(
             rt,
             heights,
@@ -177,14 +185,14 @@ class ChromatogramArtist(ArtistBase):
             color=color,
             label=label
         )
-        s.set_gid(str(label) + "-area")
+        s.set_gid(key + "-area")
         if self.include_points:
             s = self.ax.scatter(
                 rt,
                 heights,
                 color=color,
                 s=1)
-            s.set_gid(str(label) + "-points")
+            s.set_gid(key + "-points")
         apex = max(heights)
         apex_ind = np.argmax(heights)
         rt_apex = rt[apex_ind]
@@ -218,7 +226,7 @@ class ChromatogramArtist(ArtistBase):
         else:
             label, label_peak = label
 
-        self.draw_group(label, rt, heights, color, label_peak)
+        self.draw_group(label, rt, heights, color, label_peak, chromatogram)
 
     def layout_axes(self, legend=True):
         self.ax.set_xlim(self.minimum_ident_time - 0.02,
@@ -261,7 +269,14 @@ class SmoothingChromatogramArtist(ChromatogramArtist):
         super(SmoothingChromatogramArtist, self).__init__(chromatograms, ax=ax, colorizer=colorizer)
         self.smoothing_factor = smoothing_factor
 
-    def draw_group(self, label, rt, heights, color, label_peak=True):
+    def draw_group(self, label, rt, heights, color, label_peak=True, chromatogram=None):
+        if chromatogram is not None:
+            try:
+                key = str(chromatogram.id)
+            except AttributeError:
+                key = str(id(chromatogram))
+        else:
+            key = str(label)
         heights = gaussian_filter1d(heights, self.smoothing_factor)
         s = self.ax.fill_between(
             rt,
@@ -270,13 +285,13 @@ class SmoothingChromatogramArtist(ChromatogramArtist):
             color=color,
             label=label
         )
-        s.set_gid(str(label) + "-area")
+        s.set_gid(key + "-area")
         s = self.ax.scatter(
             rt,
             heights,
             color=color,
             s=1)
-        s.set_gid(str(label) + "-points")
+        s.set_gid(key + "-points")
         apex = max(heights)
         apex_ind = np.argmax(heights)
         rt_apex = rt[apex_ind]
