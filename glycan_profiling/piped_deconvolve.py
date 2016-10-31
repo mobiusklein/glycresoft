@@ -9,6 +9,8 @@ import traceback
 from ms_deisotope.processor import MzMLLoader, ScanProcessor
 
 import logging
+from .task import TaskBase, log_handle
+
 
 from multiprocessing import Process, Queue
 try:
@@ -24,7 +26,6 @@ DONE = b"--NO-MORE--"
 SCAN_STATUS_GOOD = b"good"
 SCAN_STATUS_SKIP = b"skip"
 
-resampler = ms_peak_picker.scan_filter.LinearResampling(0.0001)
 savgol = ms_peak_picker.scan_filter.SavitskyGolayFilter()
 denoise = ms_peak_picker.scan_filter.FTICRBaselineRemoval(scale=2.)
 
@@ -65,13 +66,13 @@ class ScanIDYieldingProcess(Process):
                 self.queue.put((scan_id, [p.id for p in products]))
                 index += 1
                 count += 1
-            except Exception:
-                logger.exception("An error occurred while fetching scans", exc_info=True)
+            except Exception, e:
+                log_handle.error("An error occurred while fetching scans", e)
                 break
 
         if self.no_more_event is not None:
             self.no_more_event.set()
-            logger.info("All Scan IDs have been dealt. %r finished.", self)
+            log_handle.log("All Scan IDs have been dealt. %r finished." % self)
         else:
             self.queue.put(DONE)
 
@@ -229,7 +230,7 @@ class ScanTransformingProcess(Process):
         self._work_complete.set()
 
 
-class ScanCollator(object):
+class ScanCollator(TaskBase):
     def __init__(self, queue, done_event, helper_producers=None, primary_worker=None):
         if helper_producers is None:
             helper_producers = []
@@ -278,10 +279,10 @@ class ScanCollator(object):
         return scan
 
     def print_state(self):
-        logger.info("%d since last work item", self.count_since_last)
-        logger.info("Waiting Keys: %r", sorted(self.waiting.keys()))
-        logger.info("The last index handled: %r", self.last_index)
-        logger.info("Number of items waiting in the queue: %d", self.queue.qsize())
+        self.log("%d since last work item" % (self.count_since_last,))
+        self.log("Waiting Keys: %r" % (sorted(self.waiting.keys()),))
+        self.log("The last index handled: %r" % (self.last_index,))
+        self.log("Number of items waiting in the queue: %d" % (self.queue.qsize(),))
 
     def __iter__(self):
         has_more = True
@@ -306,7 +307,9 @@ class ScanCollator(object):
                 yield self.produce(scan)
             elif len(self.waiting) == 0:
                 if self.all_workers_done():
+                    self.log("All Workers Claim Done.")
                     has_something = self.consume()
+                    self.log("Checked Queue For Work: %r" % has_something)
                     if not has_something:
                         has_more = False
             else:
@@ -343,7 +346,6 @@ class ScanGeneratorBase(object):
 
 
 class ScanGenerator(ScanGeneratorBase):
-    number_of_helper_deconvoluters = 4
 
     def __init__(self, mzml_file, averagine=ms_deisotope.averagine.glycan, charge_range=(-1, -8),
                  number_of_helper_deconvoluters=4, ms1_peak_picking_args=None, msn_peak_picking_args=None,
@@ -438,25 +440,3 @@ class ScanGenerator(ScanGeneratorBase):
 
     def close(self):
         self._terminate()
-
-
-if __name__ == '__main__':
-    import sys
-    import time
-    mzml_file = sys.argv[1]
-    start_scan = sys.argv[2]
-    max_scans = 50
-
-    gen = ScanGenerator(mzml_file)
-    gen.configure_iteration(start_scan=start_scan, max_scans=max_scans)
-
-    has_output = True
-    last = time.time()
-    start_time = last
-    i = 0
-    for scan in gen:
-        now = time.time()
-        print i, scan.deconvoluted_peak_set, scan.id, scan.index, now - last
-        last = now
-        i += 1
-    print "Finished", last - start_time

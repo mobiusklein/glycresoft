@@ -15,6 +15,8 @@ from ms_deisotope.output.db import (
     FittedPeak, DeconvolutedPeak)
 from glycan_profiling.piped_deconvolve import ScanGeneratorBase
 
+from .task import log_handle
+
 
 class PeakTableIndexToggler(object):
     def __init__(self, session):
@@ -24,12 +26,24 @@ class PeakTableIndexToggler(object):
         self.deconvoluted_peak_toggle = toggle_indices(self.session, DeconvolutedPeak.__table__)
 
     def drop(self):
-        self.fitted_peak_toggle.drop()
-        self.deconvoluted_peak_toggle.drop()
+        try:
+            self.fitted_peak_toggle.drop()
+        except:
+            self.session.rollback()
+        try:
+            self.deconvoluted_peak_toggle.drop()
+        except:
+            self.session.rollback()
 
     def create(self):
-        self.fitted_peak_toggle.create()
-        self.deconvoluted_peak_toggle.create()
+        try:
+            self.fitted_peak_toggle.create()
+        except:
+            self.session.rollback()
+        try:
+            self.deconvoluted_peak_toggle.create()
+        except:
+            self.session.rollback()
 
 
 DONE = b'---NO-MORE---'
@@ -130,9 +144,9 @@ class DatabaseScanCacheHandler(ScanCacheHandlerBase):
 
     def complete(self):
         self.save()
-        print("Completing Serializer")
+        log_handle.log("Completing Serializer")
         self.serializer.complete()
-        print("Recreating Indices")
+        log_handle.log("Recreating Indices")
         self.index_controller.create()
 
     def _get_sample_run(self):
@@ -174,8 +188,6 @@ class ThreadedDatabaseScanCacheHandler(DatabaseScanCacheHandler):
                     self.serializer.session.expunge_all()
             except Empty:
                 continue
-                # self.serializer.session.commit()
-                # self.serializer.session.expunge_all()
         self.serializer.session.commit()
         self.serializer.session.expunge_all()
 

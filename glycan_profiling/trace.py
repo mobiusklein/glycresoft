@@ -78,7 +78,7 @@ class ScanSink(object):
         return self
 
     def __next__(self):
-        return self.next()
+        return self.next_scan()
 
     def next(self):
         return self.next_scan()
@@ -535,7 +535,6 @@ class ChromatogramEvaluator(object):
             except (IndexError, ValueError), e:
                 print case, e, len(case)
                 continue
-        print(base_coef, self.network)
         if base_coef != 1.0 and self.network is not None:
             NetworkScoreDistributor(solutions, self.network).distribute(base_coef, support_coef)
         return ChromatogramFilter(solutions)

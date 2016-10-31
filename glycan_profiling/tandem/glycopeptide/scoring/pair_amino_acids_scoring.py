@@ -4,6 +4,7 @@ from itertools import chain
 import math
 
 from ...spectrum_matcher_base import SpectrumMatcherBase
+from .fragment_match_map import FragmentMatchMap
 
 from glycopeptidepy.structure.fragment import IonSeries
 
@@ -99,13 +100,13 @@ class FrequencyScorer(SpectrumMatcherBase):
     def __init__(self, scan, sequence, model=None):
         super(FrequencyScorer, self).__init__(scan, sequence)
         self._score = None
-        self.solution_map = dict()
+        self.solution_map = FragmentMatchMap()
         self.glycosylated_b_ion_count = 0
         self.glycosylated_y_ion_count = 0
         self.model = model
 
     def match(self, error_tolerance=2e-5):
-        solution_map = dict()
+        solution_map = FragmentMatchMap()
         spectrum = self.spectrum
 
         n_glycosylated_b_ions = 0
@@ -115,7 +116,7 @@ class FrequencyScorer(SpectrumMatcherBase):
                 glycosylated_position |= is_glycosylated(frag)
                 peak = spectrum.has_peak(frag.mass, error_tolerance)
                 if peak:
-                    solution_map[frag] = peak
+                    solution_map.add(peak, frag)
             if glycosylated_position:
                 n_glycosylated_b_ions += 1
 
@@ -126,13 +127,13 @@ class FrequencyScorer(SpectrumMatcherBase):
                 glycosylated_position |= is_glycosylated(frag)
                 peak = spectrum.has_peak(frag.mass, error_tolerance)
                 if peak:
-                    solution_map[frag] = peak
+                    solution_map.add(peak, frag)
             if glycosylated_position:
                 n_glycosylated_y_ions += 1
         for frag in self.target.stub_fragments(extended=True):
             peak = spectrum.has_peak(frag.mass, error_tolerance)
             if peak:
-                solution_map[frag] = peak
+                solution_map.add(peak, frag)
 
         self.glycosylated_b_ion_count = n_glycosylated_b_ions
         self.glycosylated_y_ion_count = n_glycosylated_y_ions
@@ -153,7 +154,7 @@ class FrequencyScorer(SpectrumMatcherBase):
         total = self._compute_total()
         observed = 0.0
         track_site = set()
-        for frag in self.solution_map:
+        for frag in self.solution_map.fragments():
             if (frag.series == 'b') or (frag.series == 'y'):
                 position = frag.position
                 n_term, c_term = frag.flanking_amino_acids

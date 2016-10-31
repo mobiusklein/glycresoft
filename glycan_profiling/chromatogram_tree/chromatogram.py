@@ -159,7 +159,10 @@ class Chromatogram(object):
     @property
     def weighted_neutral_mass(self):
         if self._weighted_neutral_mass is None:
-            self._infer_neutral_mass()
+            try:
+                self._infer_neutral_mass()
+            except KeyError:
+                self._infer_neutral_mass(self.adducts[0])
         return self._weighted_neutral_mass
 
     def _infer_neutral_mass(self, node_type=Unmodified):
@@ -755,6 +758,9 @@ class ChromatogramWrapper(object):
         intens = np.array([node.total_intensity() for node in self])
         return rts, intens
 
+    def overlaps_in_time(self, interval):
+        return self.chromatogram.overlaps_in_time(interval)
+
     @property
     def key(self):
         return self.chromatogram.key
@@ -781,6 +787,10 @@ class ChromatogramWrapper(object):
     @property
     def entity(self):
         return self.chromatogram.entity
+
+    @entity.setter
+    def entity(self, value):
+        self.chromatogram.entity = value
 
     @property
     def glycan_composition(self):

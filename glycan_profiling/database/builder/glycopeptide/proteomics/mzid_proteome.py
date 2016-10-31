@@ -15,6 +15,10 @@ from .peptide_permutation import ProteinDigestor
 from .remove_duplicate_peptides import DeduplicatePeptides
 from .share_peptides import PeptideSharer
 
+try:
+    basestring
+except:
+    basestring = (str, bytes)
 
 logger = logging.getLogger("mzid")
 
@@ -473,7 +477,7 @@ class Proteome(DatabaseBoundOperation, TaskBase):
         else:
             result = []
             for target in self.target_proteins:
-                if isinstance(target, str):
+                if isinstance(target, basestring):
                     match = self.query(Protein.id).filter(
                         Protein.name == target,
                         Protein.hypothesis_id == self.hypothesis_id).first()
@@ -522,7 +526,7 @@ class Proteome(DatabaseBoundOperation, TaskBase):
             self.log("... Accumulating Proteins for %r" % protein)
             sharer.find_contained_peptides(protein)
             if i % 5 == 0:
-                self.log("... %0.3f%% Done" % (i / float(n),))
+                self.log("... %0.3f%% Done" % (i / float(n) * 100.,))
 
     def remove_duplicates(self):
         DeduplicatePeptides(self._original_connection, self.hypothesis_id).run()

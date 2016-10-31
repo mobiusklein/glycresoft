@@ -154,7 +154,7 @@ class GlycopeptideCache(object):
 
     def pop(self, key):
         self.key_map.pop(key)
-        self.sequence_map.pop(key.sequence)
+        self.sequence_map.pop(key.sequence, None)
 
 
 class CachingGlycopeptideParser(object):
@@ -162,10 +162,12 @@ class CachingGlycopeptideParser(object):
         self.cache = GlycopeptideCache()
         self.cache_size = cache_size
         self.lru = LRUCache()
+        self.churn = 0
 
     def _check_cache_valid(self):
         lru = self.lru
         while len(self.cache) > self.cache_size:
+            self.churn += 1
             key = lru.get_least_recently_used()
             lru.remove_node(key)
             value = self.cache.pop(key)

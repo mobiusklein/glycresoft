@@ -1,3 +1,4 @@
+
 class IdentifiedStructure(object):
     def __init__(self, structure, spectrum_matches, chromatogram, shared_with=None):
         if shared_with is None:

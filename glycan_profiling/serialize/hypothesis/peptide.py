@@ -121,6 +121,16 @@ class PeptideBase(object):
     calculated_mass = Column(Numeric(12, 6, asdecimal=False), index=True)
     formula = Column(String(128), index=True)
 
+    def __iter__(self):
+        return iter(self.convert())
+
+    def __len__(self):
+        return len(self.convert())
+
+    @property
+    def total_mass(self):
+        return self.convert().total_mass
+
 
 class Peptide(PeptideBase, Base):
     __tablename__ = 'Peptide'
@@ -137,8 +147,8 @@ class Peptide(PeptideBase, Base):
     peptide_score = Column(Numeric(12, 6, asdecimal=False), index=True)
     peptide_score_type = Column(String(56))
 
-    base_peptide_sequence = Column(String(256), index=True)
-    modified_peptide_sequence = Column(String(256), index=True)
+    base_peptide_sequence = Column(String(512), index=True)
+    modified_peptide_sequence = Column(String(512), index=True)
 
     sequence_length = Column(Integer)
 
@@ -168,7 +178,7 @@ class Glycopeptide(PeptideBase, Base):
     peptide = relationship(Peptide)
     glycan_combination = relationship(GlycanCombination)
 
-    glycopeptide_sequence = Column(String(256), index=True)
+    glycopeptide_sequence = Column(String(512), index=True)
 
     hypothesis = relationship(GlycopeptideHypothesis, backref=backref('glycopeptides', lazy='dynamic'))
 
@@ -183,6 +193,20 @@ class Glycopeptide(PeptideBase, Base):
 
     def __repr__(self):
         return "DBGlycopeptideSequence({self.glycopeptide_sequence}, {self.calculated_mass})".format(self=self)
+    _protein_relation = None
+
+    @property
+    def protein_relation(self):
+        if self._protein_relation is None:
+            peptide = self.peptide
+            self._protein_relation = PeptideProteinRelation(
+                peptide.start_position, peptide.end_position, peptide.protein_id,
+                peptide.hypothesis_id)
+        return self._protein_relation
+
+    @property
+    def glycan_composition(self):
+        return self.glycan_combination.convert()
 
 
 Glycopeptide._search_index = Index("mass_search_index", Glycopeptide.calculated_mass, Glycopeptide.hypothesis_id)

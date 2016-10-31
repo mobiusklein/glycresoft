@@ -149,16 +149,15 @@ class MassShiftSerializer(SimpleSerializerCacheBase):
 
 
 def _create_chromatogram_tree_node_branch(x):
-    print(x, x.id, x.node_type)
     return ChromatogramTreeNodeBranch(child_id=x.id)
 
 
-class ChromatogramTreeNode(Base):
+class ChromatogramTreeNode(Base, BoundToAnalysis):
     __tablename__ = "ChromatogramTreeNode"
 
     id = Column(Integer, primary_key=True, autoincrement=True)
-    node_type_id = Column(Integer, ForeignKey(CompoundMassShift.id), index=True)
-    scan_id = Column(Integer, ForeignKey(MSScan.id), index=True)
+    node_type_id = Column(Integer, ForeignKey(CompoundMassShift.id, ondelete='CASCADE'), index=True)
+    scan_id = Column(Integer, ForeignKey(MSScan.id, ondelete='CASCADE'), index=True)
     retention_time = Column(Numeric(8, 4, asdecimal=False), index=True)
     neutral_mass = Mass()
 
@@ -220,12 +219,13 @@ class ChromatogramTreeNode(Base):
         return inst
 
     @classmethod
-    def serialize(cls, obj, session, peak_lookup_table=None, mass_shift_cache=None, scan_lookup_table=None,
-                  *args, **kwargs):
+    def serialize(cls, obj, session, analysis_id, peak_lookup_table=None, mass_shift_cache=None, scan_lookup_table=None,
+                  node_peak_map=None, *args, **kwargs):
         if mass_shift_cache is None:
             mass_shift_cache = MassShiftSerializer(session)
         inst = ChromatogramTreeNode(
-            scan_id=scan_lookup_table[obj.scan_id], retention_time=obj.retention_time)
+            scan_id=scan_lookup_table[obj.scan_id], retention_time=obj.retention_time,
+            analysis_id=analysis_id)
         nt = mass_shift_cache.serialize(obj.node_type)
         inst.node_type_id = nt.id
 
@@ -234,16 +234,28 @@ class ChromatogramTreeNode(Base):
 
         if peak_lookup_table is not None:
             member_ids = []
+            blocked = 0
             for member in obj.members:
-                member_ids.append(peak_lookup_table[obj.scan_id, member])
-            session.execute(ChromatogramTreeNodeToDeconvolutedPeak.insert(), [
-                {'node_id': inst.id, 'peak_id': member_id} for member_id in member_ids])
+                peak_id = peak_lookup_table[obj.scan_id, member]
+                node_peak_key = (inst.id, peak_id)
+                if node_peak_key in node_peak_map:
+                    blocked += 1
+                    continue
+                node_peak_map[node_peak_key] = True
+                member_ids.append(peak_id)
+            if len(member_ids):
+                session.execute(ChromatogramTreeNodeToDeconvolutedPeak.insert(), [
+                    {'node_id': inst.id, 'peak_id': member_id} for member_id in member_ids])
+            elif blocked == 0:
+                raise Exception("No Peaks Saved")
 
         children = [cls.serialize(
             child, session,
+            analysis_id=analysis_id,
             peak_lookup_table=peak_lookup_table,
             mass_shift_cache=mass_shift_cache,
             scan_lookup_table=scan_lookup_table,
+            node_peak_map=node_peak_map,
             *args, **kwargs) for child in obj.children]
         branches = [
             ChromatogramTreeNodeBranch(parent_id=inst.id, child_id=child.id)
@@ -315,7 +327,7 @@ class Chromatogram(Base, BoundToAnalysis):
 
     @classmethod
     def serialize(cls, obj, session, analysis_id, peak_lookup_table=None, mass_shift_cache=None, scan_lookup_table=None,
-                  *args, **kwargs):
+                  node_peak_map=None, *args, **kwargs):
         if mass_shift_cache is None:
             mass_shift_cache = MassShiftSerializer(session)
         inst = cls(
@@ -326,19 +338,27 @@ class Chromatogram(Base, BoundToAnalysis):
         node_ids = []
         for node in obj.nodes:
             db_node = ChromatogramTreeNode.serialize(
-                node, session, peak_lookup_table, mass_shift_cache, scan_lookup_table,
-                *args, **kwargs)
+                node, session, analysis_id=analysis_id,
+                peak_lookup_table=peak_lookup_table,
+                mass_shift_cache=mass_shift_cache,
+                scan_lookup_table=scan_lookup_table,
+                node_peak_map=node_peak_map, *args, **kwargs)
             node_ids.append(db_node.id)
         session.execute(ChromatogramToChromatogramTreeNode.insert(), [
             {"chromatogram_id": inst.id, "node_id": node_id} for node_id in node_ids])
         return inst
 
-    def _total_signal_query(session):
+    def _total_signal_query(self, session):
         return session.query(
-            Chromatogram,
+            Chromatogram.id,
             func.sum(DeconvolutedPeak.intensity)).join(
             Chromatogram.nodes).join(ChromatogramTreeNode.members).group_by(
-            ChromatogramSolution.id)
+            Chromatogram.id).filter(Chromatogram.id == self.id)
+
+    @property
+    def total_signal(self):
+        session = object_session(self)
+        return self._total_signal_query(session).first()[1]
 
     def __repr__(self):
         return "DB" + repr(self.convert())
@@ -356,7 +376,7 @@ class CompositionGroup(Base, BoundToAnalysis):
     __tablename__ = "CompositionGroup"
 
     id = Column(Integer, primary_key=True)
-    composition = Column(String(128), index=True)
+    composition = Column(String(512), index=True)
 
     @classmethod
     def serialize(cls, obj, session, *args, **kwargs):
@@ -396,7 +416,7 @@ class ChromatogramSolution(Base, BoundToAnalysis):
     composition_group_id = Column(Integer, ForeignKey(
         CompositionGroup.id, ondelete='CASCADE'), index=True)
 
-    chromatogram = relationship(Chromatogram)
+    chromatogram = relationship(Chromatogram, lazy='joined')
     composition_group = relationship(CompositionGroup)
 
     def get_chromatogram(self):
@@ -427,7 +447,7 @@ class ChromatogramSolution(Base, BoundToAnalysis):
 
     @classmethod
     def serialize(cls, obj, session, analysis_id, peak_lookup_table=None, mass_shift_cache=None,
-                  scan_lookup_table=None, composition_cache=None, *args, **kwargs):
+                  scan_lookup_table=None, composition_cache=None, node_peak_map=None, *args, **kwargs):
         if mass_shift_cache is None:
             mass_shift_cache = MassShiftSerializer(session)
         if composition_cache is None:
@@ -440,19 +460,16 @@ class ChromatogramSolution(Base, BoundToAnalysis):
         chromatogram = Chromatogram.serialize(
             obj.chromatogram, session=session, analysis_id=analysis_id,
             peak_lookup_table=peak_lookup_table, mass_shift_cache=mass_shift_cache,
-            scan_lookup_table=scan_lookup_table, *args, **kwargs)
+            scan_lookup_table=scan_lookup_table, node_peak_map=node_peak_map,
+            *args, **kwargs)
         inst.chromatogram_id = chromatogram.id
         session.add(inst)
         session.flush()
         return inst
 
-    def _total_signal_query(session):
-        return session.query(
-            ChromatogramSolution,
-            func.sum(DeconvolutedPeak.intensity)).join(
-            ChromatogramSolution.chromatogram).join(
-            Chromatogram.nodes).join(ChromatogramTreeNode.members).group_by(
-            ChromatogramSolution.id)
+    @property
+    def total_signal(self):
+        return self.chromatogram.total_signal
 
     def __repr__(self):
         return "DB" + repr(self.convert())
@@ -474,6 +491,10 @@ class GlycanCompositionChromatogram(Base, BoundToAnalysis):
 
     entity = relationship(GlycanComposition)
 
+    @property
+    def total_signal(self):
+        return self.solution.total_signal
+
     def convert(self):
         entity = self.entity.convert()
         solution = self.solution.convert()
@@ -485,10 +506,12 @@ class GlycanCompositionChromatogram(Base, BoundToAnalysis):
 
     @classmethod
     def serialize(cls, obj, session, analysis_id, peak_lookup_table=None, mass_shift_cache=None,
-                  scan_lookup_table=None, composition_cache=None, *args, **kwargs):
+                  scan_lookup_table=None, composition_cache=None, node_peak_map=None, *args, **kwargs):
         solution = ChromatogramSolution.serialize(
-            obj, session, analysis_id, peak_lookup_table,
-            mass_shift_cache, scan_lookup_table, composition_cache, *args, **kwargs)
+            obj, session, analysis_id, peak_lookup_table=peak_lookup_table,
+            mass_shift_cache=mass_shift_cache, scan_lookup_table=scan_lookup_table,
+            composition_cache=composition_cache, node_peak_map=node_peak_map,
+            *args, **kwargs)
         inst = cls(
             chromatogram_solution_id=solution.id, glycan_composition_id=obj.composition.id,
             score=obj.score, analysis_id=analysis_id)
@@ -515,6 +538,10 @@ class UnidentifiedChromatogram(Base, BoundToAnalysis):
 
     solution = relationship(ChromatogramSolution)
 
+    @property
+    def total_signal(self):
+        return self.solution.total_signal
+
     def convert(self):
         solution = self.solution.convert()
         solution.id = self.id
@@ -522,10 +549,11 @@ class UnidentifiedChromatogram(Base, BoundToAnalysis):
 
     @classmethod
     def serialize(cls, obj, session, analysis_id, peak_lookup_table=None, mass_shift_cache=None,
-                  scan_lookup_table=None, composition_cache=None, *args, **kwargs):
+                  scan_lookup_table=None, composition_cache=None, node_peak_map=None, *args, **kwargs):
         solution = ChromatogramSolution.serialize(
             obj, session, analysis_id, peak_lookup_table,
-            mass_shift_cache, scan_lookup_table, composition_cache, *args, **kwargs)
+            mass_shift_cache, scan_lookup_table, composition_cache,
+            node_peak_map=node_peak_map, *args, **kwargs)
         inst = cls(
             chromatogram_solution_id=solution.id,
             score=obj.score, analysis_id=analysis_id)

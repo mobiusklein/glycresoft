@@ -170,6 +170,8 @@ class QueryComposer(object):
                 query = self.parent.root.query(*filt)
             else:
                 query = query.query(*filt)
+        if query is None:
+            return self.parent
         return query
 
     def __iter__(self):

@@ -1,3 +1,4 @@
+from collections import defaultdict
 from .ref import TargetReference, SpectrumReference
 from glypy.composition.glycan_composition import FrozenMonosaccharideResidue
 
@@ -40,6 +41,25 @@ class OxoniumIonScanner(object):
 
 
 oxonium_detector = OxoniumIonScanner()
+
+
+def group_by_precursor_mass(scans, window_size=1.5e-5):
+    scans = sorted(scans, key=lambda x: x.precursor_information.extracted_neutral_mass)
+    groups = []
+    current_group = [scans[0]]
+    last_scan = scans[0]
+    for scan in scans[1:]:
+        delta = (scan.precursor_information.extracted_neutral_mass -
+                 last_scan.precursor_information.extracted_neutral_mass
+                 ) / last_scan.precursor_information.extracted_neutral_mass
+        if delta > window_size:
+            groups.append(current_group)
+            current_group = [scan]
+        else:
+            current_group.append(scan)
+        last_scan = scan
+    groups.append(current_group)
+    return groups
 
 
 class SpectrumMatchBase(object):
@@ -241,8 +261,12 @@ class TandemClusterEvaluatorBase(object):
 
     def score_one(self, scan, precursor_error_tolerance=1e-5, *args, **kwargs):
         solutions = []
-        for structure in self.structure_database.search_mass_ppm(
-                scan.precursor_information.extracted_neutral_mass, precursor_error_tolerance):
+
+        hits = self.structure_database.search_mass_ppm(
+            scan.precursor_information.extracted_neutral_mass,
+            precursor_error_tolerance)
+
+        for structure in hits:
             result = self.evaluate(scan, structure, *args, **kwargs)
             solutions.append(result)
         out = SpectrumSolutionSet(
@@ -259,8 +283,44 @@ class TandemClusterEvaluatorBase(object):
         if simplify:
             for case in out:
                 case.simplify()
-                # case.select_top()
+                case.select_top()
         return out
 
     def evaluate(self, scan, structure, *args, **kwargs):
         raise NotImplementedError()
+
+    def score_bunch(self, scans, precursor_error_tolerance=1e-5, *args, **kwargs):
+        groups = group_by_precursor_mass(scans, precursor_error_tolerance * 1.5)
+
+        hit_to_scan = defaultdict(list)
+        scan_map = {}
+        hit_map = {}
+        for group in groups:
+            for scan in group:
+                scan_map[scan.id] = scan
+                for hit in self.structure_database.search_mass_ppm(
+                        scan.precursor_information.extracted_neutral_mass,
+                        precursor_error_tolerance):
+                    hit_to_scan[hit.id].append(scan)
+                    hit_map[hit.id] = hit
+
+        scan_solution_map = defaultdict(list)
+        for hit_id, scan_list in hit_to_scan.items():
+            hit = hit_map[hit_id]
+            solutions = []
+            for scan in scan_list:
+                match = SpectrumMatch.from_match_solution(self.evaluate(scan, hit, *args, **kwargs))
+                scan_solution_map[scan.id].append(match)
+                solutions.append(match)
+            # Assumes all matches to the same target structure share a cache
+            match.clear_caches()
+            self.reset_parser()
+
+        result_set = []
+        for scan_id, solutions in scan_solution_map.items():
+            scan = scan_map[scan_id]
+            out = SpectrumSolutionSet(scan, sorted(
+                solutions, key=lambda x: x.score, reverse=True)).threshold()
+            result_set.append(out)
+
+        return result_set

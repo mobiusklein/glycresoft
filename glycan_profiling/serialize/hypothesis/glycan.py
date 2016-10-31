@@ -58,6 +58,8 @@ class GlycanComposition(GlycanBase, Base):
     def __repr__(self):
         return "DBGlycanComposition(%s)" % (self.composition)
 
+    structure_classes = relationship("GlycanClass", secondary=lambda: GlycanCompositionToClass, lazy='dynamic')
+
 
 GlycanCombinationGlycanComposition = Table(
     "GlycanCombinationGlycanComposition", Base.metadata,
@@ -200,3 +202,17 @@ GlycanCompositionGraphEdge = Table(
     Column("terminal_id", Integer, ForeignKey(GlycanComposition.id, ondelete="CASCADE"), primary_key=True),
     Column("order", Numeric(6, 3, asdecimal=False)),
     Column('weight', Numeric(8, 4, asdecimal=False)))
+
+
+class GlycanClass(Base):
+    __tablename__ = 'GlycanClass'
+
+    id = Column(Integer, primary_key=True)
+    name = Column(String(128), index=True)
+
+
+GlycanCompositionToClass = Table(
+    "GlycanCompositionToClass", Base.metadata,
+    Column("glycan_id", Integer, ForeignKey("GlycanComposition.id", ondelete="CASCADE"), index=True),
+    Column("class_id", Integer, ForeignKey("GlycanClass.id", ondelete="CASCADE"), index=True)
+)

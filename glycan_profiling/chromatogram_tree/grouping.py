@@ -83,7 +83,6 @@ class ChromatogramForest(object):
             if peak.neutral_mass < minimum_mass or peak.intensity < minimum_intensity:
                 continue
             self.handle_peak(scan_id, peak)
-
             self.verbose = False
 
 
@@ -108,21 +107,10 @@ class ChromatogramMerger(object):
         else:
             return [self.chromatograms[j] for j in i]
 
-    def find_insertion_point(self, new_chromatogram):
+    def find_candidates(self, new_chromatogram):
         index, matched = binary_search_with_flag(
             self.chromatograms, new_chromatogram.neutral_mass, self.error_tolerance)
         return index, matched
-
-    def find_minimizing_index(self, new_chromatogram, indices):
-        best_index = None
-        best_error = float('inf')
-        for index_case in indices:
-            chroma = self[index_case]
-            err = abs(chroma.neutral_mass - new_chromatogram.neutral_mass) / new_chromatogram.neutral_mass
-            if err < best_error:
-                best_index = index_case
-                best_error = err
-        return best_index
 
     def merge_overlaps(self, new_chromatogram, chromatogram_range):
         has_merged = False
@@ -137,22 +125,26 @@ class ChromatogramMerger(object):
                 break
         return has_merged
 
+    def find_insertion_point(self, new_chromatogram):
+        return binary_search_exact(self.chromatograms, new_chromatogram.neutral_mass)
+
     def handle_new_chromatogram(self, new_chromatogram):
         if len(self) == 0:
             index = [0]
             matched = False
         else:
-            index, matched = self.find_insertion_point(new_chromatogram)
+            index, matched = self.find_candidates(new_chromatogram)
         if matched:
 
             chroma = self[index]
             has_merged = self.merge_overlaps(new_chromatogram, chroma)
             if not has_merged:
-                minimized_index = self.find_minimizing_index(new_chromatogram, index)
-                self.insert_chromatogram(new_chromatogram, [minimized_index])
+                insertion_point = self.find_insertion_point(new_chromatogram)
+                self.insert_chromatogram(new_chromatogram, [insertion_point])
         else:
             self.insert_chromatogram(new_chromatogram, index)
         self.count += 1
+        # assert is_sorted(self.chromatograms)
 
     def insert_chromatogram(self, chromatogram, index):
         if index[0] != 0:
@@ -224,7 +216,10 @@ class ChromatogramOverlapSmoother(object):
         nodes = layered_traversal(flatten_tree(self.retention_interval_tree))
         for node in nodes:
             self.aggregate_interval(node)
-        return self.solution_map[self.retention_interval_tree]
+        final = self.solution_map[self.retention_interval_tree]
+        result = ChromatogramMerger()
+        result.aggregate_chromatograms(final)
+        return list(result)
 
 
 def binary_search_with_flag(array, mass, error_tolerance=1e-5):
@@ -266,6 +261,23 @@ def binary_search_with_flag(array, mass, error_tolerance=1e-5):
             elif err < 0:
                 lo = mid
         return 0, False
+
+
+def binary_search_exact(array, mass):
+    lo = 0
+    hi = len(array)
+    while hi != lo:
+        mid = (hi + lo) / 2
+        x = array[mid]
+        err = (x.neutral_mass - mass)
+        if err == 0:
+            return mid
+        elif (hi - lo) == 1:
+            return mid
+        elif err > 0:
+            hi = mid
+        else:
+            lo = mid
 
 
 def is_sorted(mass_list):

@@ -62,12 +62,14 @@ def _get_hypothesis_id_for_glycan_composition_hypothesis(database_connection, so
     try:
         hypothesis_id = int(source)
         inst = handle.query(GlycanHypothesis).get(hypothesis_id)
-        return inst is not None
+        if inst is not None:
+            return hypothesis_id
     except TypeError:
         hypothesis_name = source
         inst = handle.query(GlycanHypothesis).filter(
             GlycanHypothesis.name == hypothesis_name).first()
-        return inst is not None
+        if inst is not None:
+            return inst.id
 
 
 @build_hypothesis.command("glycopeptide-fa")

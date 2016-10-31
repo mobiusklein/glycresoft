@@ -4,6 +4,11 @@ from glycan_profiling.serialize.hypothesis.peptide import Peptide, Protein
 from .common import GlycopeptideHypothesisSerializerBase, PeptideGlycosylator, PeptideGlycosylatingProcess
 from .proteomics import mzid_proteome
 
+try:
+    basestring
+except:
+    basestring = (str, bytes)
+
 
 class MzIdentMLGlycopeptideHypothesisSerializer(GlycopeptideHypothesisSerializerBase):
     _display_name = "MzIdentML Glycopeptide Hypothesis Serializer"
@@ -29,7 +34,7 @@ class MzIdentMLGlycopeptideHypothesisSerializer(GlycopeptideHypothesisSerializer
         else:
             result = []
             for target in self.target_proteins:
-                if isinstance(target, str):
+                if isinstance(target, basestring):
                     match = self.query(Protein.id).filter(
                         Protein.name == target,
                         Protein.hypothesis_id == self.hypothesis_id).first()

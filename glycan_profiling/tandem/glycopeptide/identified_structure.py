@@ -113,17 +113,17 @@ class SiteMap(object):
 
 class IdentifiedGlycoprotein(object):
     def __init__(self, protein, identified_glycopeptides):
-        self.protein = protein
+        self.name = protein.name
+        self.protein_sequence = protein.protein_sequence
         self.n_glycan_sequon_sites = protein.n_glycan_sequon_sites
         self.identified_glycopeptides = identified_glycopeptides
         self._site_map = SiteMap()
         self.microheterogeneity_map = defaultdict(lambda: defaultdict(float))
-
         self._map_glycopeptides_to_glycosites()
 
     @property
-    def protein_sequence(self):
-        return self.protein.protein_sequence
+    def glycosylation_sites(self):
+        return self.n_glycan_sequon_sites
 
     def _map_glycopeptides_to_glycosites(self):
         site_map = SiteMap()
@@ -150,7 +150,7 @@ class IdentifiedGlycoprotein(object):
 
     def __repr__(self):
         return "IdentifiedGlycoprotein(%s, %s)" % (
-            self.protein.name, "[%s]" % ', '.join(
+            self.name, "[%s]" % ', '.join(
                 ["%d: %d" % (k, len(v)) for k, v in sorted(self._site_map.items(), key=lambda x: x[0])]))
 
     @property

@@ -76,7 +76,7 @@ class ScanTimeBundle(object):
         return "ScanTimeBundle(%s, %0.4f)" % (self.solution, self.scan_time)
 
 
-def aggregate_by_assigned_entity(annotated_chromatograms):
+def aggregate_by_assigned_entity(annotated_chromatograms, delta_rt=0.25):
     aggregated = defaultdict(list)
     finished = []
     for chroma in annotated_chromatograms:
@@ -89,9 +89,11 @@ def aggregate_by_assigned_entity(annotated_chromatograms):
             finished.append(chroma)
     for entity, group in aggregated.items():
         out = []
+        group = sorted(group, key=lambda x: x.start_time)
         chroma = group[0]
         for obs in group[1:]:
-            if chroma.chromatogram.overlaps_in_time(obs):
+            if chroma.chromatogram.overlaps_in_time(obs) or (
+                    chroma.end_time - obs.start_time) < delta_rt:
                 chroma = chroma.merge(obs)
             else:
                 out.append(chroma)

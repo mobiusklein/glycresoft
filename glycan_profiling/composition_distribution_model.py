@@ -75,6 +75,7 @@ def power_iteration(A):
 
 
 class CompositionDistributionUpdater(object):
+    etol = 1e-6
 
     def __init__(self, network, solutions, common_weight=1.1, precision_scale=1):
         self.network = network
@@ -93,6 +94,9 @@ class CompositionDistributionUpdater(object):
         self.observations = np.array(
             [self.sol_map.get(node.composition.serialize(), 0) for node in network.nodes])
         self.iterations = 0
+
+    def index_of(self, composition):
+        return self.network[composition].index
 
     def convergence(self, pi_next, pi_last):
         d = np.abs(pi_last).sum()
@@ -115,12 +119,13 @@ class CompositionDistributionUpdater(object):
 
         self.iterations = 0
         converging = float('inf')
-        while converging > 1e-6 and self.iterations < maxiter:
+        while converging > self.etol and self.iterations < maxiter:
+            print(converging, self.iterations)
             pi_last = pi_next
             pi_next = self.update_pi(pi_last)
             self.iterations += 1
             converging = self.convergence(pi_next, pi_last)
-        if converging < 1e-6:
+        if converging < self.etol:
             print("Converged in %d iterations" % self.iterations)
         else:
             print("Failed to converge in %d iterations (%f)" % (self.iterations, converging))
@@ -149,18 +154,58 @@ class FuzzyCompositionDistributionUpdater(CompositionDistributionUpdater):
             self.adjacency_list.append(row)
             self.edge_weight_list.append(weight)
 
+    def weights_for(self, ix):
+        return self.edge_weight_list[ix]
+
+    def neighbors_for(self, ix):
+        edges = self.adjacency_list[ix]
+        return edges
+
+    def show_support(self, composition):
+        ix = self.index_of(composition)
+        return zip(self.network[self.neighbors_for(ix)], self.weights_for(ix), self.observations[self.neighbors_for(ix)])
+
+    def _compute_support2(self, pi_array, ix):
+        edges = self.adjacency_list[ix]
+
+        weights = self.edge_weight_list[ix]
+        support_pis = pi_array[edges]
+        support_obs = self.observations[edges]
+        prior = self.W[edges]
+
+        mask = support_obs > 0.4
+        weights = weights[mask]
+        support_pis = support_pis[mask]
+        support_obs = support_obs[mask]
+        prior = prior[mask]
+
+        # norm = (prior * weights).sum()
+        norm = weights.sum()
+        if norm == 0:
+            return 0
+        # return (support_pis * weights * support_obs).sum() / norm
+        return (weights * pi_array[ix] * support_obs).sum() / norm
+
     def _compute_support(self, pi_array, ix):
         edges = self.adjacency_list[ix]
 
         weights = self.edge_weight_list[ix]
         support_pis = pi_array[edges]
         support_obs = self.observations[edges]
+        prior = self.W[edges]
 
-        norm = (weights * support_obs).sum()
+        mask = support_obs > 0.4
+        weights = weights[mask]
+        support_pis = support_pis[mask]
+        support_obs = support_obs[mask]
+        prior = prior[mask]
+
+        # norm = (prior * weights).sum()
+        norm = weights.sum()
         if norm == 0:
             return 0
-
-        return (support_pis * weights * (support_obs * support_obs)).sum() / norm
+        return (support_pis * weights * support_obs).sum() / norm
+        # return (weights * pi_array[ix] * support_obs).sum() / norm
 
     def _compute_score(self, pi_array, ix):
         base = (pi_array[ix]) * (self.observations[ix])

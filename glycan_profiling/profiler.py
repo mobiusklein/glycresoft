@@ -32,13 +32,14 @@ from glycan_profiling.trace import (
 
 
 from glycan_profiling.tandem import chromatogram_mapping
+from glycan_profiling.tandem.glycopeptide.scoring.binomial_score import BinomialSpectrumMatcher
+from glycan_profiling.tandem.glycopeptide.glycopeptide_matcher import GlycopeptideDatabaseSearchIdentifier
 from glycan_profiling.tandem.glycopeptide import (
-    BinomialSpectrumMatcher, GlycopeptideDatabaseSearchIdentifier,
     identified_structure as identified_glycopeptide)
 
 
 from glycan_profiling.scan_cache import (
-    NullScanCacheHandler, DatabaseScanCacheHandler, ThreadedDatabaseScanCacheHandler,
+    NullScanCacheHandler, DatabaseScanCacheHandler,
     DatabaseScanGenerator)
 
 from glycan_profiling.task import TaskBase
@@ -214,11 +215,20 @@ class GlycopeptideLCMSMSAnalyzer(TaskBase):
 
         self.log("Saving solutions")
         self.save_solutions(gps, unassigned, extractor.peak_mapping)
+        return gps, unassigned, target_hits, decoy_hits
 
     def save_solutions(self, identified_glycopeptides, unassigned_chromatograms, peak_mapping):
         analysis_saver = AnalysisSerializer(self.database_connection, self.sample_run_id, self.analysis_name)
         analysis_saver.set_peak_lookup_table(peak_mapping)
         analysis_saver.set_analysis_type(AnalysisTypeEnum.glycopeptide_lc_msms.name)
+        analysis_saver.set_parameters({
+            "hypothesis_id": self.hypothesis_id,
+            "sample_run_id": self.sample_run_id,
+            "mass_error_tolerance": self.mass_error_tolerance,
+            "fragment_error_tolerance": self.msn_mass_error_tolerance,
+            "grouping_error_tolerance": self.grouping_error_tolerance,
+            "psm_fdr_threshold": self.psm_fdr_threshold
+        })
 
         analysis_saver.save_glycopeptide_identification_set(identified_glycopeptides)
         for chroma in unassigned_chromatograms:

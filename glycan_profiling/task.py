@@ -112,3 +112,6 @@ class TaskBase(object):
             self.status = 'completed'
         self._end(*args, **kwargs)
         return out
+
+
+log_handle = TaskBase()

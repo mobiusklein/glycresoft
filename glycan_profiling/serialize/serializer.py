@@ -30,6 +30,7 @@ class AnalysisSerializer(DatabaseBoundOperation):
         self._peak_lookup_table = None
         self._mass_shift_cache = MassShiftSerializer(session)
         self._composition_cache = CompositionGroupSerializer(session)
+        self._node_peak_map = dict()
         self._scan_id_map = self._build_scan_id_map()
 
     def __repr__(self):
@@ -37,6 +38,12 @@ class AnalysisSerializer(DatabaseBoundOperation):
 
     def set_peak_lookup_table(self, mapping):
         self._peak_lookup_table = mapping
+
+    def build_peak_lookup_table(self, minimum_mass=500):
+        peak_loader = DatabaseScanDeserializer(self._original_connection, sample_run_id=self.sample_run_id)
+        accumulated = peak_loader.ms1_peaks_above(minimum_mass)
+        peak_mapping = {x[:2]: x[2] for x in accumulated}
+        self.set_peak_lookup_table(peak_mapping)
 
     def _build_scan_id_map(self):
         return dict(self.session.query(
@@ -96,7 +103,8 @@ class AnalysisSerializer(DatabaseBoundOperation):
             peak_lookup_table=self._peak_lookup_table,
             mass_shift_cache=self._mass_shift_cache,
             composition_cache=self._composition_cache,
-            scan_lookup_table=self._scan_id_map)
+            scan_lookup_table=self._scan_id_map,
+            node_peak_map=self._node_peak_map)
         if commit:
             self.commit()
         return result
@@ -107,7 +115,8 @@ class AnalysisSerializer(DatabaseBoundOperation):
             peak_lookup_table=self._peak_lookup_table,
             mass_shift_cache=self._mass_shift_cache,
             composition_cache=self._composition_cache,
-            scan_lookup_table=self._scan_id_map)
+            scan_lookup_table=self._scan_id_map,
+            node_peak_map=self._node_peak_map)
         if commit:
             self.commit()
         return result
@@ -118,7 +127,8 @@ class AnalysisSerializer(DatabaseBoundOperation):
             peak_lookup_table=self._peak_lookup_table,
             mass_shift_cache=self._mass_shift_cache,
             composition_cache=self._composition_cache,
-            scan_lookup_table=self._scan_id_map)
+            scan_lookup_table=self._scan_id_map,
+            node_peak_map=self._node_peak_map)
         if commit:
             self.commit()
         return result

@@ -16,6 +16,7 @@ from ms_peak_picker.utils import draw_peaklist
 
 from ...spectrum_matcher_base import SpectrumMatcherBase
 from ...spectrum_annotation import annotate_matched_deconvoluted_peaks
+from .fragment_match_map import FragmentMatchMap
 from glycresoft_sqlalchemy.utils.memoize import memoize
 
 
@@ -101,7 +102,7 @@ class BinomialSpectrumMatcher(SpectrumMatcherBase):
         super(BinomialSpectrumMatcher, self).__init__(scan, sequence)
         self._sanitized_spectrum = set(self.spectrum)
         self._score = None
-        self.solution_map = dict()
+        self.solution_map = FragmentMatchMap()
         self.n_theoretical = 0
 
     @property
@@ -114,7 +115,7 @@ class BinomialSpectrumMatcher(SpectrumMatcherBase):
 
     def match(self, error_tolerance=2e-5):
         n_theoretical = 0
-        solution_map = {}
+        solution_map = FragmentMatchMap()
         spectrum = self.spectrum
         for frag in self.sequence.glycan_fragments(
                 all_series=False, allow_ambiguous=False,
@@ -123,7 +124,8 @@ class BinomialSpectrumMatcher(SpectrumMatcherBase):
             peak = spectrum.has_peak(frag.mass, error_tolerance)
             # n_theoretical += 1
             if peak:
-                solution_map[frag] = peak
+                # solution_map[frag] = peak
+                solution_map.add(peak, frag)
                 try:
                     self._sanitized_spectrum.remove(peak)
                 except KeyError:
@@ -133,27 +135,30 @@ class BinomialSpectrumMatcher(SpectrumMatcherBase):
                 n_theoretical += 1
                 peak = spectrum.has_peak(frag.mass, error_tolerance)
                 if peak:
-                    solution_map[frag] = peak
+                    # solution_map[frag] = peak
+                    solution_map.add(peak, frag)
         for frags in self.sequence.get_fragments('y'):
             for frag in frags:
                 n_theoretical += 1
                 peak = spectrum.has_peak(frag.mass, error_tolerance)
                 if peak:
-                    solution_map[frag] = peak
+                    # solution_map[frag] = peak
+                    solution_map.add(peak, frag)
         for frag in self.sequence.stub_fragments(extended=True):
             # n_theoretical += 1
             peak = spectrum.has_peak(frag.mass, error_tolerance)
             if peak:
-                solution_map[frag] = peak
+                # solution_map[frag] = peak
+                solution_map.add(peak, frag)
         self.solution_map = solution_map
         self.n_theoretical = n_theoretical
         return solution_map
 
     def _sanitize_solution_map(self):
-        san = dict(self.solution_map)
-        for k in self.solution_map:
-            if hasattr(k, 'kind') and k.kind == "oxonium_ion":
-                san.pop(k)
+        san = (self.solution_map).copy()
+        for pair in self.solution_map:
+            if pair.fragment.series == "oxonium_ion":
+                san.remove_fragment(pair.fragment)
         return san
 
     def _fragment_matched_binomial(self, match_tolerance=2e-5):
@@ -180,16 +185,25 @@ class BinomialSpectrumMatcher(SpectrumMatcherBase):
     def _binomial_score(self, match_tolerance=2e-5, *args, **kwargs):
         precursor_mass = calculate_precursor_mass(self)
 
+        solution_map = self._sanitize_solution_map()
+        n_matched = len(solution_map)
+        if n_matched == 0:
+            return 0
+
         fragment_match_component = binomial_fragments_matched(
             self.n_theoretical,
-            len(self._sanitize_solution_map()),
+            n_matched,
             match_tolerance,
             precursor_mass
         )
 
+        if fragment_match_component == 0:
+            print(self.target, fragment_match_component)
+            fragment_match_component = 1e-170
+
         intensity_component = binomial_intensity(
             self._sanitized_spectrum,
-            self._sanitize_solution_map(),
+            solution_map,
             self.n_theoretical)
 
         if intensity_component == 0:
@@ -197,7 +211,7 @@ class BinomialSpectrumMatcher(SpectrumMatcherBase):
         score = -np.log10(intensity_component) + (-np.log10(fragment_match_component))
 
         if np.isinf(score):
-            print("infinite score", intensity_component, fragment_match_component)
+            print("infinite score", self.scan, self.target, intensity_component, fragment_match_component)
 
         return score
 
@@ -206,8 +220,8 @@ class BinomialSpectrumMatcher(SpectrumMatcherBase):
         self._score = score
         return score
 
-    def annotate(self, **kwargs):
-        ax = draw_peaklist(self.spectrum, alpha=0.3, color='grey', **kwargs)
+    def annotate(self, ax=None, **kwargs):
+        ax = draw_peaklist(self.spectrum, alpha=0.3, color='grey', ax=ax, **kwargs)
         draw_peaklist(self._sanitized_spectrum, color='grey', ax=ax, alpha=0.5, **kwargs)
         annotate_matched_deconvoluted_peaks(self.solution_map.items(), ax)
         return draw_peaklist(

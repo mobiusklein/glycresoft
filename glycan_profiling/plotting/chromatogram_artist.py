@@ -228,7 +228,7 @@ class ChromatogramArtist(ArtistBase):
 
         self.draw_group(label, rt, heights, color, label_peak, chromatogram)
 
-    def layout_axes(self, legend=True):
+    def layout_axes(self, legend=True, axis_font_size=18, axis_label_font_size=24):
         self.ax.set_xlim(self.minimum_ident_time - 0.02,
                          self.maximum_ident_time + 0.02)
         self.ax.set_ylim(0, self.maximum_intensity * 1.1)
@@ -238,10 +238,10 @@ class ChromatogramArtist(ArtistBase):
         self.ax.axes.spines['top'].set_visible(False)
         self.ax.yaxis.tick_left()
         self.ax.xaxis.tick_bottom()
-        self.ax.set_xlabel("Retention Time", fontsize=28)
-        self.ax.set_ylabel("Relative Abundance", fontsize=28)
-        [t.set(fontsize=20) for t in self.ax.get_xticklabels()]
-        [t.set(fontsize=20) for t in self.ax.get_yticklabels()]
+        self.ax.set_xlabel("Retention Time", fontsize=axis_label_font_size)
+        self.ax.set_ylabel("Relative Abundance", fontsize=axis_label_font_size)
+        [t.set(fontsize=axis_font_size) for t in self.ax.get_xticklabels()]
+        [t.set(fontsize=axis_font_size) for t in self.ax.get_yticklabels()]
 
     def draw(self, filter_function=lambda x, y: False, label_function=None,
              legend=True):

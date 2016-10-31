@@ -47,8 +47,9 @@ class DiskBackedStructureDatabase(SearchableMassCollection, DatabaseBoundOperati
 
     def __reduce__(self):
         return self.__class__, (
-            self._original_connection, self.hypothesis_id, self.cache_size, self.loading_interval,
-            self.threshold_cache_total_count, self.model_type)
+            self._original_connection, self.hypothesis_id, self.cache_size,
+            self.loading_interval, self.threshold_cache_total_count,
+            self.model_type)
 
     def _upkeep_memory_intervals(self):
         n = len(self._intervals)

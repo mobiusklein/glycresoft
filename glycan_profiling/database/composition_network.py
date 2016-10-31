@@ -113,6 +113,7 @@ class CompositionGraphNode(object):
 
 
 class CompositionGraphEdge(object):
+    __slots__ = ["node1", "node2", "order", "weight", "_hash", "_str"]
 
     def __init__(self, node1, node2, order, weight=1.0):
         self.node1 = node1
@@ -121,6 +122,7 @@ class CompositionGraphEdge(object):
         self.weight = weight
         self._hash = hash((node1, node2, order))
         self._str = "(%s)" % ', '.join(map(str, (node1, node2, order)))
+
         node1.edges.add(self)
         node2.edges.add(self)
 
@@ -143,6 +145,9 @@ class CompositionGraphEdge(object):
 
     def __hash__(self):
         return self._hash
+
+    def __reduce__(self):
+        return self.__class__, (self.node1, self.node2, self.order, self.weight)
 
     def copy_for(self, node1, node2):
         return self.__class__(node1, node2, self.order, self.weight)

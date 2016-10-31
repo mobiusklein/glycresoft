@@ -60,10 +60,14 @@ class EntitySummaryBarChartArtist(ArtistBase):
     def configure_x_axis(self):
         ax = self.ax
         ax.set_xticks(self.indices + self.bar_width * 1.5)
-        font_size = max((200. / (len(self.indices) / 2.)), 3)
+        font_size = min(max((200. / (len(self.indices) / 2.)), 3), 45)
 
         ax.set_xlabel(self.xtick_labeler.label_key, fontsize=28)
         ax.set_xticklabels(tuple(self.xtick_labeler), rotation=90, ha='center', size=font_size)
+        if len(self.indices) == 1:
+            lo, hi = ax.get_xlim()
+            hi *= 2
+            ax.set_xlim(lo, hi)
 
     def draw(self, logscale=False):
         items, keys, include_classes, xtick_labeler, color, indices = self.prepare_x_args()

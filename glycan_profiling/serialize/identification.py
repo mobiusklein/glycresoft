@@ -14,6 +14,7 @@ from .hypothesis import Glycopeptide
 from glycan_profiling.tandem.glycopeptide.identified_structure import (
     IdentifiedGlycopeptide as MemoryIdentifiedGlycopeptide)
 
+from glycan_profiling.tandem.chromatogram_mapping import TandemAnnotatedChromatogram
 from glycan_profiling.chromatogram_tree import GlycopeptideChromatogram
 
 from ms_deisotope.output.db import (
@@ -31,10 +32,14 @@ class IdentifiedStructure(BoundToAnalysis):
 
     @declared_attr
     def chromatogram(self):
-        return relationship(ChromatogramSolution)
+        return relationship(ChromatogramSolution, lazy='joined')
 
     def get_chromatogram(self):
         return self.chromatogram.get_chromatogram()
+
+    @property
+    def total_signal(self):
+        return self.chromatogram.total_signal
 
 
 class AmbiguousGlycopeptideGroup(Base, BoundToAnalysis):
@@ -87,6 +92,32 @@ class IdentifiedGlycopeptide(Base, IdentifiedStructure):
         AmbiguousGlycopeptideGroup, backref=backref(
             "members", lazy='dynamic'))
 
+    @property
+    def glycan_composition(self):
+        return self.structure.glycan_composition
+
+    @property
+    def protein_relation(self):
+        return self.structure.protein_relation
+
+    @property
+    def start_position(self):
+        return self.protein_relation.start_position
+
+    @property
+    def end_position(self):
+        return self.protein_relation.end_position
+
+    def overlaps(self, other):
+        return self.protein_relation.overlaps(other.protein_relation)
+
+    def spans(self, position):
+        return position in self.protein_relation
+
+    @property
+    def spectrum_matches(self):
+        return self.spectrum_cluster.spectrum_solutions
+
     @classmethod
     def serialize(cls, obj, session, chromatogram_solution_id, tandem_cluster_id, analysis_id, *args, **kwargs):
         inst = cls(
@@ -118,12 +149,17 @@ class IdentifiedGlycopeptide(Base, IdentifiedStructure):
                 if member.id == self.id:
                     return converted[i]
         else:
+            spectrum_matches = self.spectrum_cluster.convert()
+
             chromatogram = self.chromatogram.convert(*args, **kwargs)
-            chromatogram.chromatogram = chromatogram.chromatogram.clone(GlycopeptideChromatogram)
+            chromatogram.chromatogram = TandemAnnotatedChromatogram(
+                chromatogram.chromatogram.clone(GlycopeptideChromatogram))
+            chromatogram.chromatogram.tandem_solutions.extend(spectrum_matches)
+
             structure = self.structure.convert()
             chromatogram.chromatogram.entity = structure
-            spectrum_matches = self.spectrum_cluster.convert()
             inst = MemoryIdentifiedGlycopeptide(structure, spectrum_matches, chromatogram)
+            inst.id = self.id
             return inst
 
     def __repr__(self):
