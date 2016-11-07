@@ -1,3 +1,4 @@
+from glycan_profiling.task import TaskBase
 from glycan_profiling.chromatogram_tree import ChromatogramWrapper, build_rt_interval_tree, ChromatogramFilter
 from glycan_profiling.chromatogram_tree.chromatogram import GlycopeptideChromatogram
 from collections import defaultdict, namedtuple
@@ -103,7 +104,7 @@ def aggregate_by_assigned_entity(annotated_chromatograms, delta_rt=0.25):
     return finished
 
 
-class ChromatogramMSMSMapper(object):
+class ChromatogramMSMSMapper(TaskBase):
     def __init__(self, chromatograms, error_tolerance=1e-5, scan_id_to_rt=lambda x: x):
         self.chromatograms = ChromatogramFilter(map(
             TandemAnnotatedChromatogram, chromatograms))
@@ -147,14 +148,14 @@ class ChromatogramMSMSMapper(object):
                     new_owner = candidates[best_index]
                     new_owner.add_displaced_solution(orphan.solution)
             else:
-                print("No chromatogram found for %r, (mass: %0.4f, time: %0.4f)" % (orphan, mass, time))
+                self.log("No chromatogram found for %r, q-value %0.4f (mass: %0.4f, time: %0.4f)" % (
+                    orphan, orphan.solution.q_value, mass, time))
 
     def assign_entities(self, threshold_fn=lambda x: x.q_value < 0.05, entity_chromatogram_type=None):
         if entity_chromatogram_type is None:
             entity_chromatogram_type = GlycopeptideChromatogram
         for chromatogram in self:
-            solutions = chromatogram.most_representative_solutions(
-                threshold_fn)
+            solutions = chromatogram.most_representative_solutions(threshold_fn)
             if solutions:
                 solutions = sorted(solutions, key=lambda x: x.score, reverse=True)
                 chromatogram.assign_entity(solutions[0], entity_chromatogram_type=entity_chromatogram_type)

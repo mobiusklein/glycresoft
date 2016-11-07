@@ -19,6 +19,14 @@ class FastaGlycopeptideHypothesisSerializer(GlycopeptideHypothesisSerializerBase
         self.variable_modifications = variable_modifications
         self.max_missed_cleavages = max_missed_cleavages
         self.max_glycosylation_events = max_glycosylation_events
+        self.set_parameters({
+            "fasta_file": fasta_file,
+            "enzymes": [protease],
+            "constant_modifications": constant_modifications,
+            "variable_modifications": variable_modifications,
+            "max_missed_cleavages": max_missed_cleavages,
+            "max_glycosylation_events": max_glycosylation_events
+        })
 
     def extract_proteins(self):
         for protein in ProteinFastaFileParser(self.fasta_file):
@@ -97,6 +105,7 @@ class MultipleProcessFastaGlycopeptideHypothesisSerializer(FastaGlycopeptideHypo
                 chunk_size=15000, done_event=done_event) for i in range(self.n_processes)
         ]
         peptide_ids = self.peptide_ids()
+        n = len(peptide_ids)
         i = 0
         chunk_size = 50
         for process in processes:
@@ -104,10 +113,12 @@ class MultipleProcessFastaGlycopeptideHypothesisSerializer(FastaGlycopeptideHypo
             i += chunk_size
             process.start()
 
-        while i < len(peptide_ids):
+        while i < n:
             input_queue.put(peptide_ids[i:(i + chunk_size)])
             i += chunk_size
+            self.log("... Dealt Peptides %d-%d %0.2f%%" % (i - chunk_size, i, (i / float(n)) * 100))
 
+        self.log("... All Peptides Dealt")
         done_event.set()
         for process in processes:
             process.join()

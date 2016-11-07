@@ -3,6 +3,8 @@ from glycan_profiling.serialize import (
     Peptide, Protein, DatabaseBoundOperation,
     TemplateNumberStore)
 
+from glycan_profiling.task import log_handle
+
 
 class DeduplicatePeptides(DatabaseBoundOperation):
     def __init__(self, connection, hypothesis_id):
@@ -40,16 +42,19 @@ def store_best_peptides(session, keepers):
 
 
 def remove_duplicates(session, hypothesis_id):
+    log_handle.log("... Extracting Best Peptides")
     keepers = find_best_peptides(session, hypothesis_id)
     table = store_best_peptides(session, keepers)
     ids = session.query(table.c.value)
+    log_handle.log("... Selecting ID Mask")
     q = session.query(Peptide.id).filter(
         Peptide.protein_id == Protein.id,
         Protein.hypothesis_id == hypothesis_id,
         ~Peptide.id.in_(ids.correlate(None)))
-
+    log_handle.log("... Deleting Duplicates")
     session.execute(Peptide.__table__.delete(
         Peptide.__table__.c.id.in_(q.selectable)))
     conn = session.connection()
     table.drop(conn)
+    log_handle.log("... Complete")
     session.commit()

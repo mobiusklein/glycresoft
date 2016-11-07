@@ -1,9 +1,11 @@
+from collections import Counter
 from uuid import uuid4
 from glycan_profiling.serialize.hypothesis import GlycanHypothesis
 from glycan_profiling.serialize.hypothesis.glycan import GlycanComposition as DBGlycanComposition
 from glycan_profiling.serialize import DatabaseBoundOperation
 
 from glycan_profiling.task import TaskBase
+from glycan_profiling.database.builder.base import HypothesisSerializerBase
 
 from glypy.composition import glycan_composition, composition_transform, formula
 from glypy import ReducedEnd
@@ -57,7 +59,7 @@ class GlycanTransformer(object):
         return self
 
 
-class GlycanHypothesisSerializerBase(DatabaseBoundOperation, TaskBase):
+class GlycanHypothesisSerializerBase(DatabaseBoundOperation, HypothesisSerializerBase):
     def __init__(self, database_connection, hypothesis_name=None):
         DatabaseBoundOperation.__init__(self, database_connection)
         self._hypothesis_name = hypothesis_name
@@ -78,24 +80,6 @@ class GlycanHypothesisSerializerBase(DatabaseBoundOperation, TaskBase):
 
     def _make_name(self):
         return "GlycanHypothesis-" + self.uuid
-
-    @property
-    def hypothesis(self):
-        if self._hypothesis is None:
-            self._construct_hypothesis()
-        return self._hypothesis
-
-    @property
-    def hypothesis_name(self):
-        if self._hypothesis_name is None:
-            self._construct_hypothesis()
-        return self._hypothesis_name
-
-    @property
-    def hypothesis_id(self):
-        if self._hypothesis_id is None:
-            self._construct_hypothesis()
-        return self._hypothesis_id
 
 
 class TextFileGlycanHypothesisSerializer(GlycanHypothesisSerializerBase):

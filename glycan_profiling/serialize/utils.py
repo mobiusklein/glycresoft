@@ -1,6 +1,7 @@
 import os
 from copy import copy
 from time import time
+from uuid import uuid4
 from sqlalchemy import create_engine, Table
 from sqlalchemy.exc import OperationalError, ProgrammingError
 from sqlalchemy.sql import ClauseElement
@@ -9,6 +10,8 @@ from sqlalchemy.engine.interfaces import Dialect
 
 from sqlalchemy.orm.session import object_session
 from sqlalchemy.orm.exc import UnmappedInstanceError
+
+from glycan_profiling.task import log_handle
 
 
 def get_or_create(session, model, defaults=None, **kwargs):
@@ -259,28 +262,25 @@ class toggle_indices(object):
         self.session = session
 
     def drop(self):
-        conn = self.session.connection()
         for index in self.table.indexes:
+            log_handle.log("Dropping Index %r" % index)
             try:
+                conn = self.session.connection()
                 index.drop(conn)
-            except OperationalError:
-                pass
-        try:
-            self.session.commit()
-        except:
-            pass
+                self.session.commit()
+            except (OperationalError, ProgrammingError) as e:
+                self.session.rollback()
+                log_handle.error("An error occurred during index.drop for %r" % index, exception=e)
 
     def create(self):
-        conn = self.session.connection()
         for index in self.table.indexes:
             try:
+                conn = self.session.connection()
                 index.create(conn)
-            except OperationalError:
-                pass
-        try:
-            self.session.commit()
-        except:
-            pass
+                self.session.commit()
+            except (OperationalError, ProgrammingError) as e:
+                self.session.rollback()
+                log_handle.error("An error occurred during index.create for %r" % index, exception=e)
 
 
 def temp_table(table, metdata=None):
@@ -294,7 +294,7 @@ def temp_table(table, metdata=None):
         table = table.__table__
     cols = [c.copy() for c in table.columns]
     constraints = [c.copy() for c in table.constraints]
-    return Table("TempTable_%s" % hex(int(time())), metadata, *(cols + constraints))
+    return Table("TempTable_%s" % str(uuid4()), metadata, *(cols + constraints))
 
 
 def indices(table):

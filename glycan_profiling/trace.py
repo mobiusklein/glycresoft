@@ -113,7 +113,7 @@ class Tracer(ScanSink):
         try:
             scan = self.next_scan()
             self._handle_generic_chromatograms(scan)
-        except (ValueError, IndexError), e:
+        except (ValueError, IndexError) as e:
             print(e)
             return idents, fake_scan
         for peak in scan.deconvoluted_peak_set:
@@ -168,7 +168,7 @@ class IncludeUnmatchedTracer(Tracer):
         try:
             scan = self.next_scan()
             self._handle_generic_chromatograms(scan)
-        except (ValueError, IndexError), e:
+        except (ValueError, IndexError) as e:
             print(e)
             return idents, fake_scan
         for peak in scan.deconvoluted_peak_set:
@@ -206,7 +206,7 @@ class NonAggregatingTracer(Tracer):
             try:
                 scan = self.next_scan()
                 self._handle_generic_chromatograms(scan)
-            except (ValueError, IndexError), e:
+            except (ValueError, IndexError) as e:
                 print(e)
                 return idents, fake_scan
             return idents, scan
@@ -237,7 +237,7 @@ def join_mass_shifted(chromatograms, adducts, mass_error_tolerance=1e-5):
                     add = add.merge(match, node_type=adduct)
                     add.created_at = "join_mass_shifted"
                     add.adducts.append(adduct)
-                except DuplicateNodeError, e:
+                except DuplicateNodeError as e:
                     e.original = chroma
                     e.to_add = match
                     e.accumulated = add
@@ -440,7 +440,7 @@ class ChromatogramMatcher(object):
                         add = add.merge(match, node_type=adduct)
                         add.created_at = "join_mass_shifted"
                         add.adducts.append(adduct)
-                    except DuplicateNodeError, e:
+                    except DuplicateNodeError as e:
                         e.original = chroma
                         e.to_add = match
                         e.accumulated = add
@@ -532,8 +532,7 @@ class ChromatogramEvaluator(object):
         for case in filtered:
             try:
                 solutions.append(ChromatogramSolution(case, scorer=self.scoring_model))
-            except (IndexError, ValueError), e:
-                print case, e, len(case)
+            except (IndexError, ValueError):
                 continue
         if base_coef != 1.0 and self.network is not None:
             NetworkScoreDistributor(solutions, self.network).distribute(base_coef, support_coef)

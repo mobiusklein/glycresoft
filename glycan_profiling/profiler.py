@@ -91,11 +91,14 @@ class SampleConsumer(TaskBase):
         self.sample_run = None
 
     def run(self):
+        self.log("Initializing Generator")
         self.scan_generator.configure_iteration(self.start_scan_id, self.end_scan_id)
-
+        self.log("Setting Sink")
         sink = ScanSink(self.scan_generator, self.cache_handler_type)
+        self.log("Initializing Cache")
         sink.configure_cache(self.storage_path, self.sample_name)
 
+        self.log("Begin Processing")
         for scan in sink:
             self.log("Processed %s (%f)" % (scan.id, scan.scan_time))
         self.log("Finished Recieving Scans")
@@ -122,6 +125,8 @@ class GlycanChromatogramAnalyzer(TaskBase):
         self.analysis = None
 
     def save_solutions(self, solutions, peak_mapping):
+        if self.analysis_name is None:
+            return
         analysis_saver = AnalysisSerializer(self.database_connection, self.sample_run_id, self.analysis_name)
         analysis_saver.set_peak_lookup_table(peak_mapping)
         analysis_saver.set_analysis_type(AnalysisTypeEnum.glycan_lc_ms.name)
@@ -164,7 +169,7 @@ class GlycanChromatogramAnalyzer(TaskBase):
 
 class GlycopeptideLCMSMSAnalyzer(TaskBase):
     def __init__(self, database_connection, hypothesis_id, sample_run_id,
-                 analysis_name, grouping_error_tolerance=1.5e-5, mass_error_tolerance=1e-5,
+                 analysis_name=None, grouping_error_tolerance=1.5e-5, mass_error_tolerance=1e-5,
                  msn_mass_error_tolerance=2e-5, psm_fdr_threshold=0.05, scoring_model=None):
         self.database_connection = database_connection
         self.hypothesis_id = hypothesis_id
@@ -218,6 +223,8 @@ class GlycopeptideLCMSMSAnalyzer(TaskBase):
         return gps, unassigned, target_hits, decoy_hits
 
     def save_solutions(self, identified_glycopeptides, unassigned_chromatograms, peak_mapping):
+        if self.analysis_name is None:
+            return
         analysis_saver = AnalysisSerializer(self.database_connection, self.sample_run_id, self.analysis_name)
         analysis_saver.set_peak_lookup_table(peak_mapping)
         analysis_saver.set_analysis_type(AnalysisTypeEnum.glycopeptide_lc_msms.name)
@@ -356,7 +363,7 @@ class ChromatogramProfiler(TaskBase):
         for case in filtered:
             try:
                 solutions.append(ChromatogramSolution(case, scorer=scoring_model))
-            except (IndexError, ValueError), e:
+            except (IndexError, ValueError) as e:
                 print case, e, len(case)
                 continue
 

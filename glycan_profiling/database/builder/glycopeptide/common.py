@@ -8,10 +8,11 @@ from glypy.composition import formula
 
 from glycan_profiling.serialize import DatabaseBoundOperation, func
 from glycan_profiling.serialize.hypothesis import GlycopeptideHypothesis
-from glycan_profiling.serialize.hypothesis.peptide import Glycopeptide, Peptide
+from glycan_profiling.serialize.hypothesis.peptide import Glycopeptide, Peptide, Protein
 from glycan_profiling.task import TaskBase
 
 from glycan_profiling.database.builder.glycan import glycan_combinator
+from glycan_profiling.database.builder.base import HypothesisSerializerBase
 
 from glycopeptidepy.structure.sequence import _n_glycosylation
 
@@ -30,7 +31,7 @@ def slurp(session, model, ids, flatten=True):
     return results
 
 
-class GlycopeptideHypothesisSerializerBase(DatabaseBoundOperation, TaskBase):
+class GlycopeptideHypothesisSerializerBase(DatabaseBoundOperation, HypothesisSerializerBase):
     def __init__(self, database_connection, hypothesis_name=None, glycan_hypothesis_id=None):
         DatabaseBoundOperation.__init__(self, database_connection)
         self._hypothesis_name = hypothesis_name
@@ -59,24 +60,6 @@ class GlycopeptideHypothesisSerializerBase(DatabaseBoundOperation, TaskBase):
         return "GlycopeptideHypothesis-" + self.uuid
 
     @property
-    def hypothesis(self):
-        if self._hypothesis is None:
-            self._construct_hypothesis()
-        return self._hypothesis
-
-    @property
-    def hypothesis_name(self):
-        if self._hypothesis_name is None:
-            self._construct_hypothesis()
-        return self._hypothesis_name
-
-    @property
-    def hypothesis_id(self):
-        if self._hypothesis_id is None:
-            self._construct_hypothesis()
-        return self._hypothesis_id
-
-    @property
     def glycan_hypothesis_id(self):
         if self._glycan_hypothesis_id is None:
             self._construct_hypothesis()
@@ -93,6 +76,47 @@ class GlycopeptideHypothesisSerializerBase(DatabaseBoundOperation, TaskBase):
             func.count(Glycopeptide.id)).filter(
             Glycopeptide.hypothesis_id == self.hypothesis_id).scalar()
         self.log("Generated %d glycopeptides" % count)
+
+
+class GlycopeptideHypothesisDestroyer(DatabaseBoundOperation, TaskBase):
+    def __init__(self, database_connection, hypothesis_id):
+        DatabaseBoundOperation.__init__(self, database_connection)
+        self.hypothesis_id = hypothesis_id
+
+    def delete_glycopeptides(self):
+        self.log("Delete Glycopeptides")
+        self.session.query(Glycopeptide).filter(
+            Glycopeptide.hypothesis_id == self.hypothesis_id).delete(
+            synchronize_session=False)
+        self.session.flush()
+
+    def delete_peptides(self):
+        self.log("Delete Peptides")
+        q = self.session.query(Protein.id).filter(Protein.hypothesis_id == self.hypothesis_id)
+        for protein_id, in q:
+            self.session.query(Peptide).filter(
+                Peptide.protein_id == protein_id).delete(
+                synchronize_session=False)
+            self.session.flush()
+
+    def delete_protein(self):
+        self.log("Delete Protein")
+        self.session.query(Protein).filter(Protein.hypothesis_id == self.hypothesis_id).delete(
+            synchronize_session=False)
+        self.session.flush()
+
+    def delete_hypothesis(self):
+        self.log("Delete Hypothesis")
+        self.session.query(GlycopeptideHypothesis).filter(
+            GlycopeptideHypothesis.id == self.hypothesis_id).delete()
+        self.session.flush()
+
+    def run(self):
+        self.delete_glycopeptides()
+        self.delete_peptides()
+        self.delete_protein()
+        self.delete_hypothesis()
+        self.session.commit()
 
 
 class PeptideGlycosylator(object):

@@ -64,7 +64,8 @@ class TargetDecoyInterleavingGlycopeptideMatcher(TandemClusterEvaluatorBase):
     def filter_for_oxonium_ions(self, error_tolerance=1e-5):
         keep = []
         for scan in self.tandem_cluster:
-            # ratio = oxonium_detector.gscore(scan.deconvoluted_peak_set)
+            ratio = oxonium_detector.gscore(scan.deconvoluted_peak_set)
+            scan.oxonium_score = ratio
             keep.append(scan)
         self.tandem_cluster = keep
 
@@ -261,8 +262,8 @@ class GlycopeptideDatabaseSearchIdentifier(TaskBase):
                 precursor_error_tolerance=precursor_error_tolerance,
                 simplify=simplify, *args, **kwargs)
             self.log("... Spectra Searched")
-            target_hits.extend(t)
-            decoy_hits.extend(d)
+            target_hits.extend(o for o in t if o.score > 0)
+            decoy_hits.extend(o for o in d if o.score > 0)
             if count >= limit:
                 self.log("Reached Limit. Halting.")
                 break
@@ -286,6 +287,9 @@ class GlycopeptideDatabaseSearchIdentifier(TaskBase):
                              precursor_error_tolerance=1e-5, threshold_fn=lambda x: x.q_value < 0.05,
                              entity_chromatogram_type=GlycopeptideChromatogram):
         self.log("Mapping MS/MS Identifications onto Chromatograms")
+        self.log("%d Chromatograms" % len(chromatograms))
+        if len(chromatograms) == 0:
+            self.log("No Chromatograms Extracted!")
         mapper = ChromatogramMSMSMapper(
             chromatograms, precursor_error_tolerance, self.scan_id_to_rt)
         mapper.assign_solutions_to_chromatograms(tandem_identifications)

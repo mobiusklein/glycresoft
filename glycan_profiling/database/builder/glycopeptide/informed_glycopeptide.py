@@ -1,3 +1,4 @@
+import os
 from multiprocessing import Queue, Event
 from glycan_profiling.serialize.hypothesis.peptide import Peptide, Protein
 
@@ -23,6 +24,12 @@ class MzIdentMLGlycopeptideHypothesisSerializer(GlycopeptideHypothesisSerializer
             mzid_path, self._original_connection, self.hypothesis_id, target_proteins=target_proteins)
         self.target_proteins = target_proteins
         self.max_glycosylation_events = max_glycosylation_events
+
+        self.set_parameters({
+            "mzid_file": os.path.abspath(mzid_path),
+            "target_proteins": target_proteins,
+            "max_glycosylation_events": max_glycosylation_events,
+        })
 
     def retrieve_target_protein_ids(self):
         if len(self.target_proteins) == 0:
@@ -72,6 +79,11 @@ class MzIdentMLGlycopeptideHypothesisSerializer(GlycopeptideHypothesisSerializer
     def run(self):
         self.log("Loading Proteome")
         self.proteome.load()
+        self.set_parameters({
+            "enzymes": self.proteome.enzymes,
+            "constant_modifications": self.proteome.constant_modifications,
+            "include_baseline_peptides": self.proteome.include_baseline_peptides
+        })
         self.log("Combinating Glycans")
         self.combinate_glycans(self.max_glycosylation_events)
         self.log("Building Glycopeptides")
@@ -100,16 +112,17 @@ class MultipleProcessMzIdentMLGlycopeptideHypothesisSerializer(MzIdentMLGlycopep
         ]
         peptide_ids = self.peptide_ids()
         i = 0
+        n = len(peptide_ids)
         chunk_size = 50
         for process in processes:
             input_queue.put(peptide_ids[i:(i + chunk_size)])
             i += chunk_size
             process.start()
 
-        while i < len(peptide_ids):
+        while i < n:
             input_queue.put(peptide_ids[i:(i + chunk_size)])
             i += chunk_size
-            self.log("... Dealt Peptides %d-%d" % (i - chunk_size, i))
+            self.log("... Dealt Peptides %d-%d %0.2f%%" % (i - chunk_size, i, (i / float(n)) * 100))
 
         self.log("... All Peptides Dealt")
         done_event.set()

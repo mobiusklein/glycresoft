@@ -1,5 +1,6 @@
 import re
 import logging
+from collections import defaultdict
 
 from glycopeptidepy.structure import sequence, modification, residue
 from glypy.composition import formula
@@ -33,10 +34,16 @@ PROTEOMICS_SCORE = ["PEAKS:peptideScore", "mascot:score", "PEAKS:proteinScore"]
 WHITELIST_GLYCOSITE_PTMS = [Modification("Deamidation"), Modification("HexNAc")]
 
 
+class allset(object):
+
+    def __contains__(self, x):
+        return True
+
+
 def protein_names(mzid_path, pattern=r'.*'):
     pattern = re.compile(pattern)
     parser = Parser(mzid_path, retrieve_refs=False,
-                    iterative=False, build_id_cache=False, use_index=False)
+                    iterative=True, build_id_cache=False, use_index=False)
     for protein in parser.iterfind(
             "DBSequence", retrieve_refs=False, recursive=False, iterative=True):
         name = protein['accession']
@@ -87,6 +94,100 @@ def remove_peptide_sequence_alterations(base_sequence, insert_sites, delete_site
             shift -= 1
     sequence_copy = ''.join(sequence_copy)
     return sequence_copy
+
+
+class PeptideGroup(object):
+    def __init__(self):
+        self.members = dict()
+        self.has_target_match = False
+        self._first = None
+        self._last = None
+
+    def __getitem__(self, key):
+        return self.members[key]
+
+    def __setitem__(self, key, value):
+        self.members[key] = value
+        if self._first is None:
+            self._first = value
+        self._last = value
+
+    def clear(self):
+        self.members.clear()
+        self.has_target_match = False
+        self._first = None
+        self._last = None
+
+    def _update_has_target_match(self, protein_set):
+        for key in self.members:
+            if key in protein_set:
+                return True
+        return False
+
+    def update_state(self, protein_set):
+        had = self.has_target_match
+        if not had:
+            has = self.has_target_match = self._update_has_target_match(protein_set)
+        else:
+            has = had
+        if not had and has:
+            for key in list(self.members):
+                if key not in protein_set:
+                    self.members.pop(key)
+        else:
+            if self._last.protein_id not in protein_set:
+                try:
+                    self.members.pop(self._last.protein_id)
+                except KeyError:
+                    pass
+
+    def values(self):
+        return self.members.values()
+
+    def first(self):
+        return self._first
+
+    def __nonzero__(self):
+        if self.members:
+            return True
+        else:
+            return False
+
+    def __bool__(self):
+        if self.members:
+            return True
+        else:
+            return False
+
+    def __len__(self):
+        return len(self.members)
+
+
+class PeptideCollection(object):
+    def __init__(self, protein_set):
+        self.store = defaultdict(PeptideGroup)
+        self.protein_set = protein_set
+
+    def add(self, peptide):
+        group = self.store[peptide.modified_peptide_sequence]
+        if group:
+            first = group.first()
+            if first.peptide_score < peptide.peptide_score:
+                group.clear()
+                group[peptide.protein_id] = peptide
+                self.store[peptide.modified_peptide_sequence] = group
+            elif first.peptide_score == peptide.peptide_score:
+                group[peptide.protein_id] = peptide
+        else:
+            group[peptide.protein_id] = peptide
+        group.update_state(self.protein_set)
+
+    def items(self):
+        for key, mapping in self.store.items():
+            yield key, mapping.values()
+
+    def __len__(self):
+        return sum(map(len, self.store.values()))
 
 
 class PeptideIdentification(object):
@@ -217,24 +318,69 @@ class PeptideIdentification(object):
         return "PeptideIdentification(%s, %s)" % (self.peptide_sequence, self.glycosite_candidates)
 
 
-class PeptideConverter(object):
-    def __init__(self, session, hypothesis_id, enzyme=None, constant_modifications=None,
-                 modification_translation_table=None):
+class ProteinStub(object):
+    def __init__(self, name, id, sequence, glycosylation_sites):
+        self.name = name
+        self.id = id
+        self.protein_sequence = sequence
+        self.glycosylation_sites = glycosylation_sites
+
+    @classmethod
+    def from_protein(cls, protein):
+        return cls(protein.name, protein.id, protein.protein_sequence, protein.glycosylation_sites)
+
+
+class ProteinStubLoader(object):
+    def __init__(self, session, hypothesis_id):
         self.session = session
         self.hypothesis_id = hypothesis_id
+        self.store = dict()
+
+    def _get_protein_from_db(self, protein_name):
+        protein = self.session.query(Protein).filter(
+            Protein.name == protein_name,
+            Protein.hypothesis_id == self.hypothesis_id).first()
+        return protein
+
+    def get_protein_by_name(self, protein_name):
+        try:
+            return self.store[protein_name]
+        except KeyError:
+            db_prot = self._get_protein_from_db(protein_name)
+            stub = ProteinStub.from_protein(db_prot)
+            self.store[protein_name] = stub
+            return stub
+
+    def __getitem__(self, key):
+        return self.get_protein_by_name(key)
+
+
+class PeptideConverter(object):
+    def __init__(self, session, hypothesis_id, enzyme=None, constant_modifications=None,
+                 modification_translation_table=None, protein_filter=None):
+        if protein_filter is None:
+            protein_filter = allset()
+        self.session = session
+        self.hypothesis_id = hypothesis_id
+
+        self.protein_loader = ProteinStubLoader(self.session, self.hypothesis_id)
+
         self.enzyme = enzyme
         self.constant_modifications = constant_modifications or []
         self.modification_translation_table = modification_translation_table or {}
+
+        self.peptide_grouper = PeptideCollection(protein_filter)
 
         self.accumulator = []
         self.chunk_size = 500
         self.counter = 0
 
     def get_protein(self, evidence):
-        parent_protein = self.session.query(Protein).filter(
-            Protein.name == evidence['accession'],
-            Protein.hypothesis_id == self.hypothesis_id).first()
-        return parent_protein
+        # parent_protein = self.session.query(Protein).filter(
+        #     Protein.name == evidence['accession'],
+        #     Protein.hypothesis_id == self.hypothesis_id).first()
+        # return parent_protein
+        return self.protein_loader[evidence['accession']]
 
     def sequence_starts_at(self, sequence, parent_protein):
         found = parent_protein.protein_sequence.find(sequence)
@@ -261,13 +407,11 @@ class PeptideConverter(object):
             sequence_length=end - start,
             protein_id=parent_protein.id,
             hypothesis_id=self.hypothesis_id)
-        match.protein = parent_protein
+        # match.protein = parent_protein
         glycosites = parent_sequence_aware_n_glycan_sequon_sites(
             match, parent_protein)
         match.count_glycosylation_sites = len(glycosites)
         match.n_glycosylation_sites = list(glycosites)
-        match.made = "packed"
-        match.identification = peptide_ident
         return match
 
     def copy_db_peptide(self, db_peptide):
@@ -287,8 +431,6 @@ class PeptideConverter(object):
             protein_id=db_peptide.protein_id,
             hypothesis_id=db_peptide.hypothesis_id,
             n_glycosylation_sites=db_peptide.n_glycosylation_sites)
-        dup.made = 'copied'
-        dup.identification = db_peptide
         return dup
 
     def has_occupied_glycosites(self, db_peptide):
@@ -353,13 +495,18 @@ class PeptideConverter(object):
 
     def add_to_save_queue(self, match):
         self.counter += 1
-        self.accumulator.append(match)
-        assert abs(match.calculated_mass - match.convert().mass) < 0.01, abs(
-            match.calculated_mass - match.convert().mass)
+        self.peptide_grouper.add(match)
+        # self.accumulator.append(match)
+        # assert abs(match.calculated_mass - match.convert().mass) < 0.01, abs(
+        #     match.calculated_mass - match.convert().mass)
         if len(self.accumulator) > self.chunk_size:
             self.save_accumulation()
 
     def save_accumulation(self):
+        acc = []
+        for key, group in self.peptide_grouper.items():
+            acc.extend(group)
+        self.accumulator.extend(acc)
         self.session.bulk_save_objects(self.accumulator)
         self.session.commit()
         self.accumulator = []
@@ -380,6 +527,7 @@ class Proteome(DatabaseBoundOperation, TaskBase):
         self.include_baseline_peptides = include_baseline_peptides
 
     def load_enzyme(self):
+        self.parser.reset()
         self.enzymes = list({e['name'].lower() for e in self.parser.iterfind(
             "EnzymeName", retrieve_refs=True, iterative=True)})
 
@@ -433,10 +581,14 @@ class Proteome(DatabaseBoundOperation, TaskBase):
             logger.exception("Enzyme not found.", exc_info=e)
             enzyme = None
         session = self.session
+
+        protein_filter = set(self.retrieve_target_protein_ids())
+
         peptide_converter = PeptideConverter(
             session, self.hypothesis_id, enzyme,
             self.constant_modifications,
-            self.modification_translation_table)
+            self.modification_translation_table,
+            protein_filter=protein_filter)
 
         for spectrum_identification in self.parser.iterfind(
                 "SpectrumIdentificationItem", retrieve_refs=True, iterative=True):
@@ -446,7 +598,9 @@ class Proteome(DatabaseBoundOperation, TaskBase):
                 self.log("%d spectrum matches processed." % i)
             if (peptide_converter.counter - last) > 1000:
                 last = peptide_converter.counter
-                self.log("%d peptides saved." % peptide_converter.counter)
+                self.log("%d peptides saved. %d" % (
+                    peptide_converter.counter, len(
+                        peptide_converter.peptide_grouper)))
         peptide_converter.save_accumulation()
 
     def load(self):
@@ -459,8 +613,9 @@ class Proteome(DatabaseBoundOperation, TaskBase):
         self.log("... Loading Spectrum Matches")
         self.load_spectrum_matches()
         self.log("... Sharing Common Peptides")
+        self.remove_duplicates()
         self.share_common_peptides()
-
+        self.remove_duplicates()
         if self.include_baseline_peptides:
             self.log("... Building Baseline Peptides")
             self.build_baseline_peptides()

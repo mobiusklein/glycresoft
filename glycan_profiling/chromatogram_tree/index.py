@@ -135,22 +135,6 @@ class ChromatogramFilter(object):
     def _binary_search(self, mass, error_tolerance=1e-5):
         return binary_search_with_flag(self, mass, error_tolerance)
 
-    def _sweep_find_mass(self, mass, error_tolerance=1e-5):
-        low = mass - (mass * error_tolerance)
-        high = mass + (mass * error_tolerance)
-        cases = self.mass_between(low, high)
-        if len(cases) == 0:
-            return None
-        best_index = 0
-        best_error = float('inf')
-
-        for i, case in enumerate(cases):
-            err = abs((case.neutral_mass - mass) / mass)
-            if err < best_error and err < error_tolerance:
-                best_error = err
-                best_index = i
-        return cases[best_index]
-
     def min_points(self, n=3, keep_if_msms=True):
         self.chromatograms = [c for c in self if (len(c) >= n) or c.has_msms]
         return self
@@ -201,11 +185,16 @@ class ChromatogramFilter(object):
         return self.__class__(out, sort=False)
 
     def mass_between(self, low, high):
+        n = len(self)
+        if n == 0:
+            return ChromatogramFilter([])
         low_index, flag = binary_search_with_flag(self.chromatograms, low, 1e-5)
+        low_index = max(0, min(low_index, n - 1))
         if self[low_index].neutral_mass < low:
             low_index += 1
         high_index, flag = binary_search_with_flag(self.chromatograms, high, 1e-5)
         high_index += 2
+        high_index = min(n - 1, high_index)
         if self[high_index].neutral_mass > high:
             high_index -= 1
         return ChromatogramFilter(self[low_index:high_index], sort=False)

@@ -1,5 +1,8 @@
+def weighted_average(x, w):
+    return (x * w) / w.sum()
 
-class NetworkScoreDistributor(object):
+
+class NetworkScoreDistributorBase(object):
     def __init__(self, solutions, network):
         self.solutions = solutions
         self.network = network
@@ -76,3 +79,54 @@ class NetworkScoreDistributor(object):
                     other = edge[node]
                     support += support_coef * edge.weight * other._temp_score
                 node.score = min(base + (support), 1.0)
+
+
+class NetworkScoreDistributor(NetworkScoreDistributorBase):
+
+    def update_network(self, base_coef=0.8, support_coef=0.2, iterations=1):
+        cg = self.network
+
+        for i in range(iterations):
+            if i > 0:
+                for node in cg.nodes:
+                    node._temp_score = node.score
+            else:
+                for node in cg.nodes:
+                    node._temp_score = node.internal_score
+
+            for node in cg.nodes:
+                base = node._temp_score * base_coef
+                support = 0
+                weights = 0
+                for edge in node.edges:
+                    other = edge[node]
+                    if other._temp_score < 0.2:
+                        continue
+                    support += edge.weight * other._temp_score * (1. / edge.order)
+                    weights += edge.weight * 1. / edge.order
+                if weights == 0:
+                    weights = 1.0
+                node.score = base + (support_coef * (support / weights))
+
+    def score_solution(self, solution, base_coef=0.8, support_coef=0.2):
+        sol = solution
+        base = base_coef * sol._temp_score
+        support = 0
+        weights = 0
+        if sol.glycan_composition is not None:
+            cn = self.network[sol.glycan_composition]
+            for edge in cn.edges:
+                other = edge[cn]
+                if other in self.solution_map:
+                    other_sol = self.solution_map[other]
+                    if other._temp_score < 0.2:
+                        continue
+                    support += edge.weight * other_sol._temp_score * (1. / edge.order)
+                    weights += edge.weight * 1. / edge.order
+                if weights == 0:
+                    weights = 1.0
+            sol.score = base + min(support, support_coef)
+        else:
+            sol.score = base
+        return base, support, sol.score, n_edges_matched
+

@@ -261,8 +261,10 @@ class ChromatogramTreeNode(Base, BoundToAnalysis):
             ChromatogramTreeNodeBranch(parent_id=inst.id, child_id=child.id)
             for child in children
         ]
+        assert len(branches) == len(obj.children)
         session.add_all(branches)
         session.add(inst)
+        # assert len(inst.children) == len(obj.children)
         session.flush()
         return inst
 
@@ -273,10 +275,13 @@ class ChromatogramTreeNodeBranch(Base):
     parent_id = Column(Integer, ForeignKey(ChromatogramTreeNode.id, ondelete="CASCADE"), index=True, primary_key=True)
     child_id = Column(Integer, ForeignKey(ChromatogramTreeNode.id, ondelete="CASCADE"), index=True, primary_key=True)
     child = relationship(ChromatogramTreeNode, backref=backref(
-        "_children", lazy='subquery'), foreign_keys=[child_id])
+        "parent"), foreign_keys=[child_id])
     parent = relationship(ChromatogramTreeNode, backref=backref(
-        "parent"),
+        "_children", lazy='subquery'),
         foreign_keys=[parent_id])
+
+    def __repr__(self):
+        return "ChromatogramTreeNodeBranch(%r, %r)" % (self.parent_id, self.child_id)
 
 
 ChromatogramTreeNodeToDeconvolutedPeak = Table(

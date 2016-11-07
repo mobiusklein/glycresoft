@@ -90,7 +90,8 @@ class DiskBackedStructureDatabase(SearchableMassCollection, DatabaseBoundOperati
         tree = self.make_memory_interval(mass)
         # We won't insert this node.
         if len(tree) == 0:
-            self.ignore_interval(FixedQueryInterval(mass))
+            # Ignore seems to be not-working.
+            # self.ignore_interval(FixedQueryInterval(mass))
             return tree
         node = MassIntervalNode(tree)
         nearest_interval = self._intervals.find_interval(node)

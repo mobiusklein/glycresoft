@@ -15,7 +15,7 @@ from glycan_profiling.test.test_constrained_combinatorics import FILE_SOURCE as 
 MZID_PATH = os.path.join(os.path.dirname(__name__), 'test_data', "AGP_Proteomics2.mzid")
 
 
-class NaiveGlycopeptideTests(unittest.TestCase):
+class MzIdGlycopeptideTests(unittest.TestCase):
 
     def setup_tempfile(self, source):
         file_name = tempfile.mktemp()

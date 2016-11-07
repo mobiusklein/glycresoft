@@ -1,8 +1,10 @@
 import numpy as np
 import glypy
 
+from glycan_profiling.task import TaskBase
 
 # Taken from `statsmodels.distribution`
+
 
 class StepFunction(object):
 
@@ -74,19 +76,63 @@ def power_iteration(A):
     return b
 
 
-class CompositionDistributionUpdater(object):
+class PriorBuilder(object):
+
+    def __init__(self, network):
+        self.network = network
+        self.value = np.zeros(len(network))
+
+    def bias(self, target, v):
+        ix = self.network[target].index
+        self.value[ix] += v
+        return self
+
+    def common(self, v):
+        self.value += v
+        return self
+
+    def __getitem__(self, i):
+        ix = self.network[i].index
+        return self.value[ix]
+
+
+class CompositionDistributionFit(object):
+
+    def __init__(self, pi, network):
+        self.pi = pi
+        self.network = network
+
+    def index_of(self, composition):
+        return self.network[composition].index
+
+    def __getitem__(self, composition):
+        return self.pi[self.index_of(composition)]
+
+    def __iter__(self):
+        for i in range(len(self)):
+            yield self.network[i], self.pi[i]
+
+    def __len__(self):
+        return len(self.network)
+
+    def __repr__(self):
+        return "CompositionDistributionFit()"
+
+
+class CompositionDistributionUpdater(TaskBase):
     etol = 1e-6
 
-    def __init__(self, network, solutions, common_weight=1.1, precision_scale=1):
+    def __init__(self, network, solutions, prior=0.01, common_weight=1., precision_scale=1.):
         self.network = network
         self.solutions = solutions
         self.common_weight = common_weight
         self.precision_scale = precision_scale
-        self.W = np.array([node.score for node in network.nodes]) * \
-            precision_scale + common_weight
+        if isinstance(prior, (int, float)):
+            prior = np.ones(len(network)) * prior
+        self.prior = prior * precision_scale + common_weight
 
         # Dirichlet Mean
-        self.pi0 = self.W / self.W.sum()
+        self.pi0 = self.prior / self.prior.sum()
 
         self.sol_map = {
             sol.composition: sol.score for sol in solutions if sol.composition is not None}
@@ -106,11 +152,11 @@ class CompositionDistributionUpdater(object):
     def update_pi(self, pi_array):
         pi2 = np.zeros_like(pi_array)
         total_score_pi = (self.observations * pi_array).sum()
-        total_w = ((self.W - 1).sum() + 1)
-        for i in range(len(self.W)):
-            pi2[i] = ((self.W[i] - 1) + (self.observations[i] *
-                                         pi_array[i]) / total_score_pi) / total_w
-            assert pi2[i] >= 0, (self.W[i], pi_array[i])
+        total_w = ((self.prior - 1).sum() + 1)
+        for i in range(len(self.prior)):
+            pi2[i] = ((self.prior[i] - 1) + (self.observations[i] *
+                                             pi_array[i]) / total_score_pi) / total_w
+            assert pi2[i] >= 0, (self.prior[i], pi_array[i])
         return pi2
 
     def optimize_pi(self, pi, maxiter=100, **kwargs):
@@ -120,26 +166,30 @@ class CompositionDistributionUpdater(object):
         self.iterations = 0
         converging = float('inf')
         while converging > self.etol and self.iterations < maxiter:
-            print(converging, self.iterations)
+            if self.iterations % 100 == 0:
+                self.log("%f, %d" % (converging, self.iterations))
             pi_last = pi_next
             pi_next = self.update_pi(pi_last)
             self.iterations += 1
             converging = self.convergence(pi_next, pi_last)
         if converging < self.etol:
-            print("Converged in %d iterations" % self.iterations)
+            self.log("Converged in %d iterations" % self.iterations)
         else:
-            print("Failed to converge in %d iterations (%f)" % (self.iterations, converging))
+            self.log("Failed to converge in %d iterations (%f)" %
+                     (self.iterations, converging))
 
         return pi_next
 
     def fit(self, **kwargs):
-        return self.optimize_pi(self.pi0, **kwargs)
+        return CompositionDistributionFit(
+            self.optimize_pi(self.pi0, **kwargs), self.network)
 
 
 class FuzzyCompositionDistributionUpdater(CompositionDistributionUpdater):
 
-    def __init__(self, network, solutions, common_weight=1, precision_scale=1, spread_factor=0.2):
-        super(FuzzyCompositionDistributionUpdater, self).__init__(network, solutions, common_weight, precision_scale)
+    def __init__(self, network, solutions, prior=0.01, common_weight=1, precision_scale=1, spread_factor=0.2):
+        super(FuzzyCompositionDistributionUpdater, self).__init__(
+            network, solutions, prior, common_weight, precision_scale)
         self.spread_factor = spread_factor
 
         self.adjacency_list = []
@@ -163,7 +213,9 @@ class FuzzyCompositionDistributionUpdater(CompositionDistributionUpdater):
 
     def show_support(self, composition):
         ix = self.index_of(composition)
-        return zip(self.network[self.neighbors_for(ix)], self.weights_for(ix), self.observations[self.neighbors_for(ix)])
+        return zip(self.network[self.neighbors_for(ix)],
+                   self.weights_for(ix),
+                   self.observations[self.neighbors_for(ix)])
 
     def _compute_support2(self, pi_array, ix):
         edges = self.adjacency_list[ix]
@@ -171,7 +223,7 @@ class FuzzyCompositionDistributionUpdater(CompositionDistributionUpdater):
         weights = self.edge_weight_list[ix]
         support_pis = pi_array[edges]
         support_obs = self.observations[edges]
-        prior = self.W[edges]
+        prior = self.prior[edges]
 
         mask = support_obs > 0.4
         weights = weights[mask]
@@ -192,7 +244,7 @@ class FuzzyCompositionDistributionUpdater(CompositionDistributionUpdater):
         weights = self.edge_weight_list[ix]
         support_pis = pi_array[edges]
         support_obs = self.observations[edges]
-        prior = self.W[edges]
+        prior = self.prior[edges]
 
         mask = support_obs > 0.4
         weights = weights[mask]
@@ -222,20 +274,12 @@ class FuzzyCompositionDistributionUpdater(CompositionDistributionUpdater):
         pi2 = np.zeros_like(pi_array)
         fuzzed_pi = self._compute_fuzzy_pi(pi_array)
         total_score_pi = fuzzed_pi.sum()
-        total_w = ((self.W - 1).sum() + 1)
-        for i in range(len(self.W)):
-            pi2[i] = ((self.W[i] - 1) + (fuzzed_pi[i]) / total_score_pi) / total_w
-            assert pi2[i] >= 0, (self.W[i], pi_array[i])
+        total_w = ((self.prior - 1).sum() + 1)
+        for i in range(len(self.prior)):
+            pi2[i] = ((self.prior[i] - 1) + (fuzzed_pi[i]) /
+                      total_score_pi) / total_w
+            assert pi2[i] >= 0, (self.prior[i], pi_array[i])
         return pi2
-
-
-def convert_posterior_to_network(posterior, network):
-    new = network.clone()
-    for i in range(len(new.nodes)):
-        node = new.nodes[i]
-        score = posterior[i]
-        node.score = score
-    return new
 
 
 def null_model_probability_of_shift(cases, mass_shift):
@@ -292,8 +336,8 @@ def can_gain_neuac(chromatogram):
         return False
     comp = glypy.GlycanComposition.parse(comp)
     nhexnac = comp['HexNAc']
-    nneuac = comp["Neu5Ac"]
-    return nneuac < nhexnac - 2 and nneuac < 4
+    neuac = comp["Neu5Ac"]
+    return neuac < nhexnac - 2 and neuac < 4
 
 
 def can_lose_neuac(chromatogram):
@@ -302,8 +346,8 @@ def can_lose_neuac(chromatogram):
         return False
     comp = glypy.GlycanComposition.parse(comp)
     nhexnac = comp['HexNAc']
-    nneuac = comp["Neu5Ac"]
-    return nneuac < nhexnac - 2 and nneuac > 0
+    neuac = comp["Neu5Ac"]
+    return neuac < nhexnac - 2 and neuac > 0
 
 
 def threshold(x, t=0.4):

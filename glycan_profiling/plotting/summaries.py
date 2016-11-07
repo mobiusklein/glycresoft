@@ -1,3 +1,6 @@
+from collections import OrderedDict
+from matplotlib import pyplot as plt
+
 from .chromatogram_artist import (
     SmoothingChromatogramArtist, AbundantLabeler,
     NGlycanLabelProducer, n_glycan_colorizer)
@@ -26,7 +29,8 @@ class GlycanChromatographySummaryGraphBuilder(object):
             colorizer = n_glycan_colorizer
 
         results = [sol for sol in self.solutions if sol.score > min_score and not sol.used_as_adduct]
-        chrom = SmoothingChromatogramArtist(results, ax=figax(), colorizer=colorizer).draw(label_function=label_abundant)
+        chrom = SmoothingChromatogramArtist(
+            results, ax=figax(), colorizer=colorizer).draw(label_function=label_abundant)
 
         if total_ion_chromatogram is not None:
             rt, intens = total_ion_chromatogram.as_arrays()
@@ -53,3 +57,43 @@ class GlycanChromatographySummaryGraphBuilder(object):
                                    total_ion_chromatogram, base_peak_chromatogram)
         agg = self.aggregated_abundance(min_score)
         return chrom, agg
+
+
+def breaklines(cases):
+    counts = OrderedDict()
+    counter = 0
+    ms2_score = 0
+    cases = sorted(cases, key=lambda x: x.ms2_score, reverse=True)
+    i = 0
+    for case in cases:
+        i += 1
+        if case.ms2_score == ms2_score:
+            counter += 1
+        else:
+            counts[ms2_score] = counter
+            ms2_score = case.ms2_score
+            counter += 1
+    if counts[0] == 0:
+        counts.pop(0)
+    return counts
+
+
+def plot_tapering(cases, threshold=0.05, ax=None, **kwargs):
+    plot_kwargs = {
+        "alpha": 0.5,
+        "lw": 2
+    }
+    plot_kwargs.update(kwargs)
+    counts = breaklines(cases)
+    if ax is None:
+        fig, ax = plt.subplots(1)
+
+    ax.spines['top'].set_visible(False)
+    ax.spines['right'].set_visible(False)
+    ax.xaxis.tick_bottom()
+    ax.yaxis.tick_left()
+    ax.plot(*zip(*counts.items()), **plot_kwargs)
+    ax.set_xlim(*(ax.get_xlim()[::-1]))
+    ax.set_xlabel("PSM Score Threshold", fontsize=18)
+    ax.set_ylabel("# of PSMS < Threshold", fontsize=18)
+    return ax

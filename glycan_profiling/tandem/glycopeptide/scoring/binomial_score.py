@@ -40,7 +40,9 @@ def binomial_fragments_matched(total_product_ion_count, count_product_ion_matche
 
 def median_sorted(numbers):
     n = len(numbers)
-    if n % 2 == 0:
+    if n == 0:
+        return (n - 1) / 2, 0
+    elif n % 2 == 0:
         return (n - 1) / 2, (numbers[(n - 1) / 2] + numbers[((n - 1) / 2) + 1]) / 2.
     else:
         return (n - 1) / 2, numbers[(n - 1) / 2]
@@ -187,7 +189,7 @@ class BinomialSpectrumMatcher(SpectrumMatcherBase):
 
         solution_map = self._sanitize_solution_map()
         n_matched = len(solution_map)
-        if n_matched == 0:
+        if n_matched == 0 or len(self._sanitized_spectrum) == 0:
             return 0
 
         fragment_match_component = binomial_fragments_matched(

@@ -26,24 +26,30 @@ class PeakTableIndexToggler(object):
         self.deconvoluted_peak_toggle = toggle_indices(self.session, DeconvolutedPeak.__table__)
 
     def drop(self):
+        log_handle.log("Dropping Indices")
         try:
             self.fitted_peak_toggle.drop()
-        except:
-            self.session.rollback()
+        except Exception, e:
+            log_handle.error("Error in fitted_peak_toggle.drop()", e)
         try:
             self.deconvoluted_peak_toggle.drop()
-        except:
-            self.session.rollback()
+        except Exception, e:
+            log_handle.error("Error in deconvoluted_peak_toggle.drop()", e)
+        log_handle.log("Indices Dropped")
 
     def create(self):
+        log_handle.log("Recreating Indices")
         try:
             self.fitted_peak_toggle.create()
-        except:
+        except Exception, e:
+            log_handle.error("Error in fitted_peak_toggle.create()", e)
             self.session.rollback()
         try:
             self.deconvoluted_peak_toggle.create()
-        except:
+        except Exception, e:
+            log_handle.error("Error in deconvoluted_peak_toggle.create()", e)
             self.session.rollback()
+        log_handle.log("Indices Recreated")
 
 
 DONE = b'---NO-MORE---'
@@ -110,15 +116,18 @@ class DatabaseScanCacheHandler(ScanCacheHandlerBase):
         self.serializer = DatabaseScanSerializer(connection, sample_name)
         self.commit_counter = 0
         self.index_controller = PeakTableIndexToggler(self.serializer.session)
-        self.index_controller.drop()
         super(DatabaseScanCacheHandler, self).__init__()
         logger.info("Serializing scans under %r @ %r", self.serializer.sample_run, self.serializer.engine)
+        # self.index_controller.drop()
 
     def save_bunch(self, precursor, products):
-        self.serializer.save(ScanBunch(precursor, products), commit=False)
-        self.commit_counter += 1
-        if self.commit_counter % 1000 == 0:
-            self.commit()
+        try:
+            self.serializer.save(ScanBunch(precursor, products), commit=False)
+            self.commit_counter += 1
+            if self.commit_counter % 1000 == 0:
+                self.commit()
+        except Exception, e:
+            log_handle.error("An error occured while saving scans", e)
 
     def commit(self):
         super(DatabaseScanCacheHandler, self).save()

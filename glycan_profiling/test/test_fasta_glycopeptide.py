@@ -40,7 +40,7 @@ variable_modifications = [mt[v] for v in variable_modifications]
 constant_modifications = [mt[c] for c in constant_modifications]
 
 
-class NaiveGlycopeptideTests(unittest.TestCase):
+class FastaGlycopeptideTests(unittest.TestCase):
 
     def setup_tempfile(self, source):
         file_name = tempfile.mktemp()

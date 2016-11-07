@@ -14,7 +14,8 @@ from .tandem import (
     GlycopeptideSpectrumCluster)
 
 from .identification import (
-    AmbiguousGlycopeptideGroup, IdentifiedGlycopeptide)
+    AmbiguousGlycopeptideGroup, IdentifiedGlycopeptide,
+    Glycopeptide)
 
 
 class AnalysisSerializer(DatabaseBoundOperation):
@@ -209,3 +210,16 @@ class AnalysisDeserializer(DatabaseBoundOperation):
             GlycanCompositionChromatogram.analysis_id == self.analysis_id).yield_per(100)
         chroma = [c.convert() for c in q]
         return chroma
+
+    def load_identified_glycopeptides_for_protein(self, protein_id):
+        q = self.query(IdentifiedGlycopeptide).join(Glycopeptide).filter(
+            IdentifiedGlycopeptide.analysis_id == self.analysis_id,
+            Glycopeptide.protein_id == protein_id).yield_per(100)
+        gps = [c.convert() for c in q]
+        return gps
+
+    def load_identified_glycopeptides(self):
+        q = self.query(IdentifiedGlycopeptide).join(Glycopeptide).filter(
+            IdentifiedGlycopeptide.analysis_id == self.analysis_id).yield_per(100)
+        gps = [c.convert() for c in q]
+        return gps

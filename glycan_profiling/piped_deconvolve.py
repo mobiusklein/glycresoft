@@ -66,7 +66,7 @@ class ScanIDYieldingProcess(Process):
                 self.queue.put((scan_id, [p.id for p in products]))
                 index += 1
                 count += 1
-            except Exception, e:
+            except Exception as e:
                 log_handle.error("An error occurred while fetching scans", e)
                 break
 
@@ -206,7 +206,7 @@ class ScanTransformingProcess(Process):
                 scan, priorities, product_scans = transformer.process_scan_group(scan, product_scans)
                 transformer.deconvolute_precursor_scan(scan, priorities)
                 self.send_scan(scan)
-            except Exception, e:
+            except Exception as e:
                 self.skip_scan(scan)
                 self.log_error(e, scan_id, scan, (product_scan_ids))
 
@@ -218,7 +218,7 @@ class ScanTransformingProcess(Process):
                     transformer.pick_product_scan_peaks(product_scan)
                     transformer.deconvolute_product_scan(product_scan)
                     self.send_scan(product_scan)
-                except Exception, e:
+                except Exception as e:
                     self.skip_scan(product_scan)
                     self.log_error(e, product_scan.id, product_scan, (product_scan_ids))
 
