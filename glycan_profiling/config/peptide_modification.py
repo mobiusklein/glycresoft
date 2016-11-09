@@ -36,7 +36,7 @@ def serialize_modification_target(target):
     else:
         for aa in target.amino_acid_targets:
             payloads.append({
-                "site": aa,
+                "site": str(aa),
                 "position": position_map[target.position_modifier]
             })
         return payloads

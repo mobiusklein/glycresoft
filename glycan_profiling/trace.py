@@ -463,7 +463,7 @@ class ChromatogramMatcher(object):
             last = disjoint_set[0]
             for case in disjoint_set[1:]:
                 if last.overlaps_in_time(case):
-                    last = last.merge(case)
+                    last = last._merge_missing_only(case)
                     last.created_at = "join_common_identities"
                 else:
                     accumulated.append(last)
@@ -482,6 +482,7 @@ class ChromatogramMatcher(object):
         matches = self.join_common_identities(matches)
         matches = self.join_mass_shifted(matches, adducts, mass_error_tolerance)
         matches = self.reverse_adduct_search(matches, adducts, mass_error_tolerance)
+        matches = self.join_common_identities(matches)
         return matches
 
 

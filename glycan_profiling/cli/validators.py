@@ -141,7 +141,7 @@ def validate_reduction(context, reduction_string):
         if reduction_string in named_reductions:
             return True
         else:
-            if len(Composition(reduction_string)) > 0:
+            if len(Composition(str(reduction_string))) > 0:
                 return True
     except:
         click.secho("Could not validate reduction '%s'" % reduction_string)

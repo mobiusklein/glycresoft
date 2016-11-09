@@ -17,7 +17,7 @@ from ms_peak_picker.utils import draw_peaklist
 from ...spectrum_matcher_base import SpectrumMatcherBase
 from ...spectrum_annotation import annotate_matched_deconvoluted_peaks
 from .fragment_match_map import FragmentMatchMap
-from glycresoft_sqlalchemy.utils.memoize import memoize
+from glycopeptidepy.utils.memoize import memoize
 
 
 @memoize(10000)

@@ -7,7 +7,7 @@ except:
 
 import numpy as np
 
-from .shape_fitter import ChromatogramShapeFitter
+from .shape_fitter import ChromatogramShapeFitter, AdaptiveMultimodalChromatogramShapeFitter
 from .spacing_fitter import ChromatogramSpacingFitter
 from .charge_state import UniformChargeStateScoringModel
 from .isotopic_fit import IsotopicPatternConsistencyFitter
@@ -47,7 +47,7 @@ class DummyScorer(object):
 
 
 class ChromatogramScorer(object):
-    def __init__(self, shape_fitter_type=ChromatogramShapeFitter,
+    def __init__(self, shape_fitter_type=AdaptiveMultimodalChromatogramShapeFitter,
                  isotopic_fitter_type=IsotopicPatternConsistencyFitter,
                  charge_scoring_model=UniformChargeStateScoringModel(),
                  spacing_fitter_type=ChromatogramSpacingFitter):
@@ -142,10 +142,13 @@ class CompositionDispatchScorer(object):
 class ChromatogramSolution(object):
     _temp_score = 0.0
 
-    def __init__(self, chromatogram, score=None, scorer=ChromatogramScorer()):
+    def __init__(self, chromatogram, score=None, scorer=ChromatogramScorer(), internal_score=None):
+        if internal_score is None:
+            internal_score = score
         self.chromatogram = chromatogram
         self.scorer = scorer
-        self.internal_score = self.score = score
+        self.internal_score = internal_score
+        self.score = score
 
         if score is None:
             self.compute_score()
@@ -170,6 +173,10 @@ class ChromatogramSolution(object):
 
     def get_chromatogram(self):
         return self.chromatogram
+
+    def clone(self):
+        data = self.chromatogram.clone()
+        return self.__class__(data, self.score, self.scorer, self.internal_score)
 
     def __repr__(self):
         return "ChromatogramSolution(%s, %0.4f, %d, %0.4f)" % (

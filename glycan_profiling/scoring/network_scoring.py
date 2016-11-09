@@ -1,6 +1,3 @@
-def weighted_average(x, w):
-    return (x * w) / w.sum()
-
 
 class NetworkScoreDistributorBase(object):
     def __init__(self, solutions, network):
@@ -23,31 +20,6 @@ class NetworkScoreDistributorBase(object):
             for sol in items:
                 sol._temp_score = sol.internal_score
 
-    def score_solution(self, solution, base_coef=0.8, support_coef=0.2):
-        sol = solution
-        base = base_coef * sol._temp_score
-        support = 0
-        n_edges_matched = 0
-        if sol.glycan_composition is not None:
-            cn = self.network[sol.glycan_composition]
-            for edge in cn.edges:
-                other = edge[cn]
-                if other in self.solution_map:
-                    n_edges_matched += 1
-                    other_sol = self.solution_map[other]
-                    support += support_coef * edge.weight * other_sol._temp_score
-            sol.score = base + min(support, support_coef)
-        else:
-            sol.score = base
-        return base, support, sol.score, n_edges_matched
-
-    def distribute(self, base_coef=0.8, support_coef=0.2, iterations=1):
-        self.build_solution_map()
-        for i in range(iterations):
-            self._set_up_temporary_score(self.solutions, i)
-            for sol in self.solutions:
-                self.score_solution(sol, base_coef, support_coef)
-
     def assign_network(self):
         solution_map = self.build_solution_map()
 
@@ -59,7 +31,7 @@ class NetworkScoreDistributorBase(object):
 
         for composition, solution in solution_map.items():
             node = cg[composition]
-            node.internal_score = solution.score
+            node._temp_score = node.internal_score = solution.internal_score
 
     def update_network(self, base_coef=0.8, support_coef=0.2, iterations=1):
         cg = self.network
@@ -73,60 +45,50 @@ class NetworkScoreDistributorBase(object):
                     node._temp_score = node.internal_score
 
             for node in cg.nodes:
-                base = node._temp_score * base_coef
-                support = 0
-                for edge in node.edges:
-                    other = edge[node]
-                    support += support_coef * edge.weight * other._temp_score
-                node.score = min(base + (support), 1.0)
+                node.score = self.compute_support(node, base_coef, support_coef)
+
+    def compute_support(self, node, base_coef=0.8, support_coef=0.2, verbose=False):
+        base = node._temp_score * base_coef
+        support = 0
+        n_edges = 0.
+        for edge in node.edges:
+            other = edge[node]
+            if other._temp_score < 0.5:
+                continue
+            support += support_coef * edge.weight * other._temp_score
+            n_edges += edge.weight
+            if verbose:
+                print(other._temp_score, support)
+        return min(base + (support / n_edges), 1.0)
+
+    def update_solutions(self):
+        for node in self.network:
+            if node.glycan_composition in self.solution_map:
+                sol = self.solution_map[node.glycan_composition]
+                sol.score = node.score
+
+    def distribute(self, base_coef=0.8, support_coef=0.2):
+        self.build_solution_map()
+        self.assign_network()
+        self.update_network(base_coef, support_coef)
+        self.update_solutions()
 
 
 class NetworkScoreDistributor(NetworkScoreDistributorBase):
 
-    def update_network(self, base_coef=0.8, support_coef=0.2, iterations=1):
-        cg = self.network
-
-        for i in range(iterations):
-            if i > 0:
-                for node in cg.nodes:
-                    node._temp_score = node.score
-            else:
-                for node in cg.nodes:
-                    node._temp_score = node.internal_score
-
-            for node in cg.nodes:
-                base = node._temp_score * base_coef
-                support = 0
-                weights = 0
-                for edge in node.edges:
-                    other = edge[node]
-                    if other._temp_score < 0.2:
-                        continue
-                    support += edge.weight * other._temp_score * (1. / edge.order)
-                    weights += edge.weight * 1. / edge.order
-                if weights == 0:
-                    weights = 1.0
-                node.score = base + (support_coef * (support / weights))
-
-    def score_solution(self, solution, base_coef=0.8, support_coef=0.2):
-        sol = solution
-        base = base_coef * sol._temp_score
+    def compute_support(self, node, base_coef=0.8, support_coef=0.2, verbose=False):
+        base = node._temp_score * base_coef
         support = 0
         weights = 0
-        if sol.glycan_composition is not None:
-            cn = self.network[sol.glycan_composition]
-            for edge in cn.edges:
-                other = edge[cn]
-                if other in self.solution_map:
-                    other_sol = self.solution_map[other]
-                    if other._temp_score < 0.2:
-                        continue
-                    support += edge.weight * other_sol._temp_score * (1. / edge.order)
-                    weights += edge.weight * 1. / edge.order
-                if weights == 0:
-                    weights = 1.0
-            sol.score = base + min(support, support_coef)
-        else:
-            sol.score = base
-        return base, support, sol.score, n_edges_matched
-
+        for edge in node.edges:
+            other = edge[node]
+            if other._temp_score < 0.5:
+                continue
+            distance = 1. / edge.order
+            support += edge.weight * (other._temp_score ** 2 * 10)
+            weights += edge.weight * distance * 7.
+            if verbose:
+                print(other._temp_score, support, weights)
+        if weights == 0:
+            weights = 1.0
+        return min(base + (support_coef * (support / weights)), 1.0)

@@ -167,9 +167,9 @@ class TargetDecoyAnalyzer(object):
         return percent_incorrect_targets * self.target_decoy_ratio(cutoff)[0]
 
     def _calculate_q_values(self):
-        thresholds = self.thresholds
+        thresholds = sorted(self.thresholds, reverse=True)
         mapping = {}
-        last_score = 1
+        last_score = float('inf')
         last_q_value = 0
         for threshold in thresholds:
             try:

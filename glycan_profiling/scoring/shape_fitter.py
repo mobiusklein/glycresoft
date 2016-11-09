@@ -314,7 +314,7 @@ class MultimodalChromatogramShapeFitter(ChromatogramShapeFitterBase):
 class AdaptiveMultimodalChromatogramShapeFitter(ChromatogramShapeFitterBase):
     def __init__(self, chromatogram, max_peaks=5, smooth=True, fitters=None):
         if fitters is None:
-            fitters = (BiGaussianModel(), PenalizedSkewedGaussianModel(), SkewedGaussianModel())
+            fitters = (BiGaussianModel(), PenalizedSkewedGaussianModel(),)
         super(AdaptiveMultimodalChromatogramShapeFitter, self).__init__(
             chromatogram, smooth=smooth, fitter=fitters[0])
         self.max_peaks = max_peaks
@@ -344,7 +344,7 @@ class AdaptiveMultimodalChromatogramShapeFitter(ChromatogramShapeFitterBase):
 
     def peak_shape_fit(self):
         for fitter in self.fitters:
-            model_fit = MultimodalChromatogramShapeFitter(
+            model_fit = ProfileSplittingMultimodalChromatogramShapeFitter(
                 self.chromatogram, self.max_peaks, self.smooth, fitter=fitter)
             self.alternative_fits.append(model_fit)
         self.best_fit = min(self.alternative_fits, key=lambda x: x.line_test)

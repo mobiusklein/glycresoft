@@ -1,10 +1,10 @@
 from glycan_profiling.cli import (
-    base, build_db, inspect, mzml, analyze)
+    base, build_db, inspect, mzml, analyze, config)
 
 try:
     from glycresoft_app import server
-except ImportError, e:
-    print(e)
+except ImportError:
+    pass
 
 main = base.cli.main
 

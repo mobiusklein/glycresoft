@@ -12,10 +12,11 @@ except ImportError:
 
 from ms_deisotope.output.db import (
     DatabaseScanSerializer, ScanBunch, DatabaseScanDeserializer,
-    FittedPeak, DeconvolutedPeak)
+    FittedPeak, DeconvolutedPeak, DatabaseBoundOperation,
+    MSScan)
 from glycan_profiling.piped_deconvolve import ScanGeneratorBase
 
-from .task import log_handle
+from .task import log_handle, TaskBase
 
 
 class PeakTableIndexToggler(object):
@@ -155,8 +156,7 @@ class DatabaseScanCacheHandler(ScanCacheHandlerBase):
         self.save()
         log_handle.log("Completing Serializer")
         self.serializer.complete()
-        log_handle.log("Recreating Indices")
-        self.index_controller.create()
+        # self.index_controller.create()
 
     def _get_sample_run(self):
         return self.serializer.sample_run
@@ -259,3 +259,27 @@ class DatabaseScanGenerator(ScanGeneratorBase):
 
     def convert_scan_id_to_retention_time(self, scan_id):
         return self.deserializer.convert_scan_id_to_retention_time(scan_id)
+
+
+class SampleRunDestroyer(DatabaseBoundOperation, TaskBase):
+    def __init__(self, database_connection, sample_run_id):
+        DatabaseBoundOperation.__init__(self, database_connection)
+        self.sample_run_id = sample_run_id
+
+    def delete_fitted_peaks(self):
+        for ms_scan_id in self.session.query(MSScan.id).filter(MSScan.sample_run_id == self.sample_run_id):
+            self.log("Clearing Fitted Peaks for %s" % ms_scan_id[0])
+            self.session.query(FittedPeak).filter(FittedPeak.scan_id == ms_scan_id[0]).delete(
+                synchronize_session=False)
+            self.session.flush()
+
+    def delete_deconvoluted_peaks(self):
+        i = 0
+        for ms_scan_id in self.session.query(MSScan.id).filter(MSScan.sample_run_id == self.sample_run_id):
+            self.log("Clearing Deconvoluted Peaks for %s" % ms_scan_id[0])
+            self.session.query(DeconvolutedPeak).filter(DeconvolutedPeak.scan_id == ms_scan_id[0]).delete(
+                synchronize_session=False)
+            i += 1
+            if i % 100 == 0:
+                self.session.flush()
+        self.session.flush()

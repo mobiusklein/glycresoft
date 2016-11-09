@@ -410,12 +410,16 @@ class CompositionGroupSerializer(SimpleSerializerCacheBase):
     _model_class = CompositionGroup
 
 
-class ChromatogramSolution(Base, BoundToAnalysis):
+class ScoredChromatogram(object):
+    score = Column(Numeric(8, 7, asdecimal=False), index=True)
+    internal_score = Column(Numeric(8, 7, asdecimal=False))
+
+
+class ChromatogramSolution(Base, BoundToAnalysis, ScoredChromatogram):
     __tablename__ = "ChromatogramSolution"
 
     id = Column(Integer, primary_key=True)
 
-    score = Column(Numeric(8, 7, asdecimal=False), index=True)
     chromatogram_id = Column(Integer, ForeignKey(
         Chromatogram.id, ondelete='CASCADE'), index=True)
     composition_group_id = Column(Integer, ForeignKey(
@@ -447,7 +451,7 @@ class ChromatogramSolution(Base, BoundToAnalysis):
         chromatogram = self.chromatogram.convert(*args, **kwargs)
         composition = self.composition_group.convert() if self.composition_group else None
         chromatogram.composition = composition
-        sol = MemoryChromatogramSolution(chromatogram, self.score, GeneralScorer)
+        sol = MemoryChromatogramSolution(chromatogram, self.score, GeneralScorer, self.internal_score)
         return sol
 
     @classmethod
@@ -461,7 +465,8 @@ class ChromatogramSolution(Base, BoundToAnalysis):
         composition_group_id = db_composition_group.id if db_composition_group is not None else None
         inst = cls(
             composition_group_id=composition_group_id,
-            analysis_id=analysis_id, score=obj.score)
+            analysis_id=analysis_id, score=obj.score,
+            internal_score=obj.internal_score)
         chromatogram = Chromatogram.serialize(
             obj.chromatogram, session=session, analysis_id=analysis_id,
             peak_lookup_table=peak_lookup_table, mass_shift_cache=mass_shift_cache,
@@ -480,11 +485,10 @@ class ChromatogramSolution(Base, BoundToAnalysis):
         return "DB" + repr(self.convert())
 
 
-class GlycanCompositionChromatogram(Base, BoundToAnalysis):
+class GlycanCompositionChromatogram(Base, BoundToAnalysis, ScoredChromatogram):
     __tablename__ = "GlycanCompositionChromatogram"
 
     id = Column(Integer, primary_key=True)
-    score = Column(Numeric(8, 7, asdecimal=False), index=True)
 
     chromatogram_solution_id = Column(
         Integer, ForeignKey(ChromatogramSolution.id, ondelete='CASCADE'), index=True)
@@ -519,7 +523,7 @@ class GlycanCompositionChromatogram(Base, BoundToAnalysis):
             *args, **kwargs)
         inst = cls(
             chromatogram_solution_id=solution.id, glycan_composition_id=obj.composition.id,
-            score=obj.score, analysis_id=analysis_id)
+            score=obj.score, internal_score=obj.internal_score, analysis_id=analysis_id)
         session.add(inst)
         session.flush()
         return inst
@@ -532,11 +536,10 @@ class GlycanCompositionChromatogram(Base, BoundToAnalysis):
         return "DB" + repr(self.convert())
 
 
-class UnidentifiedChromatogram(Base, BoundToAnalysis):
+class UnidentifiedChromatogram(Base, BoundToAnalysis, ScoredChromatogram):
     __tablename__ = "UnidentifiedChromatogram"
 
     id = Column(Integer, primary_key=True)
-    score = Column(Numeric(8, 7, asdecimal=False), index=True)
 
     chromatogram_solution_id = Column(
         Integer, ForeignKey(ChromatogramSolution.id, ondelete='CASCADE'), index=True)
@@ -561,7 +564,8 @@ class UnidentifiedChromatogram(Base, BoundToAnalysis):
             node_peak_map=node_peak_map, *args, **kwargs)
         inst = cls(
             chromatogram_solution_id=solution.id,
-            score=obj.score, analysis_id=analysis_id)
+            score=obj.score, internal_score=obj.internal_score,
+            analysis_id=analysis_id)
         session.add(inst)
         session.flush()
         return inst

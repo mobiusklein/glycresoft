@@ -7,6 +7,7 @@ from ms_deisotope.output.db import (
 
 from .analysis import Analysis
 from .chromatogram import (
+    Chromatogram,
     MassShiftSerializer, CompositionGroupSerializer, ChromatogramSolution,
     GlycanCompositionChromatogram, UnidentifiedChromatogram)
 
@@ -223,3 +224,51 @@ class AnalysisDeserializer(DatabaseBoundOperation):
             IdentifiedGlycopeptide.analysis_id == self.analysis_id).yield_per(100)
         gps = [c.convert() for c in q]
         return gps
+
+
+class AnalysisDestroyer(DatabaseBoundOperation):
+    def __init__(self, database_connection, analysis_id):
+        DatabaseBoundOperation.__init__(self, database_connection)
+        self.analysis_id = analysis_id
+
+    def delete_chromatograms(self):
+        self.session.query(Chromatogram).filter(
+            Chromatogram.analysis_id == self.analysis_id).delete(synchronize_session=False)
+        self.session.flush()
+
+    def delete_chromatogram_solutions(self):
+        self.session.query(ChromatogramSolution).filter(
+            ChromatogramSolution.analysis_id == self.analysis_id).delete(synchronize_session=False)
+        self.session.flush()
+
+    def delete_glycan_composition_chromatograms(self):
+        self.session.query(GlycanCompositionChromatogram).filter(
+            GlycanCompositionChromatogram.analysis_id == self.analysis_id).delete(synchronize_session=False)
+        self.session.flush()
+
+    def delete_unidentified_chromatograms(self):
+        self.session.query(UnidentifiedChromatogram).filter(
+            UnidentifiedChromatogram.analysis_id == self.analysis_id).delete(synchronize_session=False)
+        self.session.flush()
+
+    def delete_ambiguous_glycopeptide_groups(self):
+        self.session.query(AmbiguousGlycopeptideGroup).filter(
+            AmbiguousGlycopeptideGroup.analysis_id == self.analysis_id).delete(synchronize_session=False)
+        self.session.flush()
+
+    def delete_identified_glycopeptides(self):
+        self.session.query(IdentifiedGlycopeptide).filter(
+            IdentifiedGlycopeptide.analysis_id == self.analysis_id).delete(synchronize_session=False)
+        self.session.flush()
+
+    def delete_analysis(self):
+        self.session.query(Analysis).filter(Analysis.id == self.analysis_id).delete(synchronize_session=False)
+
+    def run(self):
+        self.delete_ambiguous_glycopeptide_groups()
+        self.delete_identified_glycopeptides()
+        self.delete_glycan_composition_chromatograms()
+        self.delete_unidentified_chromatograms()
+        self.delete_chromatograms()
+        self.delete_analysis()
+        self.session.commit()

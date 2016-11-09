@@ -1,5 +1,6 @@
 from collections import deque
 import multiprocessing
+import threading
 
 import ms_peak_picker
 import ms_deisotope
@@ -28,6 +29,44 @@ SCAN_STATUS_SKIP = b"skip"
 
 savgol = ms_peak_picker.scan_filter.SavitskyGolayFilter()
 denoise = ms_peak_picker.scan_filter.FTICRBaselineRemoval(scale=2.)
+
+
+class CallInterval(object):
+    """Call a function every `interval` seconds from
+    a separate thread.
+
+    Attributes
+    ----------
+    stopped: threading.Event
+        A semaphore lock that controls when to run `call_target`
+    call_target: callable
+        The thing to call every `interval` seconds
+    args: iterable
+        Arguments for `call_target`
+    interval: number
+        Time between calls to `call_target`
+    """
+
+    def __init__(self, interval, call_target, *args):
+        self.stopped = threading.Event()
+        self.interval = interval
+        self.call_target = call_target
+        self.args = args
+        self.thread = threading.Thread(target=self.mainloop)
+        self.thread.daemon = True
+
+    def mainloop(self):
+        while not self.stopped.wait(self.interval):
+            try:
+                self.call_target(*self.args)
+            except Exception, e:
+                logger.exception("An error occurred in %r", self, exc_info=e)
+
+    def start(self):
+        self.thread.start()
+
+    def stop(self):
+        self.stopped.set()
 
 
 class ScanIDYieldingProcess(Process):
@@ -133,7 +172,7 @@ class ScanTransformingProcess(Process):
         self.output_queue = output_queue
         self.averagine = dict(averagine)
         self.charge_range = charge_range
-        self.no_more_event = no_more_event
+
         self.ms1_peak_picking_args = ms1_peak_picking_args
         self.msn_peak_picking_args = msn_peak_picking_args
         self.ms1_deconvolution_args = ms1_deconvolution_args
@@ -143,6 +182,7 @@ class ScanTransformingProcess(Process):
         self.msn_deconvolution_args.setdefault("charge_range", self.charge_range)
         self.msn_deconvolution_args.setdefault("averagine", averagine)
 
+        self.no_more_event = no_more_event
         self._work_complete = multiprocessing.Event()
 
     def log_error(self, error, scan_id, scan, product_scan_ids):
@@ -182,6 +222,10 @@ class ScanTransformingProcess(Process):
 
         has_input = True
         transformer = self.make_scan_transformer()
+
+        logger_to_silence = logging.getLogger("deconvolution_scan_processor")
+        logger_to_silence.propagate = False
+        logger_to_silence.addHandler(logging.NullHandler())
 
         while has_input:
             try:
@@ -286,6 +330,9 @@ class ScanCollator(TaskBase):
 
     def __iter__(self):
         has_more = True
+        # Log the state of the collator every 3 minutes
+        status_monitor = CallInterval(60 * 3, self.print_state)
+        status_monitor.start()
         while has_more:
             if self.consume(1):
                 self.count_jobs_done += 1
@@ -316,6 +363,7 @@ class ScanCollator(TaskBase):
                 self.count_since_last += 1
                 if self.count_since_last % 25 == 0:
                     self.print_state()
+        status_monitor.stop()
 
 
 class ScanGeneratorBase(object):

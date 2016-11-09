@@ -4,7 +4,7 @@ from glycopeptidepy import HashableGlycanComposition
 
 from .builder.glycan import constrained_combinatorics
 
-from ..composition_network import CompositionGraph, n_glycan_distance
+from .composition_network import CompositionGraph, n_glycan_distance
 
 
 def build_database(rules_path, distance_fn=n_glycan_distance):
