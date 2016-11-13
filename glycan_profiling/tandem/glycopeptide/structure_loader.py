@@ -52,7 +52,7 @@ class PeptideProteinRelation(SpanningMixin):
         return self.end_position
 
     def __repr__(self):
-        return "PeptideProteinRelation(%d, %d, %d)" % (self.start, self.end, self.protein_id)
+        return "PeptideProteinRelation(%d, %d, %d, %d)" % (self.start, self.end, self.protein_id, self.hypothesis_id)
 
     def __iter__(self):
         yield self.start_position

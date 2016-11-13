@@ -120,9 +120,25 @@ class SpectrumMatcherBase(SpectrumMatchBase):
         inst.calculate_score(*args, **kwargs)
         return inst
 
+    @staticmethod
+    def load_peaks(scan):
+        try:
+            return scan.convert(fitted=False, deconvoluted=True)
+        except AttributeError:
+            return scan
+
     def __repr__(self):
         return "{self.__class__.__name__}({self.spectrum}, {self.target}, {self.score})".format(
             self=self)
+
+
+class DeconvolutingSpectrumMatcherBase(SpectrumMatcherBase):
+    @staticmethod
+    def load_peaks(scan):
+        try:
+            return scan.convert(fitted=True, deconvoluted=False)
+        except AttributeError:
+            return scan
 
 
 class SpectrumMatch(SpectrumMatchBase):

@@ -556,17 +556,24 @@ class Proteome(DatabaseBoundOperation, TaskBase):
 
     def load_proteins(self):
         session = self.session
+        protein_map = {}
         for protein in self.parser.iterfind(
                 "ProteinDetectionHypothesis", retrieve_refs=True, recursive=False, iterative=True):
             seq = protein.pop('Seq')
+            name = protein.pop('accession')
+            if name in protein_map:
+                if seq != protein_map[name].protein_sequence:
+                    self.log("Multiple proteins with the name %r" % name)
+                continue
             try:
                 p = Protein(
-                    name=protein.pop('accession'),
+                    name=name,
                     protein_sequence=seq,
                     other=protein,
                     hypothesis_id=self.hypothesis_id)
                 session.add(p)
                 session.flush()
+                protein_map[name] = p
                 # self.log("... Extracted %r" % p)
             except residue.UnknownAminoAcidException:
                 continue

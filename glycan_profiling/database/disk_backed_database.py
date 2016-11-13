@@ -270,8 +270,8 @@ class DeclarativeDiskBackedDatabase(DiskBackedStructureDatabase):
         return conn.execute(stmt).fetchall()
 
     def get_object_by_id(self, id):
-        return self._convert(self.session.execute(select(self._get_record_properties().select_from(
-            self.selectable)).where(
+        return self._convert(self.session.execute(select(self._get_record_properties()).select_from(
+            self.selectable).where(
             self.identity_field == id)).first())
 
     def get_object_by_reference(self, reference):

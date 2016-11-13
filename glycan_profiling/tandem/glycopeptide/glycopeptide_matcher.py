@@ -127,7 +127,7 @@ class GlycopeptideIdentifyingProcess(Process):
 
     def _load_scan(self, scan_id):
         scan = self.session.query(MSScan).get(scan_id)
-        return scan.convert(fitted=False, deconvoluted=True)
+        return self.scorer_type.load_peaks(scan)
 
     def search(self, scans, precursor_error_tolerance=1e-5, simplify=True, chunk_size=250, *args, **kwargs):
         scans = [self._load_scan(i) for i in scans]
@@ -178,7 +178,7 @@ class GlycopeptideDatabaseSearchIdentifierBound(DatabaseBoundOperation, TaskBase
 
     def _load_scan(self, scan_id):
         scan = self.session.query(MSScan).get(scan_id)
-        return scan.convert(fitted=False, deconvoluted=True)
+        return self.scorer_type.load_peaks(scan)
 
     def search(self, precursor_error_tolerance=1e-5, simplify=True, chunk_size=250, *args, **kwargs):
         target_hits = []
@@ -254,7 +254,7 @@ class GlycopeptideDatabaseSearchIdentifier(TaskBase):
             count += len(bunch)
             self.log("... Searching %s (%d/%d)" % (bunch[0].precursor_information, count, total))
             if hasattr(bunch[0], 'convert'):
-                bunch = [o.convert(fitted=False, deconvoluted=True) for o in bunch]
+                bunch = [self.scorer_type.load_peaks(o) for o in bunch]
             self.log("... Spectra Extracted")
             evaluator = TargetDecoyInterleavingGlycopeptideMatcher(
                 bunch, self.scorer_type, self.structure_database)

@@ -7,7 +7,7 @@ try:
                         format="%(asctime)s - %(name)s:%(funcName)s:%(lineno)d - %(levelname)s - %(message)s",
                         datefmt="%H:%M:%S")
     logger_to_silence = logging.getLogger("deconvolution_scan_processor")
-    logger_to_silence = False
+    logger_to_silence.propagate = False
     logging.captureWarnings(True)
     logger = logging.getLogger("glycresoft")
 

@@ -13,11 +13,11 @@ import numpy as np
 from scipy.misc import comb
 
 from ms_peak_picker.utils import draw_peaklist
+from glycopeptidepy.utils.memoize import memoize
 
 from ...spectrum_matcher_base import SpectrumMatcherBase
 from ...spectrum_annotation import annotate_matched_deconvoluted_peaks
 from .fragment_match_map import FragmentMatchMap
-from glycopeptidepy.utils.memoize import memoize
 
 
 @memoize(10000)
@@ -126,7 +126,6 @@ class BinomialSpectrumMatcher(SpectrumMatcherBase):
             peak = spectrum.has_peak(frag.mass, error_tolerance)
             # n_theoretical += 1
             if peak:
-                # solution_map[frag] = peak
                 solution_map.add(peak, frag)
                 try:
                     self._sanitized_spectrum.remove(peak)
@@ -137,20 +136,17 @@ class BinomialSpectrumMatcher(SpectrumMatcherBase):
                 n_theoretical += 1
                 peak = spectrum.has_peak(frag.mass, error_tolerance)
                 if peak:
-                    # solution_map[frag] = peak
                     solution_map.add(peak, frag)
         for frags in self.sequence.get_fragments('y'):
             for frag in frags:
                 n_theoretical += 1
                 peak = spectrum.has_peak(frag.mass, error_tolerance)
                 if peak:
-                    # solution_map[frag] = peak
                     solution_map.add(peak, frag)
         for frag in self.sequence.stub_fragments(extended=True):
             # n_theoretical += 1
             peak = spectrum.has_peak(frag.mass, error_tolerance)
             if peak:
-                # solution_map[frag] = peak
                 solution_map.add(peak, frag)
         self.solution_map = solution_map
         self.n_theoretical = n_theoretical

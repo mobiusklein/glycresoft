@@ -185,8 +185,8 @@ def glycan_text(context, text_file, database_connection, reduction, derivatizati
     if name is not None:
         name = validate_glycan_hypothesis_name(context, database_connection, name)
         click.secho("Building Glycan Hypothesis %s" % name, fg='cyan')
-    validate_reduction(reduction)
-    validate_derivatization(derivatization)
+    validate_reduction(context, reduction)
+    validate_derivatization(context, derivatization)
     builder = TextFileGlycanHypothesisSerializer(
         text_file, database_connection, reduction=reduction, derivatization=derivatization,
         hypothesis_name=name)
@@ -204,8 +204,8 @@ def glycan_combinatorial(context, rule_file, database_connection, reduction, der
     if name is not None:
         name = validate_glycan_hypothesis_name(context, database_connection, name)
         click.secho("Building Glycan Hypothesis %s" % name, fg='cyan')
-    validate_reduction(reduction)
-    validate_derivatization(derivatization)
+    validate_reduction(context, reduction)
+    validate_derivatization(context, derivatization)
     builder = CombinatorialGlycanHypothesisSerializer(
         rule_file, database_connection, reduction=reduction, derivatization=derivatization,
         hypothesis_name=name)
