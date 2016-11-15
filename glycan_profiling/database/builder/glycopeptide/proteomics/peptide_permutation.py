@@ -66,6 +66,20 @@ def get_base_peptide(peptide_obj):
 
 
 def modification_series(variable_sites):
+    """Given a dictionary mapping between modification names and
+    an iterable of valid sites, create a dictionary mapping between
+    modification names and a list of valid sites plus the constant `None`
+    
+    Parameters
+    ----------
+    variable_sites : dict
+        Description
+    
+    Returns
+    -------
+    dict
+        Description
+    """
     sites = defaultdict(list)
     for mod, varsites in variable_sites.items():
         for site in varsites:
@@ -97,11 +111,6 @@ def peptide_isoforms(sequence, constant_modifications, variable_modifications):
     n_term_modifications.append(None)
     c_term_modifications.append(None)
 
-    variable_sites = {
-        mod.name: set(
-            mod.find_valid_sites(sequence)) for mod in variable_modifications}
-    modification_sites = modification_series(variable_sites)
-
     has_fixed_n_term = False
     has_fixed_c_term = False
 
@@ -117,6 +126,11 @@ def peptide_isoforms(sequence, constant_modifications, variable_modifications):
         n_term_modifications = [None]
     if has_fixed_c_term:
         c_term_modifications = [None]
+
+    variable_sites = {
+        mod.name: set(
+            mod.find_valid_sites(sequence)) for mod in variable_modifications}
+    modification_sites = modification_series(variable_sites)
 
     for n_term, c_term in itertools.product(n_term_modifications, c_term_modifications):
         for assignments in site_modification_assigner(modification_sites):

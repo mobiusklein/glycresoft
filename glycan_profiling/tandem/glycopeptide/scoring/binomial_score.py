@@ -94,14 +94,14 @@ def binomial_intensity(peak_list, matched_peaks, total_product_ion_count):
 
 
 def calculate_precursor_mass(spectrum_match):
-    precursor_mass = spectrum_match.sequence.peptide_composition().mass
+    precursor_mass = spectrum_match.target.peptide_composition().mass
     return precursor_mass
 
 
 class BinomialSpectrumMatcher(SpectrumMatcherBase):
 
-    def __init__(self, scan, sequence):
-        super(BinomialSpectrumMatcher, self).__init__(scan, sequence)
+    def __init__(self, scan, target):
+        super(BinomialSpectrumMatcher, self).__init__(scan, target)
         self._sanitized_spectrum = set(self.spectrum)
         self._score = None
         self.solution_map = FragmentMatchMap()
@@ -119,7 +119,7 @@ class BinomialSpectrumMatcher(SpectrumMatcherBase):
         n_theoretical = 0
         solution_map = FragmentMatchMap()
         spectrum = self.spectrum
-        for frag in self.sequence.glycan_fragments(
+        for frag in self.target.glycan_fragments(
                 all_series=False, allow_ambiguous=False,
                 include_large_glycan_fragments=False,
                 maximum_fragment_size=4):
@@ -131,19 +131,19 @@ class BinomialSpectrumMatcher(SpectrumMatcherBase):
                     self._sanitized_spectrum.remove(peak)
                 except KeyError:
                     continue
-        for frags in self.sequence.get_fragments('b'):
+        for frags in self.target.get_fragments('b'):
             for frag in frags:
                 n_theoretical += 1
                 peak = spectrum.has_peak(frag.mass, error_tolerance)
                 if peak:
                     solution_map.add(peak, frag)
-        for frags in self.sequence.get_fragments('y'):
+        for frags in self.target.get_fragments('y'):
             for frag in frags:
                 n_theoretical += 1
                 peak = spectrum.has_peak(frag.mass, error_tolerance)
                 if peak:
                     solution_map.add(peak, frag)
-        for frag in self.sequence.stub_fragments(extended=True):
+        for frag in self.target.stub_fragments(extended=True):
             # n_theoretical += 1
             peak = spectrum.has_peak(frag.mass, error_tolerance)
             if peak:

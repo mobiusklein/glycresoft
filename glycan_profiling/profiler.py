@@ -30,6 +30,7 @@ from glycan_profiling.trace import (
     NonAggregatingTracer, ScanSink, ChromatogramExtractor,
     ChromatogramProcessor)
 
+from glycan_profiling.models import GeneralScorer
 
 from glycan_profiling.tandem import chromatogram_mapping
 from glycan_profiling.tandem.glycopeptide.scoring.binomial_score import BinomialSpectrumMatcher
@@ -170,7 +171,12 @@ class GlycanChromatogramAnalyzer(TaskBase):
 class GlycopeptideLCMSMSAnalyzer(TaskBase):
     def __init__(self, database_connection, hypothesis_id, sample_run_id,
                  analysis_name=None, grouping_error_tolerance=1.5e-5, mass_error_tolerance=1e-5,
-                 msn_mass_error_tolerance=2e-5, psm_fdr_threshold=0.05, scoring_model=None):
+                 msn_mass_error_tolerance=2e-5, psm_fdr_threshold=0.05, peak_shape_scoring_model=None,
+                 tandem_scoring_model=None):
+        if tandem_scoring_model is None:
+            tandem_scoring_model = BinomialSpectrumMatcher
+        if peak_shape_scoring_model is None:
+            peak_shape_scoring_model = GeneralScorer
         self.database_connection = database_connection
         self.hypothesis_id = hypothesis_id
         self.sample_run_id = sample_run_id
@@ -179,7 +185,8 @@ class GlycopeptideLCMSMSAnalyzer(TaskBase):
         self.msn_mass_error_tolerance = msn_mass_error_tolerance
         self.grouping_error_tolerance = grouping_error_tolerance
         self.psm_fdr_threshold = psm_fdr_threshold
-        self.scoring_model = scoring_model
+        self.peak_shape_scoring_model = peak_shape_scoring_model
+        self.tandem_scoring_model = tandem_scoring_model
         self.analysis = None
 
     def run(self):
@@ -197,7 +204,7 @@ class GlycopeptideLCMSMSAnalyzer(TaskBase):
 
         # Traditional LC-MS/MS Database Search
         searcher = GlycopeptideDatabaseSearchIdentifier(
-            msms_scans, BinomialSpectrumMatcher, database, peak_loader.convert_scan_id_to_retention_time)
+            msms_scans, self.tandem_scoring_model, database, peak_loader.convert_scan_id_to_retention_time)
         target_hits, decoy_hits = searcher.search(
             precursor_error_tolerance=self.mass_error_tolerance,
             error_tolerance=self.msn_mass_error_tolerance)
@@ -210,7 +217,7 @@ class GlycopeptideLCMSMSAnalyzer(TaskBase):
 
         # Score chromatograms, both matched and unmatched
         self.log("Scoring chromatograms")
-        chroma_scoring_model = self.scoring_model
+        chroma_scoring_model = self.peak_shape_scoring_model
         scored_merged = ChromatogramFilter(
             [ChromatogramSolution(c, scorer=chroma_scoring_model) for c in merged])
 

@@ -17,6 +17,9 @@ from glycan_profiling.chromatogram_tree import (
     MassShift, CompoundMassShift, Formate, Ammonium,
     Sodiated)
 
+from glycan_profiling.tandem.glycopeptide.scoring import (
+    binomial_score, simple_score, coverage_weighted_binomial, SpectrumMatcherBase)
+
 from glycopeptidepy.utils.collectiontools import decoratordict
 from glycopeptidepy.structure.modification import ModificationTable
 
@@ -26,6 +29,15 @@ glycan_source_validators = decoratordict()
 
 
 class ModificationValidator(object):
+    """Determines whether a provided command line argument can be mapped to a
+    valid peptide modification in a default contructed
+    :class:`glycopeptidepy.structure.modification.ModificationTable`
+
+    Attributes
+    ----------
+    table : glycopeptidepy.structure.modification.ModificationTable
+        The modification database to look up modifications by name.
+    """
     def __init__(self):
         self.table = ModificationTable()
 
@@ -161,7 +173,6 @@ def validate_derivatization(context, derivatization_string):
 def validate_element(element):
     valid = element in periodic_table
     if not valid:
-        # click.secho("%r is not a valid element" % element, fg='yellow')
         raise click.Abort("%r is not a valid element" % element)
     return valid
 
@@ -206,3 +217,19 @@ def validate_adduct(adduct_string, multiplicity=1):
             print(e)
             click.secho("Could not validate adduct %s" % (adduct_string,), fg='yellow')
             raise click.Abort()
+
+
+glycopeptide_tandem_scoring_functions = {
+    "binomial": binomial_score.BinomialSpectrumMatcher,
+    "simple": simple_score.SimpleCoverageScorer,
+    "coverage_weighted_binomial": coverage_weighted_binomial.CoverageWeightedBinomialScorer
+}
+
+
+def validate_glycopeptide_tandem_scoring_function(context, name):
+    if isinstance(name, SpectrumMatcherBase):
+        return name
+    try:
+        return glycopeptide_tandem_scoring_functions[name]
+    except KeyError:
+        raise click.Abort("Could not recognize scoring function by name %r" % (name,))

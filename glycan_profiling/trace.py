@@ -5,7 +5,7 @@ from glycan_profiling.task import TaskBase
 from .chromatogram_tree import (
     Chromatogram, ChromatogramForest, Unmodified,
     mask_subsequence, DuplicateNodeError, get_chromatogram,
-    SimpleChromatogram, find_truncation_points, build_rt_interval_tree,
+    SimpleChromatogram, find_truncation_points,
     ChromatogramFilter, GlycanCompositionChromatogram, GlycopeptideChromatogram,
     ChromatogramOverlapSmoother)
 

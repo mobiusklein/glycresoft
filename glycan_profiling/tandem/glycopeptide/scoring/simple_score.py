@@ -83,7 +83,7 @@ class SimpleCoverageScorer(SpectrumMatcherBase):
 
         return mean_coverage, glycosylated_coverage, stub_fraction
 
-    def compute_score(self, backbone_weight=0.5, hexnac_weight=0.5, stub_weight=0.2):
+    def calculate_score(self, backbone_weight=0.5, hexnac_weight=0.5, stub_weight=0.2, **kwargs):
         mean_coverage, glycosylated_coverage, stub_fraction = self.compute_coverage()
         score = (((mean_coverage * backbone_weight) + (glycosylated_coverage * hexnac_weight)) * (
             1 - stub_weight)) + (stub_fraction * stub_weight)
