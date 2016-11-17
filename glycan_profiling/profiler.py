@@ -33,7 +33,7 @@ from glycan_profiling.trace import (
 from glycan_profiling.models import GeneralScorer
 
 from glycan_profiling.tandem import chromatogram_mapping
-from glycan_profiling.tandem.glycopeptide.scoring.binomial_score import BinomialSpectrumMatcher
+from glycan_profiling.tandem.glycopeptide.scoring import CoverageWeightedBinomialScorer
 from glycan_profiling.tandem.glycopeptide.glycopeptide_matcher import GlycopeptideDatabaseSearchIdentifier
 from glycan_profiling.tandem.glycopeptide import (
     identified_structure as identified_glycopeptide)
@@ -174,7 +174,7 @@ class GlycopeptideLCMSMSAnalyzer(TaskBase):
                  msn_mass_error_tolerance=2e-5, psm_fdr_threshold=0.05, peak_shape_scoring_model=None,
                  tandem_scoring_model=None):
         if tandem_scoring_model is None:
-            tandem_scoring_model = BinomialSpectrumMatcher
+            tandem_scoring_model = CoverageWeightedBinomialScorer
         if peak_shape_scoring_model is None:
             peak_shape_scoring_model = GeneralScorer
         self.database_connection = database_connection

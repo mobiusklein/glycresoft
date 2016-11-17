@@ -16,7 +16,7 @@ from glycan_profiling.profiler import (
 from glycan_profiling.database.disk_backed_database import (
     GlycanCompositionDiskBackedStructureDatabase)
 
-from glycan_profiling.tandem.glycopeptide.scoring import BinomialSpectrumMatcher
+from glycan_profiling.tandem.glycopeptide.scoring import BinomialSpectrumMatcher, CoverageWeightedBinomialScorer
 
 from glycan_profiling.models import GeneralScorer
 
@@ -69,7 +69,7 @@ def search_glycopeptide(context, database_connection, sample_identifier, hypothe
     if peak_shape_scoring_model is None:
         peak_shape_scoring_model = GeneralScorer
     if tandem_scoring_model is None:
-        tandem_scoring_model = BinomialSpectrumMatcher
+        tandem_scoring_model = CoverageWeightedBinomialScorer
     database_connection = DatabaseBoundOperation(database_connection)
     try:
         sample_run = get_by_name_or_id(
