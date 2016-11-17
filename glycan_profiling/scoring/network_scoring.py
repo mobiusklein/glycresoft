@@ -33,7 +33,7 @@ class NetworkScoreDistributorBase(object):
             node = cg[composition]
             node._temp_score = node.internal_score = solution.internal_score
 
-    def update_network(self, base_coef=0.8, support_coef=0.2, iterations=1):
+    def update_network(self, base_coef=0.8, support_coef=0.2, iterations=1, **kwargs):
         cg = self.network
 
         for i in range(iterations):
@@ -45,9 +45,9 @@ class NetworkScoreDistributorBase(object):
                     node._temp_score = node.internal_score
 
             for node in cg.nodes:
-                node.score = self.compute_support(node, base_coef, support_coef)
+                node.score = self.compute_support(node, base_coef, support_coef, **kwargs)
 
-    def compute_support(self, node, base_coef=0.8, support_coef=0.2, verbose=False):
+    def compute_support(self, node, base_coef=0.8, support_coef=0.2, verbose=False, **kwargs):
         base = node._temp_score * base_coef
         support = 0
         n_edges = 0.
@@ -76,7 +76,7 @@ class NetworkScoreDistributorBase(object):
 
 class NetworkScoreDistributor(NetworkScoreDistributorBase):
 
-    def compute_support(self, node, base_coef=0.8, support_coef=0.2, verbose=False):
+    def compute_support(self, node, base_coef=0.8, support_coef=0.2, verbose=False, **kwargs):
         base = node._temp_score * base_coef
         support = 0
         weights = 0
@@ -92,3 +92,26 @@ class NetworkScoreDistributor(NetworkScoreDistributorBase):
         if weights == 0:
             weights = 1.0
         return min(base + (support_coef * (support / weights)), 1.0)
+
+
+class WeightedAverageNetworkScoreDistributor(NetworkScoreDistributorBase):
+
+    def compute_support(self, node, base_coef=0.8, support_coef=0.2, verbose=False, scale=1., **kwargs):
+        base = node._temp_score * base_coef
+        support = 0
+        weights = 0
+        n_edges = 0
+        for edge in node.edges:
+            other = edge[node]
+            if other._temp_score < 0.5:
+                continue
+            n_edges += 1
+            distance = 1. / edge.order
+            support += edge.weight * other._temp_score * distance * scale
+            weights += edge.weight * distance
+            if verbose:
+                print(other._temp_score, support, weights)
+        if weights == 0:
+            weights = 1.0
+        # return min(base + (support_coef * (support / weights)), 1.0)
+        return base + (support_coef * (support / weights))

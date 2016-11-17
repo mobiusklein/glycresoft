@@ -88,12 +88,22 @@ def plot_tapering(cases, threshold=0.05, ax=None, **kwargs):
     if ax is None:
         fig, ax = plt.subplots(1)
 
+    score_at_threshold = float('inf')
+    for t in cases:
+        if t.q_value < 0.05:
+            if t.score < score_at_threshold:
+                score_at_threshold = t.score
+
     ax.spines['top'].set_visible(False)
     ax.spines['right'].set_visible(False)
     ax.xaxis.tick_bottom()
     ax.yaxis.tick_left()
     ax.plot(*zip(*counts.items()), **plot_kwargs)
     ax.set_xlim(*(ax.get_xlim()[::-1]))
+
+    xlim = ax.get_xlim()
+    ax.hlines(counts[score_at_threshold], max(xlim), 0, linestyles='--')
+
     ax.set_xlabel("PSM Score Threshold", fontsize=18)
     ax.set_ylabel("# of PSMS < Threshold", fontsize=18)
     return ax

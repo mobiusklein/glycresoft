@@ -20,7 +20,7 @@ from ...spectrum_annotation import annotate_matched_deconvoluted_peaks
 from .fragment_match_map import FragmentMatchMap
 
 
-@memoize(10000)
+@memoize(1000000000)
 def binomial_tail_probability(n, k, p):
     total = 0.0
     for i in range(k, n):
@@ -107,14 +107,6 @@ class BinomialSpectrumMatcher(SpectrumMatcherBase):
         self.solution_map = FragmentMatchMap()
         self.n_theoretical = 0
 
-    @property
-    def sequence(self):
-        return self.target
-
-    @sequence.setter
-    def sequence(self, value):
-        self.target = value
-
     def match(self, error_tolerance=2e-5):
         n_theoretical = 0
         solution_map = FragmentMatchMap()
@@ -153,10 +145,10 @@ class BinomialSpectrumMatcher(SpectrumMatcherBase):
         return solution_map
 
     def _sanitize_solution_map(self):
-        san = (self.solution_map).copy()
+        san = FragmentMatchMap()
         for pair in self.solution_map:
-            if pair.fragment.series == "oxonium_ion":
-                san.remove_fragment(pair.fragment)
+            if pair.fragment.series != "oxonium_ion":
+                san.add(pair)
         return san
 
     def _fragment_matched_binomial(self, match_tolerance=2e-5):
@@ -195,8 +187,7 @@ class BinomialSpectrumMatcher(SpectrumMatcherBase):
             precursor_mass
         )
 
-        if fragment_match_component == 0:
-            print(self.target, fragment_match_component)
+        if fragment_match_component < 1e-170:
             fragment_match_component = 1e-170
 
         intensity_component = binomial_intensity(
@@ -206,10 +197,10 @@ class BinomialSpectrumMatcher(SpectrumMatcherBase):
 
         if intensity_component == 0:
             intensity_component = 1e-170
-        score = -np.log10(intensity_component) + (-np.log10(fragment_match_component))
+        score = -np.log10(intensity_component) + -np.log10(fragment_match_component)
 
         if np.isinf(score):
-            print("infinite score", self.scan, self.target, intensity_component, fragment_match_component)
+            print("infinite score", self.scan, self.target, intensity_component, fragment_match_component, self.scan)
 
         return score
 

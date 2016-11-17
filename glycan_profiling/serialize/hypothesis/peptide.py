@@ -17,7 +17,7 @@ from .hypothesis import GlycopeptideHypothesis
 from .glycan import GlycanCombination
 
 from glycopeptidepy.structure import sequence, residue
-from glycan_profiling.tandem.glycopeptide.structure_loader import PeptideProteinRelation, FragmentCachingGlycopeptide
+from glycan_profiling.database.structure_loader import PeptideProteinRelation, FragmentCachingGlycopeptide
 
 
 class Protein(Base):

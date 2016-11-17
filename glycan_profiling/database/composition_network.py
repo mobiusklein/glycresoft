@@ -1,7 +1,9 @@
+from StringIO import StringIO
 import numpy as np
 
 from glypy.composition.glycan_composition import FrozenMonosaccharideResidue, GlycanComposition
 from glycopeptidepy import HashableGlycanComposition
+from glycopeptidepy.structure.glycan import GlycanCompositionProxy
 
 
 from .glycan_composition_filter import GlycanCompositionFilter
@@ -186,7 +188,7 @@ class CompositionGraph(object):
                     self.edges.append(e)
 
     def __getitem__(self, key):
-        if isinstance(key, (basestring, GlycanComposition)):
+        if isinstance(key, (basestring, GlycanComposition, GlycanCompositionProxy)):
             return self.node_map[key]
         elif isinstance(key, int):
             return self.nodes[key]
@@ -211,6 +213,18 @@ class CompositionGraph(object):
 
     def __len__(self):
         return len(self.nodes)
+
+    def __getstate__(self):
+        string_buffer = StringIO()
+        dump(self, string_buffer)
+        return string_buffer
+
+    def __setstate__(self, string_buffer):
+        string_buffer.seek(0)
+        net = load(string_buffer)
+        self.nodes = net.nodes
+        self.node_map = net.node_map
+        self.edges = net.edges
 
     def clone(self):
         graph = CompositionGraph([])
@@ -292,7 +306,7 @@ class GraphReader(object):
     def handle_graph_file(self):
         state = "START"
         for line in self.file_obj:
-            line = line[:-1]
+            line = line.strip()
             if state == "START":
                 if line == "#NODE":
                     state = "NODE"

@@ -1,7 +1,9 @@
 from collections import defaultdict
-from .ref import TargetReference, SpectrumReference
+
 from glypy.composition.glycan_composition import FrozenMonosaccharideResidue
 
+from glycan_profiling.task import TaskBase
+from .ref import TargetReference, SpectrumReference
 
 _standard_oxonium_ions = [
     FrozenMonosaccharideResidue.from_iupac_lite("HexNAc"),
@@ -140,6 +142,10 @@ class DeconvolutingSpectrumMatcherBase(SpectrumMatcherBase):
         except AttributeError:
             return scan
 
+    def __init__(self, scan, target):
+        super(DeconvolutingSpectrumMatcherBase, self).__init__(scan, target)
+        self.spectrum = scan.peak_set
+
 
 class SpectrumMatch(SpectrumMatchBase):
     def __init__(self, scan, target, score, best_match=False, data_bundle=None):
@@ -269,11 +275,12 @@ class SpectrumSolutionSet(object):
         self._is_top_only = True
 
 
-class TandemClusterEvaluatorBase(object):
-    def __init__(self, tandem_cluster, scorer_type, structure_database):
+class TandemClusterEvaluatorBase(TaskBase):
+    def __init__(self, tandem_cluster, scorer_type, structure_database, verbose=False):
         self.tandem_cluster = tandem_cluster
         self.scorer_type = scorer_type
         self.structure_database = structure_database
+        self.verbose = verbose
 
     def score_one(self, scan, precursor_error_tolerance=1e-5, *args, **kwargs):
         solutions = []
@@ -305,13 +312,23 @@ class TandemClusterEvaluatorBase(object):
     def evaluate(self, scan, structure, *args, **kwargs):
         raise NotImplementedError()
 
-    def score_bunch(self, scans, precursor_error_tolerance=1e-5, *args, **kwargs):
+    def _map_scans_to_hits(self, scans, precursor_error_tolerance=1e-5):
         groups = group_by_precursor_mass(scans, precursor_error_tolerance * 1.5)
 
         hit_to_scan = defaultdict(list)
         scan_map = {}
         hit_map = {}
+        i = 0
+        n = len(scans)
+        report_interval = 0.1 * n
+        last_report = report_interval
+        self.log("... Begin Collecting Hits")
         for group in groups:
+            i += len(group)
+            if i > last_report:
+                self.log("... Mapped %0.2f%% of spectra (%d/%d)" % (i * 100. / n, i, n))
+                while last_report < i and report_interval != 0:
+                    last_report += report_interval
             for scan in group:
                 scan_map[scan.id] = scan
                 for hit in self.structure_database.search_mass_ppm(
@@ -319,9 +336,17 @@ class TandemClusterEvaluatorBase(object):
                         precursor_error_tolerance):
                     hit_to_scan[hit.id].append(scan)
                     hit_map[hit.id] = hit
+        return scan_map, hit_map, hit_to_scan
 
+    def _evaluate_hit_groups(self, scan_map, hit_map, hit_to_scan, *args, **kwargs):
         scan_solution_map = defaultdict(list)
+        self.log("... Searching Hits")
+        i = 0
+        n = len(hit_to_scan)
         for hit_id, scan_list in hit_to_scan.items():
+            i += 1
+            if i % 1000 == 0:
+                self.log("... %0.2f%% of Hits Searched (%d/%d)" % (i * 100. / n, i, n))
             hit = hit_map[hit_id]
             solutions = []
             for scan in scan_list:
@@ -332,11 +357,19 @@ class TandemClusterEvaluatorBase(object):
             match.clear_caches()
             self.reset_parser()
 
+        return scan_solution_map
+
+    def _collect_scan_solutions(self, scan_solution_map, scan_map):
         result_set = []
         for scan_id, solutions in scan_solution_map.items():
             scan = scan_map[scan_id]
             out = SpectrumSolutionSet(scan, sorted(
                 solutions, key=lambda x: x.score, reverse=True)).threshold()
             result_set.append(out)
-
         return result_set
+
+    def score_bunch(self, scans, precursor_error_tolerance=1e-5, *args, **kwargs):
+        scan_map, hit_map, hit_to_scan = self._map_scans_to_hits(scans, precursor_error_tolerance)
+        scan_solution_map = self._evaluate_hit_groups(scan_map, hit_map, hit_to_scan, *args, **kwargs)
+        solutions = self._collect_scan_solutions(scan_solution_map, scan_map)
+        return solutions
