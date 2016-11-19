@@ -94,7 +94,8 @@ class SequenceGlyph(object):
         x = self.next_between(index)
         y = self.y - height
         length *= self.step_coefficient
-        rect = mpatches.Rectangle((x - length, y), length, 0.05, color=color, **kwargs)
+        rect = mpatches.Rectangle(
+            (x - length, y), length, 0.05, color=color, **kwargs)
         self.ax.add_patch(rect)
 
     def draw_c_term_annotation(
@@ -124,8 +125,8 @@ class SequenceGlyph(object):
         n_annotations = []
         c_annotations = []
 
-        for annot in fragments:
-            key = annot['key']
+        for fragment in fragments:
+            key = fragment.name
             if key in index:
                 hexnac = "HexNAc" in key
                 if key.startswith('b'):
@@ -137,7 +138,8 @@ class SequenceGlyph(object):
         kwargs.setdefault('color', 'red')
         try:
             kwargs.pop("glycosylated_color")
-            kwargs_with_greater_height['color'] = kwargs_with_greater_height['glycosylated_color']
+            kwargs_with_greater_height[
+                'color'] = kwargs_with_greater_height['glycosylated_color']
             kwargs_with_greater_height.pop("glycosylated_color")
         except KeyError:
             color = kwargs.get("color", 'red')
@@ -150,7 +152,8 @@ class SequenceGlyph(object):
         for n_annot, has_hexnac in n_annotations:
             self.draw_bar_at(n_annot, color=kwargs['color'])
             if has_hexnac:
-                self.draw_n_term_annotation(n_annot, **kwargs_with_greater_height)
+                self.draw_n_term_annotation(
+                    n_annot, **kwargs_with_greater_height)
             else:
                 self.draw_n_term_annotation(n_annot, **kwargs)
 
@@ -159,38 +162,27 @@ class SequenceGlyph(object):
         for c_annot, has_hexnac in c_annotations:
             self.draw_bar_at(c_annot, color=kwargs['color'])
             if has_hexnac:
-                self.draw_c_term_annotation(c_annot, **kwargs_with_greater_height)
+                self.draw_c_term_annotation(
+                    c_annot, **kwargs_with_greater_height)
             else:
                 self.draw_c_term_annotation(c_annot, **kwargs)
 
-    # TODO: Switch to using new results data structure
     @classmethod
-    def from_spectrum_match(cls, spectrum_match, **kwargs):
+    def from_spectrum_match(cls, spectrum_match, ax=None, **kwargs):
         annotation_options = kwargs.pop("annotation_options", {})
-        inst = cls(spectrum_match.glycopeptide_sequence, **kwargs)
-        fragments = [f for fs in spectrum_match.peak_match_map.values() for f in fs]
-        inst.annotate_from_fragments(fragments, **annotation_options)
-        inst.layout()
-        return inst
-
-    # TODO: Switch to using new results data structure
-    @classmethod
-    def from_sequence_match(cls, glycopeptide_match, **kwargs):
-        annotation_options = kwargs.pop("annotation_options", {})
-        inst = cls(glycopeptide_match.glycopeptide_sequence, **kwargs)
-        fragments = glycopeptide_match.bare_y_ions + glycopeptide_match.bare_b_ions +\
-            glycopeptide_match.glycosylated_y_ions + glycopeptide_match.glycosylated_b_ions
+        inst = cls(spectrum_match.target, ax=ax, **kwargs)
+        fragments = [f for f in spectrum_match.solution_map.fragments()]
         inst.annotate_from_fragments(fragments, **annotation_options)
         inst.layout()
         return inst
 
 
-def glycopeptide_match_logo(glycopeptide_match, color='red', glycosylated_color='forestgreen', **kwargs):
+def glycopeptide_match_logo(glycopeptide_match, ax=None, color='red', glycosylated_color='forestgreen', **kwargs):
     annotation_options = kwargs.get("annotation_options", {})
     annotation_options['color'] = color
     annotation_options['glycosylated_color'] = glycosylated_color
     kwargs['annotation_options'] = annotation_options
-    inst = SequenceGlyph.from_sequence_match(
+    inst = SequenceGlyph.from_spectrum_match(
         glycopeptide_match, color=color,
-        glycosylated_color=glycosylated_color, **kwargs)
+        glycosylated_color=glycosylated_color, ax=ax, **kwargs)
     return inst.ax

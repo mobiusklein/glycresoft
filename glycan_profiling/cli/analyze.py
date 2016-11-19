@@ -124,9 +124,10 @@ def search_glycopeptide(context, database_connection, sample_identifier, hypothe
 @click.option("-n", "--analysis-name", default=None, help='Name for analysis to be performed.')
 @click.option("-a", "--adduct", 'adducts', multiple=True, nargs=2,
               help="Adducts to consider. Specify name or formula, and a multiplicity.")
+@click.option("-d", "--minimum-mass", default=500., type=float, help="The minimum mass to consider signal at.")
 def search_glycan(context, database_connection, sample_identifier, hypothesis_identifier,
                   analysis_name, adducts, grouping_error_tolerance=1.5e-5,
-                  mass_error_tolerance=1e-5, scoring_model=None):
+                  mass_error_tolerance=1e-5, minimum_mass=500., scoring_model=None):
     if scoring_model is None:
         scoring_model = GeneralScorer
 
@@ -159,9 +160,6 @@ def search_glycan(context, database_connection, sample_identifier, hypothesis_id
             expanded.append(adduct * i)
     adducts = expanded
 
-    for adduct in adducts:
-        click.secho("Adduct: %s" % adduct)
-
     click.secho("Preparing analysis of %s by %s" %
                 (sample_run.name, hypothesis.name), fg='cyan')
 
@@ -170,6 +168,7 @@ def search_glycan(context, database_connection, sample_identifier, hypothesis_id
             database_connection._original_connection, hypothesis.id,
             sample_run.id, adducts=adducts, mass_error_tolerance=mass_error_tolerance,
             grouping_error_tolerance=grouping_error_tolerance, scoring_model=scoring_model,
+            minimum_mass=minimum_mass, 
             analysis_name=analysis_name)
         proc = analyzer.start()
     except:
