@@ -11,7 +11,7 @@ from glycan_profiling.database.disk_backed_database import (
     GlycopeptideDiskBackedStructureDatabase)
 
 from .scoring import TargetDecoyAnalyzer
-from .structure_loader import (
+from glycan_profiling.database.structure_loader import (
     CachingGlycopeptideParser, DecoyMakingCachingGlycopeptideParser)
 
 from ..spectrum_matcher_base import TandemClusterEvaluatorBase, oxonium_detector
@@ -75,9 +75,14 @@ class TargetDecoyInterleavingGlycopeptideMatcher(TandemClusterEvaluatorBase):
         return target_result, decoy_result
 
     def score_bunch(self, scans, precursor_error_tolerance=1e-5, *args, **kwargs):
-        target_results = self.target_evaluator.score_bunch(scans, precursor_error_tolerance, *args, **kwargs)
-        decoy_results = self.decoy_evaluator.score_bunch(scans, precursor_error_tolerance, *args, **kwargs)
-        return target_results, decoy_results
+        scan_map, hit_map, hit_to_scan = self.target_evaluator._map_scans_to_hits(scans, precursor_error_tolerance)
+        target_scan_solution_map = self.target_evaluator._evaluate_hit_groups(
+            scan_map, hit_map, hit_to_scan, *args, **kwargs)
+        target_solutions = self._collect_scan_solutions(target_scan_solution_map, scan_map)
+        decoy_scan_solution_map = self.decoy_evaluator._evaluate_hit_groups(
+            scan_map, hit_map, hit_to_scan, *args, **kwargs)
+        decoy_solutions = self._collect_scan_solutions(decoy_scan_solution_map, scan_map)
+        return target_solutions, decoy_solutions
 
     def score_all(self, precursor_error_tolerance=1e-5, simplify=False, *args, **kwargs):
         target_out = []

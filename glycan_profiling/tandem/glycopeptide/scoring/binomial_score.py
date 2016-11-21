@@ -20,7 +20,7 @@ from ...spectrum_annotation import annotate_matched_deconvoluted_peaks
 from .fragment_match_map import FragmentMatchMap
 
 
-@memoize(10000)
+@memoize(1000000000)
 def binomial_tail_probability(n, k, p):
     total = 0.0
     for i in range(k, n):
@@ -94,32 +94,24 @@ def binomial_intensity(peak_list, matched_peaks, total_product_ion_count):
 
 
 def calculate_precursor_mass(spectrum_match):
-    precursor_mass = spectrum_match.sequence.peptide_composition().mass
+    precursor_mass = spectrum_match.target.peptide_composition().mass
     return precursor_mass
 
 
 class BinomialSpectrumMatcher(SpectrumMatcherBase):
 
-    def __init__(self, scan, sequence):
-        super(BinomialSpectrumMatcher, self).__init__(scan, sequence)
+    def __init__(self, scan, target):
+        super(BinomialSpectrumMatcher, self).__init__(scan, target)
         self._sanitized_spectrum = set(self.spectrum)
         self._score = None
         self.solution_map = FragmentMatchMap()
         self.n_theoretical = 0
 
-    @property
-    def sequence(self):
-        return self.target
-
-    @sequence.setter
-    def sequence(self, value):
-        self.target = value
-
     def match(self, error_tolerance=2e-5):
         n_theoretical = 0
         solution_map = FragmentMatchMap()
         spectrum = self.spectrum
-        for frag in self.sequence.glycan_fragments(
+        for frag in self.target.glycan_fragments(
                 all_series=False, allow_ambiguous=False,
                 include_large_glycan_fragments=False,
                 maximum_fragment_size=4):
@@ -131,19 +123,19 @@ class BinomialSpectrumMatcher(SpectrumMatcherBase):
                     self._sanitized_spectrum.remove(peak)
                 except KeyError:
                     continue
-        for frags in self.sequence.get_fragments('b'):
+        for frags in self.target.get_fragments('b'):
             for frag in frags:
                 n_theoretical += 1
                 peak = spectrum.has_peak(frag.mass, error_tolerance)
                 if peak:
                     solution_map.add(peak, frag)
-        for frags in self.sequence.get_fragments('y'):
+        for frags in self.target.get_fragments('y'):
             for frag in frags:
                 n_theoretical += 1
                 peak = spectrum.has_peak(frag.mass, error_tolerance)
                 if peak:
                     solution_map.add(peak, frag)
-        for frag in self.sequence.stub_fragments(extended=True):
+        for frag in self.target.stub_fragments(extended=True):
             # n_theoretical += 1
             peak = spectrum.has_peak(frag.mass, error_tolerance)
             if peak:
@@ -153,10 +145,10 @@ class BinomialSpectrumMatcher(SpectrumMatcherBase):
         return solution_map
 
     def _sanitize_solution_map(self):
-        san = (self.solution_map).copy()
+        san = FragmentMatchMap()
         for pair in self.solution_map:
-            if pair.fragment.series == "oxonium_ion":
-                san.remove_fragment(pair.fragment)
+            if pair.fragment.series != "oxonium_ion":
+                san.add(pair)
         return san
 
     def _fragment_matched_binomial(self, match_tolerance=2e-5):
@@ -195,8 +187,7 @@ class BinomialSpectrumMatcher(SpectrumMatcherBase):
             precursor_mass
         )
 
-        if fragment_match_component == 0:
-            print(self.target, fragment_match_component)
+        if fragment_match_component < 1e-170:
             fragment_match_component = 1e-170
 
         intensity_component = binomial_intensity(
@@ -206,10 +197,10 @@ class BinomialSpectrumMatcher(SpectrumMatcherBase):
 
         if intensity_component == 0:
             intensity_component = 1e-170
-        score = -np.log10(intensity_component) + (-np.log10(fragment_match_component))
+        score = -np.log10(intensity_component) + -np.log10(fragment_match_component)
 
         if np.isinf(score):
-            print("infinite score", self.scan, self.target, intensity_component, fragment_match_component)
+            print("infinite score", self.scan, self.target, intensity_component, fragment_match_component, self.scan)
 
         return score
 

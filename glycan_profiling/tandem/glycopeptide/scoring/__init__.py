@@ -1,4 +1,5 @@
-from .binomial_score import BinomialSpectrumMatcher
+from .binomial_score import BinomialSpectrumMatcher, SpectrumMatcherBase
 from .target_decoy import TargetDecoyAnalyzer
 from .precursor_mass_accuracy import MassAccuracyScorer
 from .simple_score import SimpleCoverageScorer
+from .coverage_weighted_binomial import CoverageWeightedBinomialScorer

@@ -545,7 +545,7 @@ class Proteome(DatabaseBoundOperation, TaskBase):
                     try:
                         Modification(name)
                     except ModificationNameResolutionError:
-                        self.modification_conversion_map[name] = modification.AnonymousModificationRule(
+                        self.modification_translation_table[name] = modification.AnonymousModificationRule(
                             name, mod['massDelta'])
 
                 residues = mod['residues']

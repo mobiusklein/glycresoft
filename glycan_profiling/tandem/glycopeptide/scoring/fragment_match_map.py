@@ -2,18 +2,19 @@ from collections import defaultdict
 
 
 class PeakFragmentPair(object):
-    __slots__ = ["peak", "fragment", "fragment_name"]
+    __slots__ = ["peak", "fragment", "fragment_name", "_hash"]
 
     def __init__(self, peak, fragment):
         self.peak = peak
         self.fragment = fragment
         self.fragment_name = fragment.name
+        self._hash = hash(self.peak)
 
     def __eq__(self, other):
         return (self.peak == other.peak) and (self.fragment_name == other.fragment_name)
 
     def __hash__(self):
-        return hash(self.peak)
+        return self._hash
 
     def __reduce__(self):
         return self.__class__, (self.peak, self.fragment)

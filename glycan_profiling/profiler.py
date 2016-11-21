@@ -1,9 +1,6 @@
 import re
-import time
 import warnings
 import logging
-
-import glypy
 
 from glycan_profiling.plotting.summaries import GlycanChromatographySummaryGraphBuilder
 from glycan_profiling.database import build_database
@@ -30,9 +27,10 @@ from glycan_profiling.trace import (
     NonAggregatingTracer, ScanSink, ChromatogramExtractor,
     ChromatogramProcessor)
 
+from glycan_profiling.models import GeneralScorer
 
 from glycan_profiling.tandem import chromatogram_mapping
-from glycan_profiling.tandem.glycopeptide.scoring.binomial_score import BinomialSpectrumMatcher
+from glycan_profiling.tandem.glycopeptide.scoring import CoverageWeightedBinomialScorer
 from glycan_profiling.tandem.glycopeptide.glycopeptide_matcher import GlycopeptideDatabaseSearchIdentifier
 from glycan_profiling.tandem.glycopeptide import (
     identified_structure as identified_glycopeptide)
@@ -112,12 +110,14 @@ class SampleConsumer(TaskBase):
 class GlycanChromatogramAnalyzer(TaskBase):
     def __init__(self, database_connection, hypothesis_id, sample_run_id, adducts=None,
                  mass_error_tolerance=1e-5, grouping_error_tolerance=1.5e-5,
-                 scoring_model=None, network_sharing=0.2, analysis_name=None):
+                 scoring_model=None, network_sharing=0.2, minimum_mass=500.,
+                 analysis_name=None):
         self.database_connection = database_connection
         self.hypothesis_id = hypothesis_id
         self.sample_run_id = sample_run_id
         self.mass_error_tolerance = mass_error_tolerance
         self.grouping_error_tolerance = grouping_error_tolerance
+        self.minimum_mass = minimum_mass
         self.scoring_model = scoring_model
         self.network_sharing = network_sharing
         self.adducts = adducts
@@ -137,7 +137,8 @@ class GlycanChromatogramAnalyzer(TaskBase):
             "mass_error_tolerance": self.mass_error_tolerance,
             "grouping_error_tolerance": self.grouping_error_tolerance,
             "network_sharing": self.network_sharing,
-            "adducts": [adduct.name for adduct in self.adducts]
+            "adducts": [adduct.name for adduct in self.adducts],
+            "minimum_mass": self.minimum_mass,
         })
 
         for chroma in solutions:
@@ -157,7 +158,8 @@ class GlycanChromatogramAnalyzer(TaskBase):
             self.database_connection, self.hypothesis_id)
 
         extractor = ChromatogramExtractor(
-            peak_loader, grouping_tolerance=self.grouping_error_tolerance)
+            peak_loader, grouping_tolerance=self.grouping_error_tolerance,
+            minimum_mass=self.minimum_mass)
         proc = ChromatogramProcessor(
             extractor, database, mass_error_tolerance=self.mass_error_tolerance, adducts=self.adducts,
             scoring_model=self.scoring_model, network_sharing=self.network_sharing)
@@ -170,7 +172,12 @@ class GlycanChromatogramAnalyzer(TaskBase):
 class GlycopeptideLCMSMSAnalyzer(TaskBase):
     def __init__(self, database_connection, hypothesis_id, sample_run_id,
                  analysis_name=None, grouping_error_tolerance=1.5e-5, mass_error_tolerance=1e-5,
-                 msn_mass_error_tolerance=2e-5, psm_fdr_threshold=0.05, scoring_model=None):
+                 msn_mass_error_tolerance=2e-5, psm_fdr_threshold=0.05, peak_shape_scoring_model=None,
+                 tandem_scoring_model=None, minimum_mass=1000.):
+        if tandem_scoring_model is None:
+            tandem_scoring_model = CoverageWeightedBinomialScorer
+        if peak_shape_scoring_model is None:
+            peak_shape_scoring_model = GeneralScorer
         self.database_connection = database_connection
         self.hypothesis_id = hypothesis_id
         self.sample_run_id = sample_run_id
@@ -179,8 +186,10 @@ class GlycopeptideLCMSMSAnalyzer(TaskBase):
         self.msn_mass_error_tolerance = msn_mass_error_tolerance
         self.grouping_error_tolerance = grouping_error_tolerance
         self.psm_fdr_threshold = psm_fdr_threshold
-        self.scoring_model = scoring_model
+        self.peak_shape_scoring_model = peak_shape_scoring_model
+        self.tandem_scoring_model = tandem_scoring_model
         self.analysis = None
+        self.minimum_mass = minimum_mass
 
     def run(self):
         peak_loader = DatabaseScanDeserializer(
@@ -190,14 +199,15 @@ class GlycopeptideLCMSMSAnalyzer(TaskBase):
             self.database_connection, self.hypothesis_id)
 
         extractor = ChromatogramExtractor(
-            peak_loader, grouping_tolerance=self.grouping_error_tolerance)
+            peak_loader, grouping_tolerance=self.grouping_error_tolerance,
+            minimum_mass=self.minimum_mass)
 
         prec_info = peak_loader.precursor_information()
         msms_scans = [o.product for o in prec_info]
 
         # Traditional LC-MS/MS Database Search
         searcher = GlycopeptideDatabaseSearchIdentifier(
-            msms_scans, BinomialSpectrumMatcher, database, peak_loader.convert_scan_id_to_retention_time)
+            msms_scans, self.tandem_scoring_model, database, peak_loader.convert_scan_id_to_retention_time)
         target_hits, decoy_hits = searcher.search(
             precursor_error_tolerance=self.mass_error_tolerance,
             error_tolerance=self.msn_mass_error_tolerance)
@@ -210,7 +220,7 @@ class GlycopeptideLCMSMSAnalyzer(TaskBase):
 
         # Score chromatograms, both matched and unmatched
         self.log("Scoring chromatograms")
-        chroma_scoring_model = self.scoring_model
+        chroma_scoring_model = self.peak_shape_scoring_model
         scored_merged = ChromatogramFilter(
             [ChromatogramSolution(c, scorer=chroma_scoring_model) for c in merged])
 
@@ -234,7 +244,8 @@ class GlycopeptideLCMSMSAnalyzer(TaskBase):
             "mass_error_tolerance": self.mass_error_tolerance,
             "fragment_error_tolerance": self.msn_mass_error_tolerance,
             "grouping_error_tolerance": self.grouping_error_tolerance,
-            "psm_fdr_threshold": self.psm_fdr_threshold
+            "psm_fdr_threshold": self.psm_fdr_threshold,
+            "minimum_mass": self.minimum_mass,
         })
 
         analysis_saver.save_glycopeptide_identification_set(identified_glycopeptides)

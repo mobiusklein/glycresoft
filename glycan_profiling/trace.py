@@ -5,7 +5,7 @@ from glycan_profiling.task import TaskBase
 from .chromatogram_tree import (
     Chromatogram, ChromatogramForest, Unmodified,
     mask_subsequence, DuplicateNodeError, get_chromatogram,
-    SimpleChromatogram, find_truncation_points, build_rt_interval_tree,
+    SimpleChromatogram, find_truncation_points,
     ChromatogramFilter, GlycanCompositionChromatogram, GlycopeptideChromatogram,
     ChromatogramOverlapSmoother)
 
@@ -337,7 +337,7 @@ class CompositionGroup(object):
         return self.members == other.members
 
 
-class ChromatogramMatcher(object):
+class ChromatogramMatcher(TaskBase):
     def __init__(self, database, chromatogram_type=None):
         if chromatogram_type is None:
             chromatogram_type = GlycanCompositionChromatogram
@@ -476,11 +476,19 @@ class ChromatogramMatcher(object):
         if adducts is None:
             adducts = []
         matches = []
+        chromatograms = list(chromatograms)
+        self.log("Matching chromatograms")
+        i = 0
+        n = len(chromatograms)
         for chro in chromatograms:
+            i += 1
+            if i % 1000 == 0:
+                self.log("%0.2f%% chromatograms searched (%d/%d)" % (i * 100. / n, i, n))
             matches.extend(self.search(chro, mass_error_tolerance))
         matches = ChromatogramFilter(matches)
         matches = self.join_common_identities(matches)
         matches = self.join_mass_shifted(matches, adducts, mass_error_tolerance)
+        self.log("Handling Adducts")
         matches = self.reverse_adduct_search(matches, adducts, mass_error_tolerance)
         matches = self.join_common_identities(matches)
         return matches
@@ -515,7 +523,7 @@ class NonSplittingChromatogramMatcher(ChromatogramMatcher):
             return out
 
 
-class ChromatogramEvaluator(object):
+class ChromatogramEvaluator(TaskBase):
     def __init__(self, scoring_model=None, network=None):
         if scoring_model is None:
             scoring_model = ChromatogramScorer()
@@ -530,7 +538,12 @@ class ChromatogramEvaluator(object):
             filtered = ChromatogramOverlapSmoother(filtered)
 
         solutions = []
+        i = 0
+        n = len(filtered)
         for case in filtered:
+            i += 1
+            if i % 100 == 0:
+                self.log("%0.2f%% chromatograms evaluated (%d/%d)" % (i * 100. / n, i, n))
             try:
                 solutions.append(ChromatogramSolution(case, scorer=self.scoring_model))
             except (IndexError, ValueError):
@@ -591,7 +604,7 @@ class ChromatogramExtractor(TaskBase):
             minimum_mass=self.minimum_mass, minimum_intensity=self.minimum_intensity,
             grouping_tolerance=self.grouping_tolerance,
             truncate=False)
-        self.log(len(chroma))
+        self.log("%d Chromatograms Extracted." % (len(chroma),))
         self.chromatograms = ChromatogramFilter.process(
             chroma, min_points=self.min_points, delta_rt=self.delta_rt)
 
