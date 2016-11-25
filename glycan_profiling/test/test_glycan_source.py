@@ -5,8 +5,8 @@ from glycan_profiling.database.builder.glycan import glycan_source
 
 
 FILE_SOURCE = '''
-{Hex:3; HexNAc:2}
-{Fuc:1; Hex:3; HexNAc:2}
+{Hex:3; HexNAc:2}  N-Glycan  O-Glycan
+{Fuc:1; Hex:3; HexNAc:2}  N-Glycan
 '''
 
 
@@ -29,6 +29,7 @@ class GlycanSourceTests(unittest.TestCase):
             glycan_source.DBGlycanComposition.hypothesis_id == builder.hypothesis_id,
             glycan_source.DBGlycanComposition.composition == "{Hex:3; HexNAc:2}").one()
         self.assertAlmostEqual(inst.calculated_mass, 910.32777, 3)
+        self.assertTrue("N-Glycan" in inst.structure_classes)
         builder.engine.dispose()
         self.clear_file(file_name + '.db')
         self.clear_file(file_name)

@@ -36,6 +36,11 @@ def parent_sequence_aware_n_glycan_sequon_sites(peptide, protein):
     return list(sites)
 
 
+def o_glycan_sequon_sites(peptide, protein=None):
+    sites = sequence.find_o_glycosylation_sequons(peptide.modified_peptide_sequence)
+    return sites
+
+
 def split_terminal_modifications(modifications):
     n_terminal = []
     c_terminal = []
@@ -203,8 +208,10 @@ class ProteinDigestor(object):
             peptide.peptide_score = 0
             peptide.peptide_score_type = 'null_score'
             n_glycosites = parent_sequence_aware_n_glycan_sequon_sites(peptide, protein_obj)
+            o_glycosites = o_glycan_sequon_sites(peptide, protein_obj)
             peptide.count_glycosylation_sites = len(n_glycosites)
             peptide.n_glycosylation_sites = sorted(n_glycosites)
+            peptide.o_glycosylation_sites = sorted(o_glycosites)
             yield peptide
 
 

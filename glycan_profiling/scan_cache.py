@@ -113,10 +113,13 @@ class NullScanCacheHandler(ScanCacheHandlerBase):
 
 
 class DatabaseScanCacheHandler(ScanCacheHandlerBase):
+    commit_interval = 5000
+
     def __init__(self, connection, sample_name):
         self.serializer = DatabaseScanSerializer(connection, sample_name)
         self.commit_counter = 0
-        self.index_controller = PeakTableIndexToggler(self.serializer.session)
+        self.last_commit_count = 0
+        # self.index_controller = PeakTableIndexToggler(self.serializer.session)
         super(DatabaseScanCacheHandler, self).__init__()
         logger.info("Serializing scans under %r @ %r", self.serializer.sample_run, self.serializer.engine)
         # self.index_controller.drop()
@@ -124,8 +127,9 @@ class DatabaseScanCacheHandler(ScanCacheHandlerBase):
     def save_bunch(self, precursor, products):
         try:
             self.serializer.save(ScanBunch(precursor, products), commit=False)
-            self.commit_counter += 1
-            if self.commit_counter % 1000 == 0:
+            self.commit_counter += 1 + len(products)
+            if self.commit_counter - self.last_commit_count > self.commit_interval:
+                self.last_commit_count = self.commit_counter
                 self.commit()
         except Exception, e:
             log_handle.error("An error occured while saving scans", e)

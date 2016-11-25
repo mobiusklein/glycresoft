@@ -44,11 +44,19 @@ class FastaGlycopeptideHypothesisSerializer(GlycopeptideHypothesisSerializerBase
         digestor = ProteinDigestor(
             self.protease, self.constant_modifications, self.variable_modifications,
             self.max_missed_cleavages)
-        for protein_id in self.protein_ids():
+        i = 0
+        j = 0
+        protein_ids = self.protein_ids()
+        n = len(protein_ids)
+        for protein_id in protein_ids:
+            i += 1
             protein = self.query(Protein).get(protein_id)
             acc = []
+            if i % 10 == 0:
+                self.log("%0.3f%% Complete (%d/%d). %d Peptides Produced." % (i * 100. / n, i, n, j))
             for peptide in digestor.process_protein(protein):
                 acc.append(peptide)
+                j += 1
                 if len(acc) > 100000:
                     self.session.bulk_save_objects(acc)
                     self.session.commit()
@@ -82,6 +90,7 @@ class FastaGlycopeptideHypothesisSerializer(GlycopeptideHypothesisSerializerBase
         self.combinate_glycans(self.max_glycosylation_events)
         self.log("Building Glycopeptides")
         self.glycosylate_peptides()
+        self._sql_analyze_database()
         self._count_produced_glycopeptides()
         self.log("Done")
 
@@ -97,17 +106,17 @@ class MultipleProcessFastaGlycopeptideHypothesisSerializer(FastaGlycopeptideHypo
         self.n_processes = n_processes
 
     def glycosylate_peptides(self):
-        input_queue = Queue(100)
+        input_queue = Queue(10)
         done_event = Event()
         processes = [
             PeptideGlycosylatingProcess(
                 self._original_connection, self.hypothesis_id, input_queue,
-                chunk_size=15000, done_event=done_event) for i in range(self.n_processes)
+                chunk_size=5000, done_event=done_event) for i in range(self.n_processes)
         ]
         peptide_ids = self.peptide_ids()
         n = len(peptide_ids)
         i = 0
-        chunk_size = 50
+        chunk_size = min(int(n * 0.15), 1000)
         for process in processes:
             input_queue.put(peptide_ids[i:(i + chunk_size)])
             i += chunk_size
@@ -116,7 +125,7 @@ class MultipleProcessFastaGlycopeptideHypothesisSerializer(FastaGlycopeptideHypo
         while i < n:
             input_queue.put(peptide_ids[i:(i + chunk_size)])
             i += chunk_size
-            self.log("... Dealt Peptides %d-%d %0.2f%%" % (i - chunk_size, i, (i / float(n)) * 100))
+            self.log("... Dealt Peptides %d-%d %0.2f%%" % (i - chunk_size, min(i, n), (min(i, n) / float(n)) * 100))
 
         self.log("... All Peptides Dealt")
         done_event.set()

@@ -73,7 +73,7 @@ class BiGaussianModel(PeakShapeModelBase):
 
     @staticmethod
     def shape(xs, center, amplitude, sigma_left, sigma_right):
-        ys = np.zeros_like(xs)
+        ys = np.zeros_like(xs, dtype=np.float32)
         left_mask = xs < center
         ys[left_mask] = amplitude * np.exp(-(xs[left_mask] - center) ** 2 / (2 * sigma_left ** 2)) * sqrt(2 * pi)
         right_mask = xs > center
@@ -120,6 +120,11 @@ class ChromatogramShapeFitterBase(object):
         self.xs, self.ys = self.chromatogram.as_arrays()
         if self.smooth:
             self.ys = gaussian_filter1d(self.ys, 1)
+        if len(self.xs) > 2000:
+            new_xs = np.linspace(self.xs.min(), self.xs.max(), 2000)
+            new_ys = np.interp(new_xs, self.xs, self.ys)
+            self.xs = new_xs
+            self.ys = new_ys
 
     def compute_residuals(self):
         return NotImplemented

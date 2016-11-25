@@ -173,7 +173,7 @@ class GlycopeptideLCMSMSAnalyzer(TaskBase):
     def __init__(self, database_connection, hypothesis_id, sample_run_id,
                  analysis_name=None, grouping_error_tolerance=1.5e-5, mass_error_tolerance=1e-5,
                  msn_mass_error_tolerance=2e-5, psm_fdr_threshold=0.05, peak_shape_scoring_model=None,
-                 tandem_scoring_model=None, minimum_mass=1000.):
+                 tandem_scoring_model=None, minimum_mass=1500.):
         if tandem_scoring_model is None:
             tandem_scoring_model = CoverageWeightedBinomialScorer
         if peak_shape_scoring_model is None:
@@ -221,8 +221,17 @@ class GlycopeptideLCMSMSAnalyzer(TaskBase):
         # Score chromatograms, both matched and unmatched
         self.log("Scoring chromatograms")
         chroma_scoring_model = self.peak_shape_scoring_model
-        scored_merged = ChromatogramFilter(
-            [ChromatogramSolution(c, scorer=chroma_scoring_model) for c in merged])
+        scored_merged = []
+        n = len(merged)
+        i = 0
+        for c in merged:
+            i += 1
+            if i % 500 == 0:
+                self.log("%0.2f%% chromatograms evaluated (%d/%d) %r" % (i * 100. / n, i, n, c))
+            try:
+                scored_merged.append(ChromatogramSolution(c, scorer=chroma_scoring_model))
+            except (IndexError, ValueError):
+                continue
 
         self.log("Assigning consensus glycopeptides to spectrum clusters")
         gps, unassigned = identified_glycopeptide.extract_identified_structures(

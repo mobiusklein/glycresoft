@@ -29,8 +29,8 @@ class ChromatogramSpacingFitter(object):
             last_rt = rt
             last_int = inten
 
-        self.rt_deltas = np.array(self.rt_deltas)
-        self.intensity_deltas = np.array(self.intensity_deltas)
+        self.rt_deltas = np.array(self.rt_deltas, dtype=np.float16)
+        self.intensity_deltas = np.array(self.intensity_deltas, dtype=np.float32)
 
         self.score = np.average(self.rt_deltas, weights=self.intensity_deltas / self.intensity_deltas.sum())
 

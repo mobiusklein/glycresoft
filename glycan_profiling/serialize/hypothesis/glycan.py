@@ -61,6 +61,29 @@ class GlycanComposition(GlycanBase, Base):
     structure_classes = relationship("GlycanClass", secondary=lambda: GlycanCompositionToClass, lazy='dynamic')
 
 
+class GlycanStructure(GlycanBase, Base):
+    __tablename__ = "GlycanStructure"
+
+    id = Column(Integer, primary_key=True)
+
+
+    glycan_sequence = Column(String(2048), index=True)
+
+    glycan_composition_id = Column(
+        Integer, ForeignKey(GlycanComposition.id, ondelete='CASCADE'), index=True)
+
+    glycan_composition = relationship(GlycanComposition)
+
+    @declared_attr
+    def hypothesis_id(self):
+        return Column(Integer, ForeignKey(
+            GlycanHypothesis.id, ondelete="CASCADE"), index=True)
+
+    @declared_attr
+    def hypothesis(self):
+        return relationship(GlycanHypothesis, backref=backref('glycan_structures', lazy='dynamic'))
+
+
 GlycanCombinationGlycanComposition = Table(
     "GlycanCombinationGlycanComposition", Base.metadata,
     Column("glycan_id", Integer, ForeignKey("GlycanComposition.id", ondelete="CASCADE"), index=True),
@@ -105,6 +128,19 @@ class GlycanCombination(GlycanBase, Base):
             GlycanCombinationGlycanComposition.c.combination_id == self.id).all()
         return [i[0] for i in ids]
 
+
+    def _get_component_classes(self):
+        for case in self:
+            yield case.structure_classes.all()
+
+    _component_classes = None
+
+    @property
+    def component_classes(self):
+        if self._component_classes is None:
+            self._component_classes = tuple(self._get_component_classes())
+        return self._component_classes
+
     @hybrid_method
     def dehydrated_mass(self, water_mass=Composition("H2O").mass):
         mass = self.calculated_mass
@@ -129,9 +165,33 @@ class GlycanClass(Base):
     id = Column(Integer, primary_key=True)
     name = Column(String(128), index=True)
 
+    def __str__(self):
+        return self.name
+
+    def __eq__(self, other):
+        return self.name == other
+
+    def __ne__(self, other):
+        return not self == other
+
+    def __hash__(self):
+        return hash(self.name)
+
+    def __repr__(self):
+        return "GlycanClass(name=%r)" % (self.name,)
+
+
+class _namespace(object):
+    def __repr__(self):
+        return "(%r)" % self.__dict__
+
+GlycanTypes = _namespace()
+GlycanTypes.n_glycan = "N-Glycan"
+GlycanTypes.o_glycan = "O-Glycan"
+
 
 GlycanCompositionToClass = Table(
     "GlycanCompositionToClass", Base.metadata,
-    Column("glycan_id", Integer, ForeignKey("GlycanComposition.id", ondelete="CASCADE"), index=True),
-    Column("class_id", Integer, ForeignKey("GlycanClass.id", ondelete="CASCADE"), index=True)
+    Column("glycan_id", Integer, ForeignKey("GlycanComposition.id", ondelete="CASCADE"), primary_key=True),
+    Column("class_id", Integer, ForeignKey("GlycanClass.id", ondelete="CASCADE"), primary_key=True)
 )

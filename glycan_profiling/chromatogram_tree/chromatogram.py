@@ -250,8 +250,8 @@ class Chromatogram(object):
         return self._end_time
 
     def as_arrays(self):
-        rts = np.array([node.retention_time for node in self.nodes])
-        intens = np.array([node.total_intensity() for node in self.nodes])
+        rts = np.array([node.retention_time for node in self.nodes], dtype=np.float64)
+        intens = np.array([node.total_intensity() for node in self.nodes], dtype=np.float64)
         return rts, intens
 
     def __len__(self):
@@ -754,9 +754,7 @@ class ChromatogramWrapper(object):
         return self.chromatogram.end_time
 
     def as_arrays(self):
-        rts = np.array([node.retention_time for node in self])
-        intens = np.array([node.total_intensity() for node in self])
-        return rts, intens
+        return self.chromatogram.as_arrays()
 
     def overlaps_in_time(self, interval):
         return self.chromatogram.overlaps_in_time(interval)

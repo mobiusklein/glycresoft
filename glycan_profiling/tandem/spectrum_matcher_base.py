@@ -1,15 +1,44 @@
 from collections import defaultdict
 
-from glypy.composition.glycan_composition import FrozenMonosaccharideResidue
+from glypy.composition.glycan_composition import FrozenMonosaccharideResidue, Composition
 
 from glycan_profiling.task import TaskBase
 from .ref import TargetReference, SpectrumReference
 
+
+class _mass_wrapper(object):
+    def __init__(self, mass):
+        self.value = mass
+
+    def mass(self, *args, **kwargs):
+        return self.value
+
+
+_hexnac = FrozenMonosaccharideResidue.from_iupac_lite("HexNAc")
+_hexose = FrozenMonosaccharideResidue.from_iupac_lite("Hex")
+_neuac = FrozenMonosaccharideResidue.from_iupac_lite('NeuAc')
+
 _standard_oxonium_ions = [
-    FrozenMonosaccharideResidue.from_iupac_lite("HexNAc"),
-    FrozenMonosaccharideResidue.from_iupac_lite("Hex"),
-    FrozenMonosaccharideResidue.from_iupac_lite('NeuAc'),
-    FrozenMonosaccharideResidue.from_iupac_lite("Fuc")
+    _hexnac,
+    _hexose,
+    _mass_wrapper(_hexose.mass() - Composition("H2O").mass),
+    _neuac,
+    _mass_wrapper(_neuac.mass() - Composition("H2O").mass),
+    FrozenMonosaccharideResidue.from_iupac_lite("Fuc"),
+    _mass_wrapper(_hexnac.mass() - Composition("C2H6O3").mass),
+    _mass_wrapper(_hexnac.mass() - Composition("CH6O3").mass),
+    _mass_wrapper(_hexnac.mass() - Composition("C2H4O2").mass),
+    _mass_wrapper(_hexnac.mass() - Composition("H2O").mass),
+    _mass_wrapper(_hexnac.mass() - Composition("H4O2").mass)
+]
+
+_gscore_oxonium_ions = [
+    _hexnac,
+    _mass_wrapper(_hexnac.mass() - Composition("C2H6O3").mass),
+    _mass_wrapper(_hexnac.mass() - Composition("CH6O3").mass),
+    _mass_wrapper(_hexnac.mass() - Composition("C2H4O2").mass),
+    _mass_wrapper(_hexnac.mass() - Composition("H2O").mass),
+    _mass_wrapper(_hexnac.mass() - Composition("H4O2").mass)
 ]
 
 
@@ -43,11 +72,14 @@ class OxoniumIonScanner(object):
 
 
 oxonium_detector = OxoniumIonScanner()
+gscore_scanner = OxoniumIonScanner(_gscore_oxonium_ions)
 
 
 def group_by_precursor_mass(scans, window_size=1.5e-5):
     scans = sorted(scans, key=lambda x: x.precursor_information.extracted_neutral_mass)
     groups = []
+    if len(scans) == 0:
+        return groups
     current_group = [scans[0]]
     last_scan = scans[0]
     for scan in scans[1:]:
@@ -156,7 +188,6 @@ class SpectrumMatch(SpectrumMatchBase):
         self.score = score
         self.best_match = best_match
         self.data_bundle = data_bundle
-        # self.clear_caches()
 
     def clear_caches(self):
         try:
@@ -324,9 +355,12 @@ class TandemClusterEvaluatorBase(TaskBase):
         last_report = report_interval
         self.log("... Begin Collecting Hits")
         for group in groups:
+            if len(group) == 0:
+                continue
             i += len(group)
             if i > last_report:
-                self.log("... Mapped %0.2f%% of spectra (%d/%d)" % (i * 100. / n, i, n))
+                self.log("... Mapped %0.2f%% of spectra (%d/%d) %0.4f" % (i * 100. / n, i, n,
+                    group[0].precursor_information.extracted_neutral_mass))
                 while last_report < i and report_interval != 0:
                     last_report += report_interval
             for scan in group:

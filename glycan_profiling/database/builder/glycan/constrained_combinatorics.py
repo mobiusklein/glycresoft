@@ -5,7 +5,8 @@ from glycan_profiling.serialize.hypothesis.glycan import GlycanComposition as DB
 
 from glypy.composition import formula
 
-from .glycan_source import GlycanTransformer, GlycanHypothesisSerializerBase
+from .glycan_source import (
+    GlycanTransformer, GlycanHypothesisSerializerBase, GlycanCompositionToClass)
 from .symbolic_expression import (
     ConstraintExpression, Solution)
 
@@ -44,12 +45,16 @@ class CombinatoricCompositionGenerator(object):
             rules_table[residue] = (lower, upper)
         return rules_table
 
-    def __init__(self, residue_list=None, lower_bound=None, upper_bound=None, constraints=None, rules_table=None):
+    def __init__(self, residue_list=None, lower_bound=None, upper_bound=None, constraints=None, rules_table=None,
+                 structure_classifiers=None):
+        if structure_classifiers is None:
+            structure_classifiers = {"N-Glycan": is_n_glycan_classifier}
         self.residue_list = residue_list or []
         self.lower_bound = lower_bound or []
         self.upper_bound = upper_bound or []
         self.constraints = constraints or []
         self.rules_table = rules_table
+        self.structure_classifiers = structure_classifiers
 
         if len(self.constraints) > 0 and not isinstance(self.constraints[0], ConstraintExpression):
             self.constraints = list(
@@ -72,12 +77,16 @@ class CombinatoricCompositionGenerator(object):
         for combin in descending_combination_counter(self.rules_table):
             passed = True
             combin = Solution(combin)
+            structure_classes = []
             for constraint in self.constraints:
                 if not constraint(combin):
                     passed = False
                     break
             if passed:
-                yield MemoryGlycanComposition(**combin.context)
+                for name, classifier in self.structure_classifiers.items():
+                    if classifier(combin):
+                        structure_classes.append(name)
+                yield MemoryGlycanComposition(**combin.context), structure_classes
 
     __iter__ = generate
 
@@ -111,8 +120,10 @@ class CombinatorialGlycanHypothesisSerializer(GlycanHypothesisSerializerBase):
 
     def run(self):
         self.make_pipeline()
+        structure_class_lookup = self.structure_class_loader()
+        acc = []
         self.log("Generating Glycan Compositions from Symbolic Rules for %r" % self.hypothesis)
-        for composition in self.transformer:
+        for composition, structure_classes in self.transformer:
             mass = composition.mass()
             composition_string = composition.serialize()
             formula_string = formula(composition.total_composition())
@@ -121,6 +132,16 @@ class CombinatorialGlycanHypothesisSerializer(GlycanHypothesisSerializerBase):
                 composition=composition_string,
                 hypothesis_id=self.hypothesis_id)
             self.session.add(inst)
+            self.session.flush()
+            for structure_class in structure_classes:
+                structure_class = structure_class_lookup[structure_class]
+                acc.append(dict(glycan_id=inst.id, class_id=structure_class.id))
+                if len(acc) % 100 == 0:
+                    self.session.execute(GlycanCompositionToClass.insert(), acc)
+                    acc = []
+        if acc:
+            self.session.execute(GlycanCompositionToClass.insert(), acc)
+            acc = []
         self.session.commit()
 
 

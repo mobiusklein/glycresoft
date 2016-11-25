@@ -1,20 +1,26 @@
 import itertools
 from uuid import uuid4
-from collections import defaultdict
+from collections import defaultdict, Counter
 from multiprocessing import Process, Queue, Event
+from itertools import product
 
 from glypy import Composition
 from glypy.composition import formula
+from glypy.composition.glycan_composition import FrozenGlycanComposition
 
 from glycan_profiling.serialize import DatabaseBoundOperation, func
 from glycan_profiling.serialize.hypothesis import GlycopeptideHypothesis
 from glycan_profiling.serialize.hypothesis.peptide import Glycopeptide, Peptide, Protein
+from glycan_profiling.serialize.hypothesis.glycan import (
+    GlycanCombination, GlycanClass, GlycanComposition,
+    GlycanTypes, GlycanCombinationGlycanComposition)
 from glycan_profiling.task import TaskBase
 
 from glycan_profiling.database.builder.glycan import glycan_combinator
 from glycan_profiling.database.builder.base import HypothesisSerializerBase
 
-from glycopeptidepy.structure.sequence import _n_glycosylation
+from glycopeptidepy.structure.sequence import (
+    _n_glycosylation, _o_glycosylation)
 
 
 def slurp(session, model, ids, flatten=True):
@@ -77,6 +83,14 @@ class GlycopeptideHypothesisSerializerBase(DatabaseBoundOperation, HypothesisSer
             Glycopeptide.hypothesis_id == self.hypothesis_id).scalar()
         self.log("Generated %d glycopeptides" % count)
 
+    def _sql_analyze_database(self):
+        if self.session.query(GlycopeptideHypothesis).count() == 1:
+            self.log("Analyzing Indices")
+            self._analyze_database()
+            if self.is_sqlite():
+                self._sqlite_reload_analysis_plan()
+            self.log("Done Analyzing Indices")
+
 
 class GlycopeptideHypothesisDestroyer(DatabaseBoundOperation, TaskBase):
     def __init__(self, database_connection, hypothesis_id):
@@ -88,7 +102,7 @@ class GlycopeptideHypothesisDestroyer(DatabaseBoundOperation, TaskBase):
         self.session.query(Glycopeptide).filter(
             Glycopeptide.hypothesis_id == self.hypothesis_id).delete(
             synchronize_session=False)
-        self.session.flush()
+        self.session.commit()
 
     def delete_peptides(self):
         self.log("Delete Peptides")
@@ -97,19 +111,19 @@ class GlycopeptideHypothesisDestroyer(DatabaseBoundOperation, TaskBase):
             self.session.query(Peptide).filter(
                 Peptide.protein_id == protein_id).delete(
                 synchronize_session=False)
-            self.session.flush()
+            self.session.commit()
 
     def delete_protein(self):
         self.log("Delete Protein")
         self.session.query(Protein).filter(Protein.hypothesis_id == self.hypothesis_id).delete(
             synchronize_session=False)
-        self.session.flush()
+        self.session.commit()
 
     def delete_hypothesis(self):
         self.log("Delete Hypothesis")
         self.session.query(GlycopeptideHypothesis).filter(
             GlycopeptideHypothesis.id == self.hypothesis_id).delete()
-        self.session.flush()
+        self.session.commit()
 
     def run(self):
         self.delete_glycopeptides()
@@ -119,40 +133,139 @@ class GlycopeptideHypothesisDestroyer(DatabaseBoundOperation, TaskBase):
         self.session.commit()
 
 
+def distinct_glycan_classes(session, hypothesis_id):
+    structure_classes = session.query(GlycanClass.name.distinct()).join(
+        GlycanComposition.structure_classes).join(
+        GlycanCombinationGlycanComposition).join(
+        GlycanCombination).filter(
+        GlycanCombination.hypothesis_id == hypothesis_id).all()
+    return [sc[0] for sc in structure_classes]
+
+
+def composition_to_structure_class_map(session, glycan_hypothesis_id):
+    mapping = defaultdict(list)
+    id_to_class_iterator = session.query(GlycanComposition.id, GlycanClass.name).join(
+        GlycanComposition.structure_classes).filter(
+        GlycanComposition.hypothesis_id == glycan_hypothesis_id).all()
+    for gc_id, sc_name in id_to_class_iterator:
+        mapping[gc_id].append(sc_name)
+    return mapping
+
+
+def combination_structure_class_map(session, hypothesis_id, composition_class_map):
+    mapping = defaultdict(list)
+    iterator = session.query(
+        GlycanCombinationGlycanComposition).join(GlycanCombination).filter(
+        GlycanCombination.hypothesis_id == hypothesis_id).order_by(GlycanCombination.id)
+    for glycan_id, combination_id, count in iterator:
+        listing = mapping[combination_id]
+        for i in range(count):
+            listing.append(composition_class_map[glycan_id])
+    return mapping
+
+
+class GlycanCombinationPartitionTable(TaskBase):
+    def __init__(self, session, glycan_combinations, glycan_classes, hypothesis):
+        self.session = session
+        self.tables = defaultdict(lambda: defaultdict(list))
+        self.hypothesis_id = hypothesis.id
+        self.glycan_hypothesis_id = hypothesis.glycan_hypothesis_id
+        self.glycan_classes = glycan_classes
+        self.build_table(glycan_combinations)
+
+    def build_table(self, glycan_combinations):
+        i = 0
+        n = len(glycan_combinations)
+
+        composition_class_map = composition_to_structure_class_map(
+            self.session, self.glycan_hypothesis_id)
+        combination_class_map = combination_structure_class_map(
+            self.session, self.hypothesis_id, composition_class_map)
+
+        for entry in glycan_combinations:
+            i += 1
+            if i % 10000 == 0:
+                # self.log("Partitioned %0.3f%% combinations (%d/%d)" % (i * 100. / n, i, n))
+                pass
+            size_table = self.tables[entry.count]
+            component_classes = combination_class_map[entry.id]
+            class_assignment_generator = product(*component_classes)
+            for classes in class_assignment_generator:
+                counts = Counter(c for c in classes)
+                key = tuple(counts[c] for c in self.glycan_classes)
+                class_table = size_table[key]
+                class_table.append(entry)
+
+    def build_key(self, mapping):
+        return tuple(mapping.get(c, 0) for c in self.glycan_classes)
+
+    def get_entries(self, size, mapping):
+        key = self.build_key(mapping)
+        return self.tables[size][key]
+
+    def __getitem__(self, key):
+        size, mapping = key
+        return self.get_entries(size, mapping)
+
+
+class GlycanCombinationRecord(object):
+    __slots__ = ['id', 'calculated_mass', 'formula', 'count', 'glycan_composition_string']
+
+    def __init__(self, combination):
+        self.id = combination.id
+        self.calculated_mass = combination.calculated_mass
+        self.formula = combination.formula
+        self.count = combination.count
+        self.glycan_composition_string = combination.composition
+
+    def convert(self):
+        gc = FrozenGlycanComposition.parse(self.glycan_composition_string)
+        gc.id = self.id
+        gc.count = self.count
+        return gc
+
+    def __repr__(self):
+        return "GlycanCombinationRecord(%d, %s)" % (
+            self.id, self.glycan_composition_string)
+
+
 class PeptideGlycosylator(object):
     def __init__(self, session, hypothesis_id):
         self.session = session
         self.hypothesis_id = hypothesis_id
-        self.glycan_combinations = self.session.query(
-            glycan_combinator.GlycanCombination).filter(
-            glycan_combinator.GlycanCombination.hypothesis_id == hypothesis_id).all()
-        self.build_size_table()
+        self.hypothesis = self.session.query(GlycopeptideHypothesis).get(hypothesis_id)
+        glycan_combinations = self.session.query(
+            GlycanCombination).filter(
+            GlycanCombination.hypothesis_id == hypothesis_id).all()
+        glycan_combinations = [GlycanCombinationRecord(gc) for gc in glycan_combinations]
+        self.build_size_table(glycan_combinations)
 
-    def build_size_table(self):
-        size_map = defaultdict(list)
-        for gc in self.glycan_combinations:
-            size_map[gc.count].append(gc)
-        self.by_size = size_map
+    def build_size_table(self, glycan_combinations):
+        self.glycan_combination_partitions = GlycanCombinationPartitionTable(
+            self.session, glycan_combinations, distinct_glycan_classes(
+                self.session, self.hypothesis_id), self.hypothesis)
 
     def handle_peptide(self, peptide):
         water = Composition("H2O")
         peptide_composition = Composition(str(peptide.formula))
-        glycosylation_mod = _n_glycosylation.name
-        unoccupied_sites = set(peptide.n_glycosylation_sites)
         obj = peptide.convert()
-        for site in list(unoccupied_sites):
+
+        # Handle N-linked glycosylation sites
+
+        n_glycosylation_unoccupied_sites = set(peptide.n_glycosylation_sites)
+        for site in list(n_glycosylation_unoccupied_sites):
             if obj[site][1]:
-                unoccupied_sites.remove(site)
-        for i in range(len(unoccupied_sites)):
+                n_glycosylation_unoccupied_sites.remove(site)
+        for i in range(len(n_glycosylation_unoccupied_sites)):
             i += 1
-            for gc in self.by_size[i]:
+            for gc in self.glycan_combination_partitions[i, {"N-Glycan": i}]:
                 total_mass = peptide.calculated_mass + gc.calculated_mass - (gc.count * water.mass)
                 formula_string = formula(peptide_composition + Composition(str(gc.formula)) - (water * gc.count))
 
-                for site_set in itertools.combinations(unoccupied_sites, i):
+                for site_set in itertools.combinations(n_glycosylation_unoccupied_sites, i):
                     sequence = peptide.convert()
                     for site in site_set:
-                        sequence.add_modification(site, glycosylation_mod)
+                        sequence.add_modification(site, _n_glycosylation.name)
                     sequence.glycan = gc.convert()
 
                     glycopeptide_sequence = str(sequence)
@@ -167,6 +280,36 @@ class PeptideGlycosylator(object):
                         glycan_combination_id=gc.id)
                     yield glycopeptide
 
+        # Handle O-linked glycosylation sites
+
+        o_glycosylation_unoccupied_sites = set(peptide.o_glycosylation_sites)
+        for site in list(o_glycosylation_unoccupied_sites):
+            if obj[site][1]:
+                o_glycosylation_unoccupied_sites.remove(site)
+
+        for i in range(len(o_glycosylation_unoccupied_sites)):
+            i += 1
+            for gc in self.glycan_combination_partitions[i, {"O-Glycan": i}]:
+                total_mass = peptide.calculated_mass + gc.calculated_mass - (gc.count * water.mass)
+                formula_string = formula(peptide_composition + Composition(str(gc.formula)) - (water * gc.count))
+
+                for site_set in itertools.combinations(o_glycosylation_unoccupied_sites, i):
+                    sequence = peptide.convert()
+                    for site in site_set:
+                        sequence.add_modification(site, _o_glycosylation.name)
+                    sequence.glycan = gc.convert()
+
+                    glycopeptide_sequence = str(sequence)
+
+                    glycopeptide = Glycopeptide(
+                        calculated_mass=total_mass,
+                        formula=formula_string,
+                        glycopeptide_sequence=glycopeptide_sequence,
+                        peptide_id=peptide.id,
+                        protein_id=peptide.protein_id,
+                        hypothesis_id=peptide.hypothesis_id,
+                        glycan_combination_id=gc.id)
+                    yield glycopeptide
 
 class PeptideGlycosylatingProcess(Process):
     def __init__(self, connection, hypothesis_id, input_queue, chunk_size=5000, done_event=None):

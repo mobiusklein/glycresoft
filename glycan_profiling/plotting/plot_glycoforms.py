@@ -103,7 +103,7 @@ def draw_layers(layers, protein, scale_factor=1.0, ax=None, **kwargs):
             for gpm in layer:
                 if gpm.start_position < cur_position:
                     continue
-                elif gpm.start_position > next_row:
+                elif gpm.start_position >= next_row:
                     break
                 c += 1
                 rect = mpatches.Rectangle(

@@ -23,26 +23,13 @@ from glycan_profiling.models import GeneralScorer
 from .validators import (
     validate_analysis_name,
     validate_adduct, validate_glycopeptide_tandem_scoring_function,
-    glycopeptide_tandem_scoring_functions)
+    glycopeptide_tandem_scoring_functions,
+    get_by_name_or_id)
 
 
 @cli.group(short_help='Identify structures in preprocessed data')
 def analyze():
     pass
-
-
-def get_by_name_or_id(session, model_type, name_or_id):
-    try:
-        object_id = int(name_or_id)
-        inst = session.query(model_type).get(object_id)
-        if inst is None:
-            raise ValueError("No instance of type %s with id %r" %
-                             (model_type, name_or_id))
-        return inst
-    except ValueError:
-        inst = session.query(model_type).filter(
-            model_type.name == name_or_id).one()
-        return inst
 
 
 @analyze.command("search-glycopeptide", short_help='Search preprocessed data for glycopeptide sequences')

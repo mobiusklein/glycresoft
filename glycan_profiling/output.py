@@ -100,6 +100,7 @@ class GlycopeptideLCMSMSAnalysisCSVSerializer(CSVSerializerBase):
             obj.chromatogram.end_time,
             obj.chromatogram.apex_time,
             ";".join(map(str, obj.chromatogram.charge_states)),
+            len(obj.spectrum_matches),
             self.protein_name_resolver[obj.protein_relation.protein_id]
         ]
         return map(str, attribs)

@@ -14,7 +14,7 @@ from .scoring import TargetDecoyAnalyzer
 from glycan_profiling.database.structure_loader import (
     CachingGlycopeptideParser, DecoyMakingCachingGlycopeptideParser)
 
-from ..spectrum_matcher_base import TandemClusterEvaluatorBase, oxonium_detector
+from ..spectrum_matcher_base import TandemClusterEvaluatorBase, gscore_scanner
 from ..chromatogram_mapping import ChromatogramMSMSMapper
 
 
@@ -64,9 +64,10 @@ class TargetDecoyInterleavingGlycopeptideMatcher(TandemClusterEvaluatorBase):
     def filter_for_oxonium_ions(self, error_tolerance=1e-5):
         keep = []
         for scan in self.tandem_cluster:
-            ratio = oxonium_detector.gscore(scan.deconvoluted_peak_set)
+            ratio = gscore_scanner.gscore(scan.deconvoluted_peak_set)
             scan.oxonium_score = ratio
-            keep.append(scan)
+            if ratio >= 0.1:
+                keep.append(scan)
         self.tandem_cluster = keep
 
     def score_one(self, scan, precursor_error_tolerance=1e-5, *args, **kwargs):

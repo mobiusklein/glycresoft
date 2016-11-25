@@ -7,7 +7,7 @@ from glycan_profiling.cli.base import cli
 from glycan_profiling.cli.validators import (
     glycan_source_validators, validate_modifications,
     validate_glycan_source, validate_glycopeptide_hypothesis_name,
-    validate_glycan_hypothesis_name,
+    validate_glycan_hypothesis_name, get_by_name_or_id,
     validate_reduction, validate_derivatization, validate_mzid_proteins)
 
 from glycan_profiling.serialize import DatabaseBoundOperation, GlycanHypothesis
@@ -20,7 +20,8 @@ from glycan_profiling.database.builder.glycopeptide.informed_glycopeptide import
 
 from glycan_profiling.database.builder.glycan import (
     TextFileGlycanHypothesisSerializer,
-    CombinatorialGlycanHypothesisSerializer)
+    CombinatorialGlycanHypothesisSerializer,
+    GlycanCompositionHypothesisMerger)
 
 from glycopeptidepy.utils.collectiontools import decoratordict
 from glycopeptidepy.structure.modification import RestrictedModificationTable
@@ -211,6 +212,26 @@ def glycan_combinatorial(context, rule_file, database_connection, reduction, der
         hypothesis_name=name)
     builder.start()
 
+
+@build_hypothesis.command("merge-glycan")
+@click.pass_context
+@click.argument("database-connection")
+@click.option("-n", "--name", default=None, help="The name for the hypothesis to be created")
+@click.option("-i", "--hypothesis-identifier", multiple=True, help="A hypothesis to include")
+def merge_glycan_hypotheses(context, database_connection, hypothesis_identifier, name):
+    database_connection = DatabaseBoundOperation(database_connection)
+    hypothesis_ids = []
+    for ident in hypothesis_identifier:
+        hypothesis = get_by_name_or_id(database_connection, GlycanHypothesis, ident)
+        hypothesis_ids.append(hypothesis.id)
+
+    if name is not None:
+        name = validate_glycan_hypothesis_name(context, database_connection._original_connection, name)
+        click.secho("Building Glycan Hypothesis %s" % name, fg='cyan')
+
+    task = GlycanCompositionHypothesisMerger(
+        database_connection._original_connection, hypothesis_ids, name)
+    task.start()
 
 if __name__ == '__main__':
     cli.main()

@@ -5,6 +5,8 @@ from ms_deisotope.output.db import (
     Base, DeconvolutedPeak, MSScan, Mass, HasUniqueName,
     SampleRun, DatabaseScanDeserializer, DatabaseBoundOperation)
 
+from glycan_profiling.task import TaskBase
+
 from .analysis import Analysis
 from .chromatogram import (
     Chromatogram,
@@ -19,7 +21,7 @@ from .identification import (
     Glycopeptide)
 
 
-class AnalysisSerializer(DatabaseBoundOperation):
+class AnalysisSerializer(DatabaseBoundOperation, TaskBase):
     def __init__(self, connection, sample_run_id, analysis_name, analysis_id=None):
         DatabaseBoundOperation.__init__(self, connection)
         session = self.session
@@ -152,7 +154,12 @@ class AnalysisSerializer(DatabaseBoundOperation):
     def save_glycopeptide_identification_set(self, identification_set, commit=False):
         cache = defaultdict(list)
         out = []
+        n = len(identification_set)
+        i = 0
         for case in identification_set:
+            i += 1
+            if i % 100 == 0:
+                self.log("%0.2f%% glycopeptides saved. (%d/%d), %r" % (i * 100. / n, i, n, case))
             saved = self.save_glycopeptide_identification(case)
             cache[case.chromatogram].append(saved)
             out.append(saved)

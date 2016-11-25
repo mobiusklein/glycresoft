@@ -88,6 +88,7 @@ class MzIdentMLGlycopeptideHypothesisSerializer(GlycopeptideHypothesisSerializer
         self.combinate_glycans(self.max_glycosylation_events)
         self.log("Building Glycopeptides")
         self.glycosylate_peptides()
+        self._sql_analyze_database()
         self._count_produced_glycopeptides()
         self.log("Done")
 
@@ -108,7 +109,7 @@ class MultipleProcessMzIdentMLGlycopeptideHypothesisSerializer(MzIdentMLGlycopep
         processes = [
             PeptideGlycosylatingProcess(
                 self._original_connection, self.hypothesis_id, input_queue,
-                chunk_size=15000, done_event=done_event) for i in range(self.n_processes)
+                chunk_size=5000, done_event=done_event) for i in range(self.n_processes)
         ]
         peptide_ids = self.peptide_ids()
         i = 0

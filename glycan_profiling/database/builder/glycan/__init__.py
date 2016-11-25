@@ -1,5 +1,6 @@
 from .glycan_source import (
-    TextFileGlycanHypothesisSerializer, GlycanTransformer, GlycanCompositionLoader)
+    TextFileGlycanHypothesisSerializer, GlycanTransformer, GlycanCompositionLoader,
+    GlycanCompositionHypothesisMerger)
 from .constrained_combinatorics import (
     CombinatorialGlycanHypothesisSerializer, CombinatoricCompositionGenerator)
 from .glycan_combinator import (
