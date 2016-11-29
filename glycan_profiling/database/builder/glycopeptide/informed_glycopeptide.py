@@ -114,7 +114,7 @@ class MultipleProcessMzIdentMLGlycopeptideHypothesisSerializer(MzIdentMLGlycopep
         peptide_ids = self.peptide_ids()
         i = 0
         n = len(peptide_ids)
-        chunk_size = 50
+        chunk_size = min(int(n * 0.15), 1000)
         for process in processes:
             input_queue.put(peptide_ids[i:(i + chunk_size)])
             i += chunk_size

@@ -3,7 +3,7 @@ from collections import defaultdict
 import itertools
 from multiprocessing import Process, Queue, Event
 
-from . import enzyme
+from glycopeptidepy import enzyme
 from .utils import slurp
 
 from glypy.composition import formula
@@ -38,6 +38,11 @@ def parent_sequence_aware_n_glycan_sequon_sites(peptide, protein):
 
 def o_glycan_sequon_sites(peptide, protein=None):
     sites = sequence.find_o_glycosylation_sequons(peptide.modified_peptide_sequence)
+    return sites
+
+
+def gag_sequon_sites(peptide, protein=None):
+    sites = sequence.find_glycosaminoglycan_sequons(peptide.modified_peptide_sequence)
     return sites
 
 
@@ -155,10 +160,10 @@ def peptide_isoforms(sequence, constant_modifications, variable_modifications):
 
 
 def cleave_sequence(sequence, protease, missed_cleavages=2):
-    for peptide, start, end in cleave(sequence, enzyme.expasy_rules[protease], missed_cleavages=missed_cleavages):
+    for peptide, start, end in protease.cleave(sequence, missed_cleavages=missed_cleavages):
         if len(peptide) < 5:
             continue
-        missed = len(re.findall(protease, peptide))
+        missed = protease.missed_cleavages(peptide)
         if missed > missed_cleavages:
             continue
 
@@ -173,6 +178,12 @@ def digest(sequence, protease, constant_modifications=None, variable_modificatio
         constant_modifications = []
     if variable_modifications is None:
         variable_modifications = []
+    if isinstance(protease, enzyme.Protease):
+        pass
+    elif isinstance(protease, basestring):
+        protease = enzyme.Protease(protease)
+    elif isinstance(protease, (list, tuple)):
+        protease = enzyme.Protease.combine(*protease)
     for peptide, start, end, n_missed_cleavages in cleave_sequence(sequence, protease, max_missed_cleavages):
         for modified_peptide, n_variable_modifications in peptide_isoforms(
                 peptide, constant_modifications, variable_modifications):
@@ -191,6 +202,16 @@ def digest(sequence, protease, constant_modifications=None, variable_modificatio
 
 class ProteinDigestor(object):
     def __init__(self, protease, constant_modifications=None, variable_modifications=None, max_missed_cleavages=2):
+        if constant_modifications is None:
+            constant_modifications = []
+        if variable_modifications is None:
+            variable_modifications = []
+        if isinstance(protease, enzyme.Protease):
+            pass
+        elif isinstance(protease, basestring):
+            protease = enzyme.Protease(protease)
+        elif isinstance(protease, (list, tuple)):
+            protease = enzyme.Protease.combine(*protease)
         self.protease = protease
         self.constant_modifications = constant_modifications
         self.variable_modifications = variable_modifications
@@ -209,9 +230,11 @@ class ProteinDigestor(object):
             peptide.peptide_score_type = 'null_score'
             n_glycosites = parent_sequence_aware_n_glycan_sequon_sites(peptide, protein_obj)
             o_glycosites = o_glycan_sequon_sites(peptide, protein_obj)
+            gag_glycosites = gag_sequon_sites(peptide, protein_obj)
             peptide.count_glycosylation_sites = len(n_glycosites)
             peptide.n_glycosylation_sites = sorted(n_glycosites)
             peptide.o_glycosylation_sites = sorted(o_glycosites)
+            peptide.gagylation_sites = sorted(gag_glycosites)
             yield peptide
 
 

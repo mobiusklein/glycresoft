@@ -128,11 +128,11 @@ class SequenceGlyph(object):
         for fragment in fragments:
             key = fragment.name
             if key in index:
-                hexnac = "HexNAc" in key
-                if key.startswith('b'):
-                    n_annotations.append((index[key], hexnac))
-                elif key.startswith('y'):
-                    c_annotations.append((index[key], hexnac))
+                is_glycosylated = fragment.is_glycosylated
+                if key.startswith('b') or key.startswith('c'):
+                    n_annotations.append((index[key], is_glycosylated))
+                elif key.startswith('y') or key.startswith('z'):
+                    c_annotations.append((index[key], is_glycosylated))
         kwargs_with_greater_height = kwargs.copy()
         kwargs_with_greater_height["height"] = kwargs.get("height", 0.25) * 2
         kwargs.setdefault('color', 'red')
@@ -149,9 +149,9 @@ class SequenceGlyph(object):
             except:
                 rgb = color
             kwargs_with_greater_height['color'] = darken(rgb)
-        for n_annot, has_hexnac in n_annotations:
+        for n_annot, is_glycosylated in n_annotations:
             self.draw_bar_at(n_annot, color=kwargs['color'])
-            if has_hexnac:
+            if is_glycosylated:
                 self.draw_n_term_annotation(
                     n_annot, **kwargs_with_greater_height)
             else:
@@ -159,9 +159,9 @@ class SequenceGlyph(object):
 
         kwargs_with_greater_height['height'] = kwargs.get("height", 0.25)
         kwargs['height'] = 0
-        for c_annot, has_hexnac in c_annotations:
+        for c_annot, is_glycosylated in c_annotations:
             self.draw_bar_at(c_annot, color=kwargs['color'])
-            if has_hexnac:
+            if is_glycosylated:
                 self.draw_c_term_annotation(
                     c_annot, **kwargs_with_greater_height)
             else:

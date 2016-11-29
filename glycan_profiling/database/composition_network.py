@@ -1,5 +1,10 @@
-from StringIO import StringIO
+from io import StringIO
 import numpy as np
+
+try:
+    basestring
+except:
+    basestring = (str, bytes)
 
 from glypy.composition.glycan_composition import FrozenMonosaccharideResidue, GlycanComposition
 from glycopeptidepy import HashableGlycanComposition

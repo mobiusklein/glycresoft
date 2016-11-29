@@ -190,6 +190,10 @@ class _ProteinIndex(object):
         else:
             return self._get_by_name(key)
 
+    def __iter__(self):
+        q = self.session.query(Protein).filter(Protein.hypothesis_id == self.hypothesis_id)
+        return iter(q)
+
 
 class _PeptideIndex(object):
     def __init__(self, session, hypothesis_id):

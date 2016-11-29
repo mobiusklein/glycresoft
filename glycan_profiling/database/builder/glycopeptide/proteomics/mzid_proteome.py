@@ -58,6 +58,16 @@ def parent_sequence_aware_n_glycan_sequon_sites(peptide, protein):
     return list(sites)
 
 
+def o_glycan_sequon_sites(peptide, protein=None):
+    sites = sequence.find_o_glycosylation_sequons(peptide.modified_peptide_sequence)
+    return sites
+
+
+def gag_sequon_sites(peptide, protein=None):
+    sites = sequence.find_glycosaminoglycan_sequons(peptide.modified_peptide_sequence)
+    return sites
+
+
 def remove_peptide_sequence_alterations(base_sequence, insert_sites, delete_sites):
     """
     Remove all the sequence insertions and deletions in order to reconstruct the
@@ -376,10 +386,6 @@ class PeptideConverter(object):
         self.counter = 0
 
     def get_protein(self, evidence):
-        # parent_protein = self.session.query(Protein).filter(
-        #     Protein.name == evidence['accession'],
-        #     Protein.hypothesis_id == self.hypothesis_id).first()
-        # return parent_protein
         return self.protein_loader[evidence['accession']]
 
     def sequence_starts_at(self, sequence, parent_protein):
@@ -407,11 +413,14 @@ class PeptideConverter(object):
             sequence_length=end - start,
             protein_id=parent_protein.id,
             hypothesis_id=self.hypothesis_id)
-        # match.protein = parent_protein
-        glycosites = parent_sequence_aware_n_glycan_sequon_sites(
+        n_glycosites = parent_sequence_aware_n_glycan_sequon_sites(
             match, parent_protein)
-        match.count_glycosylation_sites = len(glycosites)
-        match.n_glycosylation_sites = list(glycosites)
+        o_glycosites = o_glycan_sequon_sites(match, parent_protein)
+        gag_glycosites = gag_sequon_sites(match, parent_protein)
+        match.count_glycosylation_sites = len(n_glycosites) + len(o_glycosites)
+        match.n_glycosylation_sites = sorted(n_glycosites)
+        match.o_glycosylation_sites = sorted(o_glycosites)
+        match.gagylation_sites = sorted(gag_glycosites)
         return match
 
     def copy_db_peptide(self, db_peptide):
@@ -430,7 +439,8 @@ class PeptideConverter(object):
             sequence_length=db_peptide.sequence_length,
             protein_id=db_peptide.protein_id,
             hypothesis_id=db_peptide.hypothesis_id,
-            n_glycosylation_sites=db_peptide.n_glycosylation_sites)
+            n_glycosylation_sites=db_peptide.n_glycosylation_sites,
+            o_glycosylation_sites=db_peptide.o_glycosylation_sites)
         return dup
 
     def has_occupied_glycosites(self, db_peptide):
@@ -490,13 +500,11 @@ class PeptideConverter(object):
             self.add_to_save_queue(match)
             if self.has_occupied_glycosites(match):
                 cleared = self.clear_sites(match)
-                # match = self.pack_peptide(cleared, start, end, score, score_type, parent_protein)
                 self.add_to_save_queue(cleared)
 
     def add_to_save_queue(self, match):
         self.counter += 1
         self.peptide_grouper.add(match)
-        # self.accumulator.append(match)
         # assert abs(match.calculated_mass - match.convert().mass) < 0.01, abs(
         #     match.calculated_mass - match.convert().mass)
         if len(self.accumulator) > self.chunk_size:

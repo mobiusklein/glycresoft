@@ -6,10 +6,6 @@ from .fragment_match_map import FragmentMatchMap
 from glycopeptidepy.structure.fragment import IonSeries
 
 
-def is_glycosylated(frag):
-    return "HexNAc" in frag.modification_dict
-
-
 class SimpleCoverageScorer(SpectrumMatcherBase):
     def __init__(self, scan, sequence):
         super(SimpleCoverageScorer, self).__init__(scan, sequence)
@@ -26,7 +22,7 @@ class SimpleCoverageScorer(SpectrumMatcherBase):
         for frags in self.target.get_fragments('b'):
             glycosylated_position = False
             for frag in frags:
-                glycosylated_position |= is_glycosylated(frag)
+                glycosylated_position |= frag.is_glycosylated
                 peak = spectrum.has_peak(frag.mass, error_tolerance)
                 if peak:
                     solution_map.add(peak, frag)
@@ -37,7 +33,7 @@ class SimpleCoverageScorer(SpectrumMatcherBase):
         for frags in self.target.get_fragments('y'):
             glycosylated_position = False
             for frag in frags:
-                glycosylated_position |= is_glycosylated(frag)
+                glycosylated_position |= frag.is_glycosylated
                 peak = spectrum.has_peak(frag.mass, error_tolerance)
                 if peak:
                     solution_map.add(peak, frag)
@@ -63,11 +59,11 @@ class SimpleCoverageScorer(SpectrumMatcherBase):
         for frag in self.solution_map.fragments():
             if frag.series == IonSeries.b:
                 b_ions[frag.position] = 1
-                if is_glycosylated(frag):
+                if frag.is_glycosylated:
                     glycosylated_b_ions += 1
             elif frag.series == IonSeries.y:
                 y_ions[frag.position] = 1
-                if is_glycosylated(frag):
+                if frag.is_glycosylated:
                     glycosylated_y_ions += 1
             elif frag.series == IonSeries.stub_glycopeptide:
                 stub_count += 1

@@ -57,11 +57,6 @@ class OxoniumIonScanner(object):
         return matches
 
     def ratio(self, peak_list, charge=0, error_tolerance=2e-5):
-        total = sum(p.intensity for p in peak_list)
-        oxonium = sum(p.intensity for p in self.scan(peak_list, charge, error_tolerance))
-        return oxonium / total
-
-    def gscore(self, peak_list, charge=0, error_tolerance=2e-5):
         maximum = max(p.intensity for p in peak_list)
         oxonium = sum(p.intensity / maximum for p in self.scan(peak_list, charge, error_tolerance))
         n = len(self.ions_to_search)
@@ -76,7 +71,9 @@ gscore_scanner = OxoniumIonScanner(_gscore_oxonium_ions)
 
 
 def group_by_precursor_mass(scans, window_size=1.5e-5):
-    scans = sorted(scans, key=lambda x: x.precursor_information.extracted_neutral_mass)
+    scans = sorted(
+        scans, key=lambda x: x.precursor_information.extracted_neutral_mass,
+        reverse=True)
     groups = []
     if len(scans) == 0:
         return groups

@@ -145,11 +145,11 @@ class QueryComposer(object):
     def collate(self):
         monosaccharides = list(map(str, self.parent.monosaccharides))
         filters = sorted(self.filters, key=lambda x: str(x.key))
+        kept_filters = []
         for filt in filters:
-            if filt.key not in monosaccharides:
-                raise KeyError(filt.key)
-        else:
-            return filters
+            if filt.key in monosaccharides:
+                kept_filters.append(filt)
+        return kept_filters
 
     def __eq__(self, other):
         if isinstance(other, QueryComposer):

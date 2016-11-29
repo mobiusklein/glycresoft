@@ -73,7 +73,7 @@ def _get_hypothesis_id_for_glycan_composition_hypothesis(database_connection, so
             return inst.id
 
 
-@build_hypothesis.command("glycopeptide-fa")
+@build_hypothesis.command("glycopeptide-fa", short_help="Build glycopeptide search spaces with a fasta file of proteins")
 @click.pass_context
 @click.argument("fasta-file", type=click.Path(exists=True))
 @click.argument("database-connection")
@@ -129,7 +129,7 @@ def glycopeptide_fa(context, fasta_file, database_connection, enzyme, missed_cle
     return builder.hypothesis_id
 
 
-@build_hypothesis.command("glycopeptide-mzid")
+@build_hypothesis.command("glycopeptide-mzid", short_help="Build a glycopeptide search space with an mzIdentML file")
 @click.pass_context
 @click.argument("mzid-file", type=click.Path(exists=True))
 @click.argument("database-connection")
@@ -175,7 +175,7 @@ def glycopeptide_mzid(context, mzid_file, database_connection, name, occupied_gl
     return builder.hypothesis_id
 
 
-@build_hypothesis.command("glycan-text")
+@build_hypothesis.command("glycan-text", short_help='Build a glycan search space with a text file of glycan compositions')
 @click.pass_context
 @click.argument("text-file", type=click.Path(exists=True))
 @click.argument("database-connection")
@@ -194,7 +194,8 @@ def glycan_text(context, text_file, database_connection, reduction, derivatizati
     builder.start()
 
 
-@build_hypothesis.command("glycan-combinatorial")
+@build_hypothesis.command("glycan-combinatorial", short_help=('Build a glycan search space with a text file'
+                                                              ' containing algebraic combination rules'))
 @click.pass_context
 @click.argument("rule-file", type=click.Path(exists=True))
 @click.argument("database-connection")
@@ -213,11 +214,12 @@ def glycan_combinatorial(context, rule_file, database_connection, reduction, der
     builder.start()
 
 
-@build_hypothesis.command("merge-glycan")
+@build_hypothesis.command("merge-glycan", short_help=("Combine two or more glycan search spaces to create a "
+                                                      "new one containing unique entries from all constituents"))
 @click.pass_context
 @click.argument("database-connection")
 @click.option("-n", "--name", default=None, help="The name for the hypothesis to be created")
-@click.option("-i", "--hypothesis-identifier", multiple=True, help="A hypothesis to include")
+@click.option("-i", "--hypothesis-identifier", multiple=True, help="A hypothesis to include. May be used many times")
 def merge_glycan_hypotheses(context, database_connection, hypothesis_identifier, name):
     database_connection = DatabaseBoundOperation(database_connection)
     hypothesis_ids = []

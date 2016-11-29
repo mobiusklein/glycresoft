@@ -188,6 +188,7 @@ class _namespace(object):
 GlycanTypes = _namespace()
 GlycanTypes.n_glycan = "N-Glycan"
 GlycanTypes.o_glycan = "O-Glycan"
+GlycanTypes.gag_linker = "GAG-Linker"
 
 
 GlycanCompositionToClass = Table(

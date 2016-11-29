@@ -1,7 +1,7 @@
 from ...spectrum_matcher_base import SpectrumMatcherBase
 
 from .binomial_score import BinomialSpectrumMatcher, binomial_intensity, binomial_fragments_matched
-from .simple_score import SimpleCoverageScorer, is_glycosylated
+from .simple_score import SimpleCoverageScorer
 from .fragment_match_map import FragmentMatchMap
 
 
@@ -33,7 +33,7 @@ class CoverageWeightedBinomialScorer(BinomialSpectrumMatcher, SimpleCoverageScor
             glycosylated_position = False
             n_theoretical += 1
             for frag in frags:
-                glycosylated_position |= is_glycosylated(frag)
+                glycosylated_position |= frag.is_glycosylated
                 peak = spectrum.has_peak(frag.mass, error_tolerance)
                 if peak:
                     solution_map.add(peak, frag)
@@ -45,7 +45,7 @@ class CoverageWeightedBinomialScorer(BinomialSpectrumMatcher, SimpleCoverageScor
             glycosylated_position = False
             n_theoretical += 1
             for frag in frags:
-                glycosylated_position |= is_glycosylated(frag)
+                glycosylated_position |= frag.is_glycosylated
                 peak = spectrum.has_peak(frag.mass, error_tolerance)
                 if peak:
                     solution_map.add(peak, frag)
