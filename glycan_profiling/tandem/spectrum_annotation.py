@@ -2,7 +2,7 @@ from ms_peak_picker.utils import draw_peaklist
 
 
 def annotate_matched_deconvoluted_peaks(solution_map, ax, **kwargs):
-    fontsize = kwargs.get('fontsize', 10)
+    fontsize = kwargs.get('fontsize', 9)
     upper = max(ax.get_ylim())
     for fragment, peak in solution_map:
         draw_peaklist([peak], alpha=0.8, ax=ax, color='red')

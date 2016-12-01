@@ -125,6 +125,7 @@ class ChromatogramShapeFitterBase(object):
             new_ys = np.interp(new_xs, self.xs, self.ys)
             self.xs = new_xs
             self.ys = new_ys
+            self.ys = gaussian_filter1d(self.ys, 1)
 
     def compute_residuals(self):
         return NotImplemented
@@ -370,6 +371,8 @@ class AdaptiveMultimodalChromatogramShapeFitter(ChromatogramShapeFitterBase):
 
 
 class SplittingPoint(object):
+    __slots__ = ["first_maximum", "minimum", "second_maximum", "minimum_index", "total_distance"]
+
     def __init__(self, first_maximum, minimum, second_maximum, minimum_index):
         self.first_maximum = first_maximum
         self.minimum = minimum
@@ -424,8 +427,12 @@ class ProfileSplittingMultimodalChromatogramShapeFitter(ChromatogramShapeFitterB
                 max_j = maxima_indices[j]
                 for k in range(len(minima_indices)):
                     min_k = minima_indices[k]
-                    if max_i < min_k < max_j:
-                        point = SplittingPoint(ys[max_i], ys[min_k], ys[max_j], xs[min_k])
+                    y_i = ys[max_i]
+                    y_j = ys[max_j]
+                    y_k = ys[min_k]
+                    if max_i < min_k < max_j and (y_i - y_k) > (y_i * 0.01) and (
+                            y_j - y_k) > (y_j * 0.01):
+                        point = SplittingPoint(y_i, y_k, y_j, xs[min_k])
                         candidates.append(point)
         if candidates:
             best_point = max(candidates, key=lambda x: x.total_distance)

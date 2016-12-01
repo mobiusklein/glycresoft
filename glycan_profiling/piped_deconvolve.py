@@ -323,10 +323,11 @@ class ScanCollator(TaskBase):
         return scan
 
     def print_state(self):
-        self.log("%d since last work item" % (self.count_since_last,))
-        self.log("Waiting Keys: %r" % (sorted(self.waiting.keys()),))
-        self.log("The last index handled: %r" % (self.last_index,))
-        self.log("Number of items waiting in the queue: %d" % (self.queue.qsize(),))
+        if self.queue.qsize() > 0:
+            self.log("%d since last work item" % (self.count_since_last,))
+            self.log("Waiting Keys: %r" % (sorted(self.waiting.keys()),))
+            self.log("The last index handled: %r" % (self.last_index,))
+            self.log("Number of items waiting in the queue: %d" % (self.queue.qsize(),))
 
     def __iter__(self):
         has_more = True

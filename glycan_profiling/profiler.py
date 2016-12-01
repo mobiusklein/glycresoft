@@ -97,8 +97,11 @@ class SampleConsumer(TaskBase):
         sink.configure_cache(self.storage_path, self.sample_name)
 
         self.log("Begin Processing")
+        last_scan_time = 0
         for scan in sink:
-            self.log("Processed %s (%f)" % (scan.id, scan.scan_time))
+            if scan.scan_time - last_scan_time > 1.0:
+                self.log("Processed %s (%f)" % (scan.id, scan.scan_time))
+                last_scan_time = scan.scan_time
         self.log("Finished Recieving Scans")
         sink.complete()
         self.log("Completed Sample %s" % (self.sample_name,))
@@ -258,7 +261,15 @@ class GlycopeptideLCMSMSAnalyzer(TaskBase):
         })
 
         analysis_saver.save_glycopeptide_identification_set(identified_glycopeptides)
+        i = 0
+        last = 0
+        interval = 100
+        n = len(unassigned_chromatograms)
         for chroma in unassigned_chromatograms:
+            i += 1
+            if (i - last > interval):
+                self.log("Saving Unidentified Chromatogram %d/%d (%0.2f)" % (i, n, (i * 100. / n)))
+                last = i
             analysis_saver.save_unidentified_chromatogram_solution(chroma)
 
         self.analysis = analysis_saver.analysis

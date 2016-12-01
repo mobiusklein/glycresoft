@@ -1,5 +1,9 @@
-from io import StringIO
 import numpy as np
+
+try:
+    from StringIO import StringIO
+except:
+    from io import StringIO
 
 try:
     basestring

@@ -440,7 +440,8 @@ class PeptideConverter(object):
             protein_id=db_peptide.protein_id,
             hypothesis_id=db_peptide.hypothesis_id,
             n_glycosylation_sites=db_peptide.n_glycosylation_sites,
-            o_glycosylation_sites=db_peptide.o_glycosylation_sites)
+            o_glycosylation_sites=db_peptide.o_glycosylation_sites,
+            gagylation_sites=db_peptide.gagylation_sites)
         return dup
 
     def has_occupied_glycosites(self, db_peptide):

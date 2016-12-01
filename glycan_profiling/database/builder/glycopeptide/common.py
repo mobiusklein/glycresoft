@@ -20,7 +20,7 @@ from glycan_profiling.database.builder.glycan import glycan_combinator
 from glycan_profiling.database.builder.base import HypothesisSerializerBase
 
 from glycopeptidepy.structure.sequence import (
-    _n_glycosylation, _o_glycosylation)
+    _n_glycosylation, _o_glycosylation, _gag_linker_glycosylation)
 
 
 def slurp(session, model, ids, flatten=True):
@@ -258,7 +258,7 @@ class PeptideGlycosylator(object):
                 n_glycosylation_unoccupied_sites.remove(site)
         for i in range(len(n_glycosylation_unoccupied_sites)):
             i += 1
-            for gc in self.glycan_combination_partitions[i, {"N-Glycan": i}]:
+            for gc in self.glycan_combination_partitions[i, {GlycanTypes.n_glycan: i}]:
                 total_mass = peptide.calculated_mass + gc.calculated_mass - (gc.count * water.mass)
                 formula_string = formula(peptide_composition + Composition(str(gc.formula)) - (water * gc.count))
 
@@ -280,8 +280,8 @@ class PeptideGlycosylator(object):
                         glycan_combination_id=gc.id)
                     yield glycopeptide
 
-        # Handle O-linked glycosylation sites
 
+        # Handle O-linked glycosylation sites
         o_glycosylation_unoccupied_sites = set(peptide.o_glycosylation_sites)
         for site in list(o_glycosylation_unoccupied_sites):
             if obj[site][1]:
@@ -289,7 +289,7 @@ class PeptideGlycosylator(object):
 
         for i in range(len(o_glycosylation_unoccupied_sites)):
             i += 1
-            for gc in self.glycan_combination_partitions[i, {"O-Glycan": i}]:
+            for gc in self.glycan_combination_partitions[i, {GlycanTypes.o_glycan: i}]:
                 total_mass = peptide.calculated_mass + gc.calculated_mass - (gc.count * water.mass)
                 formula_string = formula(peptide_composition + Composition(str(gc.formula)) - (water * gc.count))
 
@@ -310,6 +310,35 @@ class PeptideGlycosylator(object):
                         hypothesis_id=peptide.hypothesis_id,
                         glycan_combination_id=gc.id)
                     yield glycopeptide
+
+        # Handle GAG glycosylation sites
+        gag_unoccupied_sites = set(peptide.gagylation_sites)
+        for site in list(gag_unoccupied_sites):
+            if obj[site][1]:
+                gag_unoccupied_sites.remove(site)
+        for i in range(len(gag_unoccupied_sites)):
+            i += 1
+            for gc in self.glycan_combination_partitions[i, {GlycanTypes.gag_linker: i}]:
+                total_mass = peptide.calculated_mass + gc.calculated_mass - (gc.count * water.mass)
+                formula_string = formula(peptide_composition + Composition(str(gc.formula)) - (water * gc.count))
+                for site_set in itertools.combinations(o_glycosylation_unoccupied_sites, i):
+                    sequence = peptide.convert()
+                    for site in site_set:
+                        sequence.add_modification(site, _gag_linker_glycosylation.name)
+                    sequence.glycan = gc.convert()
+
+                    glycopeptide_sequence = str(sequence)
+
+                    glycopeptide = Glycopeptide(
+                        calculated_mass=total_mass,
+                        formula=formula_string,
+                        glycopeptide_sequence=glycopeptide_sequence,
+                        peptide_id=peptide.id,
+                        protein_id=peptide.protein_id,
+                        hypothesis_id=peptide.hypothesis_id,
+                        glycan_combination_id=gc.id)
+                    yield glycopeptide
+
 
 class PeptideGlycosylatingProcess(Process):
     def __init__(self, connection, hypothesis_id, input_queue, chunk_size=5000, done_event=None):

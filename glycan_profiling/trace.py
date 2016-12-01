@@ -1,3 +1,4 @@
+import time
 from collections import defaultdict, OrderedDict, namedtuple
 
 from glycan_profiling.task import TaskBase
@@ -541,11 +542,16 @@ class ChromatogramEvaluator(TaskBase):
         i = 0
         n = len(filtered)
         for case in filtered:
+            start = time.time()
             i += 1
             if i % 100 == 0:
                 self.log("%0.2f%% chromatograms evaluated (%d/%d)" % (i * 100. / n, i, n))
             try:
                 solutions.append(ChromatogramSolution(case, scorer=self.scoring_model))
+                end = time.time()
+                # Report on anything that took more than 30 seconds to evaluate
+                if end - start > 30.0:
+                    self.log("%r took a long time to evaluated (%0.2fs)" % (case, end))
             except (IndexError, ValueError):
                 continue
         if base_coef != 1.0 and self.network is not None:

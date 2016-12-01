@@ -131,7 +131,7 @@ class ChromatogramMSMSMapper(TaskBase):
         for solution in solutions:
             self.find_chromatogram_for(solution)
 
-    def distribute_orphans(self):
+    def distribute_orphans(self, threshold_fn=lambda x: x.q_value < 0.05):
         for orphan in self.orphans:
             mass = orphan.solution.precursor_ion_mass()
             window = self.error_tolerance * mass
@@ -148,8 +148,9 @@ class ChromatogramMSMSMapper(TaskBase):
                     new_owner = candidates[best_index]
                     new_owner.add_displaced_solution(orphan.solution)
             else:
-                self.log("No chromatogram found for %r, q-value %0.4f (mass: %0.4f, time: %0.4f)" % (
-                    orphan, orphan.solution.q_value, mass, time))
+                if threshold_fn(orphan.solution):
+                    self.log("No chromatogram found for %r, q-value %0.4f (mass: %0.4f, time: %0.4f)" % (
+                        orphan, orphan.solution.q_value, mass, time))
 
     def assign_entities(self, threshold_fn=lambda x: x.q_value < 0.05, entity_chromatogram_type=None):
         if entity_chromatogram_type is None:

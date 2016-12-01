@@ -227,7 +227,7 @@ class GlycopeptideDatabaseSearchIdentifierBound(DatabaseBoundOperation, TaskBase
         mapper = ChromatogramMSMSMapper(
             chromatograms, precursor_error_tolerance, self.scan_id_to_rt)
         mapper.assign_solutions_to_chromatograms(tandem_identifications)
-        mapper.distribute_orphans()
+        mapper.distribute_orphans(threshold_fn=threshold_fn)
         mapper.assign_entities(threshold_fn, entity_chromatogram_type=entity_chromatogram_type)
         return mapper.chromatograms
 

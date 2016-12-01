@@ -19,40 +19,6 @@ from glycan_profiling.piped_deconvolve import ScanGeneratorBase
 from .task import log_handle, TaskBase
 
 
-class PeakTableIndexToggler(object):
-    def __init__(self, session):
-        from glycan_profiling.serialize.utils import toggle_indices
-        self.session = session
-        self.fitted_peak_toggle = toggle_indices(self.session, FittedPeak.__table__)
-        self.deconvoluted_peak_toggle = toggle_indices(self.session, DeconvolutedPeak.__table__)
-
-    def drop(self):
-        log_handle.log("Dropping Indices")
-        try:
-            self.fitted_peak_toggle.drop()
-        except Exception, e:
-            log_handle.error("Error in fitted_peak_toggle.drop()", e)
-        try:
-            self.deconvoluted_peak_toggle.drop()
-        except Exception, e:
-            log_handle.error("Error in deconvoluted_peak_toggle.drop()", e)
-        log_handle.log("Indices Dropped")
-
-    def create(self):
-        log_handle.log("Recreating Indices")
-        try:
-            self.fitted_peak_toggle.create()
-        except Exception, e:
-            log_handle.error("Error in fitted_peak_toggle.create()", e)
-            self.session.rollback()
-        try:
-            self.deconvoluted_peak_toggle.create()
-        except Exception, e:
-            log_handle.error("Error in deconvoluted_peak_toggle.create()", e)
-            self.session.rollback()
-        log_handle.log("Indices Recreated")
-
-
 DONE = b'---NO-MORE---'
 
 logger = logging.getLogger("glycan_profiler.scan_cache")
@@ -119,10 +85,8 @@ class DatabaseScanCacheHandler(ScanCacheHandlerBase):
         self.serializer = DatabaseScanSerializer(connection, sample_name)
         self.commit_counter = 0
         self.last_commit_count = 0
-        # self.index_controller = PeakTableIndexToggler(self.serializer.session)
         super(DatabaseScanCacheHandler, self).__init__()
         logger.info("Serializing scans under %r @ %r", self.serializer.sample_run, self.serializer.engine)
-        # self.index_controller.drop()
 
     def save_bunch(self, precursor, products):
         try:
@@ -131,7 +95,7 @@ class DatabaseScanCacheHandler(ScanCacheHandlerBase):
             if self.commit_counter - self.last_commit_count > self.commit_interval:
                 self.last_commit_count = self.commit_counter
                 self.commit()
-        except Exception, e:
+        except Exception as e:
             log_handle.error("An error occured while saving scans", e)
 
     def commit(self):
