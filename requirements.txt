@@ -1,0 +1,7 @@
+dill
+sqlalchemy
+matplotlib
+scipy
+numpy
+pyteomics
+lxml

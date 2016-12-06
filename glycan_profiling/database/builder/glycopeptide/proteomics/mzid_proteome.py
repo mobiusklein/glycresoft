@@ -3,6 +3,7 @@ import logging
 from collections import defaultdict
 
 from glycopeptidepy.structure import sequence, modification, residue
+from glycopeptidepy.enzyme import expasy_rules
 from glypy.composition import formula
 
 from glycan_profiling.serialize import (
@@ -10,7 +11,6 @@ from glycan_profiling.serialize import (
 
 from glycan_profiling.task import TaskBase
 
-from .enzyme import expasy_rules
 from .mzid_parser import Parser
 from .peptide_permutation import ProteinDigestor
 from .remove_duplicate_peptides import DeduplicatePeptides
