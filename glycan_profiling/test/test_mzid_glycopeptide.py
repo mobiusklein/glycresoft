@@ -12,7 +12,7 @@ from glycan_profiling import serialize
 from glycan_profiling.test.test_constrained_combinatorics import FILE_SOURCE as GLYCAN_RULE_FILE_SOURCE
 
 
-MZID_PATH = os.path.join(os.path.dirname(__name__), 'test_data', "AGP_Proteomics2.mzid")
+MZID_PATH = os.path.join(os.path.dirname(__file__), 'test_data', "AGP_Proteomics2.mzid")
 
 
 class MzIdGlycopeptideTests(unittest.TestCase):
