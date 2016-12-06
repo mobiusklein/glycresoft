@@ -27,3 +27,11 @@ class HypothesisSerializerBase(TaskBase):
         if self._hypothesis_id is None:
             self._construct_hypothesis()
         return self._hypothesis_id
+
+    def on_end(self):
+        hypothesis = self.hypothesis
+        self.session.add(hypothesis)
+        hypothesis.status = "complete"
+        self.session.add(hypothesis)
+        self.session.commit()
+        self.log("Hypothesis Completed")

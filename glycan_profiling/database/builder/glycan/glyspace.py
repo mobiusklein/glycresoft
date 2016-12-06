@@ -21,8 +21,9 @@ config = {
 def set_transient_store(path):
     config["transient_store_directory"] = path
 
+
 def get_transient_store():
-    return config["transient_store_directory"]    
+    return config["transient_store_directory"]
 
 
 class GlycanCompositionSerializationCache(object):
@@ -35,7 +36,7 @@ class GlycanCompositionSerializationCache(object):
         try:
             return self.store[composition_string]
         except KeyError:
-            composition = GlycanCompostion.parse(composition_string)
+            composition = GlycanComposition.parse(composition_string)
             mass = composition.mass()
             formula_string = formula(composition.total_composition())
             db_obj = DBGlycanComposition(
@@ -54,7 +55,7 @@ class GlycanCompositionSerializationCache(object):
 
 class GlyspaceGlycanStructureHypothesisSerializerBase(GlycanHypothesisSerializerBase):
     def __init__(self, database_connection, hypothesis_name=None, reduction=None, derivatization=None):
-        super(GlyspaceGlycanStructureHypothesisSerializer, self).__init__(database_connection, hypothesis_name)
+        super(GlyspaceGlycanStructureHypothesisSerializerBase, self).__init__(database_connection, hypothesis_name)
         self.reduction = reduction
         self.derivatization = derivatization
         self.loader = None
@@ -108,7 +109,7 @@ class GlyspaceGlycanStructureHypothesisSerializerBase(GlycanHypothesisSerializer
             mass = structure.mass()
             structure_string = structure.serialize()
             formula_string = formula(structure.total_composition())
-            composition_string = glypy.GlycanCompostion.from_glycan(structure).serialize()
+            composition_string = GlycanComposition.from_glycan(structure).serialize()
             structure = GlycanStructure(
                 glycan_sequence=structure_string,
                 formula=formula_string,

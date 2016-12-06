@@ -104,3 +104,52 @@ class GlycopeptideLCMSMSAnalysisCSVSerializer(CSVSerializerBase):
             self.protein_name_resolver[obj.protein_relation.protein_id]
         ]
         return map(str, attribs)
+
+
+class GlycopeptideSpectrumMatchAnalysisCSVSerializer(CSVSerializerBase):
+    def __init__(self, outstream, entities_iterable, protein_name_resolver):
+        super(GlycopeptideSpectrumMatchAnalysisCSVSerializer, self).__init__(outstream, entities_iterable)
+        self.protein_name_resolver = protein_name_resolver
+
+    def get_header(self):
+        return [
+            "glycopeptide",
+            "neutral_mass",
+            "mass_accuracy",
+            "scan_id",
+            "charge",
+            "ms2_score",
+            "q_value",
+            "precursor_abundance",
+            "protein_name",
+        ]
+
+    def convert_object(self, obj):
+        precursor_mass = obj.scan.precursor_information.extracted_neutral_mass
+        attribs = [
+            str(obj.target),
+            precursor_mass,
+            ((obj.target.total_mass - precursor_mass
+              ) / precursor_mass),
+            obj.scan.id,
+            obj.scan.precursor_information.extracted_charge,
+            obj.score,
+            obj.q_value,
+            obj.scan.precursor_information.extracted_intensity,
+            self.protein_name_resolver[obj.target.protein_relation.protein_id]
+        ]
+        return map(str, attribs)
+
+    def filter(self, iterable):
+        seen = set()
+        for row in iterable:
+            key = (row[0], row[2])
+            if key in seen:
+                continue
+            seen.add(key)
+            yield row
+
+    def run(self):
+        self.writer.writerow(self.header)
+        gen = (self.convert_object(entity) for entity in self._entities_iterable)
+        self.writerows(self.filter(gen))

@@ -123,7 +123,7 @@ class MultipleProcessMzIdentMLGlycopeptideHypothesisSerializer(MzIdentMLGlycopep
         while i < n:
             input_queue.put(peptide_ids[i:(i + chunk_size)])
             i += chunk_size
-            self.log("... Dealt Peptides %d-%d %0.2f%%" % (i - chunk_size, i, (i / float(n)) * 100))
+            self.log("... Dealt Peptides %d-%d %0.2f%%" % (i - chunk_size, min(i, n), min((i / float(n)) * 100, 100.0)))
 
         self.log("... All Peptides Dealt")
         done_event.set()

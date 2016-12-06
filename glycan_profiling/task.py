@@ -11,6 +11,11 @@ def printer(obj, message):
     print(datetime.now().isoformat(' ') + ' ' + str(message))
 
 
+def debug_printer(obj, message):
+    if obj.debug:
+        print("DEBUG:" + datetime.now().isoformat(' ') + ' ' + str(message))
+
+
 def humanize_class_name(name):
     parts = []
     i = 0
@@ -31,7 +36,10 @@ def humanize_class_name(name):
 class TaskBase(object):
     status = "new"
 
+    debug = False
+
     print_fn = printer
+    debug_print_fn = debug_printer
     error_print_fn = printer
     display_fields = False
 
@@ -47,6 +55,7 @@ class TaskBase(object):
     @classmethod
     def log_with_logger(cls, logger):
         cls.print_fn = logger.info
+        cls.debug_print_fn = logger.debug
         cls.error_print_fn = logger.error
 
     def _format_fields(self):
@@ -66,6 +75,7 @@ class TaskBase(object):
             self.error_print_fn(traceback.format_exc(exception))
 
     def _begin(self, verbose=True, *args, **kwargs):
+        self.on_begin()
         self.start_time = datetime.now()
         self.status = "started"
         if verbose:
@@ -73,14 +83,13 @@ class TaskBase(object):
                 "Begin %s%s" % (
                     self.display_name,
                     self._format_fields()))
-        self.on_begin()
 
     def _end(self, verbose=True, *args, **kwargs):
+        self.on_end()
         self.end_time = datetime.now()
         if verbose:
             self.log("End %s" % self.display_name)
             self.log(self.summarize())
-        self.on_end()
 
     def on_begin(self):
         pass

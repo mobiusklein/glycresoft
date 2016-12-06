@@ -5,6 +5,8 @@ try:
 except:
     imap = map
 
+import logging
+
 from ms_deisotope.peak_dependency_network.intervals import SpanningMixin
 from glycan_profiling.serialize import (
     GlycanComposition, Glycopeptide, Peptide,
@@ -23,6 +25,7 @@ try:
 except:
     basestring = (str, bytes)
 
+logger = logging.getLogger("glycresoft.database")
 
 _empty_interval = NeutralMassDatabase([])
 
@@ -57,7 +60,7 @@ class DiskBackedStructureDatabase(SearchableMassCollection, DatabaseBoundOperati
             while (len(self._intervals) > 1 and
                    self._intervals.total_count >
                    self.threshold_cache_total_count):
-                print("Upkeep Memory Intervals", self._intervals.total_count, len(self._intervals))
+                logger.info("Upkeep Memory Intervals %d %d", self._intervals.total_count, len(self._intervals))
                 self._intervals.remove_lru_interval()
 
     @property
@@ -148,10 +151,15 @@ class DiskBackedStructureDatabase(SearchableMassCollection, DatabaseBoundOperati
             model.calculated_mass.between(
                 mass - error_tolerance, mass + error_tolerance)).all()
 
+    def on_memory_interval(self, mass, interval):
+        if len(interval) > self.threshold_cache_total_count:
+            logger.info("Interval Length %d for %f", len(interval), mass)
+
     def make_memory_interval(self, mass, error=None):
         if error is None:
             error = self.loading_interval
         out = self.search_mass(mass, error)
+        self.on_memory_interval(mass, out)
         return NeutralMassDatabase(out, operator.attrgetter("calculated_mass"))
 
     @property
@@ -339,6 +347,24 @@ class GlycanCompositionDiskBackedStructureDatabase(DeclarativeDiskBackedDatabase
 
     def _limit_to_hypothesis(self, selectable):
         return selectable.where(GlycanComposition.__table__.c.hypothesis_id == self.hypothesis_id)
+
+
+class PeptideDiskBackedStructureDatabase(DeclarativeDiskBackedDatabase):
+    selectable = Peptide.__table__
+    fields = [
+        Peptide.__table__.c.id,
+        Peptide.__table__.c.calculated_mass,
+        Peptide.__table__.c.modified_peptide_sequence,
+        Peptide.__table__.c.protein_id,
+        Peptide.__table__.c.start_position,
+        Peptide.__table__.c.end_position,
+        Peptide.__table__.c.hypothesis_id,
+    ]
+    mass_field = Peptide.__table__.c.calculated_mass
+    identity_field = Peptide.__table__.c.id
+
+    def _limit_to_hypothesis(self, selectable):
+        return selectable.where(Peptide.__table__.c.hypothesis_id == self.hypothesis_id)
 
 
 class MassIntervalNode(SpanningMixin):

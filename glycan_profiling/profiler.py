@@ -176,7 +176,7 @@ class GlycopeptideLCMSMSAnalyzer(TaskBase):
     def __init__(self, database_connection, hypothesis_id, sample_run_id,
                  analysis_name=None, grouping_error_tolerance=1.5e-5, mass_error_tolerance=1e-5,
                  msn_mass_error_tolerance=2e-5, psm_fdr_threshold=0.05, peak_shape_scoring_model=None,
-                 tandem_scoring_model=None, minimum_mass=1500.):
+                 tandem_scoring_model=None, minimum_mass=1500., save_unidentified=False):
         if tandem_scoring_model is None:
             tandem_scoring_model = CoverageWeightedBinomialScorer
         if peak_shape_scoring_model is None:
@@ -193,6 +193,7 @@ class GlycopeptideLCMSMSAnalyzer(TaskBase):
         self.tandem_scoring_model = tandem_scoring_model
         self.analysis = None
         self.minimum_mass = minimum_mass
+        self.save_unidentified = save_unidentified
 
     def run(self):
         peak_loader = DatabaseScanDeserializer(
@@ -261,16 +262,17 @@ class GlycopeptideLCMSMSAnalyzer(TaskBase):
         })
 
         analysis_saver.save_glycopeptide_identification_set(identified_glycopeptides)
-        i = 0
-        last = 0
-        interval = 100
-        n = len(unassigned_chromatograms)
-        for chroma in unassigned_chromatograms:
-            i += 1
-            if (i - last > interval):
-                self.log("Saving Unidentified Chromatogram %d/%d (%0.2f)" % (i, n, (i * 100. / n)))
-                last = i
-            analysis_saver.save_unidentified_chromatogram_solution(chroma)
+        if self.save_unidentified:
+            i = 0
+            last = 0
+            interval = 100
+            n = len(unassigned_chromatograms)
+            for chroma in unassigned_chromatograms:
+                i += 1
+                if (i - last > interval):
+                    self.log("Saving Unidentified Chromatogram %d/%d (%0.2f%%)" % (i, n, (i * 100. / n)))
+                    last = i
+                analysis_saver.save_unidentified_chromatogram_solution(chroma)
 
         self.analysis = analysis_saver.analysis
         analysis_saver.commit()

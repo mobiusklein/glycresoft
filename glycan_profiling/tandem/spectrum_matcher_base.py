@@ -7,6 +7,7 @@ from .ref import TargetReference, SpectrumReference
 
 
 class _mass_wrapper(object):
+
     def __init__(self, mass):
         self.value = mass
 
@@ -43,6 +44,7 @@ _gscore_oxonium_ions = [
 
 
 class OxoniumIonScanner(object):
+
     def __init__(self, ions_to_search=None):
         if ions_to_search is None:
             ions_to_search = _standard_oxonium_ions
@@ -51,14 +53,16 @@ class OxoniumIonScanner(object):
     def scan(self, peak_list, charge=0, error_tolerance=2e-5):
         matches = []
         for ion in self.ions_to_search:
-            match = peak_list.has_peak(ion.mass(charge=charge), error_tolerance)
+            match = peak_list.has_peak(
+                ion.mass(charge=charge), error_tolerance)
             if match is not None:
                 matches.append(match)
         return matches
 
     def ratio(self, peak_list, charge=0, error_tolerance=2e-5):
         maximum = max(p.intensity for p in peak_list)
-        oxonium = sum(p.intensity / maximum for p in self.scan(peak_list, charge, error_tolerance))
+        oxonium = sum(
+            p.intensity / maximum for p in self.scan(peak_list, charge, error_tolerance))
         n = len(self.ions_to_search)
         return oxonium / n
 
@@ -80,9 +84,10 @@ def group_by_precursor_mass(scans, window_size=1.5e-5):
     current_group = [scans[0]]
     last_scan = scans[0]
     for scan in scans[1:]:
-        delta = (scan.precursor_information.extracted_neutral_mass -
-                 last_scan.precursor_information.extracted_neutral_mass
-                 ) / last_scan.precursor_information.extracted_neutral_mass
+        delta = abs(
+            (scan.precursor_information.extracted_neutral_mass -
+             last_scan.precursor_information.extracted_neutral_mass
+             ) / last_scan.precursor_information.extracted_neutral_mass)
         if delta > window_size:
             groups.append(current_group)
             current_group = [scan]
@@ -94,6 +99,7 @@ def group_by_precursor_mass(scans, window_size=1.5e-5):
 
 
 class SpectrumMatchBase(object):
+
     def __init__(self, scan, target):
         self.scan = scan
         self.target = target
@@ -128,6 +134,7 @@ class SpectrumMatchBase(object):
 
 
 class SpectrumMatcherBase(SpectrumMatchBase):
+
     def __init__(self, scan, target):
         self.scan = scan
         self.spectrum = scan.deconvoluted_peak_set
@@ -164,6 +171,7 @@ class SpectrumMatcherBase(SpectrumMatchBase):
 
 
 class DeconvolutingSpectrumMatcherBase(SpectrumMatcherBase):
+
     @staticmethod
     def load_peaks(scan):
         try:
@@ -177,6 +185,7 @@ class DeconvolutingSpectrumMatcherBase(SpectrumMatcherBase):
 
 
 class SpectrumMatch(SpectrumMatchBase):
+
     def __init__(self, scan, target, score, best_match=False, data_bundle=None):
         if data_bundle is None:
             data_bundle = dict()
@@ -208,6 +217,7 @@ class SpectrumMatch(SpectrumMatchBase):
 
 
 class SpectrumSolutionSet(object):
+
     def __init__(self, scan, solutions):
         self.scan = scan
         # self.oxonium_ratio = oxonium_detector(scan.deconvoluted_peak_set)
@@ -280,7 +290,8 @@ class SpectrumSolutionSet(object):
     def simplify(self):
         if self._is_simplified:
             return
-        self.scan = SpectrumReference(self.scan.id, self.scan.precursor_information)
+        self.scan = SpectrumReference(
+            self.scan.id, self.scan.precursor_information)
         solutions = []
         best_score = self.best_solution().score
         for sol in self.solutions:
@@ -304,6 +315,7 @@ class SpectrumSolutionSet(object):
 
 
 class TandemClusterEvaluatorBase(TaskBase):
+
     def __init__(self, tandem_cluster, scorer_type, structure_database, verbose=False):
         self.tandem_cluster = tandem_cluster
         self.scorer_type = scorer_type
@@ -328,7 +340,8 @@ class TandemClusterEvaluatorBase(TaskBase):
     def score_all(self, precursor_error_tolerance=1e-5, simplify=False, *args, **kwargs):
         out = []
         for scan in self.tandem_cluster:
-            solutions = self.score_one(scan, precursor_error_tolerance, *args, **kwargs)
+            solutions = self.score_one(
+                scan, precursor_error_tolerance, *args, **kwargs)
             if len(solutions) > 0:
                 out.append(solutions)
         if simplify:
@@ -341,7 +354,8 @@ class TandemClusterEvaluatorBase(TaskBase):
         raise NotImplementedError()
 
     def _map_scans_to_hits(self, scans, precursor_error_tolerance=1e-5):
-        groups = group_by_precursor_mass(scans, precursor_error_tolerance * 1.5)
+        groups = group_by_precursor_mass(
+            scans, precursor_error_tolerance * 1.5)
 
         hit_to_scan = defaultdict(list)
         scan_map = {}
@@ -355,18 +369,25 @@ class TandemClusterEvaluatorBase(TaskBase):
             if len(group) == 0:
                 continue
             i += len(group)
+            report = False
             if i > last_report:
-                self.log("... Mapped %0.2f%% of spectra (%d/%d) %0.4f" % (i * 100. / n, i, n,
-                    group[0].precursor_information.extracted_neutral_mass))
+                report = True
+                self.log(
+                    "... Mapping %0.2f%% of spectra (%d/%d) %0.4f" % (
+                        i * 100. / n, i, n,
+                        group[0].precursor_information.extracted_neutral_mass))
                 while last_report < i and report_interval != 0:
                     last_report += report_interval
             for scan in group:
                 scan_map[scan.id] = scan
-                for hit in self.structure_database.search_mass_ppm(
-                        scan.precursor_information.extracted_neutral_mass,
-                        precursor_error_tolerance):
+                hits = self.structure_database.search_mass_ppm(
+                    scan.precursor_information.extracted_neutral_mass,
+                    precursor_error_tolerance)
+                for hit in hits:
                     hit_to_scan[hit.id].append(scan)
                     hit_map[hit.id] = hit
+            if report:
+                self.log("Mapping Segment Done.")
         return scan_map, hit_map, hit_to_scan
 
     def _evaluate_hit_groups(self, scan_map, hit_map, hit_to_scan, *args, **kwargs):
@@ -377,11 +398,13 @@ class TandemClusterEvaluatorBase(TaskBase):
         for hit_id, scan_list in hit_to_scan.items():
             i += 1
             if i % 1000 == 0:
-                self.log("... %0.2f%% of Hits Searched (%d/%d)" % (i * 100. / n, i, n))
+                self.log("... %0.2f%% of Hits Searched (%d/%d)" %
+                         (i * 100. / n, i, n))
             hit = hit_map[hit_id]
             solutions = []
             for scan in scan_list:
-                match = SpectrumMatch.from_match_solution(self.evaluate(scan, hit, *args, **kwargs))
+                match = SpectrumMatch.from_match_solution(
+                    self.evaluate(scan, hit, *args, **kwargs))
                 scan_solution_map[scan.id].append(match)
                 solutions.append(match)
             # Assumes all matches to the same target structure share a cache
@@ -400,7 +423,9 @@ class TandemClusterEvaluatorBase(TaskBase):
         return result_set
 
     def score_bunch(self, scans, precursor_error_tolerance=1e-5, *args, **kwargs):
-        scan_map, hit_map, hit_to_scan = self._map_scans_to_hits(scans, precursor_error_tolerance)
-        scan_solution_map = self._evaluate_hit_groups(scan_map, hit_map, hit_to_scan, *args, **kwargs)
+        scan_map, hit_map, hit_to_scan = self._map_scans_to_hits(
+            scans, precursor_error_tolerance)
+        scan_solution_map = self._evaluate_hit_groups(
+            scan_map, hit_map, hit_to_scan, *args, **kwargs)
         solutions = self._collect_scan_solutions(scan_solution_map, scan_map)
         return solutions

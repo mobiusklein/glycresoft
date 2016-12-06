@@ -29,9 +29,15 @@ class FastaGlycopeptideHypothesisSerializer(GlycopeptideHypothesisSerializerBase
         })
 
     def extract_proteins(self):
+        i = 0
         for protein in ProteinFastaFileParser(self.fasta_file):
             protein.hypothesis_id = self.hypothesis_id
             self.session.add(protein)
+            i += 1
+            if i % 10000 == 0:
+                self.log("%d Proteins Extracted" % (i,))
+                self.session.commit()
+
         self.session.commit()
 
     def protein_ids(self):
@@ -48,11 +54,12 @@ class FastaGlycopeptideHypothesisSerializer(GlycopeptideHypothesisSerializerBase
         j = 0
         protein_ids = self.protein_ids()
         n = len(protein_ids)
+        interval = min(n / 10., 100000)
+        acc = []
         for protein_id in protein_ids:
             i += 1
             protein = self.query(Protein).get(protein_id)
-            acc = []
-            if i % 10 == 0:
+            if i % interval == 0:
                 self.log("%0.3f%% Complete (%d/%d). %d Peptides Produced." % (i * 100. / n, i, n, j))
             for peptide in digestor.process_protein(protein):
                 acc.append(peptide)
@@ -61,9 +68,9 @@ class FastaGlycopeptideHypothesisSerializer(GlycopeptideHypothesisSerializerBase
                     self.session.bulk_save_objects(acc)
                     self.session.commit()
                     acc = []
-            self.session.bulk_save_objects(acc)
-            self.session.commit()
-            acc = []
+        self.session.bulk_save_objects(acc)
+        self.session.commit()
+        acc = []
 
     def glycosylate_peptides(self):
         glycosylator = PeptideGlycosylator(self.session, self.hypothesis_id)

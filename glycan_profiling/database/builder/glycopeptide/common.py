@@ -84,12 +84,11 @@ class GlycopeptideHypothesisSerializerBase(DatabaseBoundOperation, HypothesisSer
         self.log("Generated %d glycopeptides" % count)
 
     def _sql_analyze_database(self):
-        if self.session.query(GlycopeptideHypothesis).count() == 1:
-            self.log("Analyzing Indices")
-            self._analyze_database()
-            if self.is_sqlite():
-                self._sqlite_reload_analysis_plan()
-            self.log("Done Analyzing Indices")
+        self.log("Analyzing Indices")
+        self._analyze_database()
+        if self.is_sqlite():
+            self._sqlite_reload_analysis_plan()
+        self.log("Done Analyzing Indices")
 
 
 class GlycopeptideHypothesisDestroyer(DatabaseBoundOperation, TaskBase):
@@ -174,19 +173,12 @@ class GlycanCombinationPartitionTable(TaskBase):
         self.build_table(glycan_combinations)
 
     def build_table(self, glycan_combinations):
-        i = 0
-        n = len(glycan_combinations)
-
         composition_class_map = composition_to_structure_class_map(
             self.session, self.glycan_hypothesis_id)
         combination_class_map = combination_structure_class_map(
             self.session, self.hypothesis_id, composition_class_map)
 
         for entry in glycan_combinations:
-            i += 1
-            if i % 10000 == 0:
-                # self.log("Partitioned %0.3f%% combinations (%d/%d)" % (i * 100. / n, i, n))
-                pass
             size_table = self.tables[entry.count]
             component_classes = combination_class_map[entry.id]
             class_assignment_generator = product(*component_classes)
@@ -280,7 +272,6 @@ class PeptideGlycosylator(object):
                         glycan_combination_id=gc.id)
                     yield glycopeptide
 
-
         # Handle O-linked glycosylation sites
         o_glycosylation_unoccupied_sites = set(peptide.o_glycosylation_sites)
         for site in list(o_glycosylation_unoccupied_sites):
@@ -343,6 +334,7 @@ class PeptideGlycosylator(object):
 class PeptideGlycosylatingProcess(Process):
     def __init__(self, connection, hypothesis_id, input_queue, chunk_size=5000, done_event=None):
         Process.__init__(self)
+        self.daemon = True
         self.connection = connection
         self.input_queue = input_queue
         self.chunk_size = chunk_size

@@ -30,19 +30,22 @@ def descending_combination_counter(counter):
 
 
 def parent_sequence_aware_n_glycan_sequon_sites(peptide, protein):
-    sites = set(sequence.find_n_glycosylation_sequons(peptide.modified_peptide_sequence))
+    sites = set(sequence.find_n_glycosylation_sequons(
+        peptide.modified_peptide_sequence))
     sites |= set(site - peptide.start_position for site in protein.glycosylation_sites
                  if peptide.start_position <= site < peptide.end_position)
     return list(sites)
 
 
 def o_glycan_sequon_sites(peptide, protein=None):
-    sites = sequence.find_o_glycosylation_sequons(peptide.modified_peptide_sequence)
+    sites = sequence.find_o_glycosylation_sequons(
+        peptide.modified_peptide_sequence)
     return sites
 
 
 def gag_sequon_sites(peptide, protein=None):
-    sites = sequence.find_glycosaminoglycan_sequons(peptide.modified_peptide_sequence)
+    sites = sequence.find_glycosaminoglycan_sequons(
+        peptide.modified_peptide_sequence)
     return sites
 
 
@@ -79,12 +82,12 @@ def modification_series(variable_sites):
     """Given a dictionary mapping between modification names and
     an iterable of valid sites, create a dictionary mapping between
     modification names and a list of valid sites plus the constant `None`
-    
+
     Parameters
     ----------
     variable_sites : dict
         Description
-    
+
     Returns
     -------
     dict
@@ -115,8 +118,10 @@ def peptide_isoforms(sequence, constant_modifications, variable_modifications):
      c_term_modifications,
      variable_modifications) = split_terminal_modifications(variable_modifications)
 
-    n_term_modifications = [mod for mod in n_term_modifications if mod.find_valid_sites(sequence)]
-    c_term_modifications = [mod for mod in c_term_modifications if mod.find_valid_sites(sequence)]
+    n_term_modifications = [
+        mod for mod in n_term_modifications if mod.find_valid_sites(sequence)]
+    c_term_modifications = [
+        mod for mod in c_term_modifications if mod.find_valid_sites(sequence)]
 
     n_term_modifications.append(None)
     c_term_modifications.append(None)
@@ -201,6 +206,7 @@ def digest(sequence, protease, constant_modifications=None, variable_modificatio
 
 
 class ProteinDigestor(object):
+
     def __init__(self, protease, constant_modifications=None, variable_modifications=None, max_missed_cleavages=2):
         if constant_modifications is None:
             constant_modifications = []
@@ -228,7 +234,8 @@ class ProteinDigestor(object):
             peptide.hypothesis_id = hypothesis_id
             peptide.peptide_score = 0
             peptide.peptide_score_type = 'null_score'
-            n_glycosites = parent_sequence_aware_n_glycan_sequon_sites(peptide, protein_obj)
+            n_glycosites = parent_sequence_aware_n_glycan_sequon_sites(
+                peptide, protein_obj)
             o_glycosites = o_glycan_sequon_sites(peptide, protein_obj)
             gag_glycosites = gag_sequon_sites(peptide, protein_obj)
             peptide.count_glycosylation_sites = len(n_glycosites)
@@ -239,6 +246,7 @@ class ProteinDigestor(object):
 
 
 class ProteinDigestingProcess(Process):
+
     def __init__(self, connection, hypothesis_id, input_queue, digestor, done_event=None):
         Process.__init__(self)
         self.connection = connection
@@ -265,23 +273,24 @@ class ProteinDigestingProcess(Process):
                     has_work = False
                 continue
             proteins = slurp(session, Protein, work_items, flatten=False)
+            acc = []
             for protein in proteins:
-                acc = []
                 for peptide in digestor.process_protein(protein):
                     acc.append(peptide)
                     if len(acc) > 100000:
                         self.session.bulk_save_objects(acc)
                         self.session.commit()
                         acc = []
-                self.session.bulk_save_objects(acc)
-                self.session.commit()
-                acc = []
+            self.session.bulk_save_objects(acc)
+            self.session.commit()
+            acc = []
 
     def run(self):
         self.task()
 
 
 class MultipleProcessProteinDigestor(object):
+
     def __init__(self, connection, hypothesis_id, protein_ids, digestor, n_processes=4):
         self.connection = connection
         self.hypothesis_id = hypothesis_id

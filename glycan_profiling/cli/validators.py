@@ -4,6 +4,7 @@ from functools import partial
 
 import click
 
+from sqlalchemy.exc import OperationalError
 from brainpy import periodic_table
 from ms_deisotope.averagine import (
     Averagine, glycan as n_glycan_averagine, permethylated_glycan,
@@ -247,3 +248,13 @@ def get_by_name_or_id(session, model_type, name_or_id):
         inst = session.query(model_type).filter(
             model_type.name == name_or_id).one()
         return inst
+
+
+def validate_database_unlocked(database_connection):
+    try:
+        db = DatabaseBoundOperation(database_connection)
+        db.session.add(GlycanHypothesis(name="_____not_real_do_not_use______"))
+        db.session.rollback()
+        return True
+    except OperationalError:
+        return False

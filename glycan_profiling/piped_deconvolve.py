@@ -72,6 +72,7 @@ class CallInterval(object):
 class ScanIDYieldingProcess(Process):
     def __init__(self, mzml_path, queue, start_scan=None, max_scans=None, end_scan=None, no_more_event=None):
         Process.__init__(self)
+        self.daemon = True
         self.mzml_path = mzml_path
         self.queue = queue
         self.loader = None
@@ -167,6 +168,7 @@ class ScanTransformingProcess(Process):
             }
 
         Process.__init__(self)
+        self.daemon = True
         self.mzml_path = mzml_path
         self.input_queue = input_queue
         self.output_queue = output_queue

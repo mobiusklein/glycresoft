@@ -3,7 +3,9 @@ from glycan_profiling.cli import (
 
 try:
     from glycresoft_app import server
-except ImportError:
+except ImportError as e:
+    import traceback
+    traceback.print_exc()
     pass
 
 main = base.cli.main
