@@ -387,7 +387,7 @@ class TandemClusterEvaluatorBase(TaskBase):
                     hit_to_scan[hit.id].append(scan)
                     hit_map[hit.id] = hit
             if report:
-                self.log("Mapping Segment Done.")
+                self.log("... Mapping Segment Done.")
         return scan_map, hit_map, hit_to_scan
 
     def _evaluate_hit_groups(self, scan_map, hit_map, hit_to_scan, *args, **kwargs):

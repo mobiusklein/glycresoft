@@ -188,7 +188,6 @@ class ScanTransformingProcess(Process):
         self._work_complete = multiprocessing.Event()
 
     def log_error(self, error, scan_id, scan, product_scan_ids):
-        print(error, "@", scan_id, scan.index, len(product_scan_ids), multiprocessing.current_process())
         traceback.print_exc()
         logger.exception(
             "An error occurred for %s (index %r) in Process %r",
@@ -196,7 +195,6 @@ class ScanTransformingProcess(Process):
             exc_info=error)
 
     def log_message(self, message, *args):
-        print(message, args, multiprocessing.current_process())
         logger.info(message + "%r, %r" % (args, multiprocessing.current_process()))
 
     def skip_scan(self, scan):
@@ -237,6 +235,10 @@ class ScanTransformingProcess(Process):
                     has_input = False
                 continue
 
+            # print("Handling Scan %r" % scan_id)
+            if scan_id == 'scanId=4500801':
+                print("Handling target scan", scan_id, self)
+
             if scan_id == DONE:
                 has_input = False
                 break
@@ -252,7 +254,11 @@ class ScanTransformingProcess(Process):
                 scan, priorities, product_scans = transformer.process_scan_group(scan, product_scans)
                 transformer.deconvolute_precursor_scan(scan, priorities)
                 self.send_scan(scan)
+                if scan_id == 'scanId=4500801':
+                    print("Sent target scan", scan, scan.index, self)
             except Exception as e:
+                if scan_id == 'scanId=4500801':
+                    print("Error on target scan", scan, scan.index, e)
                 self.skip_scan(scan)
                 self.log_error(e, scan_id, scan, (product_scan_ids))
 
@@ -327,7 +333,12 @@ class ScanCollator(TaskBase):
     def print_state(self):
         if self.queue.qsize() > 0:
             self.log("%d since last work item" % (self.count_since_last,))
-            self.log("Waiting Keys: %r" % (sorted(self.waiting.keys()),))
+            keys = sorted(self.waiting.keys())
+            if len(keys) > 20:
+                self.log("Waiting Keys: %r..." % (keys[:21],))
+            else:
+                self.log("Waiting Keys: %r" % (keys,))
+            self.log("%d Keys Total" % (len(self.waiting),))
             self.log("The last index handled: %r" % (self.last_index,))
             self.log("Number of items waiting in the queue: %d" % (self.queue.qsize(),))
 
@@ -344,6 +355,8 @@ class ScanCollator(TaskBase):
                 if keys:
                     scan = self.waiting.pop(keys[0])
                     if scan == SCAN_STATUS_SKIP:
+                        self.log("Scan Skipped")
+                        self.last_index = keys[0]
                         continue
                     self.last_index = scan.index
                     yield self.produce(scan)
@@ -366,6 +379,14 @@ class ScanCollator(TaskBase):
                 self.count_since_last += 1
                 if self.count_since_last % 25 == 0:
                     self.print_state()
+                    # if self.all_workers_done():
+                    #     if self.queue.qsize() == 0:
+                    #         self.log("Scan Missing and All Workers Claim Done and Queue Empty. Skipping Index")
+                    #         self.last_index += 1
+                    #     else:
+                    #         self.log("Scan Missing and All Workers Claim Done. Draining Queue.")
+                    #         self.consume(1)
+
         status_monitor.stop()
 
 

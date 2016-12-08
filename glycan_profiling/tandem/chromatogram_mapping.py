@@ -1,4 +1,4 @@
-from glycan_profiling.task import TaskBase
+from glycan_profiling.task import TaskBase, log_handle
 from glycan_profiling.chromatogram_tree import ChromatogramWrapper, build_rt_interval_tree, ChromatogramFilter
 from glycan_profiling.chromatogram_tree.chromatogram import GlycopeptideChromatogram
 from collections import defaultdict, namedtuple
@@ -14,10 +14,13 @@ class TandemAnnotatedChromatogram(ChromatogramWrapper):
         self.best_msms_score = None
 
     def add_solution(self, item):
+        case_mass = item.precursor_ion_mass()
+        if abs(case_mass - self.chromatogram.neutral_mass) > 100:
+            log_handle.log("Warning, mis-assigned spectrum match to chromatogram %r, %r" % (self, item))
         self.tandem_solutions.append(item)
 
     def add_displaced_solution(self, item):
-        self.tandem_solutions.append(item)
+        self.add_solution(item)
 
     def merge(self, other):
         new = self.__class__(self.chromatogram.merge(other.chromatogram))

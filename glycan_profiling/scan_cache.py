@@ -124,7 +124,6 @@ class DatabaseScanCacheHandler(ScanCacheHandlerBase):
         self.save()
         log_handle.log("Completing Serializer")
         self.serializer.complete()
-        # self.index_controller.create()
 
     def _get_sample_run(self):
         return self.serializer.sample_run
@@ -133,7 +132,7 @@ class DatabaseScanCacheHandler(ScanCacheHandlerBase):
 class ThreadedDatabaseScanCacheHandler(DatabaseScanCacheHandler):
     def __init__(self, connection, sample_name):
         super(ThreadedDatabaseScanCacheHandler, self).__init__(connection, sample_name)
-        self.queue = Queue()
+        self.queue = Queue(5000)
         self.worker_thread = threading.Thread(target=self._worker_loop)
         self.worker_thread.start()
         self.log_inserts = False
@@ -155,8 +154,6 @@ class ThreadedDatabaseScanCacheHandler(DatabaseScanCacheHandler):
                 if next_bunch == DONE:
                     has_work = False
                     continue
-                if self.log_inserts:
-                    logger.info("Inserting %r", next_bunch)
                 self._save_bunch(*next_bunch)
                 i += 1
 
@@ -186,6 +183,10 @@ class ThreadedDatabaseScanCacheHandler(DatabaseScanCacheHandler):
     def commit(self):
         super(DatabaseScanCacheHandler, self).save()
         self._end_thread()
+
+    def complete(self):
+        self._end_thread()
+        super(ThreadedDatabaseScanCacheHandler, self).complete()
 
 
 class DatabaseScanGenerator(ScanGeneratorBase):

@@ -38,7 +38,7 @@ from glycan_profiling.tandem.glycopeptide import (
 
 from glycan_profiling.scan_cache import (
     NullScanCacheHandler, DatabaseScanCacheHandler,
-    DatabaseScanGenerator)
+    DatabaseScanGenerator, ThreadedDatabaseScanCacheHandler)
 
 from glycan_profiling.task import TaskBase
 
@@ -68,7 +68,7 @@ class SampleConsumer(TaskBase):
                  sample_name=None, cache_handler_type=None):
 
         if cache_handler_type is None:
-            cache_handler_type = DatabaseScanCacheHandler
+            cache_handler_type = ThreadedDatabaseScanCacheHandler
         if isinstance(averagine, basestring):
             averagine = parse_averagine_formula(averagine)
 
@@ -98,10 +98,15 @@ class SampleConsumer(TaskBase):
 
         self.log("Begin Processing")
         last_scan_time = 0
+        last_scan_index = 0
         for scan in sink:
             if scan.scan_time - last_scan_time > 1.0:
-                self.log("Processed %s (%f)" % (scan.id, scan.scan_time))
+                self.log("Processed %s (time: %f)" % (
+                    scan.id, scan.scan_time,))
+                if last_scan_index != 0:
+                    self.log("Count Since Last Log: %d" % (scan.index - last_scan_index,))
                 last_scan_time = scan.scan_time
+                last_scan_index = scan.index
         self.log("Finished Recieving Scans")
         sink.complete()
         self.log("Completed Sample %s" % (self.sample_name,))
@@ -144,7 +149,12 @@ class GlycanChromatogramAnalyzer(TaskBase):
             "minimum_mass": self.minimum_mass,
         })
 
+        n = len(solutions)
+        i = 0
         for chroma in solutions:
+            i += 1
+            if i % 100 == 0:
+                self.log("%0.2f%% of Chromatograms Saved (%d/%d)" % (i * 100. / n, i, n))
             if chroma.composition:
                 analysis_saver.save_glycan_composition_chromatogram_solution(chroma)
             else:

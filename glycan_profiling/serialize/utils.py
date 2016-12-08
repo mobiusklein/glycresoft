@@ -1,6 +1,5 @@
 import os
 from copy import copy
-from time import time
 from uuid import uuid4
 from sqlalchemy import create_engine, Table
 from sqlalchemy.exc import OperationalError, ProgrammingError

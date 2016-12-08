@@ -187,7 +187,8 @@ class GlycopeptideDatabaseSearchIdentifierBound(DatabaseBoundOperation, TaskBase
         scan = self.session.query(MSScan).get(scan_id)
         return self.scorer_type.load_peaks(scan)
 
-    def search(self, precursor_error_tolerance=1e-5, simplify=True, chunk_size=250, *args, **kwargs):
+    def search(self, precursor_error_tolerance=1e-5, simplify=True, chunk_size=250,
+               minimum_oxonium_ratio=0.1, *args, **kwargs):
         target_hits = []
         decoy_hits = []
         total = self.session.query(func.count(MSScan.id)).filter(
@@ -197,7 +198,8 @@ class GlycopeptideDatabaseSearchIdentifierBound(DatabaseBoundOperation, TaskBase
             scans = [self._load_scan(i) for i in scans]
             self.log("... Searching %s (%d/%d)" % (scans[0].precursor_information, count, total))
             evaluator = TargetDecoyInterleavingGlycopeptideMatcher(
-                scans, self.scorer_type, self.structure_database)
+                scans, self.scorer_type, self.structure_database,
+                minimum_oxonium_ratio=self.minimum_oxonium_ratio)
             t, d = evaluator.score_all(
                 precursor_error_tolerance=precursor_error_tolerance,
                 simplify=simplify, *args, **kwargs)
