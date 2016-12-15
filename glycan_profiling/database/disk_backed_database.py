@@ -30,7 +30,7 @@ logger = logging.getLogger("glycresoft.database")
 _empty_interval = NeutralMassDatabase([])
 
 
-class DiskBackedStructureDatabase(SearchableMassCollection, DatabaseBoundOperation):
+class DiskBackedStructureDatabaseBase(SearchableMassCollection, DatabaseBoundOperation):
     # Good for 10 ppm error intervals on structures up to 1e5 Da
     loading_interval = 1.
     threshold_cache_total_count = 5e4
@@ -62,19 +62,6 @@ class DiskBackedStructureDatabase(SearchableMassCollection, DatabaseBoundOperati
                    self.threshold_cache_total_count):
                 logger.info("Upkeep Memory Intervals %d %d", self._intervals.total_count, len(self._intervals))
                 self._intervals.remove_lru_interval()
-
-    @property
-    def hypothesis(self):
-        return self.session.query(GlycopeptideHypothesis).get(self.hypothesis_id)
-
-    @property
-    def structures(self):
-        return self.session.query(self.model_type).filter(
-            self.model_type.hypothesis_id == self.hypothesis_id).order_by(
-            self.model_type.calculated_mass)
-
-    def __len__(self):
-        return self.structures.count()
 
     def _get_record_properties(self):
         return self.fields
@@ -224,7 +211,7 @@ class _PeptideIndex(object):
             return self._get_by_name(*key)
 
 
-class DeclarativeDiskBackedDatabase(DiskBackedStructureDatabase):
+class DeclarativeDiskBackedDatabase(DiskBackedStructureDatabaseBase):
     def __init__(self, connection, hypothesis_id, cache_size=5, loading_interval=1.,
                  threshold_cache_total_count=5e4):
         super(DeclarativeDiskBackedDatabase, self).__init__(
@@ -311,7 +298,7 @@ class GlycopeptideDiskBackedStructureDatabase(DeclarativeDiskBackedDatabase):
     identity_field = Glycopeptide.__table__.c.id
 
     def _limit_to_hypothesis(self, selectable):
-        return selectable.where(Peptide.__table__.c.hypothesis_id == self.hypothesis_id)
+        return selectable.where(Glycopeptide.__table__.c.hypothesis_id == self.hypothesis_id)
 
 
 class GlycanCompositionDiskBackedStructureDatabase(DeclarativeDiskBackedDatabase):
@@ -566,7 +553,6 @@ class IntervalSet(object):
     def remove_interval(self, center):
         self._invalidate()
         ix, match = self.find_insertion_point(center)
-        assert match
         self.intervals.pop(ix)
 
 

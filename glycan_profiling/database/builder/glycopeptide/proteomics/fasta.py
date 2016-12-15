@@ -75,13 +75,13 @@ class FastaFileWriter(object):
             self.write(defline, seq)
 
 
-class ProteinFastFileWriter(FastaFileWriter):
+class ProteinFastaFileWriter(FastaFileWriter):
 
     def write(self, protein):
         defline = ''.join(
             [">", protein.name, " ", str(protein.glycosylation_sites)])
         seq = '\n'.join(textwrap.wrap(protein.protein_sequence, 80))
-        super(ProteinFastFileWriter, self).write(defline, seq)
+        super(ProteinFastaFileWriter, self).write(defline, seq)
 
     def writelines(self, iterable):
         for protein in iterable:

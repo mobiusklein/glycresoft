@@ -21,7 +21,10 @@ from glycan_profiling.database.builder.glycopeptide.informed_glycopeptide import
 from glycan_profiling.database.builder.glycan import (
     TextFileGlycanHypothesisSerializer,
     CombinatorialGlycanHypothesisSerializer,
-    GlycanCompositionHypothesisMerger)
+    GlycanCompositionHypothesisMerger,
+    NGlycanGlyspaceHypothesisSerializer,
+    OGlycanGlyspaceHypothesisSerializer,
+    TaxonomyFilter)
 
 from glycopeptidepy.utils.collectiontools import decoratordict
 from glycopeptidepy.structure.modification import RestrictedModificationTable
@@ -234,6 +237,40 @@ def merge_glycan_hypotheses(context, database_connection, hypothesis_identifier,
     task = GlycanCompositionHypothesisMerger(
         database_connection._original_connection, hypothesis_ids, name)
     task.start()
+
+
+@build_hypothesis.command("glyspace-glycan", short_help=("Construct a glycan hypothesis from GlySpace"))
+@click.pass_context
+@click.argument("database-connection")
+@click.option("-r", "--reduction", default=None, help='Reducing end modification')
+@click.option("-d", "--derivatization", default=None, help='Chemical derivatization to apply')
+@click.option("-n", "--name", default=None, help="The name for the hypothesis to be created")
+@click.option("-m", "--motif-class", type=click.Choice(["n-linked", "o-linked"]), default=None,
+              help="Specify a glycan structure family to search for")
+@click.option("-t", "--target-taxon", default=None, help="Only select structures annotated with this taxonomy")
+@click.option("-i", "--include-children", default=False, is_flag=True,
+              help="Include child taxa of --target-taxon. No effect otherwise.")
+def glyspace_glycan_hypothesis(context, database_connection, motif_class, reduction, derivatization, name,
+                               target_taxon=None, include_children=False):
+    database_connection = DatabaseBoundOperation(database_connection)
+    if name is not None:
+        name = validate_glycan_hypothesis_name(context, database_connection._original_connection, name)
+        click.secho("Building Glycan Hypothesis %s" % name, fg='cyan')
+    filter_funcs = []
+
+    if target_taxon is not None:
+        filter_funcs.append(TaxonomyFilter(target_taxon, include_children))
+
+    serializer_type = None
+    if motif_class == "n-linked":
+        serializer_type = NGlycanGlyspaceHypothesisSerializer
+    elif motif_class == "o-linked":
+        serializer_type = OGlycanGlyspaceHypothesisSerializer
+    job = serializer_type(
+        database_connection._original_connection, name, reduction, derivatization, filter_funcs,
+        simplify=True)
+    job.start()
+
 
 if __name__ == '__main__':
     cli.main()

@@ -1,3 +1,4 @@
+from functools import total_ordering
 from sqlalchemy import (
     Column, Numeric, Integer, String, ForeignKey,
     PickleType, Boolean, Table, ForeignKeyConstraint)
@@ -11,6 +12,44 @@ from ms_deisotope.output.db import (
     Base)
 
 from ..utils import get_or_create
+
+
+@total_ordering
+class ApplicationVersion(Base):
+    __tablename__ = "ApplicationVersion"
+
+    id = Column(Integer, primary_key=True)
+    name = Column(String)
+    major = Column(Integer)
+    minor = Column(Integer)
+    patch = Column(Integer)
+
+    def __eq__(self, other):
+        if other is None:
+            return False
+        try:
+            if self.name != other.name:
+                return False
+        except AttributeError:
+            pass
+
+        return tuple(self) == tuple(other)
+
+    def __lt__(self, other):
+        if other is None:
+            return False
+        try:
+            if self.name != other.name:
+                return False
+        except AttributeError:
+            pass
+
+        return tuple(self) < tuple(other)
+
+    def __iter__(self):
+        yield self.major
+        yield self.minor
+        yield self.patch
 
 
 class ParameterStore(object):

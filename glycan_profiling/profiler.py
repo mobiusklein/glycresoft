@@ -65,7 +65,7 @@ class SampleConsumer(TaskBase):
     def __init__(self, mzml_path, averagine=n_glycan_averagine, charge_range=(-1, -8),
                  ms1_peak_picking_args=None, msn_peak_picking_args=None, ms1_deconvolution_args=None,
                  msn_deconvolution_args=None, start_scan_id=None, end_scan_id=None, storage_path=None,
-                 sample_name=None, cache_handler_type=None):
+                 sample_name=None, cache_handler_type=None, n_processes=5):
 
         if cache_handler_type is None:
             cache_handler_type = ThreadedDatabaseScanCacheHandler
@@ -76,11 +76,16 @@ class SampleConsumer(TaskBase):
         self.storage_path = storage_path
         self.sample_name = sample_name
 
+        self.n_processes = n_processes
         self.cache_handler_type = cache_handler_type
 
+        n_helpers = max(self.n_processes - 1, 0)
         self.scan_generator = PipedScanGenerator(
-            mzml_path, averagine=averagine, charge_range=charge_range, ms1_peak_picking_args=ms1_peak_picking_args,
-            msn_peak_picking_args=msn_peak_picking_args, ms1_deconvolution_args=ms1_deconvolution_args,
+            mzml_path, averagine=averagine, charge_range=charge_range,
+            number_of_helper_deconvoluters=n_helpers,
+            ms1_peak_picking_args=ms1_peak_picking_args,
+            msn_peak_picking_args=msn_peak_picking_args,
+            ms1_deconvolution_args=ms1_deconvolution_args,
             msn_deconvolution_args=msn_deconvolution_args)
 
         self.start_scan_id = start_scan_id
@@ -186,7 +191,7 @@ class GlycopeptideLCMSMSAnalyzer(TaskBase):
     def __init__(self, database_connection, hypothesis_id, sample_run_id,
                  analysis_name=None, grouping_error_tolerance=1.5e-5, mass_error_tolerance=1e-5,
                  msn_mass_error_tolerance=2e-5, psm_fdr_threshold=0.05, peak_shape_scoring_model=None,
-                 tandem_scoring_model=None, minimum_mass=1500., save_unidentified=False):
+                 tandem_scoring_model=None, minimum_mass=1000., save_unidentified=False):
         if tandem_scoring_model is None:
             tandem_scoring_model = CoverageWeightedBinomialScorer
         if peak_shape_scoring_model is None:

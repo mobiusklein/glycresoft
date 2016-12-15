@@ -47,22 +47,6 @@ class DummyScorer(object):
         return 0.0
 
 
-class _timer(object):
-    def __init__(self):
-        self.start = 0.
-        self.end = 0.
-
-    def __enter__(self):
-        self.start = time.time()
-
-    def __exit__(self, *args, **kwargs):
-        self.end = time.time()
-
-    @property
-    def elapsed(self):
-        return self.end - self.start
-
-
 class ChromatogramScorer(object):
     def __init__(self, shape_fitter_type=AdaptiveMultimodalChromatogramShapeFitter,
                  isotopic_fitter_type=IsotopicPatternConsistencyFitter,
@@ -74,19 +58,9 @@ class ChromatogramScorer(object):
         self.charge_scoring_model = charge_scoring_model
 
     def compute_scores(self, chromatogram):
-        clock = _timer()
-        with clock:
-            line_score = max(1 - self.shape_fitter_type(chromatogram).line_test, epsilon)
-        if clock.elapsed > 30.:
-            print(self.shape_fitter_type, chromatogram, clock.elapsed)
-        with clock:
-            isotopic_fit = max(1 - self.isotopic_fitter_type(chromatogram).mean_fit, epsilon)
-        if clock.elapsed > 30.:
-            print(self.isotopic_fitter_type, chromatogram, clock.elapsed)
-        with clock:
-            spacing_fit = max(1 - self.spacing_fitter_type(chromatogram).score * 2, epsilon)
-        if clock.elapsed > 30.:
-            print(self.spacing_fitter_type, chromatogram, clock.elapsed)
+        line_score = max(1 - self.shape_fitter_type(chromatogram).line_test, epsilon)
+        isotopic_fit = max(1 - self.isotopic_fitter_type(chromatogram).mean_fit, epsilon)
+        spacing_fit = max(1 - self.spacing_fitter_type(chromatogram).score * 2, epsilon)
         charge_count = self.charge_scoring_model.score(chromatogram)
         return scores(line_score, isotopic_fit, spacing_fit, charge_count)
 

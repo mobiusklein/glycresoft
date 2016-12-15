@@ -117,7 +117,9 @@ class CompositionGraphNode(object):
         return self._hash
 
     def __repr__(self):
-        return "CompositionGraphNode(%s, %d, %0.2e)" % ((self._str), len(self.edges), self.score)
+        return "CompositionGraphNode(%s, %d, %0.2e)" % (
+            self._str, len(self.edges),
+            self.score if self.score != 0 else self._temp_score)
 
     def clone(self):
         return CompositionGraphNode(self.composition, self.index, self.score)
@@ -129,7 +131,7 @@ class CompositionGraphEdge(object):
     def __init__(self, node1, node2, order, weight=1.0):
         self.node1 = node1
         self.node2 = node2
-        self.order = order
+        self.order = order if order > 0 else 1
         self.weight = weight
         self._hash = hash((node1, node2, order))
         self._str = "(%s)" % ', '.join(map(str, (node1, node2, order)))
@@ -162,6 +164,16 @@ class CompositionGraphEdge(object):
 
     def copy_for(self, node1, node2):
         return self.__class__(node1, node2, self.order, self.weight)
+
+    def remove(self):
+        try:
+            self.node1.edges.remove(self)
+        except KeyError:
+            pass
+        try:
+            self.node2.edges.remove(self)
+        except KeyError:
+            pass
 
 
 class CompositionGraph(object):

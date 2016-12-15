@@ -6,9 +6,9 @@ import threading
 import logging
 
 try:
-    from Queue import Queue, Empty
+    from Queue import Queue, Empty as QueueEmptyException
 except ImportError:
-    from queue import Queue, Empty
+    from queue import Queue, Empty as QueueEmptyException
 
 from ms_deisotope.output.db import (
     DatabaseScanSerializer, ScanBunch, DatabaseScanDeserializer,
@@ -79,7 +79,7 @@ class NullScanCacheHandler(ScanCacheHandlerBase):
 
 
 class DatabaseScanCacheHandler(ScanCacheHandlerBase):
-    commit_interval = 5000
+    commit_interval = 1000
 
     def __init__(self, connection, sample_name):
         self.serializer = DatabaseScanSerializer(connection, sample_name)
@@ -132,7 +132,7 @@ class DatabaseScanCacheHandler(ScanCacheHandlerBase):
 class ThreadedDatabaseScanCacheHandler(DatabaseScanCacheHandler):
     def __init__(self, connection, sample_name):
         super(ThreadedDatabaseScanCacheHandler, self).__init__(connection, sample_name)
-        self.queue = Queue(5000)
+        self.queue = Queue(1000)
         self.worker_thread = threading.Thread(target=self._worker_loop)
         self.worker_thread.start()
         self.log_inserts = False
@@ -147,21 +147,29 @@ class ThreadedDatabaseScanCacheHandler(DatabaseScanCacheHandler):
     def _worker_loop(self):
         has_work = True
         i = 0
-        commit_interval = 1000
         while has_work:
             try:
                 next_bunch = self.queue.get(True, 2)
                 if next_bunch == DONE:
                     has_work = False
                     continue
+                if self.log_inserts:
+                    log_handle.log("Saving %r" % (next_bunch[0].id, ))
                 self._save_bunch(*next_bunch)
                 i += 1
 
-                if i % commit_interval == 0:
+                self.commit_counter += 1 + len(next_bunch[1])
+                if self.commit_counter - self.last_commit_count > self.commit_interval:
+                    self.last_commit_count = self.commit_counter
+                    log_handle.log("Syncing Scan Cache To Disk")
                     self.serializer.session.commit()
+                    if self.serializer.is_sqlite():
+                        self.serializer.session.execute("PRAGMA wal_checkpoint(SQLITE_CHECKPOINT_RESTART);")
                     self.serializer.session.expunge_all()
-            except Empty:
+            except QueueEmptyException:
                 continue
+            except Exception as e:
+                log_handle.error("An error occurred while writing scans to disk", e)
         self.serializer.session.commit()
         self.serializer.session.expunge_all()
 
@@ -172,7 +180,7 @@ class ThreadedDatabaseScanCacheHandler(DatabaseScanCacheHandler):
 
     def _end_thread(self):
         logger.info(
-            "Joining ThreadedDatabaseScanCacheHandler insertion thread. %d work items remaining",
+            "Joining ThreadedDatabaseScanCacheHandler Worker. %d work items remaining",
             self.queue.qsize())
         self.log_inserts = True
 

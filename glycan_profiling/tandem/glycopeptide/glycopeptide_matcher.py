@@ -39,10 +39,6 @@ class GlycopeptideMatcher(TandemClusterEvaluatorBase):
         matcher = self.scorer_type.evaluate(scan, target, *args, **kwargs)
         return matcher
 
-    @property
-    def cache_churn(self):
-        return self.parser.churn
-
 
 class DecoyGlycopeptideMatcher(GlycopeptideMatcher):
     def _default_parser_type(self):
@@ -50,17 +46,13 @@ class DecoyGlycopeptideMatcher(GlycopeptideMatcher):
 
 
 class TargetDecoyInterleavingGlycopeptideMatcher(TandemClusterEvaluatorBase):
-    def __init__(self, tandem_cluster, scorer_type, structure_database, minimum_oxonium_ratio=0.1):
+    def __init__(self, tandem_cluster, scorer_type, structure_database, minimum_oxonium_ratio=0.05):
         self.tandem_cluster = tandem_cluster
         self.scorer_type = scorer_type
         self.structure_database = structure_database
         self.minimum_oxonium_ratio = minimum_oxonium_ratio
         self.target_evaluator = GlycopeptideMatcher([], self.scorer_type, self.structure_database)
         self.decoy_evaluator = DecoyGlycopeptideMatcher([], self.scorer_type, self.structure_database)
-
-    @property
-    def cache_churn(self):
-        return self.target_evaluator.cache_churn
 
     def filter_for_oxonium_ions(self, error_tolerance=1e-5):
         keep = []
@@ -273,6 +265,8 @@ class GlycopeptideDatabaseSearchIdentifier(TaskBase):
             self.log("... Spectra Searched")
             target_hits.extend(o for o in t if o.score > 0)
             decoy_hits.extend(o for o in d if o.score > 0)
+            t = sorted(t, key=lambda x: x.score, reverse=True)
+            self.log("... %r" % (t[:4]))
             if count >= limit:
                 self.log("Reached Limit. Halting.")
                 break

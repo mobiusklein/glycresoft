@@ -118,12 +118,12 @@ class FastaGlycopeptideTests(unittest.TestCase):
         db_file = fasta_file + '.db'
 
         glycan_builder = CombinatorialGlycanHypothesisSerializer(glycan_file, db_file)
-        glycan_builder.run()
+        glycan_builder.start()
 
         glycopeptide_builder = naive_glycopeptide.MultipleProcessFastaGlycopeptideHypothesisSerializer(
             fasta_file, db_file, glycan_builder.hypothesis_id, constant_modifications=constant_modifications,
             variable_modifications=variable_modifications, max_missed_cleavages=1)
-        glycopeptide_builder.run()
+        glycopeptide_builder.start()
 
         self.assertEqual(201400, glycopeptide_builder.query(Glycopeptide).count())
 

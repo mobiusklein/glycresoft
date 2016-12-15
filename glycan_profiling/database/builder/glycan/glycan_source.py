@@ -4,7 +4,7 @@ from uuid import uuid4
 from glycan_profiling.serialize.hypothesis import GlycanHypothesis
 from glycan_profiling.serialize.hypothesis.glycan import (
     GlycanComposition as DBGlycanComposition, GlycanClass,
-    GlycanCompositionToClass)
+    GlycanCompositionToClass, GlycanTypes)
 from glycan_profiling.serialize import DatabaseBoundOperation
 
 from glycan_profiling.task import TaskBase
@@ -14,7 +14,7 @@ from glypy.composition import glycan_composition, composition_transform, formula
 from glypy import ReducedEnd
 
 
-class GlycanCompositionLoader(object):
+class TextFileGlycanCompositionLoader(object):
     def __init__(self, file_object):
         self.file_object = file_object
 
@@ -45,12 +45,30 @@ class GlycanCompositionLoader(object):
         return self
 
 
+_default_label_map = {
+    "n glycan": GlycanTypes.n_glycan,
+    "n linked": GlycanTypes.n_glycan,
+    "o glycan": GlycanTypes.o_glycan,
+    "o linked": GlycanTypes.o_glycan,
+    "gag linker": GlycanTypes.gag_linker
+}
+
+
+def normalize_lookup(string):
+    normalized_string = string.lower().replace("-", " ").strip().rstrip()
+    if normalized_string in _default_label_map:
+        return _default_label_map[normalized_string]
+    else:
+        return string
+
+
 class GlycanClassLoader(object):
     def __init__(self, session):
         self.session = session
         self.store = dict()
 
     def get(self, name):
+        name = normalize_lookup(name)
         try:
             return self.store[name]
         except KeyError:
@@ -98,10 +116,17 @@ class GlycanHypothesisSerializerBase(DatabaseBoundOperation, HypothesisSerialize
         self._hypothesis_name = hypothesis_name
         self._hypothesis_id = None
         self._hypothesis = None
+        self._structure_class_loader = None
         self.uuid = str(uuid4().hex)
 
-    def structure_class_loader(self):
+    def make_structure_class_loader(self):
         return GlycanClassLoader(self.session)
+
+    @property
+    def structure_class_loader(self):
+        if self._structure_class_loader is None:
+            self._structure_class_loader = self.make_structure_class_loader()
+        return self._structure_class_loader
 
     def _construct_hypothesis(self):
         if self._hypothesis_name is None:
@@ -131,13 +156,13 @@ class TextFileGlycanHypothesisSerializer(GlycanHypothesisSerializerBase):
         self.transformer = None
 
     def make_pipeline(self):
-        self.loader = GlycanCompositionLoader(open(self.glycan_file))
+        self.loader = TextFileGlycanCompositionLoader(open(self.glycan_file))
         self.transformer = GlycanTransformer(self.loader, self.reduction, self.derivatization)
 
     def run(self):
         self.make_pipeline()
-        structure_class_lookup = self.structure_class_loader()
-        self.log("Loading Glycan Compositions from File for %r" % self.hypothesis)
+        structure_class_lookup = self.structure_class_loader
+        self.log("Loading Glycan Compositions from Stream for %r" % self.hypothesis)
 
         acc = []
         for composition, structure_classes in self.transformer:
@@ -175,7 +200,7 @@ class GlycanCompositionHypothesisMerger(GlycanHypothesisSerializerBase):
                 yield db_composition, [sc.name for sc in db_composition.structure_classes]
 
     def run(self):
-        structure_class_lookup = self.structure_class_loader()
+        structure_class_lookup = self.structure_class_loader
         self.log("Merging Glycan Composition Lists for %r" % self.hypothesis)
 
         acc = []

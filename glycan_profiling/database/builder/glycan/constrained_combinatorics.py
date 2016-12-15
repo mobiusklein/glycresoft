@@ -98,7 +98,7 @@ class CombinatoricCompositionGenerator(object):
     next = __next__
 
     def __repr__(self):
-        return repr(self.rules_table) + '\n' + repr(self.constraints)
+        return "CombinatoricCompositionGenerator\n" + repr(self.rules_table) + '\n' + repr(self.constraints)
 
 
 class CombinatorialGlycanHypothesisSerializer(GlycanHypothesisSerializerBase):
@@ -120,7 +120,7 @@ class CombinatorialGlycanHypothesisSerializer(GlycanHypothesisSerializerBase):
 
     def run(self):
         self.make_pipeline()
-        structure_class_lookup = self.structure_class_loader()
+        structure_class_lookup = self.structure_class_loader
         acc = []
         self.log("Generating Glycan Compositions from Symbolic Rules for %r" % self.hypothesis)
         for composition, structure_classes in self.transformer:

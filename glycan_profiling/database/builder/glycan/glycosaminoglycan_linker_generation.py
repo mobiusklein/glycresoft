@@ -1,7 +1,7 @@
-import glypy
 from glypy import monosaccharides, GlycanComposition
 from glypy.structure import (
     Modification, Glycan, Substituent)
+
 
 def gag_linkers():
     xyl = monosaccharides.Xyl
@@ -22,70 +22,69 @@ def gag_linkers():
 
     variants = [{"substituents": {
         5: "sulfate"
-        }}, {
-            "monosaccharides": {
-                1: "Fuc"
-            }
-        }, {
-            "monosaccharides": {
-                1: "Fuc"
-            },
-            "substituents": {
-                5: "sulfate"
-            }
-        }, {
-            "monosaccharides": {
-                1: "Fuc"
-            },
-            "substituents": {
-                5: "sulfate",
-                3: "sulfate"
-            }
-        }, {
-            "substituents": {
-                1: "phosphate"
-            }
-        }, {
-            "substituents": {
-                1: "phosphate",
-                5: "sulfate"
-            }
-        }, {
-            "substituents": {
-                1: "phosphate",
-                3: "sulfate",
-                5: "sulfate"
-            }
-        }, {
-            "substituents": {
-                5: "sulfate"
-            }
-        }, {
-            "substituents": {
-                3: "sulfate",
-                5: "sulfate"
-            }
-        }, {
-            "monosaccharides": {
-                2: "NeuAc"
-            }
-        }, {
-            "monosaccharides": {
-                2: "NeuAc"
-            },
-            "substituents": {
-                5: "sulfate"
-            }
-        }, {
-            "monosaccharides": {
-                2: "NeuAc"
-            },
-            "substituents": {
-                5: "sulfate",
-                3: "sulfate"
-            }
-        }]
-
+    }}, {
+        "monosaccharides": {
+            1: "Fuc"
+        }
+    }, {
+        "monosaccharides": {
+            1: "Fuc"
+        },
+        "substituents": {
+            5: "sulfate"
+        }
+    }, {
+        "monosaccharides": {
+            1: "Fuc"
+        },
+        "substituents": {
+            5: "sulfate",
+            3: "sulfate"
+        }
+    }, {
+        "substituents": {
+            1: "phosphate"
+        }
+    }, {
+        "substituents": {
+            1: "phosphate",
+            5: "sulfate"
+        }
+    }, {
+        "substituents": {
+            1: "phosphate",
+            3: "sulfate",
+            5: "sulfate"
+        }
+    }, {
+        "substituents": {
+            5: "sulfate"
+        }
+    }, {
+        "substituents": {
+            3: "sulfate",
+            5: "sulfate"
+        }
+    }, {
+        "monosaccharides": {
+            2: "NeuAc"
+        }
+    }, {
+        "monosaccharides": {
+            2: "NeuAc"
+        },
+        "substituents": {
+            5: "sulfate"
+        }
+    }, {
+        "monosaccharides": {
+            2: "NeuAc"
+        },
+        "substituents": {
+            5: "sulfate",
+            3: "sulfate"
+        }
+    }]
 
     linker_variants = [base_linker]
 
@@ -105,10 +104,9 @@ def gag_linkers():
 
         linker.reindex()
         linker_variants.append(linker)
-    
+
     return linker_variants
 
 
 def gag_linker_compositions():
     return [GlycanComposition.from_glycan(linker) for linker in gag_linkers()]
-

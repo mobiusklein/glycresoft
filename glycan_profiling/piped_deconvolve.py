@@ -229,15 +229,11 @@ class ScanTransformingProcess(Process):
 
         while has_input:
             try:
-                scan_id, product_scan_ids = self.input_queue.get(True, 20)
+                scan_id, product_scan_ids = self.input_queue.get(True, 10)
             except QueueEmpty:
                 if self.no_more_event is not None and self.no_more_event.is_set():
                     has_input = False
                 continue
-
-            # print("Handling Scan %r" % scan_id)
-            if scan_id == 'scanId=4500801':
-                print("Handling target scan", scan_id, self)
 
             if scan_id == DONE:
                 has_input = False
@@ -254,11 +250,7 @@ class ScanTransformingProcess(Process):
                 scan, priorities, product_scans = transformer.process_scan_group(scan, product_scans)
                 transformer.deconvolute_precursor_scan(scan, priorities)
                 self.send_scan(scan)
-                if scan_id == 'scanId=4500801':
-                    print("Sent target scan", scan, scan.index, self)
             except Exception as e:
-                if scan_id == 'scanId=4500801':
-                    print("Error on target scan", scan, scan.index, e)
                 self.skip_scan(scan)
                 self.log_error(e, scan_id, scan, (product_scan_ids))
 
@@ -274,6 +266,7 @@ class ScanTransformingProcess(Process):
                     self.skip_scan(product_scan)
                     self.log_error(e, product_scan.id, product_scan, (product_scan_ids))
 
+        print("Done", self)
         self.log_message("Done")
 
         if self.no_more_event is None:
@@ -309,9 +302,11 @@ class ScanCollator(TaskBase):
 
     def consume(self, timeout=10):
         try:
-            item, index, status = self.queue.get(True, timeout)
+            item, index, ms_level = self.queue.get(True, timeout)
             if item == DONE:
-                item, index, status = self.queue.get(True, timeout)
+                item, index, ms_level = self.queue.get(True, timeout)
+            # if item != SCAN_STATUS_SKIP:
+            #     self.log("Got %r at %s" % (item, index))
             self.waiting[index] = item
             return True
         except QueueEmpty:
@@ -350,24 +345,37 @@ class ScanCollator(TaskBase):
         while has_more:
             if self.consume(1):
                 self.count_jobs_done += 1
+            # else:
+            #     self.log("No results waiting. %r, %r, %r" % (
+            #         self.last_index, sorted(self.waiting)[:4], self.count_since_last))
             if self.last_index is None:
                 keys = sorted(self.waiting)
                 if keys:
-                    scan = self.waiting.pop(keys[0])
-                    if scan == SCAN_STATUS_SKIP:
-                        self.log("Scan Skipped")
-                        self.last_index = keys[0]
-                        continue
-                    self.last_index = scan.index
-                    yield self.produce(scan)
-                    self.start_helper_producers()
+                    i = 0
+                    n = len(keys)
+                    found_content = False
+                    while i < n:
+                        scan = self.waiting.pop(keys[i])
+                        if scan == SCAN_STATUS_SKIP:
+                            self.last_index = keys[i]
+                            i += 1
+                            continue
+                        else:
+                            found_content = True
+                            break
+                    if found_content:
+                        self.last_index = scan.index
+                        yield self.produce(scan)
+                        self.start_helper_producers()
             elif self.last_index + 1 in self.waiting:
-                scan = self.waiting.pop(self.last_index + 1)
-                if scan == SCAN_STATUS_SKIP:
-                    self.last_index += 1
-                    continue
-                self.last_index = scan.index
-                yield self.produce(scan)
+                while self.last_index + 1 in self.waiting:
+                    scan = self.waiting.pop(self.last_index + 1)
+                    if scan == SCAN_STATUS_SKIP:
+                        self.last_index += 1
+                        continue
+                    else:
+                        self.last_index = scan.index
+                        yield self.produce(scan)
             elif len(self.waiting) == 0:
                 if self.all_workers_done():
                     self.log("All Workers Claim Done.")
@@ -377,15 +385,8 @@ class ScanCollator(TaskBase):
                         has_more = False
             else:
                 self.count_since_last += 1
-                if self.count_since_last % 25 == 0:
+                if self.count_since_last % 1000 == 0:
                     self.print_state()
-                    # if self.all_workers_done():
-                    #     if self.queue.qsize() == 0:
-                    #         self.log("Scan Missing and All Workers Claim Done and Queue Empty. Skipping Index")
-                    #         self.last_index += 1
-                    #     else:
-                    #         self.log("Scan Missing and All Workers Claim Done. Draining Queue.")
-                    #         self.consume(1)
 
         status_monitor.stop()
 

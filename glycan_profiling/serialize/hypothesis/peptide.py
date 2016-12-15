@@ -208,4 +208,4 @@ class Glycopeptide(PeptideBase, Base):
     def glycan_composition(self):
         return self.glycan_combination.convert()
 
-    __tableargs__ = (Index("mass_search_index", PeptideBase.calculated_mass, PeptideBase.hypothesis_id),)
+    __table_args__ = (Index("ix_Glycopeptide_mass_search_index", "calculated_mass", "hypothesis_id"),)

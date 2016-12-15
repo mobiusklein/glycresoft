@@ -109,5 +109,5 @@ class CompoundMassShift(MassShiftBase):
 
 Unmodified = MassShift("Unmodified", Composition())
 Formate = MassShift("Formate", Composition('HCOOH'))
-Ammonium = MassShift("Ammonium", Composition("NH4"))
+Ammonium = MassShift("Ammonium", Composition("NH3"))
 Sodiated = MassShift("Sodiated", Composition("Na"))

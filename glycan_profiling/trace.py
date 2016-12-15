@@ -544,14 +544,14 @@ class ChromatogramEvaluator(TaskBase):
         for case in filtered:
             start = time.time()
             i += 1
-            if i % 100 == 0:
+            if i % 1000 == 0:
                 self.log("%0.2f%% chromatograms evaluated (%d/%d)" % (i * 100. / n, i, n))
             try:
                 solutions.append(ChromatogramSolution(case, scorer=self.scoring_model))
                 end = time.time()
                 # Report on anything that took more than 30 seconds to evaluate
                 if end - start > 30.0:
-                    self.log("%r took a long time to evaluated (%0.2fs)" % (case, end))
+                    self.log("%r took a long time to evaluated (%0.2fs)" % (case, end - start))
             except (IndexError, ValueError):
                 continue
         if base_coef != 1.0 and self.network is not None:
@@ -565,6 +565,7 @@ class ChromatogramEvaluator(TaskBase):
 
         if adducts is not None:
             hold = prune_bad_adduct_branches(ChromatogramFilter(solutions))
+            self.log("Re-evaluating after adduct pruning")
             solutions = self.evaluate(hold, base_coef, support_coef, rt_delta)
 
         solutions = ChromatogramFilter(sol for sol in solutions if sol.score > 1e-5)
@@ -598,18 +599,18 @@ class ChromatogramExtractor(TaskBase):
         self.base_peak_chromatogram = None
         self.total_ion_chromatogram = None
 
+    def scan_id_to_rt(self, scan_id):
+        return self.peak_loader.convert_scan_id_to_retention_time(scan_id)
+
     def load_peaks(self):
         self.accumulated = self.peak_loader.ms1_peaks_above(self.minimum_mass)
         self.annotated_peaks = [x[:2] for x in self.accumulated]
         self.peak_mapping = {x[:2]: x[2] for x in self.accumulated}
 
     def aggregate_chromatograms(self):
-        self.tracer = IncludeUnmatchedTracer(self.peak_loader, [], cache_handler_type=NullScanCacheHandler)
-        self.tracer.unmatched.extend(self.annotated_peaks)
-        chroma = self.tracer.build_chromatograms(
-            minimum_mass=self.minimum_mass, minimum_intensity=self.minimum_intensity,
-            grouping_tolerance=self.grouping_tolerance,
-            truncate=False)
+        forest = ChromatogramForest([], self.grouping_tolerance, self.scan_id_to_rt)
+        forest.aggregate_unmatched_peaks(self.annotated_peaks, self.minimum_mass, self.minimum_intensity)
+        chroma = list(forest)
         self.log("%d Chromatograms Extracted." % (len(chroma),))
         self.chromatograms = ChromatogramFilter.process(
             chroma, min_points=self.min_points, delta_rt=self.delta_rt)
@@ -618,9 +619,9 @@ class ChromatogramExtractor(TaskBase):
         mapping = defaultdict(list)
         for scan_id, peak in self.annotated_peaks:
             mapping[scan_id].append(peak.intensity)
-        bpc = SimpleChromatogram(self.tracer)
-        tic = SimpleChromatogram(self.tracer)
-        for scan_id, intensities in sorted(mapping.items(), key=lambda (b): self.tracer.scan_id_to_rt(b[0])):
+        bpc = SimpleChromatogram(self)
+        tic = SimpleChromatogram(self)
+        for scan_id, intensities in sorted(mapping.items(), key=lambda (b): self.scan_id_to_rt(b[0])):
             bpc[scan_id] = max(intensities)
             tic[scan_id] = sum(intensities)
         self.base_peak_chromatogram = bpc

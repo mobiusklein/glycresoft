@@ -28,6 +28,50 @@ class CSVSerializerBase(TaskBase):
         self.writerows(gen)
 
 
+class GlycanHypothesisCSVSerializer(CSVSerializerBase):
+    def __init__(self, outstream, entities_iterable):
+        super(GlycanHypothesisCSVSerializer, self).__init__(outstream, entities_iterable)
+
+    def get_header(self):
+        return [
+            "composition",
+            "neutral_mass",
+            "classes"
+        ]
+
+    def convert_object(self, obj):
+        attribs = [
+            obj.composition,
+            obj.neutral_mass,
+            ";".join([sc.name for sc in obj.structure_classes])
+        ]
+        return map(str, attribs)
+
+
+class GlycopeptideHypothesisCSVSerializer(CSVSerializerBase):
+    def __init__(self, outstream, entities_iterable):
+        super(GlycopeptideHypothesisCSVSerializer, self).__init__(outstream, entities_iterable)
+
+    def get_header(self):
+        return [
+            "glycopeptide",
+            "neutral_mass",
+            "start_position",
+            "end_position",
+            "protein",
+        ]
+
+    def convert_object(self, obj):
+        attribs = [
+            obj.glycopeptide_sequence,
+            obj.neutral_mass,
+            obj.peptide.start_position,
+            obj.peptide.end_position,
+            obj.peptide.protein.name
+        ]
+        return map(str, attribs)
+
+
 class GlycanLCMSAnalysisCSVSerializer(CSVSerializerBase):
     def __init__(self, outstream, entities_iterable):
         super(GlycanLCMSAnalysisCSVSerializer, self).__init__(outstream, entities_iterable)

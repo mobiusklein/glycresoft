@@ -197,7 +197,9 @@ class ChromatogramFilter(object):
         high_index = min(n - 1, high_index)
         if self[high_index].neutral_mass > high:
             high_index -= 1
-        return ChromatogramFilter(self[low_index:high_index], sort=False)
+        items = self[low_index:high_index]
+        items = [c for c in items if low <= c.neutral_mass <= high]
+        return ChromatogramFilter(items, sort=False)
 
     def filter(self, filter_fn):
         return self.__class__([x for x in self if filter_fn(x)], sort=False)

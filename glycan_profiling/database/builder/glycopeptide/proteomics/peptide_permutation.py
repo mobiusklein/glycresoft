@@ -1,4 +1,3 @@
-import re
 from collections import defaultdict
 import itertools
 from multiprocessing import Process, Queue, Event
@@ -19,14 +18,6 @@ product = itertools.product
 chain_iterable = itertools.chain.from_iterable
 
 SequenceLocation = modification.SequenceLocation
-
-
-def descending_combination_counter(counter):
-    keys = counter.keys()
-    count_ranges = map(lambda lo_hi: range(
-        lo_hi[0], lo_hi[1] + 1), counter.values())
-    for combination in product(*count_ranges):
-        yield dict(zip(keys, combination))
 
 
 def parent_sequence_aware_n_glycan_sequon_sites(peptide, protein):
@@ -109,7 +100,7 @@ def site_modification_assigner(modification_sites_dict):
         yield zip(sites, selected)
 
 
-def peptide_isoforms(sequence, constant_modifications, variable_modifications):
+def peptide_permutations(sequence, constant_modifications, variable_modifications):
     try:
         sequence = get_base_peptide(sequence)
     except residue.UnknownAminoAcidException:
@@ -190,7 +181,7 @@ def digest(sequence, protease, constant_modifications=None, variable_modificatio
     elif isinstance(protease, (list, tuple)):
         protease = enzyme.Protease.combine(*protease)
     for peptide, start, end, n_missed_cleavages in cleave_sequence(sequence, protease, max_missed_cleavages):
-        for modified_peptide, n_variable_modifications in peptide_isoforms(
+        for modified_peptide, n_variable_modifications in peptide_permutations(
                 peptide, constant_modifications, variable_modifications):
             inst = Peptide(
                 base_peptide_sequence=str(peptide),
