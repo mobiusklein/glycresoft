@@ -151,7 +151,7 @@ class ThreadedDatabaseScanCacheHandler(DatabaseScanCacheHandler):
         def drain_queue():
             current_work = []
             try:
-                while len(current_work) < 500:
+                while len(current_work) < 1000:
                     current_work.append(self.queue.get_nowait())
             except QueueEmptyException:
                 pass
@@ -165,7 +165,7 @@ class ThreadedDatabaseScanCacheHandler(DatabaseScanCacheHandler):
                 if next_bunch == DONE:
                     has_work = False
                     continue
-                if self.log_inserts or (i % 100 == 0):
+                if self.log_inserts and (i % 100 == 0):
                     log_handle.log("Saving %r" % (next_bunch[0].id, ))
                 self._save_bunch(*next_bunch)
                 self.commit_counter += 1 + len(next_bunch[1])
@@ -177,7 +177,7 @@ class ThreadedDatabaseScanCacheHandler(DatabaseScanCacheHandler):
                         if next_bunch == DONE:
                             has_work = False
                         else:
-                            if self.log_inserts or (i % 100 == 0):
+                            if self.log_inserts and (i % 100 == 0):
                                 log_handle.log("Saving %r" % (next_bunch[0].id, ))
                             self._save_bunch(*next_bunch)
                             self.commit_counter += 1 + len(next_bunch[1])
