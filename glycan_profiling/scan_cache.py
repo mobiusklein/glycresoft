@@ -151,7 +151,7 @@ class ThreadedDatabaseScanCacheHandler(DatabaseScanCacheHandler):
         def drain_queue():
             current_work = []
             try:
-                while len(current_work < 500):
+                while len(current_work) < 500:
                     current_work.append(self.queue.get_nowait())
             except QueueEmptyException:
                 pass
