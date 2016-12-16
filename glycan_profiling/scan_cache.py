@@ -147,6 +147,16 @@ class ThreadedDatabaseScanCacheHandler(DatabaseScanCacheHandler):
     def _worker_loop(self):
         has_work = True
         i = 0
+
+        def drain_queue():
+            current_work = []
+            try:
+                while self.queue.qsize() and len(current_work < 100):
+                    current_work.append(self.queue.get_nowait())
+            except:
+                pass
+            return current_work
+
         while has_work:
             try:
                 next_bunch = self.queue.get(True, 2)
@@ -156,9 +166,20 @@ class ThreadedDatabaseScanCacheHandler(DatabaseScanCacheHandler):
                 if self.log_inserts or (i % 100 == 0):
                     log_handle.log("Saving %r" % (next_bunch[0].id, ))
                 self._save_bunch(*next_bunch)
+                self.commit_counter += 1 + len(next_bunch[1])
                 i += 1
 
-                self.commit_counter += 1 + len(next_bunch[1])
+                current_work = drain_queue()
+                for next_bunch in current_work:
+                    if next_bunch == DONE:
+                        has_work = False
+                    else:
+                        if self.log_inserts or (i % 100 == 0):
+                            log_handle.log("Saving %r" % (next_bunch[0].id, ))
+                        self._save_bunch(*next_bunch)
+                        self.commit_counter += 1 + len(next_bunch[1])
+                        i += 1
+
                 if self.commit_counter - self.last_commit_count > self.commit_interval:
                     self.last_commit_count = self.commit_counter
                     log_handle.log("Syncing Scan Cache To Disk (%d items waiting)" % (self.queue.qsize(),))
