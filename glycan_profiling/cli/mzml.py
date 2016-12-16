@@ -1,5 +1,7 @@
 import click
 import os
+import multiprocessing
+
 from glycan_profiling.cli.base import cli
 from glycan_profiling.cli.validators import (
     validate_averagine, validate_sample_run_name)
@@ -58,8 +60,12 @@ def tic_saddle_points(mzml_file):
               help="Minimum score to accept an isotopic pattern fit in an MS^n scan. Scales with intensity.")
 @click.option("-m", "--missed-peaks", type=int, default=1,
               help="Number of missing peaks to permit before an isotopic fit is discarded")
+@click.option("-j", "--jobs", 'processes', type=click.IntRange(1, multiprocessing.cpu_count()),
+              default=min(multiprocessing.cpu_count(), 5), help=('Number of worker processes to use. Defaults to 5 '
+                                                                 'or the number of CPUs, whichever is lower'))
 def preprocess(mzml_file, database_connection, averagine=None, start_time=None, end_time=None, maximum_charge=None,
-               name=None, msn_averagine=None, score_threshold=15., msn_score_threshold=2., missed_peaks=1):
+               name=None, msn_averagine=None, score_threshold=15., msn_score_threshold=2., missed_peaks=1,
+               processes=5):
     click.echo("Preprocessing %s" % mzml_file)
     minimum_charge = 1 if maximum_charge > 0 else -1
     charge_range = (minimum_charge, maximum_charge)
@@ -110,6 +116,6 @@ def preprocess(mzml_file, database_connection, averagine=None, start_time=None, 
         msn_deconvolution_args=msn_deconvolution_args,
         storage_path=database_connection, sample_name=name,
         start_scan_id=start_scan_id,
-        end_scan_id=end_scan_id)
+        end_scan_id=end_scan_id, n_processes=processes)
 
     consumer.start()

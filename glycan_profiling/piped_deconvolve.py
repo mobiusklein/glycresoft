@@ -305,8 +305,6 @@ class ScanCollator(TaskBase):
             item, index, ms_level = self.queue.get(True, timeout)
             if item == DONE:
                 item, index, ms_level = self.queue.get(True, timeout)
-            # if item != SCAN_STATUS_SKIP:
-            #     self.log("Got %r at %s" % (item, index))
             self.waiting[index] = item
             return True
         except QueueEmpty:
@@ -325,12 +323,22 @@ class ScanCollator(TaskBase):
         self.count_since_last = 0
         return scan
 
+    def count_pending_items(self):
+        return len(self.waiting)
+
+    def drain_queue(self):
+        i = 0
+        while self.count_pending_items() < 500 and self.consume(0):
+            self.count_jobs_done += 1
+            i += 1
+        return i
+
     def print_state(self):
         if self.queue.qsize() > 0:
             self.log("%d since last work item" % (self.count_since_last,))
             keys = sorted(self.waiting.keys())
-            if len(keys) > 20:
-                self.log("Waiting Keys: %r..." % (keys[:21],))
+            if len(keys) > 5:
+                self.log("Waiting Keys: %r..." % (keys[:5],))
             else:
                 self.log("Waiting Keys: %r" % (keys,))
             self.log("%d Keys Total" % (len(self.waiting),))
@@ -345,9 +353,8 @@ class ScanCollator(TaskBase):
         while has_more:
             if self.consume(1):
                 self.count_jobs_done += 1
-            # else:
-            #     self.log("No results waiting. %r, %r, %r" % (
-            #         self.last_index, sorted(self.waiting)[:4], self.count_since_last))
+                if self.queue.qsize() > 500:
+                    self.drain_queue()
             if self.last_index is None:
                 keys = sorted(self.waiting)
                 if keys:

@@ -11,7 +11,7 @@ except ImportError:
     from queue import Queue, Empty as QueueEmptyException
 
 from ms_deisotope.output.db import (
-    DatabaseScanSerializer, ScanBunch, DatabaseScanDeserializer,
+    DatabaseScanSerializer, BatchingDatabaseScanSerializer, ScanBunch, DatabaseScanDeserializer,
     FittedPeak, DeconvolutedPeak, DatabaseBoundOperation,
     MSScan)
 from glycan_profiling.piped_deconvolve import ScanGeneratorBase
@@ -82,7 +82,7 @@ class DatabaseScanCacheHandler(ScanCacheHandlerBase):
     commit_interval = 1000
 
     def __init__(self, connection, sample_name):
-        self.serializer = DatabaseScanSerializer(connection, sample_name)
+        self.serializer = BatchingDatabaseScanSerializer(connection, sample_name)
         self.commit_counter = 0
         self.last_commit_count = 0
         super(DatabaseScanCacheHandler, self).__init__()
@@ -100,7 +100,7 @@ class DatabaseScanCacheHandler(ScanCacheHandlerBase):
 
     def commit(self):
         super(DatabaseScanCacheHandler, self).save()
-        self.serializer.session.commit()
+        self.serializer.commit()
         self.serializer.session.expunge_all()
 
     @classmethod
@@ -153,7 +153,7 @@ class ThreadedDatabaseScanCacheHandler(DatabaseScanCacheHandler):
                 if next_bunch == DONE:
                     has_work = False
                     continue
-                if self.log_inserts:
+                if self.log_inserts or (i % 100 == 0):
                     log_handle.log("Saving %r" % (next_bunch[0].id, ))
                 self._save_bunch(*next_bunch)
                 i += 1
@@ -161,16 +161,17 @@ class ThreadedDatabaseScanCacheHandler(DatabaseScanCacheHandler):
                 self.commit_counter += 1 + len(next_bunch[1])
                 if self.commit_counter - self.last_commit_count > self.commit_interval:
                     self.last_commit_count = self.commit_counter
-                    log_handle.log("Syncing Scan Cache To Disk")
-                    self.serializer.session.commit()
+                    log_handle.log("Syncing Scan Cache To Disk (%d items waiting)" % (self.queue.qsize(),))
+                    self.serializer.commit()
                     if self.serializer.is_sqlite():
-                        self.serializer.session.execute("PRAGMA wal_checkpoint(SQLITE_CHECKPOINT_RESTART);")
+                        self.serializer.session.execute(
+                            "PRAGMA wal_checkpoint(SQLITE_CHECKPOINT_RESTART);")
                     self.serializer.session.expunge_all()
             except QueueEmptyException:
                 continue
             except Exception as e:
                 log_handle.error("An error occurred while writing scans to disk", e)
-        self.serializer.session.commit()
+        self.serializer.commit()
         self.serializer.session.expunge_all()
 
     def sync(self):
