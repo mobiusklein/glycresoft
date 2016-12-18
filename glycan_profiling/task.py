@@ -3,6 +3,8 @@ import logging
 import pprint
 import traceback
 from datetime import datetime
+import multiprocessing
+import threading
 
 logger = logging.getLogger("glycan_profiling.task")
 
@@ -14,6 +16,41 @@ def printer(obj, message):
 def debug_printer(obj, message):
     if obj.debug:
         print("DEBUG:" + datetime.now().isoformat(' ') + ' ' + str(message))
+
+
+class MessageSpooler(object):
+    def __init__(self, handler):
+        self.handler = handler
+        self.message_queue = multiprocessing.Queue()
+        self.halting = False
+        self.thread = threading.Thread(target=self.run)
+        self.thread.start()
+
+    def run(self):
+        while not self.halting:
+            try:
+                message = self.message_queue.get(True, 2)
+                self.handler(message)
+            except:
+                continue
+
+    def stop(self):
+        self.halting = True
+        self.thread.join()
+
+    def sender(self):
+        return MessageSender(self.queu)
+
+
+class MessageSender(object):
+    def __init__(self, queue):
+        self.queue = queue
+
+    def __call__(self, message):
+        self.send(message)
+
+    def send(self, message):
+        self.queue.put(message)
 
 
 def humanize_class_name(name):

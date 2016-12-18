@@ -200,7 +200,7 @@ class GlycanCombinationPartitionTable(TaskBase):
         return self.get_entries(size, mapping)
 
 
-def limiting_combinations(iterable, n, limit=1000):
+def limiting_combinations(iterable, n, limit=100):
     i = 0
     for result in itertools.combinations(iterable, n):
         i += 1
@@ -286,6 +286,9 @@ class PeptideGlycosylator(object):
         for site in list(o_glycosylation_unoccupied_sites):
             if obj[site][1]:
                 o_glycosylation_unoccupied_sites.remove(site)
+        if len(o_glycosylation_unoccupied_sites) > 5:
+            print("Peptide %r has more than 5 O-glycosylation sites (%r)" % (
+                peptide, o_glycosylation_unoccupied_sites))
 
         for i in range(len(o_glycosylation_unoccupied_sites)):
             i += 1
