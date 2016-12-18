@@ -109,12 +109,12 @@ class MultipleProcessMzIdentMLGlycopeptideHypothesisSerializer(MzIdentMLGlycopep
         processes = [
             PeptideGlycosylatingProcess(
                 self._original_connection, self.hypothesis_id, input_queue,
-                chunk_size=5000, done_event=done_event) for i in range(self.n_processes)
+                chunk_size=2000, done_event=done_event) for i in range(self.n_processes)
         ]
         peptide_ids = self.peptide_ids()
         i = 0
         n = len(peptide_ids)
-        chunk_size = min(int(n * 0.15), 1000)
+        chunk_size = min(int(n * 0.05), 1000)
         for process in processes:
             input_queue.put(peptide_ids[i:(i + chunk_size)])
             i += chunk_size

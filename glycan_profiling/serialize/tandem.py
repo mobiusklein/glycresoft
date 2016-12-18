@@ -90,6 +90,7 @@ class GlycopeptideSpectrumSolutionSet(Base, BoundToAnalysis):
             matches
         )
         inst.q_value = min(x.q_value for x in inst)
+        inst.id = self.id
         return inst
 
     def __repr__(self):
@@ -142,6 +143,7 @@ class GlycopeptideSpectrumMatch(Base, SpectrumMatchBase):
             self._loaded_targets[self.structure_id] = target
         inst = MemorySpectrumMatch(scan_ref, target, self.score, self.is_best_match)
         inst.q_value = self.q_value
+        inst.id = self.id
         return inst
 
     def __repr__(self):

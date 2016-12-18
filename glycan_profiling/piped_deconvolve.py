@@ -301,10 +301,11 @@ class ScanCollator(TaskBase):
         return False
 
     def consume(self, timeout=10):
+        blocking = timeout != 0
         try:
-            item, index, ms_level = self.queue.get(True, timeout)
+            item, index, ms_level = self.queue.get(blocking, timeout)
             if item == DONE:
-                item, index, ms_level = self.queue.get(True, timeout)
+                item, index, ms_level = self.queue.get(blocking, timeout)
             self.waiting[index] = item
             return True
         except QueueEmpty:

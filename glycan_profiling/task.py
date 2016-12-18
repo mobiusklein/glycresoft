@@ -41,7 +41,7 @@ class TaskBase(object):
     print_fn = printer
     debug_print_fn = debug_printer
     error_print_fn = printer
-    display_fields = False
+    display_fields = True
 
     _display_name = None
 
