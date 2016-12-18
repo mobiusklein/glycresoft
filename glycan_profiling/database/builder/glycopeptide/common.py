@@ -200,6 +200,15 @@ class GlycanCombinationPartitionTable(TaskBase):
         return self.get_entries(size, mapping)
 
 
+def limiting_combinations(iterable, n, limit=1000):
+    i = 0
+    for result in itertools.combinations(iterable, n):
+        i += 1
+        yield result
+        if i > limit:
+            break
+
+
 class GlycanCombinationRecord(object):
     __slots__ = ['id', 'calculated_mass', 'formula', 'count', 'glycan_composition_string']
 
@@ -254,7 +263,7 @@ class PeptideGlycosylator(object):
                 total_mass = peptide.calculated_mass + gc.calculated_mass - (gc.count * water.mass)
                 formula_string = formula(peptide_composition + Composition(str(gc.formula)) - (water * gc.count))
 
-                for site_set in itertools.combinations(n_glycosylation_unoccupied_sites, i):
+                for site_set in limiting_combinations(n_glycosylation_unoccupied_sites, i):
                     sequence = peptide.convert()
                     for site in site_set:
                         sequence.add_modification(site, _n_glycosylation.name)
@@ -284,7 +293,7 @@ class PeptideGlycosylator(object):
                 total_mass = peptide.calculated_mass + gc.calculated_mass - (gc.count * water.mass)
                 formula_string = formula(peptide_composition + Composition(str(gc.formula)) - (water * gc.count))
 
-                for site_set in itertools.combinations(o_glycosylation_unoccupied_sites, i):
+                for site_set in limiting_combinations(o_glycosylation_unoccupied_sites, i):
                     sequence = peptide.convert()
                     for site in site_set:
                         sequence.add_modification(site, _o_glycosylation.name)
@@ -312,7 +321,7 @@ class PeptideGlycosylator(object):
             for gc in self.glycan_combination_partitions[i, {GlycanTypes.gag_linker: i}]:
                 total_mass = peptide.calculated_mass + gc.calculated_mass - (gc.count * water.mass)
                 formula_string = formula(peptide_composition + Composition(str(gc.formula)) - (water * gc.count))
-                for site_set in itertools.combinations(o_glycosylation_unoccupied_sites, i):
+                for site_set in limiting_combinations(gag_unoccupied_sites, i):
                     sequence = peptide.convert()
                     for site in site_set:
                         sequence.add_modification(site, _gag_linker_glycosylation.name)
@@ -367,9 +376,10 @@ class PeptideGlycosylatingProcess(Process):
                         session.bulk_save_objects(result_accumulator)
                         session.commit()
                         result_accumulator = []
-            session.bulk_save_objects(result_accumulator)
-            session.commit()
-            result_accumulator = []
+            if len(result_accumulator) > 0:
+                session.bulk_save_objects(result_accumulator)
+                session.commit()
+                result_accumulator = []
 
     def run(self):
         self.task()
