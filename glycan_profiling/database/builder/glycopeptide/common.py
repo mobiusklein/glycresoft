@@ -286,9 +286,6 @@ class PeptideGlycosylator(object):
         for site in list(o_glycosylation_unoccupied_sites):
             if obj[site][1]:
                 o_glycosylation_unoccupied_sites.remove(site)
-        if len(o_glycosylation_unoccupied_sites) > 5:
-            print("Peptide %r has more than 5 O-glycosylation sites (%r)" % (
-                peptide, o_glycosylation_unoccupied_sites))
 
         for i in range(len(o_glycosylation_unoccupied_sites)):
             i += 1

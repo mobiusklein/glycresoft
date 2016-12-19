@@ -182,7 +182,7 @@ class CompositionGraph(object):
         self.nodes = []
         self.node_map = {}
         self.create_nodes(compositions)
-        self.edges = []
+        self.edges = set()
 
     def create_nodes(self, compositions):
         i = 0
@@ -200,13 +200,31 @@ class CompositionGraph(object):
     def create_edges(self, degree=2, distance_fn=composition_distance):
         space = CompositionSpace([node.composition for node in self])
         for node in self:
+            if node is None:
+                continue
             for related in space.find_narrowly_related(node.composition, degree):
                 related_node = self.node_map[str(related)]
                 # Ensures no duplicates assuming symmetric search window
                 if node.index < related_node.index:
                     diff, weight = distance_fn(node.composition, related)
                     e = CompositionGraphEdge(node, related_node, diff, weight)
-                    self.edges.append(e)
+                    self.edges.add(e)
+
+    def remove_node(self, node):
+        subtracted_edges = list(node.edges)
+        for edge in subtracted_edges:
+            edge.remove()
+            self.edges.remove(edge)
+        self.nodes.pop(node.index)
+        self.node_map.pop(str(node.composition))
+        self._reindex()
+        return subtracted_edges
+
+    def _reindex(self):
+        i = 0
+        for node in self:
+            node.index = i
+            i += 1
 
     def __getitem__(self, key):
         if isinstance(key, (basestring, GlycanComposition, GlycanCompositionProxy)):

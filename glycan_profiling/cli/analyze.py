@@ -5,18 +5,10 @@ from glycan_profiling.serialize import (
     DatabaseBoundOperation, GlycanHypothesis, GlycopeptideHypothesis,
     SampleRun)
 
-from glycan_profiling.trace import (
-    ChromatogramProcessor, ChromatogramExtractor)
-
-from glycan_profiling.scoring import chromatogram_solution, shape_fitter
-
 from glycan_profiling.profiler import (
     GlycanChromatogramAnalyzer, GlycopeptideLCMSMSAnalyzer)
 
-from glycan_profiling.database.disk_backed_database import (
-    GlycanCompositionDiskBackedStructureDatabase)
-
-from glycan_profiling.tandem.glycopeptide.scoring import BinomialSpectrumMatcher, CoverageWeightedBinomialScorer
+from glycan_profiling.tandem.glycopeptide.scoring import CoverageWeightedBinomialScorer
 
 from glycan_profiling.models import GeneralScorer
 
@@ -46,7 +38,7 @@ def analyze():
 @click.option("-n", "--analysis-name", default=None, help='Name for analysis to be performed.')
 @click.option("-q", "--psm-fdr-threshold", default=0.05, type=float,
               help='Minimum FDR Threshold to use for filtering PSMs when selecting identified glycopeptides')
-@click.option("-s", "--tandem-scoring-model", default='binomial', type=click.Choice(
+@click.option("-s", "--tandem-scoring-model", default='coverage_weighted_binomial', type=click.Choice(
               glycopeptide_tandem_scoring_functions.keys()),
               help="Select a scoring function to use for evaluating glycopeptide-spectrum matches")
 def search_glycopeptide(context, database_connection, sample_identifier, hypothesis_identifier,
@@ -83,20 +75,12 @@ def search_glycopeptide(context, database_connection, sample_identifier, hypothe
 
     click.secho("Preparing analysis of %s by %s" % (sample_run.name, hypothesis.name), fg='cyan')
 
-    try:
-        analyzer = GlycopeptideLCMSMSAnalyzer(
-            database_connection._original_connection, hypothesis.id, sample_run.id,
-            analysis_name, grouping_error_tolerance=grouping_error_tolerance, mass_error_tolerance=mass_error_tolerance,
-            msn_mass_error_tolerance=msn_mass_error_tolerance, psm_fdr_threshold=psm_fdr_threshold,
-            peak_shape_scoring_model=peak_shape_scoring_model, tandem_scoring_model=tandem_scoring_model)
-        analyzer.start()
-    except:
-        import pdb
-        import traceback
-        import sys
-        type, value, tb = sys.exc_info()
-        traceback.print_exc()
-        pdb.post_mortem(tb)
+    analyzer = GlycopeptideLCMSMSAnalyzer(
+        database_connection._original_connection, hypothesis.id, sample_run.id,
+        analysis_name, grouping_error_tolerance=grouping_error_tolerance, mass_error_tolerance=mass_error_tolerance,
+        msn_mass_error_tolerance=msn_mass_error_tolerance, psm_fdr_threshold=psm_fdr_threshold,
+        peak_shape_scoring_model=peak_shape_scoring_model, tandem_scoring_model=tandem_scoring_model)
+    analyzer.start()
 
 
 @analyze.command("search-glycan", short_help='Search preprocessed data for glycan compositions')
@@ -150,18 +134,10 @@ def search_glycan(context, database_connection, sample_identifier, hypothesis_id
     click.secho("Preparing analysis of %s by %s" %
                 (sample_run.name, hypothesis.name), fg='cyan')
 
-    try:
-        analyzer = GlycanChromatogramAnalyzer(
-            database_connection._original_connection, hypothesis.id,
-            sample_run.id, adducts=adducts, mass_error_tolerance=mass_error_tolerance,
-            grouping_error_tolerance=grouping_error_tolerance, scoring_model=scoring_model,
-            minimum_mass=minimum_mass, 
-            analysis_name=analysis_name)
-        proc = analyzer.start()
-    except:
-        import pdb
-        import traceback
-        import sys
-        type, value, tb = sys.exc_info()
-        traceback.print_exc()
-        pdb.post_mortem(tb)
+    analyzer = GlycanChromatogramAnalyzer(
+        database_connection._original_connection, hypothesis.id,
+        sample_run.id, adducts=adducts, mass_error_tolerance=mass_error_tolerance,
+        grouping_error_tolerance=grouping_error_tolerance, scoring_model=scoring_model,
+        minimum_mass=minimum_mass,
+        analysis_name=analysis_name)
+    analyzer.start()

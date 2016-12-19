@@ -231,6 +231,9 @@ class GlycopeptideLCMSMSAnalyzer(TaskBase):
             precursor_error_tolerance=self.mass_error_tolerance,
             error_tolerance=self.msn_mass_error_tolerance)
 
+        if len(target_hits) == 0:
+            self.log("No target matches were found.")
+            return [], [], [], []
         searcher.target_decoy(target_hits, decoy_hits)
 
         # Map MS/MS solutions to chromatograms. TODO Handle MS/MS without chromatograms

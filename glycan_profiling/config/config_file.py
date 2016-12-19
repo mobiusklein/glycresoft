@@ -61,6 +61,7 @@ def add_user_substituent_rule(rule):
     set_configuration(config)
     return load_substituent_rule(serialized)
 
+
 try:
     get_configuration()
 except:

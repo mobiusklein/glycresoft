@@ -455,6 +455,8 @@ class PeptideConverter(object):
         return len(occupied_sites) > 0
 
     def clear_sites(self, db_peptide):
+        # TODO: Make this a combinatorial generator so that it optionally clears each
+        # putative combination of glycosites across N/O forms.
         occupied_sites = []
         n_glycosylation_sites = db_peptide.n_glycosylation_sites
         peptide_obj = PeptideSequence(db_peptide.modified_peptide_sequence)
