@@ -10,7 +10,9 @@ from glycan_profiling.cli.validators import (
     validate_glycan_hypothesis_name, get_by_name_or_id,
     validate_reduction, validate_derivatization, validate_mzid_proteins)
 
-from glycan_profiling.serialize import DatabaseBoundOperation, GlycanHypothesis
+from glycan_profiling.serialize import (
+    DatabaseBoundOperation, GlycanHypothesis, Analysis,
+    AnalysisTypeEnum)
 
 from glycan_profiling.database.builder.glycopeptide.naive_glycopeptide import (
     MultipleProcessFastaGlycopeptideHypothesisSerializer)
@@ -24,7 +26,9 @@ from glycan_profiling.database.builder.glycan import (
     GlycanCompositionHypothesisMerger,
     NGlycanGlyspaceHypothesisSerializer,
     OGlycanGlyspaceHypothesisSerializer,
-    TaxonomyFilter)
+    TaxonomyFilter,
+    GlycanAnalysisHypothesisSerializer,
+    GlycopeptideAnalysisGlycanCompositionExtractionHypothesisSerializer)
 
 from glycopeptidepy.utils.collectiontools import decoratordict
 from glycopeptidepy.structure.modification import RestrictedModificationTable
@@ -76,7 +80,8 @@ def _get_hypothesis_id_for_glycan_composition_hypothesis(database_connection, so
             return inst.id
 
 
-@build_hypothesis.command("glycopeptide-fa", short_help="Build glycopeptide search spaces with a fasta file of proteins")
+@build_hypothesis.command("glycopeptide-fa",
+                          short_help="Build glycopeptide search spaces with a fasta file of proteins")
 @click.pass_context
 @click.argument("fasta-file", type=click.Path(exists=True))
 @click.argument("database-connection")
@@ -132,7 +137,8 @@ def glycopeptide_fa(context, fasta_file, database_connection, enzyme, missed_cle
     return builder.hypothesis_id
 
 
-@build_hypothesis.command("glycopeptide-mzid", short_help="Build a glycopeptide search space with an mzIdentML file")
+@build_hypothesis.command("glycopeptide-mzid",
+                          short_help="Build a glycopeptide search space with an mzIdentML file")
 @click.pass_context
 @click.argument("mzid-file", type=click.Path(exists=True))
 @click.argument("database-connection")
@@ -178,7 +184,8 @@ def glycopeptide_mzid(context, mzid_file, database_connection, name, occupied_gl
     return builder.hypothesis_id
 
 
-@build_hypothesis.command("glycan-text", short_help='Build a glycan search space with a text file of glycan compositions')
+@build_hypothesis.command("glycan-text",
+                          short_help='Build a glycan search space with a text file of glycan compositions')
 @click.pass_context
 @click.argument("text-file", type=click.Path(exists=True))
 @click.argument("database-connection")
@@ -270,6 +277,33 @@ def glyspace_glycan_hypothesis(context, database_connection, motif_class, reduct
         database_connection._original_connection, name, reduction, derivatization, filter_funcs,
         simplify=True)
     job.start()
+
+
+@build_hypothesis.command("glycan-from-analysis", short_help=("Construct a glycan hypothesis from a matched analysis"))
+@click.pass_context
+@click.argument("database-connection")
+@click.argument("analysis-identifier")
+@click.option("-r", "--reduction", default=None, help='Reducing end modification')
+@click.option("-d", "--derivatization", default=None, help='Chemical derivatization to apply')
+@click.option("-n", "--name", default=None, help="The name for the hypothesis to be created")
+def from_analysis(context, database_connection, analysis_identifier, reduction, derivatization, name):
+    database_connection = DatabaseBoundOperation(database_connection)
+    if name is not None:
+        name = validate_glycan_hypothesis_name(context, database_connection._original_connection, name)
+        click.secho("Building Glycan Hypothesis %s" % name, fg='cyan')
+    validate_reduction(context, reduction)
+    validate_derivatization(context, derivatization)
+    analysis = get_by_name_or_id(database_connection.session, Analysis, analysis_identifier)
+    if analysis.analysis_type == AnalysisTypeEnum.glycan_lc_ms:
+        job = GlycanAnalysisHypothesisSerializer(database_connection._original_connection, analysis.id, name)
+        job.start()
+    elif analysis.analysis_type == AnalysisTypeEnum.glycopeptide_lc_msms:
+        job = GlycopeptideAnalysisGlycanCompositionExtractionHypothesisSerializer(
+            database_connection._original_connection, analysis.id, name)
+        job.start()
+    else:
+        click.secho("Analysis Type %r could not be converted" % (
+            analysis.analysis_type.name,), fg='red')
 
 
 if __name__ == '__main__':

@@ -14,7 +14,7 @@ def printer(obj, message):
 
 
 def debug_printer(obj, message):
-    if obj.debug:
+    if obj._debug_enabled:
         print("DEBUG:" + datetime.now().isoformat(' ') + ' ' + str(message))
 
 
@@ -39,7 +39,7 @@ class MessageSpooler(object):
         self.thread.join()
 
     def sender(self):
-        return MessageSender(self.queu)
+        return MessageSender(self.message_queue)
 
 
 class MessageSender(object):
@@ -73,7 +73,7 @@ def humanize_class_name(name):
 class TaskBase(object):
     status = "new"
 
-    debug = False
+    _debug_enabled = False
 
     print_fn = printer
     debug_print_fn = debug_printer
@@ -105,6 +105,9 @@ class TaskBase(object):
 
     def log(self, message):
         self.print_fn(str(message))
+
+    def debug(self, message):
+        self.debug_print_fn(message)
 
     def error(self, message, exception=None):
         self.error_print_fn(str(message))
@@ -144,6 +147,12 @@ class TaskBase(object):
             ''
         ]
         return '\n'.join(chunks)
+
+    def ipc_logger(self, handler=None):
+        if handler is None:
+            def handler(message):
+                self.log(message)
+        return MessageSpooler(handler)
 
     def start(self, *args, **kwargs):
         self._begin(*args, **kwargs)

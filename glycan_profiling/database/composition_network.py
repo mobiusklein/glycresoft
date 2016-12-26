@@ -1,3 +1,4 @@
+from collections import defaultdict
 import numpy as np
 
 try:
@@ -40,8 +41,70 @@ def n_glycan_distance(c1, c2):
     return distance, weight
 
 
-def mass_diff(c1, c2):
-    return abs(c1.composition.mass() - c2.composition.mass()) > 600
+class ShortestPathFinder(object):
+    """A recursive algorithm for local graph exploration that finds
+    the shortest path between two nodes in a graph.
+
+    Analogous to a bounded version of Dijkstra's algorithm.
+
+    Attributes
+    ----------
+    graph : CompositionGraph
+        The graph to traverse
+    solution_table : defaultdict(dict)
+        A lookup table to memoize queries in
+    """
+
+    def __init__(self, graph):
+        self.graph = graph
+        self.solution_table = defaultdict(lambda: defaultdict(lambda: -1))
+
+    def solve_path(self, start, end, limit=100, total=0, visited=None):
+        if visited is None:
+            visited = frozenset()
+        dist = self.get_path_length(start, end)
+        if dist > -1:
+            return dist
+        else:
+            path_length = self._solve_path(start, end, limit, total, visited)
+            self.set_path_length(start, end, path_length)
+            return path_length
+
+    def _path_length(self, accumulator, edge):
+        return accumulator + edge.order
+
+    def set_path_length(self, start, end, path_length):
+        self.solution_table[start._str][end._str] = path_length
+        self.solution_table[end._str][start._str] = path_length
+
+    def get_path_length(self, start, end):
+        return self.solution_table[start._str][end._str]
+
+    def _solve_path(self, start, end, limit=0, total=0, visited=None):
+        if visited is None:
+            visited = frozenset()
+        dist = self.get_path_length(start, end)
+        if dist > -1:
+            return dist
+        else:
+            if start is end:
+                return total
+            else:
+                shortest_path = float('inf')
+                for edge in start.edges:
+                    terminal = edge._traverse(start)
+                    if terminal in visited:
+                        continue
+                    new_total = self._path_length(total, edge)
+                    self.set_path_length(start, terminal, new_total)
+                    if limit > 0 and new_total > limit:
+                        continue
+                    out = self.solve_path(
+                        terminal, end, limit, new_total, visited | {start._str})
+                    if out < shortest_path:
+                        shortest_path = out
+                self.set_path_length(start, end, shortest_path)
+                return shortest_path
 
 
 class CompositionSpace(object):
@@ -108,7 +171,10 @@ class CompositionGraphNode(object):
         return len(self.edges)
 
     def __eq__(self, other):
-        return str(self) == str(other)
+        try:
+            return (self)._str == str(other)
+        except AttributeError:
+            return str(self) == str(other)
 
     def __str__(self):
         return self._str
@@ -140,15 +206,19 @@ class CompositionGraphEdge(object):
         node2.edges.add(self)
 
     def __getitem__(self, key):
-        if key == self.node1:
+        str_key = str(key)
+        if str_key == self.node1._str:
             return self.node2
-        elif key == self.node2:
+        elif str_key == self.node2._str:
             return self.node1
         else:
             raise KeyError(key)
 
+    def _traverse(self, node):
+        return self.node1 if node is self.node2 else self.node2
+
     def __eq__(self, other):
-        return str(self) == str(other)
+        return self._str == other._str
 
     def __str__(self):
         return self._str
@@ -183,8 +253,20 @@ class CompositionGraph(object):
         self.node_map = {}
         self.create_nodes(compositions)
         self.edges = set()
+        self.path_finder = ShortestPathFinder(self)
 
     def create_nodes(self, compositions):
+        """Given an iterable of GlycanComposition-like or strings encoding GlycanComposition-like
+        objects construct nodes representing these compositions and add them to the graph.
+
+        The order items appear in the list will affect their graph node's :attr:`index` attribute
+        and in turn affect their order in edges. For consistent behavior, order nodes by mass.
+
+        Parameters
+        ----------
+        compositions : Iterable
+            An iterable source of GlycanComposition-like objects
+        """
         i = 0
         compositions = map(HashableGlycanComposition.parse, compositions)
 
@@ -193,11 +275,38 @@ class CompositionGraph(object):
             self.add_node(n)
             i += 1
 
-    def add_node(self, node):
+    def add_node(self, node, reindex=False):
+        """Given a CompositionGraphNode, add it to the graph.
+
+        If `reindex` is `True` then a full re-indexing of the graph will
+        take place after the insertion is made. Otherwise it is assumed that
+        `node` is being added in index-specified order.
+
+        Parameters
+        ----------
+        node : CompositionGraphNode
+            The node to be added
+        """
         self.nodes.append(node)
         self.node_map[str(node.composition)] = node
 
+        if reindex:
+            self._reindex()
+
     def create_edges(self, degree=2, distance_fn=composition_distance):
+        """Traverse composition-space to find nodes similar to each other
+        and construct CompositionGraphEdges between them to represent that
+        similarity.
+
+        Parameters
+        ----------
+        degree : int, optional
+            The maximum dissimilarity between two nodes permitted
+            to allow the construction of an edge between them
+        distance_fn : callable, optional
+            A function to use to compute the bounded distance between two nodes
+            that are within `degree` of eachother in raw composition-space
+        """
         space = CompositionSpace([node.composition for node in self])
         for node in self:
             if node is None:
@@ -210,7 +319,7 @@ class CompositionGraph(object):
                     e = CompositionGraphEdge(node, related_node, diff, weight)
                     self.edges.add(e)
 
-    def remove_node(self, node):
+    def remove_node(self, node, bridge=True, limit=20):
         subtracted_edges = list(node.edges)
         for edge in subtracted_edges:
             edge.remove()
@@ -218,6 +327,28 @@ class CompositionGraph(object):
         self.nodes.pop(node.index)
         self.node_map.pop(str(node.composition))
         self._reindex()
+
+        if bridge:
+            seen = set()
+            for edge in subtracted_edges:
+                for other_edge in subtracted_edges:
+                    if edge == other_edge:
+                        continue
+                    node1 = edge._traverse(node)
+                    node2 = other_edge._traverse(node)
+                    key = frozenset((node1.index, node2.index))
+                    if key in seen:
+                        continue
+                    seen.add(key)
+                    old_distance = edge.order + other_edge.order
+                    if old_distance >= limit:
+                        continue
+                    shortest_path = self.path_finder.solve_path(node1, node2, min(old_distance + 1, limit))
+                    if shortest_path >= old_distance:
+                        if node1.index > node2.index:
+                            node1, node2 = node2, node1
+                        new_edge = CompositionGraphEdge(node1, node2, old_distance, 1.)
+                        self.edges.add(new_edge)
         return subtracted_edges
 
     def _reindex(self):
@@ -273,8 +404,17 @@ class CompositionGraph(object):
             n1 = graph.nodes[edge.node1.index]
             n2 = graph.nodes[edge.node2.index]
             e = edge.copy_for(n1, n2)
-            graph.edges.append(e)
+            graph.edges.add(e)
         return graph
+
+    def __eq__(self, other):
+        try:
+            return self.nodes == other.nodes and self.edges == other.edges
+        except AttributeError:
+            return False
+
+    def __ne__(self, other):
+        return not (self == other)
 
 
 class GraphWriter(object):
@@ -340,7 +480,7 @@ class GraphReader(object):
         node1 = self.network.nodes[index1]
         node2 = self.network.nodes[index2]
         edge = CompositionGraphEdge(node1, node2, diff, weight)
-        self.network.edges.append(edge)
+        self.network.edges.add(edge)
 
     def handle_graph_file(self):
         state = "START"

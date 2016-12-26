@@ -276,7 +276,7 @@ class ScanTransformingProcess(Process):
 
 
 class ScanCollator(TaskBase):
-    def __init__(self, queue, done_event, helper_producers=None, primary_worker=None):
+    def __init__(self, queue, done_event, helper_producers=None, primary_worker=None, include_fitted=False):
         if helper_producers is None:
             helper_producers = []
         self.queue = queue
@@ -288,6 +288,7 @@ class ScanCollator(TaskBase):
         self.helper_producers = helper_producers
         self.started_helpers = False
         self.primary_worker = primary_worker
+        self.include_fitted = include_fitted
 
     def all_workers_done(self):
         if self.done_event.is_set():
@@ -307,6 +308,8 @@ class ScanCollator(TaskBase):
             if item == DONE:
                 item, index, ms_level = self.queue.get(blocking, timeout)
             self.waiting[index] = item
+            if not self.include_fitted:
+                item.peak_set = []
             return True
         except QueueEmpty:
             return False

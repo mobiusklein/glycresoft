@@ -9,3 +9,6 @@ from .glycan_combinator import (
 from .glyspace import (
     NGlycanGlyspaceHypothesisSerializer, OGlycanGlyspaceHypothesisSerializer,
     TaxonomyFilter)
+from .convert_analysis import (
+    GlycanAnalysisHypothesisSerializer,
+    GlycopeptideAnalysisGlycanCompositionExtractionHypothesisSerializer)

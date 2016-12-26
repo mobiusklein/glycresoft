@@ -30,13 +30,43 @@ logger = logging.getLogger("glycresoft.database")
 _empty_interval = NeutralMassDatabase([])
 
 
-class DiskBackedStructureDatabaseBase(SearchableMassCollection, DatabaseBoundOperation):
-    # Good for 10 ppm error intervals on structures up to 1e5 Da
-    loading_interval = 1.
-    threshold_cache_total_count = 5e4
+# The maximum total number of items across all loaded intervals that a database
+# is allowed to hold in memory at once before it must start pruning intervals.
+# This is to prevent the program from running out of memory because it loaded
+# too many large intervals into memory while not exceeding the maximum number of
+# intervals allowed. 200,000 is reasonable given the current memory consumption
+# patterns.
+DEFAULT_THRESHOLD_CACHE_TOTAL_COUNT = 2e5
 
-    def __init__(self, connection, hypothesis_id, cache_size=5, loading_interval=1.,
-                 threshold_cache_total_count=5e4,
+# The maximum number of mass intervals to hold in memory at once.
+# The current algorithms used elsewhere order queries such that this
+# number could even be set to 1 and not suffer runtime penalties becase
+# overlapping intervals are merged and only consume a single slot, but
+# this is retained at >1 for convenience.
+DEFAULT_CACHE_SIZE = 5
+
+# Controls the mass interval loaded from the database when a
+# query misses the alreadly loaded intervals. Uses the assumption
+# that if a mass is asked for, the next mass asked for will be
+# close to it, so by pre-emptively loading more data now, less
+# time will be spent searching the disk later. The larger this
+# number, the more data that will be preloaded. If this number is
+# too large, memory and disk I/O is wasted. If too small, then not
+# only does it not help solve the pre-loading problem, but it also
+# truncates the range that the in-memory interval search actually covers
+# and may lead to missing matches. This means this number must chosen
+# carefully given the non-constant error criterion we're using, PPM error.
+#
+# The default value of 1 is good for 10 ppm error intervals on structures
+# up to 1e5 Da
+DEFAULT_LOADING_INTERVAL = 1.
+
+
+class DiskBackedStructureDatabaseBase(SearchableMassCollection, DatabaseBoundOperation):
+
+    def __init__(self, connection, hypothesis_id, cache_size=DEFAULT_CACHE_SIZE,
+                 loading_interval=DEFAULT_LOADING_INTERVAL,
+                 threshold_cache_total_count=DEFAULT_THRESHOLD_CACHE_TOTAL_COUNT,
                  model_type=Glycopeptide):
         DatabaseBoundOperation.__init__(self, connection)
         self.hypothesis_id = hypothesis_id
@@ -212,8 +242,9 @@ class _PeptideIndex(object):
 
 
 class DeclarativeDiskBackedDatabase(DiskBackedStructureDatabaseBase):
-    def __init__(self, connection, hypothesis_id, cache_size=5, loading_interval=1.,
-                 threshold_cache_total_count=5e4):
+    def __init__(self, connection, hypothesis_id, cache_size=DEFAULT_CACHE_SIZE,
+                 loading_interval=DEFAULT_LOADING_INTERVAL,
+                 threshold_cache_total_count=DEFAULT_THRESHOLD_CACHE_TOTAL_COUNT):
         super(DeclarativeDiskBackedDatabase, self).__init__(
             connection, hypothesis_id, cache_size, loading_interval,
             threshold_cache_total_count, None)
@@ -297,6 +328,10 @@ class GlycopeptideDiskBackedStructureDatabase(DeclarativeDiskBackedDatabase):
     mass_field = Glycopeptide.__table__.c.calculated_mass
     identity_field = Glycopeptide.__table__.c.id
 
+    @property
+    def hypothesis(self):
+        return self.session.query(GlycopeptideHypothesis).get(self.hypothesis_id)
+
     def _limit_to_hypothesis(self, selectable):
         return selectable.where(Glycopeptide.__table__.c.hypothesis_id == self.hypothesis_id)
 
@@ -311,8 +346,9 @@ class GlycanCompositionDiskBackedStructureDatabase(DeclarativeDiskBackedDatabase
     mass_field = GlycanComposition.__table__.c.calculated_mass
     identity_field = GlycanComposition.__table__.c.id
 
-    def __init__(self, connection, hypothesis_id, cache_size=5, loading_interval=1.,
-                 threshold_cache_total_count=5e4):
+    def __init__(self, connection, hypothesis_id, cache_size=DEFAULT_CACHE_SIZE,
+                 loading_interval=DEFAULT_LOADING_INTERVAL,
+                 threshold_cache_total_count=DEFAULT_THRESHOLD_CACHE_TOTAL_COUNT):
         super(GlycanCompositionDiskBackedStructureDatabase, self).__init__(
             connection, hypothesis_id, cache_size, loading_interval,
             threshold_cache_total_count)

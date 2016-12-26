@@ -67,6 +67,10 @@ class Analysis(Base, HasUniqueName):
     def get_hypothesis(self):
         from . import GlycopeptideHypothesis, GlycanHypothesis
         hypothesis_id = self.hypothesis_id
+        if hypothesis_id is None:
+            raise ValueError(
+                "Analysis is does not have a Hypothesis (analysis id: %r, name: %r)" % (
+                    self.id, self.name))
         session = object_session(self)
         if self.analysis_type == AnalysisTypeEnum.glycopeptide_lc_msms:
             return session.query(GlycopeptideHypothesis).get(hypothesis_id)

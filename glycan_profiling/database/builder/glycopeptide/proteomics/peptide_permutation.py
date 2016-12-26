@@ -7,8 +7,9 @@ from .utils import slurp
 
 from glypy.composition import formula
 from glycopeptidepy.structure import sequence, modification, residue
-from glycopeptidepy import PeptideSequence, cleave
+from glycopeptidepy import PeptideSequence
 
+from glycan_profiling.task import TaskBase
 from glycan_profiling.serialize import DatabaseBoundOperation
 from glycan_profiling.serialize.hypothesis.peptide import Peptide, Protein
 
@@ -93,14 +94,19 @@ def modification_series(variable_sites):
     return sites
 
 
+def remove_empty_sites(site_mod_pairs):
+    return [sm for sm in site_mod_pairs if sm[1] is not None]
+
+
 def site_modification_assigner(modification_sites_dict):
     sites = modification_sites_dict.keys()
     choices = modification_sites_dict.values()
     for selected in itertools.product(*choices):
-        yield zip(sites, selected)
+        site_mod_pairs = zip(sites, selected)
+        yield remove_empty_sites(site_mod_pairs)
 
 
-def peptide_permutations(sequence, constant_modifications, variable_modifications):
+def peptide_permutations(sequence, constant_modifications, variable_modifications, maximum_variable_modifications=4):
     try:
         sequence = get_base_peptide(sequence)
     except residue.UnknownAminoAcidException:
@@ -140,6 +146,8 @@ def peptide_permutations(sequence, constant_modifications, variable_modification
 
     for n_term, c_term in itertools.product(n_term_modifications, c_term_modifications):
         for assignments in site_modification_assigner(modification_sites):
+            if len(assignments) > maximum_variable_modifications:
+                continue
             n_variable = 0
             result = sequence.clone()
             if n_term is not None:
@@ -196,7 +204,7 @@ def digest(sequence, protease, constant_modifications=None, variable_modificatio
             yield inst
 
 
-class ProteinDigestor(object):
+class ProteinDigestor(TaskBase):
 
     def __init__(self, protease, constant_modifications=None, variable_modifications=None, max_missed_cleavages=2):
         if constant_modifications is None:
@@ -238,13 +246,16 @@ class ProteinDigestor(object):
 
 class ProteinDigestingProcess(Process):
 
-    def __init__(self, connection, hypothesis_id, input_queue, digestor, done_event=None):
+    def __init__(self, connection, hypothesis_id, input_queue, digestor, done_event=None,
+                 chunk_size=5000, message_handler=None):
         Process.__init__(self)
         self.connection = connection
         self.input_queue = input_queue
         self.hypothesis_id = hypothesis_id
         self.done_event = done_event
         self.digestor = digestor
+        self.chunk_size = chunk_size
+        self.message_handler = message_handler
 
     def task(self):
         database = DatabaseBoundOperation(self.connection)
@@ -252,7 +263,9 @@ class ProteinDigestingProcess(Process):
         has_work = True
 
         digestor = self.digestor
-
+        acc = []
+        if self.message_handler is None:
+            self.message_handler = lambda x: None
         while has_work:
             try:
                 work_items = self.input_queue.get(timeout=5)
@@ -265,23 +278,40 @@ class ProteinDigestingProcess(Process):
                 continue
             proteins = slurp(session, Protein, work_items, flatten=False)
             acc = []
+
+            threshold_size = 5000
+
             for protein in proteins:
+                size = len(protein.protein_sequence)
+                if size > threshold_size:
+                    self.message_handler("Started digesting %s (%d)" % (protein.name, size))
+                i = 0
                 for peptide in digestor.process_protein(protein):
                     acc.append(peptide)
-                    if len(acc) > 100000:
-                        self.session.bulk_save_objects(acc)
-                        self.session.commit()
+                    i += 1
+                    if len(acc) > self.chunk_size:
+                        session.bulk_save_objects(acc)
+                        session.commit()
                         acc = []
-            self.session.bulk_save_objects(acc)
-            self.session.commit()
+                    if i % 10000 == 0:
+                        self.message_handler(
+                            "Digested %d peptides from %r (%d)" % (
+                                i, protein.name, size))
+                if size > threshold_size:
+                    self.message_handler("Finished digesting %s (%d)" % (protein.name, size))
+            session.bulk_save_objects(acc)
+            session.commit()
+            acc = []
+        if acc:
+            session.bulk_save_objects(acc)
+            session.commit()
             acc = []
 
     def run(self):
         self.task()
 
 
-class MultipleProcessProteinDigestor(object):
-
+class MultipleProcessProteinDigestor(TaskBase):
     def __init__(self, connection, hypothesis_id, protein_ids, digestor, n_processes=4):
         self.connection = connection
         self.hypothesis_id = hypothesis_id
@@ -290,25 +320,35 @@ class MultipleProcessProteinDigestor(object):
         self.n_processes = n_processes
 
     def run(self):
-        input_queue = Queue(100)
+        logger = self.ipc_logger()
+        input_queue = Queue(2 * self.n_processes)
         done_event = Event()
         processes = [
             ProteinDigestingProcess(
                 self.connection, self.hypothesis_id, input_queue,
-                self.digestor, done_event=done_event) for i in range(self.n_processes)
+                self.digestor, done_event=done_event,
+                message_handler=logger.sender()) for i in range(
+                self.n_processes)
         ]
         protein_ids = self.protein_ids
         i = 0
-        chunk_size = 3
+        n = len(protein_ids)
+        chunk_size = 2
+        interval = 100
         for process in processes:
             input_queue.put(protein_ids[i:(i + chunk_size)])
             i += chunk_size
             process.start()
 
-        while i < len(protein_ids):
+        last = i
+        while i < n:
             input_queue.put(protein_ids[i:(i + chunk_size)])
             i += chunk_size
+            if i - last > interval:
+                self.log("... Dealt Proteins %d-%d %0.2f%%" % (i - chunk_size, min(i, n), (min(i, n) / float(n)) * 100))
+                last = i
 
         done_event.set()
         for process in processes:
             process.join()
+        logger.stop()

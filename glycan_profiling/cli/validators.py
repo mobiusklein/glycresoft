@@ -245,9 +245,13 @@ def get_by_name_or_id(session, model_type, name_or_id):
                              (model_type, name_or_id))
         return inst
     except ValueError:
-        inst = session.query(model_type).filter(
-            model_type.name == name_or_id).one()
-        return inst
+        try:
+            inst = session.query(model_type).filter(
+                model_type.name == name_or_id).one()
+            return inst
+        except:
+            raise click.BadParameter("Could not locate an instance of %r with identifier %r" % (
+                model_type.__name__, name_or_id))
 
 
 def validate_database_unlocked(database_connection):

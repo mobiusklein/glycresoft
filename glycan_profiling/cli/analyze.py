@@ -41,10 +41,12 @@ def analyze():
 @click.option("-s", "--tandem-scoring-model", default='coverage_weighted_binomial', type=click.Choice(
               glycopeptide_tandem_scoring_functions.keys()),
               help="Select a scoring function to use for evaluating glycopeptide-spectrum matches")
+@click.option("-o", "--oxonium-threshold", default=0.05, type=float,
+              help='Minimum HexNAc-derived oxonium ion abundance ratio to filter MS/MS scans. Defaults to 0.05.')
 def search_glycopeptide(context, database_connection, sample_identifier, hypothesis_identifier,
                         analysis_name, grouping_error_tolerance=1.5e-5, mass_error_tolerance=1e-5,
                         msn_mass_error_tolerance=2e-5, psm_fdr_threshold=0.05, peak_shape_scoring_model=None,
-                        tandem_scoring_model=None):
+                        tandem_scoring_model=None, oxonium_threshold=0.05):
     if peak_shape_scoring_model is None:
         peak_shape_scoring_model = GeneralScorer
     if tandem_scoring_model is None:
@@ -79,7 +81,8 @@ def search_glycopeptide(context, database_connection, sample_identifier, hypothe
         database_connection._original_connection, hypothesis.id, sample_run.id,
         analysis_name, grouping_error_tolerance=grouping_error_tolerance, mass_error_tolerance=mass_error_tolerance,
         msn_mass_error_tolerance=msn_mass_error_tolerance, psm_fdr_threshold=psm_fdr_threshold,
-        peak_shape_scoring_model=peak_shape_scoring_model, tandem_scoring_model=tandem_scoring_model)
+        peak_shape_scoring_model=peak_shape_scoring_model, tandem_scoring_model=tandem_scoring_model,
+        oxonium_threshold=oxonium_threshold)
     analyzer.start()
 
 

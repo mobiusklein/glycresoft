@@ -20,11 +20,16 @@ from ...spectrum_annotation import annotate_matched_deconvoluted_peaks
 from .fragment_match_map import FragmentMatchMap
 
 
-@memoize(1000000000)
+@memoize(100000000000)
+def binomial_pmf(n, i, p):
+    return comb(n, i, exact=True) * (p ** i) * ((1 - p) ** (n - i))
+
+
+@memoize(100000000000)
 def binomial_tail_probability(n, k, p):
     total = 0.0
     for i in range(k, n):
-        v = comb(n, i, exact=True) * (p ** i) * ((1 - p) ** (n - i))
+        v = binomial_pmf(n, i, p)
         if np.isnan(v):
             continue
         total += v
@@ -60,9 +65,28 @@ def medians(array):
     return m1, m2, m3, m4
 
 
-def binomial_intensity(peak_list, matched_peaks, total_product_ion_count):
-    if len(matched_peaks) == 0:
-        return np.exp(0)
+def _counting_tiers(peak_list, matched_peaks, total_product_ion_count):
+    intensity_list = np.array([p.intensity for p in peak_list])
+    m1, m2, m3, m4 = medians(intensity_list)
+
+    matched_intensities = np.array(
+        [p.intensity for match, p in matched_peaks.items()])
+    counts = dict()
+    next_count = (matched_intensities > m1).sum()
+    counts[1] = next_count
+
+    next_count = (matched_intensities > m2).sum()
+    counts[2] = next_count
+
+    next_count = (matched_intensities > m3).sum()
+    counts[3] = next_count
+
+    next_count = (matched_intensities > m4).sum()
+    counts[4] = next_count
+    return counts
+
+
+def _intensity_tiers(peak_list, matched_peaks, total_product_ion_count):
     intensity_list = np.array([p.intensity for p in peak_list])
     m1, m2, m3, m4 = medians(intensity_list)
 
@@ -84,6 +108,38 @@ def binomial_intensity(peak_list, matched_peaks, total_product_ion_count):
 
     next_count = (matched_intensities > m4).sum()
     counts[4] = binomial_tail_probability(last_count, next_count, 0.5)
+    return counts
+
+
+def _score_tiers(peak_list, matched_peaks, total_product_ion_count):
+    intensity_list = np.array([p.score for p in peak_list])
+    m1, m2, m3, m4 = medians(intensity_list)
+
+    matched_intensities = np.array(
+        [p.score for match, p in matched_peaks.items()])
+    counts = dict()
+    last_count = total_product_ion_count
+    next_count = (matched_intensities > m1).sum()
+    counts[1] = binomial_tail_probability(last_count, next_count, 0.5)
+    last_count = next_count
+
+    next_count = (matched_intensities > m2).sum()
+    counts[2] = binomial_tail_probability(last_count, next_count, 0.5)
+    last_count = next_count
+
+    next_count = (matched_intensities > m3).sum()
+    counts[3] = binomial_tail_probability(last_count, next_count, 0.5)
+    last_count = next_count
+
+    next_count = (matched_intensities > m4).sum()
+    counts[4] = binomial_tail_probability(last_count, next_count, 0.5)
+    return counts
+
+
+def binomial_intensity(peak_list, matched_peaks, total_product_ion_count):
+    if len(matched_peaks) == 0:
+        return np.exp(0)
+    counts = _intensity_tiers(peak_list, matched_peaks, total_product_ion_count)
 
     prod = 0
     for v in counts.values():
@@ -94,7 +150,7 @@ def binomial_intensity(peak_list, matched_peaks, total_product_ion_count):
 
 
 def calculate_precursor_mass(spectrum_match):
-    precursor_mass = spectrum_match.target.peptide_composition().mass
+    precursor_mass = spectrum_match.target.total_composition().mass
     return precursor_mass
 
 

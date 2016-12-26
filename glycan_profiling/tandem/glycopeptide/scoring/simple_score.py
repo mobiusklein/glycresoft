@@ -71,9 +71,16 @@ class SimpleCoverageScorer(SpectrumMatcherBase):
         mean_coverage = sum([math.log(1 + (b + y), 2) / math.log(3, 2)
                              for b, y in zip(b_ions, y_ions[::-1])]) / float(len(self.target))
 
-        glycosylated_coverage = (
-            glycosylated_b_ions + glycosylated_y_ions) / float(
-            self.glycosylated_b_ion_count + self.glycosylated_y_ion_count)
+        glycosylated_coverage = 0.
+        ladders = 0.
+        if self.glycosylated_b_ion_count > 0:
+            glycosylated_coverage += (glycosylated_b_ions / float(self.glycosylated_b_ion_count))
+            ladders += 1.
+        if self.glycosylated_y_ion_count > 0:
+            glycosylated_coverage += (glycosylated_y_ions / float(self.glycosylated_y_ion_count))
+            ladders += 1.
+        if ladders > 0:
+            glycosylated_coverage /= ladders
 
         stub_fraction = min(stub_count, 3) / 3.
 

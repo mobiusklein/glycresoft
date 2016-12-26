@@ -251,8 +251,8 @@ class Chromatogram(object):
 
     def as_arrays(self):
         rts = np.array([node.retention_time for node in self.nodes], dtype=np.float64)
-        intens = np.array([node.total_intensity() for node in self.nodes], dtype=np.float64)
-        return rts, intens
+        signal = np.array([node.total_intensity() for node in self.nodes], dtype=np.float64)
+        return rts, signal
 
     def __len__(self):
         return len(self.nodes)

@@ -2,29 +2,22 @@ import re
 import warnings
 import logging
 
-from glycan_profiling.plotting.summaries import GlycanChromatographySummaryGraphBuilder
-from glycan_profiling.database import build_database
 from glycan_profiling.database.disk_backed_database import (
     GlycanCompositionDiskBackedStructureDatabase,
     GlycopeptideDiskBackedStructureDatabase)
 
 from glycan_profiling.serialize import (
     DatabaseScanDeserializer, AnalysisSerializer,
-    PrecursorInformation, AnalysisTypeEnum)
+    AnalysisTypeEnum)
 
 from glycan_profiling.piped_deconvolve import (
-    ScanGenerator as PipedScanGenerator, MzMLLoader)
+    ScanGenerator as PipedScanGenerator)
 
 from glycan_profiling.scoring import (
-    ChromatogramSolution, NetworkScoreDistributor, ChromatogramScorer)
-
-from glycan_profiling.chromatogram_tree import (
-    ChromatogramOverlapSmoother, GlycanCompositionChromatogram, ChromatogramFilter)
+    ChromatogramSolution)
 
 from glycan_profiling.trace import (
-    IncludeUnmatchedTracer, join_mass_shifted,
-    reverse_adduction_search, prune_bad_adduct_branches,
-    NonAggregatingTracer, ScanSink, ChromatogramExtractor,
+    ScanSink, ChromatogramExtractor,
     ChromatogramProcessor)
 
 from glycan_profiling.models import GeneralScorer
@@ -37,8 +30,7 @@ from glycan_profiling.tandem.glycopeptide import (
 
 
 from glycan_profiling.scan_cache import (
-    NullScanCacheHandler, DatabaseScanCacheHandler,
-    DatabaseScanGenerator, ThreadedDatabaseScanCacheHandler)
+    ThreadedDatabaseScanCacheHandler)
 
 from glycan_profiling.task import TaskBase
 
@@ -191,7 +183,8 @@ class GlycopeptideLCMSMSAnalyzer(TaskBase):
     def __init__(self, database_connection, hypothesis_id, sample_run_id,
                  analysis_name=None, grouping_error_tolerance=1.5e-5, mass_error_tolerance=1e-5,
                  msn_mass_error_tolerance=2e-5, psm_fdr_threshold=0.05, peak_shape_scoring_model=None,
-                 tandem_scoring_model=None, minimum_mass=1000., save_unidentified=False):
+                 tandem_scoring_model=None, minimum_mass=1000., save_unidentified=False,
+                 oxonium_threshold=0.05):
         if tandem_scoring_model is None:
             tandem_scoring_model = CoverageWeightedBinomialScorer
         if peak_shape_scoring_model is None:
@@ -207,8 +200,10 @@ class GlycopeptideLCMSMSAnalyzer(TaskBase):
         self.peak_shape_scoring_model = peak_shape_scoring_model
         self.tandem_scoring_model = tandem_scoring_model
         self.analysis = None
+        self.analysis_id = None
         self.minimum_mass = minimum_mass
         self.save_unidentified = save_unidentified
+        self.minimum_oxonium_ratio = oxonium_threshold
 
     def run(self):
         peak_loader = DatabaseScanDeserializer(
@@ -221,12 +216,15 @@ class GlycopeptideLCMSMSAnalyzer(TaskBase):
             peak_loader, grouping_tolerance=self.grouping_error_tolerance,
             minimum_mass=self.minimum_mass)
 
+        self.log("Loading MS/MS")
+
         prec_info = peak_loader.precursor_information()
         msms_scans = [o.product for o in prec_info]
 
         # Traditional LC-MS/MS Database Search
         searcher = GlycopeptideDatabaseSearchIdentifier(
-            msms_scans, self.tandem_scoring_model, database, peak_loader.convert_scan_id_to_retention_time)
+            msms_scans, self.tandem_scoring_model, database, peak_loader.convert_scan_id_to_retention_time,
+            minimum_oxonium_ratio=self.minimum_oxonium_ratio)
         target_hits, decoy_hits = searcher.search(
             precursor_error_tolerance=self.mass_error_tolerance,
             error_tolerance=self.msn_mass_error_tolerance)
@@ -240,6 +238,8 @@ class GlycopeptideLCMSMSAnalyzer(TaskBase):
         chroma_with_sols = searcher.map_to_chromatograms(tuple(extractor), target_hits, self.mass_error_tolerance)
         merged = chromatogram_mapping.aggregate_by_assigned_entity(chroma_with_sols)
 
+        if not self.save_unidentified:
+            merged = [chroma for chroma in merged if chroma.composition is not None]
         # Score chromatograms, both matched and unmatched
         self.log("Scoring chromatograms")
         chroma_scoring_model = self.peak_shape_scoring_model
@@ -292,5 +292,6 @@ class GlycopeptideLCMSMSAnalyzer(TaskBase):
                     last = i
                 analysis_saver.save_unidentified_chromatogram_solution(chroma)
 
-        self.analysis = analysis_saver.analysis
         analysis_saver.commit()
+        self.analysis = analysis_saver.analysis
+        self.analysis_id = analysis_saver.analysis_id

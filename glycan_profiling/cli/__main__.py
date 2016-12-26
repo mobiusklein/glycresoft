@@ -1,3 +1,4 @@
+from multiprocessing import freeze_support
 from glycan_profiling.cli import (
     base, build_db, inspect, mzml, analyze, config)
 
@@ -9,4 +10,5 @@ except ImportError as e:
 main = base.cli.main
 
 if __name__ == '__main__':
+    freeze_support()
     main()

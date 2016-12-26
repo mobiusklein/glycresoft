@@ -38,6 +38,13 @@ def slurp(session, model, ids, flatten=True):
 
 
 class GlycopeptideHypothesisSerializerBase(DatabaseBoundOperation, HypothesisSerializerBase):
+    """Common machinery for Glycopeptide Hypothesis construction.
+
+    Attributes
+    ----------
+    uuid : str
+        The uuid of the hypothesis to be constructed
+    """
     def __init__(self, database_connection, hypothesis_name=None, glycan_hypothesis_id=None):
         DatabaseBoundOperation.__init__(self, database_connection)
         self._hypothesis_name = hypothesis_name
@@ -47,7 +54,7 @@ class GlycopeptideHypothesisSerializerBase(DatabaseBoundOperation, HypothesisSer
         self.uuid = str(uuid4().hex)
 
     def _construct_hypothesis(self):
-        if self._hypothesis_name is None:
+        if self._hypothesis_name is None or self._hypothesis_name.strip() == "":
             self._hypothesis_name = self._make_name()
 
         if self.glycan_hypothesis_id is None:

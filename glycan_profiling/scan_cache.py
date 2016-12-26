@@ -132,7 +132,7 @@ class DatabaseScanCacheHandler(ScanCacheHandlerBase):
 class ThreadedDatabaseScanCacheHandler(DatabaseScanCacheHandler):
     def __init__(self, connection, sample_name):
         super(ThreadedDatabaseScanCacheHandler, self).__init__(connection, sample_name)
-        self.queue = Queue(3000)
+        self.queue = Queue(200)
         self.worker_thread = threading.Thread(target=self._worker_loop)
         self.worker_thread.start()
         self.log_inserts = False
@@ -151,7 +151,7 @@ class ThreadedDatabaseScanCacheHandler(DatabaseScanCacheHandler):
         def drain_queue():
             current_work = []
             try:
-                while len(current_work) < 1000:
+                while len(current_work) < 300:
                     current_work.append(self.queue.get_nowait())
             except QueueEmptyException:
                 pass
@@ -166,7 +166,7 @@ class ThreadedDatabaseScanCacheHandler(DatabaseScanCacheHandler):
                     has_work = False
                     continue
                 if self.log_inserts and (i % 100 == 0):
-                    log_handle.log("Saving %r" % (next_bunch[0].id, ))
+                    log_handle.log("Saving %r" % (next_bunch[0].id,))
                 self._save_bunch(*next_bunch)
                 self.commit_counter += 1 + len(next_bunch[1])
                 i += 1

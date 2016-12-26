@@ -101,6 +101,7 @@ class GlycopeptideSpectrumMatch(Base, SpectrumMatchBase):
     __tablename__ = "GlycopeptideSpectrumMatch"
 
     _loaded_targets = WeakValueDictionary()
+    _loaded_scans = WeakValueDictionary()
 
     id = Column(Integer, primary_key=True)
     solution_set_id = Column(
@@ -134,14 +135,19 @@ class GlycopeptideSpectrumMatch(Base, SpectrumMatchBase):
         return inst
 
     def convert(self):
-        scan_ref = SpectrumReference(self.scan.scan_id, self.scan.precursor_information)
+        try:
+            scan = self._loaded_scans[self.scan_id]
+        except KeyError:
+            session = object_session(self)
+            scan = session.query(MSScan).get(self.scan_id).convert()
+            self._loaded_scans[self.scan_id] = scan
         try:
             target = self._loaded_targets[self.structure_id]
         except KeyError:
             session = object_session(self)
             target = session.query(Glycopeptide).get(self.structure_id).convert()
             self._loaded_targets[self.structure_id] = target
-        inst = MemorySpectrumMatch(scan_ref, target, self.score, self.is_best_match)
+        inst = MemorySpectrumMatch(scan, target, self.score, self.is_best_match)
         inst.q_value = self.q_value
         inst.id = self.id
         return inst

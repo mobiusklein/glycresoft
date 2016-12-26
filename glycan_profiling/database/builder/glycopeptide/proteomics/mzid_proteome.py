@@ -585,8 +585,11 @@ class Proteome(DatabaseBoundOperation, TaskBase):
                 session.add(p)
                 session.flush()
                 protein_map[name] = p
-                # self.log("... Extracted %r" % p)
             except residue.UnknownAminoAcidException:
+                self.log("Unknown Amino Acid in %r" % (name,))
+                continue
+            except Exception as e:
+                self.log("%r skipped: %r" % (name, e))
                 continue
         session.commit()
 
@@ -696,10 +699,10 @@ class Proteome(DatabaseBoundOperation, TaskBase):
         n = len(proteins)
         for protein in proteins:
             i += 1
-            self.log("... Accumulating Proteins for %r" % protein)
+            # self.log("... Accumulating Proteins for %r" % protein)
             sharer.find_contained_peptides(protein)
             if i % 5 == 0:
-                self.log("... %0.3f%% Done" % (i / float(n) * 100.,))
+                self.log("... %0.3f%% Done (%r)" % (i / float(n) * 100., protein.name))
 
     def remove_duplicates(self):
         DeduplicatePeptides(self._original_connection, self.hypothesis_id).run()

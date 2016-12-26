@@ -85,137 +85,6 @@ class ScanSink(object):
         return self.next_scan()
 
 
-class Tracer(ScanSink):
-    def __init__(self, scan_generator, database, mass_error_tolerance=1e-5,
-                 cache_handler_type=ThreadedDatabaseScanCacheHandler):
-
-        super(Tracer, self).__init__(scan_generator, cache_handler_type)
-        self.database = database
-
-        self.tracker = defaultdict(OrderedDict)
-        self.mass_error_tolerance = mass_error_tolerance
-
-        self.total_ion_chromatogram = SimpleChromatogram(self)
-        self.base_peak_chromatogram = SimpleChromatogram(self)
-
-    def _handle_generic_chromatograms(self, scan):
-        tic = sum(p.intensity for p in scan)
-        self.total_ion_chromatogram[scan.id] = tic
-        self.base_peak_chromatogram[scan.id] = max(p.intensity for p in scan) if tic > 0 else 0
-
-    def __iter__(self):
-        return self
-
-    def __next__(self):
-        return self.next()
-
-    def next(self):
-        idents = defaultdict(list)
-        try:
-            scan = self.next_scan()
-            self._handle_generic_chromatograms(scan)
-        except (ValueError, IndexError) as e:
-            print(e)
-            return idents, fake_scan
-        for peak in scan.deconvoluted_peak_set:
-            for match in self.database.search_mass_ppm(
-                    peak.neutral_mass, self.mass_error_tolerance):
-                self.tracker[match.serialize()].setdefault(scan.id, [])
-                self.tracker[match.serialize()][scan.id].append(peak)
-                idents[peak].append(match)
-        return idents, scan
-
-    def truncate_chromatograms(self, chromatograms):
-        start, stop = find_truncation_points(*self.total_ion_chromatogram.as_arrays())
-        out = []
-        for c in chromatograms:
-            if len(c) == 0:
-                continue
-            c.truncate_before(start)
-            if len(c) == 0:
-                continue
-            c.truncate_after(stop)
-            if len(c) == 0:
-                continue
-            out.append(c)
-        return out
-
-    def find_truncation_points(self):
-        start, stop = find_truncation_points(*self.total_ion_chromatogram.as_arrays())
-        return start, stop
-
-    def build_chromatograms(self, truncate=True):
-        chroma = [
-            Chromatogram.from_parts(composition, map(
-                self.scan_id_to_rt, observations), observations.keys(),
-                observations.values())
-            for composition, observations in self.tracker.items()
-        ]
-        if truncate:
-            chroma = self.truncate_chromatograms(chroma)
-        return chroma
-
-
-class IncludeUnmatchedTracer(Tracer):
-
-    def __init__(self, scan_generator, database, mass_error_tolerance=1e-5,
-                 cache_handler_type=ThreadedDatabaseScanCacheHandler):
-        super(IncludeUnmatchedTracer, self).__init__(
-            scan_generator, database, mass_error_tolerance, cache_handler_type=cache_handler_type)
-        self.unmatched = []
-
-    def next(self):
-        idents = defaultdict(list)
-        try:
-            scan = self.next_scan()
-            self._handle_generic_chromatograms(scan)
-        except (ValueError, IndexError) as e:
-            print(e)
-            return idents, fake_scan
-        for peak in scan.deconvoluted_peak_set:
-            matches = self.database.search_mass_ppm(
-                peak.neutral_mass, self.mass_error_tolerance)
-            if matches:
-                for match in matches:
-                    self.tracker[match.serialize()].setdefault(scan.id, [])
-                    self.tracker[match.serialize()][scan.id].append(peak)
-                    idents[peak].append(match)
-            else:
-                self.unmatched.append((scan.id, peak))
-        return idents, scan
-
-    def build_chromatograms(self, minimum_mass=300, minimum_intensity=1000., grouping_tolerance=None, truncate=True):
-        if grouping_tolerance is None:
-            grouping_tolerance = self.mass_error_tolerance
-        chroma = sorted(super(
-            IncludeUnmatchedTracer, self).build_chromatograms(truncate=truncate), key=lambda x: x.neutral_mass)
-        forest = ChromatogramForest(chroma, grouping_tolerance, self.scan_id_to_rt)
-        forest.aggregate_unmatched_peaks(self.unmatched, minimum_mass, minimum_intensity)
-        chroma = list(forest)
-        if truncate:
-            chroma = self.truncate_chromatograms(chroma)
-        return chroma
-
-
-class NonAggregatingTracer(Tracer):
-    def __init__(self, scan_generator, cache_handler_type=ThreadedDatabaseScanCacheHandler):
-        super(NonAggregatingTracer, self).__init__(
-            scan_generator, [], 1e-5, cache_handler_type=cache_handler_type)
-
-        def next(self):
-            idents = defaultdict(list)
-            try:
-                scan = self.next_scan()
-                self._handle_generic_chromatograms(scan)
-            except (ValueError, IndexError) as e:
-                print(e)
-                return idents, fake_scan
-            return idents, scan
-
-    def build_chromatograms(self, *args, **kwargs):
-        raise NotImplementedError()
-
-
 def span_overlap(self, interval):
     cond = ((self.start_time <= interval.start_time and self.end_time >= interval.end_time) or (
         self.start_time >= interval.start_time and self.end_time <= interval.end_time) or (
@@ -398,7 +267,7 @@ class ChromatogramMatcher(TaskBase):
                 candidate_chromatograms.append(chroma)
 
         for chroma in candidate_chromatograms:
-            candidate_mass = chroma.neutral_mass
+            candidate_mass = chroma.weighted_neutral_mass
             matched = False
             exclude = False
             for adduct in adducts:
@@ -434,7 +303,7 @@ class ChromatogramMatcher(TaskBase):
         for chroma in chromatograms:
             add = chroma
             for adduct in adducts:
-                match = chromatograms.find_mass(chroma.neutral_mass + adduct.mass, mass_error_tolerance)
+                match = chromatograms.find_mass(chroma.weighted_neutral_mass + adduct.mass, mass_error_tolerance)
                 if match and span_overlap(add, match):
                     try:
                         match.used_as_adduct.append((add.key, adduct))

@@ -1,7 +1,7 @@
 from multiprocessing import Queue, Event
 from glycan_profiling.serialize.hypothesis.peptide import Peptide, Protein
 
-from .proteomics.peptide_permutation import ProteinDigestor
+from .proteomics.peptide_permutation import (ProteinDigestor, MultipleProcessProteinDigestor)
 from .proteomics.fasta import ProteinFastaFileParser
 from .common import (
     GlycopeptideHypothesisSerializerBase, DatabaseBoundOperation,
@@ -111,6 +111,17 @@ class MultipleProcessFastaGlycopeptideHypothesisSerializer(FastaGlycopeptideHypo
             protease, constant_modifications, variable_modifications,
             max_missed_cleavages, max_glycosylation_events)
         self.n_processes = n_processes
+
+    def digest_proteins(self):
+        digestor = ProteinDigestor(
+            self.protease, self.constant_modifications, self.variable_modifications,
+            self.max_missed_cleavages)
+        task = MultipleProcessProteinDigestor(
+            self._original_connection,
+            self.hypothesis_id,
+            self.protein_ids(),
+            digestor, n_processes=self.n_processes)
+        task.run()
 
     def glycosylate_peptides(self):
         input_queue = Queue(10)

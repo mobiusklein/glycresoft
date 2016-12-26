@@ -1,5 +1,3 @@
-from multiprocessing import Process, Queue, Event
-
 from glycan_profiling.chromatogram_tree.chromatogram import GlycopeptideChromatogram
 from glycan_profiling.task import TaskBase
 
@@ -101,148 +99,35 @@ def chunkiter(collection, size=200):
         i += size
 
 
-class GlycopeptideIdentifyingProcess(Process):
-    def __init__(self, database_connection_recipe, sample_run_id, hypothesis_id, scorer_type, input_queue,
-                 output_queue, done_event, *args, **kwargs):
-        Process.__init__(self)
-        self.database_connection_recipe = database_connection_recipe
-        self.sample_run_id = sample_run_id
-        self.hypothesis_id = hypothesis_id
-        self.scorer_type = scorer_type
-        self.input_queue = input_queue
-        self.output_queue = output_queue
-        self.done_event = done_event
-        self.args = args
-        self.kwargs = kwargs
-        self.session = None
-        self._connection = None
-        self.structure_database = None
-
-    def _setup_connection(self):
-        self._connection = DatabaseBoundOperation(self.database_connection_recipe)
-        self.session = self._connection.session
-        self.structure_database = GlycopeptideDiskBackedStructureDatabase(
-            self.database_connection_recipe, hypothesis_id=self.hypothesis_id)
-
-    def _load_scan(self, scan_id):
-        scan = self.session.query(MSScan).get(scan_id)
-        return self.scorer_type.load_peaks(scan)
-
-    def search(self, scans, precursor_error_tolerance=1e-5, simplify=True, chunk_size=250, *args, **kwargs):
-        scans = [self._load_scan(i) for i in scans]
-        evaluator = TargetDecoyInterleavingGlycopeptideMatcher(
-            scans, self.scorer_type, self.structure_database)
-        targets, decoys = evaluator.score_all(
-            precursor_error_tolerance=precursor_error_tolerance,
-            simplify=simplify, *args, **kwargs)
-        return targets, decoys
-
-    def run(self):
-        self._setup_connection()
-
-        has_work = True
-        while has_work:
-            try:
-                work_set = self.input_queue.get(10)
-            except:
-                if self.done_event.is_set():
-                    has_work = False
-                continue
-            targets, decoys = self.search(work_set, *self.args, **self.kwargs)
-            self.output_queue.put((targets, decoys))
-        print(self, "Done")
+def format_identification(spectrum_solution):
+    return "%s:(%0.3f) ->\n%s" % (
+        spectrum_solution.scan.id,
+        spectrum_solution.best_solution().score,
+        spectrum_solution.best_solution().target)
 
 
-class GlycopeptideDatabaseSearchIdentifierBound(DatabaseBoundOperation, TaskBase):
-    def __init__(self, database_connection, scorer_type, sample_run_id, hypothesis_id):
-        DatabaseBoundOperation.__init__(self, database_connection)
-        self.scorer_type = scorer_type
-        self.sample_run_id = sample_run_id
-        self.hypothesis_id = hypothesis_id
-        self.scan_loader = DatabaseScanDeserializer(database_connection, sample_run_id=sample_run_id)
-
-    def scan_id_to_rt(self, scan_id):
-        return self.scan_loader.convert_scan_id_to_retention_time(scan_id)
-
-    def iter_scan_ids(self, chunk_size=250):
-        q = self.session.query(PrecursorInformation.product_id).filter(
-            PrecursorInformation.sample_run_id == self.sample_run_id).order_by(
-            PrecursorInformation.neutral_mass.desc()).all()
-        q = [i[0] for i in q]
-        i = 0
-        n = len(q)
-        while i < n:
-            yield q[i:(i + chunk_size)]
-            i += chunk_size
-
-    def _load_scan(self, scan_id):
-        scan = self.session.query(MSScan).get(scan_id)
-        return self.scorer_type.load_peaks(scan)
-
-    def search(self, precursor_error_tolerance=1e-5, simplify=True, chunk_size=250,
-               minimum_oxonium_ratio=0.1, *args, **kwargs):
-        target_hits = []
-        decoy_hits = []
-        total = self.session.query(func.count(MSScan.id)).filter(
-            MSScan.ms_level == 2, MSScan.sample_run_id == self.sample_run_id).scalar()
-        count = 0
-        for scans in self.iter_scan_ids(chunk_size):
-            scans = [self._load_scan(i) for i in scans]
-            self.log("... Searching %s (%d/%d)" % (scans[0].precursor_information, count, total))
-            evaluator = TargetDecoyInterleavingGlycopeptideMatcher(
-                scans, self.scorer_type, self.structure_database,
-                minimum_oxonium_ratio=self.minimum_oxonium_ratio)
-            t, d = evaluator.score_all(
-                precursor_error_tolerance=precursor_error_tolerance,
-                simplify=simplify, *args, **kwargs)
-            self.log("... Spectra Searched")
-            target_hits.extend(t)
-            decoy_hits.extend(d)
-        self.log('Search Done')
-        return target_hits, decoy_hits
-
-    def target_decoy(self, target_hits, decoy_hits, with_pit=False, *args, **kwargs):
-        self.log("Running Target Decoy Analysis with %d targets and %d decoys" % (
-            len(target_hits), len(decoy_hits)))
-        tda = TargetDecoyAnalyzer(target_hits, decoy_hits, *args, with_pit=with_pit, **kwargs)
-        tda.q_values()
-        for sol in target_hits:
-            for hit in sol:
-                tda.score(hit)
-        for sol in decoy_hits:
-            for hit in sol:
-                tda.score(hit)
-        return tda
-
-    def map_to_chromatograms(self, chromatograms, tandem_identifications,
-                             precursor_error_tolerance=1e-5, threshold_fn=lambda x: x.q_value < 0.05,
-                             entity_chromatogram_type=GlycopeptideChromatogram):
-        self.log("Mapping MS/MS Identifications onto Chromatograms")
-        mapper = ChromatogramMSMSMapper(
-            chromatograms, precursor_error_tolerance, self.scan_id_to_rt)
-        mapper.assign_solutions_to_chromatograms(tandem_identifications)
-        mapper.distribute_orphans(threshold_fn=threshold_fn)
-        mapper.assign_entities(threshold_fn, entity_chromatogram_type=entity_chromatogram_type)
-        return mapper.chromatograms
-
-
-class MultipleProcessGlycopeptideDatabaseSearchIdentifierBound(GlycopeptideDatabaseSearchIdentifierBound):
-    def __init__(self, database_connection, scorer_type, sample_run_id, hypothesis_id, n_processes=4):
-        super(MultipleProcessGlycopeptideDatabaseSearchIdentifierBound, self).__init__(
-            database_connection, scorer_type, sample_run_id, hypothesis_id)
-        self.n_processes = n_processes
-
-    def search(self, precursor_error_tolerance=1e-5, simplify=True, chunk_size=250, *args, **kwargs):
-        pass
+def format_work_batch(bunch, count, total):
+    ratio = "%d/%d (%0.3f%%)" % (count, total, (count / float(total)))
+    info = bunch[0].precursor_information
+    if hasattr(info.precursor, "scan_id"):
+        name = info.precursor.scan_id
+    else:
+        name = info.precursor.id
+    batch_header = "%s: %f (%s%r)" % (
+        name, info.neutral_mass, "+" if info.charge > 0 else "-", abs(
+            info.charge))
+    return "Begin Batch", batch_header, ratio
 
 
 class GlycopeptideDatabaseSearchIdentifier(TaskBase):
-    def __init__(self, tandem_scans, scorer_type, structure_database, scan_id_to_rt=lambda x: x):
+    def __init__(self, tandem_scans, scorer_type, structure_database, scan_id_to_rt=lambda x: x,
+                 minimum_oxonium_ratio=0.05):
         self.tandem_scans = sorted(
             tandem_scans, key=lambda x: x.precursor_information.extracted_neutral_mass, reverse=True)
         self.scorer_type = scorer_type
         self.structure_database = structure_database
         self.scan_id_to_rt = scan_id_to_rt
+        self.minimum_oxonium_ratio = minimum_oxonium_ratio
 
     def search(self, precursor_error_tolerance=1e-5, simplify=True, chunk_size=750, limit=None, *args, **kwargs):
         target_hits = []
@@ -253,12 +138,15 @@ class GlycopeptideDatabaseSearchIdentifier(TaskBase):
             limit = float('inf')
         for bunch in chunkiter(self.tandem_scans, chunk_size):
             count += len(bunch)
-            self.log("... Searching %s (%d/%d)" % (bunch[0].precursor_information, count, total))
+            # self.log("... Searching %s (%d/%d)" % (bunch[0].precursor_information, count, total))
+            for item in format_work_batch(bunch, count, total):
+                self.log("... %s" % item)
             if hasattr(bunch[0], 'convert'):
                 bunch = [self.scorer_type.load_peaks(o) for o in bunch]
             self.log("... Spectra Extracted")
             evaluator = TargetDecoyInterleavingGlycopeptideMatcher(
-                bunch, self.scorer_type, self.structure_database)
+                bunch, self.scorer_type, self.structure_database,
+                minimum_oxonium_ratio=self.minimum_oxonium_ratio)
             t, d = evaluator.score_all(
                 precursor_error_tolerance=precursor_error_tolerance,
                 simplify=simplify, *args, **kwargs)
@@ -266,7 +154,7 @@ class GlycopeptideDatabaseSearchIdentifier(TaskBase):
             target_hits.extend(o for o in t if o.score > 0)
             decoy_hits.extend(o for o in d if o.score > 0)
             t = sorted(t, key=lambda x: x.score, reverse=True)
-            self.log("... %r" % (t[:4]))
+            self.log("......\n%s" % ('\n'.join(map(format_identification, t[:4]))))
             if count >= limit:
                 self.log("Reached Limit. Halting.")
                 break
@@ -293,6 +181,7 @@ class GlycopeptideDatabaseSearchIdentifier(TaskBase):
         self.log("%d Chromatograms" % len(chromatograms))
         if len(chromatograms) == 0:
             self.log("No Chromatograms Extracted!")
+            return chromatograms
         mapper = ChromatogramMSMSMapper(
             chromatograms, precursor_error_tolerance, self.scan_id_to_rt)
         mapper.assign_solutions_to_chromatograms(tandem_identifications)

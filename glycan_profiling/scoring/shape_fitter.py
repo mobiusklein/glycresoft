@@ -353,6 +353,9 @@ class AdaptiveMultimodalChromatogramShapeFitter(ChromatogramShapeFitterBase):
             model_fit = ProfileSplittingMultimodalChromatogramShapeFitter(
                 self.chromatogram, self.max_peaks, self.smooth, fitter=fitter)
             self.alternative_fits.append(model_fit)
+            model_fit = MultimodalChromatogramShapeFitter(
+                self.chromatogram, self.max_peaks, self.smooth, fitter=fitter)
+            self.alternative_fits.append(model_fit)
         self.best_fit = min(self.alternative_fits, key=lambda x: x.line_test)
         self.params_list = self.best_fit.params_list
         self.params_dict_list = self.best_fit.params_dict_list
