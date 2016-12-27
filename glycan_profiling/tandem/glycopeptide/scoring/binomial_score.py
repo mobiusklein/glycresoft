@@ -171,9 +171,7 @@ class BinomialSpectrumMatcher(SpectrumMatcherBase):
                 all_series=False, allow_ambiguous=False,
                 include_large_glycan_fragments=False,
                 maximum_fragment_size=4):
-            peak = spectrum.has_peak(frag.mass, error_tolerance)
-            # n_theoretical += 1
-            if peak:
+            for peak in spectrum.all_peaks_for(frag.mass, error_tolerance):
                 solution_map.add(peak, frag)
                 try:
                     self._sanitized_spectrum.remove(peak)
@@ -182,20 +180,16 @@ class BinomialSpectrumMatcher(SpectrumMatcherBase):
         for frags in self.target.get_fragments('b'):
             for frag in frags:
                 n_theoretical += 1
-                peak = spectrum.has_peak(frag.mass, error_tolerance)
-                if peak:
+                for peak in spectrum.all_peaks_for(frag.mass, error_tolerance):
                     solution_map.add(peak, frag)
         for frags in self.target.get_fragments('y'):
             for frag in frags:
                 n_theoretical += 1
-                peak = spectrum.has_peak(frag.mass, error_tolerance)
-                if peak:
+                for peak in spectrum.all_peaks_for(frag.mass, error_tolerance):
                     solution_map.add(peak, frag)
         for frag in self.target.stub_fragments(extended=True):
-            # n_theoretical += 1
-            peak = spectrum.has_peak(frag.mass, error_tolerance)
-            if peak:
-                solution_map.add(peak, frag)
+            for peak in spectrum.all_peaks_for(frag.mass, error_tolerance):
+                    solution_map.add(peak, frag)
         self.solution_map = solution_map
         self.n_theoretical = n_theoretical
         return solution_map

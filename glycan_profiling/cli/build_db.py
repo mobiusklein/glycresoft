@@ -1,6 +1,4 @@
-import os
-import re
-
+import multiprocessing
 import click
 
 from glycan_profiling.cli.base import cli
@@ -97,7 +95,9 @@ def _get_hypothesis_id_for_glycan_composition_hypothesis(database_connection, so
               help='Peptide modification rule which will be applied constantly')
 @click.option("-v", "--variable-modification", multiple=True,
               help='Peptide modification rule which will be applied variablely')
-@click.option("-p", "--processes", type=int, default=4, help='Number of worker processes to use')
+@click.option("-p", "--processes", 'processes', type=click.IntRange(1, multiprocessing.cpu_count()),
+              default=min(multiprocessing.cpu_count(), 4), help=('Number of worker processes to use. Defaults to 4 '
+                                                                 'or the number of CPUs, whichever is lower'))
 @click.option("-s", "--glycan-source-type", default='text', type=click.Choice(
               list(glycan_source_validators.keys())),
               help="The type of glycan information source to use")
@@ -109,6 +109,8 @@ def glycopeptide_fa(context, fasta_file, database_connection, enzyme, missed_cle
         context, constant_modification + variable_modification)
     validate_glycan_source(context, database_connection,
                            glycan_source, glycan_source_type)
+
+    processes = min(multiprocessing.cpu_count(), processes)
 
     if name is not None:
         name = validate_glycopeptide_hypothesis_name(
@@ -152,7 +154,9 @@ def glycopeptide_fa(context, fasta_file, database_connection, enzyme, missed_cle
               help=('Specifies a regular expression to select proteins'
                     ' to be included by name. May be used many times.'))
 @click.option("-n", "--name", default=None, help="Name for the hypothesis to be created")
-@click.option("-p", "--processes", type=int, default=4, help='Number of worker processes to use')
+@click.option("-p", "--processes", 'processes', type=click.IntRange(1, multiprocessing.cpu_count()),
+              default=min(multiprocessing.cpu_count(), 4), help=('Number of worker processes to use. Defaults to 4 '
+                                                                 'or the number of CPUs, whichever is lower'))
 @click.option("-s", "--glycan-source-type", default='text', type=click.Choice(
               list(glycan_source_validators.keys())),
               help="The type of glycan information source to use")
@@ -164,6 +168,8 @@ def glycopeptide_mzid(context, mzid_file, database_connection, name, occupied_gl
         context, mzid_file, target_protein, target_protein_re)
     validate_glycan_source(context, database_connection,
                            glycan_source, glycan_source_type)
+
+    processes = min(multiprocessing.cpu_count(), processes)
 
     if name is not None:
         name = validate_glycopeptide_hypothesis_name(

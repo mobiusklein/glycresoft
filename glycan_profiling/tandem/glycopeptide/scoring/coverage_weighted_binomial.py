@@ -34,8 +34,7 @@ class CoverageWeightedBinomialScorer(BinomialSpectrumMatcher, SimpleCoverageScor
             n_theoretical += 1
             for frag in frags:
                 glycosylated_position |= frag.is_glycosylated
-                peak = spectrum.has_peak(frag.mass, error_tolerance)
-                if peak:
+                for peak in spectrum.all_peaks_for(frag.mass, error_tolerance):
                     solution_map.add(peak, frag)
             if glycosylated_position:
                 n_glycosylated_b_ions += 1
@@ -46,16 +45,14 @@ class CoverageWeightedBinomialScorer(BinomialSpectrumMatcher, SimpleCoverageScor
             n_theoretical += 1
             for frag in frags:
                 glycosylated_position |= frag.is_glycosylated
-                peak = spectrum.has_peak(frag.mass, error_tolerance)
-                if peak:
+                for peak in spectrum.all_peaks_for(frag.mass, error_tolerance):
                     solution_map.add(peak, frag)
             if glycosylated_position:
                 n_glycosylated_y_ions += 1
 
         for frag in self.target.stub_fragments(extended=True):
-            # n_theoretical += 1
             peak = spectrum.has_peak(frag.mass, error_tolerance)
-            if peak:
+            for peak in spectrum.all_peaks_for(frag.mass, error_tolerance):
                 solution_map.add(peak, frag)
 
         self.n_theoretical = n_theoretical

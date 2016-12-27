@@ -1,12 +1,13 @@
 import click
 
 from glycan_profiling.cli.base import cli
-from glycan_profiling.config.config_file import ( 
+from glycan_profiling.config.config_file import (
     add_user_modification_rule as add_user_peptide_modification_rule,
     add_user_substituent_rule)
 
 
-from glycopeptidepy.structure.modification import extract_targets_from_string, ModificationRule, Composition
+from glycopeptidepy.structure.modification import (
+    extract_targets_from_string, ModificationRule, Composition)
 
 
 @cli.group(short_help='Set persistent configuration options')
@@ -41,13 +42,15 @@ def peptide_modification(name, composition, target, categories=None):
 @config.command("add-substituent")
 @click.option("-n", "--name", required=True, help='Substituent name')
 @click.option("-c", "--composition", required=True, help='The chemical formula for this substituent')
-@click.option("-s", "--is-nh-derivatizable", is_flag=True, help="Can this substituent be derivatized as at an N-H bond?")
-@click.option("-d", "--can-nh-derivatize", is_flag=True, help="Will this substituent derivatize other substituents at sites like an N-H bond?")
-@click.option("-a", "--attachment-loss", default="H", help="The composition lost by the parent molecule when this substituent is added. Defaults to \"H\"")
+@click.option("-s", "--is-nh-derivatizable", is_flag=True,
+              help="Can this substituent be derivatized as at an N-H bond?")
+@click.option("-d", "--can-nh-derivatize", is_flag=True,
+              help="Will this substituent derivatize other substituents at sites like an N-H bond?")
+@click.option("-a", "--attachment-loss", default="H",
+              help="The composition lost by the parent molecule when this substituent is added. Defaults to \"H\"")
 def substituent(name, composition, is_nh_derivatizable, can_nh_derivatize, attachment_loss):
     print(name)
     print(composition)
     print(is_nh_derivatizable)
     print(can_nh_derivatize)
     print(attachment_loss)
-

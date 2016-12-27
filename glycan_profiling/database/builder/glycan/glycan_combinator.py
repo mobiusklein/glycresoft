@@ -124,4 +124,9 @@ class GlycanCombinationSerializer(DatabaseBoundOperation, TaskBase):
         self.session.commit()
 
     def run(self):
-        return self.generate()
+        self.generate()
+        total = self.session.query(
+            GlycanCombination).filter(
+            GlycanCombination.hypothesis_id == self.target_hypothesis_id
+        ).all()
+        self.log("%d Glycan Combinations Constructed." % (total,))

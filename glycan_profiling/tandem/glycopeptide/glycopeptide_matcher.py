@@ -107,7 +107,7 @@ def format_identification(spectrum_solution):
 
 
 def format_work_batch(bunch, count, total):
-    ratio = "%d/%d (%0.3f%%)" % (count, total, (count / float(total)))
+    ratio = "%d/%d (%0.3f%%)" % (count, total, (count * 100. / total))
     info = bunch[0].precursor_information
     if hasattr(info.precursor, "scan_id"):
         name = info.precursor.scan_id

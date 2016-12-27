@@ -11,7 +11,6 @@ import ms_peak_picker
 
 from ms_deisotope.processor import MzMLLoader
 from glycan_profiling.chromatogram_tree import find_truncation_points
-from glycan_profiling.serialize import DatabaseBoundOperation
 from glycan_profiling.profiler import SampleConsumer
 
 
@@ -60,12 +59,12 @@ def tic_saddle_points(mzml_file):
               help="Minimum score to accept an isotopic pattern fit in an MS^n scan. Scales with intensity.")
 @click.option("-m", "--missed-peaks", type=int, default=1,
               help="Number of missing peaks to permit before an isotopic fit is discarded")
-@click.option("-j", "--jobs", 'processes', type=click.IntRange(1, multiprocessing.cpu_count()),
-              default=min(multiprocessing.cpu_count(), 5), help=('Number of worker processes to use. Defaults to 5 '
+@click.option("-p", "--processes", 'processes', type=click.IntRange(1, multiprocessing.cpu_count()),
+              default=min(multiprocessing.cpu_count(), 4), help=('Number of worker processes to use. Defaults to 4 '
                                                                  'or the number of CPUs, whichever is lower'))
 def preprocess(mzml_file, database_connection, averagine=None, start_time=None, end_time=None, maximum_charge=None,
                name=None, msn_averagine=None, score_threshold=15., msn_score_threshold=2., missed_peaks=1,
-               processes=5):
+               processes=4):
     click.echo("Preprocessing %s" % mzml_file)
     minimum_charge = 1 if maximum_charge > 0 else -1
     charge_range = (minimum_charge, maximum_charge)
