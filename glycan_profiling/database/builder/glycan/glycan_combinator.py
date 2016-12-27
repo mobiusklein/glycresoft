@@ -128,5 +128,5 @@ class GlycanCombinationSerializer(DatabaseBoundOperation, TaskBase):
         total = self.session.query(
             GlycanCombination).filter(
             GlycanCombination.hypothesis_id == self.target_hypothesis_id
-        ).all()
+        ).count()
         self.log("%d Glycan Combinations Constructed." % (total,))
