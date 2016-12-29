@@ -497,6 +497,7 @@ class ChromatogramExtractor(TaskBase):
         self.total_ion_chromatogram = tic
 
     def run(self):
+        self.log("... Begin Extracting Chromatograms")
         self.load_peaks()
         self.aggregate_chromatograms()
         self.summary_chromatograms()
@@ -522,7 +523,7 @@ class ChromatogramExtractor(TaskBase):
 
     def __iter__(self):
         if self.chromatograms is None:
-            self.start()
+            self.run()
         return iter(self.chromatograms)
 
 
@@ -563,7 +564,7 @@ class ChromatogramProcessor(TaskBase):
 
     def __iter__(self):
         if self.accepted_solutions is None:
-            self.start()
+            self.run()
         return iter(self.accepted_solutions)
 
 
