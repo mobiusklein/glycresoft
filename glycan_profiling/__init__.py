@@ -14,7 +14,8 @@ from .scan_cache import (
     ThreadedDatabaseScanCacheHandler, DatabaseScanGenerator)
 
 from .database import (
-    MassDatabase, NeutralMassDatabase)
+    NeutralMassDatabase, GlycopeptideDiskBackedStructureDatabase,
+    GlycanCompositionDiskBackedStructureDatabase)
 
 from . import serialize
 from . import profiler

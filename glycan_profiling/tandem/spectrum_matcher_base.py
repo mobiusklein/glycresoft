@@ -1,6 +1,7 @@
 from collections import defaultdict
 
 from glypy.composition.glycan_composition import FrozenMonosaccharideResidue, Composition
+from ms_deisotope import DeconvolutedPeakSet
 
 from glycan_profiling.task import TaskBase
 from .ref import TargetReference, SpectrumReference
@@ -103,6 +104,15 @@ class SpectrumMatchBase(object):
     def __init__(self, scan, target):
         self.scan = scan
         self.target = target
+
+    @staticmethod
+    def threshold_peaks(deconvoluted_peak_set, threshold_fn=lambda peak: True):
+        deconvoluted_peak_set = DeconvolutedPeakSet([
+            p for p in deconvoluted_peak_set
+            if threshold_fn(p)
+        ])
+        deconvoluted_peak_set._reindex()
+        return deconvoluted_peak_set
 
     def precursor_ion_mass(self):
         neutral_mass = self.scan.precursor_information.extracted_neutral_mass

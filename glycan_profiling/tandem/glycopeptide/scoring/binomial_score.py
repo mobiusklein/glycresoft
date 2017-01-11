@@ -162,11 +162,13 @@ class BinomialSpectrumMatcher(SpectrumMatcherBase):
         self._score = None
         self.solution_map = FragmentMatchMap()
         self.n_theoretical = 0
+        self._backbone_mass_series = []
 
     def match(self, error_tolerance=2e-5):
         n_theoretical = 0
         solution_map = FragmentMatchMap()
         spectrum = self.spectrum
+        backbone_mass_series = []
         for frag in self.target.glycan_fragments(
                 all_series=False, allow_ambiguous=False,
                 include_large_glycan_fragments=False,
@@ -179,10 +181,13 @@ class BinomialSpectrumMatcher(SpectrumMatcherBase):
                     continue
         for frags in self.target.get_fragments('b'):
             for frag in frags:
+                backbone_mass_series.append(frag.mass)
                 n_theoretical += 1
                 for peak in spectrum.all_peaks_for(frag.mass, error_tolerance):
                     solution_map.add(peak, frag)
+                self._backbone_mass_series
         for frags in self.target.get_fragments('y'):
+            backbone_mass_series.append(frag.mass)
             for frag in frags:
                 n_theoretical += 1
                 for peak in spectrum.all_peaks_for(frag.mass, error_tolerance):
@@ -192,6 +197,7 @@ class BinomialSpectrumMatcher(SpectrumMatcherBase):
                     solution_map.add(peak, frag)
         self.solution_map = solution_map
         self.n_theoretical = n_theoretical
+        self._backbone_mass_series = backbone_mass_series
         return solution_map
 
     def _sanitize_solution_map(self):
@@ -201,13 +207,22 @@ class BinomialSpectrumMatcher(SpectrumMatcherBase):
                 san.add(pair)
         return san
 
+    def _compute_average_window_size(self, match_tolerance=2e-5):
+        window_sizes = [
+            match_tolerance * frag.mass * 2
+            for frag in self._backbone_mass_series
+        ]
+
+        average_window_size = sum(window_sizes) / len(window_sizes)
+        return average_window_size
+
     def _fragment_matched_binomial(self, match_tolerance=2e-5):
         precursor_mass = calculate_precursor_mass(self)
 
         fragment_match_component = binomial_fragments_matched(
             self.n_theoretical,
             len(self._sanitize_solution_map()),
-            match_tolerance,
+            self._compute_average_window_size(match_tolerance),
             precursor_mass
         )
         return fragment_match_component
@@ -232,8 +247,8 @@ class BinomialSpectrumMatcher(SpectrumMatcherBase):
 
         fragment_match_component = binomial_fragments_matched(
             self.n_theoretical,
-            n_matched,
-            match_tolerance,
+            len(self._sanitize_solution_map()),
+            self._compute_average_window_size(match_tolerance),
             precursor_mass
         )
 

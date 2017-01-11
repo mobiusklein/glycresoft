@@ -693,9 +693,6 @@ class ChromatogramTreeNode(object):
             kinds.extend(child.node_types())
         return kinds
 
-    def get_chromatogram(self):
-        return self
-
 
 class ChromatogramInterface(object):
     __metaclass__ = ABCMeta

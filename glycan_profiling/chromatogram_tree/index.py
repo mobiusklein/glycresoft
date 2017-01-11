@@ -84,6 +84,10 @@ class ChromatogramFilter(object):
         self._key_map = None
         self._intervals = None
 
+    def _invalidate(self):
+        self._key_map = None
+        self._intervals = None
+
     def _build_key_map(self):
         self._key_map = defaultdict(list)
         for chrom in self:
@@ -210,6 +214,20 @@ class ChromatogramFilter(object):
 
     def smooth_overlaps(self, mass_error_tolerance=1e-5):
         return self.__class__(smooth_overlaps(self, mass_error_tolerance))
+
+    def extend(self, other):
+        chroma = []
+        chroma.extend(self)
+        chroma.extend(other)
+        self.chromatograms = [c for c in sorted([c for c in chroma if len(c)], key=lambda x: (
+                              x.neutral_mass, x.start_time))]
+        self._invalidate()
+
+    def __add__(self, other):
+        inst = self.__class__([])
+        inst.extend(self)
+        inst.extend(other)
+        return inst
 
 
 class DisjointChromatogramSet(object):

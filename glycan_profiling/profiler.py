@@ -97,6 +97,7 @@ class SampleConsumer(TaskBase):
         last_scan_time = 0
         last_scan_index = 0
         for scan in sink:
+            print(scan.id, scan.peak_set, scan.deconvoluted_peak_set)
             if scan.scan_time - last_scan_time > 1.0:
                 self.log("Processed %s (time: %f)" % (
                     scan.id, scan.scan_time,))
@@ -235,7 +236,9 @@ class GlycopeptideLCMSMSAnalyzer(TaskBase):
         searcher.target_decoy(target_hits, decoy_hits)
 
         # Map MS/MS solutions to chromatograms. TODO Handle MS/MS without chromatograms
-        chroma_with_sols = searcher.map_to_chromatograms(tuple(extractor), target_hits, self.mass_error_tolerance)
+        chroma_with_sols = searcher.map_to_chromatograms(
+            tuple(extractor), target_hits, self.mass_error_tolerance,
+            threshold_fn=lambda x: x.q_value < self.psm_fdr_threshold)
         merged = chromatogram_mapping.aggregate_by_assigned_entity(chroma_with_sols)
 
         if not self.save_unidentified:

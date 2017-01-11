@@ -2,17 +2,7 @@ import operator
 
 from glycopeptidepy import HashableGlycanComposition
 
-from .builder.glycan import constrained_combinatorics
-
 from .composition_network import CompositionGraph, n_glycan_distance
-
-
-def build_database(rules_path, distance_fn=n_glycan_distance):
-    rules_table, constraints = constrained_combinatorics.parse_rules_from_file(rules_path)
-    compositions = [(x) for x in constrained_combinatorics.CombinatoricCompositionGenerator(
-        rules_table=rules_table, constraints=constraints)]
-    db = MassDatabase(compositions, distance_fn=distance_fn)
-    return db
 
 
 class SearchableMassCollection(object):

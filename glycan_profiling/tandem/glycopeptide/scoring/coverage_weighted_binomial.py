@@ -15,6 +15,7 @@ class CoverageWeightedBinomialScorer(BinomialSpectrumMatcher, SimpleCoverageScor
         solution_map = FragmentMatchMap()
         spectrum = self.spectrum
         n_theoretical = 0
+        backbone_mass_series = []
 
         for frag in self.target.glycan_fragments(
                 all_series=False, allow_ambiguous=False,
@@ -33,6 +34,7 @@ class CoverageWeightedBinomialScorer(BinomialSpectrumMatcher, SimpleCoverageScor
             glycosylated_position = False
             n_theoretical += 1
             for frag in frags:
+                backbone_mass_series.append(frag)
                 glycosylated_position |= frag.is_glycosylated
                 for peak in spectrum.all_peaks_for(frag.mass, error_tolerance):
                     solution_map.add(peak, frag)
@@ -44,6 +46,7 @@ class CoverageWeightedBinomialScorer(BinomialSpectrumMatcher, SimpleCoverageScor
             glycosylated_position = False
             n_theoretical += 1
             for frag in frags:
+                backbone_mass_series.append(frag)
                 glycosylated_position |= frag.is_glycosylated
                 for peak in spectrum.all_peaks_for(frag.mass, error_tolerance):
                     solution_map.add(peak, frag)
@@ -51,7 +54,6 @@ class CoverageWeightedBinomialScorer(BinomialSpectrumMatcher, SimpleCoverageScor
                 n_glycosylated_y_ions += 1
 
         for frag in self.target.stub_fragments(extended=True):
-            peak = spectrum.has_peak(frag.mass, error_tolerance)
             for peak in spectrum.all_peaks_for(frag.mass, error_tolerance):
                 solution_map.add(peak, frag)
 
@@ -59,10 +61,12 @@ class CoverageWeightedBinomialScorer(BinomialSpectrumMatcher, SimpleCoverageScor
         self.glycosylated_b_ion_count = n_glycosylated_b_ions
         self.glycosylated_y_ion_count = n_glycosylated_y_ions
         self.solution_map = solution_map
+        self._backbone_mass_series = backbone_mass_series
         return solution_map
 
     def calculate_score(self, match_tolerance=2e-5, *args, **kwargs):
-        bin_score = BinomialSpectrumMatcher.calculate_score(self, match_tolerance)
+        bin_score = BinomialSpectrumMatcher.calculate_score(
+            self, match_tolerance=match_tolerance)
         coverage_score = SimpleCoverageScorer.calculate_score(self)
         self._score = bin_score * coverage_score
         return self._score

@@ -18,6 +18,44 @@ def debug_printer(obj, message):
         print("DEBUG:" + datetime.now().isoformat(' ') + ' ' + str(message))
 
 
+class CallInterval(object):
+    """Call a function every `interval` seconds from
+    a separate thread.
+
+    Attributes
+    ----------
+    stopped: threading.Event
+        A semaphore lock that controls when to run `call_target`
+    call_target: callable
+        The thing to call every `interval` seconds
+    args: iterable
+        Arguments for `call_target`
+    interval: number
+        Time between calls to `call_target`
+    """
+
+    def __init__(self, interval, call_target, *args):
+        self.stopped = threading.Event()
+        self.interval = interval
+        self.call_target = call_target
+        self.args = args
+        self.thread = threading.Thread(target=self.mainloop)
+        self.thread.daemon = True
+
+    def mainloop(self):
+        while not self.stopped.wait(self.interval):
+            try:
+                self.call_target(*self.args)
+            except Exception, e:
+                logger.exception("An error occurred in %r", self, exc_info=e)
+
+    def start(self):
+        self.thread.start()
+
+    def stop(self):
+        self.stopped.set()
+
+
 class MessageSpooler(object):
     def __init__(self, handler):
         self.handler = handler

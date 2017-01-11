@@ -9,7 +9,7 @@ from glycan_profiling.cli.validators import (
 import ms_deisotope
 import ms_peak_picker
 
-from ms_deisotope.processor import MzMLLoader
+from ms_deisotope.processor import MSFileLoader
 from glycan_profiling.chromatogram_tree import find_truncation_points
 from glycan_profiling.profiler import SampleConsumer
 
@@ -23,7 +23,7 @@ def mzml_cli():
 @click.argument("mzml-file", type=click.Path(exists=True))
 @click.argument("rt", type=float)
 def rt_to_id(mzml_file, rt):
-    loader = MzMLLoader(mzml_file)
+    loader = MSFileLoader(mzml_file)
     id = loader._locate_ms1_scan(loader.get_scan_by_time(rt)).id
     click.echo(id)
 
@@ -31,7 +31,7 @@ def rt_to_id(mzml_file, rt):
 @mzml_cli.command("tic-saddle-points")
 @click.argument('mzml-file', type=click.Path(exists=True))
 def tic_saddle_points(mzml_file):
-    loader = MzMLLoader(mzml_file)
+    loader = MSFileLoader(mzml_file)
     tic = loader._source.get_by_id("TIC")
     time = tic['time array']
     intensity = tic['intensity array']
@@ -69,12 +69,19 @@ def preprocess(mzml_file, database_connection, averagine=None, start_time=None, 
     minimum_charge = 1 if maximum_charge > 0 else -1
     charge_range = (minimum_charge, maximum_charge)
 
-    loader = MzMLLoader(mzml_file)
+    loader = MSFileLoader(mzml_file)
 
     start_scan_id = loader._locate_ms1_scan(
         loader.get_scan_by_time(start_time)).id
     end_scan_id = loader._locate_ms1_scan(
         loader.get_scan_by_time(end_time)).id
+
+    loader.reset()
+    is_profile = next(loader).precursor.is_profile
+    if is_profile:
+        click.secho("Spectra are profile")
+    else:
+        click.secho("Spectra are centroided")
 
     if name is None:
         name = os.path.splitext(os.path.basename(mzml_file))[0]
@@ -88,12 +95,19 @@ def preprocess(mzml_file, database_connection, averagine=None, start_time=None, 
     averagine = validate_averagine(averagine)
     msn_averagine = validate_averagine(msn_averagine)
 
-    ms1_peak_picking_args = {
-        "transforms": [
-            ms_peak_picker.scan_filter.FTICRBaselineRemoval(scale=2.),
-            ms_peak_picker.scan_filter.SavitskyGolayFilter()
-        ]
-    }
+    if is_profile:
+        ms1_peak_picking_args = {
+            "transforms": [
+                ms_peak_picker.scan_filter.FTICRBaselineRemoval(scale=2.),
+                ms_peak_picker.scan_filter.SavitskyGolayFilter()
+            ]
+        }
+    else:
+        ms1_peak_picking_args = {
+            "transforms": [
+                ms_peak_picker.scan_filter.FTICRBaselineRemoval(scale=2.),
+            ]
+        }
 
     ms1_deconvolution_args = {
         "scorer": ms_deisotope.scoring.PenalizedMSDeconVFitter(score_threshold),

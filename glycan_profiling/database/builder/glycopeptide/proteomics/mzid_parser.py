@@ -78,9 +78,12 @@ class Parser(MzIdentML):
     def _convert_values(self, element, info, kwargs):
         converters = self._converters
         for k, v in info.items():
-            for t, a in converters.items():
-                if (_local_name(element), k) in self.schema_info[t]:
-                    info[k] = a(v)
+            try:
+                for t, a in converters.items():
+                    if (_local_name(element), k) in self.schema_info[t]:
+                        info[k] = a(v)
+            except KeyError:
+                continue
 
     def _populate_references(self, element, info, kwargs):
         info = MultipleProteinInfoDict(info)

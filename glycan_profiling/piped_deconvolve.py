@@ -1,16 +1,15 @@
 from collections import deque
 import multiprocessing
-import threading
 
 import ms_peak_picker
 import ms_deisotope
 
 import traceback
 
-from ms_deisotope.processor import MzMLLoader, ScanProcessor
+from ms_deisotope.processor import ScanProcessor, MSFileLoader
 
 import logging
-from .task import TaskBase, log_handle
+from .task import TaskBase, log_handle, CallInterval
 
 
 from multiprocessing import Process, Queue
@@ -31,44 +30,6 @@ savgol = ms_peak_picker.scan_filter.SavitskyGolayFilter()
 denoise = ms_peak_picker.scan_filter.FTICRBaselineRemoval(scale=2.)
 
 
-class CallInterval(object):
-    """Call a function every `interval` seconds from
-    a separate thread.
-
-    Attributes
-    ----------
-    stopped: threading.Event
-        A semaphore lock that controls when to run `call_target`
-    call_target: callable
-        The thing to call every `interval` seconds
-    args: iterable
-        Arguments for `call_target`
-    interval: number
-        Time between calls to `call_target`
-    """
-
-    def __init__(self, interval, call_target, *args):
-        self.stopped = threading.Event()
-        self.interval = interval
-        self.call_target = call_target
-        self.args = args
-        self.thread = threading.Thread(target=self.mainloop)
-        self.thread.daemon = True
-
-    def mainloop(self):
-        while not self.stopped.wait(self.interval):
-            try:
-                self.call_target(*self.args)
-            except Exception, e:
-                logger.exception("An error occurred in %r", self, exc_info=e)
-
-    def start(self):
-        self.thread.start()
-
-    def stop(self):
-        self.stopped.set()
-
-
 class ScanIDYieldingProcess(Process):
     def __init__(self, mzml_path, queue, start_scan=None, max_scans=None, end_scan=None, no_more_event=None):
         Process.__init__(self)
@@ -83,7 +44,7 @@ class ScanIDYieldingProcess(Process):
         self.no_more_event = no_more_event
 
     def run(self):
-        self.loader = MzMLLoader(self.mzml_path)
+        self.loader = MSFileLoader(self.mzml_path)
 
         index = 0
         if self.start_scan is not None:
@@ -217,7 +178,7 @@ class ScanTransformingProcess(Process):
         return transformer
 
     def run(self):
-        loader = MzMLLoader(self.mzml_path)
+        loader = MSFileLoader(self.mzml_path)
         queued_loader = ScanBunchLoader(loader)
 
         has_input = True
