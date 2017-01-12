@@ -67,13 +67,13 @@ def tic_saddle_points(mzml_file):
               " signal in MS1 scans."))
 @click.option("-bn", "--msn-background-reduction", type=float, default=0., help=(
               "Background reduction factor. Larger values more aggresively remove low abundance"
-              " signal in MS1 scans."))
+              " signal in MS^n scans."))
 @click.option("-r", '--transform', multiple=True, type=click.Choice(
     sorted(ms_peak_picker.scan_filter.filter_register.keys())),
     help="Scan transformations to apply to MS1 scans. May specify more than once.")
 @click.option("-rn", '--msn-transform', multiple=True, type=click.Choice(
     sorted(ms_peak_picker.scan_filter.filter_register.keys())),
-    help="Scan transformations to apply to MSn scans. May specify more than once.")
+    help="Scan transformations to apply to MS^n scans. May specify more than once.")
 def preprocess(mzml_file, database_connection, averagine=None, start_time=None, end_time=None, maximum_charge=None,
                name=None, msn_averagine=None, score_threshold=15., msn_score_threshold=2., missed_peaks=1,
                background_reduction=2., msn_background_reduction=0., transform=None, msn_transform=None,
