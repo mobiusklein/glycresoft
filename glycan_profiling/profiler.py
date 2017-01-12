@@ -97,7 +97,6 @@ class SampleConsumer(TaskBase):
         last_scan_time = 0
         last_scan_index = 0
         for scan in sink:
-            print(scan.id, scan.peak_set, scan.deconvoluted_peak_set)
             if scan.scan_time - last_scan_time > 1.0:
                 self.log("Processed %s (time: %f)" % (
                     scan.id, scan.scan_time,))

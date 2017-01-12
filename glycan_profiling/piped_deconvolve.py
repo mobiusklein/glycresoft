@@ -101,6 +101,35 @@ class ScanBunchLoader(object):
 
 
 class ScanTransformingProcess(Process):
+    """ScanTransformingProcess describes a child process that consumes scan id bunches
+    from a shared input queue, retrieves the relevant scans, and preprocesses them using an
+    instance of :class:`ms_deisotope.processor.ScanProcessor`, sending the reduced result
+    to a shared output queue.
+
+    Attributes
+    ----------
+    input_queue : multiprocessing.Queue
+        A shared input queue which contains payloads of bunches of
+        scan ids
+    ms1_deconvolution_args : dict
+        Parameters passed to :class:`ms_deisotope.processor.ScanProcessor`
+    ms1_peak_picking_args : dict
+        Parameters passed to :class:`ms_deisotope.processor.ScanProcessor`
+    msn_deconvolution_args : dict
+        Parameters passed to :class:`ms_deisotope.processor.ScanProcessor`
+    msn_peak_picking_args : dict
+        Parameters passed to :class:`ms_deisotope.processor.ScanProcessor`
+    mzml_path : str
+        Path to the spectral data file on disk
+    no_more_event : multiprocessing.Event
+        An event which will be set when the process feeding the input
+        queue has run out of items to add, indicating that any QueueEmptyException
+        should be treated as a signal to finish rather than to wait for
+        new input
+    output_queue : multiprocessing.Queue
+        A shared output queue which this object will put
+        :class:`ms_deisotope.data_source.common.ProcessedScan` bunches onto.
+    """
     def __init__(self, mzml_path, input_queue, output_queue,
                  averagine=ms_deisotope.averagine.glycan, charge_range=(-1, -8),
                  no_more_event=None, ms1_peak_picking_args=None, msn_peak_picking_args=None,
@@ -237,6 +266,8 @@ class ScanTransformingProcess(Process):
 
 
 class ScanCollator(TaskBase):
+    _log_received_scans = False
+
     def __init__(self, queue, done_event, helper_producers=None, primary_worker=None, include_fitted=False):
         if helper_producers is None:
             helper_producers = []
@@ -262,15 +293,21 @@ class ScanCollator(TaskBase):
                 return False
         return False
 
+    def store_item(self, item, index):
+        if self._log_received_scans:
+            self.log("-- received %d: %s" % (index, item))
+        self.waiting[index] = item
+        if not self.include_fitted:
+            item.peak_set = []
+
     def consume(self, timeout=10):
         blocking = timeout != 0
         try:
             item, index, ms_level = self.queue.get(blocking, timeout)
+            # DONE message may be sent many times.
             if item == DONE:
                 item, index, ms_level = self.queue.get(blocking, timeout)
-            self.waiting[index] = item
-            if not self.include_fitted:
-                item.peak_set = []
+            self.store_item(item, index)
             return True
         except QueueEmpty:
             return False

@@ -62,9 +62,26 @@ def tic_saddle_points(mzml_file):
 @click.option("-p", "--processes", 'processes', type=click.IntRange(1, multiprocessing.cpu_count()),
               default=min(multiprocessing.cpu_count(), 4), help=('Number of worker processes to use. Defaults to 4 '
                                                                  'or the number of CPUs, whichever is lower'))
+@click.option("-b", "--background-reduction", type=float, default=2., help=(
+              "Background reduction factor. Larger values more aggresively remove low abundance"
+              " signal in MS1 scans."))
+@click.option("-bn", "--msn-background-reduction", type=float, default=0., help=(
+              "Background reduction factor. Larger values more aggresively remove low abundance"
+              " signal in MS1 scans."))
+@click.option("-r", '--transform', multiple=True, type=click.Choice(
+    sorted(ms_peak_picker.scan_filter.filter_register.keys())),
+    help="Scan transformations to apply to MS1 scans. May specify more than once.")
+@click.option("-rn", '--msn-transform', multiple=True, type=click.Choice(
+    sorted(ms_peak_picker.scan_filter.filter_register.keys())),
+    help="Scan transformations to apply to MSn scans. May specify more than once.")
 def preprocess(mzml_file, database_connection, averagine=None, start_time=None, end_time=None, maximum_charge=None,
                name=None, msn_averagine=None, score_threshold=15., msn_score_threshold=2., missed_peaks=1,
+               background_reduction=2., msn_background_reduction=0., transform=None, msn_transform=None,
                processes=4):
+    if transform is None:
+        transform = []
+    if msn_transform is None:
+        msn_transform = []
     click.echo("Preprocessing %s" % mzml_file)
     minimum_charge = 1 if maximum_charge > 0 else -1
     charge_range = (minimum_charge, maximum_charge)
@@ -98,15 +115,29 @@ def preprocess(mzml_file, database_connection, averagine=None, start_time=None, 
     if is_profile:
         ms1_peak_picking_args = {
             "transforms": [
-                ms_peak_picker.scan_filter.FTICRBaselineRemoval(scale=2.),
+                ms_peak_picker.scan_filter.FTICRBaselineRemoval(scale=background_reduction),
                 ms_peak_picker.scan_filter.SavitskyGolayFilter()
-            ]
+            ] + list(transform)
         }
     else:
         ms1_peak_picking_args = {
             "transforms": [
-                ms_peak_picker.scan_filter.FTICRBaselineRemoval(scale=2.),
-            ]
+                ms_peak_picker.scan_filter.FTICRBaselineRemoval(scale=background_reduction),
+            ] + list(transform)
+        }
+
+    if msn_background_reduction > 0.0:
+        msn_peak_picking_args = {
+            "transforms": [
+                ms_peak_picker.scan_filter.ConstantThreshold(10),
+                ms_peak_picker.scan_filter.FTICRBaselineRemoval(scale=msn_background_reduction),
+            ] + list(msn_transform)
+        }
+    else:
+        msn_peak_picking_args = {
+            "transforms": [
+                ms_peak_picker.scan_filter.ConstantThreshold(10)
+            ] + list(msn_transform)
         }
 
     ms1_deconvolution_args = {
@@ -125,7 +156,7 @@ def preprocess(mzml_file, database_connection, averagine=None, start_time=None, 
         mzml_file, averagine=averagine, charge_range=charge_range,
         ms1_peak_picking_args=ms1_peak_picking_args,
         ms1_deconvolution_args=ms1_deconvolution_args,
-        msn_peak_picking_args=None,
+        msn_peak_picking_args=msn_peak_picking_args,
         msn_deconvolution_args=msn_deconvolution_args,
         storage_path=database_connection, sample_name=name,
         start_scan_id=start_scan_id,
