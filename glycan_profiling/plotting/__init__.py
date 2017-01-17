@@ -10,3 +10,5 @@ from .entity_bar_chart import (
 
 from .colors import (
     ColorMapper)
+
+from .utils import figax

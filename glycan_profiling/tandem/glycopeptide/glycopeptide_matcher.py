@@ -7,6 +7,7 @@ from glycan_profiling.serialize import (
 
 from glycan_profiling.database.disk_backed_database import (
     GlycopeptideDiskBackedStructureDatabase)
+from glycan_profiling.database.mass_collection import ConcatenatedDatabase
 
 from .scoring import TargetDecoyAnalyzer
 from glycan_profiling.database.structure_loader import (
@@ -67,12 +68,20 @@ class TargetDecoyInterleavingGlycopeptideMatcher(TandemClusterEvaluatorBase):
         return target_result, decoy_result
 
     def score_bunch(self, scans, precursor_error_tolerance=1e-5, *args, **kwargs):
+        # Map scans to target database
         scan_map, hit_map, hit_to_scan = self.target_evaluator._map_scans_to_hits(scans, precursor_error_tolerance)
+        # Evaluate mapped target hits
         target_scan_solution_map = self.target_evaluator._evaluate_hit_groups(
             scan_map, hit_map, hit_to_scan, *args, **kwargs)
+        # Aggregate and reduce target solutions
         target_solutions = self._collect_scan_solutions(target_scan_solution_map, scan_map)
+
+        # Reuse mapped hits from target database using the decoy evaluator
+        # since this assumes that the decoys will be direct reversals of
+        # target sequences. The decoy evaluator will handle the reversals.
         decoy_scan_solution_map = self.decoy_evaluator._evaluate_hit_groups(
             scan_map, hit_map, hit_to_scan, *args, **kwargs)
+        # Aggregate and reduce target solutions
         decoy_solutions = self._collect_scan_solutions(decoy_scan_solution_map, scan_map)
         return target_solutions, decoy_solutions
 
@@ -90,6 +99,57 @@ class TargetDecoyInterleavingGlycopeptideMatcher(TandemClusterEvaluatorBase):
                 case.simplify()
                 case.select_top()
         return target_out, decoy_out
+
+
+class ConcatenatedDatabaseGlycopeptideMatcher(TargetDecoyInterleavingGlycopeptideMatcher):
+    def __init__(self, tandem_cluster, scorer_type, target_structure_database, decoy_structure_database, minimum_oxonium_ratio=0.05):
+        self.tandem_cluster = tandem_cluster
+        self.scorer_type = scorer_type
+        self.target_structure_database = target_structure_database
+        self.decoy_structure_database = decoy_structure_database
+        self.minimum_oxonium_ratio = minimum_oxonium_ratio
+
+        self.concatenated_database = ConcatenatedDatabase([target_structure_database, decoy_structure_database])
+        self.evaluator = GlycopeptideMatcher([], self.scorer_type, self.concatenated_database)
+
+    def score_bunch(self, scans, precursor_error_tolerance=1e-5, *args, **kwargs):
+        # Map scans to target database
+        scan_map, hit_map, hit_to_scan = self.evaluator._map_scans_to_hits(scans, precursor_error_tolerance)
+        # Evaluate mapped target hits
+        concatenated_scan_solution_map = self.evaluator._evaluate_hit_groups(
+            scan_map, hit_map, hit_to_scan, *args, **kwargs)
+        # Aggregate and reduce target solutions
+        concatenated_solutions = self._collect_scan_solutions(target_scan_solution_map, scan_map)
+
+
+
+class ComparisonGlycopeptideMatcher(TargetDecoyInterleavingGlycopeptideMatcher):
+    def __init__(self, tandem_cluster, scorer_type, target_structure_database, decoy_structure_database, minimum_oxonium_ratio=0.05):
+        self.tandem_cluster = tandem_cluster
+        self.scorer_type = scorer_type
+        self.target_structure_database = target_structure_database
+        self.decoy_structure_database = decoy_structure_database
+        self.minimum_oxonium_ratio = minimum_oxonium_ratio
+        self.target_evaluator = GlycopeptideMatcher([], self.scorer_type, self.target_structure_database)
+        self.decoy_evaluator = GlycopeptideMatcher([], self.scorer_type, self.decoy_structure_database)
+
+    def score_bunch(self, scans, precursor_error_tolerance=1e-5, *args, **kwargs):
+        # Map scans to target database
+        scan_map, hit_map, hit_to_scan = self.target_evaluator._map_scans_to_hits(scans, precursor_error_tolerance)
+        # Evaluate mapped target hits
+        target_scan_solution_map = self.target_evaluator._evaluate_hit_groups(
+            scan_map, hit_map, hit_to_scan, *args, **kwargs)
+        # Aggregate and reduce target solutions
+        target_solutions = self._collect_scan_solutions(target_scan_solution_map, scan_map)
+
+        # Map scans to decoy database
+        scan_map, hit_map, hit_to_scan = self.decoy_evaluator._map_scans_to_hits(scans, precursor_error_tolerance)
+        # Evaluate mapped decoy hits
+        decoy_scan_solution_map = self.decoy_evaluator._evaluate_hit_groups(
+            scan_map, hit_map, hit_to_scan, *args, **kwargs)
+        # Aggregate and reduce decoy solutions
+        decoy_solutions = self._collect_scan_solutions(decoy_scan_solution_map, scan_map)
+        return target_solutions, decoy_solutions
 
 
 def chunkiter(collection, size=200):
@@ -129,6 +189,12 @@ class GlycopeptideDatabaseSearchIdentifier(TaskBase):
         self.scan_id_to_rt = scan_id_to_rt
         self.minimum_oxonium_ratio = minimum_oxonium_ratio
 
+    def _make_evaluator(self, bunch):
+        evaluator = TargetDecoyInterleavingGlycopeptideMatcher(
+                        bunch, self.scorer_type, self.structure_database,
+                        minimum_oxonium_ratio=self.minimum_oxonium_ratio)
+        return evaluator
+
     def search(self, precursor_error_tolerance=1e-5, simplify=True, chunk_size=750, limit=None, *args, **kwargs):
         target_hits = []
         decoy_hits = []
@@ -138,15 +204,12 @@ class GlycopeptideDatabaseSearchIdentifier(TaskBase):
             limit = float('inf')
         for bunch in chunkiter(self.tandem_scans, chunk_size):
             count += len(bunch)
-            # self.log("... Searching %s (%d/%d)" % (bunch[0].precursor_information, count, total))
             for item in format_work_batch(bunch, count, total):
                 self.log("... %s" % item)
             if hasattr(bunch[0], 'convert'):
                 bunch = [self.scorer_type.load_peaks(o) for o in bunch]
             self.log("... Spectra Extracted")
-            evaluator = TargetDecoyInterleavingGlycopeptideMatcher(
-                bunch, self.scorer_type, self.structure_database,
-                minimum_oxonium_ratio=self.minimum_oxonium_ratio)
+            evaluator = self._make_evaluator(bunch)
             t, d = evaluator.score_all(
                 precursor_error_tolerance=precursor_error_tolerance,
                 simplify=simplify, *args, **kwargs)
@@ -188,3 +251,28 @@ class GlycopeptideDatabaseSearchIdentifier(TaskBase):
         mapper.distribute_orphans()
         mapper.assign_entities(threshold_fn, entity_chromatogram_type=entity_chromatogram_type)
         return mapper.chromatograms
+
+
+class GlycopeptideDatabaseSearchComparer(GlycopeptideDatabaseSearchIdentifier):
+    def __init__(self, tandem_scans, scorer_type, target_database, decoy_database, scan_id_to_rt=lambda x: x,
+                 minimum_oxonium_ratio=0.05):
+        self.tandem_scans = sorted(
+            tandem_scans, key=lambda x: x.precursor_information.extracted_neutral_mass, reverse=True)
+        self.scorer_type = scorer_type
+        self.target_database = target_database
+        self.decoy_database = decoy_database
+        self.scan_id_to_rt = scan_id_to_rt
+        self.minimum_oxonium_ratio = minimum_oxonium_ratio
+
+
+    def _make_evaluator(self, bunch):
+        evaluator = ComparisonGlycopeptideMatcher(
+                        bunch, self.scorer_type,
+                        target_structure_database=self.target_database,
+                        decoy_structure_database=self.decoy_database,
+                        minimum_oxonium_ratio=self.minimum_oxonium_ratio)
+        return evaluator
+
+
+class ConcatenatedGlycopeptideDatabaseSearchComparer(GlycopeptideDatabaseSearchIdentifier):
+    pass

@@ -90,10 +90,16 @@ class SimpleChromatogram(OrderedDict):
         self.time_converter = time_converter
         super(SimpleChromatogram, self).__init__()
 
+    composition = None
+    glycan_composition = None
+
     def as_arrays(self):
         return (
             np.array(map(self.time_converter.scan_id_to_rt, self)),
             np.array(self.values()))
+
+    def get_chromatogram(self):
+        return self
 
 
 class PairedArray(object):

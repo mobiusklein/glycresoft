@@ -34,6 +34,8 @@ _standard_oxonium_ions = [
     _mass_wrapper(_hexnac.mass() - Composition("H4O2").mass)
 ]
 
+standard_oxonium_ions = _standard_oxonium_ions[:]
+
 _gscore_oxonium_ions = [
     _hexnac,
     _mass_wrapper(_hexnac.mass() - Composition("C2H6O3").mass),

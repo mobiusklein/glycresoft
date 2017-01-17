@@ -274,9 +274,9 @@ class BinomialSpectrumMatcher(SpectrumMatcherBase):
         self._score = score
         return score
 
-    def annotate(self, ax=None, **kwargs):
+    def annotate(self, ax=None, label_font_size=12, **kwargs):
         ax = draw_peaklist(self.spectrum, alpha=0.3, color='grey', ax=ax, **kwargs)
         draw_peaklist(self._sanitized_spectrum, color='grey', ax=ax, alpha=0.5, **kwargs)
-        annotate_matched_deconvoluted_peaks(self.solution_map.items(), ax)
+        annotate_matched_deconvoluted_peaks(self.solution_map.items(), ax, fontsize=label_font_size)
         return draw_peaklist(
             sorted(self.solution_map.values(), key=lambda x: x.neutral_mass), ax=ax, color='red', **kwargs)

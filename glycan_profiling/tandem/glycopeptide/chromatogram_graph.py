@@ -33,7 +33,7 @@ class GlycopeptideChromatogramGraph(ChromatogramGraph):
                     self.sequence_map[node.backbone].append(node)
         return nodes
 
-    def find_edges(self, node, query_width=2., transitions=None):
+    def find_edges(self, node, query_width=2., transitions=None, **kwargs):
         super(GlycopeptideChromatogramGraph, self).find_edges(node, query_width, transitions)
         if node.backbone is not None:
             for other_node in self.sequence_map[node.backbone]:

@@ -390,3 +390,36 @@ class PeptideGlycosylatingProcess(Process):
 
     def run(self):
         self.task()
+
+
+class NonSavingPeptideGlycosylatingProcess(PeptideGlycosylatingProcess):
+    def task(self):
+        database = DatabaseBoundOperation(self.connection)
+        session = database.session
+        has_work = True
+
+        glycosylator = PeptideGlycosylator(database.session, self.hypothesis_id)
+        result_accumulator = []
+
+        while has_work:
+            try:
+                work_items = self.input_queue.get(timeout=5)
+                if work_items is None:
+                    has_work = False
+                    continue
+            except:
+                if self.done_event.is_set():
+                    has_work = False
+                continue
+            peptides = slurp(database.session, Peptide, work_items, flatten=False)
+            for peptide in peptides:
+                for gp in glycosylator.handle_peptide(peptide):
+                    result_accumulator.append(gp)
+                    if len(result_accumulator) > self.chunk_size:
+                        # session.bulk_save_objects(result_accumulator)
+                        # session.commit()
+                        result_accumulator = []
+            if len(result_accumulator) > 0:
+                # session.bulk_save_objects(result_accumulator)
+                # session.commit()
+                result_accumulator = []

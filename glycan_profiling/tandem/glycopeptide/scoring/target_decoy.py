@@ -114,7 +114,7 @@ class ScoreThresholdCounter(object):
 
 
 class TargetDecoyAnalyzer(object):
-    def __init__(self, target_series, decoy_series, with_pit=True):
+    def __init__(self, target_series, decoy_series, with_pit=False):
         self.targets = target_series
         self.decoys = decoy_series
         self.target_count = len(target_series)
@@ -167,14 +167,14 @@ class TargetDecoyAnalyzer(object):
         return percent_incorrect_targets * self.target_decoy_ratio(cutoff)[0]
 
     def _calculate_q_values(self):
-        thresholds = sorted(self.thresholds, reverse=True)
+        thresholds = sorted(self.thresholds, reverse=False)
         mapping = {}
         last_score = float('inf')
         last_q_value = 0
         for threshold in thresholds:
             try:
                 q_value = self.fdr_with_percent_incorrect_targets(threshold)
-                # If a worse score has a higher q-value than a better score, use that q-value
+                # If a worse score has a lower q-value than a better score, use that q-value
                 # instead.
                 if last_q_value < q_value and last_score < threshold:
                     q_value = last_q_value

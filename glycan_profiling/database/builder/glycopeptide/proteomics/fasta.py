@@ -1,7 +1,10 @@
 import re
 import textwrap
 
+from glycopeptidepy.io.fasta import FastaFileParser, FastaFileWriter
+
 from glycan_profiling.serialize.hypothesis.peptide import Protein
+from .sequence_tree import SuffixTree
 
 
 def tryopen(path):
@@ -10,69 +13,14 @@ def tryopen(path):
     return open(path)
 
 
-class FastaFileParser(object):
-
-    def __init__(self, path):
-        self.state = "defline"
-        self.handle = tryopen(path)
-        self.defline = None
-        self.sequence_chunks = []
-
-    def process_result(self, d):
-        return d
-
-    def __iter__(self):
-        for line in self.handle:
-            if self.state == 'defline':
-                if line[0] == ">":
-                    self.defline = re.sub(r"[\n\r]", "", line[1:])
-                    self.state = "sequence"
-                else:
-                    continue
-            else:
-                if not re.match(r"^(\s+|>)", line):
-                    self.sequence_chunks.append(re.sub(r"[\n\r]", "", line))
-                else:
-                    if self.defline is not None:
-                        yield self.process_result({
-                            "name": self.defline,
-                            "sequence": ''.join(self.sequence_chunks)
-                        })
-                    self.sequence_chunks = []
-                    self.defline = None
-                    self.state = 'defline'
-                    if line[0] == '>':
-                        self.defline = re.sub(r"[\n\r]", "", line[1:])
-                        self.state = "sequence"
-
-        if len(self.sequence_chunks) > 0:
-            yield self.process_result({"name": self.defline, "sequence": ''.join(self.sequence_chunks)})
-
-
 class ProteinFastaFileParser(FastaFileParser):
 
     def __init__(self, path):
         super(ProteinFastaFileParser, self).__init__(path)
 
     def process_result(self, d):
-        p = Protein(name=d['name'], protein_sequence=d['sequence'])
+        p = Protein(name=str(d['name']), protein_sequence=d['sequence'])
         return p
-
-
-class FastaFileWriter(object):
-
-    def __init__(self, handle):
-        self.handle = handle
-
-    def write(self, defline, sequence):
-        self.handle.write(defline)
-        self.handle.write("\n")
-        self.handle.write(sequence)
-        self.handle.write("\n\n")
-
-    def writelines(self, iterable):
-        for defline, seq in iterable:
-            self.write(defline, seq)
 
 
 class ProteinFastaFileWriter(FastaFileWriter):
@@ -86,3 +34,42 @@ class ProteinFastaFileWriter(FastaFileWriter):
     def writelines(self, iterable):
         for protein in iterable:
             self.write(protein)
+
+
+
+class SequenceLabel(object):
+    def __init__(self, label, sequence):
+        self.label = label
+        self.sequence = sequence
+    
+    def __getitem__(self, i):
+        if isinstance(i, int):
+            return self.label[i]
+        else:
+            return SequenceLabel(self.label[i], self.sequence)
+    def __len__(self):
+        return len(self.label)
+    
+    def __iter__(self):
+        return iter(self.label)
+    
+    def __repr__(self):
+        return "SequenceLabel(%s, %r)" % (self.label, self.sequence)
+
+
+class ProteinSequenceListResolver(object):
+    @classmethod
+    def build_from_fasta(cls, fasta):
+        return cls(ProteinFastaFileParser(fasta))
+
+    def __init__(self, protein_list):
+        protein_list = [SequenceLabel(str(prot.name), prot) for prot in protein_list]
+        self.resolver = SuffixTree()
+        for prot in protein_list:
+            self.resolver.add_ngram(prot)
+
+    def find(self, name):
+        return [label_seq.sequence for label_seq in self.resolver.subsequences_of(name)]
+
+    def __getitem__(self, name):
+        return self.find(name)

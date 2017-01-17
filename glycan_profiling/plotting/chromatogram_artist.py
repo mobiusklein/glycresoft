@@ -121,13 +121,15 @@ class ChromatogramArtist(ArtistBase):
         if ax is None:
             fig, ax = plt.subplots(1)
 
-        chromatograms = self._resolve_chromatograms_from_argument(chromatograms)
-        chromatograms = [get_chromatogram(c) for c in chromatograms]
+        if len(chromatograms) > 0:
+            chromatograms = self._resolve_chromatograms_from_argument(chromatograms)
+            chromatograms = [get_chromatogram(c) for c in chromatograms]
+        else:
+            chromatograms = []
         self.chromatograms = chromatograms
         self.minimum_ident_time = float("inf")
         self.maximum_ident_time = 0
         self.maximum_intensity = 0
-        self.scan_id_to_intensity = {}
         self.ax = ax
         self.default_colorizer = colorizer
         self.legend = None
@@ -203,15 +205,10 @@ class ChromatogramArtist(ArtistBase):
     def process_group(self, composition, chromatogram, label_function=None, **kwargs):
         if label_function is None:
             label_function = self.default_label_function
-        part = slice(None)
-        peaks = chromatogram.peaks[part]
-        ids = chromatogram.scan_ids[part]
 
         color = self.default_colorizer(chromatogram)
 
         rt, heights = chromatogram.as_arrays()
-
-        self.scan_id_to_intensity = dict(zip(ids, heights))
 
         self.maximum_ident_time = max(max(rt), self.maximum_ident_time)
         self.minimum_ident_time = min(min(rt), self.minimum_ident_time)
@@ -219,7 +216,7 @@ class ChromatogramArtist(ArtistBase):
         self.maximum_intensity = max(max(heights), self.maximum_intensity)
 
         label = label_function(
-            chromatogram, rt=rt, heights=heights, peaks=peaks)
+            chromatogram, rt=rt, heights=heights, peaks=None)
         if isinstance(label, basestring):
             label = label
             label_peak = True

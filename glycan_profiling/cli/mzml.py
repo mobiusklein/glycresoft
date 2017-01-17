@@ -20,18 +20,18 @@ def mzml_cli():
 
 
 @mzml_cli.command('rt-to-id')
-@click.argument("mzml-file", type=click.Path(exists=True))
+@click.argument("ms-file", type=click.Path(exists=True))
 @click.argument("rt", type=float)
-def rt_to_id(mzml_file, rt):
-    loader = MSFileLoader(mzml_file)
+def rt_to_id(ms_file, rt):
+    loader = MSFileLoader(ms_file)
     id = loader._locate_ms1_scan(loader.get_scan_by_time(rt)).id
     click.echo(id)
 
 
 @mzml_cli.command("tic-saddle-points")
-@click.argument('mzml-file', type=click.Path(exists=True))
-def tic_saddle_points(mzml_file):
-    loader = MSFileLoader(mzml_file)
+@click.argument('ms-file', type=click.Path(exists=True))
+def tic_saddle_points(ms_file):
+    loader = MSFileLoader(ms_file)
     tic = loader._source.get_by_id("TIC")
     time = tic['time array']
     intensity = tic['intensity array']
@@ -39,7 +39,7 @@ def tic_saddle_points(mzml_file):
 
 
 @mzml_cli.command("preprocess")
-@click.argument("mzml-file", type=click.Path(exists=True))
+@click.argument("ms-file", type=click.Path(exists=True))
 @click.argument("database-connection")
 @click.option("-a", "--averagine", default='glycan',
               help='Averagine model to use for MS1 scans. Either a name or formula.')
@@ -74,19 +74,21 @@ def tic_saddle_points(mzml_file):
 @click.option("-rn", '--msn-transform', multiple=True, type=click.Choice(
     sorted(ms_peak_picker.scan_filter.filter_register.keys())),
     help="Scan transformations to apply to MS^n scans. May specify more than once.")
-def preprocess(mzml_file, database_connection, averagine=None, start_time=None, end_time=None, maximum_charge=None,
+@click.option("-v", "--extract-only-tandem-envelopes", is_flag=True, default=False,
+              help='Only work on regions that will be chosen for MS/MS')
+def preprocess(ms_file, database_connection, averagine=None, start_time=None, end_time=None, maximum_charge=None,
                name=None, msn_averagine=None, score_threshold=15., msn_score_threshold=2., missed_peaks=1,
                background_reduction=2., msn_background_reduction=0., transform=None, msn_transform=None,
-               processes=4):
+               processes=4, extract_only_tandem_envelopes=False):
     if transform is None:
         transform = []
     if msn_transform is None:
         msn_transform = []
-    click.echo("Preprocessing %s" % mzml_file)
+    click.echo("Preprocessing %s" % ms_file)
     minimum_charge = 1 if maximum_charge > 0 else -1
     charge_range = (minimum_charge, maximum_charge)
 
-    loader = MSFileLoader(mzml_file)
+    loader = MSFileLoader(ms_file)
 
     start_scan_id = loader._locate_ms1_scan(
         loader.get_scan_by_time(start_time)).id
@@ -101,7 +103,7 @@ def preprocess(mzml_file, database_connection, averagine=None, start_time=None, 
         click.secho("Spectra are centroided")
 
     if name is None:
-        name = os.path.splitext(os.path.basename(mzml_file))[0]
+        name = os.path.splitext(os.path.basename(ms_file))[0]
 
     name = validate_sample_run_name(None, database_connection, name)
 
@@ -153,13 +155,14 @@ def preprocess(mzml_file, database_connection, averagine=None, start_time=None, 
     }
 
     consumer = SampleConsumer(
-        mzml_file, averagine=averagine, charge_range=charge_range,
+        ms_file, averagine=averagine, charge_range=charge_range,
         ms1_peak_picking_args=ms1_peak_picking_args,
         ms1_deconvolution_args=ms1_deconvolution_args,
         msn_peak_picking_args=msn_peak_picking_args,
         msn_deconvolution_args=msn_deconvolution_args,
         storage_path=database_connection, sample_name=name,
         start_scan_id=start_scan_id,
-        end_scan_id=end_scan_id, n_processes=processes)
+        end_scan_id=end_scan_id, n_processes=processes,
+        extract_only_tandem_envelopes=extract_only_tandem_envelopes)
 
     consumer.start()

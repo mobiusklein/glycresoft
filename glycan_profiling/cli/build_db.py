@@ -13,7 +13,9 @@ from glycan_profiling.serialize import (
     AnalysisTypeEnum)
 
 from glycan_profiling.database.builder.glycopeptide.naive_glycopeptide import (
-    MultipleProcessFastaGlycopeptideHypothesisSerializer)
+    MultipleProcessFastaGlycopeptideHypothesisSerializer,
+    ReversingMultipleProcessFastaGlycopeptideHypothesisSerializer,
+    NonSavingMultipleProcessFastaGlycopeptideHypothesisSerializer)
 
 from glycan_profiling.database.builder.glycopeptide.informed_glycopeptide import (
     MultipleProcessMzIdentMLGlycopeptideHypothesisSerializer)
@@ -103,8 +105,18 @@ def _get_hypothesis_id_for_glycan_composition_hypothesis(database_connection, so
               help="The type of glycan information source to use")
 @click.option("-g", "--glycan-source", required=True,
               help="The path, identity, or other specifier for the glycan source")
+@click.option("--reverse", default=False, is_flag=True, help='Reverse protein sequences')
+@click.option("--dry-run", default=False, is_flag=True, help="Do not save glycopeptides")
 def glycopeptide_fa(context, fasta_file, database_connection, enzyme, missed_cleavages, occupied_glycosites, name,
-                    constant_modification, variable_modification, processes, glycan_source, glycan_source_type):
+                    constant_modification, variable_modification, processes, glycan_source, glycan_source_type,
+                    reverse=False, dry_run=False):
+    if reverse:
+        task_type = ReversingMultipleProcessFastaGlycopeptideHypothesisSerializer
+    elif dry_run:
+        task_type = NonSavingMultipleProcessFastaGlycopeptideHypothesisSerializer
+    else:
+        task_type = MultipleProcessFastaGlycopeptideHypothesisSerializer
+
     validate_modifications(
         context, constant_modification + variable_modification)
     validate_glycan_source(context, database_connection,
@@ -124,7 +136,7 @@ def glycopeptide_fa(context, fasta_file, database_connection, enzyme, missed_cle
     glycan_hypothesis_id = _glycan_hypothesis_builders[
         glycan_source_type](database_connection, glycan_source, name)
 
-    builder = MultipleProcessFastaGlycopeptideHypothesisSerializer(
+    builder = task_type(
         fasta_file, database_connection,
         glycan_hypothesis_id=glycan_hypothesis_id,
         protease=enzyme,
@@ -162,8 +174,13 @@ def glycopeptide_fa(context, fasta_file, database_connection, enzyme, missed_cle
               help="The type of glycan information source to use")
 @click.option("-g", "--glycan-source", required=True,
               help="The path, identity, or other specifier for the glycan source")
+@click.option("-r", "--reference-fasta", default=None, required=False,
+              help=("When the full sequence for each protein is not embedded in the mzIdentML file and "
+                    "the FASTA file used by the search engine that created the mzIdentML file is not "
+                    "at the path specified in the file, you must provide a FASTA file to retrieve "
+                    "protein sequences from."))
 def glycopeptide_mzid(context, mzid_file, database_connection, name, occupied_glycosites, target_protein,
-                      target_protein_re, processes, glycan_source, glycan_source_type):
+                      target_protein_re, processes, glycan_source, glycan_source_type, reference_fasta):
     proteins = validate_mzid_proteins(
         context, mzid_file, target_protein, target_protein_re)
     validate_glycan_source(context, database_connection,
@@ -185,6 +202,7 @@ def glycopeptide_mzid(context, mzid_file, database_connection, name, occupied_gl
         hypothesis_name=name,
         target_proteins=proteins,
         max_glycosylation_events=occupied_glycosites,
+        reference_fasta=reference_fasta,
         n_processes=processes)
     builder.start()
     return builder.hypothesis_id

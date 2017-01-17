@@ -6,7 +6,7 @@ import ms_deisotope
 
 import traceback
 
-from ms_deisotope.processor import ScanProcessor, MSFileLoader
+from ms_deisotope.processor import ScanProcessor, MSFileLoader, ScanIntervalTree
 
 import logging
 from .task import TaskBase, log_handle, CallInterval
@@ -133,7 +133,8 @@ class ScanTransformingProcess(Process):
     def __init__(self, mzml_path, input_queue, output_queue,
                  averagine=ms_deisotope.averagine.glycan, charge_range=(-1, -8),
                  no_more_event=None, ms1_peak_picking_args=None, msn_peak_picking_args=None,
-                 ms1_deconvolution_args=None, msn_deconvolution_args=None):
+                 ms1_deconvolution_args=None, msn_deconvolution_args=None,
+                 envelope_selector=None):
 
         if ms1_peak_picking_args is None:
             ms1_peak_picking_args = {
@@ -173,6 +174,7 @@ class ScanTransformingProcess(Process):
         self.msn_deconvolution_args = msn_deconvolution_args
         self.msn_deconvolution_args.setdefault("charge_range", self.charge_range)
         self.msn_deconvolution_args.setdefault("averagine", averagine)
+        self.envelope_selector = envelope_selector
 
         self.no_more_event = no_more_event
         self._work_complete = multiprocessing.Event()
@@ -203,7 +205,8 @@ class ScanTransformingProcess(Process):
             msn_peak_picking_args=self.msn_peak_picking_args,
             ms1_deconvolution_args=self.ms1_deconvolution_args,
             msn_deconvolution_args=self.msn_deconvolution_args,
-            loader_type=lambda x: x)
+            loader_type=lambda x: x,
+            envelope_selector=self.envelope_selector)
         return transformer
 
     def run(self):
@@ -427,11 +430,12 @@ class ScanGeneratorBase(object):
         return None
 
 
-class ScanGenerator(ScanGeneratorBase):
+class ScanGenerator(TaskBase, ScanGeneratorBase):
 
     def __init__(self, mzml_file, averagine=ms_deisotope.averagine.glycan, charge_range=(-1, -8),
                  number_of_helper_deconvoluters=4, ms1_peak_picking_args=None, msn_peak_picking_args=None,
-                 ms1_deconvolution_args=None, msn_deconvolution_args=None):
+                 ms1_deconvolution_args=None, msn_deconvolution_args=None,
+                 extract_only_tandem_envelopes=False):
         self.mzml_file = mzml_file
         self.averagine = averagine
         self.time_cache = {}
@@ -456,6 +460,8 @@ class ScanGenerator(ScanGeneratorBase):
 
         self.ms1_deconvolution_args = ms1_deconvolution_args
         self.msn_deconvolution_args = msn_deconvolution_args
+        self.extract_only_tandem_envelopes = extract_only_tandem_envelopes
+        self._scan_interval_tree = None
 
     @property
     def scan_source(self):
@@ -479,16 +485,26 @@ class ScanGenerator(ScanGeneratorBase):
             for helper in self._deconv_helpers:
                 helper.terminate()
 
+    def _make_interval_tree(self):
+        reader = MSFileLoader(self.mzml_file, use_index=False)
+        self._scan_interval_tree = ScanIntervalTree.build(reader, time_radius=3.)
+
     def _make_transforming_process(self):
         return ScanTransformingProcess(
             self.mzml_file,
             self._input_queue, self._output_queue, self.averagine, self.charge_range, self.scan_ids_exhausted_event,
             ms1_peak_picking_args=self.ms1_peak_picking_args, msn_peak_picking_args=self.msn_peak_picking_args,
-            ms1_deconvolution_args=self.ms1_deconvolution_args, msn_deconvolution_args=self.msn_deconvolution_args)
+            ms1_deconvolution_args=self.ms1_deconvolution_args, msn_deconvolution_args=self.msn_deconvolution_args,
+            envelope_selector=self._scan_interval_tree)
 
     def make_iterator(self, start_scan=None, end_scan=None, max_scans=None):
         self._input_queue = Queue(int(1e6))
         self._output_queue = Queue(1000)
+
+        if self.extract_only_tandem_envelopes:
+            self.log("Constructing Scan Interval Tree")
+            self._make_interval_tree()
+
 
         self._terminate()
 

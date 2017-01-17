@@ -57,7 +57,7 @@ class SampleConsumer(TaskBase):
     def __init__(self, mzml_path, averagine=n_glycan_averagine, charge_range=(-1, -8),
                  ms1_peak_picking_args=None, msn_peak_picking_args=None, ms1_deconvolution_args=None,
                  msn_deconvolution_args=None, start_scan_id=None, end_scan_id=None, storage_path=None,
-                 sample_name=None, cache_handler_type=None, n_processes=5):
+                 sample_name=None, cache_handler_type=None, n_processes=5, extract_only_tandem_envelopes=False):
 
         if cache_handler_type is None:
             cache_handler_type = ThreadedDatabaseScanCacheHandler
@@ -70,6 +70,7 @@ class SampleConsumer(TaskBase):
 
         self.n_processes = n_processes
         self.cache_handler_type = cache_handler_type
+        self.extract_only_tandem_envelopes = extract_only_tandem_envelopes
 
         n_helpers = max(self.n_processes - 1, 0)
         self.scan_generator = PipedScanGenerator(
@@ -78,7 +79,8 @@ class SampleConsumer(TaskBase):
             ms1_peak_picking_args=ms1_peak_picking_args,
             msn_peak_picking_args=msn_peak_picking_args,
             ms1_deconvolution_args=ms1_deconvolution_args,
-            msn_deconvolution_args=msn_deconvolution_args)
+            msn_deconvolution_args=msn_deconvolution_args,
+            extract_only_tandem_envelopes=extract_only_tandem_envelopes)
 
         self.start_scan_id = start_scan_id
         self.end_scan_id = end_scan_id
@@ -223,7 +225,8 @@ class GlycopeptideLCMSMSAnalyzer(TaskBase):
 
         # Traditional LC-MS/MS Database Search
         searcher = GlycopeptideDatabaseSearchIdentifier(
-            msms_scans, self.tandem_scoring_model, database, peak_loader.convert_scan_id_to_retention_time,
+            msms_scans, self.tandem_scoring_model, database,
+            peak_loader.convert_scan_id_to_retention_time,
             minimum_oxonium_ratio=self.minimum_oxonium_ratio)
         target_hits, decoy_hits = searcher.search(
             precursor_error_tolerance=self.mass_error_tolerance,

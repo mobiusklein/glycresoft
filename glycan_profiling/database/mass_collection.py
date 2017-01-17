@@ -48,6 +48,10 @@ class SearchableMassCollection(object):
     def search_mass(self, mass, error_tolerance=0.1):
         raise NotImplementedError()
 
+    def __repr__(self):
+        size = len(self)
+        return "{self.__class__.__name__}({size})".format(self=self, size=size)
+
 
 class MassDatabase(SearchableMassCollection):
     """A quick-to-search database of :class:`HashableGlycanComposition` instances
@@ -212,3 +216,37 @@ class NeutralMassDatabase(SearchableMassCollection):
         lo = self.search_binary(lo_mass)
         hi = self.search_binary(hi_mass) + 1
         return [structure for structure in self[lo:hi] if lo_mass <= self.mass_getter(structure) <= hi_mass]
+
+
+class ConcatenatedDatabase(SearchableMassCollection):
+    def __init__(self, databases):
+        self.databases = list(databases)
+
+    @property
+    def lowest_mass(self):
+        return min(db.lowest_mass for db in self.databases)
+
+    @property
+    def highest_mass(self):
+        return max(db.highest_mass for db in self.databases)
+
+    def search_mass(self, mass, error_tolerance=0.1):
+        """Search for the set of all items in :attr:`structures` within `error_tolerance` Da
+        of the queried `mass`.
+
+        Parameters
+        ----------
+        mass : float
+            The neutral mass to search for
+        error_tolerance : float, optional
+            The range of mass errors (in Daltons) to allow
+
+        Returns
+        -------
+        list
+            The list of instances which meet the criterion
+        """
+        hits = []
+        for database in self.databases:
+            hits += database.search_mass(mass, error_tolerance)
+        return hits

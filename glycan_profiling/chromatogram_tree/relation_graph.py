@@ -133,7 +133,7 @@ class ChromatogramGraph(object):
         while self.assigned_seed_queue:
             yield self.pop_seed()
 
-    def find_edges(self, node, query_width=2., transitions=None):
+    def find_edges(self, node, query_width=2., transitions=None, **kwargs):
         if transitions is None:
             transitions = _standard_transitions
         query = TimeQuery(node.chromatogram, query_width)
@@ -148,3 +148,7 @@ class ChromatogramGraph(object):
                 ppm_error = (added - match.neutral_mass) / match.neutral_mass
                 rt_error = (node.center - match.center)
                 self.edges.add(ChromatogramGraphEdge(node, match, transition, mass_error=ppm_error, rt_error=rt_error))
+
+    def build(self, query_width=2., transitions=None, **kwargs):
+        for node in self.iterseeds():
+            self.find_edges(node, query_width=query_width, transitions=transitions, **kwargs)

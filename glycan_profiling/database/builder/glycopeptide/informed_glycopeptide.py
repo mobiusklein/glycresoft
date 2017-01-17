@@ -15,18 +15,21 @@ class MzIdentMLGlycopeptideHypothesisSerializer(GlycopeptideHypothesisSerializer
     _display_name = "MzIdentML Glycopeptide Hypothesis Serializer"
 
     def __init__(self, mzid_path, connection, glycan_hypothesis_id, hypothesis_name=None,
-                 target_proteins=None, max_glycosylation_events=1):
+                 target_proteins=None, max_glycosylation_events=1, reference_fasta=None):
         if target_proteins is None:
             target_proteins = []
         GlycopeptideHypothesisSerializerBase.__init__(self, connection, hypothesis_name, glycan_hypothesis_id)
         self.mzid_path = mzid_path
+        self.reference_fasta = reference_fasta
         self.proteome = mzid_proteome.Proteome(
-            mzid_path, self._original_connection, self.hypothesis_id, target_proteins=target_proteins)
+            mzid_path, self._original_connection, self.hypothesis_id,
+            target_proteins=target_proteins, reference_fasta=reference_fasta)
         self.target_proteins = target_proteins
         self.max_glycosylation_events = max_glycosylation_events
 
         self.set_parameters({
             "mzid_file": os.path.abspath(mzid_path),
+            "reference_fasta": os.path.abspath(reference_fasta),
             "target_proteins": target_proteins,
             "max_glycosylation_events": max_glycosylation_events,
         })
@@ -97,10 +100,11 @@ class MultipleProcessMzIdentMLGlycopeptideHypothesisSerializer(MzIdentMLGlycopep
     _display_name = "Multiple Process MzIdentML Glycopeptide Hypothesis Serializer"
 
     def __init__(self, mzid_path, connection, glycan_hypothesis_id, hypothesis_name=None,
-                 target_proteins=None, max_glycosylation_events=1, n_processes=4):
+                 target_proteins=None, max_glycosylation_events=1, reference_fasta=None,
+                 n_processes=4):
         super(MultipleProcessMzIdentMLGlycopeptideHypothesisSerializer, self).__init__(
             mzid_path, connection, glycan_hypothesis_id, hypothesis_name, target_proteins,
-            max_glycosylation_events)
+            max_glycosylation_events, reference_fasta)
         self.n_processes = n_processes
 
     def glycosylate_peptides(self):
