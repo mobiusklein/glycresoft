@@ -11,7 +11,7 @@ from .trace import (
     ChromatogramExtractor, ChromatogramProcessor)
 
 from .scan_cache import (
-    ThreadedDatabaseScanCacheHandler, DatabaseScanGenerator)
+    ThreadedDatabaseScanCacheHandler)
 
 from .database import (
     NeutralMassDatabase, GlycopeptideDiskBackedStructureDatabase,

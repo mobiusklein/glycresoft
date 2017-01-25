@@ -66,7 +66,7 @@ class Parser(MzIdentML):
     def _recursive_populate(self, element, info, kwargs):
         for child in element.iterchildren():
             cname = _local_name(child)
-            if cname in {'cvParam', 'userParam'}:
+            if cname in ('cvParam', 'userParam'):
                 self._insert_param(info, child, **kwargs)
             else:
                 if cname not in self.schema_info['lists']:

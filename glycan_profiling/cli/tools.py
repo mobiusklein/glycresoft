@@ -83,7 +83,7 @@ class SQLShellInterpreter(cmd.Cmd):
                     sizes[i] = col_len
                 str_row.append(col)
             str_rows.append(str_row)
-
+        print(" | ".join(titles))
         for row in str_rows:
             print(' | '.join(row))
 
@@ -121,7 +121,9 @@ class SQLShellInterpreter(cmd.Cmd):
         return True
 
 
-@tools.command("sql-shell", short_help="A minimal SQL command shell for running diagnostics and exporting arbitrary data.")
+@tools.command("sql-shell",
+               short_help=("A minimal SQL command shell for running "
+                           "diagnostics and exporting arbitrary data."))
 @click.argument("database-connection")
 @click.option("-s", "--script", default=None)
 def sql_shell(database_connection, script=None):
@@ -155,7 +157,7 @@ def validate_fasta(path):
         invalid_sequences = []
         for entry in fasta.FastaFileParser(handle):
             try:
-                protein = fasta.ProteinSequence(entry['name'], entry['sequence'])
+                fasta.ProteinSequence(entry['name'], entry['sequence'])
             except UnknownAminoAcidException as e:
                 invalid_sequences.append((entry['name'], e))
     for name, error in invalid_sequences:
@@ -173,7 +175,8 @@ def has_known_glycosylation(accession):
         return False
 
 
-@tools.command("known-glycoproteins", short_help='Checks UniProt to see if a list of proteins contains any known glycoproteins')
+@tools.command("known-glycoproteins", short_help=(
+    'Checks UniProt to see if a list of proteins contains any known glycoproteins'))
 @click.option("-i", "--file-path", help="Read input from a file instead of STDIN")
 @click.option("-f", "--fasta-format", is_flag=True, help="Indicate input is in FASTA format")
 def known_uniprot_glycoprotein(file_path=None, fasta_format=False):
@@ -184,10 +187,14 @@ def known_uniprot_glycoprotein(file_path=None, fasta_format=False):
 
     if fasta_format:
         reader = fasta.ProteinFastaFileParser(handle)
-        name_getter = lambda x: x.name
+
+        def name_getter(x):
+            return x.name
     else:
         reader = handle
-        name_getter = lambda x: fasta.default_parser(x)
+
+        def name_getter(x):
+            return fasta.default_parser(x)
 
     def checker_task(inqueue, outqueue, no_more_event):
         has_work = True
@@ -229,14 +236,14 @@ def known_uniprot_glycoprotein(file_path=None, fasta_format=False):
     outqueue = Queue()
 
     n_threads = 10
-    checkers = [threading.Thread(target=checker_task, args=(inqueue, outqueue, producer_done)) for i in range(n_threads)]
+    checkers = [threading.Thread(
+        target=checker_task, args=(inqueue, outqueue, producer_done)) for i in range(n_threads)]
     for check in checkers:
         check.start()
 
     consumer = threading.Thread(target=consumer_task, args=(outqueue, checker_done))
     consumer.start()
 
-    
     for protein in reader:
         inqueue.put(protein)
 
@@ -246,4 +253,3 @@ def known_uniprot_glycoprotein(file_path=None, fasta_format=False):
         checker.join()
     checker_done.set()
     consumer.join()
-

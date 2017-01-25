@@ -112,8 +112,10 @@ def glycopeptide_fa(context, fasta_file, database_connection, enzyme, missed_cle
                     reverse=False, dry_run=False):
     if reverse:
         task_type = ReversingMultipleProcessFastaGlycopeptideHypothesisSerializer
+        click.secho("Using ReversingMultipleProcessFastaGlycopeptideHypothesisSerializer", fg='yellow')
     elif dry_run:
         task_type = NonSavingMultipleProcessFastaGlycopeptideHypothesisSerializer
+        click.secho("Using NonSavingMultipleProcessFastaGlycopeptideHypothesisSerializer", fg='yellow')
     else:
         task_type = MultipleProcessFastaGlycopeptideHypothesisSerializer
 

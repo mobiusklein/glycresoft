@@ -42,3 +42,5 @@ from .serializer import (
 from .hypothesis import *
 
 from . import config
+
+from .migration import GlycanCompositionChromatogramAnalysisSerializer

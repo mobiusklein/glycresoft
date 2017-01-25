@@ -1,3 +1,6 @@
+import os
+from uuid import uuid4
+
 import click
 from .base import cli
 
@@ -6,7 +9,8 @@ from glycan_profiling.serialize import (
     SampleRun)
 
 from glycan_profiling.profiler import (
-    GlycanChromatogramAnalyzer, GlycopeptideLCMSMSAnalyzer)
+    GlycanChromatogramAnalyzer, GlycopeptideLCMSMSAnalyzer,
+    MzMLGlycanChromatogramAnalyzer, ProcessedMzMLDeserializer)
 
 from glycan_profiling.tandem.glycopeptide.scoring import CoverageWeightedBinomialScorer
 
@@ -17,6 +21,17 @@ from .validators import (
     validate_adduct, validate_glycopeptide_tandem_scoring_function,
     glycopeptide_tandem_scoring_functions,
     get_by_name_or_id)
+
+
+def make_analysis_output_path(prefix):
+    output_path_pattern = prefix + "_analysis_%d.db"
+    i = 1
+    while os.path.exists(output_path_pattern % i) and i < (2 ** 16):
+        i += 1
+    if i >= (2 ** 16):
+        return output_path_pattern % (uuid4().int,)
+    else:
+        return output_path_pattern % (i,)
 
 
 @cli.group(short_help='Identify structures in preprocessed data')
@@ -95,34 +110,49 @@ def search_glycopeptide(context, database_connection, sample_identifier, hypothe
             pickle.dump((target_hits, decoy_hits), handle)
 
 
-
-@analyze.command("search-glycan", short_help='Search preprocessed data for glycan compositions')
+@analyze.command("search-glycan", short_help=('Search preprocessed data for'
+                                              ' glycan compositions'))
 @click.pass_context
 @click.argument("database-connection")
 @click.argument("sample-identifier")
 @click.argument("hypothesis-identifier")
 @click.option("-m", "--mass-error-tolerance", type=float, default=1e-5,
-              help="Mass accuracy constraint, in parts-per-million error, for matching.")
+              help=("Mass accuracy constraint, in parts-per-million "
+                    "error, for matching."))
 @click.option("-g", "--grouping-error-tolerance", type=float, default=1.5e-5,
-              help="Mass accuracy constraint, in parts-per-million error, for grouping chromatograms.")
-@click.option("-n", "--analysis-name", default=None, help='Name for analysis to be performed.')
+              help=("Mass accuracy constraint, in parts-per-million error, for"
+                    " grouping chromatograms."))
+@click.option("-n", "--analysis-name", default=None,
+              help='Name for analysis to be performed.')
 @click.option("-a", "--adduct", 'adducts', multiple=True, nargs=2,
-              help="Adducts to consider. Specify name or formula, and a multiplicity.")
-@click.option("-d", "--minimum-mass", default=500., type=float, help="The minimum mass to consider signal at.")
-def search_glycan(context, database_connection, sample_identifier, hypothesis_identifier,
+              help=("Adducts to consider. Specify name or formula, and a"
+                    " multiplicity."))
+@click.option("-d", "--minimum-mass", default=500., type=float,
+              help="The minimum mass to consider signal at.")
+@click.option("-o", "--output-path", default=None, help=(
+              "Path to write resulting analysis to."))
+def search_glycan(context, database_connection, sample_identifier,
+                  hypothesis_identifier,
                   analysis_name, adducts, grouping_error_tolerance=1.5e-5,
-                  mass_error_tolerance=1e-5, minimum_mass=500., scoring_model=None):
+                  mass_error_tolerance=1e-5, minimum_mass=500.,
+                  scoring_model=None,
+                  output_path=None):
+    if output_path is None:
+        output_path = make_analysis_output_path("glycan")
     if scoring_model is None:
         scoring_model = GeneralScorer
 
     database_connection = DatabaseBoundOperation(database_connection)
-    try:
-        sample_run = get_by_name_or_id(
-            database_connection, SampleRun, sample_identifier)
-    except:
-        click.secho("Could not locate a Sample Run with identifier %r" %
-                    sample_identifier, fg='yellow')
-        raise click.Abort()
+    # try:
+    #     sample_run = get_by_name_or_id(
+    #         database_connection, SampleRun, sample_identifier)
+    # except:
+    #     click.secho("Could not locate a Sample Run with identifier %r" %
+    #                 sample_identifier, fg='yellow')
+    #     raise click.Abort()
+    ms_data = ProcessedMzMLDeserializer(sample_identifier, use_index=False)
+    sample_run = ms_data.sample_run
+
     try:
         hypothesis = get_by_name_or_id(
             database_connection, GlycanHypothesis, hypothesis_identifier)
@@ -147,9 +177,16 @@ def search_glycan(context, database_connection, sample_identifier, hypothesis_id
     click.secho("Preparing analysis of %s by %s" %
                 (sample_run.name, hypothesis.name), fg='cyan')
 
-    analyzer = GlycanChromatogramAnalyzer(
+    # analyzer = GlycanChromatogramAnalyzer(
+    #     database_connection._original_connection, hypothesis.id,
+    #     sample_run.id, adducts=adducts, mass_error_tolerance=mass_error_tolerance,
+    #     grouping_error_tolerance=grouping_error_tolerance, scoring_model=scoring_model,
+    #     minimum_mass=minimum_mass,
+    #     analysis_name=analysis_name)
+    analyzer = MzMLGlycanChromatogramAnalyzer(
         database_connection._original_connection, hypothesis.id,
-        sample_run.id, adducts=adducts, mass_error_tolerance=mass_error_tolerance,
+        sample_path=sample_identifier, output_path=output_path, adducts=adducts,
+        mass_error_tolerance=mass_error_tolerance,
         grouping_error_tolerance=grouping_error_tolerance, scoring_model=scoring_model,
         minimum_mass=minimum_mass,
         analysis_name=analysis_name)

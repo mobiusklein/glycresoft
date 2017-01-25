@@ -119,7 +119,7 @@ class PeptideBase(object):
         return relationship(Protein, backref=backref(name, lazy='dynamic'))
 
     calculated_mass = Column(Numeric(12, 6, asdecimal=False), index=True)
-    formula = Column(String(128), index=True)
+    formula = Column(String(128))
 
     def __iter__(self):
         return iter(self.convert())
@@ -144,11 +144,11 @@ class Peptide(PeptideBase, Base):
     start_position = Column(Integer)
     end_position = Column(Integer)
 
-    peptide_score = Column(Numeric(12, 6, asdecimal=False), index=True)
+    peptide_score = Column(Numeric(12, 6, asdecimal=False))
     peptide_score_type = Column(String(56))
 
-    base_peptide_sequence = Column(String(512), index=True)
-    modified_peptide_sequence = Column(String(512), index=True)
+    base_peptide_sequence = Column(String(512))
+    modified_peptide_sequence = Column(String(512))
 
     sequence_length = Column(Integer)
 
@@ -167,6 +167,8 @@ class Peptide(PeptideBase, Base):
     def __repr__(self):
         return "DBPeptideSequence({self.modified_peptide_sequence}, {self.n_glycosylation_sites})".format(self=self)
 
+    __table_args__ = (Index("ix_Peptide_mass_search_index", "calculated_mass", "hypothesis_id"),)
+
 
 class Glycopeptide(PeptideBase, Base):
     __tablename__ = "Glycopeptide"
@@ -178,7 +180,7 @@ class Glycopeptide(PeptideBase, Base):
     peptide = relationship(Peptide)
     glycan_combination = relationship(GlycanCombination)
 
-    glycopeptide_sequence = Column(String(512), index=True)
+    glycopeptide_sequence = Column(String(1024))
 
     hypothesis = relationship(GlycopeptideHypothesis, backref=backref('glycopeptides', lazy='dynamic'))
 

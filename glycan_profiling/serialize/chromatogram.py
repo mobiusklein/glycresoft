@@ -243,6 +243,7 @@ class ChromatogramTreeNode(Base, BoundToAnalysis):
                     continue
                 node_peak_map[node_peak_key] = True
                 member_ids.append(peak_id)
+
             if len(member_ids):
                 session.execute(ChromatogramTreeNodeToDeconvolutedPeak.insert(), [
                     {'node_id': inst.id, 'peak_id': member_id} for member_id in member_ids])

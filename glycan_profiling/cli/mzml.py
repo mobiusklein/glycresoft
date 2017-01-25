@@ -11,7 +11,10 @@ import ms_peak_picker
 
 from ms_deisotope.processor import MSFileLoader
 from glycan_profiling.chromatogram_tree import find_truncation_points
-from glycan_profiling.profiler import SampleConsumer
+from glycan_profiling.profiler import (
+    SampleConsumer,
+    ThreadedDatabaseScanCacheHandler,
+    ThreadedMzMLScanCacheHandler)
 
 
 @cli.group('mzml', short_help='Inspect and preprocess mzML files')
@@ -76,14 +79,21 @@ def tic_saddle_points(ms_file):
     help="Scan transformations to apply to MS^n scans. May specify more than once.")
 @click.option("-v", "--extract-only-tandem-envelopes", is_flag=True, default=False,
               help='Only work on regions that will be chosen for MS/MS')
+@click.option("--mzml/--no-mzml", default=True, is_flag=True, help="Enable/Disable mzML serialization. On by default")
+@click.option("--profile", default=False, is_flag=True, help=(
+    "Force profile scan configuration."))
 def preprocess(ms_file, database_connection, averagine=None, start_time=None, end_time=None, maximum_charge=None,
                name=None, msn_averagine=None, score_threshold=15., msn_score_threshold=2., missed_peaks=1,
                background_reduction=2., msn_background_reduction=0., transform=None, msn_transform=None,
-               processes=4, extract_only_tandem_envelopes=False):
+               processes=4, extract_only_tandem_envelopes=False, mzml=True, profile=False):
     if transform is None:
         transform = []
     if msn_transform is None:
         msn_transform = []
+    if mzml:
+        cache_handler_type = ThreadedMzMLScanCacheHandler
+    else:
+        cache_handler_type = ThreadedDatabaseScanCacheHandler
     click.echo("Preprocessing %s" % ms_file)
     minimum_charge = 1 if maximum_charge > 0 else -1
     charge_range = (minimum_charge, maximum_charge)
@@ -96,7 +106,7 @@ def preprocess(ms_file, database_connection, averagine=None, start_time=None, en
         loader.get_scan_by_time(end_time)).id
 
     loader.reset()
-    is_profile = next(loader).precursor.is_profile
+    is_profile = (next(loader).precursor.is_profile or profile)
     if is_profile:
         click.secho("Spectra are profile")
     else:
@@ -105,7 +115,12 @@ def preprocess(ms_file, database_connection, averagine=None, start_time=None, en
     if name is None:
         name = os.path.splitext(os.path.basename(ms_file))[0]
 
-    name = validate_sample_run_name(None, database_connection, name)
+    if not mzml:
+        name = validate_sample_run_name(None, database_connection, name)
+    else:
+        if os.path.exists(database_connection) and not os.access(database_connection, os.W_OK):
+            click.secho("Can't write to output file path", fg='red')
+            raise click.Abort()
 
     click.secho("Initializing %s" % name, fg='green')
     click.echo("from %s to %s" % (start_scan_id, end_scan_id))
@@ -117,33 +132,34 @@ def preprocess(ms_file, database_connection, averagine=None, start_time=None, en
     if is_profile:
         ms1_peak_picking_args = {
             "transforms": [
-                ms_peak_picker.scan_filter.FTICRBaselineRemoval(scale=background_reduction),
+                ms_peak_picker.scan_filter.FTICRBaselineRemoval(
+                    scale=background_reduction, window_length=2),
                 ms_peak_picker.scan_filter.SavitskyGolayFilter()
             ] + list(transform)
         }
     else:
         ms1_peak_picking_args = {
             "transforms": [
-                ms_peak_picker.scan_filter.FTICRBaselineRemoval(scale=background_reduction),
+                ms_peak_picker.scan_filter.FTICRBaselineRemoval(
+                    scale=background_reduction, window_length=2),
             ] + list(transform)
         }
 
     if msn_background_reduction > 0.0:
         msn_peak_picking_args = {
             "transforms": [
-                ms_peak_picker.scan_filter.ConstantThreshold(10),
-                ms_peak_picker.scan_filter.FTICRBaselineRemoval(scale=msn_background_reduction),
+                ms_peak_picker.scan_filter.FTICRBaselineRemoval(
+                    scale=msn_background_reduction, window_length=2),
             ] + list(msn_transform)
         }
     else:
         msn_peak_picking_args = {
             "transforms": [
-                ms_peak_picker.scan_filter.ConstantThreshold(10)
             ] + list(msn_transform)
         }
 
     ms1_deconvolution_args = {
-        "scorer": ms_deisotope.scoring.PenalizedMSDeconVFitter(score_threshold),
+        "scorer": ms_deisotope.scoring.PenalizedMSDeconVFitter(score_threshold, 2.),
         "max_missed_peaks": missed_peaks,
         "averagine": averagine
     }
@@ -161,7 +177,7 @@ def preprocess(ms_file, database_connection, averagine=None, start_time=None, en
         msn_peak_picking_args=msn_peak_picking_args,
         msn_deconvolution_args=msn_deconvolution_args,
         storage_path=database_connection, sample_name=name,
-        start_scan_id=start_scan_id,
+        start_scan_id=start_scan_id, cache_handler_type=cache_handler_type,
         end_scan_id=end_scan_id, n_processes=processes,
         extract_only_tandem_envelopes=extract_only_tandem_envelopes)
 

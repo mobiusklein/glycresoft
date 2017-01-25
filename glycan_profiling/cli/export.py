@@ -17,6 +17,9 @@ from glycan_profiling.output import (
     GlycopeptideLCMSMSAnalysisCSVSerializer,
     GlycopeptideSpectrumMatchAnalysisCSVSerializer)
 
+from glycan_profiling.serialize import (DatabaseScanDeserializer, SampleRun)
+from glycan_profiling.scan_cache import MzMLScanCacheHandler
+
 
 class ctxstream(object):
     def __init__(self, stream):
@@ -213,3 +216,27 @@ def glycopeptide_spectrum_matches(database_connection, analysis_identifier, outp
     with output_stream:
         job = GlycopeptideSpectrumMatchAnalysisCSVSerializer(output_stream, generate(), protein_index)
         job.run()
+
+
+@export.command("sample-run", short_help="Export a fully preprocessed sample run as mzML")
+@click.argument("database-connection")
+@click.argument("sample-run-identifier")
+@click.argument("output-path")
+def export_sample_run(database_connection, sample_run_identifier, output_path):
+    database_connection = DatabaseBoundOperation(database_connection)
+    sample_run = get_by_name_or_id(
+        database_connection.session, SampleRun, sample_run_identifier)
+    n_spectra = sample_run.ms_scans.count()
+    writer = MzMLScanCacheHandler.configure_storage(output_path, sample_run.name, None)
+    writer.n_spectra = n_spectra
+    reader = DatabaseScanDeserializer(
+        database_connection._original_connection, sample_run_id=sample_run.id)
+    i = 0
+    last = 0
+    for scan_bunch in reader:
+        i += 1 + len(scan_bunch.products)
+        if i - 100 > last:
+            click.echo("%0.2f%% complete" % (i * 100. / n_spectra))
+            last = i
+        writer.save_bunch(*scan_bunch)
+    writer.complete()

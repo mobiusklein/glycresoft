@@ -40,7 +40,8 @@ PROTEOMICS_SCORE = {
     "MS-GF:EValue": 'smaller'
 }
 
-def get_score_comparator(score_type):
+
+def score_comparator(score_type):
     try:
         preference = PROTEOMICS_SCORE[score_type]
         if preference == "smaller":
@@ -120,7 +121,7 @@ def remove_peptide_sequence_alterations(base_sequence, insert_sites, delete_site
     ----------
     base_sequence : str
         The peptide sequence string which contains a combination
-        of insertion and deletions
+        of insertion and deletions.
     insert_sites : list
         A list of (position, None) pairs indicating the position of
         an amino acid insertion to be removed.
@@ -222,11 +223,11 @@ class PeptideCollection(object):
         self.protein_set = protein_set
 
     def add(self, peptide):
-        comparator = get_score_comparator(peptide.peptide_score_type)
+        comparator = score_comparator(peptide.peptide_score_type)
         group = self.store[peptide.modified_peptide_sequence]
         if group:
             first = group.first()
-            if  comparator(peptide.peptide_score, first.peptide_score):
+            if comparator(peptide.peptide_score, first.peptide_score):
                 group.clear()
                 group[peptide.protein_id] = peptide
                 self.store[peptide.modified_peptide_sequence] = group
@@ -573,7 +574,8 @@ class Proteome(DatabaseBoundOperation, TaskBase):
         DatabaseBoundOperation.__init__(self, connection)
         self.mzid_path = mzid_path
         self.hypothesis_id = hypothesis_id
-        self.parser = Parser(mzid_path, retrieve_refs=True, iterative=False, build_id_cache=True)
+        # self.parser = Parser(mzid_path, retrieve_refs=True, iterative=False, build_id_cache=True)
+        self.parser = Parser(mzid_path, retrieve_refs=True, iterative=True, use_index=True)
         self.enzymes = []
         self.constant_modifications = []
         self.modification_translation_table = {}
@@ -591,6 +593,7 @@ class Proteome(DatabaseBoundOperation, TaskBase):
             "EnzymeName", retrieve_refs=True, iterative=True)})
 
     def load_modifications(self):
+        self.parser.reset()
         search_param_modifications = list(self.parser.iterfind(
             "ModificationParams", retrieve_refs=True, iterative=True))
         constant_modifications = []
@@ -674,19 +677,25 @@ class Proteome(DatabaseBoundOperation, TaskBase):
         if name not in self.target_proteins:
             return True
         elif (self._ignore_protein_regex is not None) and (
-              self._ignore_protein_regex.match(name)):
+                self._ignore_protein_regex.match(name)):
             return True
         return False
 
     def load_proteins(self):
+        self.parser.reset()
         self._find_used_database()
         session = self.session
         protein_map = {}
+        self.parser.reset()
         for protein in self.parser.iterfind(
-                "DBSequence", retrieve_refs=True, recursive=False, iterative=True):
+                "DBSequence", retrieve_refs=True, recursive=True, iterative=True):
+            check = protein.copy()
             seq = protein.pop('Seq', None)
             name = protein.pop('accession')
             if seq is None:
+                print(check, seq)
+                import IPython
+                IPython.embed()
                 try:
                     prot = self.resolve_protein(name)
                     seq = prot.protein_sequence
@@ -719,6 +728,7 @@ class Proteome(DatabaseBoundOperation, TaskBase):
         self._clear_protein_resolver()
 
     def load_spectrum_matches(self):
+        self.parser.reset()
         last = 0
         i = 0
         try:

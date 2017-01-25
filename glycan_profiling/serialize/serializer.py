@@ -2,7 +2,7 @@ from collections import defaultdict
 from uuid import uuid4
 
 from ms_deisotope.output.db import (
-    Base, DeconvolutedPeak, MSScan, Mass, HasUniqueName,
+    Base, DeconvolutedPeak, MSScan, Mass, HasUniqueName, PrecursorInformation,
     SampleRun, DatabaseScanDeserializer, DatabaseBoundOperation)
 
 from glycan_profiling.task import TaskBase

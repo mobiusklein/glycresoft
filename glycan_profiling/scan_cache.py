@@ -10,9 +10,14 @@ try:
 except ImportError:
     from queue import Queue, Empty as QueueEmptyException
 
+from ms_deisotope.data_source import MSFileLoader
+
+from ms_deisotope.output.mzml import MzMLScanSerializer
+
 from ms_deisotope.output.db import (
-    DatabaseScanSerializer, BatchingDatabaseScanSerializer, ScanBunch, DatabaseScanDeserializer,
-    FittedPeak, DeconvolutedPeak, DatabaseBoundOperation,
+    BatchingDatabaseScanSerializer, ScanBunch,
+    DatabaseScanDeserializer, FittedPeak,
+    DeconvolutedPeak, DatabaseBoundOperation,
     MSScan)
 from glycan_profiling.piped_deconvolve import ScanGeneratorBase
 
@@ -46,7 +51,7 @@ class ScanCacheHandlerBase(object):
         pass
 
     @classmethod
-    def configure_storage(cls, path=None, name=None):
+    def configure_storage(cls, path=None, name=None, source=None):
         return cls()
 
     def accumulate(self, scan):
@@ -104,7 +109,7 @@ class DatabaseScanCacheHandler(ScanCacheHandlerBase):
         self.serializer.session.expunge_all()
 
     @classmethod
-    def configure_storage(cls, path=None, name=None):
+    def configure_storage(cls, path=None, name=None, source=None):
         if path is not None:
             if name is None:
                 sample_name = os.path.basename(path)
@@ -218,8 +223,129 @@ class ThreadedDatabaseScanCacheHandler(DatabaseScanCacheHandler):
         self._end_thread()
 
     def complete(self):
+        self.save()
         self._end_thread()
         super(ThreadedDatabaseScanCacheHandler, self).complete()
+
+
+class MzMLScanCacheHandler(ScanCacheHandlerBase):
+    def __init__(self, path, sample_name, n_spectra=None):
+        if n_spectra is None:
+            n_spectra = 2e5
+        super(MzMLScanCacheHandler, self).__init__()
+        self.path = path
+        self.handle = open(path, 'wb')
+        self.serializer = MzMLScanSerializer(self.handle, n_spectra, sample_name=sample_name)
+
+    @classmethod
+    def configure_storage(cls, path=None, name=None, source=None):
+        if path is not None:
+            if name is None:
+                sample_name = os.path.basename(path)
+            else:
+                sample_name = name
+        else:
+            path = "processed.mzML"
+        if source is not None:
+            reader = MSFileLoader(source.scan_source)
+            n_spectra = len(reader.index)
+            inst = cls(path, sample_name, n_spectra=n_spectra)
+            try:
+                description = reader.file_description()
+                for key in description.get("fileContent", []):
+                    inst.serializer.add_file_contents(key)
+                for source_file in description.get('sourceFileList', []):
+                    inst.add_source_file(source_file)
+            except AttributeError:
+                pass
+        else:
+            n_spectra = 2e5
+            inst = cls(path, sample_name, n_spectra=n_spectra)
+        # Force marshalling of controlled vocabularies early.
+        inst.serializer.writer.param("32-bit float")
+        return inst
+
+    def save_bunch(self, precursor, products):
+        self.serializer.save_scan_bunch(ScanBunch(precursor, products))
+
+    def complete(self):
+        self.save()
+        self.serializer.complete()
+        self.serializer.format()
+
+
+class ThreadedMzMLScanCacheHandler(MzMLScanCacheHandler):
+    def __init__(self, path, sample_name, n_spectra=None):
+        super(ThreadedMzMLScanCacheHandler, self).__init__(path, sample_name, n_spectra)
+        self.queue = Queue(200)
+        self.worker_thread = threading.Thread(target=self._worker_loop)
+        self.worker_thread.start()
+
+    def _save_bunch(self, precursor, products):
+        self.serializer.save(ScanBunch(precursor, products))
+
+    def save_bunch(self, precursor, products):
+        self.queue.put((precursor, products))
+
+    def _worker_loop(self):
+        has_work = True
+        i = 0
+
+        def drain_queue():
+            current_work = []
+            try:
+                while len(current_work) < 300:
+                    current_work.append(self.queue.get_nowait())
+            except QueueEmptyException:
+                pass
+            if len(current_work) > 5:
+                log_handle.log("Drained Write Queue of %d items" % (len(current_work),))
+            return current_work
+
+        while has_work:
+            try:
+                next_bunch = self.queue.get(True, 1)
+                i += 1
+                if next_bunch == DONE:
+                    has_work = False
+                    continue
+                self._save_bunch(*next_bunch)
+                if self.queue.qsize() > 0:
+                    current_work = drain_queue()
+                    for next_bunch in current_work:
+                        i += 1
+                        if next_bunch == DONE:
+                            has_work = False
+                        else:
+                            self._save_bunch(*next_bunch)
+                            i += 1
+            except QueueEmptyException:
+                continue
+            except Exception as e:
+                log_handle.error("An error occurred while writing scans to disk", e)
+
+    def sync(self):
+        self._end_thread()
+        self.worker_thread = threading.Thread(target=self._worker_loop)
+        self.worker_thread.start()
+
+    def _end_thread(self):
+        self.queue.put(DONE)
+        if self.worker_thread is not None:
+            self.worker_thread.join()
+
+    def commit(self):
+        super(ThreadedMzMLScanCacheHandler, self).save()
+        self._end_thread()
+
+    def complete(self):
+        self.save()
+        self._end_thread()
+        try:
+            super(ThreadedMzMLScanCacheHandler, self).complete()
+        except Exception:
+            import traceback
+            traceback.print_exc()
 
 
 class DatabaseScanGenerator(ScanGeneratorBase):
@@ -284,4 +410,8 @@ class SampleRunDestroyer(DatabaseBoundOperation, TaskBase):
             i += 1
             if i % 100 == 0:
                 self.session.flush()
+        self.session.flush()
+
+    def delete_ms_scans(self):
+        self.session.query(MSScan).delete(synchronize_session=False)
         self.session.flush()

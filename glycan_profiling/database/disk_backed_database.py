@@ -43,7 +43,7 @@ DEFAULT_THRESHOLD_CACHE_TOTAL_COUNT = 2e5
 # number could even be set to 1 and not suffer runtime penalties becase
 # overlapping intervals are merged and only consume a single slot, but
 # this is retained at >1 for convenience.
-DEFAULT_CACHE_SIZE = 5
+DEFAULT_CACHE_SIZE = 2
 
 # Controls the mass interval loaded from the database when a
 # query misses the alreadly loaded intervals. Uses the assumption
@@ -323,6 +323,27 @@ class GlycopeptideDiskBackedStructureDatabase(DeclarativeDiskBackedDatabase):
         Glycopeptide.__table__.c.protein_id,
         Peptide.__table__.c.start_position,
         Peptide.__table__.c.end_position,
+        Glycopeptide.__table__.c.hypothesis_id,
+    ]
+    mass_field = Glycopeptide.__table__.c.calculated_mass
+    identity_field = Glycopeptide.__table__.c.id
+
+    @property
+    def hypothesis(self):
+        return self.session.query(GlycopeptideHypothesis).get(self.hypothesis_id)
+
+    def _limit_to_hypothesis(self, selectable):
+        return selectable.where(Glycopeptide.__table__.c.hypothesis_id == self.hypothesis_id)
+
+
+class GlycopeptideOnlyDiskBackedStructureDatabase(DeclarativeDiskBackedDatabase):
+    selectable = Glycopeptide.__table__
+    fields = [
+        Glycopeptide.__table__.c.id,
+        Glycopeptide.__table__.c.calculated_mass,
+        Glycopeptide.__table__.c.glycopeptide_sequence,
+        Glycopeptide.__table__.c.peptide_id,
+        Glycopeptide.__table__.c.protein_id,
         Glycopeptide.__table__.c.hypothesis_id,
     ]
     mass_field = Glycopeptide.__table__.c.calculated_mass

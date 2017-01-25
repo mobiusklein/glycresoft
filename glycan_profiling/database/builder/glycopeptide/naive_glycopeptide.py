@@ -6,7 +6,7 @@ from glycopeptidepy.algorithm import reverse_preserve_sequon
 from .proteomics.peptide_permutation import (ProteinDigestor, MultipleProcessProteinDigestor)
 from .proteomics.fasta import ProteinFastaFileParser
 from .common import (
-    GlycopeptideHypothesisSerializerBase, DatabaseBoundOperation,
+    GlycopeptideHypothesisSerializerBase,
     PeptideGlycosylator, PeptideGlycosylatingProcess,
     NonSavingPeptideGlycosylatingProcess)
 
@@ -157,7 +157,10 @@ class MultipleProcessFastaGlycopeptideHypothesisSerializer(FastaGlycopeptideHypo
             process.join()
 
 
-class ReversingMultipleProcessFastaGlycopeptideHypothesisSerializer(MultipleProcessFastaGlycopeptideHypothesisSerializer):
+_MPFGHS = MultipleProcessFastaGlycopeptideHypothesisSerializer
+
+
+class ReversingMultipleProcessFastaGlycopeptideHypothesisSerializer(_MPFGHS):
     def extract_proteins(self):
             i = 0
             for protein in ProteinFastaFileParser(self.fasta_file):
@@ -172,7 +175,7 @@ class ReversingMultipleProcessFastaGlycopeptideHypothesisSerializer(MultipleProc
             self.session.commit()
 
 
-class NonSavingMultipleProcessFastaGlycopeptideHypothesisSerializer(MultipleProcessFastaGlycopeptideHypothesisSerializer):
+class NonSavingMultipleProcessFastaGlycopeptideHypothesisSerializer(_MPFGHS):
     def _spawn_glycosylator(self, input_queue, done_event):
         return NonSavingPeptideGlycosylatingProcess(
             self._original_connection, self.hypothesis_id, input_queue,

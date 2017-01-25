@@ -1,6 +1,5 @@
 import re
 import warnings
-import logging
 
 from glycan_profiling.database.disk_backed_database import (
     GlycanCompositionDiskBackedStructureDatabase,
@@ -8,7 +7,7 @@ from glycan_profiling.database.disk_backed_database import (
 
 from glycan_profiling.serialize import (
     DatabaseScanDeserializer, AnalysisSerializer,
-    AnalysisTypeEnum)
+    AnalysisTypeEnum, GlycanCompositionChromatogramAnalysisSerializer)
 
 from glycan_profiling.piped_deconvolve import (
     ScanGenerator as PipedScanGenerator)
@@ -30,15 +29,13 @@ from glycan_profiling.tandem.glycopeptide import (
 
 
 from glycan_profiling.scan_cache import (
-    ThreadedDatabaseScanCacheHandler)
+    ThreadedDatabaseScanCacheHandler, ThreadedMzMLScanCacheHandler)
 
 from glycan_profiling.task import TaskBase
 
 from brainpy import periodic_table
 from ms_deisotope.averagine import Averagine, glycan as n_glycan_averagine
-
-
-logger = logging.getLogger("chromatogram_profiler")
+from ms_deisotope.output.mzml import ProcessedMzMLDeserializer
 
 
 def validate_element(element):
@@ -54,7 +51,7 @@ def parse_averagine_formula(formula):
 
 
 class SampleConsumer(TaskBase):
-    def __init__(self, mzml_path, averagine=n_glycan_averagine, charge_range=(-1, -8),
+    def __init__(self, ms_file, averagine=n_glycan_averagine, charge_range=(-1, -8),
                  ms1_peak_picking_args=None, msn_peak_picking_args=None, ms1_deconvolution_args=None,
                  msn_deconvolution_args=None, start_scan_id=None, end_scan_id=None, storage_path=None,
                  sample_name=None, cache_handler_type=None, n_processes=5, extract_only_tandem_envelopes=False):
@@ -64,7 +61,7 @@ class SampleConsumer(TaskBase):
         if isinstance(averagine, basestring):
             averagine = parse_averagine_formula(averagine)
 
-        self.mzml_path = mzml_path
+        self.ms_file = ms_file
         self.storage_path = storage_path
         self.sample_name = sample_name
 
@@ -74,7 +71,7 @@ class SampleConsumer(TaskBase):
 
         n_helpers = max(self.n_processes - 1, 0)
         self.scan_generator = PipedScanGenerator(
-            mzml_path, averagine=averagine, charge_range=charge_range,
+            ms_file, averagine=averagine, charge_range=charge_range,
             number_of_helper_deconvoluters=n_helpers,
             ms1_peak_picking_args=ms1_peak_picking_args,
             msn_peak_picking_args=msn_peak_picking_args,
@@ -93,7 +90,7 @@ class SampleConsumer(TaskBase):
         self.log("Setting Sink")
         sink = ScanSink(self.scan_generator, self.cache_handler_type)
         self.log("Initializing Cache")
-        sink.configure_cache(self.storage_path, self.sample_name)
+        sink.configure_cache(self.storage_path, self.sample_name, self.scan_generator)
 
         self.log("Begin Processing")
         last_scan_time = 0
@@ -131,11 +128,13 @@ class GlycanChromatogramAnalyzer(TaskBase):
         self.analysis_name = analysis_name
         self.analysis = None
 
-    def save_solutions(self, solutions, peak_mapping):
+    def save_solutions(self, solutions, extractor, database):
         if self.analysis_name is None:
             return
-        analysis_saver = AnalysisSerializer(self.database_connection, self.sample_run_id, self.analysis_name)
-        analysis_saver.set_peak_lookup_table(peak_mapping)
+        self.log('Saving solutions')
+        analysis_saver = AnalysisSerializer(
+            self.database_connection, self.sample_run_id, self.analysis_name)
+        analysis_saver.set_peak_lookup_table(extractor.peak_mapping)
         analysis_saver.set_analysis_type(AnalysisTypeEnum.glycan_lc_ms.name)
 
         analysis_saver.set_parameters({
@@ -162,23 +161,78 @@ class GlycanChromatogramAnalyzer(TaskBase):
         self.analysis = analysis_saver.analysis
         analysis_saver.commit()
 
-    def run(self):
+    def make_peak_loader(self):
         peak_loader = DatabaseScanDeserializer(
             self.database_connection, sample_run_id=self.sample_run_id)
+        return peak_loader
 
+    def make_database(self):
         database = GlycanCompositionDiskBackedStructureDatabase(
             self.database_connection, self.hypothesis_id)
+        return database
 
+    def make_chromatogram_extractor(self, peak_loader):
         extractor = ChromatogramExtractor(
             peak_loader, grouping_tolerance=self.grouping_error_tolerance,
             minimum_mass=self.minimum_mass)
+        return extractor
+
+    def make_chromatogram_processor(self, extractor, database):
         proc = ChromatogramProcessor(
             extractor, database, mass_error_tolerance=self.mass_error_tolerance, adducts=self.adducts,
             scoring_model=self.scoring_model, network_sharing=self.network_sharing)
-        proc.start()
-        self.log('Saving solutions')
-        self.save_solutions(proc.solutions, extractor.peak_mapping)
         return proc
+
+    def run(self):
+        peak_loader = self.make_peak_loader()
+        database = self.make_database()
+        extractor = self.make_chromatogram_extractor(peak_loader)
+        proc = self.make_chromatogram_processor(extractor, database)
+        proc.run()
+        self.save_solutions(proc.solutions, extractor, database)
+        return proc
+
+
+class MzMLGlycanChromatogramAnalyzer(GlycanChromatogramAnalyzer):
+    def __init__(self, database_connection, hypothesis_id, sample_path, output_path,
+                 adducts=None, mass_error_tolerance=1e-5, grouping_error_tolerance=1.5e-5,
+                 scoring_model=None, network_sharing=0.2, minimum_mass=500.,
+                 analysis_name=None):
+        super(MzMLGlycanChromatogramAnalyzer, self).__init__(
+            database_connection, hypothesis_id, -1, adducts,
+            mass_error_tolerance, grouping_error_tolerance,
+            scoring_model, network_sharing, minimum_mass,
+            analysis_name)
+        self.sample_path = sample_path
+        self.output_path = output_path
+
+    def make_peak_loader(self):
+        peak_loader = ProcessedMzMLDeserializer(self.sample_path)
+        return peak_loader
+
+    def save_solutions(self, solutions, extractor, database):
+        if self.analysis_name is None:
+            return
+        self.log('Saving solutions')
+
+        exporter = GlycanCompositionChromatogramAnalysisSerializer(
+            self.output_path, self.analysis_name, extractor.peak_loader.sample_run,
+            solutions, database, extractor)
+        exporter.run()
+
+        exporter.set_analysis_type(AnalysisTypeEnum.glycan_lc_ms.name)
+
+        exporter.set_parameters({
+            "hypothesis_id": self.hypothesis_id,
+            "sample_run_id": self.sample_path,
+            "sample_path": self.sample_path,
+            "sample_name": extractor.peak_loader.sample_run.name,
+            "mass_error_tolerance": self.mass_error_tolerance,
+            "grouping_error_tolerance": self.grouping_error_tolerance,
+            "network_sharing": self.network_sharing,
+            "adducts": [adduct.name for adduct in self.adducts],
+            "minimum_mass": self.minimum_mass,
+        })
 
 
 class GlycopeptideLCMSMSAnalyzer(TaskBase):

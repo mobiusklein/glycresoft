@@ -1,3 +1,4 @@
+import sys
 from multiprocessing import freeze_support
 from glycan_profiling.cli import (
     base, build_db, tools, mzml, analyze, config,

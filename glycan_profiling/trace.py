@@ -1,5 +1,7 @@
 import time
-from collections import defaultdict, OrderedDict, namedtuple
+from collections import defaultdict
+
+import numpy as np
 
 from glycan_profiling.task import TaskBase
 
@@ -10,21 +12,14 @@ from .chromatogram_tree import (
     ChromatogramFilter, GlycanCompositionChromatogram, GlycopeptideChromatogram,
     ChromatogramOverlapSmoother)
 
-from .scan_cache import (
-    NullScanCacheHandler, ThreadedDatabaseScanCacheHandler)
+from .scan_cache import NullScanCacheHandler
 
 from .scoring import (
     ChromatogramSolution, NetworkScoreDistributor, ChromatogramScorer)
 
 
-dummyscan = namedtuple('dummyscan', ["id", "index", "scan_time"])
-
-
-fake_scan = dummyscan("--not-a-real-scan--", -1, -1)
-
-
 class ScanSink(object):
-    def __init__(self, scan_generator, cache_handler_type=ThreadedDatabaseScanCacheHandler):
+    def __init__(self, scan_generator, cache_handler_type=NullScanCacheHandler):
         self.scan_generator = scan_generator
         self.scan_store = None
         self._scan_store_type = cache_handler_type
@@ -43,10 +38,9 @@ class ScanSink(object):
         except AttributeError:
             return None
 
-    def configure_cache(self, storage_path=None, name=None):
-        if storage_path is None:
-            storage_path = self.scan_source
-        self.scan_store = self._scan_store_type.configure_storage(storage_path, name)
+    def configure_cache(self, storage_path=None, name=None, source=None):
+        self.scan_store = self._scan_store_type.configure_storage(
+            storage_path, name, source)
 
     def configure_iteration(self, *args, **kwargs):
         self.scan_generator.configure_iteration(*args, **kwargs)
@@ -432,7 +426,7 @@ class ChromatogramEvaluator(TaskBase):
 
         solutions = self.evaluate(chromatograms, base_coef, support_coef, rt_delta, min_points, smooth)
 
-        if adducts is not None:
+        if adducts is not None and len(adducts):
             hold = prune_bad_adduct_branches(ChromatogramFilter(solutions))
             self.log("Re-evaluating after adduct pruning")
             solutions = self.evaluate(hold, base_coef, support_coef, rt_delta)
@@ -459,7 +453,6 @@ class ChromatogramExtractor(TaskBase):
         self.min_points = min_points
         self.delta_rt = delta_rt
 
-        self.tracer = None
         self.accumulated = None
         self.annotated_peaks = None
         self.peak_mapping = None
@@ -475,10 +468,11 @@ class ChromatogramExtractor(TaskBase):
         self.accumulated = self.peak_loader.ms1_peaks_above(self.minimum_mass)
         self.annotated_peaks = [x[:2] for x in self.accumulated]
         self.peak_mapping = {x[:2]: x[2] for x in self.accumulated}
+        self.minimum_intensity = np.percentile([p[1].intensity for p in self.accumulated], 5)
 
     def aggregate_chromatograms(self):
         forest = ChromatogramForest([], self.grouping_tolerance, self.scan_id_to_rt)
-        forest.aggregate_unmatched_peaks(self.annotated_peaks, self.minimum_mass, self.minimum_intensity)
+        forest.aggregate_peaks(self.annotated_peaks, self.minimum_mass, self.minimum_intensity)
         chroma = list(forest)
         self.log("%d Chromatograms Extracted." % (len(chroma),))
         self.chromatograms = ChromatogramFilter.process(
