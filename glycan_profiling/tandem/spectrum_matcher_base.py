@@ -1,4 +1,10 @@
 from collections import defaultdict
+from threading import Thread
+from multiprocessing import Process, Queue, Event, Manager
+try:
+    from Queue import Empty as QueueEmptyException
+except ImportError:
+    from queue import Empty as QueueEmptyException
 
 from glypy.composition.glycan_composition import FrozenMonosaccharideResidue, Composition
 from ms_deisotope import DeconvolutedPeakSet
@@ -328,13 +334,14 @@ class SpectrumSolutionSet(object):
 
 class TandemClusterEvaluatorBase(TaskBase):
 
-    def __init__(self, tandem_cluster, scorer_type, structure_database, verbose=False):
+    def __init__(self, tandem_cluster, scorer_type, structure_database, verbose=False, n_processes=1):
         self.tandem_cluster = tandem_cluster
         self.scorer_type = scorer_type
         self.structure_database = structure_database
         self.verbose = verbose
+        self.n_processes = n_processes
 
-    def score_one(self, scan, precursor_error_tolerance=1e-5, *args, **kwargs):
+    def score_one(self, scan, precursor_error_tolerance=1e-5, **kwargs):
         solutions = []
 
         hits = self.structure_database.search_mass_ppm(
@@ -342,18 +349,18 @@ class TandemClusterEvaluatorBase(TaskBase):
             precursor_error_tolerance)
 
         for structure in hits:
-            result = self.evaluate(scan, structure, *args, **kwargs)
+            result = self.evaluate(scan, structure, **kwargs)
             solutions.append(result)
         out = SpectrumSolutionSet(
             scan, sorted(
                 solutions, key=lambda x: x.score, reverse=True)).threshold()
         return out
 
-    def score_all(self, precursor_error_tolerance=1e-5, simplify=False, *args, **kwargs):
+    def score_all(self, precursor_error_tolerance=1e-5, simplify=False, **kwargs):
         out = []
         for scan in self.tandem_cluster:
             solutions = self.score_one(
-                scan, precursor_error_tolerance, *args, **kwargs)
+                scan, precursor_error_tolerance, **kwargs)
             if len(solutions) > 0:
                 out.append(solutions)
         if simplify:
@@ -402,7 +409,7 @@ class TandemClusterEvaluatorBase(TaskBase):
                 self.log("... Mapping Segment Done.")
         return scan_map, hit_map, hit_to_scan
 
-    def _evaluate_hit_groups(self, scan_map, hit_map, hit_to_scan, *args, **kwargs):
+    def _evaluate_hit_groups_single_process(self, scan_map, hit_map, hit_to_scan, *args, **kwargs):
         scan_solution_map = defaultdict(list)
         self.log("... Searching Hits (%d)" % (len(hit_to_scan),))
         i = 0
@@ -434,10 +441,222 @@ class TandemClusterEvaluatorBase(TaskBase):
             result_set.append(out)
         return result_set
 
-    def score_bunch(self, scans, precursor_error_tolerance=1e-5, *args, **kwargs):
+    @property
+    def _worker_specification(self):
+        raise NotImplementedError()
+
+    def _evaluate_hit_groups_multiple_processes(self, scan_map, hit_map, hit_to_scan, **kwargs):
+        worker_type, init_args = self._worker_specification
+        dispatcher = IdentificationProcessDispatcher(
+            worker_type, self.scorer_type, evaluation_args=kwargs, init_args=init_args,
+            n_processes=self.n_processes)
+        return dispatcher.process(scan_map, hit_map, hit_to_scan)
+
+    def _evaluate_hit_groups(self, scan_map, hit_map, hit_to_scan, **kwargs):
+        if self.n_processes == 1 or len(hit_map) < 100:
+            return self._evaluate_hit_groups_single_process(
+                scan_map, hit_map, hit_to_scan, **kwargs)
+        else:
+            return self._evaluate_hit_groups_multiple_processes(
+                scan_map, hit_map, hit_to_scan, **kwargs)
+
+    def score_bunch(self, scans, precursor_error_tolerance=1e-5, **kwargs):
         scan_map, hit_map, hit_to_scan = self._map_scans_to_hits(
             scans, precursor_error_tolerance)
-        scan_solution_map = self._evaluate_hit_groups(
-            scan_map, hit_map, hit_to_scan, *args, **kwargs)
+        scan_solution_map = self._evaluate_hit_groups(scan_map, hit_map, hit_to_scan, **kwargs)
         solutions = self._collect_scan_solutions(scan_solution_map, scan_map)
         return solutions
+
+
+class IdentificationProcessDispatcher(TaskBase):
+    """Orchestrates distributing the spectrum match evaluation
+    task across several processes.
+
+    The distribution pushes individual structures ("targets") and
+    the scan ids they mapped to in the MS1 dimension to each worker.
+
+    All scans in the batch being worked on are made available over
+    an IPC synchronized dictionary.
+
+    Attributes
+    ----------
+    done_event : multiprocessing.Event
+        An Event indicating that all work items
+        have been placed on `input_queue`
+    evaluation_args : dict
+        A dictionary containing arguments to be
+        passed through to `evaluate` on the worker
+        processes.
+    init_args : dict
+        A dictionary containing extra arguments
+        to use when initializing worker process
+        instances.
+    input_queue : multiprocessing.Queue
+        The queue from which worker processes
+        will read their targets and scan id mappings
+    ipc_manager : multiprocessing.SyncManager
+        Provider of IPC dictionary synchronization
+    log_controller : MessageSpooler
+        Logging facility to funnel messages from workers
+        through into the main process's log stream
+    n_processes : int
+        The number of worker processes to spawn
+    output_queue : multiprocessing.Queue
+        The queue which worker processes will
+        put ther results on, read in the main
+        process.
+    scan_load_map : multiprocessing.SyncManager.dict
+        An inter-process synchronized dictionary which
+        maps scan ids to scans. Used by worker processes
+        to request individual scans by name when they are
+        not found locally.
+    scan_solution_map : defaultdict(list)
+        A mapping from scan id to all candidate solutions.
+    scorer_type : SpectrumMatcherBase
+        The type used by workers to evaluate spectrum matches
+    worker_type : SpectrumIdentificationWorkerBase
+        The type instantiated to construct worker processes
+    workers : list
+        Container for created workers.
+    """
+    def __init__(self, worker_type, scorer_type, evaluation_args=None, init_args=None, n_processes=3):
+        if evaluation_args is None:
+            evaluation_args = dict()
+
+        self.worker_type = worker_type
+        self.scorer_type = scorer_type
+        self.n_processes = n_processes
+        self.done_event = Event()
+        self.input_queue = Queue()
+        self.output_queue = Queue()
+        self.scan_solution_map = defaultdict(list)
+        self.evaluation_args = evaluation_args
+        self.init_args = init_args
+        self.workers = []
+        self.log_controller = self.ipc_logger()
+        self.ipc_manager = Manager()
+        self.scan_load_map = self.ipc_manager.dict()
+
+    def clear_pool(self):
+        for worker in self.workers:
+            try:
+                worker.terminate()
+            except AttributeError:
+                pass
+
+    def create_pool(self, scan_map):
+        self.clear_pool()
+        self.scan_load_map.clear()
+        self.scan_load_map.update(scan_map)
+        for i in range(self.n_processes):
+            worker = self.worker_type(
+                self.input_queue, self.output_queue, self.done_event,
+                self.scorer_type, self.evaluation_args, self.scan_load_map,
+                log_handler=self.log_controller.sender(), **self.init_args)
+            worker.start()
+            self.workers.append(worker)
+
+    def all_workers_finished(self):
+        return all([worker.all_work_done() for worker in self.workers])
+
+    def feeder(self, hit_map, hit_to_scan):
+        i = 0
+        for hit_id, scan_ids in hit_to_scan.items():
+            i += 1
+            self.input_queue.put((hit_map[hit_id], [s.id for s in scan_ids]))
+        self.done_event.set()
+        return
+
+    def process(self, scan_map, hit_map, hit_to_scan):
+        feeder_thread = Thread(target=self.feeder, args=(hit_map, hit_to_scan))
+        feeder_thread.daemon = True
+        feeder_thread.start()
+        self.create_pool(scan_map)
+        has_work = True
+        i = 0
+        n = len(hit_map)
+        self.log("... Searching Matches (%d)" % (n,))
+        strikes = 0
+        while has_work:
+            try:
+                target, score_map = self.output_queue.get(True, 2)
+                i += 1
+                if i % 1000 == 0:
+                    self.log("...... Processed %d matches (%0.2f%%)" % (i, i * 100. / n))
+            except QueueEmptyException:
+                if self.all_workers_finished():
+                    if strikes < 2:
+                        strikes += 1
+                    else:
+                        has_work = False
+                continue
+            target.clear_caches()
+            for scan_id, score in score_map.items():
+                self.scan_solution_map[scan_id].append(
+                    SpectrumMatch(scan_map[scan_id], target, score))
+        self.log("... Finished Processing Matches (%d)" % (i,))
+        self.clear_pool()
+        self.log_controller.stop()
+        feeder_thread.join()
+        self.scan_load_map.clear()
+        return self.scan_solution_map
+
+
+class SpectrumIdentificationWorkerBase(Process):
+    def __init__(self, input_queue, output_queue, done_event, scorer_type, evaluation_args,
+                 spectrum_map, log_handler):
+        Process.__init__(self)
+        self.daemon = True
+        self.input_queue = input_queue
+        self.output_queue = output_queue
+        self.done_event = done_event
+        self.scorer_type = scorer_type
+        self.evaluation_args = evaluation_args
+        self.spectrum_map = spectrum_map
+        self.local_map = dict()
+        self.solution_map = dict()
+        self._work_complete = Event()
+        self.log_handler = log_handler
+
+    def fetch_scan(self, key):
+        try:
+            return self.local_map[key]
+        except KeyError:
+            scan = self.spectrum_map[key]
+            self.local_map[key] = scan
+            return scan
+
+    def all_work_done(self):
+        return self._work_complete.is_set()
+
+    def pack_output(self, target):
+        if self.solution_map:
+            self.output_queue.put((target, self.solution_map))
+        self.solution_map = dict()
+
+    def evaluate(self, scan, structure, *args, **kwargs):
+        raise NotImplementedError()
+
+    def task(self):
+        has_work = True
+        while has_work:
+            try:
+                structure, scan_ids = self.input_queue.get(True, 5)
+            except QueueEmptyException:
+                if self.done_event.is_set():
+                    has_work = False
+                    break
+            scans = [self.fetch_scan(i) for i in scan_ids]
+            solution_target = None
+            solution = None
+            for scan in scans:
+                solution = self.evaluate(scan, structure, **self.evaluation_args)
+                self.solution_map[scan.id] = solution.score
+                solution_target = solution.target
+            if solution is not None:
+                solution.target.clear_caches()
+            self.pack_output(solution_target)
+        self._work_complete.set()
+
+    def run(self):
+        self.task()

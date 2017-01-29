@@ -242,8 +242,12 @@ class ScanTransformingProcess(Process):
                 has_input = False
                 break
 
-            queued_loader.put(scan_id, product_scan_ids)
-            scan, product_scans = queued_loader.get()
+            try:
+                queued_loader.put(scan_id, product_scan_ids)
+                scan, product_scans = queued_loader.get()
+            except Exception as e:
+                self.log_message("Something went wrong when loading bunch (%s): %r.\nRecovery is not possible." % (
+                    (scan_id, product_scan_ids), e))
 
             if len(scan.arrays[0]) == 0:
                 self.skip_scan(scan)

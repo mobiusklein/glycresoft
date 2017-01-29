@@ -1,13 +1,14 @@
 import re
-from collections import Counter
+
 from uuid import uuid4
+
 from glycan_profiling.serialize.hypothesis import GlycanHypothesis
 from glycan_profiling.serialize.hypothesis.glycan import (
     GlycanComposition as DBGlycanComposition, GlycanClass,
     GlycanCompositionToClass, GlycanTypes)
-from glycan_profiling.serialize import DatabaseBoundOperation
 
-from glycan_profiling.task import TaskBase
+from glycan_profiling.serialize import DatabaseBoundOperation, func
+
 from glycan_profiling.database.builder.base import HypothesisSerializerBase
 
 from glypy.composition import glycan_composition, composition_transform, formula
@@ -111,13 +112,15 @@ class GlycanTransformer(object):
 
 
 class GlycanHypothesisSerializerBase(DatabaseBoundOperation, HypothesisSerializerBase):
-    def __init__(self, database_connection, hypothesis_name=None):
+    def __init__(self, database_connection, hypothesis_name=None, uuid=None):
+        if uuid is None:
+            uuid = str(uuid4().hex)
         DatabaseBoundOperation.__init__(self, database_connection)
         self._hypothesis_name = hypothesis_name
         self._hypothesis_id = None
         self._hypothesis = None
         self._structure_class_loader = None
-        self.uuid = str(uuid4().hex)
+        self.uuid = uuid
 
     def make_structure_class_loader(self):
         return GlycanClassLoader(self.session)
@@ -188,21 +191,26 @@ class TextFileGlycanHypothesisSerializer(GlycanHypothesisSerializerBase):
 
 
 class GlycanCompositionHypothesisMerger(GlycanHypothesisSerializerBase):
-    def __init__(self, database_connection, source_hypothesis_ids, hypothesis_name):
-        GlycanHypothesisSerializerBase.__init__(self, database_connection, hypothesis_name)
+    def __init__(self, database_connection, source_hypothesis_ids, hypothesis_name, uuid=None):
+        GlycanHypothesisSerializerBase.__init__(
+            self, database_connection, hypothesis_name, uuid=uuid)
         self.source_hypothesis_ids = source_hypothesis_ids
 
+    def stream_from_hypotheses(self, connection, hypothesis_id):
+        self.log("Streaming from %s for hypothesis %d" % (connection, hypothesis_id))
+        connection = DatabaseBoundOperation(connection)
+        session = connection.session()
+        for db_composition in session.query(DBGlycanComposition).filter(
+                DBGlycanComposition.hypothesis_id == hypothesis_id):
+            yield db_composition, [sc.name for sc in db_composition.structure_classes]
+
     def extract_iterative(self):
-        for hypothesis_id in self.source_hypothesis_ids:
-            q = self.session.query(DBGlycanComposition).filter(
-                DBGlycanComposition.hypothesis_id == hypothesis_id)
-            for db_composition in q:
-                yield db_composition, [sc.name for sc in db_composition.structure_classes]
+        for connection, hypothesis_id in self.source_hypothesis_ids:
+            for pair in self.stream_from_hypotheses(connection, hypothesis_id):
+                yield pair
 
     def run(self):
         structure_class_lookup = self.structure_class_loader
-        self.log("Merging Glycan Composition Lists for %r" % self.hypothesis)
-
         acc = []
         seen = set()
         composition_cache = dict()
@@ -237,3 +245,4 @@ class GlycanCompositionHypothesisMerger(GlycanHypothesisSerializerBase):
                 self.session.execute(GlycanCompositionToClass.insert(), acc)
                 acc = []
             self.session.commit()
+        assert len(seen) > 0

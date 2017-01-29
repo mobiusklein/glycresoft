@@ -13,6 +13,7 @@ from ms_deisotope.averagine import (
 from glycan_profiling.serialize import (
     DatabaseBoundOperation, GlycanHypothesis, GlycopeptideHypothesis,
     SampleRun, Analysis)
+from glycan_profiling.database.builder.glycan import GlycanCompositionHypothesisMerger
 from glycan_profiling.database.builder.glycopeptide.proteomics import mzid_proteome
 from glycan_profiling.chromatogram_tree import (
     MassShift, CompoundMassShift, Formate, Ammonium,
@@ -50,10 +51,11 @@ class ModificationValidator(object):
 
 
 class GlycanSourceValidatorBase(DatabaseBoundOperation):
-    def __init__(self, database_connection, source, source_type):
+    def __init__(self, database_connection, source, source_type, source_identifier=None):
         DatabaseBoundOperation.__init__(self, database_connection)
         self.source = source
         self.source_type = source_type
+        self.source_identifier = source_identifier
 
     def validate(self):
         raise NotImplementedError()
@@ -62,8 +64,9 @@ class GlycanSourceValidatorBase(DatabaseBoundOperation):
 @glycan_source_validators('text')
 @glycan_source_validators('combinatorial')
 class TextGlycanSourceValidator(GlycanSourceValidatorBase):
-    def __init__(self, database_connection, source, source_type):
-        super(TextGlycanSourceValidator, self).__init__(database_connection, source, source_type)
+    def __init__(self, database_connection, source, source_type, source_identifier=None):
+        super(TextGlycanSourceValidator, self).__init__(
+            database_connection, source, source_type, source_identifier)
 
     def validate(self):
         return os.path.exists(self.source)
@@ -71,23 +74,32 @@ class TextGlycanSourceValidator(GlycanSourceValidatorBase):
 
 @glycan_source_validators("hypothesis")
 class HypothesisGlycanSourceValidator(GlycanSourceValidatorBase):
-    def __init__(self, database_connection, source, source_type):
-        super(HypothesisGlycanSourceValidator, self).__init__(database_connection, source, source_type)
+    def __init__(self, database_connection, source, source_type, source_identifier=None):
+        super(HypothesisGlycanSourceValidator, self).__init__(
+            database_connection, source, source_type, source_identifier)
+        self.handle = DatabaseBoundOperation(source)
 
     def validate(self):
+        if self.source_identifier is None:
+            click.secho("No value passed through --glycan-source-identifier.", fg='magenta')
+            return False
         try:
-            hypothesis_id = int(self.source)
-            inst = self.query(GlycanHypothesis).get(hypothesis_id)
+            hypothesis_id = int(self.source_identifier)
+            inst = self.handle.query(GlycanHypothesis).get(hypothesis_id)
             return inst is not None
         except TypeError:
             hypothesis_name = self.source
-            inst = self.query(GlycanHypothesis).filter(GlycanHypothesis.name == hypothesis_name).first()
+            inst = self.handle.query(GlycanHypothesis).filter(GlycanHypothesis.name == hypothesis_name).first()
             return inst is not None
 
 
-def validate_glycan_source(context, database_connection, source, source_type):
+class GlycanHypothesisCopier(GlycanCompositionHypothesisMerger):
+    pass
+
+
+def validate_glycan_source(context, database_connection, source, source_type, source_identifier=None):
     glycan_source_validator_type = glycan_source_validators[source_type]
-    glycan_validator = glycan_source_validator_type(database_connection, source, source_type)
+    glycan_validator = glycan_source_validator_type(database_connection, source, source_type, source_identifier)
     if not glycan_validator.validate():
         click.secho("Could not validate glycan source %s of type %s" % (
             source, source_type), fg='yellow')

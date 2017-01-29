@@ -461,6 +461,15 @@ class ChromatogramExtractor(TaskBase):
         self.base_peak_chromatogram = None
         self.total_ion_chromatogram = None
 
+    def get_scan_by_id(self, scan_id):
+        return self.peak_loader.get_scan_by_id(scan_id)
+
+    def get_scan_header_by_id(self, scan_id):
+        return self.peak_loader.get_scan_header_by_id(scan_id)
+
+    def get_index_information_by_scan_id(self, scan_id):
+        return self.peak_loader.get_index_information_by_scan_id(scan_id)
+
     def scan_id_to_rt(self, scan_id):
         return self.peak_loader.convert_scan_id_to_retention_time(scan_id)
 

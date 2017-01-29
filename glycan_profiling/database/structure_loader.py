@@ -168,6 +168,10 @@ class FragmentCachingGlycopeptide(PeptideSequence):
 
     def clone(self, *args, **kwargs):
         new = FragmentCachingGlycopeptide(str(self))
+        try:
+            new.id = self.id
+        except AttributeError:
+            pass
         # Intentionally share caches with offspring
         new.fragment_caches = self.fragment_caches
         return new

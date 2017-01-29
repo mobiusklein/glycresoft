@@ -1,3 +1,5 @@
+from collections import defaultdict, namedtuple
+
 from glycan_profiling.chromatogram_tree.chromatogram import GlycopeptideChromatogram
 from glycan_profiling.task import TaskBase
 
@@ -13,17 +15,41 @@ from .scoring import TargetDecoyAnalyzer
 from glycan_profiling.database.structure_loader import (
     CachingGlycopeptideParser, DecoyMakingCachingGlycopeptideParser)
 
-from ..spectrum_matcher_base import TandemClusterEvaluatorBase, gscore_scanner
+from ..spectrum_matcher_base import (
+    TandemClusterEvaluatorBase, gscore_scanner,
+    IdentificationProcessDispatcher,
+    SpectrumIdentificationWorkerBase)
 from ..chromatogram_mapping import ChromatogramMSMSMapper
 
 
+class GlycopeptideIdentificationWorker(SpectrumIdentificationWorkerBase):
+    def __init__(self, input_queue, output_queue, done_event, scorer_type, evaluation_args,
+                 spectrum_map, log_handler, parser_type):
+        SpectrumIdentificationWorkerBase.__init__(
+            self, input_queue, output_queue, done_event, scorer_type, evaluation_args,
+            spectrum_map, log_handler=log_handler)
+        self.parser = parser_type()
+
+    def evaluate(self, scan, structure, *args, **kwargs):
+        target = self.parser(structure)
+        matcher = self.scorer_type.evaluate(scan, target, *args, **kwargs)
+        return matcher
+
+
+_target_decoy_cell = namedtuple("_target_decoy_cell", ["target", "decoy"])
+
+
+def make_target_decoy_cell():
+    return _target_decoy_cell(target=None, decoy=None)
+
+
 class GlycopeptideMatcher(TandemClusterEvaluatorBase):
-    def __init__(self, tandem_cluster, scorer_type, structure_database, parser_type=None):
+    def __init__(self, tandem_cluster, scorer_type, structure_database, parser_type=None,
+                 n_processes=5):
         if parser_type is None:
             parser_type = self._default_parser_type()
-        self.tandem_cluster = tandem_cluster
-        self.scorer_type = scorer_type
-        self.structure_database = structure_database
+        super(GlycopeptideMatcher, self).__init__(
+            tandem_cluster, scorer_type, structure_database, verbose=False, n_processes=n_processes)
         self.parser_type = parser_type
         self.parser = parser_type()
 
@@ -38,6 +64,10 @@ class GlycopeptideMatcher(TandemClusterEvaluatorBase):
         matcher = self.scorer_type.evaluate(scan, target, *args, **kwargs)
         return matcher
 
+    @property
+    def _worker_specification(self):
+        return GlycopeptideIdentificationWorker, {"parser_type": self.parser_type}
+
 
 class DecoyGlycopeptideMatcher(GlycopeptideMatcher):
     def _default_parser_type(self):
@@ -45,13 +75,19 @@ class DecoyGlycopeptideMatcher(GlycopeptideMatcher):
 
 
 class TargetDecoyInterleavingGlycopeptideMatcher(TandemClusterEvaluatorBase):
-    def __init__(self, tandem_cluster, scorer_type, structure_database, minimum_oxonium_ratio=0.05):
+    def __init__(self, tandem_cluster, scorer_type, structure_database, minimum_oxonium_ratio=0.05,
+                 n_processes=5):
+        super(TargetDecoyInterleavingGlycopeptideMatcher, self).__init__(
+            tandem_cluster, scorer_type, structure_database, verbose=False,
+            n_processes=n_processes)
         self.tandem_cluster = tandem_cluster
         self.scorer_type = scorer_type
         self.structure_database = structure_database
         self.minimum_oxonium_ratio = minimum_oxonium_ratio
-        self.target_evaluator = GlycopeptideMatcher([], self.scorer_type, self.structure_database)
-        self.decoy_evaluator = DecoyGlycopeptideMatcher([], self.scorer_type, self.structure_database)
+        self.target_evaluator = GlycopeptideMatcher(
+            [], self.scorer_type, self.structure_database, n_processes=n_processes)
+        self.decoy_evaluator = DecoyGlycopeptideMatcher(
+            [], self.scorer_type, self.structure_database, n_processes=n_processes)
 
     def filter_for_oxonium_ions(self, error_tolerance=1e-5):
         keep = []
@@ -101,30 +137,9 @@ class TargetDecoyInterleavingGlycopeptideMatcher(TandemClusterEvaluatorBase):
         return target_out, decoy_out
 
 
-class ConcatenatedDatabaseGlycopeptideMatcher(TargetDecoyInterleavingGlycopeptideMatcher):
-    def __init__(self, tandem_cluster, scorer_type, target_structure_database, decoy_structure_database, minimum_oxonium_ratio=0.05):
-        self.tandem_cluster = tandem_cluster
-        self.scorer_type = scorer_type
-        self.target_structure_database = target_structure_database
-        self.decoy_structure_database = decoy_structure_database
-        self.minimum_oxonium_ratio = minimum_oxonium_ratio
-
-        self.concatenated_database = ConcatenatedDatabase([target_structure_database, decoy_structure_database])
-        self.evaluator = GlycopeptideMatcher([], self.scorer_type, self.concatenated_database)
-
-    def score_bunch(self, scans, precursor_error_tolerance=1e-5, *args, **kwargs):
-        # Map scans to target database
-        scan_map, hit_map, hit_to_scan = self.evaluator._map_scans_to_hits(scans, precursor_error_tolerance)
-        # Evaluate mapped target hits
-        concatenated_scan_solution_map = self.evaluator._evaluate_hit_groups(
-            scan_map, hit_map, hit_to_scan, *args, **kwargs)
-        # Aggregate and reduce target solutions
-        concatenated_solutions = self._collect_scan_solutions(target_scan_solution_map, scan_map)
-
-
-
 class ComparisonGlycopeptideMatcher(TargetDecoyInterleavingGlycopeptideMatcher):
-    def __init__(self, tandem_cluster, scorer_type, target_structure_database, decoy_structure_database, minimum_oxonium_ratio=0.05):
+    def __init__(self, tandem_cluster, scorer_type, target_structure_database, decoy_structure_database,
+                 minimum_oxonium_ratio=0.05):
         self.tandem_cluster = tandem_cluster
         self.scorer_type = scorer_type
         self.target_structure_database = target_structure_database
@@ -149,6 +164,38 @@ class ComparisonGlycopeptideMatcher(TargetDecoyInterleavingGlycopeptideMatcher):
             scan_map, hit_map, hit_to_scan, *args, **kwargs)
         # Aggregate and reduce decoy solutions
         decoy_solutions = self._collect_scan_solutions(decoy_scan_solution_map, scan_map)
+        return target_solutions, decoy_solutions
+
+
+class ConcatenatedGlycopeptideMatcher(ComparisonGlycopeptideMatcher):
+    def score_bunch(self, scans, precursor_information=1e-5, *args, **kwargs):
+        target_solutions, decoy_solutions = super(ConcatenatedGlycopeptideMatcher, self).score_bunch(
+            scans, precursor_information, *args, **kwargs)
+        aggregator = defaultdict(make_target_decoy_cell)
+
+        for solution in target_solutions:
+            aggregator[solution.scan.id].target = solution
+        for solution in decoy_solutions:
+            aggregator[solution.scan.id].decoy = solution
+
+        target_solutions = []
+        decoy_solutions = []
+
+        for scan_id, cell in aggregator.items():
+            if cell.target is not None:
+                target_score = cell.target.score
+            else:
+                target_score = 0.0
+            if cell.decoy is not None:
+                decoy_score = cell.decoy.score
+            else:
+                decoy_score = 0.0
+
+            if target_score > decoy_score:
+                target_solutions.append(cell.target)
+            else:
+                decoy_solutions.append(cell.decoy)
+
         return target_solutions, decoy_solutions
 
 
@@ -181,18 +228,21 @@ def format_work_batch(bunch, count, total):
 
 class GlycopeptideDatabaseSearchIdentifier(TaskBase):
     def __init__(self, tandem_scans, scorer_type, structure_database, scan_id_to_rt=lambda x: x,
-                 minimum_oxonium_ratio=0.05):
+                 minimum_oxonium_ratio=0.05, scan_transformer=lambda x: x, n_processes=5):
         self.tandem_scans = sorted(
             tandem_scans, key=lambda x: x.precursor_information.extracted_neutral_mass, reverse=True)
         self.scorer_type = scorer_type
         self.structure_database = structure_database
         self.scan_id_to_rt = scan_id_to_rt
         self.minimum_oxonium_ratio = minimum_oxonium_ratio
+        self.scan_transformer = scan_transformer
+        self.n_processes = n_processes
 
     def _make_evaluator(self, bunch):
         evaluator = TargetDecoyInterleavingGlycopeptideMatcher(
-                        bunch, self.scorer_type, self.structure_database,
-                        minimum_oxonium_ratio=self.minimum_oxonium_ratio)
+            bunch, self.scorer_type, self.structure_database,
+            minimum_oxonium_ratio=self.minimum_oxonium_ratio,
+            n_processes=self.n_processes)
         return evaluator
 
     def search(self, precursor_error_tolerance=1e-5, simplify=True, chunk_size=750, limit=None, *args, **kwargs):
@@ -208,6 +258,9 @@ class GlycopeptideDatabaseSearchIdentifier(TaskBase):
                 self.log("... %s" % item)
             if hasattr(bunch[0], 'convert'):
                 bunch = [self.scorer_type.load_peaks(o) for o in bunch]
+            for scan in bunch:
+                scan.deconvoluted_peak_set = self.scan_transformer(
+                    scan.deconvoluted_peak_set)
             self.log("... Spectra Extracted")
             evaluator = self._make_evaluator(bunch)
             t, d = evaluator.score_all(
@@ -264,13 +317,12 @@ class GlycopeptideDatabaseSearchComparer(GlycopeptideDatabaseSearchIdentifier):
         self.scan_id_to_rt = scan_id_to_rt
         self.minimum_oxonium_ratio = minimum_oxonium_ratio
 
-
     def _make_evaluator(self, bunch):
         evaluator = ComparisonGlycopeptideMatcher(
-                        bunch, self.scorer_type,
-                        target_structure_database=self.target_database,
-                        decoy_structure_database=self.decoy_database,
-                        minimum_oxonium_ratio=self.minimum_oxonium_ratio)
+            bunch, self.scorer_type,
+            target_structure_database=self.target_database,
+            decoy_structure_database=self.decoy_database,
+            minimum_oxonium_ratio=self.minimum_oxonium_ratio)
         return evaluator
 
 

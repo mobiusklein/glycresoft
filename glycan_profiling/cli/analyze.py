@@ -9,7 +9,7 @@ from glycan_profiling.serialize import (
     SampleRun)
 
 from glycan_profiling.profiler import (
-    GlycanChromatogramAnalyzer, GlycopeptideLCMSMSAnalyzer,
+    GlycanChromatogramAnalyzer, MzMLGlycopeptideLCMSMSAnalyzer,
     MzMLGlycanChromatogramAnalyzer, ProcessedMzMLDeserializer)
 
 from glycan_profiling.tandem.glycopeptide.scoring import CoverageWeightedBinomialScorer
@@ -42,7 +42,7 @@ def analyze():
 @analyze.command("search-glycopeptide", short_help='Search preprocessed data for glycopeptide sequences')
 @click.pass_context
 @click.argument("database-connection")
-@click.argument("sample-identifier")
+@click.argument("sample-path")
 @click.argument("hypothesis-identifier")
 @click.option("-m", "--mass-error-tolerance", type=float, default=1e-5,
               help="Mass accuracy constraint, in parts-per-million error, for matching MS^1 ions.")
@@ -59,31 +59,31 @@ def analyze():
 @click.option("-o", "--oxonium-threshold", default=0.05, type=float,
               help=('Minimum HexNAc-derived oxonium ion abundance '
                     'ratio to filter MS/MS scans. Defaults to 0.05.'))
+@click.option("-o", "--output-path", default=None, help=(
+              "Path to write resulting analysis to."))
 @click.option("--save-intermediate-results", default=None, type=click.Path(), required=False,
               help='Save intermediate spectrum matches to a file')
-def search_glycopeptide(context, database_connection, sample_identifier, hypothesis_identifier,
-                        analysis_name, grouping_error_tolerance=1.5e-5, mass_error_tolerance=1e-5,
+def search_glycopeptide(context, database_connection, sample_path, hypothesis_identifier,
+                        analysis_name, output_path=None, grouping_error_tolerance=1.5e-5, mass_error_tolerance=1e-5,
                         msn_mass_error_tolerance=2e-5, psm_fdr_threshold=0.05, peak_shape_scoring_model=None,
                         tandem_scoring_model=None, oxonium_threshold=0.05,
                         save_intermediate_results=None):
+    if output_path is None:
+        output_path = make_analysis_output_path("glycopeptide")
     if peak_shape_scoring_model is None:
         peak_shape_scoring_model = GeneralScorer
     if tandem_scoring_model is None:
         tandem_scoring_model = CoverageWeightedBinomialScorer
     database_connection = DatabaseBoundOperation(database_connection)
-    try:
-        sample_run = get_by_name_or_id(
-            database_connection, SampleRun, sample_identifier)
-    except:
-        click.secho("Could not locate a Sample Run with identifier %r" %
-                    sample_identifier, fg='yellow')
-        raise click.Abort()
+    ms_data = ProcessedMzMLDeserializer(sample_path, use_index=False)
+    sample_run = ms_data.sample_run
+
     try:
         hypothesis = get_by_name_or_id(
             database_connection, GlycopeptideHypothesis, hypothesis_identifier)
     except:
-        click.secho("Could not locate a Glycan Hypothesis with identifier %r" %
-                    sample_identifier, fg='yellow')
+        click.secho("Could not locate a Glycopeptide Hypothesis with identifier %r" %
+                    hypothesis_identifier, fg='yellow')
         raise click.Abort()
 
     tandem_scoring_model = validate_glycopeptide_tandem_scoring_function(
@@ -91,20 +91,30 @@ def search_glycopeptide(context, database_connection, sample_identifier, hypothe
 
     if analysis_name is None:
         analysis_name = "%s @ %s" % (sample_run.name, hypothesis.name)
+
     analysis_name = validate_analysis_name(
         context, database_connection.session, analysis_name)
 
-    click.secho("Preparing analysis of %s by %s" % (sample_run.name, hypothesis.name), fg='cyan')
+    click.secho("Preparing analysis of %s by %s" % (
+        sample_run.name, hypothesis.name), fg='cyan')
 
-    analyzer = GlycopeptideLCMSMSAnalyzer(
-        database_connection._original_connection, hypothesis.id, sample_run.id,
-        analysis_name, grouping_error_tolerance=grouping_error_tolerance, mass_error_tolerance=mass_error_tolerance,
-        msn_mass_error_tolerance=msn_mass_error_tolerance, psm_fdr_threshold=psm_fdr_threshold,
-        peak_shape_scoring_model=peak_shape_scoring_model, tandem_scoring_model=tandem_scoring_model,
+    analyzer = MzMLGlycopeptideLCMSMSAnalyzer(
+        database_connection._original_connection,
+        sample_path=sample_path,
+        hypothesis_id=hypothesis.id,
+        analysis_name=analysis_name,
+        output_path=output_path,
+        grouping_error_tolerance=grouping_error_tolerance,
+        mass_error_tolerance=mass_error_tolerance,
+        msn_mass_error_tolerance=msn_mass_error_tolerance,
+        psm_fdr_threshold=psm_fdr_threshold,
+        peak_shape_scoring_model=peak_shape_scoring_model,
+        tandem_scoring_model=tandem_scoring_model,
         oxonium_threshold=oxonium_threshold)
+
     gps, unassigned, target_hits, decoy_hits = analyzer.start()
     if save_intermediate_results is not None:
-        import pickle
+        import cPickle as pickle
         analyzer.log("Saving Intermediate Results")
         with open(save_intermediate_results, 'wb') as handle:
             pickle.dump((target_hits, decoy_hits), handle)
@@ -114,7 +124,7 @@ def search_glycopeptide(context, database_connection, sample_identifier, hypothe
                                               ' glycan compositions'))
 @click.pass_context
 @click.argument("database-connection")
-@click.argument("sample-identifier")
+@click.argument("sample-path")
 @click.argument("hypothesis-identifier")
 @click.option("-m", "--mass-error-tolerance", type=float, default=1e-5,
               help=("Mass accuracy constraint, in parts-per-million "
@@ -131,7 +141,7 @@ def search_glycopeptide(context, database_connection, sample_identifier, hypothe
               help="The minimum mass to consider signal at.")
 @click.option("-o", "--output-path", default=None, help=(
               "Path to write resulting analysis to."))
-def search_glycan(context, database_connection, sample_identifier,
+def search_glycan(context, database_connection, sample_path,
                   hypothesis_identifier,
                   analysis_name, adducts, grouping_error_tolerance=1.5e-5,
                   mass_error_tolerance=1e-5, minimum_mass=500.,
@@ -143,14 +153,7 @@ def search_glycan(context, database_connection, sample_identifier,
         scoring_model = GeneralScorer
 
     database_connection = DatabaseBoundOperation(database_connection)
-    # try:
-    #     sample_run = get_by_name_or_id(
-    #         database_connection, SampleRun, sample_identifier)
-    # except:
-    #     click.secho("Could not locate a Sample Run with identifier %r" %
-    #                 sample_identifier, fg='yellow')
-    #     raise click.Abort()
-    ms_data = ProcessedMzMLDeserializer(sample_identifier, use_index=False)
+    ms_data = ProcessedMzMLDeserializer(sample_path, use_index=False)
     sample_run = ms_data.sample_run
 
     try:
@@ -158,7 +161,7 @@ def search_glycan(context, database_connection, sample_identifier,
             database_connection, GlycanHypothesis, hypothesis_identifier)
     except:
         click.secho("Could not locate a Glycan Hypothesis with identifier %r" %
-                    sample_identifier, fg='yellow')
+                    hypothesis_identifier, fg='yellow')
         raise click.Abort()
 
     if analysis_name is None:
@@ -177,15 +180,9 @@ def search_glycan(context, database_connection, sample_identifier,
     click.secho("Preparing analysis of %s by %s" %
                 (sample_run.name, hypothesis.name), fg='cyan')
 
-    # analyzer = GlycanChromatogramAnalyzer(
-    #     database_connection._original_connection, hypothesis.id,
-    #     sample_run.id, adducts=adducts, mass_error_tolerance=mass_error_tolerance,
-    #     grouping_error_tolerance=grouping_error_tolerance, scoring_model=scoring_model,
-    #     minimum_mass=minimum_mass,
-    #     analysis_name=analysis_name)
     analyzer = MzMLGlycanChromatogramAnalyzer(
         database_connection._original_connection, hypothesis.id,
-        sample_path=sample_identifier, output_path=output_path, adducts=adducts,
+        sample_path=sample_path, output_path=output_path, adducts=adducts,
         mass_error_tolerance=mass_error_tolerance,
         grouping_error_tolerance=grouping_error_tolerance, scoring_model=scoring_model,
         minimum_mass=minimum_mass,

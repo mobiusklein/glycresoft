@@ -71,7 +71,8 @@ class MassScalingChargeStateScoringModel(ChargeStateDistributionScoringModelBase
             try:
                 total += bins[charge]
             except KeyError:
-                warnings.warn("%d not found for this mass range (%f). Using bin average" % (charge, neighborhood))
+                warnings.warn("%d not found for this mass range (%f). Using bin average (%r, %r)" % (
+                    charge, neighborhood, bin_sign, chromatogram.charge_states))
                 total += sum(bins.values()) / float(len(bins))
         total = min(total, 1.0)
         return total

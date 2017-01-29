@@ -237,6 +237,9 @@ class MzMLScanCacheHandler(ScanCacheHandlerBase):
         self.handle = open(path, 'wb')
         self.serializer = MzMLScanSerializer(self.handle, n_spectra, sample_name=sample_name)
 
+    def _get_sample_run(self):
+        return self.serializer.sample_run
+
     @classmethod
     def configure_storage(cls, path=None, name=None, source=None):
         if path is not None:

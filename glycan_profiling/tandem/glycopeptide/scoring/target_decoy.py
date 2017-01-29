@@ -97,8 +97,15 @@ class ScoreThresholdCounter(object):
             self.current_count += 1
             self._i += 1
         else:
-            if self.advance_threshold():
-                self.test(item)
+            # Rather than using recursion, just invert the condition
+            # being tested and loop here.
+            while self.advance_threshold():
+                if item.score > self.current_threshold:
+                    continue
+                else:
+                    self.current_count += 1
+                    self._i += 1
+                    break
 
     def find_counts(self):
         for item in self.series:

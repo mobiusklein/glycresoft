@@ -837,7 +837,7 @@ class Proteome(DatabaseBoundOperation, TaskBase):
             # self.log("... Accumulating Proteins for %r" % protein)
             sharer.find_contained_peptides(protein)
             if i % 5 == 0:
-                self.log("... %0.3f%% Done (%r)" % (i / float(n) * 100., protein.name))
+                self.log("... %0.3f%% Done (%s)" % (i / float(n) * 100., protein.name))
 
     def remove_duplicates(self):
         DeduplicatePeptides(self._original_connection, self.hypothesis_id).run()

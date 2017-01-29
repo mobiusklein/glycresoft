@@ -1,4 +1,5 @@
 from sqlalchemy import exc, func
+from sqlalchemy.orm.session import object_session
 
 from ms_deisotope.output.db import (
     Base,
@@ -43,4 +44,6 @@ from .hypothesis import *
 
 from . import config
 
-from .migration import GlycanCompositionChromatogramAnalysisSerializer
+from .migration import (
+    GlycanCompositionChromatogramAnalysisSerializer,
+    GlycopeptideMSMSAnalysisSerializer)

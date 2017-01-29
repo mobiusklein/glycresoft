@@ -1,16 +1,18 @@
 import multiprocessing
 import click
+import textwrap
 
 from glycan_profiling.cli.base import cli
 from glycan_profiling.cli.validators import (
     glycan_source_validators, validate_modifications,
     validate_glycan_source, validate_glycopeptide_hypothesis_name,
     validate_glycan_hypothesis_name, get_by_name_or_id,
-    validate_reduction, validate_derivatization, validate_mzid_proteins)
+    validate_reduction, validate_derivatization,
+    validate_mzid_proteins, GlycanHypothesisCopier)
 
 from glycan_profiling.serialize import (
     DatabaseBoundOperation, GlycanHypothesis, Analysis,
-    AnalysisTypeEnum)
+    AnalysisTypeEnum, GlycanComposition as DBGlycanComposition)
 
 from glycan_profiling.database.builder.glycopeptide.naive_glycopeptide import (
     MultipleProcessFastaGlycopeptideHypothesisSerializer,
@@ -43,7 +45,8 @@ _glycan_hypothesis_builders = decoratordict()
 
 
 @_glycan_hypothesis_builders('text')
-def _build_glycan_composition_hypothesis_from_text(database_connection, text_file, hypothesis_name):
+def _build_glycan_composition_hypothesis_from_text(database_connection, text_file, hypothesis_name,
+                                                   identifier=None):
     if hypothesis_name is not None:
         hypothesis_name = hypothesis_name + '-Glycans'
     builder = TextFileGlycanHypothesisSerializer(
@@ -54,7 +57,8 @@ def _build_glycan_composition_hypothesis_from_text(database_connection, text_fil
 
 
 @_glycan_hypothesis_builders("combinatorial")
-def _build_glycan_composition_hypothesis_from_combinatorial(database_connection, text_file, hypothesis_name):
+def _build_glycan_composition_hypothesis_from_combinatorial(database_connection, text_file, hypothesis_name,
+                                                            identifier=None):
     if hypothesis_name is not None:
         hypothesis_name = hypothesis_name + '-Glycans'
     builder = CombinatorialGlycanHypothesisSerializer(
@@ -65,51 +69,107 @@ def _build_glycan_composition_hypothesis_from_combinatorial(database_connection,
 
 
 @_glycan_hypothesis_builders("hypothesis")
-def _get_hypothesis_id_for_glycan_composition_hypothesis(database_connection, source, hypothesis_name):
-    handle = DatabaseBoundOperation(database_connection)
+def _copy_hypothesis_across_file_boundaries(database_connection, source, hypothesis_name,
+                                            identifier=None):
+    source_handle = DatabaseBoundOperation(source)
+    source_hypothesis_id = None
+    source_hypothesis_name = None
+    # source_hypothesis_uuid = None
     try:
-        hypothesis_id = int(source)
-        inst = handle.query(GlycanHypothesis).get(hypothesis_id)
+        hypothesis_id = int(identifier)
+        inst = source_handle.query(GlycanHypothesis).get(hypothesis_id)
         if inst is not None:
-            return hypothesis_id
+            source_hypothesis_id = hypothesis_id
+            source_hypothesis_name = inst.name
+            # source_hypothesis_uuid = inst.uuid
+
     except TypeError:
-        hypothesis_name = source
-        inst = handle.query(GlycanHypothesis).filter(
+        hypothesis_name = identifier
+        inst = source_handle.query(GlycanHypothesis).filter(
             GlycanHypothesis.name == hypothesis_name).first()
         if inst is not None:
-            return inst.id
+            source_hypothesis_id = inst.id
+            source_hypothesis_name = inst.name
+            # source_hypothesis_uuid = inst.uuid
+
+    if source == database_connection:
+        return source_hypothesis_id
+
+    mover = GlycanHypothesisCopier(
+        database_connection, [(source, source_hypothesis_id)],
+        hypothesis_name=source_hypothesis_name)
+    mover.run()
+    return mover.hypothesis_id
+
+
+def _validate_glycan_source_identifier(ctx, param, value):
+    try:
+        if ctx.params['glycan_source_type'] not in ("hypothesis", "analysis"):
+            width = click.get_terminal_size()[0]
+            click.secho('\n'.join(
+                textwrap.wrap(
+                    "Warning: --glycan-source-identifier specified when "
+                    "--glycan-source is neither \"hypothesis\" nor \"analysis\"."
+                    " Its value will be ignored.", width=int(width * 0.6))), fg='yellow')
+            return None
+        else:
+            return value
+    except KeyError:
+        click.secho("Specify --glycan-source before --glycan-source-identifier.", fg='yellow')
+
+
+def glycopeptide_hypothesis_common_options(cmd):
+    options = [
+        click.option("-u", "--occupied-glycosites", type=int, default=1,
+                     help=("The number of occupied glycosylation sites permitted.")),
+        click.option("-n", "--name", default=None, help="The name for the hypothesis to be created"),
+        click.option("-p", "--processes", 'processes', type=click.IntRange(1, multiprocessing.cpu_count()),
+                     default=min(multiprocessing.cpu_count(), 4),
+                     help=('Number of worker processes to use. Defaults to 4 '
+                           'or the number of CPUs, whichever is lower')),
+        click.option("-G", "--glycan-source-identifier", required=False, default=None,
+                     help=("The name or id number of the hypothesis or analysis to"
+                           " be used when using those glycan source types."),
+                     callback=_validate_glycan_source_identifier),
+        click.option("-s", "--glycan-source-type", default='text', type=click.Choice(
+                     list(glycan_source_validators.keys())),
+                     help="The type of glycan information source to use"),
+        click.option("-g", "--glycan-source", required=True,
+                     help="The path, identity, or other specifier for the glycan source"),
+    ]
+    for opt in options:
+        cmd = opt(cmd)
+    return cmd
+
+
+@build_hypothesis.command("dummy")
+@glycopeptide_hypothesis_common_options
+def cmd(*args, **kwargs):
+    print(args, kwargs)
 
 
 @build_hypothesis.command("glycopeptide-fa",
-                          short_help="Build glycopeptide search spaces with a fasta file of proteins")
+                          short_help="Build glycopeptide search spaces with a FASTA file of proteins")
 @click.pass_context
+@glycopeptide_hypothesis_common_options
 @click.argument("fasta-file", type=click.Path(exists=True))
 @click.argument("database-connection")
 @click.option("-e", "--enzyme", default='trypsin', help='The proteolytic enzyme to use during digestion')
 @click.option("-m", "--missed-cleavages", type=int, default=1,
               help="The number of missed proteolytic cleavage sites permitted")
-@click.option("-u", "--occupied-glycosites", type=int, default=1,
-              help=("The number of occupied glycosylation sites permitted. "
-                    "Warning: Increasing this number exponentially increases the complexity of this process "
-                    "as the number of glycan compositions increases."))
 @click.option("-n", "--name", default=None, help="The name for the hypothesis to be created")
 @click.option("-c", "--constant-modification", multiple=True,
               help='Peptide modification rule which will be applied constantly')
 @click.option("-v", "--variable-modification", multiple=True,
               help='Peptide modification rule which will be applied variablely')
-@click.option("-p", "--processes", 'processes', type=click.IntRange(1, multiprocessing.cpu_count()),
-              default=min(multiprocessing.cpu_count(), 4), help=('Number of worker processes to use. Defaults to 4 '
-                                                                 'or the number of CPUs, whichever is lower'))
-@click.option("-s", "--glycan-source-type", default='text', type=click.Choice(
-              list(glycan_source_validators.keys())),
-              help="The type of glycan information source to use")
-@click.option("-g", "--glycan-source", required=True,
-              help="The path, identity, or other specifier for the glycan source")
 @click.option("--reverse", default=False, is_flag=True, help='Reverse protein sequences')
 @click.option("--dry-run", default=False, is_flag=True, help="Do not save glycopeptides")
 def glycopeptide_fa(context, fasta_file, database_connection, enzyme, missed_cleavages, occupied_glycosites, name,
                     constant_modification, variable_modification, processes, glycan_source, glycan_source_type,
-                    reverse=False, dry_run=False):
+                    glycan_source_identifier=None, reverse=False, dry_run=False):
+    '''Constructs a glycopeptide hypothesis from a FASTA file of proteins and a
+    collection of glycans.
+    '''
     if reverse:
         task_type = ReversingMultipleProcessFastaGlycopeptideHypothesisSerializer
         click.secho("Using ReversingMultipleProcessFastaGlycopeptideHypothesisSerializer", fg='yellow')
@@ -122,7 +182,8 @@ def glycopeptide_fa(context, fasta_file, database_connection, enzyme, missed_cle
     validate_modifications(
         context, constant_modification + variable_modification)
     validate_glycan_source(context, database_connection,
-                           glycan_source, glycan_source_type)
+                           glycan_source, glycan_source_type,
+                           glycan_source_identifier)
 
     processes = min(multiprocessing.cpu_count(), processes)
 
@@ -136,7 +197,7 @@ def glycopeptide_fa(context, fasta_file, database_connection, enzyme, missed_cle
     variable_modification = [mt[c] for c in variable_modification]
 
     glycan_hypothesis_id = _glycan_hypothesis_builders[
-        glycan_source_type](database_connection, glycan_source, name)
+        glycan_source_type](database_connection, glycan_source, name, glycan_source_identifier)
 
     builder = task_type(
         fasta_file, database_connection,
@@ -158,35 +219,26 @@ def glycopeptide_fa(context, fasta_file, database_connection, enzyme, missed_cle
 @click.pass_context
 @click.argument("mzid-file", type=click.Path(exists=True))
 @click.argument("database-connection")
-@click.option("-u", "--occupied-glycosites", type=int, default=1,
-              help=("The number of occupied glycosylation sites permitted. "
-                    "Warning: Increasing this number exponentially increases the complexity of this process "
-                    "as the number of glycan compositions increases."))
+@glycopeptide_hypothesis_common_options
 @click.option("-t", "--target-protein", multiple=True,
               help='Specifies the name of a protein to include in the hypothesis. May be used many times.')
 @click.option('-r', '--target-protein-re', multiple=True,
               help=('Specifies a regular expression to select proteins'
                     ' to be included by name. May be used many times.'))
-@click.option("-n", "--name", default=None, help="Name for the hypothesis to be created")
-@click.option("-p", "--processes", 'processes', type=click.IntRange(1, multiprocessing.cpu_count()),
-              default=min(multiprocessing.cpu_count(), 4), help=('Number of worker processes to use. Defaults to 4 '
-                                                                 'or the number of CPUs, whichever is lower'))
-@click.option("-s", "--glycan-source-type", default='text', type=click.Choice(
-              list(glycan_source_validators.keys())),
-              help="The type of glycan information source to use")
-@click.option("-g", "--glycan-source", required=True,
-              help="The path, identity, or other specifier for the glycan source")
-@click.option("-r", "--reference-fasta", default=None, required=False,
+@click.option("-R", "--reference-fasta", default=None, required=False,
               help=("When the full sequence for each protein is not embedded in the mzIdentML file and "
-                    "the FASTA file used by the search engine that created the mzIdentML file is not "
-                    "at the path specified in the file, you must provide a FASTA file to retrieve "
-                    "protein sequences from."))
+                    "the FASTA file used is not local."))
 def glycopeptide_mzid(context, mzid_file, database_connection, name, occupied_glycosites, target_protein,
-                      target_protein_re, processes, glycan_source, glycan_source_type, reference_fasta):
+                      target_protein_re, processes, glycan_source, glycan_source_type, glycan_source_identifier,
+                      reference_fasta):
+    '''Constructs a glycopeptide hypothesis from a MzIdentML file of proteins and a
+    collection of glycans.
+    '''
     proteins = validate_mzid_proteins(
         context, mzid_file, target_protein, target_protein_re)
     validate_glycan_source(context, database_connection,
-                           glycan_source, glycan_source_type)
+                           glycan_source, glycan_source_type,
+                           glycan_source_identifier)
 
     processes = min(multiprocessing.cpu_count(), processes)
 
@@ -196,7 +248,7 @@ def glycopeptide_mzid(context, mzid_file, database_connection, name, occupied_gl
         click.secho("Building Glycopeptide Hypothesis %s" % name, fg='cyan')
 
     glycan_hypothesis_id = _glycan_hypothesis_builders[
-        glycan_source_type](database_connection, glycan_source, name)
+        glycan_source_type](database_connection, glycan_source, name, glycan_source_identifier)
 
     builder = MultipleProcessMzIdentMLGlycopeptideHypothesisSerializer(
         mzid_file, database_connection,
@@ -255,13 +307,16 @@ def glycan_combinatorial(context, rule_file, database_connection, reduction, der
 @click.pass_context
 @click.argument("database-connection")
 @click.option("-n", "--name", default=None, help="The name for the hypothesis to be created")
-@click.option("-i", "--hypothesis-identifier", multiple=True, help="A hypothesis to include. May be used many times")
-def merge_glycan_hypotheses(context, database_connection, hypothesis_identifier, name):
+@click.option(
+    "-i", "--hypothesis-specification", multiple=True,
+    nargs=2, help=("The location and identity for the hypothesis to"
+                   " include. May be specified many times"))
+def merge_glycan_hypotheses(context, database_connection, hypothesis_specification, name):
     database_connection = DatabaseBoundOperation(database_connection)
     hypothesis_ids = []
-    for ident in hypothesis_identifier:
-        hypothesis = get_by_name_or_id(database_connection, GlycanHypothesis, ident)
-        hypothesis_ids.append(hypothesis.id)
+    for connection, ident in hypothesis_specification:
+        hypothesis = get_by_name_or_id(DatabaseBoundOperation(connection), GlycanHypothesis, ident)
+        hypothesis_ids.append((connection, hypothesis.id))
 
     if name is not None:
         name = validate_glycan_hypothesis_name(context, database_connection._original_connection, name)

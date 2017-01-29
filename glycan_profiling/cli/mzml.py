@@ -52,8 +52,7 @@ def tic_saddle_points(ms_file):
 @click.option("-e", "--end-time", type=float, default=float('inf'), help='Scan time to stop processing at')
 @click.option("-c", "--maximum-charge", type=int, default=8,
               help=('Highest charge state considered. '
-                    'To consider negative charges, specify a'
-                    ' negative value. Defaults to 8'))
+                    'Defaults to 8'))
 @click.option("-n", "--name", default=None,
               help="Name for the sample run to be stored. Defaults to the base name of the input mzML file")
 @click.option("-t", "--score-threshold", type=float, default=15.,
