@@ -513,7 +513,7 @@ class ScanGenerator(TaskBase, ScanGeneratorBase):
 
     def make_iterator(self, start_scan=None, end_scan=None, max_scans=None):
         self._input_queue = Queue(int(1e6))
-        self._output_queue = Queue(1000)
+        self._output_queue = Queue(5000)
 
         if self.extract_only_tandem_envelopes:
             self.log("Constructing Scan Interval Tree")
