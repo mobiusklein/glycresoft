@@ -282,6 +282,35 @@ class ScanTransformingProcess(Process):
 
 
 class ScanCollator(TaskBase):
+    """Collates incoming scan bunches from multiple
+    ScanTransformingProcesses, passing them along in
+    the correct order.
+
+    Attributes
+    ----------
+    count_jobs_done : int
+        The number of scan bunches taken from `queue`
+    count_since_last : int
+        The number of work-cycles since the last scan bunch
+        has been yielded
+    done_event : multiprocessing.Event
+        An IPC Event to indicate that all scan ids have been
+        sent to the worker processes
+    helper_producers : list
+        A list of ScanTransformingProcesses
+    include_fitted : TYPE
+        Description
+    last_index : TYPE
+        Description
+    primary_worker : TYPE
+        Description
+    queue : TYPE
+        Description
+    started_helpers : bool
+        Description
+    waiting : dict
+        Description
+    """
     _log_received_scans = False
 
     def __init__(self, queue, done_event, helper_producers=None, primary_worker=None, include_fitted=False):

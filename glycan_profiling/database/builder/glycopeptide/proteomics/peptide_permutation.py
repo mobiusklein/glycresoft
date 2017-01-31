@@ -177,7 +177,8 @@ def cleave_sequence(sequence, protease, missed_cleavages=2):
         yield peptide, start, end, missed
 
 
-def digest(sequence, protease, constant_modifications=None, variable_modifications=None, max_missed_cleavages=2):
+def digest(sequence, protease, constant_modifications=None, variable_modifications=None, max_missed_cleavages=2,
+           max_length=60):
     if constant_modifications is None:
         constant_modifications = []
     if variable_modifications is None:
@@ -189,6 +190,8 @@ def digest(sequence, protease, constant_modifications=None, variable_modificatio
     elif isinstance(protease, (list, tuple)):
         protease = enzyme.Protease.combine(*protease)
     for peptide, start, end, n_missed_cleavages in cleave_sequence(sequence, protease, max_missed_cleavages):
+        if end - start > max_length:
+            continue
         for modified_peptide, n_variable_modifications in peptide_permutations(
                 peptide, constant_modifications, variable_modifications):
             inst = Peptide(
@@ -206,7 +209,8 @@ def digest(sequence, protease, constant_modifications=None, variable_modificatio
 
 class ProteinDigestor(TaskBase):
 
-    def __init__(self, protease, constant_modifications=None, variable_modifications=None, max_missed_cleavages=2):
+    def __init__(self, protease, constant_modifications=None, variable_modifications=None, max_missed_cleavages=2,
+                 max_length=60):
         if constant_modifications is None:
             constant_modifications = []
         if variable_modifications is None:
@@ -221,6 +225,7 @@ class ProteinDigestor(TaskBase):
         self.constant_modifications = constant_modifications
         self.variable_modifications = variable_modifications
         self.max_missed_cleavages = max_missed_cleavages
+        self.max_length = max_length
 
     def process_protein(self, protein_obj):
         protein_id = protein_obj.id
@@ -228,7 +233,8 @@ class ProteinDigestor(TaskBase):
 
         for peptide in digest(
                 protein_obj.protein_sequence, self.protease, self.constant_modifications,
-                self.variable_modifications, self.max_missed_cleavages):
+                self.variable_modifications, self.max_missed_cleavages,
+                max_length=self.max_length):
             peptide.protein_id = protein_id
             peptide.hypothesis_id = hypothesis_id
             peptide.peptide_score = 0
