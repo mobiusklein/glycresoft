@@ -41,24 +41,28 @@ class Analysis(Base, HasUniqueName):
         return "Analysis(%s, %s)" % (self.name, sample_run_name)
 
     def _infer_hypothesis_id(self):
-        session = object_session(self)
-        if self.analysis_type == AnalysisTypeEnum.glycopeptide_lc_msms:
-            from . import IdentifiedGlycopeptide, GlycopeptideHypothesis, Glycopeptide
-            hypothesis_id = session.query(func.distinct(GlycopeptideHypothesis.id)).join(
-                Glycopeptide).join(
-                IdentifiedGlycopeptide,
-                Glycopeptide.id == IdentifiedGlycopeptide.structure_id).filter(
-                IdentifiedGlycopeptide.analysis_id == self.id).scalar()
+        try:
+            hypothesis_id = self.parameters['hypothesis_id']
             return hypothesis_id
-        elif self.analysis_type == AnalysisTypeEnum.glycan_lc_ms:
-            from . import GlycanComposition, GlycanCompositionChromatogram, GlycanHypothesis
-            hypothesis_id = session.query(func.distinct(GlycanHypothesis.id)).join(GlycanComposition).join(
-                GlycanCompositionChromatogram,
-                GlycanCompositionChromatogram.glycan_composition_id == GlycanComposition.id).filter(
-                GlycanCompositionChromatogram.analysis_id == self.id).scalar()
-            return hypothesis_id
-        else:
-            raise ValueError(self.analysis_type)
+        except KeyError:
+            session = object_session(self)
+            if self.analysis_type == AnalysisTypeEnum.glycopeptide_lc_msms:
+                from . import IdentifiedGlycopeptide, GlycopeptideHypothesis, Glycopeptide
+                hypothesis_id = session.query(func.distinct(GlycopeptideHypothesis.id)).join(
+                    Glycopeptide).join(
+                    IdentifiedGlycopeptide,
+                    Glycopeptide.id == IdentifiedGlycopeptide.structure_id).filter(
+                    IdentifiedGlycopeptide.analysis_id == self.id).scalar()
+                return hypothesis_id
+            elif self.analysis_type == AnalysisTypeEnum.glycan_lc_ms:
+                from . import GlycanComposition, GlycanCompositionChromatogram, GlycanHypothesis
+                hypothesis_id = session.query(func.distinct(GlycanHypothesis.id)).join(GlycanComposition).join(
+                    GlycanCompositionChromatogram,
+                    GlycanCompositionChromatogram.glycan_composition_id == GlycanComposition.id).filter(
+                    GlycanCompositionChromatogram.analysis_id == self.id).scalar()
+                return hypothesis_id
+            else:
+                raise ValueError(self.analysis_type)
 
     @property
     def hypothesis_id(self):

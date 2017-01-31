@@ -576,7 +576,6 @@ class IdentificationProcessDispatcher(TaskBase):
         i = 0
         n = len(hit_map)
         self.log("... Searching Matches (%d)" % (n,))
-        strikes = 0
         while has_work:
             try:
                 target, score_map = self.output_queue.get(True, 2)
@@ -585,9 +584,7 @@ class IdentificationProcessDispatcher(TaskBase):
                     self.log("...... Processed %d matches (%0.2f%%)" % (i, i * 100. / n))
             except QueueEmptyException:
                 if self.all_workers_finished():
-                    if strikes < 2:
-                        strikes += 1
-                    else:
+                    if i == n:
                         has_work = False
                 continue
             target.clear_caches()
