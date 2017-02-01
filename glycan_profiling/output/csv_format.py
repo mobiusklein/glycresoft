@@ -1,6 +1,6 @@
 import csv
 
-from .task import TaskBase
+from glycan_profiling.task import TaskBase
 
 
 class CSVSerializerBase(TaskBase):

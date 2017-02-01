@@ -9,13 +9,14 @@ from glycan_profiling.serialize import (
     DatabaseBoundOperation, GlycanHypothesis, GlycopeptideHypothesis,
     Analysis, AnalysisTypeEnum, GlycanCompositionChromatogram,
     Protein, Glycopeptide, IdentifiedGlycopeptide,
-    GlycopeptideSpectrumMatch)
+    GlycopeptideSpectrumMatch, AnalysisDeserializer)
 
 from glycan_profiling.output import (
     GlycanHypothesisCSVSerializer, ImportableGlycanHypothesisCSVSerializer,
     GlycopeptideHypothesisCSVSerializer, GlycanLCMSAnalysisCSVSerializer,
     GlycopeptideLCMSMSAnalysisCSVSerializer,
-    GlycopeptideSpectrumMatchAnalysisCSVSerializer)
+    GlycopeptideSpectrumMatchAnalysisCSVSerializer,
+    MzIdentMLSerializer)
 
 from glycan_profiling.serialize import (DatabaseScanDeserializer, SampleRun)
 from glycan_profiling.scan_cache import MzMLScanCacheHandler
@@ -216,6 +217,26 @@ def glycopeptide_spectrum_matches(database_connection, analysis_identifier, outp
     with output_stream:
         job = GlycopeptideSpectrumMatchAnalysisCSVSerializer(output_stream, generate(), protein_index)
         job.run()
+
+
+@export.command("mzid", short_help="Export a Glycopeptide Analysis as MzIdentML")
+@click.argument("database-connection")
+@click.argument("analysis-identifier")
+@click.argument("output-path")
+def glycopeptide_mzidentml(database_connection, analysis_identifier, output_path=None):
+    database_connection = DatabaseBoundOperation(database_connection)
+    session = database_connection.session()
+    analysis = get_by_name_or_id(session, Analysis, analysis_identifier)
+    if not analysis.analysis_type == AnalysisTypeEnum.glycopeptide_lc_msms:
+        click.secho("Analysis %r is of type %r." % (
+            str(analysis.name), str(analysis.analysis_type)), fg='red', err=True)
+        raise click.Abort()
+    loader = AnalysisDeserializer(
+        database_connection._original_connection, analysis_id=analysis.id)
+    glycopeptides = loader.load_identified_glycopeptides()
+    with open(output_path, 'wb') as outfile:
+        writer = MzIdentMLSerializer(outfile, glycopeptides, analysis, loader)
+        writer.run()
 
 
 @export.command("sample-run", short_help="Export a fully preprocessed sample run as mzML")
