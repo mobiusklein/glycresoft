@@ -1,13 +1,17 @@
+from collections import defaultdict
+
 from glycan_profiling import task, serialize, version
 
 from glypy.composition import formula
 
-from glycopeptidepy.structure import parser
+from glycopeptidepy.structure import parser, modification
 
 from brainpy import mass_charge_ratio
 
 from psims.mzid import components
 from psims.mzid.writer import MzIdentMLWriter
+
+from ms_deisotope.output import mzml
 
 
 def convert_to_protein_dict(protein):
@@ -20,7 +24,7 @@ def convert_to_protein_dict(protein):
     return data
 
 
-def convert_to_peptide_dict(glycopeptide):
+def convert_to_peptide_dict(glycopeptide, id_tracker):
     data = {
         "id": glycopeptide.id,
         "peptide_sequence": parser.strip_modifications(glycopeptide),
@@ -52,15 +56,21 @@ def convert_to_peptide_dict(glycopeptide):
             }
             data['modifications'].append(mod_dict)
         else:
-            print("Not Implemented", glycopeptide.id, mod)
+            mod_dict = {
+                "monoisotopic_mass_delta": mod.mass,
+                "location": i,
+                "name": mod.name,
+            }
+            data['modifications'].append(mod_dict)
+            # print("Not Implemented", glycopeptide.id, mod)
     return data
 
 
-def convert_to_peptide_evidence_dict(glycopeptide):
+def convert_to_peptide_evidence_dict(glycopeptide, id_tracker):
     data = {
         "start_position": glycopeptide.protein_relation.start_position,
         "end_position": glycopeptide.protein_relation.end_position,
-        "peptide_id": glycopeptide.id,
+        "peptide_id": id_tracker(glycopeptide),
         "db_sequence_id": glycopeptide.protein_relation.protein_id,
         "is_decoy": False,
         "id": glycopeptide.id
@@ -68,7 +78,7 @@ def convert_to_peptide_evidence_dict(glycopeptide):
     return data
 
 
-def convert_to_identification_item_dict(spectrum_match, seen=None):
+def convert_to_identification_item_dict(spectrum_match, seen=None, id_tracker=None):
     if seen is None:
         seen = set()
     charge = spectrum_match.scan.precursor_information.charge
@@ -80,7 +90,7 @@ def convert_to_identification_item_dict(spectrum_match, seen=None):
             spectrum_match.scan.precursor_information.neutral_mass, charge),
         "calculated_mass_to_charge": mass_charge_ratio(
             spectrum_match.target.total_mass, charge),
-        "peptide_id": spectrum_match.target.id,
+        "peptide_id": id_tracker(spectrum_match.target),
         "peptide_evidence_id": spectrum_match.target.id,
         "score": {"name": "GlycReSoft:score", "value": spectrum_match.score},
         "params": [
@@ -91,7 +101,7 @@ def convert_to_identification_item_dict(spectrum_match, seen=None):
     return data
 
 
-def convert_to_spectrum_identification_dict(spectrum_solution_set, seen=None):
+def convert_to_spectrum_identification_dict(spectrum_solution_set, seen=None, id_tracker=None):
     data = {
         "spectra_data_id": 1,
         "spectrum_id": spectrum_solution_set.scan.id,
@@ -99,7 +109,7 @@ def convert_to_spectrum_identification_dict(spectrum_solution_set, seen=None):
     }
     idents = []
     for item in spectrum_solution_set:
-        d = convert_to_identification_item_dict(item, seen=seen)
+        d = convert_to_identification_item_dict(item, seen=seen, id_tracker=id_tracker)
         if d is None:
             continue
         idents.append(d)
@@ -107,14 +117,63 @@ def convert_to_spectrum_identification_dict(spectrum_solution_set, seen=None):
     return data
 
 
+class MzMLExporter(object):
+    def __init__(self, source, outfile):
+        self.reader = mzml.ProcessedMzMLDeserializer(source)
+        self.outfile = outfile
+        self.writer = None
+        self.n_spectra = None
+
+    def make_writer(self):
+        self.writer = mzml.MzMLScanSerializer(
+            self.outfile, sample_name=self.reader.sample_run.name,
+            n_spectra=self.n_spectra)
+
+    def aggregate_scan_bunches(self, scan_ids):
+        scans = defaultdict(list)
+        for scan_id in scan_ids:
+            scan = self.reader.get_scan_by_id(scan_id)
+            scans[scan.precursor_information.precursor_scan_id].append(
+                scan)
+        bunches = []
+        for precursor_id, products in scans.items():
+            precursor = self.reader.get_scan_by_id(precursor_id)
+            bunches.append(mzml.ScanBunch(precursor, products))
+        return bunches
+
+
+class SequenceIdTracker(object):
+    def __init__(self):
+        self.mapping = dict()
+
+    def convert(self, glycopeptide):
+        s = str(glycopeptide)
+        if s in self.mapping:
+            return self.mapping[s]
+        else:
+            self.mapping[s] = glycopeptide.id
+            return self.mapping[s]
+
+    def __call__(self, glycopeptide):
+        return self.convert(glycopeptide)
+
+    def dump(self):
+        for key, value in self.mapping.items():
+            print(value, key)
+
+
 class MzIdentMLSerializer(task.TaskBase):
-    def __init__(self, outfile, glycopeptide_list, analysis, database_handle):
+    def __init__(self, outfile, glycopeptide_list, analysis, database_handle,
+                 q_value_threshold=0.05, ms2_score_threshold=0):
         self.outfile = outfile
         self.database_handle = database_handle
         self._glycopeptide_list = glycopeptide_list
         self.protein_list = None
         self.analysis = analysis
         self.scan_ids = set()
+        self._id_tracker = SequenceIdTracker()
+        self.q_value_threshold = q_value_threshold
+        self.ms2_score_threshold = ms2_score_threshold
 
     @property
     def glycopeptide_list(self):
@@ -126,20 +185,28 @@ class MzIdentMLSerializer(task.TaskBase):
             {gp.protein_relation.protein_id for gp in self.glycopeptide_list}]
 
     def extract_peptides(self):
+        self.log("Extracting Proteins")
         self.extract_proteins()
         self._peptides = []
         seen = set()
+
+        self.log("Extracting Peptides")
         for gp in self.glycopeptide_list:
-            d = convert_to_peptide_dict(gp.structure)
-            self._peptides.append(d)
-            seen.add(gp.structure.id)
+            d = convert_to_peptide_dict(gp.structure, self._id_tracker)
+            if self._id_tracker(gp.structure) == gp.structure.id:
+                self._peptides.append(d)
+                seen.add(gp.structure.id)
+
+        self.log("Extracting PeptideEvidence")
         self._peptide_evidence = [
-            convert_to_peptide_evidence_dict(gp.structure) for gp in self.glycopeptide_list
+            convert_to_peptide_evidence_dict(
+                gp.structure, self._id_tracker) for gp in self.glycopeptide_list
         ]
 
         self._proteins = [convert_to_protein_dict(prot) for prot in self.protein_list]
 
     def extract_spectrum_identifications(self):
+        self.log("Extracting SpectrumIdentificationResults")
         spectrum_identifications = []
         seen_scans = set()
         accepted_solution_ids = {gp.structure.id for gp in self.glycopeptide_list}
@@ -147,9 +214,14 @@ class MzIdentMLSerializer(task.TaskBase):
             for solution in gp.spectrum_matches:
                 if solution.scan.id in seen_scans:
                     continue
+                if solution.best_solution().q_value > self.q_value_threshold:
+                    continue
+                if solution.score < self.ms2_score_threshold:
+                    continue
                 seen_scans.add(solution.scan.id)
                 d = convert_to_spectrum_identification_dict(
-                    solution, seen=accepted_solution_ids)
+                    solution, seen=accepted_solution_ids,
+                    id_tracker=self._id_tracker)
                 if len(d['identifications']):
                     spectrum_identifications.append(d)
         self.scan_ids = seen_scans
@@ -176,6 +248,8 @@ class MzIdentMLSerializer(task.TaskBase):
         if "fasta_file" in hypothesis.parameters:
             spec['file_format'] = 'fasta format'
             spec['location'] = hypothesis.parameters['fasta_file']
+        elif "mzid_file" in hypothesis.parameters:
+            spec['file_format'] = 'mzIdentML format'
         return spec
 
     def source_file(self):
@@ -199,9 +273,18 @@ class MzIdentMLSerializer(task.TaskBase):
         hypothesis = self.analysis.hypothesis
         analysis = self.analysis
         mods = []
-        for mod in hypothesis.parameters['constant_modifications']:
+
+        def transform_modification(mod):
+            if isinstance(mod, basestring):
+                mod_inst = modification.Modification(mod)
+                target = modification.extract_targets_from_string(mod)
+                new_rule = mod_inst.rule.clone({target})
+                return new_rule
+            return mod
+
+        def pack_modification(mod, fixed=True):
             mod_spec = {
-                "fixed": True,
+                "fixed": fixed,
                 "mass_delta": mod.mass,
                 "residues": [res.symbol for rule in mod.targets
                              for res in rule.amino_acid_targets],
@@ -209,21 +292,17 @@ class MzIdentMLSerializer(task.TaskBase):
                     mod.name
                 ]
             }
-            mods.append(mod_spec)
-        for mod in hypothesis.parameters['variable_modifications']:
-            mod_spec = {
-                "fixed": False,
-                "mass_delta": mod.mass,
-                "residues": [res.symbol for rule in mod.targets
-                             for res in rule.amino_acid_targets],
-                "params": [
-                    mod.name
-                ]
-            }
-            mods.append(mod_spec)
+            return mod_spec
+
+        for mod in hypothesis.parameters.get('constant_modifications', []):
+            mod = transform_modification(mod)
+            mods.append(pack_modification(mod, True))
+        for mod in hypothesis.parameters.get('variable_modifications', []):
+            mod = transform_modification(mod)
+            mods.append(pack_modification(mod, False))
         spec = {
             "enzymes": [
-                {"name": e, "missed_cleavages": hypothesis.parameters['max_missed_cleavages']}
+                {"name": e, "missed_cleavages": hypothesis.parameters.get('max_missed_cleavages', None)}
                 for e in hypothesis.parameters['enzymes']],
             "fragment_tolerance": (analysis.parameters['fragment_error_tolerance'] * 1e6, None, "parts per million"),
             "parent_tolerance": (analysis.parameters['mass_error_tolerance'] * 1e6, None, "parts per million"),
