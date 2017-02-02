@@ -4,15 +4,22 @@ import textwrap
 
 from glycan_profiling.cli.base import cli
 from glycan_profiling.cli.validators import (
-    glycan_source_validators, validate_modifications,
-    validate_glycan_source, validate_glycopeptide_hypothesis_name,
-    validate_glycan_hypothesis_name, get_by_name_or_id,
-    validate_reduction, validate_derivatization,
-    validate_mzid_proteins, GlycanHypothesisCopier)
+    glycan_source_validators,
+    validate_modifications,
+    validate_glycan_source,
+    validate_glycopeptide_hypothesis_name,
+    validate_glycan_hypothesis_name,
+    get_by_name_or_id,
+    validate_reduction,
+    validate_derivatization,
+    validate_mzid_proteins,
+    GlycanHypothesisCopier)
 
 from glycan_profiling.serialize import (
-    DatabaseBoundOperation, GlycanHypothesis, Analysis,
-    AnalysisTypeEnum, GlycanComposition as DBGlycanComposition)
+    DatabaseBoundOperation,
+    GlycanHypothesis,
+    Analysis,
+    AnalysisTypeEnum)
 
 from glycan_profiling.database.builder.glycopeptide.naive_glycopeptide import (
     MultipleProcessFastaGlycopeptideHypothesisSerializer,

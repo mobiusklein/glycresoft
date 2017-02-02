@@ -1,4 +1,5 @@
 import os
+import multiprocessing
 from uuid import uuid4
 
 import click
@@ -56,10 +57,14 @@ def analyze():
 @click.option("-s", "--tandem-scoring-model", default='coverage_weighted_binomial', type=click.Choice(
               glycopeptide_tandem_scoring_functions.keys()),
               help="Select a scoring function to use for evaluating glycopeptide-spectrum matches")
-@click.option("-o", "--oxonium-threshold", default=0.05, type=float,
+@click.option("-x", "--oxonium-threshold", default=0.05, type=float,
               help=('Minimum HexNAc-derived oxonium ion abundance '
                     'ratio to filter MS/MS scans. Defaults to 0.05.'))
-@click.option("-o", "--output-path", default=None, help=(
+@click.option("-p", "--processes", 'processes', type=click.IntRange(1, multiprocessing.cpu_count()),
+              default=min(multiprocessing.cpu_count(), 4),
+              help=('Number of worker processes to use. Defaults to 4 '
+                    'or the number of CPUs, whichever is lower'))
+@click.option("-o", "--output-path", default=None, type=click.Path(writable=True), help=(
               "Path to write resulting analysis to."))
 @click.option("--save-intermediate-results", default=None, type=click.Path(), required=False,
               help='Save intermediate spectrum matches to a file')
@@ -67,7 +72,7 @@ def search_glycopeptide(context, database_connection, sample_path, hypothesis_id
                         analysis_name, output_path=None, grouping_error_tolerance=1.5e-5, mass_error_tolerance=1e-5,
                         msn_mass_error_tolerance=2e-5, psm_fdr_threshold=0.05, peak_shape_scoring_model=None,
                         tandem_scoring_model=None, oxonium_threshold=0.05,
-                        save_intermediate_results=None):
+                        save_intermediate_results=None, processes=4):
     if output_path is None:
         output_path = make_analysis_output_path("glycopeptide")
     if peak_shape_scoring_model is None:
@@ -110,7 +115,8 @@ def search_glycopeptide(context, database_connection, sample_path, hypothesis_id
         psm_fdr_threshold=psm_fdr_threshold,
         peak_shape_scoring_model=peak_shape_scoring_model,
         tandem_scoring_model=tandem_scoring_model,
-        oxonium_threshold=oxonium_threshold)
+        oxonium_threshold=oxonium_threshold,
+        processes=processes)
 
     gps, unassigned, target_hits, decoy_hits = analyzer.start()
     if save_intermediate_results is not None:

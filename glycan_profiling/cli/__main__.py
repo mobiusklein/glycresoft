@@ -9,6 +9,20 @@ try:
 except ImportError as e:
     pass
 
+
+def info(type, value, tb):
+    if hasattr(sys, 'ps1') or not sys.stderr.isatty():
+        sys.__excepthook__(type, value, tb)
+    else:
+        import traceback
+        import ipdb
+        traceback.print_exception(type, value, tb)
+        ipdb.post_mortem(tb)
+
+
+sys.excepthook = info
+
+
 main = base.cli.main
 
 if __name__ == '__main__':
