@@ -208,12 +208,15 @@ class BinomialSpectrumMatcher(SpectrumMatcherBase):
         return san
 
     def _compute_average_window_size(self, match_tolerance=2e-5):
-        window_sizes = [
-            match_tolerance * frag.mass * 2
-            for frag in self._backbone_mass_series
-        ]
+        # window_sizes = [
+        #     match_tolerance * frag.mass * 2
+        #     for frag in self._backbone_mass_series
+        # ]
 
-        average_window_size = sum(window_sizes) / len(window_sizes)
+        # average_window_size = sum(window_sizes) / len(window_sizes)
+        average_window_size = (
+            (self.target.peptide_composition(
+            ).mass) / 3.) * match_tolerance * 2
         return average_window_size
 
     def _fragment_matched_binomial(self, match_tolerance=2e-5):

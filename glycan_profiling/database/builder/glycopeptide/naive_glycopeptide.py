@@ -1,4 +1,6 @@
 from multiprocessing import Queue, Event
+
+from glycan_profiling.serialize import func
 from glycan_profiling.serialize.hypothesis.peptide import Peptide, Protein
 
 from glycopeptidepy.algorithm import reverse_preserve_sequon
@@ -124,6 +126,9 @@ class MultipleProcessFastaGlycopeptideHypothesisSerializer(FastaGlycopeptideHypo
             self.hypothesis_id,
             self.protein_ids(),
             digestor, n_processes=self.n_processes)
+        n_peptides = self.query(func.count(Peptide.id)).filter(
+            Peptide.hypothesis_id == self.hypothesis_id)
+        self.log("%d Base Peptides Produced" % (n_peptides,))
         task.run()
 
     def _spawn_glycosylator(self, input_queue, done_event):

@@ -588,7 +588,7 @@ class IdentificationProcessDispatcher(TaskBase):
                         has_work = False
                 continue
             target.clear_caches()
-            assert target.total_composition() == target.clone().total_composition()
+            # assert target.total_composition() == target.clone().total_composition()
             for scan_id, score in score_map.items():
                 self.scan_solution_map[scan_id].append(
                     SpectrumMatch(scan_map[scan_id], target, score))
