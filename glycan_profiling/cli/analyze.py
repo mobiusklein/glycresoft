@@ -116,7 +116,7 @@ def search_glycopeptide(context, database_connection, sample_path, hypothesis_id
         peak_shape_scoring_model=peak_shape_scoring_model,
         tandem_scoring_model=tandem_scoring_model,
         oxonium_threshold=oxonium_threshold,
-        processes=processes)
+        n_processes=processes)
 
     gps, unassigned, target_hits, decoy_hits = analyzer.start()
     if save_intermediate_results is not None:
