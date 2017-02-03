@@ -2,7 +2,13 @@ import itertools
 from uuid import uuid4
 from collections import defaultdict, Counter
 from multiprocessing import Process, Queue, Event
+from threading import Thread, Event as ThreadEvent
 from itertools import product
+
+try:
+    from Queue import Empty as QueueEmptyException
+except ImportError:
+    from queue import Empty as QueueEmptyException
 
 from glypy import Composition
 from glypy.composition import formula
@@ -347,8 +353,13 @@ class PeptideGlycosylator(object):
                     yield glycopeptide
 
 
+def null_log_handler(msg):
+    print(msg)
+
+
 class PeptideGlycosylatingProcess(Process):
-    def __init__(self, connection, hypothesis_id, input_queue, chunk_size=5000, done_event=None):
+    def __init__(self, connection, hypothesis_id, input_queue, chunk_size=5000, done_event=None,
+                 log_handler=null_log_handler):
         Process.__init__(self)
         self.daemon = True
         self.connection = connection
@@ -356,10 +367,20 @@ class PeptideGlycosylatingProcess(Process):
         self.chunk_size = chunk_size
         self.hypothesis_id = hypothesis_id
         self.done_event = done_event
+        self.log_handler = log_handler
+        self.session = None
+        self.work_done_event = Event()
+
+    def is_work_done(self):
+        return self.work_done_event.is_set()
+
+    def process_result(self, collection):
+        self.session.bulk_save_objects(collection)
+        self.session.commit()
 
     def task(self):
         database = DatabaseBoundOperation(self.connection)
-        session = database.session
+        self.session = database.session
         has_work = True
 
         glycosylator = PeptideGlycosylator(database.session, self.hypothesis_id)
@@ -380,46 +401,98 @@ class PeptideGlycosylatingProcess(Process):
                 for gp in glycosylator.handle_peptide(peptide):
                     result_accumulator.append(gp)
                     if len(result_accumulator) > self.chunk_size:
-                        session.bulk_save_objects(result_accumulator)
-                        session.commit()
+                        self.process_result(result_accumulator)
                         result_accumulator = []
             if len(result_accumulator) > 0:
-                session.bulk_save_objects(result_accumulator)
-                session.commit()
+                self.process_result(result_accumulator)
                 result_accumulator = []
+        self.work_done_event.set()
 
     def run(self):
         self.task()
+        # try:
+        #     self.task()
+        # except Exception as e:
+        #     import traceback
+        #     self.log_handler(
+        #         "An exception has occurred for %r.\n%r\n%s" % (
+        #             self, e, traceback.format_exc()))
 
 
 class NonSavingPeptideGlycosylatingProcess(PeptideGlycosylatingProcess):
-    def task(self):
-        database = DatabaseBoundOperation(self.connection)
-        session = database.session
+    def process_result(self, collection):
+        pass
+
+
+class QueuePushingPeptideGlycosylatingProcess(PeptideGlycosylatingProcess):
+    def __init__(self, connection, hypothesis_id, input_queue, output_queue, chunk_size=5000,
+                 done_event=None, log_handler=null_log_handler):
+        super(QueuePushingPeptideGlycosylatingProcess, self).__init__(
+            connection, hypothesis_id, input_queue, chunk_size, done_event, log_handler)
+        self.output_queue = output_queue
+
+    def process_result(self, collection):
+        self.output_queue.put(collection)
+
+
+class MultipleProcessPeptideGlycosylator(TaskBase):
+    def __init__(self, connection_specification, hypothesis_id, chunk_size=3500, n_processes=4):
+        self.n_processes = n_processes
+        self.connection_specification = connection_specification
+        self.chunk_size = chunk_size
+        self.hypothesis_id = hypothesis_id
+        self.input_queue = Queue(10)
+        self.output_queue = Queue(1000)
+        self.workers = []
+        self.dealt_done_event = Event()
+        self.ipc_controller = self.ipc_logger()
+
+    def spawn_worker(self):
+        worker = QueuePushingPeptideGlycosylatingProcess(
+            self.connection_specification, self.hypothesis_id, self.input_queue,
+            self.output_queue, self.chunk_size, self.dealt_done_event,
+            null_log_handler)
+        return worker
+
+    def push_work_batches(self, peptide_ids):
+        n = len(peptide_ids)
+        i = 0
+        chunk_size = min(int(n * 0.05), 1000)
+        while i < n:
+            self.input_queue.put(peptide_ids[i:(i + chunk_size)])
+            i += chunk_size
+            self.log("... Dealt Peptides %d-%d %0.2f%%" % (i - chunk_size, min(i, n), (min(i, n) / float(n)) * 100))
+        self.log("... All Peptides Dealt")
+        self.dealt_done_event.set()
+
+    def process(self, peptide_ids):
+        queue_feeder = Thread(target=self.push_work_batches, args=(peptide_ids,))
+        queue_feeder.daemon = True
+        queue_feeder.start()
+        for i in range(self.n_processes):
+            worker = self.spawn_worker()
+            worker.start()
+            self.workers.append(worker)
+
+        connection = DatabaseBoundOperation(self.connection_specification)
+        session = connection.session
         has_work = True
-
-        glycosylator = PeptideGlycosylator(database.session, self.hypothesis_id)
-        result_accumulator = []
-
+        last = 0
+        i = 0
         while has_work:
             try:
-                work_items = self.input_queue.get(timeout=5)
-                if work_items is None:
-                    has_work = False
-                    continue
-            except:
-                if self.done_event.is_set():
+                batch = self.output_queue.get(True, 5)
+                i += len(batch)
+                session.bulk_save_objects(batch)
+                session.commit()
+                if (i - last) > self.chunk_size * 10:
+                    self.log("... %d Glycopeptides Created" % (i,))
+                    last = i
+            except QueueEmptyException:
+                if all(w.is_work_done() for w in self.workers):
                     has_work = False
                 continue
-            peptides = slurp(database.session, Peptide, work_items, flatten=False)
-            for peptide in peptides:
-                for gp in glycosylator.handle_peptide(peptide):
-                    result_accumulator.append(gp)
-                    if len(result_accumulator) > self.chunk_size:
-                        # session.bulk_save_objects(result_accumulator)
-                        # session.commit()
-                        result_accumulator = []
-            if len(result_accumulator) > 0:
-                # session.bulk_save_objects(result_accumulator)
-                # session.commit()
-                result_accumulator = []
+        queue_feeder.join()
+        self.ipc_controller.stop()
+        for worker in self.workers:
+            worker.join()

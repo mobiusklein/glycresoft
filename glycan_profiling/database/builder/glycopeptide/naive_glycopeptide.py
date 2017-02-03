@@ -10,7 +10,8 @@ from .proteomics.fasta import ProteinFastaFileParser
 from .common import (
     GlycopeptideHypothesisSerializerBase,
     PeptideGlycosylator, PeptideGlycosylatingProcess,
-    NonSavingPeptideGlycosylatingProcess)
+    NonSavingPeptideGlycosylatingProcess,
+    MultipleProcessPeptideGlycosylator)
 
 
 class FastaGlycopeptideHypothesisSerializer(GlycopeptideHypothesisSerializerBase):
@@ -137,29 +138,33 @@ class MultipleProcessFastaGlycopeptideHypothesisSerializer(FastaGlycopeptideHypo
             chunk_size=3500, done_event=done_event)
 
     def glycosylate_peptides(self):
-        input_queue = Queue(10)
-        done_event = Event()
-        processes = [
-            self._spawn_glycosylator(input_queue, done_event) for i in range(self.n_processes)
-        ]
-        peptide_ids = self.peptide_ids()
-        n = len(peptide_ids)
-        i = 0
-        chunk_size = min(int(n * 0.05), 1000)
-        for process in processes:
-            input_queue.put(peptide_ids[i:(i + chunk_size)])
-            i += chunk_size
-            process.start()
+        # input_queue = Queue(10)
+        # done_event = Event()
+        # processes = [
+        #     self._spawn_glycosylator(input_queue, done_event) for i in range(self.n_processes)
+        # ]
+        # peptide_ids = self.peptide_ids()
+        # n = len(peptide_ids)
+        # i = 0
+        # chunk_size = min(int(n * 0.05), 1000)
+        # for process in processes:
+        #     input_queue.put(peptide_ids[i:(i + chunk_size)])
+        #     i += chunk_size
+        #     process.start()
 
-        while i < n:
-            input_queue.put(peptide_ids[i:(i + chunk_size)])
-            i += chunk_size
-            self.log("... Dealt Peptides %d-%d %0.2f%%" % (i - chunk_size, min(i, n), (min(i, n) / float(n)) * 100))
+        # while i < n:
+        #     input_queue.put(peptide_ids[i:(i + chunk_size)])
+        #     i += chunk_size
+        #     self.log("... Dealt Peptides %d-%d %0.2f%%" % (i - chunk_size, min(i, n), (min(i, n) / float(n)) * 100))
 
-        self.log("... All Peptides Dealt")
-        done_event.set()
-        for process in processes:
-            process.join()
+        # self.log("... All Peptides Dealt")
+        # done_event.set()
+        # for process in processes:
+        #     process.join()
+        dispatcher = MultipleProcessPeptideGlycosylator(
+            self._original_connection, self.hypothesis_id,
+            n_processes=self.n_processes)
+        dispatcher.process(self.peptide_ids())
 
 
 _MPFGHS = MultipleProcessFastaGlycopeptideHypothesisSerializer

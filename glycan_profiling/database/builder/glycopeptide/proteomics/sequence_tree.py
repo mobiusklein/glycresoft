@@ -28,7 +28,6 @@ class PrefixTree(TreeReprMixin, defaultdict):
         the ith level of `self`. At each level, if `label`
         is not None, it is added to the level's `labels` set.
 
-        
         Parameters
         ----------
         sequence : Sequence
@@ -36,7 +35,7 @@ class PrefixTree(TreeReprMixin, defaultdict):
         label : object, optional
             An arbitrary object which denotes or is associated with
             `sequence`
-        
+
         Returns
         -------
         self

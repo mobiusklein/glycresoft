@@ -37,7 +37,7 @@ class MzIdGlycopeptideTests(unittest.TestCase):
             mzid_path, db_file, glycan_builder.hypothesis_id)
         glycopeptide_builder.run()
 
-        self.assertEqual(554800, glycopeptide_builder.query(Glycopeptide).count())
+        self.assertEqual(543400, glycopeptide_builder.query(Glycopeptide).count())
 
         redundancy = glycopeptide_builder.query(
             Glycopeptide.glycopeptide_sequence,
