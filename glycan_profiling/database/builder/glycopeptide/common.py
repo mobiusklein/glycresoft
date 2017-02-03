@@ -413,14 +413,14 @@ class PeptideGlycosylatingProcess(Process):
         self.work_done_event.set()
 
     def run(self):
-        self.task()
-        # try:
-        #     self.task()
-        # except Exception as e:
-        #     import traceback
-        #     self.log_handler(
-        #         "An exception has occurred for %r.\n%r\n%s" % (
-        #             self, e, traceback.format_exc()))
+        # self.task()
+        try:
+            self.task()
+        except Exception as e:
+            import traceback
+            self.log_handler(
+                "An exception has occurred for %r.\n%r\n%s" % (
+                    self, e, traceback.format_exc()))
 
 
 class NonSavingPeptideGlycosylatingProcess(PeptideGlycosylatingProcess):
@@ -494,9 +494,12 @@ class MultipleProcessPeptideGlycosylator(TaskBase):
         while has_work:
             try:
                 batch = self.output_queue.get(True, 5)
-                i += len(batch)
                 self.database_mutex.clear()
-
+                waiting_batches = self.output_queue.qsize()
+                if waiting_batches > 10:
+                    for _ in range(min(waiting_batches, 10)):
+                        batch.extend(self.output_queue.get_nowait())
+                i += len(batch)
                 session.bulk_save_objects(batch)
                 session.commit()
 
