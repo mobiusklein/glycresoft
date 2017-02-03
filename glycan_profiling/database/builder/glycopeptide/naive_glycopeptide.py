@@ -126,10 +126,10 @@ class MultipleProcessFastaGlycopeptideHypothesisSerializer(FastaGlycopeptideHypo
             self.hypothesis_id,
             self.protein_ids(),
             digestor, n_processes=self.n_processes)
-        n_peptides = self.query(func.count(Peptide.id)).filter(
-            Peptide.hypothesis_id == self.hypothesis_id)
-        self.log("%d Base Peptides Produced" % (n_peptides,))
         task.run()
+        n_peptides = self.query(func.count(Peptide.id)).filter(
+            Peptide.hypothesis_id == self.hypothesis_id).scalar()
+        self.log("%d Base Peptides Produced" % (n_peptides,))
 
     def _spawn_glycosylator(self, input_queue, done_event):
         return PeptideGlycosylatingProcess(

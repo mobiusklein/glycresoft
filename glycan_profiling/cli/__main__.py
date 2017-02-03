@@ -20,7 +20,7 @@ def info(type, value, tb):
         ipdb.post_mortem(tb)
 
 
-sys.excepthook = info
+# sys.excepthook = info
 
 
 main = base.cli.main
