@@ -1,7 +1,7 @@
 import itertools
 from uuid import uuid4
 from collections import defaultdict, Counter
-from multiprocessing import Process, Queue, Event
+from multiprocessing import Process, Queue, Event, Lock
 from threading import Thread, Event as ThreadEvent
 from itertools import product
 
@@ -378,6 +378,10 @@ class PeptideGlycosylatingProcess(Process):
         self.session.bulk_save_objects(collection)
         self.session.commit()
 
+    def load_peptides(self, work_items):
+        peptides = slurp(self.session, Peptide, work_items, flatten=False)
+        return peptides
+
     def task(self):
         database = DatabaseBoundOperation(self.connection)
         self.session = database.session
@@ -396,7 +400,7 @@ class PeptideGlycosylatingProcess(Process):
                 if self.done_event.is_set():
                     has_work = False
                 continue
-            peptides = slurp(database.session, Peptide, work_items, flatten=False)
+            peptides = self.load_peptides(work_items)
             for peptide in peptides:
                 for gp in glycosylator.handle_peptide(peptide):
                     result_accumulator.append(gp)
@@ -426,10 +430,16 @@ class NonSavingPeptideGlycosylatingProcess(PeptideGlycosylatingProcess):
 
 class QueuePushingPeptideGlycosylatingProcess(PeptideGlycosylatingProcess):
     def __init__(self, connection, hypothesis_id, input_queue, output_queue, chunk_size=5000,
-                 done_event=None, log_handler=null_log_handler):
+                 done_event=None, log_handler=null_log_handler, database_mutex=None):
         super(QueuePushingPeptideGlycosylatingProcess, self).__init__(
             connection, hypothesis_id, input_queue, chunk_size, done_event, log_handler)
         self.output_queue = output_queue
+        self.database_mutex = database_mutex
+
+    def load_peptides(self, work_items):
+        self.database_mutex.wait()
+        result = super(QueuePushingPeptideGlycosylatingProcess, self).load_peptides(work_items)
+        return result
 
     def process_result(self, collection):
         self.output_queue.put(collection)
@@ -446,12 +456,13 @@ class MultipleProcessPeptideGlycosylator(TaskBase):
         self.workers = []
         self.dealt_done_event = Event()
         self.ipc_controller = self.ipc_logger()
+        self.database_mutex = Event()
 
     def spawn_worker(self):
         worker = QueuePushingPeptideGlycosylatingProcess(
             self.connection_specification, self.hypothesis_id, self.input_queue,
             self.output_queue, self.chunk_size, self.dealt_done_event,
-            null_log_handler)
+            null_log_handler, self.database_mutex)
         return worker
 
     def push_work_batches(self, peptide_ids):
@@ -469,6 +480,7 @@ class MultipleProcessPeptideGlycosylator(TaskBase):
         queue_feeder = Thread(target=self.push_work_batches, args=(peptide_ids,))
         queue_feeder.daemon = True
         queue_feeder.start()
+        self.database_mutex.set()
         for i in range(self.n_processes):
             worker = self.spawn_worker()
             worker.start()
@@ -483,8 +495,12 @@ class MultipleProcessPeptideGlycosylator(TaskBase):
             try:
                 batch = self.output_queue.get(True, 5)
                 i += len(batch)
+                self.database_mutex.clear()
+
                 session.bulk_save_objects(batch)
                 session.commit()
+
+                self.database_mutex.set()
                 if (i - last) > self.chunk_size * 10:
                     self.log("... %d Glycopeptides Created" % (i,))
                     last = i
