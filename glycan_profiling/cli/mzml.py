@@ -43,7 +43,7 @@ def tic_saddle_points(ms_file):
 
 @mzml_cli.command("preprocess")
 @click.argument("ms-file", type=click.Path(exists=True))
-@click.argument("database-connection")
+@click.argument("outfile-path", type=click.Path(writable=True))
 @click.option("-a", "--averagine", default='glycan',
               help='Averagine model to use for MS1 scans. Either a name or formula.')
 @click.option("-an", "--msn-averagine", default='peptide',
@@ -78,10 +78,9 @@ def tic_saddle_points(ms_file):
     help="Scan transformations to apply to MS^n scans. May specify more than once.")
 @click.option("-v", "--extract-only-tandem-envelopes", is_flag=True, default=False,
               help='Only work on regions that will be chosen for MS/MS')
-@click.option("--mzml/--no-mzml", default=True, is_flag=True, help="Enable/Disable mzML serialization. On by default")
 @click.option("--profile", default=False, is_flag=True, help=(
     "Force profile scan configuration."))
-def preprocess(ms_file, database_connection, averagine=None, start_time=None, end_time=None, maximum_charge=None,
+def preprocess(ms_file, outfile_path, averagine=None, start_time=None, end_time=None, maximum_charge=None,
                name=None, msn_averagine=None, score_threshold=15., msn_score_threshold=2., missed_peaks=1,
                background_reduction=2., msn_background_reduction=0., transform=None, msn_transform=None,
                processes=4, extract_only_tandem_envelopes=False, mzml=True, profile=False):
@@ -89,10 +88,7 @@ def preprocess(ms_file, database_connection, averagine=None, start_time=None, en
         transform = []
     if msn_transform is None:
         msn_transform = []
-    if mzml:
-        cache_handler_type = ThreadedMzMLScanCacheHandler
-    else:
-        cache_handler_type = ThreadedDatabaseScanCacheHandler
+    cache_handler_type = ThreadedMzMLScanCacheHandler
     click.echo("Preprocessing %s" % ms_file)
     minimum_charge = 1 if maximum_charge > 0 else -1
     charge_range = (minimum_charge, maximum_charge)
@@ -114,12 +110,9 @@ def preprocess(ms_file, database_connection, averagine=None, start_time=None, en
     if name is None:
         name = os.path.splitext(os.path.basename(ms_file))[0]
 
-    if not mzml:
-        name = validate_sample_run_name(None, database_connection, name)
-    else:
-        if os.path.exists(database_connection) and not os.access(database_connection, os.W_OK):
-            click.secho("Can't write to output file path", fg='red')
-            raise click.Abort()
+    if os.path.exists(outfile_path) and not os.access(outfile_path, os.W_OK):
+        click.secho("Can't write to output file path", fg='red')
+        raise click.Abort()
 
     click.secho("Initializing %s" % name, fg='green')
     click.echo("from %s to %s" % (start_scan_id, end_scan_id))
@@ -175,7 +168,7 @@ def preprocess(ms_file, database_connection, averagine=None, start_time=None, en
         ms1_deconvolution_args=ms1_deconvolution_args,
         msn_peak_picking_args=msn_peak_picking_args,
         msn_deconvolution_args=msn_deconvolution_args,
-        storage_path=database_connection, sample_name=name,
+        storage_path=outfile_path, sample_name=name,
         start_scan_id=start_scan_id, cache_handler_type=cache_handler_type,
         end_scan_id=end_scan_id, n_processes=processes,
         extract_only_tandem_envelopes=extract_only_tandem_envelopes)

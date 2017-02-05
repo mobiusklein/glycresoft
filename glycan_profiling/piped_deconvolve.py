@@ -34,6 +34,7 @@ denoise = ms_peak_picker.scan_filter.FTICRBaselineRemoval(scale=2.)
 
 
 class ScanIDYieldingProcess(Process):
+
     def __init__(self, mzml_path, queue, start_scan=None, max_scans=None, end_scan=None, no_more_event=None):
         Process.__init__(self)
         self.daemon = True
@@ -82,6 +83,7 @@ class ScanIDYieldingProcess(Process):
 
 
 class ScanBunchLoader(object):
+
     def __init__(self, mzml_loader):
         self.loader = mzml_loader
         self.queue = deque()
@@ -92,7 +94,8 @@ class ScanBunchLoader(object):
     def get(self):
         scan_id, product_scan_ids = self.queue.popleft()
         precursor = self.loader.get_scan_by_id(scan_id)
-        products = [self.loader.get_scan_by_id(pid) for pid in product_scan_ids]
+        products = [self.loader.get_scan_by_id(
+            pid) for pid in product_scan_ids]
         precursor.product_scans = products
         return (precursor, products)
 
@@ -133,8 +136,10 @@ class ScanTransformingProcess(Process):
         A shared output queue which this object will put
         :class:`ms_deisotope.data_source.common.ProcessedScan` bunches onto.
     """
+
     def __init__(self, mzml_path, input_queue, output_queue,
-                 averagine=ms_deisotope.averagine.glycan, charge_range=(-1, -8),
+                 averagine=ms_deisotope.averagine.glycan, charge_range=(
+                     -1, -8),
                  no_more_event=None, ms1_peak_picking_args=None, msn_peak_picking_args=None,
                  ms1_deconvolution_args=None, msn_deconvolution_args=None,
                  envelope_selector=None, log_handler=None):
@@ -176,10 +181,12 @@ class ScanTransformingProcess(Process):
         self.ms1_peak_picking_args = ms1_peak_picking_args
         self.msn_peak_picking_args = msn_peak_picking_args
         self.ms1_deconvolution_args = ms1_deconvolution_args
-        self.ms1_deconvolution_args.setdefault("charge_range", self.charge_range)
+        self.ms1_deconvolution_args.setdefault(
+            "charge_range", self.charge_range)
         self.ms1_deconvolution_args.setdefault("averagine", averagine)
         self.msn_deconvolution_args = msn_deconvolution_args
-        self.msn_deconvolution_args.setdefault("charge_range", self.charge_range)
+        self.msn_deconvolution_args.setdefault(
+            "charge_range", self.charge_range)
         self.msn_deconvolution_args.setdefault("averagine", averagine)
         self.envelope_selector = envelope_selector
 
@@ -195,7 +202,8 @@ class ScanTransformingProcess(Process):
                 tb))
 
     def log_message(self, message):
-        self.log_handler(message + ", %r" % (multiprocessing.current_process()))
+        self.log_handler(message + ", %r" %
+                         (multiprocessing.current_process()))
 
     def skip_scan(self, scan):
         self.output_queue.put((SCAN_STATUS_SKIP, scan.index, scan.ms_level))
@@ -254,7 +262,8 @@ class ScanTransformingProcess(Process):
                 continue
 
             try:
-                scan, priorities, product_scans = transformer.process_scan_group(scan, product_scans)
+                scan, priorities, product_scans = transformer.process_scan_group(
+                    scan, product_scans)
                 transformer.deconvolute_precursor_scan(scan, priorities)
                 self.send_scan(scan)
             except Exception as e:
@@ -271,7 +280,8 @@ class ScanTransformingProcess(Process):
                     self.send_scan(product_scan)
                 except Exception as e:
                     self.skip_scan(product_scan)
-                    self.log_error(e, product_scan.id, product_scan, (product_scan_ids))
+                    self.log_error(e, product_scan.id,
+                                   product_scan, (product_scan_ids))
 
         self.log_message("Done (%d scans)" % i)
 
@@ -289,7 +299,7 @@ class ScanCollator(TaskBase):
     Attributes
     ----------
     count_jobs_done : int
-        The number of scan bunches taken from `queue`
+        The number of scan bunches taken from :attr:`queue`
     count_since_last : int
         The number of work-cycles since the last scan bunch
         has been yielded
@@ -298,18 +308,28 @@ class ScanCollator(TaskBase):
         sent to the worker processes
     helper_producers : list
         A list of ScanTransformingProcesses
-    include_fitted : TYPE
-        Description
-    last_index : TYPE
-        Description
-    primary_worker : TYPE
-        Description
-    queue : TYPE
-        Description
+    include_fitted : bool
+        Whether or not to save the raw fitted peaks for each
+        scan produced. When this is `False`, they will be
+        discarded and memory will be saved
+    last_index : int
+        The index of the last scan yielded through the iterator
+        loop. This controls the next scan to be yielded and any
+        waiting conditions
+    primary_worker : ScanTransformingProcess
+        The first worker to start consuming scans which will dictate
+        the first handled index. Is required to run in isolation
+        from other worker processes to insure that the first scan
+        arrives in order
+    queue : multiprocessing.Queue
+        The IPC queue that all workers place their results on
+        to be consumed and yielded in order
     started_helpers : bool
-        Description
+        Whether or not the additional workers in :attr:`helper_producers`
+        have been started or not
     waiting : dict
-        Description
+        A mapping from scan index to `Scan` object. Used to serve
+        scans through the iterator when their index is called for
     """
     _log_received_scans = False
 
@@ -339,6 +359,24 @@ class ScanCollator(TaskBase):
         return False
 
     def store_item(self, item, index):
+        """Stores an incoming work-item for easy
+        access by its `index` value. If configuration
+        requires it, this will also reduce the number
+        of peaks in `item`.
+        
+        Parameters
+        ----------
+        item : str or ProcessedScan
+            Either a stub indicating why this work item
+            is not
+        index : TYPE
+            Description
+        
+        Returns
+        -------
+        TYPE
+            Description
+        """
         if self._log_received_scans:
             self.log("-- received %d: %s" % (index, item))
         self.waiting[index] = item
@@ -346,6 +384,21 @@ class ScanCollator(TaskBase):
             item.peak_set = []
 
     def consume(self, timeout=10):
+        """Fetches the next work item from the input
+        queue :attr:`queue`, blocking for at most `timeout` seconds.
+        
+        Parameters
+        ----------
+        timeout : int, optional
+            The duration to allow the process to block
+            for while awaiting new work items.
+        
+        Returns
+        -------
+        bool
+            Whether or not a new work item was found waiting
+            on the :attr:`queue`
+        """
         blocking = timeout != 0
         try:
             item, index, ms_level = self.queue.get(blocking, timeout)
@@ -358,6 +411,11 @@ class ScanCollator(TaskBase):
             return False
 
     def start_helper_producers(self):
+        """Starts the additional :class:`ScanTransformingProcess` workers
+        in :attr:`helper_producers` if they have not been started already.
+
+        Should only be invoked once
+        """
         if self.started_helpers:
             return
         self.started_helpers = True
@@ -367,6 +425,24 @@ class ScanCollator(TaskBase):
             helper.start()
 
     def produce(self, scan):
+        """Performs any final quality controls on the outgoing
+        :class:`ProcessedScan` object and takes care of any internal
+        details.
+
+        Resets :attr:`count_since_last` to `0`.
+        
+        Parameters
+        ----------
+        scan : ProcessedScan
+            The scan object being finalized for hand-off
+            to client code
+        
+        Returns
+        -------
+        ProcessedScan
+            The version of `scan` ready to be used by other
+            parts of the program
+        """
         self.count_since_last = 0
         return scan
 
@@ -390,7 +466,8 @@ class ScanCollator(TaskBase):
                 self.log("Waiting Keys: %r" % (keys,))
             self.log("%d Keys Total" % (len(self.waiting),))
             self.log("The last index handled: %r" % (self.last_index,))
-            self.log("Number of items waiting in the queue: %d" % (self.queue.qsize(),))
+            self.log("Number of items waiting in the queue: %d" %
+                     (self.queue.qsize(),))
 
     def __iter__(self):
         has_more = True
@@ -530,7 +607,8 @@ class ScanGenerator(TaskBase, ScanGeneratorBase):
 
     def _make_interval_tree(self):
         reader = MSFileLoader(self.ms_file, use_index=False)
-        self._scan_interval_tree = ScanIntervalTree.build(reader, time_radius=3.)
+        self._scan_interval_tree = ScanIntervalTree.build(
+            reader, time_radius=3.)
 
     def _make_transforming_process(self):
         return ScanTransformingProcess(

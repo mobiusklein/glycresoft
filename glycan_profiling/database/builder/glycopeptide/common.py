@@ -476,6 +476,12 @@ class MultipleProcessPeptideGlycosylator(TaskBase):
         self.log("... All Peptides Dealt")
         self.dealt_done_event.set()
 
+    def create_barrier(self):
+        self.database_mutex.clear()
+
+    def teardown_barrier(self):
+        self.database_mutex.set()
+
     def process(self, peptide_ids):
         queue_feeder = Thread(target=self.push_work_batches, args=(peptide_ids,))
         queue_feeder.daemon = True
@@ -494,16 +500,17 @@ class MultipleProcessPeptideGlycosylator(TaskBase):
         while has_work:
             try:
                 batch = self.output_queue.get(True, 5)
-                self.database_mutex.clear()
                 waiting_batches = self.output_queue.qsize()
                 if waiting_batches > 10:
                     for _ in range(min(waiting_batches, 10)):
                         batch.extend(self.output_queue.get_nowait())
                 i += len(batch)
+
+                self.create_barrier()
                 session.bulk_save_objects(batch)
                 session.commit()
 
-                self.database_mutex.set()
+                self.teardown_barrier()
                 if (i - last) > self.chunk_size * 10:
                     self.log("... %d Glycopeptides Created" % (i,))
                     last = i
