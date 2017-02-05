@@ -1,33 +1,31 @@
-from import_profiler import profile_import
-with profile_import() as context:
-    import sys
-    from multiprocessing import freeze_support
-    from glycan_profiling.cli import (
-        base, build_db, tools, mzml, analyze, config,
-        export)
 
-    try:
-        from glycresoft_app.cli import server
-    except ImportError as e:
-        pass
+import sys
+from multiprocessing import freeze_support
+from glycan_profiling.cli import (
+    base, build_db, tools, mzml, analyze, config,
+    export)
 
-
-    def info(type, value, tb):
-        if hasattr(sys, 'ps1') or not sys.stderr.isatty():
-            sys.__excepthook__(type, value, tb)
-        else:
-            import traceback
-            import ipdb
-            traceback.print_exception(type, value, tb)
-            ipdb.post_mortem(tb)
+try:
+    from glycresoft_app.cli import server
+except ImportError as e:
+    pass
 
 
-    # sys.excepthook = info
+def info(type, value, tb):
+    if hasattr(sys, 'ps1') or not sys.stderr.isatty():
+        sys.__excepthook__(type, value, tb)
+    else:
+        import traceback
+        import ipdb
+        traceback.print_exception(type, value, tb)
+        ipdb.post_mortem(tb)
 
 
-    main = base.cli.main
+# sys.excepthook = info
 
-context.print_info()
+
+main = base.cli.main
+
 
 if __name__ == '__main__':
     freeze_support()
