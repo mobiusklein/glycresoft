@@ -508,16 +508,21 @@ class MultipleProcessPeptideGlycosylator(TaskBase):
                 batch = self.output_queue.get(True, 5)
                 waiting_batches = self.output_queue.qsize()
                 if waiting_batches > 10:
-                    for _ in range(min(waiting_batches, 10)):
-                        batch.extend(self.output_queue.get_nowait())
+                    try:
+                        for _ in range(min(waiting_batches, 10)):
+                            batch.extend(self.output_queue.get_nowait())
+                    except QueueEmptyException:
+                        pass
                 i += len(batch)
 
                 self.create_barrier()
+
                 session.bulk_save_objects(batch)
                 session.commit()
 
                 self.teardown_barrier()
-                if (i - last) > self.chunk_size * 10:
+
+                if (i - last) > self.chunk_size * 1:
                     self.log("... %d Glycopeptides Created" % (i,))
                     last = i
             except QueueEmptyException:

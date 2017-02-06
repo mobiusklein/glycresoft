@@ -58,7 +58,7 @@ def _build_glycan_composition_hypothesis_from_text(database_connection, text_fil
         hypothesis_name = hypothesis_name + '-Glycans'
     builder = TextFileGlycanHypothesisSerializer(
         text_file, database_connection, hypothesis_name=hypothesis_name)
-    builder.start()
+    builder.run()
     click.echo(builder.summarize())
     return builder.hypothesis_id
 
@@ -70,7 +70,7 @@ def _build_glycan_composition_hypothesis_from_combinatorial(database_connection,
         hypothesis_name = hypothesis_name + '-Glycans'
     builder = CombinatorialGlycanHypothesisSerializer(
         text_file, database_connection, hypothesis_name=hypothesis_name)
-    builder.start()
+    builder.run()
     click.echo(builder.summarize())
     return builder.hypothesis_id
 
