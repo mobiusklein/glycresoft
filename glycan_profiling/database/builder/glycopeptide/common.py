@@ -416,10 +416,9 @@ class PeptideGlycosylatingProcess(Process):
                 self.process_result(result_accumulator)
                 result_accumulator = []
         self.work_done_event.set()
-        self.log_handler("%s completed. (%d peptides, %d glycopeptides)" % (self.name, n, n_gps))
+        self.log_handler("%r completed. (%d peptides, %d glycopeptides)" % (self, n, n_gps))
 
     def run(self):
-        # self.task()
         try:
             self.task()
         except Exception as e:
@@ -541,5 +540,5 @@ class MultipleProcessPeptideGlycosylator(TaskBase):
         queue_feeder.join()
         self.ipc_controller.stop()
         for worker in self.workers:
-            self.log("Joining Process %r" % (worker.name,))
+            self.log("Joining Process %r (%s)" % (worker, worker.is_alive()))
             worker.join()
