@@ -416,7 +416,7 @@ class PeptideGlycosylatingProcess(Process):
                 self.process_result(result_accumulator)
                 result_accumulator = []
         self.work_done_event.set()
-        self.log_handler("%r completed. (%d peptides, %d glycopeptides)" % (self, n, n_gps))
+        self.log_handler("Process %r completed. (%d peptides, %d glycopeptides)" % (self.pid, n, n_gps))
 
     def run(self):
         try:
