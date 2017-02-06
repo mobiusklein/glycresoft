@@ -517,8 +517,12 @@ class MultipleProcessPeptideGlycosylator(TaskBase):
 
                 self.create_barrier()
 
-                session.bulk_save_objects(batch)
-                session.commit()
+                try:
+                    session.bulk_save_objects(batch)
+                    session.commit()
+                except:
+                    session.rollback()
+                    raise
 
                 self.teardown_barrier()
 
