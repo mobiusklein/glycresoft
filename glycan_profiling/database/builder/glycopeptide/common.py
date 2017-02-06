@@ -416,6 +416,10 @@ class PeptideGlycosylatingProcess(Process):
                 self.process_result(result_accumulator)
                 result_accumulator = []
         self.work_done_event.set()
+        # It seems there is no public API to force the process to check if it is done
+        # but the internal method is invoked when creating a Process `repr` on Python 2.
+        # This problem supposedly doesn't exist in Python 3.
+        repr(self)
         self.log_handler("Process %r completed. (%d peptides, %d glycopeptides)" % (self.pid, n, n_gps))
 
     def run(self):
@@ -469,7 +473,7 @@ class MultipleProcessPeptideGlycosylator(TaskBase):
         worker = QueuePushingPeptideGlycosylatingProcess(
             self.connection_specification, self.hypothesis_id, self.input_queue,
             self.output_queue, self.chunk_size, self.dealt_done_event,
-            null_log_handler, self.database_mutex)
+            self.ipc_controller.sender(), self.database_mutex)
         return worker
 
     def push_work_batches(self, peptide_ids):
