@@ -419,6 +419,8 @@ class ScanStub(object):
         metadata for scheduling when and where this
         scan should be processed, where actual loading
         will occur.
+    bind : MzMLLoader
+        A resource to use to load scans with by scan id.
     """
     def __init__(self, precursor_information, bind):
         self.id = precursor_information.product_scan_id
@@ -426,7 +428,10 @@ class ScanStub(object):
         self.bind = bind
 
     def convert(self, *args, **kwargs):
-        return self.bind.get_scan_by_id(self.id)
+        try:
+            return self.bind.get_scan_by_id(self.id)
+        except AttributeError:
+            raise KeyError(self.id)
 
 
 class MzMLGlycopeptideLCMSMSAnalyzer(GlycopeptideLCMSMSAnalyzer):

@@ -258,9 +258,18 @@ class GlycopeptideDatabaseSearchIdentifier(TaskBase):
                 self.log("... %s" % item)
             if hasattr(bunch[0], 'convert'):
                 bunch = [self.scorer_type.load_peaks(o) for o in bunch]
+            # Account for cases where the scan may be mentioned in the index, but
+            # not actually present in the MS data
+            out = []
             for scan in bunch:
-                scan.deconvoluted_peak_set = self.scan_transformer(
-                    scan.deconvoluted_peak_set)
+                try:
+                    scan.deconvoluted_peak_set = self.scan_transformer(
+                        scan.deconvoluted_peak_set)
+                    out.append(scan)
+                except AttributeError:
+                    self.log("Missing Scan: %s" % (scan.id,))
+                    continue
+            bunch = out
             self.log("... Spectra Extracted")
             evaluator = self._make_evaluator(bunch)
             t, d = evaluator.score_all(
