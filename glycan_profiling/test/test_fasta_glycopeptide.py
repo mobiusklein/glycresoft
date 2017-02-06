@@ -7,6 +7,7 @@ from glycan_profiling.database.builder.glycopeptide.proteomics import fasta
 from glycan_profiling.database.builder.glycan import (
     TextFileGlycanHypothesisSerializer, CombinatorialGlycanHypothesisSerializer)
 from glycan_profiling import serialize
+from glycan_profiling.test import fixtures
 
 from glycan_profiling.test.test_constrained_combinatorics import FILE_SOURCE as GLYCAN_RULE_FILE_SOURCE
 
@@ -170,6 +171,22 @@ class FastaGlycopeptideTests(unittest.TestCase):
         self.clear_file(glycan_file)
         self.clear_file(fasta_file)
         self.clear_file(db_file)
+
+    def test_throughput(self):
+        fasta_file = fixtures.get_test_data("phil-82-proteins.fasta")
+        glycan_file = fixtures.get_test_data("IAV_matched_glycans.txt")
+        db_file = self.setup_tempfile("")
+        print(db_file)
+
+        glycan_builder = TextFileGlycanHypothesisSerializer(glycan_file, db_file)
+        glycan_builder.start()
+
+        glycopeptide_builder = naive_glycopeptide.MultipleProcessFastaGlycopeptideHypothesisSerializer(
+            fasta_file, db_file, glycan_builder.hypothesis_id, constant_modifications=constant_modifications,
+            variable_modifications=variable_modifications, max_missed_cleavages=2)
+        glycopeptide_builder.start()
+        self.clear_file(db_file)
+
 
 
 if __name__ == '__main__':

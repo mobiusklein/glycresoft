@@ -390,6 +390,8 @@ class PeptideGlycosylatingProcess(Process):
         glycosylator = PeptideGlycosylator(database.session, self.hypothesis_id)
         result_accumulator = []
 
+        n = 0
+        n_gps = 0
         while has_work:
             try:
                 work_items = self.input_queue.get(timeout=5)
@@ -401,16 +403,20 @@ class PeptideGlycosylatingProcess(Process):
                     has_work = False
                 continue
             peptides = self.load_peptides(work_items)
+            n += len(peptides)
             for peptide in peptides:
                 for gp in glycosylator.handle_peptide(peptide):
                     result_accumulator.append(gp)
                     if len(result_accumulator) > self.chunk_size:
+                        n_gps += len(result_accumulator)
                         self.process_result(result_accumulator)
                         result_accumulator = []
             if len(result_accumulator) > 0:
+                n_gps += len(result_accumulator)
                 self.process_result(result_accumulator)
                 result_accumulator = []
         self.work_done_event.set()
+        self.log_handler("%s completed. (%d peptides, %d glycopeptides)" % (self.name, n, n_gps))
 
     def run(self):
         # self.task()

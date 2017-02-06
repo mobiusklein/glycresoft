@@ -729,6 +729,15 @@ class ChromatogramWrapper(object):
     def __len__(self):
         return len(self.chromatogram)
 
+    def __hash__(self):
+        return hash(self.chromatogram)
+
+    def __eq__(self, other):
+        try:
+            return self.chromatogram == get_chromatogram(other)
+        except:
+            return False
+
     @property
     def nodes(self):
         return self.chromatogram.nodes

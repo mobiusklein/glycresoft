@@ -9,6 +9,7 @@ class HypothesisSerializerBase(TaskBase):
         self.hypothesis.parameters.update(params)
         self.session.add(self.hypothesis)
         self.session.commit()
+        self.log("Updated Parameters (%r)" % (self.hypothesis.parameters,))
 
     @property
     def hypothesis(self):

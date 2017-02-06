@@ -258,15 +258,14 @@ class GlycopeptideDatabaseSearchIdentifier(TaskBase):
                 self.log("... %s" % item)
             if hasattr(bunch[0], 'convert'):
                 out = []
-                # bunch = [self.scorer_type.load_peaks(o) for o in bunch]
+                # Account for cases where the scan may be mentioned in the index, but
+                # not actually present in the MS data
                 for o in bunch:
                     try:
                         out.append(self.scorer_type.load_peaks(o))
                     except KeyError:
-                        pass
+                        self.log("Missing Scan: %s" % (o.id,))
                 bunch = out
-            # Account for cases where the scan may be mentioned in the index, but
-            # not actually present in the MS data
             out = []
             for scan in bunch:
                 try:

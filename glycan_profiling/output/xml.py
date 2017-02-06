@@ -1,10 +1,12 @@
-from collections import defaultdict
+import os
+from collections import defaultdict, OrderedDict
 
 from glycan_profiling import task, serialize, version
 
 from glypy.composition import formula
 
 from glycopeptidepy.structure import parser, modification
+from glycan_profiling.chromatogram_tree.chromatogram import group_by
 
 from brainpy import mass_charge_ratio
 
@@ -117,7 +119,7 @@ def convert_to_spectrum_identification_dict(spectrum_solution_set, seen=None, id
     return data
 
 
-class MzMLExporter(object):
+class MzMLExporter(task.TaskBase):
     def __init__(self, source, outfile):
         self.reader = mzml.ProcessedMzMLDeserializer(source)
         self.outfile = outfile
@@ -140,6 +142,44 @@ class MzMLExporter(object):
             precursor = self.reader.get_scan_by_id(precursor_id)
             bunches.append(mzml.ScanBunch(precursor, products))
         return bunches
+
+    def begin(self, scan_bunches):
+        self.n_spectra = sum(len(b.products) for b in scan_bunches) + len(scan_bunches)
+        self.make_writer()
+        for bunch in scan_bunches:
+            # self.log("Wrote %s" % (bunch.precursor.id,))
+            self.put_scan_bunch(bunch)
+
+    def put_scan_bunch(self, bunch):
+        self.writer.save_scan_bunch(bunch)
+
+    def extract_chromatograms_from_identified_glycopeptides(self, glycopeptide_list):
+        by_chromatogram = group_by(
+            glycopeptide_list, lambda x: x.chromatogram.chromatogram)
+        i = 0
+        for chromatogram, members in by_chromatogram.items():
+            self.enqueue_chromatogram(chromatogram, i, params=[
+                {"name": "GlycReSoft:profile score", "value": members[0].ms1_score},
+                {"name": "GlycReSoft:assigned entity", "value": str(members[0].structure)}
+            ])
+            i += 1
+
+    def enqueue_chromatogram(self, chromatogram, chromatogram_id, params=None):
+        if params is None:
+            params = []
+        chromatogram_data = dict()
+        rt, signal = chromatogram.as_arrays()
+        chromatogram_dict = OrderedDict(zip(rt, signal))
+        chromatogram_data['chromatogram'] = chromatogram_dict
+        chromatogram_data['chromatogram_type'] = 'selected ion current chromatogram'
+        chromatogram_data['id'] = chromatogram_id
+        chromatogram_data['params'] = params
+
+        self.writer.chromatogram_queue.append(chromatogram_data)
+
+    def complete(self):
+        self.writer.complete()
+        self.writer.format()
 
 
 class SequenceIdTracker(object):
@@ -164,7 +204,9 @@ class SequenceIdTracker(object):
 
 class MzIdentMLSerializer(task.TaskBase):
     def __init__(self, outfile, glycopeptide_list, analysis, database_handle,
-                 q_value_threshold=0.05, ms2_score_threshold=0):
+                 q_value_threshold=0.05, ms2_score_threshold=0,
+                 export_mzml=True, source_mzml_path=None,
+                 output_mzml_path=None):
         self.outfile = outfile
         self.database_handle = database_handle
         self._glycopeptide_list = glycopeptide_list
@@ -174,6 +216,9 @@ class MzIdentMLSerializer(task.TaskBase):
         self._id_tracker = SequenceIdTracker()
         self.q_value_threshold = q_value_threshold
         self.ms2_score_threshold = ms2_score_threshold
+        self.export_mzml = export_mzml
+        self.source_mzml_path = source_mzml_path
+        self.output_mzml_path = output_mzml_path
 
     @property
     def glycopeptide_list(self):
@@ -317,10 +362,41 @@ class MzIdentMLSerializer(task.TaskBase):
         search_database = self.search_database()
         protocol = self.protocol()
         source_file = self.source_file()
-        analysis = [[spectra_data['id']], [search_database['id']]]
 
         self.extract_peptides()
         self.extract_spectrum_identifications()
+
+        had_specified_mzml_path = self.source_mzml_path is None
+        if self.source_mzml_path is None:
+            self.source_mzml_path = spectra_data['location']
+
+        did_resolve_mzml_path = os.path.exists(self.source_mzml_path)
+        if not did_resolve_mzml_path:
+            self.log("Could not locate source mzML file.")
+            if not had_specified_mzml_path:
+                self.log("If you did not specify an alternative location to "
+                         "find the mzML path, please do so.")
+
+        if self.export_mzml and did_resolve_mzml_path:
+            if self.output_mzml_path is None:
+                prefix = os.path.splitext(self.outfile.name)[0]
+                self.output_mzml_path = "%s.export.mzML" % (prefix,)
+            exporter = None
+            self.log("Begin Exporting mzML")
+            with open(self.output_mzml_path, 'wb') as handle:
+                exporter = MzMLExporter(self.source_mzml_path, handle)
+                self.log("... Aggregating Scan Bunches")
+                scan_bunches = exporter.aggregate_scan_bunches(self.scan_ids)
+                self.log("... Exporting Spectra")
+                exporter.begin(scan_bunches)
+                self.log("... Exporting Chromatograms")
+                exporter.extract_chromatograms_from_identified_glycopeptides(
+                    self.glycopeptide_list)
+                self.log("... Finalizing mzML")
+                exporter.complete()
+            self.log("mzML Export Finished")
+
+        analysis = [[spectra_data['id']], [search_database['id']]]
 
         with f:
             f.controlled_vocabularies()
