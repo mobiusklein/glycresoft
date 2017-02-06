@@ -1,7 +1,7 @@
 import itertools
 from uuid import uuid4
 from collections import defaultdict, Counter
-from multiprocessing import Process, Queue, Event, Lock
+from multiprocessing import Process, Queue, Event, Lock, RLock
 from threading import Thread, Event as ThreadEvent
 from itertools import product
 
@@ -443,8 +443,9 @@ class QueuePushingPeptideGlycosylatingProcess(PeptideGlycosylatingProcess):
         self.database_mutex = database_mutex
 
     def load_peptides(self, work_items):
-        self.database_mutex.wait()
-        result = super(QueuePushingPeptideGlycosylatingProcess, self).load_peptides(work_items)
+        # self.database_mutex.wait()
+        with self.database_mutex:
+            result = super(QueuePushingPeptideGlycosylatingProcess, self).load_peptides(work_items)
         return result
 
     def process_result(self, collection):
@@ -462,7 +463,8 @@ class MultipleProcessPeptideGlycosylator(TaskBase):
         self.workers = []
         self.dealt_done_event = Event()
         self.ipc_controller = self.ipc_logger()
-        self.database_mutex = Event()
+        # self.database_mutex = Event()
+        self.database_mutex = RLock()
 
     def spawn_worker(self):
         worker = QueuePushingPeptideGlycosylatingProcess(
@@ -483,16 +485,18 @@ class MultipleProcessPeptideGlycosylator(TaskBase):
         self.dealt_done_event.set()
 
     def create_barrier(self):
-        self.database_mutex.clear()
+        # self.database_mutex.clear()
+        self.database_mutex.__enter__()
 
     def teardown_barrier(self):
-        self.database_mutex.set()
+        # self.database_mutex.set()
+        self.database_mutex.__exit__(None, None, None)
 
     def process(self, peptide_ids):
         queue_feeder = Thread(target=self.push_work_batches, args=(peptide_ids,))
         queue_feeder.daemon = True
         queue_feeder.start()
-        self.database_mutex.set()
+        # self.database_mutex.set()
         for i in range(self.n_processes):
             worker = self.spawn_worker()
             worker.start()
@@ -523,8 +527,8 @@ class MultipleProcessPeptideGlycosylator(TaskBase):
                 except:
                     session.rollback()
                     raise
-
-                self.teardown_barrier()
+                finally:
+                    self.teardown_barrier()
 
                 if (i - last) > self.chunk_size * 1:
                     self.log("... %d Glycopeptides Created" % (i,))
@@ -533,7 +537,9 @@ class MultipleProcessPeptideGlycosylator(TaskBase):
                 if all(w.is_work_done() for w in self.workers):
                     has_work = False
                 continue
+        self.log("All Work Done.")
         queue_feeder.join()
         self.ipc_controller.stop()
         for worker in self.workers:
+            self.log("Joining Process %d" % (worker.name,))
             worker.join()
