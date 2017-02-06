@@ -285,7 +285,7 @@ class ProteinDigestingProcess(Process):
             proteins = slurp(session, Protein, work_items, flatten=False)
             acc = []
 
-            threshold_size = 5000
+            threshold_size = 3000
 
             for protein in proteins:
                 size = len(protein.protein_sequence)
@@ -327,7 +327,7 @@ class MultipleProcessProteinDigestor(TaskBase):
 
     def run(self):
         logger = self.ipc_logger()
-        input_queue = Queue(2 * self.n_processes)
+        input_queue = Queue(20 * self.n_processes)
         done_event = Event()
         processes = [
             ProteinDigestingProcess(
@@ -340,7 +340,7 @@ class MultipleProcessProteinDigestor(TaskBase):
         i = 0
         n = len(protein_ids)
         chunk_size = 2
-        interval = 100
+        interval = 30
         for process in processes:
             input_queue.put(protein_ids[i:(i + chunk_size)])
             i += chunk_size

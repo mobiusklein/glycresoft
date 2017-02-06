@@ -446,7 +446,6 @@ class QueuePushingPeptideGlycosylatingProcess(PeptideGlycosylatingProcess):
         self.database_mutex = database_mutex
 
     def load_peptides(self, work_items):
-        # self.database_mutex.wait()
         with self.database_mutex:
             result = super(QueuePushingPeptideGlycosylatingProcess, self).load_peptides(work_items)
         return result
@@ -466,7 +465,6 @@ class MultipleProcessPeptideGlycosylator(TaskBase):
         self.workers = []
         self.dealt_done_event = Event()
         self.ipc_controller = self.ipc_logger()
-        # self.database_mutex = Event()
         self.database_mutex = RLock()
 
     def spawn_worker(self):

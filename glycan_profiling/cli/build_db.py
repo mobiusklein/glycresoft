@@ -109,7 +109,7 @@ def _copy_hypothesis_across_file_boundaries(database_connection, source, hypothe
 
 def _validate_glycan_source_identifier(ctx, param, value):
     try:
-        if ctx.params['glycan_source_type'] not in ("hypothesis", "analysis"):
+        if ctx.params['glycan_source_type'] not in ("hypothesis", "analysis") and value:
             width = click.get_terminal_size()[0]
             click.secho('\n'.join(
                 textwrap.wrap(
