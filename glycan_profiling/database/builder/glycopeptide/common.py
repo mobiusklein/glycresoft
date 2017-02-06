@@ -541,5 +541,5 @@ class MultipleProcessPeptideGlycosylator(TaskBase):
         queue_feeder.join()
         self.ipc_controller.stop()
         for worker in self.workers:
-            self.log("Joining Process %d" % (worker.name,))
+            self.log("Joining Process %r" % (worker.name,))
             worker.join()
