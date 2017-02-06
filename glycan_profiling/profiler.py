@@ -420,12 +420,13 @@ class ScanStub(object):
         scan should be processed, where actual loading
         will occur.
     """
-    def __init__(self, precursor_information):
+    def __init__(self, precursor_information, bind):
         self.id = precursor_information.product_scan_id
         self.precursor_information = precursor_information
+        self.bind = bind
 
     def convert(self, *args, **kwargs):
-        return self.precursor_information.product
+        return self.bind.get_scan_by_id(self.id)
 
 
 class MzMLGlycopeptideLCMSMSAnalyzer(GlycopeptideLCMSMSAnalyzer):
@@ -453,7 +454,7 @@ class MzMLGlycopeptideLCMSMSAnalyzer(GlycopeptideLCMSMSAnalyzer):
 
     def load_msms(self, peak_loader):
         prec_info = peak_loader.precursor_information()
-        msms_scans = [ScanStub(o) for o in prec_info]
+        msms_scans = [ScanStub(o, peak_loader) for o in prec_info]
         return msms_scans
 
     def save_solutions(self, identified_glycopeptides, unassigned_chromatograms,
