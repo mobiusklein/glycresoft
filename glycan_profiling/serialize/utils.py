@@ -262,7 +262,7 @@ class toggle_indices(object):
 
     def drop(self):
         for index in self.table.indexes:
-            log_handle.log("Dropping Index %r" % index)
+            # log_handle.log("Dropping Index %r" % index)
             try:
                 conn = self.session.connection()
                 index.drop(conn)

@@ -20,6 +20,7 @@ from glycan_profiling.serialize.hypothesis.peptide import Glycopeptide, Peptide,
 from glycan_profiling.serialize.hypothesis.glycan import (
     GlycanCombination, GlycanClass, GlycanComposition,
     GlycanTypes, GlycanCombinationGlycanComposition)
+from glycan_profiling.serialize.utils import toggle_indices
 from glycan_profiling.task import TaskBase
 
 from glycan_profiling.database.builder.glycan import glycan_combinator
@@ -455,7 +456,7 @@ class QueuePushingPeptideGlycosylatingProcess(PeptideGlycosylatingProcess):
 
 
 class MultipleProcessPeptideGlycosylator(TaskBase):
-    def __init__(self, connection_specification, hypothesis_id, chunk_size=3500, n_processes=4):
+    def __init__(self, connection_specification, hypothesis_id, chunk_size=6500, n_processes=4):
         self.n_processes = n_processes
         self.connection_specification = connection_specification
         self.chunk_size = chunk_size
@@ -505,6 +506,11 @@ class MultipleProcessPeptideGlycosylator(TaskBase):
 
         connection = DatabaseBoundOperation(self.connection_specification)
         session = connection.session
+
+        self.log("Begin Creation. Dropping Indices")
+        index_controller = toggle_indices(session, Glycopeptide)
+        index_controller.drop()
+
         has_work = True
         last = 0
         i = 0
@@ -513,11 +519,14 @@ class MultipleProcessPeptideGlycosylator(TaskBase):
                 batch = self.output_queue.get(True, 5)
                 waiting_batches = self.output_queue.qsize()
                 if waiting_batches > 10:
+                    self.create_barrier()
+                    self.log("%d waiting sets." % (waiting_batches,))
                     try:
-                        for _ in range(min(waiting_batches, 10)):
+                        for _ in range(waiting_batches):
                             batch.extend(self.output_queue.get_nowait())
                     except QueueEmptyException:
                         pass
+                    self.teardown_barrier()
                 i += len(batch)
 
                 self.create_barrier()
@@ -538,7 +547,8 @@ class MultipleProcessPeptideGlycosylator(TaskBase):
                 if all(w.is_work_done() for w in self.workers):
                     has_work = False
                 continue
-        self.log("All Work Done.")
+        self.log("All Work Done. Rebuilding Indices")
+        index_controller.create()
         queue_feeder.join()
         self.ipc_controller.stop()
         for worker in self.workers:
