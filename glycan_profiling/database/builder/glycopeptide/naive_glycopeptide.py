@@ -26,15 +26,17 @@ class FastaGlycopeptideHypothesisSerializer(GlycopeptideHypothesisSerializerBase
         self.max_missed_cleavages = max_missed_cleavages
         self.max_glycosylation_events = max_glycosylation_events
 
-        self.log("Setting Parameters (%r)" % (fasta_file,))
-        self.set_parameters({
+        params = {
             "fasta_file": fasta_file,
             "enzymes": [protease] if isinstance(protease, basestring) else list(protease),
             "constant_modifications": constant_modifications,
             "variable_modifications": variable_modifications,
             "max_missed_cleavages": max_missed_cleavages,
             "max_glycosylation_events": max_glycosylation_events
-        })
+        }
+
+        self.log("Setting Parameters (%r)" % (params,))
+        self.set_parameters(params)
 
     def extract_proteins(self):
         i = 0
