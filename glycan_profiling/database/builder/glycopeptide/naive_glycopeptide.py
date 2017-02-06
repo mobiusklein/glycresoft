@@ -35,7 +35,7 @@ class FastaGlycopeptideHypothesisSerializer(GlycopeptideHypothesisSerializerBase
             "max_glycosylation_events": max_glycosylation_events
         }
 
-        self.log("Setting Parameters (%r)" % (params,))
+        # self.log("Setting Parameters (%r)" % (params,))
         self.set_parameters(params)
 
     def extract_proteins(self):
