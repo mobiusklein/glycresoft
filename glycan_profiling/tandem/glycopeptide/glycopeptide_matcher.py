@@ -257,7 +257,14 @@ class GlycopeptideDatabaseSearchIdentifier(TaskBase):
             for item in format_work_batch(bunch, count, total):
                 self.log("... %s" % item)
             if hasattr(bunch[0], 'convert'):
-                bunch = [self.scorer_type.load_peaks(o) for o in bunch]
+                out = []
+                # bunch = [self.scorer_type.load_peaks(o) for o in bunch]
+                for o in bunch:
+                    try:
+                        out.append(self.scorer_type.load_peaks(o))
+                    except KeyError:
+                        pass
+                bunch = out
             # Account for cases where the scan may be mentioned in the index, but
             # not actually present in the MS data
             out = []
