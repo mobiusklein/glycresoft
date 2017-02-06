@@ -6,6 +6,9 @@ class HypothesisSerializerBase(TaskBase):
     def set_parameters(self, params):
         if self.hypothesis.parameters is None:
             self.hypothesis.parameters = {}
+            self.session.add(self.hypothesis)
+            self.session.commit()
+        self.log("Parameters Before Update (%r)" % (self.hypothesis.parameters,))
         self.hypothesis.parameters.update(params)
         self.session.add(self.hypothesis)
         self.session.commit()
