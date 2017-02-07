@@ -664,6 +664,7 @@ class SpectrumIdentificationWorkerBase(Process):
 
     def task(self):
         has_work = True
+        items_handled = 0
         while has_work:
             try:
                 structure, scan_ids = self.input_queue.get(True, 5)
@@ -671,6 +672,7 @@ class SpectrumIdentificationWorkerBase(Process):
                 if self.done_event.is_set():
                     has_work = False
                     break
+            items_handled += 1
             scans = [self.fetch_scan(i) for i in scan_ids]
             solution_target = None
             solution = None
@@ -682,6 +684,7 @@ class SpectrumIdentificationWorkerBase(Process):
                 solution.target.clear_caches()
             self.pack_output(solution_target)
         self._work_complete.set()
+        self.log_handler("Worker %r Finished. Handled %d items." % (self, items_handled))
 
     def run(self):
         self.task()
