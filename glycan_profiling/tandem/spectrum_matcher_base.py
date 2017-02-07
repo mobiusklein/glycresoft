@@ -539,6 +539,8 @@ class IdentificationProcessDispatcher(TaskBase):
         self.scan_load_map = self.ipc_manager.dict()
 
     def clear_pool(self):
+        self.ipc_manager.shutdown()
+        self.ipc_manager = None
         for worker in self.workers:
             try:
                 worker.terminate()

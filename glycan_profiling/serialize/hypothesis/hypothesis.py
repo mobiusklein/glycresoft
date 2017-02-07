@@ -20,7 +20,7 @@ class HypothesisBase(HasUniqueName):
     def id(self):
         return Column(Integer, primary_key=True, autoincrement=True)
 
-    parameters = Column(MutableDict.as_mutable(PickleType))#, default=dict(), nullable=False)
+    parameters = Column(MutableDict.as_mutable(PickleType), default=dict(), nullable=False)
     status = Column(String(28))
 
     def __repr__(self):
