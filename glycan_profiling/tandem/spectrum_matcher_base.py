@@ -1,6 +1,7 @@
 from collections import defaultdict
 from threading import Thread
 from multiprocessing import Process, Queue, Event, Manager
+
 try:
     from Queue import Empty as QueueEmptyException
 except ImportError:
