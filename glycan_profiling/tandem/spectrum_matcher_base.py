@@ -579,7 +579,7 @@ class IdentificationProcessDispatcher(TaskBase):
                 self.input_queue.put((hit_map[hit_id], [s.id for s in scan_ids]))
             except Exception as e:
                 self.log("An exception occurred while feeding %r and %d scan ids: %r" % (hit_id, len(scan_ids), e))
-        self.log("Put %d items on input queue" % (i,))
+        self.log("... Put %d items on input queue" % (i,))
         self.done_event.set()
         return
 
@@ -616,7 +616,7 @@ class IdentificationProcessDispatcher(TaskBase):
             for scan_id, score in score_map.items():
                 j += 1
                 if j % 1000 == 0:
-                    self.log("Mapping match %d for %s on %s with score %r" % (j, target, scan_id, score))
+                    self.log("...... Mapping match %d for %s on %s with score %r" % (j, target, scan_id, score))
                 self.scan_solution_map[scan_id].append(
                     SpectrumMatch(scan_map[scan_id], target, score))
         self.log("... Finished Processing Matches (%d)" % (i,))
