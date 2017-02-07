@@ -583,7 +583,7 @@ class IdentificationProcessDispatcher(TaskBase):
                         i * 100.0 / n))
             except Exception as e:
                 self.log("An exception occurred while feeding %r and %d scan ids: %r" % (hit_id, len(scan_ids), e))
-        self.log("..... Finished putting %d items on input queue" % (i,))
+        self.log("...... Finished putting %d items on input queue" % (i,))
         self.done_event.set()
         return
 
@@ -595,11 +595,21 @@ class IdentificationProcessDispatcher(TaskBase):
         has_work = True
         i = 0
         n = len(hit_map)
+        seen = dict()
         strikes = 0
         self.log("... Searching Matches (%d)" % (n,))
         while has_work:
             try:
                 target, score_map = self.output_queue.get(True, 2)
+                if target.id in seen:
+                    self.log("Duplicate Results For %s. First seen at %d, now again at %d" % (
+                        target.id, seen[target.id], i))
+                else:
+                    seen[target.id] = i
+                if i > n:
+                    self.log("Warning: %d additional output received. %s and %d matches." % (
+                        i - n, target, len(score_map)))
+
                 i += 1
                 strikes = 0
                 if i % 1000 == 0:
