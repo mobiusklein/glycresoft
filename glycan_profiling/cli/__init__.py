@@ -15,8 +15,6 @@ def _setup_win32_keyboard_interrupt_handler():
         if dwCtrlType == 0:
             hook_sigint()
             print("Keyboard Interrupt Received. Scheduling Interrupt in Main Thread...")
-            # print("Keyboard Interrupt", threading.current_thread(), len(threading.enumerate()))
-            # print(threading.enumerate())
             return 1
         return 0
 

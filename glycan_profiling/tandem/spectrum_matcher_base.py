@@ -535,7 +535,7 @@ class IdentificationProcessDispatcher(TaskBase):
         self.scorer_type = scorer_type
         self.n_processes = n_processes
         self.done_event = Event()
-        self.input_queue = Queue(100)
+        self.input_queue = Queue(1000)
         self.output_queue = Queue(1000)
         self.scan_solution_map = defaultdict(list)
         self.evaluation_args = evaluation_args
@@ -574,27 +574,47 @@ class IdentificationProcessDispatcher(TaskBase):
     def feeder(self, hit_map, hit_to_scan):
         i = 0
         n = len(hit_to_scan)
+        seen = dict()
         for hit_id, scan_ids in hit_to_scan.items():
             i += 1
+            hit = hit_map[hit_id]
+            if hit.id != hit_id:
+                self.log("Hit %r doesn't match its id %r" % (hit, hit_id))
+                if hit_to_scan[hit.id] != scan_ids:
+                    self.log("Mismatch leads to different scans! (%d, %d)" % (
+                        len(scan_ids), len(hit_to_scan[hit.id])))
+            if hit.id in seen: 
+                self.log("Hit %r already dealt under hit_id %r, now again at %r" % (
+                    hit, seen[hit.id], hit_id))
+            seen[hit.id] = hit_id
+
             try:
                 self.input_queue.put((hit_map[hit_id], [s.id for s in scan_ids]))
                 if i % 1000 == 0:
-                    self.log("...... Put %d items on input queue (%0.2f%% Complete)" % (i,
+                    self.log("...... Dealt %d work items (%0.2f%% Complete)" % (i,
                         i * 100.0 / n))
             except Exception as e:
                 self.log("An exception occurred while feeding %r and %d scan ids: %r" % (hit_id, len(scan_ids), e))
-        self.log("...... Finished putting %d items on input queue" % (i,))
+        self.log("...... Finished dealing %d work items" % (i,))
         self.done_event.set()
         return
 
-    def process(self, scan_map, hit_map, hit_to_scan):
+    def spawn_queue_feeder(self, hit_map, hit_to_scan):
         feeder_thread = Thread(target=self.feeder, args=(hit_map, hit_to_scan))
         feeder_thread.daemon = True
         feeder_thread.start()
+        return feeder_thread        
+
+    def process(self, scan_map, hit_map, hit_to_scan):
+        feeder_thread = self.spawn_queue_feeder(
+            hit_map, hit_to_scan)
         self.create_pool(scan_map)
         has_work = True
         i = 0
-        n = len(hit_map)
+        n = len(hit_to_scan)
+        if n != len(hit_map):
+            self.log("There is a mismatch between hit_map (%d) and hit_to_scan (%d)" % (
+                len(hit_map), n))
         seen = dict()
         strikes = 0
         self.log("... Searching Matches (%d)" % (n,))
@@ -625,7 +645,7 @@ class IdentificationProcessDispatcher(TaskBase):
                                 strikes, i, n, i * 100. / n))
                 continue
             target.clear_caches()
-            # assert target.total_composition() == target.clone().total_composition()
+
             j = 0
             for scan_id, score in score_map.items():
                 j += 1
@@ -699,7 +719,13 @@ class SpectrumIdentificationWorkerBase(Process):
                 solution.target.clear_caches()
             self.pack_output(solution_target)
         self._work_complete.set()
-        self.log_handler("Worker %s Finished. Handled %d items." % (self.name, items_handled))
+        self.log_handler("...... %s Finished. Handled %d items." % (self.name, items_handled))
 
     def run(self):
-        self.task()
+        try:
+            self.task()
+        except Exception:
+            import traceback
+            self.log_handler("An exception occurred while executing %r.\n%s" % (
+                self, traceback.format_exc()))
+            raise
