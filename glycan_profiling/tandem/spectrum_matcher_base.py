@@ -636,7 +636,7 @@ class IdentificationProcessDispatcher(TaskBase):
                     self.log("...... Processed %d matches (%0.2f%%)" % (i, i * 100. / n))
             except QueueEmptyException:
                 if self.all_workers_finished():
-                    if i == n:
+                    if i >= n:
                         has_work = False
                     else:
                         strikes += 1
@@ -697,6 +697,18 @@ class SpectrumIdentificationWorkerBase(Process):
     def evaluate(self, scan, structure, *args, **kwargs):
         raise NotImplementedError()
 
+    def handle_item(self, structure, scan_ids):
+        scans = [self.fetch_scan(i) for i in scan_ids]
+        solution_target = None
+        solution = None
+        for scan in scans:
+            solution = self.evaluate(scan, structure, **self.evaluation_args)
+            self.solution_map[scan.id] = solution.score
+            solution_target = solution.target
+        if solution is not None:
+            solution.target.clear_caches()
+        self.pack_output(solution_target)
+
     def task(self):
         has_work = True
         items_handled = 0
@@ -708,16 +720,18 @@ class SpectrumIdentificationWorkerBase(Process):
                     has_work = False
                     break
             items_handled += 1
-            scans = [self.fetch_scan(i) for i in scan_ids]
-            solution_target = None
-            solution = None
-            for scan in scans:
-                solution = self.evaluate(scan, structure, **self.evaluation_args)
-                self.solution_map[scan.id] = solution.score
-                solution_target = solution.target
-            if solution is not None:
-                solution.target.clear_caches()
-            self.pack_output(solution_target)
+            self.handle_item(structure, scan_ids)
+            # scans = [self.fetch_scan(i) for i in scan_ids]
+            # solution_target = None
+            # solution = None
+            # for scan in scans:
+            #     solution = self.evaluate(scan, structure, **self.evaluation_args)
+            #     self.solution_map[scan.id] = solution.score
+            #     solution_target = solution.target
+            # if solution is not None:
+            #     solution.target.clear_caches()
+            # self.pack_output(solution_target)
+
         self._work_complete.set()
         self.log_handler("...... %s Finished. Handled %d items." % (self.name, items_handled))
 
