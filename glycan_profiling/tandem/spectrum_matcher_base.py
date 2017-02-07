@@ -537,7 +537,6 @@ class IdentificationProcessDispatcher(TaskBase):
         self.log_controller = self.ipc_logger()
         self.ipc_manager = Manager()
         self.scan_load_map = self.ipc_manager.dict()
-        self.log("IPC Manager: %r" % (self.ipc_manager,))
 
     def clear_pool(self):
         for worker in self.workers:

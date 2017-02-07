@@ -34,12 +34,16 @@ def configure_logging(level=logging.DEBUG):
         handler.setFormatter(fmt)
         handler.setLevel(level)
         logging.getLogger().addHandler(handler)
+        
+        multilogger = multiprocessing.get_logger()
+        handler = logging.StreamHandler()
+        handler.setFormatter(fmt)
+        handler.setLevel(level)
+        multilogger.setHandler(handler)
 
     warner = logging.getLogger('py.warnings')
     warner.setLevel("CRITICAL")
 
-    multilogger = multiprocessing.get_logger()
-    multilogger.setLevel(logging.DEBUG)
 
 
 permission_mask = S_IRUSR & S_IWUSR & S_IXUSR & S_IRGRP & S_IWGRP & S_IROTH & S_IWOTH
