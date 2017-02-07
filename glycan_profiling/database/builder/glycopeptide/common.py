@@ -540,7 +540,7 @@ class MultipleProcessPeptideGlycosylator(TaskBase):
                 finally:
                     self.teardown_barrier()
 
-                if (i - last) > self.chunk_size * 5:
+                if (i - last) > self.chunk_size * 20:
                     self.log("... %d Glycopeptides Created" % (i,))
                     last = i
             except QueueEmptyException:

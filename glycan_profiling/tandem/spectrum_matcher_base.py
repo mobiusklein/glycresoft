@@ -536,6 +536,7 @@ class IdentificationProcessDispatcher(TaskBase):
         self.log_controller = self.ipc_logger()
         self.ipc_manager = Manager()
         self.scan_load_map = self.ipc_manager.dict()
+        self.log("IPC Manager: %r" % (self.ipc_manager,))
 
     def clear_pool(self):
         for worker in self.workers:
@@ -563,7 +564,10 @@ class IdentificationProcessDispatcher(TaskBase):
         i = 0
         for hit_id, scan_ids in hit_to_scan.items():
             i += 1
-            self.input_queue.put((hit_map[hit_id], [s.id for s in scan_ids]))
+            try:
+                self.input_queue.put((hit_map[hit_id], [s.id for s in scan_ids]))
+            except Exception as e:
+                self.log("An exception occurred while feeding %r and %d scan ids: %r" % (hit_id, len(scan_ids), e))
         self.done_event.set()
         return
 
@@ -575,21 +579,31 @@ class IdentificationProcessDispatcher(TaskBase):
         has_work = True
         i = 0
         n = len(hit_map)
+        strikes = 0
         self.log("... Searching Matches (%d)" % (n,))
         while has_work:
             try:
                 target, score_map = self.output_queue.get(True, 2)
                 i += 1
+                strikes = 0
                 if i % 1000 == 0:
                     self.log("...... Processed %d matches (%0.2f%%)" % (i, i * 100. / n))
             except QueueEmptyException:
                 if self.all_workers_finished():
                     if i == n:
                         has_work = False
+                    else:
+                        strikes += 1
+                        if strikes % 50 == 0:
+                            self.log("...... %d cycles without output." % (strikes,))
                 continue
             target.clear_caches()
             # assert target.total_composition() == target.clone().total_composition()
+            j = 0
             for scan_id, score in score_map.items():
+                j += 1
+                if j % 1000 == 0:
+                    self.log("Mapping match %d for %s on %s with score %r" % (j, target, scan_id, score))
                 self.scan_solution_map[scan_id].append(
                     SpectrumMatch(scan_map[scan_id], target, score))
         self.log("... Finished Processing Matches (%d)" % (i,))
