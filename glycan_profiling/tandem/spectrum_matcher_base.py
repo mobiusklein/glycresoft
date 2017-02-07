@@ -2,6 +2,7 @@ from collections import defaultdict
 from threading import Thread
 from multiprocessing import Process, Queue, Event, Manager
 
+
 try:
     from Queue import Empty as QueueEmptyException
 except ImportError:
@@ -335,12 +336,14 @@ class SpectrumSolutionSet(object):
 
 class TandemClusterEvaluatorBase(TaskBase):
 
-    def __init__(self, tandem_cluster, scorer_type, structure_database, verbose=False, n_processes=1):
+    def __init__(self, tandem_cluster, scorer_type, structure_database, verbose=False,
+                 n_processes=1, ipc_manager=None):
         self.tandem_cluster = tandem_cluster
         self.scorer_type = scorer_type
         self.structure_database = structure_database
         self.verbose = verbose
         self.n_processes = n_processes
+        self.ipc_manager = ipc_manager
 
     def score_one(self, scan, precursor_error_tolerance=1e-5, **kwargs):
         solutions = []
@@ -450,7 +453,7 @@ class TandemClusterEvaluatorBase(TaskBase):
         worker_type, init_args = self._worker_specification
         dispatcher = IdentificationProcessDispatcher(
             worker_type, self.scorer_type, evaluation_args=kwargs, init_args=init_args,
-            n_processes=self.n_processes)
+            n_processes=self.n_processes, ipc_manager=self.ipc_manager)
         return dispatcher.process(scan_map, hit_map, hit_to_scan)
 
     def _evaluate_hit_groups(self, scan_map, hit_map, hit_to_scan, **kwargs):
@@ -520,7 +523,11 @@ class IdentificationProcessDispatcher(TaskBase):
     workers : list
         Container for created workers.
     """
-    def __init__(self, worker_type, scorer_type, evaluation_args=None, init_args=None, n_processes=3):
+    def __init__(self, worker_type, scorer_type, evaluation_args=None, init_args=None,
+                 n_processes=3, ipc_manager=None):
+        if ipc_manager is None:
+            print("Creating IPC Manager. Prefer to pass a reusable IPC Manager instead.")
+            ipc_manager = Manager()
         if evaluation_args is None:
             evaluation_args = dict()
 
@@ -535,12 +542,11 @@ class IdentificationProcessDispatcher(TaskBase):
         self.init_args = init_args
         self.workers = []
         self.log_controller = self.ipc_logger()
-        self.ipc_manager = Manager()
+        self.ipc_manager = ipc_manager
         self.scan_load_map = self.ipc_manager.dict()
 
     def clear_pool(self):
         self.scan_load_map.clear()
-        self.ipc_manager.shutdown()
         self.ipc_manager = None
         for worker in self.workers:
             try:
@@ -554,7 +560,8 @@ class IdentificationProcessDispatcher(TaskBase):
         for i in range(self.n_processes):
             worker = self.worker_type(
                 self.input_queue, self.output_queue, self.done_event,
-                self.scorer_type, self.evaluation_args, self.scan_load_map,
+                self.scorer_type, self.evaluation_args,
+                self.scan_load_map,
                 log_handler=self.log_controller.sender(), **self.init_args)
             worker.start()
             self.workers.append(worker)
@@ -625,7 +632,9 @@ class SpectrumIdentificationWorkerBase(Process):
         self.done_event = done_event
         self.scorer_type = scorer_type
         self.evaluation_args = evaluation_args
+
         self.spectrum_map = spectrum_map
+
         self.local_map = dict()
         self.solution_map = dict()
         self._work_complete = Event()

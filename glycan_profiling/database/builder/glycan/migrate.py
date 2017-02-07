@@ -30,7 +30,7 @@ class GlycanHypothesisMigrator(DatabaseBoundOperation, TaskBase):
             name=hypothesis.name,
             uuid=hypothesis.uuid,
             status=hypothesis.status,
-            parameters=dict(hypothesis.parameters))
+            parameters=dict(hypothesis.parameters or {}))
         new_hypothesis.parameters['copied_from'] = get_uri_for_instance(hypothesis)
         self.session.add(new_hypothesis)
         self.session.flush()

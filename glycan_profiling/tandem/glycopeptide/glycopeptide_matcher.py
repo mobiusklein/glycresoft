@@ -18,7 +18,7 @@ from glycan_profiling.database.structure_loader import (
 from ..spectrum_matcher_base import (
     TandemClusterEvaluatorBase, gscore_scanner,
     IdentificationProcessDispatcher,
-    SpectrumIdentificationWorkerBase)
+    SpectrumIdentificationWorkerBase, Manager as IPCManager)
 from ..chromatogram_mapping import ChromatogramMSMSMapper
 
 
@@ -45,11 +45,12 @@ def make_target_decoy_cell():
 
 class GlycopeptideMatcher(TandemClusterEvaluatorBase):
     def __init__(self, tandem_cluster, scorer_type, structure_database, parser_type=None,
-                 n_processes=5):
+                 n_processes=5, ipc_manager=None):
         if parser_type is None:
             parser_type = self._default_parser_type()
         super(GlycopeptideMatcher, self).__init__(
-            tandem_cluster, scorer_type, structure_database, verbose=False, n_processes=n_processes)
+            tandem_cluster, scorer_type, structure_database, verbose=False, n_processes=n_processes,
+            ipc_manager=ipc_manager)
         self.parser_type = parser_type
         self.parser = parser_type()
 
@@ -76,18 +77,20 @@ class DecoyGlycopeptideMatcher(GlycopeptideMatcher):
 
 class TargetDecoyInterleavingGlycopeptideMatcher(TandemClusterEvaluatorBase):
     def __init__(self, tandem_cluster, scorer_type, structure_database, minimum_oxonium_ratio=0.05,
-                 n_processes=5):
+                 n_processes=5, ipc_manager=None):
         super(TargetDecoyInterleavingGlycopeptideMatcher, self).__init__(
             tandem_cluster, scorer_type, structure_database, verbose=False,
-            n_processes=n_processes)
+            n_processes=n_processes, ipc_manager=ipc_manager)
         self.tandem_cluster = tandem_cluster
         self.scorer_type = scorer_type
         self.structure_database = structure_database
         self.minimum_oxonium_ratio = minimum_oxonium_ratio
         self.target_evaluator = GlycopeptideMatcher(
-            [], self.scorer_type, self.structure_database, n_processes=n_processes)
+            [], self.scorer_type, self.structure_database, n_processes=n_processes,
+            ipc_manager=ipc_manager)
         self.decoy_evaluator = DecoyGlycopeptideMatcher(
-            [], self.scorer_type, self.structure_database, n_processes=n_processes)
+            [], self.scorer_type, self.structure_database, n_processes=n_processes,
+            ipc_manager=ipc_manager)
 
     def filter_for_oxonium_ions(self, error_tolerance=1e-5):
         keep = []
@@ -137,6 +140,7 @@ class TargetDecoyInterleavingGlycopeptideMatcher(TandemClusterEvaluatorBase):
         return target_out, decoy_out
 
 
+# These matchers are missing patches for parallelism
 class ComparisonGlycopeptideMatcher(TargetDecoyInterleavingGlycopeptideMatcher):
     def __init__(self, tandem_cluster, scorer_type, target_structure_database, decoy_structure_database,
                  minimum_oxonium_ratio=0.05):
@@ -166,7 +170,7 @@ class ComparisonGlycopeptideMatcher(TargetDecoyInterleavingGlycopeptideMatcher):
         decoy_solutions = self._collect_scan_solutions(decoy_scan_solution_map, scan_map)
         return target_solutions, decoy_solutions
 
-
+# These matchers are missing patches for parallelism
 class ConcatenatedGlycopeptideMatcher(ComparisonGlycopeptideMatcher):
     def score_bunch(self, scans, precursor_information=1e-5, *args, **kwargs):
         target_solutions, decoy_solutions = super(ConcatenatedGlycopeptideMatcher, self).score_bunch(
@@ -237,12 +241,14 @@ class GlycopeptideDatabaseSearchIdentifier(TaskBase):
         self.minimum_oxonium_ratio = minimum_oxonium_ratio
         self.scan_transformer = scan_transformer
         self.n_processes = n_processes
+        self.ipc_manager = IPCManager()
 
     def _make_evaluator(self, bunch):
         evaluator = TargetDecoyInterleavingGlycopeptideMatcher(
             bunch, self.scorer_type, self.structure_database,
             minimum_oxonium_ratio=self.minimum_oxonium_ratio,
-            n_processes=self.n_processes)
+            n_processes=self.n_processes,
+            ipc_manager=self.ipc_manager)
         return evaluator
 
     def search(self, precursor_error_tolerance=1e-5, simplify=True, chunk_size=750, limit=None, *args, **kwargs):
