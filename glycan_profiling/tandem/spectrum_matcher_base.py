@@ -526,7 +526,7 @@ class IdentificationProcessDispatcher(TaskBase):
     def __init__(self, worker_type, scorer_type, evaluation_args=None, init_args=None,
                  n_processes=3, ipc_manager=None):
         if ipc_manager is None:
-            print("Creating IPC Manager. Prefer to pass a reusable IPC Manager instead.")
+            self.log("Creating IPC Manager. Prefer to pass a reusable IPC Manager instead.")
             ipc_manager = Manager()
         if evaluation_args is None:
             evaluation_args = dict()
@@ -546,15 +546,17 @@ class IdentificationProcessDispatcher(TaskBase):
         self.scan_load_map = self.ipc_manager.dict()
 
     def clear_pool(self):
+        self.log("... Clearing Worker Pool")
         self.scan_load_map.clear()
         self.ipc_manager = None
         for worker in self.workers:
             try:
-                worker.terminate()
+                worker.join()
             except AttributeError:
                 pass
 
     def create_pool(self, scan_map):
+        self.log("... Creating Worker Pool")
         self.scan_load_map.clear()
         self.scan_load_map.update(scan_map)
         for i in range(self.n_processes):
@@ -604,7 +606,8 @@ class IdentificationProcessDispatcher(TaskBase):
                     else:
                         strikes += 1
                         if strikes % 50 == 0:
-                            self.log("...... %d cycles without output." % (strikes,))
+                            self.log("...... %d cycles without output. (%d/%d, %0.2f%% Done)" % (
+                                strikes, i, n, i * 100. / n))
                 continue
             target.clear_caches()
             # assert target.total_composition() == target.clone().total_composition()
