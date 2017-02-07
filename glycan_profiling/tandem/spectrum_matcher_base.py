@@ -536,7 +536,7 @@ class IdentificationProcessDispatcher(TaskBase):
         self.n_processes = n_processes
         self.done_event = Event()
         self.input_queue = Queue(100)
-        self.output_queue = Queue()
+        self.output_queue = Queue(1000)
         self.scan_solution_map = defaultdict(list)
         self.evaluation_args = evaluation_args
         self.init_args = init_args
@@ -573,13 +573,17 @@ class IdentificationProcessDispatcher(TaskBase):
 
     def feeder(self, hit_map, hit_to_scan):
         i = 0
+        n = len(hit_to_scan)
         for hit_id, scan_ids in hit_to_scan.items():
             i += 1
             try:
                 self.input_queue.put((hit_map[hit_id], [s.id for s in scan_ids]))
+                if i % 1000 == 0:
+                    self.log("...... Put %d items on input queue (%0.2f%% Complete)" % (i,
+                        i * 100.0 / n))
             except Exception as e:
                 self.log("An exception occurred while feeding %r and %d scan ids: %r" % (hit_id, len(scan_ids), e))
-        self.log("... Put %d items on input queue" % (i,))
+        self.log("..... Finished putting %d items on input queue" % (i,))
         self.done_event.set()
         return
 
@@ -685,7 +689,7 @@ class SpectrumIdentificationWorkerBase(Process):
                 solution.target.clear_caches()
             self.pack_output(solution_target)
         self._work_complete.set()
-        self.log_handler("Worker %r Finished. Handled %d items." % (self, items_handled))
+        self.log_handler("Worker %s Finished. Handled %d items." % (self.name, items_handled))
 
     def run(self):
         self.task()
