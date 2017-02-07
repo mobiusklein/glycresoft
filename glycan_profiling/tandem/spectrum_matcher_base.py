@@ -636,13 +636,13 @@ class IdentificationProcessDispatcher(TaskBase):
                     self.log("...... Processed %d matches (%0.2f%%)" % (i, i * 100. / n))
             except QueueEmptyException:
                 if self.all_workers_finished():
-                    if i >= n:
+                    if len(seen) == n:
                         has_work = False
                     else:
                         strikes += 1
                         if strikes % 50 == 0:
                             self.log("...... %d cycles without output (%d/%d, %0.2f%% Done)" % (
-                                strikes, i, n, i * 100. / n))
+                                strikes, len(seen), n, len(seen) * 100. / n))
                 continue
             target.clear_caches()
 
