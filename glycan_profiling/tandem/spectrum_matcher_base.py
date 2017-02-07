@@ -535,7 +535,7 @@ class IdentificationProcessDispatcher(TaskBase):
         self.scorer_type = scorer_type
         self.n_processes = n_processes
         self.done_event = Event()
-        self.input_queue = Queue()
+        self.input_queue = Queue(100)
         self.output_queue = Queue()
         self.scan_solution_map = defaultdict(list)
         self.evaluation_args = evaluation_args
