@@ -579,6 +579,7 @@ class IdentificationProcessDispatcher(TaskBase):
                 self.input_queue.put((hit_map[hit_id], [s.id for s in scan_ids]))
             except Exception as e:
                 self.log("An exception occurred while feeding %r and %d scan ids: %r" % (hit_id, len(scan_ids), e))
+        self.log("Put %d items on input queue" % (i,))
         self.done_event.set()
         return
 
@@ -606,7 +607,7 @@ class IdentificationProcessDispatcher(TaskBase):
                     else:
                         strikes += 1
                         if strikes % 50 == 0:
-                            self.log("...... %d cycles without output. (%d/%d, %0.2f%% Done)" % (
+                            self.log("...... %d cycles without output (%d/%d, %0.2f%% Done)" % (
                                 strikes, i, n, i * 100. / n))
                 continue
             target.clear_caches()
