@@ -539,6 +539,7 @@ class IdentificationProcessDispatcher(TaskBase):
         self.scan_load_map = self.ipc_manager.dict()
 
     def clear_pool(self):
+        self.scan_load_map.clear()
         self.ipc_manager.shutdown()
         self.ipc_manager = None
         for worker in self.workers:
@@ -548,7 +549,6 @@ class IdentificationProcessDispatcher(TaskBase):
                 pass
 
     def create_pool(self, scan_map):
-        self.clear_pool()
         self.scan_load_map.clear()
         self.scan_load_map.update(scan_map)
         for i in range(self.n_processes):
@@ -612,7 +612,6 @@ class IdentificationProcessDispatcher(TaskBase):
         self.clear_pool()
         self.log_controller.stop()
         feeder_thread.join()
-        self.scan_load_map.clear()
         return self.scan_solution_map
 
 
