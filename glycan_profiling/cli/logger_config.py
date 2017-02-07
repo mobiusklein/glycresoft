@@ -39,7 +39,7 @@ def configure_logging(level=logging.DEBUG):
         handler = logging.StreamHandler()
         handler.setFormatter(fmt)
         handler.setLevel(level)
-        multilogger.setHandler(handler)
+        multilogger.addHandler(handler)
 
     warner = logging.getLogger('py.warnings')
     warner.setLevel("CRITICAL")
