@@ -5,7 +5,7 @@ from .chromatogram_artist import (
     SmoothingChromatogramArtist, AbundantLabeler,
     NGlycanLabelProducer, n_glycan_colorizer)
 
-from .entity_bar_chart import AggregatedAbundanceArtist
+from .entity_bar_chart import AggregatedAbundanceArtist, BundledGlycanComposition
 from .utils import figax
 
 
@@ -45,8 +45,9 @@ class GlycanChromatographySummaryGraphBuilder(object):
         return chrom
 
     def aggregated_abundance(self, min_score=0.4):
-        agg = AggregatedAbundanceArtist([
-            sol for sol in self.solutions if sol.score > min_score and not sol.used_as_adduct],
+        agg = AggregatedAbundanceArtist(
+            BundledGlycanComposition.aggregate([
+                sol for sol in self.solutions if sol.score > min_score and not sol.used_as_adduct]),
             ax=figax())
         agg.draw()
         return agg

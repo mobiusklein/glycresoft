@@ -6,12 +6,14 @@ import click
 from .base import cli
 
 from glycan_profiling.serialize import (
-    DatabaseBoundOperation, GlycanHypothesis, GlycopeptideHypothesis,
-    SampleRun)
+    DatabaseBoundOperation,
+    GlycanHypothesis,
+    GlycopeptideHypothesis)
 
 from glycan_profiling.profiler import (
-    GlycanChromatogramAnalyzer, MzMLGlycopeptideLCMSMSAnalyzer,
-    MzMLGlycanChromatogramAnalyzer, ProcessedMzMLDeserializer)
+    MzMLGlycopeptideLCMSMSAnalyzer,
+    MzMLGlycanChromatogramAnalyzer,
+    ProcessedMzMLDeserializer)
 
 from glycan_profiling.tandem.glycopeptide.scoring import CoverageWeightedBinomialScorer
 
@@ -73,6 +75,9 @@ def search_glycopeptide(context, database_connection, sample_path, hypothesis_id
                         msn_mass_error_tolerance=2e-5, psm_fdr_threshold=0.05, peak_shape_scoring_model=None,
                         tandem_scoring_model=None, oxonium_threshold=0.05,
                         save_intermediate_results=None, processes=4):
+    """Identify glycopeptide sequences from preprocessed LC-MS/MS data, stored in mzML
+    format.
+    """
     if output_path is None:
         output_path = make_analysis_output_path("glycopeptide")
     if peak_shape_scoring_model is None:
@@ -147,12 +152,18 @@ def search_glycopeptide(context, database_connection, sample_path, hypothesis_id
               help="The minimum mass to consider signal at.")
 @click.option("-o", "--output-path", default=None, help=(
               "Path to write resulting analysis to."))
+@click.option("-s", "--network-sharing", default=0.2, type=float,
+              help="The weight to place on similar compositions' confidence for evaluating"
+                   " one composition's confidence.")
 def search_glycan(context, database_connection, sample_path,
                   hypothesis_identifier,
                   analysis_name, adducts, grouping_error_tolerance=1.5e-5,
                   mass_error_tolerance=1e-5, minimum_mass=500.,
                   scoring_model=None,
                   output_path=None):
+    """Identify glycan compositions from preprocessed LC-MS data, stored in mzML
+    format.
+    """
     if output_path is None:
         output_path = make_analysis_output_path("glycan")
     if scoring_model is None:

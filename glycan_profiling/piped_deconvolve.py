@@ -613,10 +613,17 @@ class ScanGenerator(TaskBase, ScanGeneratorBase):
     def _make_transforming_process(self):
         return ScanTransformingProcess(
             self.ms_file,
-            self._input_queue, self._output_queue, self.averagine, self.charge_range, self.scan_ids_exhausted_event,
-            ms1_peak_picking_args=self.ms1_peak_picking_args, msn_peak_picking_args=self.msn_peak_picking_args,
-            ms1_deconvolution_args=self.ms1_deconvolution_args, msn_deconvolution_args=self.msn_deconvolution_args,
-            envelope_selector=self._scan_interval_tree, log_handler=self.log_controller.sender())
+            self._input_queue,
+            self._output_queue,
+            self.averagine,
+            self.charge_range,
+            self.scan_ids_exhausted_event,
+            ms1_peak_picking_args=self.ms1_peak_picking_args,
+            msn_peak_picking_args=self.msn_peak_picking_args,
+            ms1_deconvolution_args=self.ms1_deconvolution_args,
+            msn_deconvolution_args=self.msn_deconvolution_args,
+            envelope_selector=self._scan_interval_tree,
+            log_handler=self.log_controller.sender())
 
     def make_iterator(self, start_scan=None, end_scan=None, max_scans=None):
         self._input_queue = Queue(int(1e6))

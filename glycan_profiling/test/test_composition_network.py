@@ -32,12 +32,17 @@ class CompositionGraphTest(unittest.TestCase):
     def test_bridge(self):
         g = composition_network.CompositionGraph(compositions)
         g.create_edges(1)
+        for edge in g.edges:
+            self.assertTrue(edge.order < 2)
         node_to_remove = g["{Hex:5; HexNAc:2}"]
         removed_edges = g.remove_node(node_to_remove)
         neighbors = [e[node_to_remove] for e in removed_edges]
+        n_order_2_edges = 0
         for edge in g.edges:
             if edge.order == 2:
                 self.assertTrue(edge.node1 in neighbors and edge.node2 in neighbors)
+                n_order_2_edges += 1
+        self.assertTrue(n_order_2_edges > 0)
         node_to_remove = g["{Hex:6; HexNAc:2}"]
         removed_edges = g.remove_node(node_to_remove)
         neighbors = [e[node_to_remove] for e in removed_edges]

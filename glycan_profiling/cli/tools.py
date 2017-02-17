@@ -167,9 +167,13 @@ def validate_fasta(path):
 def has_known_glycosylation(accession):
     try:
         prot = uniprot.get(accession)
-        for feature in prot.features:
-            if isinstance(feature, uniprot.GlycosylationSite):
-                return True
+        if "Glycoprotein" in prot.keywords:
+            return True
+        else:
+            # for feature in prot.features:
+            #     if isinstance(feature, uniprot.GlycosylationSite):
+            #         return True
+            pass
         return False
     except:
         return False

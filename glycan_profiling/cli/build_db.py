@@ -48,6 +48,9 @@ def build_hypothesis():
     pass
 
 
+command_group = build_hypothesis
+
+
 _glycan_hypothesis_builders = decoratordict()
 
 

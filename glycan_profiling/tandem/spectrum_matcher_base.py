@@ -401,16 +401,18 @@ class TandemClusterEvaluatorBase(TaskBase):
                         group[0].precursor_information.extracted_neutral_mass))
                 while last_report < i and report_interval != 0:
                     last_report += report_interval
+            j = 0
             for scan in group:
                 scan_map[scan.id] = scan
                 hits = self.structure_database.search_mass_ppm(
                     scan.precursor_information.extracted_neutral_mass,
                     precursor_error_tolerance)
                 for hit in hits:
+                    j += 1
                     hit_to_scan[hit.id].append(scan)
                     hit_map[hit.id] = hit
             if report:
-                self.log("... Mapping Segment Done.")
+                self.log("... Mapping Segment Done. (%d candidates)" % (j,))
         return scan_map, hit_map, hit_to_scan
 
     def _evaluate_hit_groups_single_process(self, scan_map, hit_map, hit_to_scan, *args, **kwargs):
@@ -578,21 +580,33 @@ class IdentificationProcessDispatcher(TaskBase):
         for hit_id, scan_ids in hit_to_scan.items():
             i += 1
             hit = hit_map[hit_id]
+            # This sanity checking is likely unnecessary, and is a hold-over from
+            # debugging redundancy in the result queue. For the moment, it is retained
+            # to catch "new" bugs.
+            # If a hit structure's id doesn't match the id it was looked up with, something
+            # may be wrong with the upstream process. Log this event.
             if hit.id != hit_id:
                 self.log("Hit %r doesn't match its id %r" % (hit, hit_id))
                 if hit_to_scan[hit.id] != scan_ids:
                     self.log("Mismatch leads to different scans! (%d, %d)" % (
                         len(scan_ids), len(hit_to_scan[hit.id])))
-            if hit.id in seen: 
+            # If a hit structure has been seen multiple times independent of whether or
+            # not the expected hit id matches, something may be wrong in the upstream process.
+            # Log this event.
+            if hit.id in seen:
                 self.log("Hit %r already dealt under hit_id %r, now again at %r" % (
                     hit, seen[hit.id], hit_id))
             seen[hit.id] = hit_id
 
             try:
                 self.input_queue.put((hit_map[hit_id], [s.id for s in scan_ids]))
-                if i % 1000 == 0:
+                # Set a long progress update interval because the feeding step is less
+                # important than the processing step. Additionally, as the two threads
+                # run concurrently, the feeding thread can log a short interval before
+                # the entire process has formally logged that it has started.
+                if i % 10000 == 0:
                     self.log("...... Dealt %d work items (%0.2f%% Complete)" % (i,
-                        i * 100.0 / n))
+                             i * 100.0 / n))
             except Exception as e:
                 self.log("An exception occurred while feeding %r and %d scan ids: %r" % (hit_id, len(scan_ids), e))
         self.log("...... Finished dealing %d work items" % (i,))
@@ -603,7 +617,7 @@ class IdentificationProcessDispatcher(TaskBase):
         feeder_thread = Thread(target=self.feeder, args=(hit_map, hit_to_scan))
         feeder_thread.daemon = True
         feeder_thread.start()
-        return feeder_thread        
+        return feeder_thread
 
     def process(self, scan_map, hit_map, hit_to_scan):
         feeder_thread = self.spawn_queue_feeder(
@@ -615,7 +629,12 @@ class IdentificationProcessDispatcher(TaskBase):
         if n != len(hit_map):
             self.log("There is a mismatch between hit_map (%d) and hit_to_scan (%d)" % (
                 len(hit_map), n))
+        # Track the iteration number a particular structure (id) has been received
+        # on. This may be used to detect if a structure has been received multiple
+        # times, and to determine when all expected structures have been received.
         seen = dict()
+        # Keep a running tally of the number of iterations when there are pending
+        # structure matches to process, but all workers claim to be done.
         strikes = 0
         self.log("... Searching Matches (%d)" % (n,))
         while has_work:
@@ -643,6 +662,9 @@ class IdentificationProcessDispatcher(TaskBase):
                         if strikes % 50 == 0:
                             self.log("...... %d cycles without output (%d/%d, %0.2f%% Done)" % (
                                 strikes, len(seen), n, len(seen) * 100. / n))
+                        if strikes > 1e4:
+                            self.log("...... Too much time has elapsed with missing items. Breaking.")
+                            has_work = False
                 continue
             target.clear_caches()
 

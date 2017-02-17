@@ -175,6 +175,9 @@ class AnalysisDeserializer(DatabaseBoundOperation):
     def __init__(self, connection, analysis_name=None, analysis_id=None):
         DatabaseBoundOperation.__init__(self, connection)
 
+        if analysis_name is analysis_id is None:
+            analysis_id = 1
+
         self._analysis = None
         self._analysis_id = analysis_id
         self._analysis_name = analysis_name

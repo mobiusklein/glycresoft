@@ -22,7 +22,7 @@ def configure_logging(level=logging.DEBUG):
     handler.setLevel(level)
     logging.getLogger().addHandler(handler)
     logging.getLogger().setLevel(level)
-    
+
     logger_to_silence = logging.getLogger("deconvolution_scan_processor")
     logger_to_silence.propagate = False
     logging.captureWarnings(True)
@@ -37,7 +37,7 @@ def configure_logging(level=logging.DEBUG):
         handler.setFormatter(fmt)
         handler.setLevel(level)
         logging.getLogger().addHandler(handler)
-        
+
         if log_multiprocessing:
             multilogger = multiprocessing.get_logger()
             handler = logging.StreamHandler()
@@ -47,7 +47,6 @@ def configure_logging(level=logging.DEBUG):
 
     warner = logging.getLogger('py.warnings')
     warner.setLevel("CRITICAL")
-
 
 
 permission_mask = S_IRUSR & S_IWUSR & S_IXUSR & S_IRGRP & S_IWGRP & S_IROTH & S_IWOTH

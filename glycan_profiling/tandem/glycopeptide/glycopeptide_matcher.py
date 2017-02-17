@@ -170,6 +170,7 @@ class ComparisonGlycopeptideMatcher(TargetDecoyInterleavingGlycopeptideMatcher):
         decoy_solutions = self._collect_scan_solutions(decoy_scan_solution_map, scan_map)
         return target_solutions, decoy_solutions
 
+
 # These matchers are missing patches for parallelism
 class ConcatenatedGlycopeptideMatcher(ComparisonGlycopeptideMatcher):
     def score_bunch(self, scans, precursor_information=1e-5, *args, **kwargs):

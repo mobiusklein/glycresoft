@@ -47,6 +47,9 @@ class ScanCacheHandlerBase(object):
                 self.current_precursor, self.current_products)
             self.reset()
 
+    def register_parameter(self, name, value):
+        pass
+
     def complete(self):
         pass
 
@@ -240,6 +243,9 @@ class MzMLScanCacheHandler(ScanCacheHandlerBase):
     def _get_sample_run(self):
         return self.serializer.sample_run
 
+    def register_parameter(self, name, value):
+        self.serializer.add_processing_parameter(name, value)
+
     @classmethod
     def configure_storage(cls, path=None, name=None, source=None):
         if path is not None:
@@ -261,6 +267,24 @@ class MzMLScanCacheHandler(ScanCacheHandlerBase):
                     inst.add_source_file(source_file)
             except AttributeError:
                 pass
+            for trans in source.ms1_peak_picking_args.get("transforms"):
+                inst.register_parameter("parameter: ms1-%s" % trans.__class__.__name__, repr(trans))
+            if source.ms1_deconvolution_args.get("averagine"):
+                inst.register_parameter(
+                    "parameter: ms1-averagine", repr(source.ms1_deconvolution_args.get("averagine")))
+            if source.ms1_deconvolution_args.get("scorer"):
+                inst.register_parameter(
+                    "parameter: ms1-scorer", repr(source.ms1_deconvolution_args.get("scorer")))
+            if source.msn_peak_picking_args is not None:
+                for trans in source.msn_peak_picking_args.get("transforms"):
+                    inst.register_parameter("parameter: msn-%s" % trans.__class__.__name__, repr(trans))
+            if source.msn_deconvolution_args.get("averagine"):
+                inst.register_parameter(
+                    "parameter: msn-averagine", repr(source.msn_deconvolution_args.get("averagine")))
+            if source.msn_deconvolution_args.get("scorer"):
+                inst.register_parameter(
+                    "parameter: msn-scorer", repr(source.msn_deconvolution_args.get("scorer")))
+
         else:
             n_spectra = 2e5
             inst = cls(path, sample_name, n_spectra=n_spectra)
@@ -349,47 +373,6 @@ class ThreadedMzMLScanCacheHandler(MzMLScanCacheHandler):
         except Exception:
             import traceback
             traceback.print_exc()
-
-
-class DatabaseScanGenerator(ScanGeneratorBase):
-    def __init__(self, connection, sample_name):
-        self.deserializer = DatabaseScanDeserializer(connection, sample_name)
-        self._iterator = None
-
-    def configure_iteration(self, start_scan=None, end_scan=None, max_scans=None):
-        self.deserializer.reset()
-        self.max_scans = max_scans
-        self.start_scan = start_scan
-        self.end_scan = end_scan
-        self._iterator = self.make_iterator(start_scan, end_scan, max_scans)
-
-    def make_iterator(self, start_scan=None, end_scan=None, max_scans=None):
-        index = 0
-        if start_scan is not None:
-            self.deserializer.start_from_scan(start_scan)
-
-        count = 0
-        if max_scans is None:
-            max_scans = float('inf')
-
-        while count < max_scans:
-            try:
-                scan, products = next(self.deserializer)
-                scan_id = scan.id
-                if scan_id == end_scan:
-                    break
-                yield scan
-                for prod in products:
-                    yield prod
-
-                index += 1
-                count += 1
-            except Exception:
-                logger.exception("An error occurred while fetching scans", exc_info=True)
-                break
-
-    def convert_scan_id_to_retention_time(self, scan_id):
-        return self.deserializer.convert_scan_id_to_retention_time(scan_id)
 
 
 class SampleRunDestroyer(DatabaseBoundOperation, TaskBase):

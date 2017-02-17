@@ -22,7 +22,7 @@ def mzml_cli():
     pass
 
 
-@mzml_cli.command('rt-to-id')
+@mzml_cli.command('rt-to-id', short_help="Look up the retention time for a given scan id")
 @click.argument("ms-file", type=click.Path(exists=True))
 @click.argument("rt", type=float)
 def rt_to_id(ms_file, rt):
@@ -31,17 +31,9 @@ def rt_to_id(ms_file, rt):
     click.echo(id)
 
 
-@mzml_cli.command("tic-saddle-points")
-@click.argument('ms-file', type=click.Path(exists=True))
-def tic_saddle_points(ms_file):
-    loader = MSFileLoader(ms_file)
-    tic = loader._source.get_by_id("TIC")
-    time = tic['time array']
-    intensity = tic['intensity array']
-    click.echo("%f %f" % find_truncation_points(time, intensity))
-
-
-@mzml_cli.command("preprocess")
+@mzml_cli.command("preprocess", short_help=(
+    "Convert raw mass spectra data into deisotoped neutral mass peak lists written to mzML."
+    " Can accept mzML or mzXML with either profile or centroided scans."))
 @click.argument("ms-file", type=click.Path(exists=True))
 @click.argument("outfile-path", type=click.Path(writable=True))
 @click.option("-a", "--averagine", default='glycan',
@@ -55,16 +47,16 @@ def tic_saddle_points(ms_file):
                     'Defaults to 8'))
 @click.option("-n", "--name", default=None,
               help="Name for the sample run to be stored. Defaults to the base name of the input mzML file")
-@click.option("-t", "--score-threshold", type=float, default=15.,
+@click.option("-t", "--score-threshold", type=float, default=35.,
               help="Minimum score to accept an isotopic pattern fit in an MS1 scan. Scales with intensity.")
-@click.option("-tn", "--msn-score-threshold", type=float, default=2.,
+@click.option("-tn", "--msn-score-threshold", type=float, default=10.,
               help="Minimum score to accept an isotopic pattern fit in an MS^n scan. Scales with intensity.")
 @click.option("-m", "--missed-peaks", type=int, default=1,
               help="Number of missing peaks to permit before an isotopic fit is discarded")
 @click.option("-p", "--processes", 'processes', type=click.IntRange(1, multiprocessing.cpu_count()),
               default=min(multiprocessing.cpu_count(), 4), help=('Number of worker processes to use. Defaults to 4 '
                                                                  'or the number of CPUs, whichever is lower'))
-@click.option("-b", "--background-reduction", type=float, default=2., help=(
+@click.option("-b", "--background-reduction", type=float, default=5., help=(
               "Background reduction factor. Larger values more aggresively remove low abundance"
               " signal in MS1 scans."))
 @click.option("-bn", "--msn-background-reduction", type=float, default=0., help=(
@@ -81,8 +73,8 @@ def tic_saddle_points(ms_file):
 @click.option("--profile", default=False, is_flag=True, help=(
     "Force profile scan configuration."))
 def preprocess(ms_file, outfile_path, averagine=None, start_time=None, end_time=None, maximum_charge=None,
-               name=None, msn_averagine=None, score_threshold=15., msn_score_threshold=2., missed_peaks=1,
-               background_reduction=2., msn_background_reduction=0., transform=None, msn_transform=None,
+               name=None, msn_averagine=None, score_threshold=35., msn_score_threshold=10., missed_peaks=1,
+               background_reduction=5., msn_background_reduction=0., transform=None, msn_transform=None,
                processes=4, extract_only_tandem_envelopes=False, mzml=True, profile=False):
     if transform is None:
         transform = []

@@ -1,5 +1,4 @@
 import click
-
 from glycan_profiling import version
 
 

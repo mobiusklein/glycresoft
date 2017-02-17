@@ -1,4 +1,5 @@
-from collections import defaultdict
+from collections import defaultdict, deque
+from operator import attrgetter
 import numpy as np
 
 try:
@@ -41,70 +42,90 @@ def n_glycan_distance(c1, c2):
     return distance, weight
 
 
-class ShortestPathFinder(object):
-    """A recursive algorithm for local graph exploration that finds
-    the shortest path between two nodes in a graph.
+class EdgePath(object):
+    def __init__(self, path=tuple()):
+        self.path = tuple(path)
+        self.members = frozenset(path)
 
-    Analogous to a bounded version of Dijkstra's algorithm.
+    def __contains__(self, i):
+        return i in self.members
 
-    Attributes
-    ----------
-    graph : CompositionGraph
-        The graph to traverse
-    solution_table : defaultdict(dict)
-        A lookup table to memoize queries in
-    """
+    def add(self, i):
+        extended = self.path + (i,)
+        return EdgePath(extended)
 
-    def __init__(self, graph):
+    def __or__(self, other):
+        return self.add(other)
+
+    def __eq__(self, other):
+        return self.members == other.members
+
+    def __repr__(self):
+        return "EdgePath%r" % (self.path,)
+
+    def __iter__(self):
+        return iter(self.path)
+
+
+class DijkstraPathFinder(object):
+    def __init__(self, graph, start, end, limit=float('inf')):
         self.graph = graph
-        self.solution_table = defaultdict(lambda: defaultdict(lambda: -1))
+        self.start = start
+        self.end = end
+        self.distance = defaultdict(lambda: float('inf'))
+        self.distance[start._str] = 0
+        self.unvisited_finite_distance = dict()
+        self.limit = limit
 
-    def solve_path(self, start, end, limit=100, total=0, visited=None):
-        if visited is None:
-            visited = frozenset()
-        dist = self.get_path_length(start, end)
-        if dist > -1:
-            return dist
+    def find_smallest_unvisited(self, unvisited):
+        smallest_distance = float('inf')
+        smallest_node = None
+
+        if not self.unvisited_finite_distance:
+            iterable = [(k, self.distance[k]) for k in unvisited]
         else:
-            path_length = self._solve_path(start, end, limit, total, visited)
-            self.set_path_length(start, end, path_length)
-            return path_length
+            iterable = self.unvisited_finite_distance.items()
 
-    def _path_length(self, accumulator, edge):
-        return accumulator + edge.order
+        for node, distance in iterable:
+            if distance <= smallest_distance:
+                smallest_distance = distance
+                smallest_node = node
+        return self.graph[smallest_node]
 
-    def set_path_length(self, start, end, path_length):
-        self.solution_table[start._str][end._str] = path_length
-        self.solution_table[end._str][start._str] = path_length
+    def find_path(self):
+        unvisited = set([node._str for node in self.graph])
 
-    def get_path_length(self, start, end):
-        return self.solution_table[start._str][end._str]
+        visit_queue = deque([self.start])
+        while self.end._str in unvisited:
+            try:
+                current_node = visit_queue.popleft()
+            except IndexError:
+                current_node = self.find_smallest_unvisited(unvisited)
+            try:
+                unvisited.remove(current_node._str)
+            except KeyError:
+                continue
+            try:
+                self.unvisited_finite_distance.pop(current_node._str)
+            except KeyError:
+                pass
+            edges = current_node.edges
+            for edge in edges:
+                terminal = edge._traverse(current_node)
+                if terminal._str not in unvisited:
+                    continue
+                path_length = self.distance[current_node._str] + edge.order
+                terminal_distance = self.distance[terminal._str]
+                if terminal_distance > path_length:
+                    self.distance[terminal._str] = path_length
+                    if terminal._str in unvisited and terminal_distance < self.limit:
+                        self.unvisited_finite_distance[terminal._str] = path_length
+                if terminal_distance < self.limit:
+                    visit_queue.append(terminal)
 
-    def _solve_path(self, start, end, limit=0, total=0, visited=None):
-        if visited is None:
-            visited = frozenset()
-        dist = self.get_path_length(start, end)
-        if dist > -1:
-            return dist
-        else:
-            if start is end:
-                return total
-            else:
-                shortest_path = float('inf')
-                for edge in start.edges:
-                    terminal = edge._traverse(start)
-                    if terminal in visited:
-                        continue
-                    new_total = self._path_length(total, edge)
-                    self.set_path_length(start, terminal, new_total)
-                    if limit > 0 and new_total > limit:
-                        continue
-                    out = self.solve_path(
-                        terminal, end, limit, new_total, visited | {start._str})
-                    if out < shortest_path:
-                        shortest_path = out
-                self.set_path_length(start, end, shortest_path)
-                return shortest_path
+    def search(self):
+        self.find_path()
+        return self.distance[self.end._str]
 
 
 class CompositionSpace(object):
@@ -155,8 +176,9 @@ class CompositionGraphNode(object):
 
     def __init__(self, composition, index, score=0., **kwargs):
         self.composition = composition
+        self._composition = defaultdict(int, self.composition)
         self.index = index
-        self.edges = set()
+        self.edges = EdgeSet()
         self._str = str(self.composition)
         self._hash = hash(str(self._str))
         self.score = score
@@ -169,6 +191,9 @@ class CompositionGraphNode(object):
     @property
     def order(self):
         return len(self.edges)
+
+    def edge_to(self, node):
+        return self.edges.edge_to(self, node)
 
     def __eq__(self, other):
         try:
@@ -191,6 +216,48 @@ class CompositionGraphNode(object):
         return CompositionGraphNode(self.composition, self.index, self.score)
 
 
+class EdgeSet(object):
+    def __init__(self, store=None):
+        if store is None:
+            store = dict()
+        self.store = store
+
+    def edge_to(self, node1, node2):
+        if node2.index < node1.index:
+            node1, node2 = node2, node1
+        return self.store[node1, node2]
+
+    def add(self, edge):
+        self.store[edge.node1, edge.node2] = edge
+
+    def add_if_shorter(self, edge):
+        try:
+            prev = self.store[edge.node1, edge.node2]
+            if prev.order < edge.order:
+                return False
+            else:
+                self.store[edge.node1, edge.node2] = edge
+                return True
+        except KeyError:
+            self.store[edge.node1, edge.node2] = edge
+            return True
+
+    def remove(self, edge):
+        self.store.pop((edge.node1, edge.node2))
+
+    def __iter__(self):
+        return iter(self.store.values())
+
+    def __len__(self):
+        return len(self.store)
+
+    def __repr__(self):
+        return str(set(self.store.values()))
+
+    def __eq__(self, other):
+        return self.store == other.store
+
+
 class CompositionGraphEdge(object):
     __slots__ = ["node1", "node2", "order", "weight", "_hash", "_str"]
 
@@ -202,8 +269,8 @@ class CompositionGraphEdge(object):
         self._hash = hash((node1, node2, order))
         self._str = "(%s)" % ', '.join(map(str, (node1, node2, order)))
 
-        node1.edges.add(self)
-        node2.edges.add(self)
+        node1.edges.add_if_shorter(self)
+        node2.edges.add_if_shorter(self)
 
     def __getitem__(self, key):
         str_key = str(key)
@@ -248,12 +315,12 @@ class CompositionGraphEdge(object):
 
 class CompositionGraph(object):
 
-    def __init__(self, compositions):
+    def __init__(self, compositions, distance_fn=n_glycan_distance):
         self.nodes = []
         self.node_map = {}
+        self.distance_fn = distance_fn
         self.create_nodes(compositions)
-        self.edges = set()
-        self.path_finder = ShortestPathFinder(self)
+        self.edges = EdgeSet()
 
     def create_nodes(self, compositions):
         """Given an iterable of GlycanComposition-like or strings encoding GlycanComposition-like
@@ -307,6 +374,8 @@ class CompositionGraph(object):
             A function to use to compute the bounded distance between two nodes
             that are within `degree` of eachother in raw composition-space
         """
+        if distance_fn is None:
+            distance_fn = self.distance_fn
         space = CompositionSpace([node.composition for node in self])
         for node in self:
             if node is None:
@@ -322,8 +391,7 @@ class CompositionGraph(object):
     def remove_node(self, node, bridge=True, limit=20):
         subtracted_edges = list(node.edges)
         for edge in subtracted_edges:
-            edge.remove()
-            self.edges.remove(edge)
+            self.remove_edge(edge)
         self.nodes.pop(node.index)
         self.node_map.pop(str(node.composition))
         self._reindex()
@@ -343,13 +411,28 @@ class CompositionGraph(object):
                     old_distance = edge.order + other_edge.order
                     if old_distance >= limit:
                         continue
-                    shortest_path = self.path_finder.solve_path(node1, node2, min(old_distance + 1, limit))
-                    if shortest_path >= old_distance:
+                    try:
+                        if node1.edge_to(node2):
+                            continue
+                    except KeyError:
+                        pass
+                    path_finder = DijkstraPathFinder(self, node1, node2, min(old_distance + 1, limit))
+                    shortest_path = path_finder.search()
+
+                    # The distance function may not be transitive, in which case, an "edge through"
+                    # solution may not make sense.
+                    # shortest_path = self.distance_fn(node1._composition, node2._composition)[0]
+                    path_length = min(old_distance, shortest_path)
+                    if path_length < limit:
                         if node1.index > node2.index:
                             node1, node2 = node2, node1
-                        new_edge = CompositionGraphEdge(node1, node2, old_distance, 1.)
-                        self.edges.add(new_edge)
+                        new_edge = CompositionGraphEdge(node1, node2, path_length, 1.)
+                        self.edges.add_if_shorter(new_edge)
         return subtracted_edges
+
+    def remove_edge(self, edge):
+        edge.remove()
+        self.edges.remove(edge)
 
     def _reindex(self):
         i = 0
@@ -397,7 +480,7 @@ class CompositionGraph(object):
         self.edges = net.edges
 
     def clone(self):
-        graph = CompositionGraph([])
+        graph = CompositionGraph([], self.distance_fn)
         for node in self.nodes:
             graph.add_node(node.clone())
         for edge in self.edges:
