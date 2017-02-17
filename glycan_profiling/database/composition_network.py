@@ -388,7 +388,7 @@ class CompositionGraph(object):
                     e = CompositionGraphEdge(node, related_node, diff, weight)
                     self.edges.add(e)
 
-    def remove_node(self, node, bridge=True, limit=20):
+    def remove_node(self, node, bridge=True, limit=5):
         subtracted_edges = list(node.edges)
         for edge in subtracted_edges:
             self.remove_edge(edge)

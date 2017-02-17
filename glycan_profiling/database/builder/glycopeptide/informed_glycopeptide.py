@@ -31,7 +31,8 @@ class MzIdentMLGlycopeptideHypothesisSerializer(GlycopeptideHypothesisSerializer
 
         self.set_parameters({
             "mzid_file": os.path.abspath(mzid_path),
-            "reference_fasta": os.path.abspath(reference_fasta),
+            "reference_fasta": os.path.abspath(
+                reference_fasta) if reference_fasta is not None else None,
             "target_proteins": target_proteins,
             "max_glycosylation_events": max_glycosylation_events,
         })
