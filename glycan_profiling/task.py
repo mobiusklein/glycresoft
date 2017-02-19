@@ -46,7 +46,7 @@ class CallInterval(object):
         while not self.stopped.wait(self.interval):
             try:
                 self.call_target(*self.args)
-            except Exception, e:
+            except Exception as e:
                 logger.exception("An error occurred in %r", self, exc_info=e)
 
     def start(self):
@@ -196,7 +196,7 @@ class TaskBase(object):
         self._begin(*args, **kwargs)
         try:
             out = self.run()
-        except (KeyboardInterrupt), e:
+        except (KeyboardInterrupt) as e:
             logger.exception("An error occurred: %r", e, exc_info=e)
             self.status = e
             out = e

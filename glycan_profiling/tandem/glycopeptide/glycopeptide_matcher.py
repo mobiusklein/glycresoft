@@ -252,39 +252,42 @@ class GlycopeptideDatabaseSearchIdentifier(TaskBase):
             ipc_manager=self.ipc_manager)
         return evaluator
 
-    def search(self, precursor_error_tolerance=1e-5, simplify=True, chunk_size=750, limit=None, *args, **kwargs):
+    def prepare_scan_set(self, scan_set):
+        if hasattr(scan_set[0], 'convert'):
+            out = []
+            # Account for cases where the scan may be mentioned in the index, but
+            # not actually present in the MS data
+            for o in scan_set:
+                try:
+                    out.append(self.scorer_type.load_peaks(o))
+                except KeyError:
+                    self.log("Missing Scan: %s" % (o.id,))
+            scan_set = out
+        out = []
+        for scan in scan_set:
+            try:
+                scan.deconvoluted_peak_set = self.scan_transformer(
+                    scan.deconvoluted_peak_set)
+                out.append(scan)
+            except AttributeError:
+                self.log("Missing Scan: %s" % (scan.id,))
+                continue
+        return out
+
+    def search(self, precursor_error_tolerance=1e-5, simplify=True, chunk_size=1000, limit=None, *args, **kwargs):
         target_hits = []
         decoy_hits = []
         total = len(self.tandem_scans)
         count = 0
         if limit is None:
             limit = float('inf')
-        for bunch in chunkiter(self.tandem_scans, chunk_size):
-            count += len(bunch)
-            for item in format_work_batch(bunch, count, total):
+        for scan_collection in chunkiter(self.tandem_scans, chunk_size):
+            count += len(scan_collection)
+            for item in format_work_batch(scan_collection, count, total):
                 self.log("... %s" % item)
-            if hasattr(bunch[0], 'convert'):
-                out = []
-                # Account for cases where the scan may be mentioned in the index, but
-                # not actually present in the MS data
-                for o in bunch:
-                    try:
-                        out.append(self.scorer_type.load_peaks(o))
-                    except KeyError:
-                        self.log("Missing Scan: %s" % (o.id,))
-                bunch = out
-            out = []
-            for scan in bunch:
-                try:
-                    scan.deconvoluted_peak_set = self.scan_transformer(
-                        scan.deconvoluted_peak_set)
-                    out.append(scan)
-                except AttributeError:
-                    self.log("Missing Scan: %s" % (scan.id,))
-                    continue
-            bunch = out
+            scan_collection = self.prepare_scan_set(scan_collection)
             self.log("... Spectra Extracted")
-            evaluator = self._make_evaluator(bunch)
+            evaluator = self._make_evaluator(scan_collection)
             t, d = evaluator.score_all(
                 precursor_error_tolerance=precursor_error_tolerance,
                 simplify=simplify, *args, **kwargs)
@@ -325,7 +328,7 @@ class GlycopeptideDatabaseSearchIdentifier(TaskBase):
         mapper.assign_solutions_to_chromatograms(tandem_identifications)
         mapper.distribute_orphans()
         mapper.assign_entities(threshold_fn, entity_chromatogram_type=entity_chromatogram_type)
-        return mapper.chromatograms
+        return mapper.chromatograms, mapper.orphans
 
 
 class GlycopeptideDatabaseSearchComparer(GlycopeptideDatabaseSearchIdentifier):

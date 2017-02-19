@@ -7,7 +7,8 @@ import ms_deisotope
 import traceback
 
 from ms_deisotope.processor import (
-    ScanProcessor, MSFileLoader, ScanIntervalTree)
+    ScanProcessor, MSFileLoader, ScanIntervalTree,
+    NoIsotopicClustersError)
 
 from ms_deisotope.data_source.common import ProcessedScan
 
@@ -266,6 +267,9 @@ class ScanTransformingProcess(Process):
                     scan, product_scans)
                 transformer.deconvolute_precursor_scan(scan, priorities)
                 self.send_scan(scan)
+            except NoIsotopicClustersError as e:
+                self.log_message("No isotopic clusters were extracted from scan %s (%r)" % (
+                    e.scan_id, len(scan.peak_set)))
             except Exception as e:
                 self.skip_scan(scan)
                 self.log_error(e, scan_id, scan, (product_scan_ids))
@@ -278,6 +282,9 @@ class ScanTransformingProcess(Process):
                     transformer.pick_product_scan_peaks(product_scan)
                     transformer.deconvolute_product_scan(product_scan)
                     self.send_scan(product_scan)
+                except NoIsotopicClustersError as e:
+                    self.log_message("No isotopic clusters were extracted from scan %s (%r)" % (
+                        e.scan_id, len(product_scan.peak_set)))
                 except Exception as e:
                     self.skip_scan(product_scan)
                     self.log_error(e, product_scan.id,

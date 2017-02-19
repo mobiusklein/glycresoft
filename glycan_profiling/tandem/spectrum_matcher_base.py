@@ -548,7 +548,7 @@ class IdentificationProcessDispatcher(TaskBase):
         self.scan_load_map = self.ipc_manager.dict()
 
     def clear_pool(self):
-        self.log("... Clearing Worker Pool")
+        # self.log("... Clearing Worker Pool")
         self.scan_load_map.clear()
         self.ipc_manager = None
         for worker in self.workers:
@@ -558,7 +558,7 @@ class IdentificationProcessDispatcher(TaskBase):
                 pass
 
     def create_pool(self, scan_map):
-        self.log("... Creating Worker Pool")
+        # self.log("... Creating Worker Pool")
         self.scan_load_map.clear()
         self.scan_load_map.update(scan_map)
         for i in range(self.n_processes):
@@ -755,7 +755,7 @@ class SpectrumIdentificationWorkerBase(Process):
             # self.pack_output(solution_target)
 
         self._work_complete.set()
-        self.log_handler("...... %s Finished. Handled %d items." % (self.name, items_handled))
+        # self.log_handler("...... %s Finished. Handled %d items." % (self.name, items_handled))
 
     def run(self):
         try:

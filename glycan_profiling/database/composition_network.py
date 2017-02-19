@@ -457,7 +457,7 @@ class CompositionGraph(object):
                     for k in key:
                         result.append(self[k])
                 return result
-            except Exception, e:
+            except Exception as e:
                 raise IndexError(
                     "An error occurred (%r) during indexing with %r" % (e, key))
 

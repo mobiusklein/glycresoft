@@ -138,9 +138,12 @@ class AnalysisSerializer(DatabaseBoundOperation, TaskBase):
         return result
 
     def save_glycopeptide_identification(self, identification, commit=False):
-        chromatogram_solution = self.save_chromatogram_solution(
-            identification.chromatogram, commit=False)
-        chromatogram_solution_id = chromatogram_solution.id
+        if identification.chromatogram is not None:
+            chromatogram_solution = self.save_chromatogram_solution(
+                identification.chromatogram, commit=False)
+            chromatogram_solution_id = chromatogram_solution.id
+        else:
+            chromatogram_solution_id = None
         cluster = GlycopeptideSpectrumCluster.serialize(
             identification, self.session, self._scan_id_map,
             analysis_id=self.analysis_id)
@@ -153,6 +156,7 @@ class AnalysisSerializer(DatabaseBoundOperation, TaskBase):
 
     def save_glycopeptide_identification_set(self, identification_set, commit=False):
         cache = defaultdict(list)
+        no_chromatograms = []
         out = []
         n = len(identification_set)
         i = 0
@@ -161,10 +165,17 @@ class AnalysisSerializer(DatabaseBoundOperation, TaskBase):
             if i % 100 == 0:
                 self.log("%0.2f%% glycopeptides saved. (%d/%d), %r" % (i * 100. / n, i, n, case))
             saved = self.save_glycopeptide_identification(case)
-            cache[case.chromatogram].append(saved)
+            if case.chromatogram is not None:
+                cache[case.chromatogram].append(saved)
+            else:
+                no_chromatograms.append(saved)
             out.append(saved)
         for chromatogram, members in cache.items():
-            AmbiguousGlycopeptideGroup.serialize(members, self.session, analysis_id=self.analysis_id)
+            AmbiguousGlycopeptideGroup.serialize(
+                members, self.session, analysis_id=self.analysis_id)
+        for case in no_chromatograms:
+            AmbiguousGlycopeptideGroup.serialize(
+                [case], self.session, analysis_id=self.analysis_id)
         return out
 
     def commit(self):

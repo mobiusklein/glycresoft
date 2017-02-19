@@ -257,7 +257,7 @@ def binary_search_with_flag(array, mass, error_tolerance=1e-5):
         lo = 0
         n = hi = len(array)
         while hi != lo:
-            mid = (hi + lo) / 2
+            mid = (hi + lo) // 2
             x = array[mid]
             err = (x.neutral_mass - mass) / mass
             if abs(err) <= error_tolerance:
@@ -298,7 +298,7 @@ def binary_search_exact(array, mass):
     lo = 0
     hi = len(array)
     while hi != lo:
-        mid = (hi + lo) / 2
+        mid = (hi + lo) // 2
         x = array[mid]
         err = (x.neutral_mass - mass)
         if err == 0:
@@ -315,7 +315,7 @@ def is_sorted(mass_list):
     i = 0
     for a, b in zip(mass_list[:-1], mass_list[1:]):
         if not a.neutral_mass <= b.neutral_mass:
-            print a.neutral_mass, b.neutral_mass, i
+            print(a.neutral_mass, b.neutral_mass, i)
             raise ValueError("Not sorted")
             return False
         i += 1
@@ -327,7 +327,7 @@ def is_sparse(mass_list):
     for a, b in zip(mass_list[:-1], mass_list[1:]):
         err = (a.neutral_mass - b.neutral_mass) / b.neutral_mass
         if abs(err) < 1e-5 and a.composition is None:
-            print a.neutral_mass, b.neutral_mass, err, i
+            print(a.neutral_mass, b.neutral_mass, err, i)
             raise ValueError("Not sparse")
             return False
         i += 1
@@ -342,7 +342,7 @@ def is_sparse_and_disjoint(chromatogram_list):
         b = chromatogram_list[i + 1]
         err = (a.neutral_mass - b.neutral_mass) / b.neutral_mass
         if abs(err) < 1e-5 and a.composition is None and a.overlaps_in_time(b):
-            print a.neutral_mass, b.neutral_mass, err, i
+            print(a.neutral_mass, b.neutral_mass, err, i)
             raise ValueError("Not sparse")
             return False
     return True

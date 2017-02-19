@@ -52,6 +52,8 @@ def export():
 @click.option("-i", "--importable", is_flag=True,
               help="Make the file importable for later re-use, with less information.")
 def glycan_hypothesis(database_connection, hypothesis_identifier, output_path=None, importable=False):
+    '''Write each theoretical glycan composition in CSV format
+    '''
     database_connection = DatabaseBoundOperation(database_connection)
     hypothesis = get_by_name_or_id(database_connection, GlycanHypothesis, hypothesis_identifier)
     if importable:
@@ -73,6 +75,8 @@ def glycan_hypothesis(database_connection, hypothesis_identifier, output_path=No
 @click.argument("hypothesis-identifier")
 @click.option("-o", "--output-path", type=click.Path(), default=None, help='Path to write to instead of stdout')
 def glycopeptide_hypothesis(database_connection, hypothesis_identifier, output_path, multifasta=False):
+    '''Write each theoretical glycopeptide in CSV format
+    '''
     database_connection = DatabaseBoundOperation(database_connection)
     session = database_connection.session()
     hypothesis = get_by_name_or_id(session, GlycopeptideHypothesis, hypothesis_identifier)
@@ -103,6 +107,8 @@ def glycopeptide_hypothesis(database_connection, hypothesis_identifier, output_p
 @click.argument("analysis-identifier")
 @click.option("-o", "--output-path", type=click.Path(), default=None, help='Path to write to instead of stdout')
 def glycan_composition_identification(database_connection, analysis_identifier, output_path=None):
+    '''Write each glycan chromatogram in CSV format
+    '''
     database_connection = DatabaseBoundOperation(database_connection)
     session = database_connection.session()
     analysis = get_by_name_or_id(session, Analysis, analysis_identifier)
@@ -140,6 +146,8 @@ def glycan_composition_identification(database_connection, analysis_identifier, 
 @click.argument("analysis-identifier")
 @click.option("-o", "--output-path", type=click.Path(), default=None, help='Path to write to instead of stdout')
 def glycopeptide_identification(database_connection, analysis_identifier, output_path=None):
+    '''Write each distinct identified glycopeptide in CSV format
+    '''
     database_connection = DatabaseBoundOperation(database_connection)
     session = database_connection.session()
     analysis = get_by_name_or_id(session, Analysis, analysis_identifier)
@@ -182,6 +190,8 @@ def glycopeptide_identification(database_connection, analysis_identifier, output
 @click.argument("analysis-identifier")
 @click.option("-o", "--output-path", type=click.Path(), default=None, help='Path to write to instead of stdout')
 def glycopeptide_spectrum_matches(database_connection, analysis_identifier, output_path=None):
+    '''Write each matched glycopeptide spectrum in CSV format
+    '''
     database_connection = DatabaseBoundOperation(database_connection)
     session = database_connection.session()
     analysis = get_by_name_or_id(session, Analysis, analysis_identifier)
@@ -223,7 +233,15 @@ def glycopeptide_spectrum_matches(database_connection, analysis_identifier, outp
 @click.argument("database-connection")
 @click.argument("analysis-identifier")
 @click.argument("output-path")
-def glycopeptide_mzidentml(database_connection, analysis_identifier, output_path=None):
+@click.option("-m", '--mzml-path', type=click.Path(exists=True), default=None,
+              help="Alternative path to find the source mzML file")
+def glycopeptide_mzidentml(database_connection, analysis_identifier, output_path=None,
+                           mzml_path=None):
+    '''Write identified glycopeptides as mzIdentML file, and associated MSn spectra
+    to a paired mzML file if the matched data are available. If an mzML file is written
+    it will also contain the extracted ion chromatograms for each glycopeptide with an
+    extracted trace.
+    '''
     database_connection = DatabaseBoundOperation(database_connection)
     session = database_connection.session()
     analysis = get_by_name_or_id(session, Analysis, analysis_identifier)
@@ -235,7 +253,8 @@ def glycopeptide_mzidentml(database_connection, analysis_identifier, output_path
         database_connection._original_connection, analysis_id=analysis.id)
     glycopeptides = loader.load_identified_glycopeptides()
     with open(output_path, 'wb') as outfile:
-        writer = MzIdentMLSerializer(outfile, glycopeptides, analysis, loader)
+        writer = MzIdentMLSerializer(
+            outfile, glycopeptides, analysis, loader, source_mzml_path=mzml_path)
         writer.run()
 
 

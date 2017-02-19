@@ -99,7 +99,6 @@ class QuerySet(object):
         n = len(queries)
         out = []
         for key, value in member_map.items():
-            print key, value, n
             if value == n:
                 out.append(item_map[key])
         return out

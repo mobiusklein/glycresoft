@@ -143,24 +143,28 @@ class GlycopeptideLCMSMSAnalysisCSVSerializer(CSVSerializerBase):
             "apex_time",
             "charge_states",
             "msms_count",
+            "peptide_start",
+            "peptide_end",
             "protein_name",
         ]
 
     def convert_object(self, obj):
         attribs = [
             str(obj.structure),
-            obj.chromatogram.weighted_neutral_mass,
-            ((obj.structure.total_mass - obj.chromatogram.weighted_neutral_mass
-              ) / obj.chromatogram.weighted_neutral_mass),
+            obj.weighted_neutral_mass,
+            ((obj.structure.total_mass - obj.weighted_neutral_mass
+              ) / obj.weighted_neutral_mass),
             obj.ms1_score,
             obj.ms2_score,
             obj.q_value,
             obj.total_signal,
-            obj.chromatogram.start_time,
-            obj.chromatogram.end_time,
-            obj.chromatogram.apex_time,
-            ";".join(map(str, obj.chromatogram.charge_states)),
+            obj.start_time,
+            obj.end_time,
+            obj.apex_time,
+            ";".join(map(str, obj.charge_states)),
             len(obj.spectrum_matches),
+            obj.protein_relation.start_position,
+            obj.protein_relation.end_position,
             self.protein_name_resolver[obj.protein_relation.protein_id]
         ]
         return map(str, attribs)
@@ -181,6 +185,8 @@ class GlycopeptideSpectrumMatchAnalysisCSVSerializer(CSVSerializerBase):
             "ms2_score",
             "q_value",
             "precursor_abundance",
+            "peptide_start",
+            "peptide_end",
             "protein_name",
         ]
 
@@ -196,6 +202,8 @@ class GlycopeptideSpectrumMatchAnalysisCSVSerializer(CSVSerializerBase):
             obj.score,
             obj.q_value,
             obj.scan.precursor_information.extracted_intensity,
+            obj.target.protein_relation.start_position,
+            obj.target.protein_relation.end_position,
             self.protein_name_resolver[obj.target.protein_relation.protein_id]
         ]
         return map(str, attribs)

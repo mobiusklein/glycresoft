@@ -297,7 +297,7 @@ class PeptideIdentification(object):
                     try:
                         _name = mod["name"]
                         modification = Modification(_name)
-                    except KeyError, e:
+                    except KeyError as e:
                         if "unknown modification" in mod:
                             try:
                                 _name = mod['unknown modification']
@@ -733,7 +733,7 @@ class Proteome(DatabaseBoundOperation, TaskBase):
         i = 0
         try:
             enzyme = re.compile(expasy_rules.get(self.enzymes[0]))
-        except KeyError, e:
+        except KeyError as e:
             logger.exception("Enzyme not found.", exc_info=e)
             enzyme = None
         session = self.session

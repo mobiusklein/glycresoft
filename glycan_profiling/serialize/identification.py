@@ -150,14 +150,16 @@ class IdentifiedGlycopeptide(Base, IdentifiedStructure):
                     return converted[i]
         else:
             spectrum_matches = self.spectrum_cluster.convert()
-
-            chromatogram = self.chromatogram.convert(*args, **kwargs)
-            chromatogram.chromatogram = TandemAnnotatedChromatogram(
-                chromatogram.chromatogram.clone(GlycopeptideChromatogram))
-            chromatogram.chromatogram.tandem_solutions.extend(spectrum_matches)
-
             structure = self.structure.convert()
-            chromatogram.chromatogram.entity = structure
+
+            chromatogram = self.chromatogram
+            if chromatogram is not None:
+                chromatogram = self.chromatogram.convert(*args, **kwargs)
+                chromatogram.chromatogram = TandemAnnotatedChromatogram(
+                    chromatogram.chromatogram.clone(GlycopeptideChromatogram))
+                chromatogram.chromatogram.tandem_solutions.extend(spectrum_matches)
+                chromatogram.chromatogram.entity = structure
+
             inst = MemoryIdentifiedGlycopeptide(structure, spectrum_matches, chromatogram)
             inst.id = self.id
             return inst

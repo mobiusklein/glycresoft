@@ -25,15 +25,6 @@ def fetch_scans_used_in_chromatogram(chromatogram_set, extractor):
     return sorted(scans, key=lambda x: x.index)
 
 
-def fetch_peaks_used_in_chromatograms(chromatogram_set, extractor):
-    scan_peak_map = defaultdict(set)
-    for chroma in chromatogram_set:
-        for node in chroma:
-            for peak in node.peaks:
-                scan_peak_map[node.scan_id].add(peak)
-    return scan_peak_map
-
-
 def fetch_glycan_compositions_from_chromatograms(chromatogram_set, glycan_db):
     ids = set()
     for chroma in chromatogram_set:
@@ -171,6 +162,8 @@ class AnalysisMigrationBase(DatabaseBoundOperation, TaskBase):
     def fetch_peaks(self, chromatogram_set):
         scan_peak_map = defaultdict(set)
         for chroma in chromatogram_set:
+            if chroma is None:
+                continue
             for node in chroma:
                 for peak in node.peaks:
                     scan_peak_map[node.scan_id].add(peak)
@@ -346,7 +339,8 @@ class GlycopeptideMSMSAnalysisSerializer(AnalysisMigrationBase):
         scan_ids = set()
 
         for glycopeptide in self._identified_glycopeptide_set:
-            scan_ids.update(glycopeptide.chromatogram.scan_ids)
+            if glycopeptide.chromatogram is not None:
+                scan_ids.update(glycopeptide.chromatogram.scan_ids)
             for msms in glycopeptide.spectrum_matches:
                 scan_ids.add(msms.scan.id)
                 scan_ids.add(

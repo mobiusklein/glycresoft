@@ -6,7 +6,30 @@ from collections import defaultdict, namedtuple
 SolutionEntry = namedtuple("SolutionEntry", "solution, score, percentile, best_score")
 
 
-class TandemAnnotatedChromatogram(ChromatogramWrapper):
+class SpectrumMatchSolutionCollectionBase(object):
+    def _compute_representative_weights(self, threshold_fn=lambda x: True):
+        scores = defaultdict(float)
+        best_scores = defaultdict(float)
+        for psm in self.tandem_solutions:
+            if threshold_fn(psm):
+                for sol in psm.get_top_solutions():
+                    scores[sol.target] += (sol.score)
+                    if best_scores[sol.target] < sol.score:
+                        best_scores[sol.target] = sol.score
+        total = sum(scores.values())
+        weights = [
+            SolutionEntry(k, v, v / total, best_scores[k]) for k, v in scores.items()
+        ]
+        weights.sort(key=lambda x: x.percentile, reverse=True)
+        return weights
+
+    def most_representative_solutions(self, threshold_fn=lambda x: True):
+        weights = self._compute_representative_weights(threshold_fn)
+        if weights:
+            return [x for x in weights if abs(x.percentile - weights[0].percentile) < 1e-5]
+
+
+class TandemAnnotatedChromatogram(ChromatogramWrapper, SpectrumMatchSolutionCollectionBase):
     def __init__(self, chromatogram):
         super(TandemAnnotatedChromatogram, self).__init__(chromatogram)
         self.tandem_solutions = []
@@ -34,27 +57,6 @@ class TandemAnnotatedChromatogram(ChromatogramWrapper):
         self.tandem_solutions = self.tandem_solutions + other.tandem_solutions
         self.time_displaced_assignments = self.time_displaced_assignments + other.time_displaced_assignments
 
-    def _compute_representative_weights(self, threshold_fn=lambda x: True):
-        scores = defaultdict(float)
-        best_scores = defaultdict(float)
-        for psm in self.tandem_solutions:
-            if threshold_fn(psm):
-                for sol in psm.get_top_solutions():
-                    scores[sol.target] += (sol.score)
-                    if best_scores[sol.target] < sol.score:
-                        best_scores[sol.target] = sol.score
-        total = sum(scores.values())
-        weights = [
-            SolutionEntry(k, v, v / total, best_scores[k]) for k, v in scores.items()
-        ]
-        weights.sort(key=lambda x: x.percentile, reverse=True)
-        return weights
-
-    def most_representative_solutions(self, threshold_fn=lambda x: True):
-        weights = self._compute_representative_weights(threshold_fn)
-        if weights:
-            return [x for x in weights if abs(x.percentile - weights[0].percentile) < 1e-5]
-
     def assign_entity(self, solution_entry, entity_chromatogram_type=GlycopeptideChromatogram):
         entity_chroma = entity_chromatogram_type(
             self.chromatogram.composition,
@@ -63,6 +65,27 @@ class TandemAnnotatedChromatogram(ChromatogramWrapper):
         entity_chroma.entity = solution_entry.solution
         self.chromatogram = entity_chroma
         self.best_msms_score = solution_entry.best_score
+
+
+class TandemSolutionsWithoutChromatogram(SpectrumMatchSolutionCollectionBase):
+    def __init__(self, entity, tandem_solutions):
+        self.entity = entity
+        self.composition = entity
+        self.tandem_solutions = tandem_solutions
+
+    @classmethod
+    def aggregate(cls, solutions):
+        collect = defaultdict(list)
+        for solution in solutions:
+            best_match = solution.best_solution()
+            collect[best_match.target.id].append(solution)
+        out = []
+        for group in collect.values():
+            solution = group[0]
+            best_match = solution.best_solution()
+            structure = best_match.target
+            out.append(cls(structure, group))
+        return out
 
 
 class ScanTimeBundle(object):
@@ -77,7 +100,8 @@ class ScanTimeBundle(object):
         return self.solution == other.solution and self.scan_time == other.scan_time
 
     def __repr__(self):
-        return "ScanTimeBundle(%s, %0.4f)" % (self.solution, self.scan_time)
+        return "ScanTimeBundle(%s, %0.4f, %0.4f)" % (
+            self.solution.scan.id, self.solution.score, self.scan_time)
 
 
 def aggregate_by_assigned_entity(annotated_chromatograms, delta_rt=0.25):
@@ -135,6 +159,7 @@ class ChromatogramMSMSMapper(TaskBase):
             self.find_chromatogram_for(solution)
 
     def distribute_orphans(self, threshold_fn=lambda x: x.q_value < 0.05):
+        lost = []
         for orphan in self.orphans:
             mass = orphan.solution.precursor_ion_mass()
             window = self.error_tolerance * mass
@@ -154,6 +179,8 @@ class ChromatogramMSMSMapper(TaskBase):
                 if threshold_fn(orphan.solution):
                     self.log("No chromatogram found for %r, q-value %0.4f (mass: %0.4f, time: %0.4f)" % (
                         orphan, orphan.solution.q_value, mass, time))
+                    lost.append(orphan.solution)
+        self.orphans = TandemSolutionsWithoutChromatogram.aggregate(lost)
 
     def assign_entities(self, threshold_fn=lambda x: x.q_value < 0.05, entity_chromatogram_type=None):
         if entity_chromatogram_type is None:

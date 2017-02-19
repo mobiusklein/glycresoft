@@ -307,11 +307,11 @@ class GlycopeptideLCMSMSAnalyzer(TaskBase):
         searcher.target_decoy(target_hits, decoy_hits)
 
     def map_chromatograms(self, searcher, extractor, target_hits):
-        chroma_with_sols = searcher.map_to_chromatograms(
+        chroma_with_sols, orphans = searcher.map_to_chromatograms(
             tuple(extractor), target_hits, self.mass_error_tolerance,
             threshold_fn=lambda x: x.q_value < self.psm_fdr_threshold)
         merged = chromatogram_mapping.aggregate_by_assigned_entity(chroma_with_sols)
-        return merged
+        return merged, orphans
 
     def score_chromatograms(self, merged):
         chroma_scoring_model = self.peak_shape_scoring_model
@@ -328,10 +328,12 @@ class GlycopeptideLCMSMSAnalyzer(TaskBase):
                 continue
         return scored_merged
 
-    def assign_consensus(self, scored_merged):
+    def assign_consensus(self, scored_merged, orphans):
         self.log("Assigning consensus glycopeptides to spectrum clusters")
+        assigned_list = list(scored_merged)
+        assigned_list.extend(orphans)
         gps, unassigned = identified_glycopeptide.extract_identified_structures(
-            scored_merged, lambda x: x.q_value < self.psm_fdr_threshold)
+            assigned_list, lambda x: x.q_value < self.psm_fdr_threshold)
         return gps, unassigned
 
     def run(self):
@@ -354,7 +356,8 @@ class GlycopeptideLCMSMSAnalyzer(TaskBase):
         self.estimate_fdr(searcher, target_hits, decoy_hits)
 
         # Map MS/MS solutions to chromatograms. TODO Handle MS/MS without chromatograms
-        merged = self.map_chromatograms(searcher, extractor, target_hits)
+        self.log("Building and Mapping Chromatograms")
+        merged, orphans = self.map_chromatograms(searcher, extractor, target_hits)
 
         if not self.save_unidentified:
             merged = [chroma for chroma in merged if chroma.composition is not None]
@@ -363,7 +366,7 @@ class GlycopeptideLCMSMSAnalyzer(TaskBase):
         self.log("Scoring chromatograms")
         scored_merged = self.score_chromatograms(merged)
 
-        gps, unassigned = self.assign_consensus(scored_merged)
+        gps, unassigned = self.assign_consensus(scored_merged, orphans)
 
         self.log("Saving solutions")
         self.save_solutions(gps, unassigned, extractor, database)

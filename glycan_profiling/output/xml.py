@@ -64,7 +64,6 @@ def convert_to_peptide_dict(glycopeptide, id_tracker):
                 "name": mod.name,
             }
             data['modifications'].append(mod_dict)
-            # print("Not Implemented", glycopeptide.id, mod)
     return data
 
 
@@ -147,7 +146,6 @@ class MzMLExporter(task.TaskBase):
         self.n_spectra = sum(len(b.products) for b in scan_bunches) + len(scan_bunches)
         self.make_writer()
         for bunch in scan_bunches:
-            # self.log("Wrote %s" % (bunch.precursor.id,))
             self.put_scan_bunch(bunch)
 
     def put_scan_bunch(self, bunch):
@@ -155,9 +153,12 @@ class MzMLExporter(task.TaskBase):
 
     def extract_chromatograms_from_identified_glycopeptides(self, glycopeptide_list):
         by_chromatogram = group_by(
-            glycopeptide_list, lambda x: x.chromatogram.chromatogram)
+            glycopeptide_list, lambda x: (
+                x.chromatogram.chromatogram if x.chromatogram is not None else None))
         i = 0
         for chromatogram, members in by_chromatogram.items():
+            if chromatogram is None:
+                continue
             self.enqueue_chromatogram(chromatogram, i, params=[
                 {"name": "GlycReSoft:profile score", "value": members[0].ms1_score},
                 {"name": "GlycReSoft:assigned entity", "value": str(members[0].structure)}
@@ -371,7 +372,10 @@ class MzIdentMLSerializer(task.TaskBase):
         if self.source_mzml_path is None:
             self.source_mzml_path = spectra_data['location']
 
-        did_resolve_mzml_path = os.path.exists(self.source_mzml_path)
+        if self.source_mzml_path is None:
+            did_resolve_mzml_path = False
+        else:
+            did_resolve_mzml_path = os.path.exists(self.source_mzml_path)
         if not did_resolve_mzml_path:
             self.log("Could not locate source mzML file.")
             if not had_specified_mzml_path:

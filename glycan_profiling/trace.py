@@ -493,7 +493,8 @@ class ChromatogramExtractor(TaskBase):
             mapping[scan_id].append(peak.intensity)
         bpc = SimpleChromatogram(self)
         tic = SimpleChromatogram(self)
-        for scan_id, intensities in sorted(mapping.items(), key=lambda (b): self.scan_id_to_rt(b[0])):
+        collection = sorted(mapping.items(), key=lambda b: self.scan_id_to_rt(b[0]))
+        for scan_id, intensities in collection:
             bpc[scan_id] = max(intensities)
             tic[scan_id] = sum(intensities)
         self.base_peak_chromatogram = bpc

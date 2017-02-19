@@ -27,7 +27,7 @@ def binary_search_with_flag(array, mass, error_tolerance=1e-5):
     lo = 0
     n = hi = len(array)
     while hi != lo:
-        mid = (hi + lo) / 2
+        mid = (hi + lo) // 2
         x = array[mid]
         err = (x.neutral_mass - mass) / mass
         if abs(err) <= error_tolerance:

@@ -226,7 +226,7 @@ def validate_adduct(adduct_string, multiplicity=1):
             composition = Composition(adduct_string)
             shift = MassShift(adduct_string, composition)
             return (shift, multiplicity)
-        except Exception, e:
+        except Exception as e:
             print(e)
             click.secho("Could not validate adduct %s" % (adduct_string,), fg='yellow')
             raise click.Abort()
