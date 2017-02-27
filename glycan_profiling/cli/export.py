@@ -9,7 +9,8 @@ from glycan_profiling.serialize import (
     DatabaseBoundOperation, GlycanHypothesis, GlycopeptideHypothesis,
     Analysis, AnalysisTypeEnum, GlycanCompositionChromatogram,
     Protein, Glycopeptide, IdentifiedGlycopeptide,
-    GlycopeptideSpectrumMatch, AnalysisDeserializer)
+    GlycopeptideSpectrumMatch, AnalysisDeserializer, GlycanComposition,
+    GlycanCombination, GlycanCombinationGlycanComposition)
 
 from glycan_profiling.output import (
     GlycanHypothesisCSVSerializer, ImportableGlycanHypothesisCSVSerializer,
@@ -280,3 +281,31 @@ def export_sample_run(database_connection, sample_run_identifier, output_path):
             last = i
         writer.save_bunch(*scan_bunch)
     writer.complete()
+
+
+@export.command("identified-glycans-from-glycopeptides")
+@click.argument("database-connection")
+@click.argument("analysis-identifier")
+@click.option("-o", "--output-path", type=click.Path(), default=None, help='Path to write to instead of stdout')
+def export_identified_glycans_from_glycopeptides(database_connection, analysis_identifier, output_path):
+    database_connection = DatabaseBoundOperation(database_connection)
+    session = database_connection.session()
+    analysis = get_by_name_or_id(session, Analysis, analysis_identifier)
+    if not analysis.analysis_type == AnalysisTypeEnum.glycopeptide_lc_msms:
+        click.secho("Analysis %r is of type %r." % (
+            str(analysis.name), str(analysis.analysis_type)), fg='red', err=True)
+        raise click.Abort()
+    glycans = session.query(GlycanComposition).join(
+        GlycanCombinationGlycanComposition).join(GlycanCombination).join(
+        Glycopeptide,
+        Glycopeptide.glycan_combination_id == GlycanCombination.id).join(
+        IdentifiedGlycopeptide,
+        IdentifiedGlycopeptide.structure_id == Glycopeptide.id).filter(
+        IdentifiedGlycopeptide.analysis_id == analysis.id).all()
+    if output_path is None:
+        output_stream = ctxstream(sys.stdout)
+    else:
+        output_stream = open(output_path, 'wb')
+    with output_stream:
+        job = ImportableGlycanHypothesisCSVSerializer(output_stream, glycans)
+        job.run()

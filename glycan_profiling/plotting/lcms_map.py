@@ -4,8 +4,6 @@ import numpy as np
 import matplotlib
 from matplotlib import pyplot as plt
 
-from glycan_profiling import serialize
-
 
 def _make_color_map():
     # Derived from the seaborn.cubehelix_palette function
@@ -38,10 +36,8 @@ def extract_intensity_array(peaks):
             if last_time is not None:
                 mzs.append(current_mzs)
                 intensities.append(current_intensities)
-                assert len(current_mzs) == len(current_intensities)
                 rts.append(time)
             last_time = time
-            print(time)
             current_mzs = []
             current_intensities = []
         current_mzs.append(peak.mz)
@@ -81,12 +77,12 @@ def make_map(mzs, intensities):
     return assigned_bins, unique_mzs
 
 
-def render_map(assigned_bins, rts, unique_mzs, ax=None, color_map=None):
+def render_map(assigned_bins, rts, unique_mzs, ax=None, color_map=None, scaler=np.sqrt):
     if ax is None:
         fig, ax = plt.subplots(1)
     if color_map is None:
         color_map = _color_map
-    ax.pcolormesh(np.array(np.sqrt(assigned_bins.T)), cmap=color_map)
+    ax.pcolormesh(np.array(scaler(assigned_bins.T)), cmap=color_map)
 
     xticks = ax.get_xticks()
     newticks = xticks
@@ -123,18 +119,19 @@ def render_map(assigned_bins, rts, unique_mzs, ax=None, color_map=None):
     return ax
 
 
-def get_peak_time_pairs(peak_loader):
-    thresh = peak_loader.query(
-        serialize.func.sum(
-            serialize.FittedPeak.intensity) / serialize.func.count(
-            serialize.FittedPeak.intensity)).join(serialize.MSScan).filter(
-        serialize.MSScan.sample_run_id == peak_loader.sample_run_id,
-        serialize.MSScan.ms_level == 1).scalar()
-    peaks = peak_loader.query(serialize.FittedPeak, serialize.MSScan.scan_time).join(serialize.MSScan).filter(
-        serialize.MSScan.sample_run_id == peak_loader.sample_run_id,
-        serialize.MSScan.ms_level == 1,
-        serialize.FittedPeak.intensity > thresh).order_by(
-        serialize.MSScan.scan_time.asc()).yield_per(1000)
+def get_peak_time_pairs(peak_loader, threshold=None):
+    if threshold is None:
+        acc = []
+        for scan_id in peak_loader.extended_index.ms1_ids:
+            header = peak_loader.get_scan_header_by_id(scan_id)
+            acc.extend(header.arrays[1])
+        threshold = np.percentile(acc, 90)
+    peaks = []
+    for scan_id in peak_loader.extended_index.ms1_ids:
+        scan = peak_loader.get_scan_by_id(scan_id)
+        for peak in scan.deconvoluted_peak_set:
+            if peak.intensity > threshold:
+                peaks.append((peak, scan.scan_time))
     return peaks
 
 
@@ -146,12 +143,21 @@ class LCMSMapArtist(object):
         self.peak_time_pairs = peak_time_pairs
         self.ax = ax
 
+    def format_axes(self, axis_font_size=12):
+        self.ax.axes.spines['right'].set_visible(False)
+        self.ax.axes.spines['top'].set_visible(False)
+        self.ax.yaxis.tick_left()
+        self.ax.xaxis.tick_bottom()
+        [t.set(fontsize=axis_font_size) for t in self.ax.get_xticklabels()]
+        [t.set(fontsize=axis_font_size) for t in self.ax.get_yticklabels()]
+
     def draw(self):
         mzs, intensities, rts = extract_intensity_array(self.peak_time_pairs)
         binned_intensities, unique_mzs = make_map(mzs, intensities)
         render_map(binned_intensities, rts, unique_mzs, self.ax)
+        self.format_axes()
         return self
 
     @classmethod
-    def from_peak_loader(cls, peak_loader, ax=None):
-        return cls(get_peak_time_pairs(peak_loader), ax=ax)
+    def from_peak_loader(cls, peak_loader, threshold=None, ax=None):
+        return cls(get_peak_time_pairs(peak_loader, threshold=threshold), ax=ax)

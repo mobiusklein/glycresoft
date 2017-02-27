@@ -82,14 +82,13 @@ def _copy_hypothesis_across_file_boundaries(database_connection, source, hypothe
     source_handle = DatabaseBoundOperation(source)
     source_hypothesis_id = None
     source_hypothesis_name = None
-    # source_hypothesis_uuid = None
+
     try:
         hypothesis_id = int(identifier)
         inst = source_handle.query(GlycanHypothesis).get(hypothesis_id)
         if inst is not None:
             source_hypothesis_id = hypothesis_id
             source_hypothesis_name = inst.name
-            # source_hypothesis_uuid = inst.uuid
 
     except TypeError:
         hypothesis_name = identifier
@@ -98,7 +97,6 @@ def _copy_hypothesis_across_file_boundaries(database_connection, source, hypothe
         if inst is not None:
             source_hypothesis_id = inst.id
             source_hypothesis_name = inst.name
-            # source_hypothesis_uuid = inst.uuid
 
     if source == database_connection:
         return source_hypothesis_id
@@ -106,6 +104,35 @@ def _copy_hypothesis_across_file_boundaries(database_connection, source, hypothe
     mover = GlycanHypothesisCopier(
         database_connection, [(source, source_hypothesis_id)],
         hypothesis_name=source_hypothesis_name)
+    mover.run()
+    return mover.hypothesis_id
+
+
+@_glycan_hypothesis_builders("analysis")
+def _copy_analysis_across_file_boundaries(database_connection, source, hypothesis_name,
+                                          identifier=None):
+    source_handle = DatabaseBoundOperation(source)
+    source_analysis_id = None
+    source_analysis_name = None
+    try:
+        hypothesis_id = int(identifier)
+        inst = source_handle.query(Analysis).get(hypothesis_id)
+        if inst is not None:
+            source_analysis_id = hypothesis_id
+            source_analysis_name = inst.name
+
+    except TypeError:
+        hypothesis_name = identifier
+        inst = source_handle.query(Analysis).filter(
+            Analysis.name == hypothesis_name).first()
+        if inst is not None:
+            source_analysis_id = inst.id
+            source_analysis_name = inst.name
+    if hypothesis_name is None:
+        hypothesis_name = source_analysis_name
+    mover = GlycanAnalysisHypothesisSerializer(
+        source, source_analysis_id, hypothesis_name,
+        database_connection)
     mover.run()
     return mover.hypothesis_id
 

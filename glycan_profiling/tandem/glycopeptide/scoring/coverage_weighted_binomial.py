@@ -1,6 +1,4 @@
-from ...spectrum_matcher_base import SpectrumMatcherBase
-
-from .binomial_score import BinomialSpectrumMatcher, binomial_intensity, binomial_fragments_matched
+from .binomial_score import BinomialSpectrumMatcher
 from .simple_score import SimpleCoverageScorer
 from .fragment_match_map import FragmentMatchMap
 
@@ -16,6 +14,7 @@ class CoverageWeightedBinomialScorer(BinomialSpectrumMatcher, SimpleCoverageScor
         spectrum = self.spectrum
         n_theoretical = 0
         backbone_mass_series = []
+        neutral_losses = tuple(kwargs.pop("neutral_losses", []))
 
         for frag in self.target.glycan_fragments(
                 all_series=False, allow_ambiguous=False,
@@ -30,7 +29,7 @@ class CoverageWeightedBinomialScorer(BinomialSpectrumMatcher, SimpleCoverageScor
                     continue
 
         n_glycosylated_b_ions = 0
-        for frags in self.target.get_fragments('b'):
+        for frags in self.target.get_fragments('b', neutral_losses):
             glycosylated_position = False
             n_theoretical += 1
             for frag in frags:
@@ -42,7 +41,7 @@ class CoverageWeightedBinomialScorer(BinomialSpectrumMatcher, SimpleCoverageScor
                 n_glycosylated_b_ions += 1
 
         n_glycosylated_y_ions = 0
-        for frags in self.target.get_fragments('y'):
+        for frags in self.target.get_fragments('y', neutral_losses):
             glycosylated_position = False
             n_theoretical += 1
             for frag in frags:

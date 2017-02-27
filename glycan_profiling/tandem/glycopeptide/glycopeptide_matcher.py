@@ -212,8 +212,9 @@ def chunkiter(collection, size=200):
 
 
 def format_identification(spectrum_solution):
-    return "%s:(%0.3f) ->\n%s" % (
+    return "%s:%0.3f:(%0.3f) ->\n%s" % (
         spectrum_solution.scan.id,
+        spectrum_solution.scan.precursor_information.neutral_mass,
         spectrum_solution.best_solution().score,
         spectrum_solution.best_solution().target)
 

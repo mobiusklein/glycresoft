@@ -28,6 +28,8 @@ class Formula(object):
         self._hash = hash(self.name)
 
     def __getattr__(self, attr):
+        if attr == "data":
+            return None
         return getattr(self.data, attr)
 
     def __eq__(self, other):

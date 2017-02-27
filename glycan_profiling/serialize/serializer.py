@@ -13,6 +13,10 @@ from .chromatogram import (
     MassShiftSerializer, CompositionGroupSerializer, ChromatogramSolution,
     GlycanCompositionChromatogram, UnidentifiedChromatogram)
 
+from .hypothesis import (
+    GlycanComposition, GlycanCombinationGlycanComposition, GlycanCombination,
+    Glycopeptide)
+
 from .tandem import (
     GlycopeptideSpectrumCluster)
 
@@ -247,6 +251,17 @@ class AnalysisDeserializer(DatabaseBoundOperation):
             IdentifiedGlycopeptide.analysis_id == self.analysis_id).yield_per(100)
         gps = [c.convert() for c in q]
         return gps
+
+    def load_glycans_from_identified_glycopeptides(self):
+        q = self.query(GlycanComposition).join(
+            GlycanCombinationGlycanComposition).join(GlycanCombination).join(
+            Glycopeptide,
+            Glycopeptide.glycan_combination_id == GlycanCombination.id).join(
+            IdentifiedGlycopeptide,
+            IdentifiedGlycopeptide.structure_id == Glycopeptide.id).filter(
+            IdentifiedGlycopeptide.analysis_id == self.analysis_id)
+        gcs = [c for c in q]
+        return gcs
 
 
 class AnalysisDestroyer(DatabaseBoundOperation):

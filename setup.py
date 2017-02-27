@@ -11,6 +11,11 @@ with open("glycan_profiling/version.py") as version_file:
         print("Cannot determine version")
 
 
+requirements = []
+with open("requirements.txt") as requirements_file:
+    requirements.extend(requirements_file.readlines())
+
+
 def run_setup(include_cext=True):
     setup(
         name='glycan_profiling',
@@ -23,11 +28,12 @@ def run_setup(include_cext=True):
                 "glycresoft = glycan_profiling.cli.__main__:main"
             ],
         },
+        install_requires=requirements,
         classifiers=[
-                'Development Status :: 3 - Alpha',
-                'Intended Audience :: Science/Research',
-                'License :: OSI Approved :: BSD License',
-                'Topic :: Scientific/Engineering :: Bio-Informatics'])
+            'Development Status :: 3 - Alpha',
+            'Intended Audience :: Science/Research',
+            'License :: OSI Approved :: BSD License',
+            'Topic :: Scientific/Engineering :: Bio-Informatics'])
 
 
 run_setup()

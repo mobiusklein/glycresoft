@@ -412,7 +412,7 @@ class TandemClusterEvaluatorBase(TaskBase):
                     hit_to_scan[hit.id].append(scan)
                     hit_map[hit.id] = hit
             if report:
-                self.log("... Mapping Segment Done. (%d candidates)" % (j,))
+                self.log("... Mapping Segment Done. (%d spectrum-pairs)" % (j,))
         return scan_map, hit_map, hit_to_scan
 
     def _evaluate_hit_groups_single_process(self, scan_map, hit_map, hit_to_scan, *args, **kwargs):
@@ -619,6 +619,11 @@ class IdentificationProcessDispatcher(TaskBase):
         feeder_thread.start()
         return feeder_thread
 
+    def _reconstruct_missing_work_items(self, seen, hit_map, hit_to_scan):
+        missing = set(hit_to_scan) - set(seen)
+        for missing_id in missing:
+            pass
+
     def process(self, scan_map, hit_map, hit_to_scan):
         feeder_thread = self.spawn_queue_feeder(
             hit_map, hit_to_scan)
@@ -641,18 +646,21 @@ class IdentificationProcessDispatcher(TaskBase):
             try:
                 target, score_map = self.output_queue.get(True, 2)
                 if target.id in seen:
-                    self.log("Duplicate Results For %s. First seen at %d, now again at %d" % (
-                        target.id, seen[target.id], i))
+                    self.log(
+                        "Duplicate Results For %s. First seen at %d, now again at %d" % (
+                            target.id, seen[target.id], i))
                 else:
                     seen[target.id] = i
                 if i > n:
-                    self.log("Warning: %d additional output received. %s and %d matches." % (
-                        i - n, target, len(score_map)))
+                    self.log(
+                        "Warning: %d additional output received. %s and %d matches." % (
+                            i - n, target, len(score_map)))
 
                 i += 1
                 strikes = 0
                 if i % 1000 == 0:
-                    self.log("...... Processed %d matches (%0.2f%%)" % (i, i * 100. / n))
+                    self.log(
+                        "...... Processed %d matches (%0.2f%%)" % (i, i * 100. / n))
             except QueueEmptyException:
                 if self.all_workers_finished():
                     if len(seen) == n:
@@ -660,10 +668,12 @@ class IdentificationProcessDispatcher(TaskBase):
                     else:
                         strikes += 1
                         if strikes % 50 == 0:
-                            self.log("...... %d cycles without output (%d/%d, %0.2f%% Done)" % (
-                                strikes, len(seen), n, len(seen) * 100. / n))
+                            self.log(
+                                "...... %d cycles without output (%d/%d, %0.2f%% Done)" % (
+                                    strikes, len(seen), n, len(seen) * 100. / n))
                         if strikes > 1e4:
-                            self.log("...... Too much time has elapsed with missing items. Breaking.")
+                            self.log(
+                                "...... Too much time has elapsed with missing items. Breaking.")
                             has_work = False
                 continue
             target.clear_caches()

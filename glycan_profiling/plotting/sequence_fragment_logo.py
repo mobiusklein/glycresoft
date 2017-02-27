@@ -1,3 +1,5 @@
+from collections import defaultdict
+
 from glycopeptidepy.structure import sequence
 from glycopeptidepy.utils import simple_repr
 
@@ -33,7 +35,7 @@ class SequencePositionGlyph(object):
             (self.x, self.y), symbol, size=self.options.get('size'), prop=font_options)
         tpatch = mpatches.PathPatch(
             tpath, color=self.options.get(
-                'color', 'black'))
+                'color', 'black'), lw=0.25)
         self._patch = tpatch
         ax.add_patch(tpatch)
         return ax
@@ -89,8 +91,22 @@ class SequenceGlyph(object):
             (x, y - height), 0.05, 1 + height, color=color, **kwargs)
         self.ax.add_patch(rect)
 
+    def draw_n_term_label(
+            self, index, label, height=0.25, length=0.75, size=0.45,
+            color='black', **kwargs):
+        x = self.next_between(index)
+        y = self.y - height - size
+        length *= self.step_coefficient
+        label_x = x - length * 0.9
+        label_y = y
+        tpath = textpath.TextPath(
+            (label_x, label_y), label, size=size, prop=font_options)
+        tpatch = mpatches.PathPatch(
+            tpath, color='black', lw=0.25)
+        self.ax.add_patch(tpatch)
+
     def draw_n_term_annotation(
-            self, index, height=0.25, length=0.5, color='red', **kwargs):
+            self, index, height=0.25, length=0.75, color='red', **kwargs):
         x = self.next_between(index)
         y = self.y - height
         length *= self.step_coefficient
@@ -98,8 +114,22 @@ class SequenceGlyph(object):
             (x - length, y), length, 0.05, color=color, **kwargs)
         self.ax.add_patch(rect)
 
+    def draw_c_term_label(
+            self, index, label, height=0.25, length=0.75, size=0.45,
+            color='black', **kwargs):
+        x = self.next_between(index)
+        y = (self.y * 2) + height
+        length *= self.step_coefficient
+        label_x = x + length / 10.
+        label_y = y + 0.2
+        tpath = textpath.TextPath(
+            (label_x, label_y), label, size=size, prop=font_options)
+        tpatch = mpatches.PathPatch(
+            tpath, color='black', lw=0.25)
+        self.ax.add_patch(tpatch)
+
     def draw_c_term_annotation(
-            self, index, height=0., length=0.5, color='red', **kwargs):
+            self, index, height=0., length=0.75, color='red', **kwargs):
         x = self.next_between(index)
         y = (self.y * 2) + height
         length *= self.step_coefficient
@@ -130,12 +160,15 @@ class SequenceGlyph(object):
             if key in index:
                 is_glycosylated = fragment.is_glycosylated
                 if key.startswith('b') or key.startswith('c'):
-                    n_annotations.append((index[key], is_glycosylated))
+                    n_annotations.append((index[key], is_glycosylated, key))
                 elif key.startswith('y') or key.startswith('z'):
-                    c_annotations.append((index[key], is_glycosylated))
+                    c_annotations.append((index[key], is_glycosylated, key))
+
         kwargs_with_greater_height = kwargs.copy()
-        kwargs_with_greater_height["height"] = kwargs.get("height", 0.25) * 2
+        kwargs.setdefault("height", 0.25)
+        kwargs_with_greater_height["height"] = kwargs["height"] * 2
         kwargs.setdefault('color', 'red')
+
         try:
             kwargs.pop("glycosylated_color")
             kwargs_with_greater_height[
@@ -149,23 +182,51 @@ class SequenceGlyph(object):
             except:
                 rgb = color
             kwargs_with_greater_height['color'] = darken(rgb)
-        for n_annot, is_glycosylated in n_annotations:
+
+        heights_at = defaultdict(float)
+
+        for n_annot, is_glycosylated, key in n_annotations:
             self.draw_bar_at(n_annot, color=kwargs['color'])
             if is_glycosylated:
                 self.draw_n_term_annotation(
                     n_annot, **kwargs_with_greater_height)
+                if heights_at[n_annot] < kwargs_with_greater_height['height']:
+                    heights_at[n_annot] = kwargs_with_greater_height['height']
             else:
-                self.draw_n_term_annotation(n_annot, **kwargs)
+                self.draw_n_term_annotation(n_annot, label=key, **kwargs)
+                if heights_at[n_annot] < kwargs['height']:
+                    heights_at[n_annot] = kwargs['height']
+
+        labeled = set()
+        for n_annot, is_glycosylated, key in n_annotations:
+            label = key.split("+")[0]
+            if label not in labeled:
+                self.draw_n_term_label(n_annot, label=label, height=heights_at[n_annot])
+                labeled.add(label)
 
         kwargs_with_greater_height['height'] = kwargs.get("height", 0.25)
         kwargs['height'] = 0
-        for c_annot, is_glycosylated in c_annotations:
+
+        heights_at = defaultdict(float)
+
+        for c_annot, is_glycosylated, key in c_annotations:
             self.draw_bar_at(c_annot, color=kwargs['color'])
             if is_glycosylated:
                 self.draw_c_term_annotation(
                     c_annot, **kwargs_with_greater_height)
+                if heights_at[c_annot] < kwargs_with_greater_height['height']:
+                    heights_at[c_annot] = kwargs_with_greater_height['height']
             else:
-                self.draw_c_term_annotation(c_annot, **kwargs)
+                self.draw_c_term_annotation(c_annot, label=key, **kwargs)
+                if heights_at[c_annot] < kwargs['height']:
+                    heights_at[c_annot] = kwargs['height']
+
+        labeled = set()
+        for c_annot, is_glycosylated, key in c_annotations:
+            label = key.split("+")[0]
+            if label not in labeled:
+                self.draw_c_term_label(c_annot, label=label, height=heights_at[c_annot])
+                labeled.add(label)
 
     @classmethod
     def from_spectrum_match(cls, spectrum_match, ax=None, **kwargs):

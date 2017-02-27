@@ -138,8 +138,10 @@ class MzMLExporter(task.TaskBase):
                 scan)
         bunches = []
         for precursor_id, products in scans.items():
+            products.sort(key=lambda x: x.scan_time)
             precursor = self.reader.get_scan_by_id(precursor_id)
             bunches.append(mzml.ScanBunch(precursor, products))
+        bunches.sort(key=lambda bunch: bunch.precursor.scan_time)
         return bunches
 
     def begin(self, scan_bunches):

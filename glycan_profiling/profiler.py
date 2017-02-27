@@ -324,8 +324,9 @@ class GlycopeptideLCMSMSAnalyzer(TaskBase):
                 self.log("%0.2f%% chromatograms evaluated (%d/%d) %r" % (i * 100. / n, i, n, c))
             try:
                 scored_merged.append(ChromatogramSolution(c, scorer=chroma_scoring_model))
-            except (IndexError, ValueError):
-                continue
+            except (IndexError, ValueError) as e:
+                self.log("Could not score chromatogram %r due to %s" % (c, e))
+                scored_merged.append(ChromatogramSolution(c, score=0.0))
         return scored_merged
 
     def assign_consensus(self, scored_merged, orphans):
@@ -354,8 +355,13 @@ class GlycopeptideLCMSMSAnalyzer(TaskBase):
             return [], [], [], []
 
         self.estimate_fdr(searcher, target_hits, decoy_hits)
+        n_below = 0
+        for target in target_hits:
+            if target.q_value <= self.psm_fdr_threshold:
+                n_below += 1
+        self.log("%d spectrum matches accepted" % (n_below,))
 
-        # Map MS/MS solutions to chromatograms. TODO Handle MS/MS without chromatograms
+        # Map MS/MS solutions to chromatograms.
         self.log("Building and Mapping Chromatograms")
         merged, orphans = self.map_chromatograms(searcher, extractor, target_hits)
 
@@ -368,7 +374,7 @@ class GlycopeptideLCMSMSAnalyzer(TaskBase):
 
         gps, unassigned = self.assign_consensus(scored_merged, orphans)
 
-        self.log("Saving solutions")
+        self.log("Saving solutions (%d identified glycopeptides)" % (len(gps),))
         self.save_solutions(gps, unassigned, extractor, database)
         return gps, unassigned, target_hits, decoy_hits
 

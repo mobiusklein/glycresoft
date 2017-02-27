@@ -752,9 +752,9 @@ class Proteome(DatabaseBoundOperation, TaskBase):
             i += 1
             if i % 1000 == 0:
                 self.log("%d spectrum matches processed." % i)
-            if (peptide_converter.counter - last) > 1000:
+            if (peptide_converter.counter - last) > 1000000:
                 last = peptide_converter.counter
-                self.log("%d peptides saved. %d" % (
+                self.log("%d peptides saved. %d distinct cases." % (
                     peptide_converter.counter, len(
                         peptide_converter.peptide_grouper)))
         peptide_converter.save_accumulation()

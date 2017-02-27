@@ -12,7 +12,7 @@ from ms_deisotope.averagine import (
 
 from glycan_profiling.serialize import (
     DatabaseBoundOperation, GlycanHypothesis, GlycopeptideHypothesis,
-    SampleRun, Analysis)
+    SampleRun, Analysis, AnalysisTypeEnum)
 from glycan_profiling.database.builder.glycan import GlycanCompositionHypothesisMerger
 from glycan_profiling.database.builder.glycopeptide.proteomics import mzid_proteome
 from glycan_profiling.chromatogram_tree import (
@@ -90,6 +90,31 @@ class HypothesisGlycanSourceValidator(GlycanSourceValidatorBase):
         except TypeError:
             hypothesis_name = self.source
             inst = self.handle.query(GlycanHypothesis).filter(GlycanHypothesis.name == hypothesis_name).first()
+            return inst is not None
+
+
+@glycan_source_validators("analysis")
+class GlycanAnalysisGlycanSourceValidator(GlycanSourceValidatorBase):
+    def __init__(self, database_connection, source, source_type, source_identifier=None):
+        super(GlycanAnalysisGlycanSourceValidator, self).__init__(
+            database_connection, source, source_type, source_identifier)
+        self.handle = DatabaseBoundOperation(source)
+
+    def validate(self):
+        if self.source_identifier is None:
+            click.secho("No value passed through --glycan-source-identifier.", fg='magenta')
+            return False
+        try:
+            analysis_id = int(self.source_identifier)
+            inst = self.handle.query(Analysis).filter(
+                Analysis.id == analysis_id,
+                Analysis.analysis_type == AnalysisTypeEnum.glycan_lc_ms.name)
+            return inst is not None
+        except TypeError:
+            hypothesis_name = self.source
+            inst = self.handle.query(Analysis).filter(
+                Analysis.name == hypothesis_name,
+                Analysis.analysis_type == AnalysisTypeEnum.glycan_lc_ms.name).first()
             return inst is not None
 
 
@@ -227,7 +252,7 @@ def validate_adduct(adduct_string, multiplicity=1):
             shift = MassShift(adduct_string, composition)
             return (shift, multiplicity)
         except Exception as e:
-            print(e)
+            click.secho("%r" % (e,))
             click.secho("Could not validate adduct %s" % (adduct_string,), fg='yellow')
             raise click.Abort()
 

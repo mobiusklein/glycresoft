@@ -100,12 +100,6 @@ class ScanBunchLoader(object):
         precursor.product_scans = products
         return (precursor, products)
 
-    def next(self):
-        return self.get()
-
-    def __next__(self):
-        return self.get()
-
 
 class ScanTransformingProcess(Process):
     """ScanTransformingProcess describes a child process that consumes scan id bunches
@@ -139,8 +133,7 @@ class ScanTransformingProcess(Process):
     """
 
     def __init__(self, mzml_path, input_queue, output_queue,
-                 averagine=ms_deisotope.averagine.glycan, charge_range=(
-                     -1, -8),
+                 averagine=ms_deisotope.averagine.glycan, charge_range=(1, 8),
                  no_more_event=None, ms1_peak_picking_args=None, msn_peak_picking_args=None,
                  ms1_deconvolution_args=None, msn_deconvolution_args=None,
                  envelope_selector=None, log_handler=None):
@@ -160,13 +153,13 @@ class ScanTransformingProcess(Process):
             }
         if ms1_deconvolution_args is None:
             ms1_deconvolution_args = {
-                "scorer": ms_deisotope.scoring.PenalizedMSDeconVFitter(15., 2),
+                "scorer": ms_deisotope.scoring.PenalizedMSDeconVFitter(35., 2),
                 "charge_range": charge_range,
                 "averagine": averagine
             }
         if msn_deconvolution_args is None:
             msn_deconvolution_args = {
-                "scorer": ms_deisotope.scoring.MSDeconVFitter(2.),
+                "scorer": ms_deisotope.scoring.MSDeconVFitter(10.),
                 "charge_range": charge_range,
                 "averagine": averagine
             }
@@ -340,7 +333,8 @@ class ScanCollator(TaskBase):
     """
     _log_received_scans = False
 
-    def __init__(self, queue, done_event, helper_producers=None, primary_worker=None, include_fitted=False):
+    def __init__(self, queue, done_event, helper_producers=None, primary_worker=None,
+                 include_fitted=False, input_queue=None):
         if helper_producers is None:
             helper_producers = []
         self.queue = queue
@@ -353,6 +347,7 @@ class ScanCollator(TaskBase):
         self.started_helpers = False
         self.primary_worker = primary_worker
         self.include_fitted = include_fitted
+        self.input_queue = input_queue
 
     def all_workers_done(self):
         if self.done_event.is_set():
@@ -370,7 +365,7 @@ class ScanCollator(TaskBase):
         access by its `index` value. If configuration
         requires it, this will also reduce the number
         of peaks in `item`.
-        
+
         Parameters
         ----------
         item : str or ProcessedScan
@@ -378,7 +373,7 @@ class ScanCollator(TaskBase):
             is not
         index : TYPE
             Description
-        
+
         Returns
         -------
         TYPE
@@ -393,13 +388,13 @@ class ScanCollator(TaskBase):
     def consume(self, timeout=10):
         """Fetches the next work item from the input
         queue :attr:`queue`, blocking for at most `timeout` seconds.
-        
+
         Parameters
         ----------
         timeout : int, optional
             The duration to allow the process to block
             for while awaiting new work items.
-        
+
         Returns
         -------
         bool
@@ -437,13 +432,13 @@ class ScanCollator(TaskBase):
         details.
 
         Resets :attr:`count_since_last` to `0`.
-        
+
         Parameters
         ----------
         scan : ProcessedScan
             The scan object being finalized for hand-off
             to client code
-        
+
         Returns
         -------
         ProcessedScan
@@ -558,8 +553,9 @@ class ScanGeneratorBase(object):
 
 class ScanGenerator(TaskBase, ScanGeneratorBase):
 
-    def __init__(self, ms_file, averagine=ms_deisotope.averagine.glycan, charge_range=(-1, -8),
-                 number_of_helper_deconvoluters=4, ms1_peak_picking_args=None, msn_peak_picking_args=None,
+    def __init__(self, ms_file, averagine=ms_deisotope.averagine.glycopeptide,
+                 charge_range=(-1, -8), number_of_helper_deconvoluters=4,
+                 ms1_peak_picking_args=None, msn_peak_picking_args=None,
                  ms1_deconvolution_args=None, msn_deconvolution_args=None,
                  extract_only_tandem_envelopes=False):
         self.ms_file = ms_file
@@ -571,7 +567,7 @@ class ScanGenerator(TaskBase, ScanGeneratorBase):
 
         self._iterator = None
 
-        self._picker_process = None
+        self._scan_yielder_process = None
         self._deconv_process = None
 
         self._input_queue = None
@@ -595,8 +591,8 @@ class ScanGenerator(TaskBase, ScanGeneratorBase):
         return self.ms_file
 
     def join(self):
-        if self._picker_process is not None:
-            self._picker_process.join()
+        if self._scan_yielder_process is not None:
+            self._scan_yielder_process.join()
         if self._deconv_process is not None:
             self._deconv_process.join()
         if self._deconv_helpers is not None:
@@ -604,8 +600,8 @@ class ScanGenerator(TaskBase, ScanGeneratorBase):
                 helper.join()
 
     def _terminate(self):
-        if self._picker_process is not None:
-            self._picker_process.terminate()
+        if self._scan_yielder_process is not None:
+            self._scan_yielder_process.terminate()
         if self._deconv_process is not None:
             self._deconv_process.terminate()
         if self._deconv_helpers is not None:
@@ -642,10 +638,10 @@ class ScanGenerator(TaskBase, ScanGeneratorBase):
 
         self._terminate()
 
-        self._picker_process = ScanIDYieldingProcess(
+        self._scan_yielder_process = ScanIDYieldingProcess(
             self.ms_file, self._input_queue, start_scan=start_scan, end_scan=end_scan,
             max_scans=max_scans, no_more_event=self.scan_ids_exhausted_event)
-        self._picker_process.start()
+        self._scan_yielder_process.start()
 
         self._deconv_process = self._make_transforming_process()
 
@@ -656,7 +652,8 @@ class ScanGenerator(TaskBase, ScanGeneratorBase):
         self._deconv_process.start()
 
         self._order_manager = ScanCollator(
-            self._output_queue, self.scan_ids_exhausted_event, self._deconv_helpers, self._deconv_process)
+            self._output_queue, self.scan_ids_exhausted_event, self._deconv_helpers,
+            self._deconv_process, input_queue=self._input_queue)
 
         for scan in self._order_manager:
             self.time_cache[scan.id] = scan.scan_time
