@@ -248,7 +248,7 @@ def plot_glycoforms_svg(protein, identifications, scale=1.5, ax=None, **kwargs):
     view_box = ' '.join(map(str, (min_x, min_y, max_x, max_y)))
     root.attrib["viewBox"] = view_box
     width = float(root.attrib["width"][:-2]) * 1.75
-    root.attrib["width"] = "%dpt" % width
+    root.attrib["width"] = "100%"
 
     height = width / (aspect_ratio)
 

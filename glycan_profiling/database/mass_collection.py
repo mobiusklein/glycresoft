@@ -137,7 +137,7 @@ class MassDatabase(SearchableMassCollection):
         Returns
         -------
         list
-            The list of :class:`HashableGlycanComposition` instances which meet the criterion
+            The list of items instances which meet the mass criterion
         """
         if len(self) == 0:
             return []

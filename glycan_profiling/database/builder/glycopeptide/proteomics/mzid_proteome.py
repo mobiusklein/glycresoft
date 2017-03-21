@@ -3,6 +3,7 @@ import re
 import operator
 import logging
 from collections import defaultdict
+from six import string_types as basestring
 
 from glycopeptidepy.structure import sequence, modification, residue
 from glycopeptidepy.enzyme import expasy_rules
@@ -19,11 +20,6 @@ from .remove_duplicate_peptides import DeduplicatePeptides
 from .share_peptides import PeptideSharer
 from .fasta import ProteinSequenceListResolver
 
-try:
-    basestring
-except:
-    basestring = (str, bytes)
-
 logger = logging.getLogger("mzid")
 
 
@@ -32,19 +28,21 @@ Residue = residue.Residue
 Modification = modification.Modification
 ModificationNameResolutionError = modification.ModificationNameResolutionError
 
+GT = "greater"
+LT = "lesser"
 
 PROTEOMICS_SCORE = {
-    "PEAKS:peptideScore": 'greater',
-    "mascot:score": 'greater',
-    "PEAKS:proteinScore": 'greater',
-    "MS-GF:EValue": 'smaller'
+    "PEAKS:peptideScore": GT,
+    "mascot:score": GT,
+    "PEAKS:proteinScore": GT,
+    "MS-GF:EValue": LT
 }
 
 
 def score_comparator(score_type):
     try:
         preference = PROTEOMICS_SCORE[score_type]
-        if preference == "smaller":
+        if preference == LT:
             return operator.lt
         else:
             return operator.gt
@@ -637,13 +635,13 @@ class Proteome(DatabaseBoundOperation, TaskBase):
         databases = list(self.parser.iterfind("SearchDatabase", iterative=True))
         # use only the first database
         if len(databases) > 1:
-            self.log("%d databases found: %r" % (len(databases), databases))
-            self.log("Using first only")
+            self.log("... %d databases found: %r" % (len(databases), databases))
+            self.log("... Using first only")
         database = databases[0]
         if "decoy DB accession regexp" in database:
             self._ignore_protein_regex = re.compile(database["decoy DB accession regexp"])
         if "FASTA format" in database.get('FileFormat', {}):
-            self.log("Database described in FASTA format")
+            self.log("... Database described in FASTA format")
             db_location = database.get("location")
             if db_location is None:
                 raise ValueError("No location present for database")

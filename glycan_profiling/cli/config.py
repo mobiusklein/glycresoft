@@ -5,9 +5,11 @@ from glycan_profiling.config.config_file import (
     add_user_modification_rule as add_user_peptide_modification_rule,
     add_user_substituent_rule)
 
+from glypy.composition import formula
 
 from glycopeptidepy.structure.modification import (
-    extract_targets_from_string, ModificationRule, Composition)
+    extract_targets_from_string, ModificationRule, Composition,
+    Modification)
 
 
 @cli.group(short_help='Set persistent configuration options')
@@ -37,6 +39,15 @@ def peptide_modification(name, composition, target, categories=None):
     rule = ModificationRule(target, name, None, composition.mass, composition)
     add_user_peptide_modification_rule(rule)
     click.echo("Added %r to modification registry" % (rule,))
+
+
+@config.command("get-peptide-modification")
+@click.argument("name")
+def display_peptide_modification(name):
+    mod = Modification(name)
+    click.echo("name: %s" % mod.name)
+    click.echo("mass: %f" % mod.mass)
+    click.echo("formula: %s" % formula(mod.composition))
 
 
 @config.command("add-substituent")

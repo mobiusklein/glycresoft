@@ -200,7 +200,7 @@ class ChromatogramArtist(ArtistBase):
         rt_apex = rt[apex_ind]
 
         if label is not None and label_peak:
-            self.ax.text(rt_apex, apex + 1200, label, ha='center', fontsize=label_font_size)
+            self.ax.text(rt_apex, min(apex * 1.1, apex + 1200), label, ha='center', fontsize=label_font_size)
 
     def process_group(self, composition, chromatogram, label_function=None, **kwargs):
         if label_function is None:
@@ -228,7 +228,7 @@ class ChromatogramArtist(ArtistBase):
     def layout_axes(self, legend=True, axis_font_size=18, axis_label_font_size=24):
         self.ax.set_xlim(self.minimum_ident_time - 0.02,
                          self.maximum_ident_time + 0.02)
-        self.ax.set_ylim(0, self.maximum_intensity * 1.1)
+        self.ax.set_ylim(0, self.maximum_intensity * 1.25)
         if legend:
             self.legend = self.ax.legend(bbox_to_anchor=(1.7, 1.), ncol=2, fontsize=10)
         self.ax.axes.spines['right'].set_visible(False)
@@ -294,7 +294,7 @@ class SmoothingChromatogramArtist(ChromatogramArtist):
         rt_apex = rt[apex_ind]
 
         if label is not None and label_peak:
-            self.ax.text(rt_apex, apex + 1200, label, ha='center', fontsize=label_font_size)
+            self.ax.text(rt_apex, min(apex * 1.1, apex + 1200), label, ha='center', fontsize=label_font_size)
 
     def draw_generic_chromatogram(self, label, rt, heights, color, fill=False, label_font_size=10):
         heights = gaussian_filter1d(heights, self.smoothing_factor)

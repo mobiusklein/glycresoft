@@ -232,13 +232,15 @@ class ThreadedDatabaseScanCacheHandler(DatabaseScanCacheHandler):
 
 
 class MzMLScanCacheHandler(ScanCacheHandlerBase):
-    def __init__(self, path, sample_name, n_spectra=None):
+    def __init__(self, path, sample_name, n_spectra=None, deconvoluted=True):
         if n_spectra is None:
             n_spectra = 2e5
         super(MzMLScanCacheHandler, self).__init__()
         self.path = path
         self.handle = open(path, 'wb')
-        self.serializer = MzMLScanSerializer(self.handle, n_spectra, sample_name=sample_name)
+        self.serializer = MzMLScanSerializer(
+            self.handle, n_spectra, sample_name=sample_name,
+            deconvoluted=deconvoluted)
 
     def _get_sample_run(self):
         return self.serializer.sample_run
@@ -258,7 +260,8 @@ class MzMLScanCacheHandler(ScanCacheHandlerBase):
         if source is not None:
             reader = MSFileLoader(source.scan_source)
             n_spectra = len(reader.index)
-            inst = cls(path, sample_name, n_spectra=n_spectra)
+            deconvoluting = getattr(source, "deconvoluting", True)
+            inst = cls(path, sample_name, n_spectra=n_spectra, deconvoluted=deconvoluting)
             try:
                 description = reader.file_description()
                 for key in description.get("fileContent", []):
@@ -269,21 +272,23 @@ class MzMLScanCacheHandler(ScanCacheHandlerBase):
                 pass
             for trans in source.ms1_peak_picking_args.get("transforms"):
                 inst.register_parameter("parameter: ms1-%s" % trans.__class__.__name__, repr(trans))
-            if source.ms1_deconvolution_args.get("averagine"):
-                inst.register_parameter(
-                    "parameter: ms1-averagine", repr(source.ms1_deconvolution_args.get("averagine")))
-            if source.ms1_deconvolution_args.get("scorer"):
-                inst.register_parameter(
-                    "parameter: ms1-scorer", repr(source.ms1_deconvolution_args.get("scorer")))
+            if deconvoluting:
+                if source.ms1_deconvolution_args.get("averagine"):
+                    inst.register_parameter(
+                        "parameter: ms1-averagine", repr(source.ms1_deconvolution_args.get("averagine")))
+                if source.ms1_deconvolution_args.get("scorer"):
+                    inst.register_parameter(
+                        "parameter: ms1-scorer", repr(source.ms1_deconvolution_args.get("scorer")))
             if source.msn_peak_picking_args is not None:
                 for trans in source.msn_peak_picking_args.get("transforms"):
                     inst.register_parameter("parameter: msn-%s" % trans.__class__.__name__, repr(trans))
-            if source.msn_deconvolution_args.get("averagine"):
-                inst.register_parameter(
-                    "parameter: msn-averagine", repr(source.msn_deconvolution_args.get("averagine")))
-            if source.msn_deconvolution_args.get("scorer"):
-                inst.register_parameter(
-                    "parameter: msn-scorer", repr(source.msn_deconvolution_args.get("scorer")))
+            if deconvoluting:
+                if source.msn_deconvolution_args.get("averagine"):
+                    inst.register_parameter(
+                        "parameter: msn-averagine", repr(source.msn_deconvolution_args.get("averagine")))
+                if source.msn_deconvolution_args.get("scorer"):
+                    inst.register_parameter(
+                        "parameter: msn-scorer", repr(source.msn_deconvolution_args.get("scorer")))
 
         else:
             n_spectra = 2e5
@@ -302,8 +307,9 @@ class MzMLScanCacheHandler(ScanCacheHandlerBase):
 
 
 class ThreadedMzMLScanCacheHandler(MzMLScanCacheHandler):
-    def __init__(self, path, sample_name, n_spectra=None):
-        super(ThreadedMzMLScanCacheHandler, self).__init__(path, sample_name, n_spectra)
+    def __init__(self, path, sample_name, n_spectra=None, deconvoluted=True):
+        super(ThreadedMzMLScanCacheHandler, self).__init__(
+            path, sample_name, n_spectra, deconvoluted=deconvoluted)
         self.queue = Queue(200)
         self.worker_thread = threading.Thread(target=self._worker_loop)
         self.worker_thread.start()

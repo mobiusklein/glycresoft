@@ -2,9 +2,9 @@ from __future__ import print_function
 import logging
 import pprint
 import traceback
-from datetime import datetime
 import multiprocessing
 import threading
+from datetime import datetime
 
 logger = logging.getLogger("glycan_profiling.task")
 
