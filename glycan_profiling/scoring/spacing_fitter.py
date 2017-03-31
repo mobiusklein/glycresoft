@@ -32,7 +32,7 @@ class ChromatogramSpacingFitter(object):
         self.rt_deltas = np.array(self.rt_deltas, dtype=np.float16)
         self.intensity_deltas = np.array(self.intensity_deltas, dtype=np.float32)
 
-        self.score = np.average(self.rt_deltas, weights=self.intensity_deltas / self.intensity_deltas.sum())
+        self.score = np.average(self.rt_deltas, weights=self.intensity_deltas)
 
     def __repr__(self):
         return "ChromatogramSpacingFitter(%s, %0.4f)" % (self.chromatogram, self.score)

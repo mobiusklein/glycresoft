@@ -13,7 +13,7 @@ from multiprocessing import current_process
 log_multiprocessing = False
 
 
-def configure_logging(level=logging.DEBUG):
+def configure_logging(level=logging.INFO):
     file_fmter = logging.Formatter(
         "%(asctime)s - %(name)s:%(funcName)s:%(lineno)d - %(levelname)s - %(message)s",
         "%H:%M:%S")

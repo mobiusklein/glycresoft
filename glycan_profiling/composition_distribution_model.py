@@ -1,79 +1,9 @@
 import numpy as np
-import glypy
+from scipy import linalg
 
 from glycan_profiling.task import TaskBase
-
-# Taken from `statsmodels.distribution`
-
-
-class StepFunction(object):
-
-    def __init__(self, x, y, ival=0., is_sorted=False, side='left'):
-        if side.lower() not in ['right', 'left']:
-            msg = "side can take the values 'right' or 'left'"
-            raise ValueError(msg)
-        self.side = side
-
-        _x = np.asarray(x)
-        _y = np.asarray(y)
-
-        if _x.shape != _y.shape:
-            msg = "x and y do not have the same shape"
-            raise ValueError(msg)
-        if len(_x.shape) != 1:
-            msg = 'x and y must be 1-dimensional'
-            raise ValueError(msg)
-
-        self.x = np.r_[-np.inf, _x]
-        self.y = np.r_[ival, _y]
-
-        if not is_sorted:
-            asort = np.argsort(self.x)
-            self.x = np.take(self.x, asort, 0)
-            self.y = np.take(self.y, asort, 0)
-        self.n = self.x.shape[0]
-
-    def __call__(self, time):
-
-        tind = np.searchsorted(self.x, time, self.side) - 1
-        return self.y[tind]
-
-
-class ECDF(StepFunction):
-
-    def __init__(self, x, side='right'):
-        x = np.array(x, copy=True)
-        x.sort()
-        nobs = len(x)
-        y = np.linspace(1. / nobs, 1, nobs)
-        super(ECDF, self).__init__(x, y, side=side, is_sorted=True)
-
-#
-
-
-def calculate_relation_matrix(network, phi=2.):
-    N = len(network)
-    P = np.zeros((N, N))
-    for node_i in network.nodes:
-        total = np.sum([np.exp(e.order / phi) for e in node_i.edges])
-        for edge in node_i.edges:
-            j = edge[node_i].index
-            i = node_i.index
-            P[i, j] = np.exp(edge.order / phi) / total
-    return P
-
-
-def power_iteration(A):
-    b = np.zeros(A.shape[0]) + 1. / A.shape[0]
-    b0 = b
-    while True:
-        b = A.dot(b0)
-        dist = (np.abs(b - b0).sum() / b0.sum())
-        if dist < 1e-4:
-            break
-        else:
-            b0 = b
-    return b
+from glycan_profiling.database import composition_network
+from glycan_profiling.scoring import network_scoring
 
 
 class PriorBuilder(object):
@@ -185,170 +115,118 @@ class CompositionDistributionUpdater(TaskBase):
             self.optimize_pi(self.pi0, **kwargs), self.network)
 
 
-class FuzzyCompositionDistributionUpdater(CompositionDistributionUpdater):
-
-    def __init__(self, network, solutions, prior=0.01, common_weight=1, precision_scale=1, spread_factor=0.2):
-        super(FuzzyCompositionDistributionUpdater, self).__init__(
-            network, solutions, prior, common_weight, precision_scale)
-        self.spread_factor = spread_factor
-
-        self.adjacency_list = []
-        self.edge_weight_list = []
-        for node in self.network.nodes:
-            row = []
-            weight = []
-            for edge in node.edges:
-                row.append(edge[node].index)
-                weight.append(edge.weight)
-            weight = np.array(weight)
-            self.adjacency_list.append(row)
-            self.edge_weight_list.append(weight)
-
-    def weights_for(self, ix):
-        return self.edge_weight_list[ix]
-
-    def neighbors_for(self, ix):
-        edges = self.adjacency_list[ix]
-        return edges
-
-    def show_support(self, composition):
-        ix = self.index_of(composition)
-        return zip(self.network[self.neighbors_for(ix)],
-                   self.weights_for(ix),
-                   self.observations[self.neighbors_for(ix)])
-
-    def _compute_support2(self, pi_array, ix):
-        edges = self.adjacency_list[ix]
-
-        weights = self.edge_weight_list[ix]
-        support_pis = pi_array[edges]
-        support_obs = self.observations[edges]
-        prior = self.prior[edges]
-
-        mask = support_obs > 0.4
-        weights = weights[mask]
-        support_pis = support_pis[mask]
-        support_obs = support_obs[mask]
-        prior = prior[mask]
-
-        # norm = (prior * weights).sum()
-        norm = weights.sum()
-        if norm == 0:
-            return 0
-        # return (support_pis * weights * support_obs).sum() / norm
-        return (weights * pi_array[ix] * support_obs).sum() / norm
-
-    def _compute_support(self, pi_array, ix):
-        edges = self.adjacency_list[ix]
-
-        weights = self.edge_weight_list[ix]
-        support_pis = pi_array[edges]
-        support_obs = self.observations[edges]
-        prior = self.prior[edges]
-
-        mask = support_obs > 0.4
-        weights = weights[mask]
-        support_pis = support_pis[mask]
-        support_obs = support_obs[mask]
-        prior = prior[mask]
-
-        # norm = (prior * weights).sum()
-        norm = weights.sum()
-        if norm == 0:
-            return 0
-        return (support_pis * weights * support_obs).sum() / norm
-        # return (weights * pi_array[ix] * support_obs).sum() / norm
-
-    def _compute_score(self, pi_array, ix):
-        base = (pi_array[ix]) * (self.observations[ix])
-        support_value = self._compute_support(pi_array, ix)
-        return base * (1 - self.spread_factor) + support_value * self.spread_factor
-
-    def _compute_fuzzy_pi(self, pi_array):
-        out = []
-        for i in range(len(pi_array)):
-            out.append(self._compute_score(pi_array, i))
-        return np.array(out)
-
-    def update_pi(self, pi_array):
-        pi2 = np.zeros_like(pi_array)
-        fuzzed_pi = self._compute_fuzzy_pi(pi_array)
-        total_score_pi = fuzzed_pi.sum()
-        total_w = ((self.prior - 1).sum() + 1)
-        for i in range(len(self.prior)):
-            pi2[i] = ((self.prior[i] - 1) + (fuzzed_pi[i]) /
-                      total_score_pi) / total_w
-            assert pi2[i] >= 0, (self.prior[i], pi_array[i])
-        return pi2
+def adjacency_matrix(network):
+    A = np.zeros((len(network), len(network)))
+    for edge in network.edges:
+        i, j = edge.node1.index, edge.node2.index
+        A[i, j] = 1
+        A[j, i] = 1
+    for i in range(A.shape[0]):
+        A[i, i] = 0
+    return A
 
 
-def null_model_probability_of_shift(cases, mass_shift):
-    hits = 0
-    total = len(cases)
-    for case in cases:
-        match = cases.find_mass(case.neutral_mass + mass_shift)
-        if match:
-            hits += 1
-    return hits / float(total)
+def weighted_adjacency_matrix(network):
+    A = np.zeros((len(network), len(network)))
+    A[:] = 1. / float('inf')
+    for edge in network.edges:
+        i, j = edge.node1.index, edge.node2.index
+        A[i, j] = 1. / edge.order
+        A[j, i] = 1. / edge.order
+    for i in range(A.shape[0]):
+        A[i, i] = 0
+    return A
 
 
-def valid_model_probability_of_shift(cases, mass_shift, validator):
-    hits = 0
-    total = 0
-    for case in cases:
-        if validator(case):
-            match = cases.find_mass(case.neutral_mass + mass_shift)
-            if match:
-                hits += 1
-            total += 1
-    return hits / float(total)
+def degree_matrix(network):
+    degrees = [len(n.edges) for n in network]
+    return np.diag(degrees)
 
 
-def probability_of_shift(cases, mass, validator):
-    alpha = valid_model_probability_of_shift(cases, mass, validator)
-    beta = null_model_probability_of_shift(cases, mass)
-    return alpha / (alpha + beta)
+def weighted_degree_matrix(network):
+    degrees = [sum(1. / e.order for e in n.edges) for n in network]
+    return np.diag(degrees)
 
 
-def can_gain_fucose(chromatogram):
-    comp = chromatogram.composition
-    if comp is None:
-        return False
-    comp = glypy.GlycanComposition.parse(comp)
-    nfuc = comp["Fuc"]
-    nhexnac = comp['HexNAc']
-    return nfuc < nhexnac - 1 and nfuc < 2
+def laplacian_matrix(network):
+    return degree_matrix(network) - adjacency_matrix(network)
 
 
-def can_lose_fucose(chromatogram):
-    comp = chromatogram.composition
-    if comp is None:
-        return False
-    comp = glypy.GlycanComposition.parse(comp)
-    nfuc = comp["Fuc"]
-    nhexnac = comp['HexNAc']
-    return nfuc < nhexnac - 1 and nfuc > 0
+def weighted_laplacian_matrix(network):
+    return weighted_degree_matrix(network) - weighted_adjacency_matrix(network)
 
 
-def can_gain_neuac(chromatogram):
-    comp = chromatogram.composition
-    if comp is None:
-        return False
-    comp = glypy.GlycanComposition.parse(comp)
-    nhexnac = comp['HexNAc']
-    neuac = comp["Neu5Ac"]
-    return neuac < nhexnac - 2 and neuac < 4
+def assign_network(network, observed):
+    rns = network_scoring.RenormalizingNetworkScorerDifferenceMethod(
+        observed, network.clone())
+    rns.build_solution_map()
+    rns.assign_network()
+    return rns.network
 
 
-def can_lose_neuac(chromatogram):
-    comp = chromatogram.composition
-    if comp is None:
-        return False
-    comp = glypy.GlycanComposition.parse(comp)
-    nhexnac = comp['HexNAc']
-    neuac = comp["Neu5Ac"]
-    return neuac < nhexnac - 2 and neuac > 0
+def network_indices(network, threshold=0.0001):
+    missing = []
+    observed = []
+    for node in network:
+        if node._temp_score < threshold:
+            missing.append(node.index)
+        else:
+            observed.append(node.index)
+    return observed, missing
 
 
-def threshold(x, t=0.4):
-    return x.score > t
+def make_blocks(network, observed, lmbda=0.2, threshold=0.4):
+    network = assign_network(network, observed)
+    structure_matrix = weighted_laplacian_matrix(network)
+    observed_indices, missing_indices = network_indices(network, threshold)
+    oo_block = structure_matrix[observed_indices, :][:, observed_indices]
+    om_block = structure_matrix[observed_indices, :][:, missing_indices]
+    mo_block = structure_matrix[missing_indices, :][:, observed_indices]
+    mm_block = structure_matrix[missing_indices, :][:, missing_indices]
+    return {"oo": oo_block, "om": om_block, "mo": mo_block, "mm": mm_block}
+
+
+def compute_missing_scores(blocks, observed_scores, t0=0., tm=0.):
+    return -linalg.inv(blocks['mm']).dot(blocks['mo']).dot(observed_scores - t0) + tm
+
+
+def optimize_observed_scores(blocks, lmbda, observed_scores, t0=0.):
+    S = lmbda * (blocks["oo"] - blocks["om"].dot(linalg.inv(
+                 blocks['mm'])).dot(blocks["mo"]))
+    B = np.eye(len(observed_scores)) + S
+    return linalg.inv(B).dot(observed_scores - t0) + t0
+
+
+def smooth_network(network, observations, lmbda=0.2, t0=0., tm=0., threshold=0.4, fit_t=False):
+    network = assign_network(network, observations)
+    structure_matrix = weighted_laplacian_matrix(network)
+
+    observed_indices, missing_indices = network_indices(network, threshold)
+    oo_block = structure_matrix[observed_indices, :][:, observed_indices]
+    om_block = structure_matrix[observed_indices, :][:, missing_indices]
+    mo_block = structure_matrix[missing_indices, :][:, observed_indices]
+    mm_block = structure_matrix[missing_indices, :][:, missing_indices]
+    blocks = {"oo": oo_block, "om": om_block, "mo": mo_block, "mm": mm_block}
+
+    observed_scores = np.array([
+        node.score for node in network[observed_indices]
+    ])
+    observed_labels = [
+        node for node in network[observed_indices]
+    ]
+    # missing_scores = compute_missing_scores(blocks, observed_scores, t0, tm)
+    update_obs_scores = optimize_observed_scores(blocks, lmbda, observed_scores, t0)
+    update_missing_scores = compute_missing_scores(blocks, update_obs_scores, t0, tm)
+
+    if fit_t:
+        for node, score in zip(observed_labels, update_obs_scores):
+            node.score = score
+        nhw = composition_network.NeighborhoodWalker(network)
+        nhann = composition_network.DistanceWeightedNeighborhoodAnalyzer(nhw)
+        t0_update = []
+        for node in observed_labels:
+            t0_update.append(nhann[node])
+        update_obs_scores = optimize_observed_scores(blocks, lmbda, observed_scores, t0_update)
+        update_missing_scores = compute_missing_scores(blocks, update_obs_scores, t0_update, tm)
+
+    return update_obs_scores, update_missing_scores, observed_labels, observed_scores

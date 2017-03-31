@@ -110,4 +110,4 @@ class IsotopicPatternConsistencyFitter(object):
                 self.intensity.append(peak.intensity)
         self.intensity = np.array(self.intensity)
         self.scores = np.array(self.scores)
-        self.mean_fit = np.average(self.scores, weights=self.intensity / self.intensity.sum())
+        self.mean_fit = np.average(self.scores, weights=self.intensity)

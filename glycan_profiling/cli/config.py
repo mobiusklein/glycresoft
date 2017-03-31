@@ -48,6 +48,8 @@ def display_peptide_modification(name):
     click.echo("name: %s" % mod.name)
     click.echo("mass: %f" % mod.mass)
     click.echo("formula: %s" % formula(mod.composition))
+    for target in mod.rule.targets:
+        click.echo("target: %s" % target.serialize())
 
 
 @config.command("add-substituent")
@@ -60,8 +62,8 @@ def display_peptide_modification(name):
 @click.option("-a", "--attachment-loss", default="H",
               help="The composition lost by the parent molecule when this substituent is added. Defaults to \"H\"")
 def substituent(name, composition, is_nh_derivatizable, can_nh_derivatize, attachment_loss):
-    print(name)
-    print(composition)
-    print(is_nh_derivatizable)
-    print(can_nh_derivatize)
-    print(attachment_loss)
+    click.echo("name: %s" % (name,))
+    click.echo("composition: %s" % (composition,))
+    click.echo("is_nh_derivatizable: %s" % (is_nh_derivatizable,))
+    click.echo("can_nh_derivatize: %s" % (can_nh_derivatize,))
+    click.echo("attachment_loss: %s" % (attachment_loss,))

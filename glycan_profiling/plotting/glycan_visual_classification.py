@@ -5,13 +5,15 @@ from matplotlib import patches as mpatches
 from glypy.composition.glycan_composition import FrozenGlycanComposition, FrozenMonosaccharideResidue
 from glycopeptidepy.utils import simple_repr
 
+from glycan_profiling.database.composition_network import CompositionRangeRule, CompositionRuleClassifier
+
 
 def _degree_monosaccharide_alteration(x):
     try:
         if not isinstance(x, FrozenMonosaccharideResidue):
             x = FrozenMonosaccharideResidue.from_iupac_lite(str(x))
         return (len(x.modifications), len(x.substituent_links))
-    except:
+    except Exception:
         return (float('inf'), float('inf'))
 
 
@@ -52,60 +54,6 @@ class GlycanCompositionOrderer(object):
             else:
                 continue
         return 0
-
-    __repr__ = simple_repr
-
-
-class CompositionRangeRule(object):
-    def __init__(self, name, low=None, high=None, required=True):
-        self.name = name
-        self.low = low
-        self.high = high
-        self.required = required
-
-    __repr__ = simple_repr
-
-    def get_composition(self, obj):
-        try:
-            composition = obj.glycan_composition
-        except:
-            composition = FrozenGlycanComposition.parse(obj)
-        return composition
-
-    def __call__(self, obj):
-        composition = self.get_composition(obj)
-        if self.name in composition:
-            if self.low is None:
-                return composition[self.name] <= self.high
-            elif self.high is None:
-                return self.low <= composition[self.name]
-            return self.low <= composition[self.name] <= self.high
-        else:
-            return not self.required
-
-
-class CompositionRuleClassifier(object):
-    def __init__(self, name, rules):
-        self.name = name
-        self.rules = rules
-
-    def __iter__(self):
-        return iter(self.rules)
-
-    def __call__(self, obj):
-        for rule in self:
-            if not rule(obj):
-                return False
-        return True
-
-    def __eq__(self, other):
-        return self.name == other.name
-
-    def __ne__(self, other):
-        return not self == other
-
-    def __hash__(self):
-        return hash(self.name)
 
     __repr__ = simple_repr
 
