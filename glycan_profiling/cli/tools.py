@@ -175,7 +175,7 @@ def has_known_glycosylation(accession):
             #         return True
             pass
         return False
-    except:
+    except Exception:
         return False
 
 

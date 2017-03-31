@@ -155,9 +155,31 @@ validate_sample_run_name = partial(validate_unique_name, klass=SampleRun)
 validate_analysis_name = partial(validate_unique_name, klass=Analysis)
 
 
+def _resolve_protein_name_list(context, args):
+    result = []
+    for arg in args:
+        if isinstance(arg, basestring):
+            if os.path.exists(arg) and os.path.isfile(arg):
+                with open(arg) as fh:
+                    for line in fh:
+                        cleaned = line.strip()
+                        if cleaned:
+                            result.append(cleaned)
+            else:
+                result.append(arg)
+        else:
+            if isinstance(arg, (list, tuple)):
+                result.extend(arg)
+            else:
+                result.append(arg)
+    return result
+
+
 def validate_mzid_proteins(context, mzid_file, target_proteins=tuple(), target_proteins_re=tuple()):
     all_proteins = set(mzid_proteome.protein_names(mzid_file))
     accepted_target_proteins = set()
+    target_proteins = _resolve_protein_name_list(context, target_proteins)
+    target_proteins_re = _resolve_protein_name_list(context, target_proteins_re)
     for prot in target_proteins:
         if prot in all_proteins:
             accepted_target_proteins.add(prot)
