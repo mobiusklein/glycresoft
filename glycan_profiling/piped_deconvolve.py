@@ -74,7 +74,7 @@ class ScanIDYieldingProcess(Process):
                     break
                 index += 1
                 count += 1
-            except Exception as e:
+            except (Exception, StopIteration) as e:
                 log_handle.error("An error occurred while fetching scans", e)
                 break
 

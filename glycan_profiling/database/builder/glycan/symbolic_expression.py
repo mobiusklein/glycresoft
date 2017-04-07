@@ -149,7 +149,7 @@ class ValueNode(object):
     def parse(cls, string):
         try:
             value = int(string.replace(" ", ""))
-        except:
+        except ValueError:
             value = float(string.replace(" ", ""))
         return cls(value)
 
@@ -276,7 +276,15 @@ class ExpressionNode(object):
         -------
         bool or int
         """
-        return self.op(self.left, self.right, context)
+        try:
+            return self.op(self.left, self.right, context)
+        except KeyError:
+            if isinstance(self.left, ValueNode) and self.left.value == 0:
+                return True
+            elif isinstance(self.right, ValueNode) and self.right.value == 0:
+                return True
+            else:
+                return False
 
 
 def collapse_expression_sequence(expression_sequence):

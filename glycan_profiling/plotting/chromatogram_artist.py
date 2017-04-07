@@ -9,6 +9,7 @@ import glypy
 from .glycan_visual_classification import (
     NGlycanCompositionColorizer, NGlycanCompositionOrderer,
     GlycanLabelTransformer)
+from .base import ArtistBase
 from ..chromatogram_tree import get_chromatogram
 
 
@@ -97,18 +98,6 @@ class AbundantLabeler(LabelProducer):
             return self.labeler(chromatogram, *args, **kwargs), True
         else:
             return self.labeler(chromatogram, *args, **kwargs), False
-
-
-class ArtistBase(object):
-
-    def __repr__(self):
-        return "{self.__class__.__name__}()".format(self=self)
-
-    def _repr_html_(self):
-        if self.ax is None:
-            return repr(self)
-        fig = (self.ax.get_figure())
-        return fig._repr_html_()
 
 
 class ChromatogramArtist(ArtistBase):

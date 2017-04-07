@@ -203,7 +203,7 @@ class CompositionGraphNode(object):
             return self._score
 
     @score.setter
-    def score_setter(self, value):
+    def score(self, value):
         self._score = value
 
     def edge_to(self, node):

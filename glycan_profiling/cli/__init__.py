@@ -22,7 +22,8 @@ def _setup_win32_keyboard_interrupt_handler():
 
 
 try:
-    _setup_win32_keyboard_interrupt_handler()
+    # _setup_win32_keyboard_interrupt_handler()
+    pass
 except ImportError:
     pass
 

@@ -731,6 +731,8 @@ class Proteome(DatabaseBoundOperation, TaskBase):
         i = 0
         try:
             enzyme = re.compile(expasy_rules.get(self.enzymes[0]))
+        except TypeError:
+            enzyme = None
         except KeyError as e:
             logger.exception("Enzyme not found.", exc_info=e)
             enzyme = None

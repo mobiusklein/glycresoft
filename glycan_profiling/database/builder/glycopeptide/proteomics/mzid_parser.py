@@ -23,10 +23,72 @@ class MultipleProteinInfoDict(dict):
     multi = None
 
 
+class MissingProteinException(Exception):
+    pass
+
+
+class MissingPeptideEvidenceHandler(object):
+    parser = re.compile(
+        r"(?P<evidence_id>PEPTIDEEVIDENCE_(?P<peptide_id>PEPTIDE_\d+)_(?P<parent_accession>DBSEQUENCE_.+))")
+
+    def __init__(self, full_id):
+        self.full_id = full_id
+
+    def __repr__(self):
+        return "MissingPeptideEvidenceHandler(%r)" % (self.full_id,)
+
+    def reconstruct_evidence(self):
+        match = self.parser.search(self.full_id)
+        if match is None:
+            raise ValueError("Cannot interpret %r" % (self.full_id,))
+        data = match.groupdict()
+        result = {
+            "isDecoy": False,
+            "end": None,
+            "start": None,
+            "peptide_ref": data["peptide_id"],
+            "dBSequence_ref": data['parent_accession'],
+            'pre': None,
+            "post": None,
+            "id": self.full_id
+        }
+        return result
+
+    @classmethod
+    def recover(cls, full_id):
+        print("Recovering", full_id)
+        inst = cls(full_id)
+        return inst.reconstruct_evidence()
+
+
 class Parser(MzIdentML):
 
+    # @mzid.xml._keepstate
+    # def get_by_id(self, elem_id, id_key=None, **kwargs):
+    #     try:
+    #         index = self._offset_index
+    #         offset = index[elem_id]
+    #         self._source.seek(offset)
+    #         elem = self._find_by_id_no_reset(elem_id, id_key=id_key)
+    #     except (KeyError, mzid.xml.etree.LxmlError):
+    #         try:
+    #             elem = MissingPeptideEvidenceHandler.recover(elem_id)
+    #             if kwargs.get("retrieve_refs", False):
+    #                 elem, _ = self._retrieve_refs(elem, **kwargs)
+    #                 return elem
+    #         except ValueError:
+    #             elem = self._find_by_id_reset(elem_id, id_key=id_key)
+    #     return self._get_info_smart(elem, **kwargs)
+
     def _handle_ref(self, info, key, value):
-        info.update(self.get_by_id(value, retrieve_refs=True))
+        try:
+            referenced = self.get_by_id(value, retrieve_refs=True)
+        except AttributeError:
+            if key == "peptideEvidence_ref":
+                referenced = MissingPeptideEvidenceHandler.recover(value)
+            else:
+                raise AttributeError(key)
+        info.update(referenced)
         del info[key]
         info.pop('id', None)
 
@@ -90,7 +152,11 @@ class Parser(MzIdentML):
         infos = [info]
         # resolve refs
         if kwargs.get('retrieve_refs'):
-            _, multi = self._retrieve_refs(info, **kwargs)
+            try:
+                _, multi = self._retrieve_refs(info, **kwargs)
+            except ValueError as e:
+                print(info, e, kwargs)
+                raise e
             if multi is not None:
                 info.multi = multi
             if info.multi:

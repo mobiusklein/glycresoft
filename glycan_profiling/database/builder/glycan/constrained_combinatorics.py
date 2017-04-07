@@ -202,7 +202,7 @@ def parse_rules_from_file(path):
         *zip(*ranges))
     try:
         stream.close()
-    except:
+    except Exception:
         pass
     return rules_table, constraints
 

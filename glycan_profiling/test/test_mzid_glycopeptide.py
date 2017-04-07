@@ -9,6 +9,7 @@ from glycan_profiling.database.builder.glycan import (
     TextFileGlycanHypothesisSerializer, CombinatorialGlycanHypothesisSerializer)
 from glycan_profiling import serialize
 
+from glycan_profiling.test.fixtures import get_test_data
 from glycan_profiling.test.test_constrained_combinatorics import FILE_SOURCE as GLYCAN_RULE_FILE_SOURCE
 
 

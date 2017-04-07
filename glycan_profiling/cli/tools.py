@@ -3,7 +3,7 @@ import cmd
 import threading
 try:
     from Queue import Queue, Empty
-except:
+except ImportError:
     from queue import Queue, Empty
 import click
 

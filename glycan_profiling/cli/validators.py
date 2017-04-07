@@ -8,7 +8,7 @@ from sqlalchemy.exc import OperationalError
 from brainpy import periodic_table
 from ms_deisotope.averagine import (
     Averagine, glycan as n_glycan_averagine, permethylated_glycan,
-    peptide, glycopeptide)
+    peptide, glycopeptide, heparin)
 
 from glycan_profiling.serialize import (
     DatabaseBoundOperation, GlycanHypothesis, GlycopeptideHypothesis,
@@ -46,7 +46,7 @@ class ModificationValidator(object):
     def validate(self, modification_string):
         try:
             return self.table[modification_string]
-        except:
+        except KeyError:
             return False
 
 
@@ -246,7 +246,8 @@ averagines = {
     'glycan': n_glycan_averagine,
     'permethylated-glycan': permethylated_glycan,
     'peptide': peptide,
-    'glycopeptide': glycopeptide
+    'glycopeptide': glycopeptide,
+    'heparin': heparin
 }
 
 

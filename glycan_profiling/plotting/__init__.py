@@ -1,3 +1,5 @@
+from .base import ArtistBase
+
 from .chromatogram_artist import (
     ChromatogramArtist, SmoothingChromatogramArtist,
     ChargeSeparatingChromatogramArtist, ChargeSeparatingSmoothingChromatogramArtist,

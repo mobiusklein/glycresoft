@@ -91,7 +91,7 @@ def search_glycopeptide(context, database_connection, sample_path, hypothesis_id
     try:
         hypothesis = get_by_name_or_id(
             database_connection, GlycopeptideHypothesis, hypothesis_identifier)
-    except:
+    except Exception:
         click.secho("Could not locate a Glycopeptide Hypothesis with identifier %r" %
                     hypothesis_identifier, fg='yellow')
         raise click.Abort()
@@ -176,7 +176,7 @@ def search_glycan(context, database_connection, sample_path,
     try:
         hypothesis = get_by_name_or_id(
             database_connection, GlycanHypothesis, hypothesis_identifier)
-    except:
+    except Exception:
         click.secho("Could not locate a Glycan Hypothesis with identifier %r" %
                     hypothesis_identifier, fg='yellow')
         raise click.Abort()
