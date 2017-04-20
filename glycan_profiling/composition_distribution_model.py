@@ -1,5 +1,9 @@
+from collections import OrderedDict, defaultdict
+
 import numpy as np
 from scipy import linalg
+import scipy.linalg
+from matplotlib import pyplot as plt
 
 from glycan_profiling.task import TaskBase
 from glycan_profiling.database import composition_network
@@ -175,7 +179,7 @@ def network_indices(network, threshold=0.0001):
     return observed, missing
 
 
-def make_blocks(network, observed, lmbda=0.2, threshold=0.4):
+def make_blocks(network, observed, threshold=0.4):
     network = assign_network(network, observed)
     structure_matrix = weighted_laplacian_matrix(network)
     observed_indices, missing_indices = network_indices(network, threshold)
@@ -215,8 +219,10 @@ def smooth_network(network, observations, lmbda=0.2, t0=0., tm=0., threshold=0.4
         node for node in network[observed_indices]
     ]
     # missing_scores = compute_missing_scores(blocks, observed_scores, t0, tm)
-    update_obs_scores = optimize_observed_scores(blocks, lmbda, observed_scores, t0)
-    update_missing_scores = compute_missing_scores(blocks, update_obs_scores, t0, tm)
+    update_obs_scores = optimize_observed_scores(
+        blocks, lmbda, observed_scores, t0)
+    update_missing_scores = compute_missing_scores(
+        blocks, update_obs_scores, t0, tm)
 
     if fit_t:
         for node, score in zip(observed_labels, update_obs_scores):
@@ -226,7 +232,284 @@ def smooth_network(network, observations, lmbda=0.2, t0=0., tm=0., threshold=0.4
         t0_update = []
         for node in observed_labels:
             t0_update.append(nhann[node])
-        update_obs_scores = optimize_observed_scores(blocks, lmbda, observed_scores, t0_update)
-        update_missing_scores = compute_missing_scores(blocks, update_obs_scores, t0_update, tm)
+        update_obs_scores = optimize_observed_scores(
+            blocks, lmbda, observed_scores, t0_update)
+        update_missing_scores = compute_missing_scores(
+            blocks, update_obs_scores, t0_update, tm)
 
     return update_obs_scores, update_missing_scores, observed_labels, observed_scores
+
+
+class GlycomeModel(object):
+
+    def __init__(self, observed_compositions, network, belongingness_matrix=None):
+        self._network = network
+        self.network = assign_network(
+            network.clone(), observed_compositions)
+        self._observed_compositions = observed_compositions
+
+        self.neighborhood_walker = composition_network.NeighborhoodWalker(
+            self.network)
+        self.neighborhood_analyzer = composition_network.DistanceWeightedNeighborhoodAnalyzer(
+            self.neighborhood_walker)
+        self.obs_ix, self.miss_ix = self.neighborhood_analyzer.network_indices()
+
+        block_L = self.block_L = make_blocks(
+            self.network.clone(), self._observed_compositions)
+        L_mm_inv = np.linalg.inv(block_L['mm'])
+        self.L_oo_inv = np.linalg.pinv(
+            block_L["oo"] - (block_L['om'].dot(L_mm_inv).dot(block_L['mo'])))
+
+        # Expensive Step
+        if belongingness_matrix is None:
+            self.belongingness_matrix = self.build_belongingness_matrix()
+        else:
+            self.belongingness_matrix = belongingness_matrix
+
+        # Initialize Names
+        self.normalized_belongingness_matrix = None
+        self.A0 = None
+        self._belongingness_normalization = None
+        # Normalize and populate
+        self.normalize_belongingness('colrow')
+        self.A0 = self.normalized_belongingness_matrix[self.obs_ix, :]
+        self.S0 = np.array([g.score for g in self.network[self.obs_ix]])
+        self.C0 = ([g for g in self.network[self.obs_ix]])
+
+    def set_threshold(self, threshold):
+        accepted = [
+            g for g in self._observed_compositions if g.score > threshold]
+        self.network = assign_network(
+            self._network.clone(), accepted)
+        self.neighborhood_walker = composition_network.NeighborhoodWalker(
+            self.network)
+        self.neighborhood_analyzer = composition_network.DistanceWeightedNeighborhoodAnalyzer(
+            self.neighborhood_walker)
+        self.obs_ix, self.miss_ix = self.neighborhood_analyzer.network_indices()
+        self.A0 = self.normalized_belongingness_matrix[self.obs_ix, :]
+        self.S0 = np.array([g.score for g in self.network[self.obs_ix]])
+        self.C0 = ([g for g in self.network[self.obs_ix]])
+        block_L = self.block_L = make_blocks(
+            self.network.clone(), accepted)
+        L_mm_inv = np.linalg.inv(block_L['mm'])
+        self.L_oo_inv = np.linalg.pinv(
+            block_L["oo"] - (block_L['om'].dot(L_mm_inv).dot(block_L['mo'])))
+
+    def normalize_belongingness(self, method='col'):
+        if method == 'col':
+            self.normalized_belongingness_matrix = (
+                self.belongingness_matrix / self.belongingness_matrix.sum(axis=0))
+        elif method == 'row':
+            self.normalized_belongingness_matrix = (
+                self.belongingness_matrix / self.belongingness_matrix.sum(axis=1).reshape((-1, 1)))
+        elif method == 'colrow':
+            self.normalized_belongingness_matrix = (
+                self.belongingness_matrix / self.belongingness_matrix.sum(axis=0))
+            self.normalized_belongingness_matrix = (
+                self.normalized_belongingness_matrix / self.normalized_belongingness_matrix.sum(
+                    axis=1).reshape((-1, 1)))
+        elif method == 'none' or method is None:
+            self.normalized_belongingness_matrix = self.belongingness_matrix
+        else:
+            raise ValueError(method)
+        self._belongingness_normalization = method
+        self.A0 = self.normalized_belongingness_matrix[self.obs_ix, :]
+
+    def build_belongingness_matrix(self):
+        neighborhood_count = len(self.neighborhood_walker.neighborhoods)
+        belongingness_matrix = np.zeros(
+            (len(self.network), neighborhood_count))
+
+        for node in self.network:
+            was_in = self.neighborhood_walker.neighborhood_assignments[node]
+            for i, neighborhood in enumerate(self.neighborhood_walker.neighborhoods):
+                if neighborhood.name in was_in:
+                    belongingness_matrix[node.index, i] = self.neighborhood_walker.compute_belongingness(
+                        node, neighborhood.name)
+        return belongingness_matrix
+
+    def estimate_tau_from_S0(self, rho, lmda, sigma2=1.0):
+        X = ((rho / sigma2) * np.eye(len(self.S0))) + (
+            (1. / (lmda * sigma2)) * self.L_oo_inv) + self.A0.dot(self.A0.T)
+        X = np.linalg.pinv(X)
+        return self.A0.T.dot(X).dot(self.S0)
+
+    def sample_tau(self, rho, lmda):
+        sigma_est = np.std(self.S0)
+        mu_tau = self.estimate_tau_from_S0(rho, lmda)
+        return np.random.multivariate_normal(mu_tau, np.eye(len(mu_tau)).dot(sigma_est ** 2))
+
+    def phi_given_tau(self, tau, lmda):
+        return np.random.multivariate_normal(self.A0.dot(tau), (1. / lmda) * self.L_oo_inv)
+
+    def optimize_observed_scores(self, lmda, t0=0):
+        blocks = self.block_L
+        L = lmda * (blocks["oo"] - blocks["om"].dot(np.linalg.inv(
+            blocks['mm'])).dot(blocks["mo"]))
+        B = np.eye(len(self.S0)) + L
+        return np.linalg.inv(B).dot(self.S0 - t0) + t0
+
+    def find_optimal_lambda(self, lambda_max=1, step=0.01, threshold=0.0001):
+        obs = []
+        missed = []
+        network = self.network.clone()
+        for node in network:
+            if node.score < threshold:
+                missed.append(node)
+            else:
+                obs.append(node.score)
+        lambda_values = np.arange(0.01, lambda_max, step)
+        I = np.eye(len(obs))
+        press = []
+        for node in missed:
+            network.remove_node(node, limit=5)
+        wpl = weighted_laplacian_matrix(network)
+
+        for lambd in lambda_values:
+            A = I + lambd * wpl
+            C = scipy.linalg.cholesky(A)
+            # The solution for theta, the updated scores
+            T = scipy.linalg.cho_solve((C, False), obs)
+            H = np.linalg.inv(A)
+            press_value = sum(
+                ((obs - T) / (1 - (np.diag(H) - np.finfo(float).eps))) ** 2) / len(obs)
+            press.append(press_value)
+        return lambda_values, np.array(press)
+
+    def find_threshold_and_lambda(self, lambda_max=1., lambda_step=0.01, threshold_start=0.,
+                                  threshold_step=0.2):
+        solutions = NetworkReduction()
+        limit = max(self.S0)
+        start = max(min(self.S0), threshold_start)
+        current_network = self.network.clone()
+        for threshold in np.arange(start, limit, threshold_step):
+            obs = []
+            missed = []
+            network = current_network.clone()
+            for node in network:
+                if node.score < threshold:
+                    missed.append(node)
+                else:
+                    obs.append(node.score)
+            if len(obs) == 0:
+                break
+            lambda_values = np.arange(0.01, lambda_max, lambda_step)
+            I = np.eye(len(obs))
+            press = []
+            for node in missed:
+                network.remove_node(node, limit=5)
+            wpl = weighted_laplacian_matrix(network)
+
+            for lambd in lambda_values:
+                A = I + lambd * wpl
+                C = scipy.linalg.cholesky(A)
+                # The solution for theta, the updated scores
+                T = scipy.linalg.cho_solve((C, False), obs)
+                H = np.linalg.inv(A)
+                press_value = sum(
+                    ((obs - T) / (1 - (np.diag(H) - np.finfo(float).eps))) ** 2) / len(obs)
+                press.append(press_value)
+            solutions[threshold] = NetworkTrimmingSearchSolution(
+                threshold, lambda_values, np.array(press), len(network))
+            current_network = network
+        return solutions
+
+
+class NetworkReduction(object):
+
+    def __init__(self, store=None):
+        if store is None:
+            store = OrderedDict()
+        self.store = store
+
+    def getkey(self, key):
+        return self.store[key]
+
+    def getindex(self, ix):
+        return self.getkey(list(self.store.keys())[ix])
+
+    def searchkey(self, value):
+        array = list(self.store.keys())
+        ix = self.binsearch(array, value)
+        key = array[ix]
+        return self.getkey(key)
+
+    def put(self, key, value):
+        self.store[key] = value
+
+    def __getitem__(self, key):
+        return self.getkey(key)
+
+    def __setitem__(self, key, value):
+        self.put(key, value)
+
+    def __iter__(self):
+        return iter(self.store.values())
+
+    @staticmethod
+    def binsearch(array, value):
+        lo = 0
+        hi = len(array) - 1
+        while hi - lo:
+            i = (hi + lo) / 2
+            x = array[i]
+            if x == value:
+                return i
+            elif hi - lo == 1:
+                return i
+            elif x < value:
+                lo = i
+            elif x > value:
+                hi = i
+        return i
+
+    def plot(self, ax=None):
+        if ax is None:
+            fig, ax = plt.subplots(1)
+        x = self.store.keys()
+        y = [v.opt_lambda for v in self.store.values()]
+        ax.plot(x, y)
+        ax.set_xlabel("$S_o$ Threshold")
+        ax.set_ylabel("Optimal $\lambda$")
+        return ax
+
+    def minimum_threshold_for_lambda(self, lmbda_target):
+        best = None
+        for value in reversed(self.store.values()):
+            if best is None:
+                best = value
+                continue
+            if abs(best.opt_lambda - lmbda_target) >= abs(value.opt_lambda - lmbda_target):
+                if value.threshold < best.threshold:
+                    best = value
+        return best
+
+    def press_weighted_mean_threshold(self):
+        vals = list(self)
+        return np.average(np.array(
+            [v.threshold for v in vals]), weights=np.array(
+            [v.press_residuals.min() for v in vals]))
+
+
+class NetworkTrimmingSearchSolution(object):
+
+    def __init__(self, threshold, lambda_values, press_residuals, n_kept):
+        self.threshold = threshold
+        self.lambda_values = lambda_values
+        self.press_residuals = press_residuals
+        self.n_kept = n_kept
+        self.opt_lambda = self.lambda_values[np.argmin(self.press_residuals)]
+
+    def __repr__(self):
+        min_press = min(self.press_residuals)
+        opt_lambda = self.opt_lambda
+        return "NetworkTrimmingSearchSolution(%f, %d, %0.3f -> %0.3e)" % (
+            self.threshold, self.n_kept, opt_lambda, min_press)
+
+    def plot(self, ax=None):
+        if ax is None:
+            fig, ax = plt.subplots(1)
+        ax.plot(self.lambda_values, self.press_residuals)
+        ax.set_xlabel("$\lambda$")
+        ax.set_ylabel("Summed $PRESS$ Residual")
+        return ax

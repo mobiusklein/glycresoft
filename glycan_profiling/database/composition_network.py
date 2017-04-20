@@ -18,6 +18,7 @@ from glycopeptidepy.utils import simple_repr
 
 
 from .glycan_composition_filter import GlycanCompositionFilter
+from . import symbolic_expression
 
 
 _hexose = FrozenMonosaccharideResidue.from_iupac_lite("Hex")
@@ -404,6 +405,7 @@ class CompositionGraph(object):
                     self.edges.add(e)
 
     def remove_node(self, node, bridge=True, limit=5):
+        node = self[node.glycan_composition]
         subtracted_edges = list(node.edges)
         for edge in subtracted_edges:
             self.remove_edge(edge)
@@ -602,13 +604,7 @@ dump = GraphWriter
 load = GraphReader.read
 
 
-class CompositionRangeRule(object):
-
-    def __init__(self, name, low=None, high=None, required=True):
-        self.name = name
-        self.low = low
-        self.high = high
-        self.required = required
+class CompositionRuleBase(object):
 
     __repr__ = simple_repr
 
@@ -617,7 +613,17 @@ class CompositionRangeRule(object):
             composition = obj.glycan_composition
         except AttributeError:
             composition = HashableGlycanComposition.parse(obj)
+        composition = symbolic_expression.SymbolContext(dict(composition))
         return composition
+
+
+class CompositionRangeRule(CompositionRuleBase):
+
+    def __init__(self, name, low=None, high=None, required=True):
+        self.name = name
+        self.low = low
+        self.high = high
+        self.required = required
 
     def __call__(self, obj):
         composition = self.get_composition(obj)
@@ -640,6 +646,45 @@ class CompositionRangeRule(object):
             return other
         else:
             return CompositionRuleClassifier(None, [self, other])
+
+
+class CompositionRatioRule(CompositionRuleBase):
+    def __init__(self, value_name, reference_name, ratio_threshold, required=True):
+        self.value_name = value_name
+        self.reference_name = reference_name
+        self.ratio_threshold = ratio_threshold
+        self.required = required
+
+    def _test(self, x):
+        if isinstance(self.ratio_threshold, (tuple, list)):
+            return self.ratio_threshold[0] <= x < self.ratio_threshold[1]
+        else:
+            return x >= self.ratio_threshold
+
+    @property
+    def name(self):
+        return "%s/%s" % (self.value_name, self.reference_name)
+
+    def __call__(self, obj):
+        composition = self.get_composition(obj)
+        ref = composition[self.reference_name]
+        val = composition[self.value_name]
+
+        if ref == 0 and self.required:
+            return False
+        else:
+            ratio = val / float(ref)
+            return self._test(ratio)
+
+    def __and__(self, other):
+        if isinstance(other, CompositionRuleClassifier):
+            other = other.copy()
+            other.rules.extend(self.rules)
+            return other
+        else:
+            self = self.copy()
+            self.rules.append(other)
+            return self
 
 
 class CompositionRuleClassifier(object):
@@ -692,6 +737,13 @@ def make_n_glycan_neighborhoods():
     high_mannose.name = "high-mannose"
     _n_glycan_neighborhoods['high-mannose'] = high_mannose
 
+    over_extended = CompositionRangeRule("%s - %s" % (
+        FrozenMonosaccharideResidue.from_iupac_lite("Hex"),
+        FrozenMonosaccharideResidue.from_iupac_lite("HexNAc")), 3) & CompositionRangeRule(
+        FrozenMonosaccharideResidue.from_iupac_lite("NeuAc"), 1, None)
+    over_extended.name = 'over-extended'
+    _n_glycan_neighborhoods[over_extended.name] = over_extended
+
     base_hexnac = 3
     base_neuac = 1
     for i, spec in enumerate(['hybrid', 'bi', 'tri', 'tetra', 'penta']):
@@ -712,7 +764,7 @@ def make_n_glycan_neighborhoods():
                 FrozenMonosaccharideResidue.from_iupac_lite("NeuAc"), 1, base_neuac + i
             ) & CompositionRangeRule(
                 FrozenMonosaccharideResidue.from_iupac_lite("Hex"), base_hexnac + i - 1,
-                base_hexnac + i + 3)
+                base_hexnac + i + 2)
             sialo.name = "%s-antennary" % spec
             asialo = CompositionRangeRule(
                 FrozenMonosaccharideResidue.from_iupac_lite(
@@ -721,7 +773,7 @@ def make_n_glycan_neighborhoods():
                 FrozenMonosaccharideResidue.from_iupac_lite("NeuAc"), 0, 1
             ) & CompositionRangeRule(
                 FrozenMonosaccharideResidue.from_iupac_lite("Hex"), base_hexnac + i - 1,
-                base_hexnac + i + 3)
+                base_hexnac + i + 2)
             asialo.name = "asialo-%s-antennary" % spec
             _n_glycan_neighborhoods["%s-antennary" % spec] = sialo
             _n_glycan_neighborhoods["asialo-%s-antennary" % spec] = asialo
@@ -744,6 +796,9 @@ class NeighborhoodWalker(object):
         self.neighborhood_maps = defaultdict(list)
         self.assign()
 
+    def neighborhood_names(self):
+        return [n.name for n in self.neighborhoods]
+
     def __getitem__(self, key):
         return self.neighborhood_assignments[key]
 
@@ -752,17 +807,17 @@ class NeighborhoodWalker(object):
         for rule in neighborhood.rules:
             if rule.name not in self.filter_space.monosaccharides:
                 continue
+            low = rule.low
+            high = rule.high
+            if low is None:
+                low = 0
+            if high is None:
+                # No glycan will have more than 100 of a single residue
+                # in practice.
+                high = 100
             if query is None:
-                query = self.filter_space.query(rule.name, rule.low, rule.high)
+                query = self.filter_space.query(rule.name, low, high)
             else:
-                low = rule.low
-                high = rule.high
-                if low is None:
-                    low = 0
-                if high is None:
-                    # No glycan will have more than 100 of a single residue
-                    # in practice.
-                    high = 100
                 query.add(rule.name, low, high)
         return query
 
@@ -779,6 +834,21 @@ class NeighborhoodWalker(object):
         for node in self.network:
             for neighborhood in self[node]:
                 self.neighborhood_maps[neighborhood].append(node)
+
+    def compute_belongingness(self, node, neighborhood, distance_fn=n_glycan_distance):
+        count = 0
+        total_weight = 0
+        for member in self.neighborhood_maps[neighborhood]:
+            distance, weight = distance_fn(node.glycan_composition, member.glycan_composition)
+            if distance > 0:
+                weight *= (1. / distance)
+            else:
+                weight = 1.0
+            total_weight += weight
+            count += 1
+        if count == 0:
+            return 0
+        return total_weight / count
 
 
 NeighborhoodStatistics = namedtuple("NeighborhoodStatistics", ("total_score", "size"))
@@ -810,6 +880,16 @@ class NeighborhoodAnalyzer(object):
                 score_acc += node.score
             self.neighborhood_statistics[label] = NeighborhoodStatistics(score_acc, size)
 
+    def compute_mean_from_neighborhood(self, node, neighborhood):
+        total_score = 0
+        size = 0
+        stats = self.neighborhood_statistics[neighborhood]
+        total_score += stats.total_score
+        size += stats.size
+        if size == 0:
+            return 0
+        return total_score / size
+
     def compute_neighborhoods_mean(self, node):
         total_score = 0
         size = 0
@@ -834,6 +914,23 @@ class NeighborhoodAnalyzer(object):
 
 class DistanceWeightedNeighborhoodAnalyzer(NeighborhoodAnalyzer):
     distance_fn = staticmethod(n_glycan_distance)
+
+    def compute_mean_from_neighborhood(self, node, neighborhood):
+        total_score = 0
+        total_weight = 0
+        for member in self.walker.neighborhood_maps[neighborhood]:
+            # if member.score < self.threshold:
+            #     score = 0
+            distance, weight = self.distance_fn(node.glycan_composition, member.glycan_composition)
+            if distance > 0:
+                weight *= (1. / distance)
+            else:
+                weight = 1.0
+            total_score += member.score * weight
+            total_weight += weight
+        if total_weight == 0:
+            return 0
+        return total_score / total_weight
 
     def compute_neighborhoods_mean(self, node):
         total_score = 0

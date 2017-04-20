@@ -2,7 +2,7 @@ import operator
 
 try:
     from itertools import imap
-except:
+except ImportError:
     imap = map
 
 import logging
@@ -22,7 +22,7 @@ from .composition_network import CompositionGraph, n_glycan_distance
 
 try:
     basestring
-except:
+except NameError:
     basestring = (str, bytes)
 
 logger = logging.getLogger("glycresoft.database")

@@ -399,7 +399,7 @@ class PeptideGlycosylatingProcess(Process):
                 if work_items is None:
                     has_work = False
                     continue
-            except:
+            except Exception:
                 if self.done_event.is_set():
                     has_work = False
                 continue
@@ -534,7 +534,7 @@ class MultipleProcessPeptideGlycosylator(TaskBase):
                 try:
                     session.bulk_save_objects(batch)
                     session.commit()
-                except:
+                except Exception:
                     session.rollback()
                     raise
                 finally:

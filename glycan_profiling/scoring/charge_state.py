@@ -1,3 +1,4 @@
+import json
 import numpy as np
 from collections import defaultdict
 import warnings
@@ -114,7 +115,6 @@ class MassScalingChargeStateScoringModel(ChargeStateDistributionScoringModelBase
 
     @classmethod
     def load(cls, file_obj):
-        import json
         data = json.load(file_obj)
         table = data.pop("table")
         width = float(data.pop("neighborhood_width"))

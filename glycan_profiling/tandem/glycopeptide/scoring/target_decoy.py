@@ -1,7 +1,7 @@
 import logging
 try:
     logger = logging.getLogger("target_decoy")
-except:
+except Exception:
     pass
 from collections import defaultdict, namedtuple
 

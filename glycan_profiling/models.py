@@ -6,6 +6,16 @@ _UnsialylatedNGlycanChargeScoringModel = MassScalingChargeStateScoringModel.load
 {
     "neighborhood_width": 50.0,
     "table": {
+        "500.0": {
+            "-1": 0.95,
+            "-2": 0.047,
+            "-3": 0.003
+        },
+        "1000.0": {
+            "-1": 0.75,
+            "-2": 0.247,
+            "-3": 0.003
+        },
         "1500.0": {
             "-1": 0.003311258278145696,
             "-2": 0.9933774834437088,

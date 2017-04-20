@@ -21,7 +21,7 @@ from .task import TaskBase, log_handle, CallInterval
 from multiprocessing import Process, Queue
 try:
     from Queue import Empty as QueueEmpty
-except:
+except ImportError:
     from queue import Empty as QueueEmpty
 
 

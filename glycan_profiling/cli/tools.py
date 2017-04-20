@@ -1,5 +1,6 @@
 import sys
 import cmd
+import csv
 import threading
 try:
     from Queue import Queue, Empty
@@ -71,6 +72,8 @@ class SQLShellInterpreter(cmd.Cmd):
 
     def _print_table(self, result):
         rows = list(result)
+        if len(rows) == 0:
+            return
         sizes = [0] * len(rows[0])
         titles = rows[0].keys()
         str_rows = []
@@ -86,6 +89,35 @@ class SQLShellInterpreter(cmd.Cmd):
         print(" | ".join(titles))
         for row in str_rows:
             print(' | '.join(row))
+
+    def _to_csv(self, rows, fh):
+        titles = rows[0].keys()
+        writer = csv.writer(fh)
+        writer.writerow(titles)
+        writer.writerows(rows)
+
+    def do_export(self, line):
+        try:
+            fname, line = line.rsplit(";", 1)
+            if len(fname.strip()) == 0 or len(line.strip()) == 0:
+                raise ValueError()
+            try:
+                result = self.session.execute("select " + line)
+            except Exception as e:
+                print(str(e))
+                self.session.rollback()
+                return
+            try:
+                rows = list(result)
+                print("%d rows selected; Writing to %r" % (len(rows), fname))
+                with open(fname, 'wb') as handle:
+                    self._to_csv(rows, handle)
+            except Exception as e:
+                print(str(e))
+
+        except ValueError:
+            print("Could not determine the file name to export to.")
+            print("Usage: export <filename>; <query>")
 
     def do_execsql(self, line):
         try:
@@ -129,13 +161,12 @@ class SQLShellInterpreter(cmd.Cmd):
 def sql_shell(database_connection, script=None):
     db = DatabaseBoundOperation(database_connection)
     session = db.session()
+    interpreter = SQLShellInterpreter(session)
     if script is None:
-        interpreter = SQLShellInterpreter(session)
         interpreter.cmdloop()
     else:
         result = session.execute(script)
-        for row in result:
-            print(','.join(map(str, row)))
+        interpreter._to_csv(list(result), sys.stdout)
 
 
 @tools.command("validate-fasta", short_help="Validates a FASTA file, checking a few errors.")

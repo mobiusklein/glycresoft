@@ -1,13 +1,14 @@
 from itertools import product
 
 from glypy import GlycanComposition as MemoryGlycanComposition
+from glypy.io.iupac import IUPACError
 from glycan_profiling.serialize.hypothesis.glycan import GlycanComposition as DBGlycanComposition
 
 from glypy.composition import formula
 
 from .glycan_source import (
     GlycanTransformer, GlycanHypothesisSerializerBase, GlycanCompositionToClass)
-from .symbolic_expression import (
+from glycan_profiling.database.symbolic_expression import (
     ConstraintExpression, Solution)
 
 
@@ -86,7 +87,10 @@ class CombinatoricCompositionGenerator(object):
                 for name, classifier in self.structure_classifiers.items():
                     if classifier(combin):
                         structure_classes.append(name)
-                yield MemoryGlycanComposition(**combin.context), structure_classes
+                try:
+                    yield MemoryGlycanComposition(**combin.context), structure_classes
+                except IUPACError:
+                    raise
 
     __iter__ = generate
 

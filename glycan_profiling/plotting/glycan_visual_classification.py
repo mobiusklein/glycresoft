@@ -5,7 +5,8 @@ from matplotlib import patches as mpatches
 from glypy.composition.glycan_composition import FrozenGlycanComposition, FrozenMonosaccharideResidue
 from glycopeptidepy.utils import simple_repr
 
-from glycan_profiling.database.composition_network import CompositionRangeRule, CompositionRuleClassifier
+from glycan_profiling.database.composition_network import (
+    CompositionRangeRule, CompositionRuleClassifier, CompositionRatioRule)
 
 
 def _degree_monosaccharide_alteration(x):
@@ -99,8 +100,11 @@ NGlycanCompositionColorizer = GlycanCompositionClassifierColorizer(OrderedDict([
     (CompositionRuleClassifier("Tri-Antennerary", [CompositionRangeRule("HexNAc", 5, 5)]), '#d62728'),
     (CompositionRuleClassifier("Tetra-Antennerary", [CompositionRangeRule("HexNAc", 6, 6)]), '#9467bd'),
     (CompositionRuleClassifier("Penta-Antennerary", [CompositionRangeRule("HexNAc", 7, 7)]), '#8c564b'),
-    (CompositionRuleClassifier("Supra-Penta-Antennerary", [CompositionRangeRule("HexNAc", 8)]), 'brown')
-]))
+    (CompositionRuleClassifier("Supra-Penta-Antennerary", [CompositionRangeRule("HexNAc", 8)]), 'brown'),
+    (CompositionRuleClassifier("Low Sulfate GAG", [CompositionRatioRule("HexN", "@sulfate", (0, 2))]), "#2aaaaa"),
+    (CompositionRuleClassifier("High Sulfate GAG", [CompositionRatioRule("HexN", "@sulfate", (2, 4))]), "#88faaa")
+]), default="slateblue")
+
 NGlycanCompositionOrderer = GlycanCompositionOrderer(["HexNAc", "Hex", "Fucose", "NeuAc"])
 
 _null_color_chooser = GlycanCompositionClassifierColorizer({}, default='blue')
