@@ -30,6 +30,9 @@ from glycopeptidepy.structure.sequence import (
     _n_glycosylation, _o_glycosylation, _gag_linker_glycosylation)
 
 
+_DEFAULT_GLYCAN_STEP_LIMIT = 15000
+
+
 def slurp(session, model, ids, flatten=True):
     if flatten:
         ids = [j for i in ids for j in i]
@@ -59,6 +62,7 @@ class GlycopeptideHypothesisSerializerBase(DatabaseBoundOperation, HypothesisSer
         self._hypothesis = None
         self._glycan_hypothesis_id = glycan_hypothesis_id
         self.uuid = str(uuid4().hex)
+        self.total_glycan_combination_count = -1
 
     def _construct_hypothesis(self):
         if self._hypothesis_name is None or self._hypothesis_name.strip() == "":
@@ -90,6 +94,8 @@ class GlycopeptideHypothesisSerializerBase(DatabaseBoundOperation, HypothesisSer
             self.engine, self.glycan_hypothesis_id,
             self.hypothesis_id, n)
         combinator.run()
+        self.total_glycan_combination_count = combinator.total_count
+        # self.log("set total_glycan_combination_count = %d" % (self.total_glycan_combination_count,))
 
     def _count_produced_glycopeptides(self):
         count = self.query(
@@ -245,20 +251,50 @@ class GlycanCombinationRecord(object):
 
 
 class PeptideGlycosylator(object):
-    def __init__(self, session, hypothesis_id):
+    def __init__(self, session, hypothesis_id, glycan_offset=None, glycan_limit=_DEFAULT_GLYCAN_STEP_LIMIT):
         self.session = session
+
+        self.glycan_offset = glycan_offset
+        self.glycan_limit = glycan_limit
+
         self.hypothesis_id = hypothesis_id
         self.hypothesis = self.session.query(GlycopeptideHypothesis).get(hypothesis_id)
-        glycan_combinations = self.session.query(
-            GlycanCombination).filter(
-            GlycanCombination.hypothesis_id == hypothesis_id).all()
-        glycan_combinations = [GlycanCombinationRecord(gc) for gc in glycan_combinations]
-        self.build_size_table(glycan_combinations)
+        self.total_combinations = self._get_total_combination_count()
 
-    def build_size_table(self, glycan_combinations):
+        self.build_glycan_table(self.glycan_offset)
+
+    def _get_total_combination_count(self):
+        count = self.session.query(
+            GlycanCombination).filter(
+            GlycanCombination.hypothesis_id == self.hypothesis_id).count()
+        return count
+
+    def _load_glycan_records(self):
+        if self.glycan_offset is None:
+            # log_handle.log("... Building Glycan Combination Records Without Offset")
+            glycan_combinations = self.session.query(
+                GlycanCombination).filter(
+                GlycanCombination.hypothesis_id == self.hypothesis_id).all()
+            glycan_combinations = [GlycanCombinationRecord(gc) for gc in glycan_combinations]
+        else:
+            # log_handle.log(
+            #     "... Building Glycan Combination Records With Offset %r Limit %r" % (
+            #         self.glycan_offset, self.glycan_limit))
+            glycan_combinations = self.session.query(
+                GlycanCombination).filter(
+                GlycanCombination.hypothesis_id == self.hypothesis_id).offset(
+                self.glycan_offset).limit(self.glycan_limit).all()
+        return glycan_combinations
+
+    def _build_size_table(self, glycan_combinations):
         self.glycan_combination_partitions = GlycanCombinationPartitionTable(
             self.session, glycan_combinations, distinct_glycan_classes(
                 self.session, self.hypothesis_id), self.hypothesis)
+
+    def build_glycan_table(self, offset=None):
+        self.glycan_offset = offset
+        glycan_combinations = self._load_glycan_records()
+        self._build_size_table(glycan_combinations)
 
     def handle_peptide(self, peptide):
         water = Composition("H2O")
@@ -360,7 +396,8 @@ def null_log_handler(msg):
 
 class PeptideGlycosylatingProcess(Process):
     def __init__(self, connection, hypothesis_id, input_queue, chunk_size=5000, done_event=None,
-                 log_handler=null_log_handler):
+                 log_handler=null_log_handler, glycan_offset=None,
+                 glycan_limit=_DEFAULT_GLYCAN_STEP_LIMIT):
         Process.__init__(self)
         self.daemon = True
         self.connection = connection
@@ -369,6 +406,10 @@ class PeptideGlycosylatingProcess(Process):
         self.hypothesis_id = hypothesis_id
         self.done_event = done_event
         self.log_handler = log_handler
+
+        self.glycan_offset = glycan_offset
+        self.glycan_limit = glycan_limit
+
         self.session = None
         self.work_done_event = Event()
 
@@ -388,7 +429,10 @@ class PeptideGlycosylatingProcess(Process):
         self.session = database.session
         has_work = True
 
-        glycosylator = PeptideGlycosylator(database.session, self.hypothesis_id)
+        glycosylator = PeptideGlycosylator(
+            database.session, self.hypothesis_id,
+            glycan_offset=self.glycan_offset,
+            glycan_limit=self.glycan_limit)
         result_accumulator = []
 
         n = 0
@@ -440,9 +484,11 @@ class NonSavingPeptideGlycosylatingProcess(PeptideGlycosylatingProcess):
 
 class QueuePushingPeptideGlycosylatingProcess(PeptideGlycosylatingProcess):
     def __init__(self, connection, hypothesis_id, input_queue, output_queue, chunk_size=5000,
-                 done_event=None, log_handler=null_log_handler, database_mutex=None):
+                 done_event=None, log_handler=null_log_handler, database_mutex=None,
+                 glycan_offset=None, glycan_limit=_DEFAULT_GLYCAN_STEP_LIMIT):
         super(QueuePushingPeptideGlycosylatingProcess, self).__init__(
-            connection, hypothesis_id, input_queue, chunk_size, done_event, log_handler)
+            connection, hypothesis_id, input_queue, chunk_size, done_event, log_handler,
+            glycan_offset=glycan_offset, glycan_limit=glycan_limit)
         self.output_queue = output_queue
         self.database_mutex = database_mutex
 
@@ -456,11 +502,16 @@ class QueuePushingPeptideGlycosylatingProcess(PeptideGlycosylatingProcess):
 
 
 class MultipleProcessPeptideGlycosylator(TaskBase):
-    def __init__(self, connection_specification, hypothesis_id, chunk_size=6500, n_processes=4):
+    def __init__(self, connection_specification, hypothesis_id, chunk_size=6500, n_processes=4,
+                 glycan_combination_count=None, glycan_limit=_DEFAULT_GLYCAN_STEP_LIMIT):
         self.n_processes = n_processes
         self.connection_specification = connection_specification
         self.chunk_size = chunk_size
         self.hypothesis_id = hypothesis_id
+        self.glycan_combination_count = glycan_combination_count
+        self.current_glycan_offset = 0
+        self.glycan_limit = glycan_limit
+
         self.input_queue = Queue(10)
         self.output_queue = Queue(1000)
         self.workers = []
@@ -472,7 +523,9 @@ class MultipleProcessPeptideGlycosylator(TaskBase):
         worker = QueuePushingPeptideGlycosylatingProcess(
             self.connection_specification, self.hypothesis_id, self.input_queue,
             self.output_queue, self.chunk_size, self.dealt_done_event,
-            self.ipc_controller.sender(), self.database_mutex)
+            self.ipc_controller.sender(), self.database_mutex,
+            glycan_offset=self.current_glycan_offset,
+            glycan_limit=self.glycan_limit)
         return worker
 
     def push_work_batches(self, peptide_ids):
@@ -487,23 +540,26 @@ class MultipleProcessPeptideGlycosylator(TaskBase):
         self.dealt_done_event.set()
 
     def create_barrier(self):
-        # self.database_mutex.clear()
         self.database_mutex.__enter__()
 
     def teardown_barrier(self):
-        # self.database_mutex.set()
         self.database_mutex.__exit__(None, None, None)
 
-    def process(self, peptide_ids):
+    def create_queue_feeder_thread(self, peptide_ids):
         queue_feeder = Thread(target=self.push_work_batches, args=(peptide_ids,))
         queue_feeder.daemon = True
         queue_feeder.start()
-        # self.database_mutex.set()
+        return queue_feeder
+
+    def spawn_all_workers(self):
+        self.workers = []
+
         for i in range(self.n_processes):
             worker = self.spawn_worker()
             worker.start()
             self.workers.append(worker)
 
+    def process(self, peptide_ids):
         connection = DatabaseBoundOperation(self.connection_specification)
         session = connection.session
 
@@ -511,46 +567,60 @@ class MultipleProcessPeptideGlycosylator(TaskBase):
         index_controller = toggle_indices(session, Glycopeptide)
         index_controller.drop()
 
-        has_work = True
-        last = 0
-        i = 0
-        while has_work:
-            try:
-                batch = self.output_queue.get(True, 5)
-                waiting_batches = self.output_queue.qsize()
-                if waiting_batches > 10:
-                    self.create_barrier()
-                    self.log("%d waiting sets." % (waiting_batches,))
-                    try:
-                        for _ in range(waiting_batches):
-                            batch.extend(self.output_queue.get_nowait())
-                    except QueueEmptyException:
-                        pass
-                    self.teardown_barrier()
-                i += len(batch)
+        while self.current_glycan_offset < self.glycan_combination_count:
+            _current_progress = float(self.current_glycan_offset + self.glycan_limit)
+            _current_percent_complete = _current_progress / self.glycan_combination_count * 100.0
+            _current_percent_complete = min(_current_percent_complete, 100.0)
+            self.log("... Processing Glycan Combinations %d-%d (%0.2f%%)" % (
+                self.current_glycan_offset, min(self.current_glycan_offset + self.glycan_limit,
+                                                self.glycan_combination_count),
+                _current_percent_complete))
+            queue_feeder = self.create_queue_feeder_thread(peptide_ids)
+            self.spawn_all_workers()
 
-                self.create_barrier()
-
+            has_work = True
+            last = 0
+            i = 0
+            while has_work:
                 try:
-                    session.bulk_save_objects(batch)
-                    session.commit()
-                except Exception:
-                    session.rollback()
-                    raise
-                finally:
-                    self.teardown_barrier()
+                    batch = self.output_queue.get(True, 5)
+                    waiting_batches = self.output_queue.qsize()
+                    if waiting_batches > 10:
+                        self.create_barrier()
+                        self.log("%d waiting sets." % (waiting_batches,))
+                        try:
+                            for _ in range(waiting_batches):
+                                batch.extend(self.output_queue.get_nowait())
+                        except QueueEmptyException:
+                            pass
+                        self.teardown_barrier()
+                    i += len(batch)
 
-                if (i - last) > self.chunk_size * 20:
-                    self.log("... %d Glycopeptides Created" % (i,))
-                    last = i
-            except QueueEmptyException:
-                if all(w.is_work_done() for w in self.workers):
-                    has_work = False
-                continue
+                    self.create_barrier()
+
+                    try:
+                        session.bulk_save_objects(batch)
+                        session.commit()
+                    except Exception:
+                        session.rollback()
+                        raise
+                    finally:
+                        self.teardown_barrier()
+
+                    if (i - last) > self.chunk_size * 20:
+                        self.log("... %d Glycopeptides Created" % (i,))
+                        last = i
+                except QueueEmptyException:
+                    if all(w.is_work_done() for w in self.workers):
+                        has_work = False
+                    continue
+            queue_feeder.join()
+            self.ipc_controller.stop()
+            for worker in self.workers:
+                self.log("Joining Process %r (%s)" % (worker.pid, worker.is_alive()))
+                worker.join()
+
+            self.current_glycan_offset += self.glycan_limit
+
         self.log("All Work Done. Rebuilding Indices")
         index_controller.create()
-        queue_feeder.join()
-        self.ipc_controller.stop()
-        for worker in self.workers:
-            self.log("Joining Process %r (%s)" % (worker.pid, worker.is_alive()))
-            worker.join()

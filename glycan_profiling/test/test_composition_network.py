@@ -55,6 +55,11 @@ class CompositionGraphTest(unittest.TestCase):
         g.create_edges(1)
         self.assertEqual(g, pickle.loads(pickle.dumps(g)))
 
+    def test_clone(self):
+        g = composition_network.CompositionGraph(compositions)
+        g.create_edges(1)
+        self.assertEqual(g, g.clone())
+
 
 if __name__ == '__main__':
     unittest.main()

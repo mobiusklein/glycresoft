@@ -1,3 +1,9 @@
+'''
+Provides a simple symbolic algebra engine for expressing relationships between
+symbols representing counts in terms of the arithmetic operators addition,
+subtraction, multiplication, and division, and conditional operators greater
+than, less than equality, as well as compound & and | relationships.
+'''
 import re
 
 
@@ -221,7 +227,7 @@ class ValueNode(ExpressionBase):
 
 def typify(node):
     if isinstance(node, basestring):
-        if re.match(r"(\d+(.\d+)?)", node):
+        if re.match(r"^(\d+(.\d+)?)$", node.strip()):
             return ValueNode.parse(node)
         else:
             return SymbolNode.parse(node)
@@ -325,6 +331,8 @@ class ExpressionNode(ExpressionBase):
         -------
         bool or int
         """
+        if not isinstance(context, SymbolContext):
+            context = SymbolContext(context)
         try:
             return self.op(self.left, self.right, context)
         except KeyError:

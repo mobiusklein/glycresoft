@@ -255,7 +255,11 @@ class GlyspaceGlycanStructureHypothesisSerializerBase(GlycanHypothesisSerializer
 
     def handle_new_structure(self, structure, motif):
         mass = structure.mass()
-        structure_string = structure.serialize()
+        try:
+            structure_string = structure.serialize()
+        except Exception as e:
+            print(structure.name)
+            raise e
         formula_string = formula(structure.total_composition())
 
         glycan_comp = GlycanComposition.from_glycan(structure)

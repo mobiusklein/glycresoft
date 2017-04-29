@@ -687,13 +687,10 @@ class Proteome(DatabaseBoundOperation, TaskBase):
         self.parser.reset()
         for protein in self.parser.iterfind(
                 "DBSequence", retrieve_refs=True, recursive=True, iterative=True):
-            check = protein.copy()
+            # check = protein.copy()
             seq = protein.pop('Seq', None)
             name = protein.pop('accession')
             if seq is None:
-                print(check, seq)
-                import IPython
-                IPython.embed()
                 try:
                     prot = self.resolve_protein(name)
                     seq = prot.protein_sequence

@@ -9,7 +9,7 @@ from .proteomics import mzid_proteome
 
 try:
     basestring
-except:
+except NameError:
     basestring = (str, bytes)
 
 
@@ -111,32 +111,8 @@ class MultipleProcessMzIdentMLGlycopeptideHypothesisSerializer(MzIdentMLGlycopep
         self.n_processes = n_processes
 
     def glycosylate_peptides(self):
-        # input_queue = Queue(15)
-        # done_event = Event()
-        # processes = [
-        #     PeptideGlycosylatingProcess(
-        #         self._original_connection, self.hypothesis_id, input_queue,
-        #         chunk_size=3500, done_event=done_event) for i in range(self.n_processes)
-        # ]
-        # peptide_ids = self.peptide_ids()
-        # i = 0
-        # n = len(peptide_ids)
-        # chunk_size = min(int(n * 0.05), 1000)
-        # for process in processes:
-        #     input_queue.put(peptide_ids[i:(i + chunk_size)])
-        #     i += chunk_size
-        #     process.start()
-
-        # while i < n:
-        #     input_queue.put(peptide_ids[i:(i + chunk_size)])
-        #     i += chunk_size
-        #     self.log("... Dealt Peptides %d-%d %0.2f%%" % (i - chunk_size, min(i, n), min((i / float(n)) * 100, 100.0)))
-
-        # self.log("... All Peptides Dealt")
-        # done_event.set()
-        # for process in processes:
-        #     process.join()
         dispatcher = MultipleProcessPeptideGlycosylator(
             self._original_connection, self.hypothesis_id,
+            glycan_combination_count=self.total_glycan_combination_count,
             n_processes=self.n_processes)
         dispatcher.process(self.peptide_ids())

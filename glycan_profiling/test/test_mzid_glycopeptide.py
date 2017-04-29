@@ -1,19 +1,17 @@
-import os
 import unittest
 import tempfile
 
 from glycan_profiling.serialize.hypothesis.peptide import Peptide, Protein, Glycopeptide
 from glycan_profiling.database.builder.glycopeptide import informed_glycopeptide
-from glycan_profiling.database.builder.glycopeptide.proteomics import fasta
 from glycan_profiling.database.builder.glycan import (
-    TextFileGlycanHypothesisSerializer, CombinatorialGlycanHypothesisSerializer)
+    CombinatorialGlycanHypothesisSerializer)
 from glycan_profiling import serialize
 
-from glycan_profiling.test.fixtures import get_test_data
+from glycan_profiling.test import fixtures
 from glycan_profiling.test.test_constrained_combinatorics import FILE_SOURCE as GLYCAN_RULE_FILE_SOURCE
 
 
-MZID_PATH = os.path.join(os.path.dirname(__file__), 'test_data', "AGP_Proteomics2.mzid")
+MZID_PATH = fixtures.get_test_data("AGP_Proteomics2.mzid")
 
 
 class MzIdGlycopeptideTests(unittest.TestCase):

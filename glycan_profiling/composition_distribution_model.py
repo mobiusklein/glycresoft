@@ -160,12 +160,37 @@ def weighted_laplacian_matrix(network):
     return weighted_degree_matrix(network) - weighted_adjacency_matrix(network)
 
 
-def assign_network(network, observed):
-    rns = network_scoring.RenormalizingNetworkScorerDifferenceMethod(
-        observed, network.clone())
-    rns.build_solution_map()
-    rns.assign_network()
-    return rns.network
+# def assign_network(network, observed):
+#     rns = network_scoring.RenormalizingNetworkScorerDifferenceMethod(
+#         observed, network.clone())
+#     rns.build_solution_map()
+#     rns.assign_network()
+#     return rns.network
+
+
+def assign_network(network, observed, copy=True):
+    if copy:
+        network = network.clone()
+    solution_map = {}
+    for case in observed:
+        if case.glycan_composition is None:
+            continue
+        s = solution_map.get(case.glycan_composition)
+        if s is None or s.score < case.score:
+            solution_map[case.glycan_composition] = case
+
+    for node in network.nodes:
+        node.internal_score = 0
+        node._temp_score = 0
+
+    for composition, solution in solution_map.items():
+        try:
+            node = network[composition]
+            node._temp_score = node.internal_score = solution.internal_score
+        except KeyError:
+            # Not all exact compositions have nodes
+            continue
+    return network
 
 
 def network_indices(network, threshold=0.0001):
@@ -179,8 +204,18 @@ def network_indices(network, threshold=0.0001):
     return observed, missing
 
 
-def make_blocks(network, observed, threshold=0.4):
+def make_blocks(network, observed, threshold=0.0001):
     network = assign_network(network, observed)
+    structure_matrix = weighted_laplacian_matrix(network)
+    observed_indices, missing_indices = network_indices(network, threshold)
+    oo_block = structure_matrix[observed_indices, :][:, observed_indices]
+    om_block = structure_matrix[observed_indices, :][:, missing_indices]
+    mo_block = structure_matrix[missing_indices, :][:, observed_indices]
+    mm_block = structure_matrix[missing_indices, :][:, missing_indices]
+    return {"oo": oo_block, "om": om_block, "mo": mo_block, "mm": mm_block}
+
+
+def _make_blocks(network, threshold=0.0001):
     structure_matrix = weighted_laplacian_matrix(network)
     observed_indices, missing_indices = network_indices(network, threshold)
     oo_block = structure_matrix[observed_indices, :][:, observed_indices]
@@ -252,7 +287,7 @@ class GlycomeModel(object):
             self.network)
         self.neighborhood_analyzer = composition_network.DistanceWeightedNeighborhoodAnalyzer(
             self.neighborhood_walker)
-        self.obs_ix, self.miss_ix = self.neighborhood_analyzer.network_indices()
+        self.obs_ix, self.miss_ix = network_indices(self.network)
 
         block_L = self.block_L = make_blocks(
             self.network.clone(), self._observed_compositions)
@@ -279,16 +314,16 @@ class GlycomeModel(object):
     def set_threshold(self, threshold):
         accepted = [
             g for g in self._observed_compositions if g.score > threshold]
-        self.network = assign_network(
-            self._network.clone(), accepted)
-        self.neighborhood_walker = composition_network.NeighborhoodWalker(
-            self.network)
+        self.network = assign_network(self._network.clone(), accepted)
+        self.neighborhood_walker = composition_network.NeighborhoodWalker(self.network)
         self.neighborhood_analyzer = composition_network.DistanceWeightedNeighborhoodAnalyzer(
             self.neighborhood_walker)
-        self.obs_ix, self.miss_ix = self.neighborhood_analyzer.network_indices()
+        # self.obs_ix, self.miss_ix = self.neighborhood_analyzer.network_indices()
+        self.obs_ix, self.miss_ix = network_indices(self.network)
         self.A0 = self.normalized_belongingness_matrix[self.obs_ix, :]
         self.S0 = np.array([g.score for g in self.network[self.obs_ix]])
         self.C0 = ([g for g in self.network[self.obs_ix]])
+
         block_L = self.block_L = make_blocks(
             self.network.clone(), accepted)
         L_mm_inv = np.linalg.inv(block_L['mm'])
@@ -313,6 +348,7 @@ class GlycomeModel(object):
         else:
             raise ValueError(method)
         self._belongingness_normalization = method
+        self.normalized_belongingness_matrix[np.isnan(self.normalized_belongingness_matrix)] = 0.0
         self.A0 = self.normalized_belongingness_matrix[self.obs_ix, :]
 
     def build_belongingness_matrix(self):
@@ -349,6 +385,10 @@ class GlycomeModel(object):
         B = np.eye(len(self.S0)) + L
         return np.linalg.inv(B).dot(self.S0 - t0) + t0
 
+    def compute_missing_scores(self, observed_scores, t0=0., tm=0.):
+        blocks = self.block_L
+        return -linalg.inv(blocks['mm']).dot(blocks['mo']).dot(observed_scores - t0) + tm
+
     def find_optimal_lambda(self, lambda_max=1, step=0.01, threshold=0.0001):
         obs = []
         missed = []
@@ -359,14 +399,14 @@ class GlycomeModel(object):
             else:
                 obs.append(node.score)
         lambda_values = np.arange(0.01, lambda_max, step)
-        I = np.eye(len(obs))
+        ident = np.eye(len(obs))
         press = []
         for node in missed:
             network.remove_node(node, limit=5)
         wpl = weighted_laplacian_matrix(network)
 
         for lambd in lambda_values:
-            A = I + lambd * wpl
+            A = ident + lambd * wpl
             C = scipy.linalg.cholesky(A)
             # The solution for theta, the updated scores
             T = scipy.linalg.cho_solve((C, False), obs)
@@ -394,14 +434,14 @@ class GlycomeModel(object):
             if len(obs) == 0:
                 break
             lambda_values = np.arange(0.01, lambda_max, lambda_step)
-            I = np.eye(len(obs))
+            ident = np.eye(len(obs))
             press = []
             for node in missed:
                 network.remove_node(node, limit=5)
             wpl = weighted_laplacian_matrix(network)
 
             for lambd in lambda_values:
-                A = I + lambd * wpl
+                A = ident + lambd * wpl
                 C = scipy.linalg.cholesky(A)
                 # The solution for theta, the updated scores
                 T = scipy.linalg.cho_solve((C, False), obs)
@@ -413,6 +453,84 @@ class GlycomeModel(object):
                 threshold, lambda_values, np.array(press), len(network))
             current_network = network
         return solutions
+
+
+class GroupBelongingnessMatrix(object):
+
+    @classmethod
+    def from_model(cls, model):
+        mat = model.normalized_belongingness_matrix
+        groups = model.neighborhood_walker.neighborhood_names()
+        members = model.network.nodes
+        return cls(mat, groups, members)
+
+    def __init__(self, belongingness_matrix, groups, members):
+        self.belongingness_matrix = belongingness_matrix
+        self.groups = [str(x) for x in groups]
+        self.members = [str(x) for x in members]
+        self._column_indices = OrderedDict([(k, i) for i, k in enumerate(groups)])
+        self._member_indices = OrderedDict([(k, i) for i, k in enumerate(self.members)])
+
+    def _column_indices_by_name(self, names):
+        if isinstance(names, basestring):
+            names = [names]
+        indices = [self._column_indices[n] for n in names]
+        return indices
+
+    def _member_indices_by_name(self, names):
+        if isinstance(names, (basestring, composition_network.CompositionGraphNode,
+                              composition_network.GlycanComposition,
+                              composition_network.GlycanCompositionProxy)):
+            names = [names]
+        indices = [self._member_indices[n] for n in names]
+        return indices
+
+    def _coerce_member(self, names):
+        if isinstance(names, (basestring, composition_network.CompositionGraphNode,
+                              composition_network.GlycanComposition,
+                              composition_network.GlycanCompositionProxy)):
+            names = [names]
+        return names
+
+    def _coerce_column(self, names):
+        if isinstance(names, basestring):
+            names = [names]
+        return names
+
+    def get(self, rows=None, cols=None):
+        matrix = self.belongingness_matrix
+        if rows is not None:
+            rows = self._coerce_member(rows)
+            row_ix = self._member_indices_by_name(rows)
+            matrix = matrix[row_ix, :]
+        else:
+            rows = self.members
+        if cols is not None:
+            cols = self._coerce_column(cols)
+            col_ix = self._column_indices_by_name(cols)
+            matrix = matrix[:, col_ix]
+        else:
+            cols = self.groups
+        return self.__class__(matrix, cols, rows)
+
+    def __getitem__(self, ij):
+        return self.belongingness_matrix[ij]
+
+    def __repr__(self):
+        column_label_width = max(map(len, self.groups))
+        row_label_width = max(map(len, self.members))
+        rows = []
+        top_row = [' ' * row_label_width]
+        for col in self.groups:
+            top_row.append(col.center(column_label_width))
+        rows.append('|'.join(top_row))
+        for i, member in enumerate(self.members):
+            row = [member.ljust(row_label_width)]
+            vals = self.belongingness_matrix[i, :]
+            for val in vals:
+                row.append(("%0.3f" % val).center(column_label_width))
+            rows.append("|".join(row))
+        return '\n'.join(rows)
 
 
 class NetworkReduction(object):
@@ -431,7 +549,7 @@ class NetworkReduction(object):
     def searchkey(self, value):
         array = list(self.store.keys())
         ix = self.binsearch(array, value)
-        key = array[ix]
+        key = array[ix + 1]
         return self.getkey(key)
 
     def put(self, key, value):
@@ -469,6 +587,11 @@ class NetworkReduction(object):
         x = self.store.keys()
         y = [v.opt_lambda for v in self.store.values()]
         ax.plot(x, y)
+        xbound = ax.get_xlim()
+        ybound = ax.get_ylim()
+        ax.scatter(x, y)
+        ax.set_xlim(*xbound)
+        ax.set_ylim(*ybound)
         ax.set_xlabel("$S_o$ Threshold")
         ax.set_ylabel("Optimal $\lambda$")
         return ax
@@ -498,7 +621,12 @@ class NetworkTrimmingSearchSolution(object):
         self.lambda_values = lambda_values
         self.press_residuals = press_residuals
         self.n_kept = n_kept
-        self.opt_lambda = self.lambda_values[np.argmin(self.press_residuals)]
+        self.optimal_lambda = self.lambda_values[np.argmin(self.press_residuals)]
+        self.minimum_residuals = self.press_residuals.min()
+
+    @property
+    def opt_lambda(self):
+        return self.optimal_lambda
 
     def __repr__(self):
         min_press = min(self.press_residuals)

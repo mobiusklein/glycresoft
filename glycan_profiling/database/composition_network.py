@@ -1,4 +1,5 @@
 from collections import defaultdict, deque, OrderedDict, namedtuple
+import numbers as abc_numbers
 import numpy as np
 
 try:
@@ -462,7 +463,10 @@ class CompositionGraph(object):
     def __getitem__(self, key):
         if isinstance(key, (basestring, GlycanComposition, GlycanCompositionProxy)):
             return self.node_map[key]
-        elif isinstance(key, int):
+        # use the ABC Integral to catch all numerical types that could be used as an
+        # index including builtin int and long, as well as all the NumPy flavors of
+        # integers
+        elif isinstance(key, abc_numbers.Integral):
             return self.nodes[key]
         else:
             try:
@@ -855,10 +859,9 @@ NeighborhoodStatistics = namedtuple("NeighborhoodStatistics", ("total_score", "s
 
 
 class NeighborhoodAnalyzer(object):
-    def __init__(self, neighborhood_walker, threshold=0.4):
+    def __init__(self, neighborhood_walker):
         self.walker = neighborhood_walker
         self.network = neighborhood_walker.network
-        self.threshold = threshold
         self.neighborhood_statistics = dict()
         self.build()
 
@@ -875,7 +878,6 @@ class NeighborhoodAnalyzer(object):
             size = 0
             score_acc = 0.
             for node in nodes:
-                # if node.score >= self.threshold:
                 size += 1
                 score_acc += node.score
             self.neighborhood_statistics[label] = NeighborhoodStatistics(score_acc, size)
@@ -901,11 +903,11 @@ class NeighborhoodAnalyzer(object):
             return 0
         return total_score / size
 
-    def network_indices(self):
+    def network_indices(self, threshold=0.0001):
         missing = []
         observed = []
         for node in self.network:
-            if node.score < self.threshold:
+            if node.score < threshold:
                 missing.append(node.index)
             else:
                 observed.append(node.index)
@@ -919,9 +921,8 @@ class DistanceWeightedNeighborhoodAnalyzer(NeighborhoodAnalyzer):
         total_score = 0
         total_weight = 0
         for member in self.walker.neighborhood_maps[neighborhood]:
-            # if member.score < self.threshold:
-            #     score = 0
-            distance, weight = self.distance_fn(node.glycan_composition, member.glycan_composition)
+            distance, weight = self.distance_fn(
+                node.glycan_composition, member.glycan_composition)
             if distance > 0:
                 weight *= (1. / distance)
             else:
@@ -937,9 +938,8 @@ class DistanceWeightedNeighborhoodAnalyzer(NeighborhoodAnalyzer):
         total_weight = 0
         for neighborhood in self.walker[node]:
             for member in self.walker.neighborhood_maps[neighborhood]:
-                # if member.score < self.threshold:
-                #     score = 0
-                distance, weight = self.distance_fn(node.glycan_composition, member.glycan_composition)
+                distance, weight = self.distance_fn(
+                    node.glycan_composition, member.glycan_composition)
                 if distance > 0:
                     weight *= (1. / distance)
                 else:

@@ -110,6 +110,7 @@ def group_by_precursor_mass(scans, window_size=1.5e-5):
 
 
 class SpectrumMatchBase(object):
+    __slots__ = ['scan', 'target']
 
     def __init__(self, scan, target):
         self.scan = scan
@@ -133,6 +134,9 @@ class SpectrumMatchBase(object):
         theoretical = self.target.total_composition().mass
         return (observed - theoretical) / theoretical
 
+    def __reduce__(self):
+        return self.__class__, (self.scan, self.target)
+
     def __eq__(self, other):
         try:
             target_id = self.target.id
@@ -154,6 +158,7 @@ class SpectrumMatchBase(object):
 
 
 class SpectrumMatcherBase(SpectrumMatchBase):
+    __slots__ = ["spectrum", "_score"]
 
     def __init__(self, scan, target):
         self.scan = scan
@@ -177,6 +182,15 @@ class SpectrumMatcherBase(SpectrumMatchBase):
         inst.match(*args, **kwargs)
         inst.calculate_score(*args, **kwargs)
         return inst
+
+    def __getstate__(self):
+        return (self.score,)
+
+    def __setstate__(self, state):
+        self.score = state[0]
+
+    def __reduce__(self):
+        return self.__class__, (self.scan, self.target,)
 
     @staticmethod
     def load_peaks(scan):
@@ -206,7 +220,10 @@ class DeconvolutingSpectrumMatcherBase(SpectrumMatcherBase):
 
 class SpectrumMatch(SpectrumMatchBase):
 
-    def __init__(self, scan, target, score, best_match=False, data_bundle=None):
+    __slots__ = ['scan', 'target', 'score', 'best_match', 'data_bundle', "q_value", 'id']
+
+    def __init__(self, scan, target, score, best_match=False, data_bundle=None,
+                 q_value=None, id=None):
         if data_bundle is None:
             data_bundle = dict()
         self.scan = scan
@@ -214,12 +231,18 @@ class SpectrumMatch(SpectrumMatchBase):
         self.score = score
         self.best_match = best_match
         self.data_bundle = data_bundle
+        self.q_value = q_value
+        self.id = id
 
     def clear_caches(self):
         try:
             self.target.clear_caches()
         except AttributeError:
             pass
+
+    def __reduce__(self):
+        return self.__class__, (self.scan, self.target, self.score, self.best_match,
+                                self.data_bundle, self.q_value, self.id)
 
     def evaluate(self, scorer_type, *args, **kwargs):
         if isinstance(self.scan, SpectrumReference):
@@ -240,7 +263,6 @@ class SpectrumSolutionSet(object):
 
     def __init__(self, scan, solutions):
         self.scan = scan
-        # self.oxonium_ratio = oxonium_detector(scan.deconvoluted_peak_set)
         self.solutions = solutions
         self.mean = self._score_mean()
         self.variance = self._score_variance()

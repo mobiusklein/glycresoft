@@ -94,6 +94,8 @@ class GlycanCompositionClassifierColorizer(object):
 
 
 NGlycanCompositionColorizer = GlycanCompositionClassifierColorizer(OrderedDict([
+    (CompositionRuleClassifier("Paucimannose", [
+        CompositionRangeRule("HexNAc", 2, 2) & CompositionRangeRule("Hex", 0, 4)]), "#f05af0"),
     (CompositionRuleClassifier("High Mannose", [CompositionRangeRule("HexNAc", 2, 2)]), '#1f77b4'),
     (CompositionRuleClassifier("Hybrid", [CompositionRangeRule("HexNAc", 3, 3)]), '#ff7f0e'),
     (CompositionRuleClassifier("Bi-Antennerary", [CompositionRangeRule("HexNAc", 4, 4)]), '#2ca02c'),

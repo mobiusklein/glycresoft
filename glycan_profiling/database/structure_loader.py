@@ -71,7 +71,7 @@ class GlycanFragmentCache(object):
     def get_oxonium_ions(self, glycopeptide):
         try:
             return self.cache[glycopeptide.glycan]
-        except:
+        except KeyError:
             oxonium_ions = list(glycopeptide._glycan_fragments())
             self.cache[glycopeptide.glycan] = oxonium_ions
             return oxonium_ions
@@ -175,6 +175,19 @@ class FragmentCachingGlycopeptide(PeptideSequence):
         # Intentionally share caches with offspring
         new.fragment_caches = self.fragment_caches
         return new
+
+    # def __getstate__(self):
+    #     state = []
+    #     try:
+    #         state.append(self.id)
+    #     except AttributeError:
+    #         state.append(None)
+    #     state.append(self.protein_relation)
+    #     return tuple(state)
+
+    # def __setstate__(self, state):
+    #     self.id, self.protein_relation = state
+    #     self.fragment_caches = {}
 
     def __repr__(self):
         return str(self)

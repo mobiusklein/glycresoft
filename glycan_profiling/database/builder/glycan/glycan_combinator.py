@@ -84,6 +84,7 @@ class GlycanCombinationSerializer(DatabaseBoundOperation, TaskBase):
         self.source_hypothesis_id = source_hypothesis_id
         self.target_hypothesis_id = target_hypothesis_id
         self.max_size = max_size
+        self.total_count = 0
 
     def load_compositions(self):
         return self.query(GlycanComposition).filter(
@@ -112,6 +113,7 @@ class GlycanCombinationSerializer(DatabaseBoundOperation, TaskBase):
 
             i += 1
             j += 1
+            self.total_count += 1
             if i > 50000:
                 self.log("%d combinations created" % j)
                 self.session.execute(
