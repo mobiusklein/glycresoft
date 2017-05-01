@@ -229,7 +229,9 @@ class CompositionGraphNode(object):
             self.score if self.score != 0 else self._temp_score)
 
     def clone(self):
-        return CompositionGraphNode(self.composition, self.index, self.score)
+        dup = CompositionGraphNode(self.composition, self.index, self.score)
+        dup.internal_score = self.internal_score
+        return dup
 
 
 class EdgeSet(object):

@@ -382,7 +382,7 @@ class GlycanCompositionDiskBackedStructureDatabase(DeclarativeDiskBackedDatabase
     def glycan_composition_network(self):
         if self._glycan_composition_network is None:
             self._glycan_composition_network = CompositionGraph(tuple(self.structures))
-            self._glycan_composition_network.create_edges(2, n_glycan_distance)
+            self._glycan_composition_network.create_edges(1, n_glycan_distance)
         return self._glycan_composition_network
 
     @property

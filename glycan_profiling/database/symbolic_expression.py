@@ -372,7 +372,51 @@ def collapse_expression_sequence(expression_sequence):
     return stack[0]
 
 
-class SymbolContext(object):
+class SymbolSpace(object):
+    def __init__(self, context):
+        self.space = self._format_iterable(context)
+
+    @staticmethod
+    def _format_iterable(self, iterable):
+        space = dict()
+        for key in iterable:
+            if isinstance(key, SymbolNode):
+                key = key.symbol
+            else:
+                key = str(key)
+            space[key] = 1
+        return space
+
+    def defined(self, expr, partial=False):
+        if not isinstance(expr, ExpressionBase):
+            expr = str(expr)
+        if isinstance(expr, basestring):
+            expr = parse_expression(expr)
+        if isinstance(expr, SymbolNode):
+            return expr.symbol in self.context
+        elif isinstance(expr, ValueNode):
+            return True
+        elif isinstance(expr, ExpressionNode):
+            symbols = expr.get_symbols()
+            if not partial:
+                for symbol in symbols:
+                    if not self.defined(symbol):
+                        return False
+                return True
+            else:
+                for symbol in symbols:
+                    if self.defined(symbol):
+                        return True
+                return False
+
+    def partially_defined(self, expr):
+        return self.defined(expr, False)
+
+    def __contains__(self, expr):
+        return self.defined(expr)
+
+
+class SymbolContext(SymbolSpace):
     """
     Summary
 
