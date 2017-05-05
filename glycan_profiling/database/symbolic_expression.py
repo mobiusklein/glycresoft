@@ -420,6 +420,9 @@ class SymbolSpace(object):
     def __contains__(self, expr):
         return self.defined(expr)
 
+    def __repr__(self):
+        return "{%s}" % ', '.join("%s" % c for c in self.context)
+
 
 class SymbolContext(SymbolSpace):
     """

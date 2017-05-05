@@ -10,13 +10,16 @@ def _spectral_layout(network):
     return coords
 
 
-def draw_network(network, ax=None):
+def draw_network(network, ax=None, layout='spectral'):
     if ax is None:
         fig, ax = plt.subplots(1)
     font_args = {"ha": "center", 'va': 'center', "fontdict": {"family": "monospace"}}
 
     # Spectral Layout Algorithm
-    coords = _spectral_layout(network)
+    if layout == 'spectral':
+        coords = _spectral_layout(network)
+    elif layout == 'spring':
+        coords = _spring_layout(network)
 
     seen_edges = set()
     for node in network.nodes:
@@ -53,53 +56,55 @@ class VertexWrapper(object):
         return self.node != other.node
 
 
-def _spring_layout(network, width=None, height=None, maxiter=100):
+def _spring_layout(network, width=None, height=None, maxiter=3):
     if width is None:
-        width = 500.0
+        width = 50.0
     if height is None:
-        height = 500.0
+        height = 50.0
     area = width * height
     area = float(area)
     vertices = []
-    X, Y = _spectral_layout(network)
+    X, Y = np.random.random(len(network)), np.random.random(len(network))
     temperature = 100.0
-    for i, node in enumerate(network.nodes):
-        vert = VertexWrapper(node, np.array((X[i], Y[i])), 0)
-        vertices.append(vert)
-    k = np.sqrt(area / i)
+    iters = 0
+    while iters < maxiter:
+        for i, node in enumerate(network.nodes):
+            vert = VertexWrapper(node, np.array((X[i], Y[i])), 0)
+            vertices.append(vert)
+        k = np.sqrt(area / i)
 
-    def attract(x):
-        return (x * x) / k
+        def attract(x):
+            return (x * x) / k
 
-    def repel(x):
-        return (k * k) / x
+        def repel(x):
+            return (k * k) / x
 
-    for v in vertices:
-        v.dispersion = 0
-        for u in vertices:
-            if v == u:
-                continue
+        for v in vertices:
+            v.dispersion = 0
+            for u in vertices:
+                if v == u:
+                    continue
+                delta = v.position - u.position
+                magdelta = len(delta)
+                v.dispersion = v.dispersion + (delta / magdelta) * repel(magdelta)
+
+        for edge in network.edges:
+            v = vertices[edge.node1.index]
+            u = vertices[edge.node2.index]
             delta = v.position - u.position
             magdelta = len(delta)
-            v.dispersion = v.dispersion + (delta / magdelta) * repel(magdelta)
+            attract_magdelta = attract(magdelta)
+            delta_magdelta_ratio = (delta / magdelta)
+            dispersion_shift = delta_magdelta_ratio * attract_magdelta
 
-    for edge in network.edges:
-        v = vertices[edge.node1.index]
-        u = vertices[edge.node2.index]
-        delta = v.position - u.position
-        magdelta = len(delta)
-        attract_magdelta = attract(magdelta)
-        delta_magdelta_ratio = (delta / magdelta)
-        dispersion_shift = delta_magdelta_ratio * attract_magdelta
+            v.dispersion = v.dispersion - dispersion_shift
+            u.dispersion = u.dispersion + dispersion_shift
 
-        v.dispersion = v.dispersion - dispersion_shift
-        u.dispersion = u.dispersion + dispersion_shift
-
-    for v in vertices:
-        v.position = v.position + (v.dispersion / len(v.dispersion)) * np.min([v.dispersion, temperature])
-        v.position[0] = np.min([width / 2., np.max([-width / 2., v.position[0]])])
-        v.position[1] = np.min([height / 2., np.max([-height / 2., v.position[1]])])
-    temperature /= 2.
-    X = np.array([v.position[0] for v in vertices])
-    Y = np.array([v.position[1] for v in vertices])
+        for v in vertices:
+            v.position = v.position + (v.dispersion / len(v.dispersion)) * temperature
+            v.position /= 1e4
+        temperature = max(temperature / 2., 1)
+        iters += 1
+    X = (np.array([v.position[0] for v in vertices]) + 5) * 10
+    Y = (np.array([v.position[1] for v in vertices]) + 5) * 10
     return X, Y

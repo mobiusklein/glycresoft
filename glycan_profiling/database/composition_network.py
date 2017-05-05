@@ -201,7 +201,7 @@ class CompositionGraphNode(object):
         return self._hash
 
     def __repr__(self):
-        return "CompositionGraphNode(%s, %d, %0.2e)" % (
+        return "CompositionGraphNode(%s, %d, %0.2f)" % (
             self._str, len(self.edges),
             self.score if self.score != 0 else self._temp_score)
 
@@ -816,8 +816,8 @@ class NeighborhoodWalker(object):
         for rule in neighborhood.rules:
             if not self.symbols.defined(rule.symbols):
                 continue
-            elif not rule.is_univariate():
-                filters.append(rule)
+            # elif not rule.is_univariate():
+            filters.append(rule)
             low = rule.low
             high = rule.high
             if low is None:
