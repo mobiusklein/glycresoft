@@ -1,4 +1,4 @@
-from collections import defaultdict, deque, OrderedDict, namedtuple
+from collections import defaultdict, deque, OrderedDict
 import numbers as abc_numbers
 import numpy as np
 
@@ -27,6 +27,8 @@ _hexnac = FrozenMonosaccharideResidue.from_iupac_lite("HexNAc")
 
 
 def composition_distance(c1, c2):
+    '''N-Dimensional Manhattan Distance or L1 Norm
+    '''
     keys = set(c1) | set(c2)
     distance = 0
     for k in keys:
@@ -42,32 +44,6 @@ def n_glycan_distance(c1, c2):
         if c1[_hexose] == c1[_hexnac] or c2[_hexose] == c2[_hexnac]:
             weight /= 2.
     return distance, weight
-
-
-class EdgePath(object):
-
-    def __init__(self, path=tuple()):
-        self.path = tuple(path)
-        self.members = frozenset(path)
-
-    def __contains__(self, i):
-        return i in self.members
-
-    def add(self, i):
-        extended = self.path + (i,)
-        return EdgePath(extended)
-
-    def __or__(self, other):
-        return self.add(other)
-
-    def __eq__(self, other):
-        return self.members == other.members
-
-    def __repr__(self):
-        return "EdgePath%r" % (self.path,)
-
-    def __iter__(self):
-        return iter(self.path)
 
 
 class DijkstraPathFinder(object):
@@ -137,6 +113,7 @@ class CompositionSpace(object):
 
     def __init__(self, members):
         self.filter = GlycanCompositionFilter(members)
+        self.symbols = symbolic_expression.SymbolSpace(self.filter.monosaccharides)
 
     @property
     def monosaccharides(self):
@@ -622,23 +599,36 @@ class CompositionRuleBase(object):
         composition = symbolic_expression.SymbolContext(dict(composition))
         return composition
 
+    def get_symbols(self):
+        raise NotImplementedError()
+
+    @property
+    def symbols(self):
+        return self.get_symbols()
+
+    def is_univariate(self):
+        return len(self.get_symbols()) == 1
+
 
 class CompositionRangeRule(CompositionRuleBase):
 
-    def __init__(self, name, low=None, high=None, required=True):
-        self.name = name
+    def __init__(self, expression, low=None, high=None, required=True):
+        self.expression = symbolic_expression.ExpressionNode.parse(str(expression))
         self.low = low
         self.high = high
         self.required = required
 
+    def get_symbols(self):
+        return self.expression.get_symbols()
+
     def __call__(self, obj):
         composition = self.get_composition(obj)
-        if self.name in composition:
+        if self.expression in composition:
             if self.low is None:
-                return composition[self.name] <= self.high
+                return composition[self.expression] <= self.high
             elif self.high is None:
-                return self.low <= composition[self.name]
-            return self.low <= composition[self.name] <= self.high
+                return self.low <= composition[self.expression]
+            return self.low <= composition[self.expression] <= self.high
         else:
             if self.required and self.low > 0:
                 return False
@@ -655,9 +645,9 @@ class CompositionRangeRule(CompositionRuleBase):
 
 
 class CompositionRatioRule(CompositionRuleBase):
-    def __init__(self, value_name, reference_name, ratio_threshold, required=True):
-        self.value_name = value_name
-        self.reference_name = reference_name
+    def __init__(self, numerator, denominator, ratio_threshold, required=True):
+        self.numerator = numerator
+        self.denominator = denominator
         self.ratio_threshold = ratio_threshold
         self.required = required
 
@@ -667,14 +657,13 @@ class CompositionRatioRule(CompositionRuleBase):
         else:
             return x >= self.ratio_threshold
 
-    @property
-    def name(self):
-        return "%s/%s" % (self.value_name, self.reference_name)
+    def get_symbols(self):
+        return (self.numerator, self.denominator)
 
     def __call__(self, obj):
         composition = self.get_composition(obj)
-        ref = composition[self.reference_name]
-        val = composition[self.value_name]
+        val = composition[self.numerator]
+        ref = composition[self.denominator]
 
         if ref == 0 and self.required:
             return False
@@ -731,6 +720,16 @@ class CompositionRuleClassifier(object):
             self = self.copy()
             self.rules.append(other)
             return self
+
+    def get_symbols(self):
+        symbols = set()
+        for rule in self:
+            symbols.update(rule.symbols)
+        return symbols
+
+    @property
+    def symbols(self):
+        return self.get_symbols()
 
 
 def make_n_glycan_neighborhoods():
@@ -799,6 +798,9 @@ class NeighborhoodWalker(object):
         self.neighborhoods = neighborhoods
         self.filter_space = GlycanCompositionFilter(
             [node.composition for node in self.network])
+
+        self.symbols = symbolic_expression.SymbolSpace(self.filter_space.monosaccharides)
+
         self.neighborhood_maps = defaultdict(list)
         self.assign()
 
@@ -810,9 +812,12 @@ class NeighborhoodWalker(object):
 
     def query_neighborhood(self, neighborhood):
         query = None
+        filters = []
         for rule in neighborhood.rules:
-            if rule.name not in self.filter_space.monosaccharides:
+            if not self.symbols.defined(rule.symbols):
                 continue
+            elif not rule.is_univariate():
+                filters.append(rule)
             low = rule.low
             high = rule.high
             if low is None:
@@ -821,10 +826,15 @@ class NeighborhoodWalker(object):
                 # No glycan will have more than 100 of a single residue
                 # in practice.
                 high = 100
+            name = rule.symbols[0]
             if query is None:
-                query = self.filter_space.query(rule.name, low, high)
+                query = self.filter_space.query(name, low, high)
             else:
-                query.add(rule.name, low, high)
+                query.add(name, low, high)
+        if filters:
+            query = filter(lambda x: all([f(x) for f in filters]), query)
+        else:
+            query = query.all()
         return query
 
     def assign(self):
@@ -833,7 +843,7 @@ class NeighborhoodWalker(object):
             if query is None:
                 print(neighborhood, self.filter_space)
                 raise ValueError()
-            for composition in query.all():
+            for composition in query:
                 if neighborhood(composition):
                     self.neighborhood_assignments[
                         self.network[composition]].add(neighborhood.name)
@@ -855,99 +865,3 @@ class NeighborhoodWalker(object):
         if count == 0:
             return 0
         return total_weight / count
-
-
-NeighborhoodStatistics = namedtuple("NeighborhoodStatistics", ("total_score", "size"))
-
-
-class NeighborhoodAnalyzer(object):
-    def __init__(self, neighborhood_walker):
-        self.walker = neighborhood_walker
-        self.network = neighborhood_walker.network
-        self.neighborhood_statistics = dict()
-        self.build()
-
-    def __getitem__(self, i):
-        nodes = self.network[i]
-        if isinstance(nodes, list):
-            return [self.compute_neighborhoods_mean(node) for node in nodes]
-        else:
-            node = nodes
-            return self.compute_neighborhoods_mean(nodes)
-
-    def build(self):
-        for label, nodes in self.walker.neighborhood_maps.items():
-            size = 0
-            score_acc = 0.
-            for node in nodes:
-                size += 1
-                score_acc += node.score
-            self.neighborhood_statistics[label] = NeighborhoodStatistics(score_acc, size)
-
-    def compute_mean_from_neighborhood(self, node, neighborhood):
-        total_score = 0
-        size = 0
-        stats = self.neighborhood_statistics[neighborhood]
-        total_score += stats.total_score
-        size += stats.size
-        if size == 0:
-            return 0
-        return total_score / size
-
-    def compute_neighborhoods_mean(self, node):
-        total_score = 0
-        size = 0
-        for neighborhood in self.walker[node]:
-            stats = self.neighborhood_statistics[neighborhood]
-            total_score += stats.total_score
-            size += stats.size
-        if size == 0:
-            return 0
-        return total_score / size
-
-    def network_indices(self, threshold=0.0001):
-        missing = []
-        observed = []
-        for node in self.network:
-            if node.score < threshold:
-                missing.append(node.index)
-            else:
-                observed.append(node.index)
-        return observed, missing
-
-
-class DistanceWeightedNeighborhoodAnalyzer(NeighborhoodAnalyzer):
-    distance_fn = staticmethod(n_glycan_distance)
-
-    def compute_mean_from_neighborhood(self, node, neighborhood):
-        total_score = 0
-        total_weight = 0
-        for member in self.walker.neighborhood_maps[neighborhood]:
-            distance, weight = self.distance_fn(
-                node.glycan_composition, member.glycan_composition)
-            if distance > 0:
-                weight *= (1. / distance)
-            else:
-                weight = 1.0
-            total_score += member.score * weight
-            total_weight += weight
-        if total_weight == 0:
-            return 0
-        return total_score / total_weight
-
-    def compute_neighborhoods_mean(self, node):
-        total_score = 0
-        total_weight = 0
-        for neighborhood in self.walker[node]:
-            for member in self.walker.neighborhood_maps[neighborhood]:
-                distance, weight = self.distance_fn(
-                    node.glycan_composition, member.glycan_composition)
-                if distance > 0:
-                    weight *= (1. / distance)
-                else:
-                    weight = 1.0
-                total_score += member.score * weight
-                total_weight += weight
-        if total_weight == 0:
-            return 0
-        return total_score / total_weight

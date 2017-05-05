@@ -41,7 +41,8 @@ class FilterTreeNode(object):
 
     def __repr__(self):
         return "FilterTreeNode(%d, %r, ^%r, %d)" % (
-            len(self.members), self.splitting_key, self.split_value, len(self.children))
+            len(self.members), self.splitting_key,
+            self.split_value, len(self.children))
 
     def query(self, key, lo=0, hi=100):
         if str(key) == str(self.splitting_key):

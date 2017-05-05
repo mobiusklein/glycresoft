@@ -6,6 +6,9 @@ from matplotlib import pyplot as plt
 
 from glycan_profiling.task import TaskBase
 from glycan_profiling.database import composition_network
+from glycan_profiling.database.composition_network import (
+    NeighborhoodWalker, CompositionGraph, CompositionGraphNode,
+    GlycanComposition, GlycanCompositionProxy)
 
 
 class PriorBuilder(object):
@@ -242,10 +245,6 @@ def optimize_observed_scores(blocks, lmbda, observed_scores, t0=0.):
     return linalg.inv(B).dot(observed_scores - t0) + t0
 
 
-NeighborhoodWalker = composition_network.NeighborhoodWalker
-DistanceWeightedNeighborhoodAnalyzer = composition_network.DistanceWeightedNeighborhoodAnalyzer
-
-
 class LaplacianSmoothingModel(object):
     def __init__(self, network, belongingness_matrix, threshold, regularize=1e-4, neighborhood_walker=None):
         self.network = network
@@ -379,7 +378,7 @@ class GlycomeModel(LaplacianSmoothingModel):
         accepted = [
             g for g in self._observed_compositions if g.score > threshold]
         self.network = assign_network(self._network.clone(), accepted)
-        self.neighborhood_walker = composition_network.NeighborhoodWalker(self.network)
+        self.neighborhood_walker = NeighborhoodWalker(self.network)
 
         self.obs_ix, self.miss_ix = network_indices(self.network)
         self.A0 = self.normalized_belongingness_matrix[self.obs_ix, :]
@@ -493,6 +492,7 @@ class GlycomeModel(LaplacianSmoothingModel):
                 neighborhood_walker=self.neighborhood_walker)
             lum.apply_belongingness_patch()
             updates = []
+            taus = []
             for lambd in lambda_values:
                 if fit_tau:
                     tau = lum.estimate_tau_from_S0(rho, lambd)
@@ -506,8 +506,9 @@ class GlycomeModel(LaplacianSmoothingModel):
                     ((obs - T) / (1 - (np.diag(H) - np.finfo(float).eps))) ** 2) / len(obs)
                 press.append(press_value)
                 updates.append(T)
+                taus.append(tau)
             solutions[threshold] = NetworkTrimmingSearchSolution(
-                threshold, lambda_values, np.array(press), (network), np.array(obs), updates)
+                threshold, lambda_values, np.array(press), (network), np.array(obs), updates, taus)
             current_network = network
         return solutions
 
@@ -772,10 +773,14 @@ class NetworkReduction(object):
             [v.threshold for v in vals]), weights=np.array(
             [v.press_residuals.min() for v in vals]))
 
+    def keys(self):
+        return self.store.keys()
+
 
 class NetworkTrimmingSearchSolution(object):
 
-    def __init__(self, threshold, lambda_values, press_residuals, network, observed=None, updated=None):
+    def __init__(self, threshold, lambda_values, press_residuals, network, observed=None,
+                 updated=None, taus=None):
         self.threshold = threshold
         self.lambda_values = lambda_values
         self.press_residuals = press_residuals
@@ -784,6 +789,7 @@ class NetworkTrimmingSearchSolution(object):
         self.minimum_residuals = self.press_residuals.min()
         self.observed = observed
         self.updated = updated
+        self.taus = taus
 
     @property
     def n_kept(self):

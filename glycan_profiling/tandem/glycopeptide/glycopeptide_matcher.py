@@ -1,4 +1,4 @@
-from collections import defaultdict, namedtuple
+from collections import defaultdict, namedtuple, OrderedDict
 
 from glycan_profiling.chromatogram_tree.chromatogram import GlycopeptideChromatogram
 from glycan_profiling.task import TaskBase
@@ -140,17 +140,44 @@ class TargetDecoyInterleavingGlycopeptideMatcher(TandemClusterEvaluatorBase):
         return target_out, decoy_out
 
 
+class CompetativeTargetDecoyInterleavingGlycopeptideMatcher(TargetDecoyInterleavingGlycopeptideMatcher):
+    def score_bunch(self, scans, precursor_error_tolerance=1e-5, *args, **kwargs):
+        target_solutions, decoy_solutions = super(
+            CompetativeTargetDecoyInterleavingGlycopeptideMatcher, self).score_bunch(
+            scans, precursor_error_tolerance, *args, **kwargs)
+        target_solutions = OrderedDict([(s.scan.id, s) for s in target_solutions])
+        decoy_solutions = OrderedDict([(s.scan.id, s) for s in target_solutions])
+
+        remove_target = []
+        for key in target_solutions:
+            try:
+                if target_solutions[key].score > decoy_solutions[key].score:
+                    decoy_solutions.pop(key)
+                else:
+                    remove_target.append(key)
+            except KeyError:
+                pass
+        for key in remove_target:
+            target_solutions.pop(key)
+        return list(target_solutions.values()), list(decoy_solutions.values())
+
+
 # These matchers are missing patches for parallelism
 class ComparisonGlycopeptideMatcher(TargetDecoyInterleavingGlycopeptideMatcher):
     def __init__(self, tandem_cluster, scorer_type, target_structure_database, decoy_structure_database,
-                 minimum_oxonium_ratio=0.05):
+                 minimum_oxonium_ratio=0.05, n_processes=5, ipc_manager=None):
+
         self.tandem_cluster = tandem_cluster
         self.scorer_type = scorer_type
         self.target_structure_database = target_structure_database
         self.decoy_structure_database = decoy_structure_database
         self.minimum_oxonium_ratio = minimum_oxonium_ratio
-        self.target_evaluator = GlycopeptideMatcher([], self.scorer_type, self.target_structure_database)
-        self.decoy_evaluator = GlycopeptideMatcher([], self.scorer_type, self.decoy_structure_database)
+        self.target_evaluator = GlycopeptideMatcher(
+            [], self.scorer_type, self.target_structure_database,
+            n_processes=n_processes, ipc_manager=ipc_manager)
+        self.decoy_evaluator = GlycopeptideMatcher(
+            [], self.scorer_type, self.decoy_structure_database,
+            n_processes=n_processes, ipc_manager=ipc_manager)
 
     def score_bunch(self, scans, precursor_error_tolerance=1e-5, *args, **kwargs):
         # Map scans to target database

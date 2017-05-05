@@ -374,10 +374,10 @@ def collapse_expression_sequence(expression_sequence):
 
 class SymbolSpace(object):
     def __init__(self, context):
-        self.space = self._format_iterable(context)
+        self.context = self._format_iterable(context)
 
     @staticmethod
-    def _format_iterable(self, iterable):
+    def _format_iterable(iterable):
         space = dict()
         for key in iterable:
             if isinstance(key, SymbolNode):
@@ -387,7 +387,21 @@ class SymbolSpace(object):
             space[key] = 1
         return space
 
+    def _test_symbols_defined(self, symbols, partial=False):
+        if not partial:
+            for symbol in symbols:
+                if not self.defined(symbol):
+                    return False
+            return True
+        else:
+            for symbol in symbols:
+                if self.defined(symbol):
+                    return True
+            return False
+
     def defined(self, expr, partial=False):
+        if isinstance(expr, (list, tuple, set, frozenset)):
+            return self._test_symbols_defined(expr, partial)
         if not isinstance(expr, ExpressionBase):
             expr = str(expr)
         if isinstance(expr, basestring):
@@ -398,16 +412,7 @@ class SymbolSpace(object):
             return True
         elif isinstance(expr, ExpressionNode):
             symbols = expr.get_symbols()
-            if not partial:
-                for symbol in symbols:
-                    if not self.defined(symbol):
-                        return False
-                return True
-            else:
-                for symbol in symbols:
-                    if self.defined(symbol):
-                        return True
-                return False
+            return self._test_symbols_defined(symbols, partial)
 
     def partially_defined(self, expr):
         return self.defined(expr, False)

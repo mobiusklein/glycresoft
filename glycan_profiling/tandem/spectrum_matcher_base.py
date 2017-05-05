@@ -481,7 +481,7 @@ class TandemClusterEvaluatorBase(TaskBase):
         return dispatcher.process(scan_map, hit_map, hit_to_scan)
 
     def _evaluate_hit_groups(self, scan_map, hit_map, hit_to_scan, **kwargs):
-        if self.n_processes == 1 or len(hit_map) < 100:
+        if self.n_processes == 1 or len(hit_map) < 500:
             return self._evaluate_hit_groups_single_process(
                 scan_map, hit_map, hit_to_scan, **kwargs)
         else:

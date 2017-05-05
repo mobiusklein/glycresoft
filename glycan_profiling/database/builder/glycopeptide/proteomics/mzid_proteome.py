@@ -6,7 +6,7 @@ from collections import defaultdict
 from six import string_types as basestring
 
 from glycopeptidepy.structure import sequence, modification, residue
-from glycopeptidepy.enzyme import expasy_rules
+from glycopeptidepy.enzyme import expasy_rules, Protease
 from glypy.composition import formula
 
 from glycan_profiling.serialize import (
@@ -273,7 +273,7 @@ class PeptideIdentification(object):
 
     def handle_missed_cleavages(self):
         if self.enzyme is not None:
-            self.missed_cleavages = len(self.enzyme.findall(self.base_sequence))
+            self.missed_cleavages = self.enzyme.missed_cleavages(self.base_sequence)
         else:
             self.missed_cleavages = None
 
@@ -566,20 +566,14 @@ class PeptideConverter(object):
         self.accumulator = []
 
 
-class Proteome(DatabaseBoundOperation, TaskBase):
-    def __init__(self, mzid_path, connection, hypothesis_id, include_baseline_peptides=True,
-                 target_proteins=None, reference_fasta=None):
-        DatabaseBoundOperation.__init__(self, connection)
+class MzIdentMLProteomeExtraction(TaskBase):
+    def __init__(self, mzid_path, reference_fasta=None):
         self.mzid_path = mzid_path
-        self.hypothesis_id = hypothesis_id
-        # self.parser = Parser(mzid_path, retrieve_refs=True, iterative=False, build_id_cache=True)
+        self.reference_fasta = reference_fasta
         self.parser = Parser(mzid_path, retrieve_refs=True, iterative=True, use_index=True)
         self.enzymes = []
         self.constant_modifications = []
         self.modification_translation_table = {}
-        self.target_proteins = target_proteins
-        self.reference_fasta = reference_fasta
-        self.include_baseline_peptides = include_baseline_peptides
 
         self._protein_resolver = None
         self._ignore_protein_regex = None
@@ -587,8 +581,29 @@ class Proteome(DatabaseBoundOperation, TaskBase):
 
     def load_enzyme(self):
         self.parser.reset()
-        self.enzymes = list({e['name'].lower() for e in self.parser.iterfind(
-            "EnzymeName", retrieve_refs=True, iterative=True)})
+        # self.enzymes = list({e['name'].lower() for e in self.parser.iterfind(
+        #     "EnzymeName", retrieve_refs=True, iterative=True)})
+        enzymes = list(self.parser.iterfind("Enzyme", retrieve_refs=True, iterative=True))
+        processed_enzymes = []
+        for enz in enzymes:
+            # It's a standard enzyme, so we can look it up by name
+            if "EnzymeName" in enz:
+                try:
+                    protease = Protease(enz['EnzymeName'].lower())
+                    processed_enzymes.append(protease)
+                except (KeyError, re.error) as e:
+                    self.log("Could not resolve protease from name %r (%s)" % (enz['EnzymeName'].lower(), e))
+            else:
+                try:
+                    pattern = enz['SiteRegexp']
+                    try:
+                        protease = Protease(pattern)
+                        processed_enzymes.append(protease)
+                    except re.error as e:
+                        self.log("Could not resolve protease from name %r (%s)" % (enz['EnzymeName'].lower(), e))
+                except KeyError:
+                    self.log("No protease information available: %r" % (enz,))
+        self.enzymes = processed_enzymes
 
     def load_modifications(self):
         self.parser.reset()
@@ -671,6 +686,16 @@ class Proteome(DatabaseBoundOperation, TaskBase):
             raise KeyError(name)
         return proteins[0]
 
+
+class Proteome(DatabaseBoundOperation, MzIdentMLProteomeExtraction):
+    def __init__(self, mzid_path, connection, hypothesis_id, include_baseline_peptides=True,
+                 target_proteins=None, reference_fasta=None):
+        DatabaseBoundOperation.__init__(self, connection)
+        MzIdentMLProteomeExtraction.__init__(self, mzid_path, reference_fasta)
+        self.hypothesis_id = hypothesis_id
+        self.target_proteins = target_proteins
+        self.include_baseline_peptides = include_baseline_peptides
+
     def _can_ignore_protein(self, name):
         if name not in self.target_proteins:
             return True
@@ -690,6 +715,7 @@ class Proteome(DatabaseBoundOperation, TaskBase):
             # check = protein.copy()
             seq = protein.pop('Seq', None)
             name = protein.pop('accession')
+            # name += protein.pop("protein description", "")
             if seq is None:
                 try:
                     prot = self.resolve_protein(name)
@@ -727,10 +753,8 @@ class Proteome(DatabaseBoundOperation, TaskBase):
         last = 0
         i = 0
         try:
-            enzyme = re.compile(expasy_rules.get(self.enzymes[0]))
-        except TypeError:
-            enzyme = None
-        except KeyError as e:
+            enzyme = self.enzymes[0]
+        except IndexError as e:
             logger.exception("Enzyme not found.", exc_info=e)
             enzyme = None
         session = self.session

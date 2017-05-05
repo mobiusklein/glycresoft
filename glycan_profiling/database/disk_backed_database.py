@@ -638,7 +638,7 @@ class LRUIntervalSet(IntervalSet):
         try:
             super(LRUIntervalSet, self).extend_interval(target, expansion)
             self.lru.add_node(target)
-        except:
+        except Exception:
             self.lru.add_node(target)
             raise
 
