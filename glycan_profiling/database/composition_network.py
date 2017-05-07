@@ -451,15 +451,22 @@ class CompositionGraph(object):
             try:
                 result = []
                 iter(key)
-                if isinstance(key[0], (bool, np.bool_)):
-                    for b, k in zip(key, self):
-                        if b:
-                            result.append(k)
-                else:
+                try:
+                    if isinstance(key[0], (bool, np.bool_)):
+                        for b, k in zip(key, self):
+                            if b:
+                                result.append(k)
+                    else:
+                        for k in key:
+                            result.append(self[k])
+                except TypeError:
+                    # Handle unindexable iteratables
                     for k in key:
                         result.append(self[k])
                 return result
             except Exception as e:
+                if len(key) == 0:
+                    return []
                 raise IndexError(
                     "An error occurred (%r) during indexing with %r" % (e, key))
 
