@@ -30,6 +30,54 @@ class GlycanCompositionOrderer(object):
             for residue in self.priority_residues
         ]
 
+        outer = self
+
+        class _ComparableProxy(object):
+            def __init__(self, composition, obj=None):
+                if isinstance(composition, basestring):
+                    composition = FrozenGlycanComposition.parse(composition)
+                if obj is None:
+                    obj = composition
+                self.composition = composition
+                self.obj = obj
+
+            def __iter__(self):
+                return iter(self.composition)
+
+            def __getitem__(self, key):
+                return self.composition[key]
+
+            def __lt__(self, other):
+                return outer(self, other) < 0
+
+            def __gt__(self, other):
+                return outer(self, other) > 0
+
+            def __eq__(self, other):
+                return outer(self, other) == 0
+
+            def __le__(self, other):
+                return outer(self, other) <= 0
+
+            def __ge__(self, other):
+                return outer(self, other) >= 0
+
+            def __ne__(self, other):
+                return outer(self, other) != 0
+
+        self._comparable_proxy = _ComparableProxy
+
+    def sort(self, compositions, key=None, reverse=False):
+        if key is None:
+
+            def key(x):
+                return x
+
+        proxies = [self._comparable_proxy(key(c), c) for c in compositions]
+        proxies = sorted(proxies, reverse=reverse)
+        out = [p.obj for p in proxies]
+        return out
+
     def key_order(self, keys):
         keys = list(keys)
         for r in reversed(self.priority_residues):
