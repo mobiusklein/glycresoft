@@ -20,10 +20,6 @@ from .lru import LRUCache
 from .structure_loader import CachingGlycanCompositionParser
 from .composition_network import CompositionGraph, n_glycan_distance
 
-try:
-    basestring
-except NameError:
-    basestring = (str, bytes)
 
 logger = logging.getLogger("glycresoft.database")
 
