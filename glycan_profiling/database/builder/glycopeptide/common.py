@@ -1,8 +1,8 @@
 import itertools
 from uuid import uuid4
 from collections import defaultdict, Counter
-from multiprocessing import Process, Queue, Event, Lock, RLock
-from threading import Thread, Event as ThreadEvent
+from multiprocessing import Process, Queue, Event, RLock
+from threading import Thread
 from itertools import product
 
 try:

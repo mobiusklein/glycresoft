@@ -5,7 +5,6 @@ import re
 from collections import defaultdict
 
 
-from sqlalchemy.orm import make_transient
 from glycan_profiling.serialize import (
     Peptide, Protein, DatabaseBoundOperation)
 
@@ -162,7 +161,7 @@ class PeptideSharingProcess(Process):
                 if work_items is None:
                     has_work = False
                     continue
-            except:
+            except Exception:
                 if self.done_event.is_set():
                     has_work = False
                 continue

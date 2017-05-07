@@ -7,10 +7,7 @@ from .common import (
     PeptideGlycosylatingProcess, MultipleProcessPeptideGlycosylator)
 from .proteomics import mzid_proteome
 
-try:
-    basestring
-except NameError:
-    basestring = (str, bytes)
+from six import string_types as basestring
 
 
 class MzIdentMLGlycopeptideHypothesisSerializer(GlycopeptideHypothesisSerializerBase):

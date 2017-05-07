@@ -3,7 +3,7 @@ try:
     logger_to_silence = logging.getLogger("rdflib")
     logger_to_silence.propagate = False
     logger_to_silence.setLevel("CRITICAL")
-except:
+except Exception:
     pass
 
 import os

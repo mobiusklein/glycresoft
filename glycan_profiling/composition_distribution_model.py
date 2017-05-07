@@ -272,6 +272,7 @@ class LaplacianSmoothingModel(object):
 
         self.S0 = [node.score for node in self.network[self.obs_ix]]
         self.A0 = belongingness_matrix[self.obs_ix, :]
+        self.Am = belongingness_matrix[self.miss_ix, :]
         self.C0 = [node for node in self.network[self.obs_ix]]
         self._belongingness_normalization = 'colrow'
 
@@ -396,6 +397,7 @@ class GlycomeModel(LaplacianSmoothingModel):
 
     def _populate(self):
         self.A0 = self.normalized_belongingness_matrix[self.obs_ix, :]
+        self.Am = self.normalized_belongingness_matrix[self.miss_ix, :]
         self.S0 = np.array([g.score for g in self.network[self.obs_ix]])
         self.C0 = ([g for g in self.network[self.obs_ix]])
 

@@ -5,6 +5,21 @@ subtraction, multiplication, and division, and conditional operators greater
 than, less than equality, as well as compound & and | relationships.
 '''
 import re
+from numbers import Number
+
+from six import string_types as basestring, PY3
+
+
+def ensuretext(x):
+    if isinstance(x, str):
+        return x
+    elif PY3:
+        try:
+            return x.decode("utf8")
+        except AttributeError:
+            return str(x)
+    else:
+        return str(x)
 
 
 class ExpressionBase(object):
@@ -13,8 +28,8 @@ class ExpressionBase(object):
         if isinstance(v, ExpressionBase):
             return v
         elif isinstance(v, basestring):
-            return SymbolNode.parse(str(v))
-        elif isinstance(v, (int, float)):
+            return SymbolNode.parse(ensuretext(v))
+        elif isinstance(v, Number):
             return ValueNode(v)
 
     def _as_compound(self, op, other):
@@ -167,7 +182,7 @@ class SymbolNode(ExpressionBase):
 
     def __eq__(self, other):
         if isinstance(other, basestring):
-            return self.symbol == other
+            return self.symbol == ensuretext(other)
         else:
             return self.symbol == other.symbol and self.coefficient == other.coefficient
 
@@ -214,7 +229,7 @@ class ValueNode(ExpressionBase):
 
     def __eq__(self, other):
         if isinstance(other, basestring):
-            return str(self.value) == other
+            return str(self.value) == ensuretext(other)
         else:
             return self.value == other.value
 
@@ -226,18 +241,52 @@ class ValueNode(ExpressionBase):
 
 
 def typify(node):
+    """Convert the input into the appropriate
+    type of ExpressionBase-derived Node. Will
+    apply pattern matching to determine if a
+    passed string looks like a numerical constant
+    or if the input is a numerical constant, return
+    the appropriate node type.
+
+    Parameters
+    ----------
+    node : object
+        The object to be converted.
+
+    Returns
+    -------
+    ExpressionBase
+    """
     if isinstance(node, basestring):
-        if re.match(r"^(\d+(.\d+)?)$", node.strip()):
+        if re.match(r"^(\d+(.\d+)?)$", ensuretext(node).strip()):
             return ValueNode.parse(node)
         else:
             return SymbolNode.parse(node)
-    elif isinstance(node, (int, float)):
+    elif isinstance(node, Number):
         return ValueNode(node)
     else:
         return node
 
 
 def parse_expression(string):
+    """Parses a str argument into a :class:`ExpressionNode` instance
+    containing arbitrarily complex expressions.
+
+    Parameters
+    ----------
+    string : str
+        The text to be parsed
+
+    Returns
+    -------
+    ExpressionNode
+
+    Raises
+    ------
+    SyntaxError
+        If there are unresolved parentheses leftover after resolving the parse
+        stack
+    """
     i = 0
     size = len(string)
     paren_level = 0
@@ -280,28 +329,35 @@ def parse_expression(string):
 
 class ExpressionNode(ExpressionBase):
     """
-    Summary
+    A compound node representing two terms joined by a binary operator
 
     Attributes
     ----------
-    coefficient : int
-        Description
-    left : TYPE
-        Description
-    op : TYPE
-        Description
-    parse : TYPE
-        Description
-    right : TYPE
-        Description
+    left : ExpressionBase
+        The term to the left of the binary operator
+    op : Operator or str
+        The binary operator being applied. If passed as a str
+        the Operator type will be looked up using the registered
+        operator map.
+    right : ExpressionBase
+        The term to the right of the binary operator
     """
+
+    #: Expressions have an implicit constant multiplier of 1
     coefficient = 1
 
+    #: Parses a string-like argument into an ExpressionNode instance
     parse = staticmethod(parse_expression)
 
     def __init__(self, left, op, right):
         self.left = typify(left)
-        self.op = operator_map[op]
+        try:
+            self.op = operator_map[op]
+        except KeyError:
+            if isinstance(op, Operator):
+                self.op = op
+            else:
+                raise TypeError("Could not determine operator type from %r" % op)
         self.right = typify(right)
 
     def __hash__(self):
@@ -309,7 +365,7 @@ class ExpressionNode(ExpressionBase):
 
     def __eq__(self, other):
         if isinstance(other, basestring):
-            return str(self) == other
+            return str(self) == ensuretext(other)
         else:
             return self.left == other.left and self.right == other.right and self.op == other.op
 
@@ -373,6 +429,15 @@ def collapse_expression_sequence(expression_sequence):
 
 
 class SymbolSpace(object):
+    """Represent an abstract collection of symbols. Provides a
+    notion of definedness for Symbols, without associating an
+    explicit value for them.
+
+    Attributes
+    ----------
+    context : dict
+        Internal storage of defined symbols
+    """
     def __init__(self, context):
         self.context = self._format_iterable(context)
 
@@ -426,11 +491,13 @@ class SymbolSpace(object):
 
 class SymbolContext(SymbolSpace):
     """
-    Summary
+    Expands the notion of :class:`SymbolSpace` to bind values
+    to Symbols
 
     Attributes
     ----------
     context : dict
+        Mapping from Symbol to Value
     """
 
     def __init__(self, context):
@@ -453,13 +520,11 @@ class SymbolContext(SymbolSpace):
 
         Parameters
         ----------
-        node : TYPE
-            Description
+        node : ExpressionBase
 
         Returns
         -------
-        name : TYPE
-            Description
+        name : Number
         """
         if not isinstance(node, ExpressionBase):
             node = str(node)

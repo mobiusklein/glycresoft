@@ -1,6 +1,8 @@
 import unittest
 import tempfile
 
+from io import StringIO
+
 from glycan_profiling.database.builder.glycan import constrained_combinatorics
 
 
@@ -33,6 +35,9 @@ class GlycanCombinatoricsTests(unittest.TestCase):
             constrained_combinatorics.DBGlycanComposition.hypothesis_id == builder.hypothesis_id,
             constrained_combinatorics.DBGlycanComposition.composition == "{Hex:3; HexNAc:2}").one()
         self.assertAlmostEqual(inst.calculated_mass, 910.32777, 3)
+        for composition in builder.query(constrained_combinatorics.DBGlycanComposition):
+            composition = composition.convert()
+            self.assertGreater(composition["HexNAc"], composition['Neu5Ac'])
         builder.engine.dispose()
         self.clear_file(file_name + '.db')
         self.clear_file(file_name)

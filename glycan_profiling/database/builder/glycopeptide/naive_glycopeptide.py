@@ -1,4 +1,3 @@
-from multiprocessing import Queue, Event
 
 from glycan_profiling.serialize import func
 from glycan_profiling.serialize.hypothesis.peptide import Peptide, Protein

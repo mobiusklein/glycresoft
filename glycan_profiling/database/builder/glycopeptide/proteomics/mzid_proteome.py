@@ -6,7 +6,7 @@ from collections import defaultdict
 from six import string_types as basestring
 
 from glycopeptidepy.structure import sequence, modification, residue
-from glycopeptidepy.enzyme import expasy_rules, Protease
+from glycopeptidepy.enzyme import Protease
 from glypy.composition import formula
 
 from glycan_profiling.serialize import (
