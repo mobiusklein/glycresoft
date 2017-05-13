@@ -56,7 +56,6 @@ class MissingPeptideEvidenceHandler(object):
 
     @classmethod
     def recover(cls, full_id):
-        print("Recovering", full_id)
         inst = cls(full_id)
         return inst.reconstruct_evidence()
 
