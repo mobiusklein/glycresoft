@@ -34,7 +34,7 @@ def default_label_extractor(chromatogram, **kwargs):
     if chromatogram.composition:
         return str(chromatogram.composition)
     else:
-        return str(chromatogram.neutral_mass)
+        return "%0.3f %r" % (chromatogram.neutral_mass, tuple(chromatogram.charge_states))
 
 
 class ColorCycler(object):
@@ -54,7 +54,7 @@ class NGlycanChromatogramColorizer(object):
         else:
             try:
                 return NGlycanCompositionColorizer(chromatogram.glycan_composition)
-            except:
+            except Exception:
                 return default_color
 
 
@@ -82,7 +82,8 @@ class NGlycanLabelProducer(LabelProducer):
             return list(GlycanLabelTransformer(
                 [chromatogram.glycan_composition, self.stub], NGlycanCompositionOrderer))[0]
         else:
-            return chromatogram.key
+            return "%0.3f (%s)" % (chromatogram.neutral_mass, ", ".join(
+                map(str, chromatogram.charge_states)))
 
 
 n_glycan_labeler = NGlycanLabelProducer()
