@@ -50,14 +50,26 @@ class ExpressionBase(object):
     def __gt__(self, other):
         return self._as_compound(Operator.get(">"), other)
 
+    def __ge__(self, other):
+        return self._as_compound(Operator.get(">="), other)
+
     def __lt__(self, other):
         return self._as_compound(Operator.get("<"), other)
+
+    def __le__(self, other):
+        return self._as_compound(Operator.get("<="), other)
 
     def __eq__(self, other):
         return self._as_compound(Operator.get("=="), other)
 
     def __ne__(self, other):
         return self._as_compound(Operator.get("!="), other)
+
+    def __and__(self, other):
+        return self._as_compound(Operator.get("and"), other)
+
+    def __or__(self, other):
+        return self._as_compound(Operator.get("or"), other)
 
     def get_symbols(self):
         return []
@@ -360,17 +372,17 @@ class ExpressionNode(ExpressionBase):
                 raise TypeError("Could not determine operator type from %r" % op)
         self.right = typify(right)
 
-    def __hash__(self):
-        return hash((self.left, self.op, self.right))
+    # def __hash__(self):
+    #     return hash((self.left, self.op, self.right))
 
-    def __eq__(self, other):
-        if isinstance(other, basestring):
-            return str(self) == ensuretext(other)
-        else:
-            return self.left == other.left and self.right == other.right and self.op == other.op
+    # def __eq__(self, other):
+    #     if isinstance(other, basestring):
+    #         return str(self) == ensuretext(other)
+    #     else:
+    #         return self.left == other.left and self.right == other.right and self.op == other.op
 
-    def __ne__(self, other):
-        return not self == other
+    # def __ne__(self, other):
+    #     return not self == other
 
     def __repr__(self):
         return "{} {} {}".format(self.left, self.op, self.right)
@@ -473,14 +485,14 @@ class SymbolSpace(object):
             expr = parse_expression(expr)
         if isinstance(expr, SymbolNode):
             return expr.symbol in self.context
-        elif isinstance(expr, ValueNode):
+        if isinstance(expr, ValueNode):
             return True
-        elif isinstance(expr, ExpressionNode):
+        if isinstance(expr, ExpressionNode):
             symbols = expr.get_symbols()
             return self._test_symbols_defined(symbols, partial)
 
     def partially_defined(self, expr):
-        return self.defined(expr, False)
+        return self.defined(expr, True)
 
     def __contains__(self, expr):
         return self.defined(expr)
@@ -528,13 +540,18 @@ class SymbolContext(SymbolSpace):
         """
         if not isinstance(node, ExpressionBase):
             node = str(node)
+
         if isinstance(node, basestring):
             node = parse_expression(node)
+
         if isinstance(node, SymbolNode):
             if node.symbol is None:
                 return 1
             else:
-                return self.context[node]
+                try:
+                    return self.context[node]
+                except KeyError:
+                    return 0
         elif isinstance(node, ValueNode):
             return node.value
         elif isinstance(node, ExpressionNode):
@@ -570,7 +587,10 @@ def register_operator(cls):
     name : TYPE
         Description
     """
-    operator_map[cls.symbol] = cls()
+    inst = cls()
+    operator_map[cls.symbol] = inst
+    for alias in getattr(cls, "aliases", []):
+        operator_map[alias] = inst
     return cls
 
 
@@ -698,11 +718,24 @@ class GreaterThanOrEqual(Operator):
 @register_operator
 class Equal(Operator):
     symbol = "="
+    precedence = 10
+    aliases = ["=="]
 
     def __call__(self, left, right, context):
         left_val = context[left] * left.coefficient
         right_val = context[right] * right.coefficient
         return left_val == right_val
+
+
+@register_operator
+class Unequal(Operator):
+    symbol = "!="
+    precedence = 10
+
+    def __call__(self, left, right, context):
+        left_val = context[left] * left.coefficient
+        right_val = context[right] * right.coefficient
+        return left_val != right_val
 
 
 @register_operator
@@ -749,8 +782,20 @@ class Multplication(Operator):
 
 
 @register_operator
+class Division(Operator):
+    symbol = '/'
+    precedence = 2
+
+    def __call__(self, left, right, context):
+        left_val = context[left] * left.coefficient
+        right_val = context[right] * right.coefficient
+        return left_val / right_val
+
+
+@register_operator
 class Or(Operator):
     symbol = 'or'
+    aliases = ['|', "||"]
 
     def __call__(self, left, right, context):
         return context[left] or context[right]
@@ -759,9 +804,25 @@ class Or(Operator):
 @register_operator
 class And(Operator):
     symbol = "and"
+    aliases = ["&", "&&"]
 
     def __call__(self, left, right, context):
         return context[left] and context[right]
+
+
+@register_operator
+class Append(Operator):
+    symbol = ','
+
+    def __call__(self, left, right, context):
+        lval = context[left]
+        rval = context[right]
+        if not isinstance(lval, tuple):
+            lval = (lval,)
+        if not isinstance(rval, tuple):
+            rval = (rval,)
+
+        return context[left] + context[right]
 
 
 class OrCompoundConstraint(ConstraintExpression):
