@@ -113,7 +113,6 @@ class CompositionSpace(object):
 
     def __init__(self, members):
         self.filter = GlycanCompositionFilter(members)
-        self.symbols = symbolic_expression.SymbolSpace(self.filter.monosaccharides)
 
     @property
     def monosaccharides(self):
@@ -385,6 +384,31 @@ class CompositionGraph(object):
                     self.edges.add(e)
 
     def remove_node(self, node, bridge=True, limit=5):
+        """Removes the Glycan Composition given by `node` from the graph
+        and all edges connecting to it. This will reindex the graph.
+
+        If two Glycan Compositions `x` and `y` are connected *through* `node`,
+        `bridge` is true,  and the shortest path connecting `x` and
+        `y` is longer than the sum of the path from `x` to `node` and from `node`
+        to `y`, create a new edge connecting `x` and `y`, if the new edge is shorter
+        than `limit`.
+
+        Parameters
+        ----------
+        node : CompositionGraphNode-like
+            The node to be removed
+        bridge : bool, optional
+            Whether or not to create new edges
+            bridging neighbors
+        limit : int, optional
+            The maximum path length under which
+            to bridge neighbors
+
+        Returns
+        -------
+        list
+            The list of edges removed
+        """
         node = self[node.glycan_composition]
         subtracted_edges = list(node.edges)
         for edge in subtracted_edges:
@@ -445,7 +469,7 @@ class CompositionGraph(object):
         # use the ABC Integral to catch all numerical types that could be used as an
         # index including builtin int and long, as well as all the NumPy flavors of
         # integers
-        elif isinstance(key, abc_numbers.Integral):
+        elif isinstance(key, (abc_numbers.Integral, slice)):
             return self.nodes[key]
         else:
             try:
@@ -630,7 +654,7 @@ class CompositionRangeRule(CompositionRuleBase):
 
     def __call__(self, obj):
         composition = self.get_composition(obj)
-        if self.expression in composition:
+        if composition.partially_defined(self.expression):
             if self.low is None:
                 return composition[self.expression] <= self.high
             elif self.high is None:
@@ -742,17 +766,26 @@ class CompositionRuleClassifier(object):
 def make_n_glycan_neighborhoods():
     _n_glycan_neighborhoods = OrderedDict()
 
+    _neuraminic = "(%s)" % ' + '.join(map(str, (
+        FrozenMonosaccharideResidue.from_iupac_lite("NeuAc"),
+        FrozenMonosaccharideResidue.from_iupac_lite("NeuGc")
+        )))
+    _hexose = "(%s)" % ' + '.join(
+        map(str, map(FrozenMonosaccharideResidue.from_iupac_lite, ['Hex',])))
+    _hexnac = "(%s)" % ' + '.join(
+        map(str, map(FrozenMonosaccharideResidue.from_iupac_lite, ['HexNAc',])))
+
     high_mannose = CompositionRangeRule(
-        FrozenMonosaccharideResidue.from_iupac_lite("Hex"), 3, 12) & CompositionRangeRule(
-        FrozenMonosaccharideResidue.from_iupac_lite("HexNAc"), 2, 2) & CompositionRangeRule(
-        FrozenMonosaccharideResidue.from_iupac_lite("NeuAc"), 0, 0)
+        _hexose, 3, 12) & CompositionRangeRule(
+        _hexnac, 2, 2) & CompositionRangeRule(
+        _neuraminic, 0, 0)
     high_mannose.name = "high-mannose"
     _n_glycan_neighborhoods['high-mannose'] = high_mannose
 
     over_extended = CompositionRangeRule("%s - %s" % (
-        FrozenMonosaccharideResidue.from_iupac_lite("Hex"),
-        FrozenMonosaccharideResidue.from_iupac_lite("HexNAc")), 3) & CompositionRangeRule(
-        FrozenMonosaccharideResidue.from_iupac_lite("NeuAc"), 1, None)
+        _hexose,
+        _hexnac), 3) & CompositionRangeRule(
+        _neuraminic, 1, None)
     over_extended.name = 'over-extended'
     _n_glycan_neighborhoods[over_extended.name] = over_extended
 
@@ -761,30 +794,27 @@ def make_n_glycan_neighborhoods():
     for i, spec in enumerate(['hybrid', 'bi', 'tri', 'tetra', 'penta']):
         if i == 0:
             _n_glycan_neighborhoods[spec] = CompositionRangeRule(
-                FrozenMonosaccharideResidue.from_iupac_lite(
-                    "HexNAc"), base_hexnac - 1, base_hexnac + 1
+                _hexnac, base_hexnac - 1, base_hexnac + 1
             ) & CompositionRangeRule(
-                FrozenMonosaccharideResidue.from_iupac_lite("NeuAc"), 0, base_neuac) & CompositionRangeRule(
-                FrozenMonosaccharideResidue.from_iupac_lite("Hex"), base_hexnac + i - 1,
+                _neuraminic, 0, base_neuac) & CompositionRangeRule(
+                _hexose, base_hexnac + i - 1,
                 base_hexnac + i + 3)
             _n_glycan_neighborhoods[spec].name = spec
         else:
             sialo = CompositionRangeRule(
-                FrozenMonosaccharideResidue.from_iupac_lite(
-                    "HexNAc"), base_hexnac + i - 1, base_hexnac + i + 1
+                _hexnac, base_hexnac + i - 1, base_hexnac + i + 1
             ) & CompositionRangeRule(
-                FrozenMonosaccharideResidue.from_iupac_lite("NeuAc"), 1, base_neuac + i
+                _neuraminic, 1, base_neuac + i
             ) & CompositionRangeRule(
-                FrozenMonosaccharideResidue.from_iupac_lite("Hex"), base_hexnac + i - 1,
+                _hexose, base_hexnac + i - 1,
                 base_hexnac + i + 2)
             sialo.name = "%s-antennary" % spec
             asialo = CompositionRangeRule(
-                FrozenMonosaccharideResidue.from_iupac_lite(
-                    "HexNAc"), base_hexnac + i - 1, base_hexnac + i + 1
+                _hexnac, base_hexnac + i - 1, base_hexnac + i + 1
             ) & CompositionRangeRule(
-                FrozenMonosaccharideResidue.from_iupac_lite("NeuAc"), 0, 1
+                _neuraminic, 0, 1
             ) & CompositionRangeRule(
-                FrozenMonosaccharideResidue.from_iupac_lite("Hex"), base_hexnac + i - 1,
+                _hexose, base_hexnac + i - 1,
                 base_hexnac + i + 2)
             asialo.name = "asialo-%s-antennary" % spec
             _n_glycan_neighborhoods["%s-antennary" % spec] = sialo
@@ -821,9 +851,9 @@ class NeighborhoodWalker(object):
         query = None
         filters = []
         for rule in neighborhood.rules:
-            if not self.symbols.defined(rule.symbols):
+            if not self.symbols.partially_defined(rule.symbols):
                 continue
-            # elif not rule.is_univariate():
+
             filters.append(rule)
             low = rule.low
             high = rule.high
