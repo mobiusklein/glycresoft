@@ -95,10 +95,12 @@ _SialylatedNGlycanChargeScoringModel = MassScalingChargeStateScoringModel.load(S
 SialylatedNGlycanScorer = ChromatogramScorer(charge_scoring_model=_SialylatedNGlycanChargeScoringModel)
 
 neuac = glycan_composition.FrozenMonosaccharideResidue.from_iupac_lite("NeuAc")
+neugc = glycan_composition.FrozenMonosaccharideResidue.from_iupac_lite("NeuGc")
+neu = glycan_composition.FrozenMonosaccharideResidue.from_iupac_lite("Neu")
 
 
 def is_sialylated(composition):
-    return composition[neuac] > 0
+    return (composition[neuac] + composition[neugc] + composition[neu]) > 0
 
 
 rule_map = {
