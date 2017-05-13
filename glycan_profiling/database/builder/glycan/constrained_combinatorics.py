@@ -1,6 +1,8 @@
 from itertools import product
+from collections import deque
 
 from glypy import GlycanComposition as MemoryGlycanComposition
+from glypy.composition.glycan_composition import FrozenMonosaccharideResidue
 from glypy.io.iupac import IUPACError
 from glycan_profiling.serialize.hypothesis.glycan import GlycanComposition as DBGlycanComposition
 
@@ -9,7 +11,8 @@ from glypy.composition import formula
 from .glycan_source import (
     GlycanTransformer, GlycanHypothesisSerializerBase, GlycanCompositionToClass)
 from glycan_profiling.database.symbolic_expression import (
-    ConstraintExpression, Solution)
+    ConstraintExpression, SymbolContext, SymbolNode, ExpressionNode,
+    ensuretext)
 
 
 def descending_combination_counter(counter):
@@ -18,6 +21,10 @@ def descending_combination_counter(counter):
         lo_hi[0], lo_hi[1] + 1), counter.values())
     for combination in product(*count_ranges):
         yield dict(zip(keys, combination))
+
+
+def normalize_iupac_lite(string):
+    return str(FrozenMonosaccharideResidue.from_iupac_lite(string))
 
 
 class CombinatoricCompositionGenerator(object):
@@ -50,7 +57,7 @@ class CombinatoricCompositionGenerator(object):
                  structure_classifiers=None):
         if structure_classifiers is None:
             structure_classifiers = {"N-Glycan": is_n_glycan_classifier}
-        self.residue_list = residue_list or []
+        self.residue_list = list(map(normalize_iupac_lite, (residue_list or [])))
         self.lower_bound = lower_bound or []
         self.upper_bound = upper_bound or []
         self.constraints = constraints or []
@@ -63,7 +70,28 @@ class CombinatoricCompositionGenerator(object):
 
         if rules_table is None:
             self._build_rules_table()
+
+        self.normalize_rules_table()
+        for constraint in self.constraints:
+            self.normalize_symbols(constraint.expression)
+
         self._iter = None
+
+    def normalize_rules_table(self):
+        rules_table = {}
+        for key, bounds in self.rules_table.items():
+            rules_table[normalize_iupac_lite(key)] = bounds
+        self.rules_table = rules_table
+
+    def normalize_symbols(self, expression):
+        symbol_stack = deque([expression])
+        while symbol_stack:
+            node = symbol_stack.popleft()
+            if isinstance(node, ExpressionNode):
+                symbol_stack.append(node.left)
+                symbol_stack.append(node.right)
+            elif isinstance(node, SymbolNode):
+                node.symbol = normalize_iupac_lite(node.symbol)
 
     def _build_rules_table(self):
         rules_table = {}
@@ -77,7 +105,7 @@ class CombinatoricCompositionGenerator(object):
     def generate(self):
         for combin in descending_combination_counter(self.rules_table):
             passed = True
-            combin = Solution(combin)
+            combin = SymbolContext(combin)
             structure_classes = []
             for constraint in self.constraints:
                 if not constraint(combin):
@@ -183,6 +211,8 @@ def parse_rules_from_file(path):
         return parts[0], int(parts[1]), int(parts[2])
 
     for line in stream:
+        line = ensuretext(line)
+
         if line.startswith(";"):
             continue
         parts = line.replace("\n", "").split(" ")
@@ -195,7 +225,8 @@ def parse_rules_from_file(path):
                 raise Exception("Could not interpret line '%r'" % parts)
 
     for line in stream:
-        if line.startswith("#"):
+        line = ensuretext(line)
+        if line.startswith(";"):
             continue
         line = line.replace("\n", "")
         if line in ["\n", "\r", ""]:
@@ -248,7 +279,7 @@ class ClassificationConstraint(object):
 
         Parameters
         ----------
-        context : Solution
+        context : SymbolContext
 
         Returns
         -------
