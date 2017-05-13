@@ -108,11 +108,11 @@ class CompositionDistributionUpdater(TaskBase):
         self.iterations = 0
         converging = float('inf')
         while converging > self.etol and self.iterations < maxiter:
+            self.iterations += 1
             if self.iterations % 100 == 0:
                 self.log("%f, %d" % (converging, self.iterations))
             pi_last = pi_next
             pi_next = self.update_pi(pi_last)
-            self.iterations += 1
             converging = self.convergence(pi_next, pi_last)
         if converging < self.etol:
             self.log("Converged in %d iterations" % self.iterations)
@@ -242,11 +242,11 @@ def make_blocks(network, observed, threshold=0.0001, regularize=DEFAULT_LAPLACIA
     return BlockLaplacian(network, threshold, regularize)
 
 
-def compute_missing_scores(blocks, observed_scores, t0=0., tm=0.):
+def _reference_compute_missing_scores(blocks, observed_scores, t0=0., tm=0.):
     return -linalg.inv(blocks['mm']).dot(blocks['mo']).dot(observed_scores - t0) + tm
 
 
-def optimize_observed_scores(blocks, lmbda, observed_scores, t0=0.):
+def _reference_optimize_observed_scores(blocks, lmbda, observed_scores, t0=0.):
     S = lmbda * (blocks["oo"] - blocks["om"].dot(linalg.inv(
                  blocks['mm'])).dot(blocks["mo"]))
     B = np.eye(len(observed_scores)) + S
@@ -454,14 +454,6 @@ class GlycomeModel(LaplacianSmoothingModel):
         self.normalized_belongingness_matrix = ProportionMatrixNormalization.normalize(
             self.belongingness_matrix, self._belongingness_normalization)
         self.A0 = self.normalized_belongingness_matrix[self.obs_ix, :]
-
-    def estimate_phi(self, rho, lmbda, threshold):
-        self.set_threshold(threshold)
-        self.apply_belongingness_patch()
-        tau = self.estimate_tau_from_S0(rho, lmbda)
-        self.set_threshold(0)
-        phi0 = self.optimize_observed_scores(lmbda, self.A0.dot(tau))
-        return phi0
 
     def sample_tau(self, rho, lmda):
         sigma_est = np.std(self.S0)
@@ -950,6 +942,36 @@ class ThresholdSelectionGridSearch(object):
             self.model.reset()
         return self.model.optimize_observed_scores(
             solution.lmbda, solution.belongingness_matrix[self.model.obs_ix, :].dot(solution.tau))
+
+    def estimate_phi_missing(self, solution=None, remove_threshold=True, observed_scores=None):
+        if solution is None:
+            solution = self.average_solution()
+        if remove_threshold:
+            self.model.reset()
+        if observed_scores is None:
+            observed_scores = self.estimate_phi_observed(
+                solution=solution, remove_threshold=False)
+        t0 = self.model.A0.dot(solution.tau)
+        tm = self.model.Am.dot(solution.tau)
+        return self.model.compute_missing_scores(observed_scores, t0, tm)
+
+    def annotate_network(self, solution=None, remove_threshold=True):
+        if solution is None:
+            solution = self.average_solution()
+        if remove_threshold:
+            self.model.reset()
+        observed_scores = self.estimate_phi_observed(solution, remove_threshold=False)
+        missing_scores = self.estimate_phi_missing(
+            solution, remove_threshold=False, observed_scores=observed_scores)
+        network = self.model.network.clone()
+
+        for i, ix in enumerate(self.model.obs_ix):
+            network[ix].score = observed_scores[i]
+
+        for i, ix in enumerate(self.model.miss_ix):
+            network[ix].score = missing_scores[i]
+
+        return network
 
     def plot(self, ax=None):
         if ax is None:
