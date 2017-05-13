@@ -64,5 +64,5 @@ def add_user_substituent_rule(rule):
 
 try:
     get_configuration()
-except:
+except Exception:
     set_configuration(DEFAULT_CONFIG)
