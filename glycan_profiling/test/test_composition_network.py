@@ -17,7 +17,42 @@ compositions = [
 ]
 
 
+_PERMETHYLATED_COMPOSITIONS = '''{Fuc^Me:1; Hex^Me:6; HexNAc^Me:5; Neu5NAc^Me:3}$C1H4
+{Fuc^Me:2; Hex^Me:6; HexNAc^Me:5}$C1H4
+{Fuc^Me:2; Hex^Me:6; HexNAc^Me:5; Neu5NAc^Me:2}$C1H4
+{Fuc^Me:2; Hex^Me:6; HexNAc^Me:5; Neu5NAc^Me:3}$C1H4
+{Fuc^Me:3; Hex^Me:6; HexNAc^Me:5; Neu5NAc^Me:2}$C1H4
+{Fuc^Me:1; Hex^Me:3; HexNAc^Me:5}$C1H4
+{Fuc^Me:2; Hex^Me:7; HexNAc^Me:8}$C1H4
+{Hex^Me:6; HexNAc^Me:8; Neu5NAc^Me:1}$C1H4
+{Fuc^Me:1; Hex^Me:3; HexNAc^Me:3}$C1H4
+{Hex^Me:8; HexNAc^Me:3; Neu5NAc^Me:1}$C1H4
+{Fuc^Me:1; Hex^Me:8; HexNAc^Me:3; Neu5NAc^Me:1}$C1H4
+{Fuc^Me:2; Hex^Me:7; HexNAc^Me:4}$C1H4
+{Fuc^Me:3; Hex^Me:7; HexNAc^Me:4}$C1H4
+{Hex^Me:7; HexNAc^Me:5; Neu5NAc^Me:3}$C1H4
+{Fuc^Me:1; Hex^Me:7; HexNAc^Me:5; Neu5NAc^Me:2}$C1H4
+{Fuc^Me:2; Hex^Me:7; HexNAc^Me:5; Neu5NAc^Me:2}$C1H4
+{Fuc^Me:1; Hex^Me:4; HexNAc^Me:4}$C1H4
+{Fuc^Me:3; Hex^Me:4; HexNAc^Me:4; Neu5NAc^Me:1}$C1H4
+{Fuc^Me:3; Hex^Me:4; HexNAc^Me:6; Neu5NAc^Me:1}$C1H4
+{Hex^Me:5; HexNAc^Me:4}$C1H4
+{Hex^Me:5; HexNAc^Me:4; Neu5NAc^Me:2}$C1H4
+{Fuc^Me:1; Hex^Me:5; HexNAc^Me:4; Neu5NAc^Me:1}$C1H4
+{Fuc^Me:1; Hex^Me:5; HexNAc^Me:4; Neu5NAc^Me:2}$C1H4
+{Hex^Me:5; HexNAc^Me:5; Neu5NAc^Me:1}$C1H4
+{Fuc^Me:1; Hex^Me:5; HexNAc^Me:5; Neu5NAc^Me:1}$C1H4
+{Fuc^Me:1; Hex^Me:5; HexNAc^Me:5; Neu5NAc^Me:3}$C1H4
+{Hex^Me:5; HexNAc^Me:7}$C1H4
+{Fuc^Me:1; Hex^Me:5; HexNAc^Me:7}$C1H4
+{Fuc^Me:1; Hex^Me:6; HexNAc^Me:4; Neu5NAc^Me:1}$C1H4
+{Fuc^Me:2; Hex^Me:6; HexNAc^Me:4; Neu5NAc^Me:1}$C1H4
+{Hex^Me:6; HexNAc^Me:5; Neu5NAc^Me:3}$C1H4
+'''.splitlines()
+
+
 class NeighborhoodWalkerTest(unittest.TestCase):
+
     def make_human_definition_buffer(self):
         text = b'''Hex 3 10
 HexNAc 2 9
@@ -43,10 +78,11 @@ HexNAc > (NeuAc + NeuGc) + 1'''
         buff = BytesIO()
         buff.write(text)
         buff.seek(0)
-        return buff        
+        return buff
 
     def generate_compositions(self, rule_buffer):
-        rules, constraints = constrained_combinatorics.parse_rules_from_file(rule_buffer)
+        rules, constraints = constrained_combinatorics.parse_rules_from_file(
+            rule_buffer)
         compositions = list(constrained_combinatorics.CombinatoricCompositionGenerator(
             rules_table=rules, constraints=constraints))
         # strip out glycan classes
@@ -59,19 +95,19 @@ HexNAc > (NeuAc + NeuGc) + 1'''
         g = composition_network.CompositionGraph(compositions)
         self.assertEqual(len(g), 1424)
         walker = composition_network.NeighborhoodWalker(g)
-        
+
         neighborhood_sizes = {
-        "tri-antennary": 164,
-        "bi-antennary": 84,
-        "asialo-bi-antennary": 96,
-        "tetra-antennary": 252,
-        "hybrid": 64,
-        "over-extended": 170,
-        "asialo-tri-antennary": 120,
-        "penta-antennary": 336,
-        "asialo-penta-antennary": 144,
-        "high-mannose": 16,
-        "asialo-tetra-antennary": 136}
+            "tri-antennary": 164,
+            "bi-antennary": 84,
+            "asialo-bi-antennary": 96,
+            "tetra-antennary": 252,
+            "hybrid": 64,
+            "over-extended": 170,
+            "asialo-tri-antennary": 120,
+            "penta-antennary": 336,
+            "asialo-penta-antennary": 144,
+            "high-mannose": 16,
+            "asialo-tetra-antennary": 136}
         for k, v in neighborhood_sizes.items():
             self.assertEqual(v, len(walker.neighborhood_maps[k]), "%s had %d members, not %d" % (
                 k, len(walker.neighborhood_maps[k]), v))
@@ -85,23 +121,21 @@ HexNAc > (NeuAc + NeuGc) + 1'''
         walker = composition_network.NeighborhoodWalker(g)
 
         neighborhood_sizes = {
-        'tri-antennary': 312,
-        'bi-antennary': 120,
-        'asialo-bi-antennary': 144,
-        'tetra-antennary': 600,
-        'hybrid': 92,
-        'over-extended': 363,
-        'asialo-tri-antennary': 180,
-        'penta-antennary': 960,
-        'asialo-penta-antennary': 216,
-        'high-mannose': 16,
-        'asialo-tetra-antennary': 204,
+            'tri-antennary': 312,
+            'bi-antennary': 120,
+            'asialo-bi-antennary': 144,
+            'tetra-antennary': 600,
+            'hybrid': 92,
+            'over-extended': 363,
+            'asialo-tri-antennary': 180,
+            'penta-antennary': 960,
+            'asialo-penta-antennary': 216,
+            'high-mannose': 16,
+            'asialo-tetra-antennary': 204,
         }
         for k, v in neighborhood_sizes.items():
             self.assertEqual(v, len(walker.neighborhood_maps[k]), "%s had %d members, not %d" % (
                 k, len(walker.neighborhood_maps[k]), v))
-
-
 
 
 class CompositionGraphTest(unittest.TestCase):
@@ -132,7 +166,8 @@ class CompositionGraphTest(unittest.TestCase):
         n_order_2_edges = 0
         for edge in g.edges:
             if edge.order == 2:
-                self.assertTrue(edge.node1 in neighbors and edge.node2 in neighbors)
+                self.assertTrue(
+                    edge.node1 in neighbors and edge.node2 in neighbors)
                 n_order_2_edges += 1
         self.assertTrue(n_order_2_edges > 0)
         node_to_remove = g["{Hex:6; HexNAc:2}"]
@@ -140,7 +175,8 @@ class CompositionGraphTest(unittest.TestCase):
         neighbors = [e[node_to_remove] for e in removed_edges]
         for edge in g.edges:
             if edge.order == 3:
-                self.assertTrue(edge.node1 in neighbors and edge.node2 in neighbors)
+                self.assertTrue(
+                    edge.node1 in neighbors and edge.node2 in neighbors)
 
     def test_pickle(self):
         g = composition_network.CompositionGraph(compositions)
@@ -152,7 +188,10 @@ class CompositionGraphTest(unittest.TestCase):
         g.create_edges(1)
         self.assertEqual(g, g.clone())
 
-
+    def test_normalize(self):
+        g = composition_network.CompositionGraph(_PERMETHYLATED_COMPOSITIONS)
+        self.assertIsNotNone(g["{Fuc:1; Hex:6; HexNAc:5; Neu5Ac:3}"])
+        self.assertEqual(g["{Fuc^Me:1; Hex^Me:6; HexNAc^Me:5; Neu5Ac^Me:3}$C1H4"], g["{Fuc:1; Hex:6; HexNAc:5; Neu5Ac:3}"])
 
 
 if __name__ == '__main__':

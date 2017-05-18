@@ -8,6 +8,8 @@ from glycopeptidepy.utils import simple_repr
 from glycan_profiling.database.composition_network import (
     CompositionRangeRule, CompositionRuleClassifier, CompositionRatioRule)
 
+from glycan_profiling.database import symbolic_expression
+
 
 def _degree_monosaccharide_alteration(x):
     try:

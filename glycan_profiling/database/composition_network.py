@@ -13,6 +13,8 @@ except NameError:
     basestring = (str, bytes)
 
 from glypy.composition.glycan_composition import FrozenMonosaccharideResidue, GlycanComposition
+from glypy.composition.composition_transform import strip_derivatization
+
 from glycopeptidepy import HashableGlycanComposition
 from glycopeptidepy.structure.glycan import GlycanCompositionProxy
 from glycopeptidepy.utils import simple_repr
@@ -44,6 +46,12 @@ def n_glycan_distance(c1, c2):
         if c1[_hexose] == c1[_hexnac] or c2[_hexose] == c2[_hexnac]:
             weight /= 2.
     return distance, weight
+
+
+def normalize_composition(c):
+    c = HashableGlycanComposition.parse(c)
+    c = symbolic_expression.GlycanSymbolContext(c)
+    return HashableGlycanComposition.parse(c.serialize())
 
 
 class DijkstraPathFinder(object):
@@ -330,7 +338,7 @@ class CompositionGraph(object):
             An iterable source of GlycanComposition-like objects
         """
         i = 0
-        compositions = map(HashableGlycanComposition.parse, compositions)
+        compositions = map(normalize_composition, compositions)
 
         for c in compositions:
             n = CompositionGraphNode(c, i)
@@ -465,6 +473,7 @@ class CompositionGraph(object):
 
     def __getitem__(self, key):
         if isinstance(key, (basestring, GlycanComposition, GlycanCompositionProxy)):
+            key = normalize_composition(key)
             return self.node_map[key]
         # use the ABC Integral to catch all numerical types that could be used as an
         # index including builtin int and long, as well as all the NumPy flavors of
@@ -627,7 +636,7 @@ class CompositionRuleBase(object):
             composition = obj.glycan_composition
         except AttributeError:
             composition = HashableGlycanComposition.parse(obj)
-        composition = symbolic_expression.SymbolContext(dict(composition))
+        composition = symbolic_expression.GlycanSymbolContext(composition)
         return composition
 
     def get_symbols(self):

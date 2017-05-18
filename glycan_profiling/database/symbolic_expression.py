@@ -9,6 +9,12 @@ from numbers import Number
 
 from six import string_types as basestring, PY3
 
+from glypy.composition import glycan_composition, composition_transform
+
+
+_FMR = glycan_composition.FrozenMonosaccharideResidue
+_MR = glycan_composition.MonosaccharideResidue
+
 
 def ensuretext(x):
     if isinstance(x, str):
@@ -450,7 +456,9 @@ class SymbolSpace(object):
     context : dict
         Internal storage of defined symbols
     """
-    def __init__(self, context):
+    def __init__(self, context=None):
+        if context is None:
+            context = dict()
         self.context = self._format_iterable(context)
 
     @staticmethod
@@ -500,6 +508,9 @@ class SymbolSpace(object):
     def __repr__(self):
         return "{%s}" % ', '.join("%s" % c for c in self.context)
 
+    def __iter__(self):
+        return iter(self.context)
+
 
 class SymbolContext(SymbolSpace):
     """
@@ -512,7 +523,9 @@ class SymbolContext(SymbolSpace):
         Mapping from Symbol to Value
     """
 
-    def __init__(self, context):
+    def __init__(self, context=None):
+        if context is None:
+            context = dict()
         self.context = self._format_map(context)
 
     @staticmethod
@@ -571,6 +584,36 @@ class SymbolContext(SymbolSpace):
 
     def __repr__(self):
         return "SymbolContext(%r)" % self.context
+
+    def items(self):
+        return self.context.items()
+
+
+class GlycanSymbolContext(SymbolContext):
+    @staticmethod
+    def _format_map(mapping):
+        store = dict()
+        for key, value in dict(mapping).items():
+            if isinstance(key, SymbolNode):
+                key = key.symbol
+            elif isinstance(key, (str, _MR)):
+                key = _MR.from_iupac_lite(str(key))
+                key = composition_transform.strip_derivatization(key)
+                key = str(key)
+            store[key] = value
+        return store
+
+    def serialize(self):
+        form = "{%s}" % '; '.join("{}:{}".format(str(k), v) for k, v in sorted(
+            self.items(), key=lambda x: _FMR.from_iupac_lite(
+                x[0]).mass()) if v > 0)
+        return form
+
+    @staticmethod
+    def normalize_key(composition):
+        key_obj = composition.clone()
+        key_obj = composition_transform.strip_derivatization(key_obj)
+        return str(key_obj)
 
 
 Solution = SymbolContext

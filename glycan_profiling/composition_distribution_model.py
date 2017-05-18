@@ -799,7 +799,7 @@ class NetworkReduction(object):
             if best is None:
                 best = value
                 continue
-            if abs(best.opt_lambda - lmbda_target) >= abs(value.opt_lambda - lmbda_target):
+            if abs(best.optimal_lambda - lmbda_target) >= abs(value.optimal_lambda - lmbda_target):
                 if value.threshold < best.threshold:
                     best = value
         return best
@@ -843,7 +843,7 @@ class NetworkTrimmingSearchSolution(object):
 
     def __repr__(self):
         min_press = min(self.press_residuals)
-        opt_lambda = self.opt_lambda
+        opt_lambda = self.optimal_lambda
         return "NetworkTrimmingSearchSolution(%f, %d, %0.3f -> %0.3e)" % (
             self.threshold, self.n_kept, opt_lambda, min_press)
 

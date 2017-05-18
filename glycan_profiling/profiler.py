@@ -53,6 +53,11 @@ def parse_averagine_formula(formula):
 
 
 class SampleConsumer(TaskBase):
+    MS1_ISOTOPIC_PATTERN_WIDTH = 0.95
+    MS1_IGNORE_BELOW = 0.05
+    MSN_ISOTOPIC_PATTERN_WIDTH = 0.80
+    MSN_IGNORE_BELOW = 0.05
+
     def __init__(self, ms_file, averagine=n_glycan_averagine, charge_range=(-1, -8),
                  ms1_peak_picking_args=None, msn_peak_picking_args=None, ms1_deconvolution_args=None,
                  msn_deconvolution_args=None, start_scan_id=None, end_scan_id=None, storage_path=None,
