@@ -40,6 +40,9 @@ class NearestValueLookUp(object):
         lo = 0
         hi = len(array) - 1
 
+        if lo == hi:
+            return lo
+
         while hi - lo:
             i = (hi + lo) / 2
             x = array[i][0]
