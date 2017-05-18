@@ -1,5 +1,5 @@
 from abc import ABCMeta
-from collections import defaultdict
+from collections import defaultdict, Counter
 from operator import attrgetter
 
 import numpy as np
@@ -12,6 +12,7 @@ from glypy.composition.glycan_composition import FrozenGlycanComposition
 from .mass_shift import Unmodified
 
 
+MIN_POINTS_FOR_CHARGE_STATE = 3
 intensity_getter = attrgetter("intensity")
 
 
@@ -213,10 +214,15 @@ class Chromatogram(object):
     @property
     def charge_states(self):
         if self._charge_states is None:
-            states = set()
+            states = Counter()
             for node in self.nodes:
-                states.update(node.charge_states())
-            self._charge_states = states
+                states += (Counter(node.charge_states()))
+            # Require more than `MIN_POINTS_FOR_CHARGE_STATE` data points to accept any
+            # charge state
+            collapsed_states = {k for k, v in states.items() if v >= min(MIN_POINTS_FOR_CHARGE_STATE, len(self))}
+            if not collapsed_states:
+                collapsed_states = states.keys()
+            self._charge_states = collapsed_states
         return self._charge_states
 
     @property
