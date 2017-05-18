@@ -13,7 +13,11 @@ from ms_deisotope.averagine import (
 from glycan_profiling.serialize import (
     DatabaseBoundOperation, GlycanHypothesis, GlycopeptideHypothesis,
     SampleRun, Analysis, AnalysisTypeEnum)
-from glycan_profiling.database.builder.glycan import GlycanCompositionHypothesisMerger
+
+from glycan_profiling.database.builder.glycan import (
+    GlycanCompositionHypothesisMerger,
+    named_reductions, named_derivatizations)
+
 from glycan_profiling.database.builder.glycopeptide.proteomics import mzid_proteome
 from glycan_profiling.chromatogram_tree import (
     MassShift, CompoundMassShift, Formate, Ammonium,
@@ -200,34 +204,33 @@ def validate_mzid_proteins(context, mzid_file, target_proteins=tuple(), target_p
     return list(accepted_target_proteins)
 
 
-named_reductions = {
-    'reduced': 'H2',
-    'deuteroreduced': 'HH[2]'
-}
-
-
 def validate_reduction(context, reduction_string):
     if reduction_string is None:
-        return True
+        return None
     try:
         if reduction_string in named_reductions:
-            return True
+            return named_reductions[reduction_string]
         else:
             if len(Composition(str(reduction_string))) > 0:
-                return True
-    except:
+                return str(reduction_string)
+            else:
+                raise Exception("Invalid")
+    except Exception:
         click.secho("Could not validate reduction '%s'" % reduction_string)
-        raise click.Abort()
+        raise click.Abort("Could not validate reduction '%s'" % reduction_string)
 
 
 def validate_derivatization(context, derivatization_string):
     if derivatization_string is None:
-        return True
+        return derivatization_string
+    if derivatization_string in named_derivatizations:
+        return named_derivatizations[derivatization_string]
     subst = Substituent(derivatization_string)
     if len(subst.composition) == 0:
         click.secho("Could not validate derivatization '%s'" % derivatization_string)
-        raise click.Abort()
-    return True
+        raise click.Abort("Could not validate derivatization '%s'" % derivatization_string)
+    else:
+        return derivatization_string
 
 
 def validate_element(element):

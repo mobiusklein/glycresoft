@@ -85,6 +85,17 @@ class GlycanClassLoader(object):
         return self.get(name)
 
 
+named_reductions = {
+    'reduced': 'H2',
+    'deuteroreduced': 'HH[2]'
+}
+
+
+named_derivatizations = {
+    "permethylated": "methyl"
+}
+
+
 class GlycanTransformer(object):
     def __init__(self, glycan_source, reduction=None, derivatization=None):
         self.glycan_source = glycan_source

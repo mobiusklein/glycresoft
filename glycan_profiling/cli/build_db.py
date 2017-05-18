@@ -309,8 +309,8 @@ def glycan_text(context, text_file, database_connection, reduction, derivatizati
     if name is not None:
         name = validate_glycan_hypothesis_name(context, database_connection, name)
         click.secho("Building Glycan Hypothesis %s" % name, fg='cyan')
-    validate_reduction(context, reduction)
-    validate_derivatization(context, derivatization)
+    reduction = validate_reduction(context, reduction)
+    derivatization = validate_derivatization(context, derivatization)
     builder = TextFileGlycanHypothesisSerializer(
         text_file, database_connection, reduction=reduction, derivatization=derivatization,
         hypothesis_name=name)
@@ -329,8 +329,8 @@ def glycan_combinatorial(context, rule_file, database_connection, reduction, der
     if name is not None:
         name = validate_glycan_hypothesis_name(context, database_connection, name)
         click.secho("Building Glycan Hypothesis %s" % name, fg='cyan')
-    validate_reduction(context, reduction)
-    validate_derivatization(context, derivatization)
+    reduction = validate_reduction(context, reduction)
+    derivatization = validate_derivatization(context, derivatization)
     builder = CombinatorialGlycanHypothesisSerializer(
         rule_file, database_connection, reduction=reduction, derivatization=derivatization,
         hypothesis_name=name)
@@ -389,6 +389,9 @@ def glyspace_glycan_hypothesis(context, database_connection, motif_class, reduct
         serializer_type = NGlycanGlyspaceHypothesisSerializer
     elif motif_class == "o-linked":
         serializer_type = OGlycanGlyspaceHypothesisSerializer
+
+    reduction = validate_reduction(context, reduction)
+    derivatization = validate_derivatization(context, derivatization)
     job = serializer_type(
         database_connection._original_connection, name, reduction, derivatization, filter_funcs,
         simplify=True)
@@ -407,8 +410,9 @@ def from_analysis(context, database_connection, analysis_identifier, reduction, 
     if name is not None:
         name = validate_glycan_hypothesis_name(context, database_connection._original_connection, name)
         click.secho("Building Glycan Hypothesis %s" % name, fg='cyan')
-    validate_reduction(context, reduction)
-    validate_derivatization(context, derivatization)
+    reduction = validate_reduction(context, reduction)
+    derivatization = validate_derivatization(context, derivatization)
+
     analysis = get_by_name_or_id(database_connection.session, Analysis, analysis_identifier)
     if analysis.analysis_type == AnalysisTypeEnum.glycan_lc_ms:
         job = GlycanAnalysisHypothesisSerializer(database_connection._original_connection, analysis.id, name)
