@@ -61,24 +61,6 @@ class MissingPeptideEvidenceHandler(object):
 
 
 class Parser(MzIdentML):
-
-    # @mzid.xml._keepstate
-    # def get_by_id(self, elem_id, id_key=None, **kwargs):
-    #     try:
-    #         index = self._offset_index
-    #         offset = index[elem_id]
-    #         self._source.seek(offset)
-    #         elem = self._find_by_id_no_reset(elem_id, id_key=id_key)
-    #     except (KeyError, mzid.xml.etree.LxmlError):
-    #         try:
-    #             elem = MissingPeptideEvidenceHandler.recover(elem_id)
-    #             if kwargs.get("retrieve_refs", False):
-    #                 elem, _ = self._retrieve_refs(elem, **kwargs)
-    #                 return elem
-    #         except ValueError:
-    #             elem = self._find_by_id_reset(elem_id, id_key=id_key)
-    #     return self._get_info_smart(elem, **kwargs)
-
     def _handle_ref(self, info, key, value):
         try:
             referenced = self.get_by_id(value, retrieve_refs=True)
