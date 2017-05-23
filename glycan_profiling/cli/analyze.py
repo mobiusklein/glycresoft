@@ -189,9 +189,10 @@ def search_glycan(context, database_connection, sample_path,
     adducts = [validate_adduct(adduct, multiplicity)
                for adduct, multiplicity in adducts]
     expanded = []
-    for adduct, mult in adducts:
-        for i in range(1, mult + 1):
-            expanded.append(adduct * i)
+    # for adduct, mult in adducts:
+    #     for i in range(1, mult + 1):
+    #         expanded.append(adduct * i)
+    expanded = MzMLGlycanChromatogramAnalyzer.expand_adducts(dict(adducts))
     adducts = expanded
 
     click.secho("Preparing analysis of %s by %s" %

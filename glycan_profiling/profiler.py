@@ -38,6 +38,7 @@ from glycan_profiling.task import TaskBase
 from brainpy import periodic_table
 from ms_deisotope.averagine import Averagine, glycan as n_glycan_averagine
 from ms_deisotope.output.mzml import ProcessedMzMLDeserializer
+from glycopeptidepy.utils.collectiontools import descending_combination_counter
 
 
 def validate_element(element):
@@ -152,6 +153,23 @@ class CentroidingSampleConsumer(SampleConsumer):
 
 
 class GlycanChromatogramAnalyzer(TaskBase):
+    @staticmethod
+    def expand_adducts(adduct_counts):
+        counts = descending_combination_counter(adduct_counts)
+        combinations = []
+        for combo in counts:
+            scaled = []
+            for k, v in combo.items():
+                if v == 0:
+                    continue
+                scaled.append(k * v)
+            if scaled:
+                base = scaled[0]
+                for ad in scaled[1:]:
+                    base += ad
+                combinations.append(base)
+        return combinations
+
     def __init__(self, database_connection, hypothesis_id, sample_run_id, adducts=None,
                  mass_error_tolerance=1e-5, grouping_error_tolerance=1.5e-5,
                  scoring_model=None, network_sharing=0.2, minimum_mass=500.,
