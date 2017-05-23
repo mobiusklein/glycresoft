@@ -104,9 +104,14 @@ class GlycanLCMSAnalysisCSVSerializer(CSVSerializerBase):
             "apex_time",
             "charge_states",
             "adducts",
+            "line_score",
+            "isotopic_fit",
+            "spacing_fit",
+            "charge_count"
         ]
 
     def convert_object(self, obj):
+        scores = obj.score_components()
         attribs = [
             obj.glycan_composition,
             obj.weighted_neutral_mass,
@@ -120,6 +125,11 @@ class GlycanLCMSAnalysisCSVSerializer(CSVSerializerBase):
             obj.apex_time,
             ';'.join(map(str, obj.charge_states)),
             ';'.join([a.name for a in obj.adducts]),
+            scores.line_score,
+            scores.isotopic_fit,
+            scores.spacing_fit,
+            scores.charge_count,
+
         ]
         return map(str, attribs)
 
