@@ -37,6 +37,9 @@ class EntitySummaryBarChartArtist(ArtistBase):
         self.ax.set_title(self.plot_title, fontsize=28)
         self.ax.set_ylabel(self.y_label, fontsize=28)
 
+    def __len__(self):
+        return len(self.sort_items())
+
     def prepare_x_args(self):
         items = self.sort_items()
         if len(items) == 0:
