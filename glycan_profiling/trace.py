@@ -171,7 +171,18 @@ def prune_bad_adduct_branches(solutions):
                 owner_item = owner.find_overlap(case)
                 if owner_item is None:
                     continue
-                if case.score > owner_item.score:
+                is_close = abs(case.score - owner_item.score) < 0.15
+                is_weaker = case.score > owner_item.score
+                if is_weaker and is_close:
+                    print("%r is close to %r (%r)" % (case, owner_item, adduct))
+                    component_signal = case.total_signal
+                    complement_signal = owner_item.total_signal - component_signal
+                    signal_ratio = complement_signal / component_signal
+                    # The owner is more than half-again as abundant as the
+                    # used-as-adduct-case, 
+                    if signal_ratio > 1.5:
+                        is_weaker = False
+                if is_weaker:
                     new_masked = mask_subsequence(get_chromatogram(owner_item), get_chromatogram(case))
                     new_masked.created_at = "prune_bad_adduct_branches"
                     new_masked.score = owner_item.score
@@ -553,13 +564,25 @@ class ChromatogramProcessor(TaskBase):
         self.solutions = None
         self.accepted_solutions = None
 
+    def make_matcher(self):
+        matcher = self.matcher_type(self.database)
+        return matcher
+
+    def match_compositions(self):
+        matcher = self.make_matcher()
+        matches = matcher.process(self._chromatograms, self.adducts, self.mass_error_tolerance)
+        return matches
+
+    def make_evaluator(self):
+        evaluator = ChromatogramEvaluator(self.scoring_model, self.network)
+        return evaluator
+
     def run(self):
         self.log("Begin Matching Chromatograms")
-        matcher = self.matcher_type(self.database)
-        matches = matcher.process(self._chromatograms, self.adducts, self.mass_error_tolerance)
+        matches = self.match_compositions()
         self.log("End Matching Chromatograms")
         self.log("Begin Evaluating Chromatograms")
-        evaluator = ChromatogramEvaluator(self.scoring_model, self.network)
+        evaluator = self.make_evaluator()
         self.solutions = evaluator.score(
             matches, self.base_coef, self.support_coef,
             smooth=self.smooth, adducts=self.adducts)
