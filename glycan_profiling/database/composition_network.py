@@ -13,7 +13,7 @@ except NameError:
     basestring = (str, bytes)
 
 from glypy.composition.glycan_composition import FrozenMonosaccharideResidue, GlycanComposition
-from glypy.composition.composition_transform import strip_derivatization
+
 
 from glycopeptidepy import HashableGlycanComposition
 from glycopeptidepy.structure.glycan import GlycanCompositionProxy
@@ -21,7 +21,7 @@ from glycopeptidepy.utils import simple_repr
 
 
 from .glycan_composition_filter import GlycanCompositionFilter
-from . import symbolic_expression
+from .. import symbolic_expression
 
 
 _hexose = FrozenMonosaccharideResidue.from_iupac_lite("Hex")
