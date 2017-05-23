@@ -10,7 +10,7 @@ from glypy.composition import formula
 
 from .glycan_source import (
     GlycanTransformer, GlycanHypothesisSerializerBase, GlycanCompositionToClass)
-from glycan_profiling.database.symbolic_expression import (
+from glycan_profiling.symbolic_expression import (
     ConstraintExpression, SymbolContext, SymbolNode, ExpressionNode,
     ensuretext)
 
@@ -155,6 +155,7 @@ class CombinatorialGlycanHypothesisSerializer(GlycanHypothesisSerializerBase):
         structure_class_lookup = self.structure_class_loader
         acc = []
         self.log("Generating Glycan Compositions from Symbolic Rules for %r" % self.hypothesis)
+        counter = 0
         for composition, structure_classes in self.transformer:
             mass = composition.mass()
             composition_string = composition.serialize()
@@ -163,6 +164,7 @@ class CombinatorialGlycanHypothesisSerializer(GlycanHypothesisSerializerBase):
                 calculated_mass=mass, formula=formula_string,
                 composition=composition_string,
                 hypothesis_id=self.hypothesis_id)
+            counter += 1
             self.session.add(inst)
             self.session.flush()
             for structure_class in structure_classes:
@@ -175,6 +177,7 @@ class CombinatorialGlycanHypothesisSerializer(GlycanHypothesisSerializerBase):
             self.session.execute(GlycanCompositionToClass.insert(), acc)
             acc = []
         self.session.commit()
+        self.log("Generated %d glycan compositions" % counter)
 
 
 def tryopen(obj):
