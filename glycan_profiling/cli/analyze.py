@@ -159,7 +159,7 @@ def search_glycan(context, database_connection, sample_path,
                   hypothesis_identifier,
                   analysis_name, adducts, grouping_error_tolerance=1.5e-5,
                   mass_error_tolerance=1e-5, minimum_mass=500.,
-                  scoring_model=None,
+                  scoring_model=None, network_sharing=0.2,
                   output_path=None):
     """Identify glycan compositions from preprocessed LC-MS data, stored in mzML
     format.
@@ -203,6 +203,6 @@ def search_glycan(context, database_connection, sample_path,
         sample_path=sample_path, output_path=output_path, adducts=adducts,
         mass_error_tolerance=mass_error_tolerance,
         grouping_error_tolerance=grouping_error_tolerance, scoring_model=scoring_model,
-        minimum_mass=minimum_mass,
+        minimum_mass=minimum_mass, network_sharing=network_sharing,
         analysis_name=analysis_name)
     analyzer.start()

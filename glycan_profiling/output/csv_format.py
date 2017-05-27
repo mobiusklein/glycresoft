@@ -107,7 +107,9 @@ class GlycanLCMSAnalysisCSVSerializer(CSVSerializerBase):
             "line_score",
             "isotopic_fit",
             "spacing_fit",
-            "charge_count"
+            "charge_count",
+            "ambiguous_with",
+            "used_as_adduct"
         ]
 
     def convert_object(self, obj):
@@ -129,6 +131,9 @@ class GlycanLCMSAnalysisCSVSerializer(CSVSerializerBase):
             scores.isotopic_fit,
             scores.spacing_fit,
             scores.charge_count,
+            ';'.join("%r:%s" % p for p in getattr(self, "ambiguous_with", [])),
+            ';'.join("%r:%s" % p for p in getattr(self, "used_as_adduct", []))
+
 
         ]
         return map(str, attribs)

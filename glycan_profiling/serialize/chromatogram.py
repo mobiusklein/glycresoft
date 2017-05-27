@@ -332,8 +332,8 @@ class Chromatogram(Base, BoundToAnalysis):
         return self.orm_convert(node_type_cache, scan_id_cache)
 
     @classmethod
-    def serialize(cls, obj, session, analysis_id, peak_lookup_table=None, mass_shift_cache=None, scan_lookup_table=None,
-                  node_peak_map=None, *args, **kwargs):
+    def serialize(cls, obj, session, analysis_id, peak_lookup_table=None, mass_shift_cache=None,
+                  scan_lookup_table=None, node_peak_map=None, *args, **kwargs):
         if mass_shift_cache is None:
             mass_shift_cache = MassShiftSerializer(session)
         inst = cls(
@@ -433,6 +433,13 @@ class ChromatogramSolution(Base, BoundToAnalysis, ScoredChromatogram):
         return self.chromatogram.convert()
 
     @property
+    def key(self):
+        if self.composition_group is not None:
+            return self.composition_group._key()
+        else:
+            return self.neutral_mass
+
+    @property
     def neutral_mass(self):
         return self.chromatogram.neutral_mass
 
@@ -453,11 +460,35 @@ class ChromatogramSolution(Base, BoundToAnalysis, ScoredChromatogram):
         composition = self.composition_group.convert() if self.composition_group else None
         chromatogram.composition = composition
         sol = MemoryChromatogramSolution(chromatogram, self.score, GeneralScorer, self.internal_score)
+        used_as_adduct = []
+        for pair in self.used_as_adduct:
+            used_as_adduct.append((pair[0], pair[1].convert()))
+        sol.used_as_adduct = used_as_adduct
+
+        ambiguous_with = []
+        for pair in self.ambiguous_with:
+            ambiguous_with.append((pair[0], pair[1].convert()))
+        sol.ambiguous_with = ambiguous_with
         return sol
+
+    @property
+    def used_as_adduct(self):
+        pairs = []
+        for rel in self._adducted_relationships_adduct:
+            pairs.append((rel.owner.key, rel.mass_shift))
+        return pairs
+
+    @property
+    def ambiguous_with(self):
+        pairs = []
+        for rel in self._adduct_relationships_owned:
+            pairs.append((rel.adducted.key, rel.mass_shift))
+        return pairs
 
     @classmethod
     def serialize(cls, obj, session, analysis_id, peak_lookup_table=None, mass_shift_cache=None,
-                  scan_lookup_table=None, composition_cache=None, node_peak_map=None, *args, **kwargs):
+                  scan_lookup_table=None, composition_cache=None, node_peak_map=None,
+                  *args, **kwargs):
         if mass_shift_cache is None:
             mass_shift_cache = MassShiftSerializer(session)
         if composition_cache is None:
@@ -502,6 +533,14 @@ class GlycanCompositionChromatogram(Base, BoundToAnalysis, ScoredChromatogram):
     entity = relationship(GlycanComposition)
 
     @property
+    def used_as_adduct(self):
+        return self.solution.used_as_adduct
+
+    @property
+    def ambiguous_with(self):
+        return self.solution.ambiguous_with
+
+    @property
     def total_signal(self):
         return self.solution.total_signal
 
@@ -511,7 +550,9 @@ class GlycanCompositionChromatogram(Base, BoundToAnalysis, ScoredChromatogram):
         case = solution.chromatogram.clone(MemoryGlycanCompositionChromatogram)
         case.composition = entity
         solution.chromatogram = case
+
         solution.id = self.id
+        solution.solution_id = self.solution.id
         return solution
 
     @classmethod
@@ -548,12 +589,21 @@ class UnidentifiedChromatogram(Base, BoundToAnalysis, ScoredChromatogram):
     solution = relationship(ChromatogramSolution)
 
     @property
+    def used_as_adduct(self):
+        return self.solution.used_as_adduct
+
+    @property
+    def ambiguous_with(self):
+        return self.solution.ambiguous_with
+
+    @property
     def total_signal(self):
         return self.solution.total_signal
 
     def convert(self):
         solution = self.solution.convert()
         solution.id = self.id
+        solution.solution_id = self.solution.id
         return solution
 
     @classmethod
@@ -579,8 +629,24 @@ class UnidentifiedChromatogram(Base, BoundToAnalysis, ScoredChromatogram):
         return None
 
 
-ChromatogramSolutionAdductedToCompositionGroup = Table(
-    "ChromatogramSolutionAdductedToCompositionGroup", Base.metadata,
-    Column("adducted_solution_id", Integer, ForeignKey(ChromatogramSolution.id, ondelete="CASCADE"), primary_key=True),
-    Column("mass_shift_id", Integer, ForeignKey(CompoundMassShift.id, ondelete='CASCADE'), primary_key=True),
-    Column("owning_composition_id", Integer, ForeignKey(CompositionGroup.id, ondelete="CASCADE"), primary_key=True))
+class ChromatogramSolutionAdductedToChromatogramSolution(Base):
+    __tablename__ = "ChromatogramSolutionAdductedToChromatogramSolution"
+
+    adducted_solution_id = Column(Integer, ForeignKey(
+        ChromatogramSolution.id, ondelete="CASCADE"), primary_key=True)
+    mass_shift_id = Column(Integer, ForeignKey(
+        CompoundMassShift.id, ondelete='CASCADE'), primary_key=True)
+    owning_solution_id = Column(Integer, ForeignKey(
+        ChromatogramSolution.id, ondelete="CASCADE"), primary_key=True)
+
+    owner = relationship(ChromatogramSolution, backref=backref(
+        "_adduct_relationships_owned"),
+        foreign_keys=[owning_solution_id])
+    adducted = relationship(ChromatogramSolution, backref=backref(
+        "_adducted_relationships_adduct"),
+        foreign_keys=[adducted_solution_id])
+    mass_shift = relationship(CompoundMassShift)
+
+    def __repr__(self):
+        template = "{self.__class__.__name__}({self.adducted.key} -{self.mass_shift.name}-> {self.owner.key})"
+        return template.format(self=self)

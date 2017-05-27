@@ -172,7 +172,7 @@ class GlycanChromatogramAnalyzer(TaskBase):
 
     def __init__(self, database_connection, hypothesis_id, sample_run_id, adducts=None,
                  mass_error_tolerance=1e-5, grouping_error_tolerance=1.5e-5,
-                 scoring_model=None, network_sharing=0.2, minimum_mass=500.,
+                 scoring_model=GeneralScorer, network_sharing=0.2, minimum_mass=500.,
                  analysis_name=None):
         self.database_connection = database_connection
         self.hypothesis_id = hypothesis_id
@@ -237,8 +237,9 @@ class GlycanChromatogramAnalyzer(TaskBase):
 
     def make_chromatogram_processor(self, extractor, database):
         proc = ChromatogramProcessor(
-            extractor, database, mass_error_tolerance=self.mass_error_tolerance, adducts=self.adducts,
-            scoring_model=self.scoring_model, network_sharing=self.network_sharing)
+            extractor, database, mass_error_tolerance=self.mass_error_tolerance,
+            adducts=self.adducts, scoring_model=self.scoring_model,
+            network_sharing=self.network_sharing)
         return proc
 
     def run(self):

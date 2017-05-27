@@ -1,18 +1,30 @@
 from collections import defaultdict
 
 from glycan_profiling.task import TaskBase
+from glycan_profiling.chromatogram_tree import ChromatogramFilter
 from glycan_profiling.serialize.hypothesis import GlycanComposition
 from glycan_profiling.serialize import DatabaseBoundOperation
 from glycan_profiling.database.builder.glycan.migrate import (
     GlycanHypothesisMigrator)
+
 from glycan_profiling.database.builder.glycopeptide.migrate import (
-    GlycopeptideHypothesisMigrator, Glycopeptide,
-    Peptide, Protein, GlycanCombination)
-from glycan_profiling.serialize import AnalysisTypeEnum
+    GlycopeptideHypothesisMigrator,
+    Glycopeptide,
+    Peptide,
+    Protein,
+    GlycanCombination)
+
+from glycan_profiling.serialize import (
+    AnalysisTypeEnum,
+    ChromatogramSolutionAdductedToChromatogramSolution)
+
 from glycan_profiling.serialize.serializer import AnalysisSerializer
 
 from ms_deisotope.output.db import (
-    SampleRun, MSScan, DeconvolutedPeak, PrecursorInformation)
+    SampleRun,
+    MSScan,
+    DeconvolutedPeak,
+    PrecursorInformation)
 
 
 def fetch_scans_used_in_chromatogram(chromatogram_set, extractor):
@@ -88,7 +100,7 @@ class SampleMigrator(DatabaseBoundOperation, TaskBase):
     def scan_id(self, ms_scan):
         try:
             scan_id = ms_scan.scan_id
-        except:
+        except AttributeError:
             scan_id = ms_scan.id
         return scan_id
 
@@ -214,7 +226,12 @@ class GlycanCompositionChromatogramAnalysisSerializer(AnalysisMigrationBase):
         self._glycan_hypothesis_migrator = None
 
         self.glycan_db = glycan_db
-        self.chromatogram_set = chromatogram_set
+        self.chromatogram_set = ChromatogramFilter(chromatogram_set)
+        self._index_chromatogram_set()
+
+    def _index_chromatogram_set(self):
+        for i, chroma in enumerate(self.chromatogram_set):
+            chroma.id = i
 
     @property
     def analysis(self):
@@ -235,6 +252,45 @@ class GlycanCompositionChromatogramAnalysisSerializer(AnalysisMigrationBase):
             self._glycan_hypothesis_migrator.migrate_glycan_composition(
                 glycan_composition)
         self._glycan_hypothesis_migrator.commit()
+
+    def locate_adduct_reference_solution(self, chromatogram):
+        if chromatogram.used_as_adduct:
+            for key, adduct in chromatogram.used_as_adduct:
+                disjoint_set_for_key = self.chromatogram_set.key_map[key]
+                hit = disjoint_set_for_key.find_overlap(chromatogram)
+                yield hit, adduct
+
+    def _get_solution_db_id_by_reference(self, ref_id):
+        return self._analysis_serializer._chromatogram_solution_id_map[ref_id]
+
+    def _get_mass_shift_id(self, mass_shift):
+        return self._analysis_serializer._mass_shift_cache.serialize(mass_shift).id
+
+    def express_adduct_relation(self, chromatogram):
+        try:
+            source_id = self._get_solution_db_id_by_reference(chromatogram.id)
+        except KeyError as e:
+            print(e, "Not Registered", chromatogram)
+        seen = set()
+        for related_solution, adduct in self.locate_adduct_reference_solution(
+                chromatogram):
+            if related_solution.id in seen:
+                continue
+            else:
+                seen.add(related_solution.id)
+            try:
+                referenced_id = self._get_solution_db_id_by_reference(related_solution.id)
+                mass_shift_id = self._get_mass_shift_id(adduct)
+                self._analysis_serializer.session.execute(
+                    ChromatogramSolutionAdductedToChromatogramSolution.__table__.insert(),
+                    {
+                        "adducted_solution_id": source_id,
+                        "owning_solution_id": referenced_id,
+                        "mass_shift_id": mass_shift_id
+                    })
+            except KeyError as e:
+                print(e, adduct, chromatogram)
+                continue
 
     def create_analysis(self):
         self._analysis_serializer = AnalysisSerializer(
@@ -263,6 +319,17 @@ class GlycanCompositionChromatogramAnalysisSerializer(AnalysisMigrationBase):
             else:
                 self._analysis_serializer.save_unidentified_chromatogram_solution(
                     chroma)
+
+        for chroma in self.chromatogram_set:
+            if chroma.chromatogram.used_as_adduct:
+                # print("%r %d is used as an adduct (%r)" % (
+                #     chroma, chroma.id, chroma.chromatogram.used_as_adduct))
+                self.express_adduct_relation(chroma)
+            # elif chroma.adducts and not (len(
+            #         chroma.adducts) == 1 and chroma.adducts[0].name == "Unmodified"):
+            #     print("%r %d has adducts (%r)" % (
+            #         chroma, chroma.id, chroma.adducts))
+
         self._analysis_serializer.commit()
 
 

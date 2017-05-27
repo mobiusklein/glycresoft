@@ -157,7 +157,7 @@ def reverse_adduction_search(chromatograms, adducts, mass_error_tolerance, datab
     return ChromatogramFilter(out)
 
 
-def prune_bad_adduct_branches(solutions):
+def prune_bad_adduct_branches(solutions, score_margin=0.05, ratio_threshold=1.5):
     solutions._build_key_map()
     key_map = solutions._key_map
     updated = set()
@@ -171,16 +171,16 @@ def prune_bad_adduct_branches(solutions):
                 owner_item = owner.find_overlap(case)
                 if owner_item is None:
                     continue
-                is_close = abs(case.score - owner_item.score) < 0.15
+                is_close = abs(case.score - owner_item.score) < score_margin
                 is_weaker = case.score > owner_item.score
                 if is_weaker and is_close:
-                    print("%r is close to %r (%r)" % (case, owner_item, adduct))
                     component_signal = case.total_signal
                     complement_signal = owner_item.total_signal - component_signal
                     signal_ratio = complement_signal / component_signal
+
                     # The owner is more than half-again as abundant as the
-                    # used-as-adduct-case, 
-                    if signal_ratio > 1.5:
+                    # used-as-adduct-case
+                    if signal_ratio > ratio_threshold:
                         is_weaker = False
                 if is_weaker:
                     new_masked = mask_subsequence(get_chromatogram(owner_item), get_chromatogram(case))

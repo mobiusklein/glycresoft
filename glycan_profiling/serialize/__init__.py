@@ -21,9 +21,9 @@ from .chromatogram import (
     MassShift,
     CompositionGroup,
     CompoundMassShift,
-    ChromatogramSolutionAdductedToCompositionGroup,
     UnidentifiedChromatogram,
-    GlycanCompositionChromatogram)
+    GlycanCompositionChromatogram,
+    ChromatogramSolutionAdductedToChromatogramSolution)
 
 from .tandem import (
     GlycopeptideSpectrumCluster,

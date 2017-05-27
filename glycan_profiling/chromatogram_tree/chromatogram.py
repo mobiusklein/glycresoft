@@ -448,6 +448,24 @@ class Chromatogram(object):
         rt, intensity = self.as_arrays()
         return rt[np.argmax(intensity)]
 
+    def extract_components(self):
+        adducts = list(self.adducts)
+        labels = {}
+        rest = self
+        for adduct in adducts:
+            with_adduct, rest = rest.bisect_adduct(adduct)
+            labels[adduct] = with_adduct
+
+        labels[Unmodified] = rest
+        adduct_charge_table = defaultdict(dict)
+        for adduct, component in labels.items():
+            charges = list(component.charge_states)
+            rest = component
+            for charge in charges:
+                selected, rest = rest.bisect_charge(charge)
+                adduct_charge_table[adduct][charge] = selected
+        return adduct_charge_table
+
 
 class ChromatogramTreeList(object):
     def __init__(self, roots=None):
@@ -477,9 +495,10 @@ class ChromatogramTreeList(object):
                 hi = i
 
     def _build_node_id_hash(self):
-        self._node_id_hash = set()
+        node_id_hash = set()
         for node in self.unspool():
-            self._node_id_hash.add(node.node_id)
+            node_id_hash.add(node.node_id)
+        self._node_id_hash = frozenset(node_id_hash)
 
     @property
     def node_id_hash(self):
@@ -553,7 +572,7 @@ class ChromatogramTreeList(object):
 
     def __repr__(self):
         return "ChromatogramTreeList(%d nodes, %0.2f-%0.2f)" % (
-            len(self), self[0].scan_time, self[-1].scan_time)
+            len(self), self[0].retention_time, self[-1].retention_time)
 
 
 class ChromatogramTreeNode(object):
@@ -741,7 +760,7 @@ class ChromatogramWrapper(object):
     def __eq__(self, other):
         try:
             return self.chromatogram == get_chromatogram(other)
-        except:
+        except Exception:
             return False
 
     @property
@@ -887,7 +906,7 @@ class EntityChromatogram(Chromatogram):
         except AttributeError:
             try:
                 return self._parse(self.composition).total_composition()
-            except:
+            except Exception:
                 return None
 
 
@@ -923,4 +942,5 @@ def get_chromatogram(instance):
         try:
             return instance.get_chromatogram()
         except AttributeError:
-            raise TypeError("%s does not contain a chromatogram" % instance)
+            raise TypeError(
+                "%s does not contain a chromatogram" % instance)
