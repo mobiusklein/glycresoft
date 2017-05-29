@@ -378,18 +378,6 @@ class ExpressionNode(ExpressionBase):
                 raise TypeError("Could not determine operator type from %r" % op)
         self.right = typify(right)
 
-    # def __hash__(self):
-    #     return hash((self.left, self.op, self.right))
-
-    # def __eq__(self, other):
-    #     if isinstance(other, basestring):
-    #         return str(self) == ensuretext(other)
-    #     else:
-    #         return self.left == other.left and self.right == other.right and self.op == other.op
-
-    # def __ne__(self, other):
-    #     return not self == other
-
     def __repr__(self):
         return "{} {} {}".format(self.left, self.op, self.right)
 
@@ -604,11 +592,9 @@ class GlycanSymbolContext(SymbolContext):
                 key = _FMR.from_iupac_lite(text_key)
                 is_derivatized = composition_transform.has_derivatization(key)
                 if is_derivatized:
-                    key = text_key.rsplit("^")[0]
+                    key = glycan_composition.from_iupac_lite.strip_derivatization(text_key)
                 else:
                     key = text_key
-                # key = composition_transform.strip_derivatization(key)
-                # key = str(key)
             store[key] = value
         return store
 
