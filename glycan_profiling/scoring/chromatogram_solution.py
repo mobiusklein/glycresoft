@@ -11,6 +11,7 @@ from .shape_fitter import AdaptiveMultimodalChromatogramShapeFitter
 from .spacing_fitter import ChromatogramSpacingFitter
 from .charge_state import UniformChargeStateScoringModel
 from .isotopic_fit import IsotopicPatternConsistencyFitter
+from .base import symbolic_composition
 
 from glycan_profiling import symbolic_expression
 from glycan_profiling.chromatogram_tree import ChromatogramInterface
@@ -20,6 +21,10 @@ from glycopeptidepy import HashableGlycanComposition
 epsilon = 1e-6
 
 scores = namedtuple("scores", ["line_score", "isotopic_fit", "spacing_fit", "charge_count"])
+scores_adducted = namedtuple(
+    "scores_adducted",
+    ["line_score", "isotopic_fit", "spacing_fit", "charge_count",
+     "adduct_score"])
 
 
 def logit(x):
@@ -37,16 +42,10 @@ def prod(*x):
     return reduce(mul, x, 1)
 
 
-def symbolic_composition(obj):
-    try:
-        composition = obj.glycan_composition
-    except AttributeError:
-        composition = HashableGlycanComposition.parse(obj)
-    composition = symbolic_expression.GlycanSymbolContext(composition)
-    return composition
-
-
 class ScorerBase(object):
+    def __init__(self, *args, **kwargs):
+        self.feature_set = dict()
+
     def compute_scores(self, chromatogram):
         raise NotImplementedError()
 
@@ -79,13 +78,9 @@ class DummyScorer(ScorerBase):
         return 0.0
 
     def compute_scores(self, chromatogram):
-        # line_score = max(1 - self.shape_fitter_type(chromatogram).line_test, epsilon)
         line_score = 1 - epsilon
-        # isotopic_fit = max(1 - self.isotopic_fitter_type(chromatogram).mean_fit, epsilon)
         isotopic_fit = 1 - epsilon
-        # spacing_fit = max(1 - self.spacing_fitter_type(chromatogram).score * 2, epsilon)
         spacing_fit = 1 - epsilon
-        # charge_count = self.charge_scoring_model.score(chromatogram)
         charge_count = 1 - epsilon
         return scores(line_score, isotopic_fit, spacing_fit, charge_count)
 
@@ -94,22 +89,33 @@ class DummyScorer(ScorerBase):
         return score
 
 
+# charge_delta = 1e-3
+charge_delta = 1e-6
+
+
 class ChromatogramScorer(ScorerBase):
     def __init__(self, shape_fitter_type=AdaptiveMultimodalChromatogramShapeFitter,
                  isotopic_fitter_type=IsotopicPatternConsistencyFitter,
                  charge_scoring_model=UniformChargeStateScoringModel(),
-                 spacing_fitter_type=ChromatogramSpacingFitter):
+                 spacing_fitter_type=ChromatogramSpacingFitter,
+                 adduct_scoring_model=None):
         self.shape_fitter_type = shape_fitter_type
         self.isotopic_fitter_type = isotopic_fitter_type
         self.spacing_fitter_type = spacing_fitter_type
         self.charge_scoring_model = charge_scoring_model
+        self.adduct_scoring_model = adduct_scoring_model
 
     def compute_scores(self, chromatogram):
         line_score = max(1 - self.shape_fitter_type(chromatogram).line_test, epsilon)
         isotopic_fit = max(1 - self.isotopic_fitter_type(chromatogram).mean_fit, epsilon)
         spacing_fit = max(1 - self.spacing_fitter_type(chromatogram).score * 2, epsilon)
-        charge_count = max(self.charge_scoring_model.score(chromatogram) - epsilon, epsilon)
-        return scores(line_score, isotopic_fit, spacing_fit, charge_count)
+        charge_count = max(self.charge_scoring_model.score(chromatogram) - charge_delta, epsilon)
+        if self.adduct_scoring_model is None:
+            return scores(line_score, isotopic_fit, spacing_fit, charge_count)
+        else:
+            adduct_score = max(self.adduct_scoring_model(chromatogram).score - epsilon, epsilon)
+            return scores_adducted(
+                line_score, isotopic_fit, spacing_fit, charge_count, adduct_score)
 
     def clone(self):
         return self.__class__(
