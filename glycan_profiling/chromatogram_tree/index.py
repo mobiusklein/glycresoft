@@ -136,6 +136,10 @@ class ChromatogramFilter(object):
         else:
             return None
 
+    def find_all_by_mass(self, mass, ppm_error_tolerance=1e-5):
+        width = mass * ppm_error_tolerance
+        return self.mass_between(mass - width, mass + width)
+
     def _binary_search(self, mass, error_tolerance=1e-5):
         return binary_search_with_flag(self, mass, error_tolerance)
 
