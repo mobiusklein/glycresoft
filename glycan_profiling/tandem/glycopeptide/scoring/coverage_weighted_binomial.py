@@ -16,6 +16,7 @@ class CoverageWeightedBinomialScorer(BinomialSpectrumMatcher, SimpleCoverageScor
         backbone_mass_series = []
         neutral_losses = tuple(kwargs.pop("neutral_losses", []))
 
+        oxonium_ion_matches = set()
         for frag in self.target.glycan_fragments(
                 all_series=False, allow_ambiguous=False,
                 include_large_glycan_fragments=False,
@@ -23,6 +24,7 @@ class CoverageWeightedBinomialScorer(BinomialSpectrumMatcher, SimpleCoverageScor
             peak = spectrum.has_peak(frag.mass, error_tolerance)
             if peak:
                 solution_map.add(peak, frag)
+                oxonium_ion_matches.add(peak)
                 try:
                     self._sanitized_spectrum.remove(peak)
                 except KeyError:
@@ -36,6 +38,8 @@ class CoverageWeightedBinomialScorer(BinomialSpectrumMatcher, SimpleCoverageScor
                 backbone_mass_series.append(frag)
                 glycosylated_position |= frag.is_glycosylated
                 for peak in spectrum.all_peaks_for(frag.mass, error_tolerance):
+                    if peak in oxonium_ion_matches:
+                        continue
                     solution_map.add(peak, frag)
             if glycosylated_position:
                 n_glycosylated_b_ions += 1
@@ -48,6 +52,8 @@ class CoverageWeightedBinomialScorer(BinomialSpectrumMatcher, SimpleCoverageScor
                 backbone_mass_series.append(frag)
                 glycosylated_position |= frag.is_glycosylated
                 for peak in spectrum.all_peaks_for(frag.mass, error_tolerance):
+                    if peak in oxonium_ion_matches:
+                        continue
                     solution_map.add(peak, frag)
             if glycosylated_position:
                 n_glycosylated_y_ions += 1

@@ -169,12 +169,15 @@ class BinomialSpectrumMatcher(SpectrumMatcherBase):
         solution_map = FragmentMatchMap()
         spectrum = self.spectrum
         backbone_mass_series = []
+
+        oxonium_ion_matches = set()
         for frag in self.target.glycan_fragments(
                 all_series=False, allow_ambiguous=False,
                 include_large_glycan_fragments=False,
                 maximum_fragment_size=4):
             for peak in spectrum.all_peaks_for(frag.mass, error_tolerance):
                 solution_map.add(peak, frag)
+                oxonium_ion_matches.add(peak)
                 try:
                     self._sanitized_spectrum.remove(peak)
                 except KeyError:
@@ -184,6 +187,8 @@ class BinomialSpectrumMatcher(SpectrumMatcherBase):
                 backbone_mass_series.append(frag.mass)
                 n_theoretical += 1
                 for peak in spectrum.all_peaks_for(frag.mass, error_tolerance):
+                    if peak in oxonium_ion_matches:
+                        continue
                     solution_map.add(peak, frag)
                 self._backbone_mass_series
         for frags in self.target.get_fragments('y'):
@@ -191,6 +196,8 @@ class BinomialSpectrumMatcher(SpectrumMatcherBase):
             for frag in frags:
                 n_theoretical += 1
                 for peak in spectrum.all_peaks_for(frag.mass, error_tolerance):
+                    if peak in oxonium_ion_matches:
+                        continue
                     solution_map.add(peak, frag)
         for frag in self.target.stub_fragments(extended=True):
             for peak in spectrum.all_peaks_for(frag.mass, error_tolerance):
