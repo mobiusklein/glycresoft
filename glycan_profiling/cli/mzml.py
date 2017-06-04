@@ -53,6 +53,8 @@ def rt_to_id(ms_file, rt):
               help="Minimum score to accept an isotopic pattern fit in an MS^n scan. Scales with intensity.")
 @click.option("-m", "--missed-peaks", type=int, default=1,
               help="Number of missing peaks to permit before an isotopic fit is discarded")
+@click.option("-mn", "--msn-missed-peaks", type=int, default=1,
+              help="Number of missing peaks to permit before an isotopic fit is discarded in an MSn scan")
 @processes_option
 @click.option("-b", "--background-reduction", type=float, default=5., help=(
               "Background reduction factor. Larger values more aggresively remove low abundance"
@@ -73,9 +75,9 @@ def rt_to_id(ms_file, rt):
 @click.option("-i", "--isotopic-strictness", default=2.0, type=float, cls=HiddenOption)
 def preprocess(ms_file, outfile_path, averagine=None, start_time=None, end_time=None, maximum_charge=None,
                name=None, msn_averagine=None, score_threshold=35., msn_score_threshold=10., missed_peaks=1,
-               background_reduction=5., msn_background_reduction=0., transform=None, msn_transform=None,
-               processes=4, extract_only_tandem_envelopes=False, mzml=True, profile=False,
-               isotopic_strictness=2.0):
+               msn_missed_peaks=1, background_reduction=5., msn_background_reduction=0.,
+               transform=None, msn_transform=None, processes=4, extract_only_tandem_envelopes=False,
+               mzml=True, profile=False, isotopic_strictness=2.0):
     if transform is None:
         transform = []
     if msn_transform is None:
@@ -154,7 +156,7 @@ def preprocess(ms_file, outfile_path, averagine=None, start_time=None, end_time=
     msn_deconvolution_args = {
         "scorer": ms_deisotope.scoring.MSDeconVFitter(msn_score_threshold),
         "averagine": msn_averagine,
-        "max_missed_peaks": missed_peaks,
+        "max_missed_peaks": msn_missed_peaks,
         "truncate_after": SampleConsumer.MSN_ISOTOPIC_PATTERN_WIDTH,
         "ignore_below": SampleConsumer.MSN_IGNORE_BELOW
     }
