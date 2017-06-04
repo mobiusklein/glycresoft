@@ -6,7 +6,10 @@ from glypy.composition.glycan_composition import FrozenGlycanComposition, Frozen
 from glycopeptidepy.utils import simple_repr
 
 from glycan_profiling.database.composition_network import (
-    CompositionRangeRule, CompositionRuleClassifier, CompositionRatioRule)
+    CompositionRangeRule,
+    CompositionRuleClassifier,
+    CompositionRatioRule,
+    normalize_composition)
 
 from glycan_profiling import symbolic_expression
 
@@ -93,8 +96,8 @@ class GlycanCompositionOrderer(object):
 
     def __call__(self, a, b):
         if isinstance(a, basestring):
-            a = FrozenGlycanComposition.parse(a)
-            b = FrozenGlycanComposition.parse(b)
+            a = normalize_composition(a)
+            b = normalize_composition(b)
         keys = self.key_order(sorted(set(a) | set(b), key=self.sorter))
 
         for key in keys:
@@ -120,6 +123,7 @@ class GlycanCompositionClassifierColorizer(object):
         self.default = default
 
     def __call__(self, obj):
+        obj = normalize_composition(obj)
         for rule, color in self.rule_color_map.items():
             if rule(obj):
                 return color
@@ -173,7 +177,7 @@ class GlycanLabelTransformer(object):
         residues = set()
         for item in self._input_series:
             if isinstance(item, basestring):
-                item = FrozenGlycanComposition.parse(item)
+                item = normalize_composition(item)
             residues.update(item)
 
         residues = sorted(residues, key=_degree_monosaccharide_alteration)
@@ -182,7 +186,7 @@ class GlycanLabelTransformer(object):
     def transform(self):
         for item in self._input_series:
             if isinstance(item, basestring):
-                item = FrozenGlycanComposition.parse(item)
+                item = normalize_composition(item)
             counts = [str(item[r]) for r in self.residues]
             yield '[%s]' % '; '.join(counts)
 
