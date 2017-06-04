@@ -31,7 +31,8 @@ class CSVSerializerBase(TaskBase):
 
 class GlycanHypothesisCSVSerializer(CSVSerializerBase):
     def __init__(self, outstream, entities_iterable, delimiter=','):
-        super(GlycanHypothesisCSVSerializer, self).__init__(outstream, entities_iterable, delimiter)
+        super(GlycanHypothesisCSVSerializer, self).__init__(
+            outstream, entities_iterable, delimiter)
 
     def get_header(self):
         return [
@@ -51,7 +52,8 @@ class GlycanHypothesisCSVSerializer(CSVSerializerBase):
 
 class ImportableGlycanHypothesisCSVSerializer(CSVSerializerBase):
     def __init__(self, outstream, entities_iterable):
-        super(ImportableGlycanHypothesisCSVSerializer, self).__init__(outstream, entities_iterable, "\t")
+        super(ImportableGlycanHypothesisCSVSerializer, self).__init__(
+            outstream, entities_iterable, "\t")
 
     def get_header(self):
         return False
@@ -66,7 +68,8 @@ class ImportableGlycanHypothesisCSVSerializer(CSVSerializerBase):
 
 class GlycopeptideHypothesisCSVSerializer(CSVSerializerBase):
     def __init__(self, outstream, entities_iterable, delimiter=','):
-        super(GlycopeptideHypothesisCSVSerializer, self).__init__(outstream, entities_iterable, delimiter)
+        super(GlycopeptideHypothesisCSVSerializer, self).__init__(
+            outstream, entities_iterable, delimiter)
 
     def get_header(self):
         return [
@@ -90,7 +93,8 @@ class GlycopeptideHypothesisCSVSerializer(CSVSerializerBase):
 
 class GlycanLCMSAnalysisCSVSerializer(CSVSerializerBase):
     def __init__(self, outstream, entities_iterable, delimiter=','):
-        super(GlycanLCMSAnalysisCSVSerializer, self).__init__(outstream, entities_iterable, delimiter)
+        super(GlycanLCMSAnalysisCSVSerializer, self).__init__(
+            outstream, entities_iterable, delimiter)
 
     def get_header(self):
         return [
@@ -131,10 +135,8 @@ class GlycanLCMSAnalysisCSVSerializer(CSVSerializerBase):
             scores.isotopic_fit,
             scores.spacing_fit,
             scores.charge_count,
-            ';'.join("%r:%s" % p for p in getattr(self, "ambiguous_with", [])),
-            ';'.join("%r:%s" % p for p in getattr(self, "used_as_adduct", []))
-
-
+            ';'.join("%s:%s" % (p[0], p[1].name) for p in obj.ambiguous_with),
+            ';'.join("%s:%s" % (p[0], p[1].name) for p in obj.used_as_adduct)
         ]
         return map(str, attribs)
 
