@@ -38,7 +38,8 @@ denoise = ms_peak_picker.scan_filter.FTICRBaselineRemoval(scale=2.)
 
 class ScanIDYieldingProcess(Process):
 
-    def __init__(self, mzml_path, queue, start_scan=None, max_scans=None, end_scan=None, no_more_event=None):
+    def __init__(self, mzml_path, queue, start_scan=None, max_scans=None, end_scan=None,
+                 no_more_event=None, ignore_tandem_scans=False):
         Process.__init__(self)
         self.daemon = True
         self.mzml_path = mzml_path
@@ -48,6 +49,8 @@ class ScanIDYieldingProcess(Process):
         self.start_scan = start_scan
         self.max_scans = max_scans
         self.end_scan = end_scan
+        self.ignore_tandem_scans = ignore_tandem_scans
+
         self.no_more_event = no_more_event
 
     def run(self):
@@ -69,7 +72,10 @@ class ScanIDYieldingProcess(Process):
             try:
                 scan, products = next(self.loader)
                 scan_id = scan.id
-                self.queue.put((scan_id, [p.id for p in products]))
+                if not self.ignore_tandem_scans:
+                    self.queue.put((scan_id, [p.id for p in products]))
+                else:
+                    self.queue.put((scan_id, []))
                 if scan_id == end_scan:
                     break
                 index += 1
@@ -679,11 +685,12 @@ class ScanGenerator(TaskBase, ScanGeneratorBase):
                  charge_range=(-1, -8), number_of_helpers=4,
                  ms1_peak_picking_args=None, msn_peak_picking_args=None,
                  ms1_deconvolution_args=None, msn_deconvolution_args=None,
-                 extract_only_tandem_envelopes=False):
+                 extract_only_tandem_envelopes=False, ignore_tandem_scans=False):
         self.ms_file = ms_file
         self.averagine = averagine
         self.time_cache = {}
         self.charge_range = charge_range
+        self.ignore_tandem_scans = ignore_tandem_scans
 
         self.scan_ids_exhausted_event = multiprocessing.Event()
 
@@ -737,8 +744,6 @@ class ScanGenerator(TaskBase, ScanGeneratorBase):
         reader.reset()
         index, interval_tree = build_scan_index(
             reader, self.number_of_helpers + 1, (start_ix, end_ix))
-        # self._scan_interval_tree = ScanIntervalTree.build(
-        #     reader, time_radius=3.)
         self._scan_interval_tree = interval_tree
 
     def _make_transforming_process(self):
@@ -773,7 +778,8 @@ class ScanGenerator(TaskBase, ScanGeneratorBase):
 
         self._scan_yielder_process = ScanIDYieldingProcess(
             self.ms_file, self._input_queue, start_scan=start_scan, end_scan=end_scan,
-            max_scans=max_scans, no_more_event=self.scan_ids_exhausted_event)
+            max_scans=max_scans, no_more_event=self.scan_ids_exhausted_event,
+            ignore_tandem_scans=self.ignore_tandem_scans)
         self._scan_yielder_process.start()
 
         self._deconv_process = self._make_transforming_process()
@@ -807,7 +813,8 @@ class RawScanGenerator(ScanGenerator):
     deconvoluting = False
 
     def __init__(self, ms_file, ms1_peak_picking_args=None, msn_peak_picking_args=None,
-                 extract_only_tandem_envelopes=False, number_of_helpers=4):
+                 number_of_helpers=4, extract_only_tandem_envelopes=False,
+                 ignore_tandem_scans=False):
         self.ms_file = ms_file
 
         self.time_cache = {}
@@ -829,7 +836,9 @@ class RawScanGenerator(ScanGenerator):
         self.msn_peak_picking_args = msn_peak_picking_args
 
         self.extract_only_tandem_envelopes = extract_only_tandem_envelopes
+        self.ignore_tandem_scans = ignore_tandem_scans
         self._scan_interval_tree = None
+
         self.log_controller = self.ipc_logger()
 
     def _make_transforming_process(self):
