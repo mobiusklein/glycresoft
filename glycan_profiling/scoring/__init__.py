@@ -15,5 +15,8 @@ from .chromatogram_solution import (
     ChromatogramSolution, ChromatogramScorer, ModelAveragingScorer,
     CompositionDispatchScorer)
 
+from .adduct_scoring import (
+    AdductMassScalingCountScoringModel)
+
 from .network_scoring import (
     NetworkScoreDistributor)

@@ -1,11 +1,15 @@
 import numpy as np
 
+from .base import ScoringFeatureBase
+
 
 def total_intensity(peaks):
     return sum(p.intensity for p in peaks)
 
 
-class ChromatogramSpacingFitter(object):
+class ChromatogramSpacingFitter(ScoringFeatureBase):
+    feature_type = "time_spacing_score"
+
     def __init__(self, chromatogram):
         self.chromatogram = chromatogram
         self.rt_deltas = []
