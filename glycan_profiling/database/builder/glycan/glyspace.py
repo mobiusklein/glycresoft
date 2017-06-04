@@ -24,6 +24,8 @@ from .glycan_source import (
     GlycanTransformer, GlycanHypothesisSerializerBase,
     formula)
 
+from glycan_profiling.task import TaskBase
+
 
 config = {
     "transient_store_directory": None
@@ -80,6 +82,21 @@ SELECT DISTINCT ?saccharide ?glycoct ?taxon ?motif WHERE {
     FILTER(?motif in (glycoinfo:G00032MO, glycoinfo:G00042MO, glycoinfo:G00034MO,
                       glycoinfo:G00036MO, glycoinfo:G00033MO, glycoinfo:G00038MO,
                       glycoinfo:G00040MO, glycoinfo:G00037MO, glycoinfo:G00044MO))
+}
+"""
+
+restricted_o_glycan_query = """
+SELECT DISTINCT ?saccharide ?glycoct ?taxon ?motif WHERE {
+    ?saccharide a glycan:saccharide .
+    ?saccharide glycan:has_glycosequence ?sequence .
+    ?saccharide skos:exactMatch ?gdb .
+    ?gdb glycan:has_reference ?ref .
+    ?ref glycan:is_from_source ?source .
+    ?source glycan:has_taxon ?taxon
+    FILTER CONTAINS(str(?sequence), "glycoct") .
+    ?sequence glycan:has_sequence ?glycoct .
+    ?saccharide glycan:has_motif ?motif .
+    FILTER(?motif in (glycoinfo:G00032MO, glycoinfo:G00034MO))
 }
 """
 
@@ -171,6 +188,47 @@ class TaxonomyFilter(object):
 
 def is_not_human(structure, name, taxon, motif):
     return taxon != "9606"
+
+
+# TODO: Refactor database builders to include an
+# instance of this object to delegate responsibility
+# to for actually communicating with GlySpace
+class GlyspaceQueryHandler(TaskBase):
+    def __init__(self, query, filter_functions=None):
+        if filter_functions is None:
+            filter_functions = []
+        self.sparql = query
+        self.filter_functions = filter_functions
+        self.response = None
+
+    def query(self):
+        return glyspace.query(self.sparql)
+
+    def translate_response(self, response):
+        for name, glycosequence, taxon, motif in response:
+            taxon = parse_taxon(taxon)
+            try:
+                structure = glycoct.loads(glycosequence, structure_class=NamedGlycan)
+                structure.name = name
+
+                passed = True
+                for func in self.filter_functions:
+                    if func(structure, name=name, taxon=taxon, motif=motif):
+                        passed = False
+                        break
+                if not passed:
+                    continue
+
+                yield structure, motif_to_class_map[motif]
+            except glycoct.GlycoCTError as e:
+                continue
+            except Exception as e:
+                self.error("Error in translate_response of %s" % name, e)
+                continue
+
+    def execute(self):
+        self.response = self.query()
+        return self.translate_response(self.response)
 
 
 class GlyspaceGlycanStructureHypothesisSerializerBase(GlycanHypothesisSerializerBase):
@@ -341,3 +399,11 @@ class OGlycanGlyspaceHypothesisSerializer(GlyspaceGlycanStructureHypothesisSeria
 
     def _get_store_name(self):
         return "o-glycans-query.sparql.xml"
+
+
+class RestrictedOGlycanGlyspaceHypothesisSerializer(GlyspaceGlycanStructureHypothesisSerializerBase):
+    def _get_sparql(self):
+        return restricted_o_glycan_query
+
+    def _get_store_name(self):
+        return "restricted-o-glycans-query.sparql.xml"
