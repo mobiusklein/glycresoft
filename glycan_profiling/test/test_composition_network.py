@@ -97,12 +97,12 @@ HexNAc > (NeuAc + NeuGc) + 1'''
         walker = composition_network.NeighborhoodWalker(g)
 
         neighborhood_sizes = {
-            "tri-antennary": 164,
-            "bi-antennary": 84,
+            "tri-antennary": 188,
+            "bi-antennary": 104,
             "asialo-bi-antennary": 96,
-            "tetra-antennary": 252,
-            "hybrid": 64,
-            "over-extended": 170,
+            "tetra-antennary": 276,
+            "hybrid": 80,
+            # "over-extended": 170,
             "asialo-tri-antennary": 120,
             "penta-antennary": 336,
             "asialo-penta-antennary": 144,
@@ -121,14 +121,14 @@ HexNAc > (NeuAc + NeuGc) + 1'''
         walker = composition_network.NeighborhoodWalker(g)
 
         neighborhood_sizes = {
-            'tri-antennary': 312,
-            'bi-antennary': 120,
+            'tri-antennary': 408,
+            'bi-antennary': 180,
             'asialo-bi-antennary': 144,
-            'tetra-antennary': 600,
-            'hybrid': 92,
-            'over-extended': 363,
+            'tetra-antennary': 720,
+            'hybrid': 140,
+            # 'over-extended': 363,
             'asialo-tri-antennary': 180,
-            'penta-antennary': 960,
+            'penta-antennary': 1080,
             'asialo-penta-antennary': 216,
             'high-mannose': 16,
             'asialo-tetra-antennary': 204,
