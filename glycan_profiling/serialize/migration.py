@@ -463,7 +463,8 @@ class GlycopeptideMSMSAnalysisSerializer(AnalysisMigrationBase):
             analysis_name=self._seed_analysis_name,
             sample_run_id=self._sample_migrator.sample_run_id)
 
-        self._analysis_serializer.set_analysis_type(AnalysisTypeEnum.glycopeptide_lc_msms.name)
+        self._analysis_serializer.set_analysis_type(
+            AnalysisTypeEnum.glycopeptide_lc_msms.name)
 
         self._analysis_serializer.set_peak_lookup_table(
             self._sample_migrator.peak_id_map)
