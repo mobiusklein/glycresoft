@@ -268,10 +268,24 @@ class SpectrumSolutionSet(object):
         self.variance = self._score_variance()
         self._is_simplified = False
         self._is_top_only = False
+        self._target_map = None
+
+    def _invalidate(self):
+        self._target_map = None
 
     @property
     def score(self):
         return self.best_solution().score
+
+    def _make_target_map(self):
+        self._target_map = {
+            sol.target: sol for sol in self
+        }
+
+    def solution_for(self, target):
+        if self._target_map is None:
+            self._make_target_map()
+        return self._target_map[target]
 
     def precursor_ion_mass(self):
         neutral_mass = self.scan.precursor_information.extracted_neutral_mass
@@ -327,6 +341,7 @@ class SpectrumSolutionSet(object):
         self.solutions = [
             x for x in self if x.score >= thresh
         ]
+        self._invalidate()
         return self
 
     def simplify(self):
@@ -344,6 +359,7 @@ class SpectrumSolutionSet(object):
             solutions.append(sm)
         self.solutions = solutions
         self._is_simplified = True
+        self._invalidate()
 
     def get_top_solutions(self):
         score = self.best_solution().score
@@ -354,6 +370,7 @@ class SpectrumSolutionSet(object):
             return
         self.solutions = self.get_top_solutions()
         self._is_top_only = True
+        self._invalidate()
 
 
 class TandemClusterEvaluatorBase(TaskBase):
