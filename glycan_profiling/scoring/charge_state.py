@@ -3,51 +3,40 @@ import numpy as np
 from collections import defaultdict
 import warnings
 
-
-class ChargeStateDistributionScoringModelBase(object):
-    def __init__(self, *args, **kwargs):
-        pass
-
-    def score(self, chromatogram, *args, **kwargs):
-        return 0
-
-    def save(self, file_obj):
-        pass
-
-    @classmethod
-    def load(cls, file_obj):
-        return cls()
+from .base import (
+    UniformCountScoringModelBase,
+    DecayRateCountScoringModelBase,
+    LogarithmicCountScoringModelBase,
+    MassScalingCountScoringModel,
+    ScoringFeatureBase)
 
 
-class UniformChargeStateScoringModel(ChargeStateDistributionScoringModelBase):
-    def score(self, chromatogram, *args, **kwargs):
-        return min(0.4 * chromatogram.n_charge_states, 1.0)
+class ChargeStateDistributionScoringModelBase(ScoringFeatureBase):
+    feature_type = "charge_state_score"
+
+    def get_state_count(self, chromatogram):
+        return chromatogram.n_charge_states
+
+    def get_states(self, chromatogram):
+        return chromatogram.charge_states
 
 
-class DecayRateChargeStateScoringModel(ChargeStateDistributionScoringModelBase):
-    def __init__(self, step=0.4, rate=1.5):
-        self.step = step
-        self.rate = rate
-
-    def score(self, chromatogram, *args, **kwargs):
-        k = chromatogram.n_charge_states
-        return decay(k, self.step, self.rate)
+_CHARGE_MODEL = ChargeStateDistributionScoringModelBase
 
 
-class LogarithmicChargeStateScoringModel(ChargeStateDistributionScoringModelBase):
-    def __init__(self, steps=5):
-        self.base = steps
+class UniformChargeStateScoringModel(
+        _CHARGE_MODEL, UniformCountScoringModelBase):
+    pass
 
-    def _logarithmic_change_of_base(self, k):
-        if k >= self.base:
-            return 1.0
-        return np.log(k) / np.log(self.base)
 
-    def score(self, chromatogram, *args, **kwargs):
-        # Ensure k > 1 so that the value is greater than 0.0
-        # as `log(1) = 0`
-        k = chromatogram.n_charge_states + 1
-        return self._logarithmic_change_of_base(k)
+class DecayRateChargeStateScoringModel(
+        _CHARGE_MODEL, DecayRateCountScoringModelBase):
+    pass
+
+
+class LogarithmicChargeStateScoringModel(
+        _CHARGE_MODEL, LogarithmicCountScoringModelBase):
+    pass
 
 
 def decay(x, step=0.4, rate=1.5):
@@ -71,53 +60,33 @@ def neighborhood_of(x, scale=100.):
     return neighborhood * scale
 
 
-def get_sign(num):
-    if num > 0:
-        return 1
-    else:
-        return -1
-
-
 uniform_model = UniformChargeStateScoringModel()
 decay_model = DecayRateChargeStateScoringModel()
 
 
-class MassScalingChargeStateScoringModel(ChargeStateDistributionScoringModelBase):
-    def __init__(self, table, neighborhood_width=100.):
-        self.table = table
-        self.neighborhood_width = neighborhood_width
+class MassScalingChargeStateScoringModel(_CHARGE_MODEL, MassScalingCountScoringModel):
+    def handle_missing_neighborhood(self, chromatogram, neighborhood, *args, **kwargs):
+        warnings.warn(
+            ("%f was not found for this charge state "
+             "scoring model. Defaulting to uniform model") % neighborhood)
+        return uniform_model.score(chromatogram, *args, **kwargs)
 
-    def get_neighborhood_key(self, neutral_mass):
-        neighborhood = neighborhood_of(neutral_mass, self.neighborhood_width)
-        return neighborhood
+    def handle_missing_bin(self, chromatogram, bins, key, neighborhood, *args, **kwargs):
+        warnings.warn("%d not found for this mass range (%f). Using bin average (%r)" % (
+            key, neighborhood, chromatogram.charge_states))
+        return sum(bins.values()) / float(len(bins))
 
-    def score(self, chromatogram, *args, **kwargs):
-        total = 0.
-        neighborhood = self.get_neighborhood_key(chromatogram.neutral_mass)
-        if neighborhood not in self.table:
-            warnings.warn(
-                ("%f was not found for this charge state "
-                 "scoring model. Defaulting to uniform model") % neighborhood)
-            return uniform_model.score(chromatogram, *args, **kwargs)
-        bins = self.table[neighborhood]
-
-        for charge in chromatogram.charge_states:
-            charge = abs(charge)
-            try:
-                total += bins[(charge)]
-            except KeyError:
-                warnings.warn("%d not found for this mass range (%f). Using bin average (%r)" % (
-                    charge, neighborhood, chromatogram.charge_states))
-                total += sum(bins.values()) / float(len(bins))
-        total = min(total, 1.0)
-        return total
+    def transform_state(self, state):
+        return abs(state)
 
     @classmethod
     def fit(cls, observations, missing=0.01, neighborhood_width=100., ignore_singly_charged=False):
         bins = defaultdict(lambda: defaultdict(float))
 
+        self = cls({})
+
         for sol in observations:
-            neighborhood = neighborhood_of(sol.neutral_mass, neighborhood_width)
+            neighborhood = self.neighborhood_of(sol.neutral_mass)
             for c in sol.charge_states:
                 if ignore_singly_charged and abs(c) == 1:
                     continue
@@ -133,8 +102,7 @@ class MassScalingChargeStateScoringModel(ChargeStateDistributionScoringModelBase
 
         for neighborhood, counts in bins.items():
             for c in all_states:
-                if counts[c] == 0:
-                    counts[c] = missing
+                counts[c] += missing
             total = sum(counts.values())
             entry = {k: v / total for k, v in counts.items()}
             model_table[neighborhood] = entry
