@@ -73,7 +73,7 @@ def analyze():
 def search_glycopeptide(context, database_connection, sample_path, hypothesis_identifier,
                         analysis_name, output_path=None, grouping_error_tolerance=1.5e-5, mass_error_tolerance=1e-5,
                         msn_mass_error_tolerance=2e-5, psm_fdr_threshold=0.05, peak_shape_scoring_model=None,
-                        tandem_scoring_model=None, oxonium_threshold=0.05,
+                        tandem_scoring_model=None, oxonium_threshold=0.15,
                         save_intermediate_results=None, processes=4):
     """Identify glycopeptide sequences from preprocessed LC-MS/MS data, stored in mzML
     format.
@@ -128,7 +128,7 @@ def search_glycopeptide(context, database_connection, sample_path, hypothesis_id
         import cPickle as pickle
         analyzer.log("Saving Intermediate Results")
         with open(save_intermediate_results, 'wb') as handle:
-            pickle.dump((target_hits, decoy_hits), handle)
+            pickle.dump((target_hits, decoy_hits, gps), handle)
 
 
 @analyze.command("search-glycan", short_help=('Search preprocessed data for'
