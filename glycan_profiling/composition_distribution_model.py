@@ -1,4 +1,4 @@
-from collections import OrderedDict, namedtuple
+from collections import OrderedDict, namedtuple, defaultdict
 
 from six import string_types as basestring
 
@@ -253,9 +253,17 @@ def _reference_optimize_observed_scores(blocks, lmbda, observed_scores, t0=0.):
     return linalg.inv(B).dot(observed_scores - t0) + t0
 
 
+def scale_network(network, maximum):
+    relmax = max([n.score for n in network.nodes])
+    for node in network.nodes:
+        node.score = node.score / relmax * maximum
+    return network
+
+
 class LaplacianSmoothingModel(object):
-    def __init__(self, network, belongingness_matrix, threshold, regularize=DEFAULT_LAPLACIAN_REGULARIZATION,
-                 neighborhood_walker=None):
+    def __init__(self, network, belongingness_matrix, threshold,
+                 regularize=DEFAULT_LAPLACIAN_REGULARIZATION, neighborhood_walker=None,
+                 belongingness_normalization='colrow'):
         self.network = network
 
         if neighborhood_walker is None:
@@ -274,7 +282,9 @@ class LaplacianSmoothingModel(object):
         self.A0 = belongingness_matrix[self.obs_ix, :]
         self.Am = belongingness_matrix[self.miss_ix, :]
         self.C0 = [node for node in self.network[self.obs_ix]]
-        self._belongingness_normalization = 'colrow'
+
+        # Intentionally use column-row normalization during fitting?
+        self._belongingness_normalization = belongingness_normalization
 
     @property
     def L_mm_inv(self):
@@ -336,6 +346,10 @@ class ProportionMatrixNormalization(object):
         self.normalize_columns()
         self.normalize_rows()
 
+    def normalize_columns_scaled(self, scaler=2.0):
+        self.normalize_columns()
+        self.matrix = self.matrix * scaler
+
     def clean(self):
         self.matrix[np.isnan(self.matrix)] = 0.0
 
@@ -351,6 +365,9 @@ class ProportionMatrixNormalization(object):
             self.normalize_rows()
         elif method == 'colrow':
             self.normalize_columns_and_rows()
+        elif method.startswith("col") and method[3:4].isdigit():
+            scale = float(method[3:])
+            self.normalize_columns_scaled(scale)
         elif method == 'none' or method is None:
             pass
         else:
@@ -359,10 +376,67 @@ class ProportionMatrixNormalization(object):
         return self.matrix
 
 
+def _has_glycan_composition(x):
+    try:
+        gc = x.glycan_composition
+        return gc is not None
+    except AttributeError:
+        return False
+
+
+class VariableObservationAggregation(object):
+    def __init__(self, observations):
+        self.aggregation = defaultdict(list)
+        self.observations = observations
+        self.collect()
+
+    def collect(self):
+        for obs in self.observations:
+            self.aggregation[obs.glycan_composition].append(obs)
+
+    def estimate_summaries(self):
+        means = OrderedDict()
+        variances = OrderedDict()
+        for key, values in self.aggregation.items():
+            means[key] = np.mean([v.score for v in values])
+            variances[key] = 1. / len(values)
+        return means, variances
+
+    def update(self, network):
+        means, variances = self.estimate_summaries()
+        n = len(network)
+        observed_scores = np.zeros(n)
+        variance_matrix = np.eye(n)
+        nodes = []
+        for key, value in observed_scores.items():
+            node = network[key]
+            observed_scores[node.index] = value
+            node.score = value
+            nodes.append(node)
+            variance_matrix[node.index, node.index] = variances[key]
+        observed_scores = observed_scores[observed_scores > 0]
+        nodes.sort(key=lambda x: x.index)
+        return observed_scores, variance_matrix, nodes
+
+    @classmethod
+    def extract(cls, observations, network):
+        inst = cls(observations)
+        return inst.update(network)
+
+    @classmethod
+    def from_model(cls, model):
+        observations = model.observations
+        network = model.network
+        return cls.extract(observations, network)
+
+
 class GlycomeModel(LaplacianSmoothingModel):
 
     def __init__(self, observed_compositions, network, belongingness_matrix=None,
-                 regularize=DEFAULT_LAPLACIAN_REGULARIZATION):
+                 regularize=DEFAULT_LAPLACIAN_REGULARIZATION,
+                 belongingness_normalization='colrow'):
+        observed_compositions = [
+            o for o in observed_compositions if _has_glycan_composition(o)]
         self._network = network
         self._observed_compositions = observed_compositions
 
@@ -392,7 +466,7 @@ class GlycomeModel(LaplacianSmoothingModel):
             self.belongingness_matrix = np.array(belongingness_matrix)
 
         # Normalize and populate
-        self.normalize_belongingness('colrow')
+        self.normalize_belongingness(belongingness_normalization)
         self._populate()
 
     def _populate(self):
@@ -464,7 +538,7 @@ class GlycomeModel(LaplacianSmoothingModel):
         return np.random.multivariate_normal(self.A0.dot(tau), (1. / lmda) * self.L_oo_inv)
 
     def find_optimal_lambda(self, rho, lambda_max=1, step=0.01, threshold=0.0001, fit_tau=True,
-                            drop_missing=True):
+                            drop_missing=True, renormalize_belongingness='colrow'):
         obs = []
         missed = []
         network = self.network.clone()
@@ -481,7 +555,8 @@ class GlycomeModel(LaplacianSmoothingModel):
         wpl = weighted_laplacian_matrix(network)
         lum = LaplacianSmoothingModel(
             network, self.normalized_belongingness_matrix, threshold,
-            neighborhood_walker=self.neighborhood_walker)
+            neighborhood_walker=self.neighborhood_walker,
+            belongingness_normalization=renormalize_belongingness)
         ident = np.eye(wpl.shape[0])
         for lambd in lambda_values:
             if fit_tau:
@@ -497,7 +572,8 @@ class GlycomeModel(LaplacianSmoothingModel):
         return lambda_values, np.array(press)
 
     def find_threshold_and_lambda(self, rho, lambda_max=1., lambda_step=0.01, threshold_start=0.,
-                                  threshold_step=0.2, fit_tau=True, drop_missing=True):
+                                  threshold_step=0.2, fit_tau=True, drop_missing=True,
+                                  renormalize_belongingness='colrow'):
         solutions = NetworkReduction()
         limit = max(self.S0)
         start = max(min(self.S0), threshold_start)
@@ -513,6 +589,7 @@ class GlycomeModel(LaplacianSmoothingModel):
                     obs.append(node.score)
             if len(obs) == 0:
                 break
+            obs = np.array(obs)
             lambda_values = np.arange(0.01, lambda_max, lambda_step)
             press = []
             if drop_missing:
@@ -522,7 +599,8 @@ class GlycomeModel(LaplacianSmoothingModel):
             ident = np.eye(wpl.shape[0])
             lum = LaplacianSmoothingModel(
                 network, self.normalized_belongingness_matrix, threshold,
-                neighborhood_walker=self.neighborhood_walker)
+                neighborhood_walker=self.neighborhood_walker,
+                belongingness_normalization=renormalize_belongingness)
             lum.apply_belongingness_patch()
             updates = []
             taus = []
@@ -532,6 +610,8 @@ class GlycomeModel(LaplacianSmoothingModel):
                 else:
                     tau = np.zeros(self.A0.shape[1])
                 T = lum.optimize_observed_scores(lambd, lum.A0.dot(tau))
+                # Try rescaling
+                # T = T / T.max() * obs.max()
                 A = ident + lambd * wpl
 
                 H = np.linalg.inv(A)
@@ -600,7 +680,7 @@ class GroupBelongingnessMatrix(object):
         self.belongingness_matrix = np.array(belongingness_matrix)
         self.groups = [str(x) for x in groups]
         self.members = [str(x) for x in members]
-        self._column_indices = OrderedDict([(k, i) for i, k in enumerate(groups)])
+        self._column_indices = OrderedDict([(k, i) for i, k in enumerate(self.groups)])
         self._member_indices = OrderedDict([(k, i) for i, k in enumerate(self.members)])
 
     def _column_indices_by_name(self, names):
@@ -883,7 +963,9 @@ class ThresholdSelectionGridSearch(object):
                 continue
             stack.append(np.array(level.taus).mean(axis=0))
             tau_magnitude.append(
-                (np.abs(level.taus).sum()) + ((level.threshold / 4.) + 0.75))
+                (np.abs(level.taus).sum()) + ((level.threshold / 4.) + 0.75)
+                # (np.abs(level.taus).sum()) * ((level.threshold / 3.) + (1 - (1. / 3.)))
+                )
             xaxis.append(level.threshold)
         tau_magnitude = np.array(tau_magnitude)
         apex = peak_indices(tau_magnitude)
@@ -955,21 +1037,26 @@ class ThresholdSelectionGridSearch(object):
         tm = self.model.Am.dot(solution.tau)
         return self.model.compute_missing_scores(observed_scores, t0, tm)
 
-    def annotate_network(self, solution=None, remove_threshold=True):
+    def annotate_network(self, solution=None, remove_threshold=True, include_missing=True):
         if solution is None:
             solution = self.average_solution()
         if remove_threshold:
             self.model.reset()
         observed_scores = self.estimate_phi_observed(solution, remove_threshold=False)
-        missing_scores = self.estimate_phi_missing(
-            solution, remove_threshold=False, observed_scores=observed_scores)
+
+        if include_missing:
+            missing_scores = self.estimate_phi_missing(
+                solution, remove_threshold=False,
+                observed_scores=observed_scores)
+
         network = self.model.network.clone()
 
         for i, ix in enumerate(self.model.obs_ix):
             network[ix].score = observed_scores[i]
 
-        for i, ix in enumerate(self.model.miss_ix):
-            network[ix].score = missing_scores[i]
+        if include_missing:
+            for i, ix in enumerate(self.model.miss_ix):
+                network[ix].score = missing_scores[i]
 
         return network
 
