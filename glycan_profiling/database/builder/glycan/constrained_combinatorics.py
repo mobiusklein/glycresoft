@@ -210,31 +210,41 @@ def parse_rules_from_file(path):
     constraints = []
     stream = tryopen(path)
 
+    i = 0
+
     def cast(parts):
         return parts[0], int(parts[1]), int(parts[2])
 
     for line in stream:
+        i += 1
         line = ensuretext(line)
 
         if line.startswith(";"):
             continue
         parts = line.replace("\n", "").split(" ")
-        if len(parts) == 3:
-            ranges.append(cast(parts))
-        elif len(parts) == 1:
-            if parts[0] in ["\n", "\r", ""]:
-                break
-            else:
-                raise Exception("Could not interpret line '%r'" % parts)
+        try:
+            if len(parts) == 3:
+                ranges.append(cast(parts))
+            elif len(parts) == 1:
+                if parts[0] in ["\n", "\r", ""]:
+                    break
+                else:
+                    raise Exception("Could not interpret line '%r' at line %d" % (parts, i))
+        except Exception as e:
+            raise Exception("Failed to interpret line %r at line %d (%r)" % (parts, i, e))
 
     for line in stream:
+        i += 1
         line = ensuretext(line)
         if line.startswith(";"):
             continue
         line = line.replace("\n", "")
         if line in ["\n", "\r", ""]:
             break
-        constraints.append(ConstraintExpression.parse(line))
+        try:
+            constraints.append(ConstraintExpression.parse(line))
+        except Exception as e:
+            raise Exception("Failed to interpret line %r at line %d (%r)" % (line, i, e))            
 
     rules_table = CombinatoricCompositionGenerator.build_rules_table(
         *zip(*ranges))
