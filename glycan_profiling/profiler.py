@@ -31,7 +31,7 @@ from glycan_profiling.tandem.glycopeptide import (
 
 
 from glycan_profiling.scan_cache import (
-    ThreadedDatabaseScanCacheHandler, ThreadedMzMLScanCacheHandler)
+    ThreadedMzMLScanCacheHandler)
 
 from glycan_profiling.task import TaskBase
 
@@ -66,7 +66,7 @@ class SampleConsumer(TaskBase):
                  extract_only_tandem_envelopes=False, ignore_tandem_scans=False):
 
         if cache_handler_type is None:
-            cache_handler_type = ThreadedDatabaseScanCacheHandler
+            cache_handler_type = ThreadedMzMLScanCacheHandler
         if isinstance(averagine, basestring):
             averagine = parse_averagine_formula(averagine)
 
