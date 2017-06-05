@@ -2,6 +2,9 @@ from collections import defaultdict
 from glypy import Composition
 
 
+mass_shift_index = dict()
+
+
 class MassShiftBase(object):
     def __eq__(self, other):
         try:
@@ -16,12 +19,16 @@ class MassShiftBase(object):
     def __hash__(self):
         return hash(self.name)
 
+    def _register_name(self):
+        mass_shift_index[self.name] = self.composition
+
 
 class MassShift(MassShiftBase):
     def __init__(self, name, composition):
         self.name = intern(name)
         self.composition = composition
         self.mass = composition.mass
+        self._register_name()
 
     def __repr__(self):
         return "MassShift(%s, %s)" % (self.name, self.composition)
@@ -55,6 +62,7 @@ class CompoundMassShift(MassShiftBase):
 
         self._compute_composition()
         self._compute_name()
+        self._register_name()
 
     def _compute_composition(self):
         composition = Composition()
