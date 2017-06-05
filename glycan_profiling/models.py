@@ -1,9 +1,12 @@
 from io import StringIO
-from glypy.composition import glycan_composition
 
 from glycan_profiling.scoring.adduct_scoring import AdductMassScalingCountScoringModel
-from glycan_profiling.scoring import MassScalingChargeStateScoringModel, ChromatogramScorer, CompositionDispatchScorer
-
+from glycan_profiling.scoring import (
+    MassScalingChargeStateScoringModel, ChromatogramScorer)
+from glycan_profiling.scoring.base import (
+    CompositionDispatchingModel,
+    is_sialylated,
+    DummyFeature)
 
 _UnsialylatedNGlycanChargeScoringModel = MassScalingChargeStateScoringModel.load(StringIO(u'''
 {
@@ -153,19 +156,17 @@ AmmoniumAdductFeature = AdductMassScalingCountScoringModel.load(StringIO(u'''
 '''))
 
 
-neuac = glycan_composition.FrozenMonosaccharideResidue.from_iupac_lite("NeuAc")
-neugc = glycan_composition.FrozenMonosaccharideResidue.from_iupac_lite("NeuGc")
-neu = glycan_composition.FrozenMonosaccharideResidue.from_iupac_lite("Neu")
+GeneralizedChargeScoringModel = CompositionDispatchingModel({
+    is_sialylated: _SialylatedNGlycanChargeScoringModel,
+    lambda x: not is_sialylated(x): _UnsialylatedNGlycanChargeScoringModel
+}, _SialylatedNGlycanChargeScoringModel)
 
 
-def is_sialylated(composition):
-    return (composition[neuac] + composition[neugc] + composition[neu]) > 0
+GeneralScorer = ChromatogramScorer()
+GeneralScorer.add_feature(GeneralizedChargeScoringModel)
 
 
-rule_map = {
-    is_sialylated: SialylatedNGlycanScorer,
-    lambda x: not is_sialylated(x): UnsialylatedNGlycanScorer
+ms1_model_features = {
+    "ammonium_adducts": AmmoniumAdductFeature,
+    "null_charge": DummyFeature("charge_count", "null_charge_model"),
 }
-
-
-GeneralScorer = CompositionDispatchScorer(rule_map, SialylatedNGlycanScorer)

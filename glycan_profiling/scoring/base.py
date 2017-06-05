@@ -36,6 +36,25 @@ class ScoringFeatureBase(object):
             return name
 
 
+class DummyFeature(ScoringFeatureBase):
+    def __init__(self, name, feature_type):
+        self.name = name
+        self.feature_type = feature_type
+
+    def score(self, chromatogram, *args, **kwargs):
+        return 0.985
+
+    def get_feature_type(self):
+        return self.feature_type
+
+    def get_feature_name(self):
+        name = getattr(self, "name", None)
+        if name is None:
+            return "%s:%s" % (self.get_feature_type(), self.__name__)
+        else:
+            return name
+
+
 @add_metaclass(ABCMeta)
 class DiscreteCountScoringModelBase(object):
     def __init__(self, *args, **kwargs):
@@ -162,7 +181,7 @@ class MassScalingCountScoringModel(DiscreteCountScoringModelBase):
         return total
 
 
-class CompositionDispatchingModel(object):
+class CompositionDispatchingModel(ScoringFeatureBase):
     def __init__(self, rule_model_map, default_model):
         self.rule_model_map = rule_model_map
         self.default_model = default_model
@@ -186,6 +205,15 @@ class CompositionDispatchingModel(object):
         composition = self.get_composition(chromatogram)
         model = self.find_model(composition)
         return model.score(chromatogram, *args, **kwargs)
+
+    def get_feature_type(self):
+        return self.default_model.get_feature_type()
+
+    def get_feature_name(self):
+        return "%s:%s(%s)" % (
+            self.get_feature_type(), self.__class__.__name__,
+            ", ".join([v.get_feature_name()
+                       for v in self.rule_model_map.values()]))
 
 
 neuac = FMR.from_iupac_lite("NeuAc")

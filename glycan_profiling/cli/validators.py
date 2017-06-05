@@ -20,11 +20,13 @@ from glycan_profiling.database.builder.glycan import (
 
 from glycan_profiling.database.builder.glycopeptide.proteomics import mzid_proteome
 from glycan_profiling.chromatogram_tree import (
-    MassShift, CompoundMassShift, Formate, Ammonium,
+    MassShift, Formate, Ammonium,
     Sodiated)
 
 from glycan_profiling.tandem.glycopeptide.scoring import (
     binomial_score, simple_score, coverage_weighted_binomial, SpectrumMatcherBase)
+
+from glycan_profiling.models import ms1_model_features
 
 from glycopeptidepy.utils.collectiontools import decoratordict
 from glycopeptidepy.structure.modification import ModificationTable
@@ -312,7 +314,7 @@ def get_by_name_or_id(session, model_type, name_or_id):
             inst = session.query(model_type).filter(
                 model_type.name == name_or_id).one()
             return inst
-        except:
+        except Exception:
             raise click.BadParameter("Could not locate an instance of %r with identifier %r" % (
                 model_type.__name__, name_or_id))
 
@@ -325,3 +327,12 @@ def validate_database_unlocked(database_connection):
         return True
     except OperationalError:
         return False
+
+
+def validate_ms1_feature_name(feature_name):
+    try:
+        return ms1_model_features[feature_name]
+    except KeyError:
+        raise click.Abort(
+            "Could not recognize scoring feature by name %r" % (
+                feature_name,))

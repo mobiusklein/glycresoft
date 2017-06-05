@@ -78,13 +78,25 @@ class ChromatogramScoreSet(object):
     def __repr__(self):
         return "%s(%s)" % (self.__class__.__name__, str(self.scores)[1:-1])
 
+    def __getitem__(self, key):
+        return self.scores[key]
+
     def __getattr__(self, key):
         if key == "scores":
             raise AttributeError(key)
-        return self.scores[key]
+        try:
+            return self.scores[key]
+        except KeyError:
+            raise AttributeError(key)
 
     def items(self):
         return self.scores.items()
+
+    def product(self):
+        return prod(*self)
+
+    def logitsum(self):
+        return logitsum(self)
 
 
 class DummyScorer(ScorerBase):
