@@ -62,7 +62,8 @@ class SampleConsumer(TaskBase):
     def __init__(self, ms_file, averagine=n_glycan_averagine, charge_range=(-1, -8),
                  ms1_peak_picking_args=None, msn_peak_picking_args=None, ms1_deconvolution_args=None,
                  msn_deconvolution_args=None, start_scan_id=None, end_scan_id=None, storage_path=None,
-                 sample_name=None, cache_handler_type=None, n_processes=5, extract_only_tandem_envelopes=False):
+                 sample_name=None, cache_handler_type=None, n_processes=5,
+                 extract_only_tandem_envelopes=False, ignore_tandem_scans=False):
 
         if cache_handler_type is None:
             cache_handler_type = ThreadedDatabaseScanCacheHandler
@@ -85,7 +86,8 @@ class SampleConsumer(TaskBase):
             msn_peak_picking_args=msn_peak_picking_args,
             ms1_deconvolution_args=ms1_deconvolution_args,
             msn_deconvolution_args=msn_deconvolution_args,
-            extract_only_tandem_envelopes=extract_only_tandem_envelopes)
+            extract_only_tandem_envelopes=extract_only_tandem_envelopes,
+            ignore_tandem_scans=ignore_tandem_scans)
 
         self.start_scan_id = start_scan_id
         self.end_scan_id = end_scan_id
