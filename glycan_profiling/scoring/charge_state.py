@@ -12,7 +12,7 @@ from .base import (
 
 
 class ChargeStateDistributionScoringModelBase(ScoringFeatureBase):
-    feature_type = "charge_state_score"
+    feature_type = "charge_count"
 
     def get_state_count(self, chromatogram):
         return chromatogram.n_charge_states

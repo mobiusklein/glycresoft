@@ -1,4 +1,4 @@
-from collections import namedtuple
+from collections import namedtuple, OrderedDict
 from operator import mul
 try:
     reduce
@@ -44,7 +44,17 @@ def prod(*x):
 
 class ScorerBase(object):
     def __init__(self, *args, **kwargs):
-        self.feature_set = dict()
+        self.feature_set = OrderedDict()
+
+    def add_feature(self, scoring_feature):
+        if scoring_feature is None:
+            return
+        feature_type = scoring_feature.get_feature_type()
+        self.feature_set[feature_type] = scoring_feature
+
+    def features(self):
+        for feature in self.feature_set.values():
+            yield feature
 
     def compute_scores(self, chromatogram):
         raise NotImplementedError()
@@ -56,6 +66,25 @@ class ScorerBase(object):
     def score(self, chromatogram):
         score = reduce(mul, self.compute_scores(chromatogram), 1.0)
         return score
+
+
+class ChromatogramScoreSet(object):
+    def __init__(self, scores):
+        self.scores = OrderedDict(scores)
+
+    def __iter__(self):
+        return iter(self.scores.values())
+
+    def __repr__(self):
+        return "%s(%s)" % (self.__class__.__name__, str(self.scores)[1:-1])
+
+    def __getattr__(self, key):
+        if key == "scores":
+            raise AttributeError(key)
+        return self.scores[key]
+
+    def items(self):
+        return self.scores.items()
 
 
 class DummyScorer(ScorerBase):
@@ -82,15 +111,14 @@ class DummyScorer(ScorerBase):
         isotopic_fit = 1 - epsilon
         spacing_fit = 1 - epsilon
         charge_count = 1 - epsilon
-        return scores(line_score, isotopic_fit, spacing_fit, charge_count)
+        return ChromatogramScoreSet([
+            ("line_score", line_score), ("isotopic_fit", isotopic_fit),
+            ("spacing_fit", spacing_fit), ("charge_count", charge_count)
+        ])
 
     def logitscore(self, chromatogram):
         score = logitsum(self.compute_scores(chromatogram))
         return score
-
-
-# charge_delta = 1e-3
-charge_delta = 1e-6
 
 
 class ChromatogramScorer(ScorerBase):
@@ -98,28 +126,27 @@ class ChromatogramScorer(ScorerBase):
                  isotopic_fitter_type=IsotopicPatternConsistencyFitter,
                  charge_scoring_model=UniformChargeStateScoringModel(),
                  spacing_fitter_type=ChromatogramSpacingFitter,
-                 adduct_scoring_model=None):
-        self.shape_fitter_type = shape_fitter_type
-        self.isotopic_fitter_type = isotopic_fitter_type
-        self.spacing_fitter_type = spacing_fitter_type
-        self.charge_scoring_model = charge_scoring_model
-        self.adduct_scoring_model = adduct_scoring_model
+                 adduct_scoring_model=None, *models):
+        super(ChromatogramScorer, self).__init__()
+        self.add_feature(shape_fitter_type)
+        self.add_feature(isotopic_fitter_type)
+        self.add_feature(spacing_fitter_type)
+        self.add_feature(charge_scoring_model)
+        self.add_feature(adduct_scoring_model)
+        for model in models:
+            self.add_feature(model)
 
     def compute_scores(self, chromatogram):
-        line_score = max(1 - self.shape_fitter_type(chromatogram).line_test, epsilon)
-        isotopic_fit = max(1 - self.isotopic_fitter_type(chromatogram).mean_fit, epsilon)
-        spacing_fit = max(1 - self.spacing_fitter_type(chromatogram).score * 2, epsilon)
-        charge_count = max(self.charge_scoring_model.score(chromatogram) - charge_delta, epsilon)
-        if self.adduct_scoring_model is None:
-            return scores(line_score, isotopic_fit, spacing_fit, charge_count)
-        else:
-            adduct_score = max(self.adduct_scoring_model(chromatogram).score - epsilon, epsilon)
-            return scores_adducted(
-                line_score, isotopic_fit, spacing_fit, charge_count, adduct_score)
+        scores = []
+        for model in self.features():
+            scores.append((model.get_feature_type(), model.score(chromatogram)))
+        return ChromatogramScoreSet(scores)
 
     def clone(self):
-        return self.__class__(
-            self.shape_fitter_type, self.isotopic_fitter_type, self.charge_scoring_model, self.spacing_fitter_type)
+        dup = self.__class__()
+        for feature in self.features():
+            dup.add_feature(feature)
+        return dup
 
 
 class ModelAveragingScorer(ScorerBase):

@@ -4,6 +4,7 @@ from six import add_metaclass
 
 from glycan_profiling import symbolic_expression
 from glycopeptidepy import HashableGlycanComposition
+from glypy.composition.glycan_composition import FrozenMonosaccharideResidue as FMR
 
 
 epsilon = 1e-6
@@ -22,13 +23,15 @@ class ScoringFeatureBase(object):
     name = None
     feature_type = None
 
+    @classmethod
     def get_feature_type(self):
         return self.feature_type
 
+    @classmethod
     def get_feature_name(self):
         name = getattr(self, "name", None)
         if name is None:
-            return self.get_feature_type()
+            return "%s:%s" % (self.get_feature_type(), self.__name__)
         else:
             return name
 
@@ -62,7 +65,7 @@ class DiscreteCountScoringModelBase(object):
 
 class UniformCountScoringModelBase(DiscreteCountScoringModelBase):
     def score(self, chromatogram, *args, **kwargs):
-        return min(0.4 * self.get_state_count(chromatogram), 1.0)
+        return min(0.4 * self.get_state_count(chromatogram), 1.0) - epsilon
 
 
 def decay(x, step=0.4, rate=1.5):
@@ -79,7 +82,7 @@ class DecayRateCountScoringModelBase(DiscreteCountScoringModelBase):
 
     def score(self, chromatogram, *args, **kwargs):
         k = self.get_state_count(chromatogram)
-        return decay(k, self.step, self.rate)
+        return decay(k, self.step, self.rate) - epsilon
 
 
 class LogarithmicCountScoringModelBase(DiscreteCountScoringModelBase):
@@ -95,7 +98,7 @@ class LogarithmicCountScoringModelBase(DiscreteCountScoringModelBase):
         # Ensure k > 1 so that the value is greater than 0.0
         # as `log(1) = 0`
         k = self.get_state_count(chromatogram) + 1
-        return self._logarithmic_change_of_base(k)
+        return self._logarithmic_change_of_base(k) - epsilon
 
 
 def ones(x):
@@ -155,7 +158,7 @@ class MassScalingCountScoringModel(DiscreteCountScoringModelBase):
             except KeyError:
                 total += self.handle_missing_bin(
                     chromatogram, bins, state, neighborhood, *args, **kwargs)
-        total = min(total, 1.0)
+        total = max(min(total, 1.0) - epsilon, epsilon)
         return total
 
 
@@ -183,3 +186,12 @@ class CompositionDispatchingModel(object):
         composition = self.get_composition(chromatogram)
         model = self.find_model(composition)
         return model.score(chromatogram, *args, **kwargs)
+
+
+neuac = FMR.from_iupac_lite("NeuAc")
+neugc = FMR.from_iupac_lite("NeuGc")
+neu = FMR.from_iupac_lite("Neu")
+
+
+def is_sialylated(composition):
+    return (composition[neuac] + composition[neugc] + composition[neu]) > 0

@@ -1,6 +1,6 @@
 import numpy as np
 
-from .base import ScoringFeatureBase
+from .base import ScoringFeatureBase, epsilon
 
 
 def total_intensity(peaks):
@@ -8,7 +8,7 @@ def total_intensity(peaks):
 
 
 class ChromatogramSpacingFitter(ScoringFeatureBase):
-    feature_type = "time_spacing_score"
+    feature_type = "spacing_fit"
 
     def __init__(self, chromatogram):
         self.chromatogram = chromatogram
@@ -40,3 +40,7 @@ class ChromatogramSpacingFitter(ScoringFeatureBase):
 
     def __repr__(self):
         return "ChromatogramSpacingFitter(%s, %0.4f)" % (self.chromatogram, self.score)
+
+    @classmethod
+    def score(cls, chromatogram, *args, **kwargs):
+        return max(1 - cls(chromatogram).score * 2, epsilon)

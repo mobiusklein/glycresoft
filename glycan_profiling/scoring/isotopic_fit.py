@@ -7,7 +7,7 @@ from brainpy import isotopic_variants
 
 from glycan_profiling.chromatogram_tree import Unmodified
 
-from .base import ScoringFeatureBase
+from .base import ScoringFeatureBase, epsilon
 
 
 def envelope_to_peak_list(envelope):
@@ -47,7 +47,7 @@ def unspool_nodes(node):
 
 
 class IsotopicPatternConsistencyFitter(ScoringFeatureBase):
-    feature_type = "isotopic_fit_score"
+    feature_type = "isotopic_fit"
 
     def __init__(self, chromatogram, averagine=glycan, charge_carrier=PROTON):
         self.chromatogram = chromatogram
@@ -112,3 +112,7 @@ class IsotopicPatternConsistencyFitter(ScoringFeatureBase):
         self.intensity = np.array(self.intensity)
         self.scores = np.array(self.scores)
         self.mean_fit = np.average(self.scores, weights=self.intensity)
+
+    @classmethod
+    def score(cls, chromatogram, *args, **kwargs):
+        return max(1 - cls(chromatogram).mean_fit, epsilon)
