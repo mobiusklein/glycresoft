@@ -9,11 +9,9 @@ import ms_deisotope
 import ms_peak_picker
 
 from ms_deisotope.processor import MSFileLoader
-from glycan_profiling.chromatogram_tree import find_truncation_points
 from glycan_profiling.profiler import (
     SampleConsumer,
     CentroidingSampleConsumer,
-    ThreadedDatabaseScanCacheHandler,
     ThreadedMzMLScanCacheHandler)
 
 
@@ -70,6 +68,7 @@ def rt_to_id(ms_file, rt):
     help="Scan transformations to apply to MS^n scans. May specify more than once.")
 @click.option("-v", "--extract-only-tandem-envelopes", is_flag=True, default=False,
               help='Only work on regions that will be chosen for MS/MS')
+@click.option("--ignore-msn", is_flag=True, default=False, help="Ignore MS^n scans")
 @click.option("--profile", default=False, is_flag=True, help=(
               "Force profile scan configuration."), cls=HiddenOption)
 @click.option("-i", "--isotopic-strictness", default=2.0, type=float, cls=HiddenOption)
@@ -77,11 +76,18 @@ def preprocess(ms_file, outfile_path, averagine=None, start_time=None, end_time=
                name=None, msn_averagine=None, score_threshold=35., msn_score_threshold=10., missed_peaks=1,
                msn_missed_peaks=1, background_reduction=5., msn_background_reduction=0.,
                transform=None, msn_transform=None, processes=4, extract_only_tandem_envelopes=False,
-               mzml=True, profile=False, isotopic_strictness=2.0):
+               ignore_msn=False, profile=False, isotopic_strictness=2.0):
     if transform is None:
         transform = []
     if msn_transform is None:
         msn_transform = []
+
+    if (ignore_msn and extract_only_tandem_envelopes):
+        click.secho(
+            "Cannot use both --ignore-msn and --extract-only-tandem-envelopes",
+            fg='red')
+        raise click.Abort()
+
     cache_handler_type = ThreadedMzMLScanCacheHandler
     click.echo("Preprocessing %s" % ms_file)
     minimum_charge = 1 if maximum_charge > 0 else -1
