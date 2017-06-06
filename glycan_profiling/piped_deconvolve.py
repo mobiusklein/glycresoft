@@ -777,8 +777,13 @@ class ScanGenerator(TaskBase, ScanGeneratorBase):
             self._deconv_process, input_queue=self._input_queue)
 
     def make_iterator(self, start_scan=None, end_scan=None, max_scans=None):
-        self._input_queue = Queue(int(1e6))
-        self._output_queue = Queue(5000)
+        try:
+            self._input_queue = Queue(int(1e6))
+            self._output_queue = Queue(5000)
+        except OSError:
+            # Not all platforms permit limiting the size of queues
+            self._input_queue = Queue()
+            self._output_queue = Queue()
 
         if self.extract_only_tandem_envelopes:
             self.log("Constructing Scan Interval Tree")
