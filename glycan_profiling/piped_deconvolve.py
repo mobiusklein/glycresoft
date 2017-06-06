@@ -588,17 +588,21 @@ class ScanCollator(TaskBase):
         return i
 
     def print_state(self):
-        if self.queue.qsize() > 0:
-            self.log("%d since last work item" % (self.count_since_last,))
-            keys = sorted(self.waiting.keys())
-            if len(keys) > 5:
-                self.log("Waiting Keys: %r..." % (keys[:5],))
-            else:
-                self.log("Waiting Keys: %r" % (keys,))
-            self.log("%d Keys Total" % (len(self.waiting),))
-            self.log("The last index handled: %r" % (self.last_index,))
-            self.log("Number of items waiting in the queue: %d" %
-                     (self.queue.qsize(),))
+        try:
+            if self.queue.qsize() > 0:
+                self.log("%d since last work item" % (self.count_since_last,))
+                keys = sorted(self.waiting.keys())
+                if len(keys) > 5:
+                    self.log("Waiting Keys: %r..." % (keys[:5],))
+                else:
+                    self.log("Waiting Keys: %r" % (keys,))
+                self.log("%d Keys Total" % (len(self.waiting),))
+                self.log("The last index handled: %r" % (self.last_index,))
+                self.log("Number of items waiting in the queue: %d" %
+                         (self.queue.qsize(),))
+        except NotImplementedError:
+            # Some platforms do not support qsize
+            pass
 
     def __iter__(self):
         has_more = True
@@ -608,8 +612,12 @@ class ScanCollator(TaskBase):
         while has_more:
             if self.consume(1):
                 self.count_jobs_done += 1
-                if self.queue.qsize() > 500:
-                    self.drain_queue()
+                try:
+                    if self.queue.qsize() > 500:
+                        self.drain_queue()
+                except NotImplementedError:
+                    # Some platforms do not support qsize
+                    pass
             if self.last_index is None:
                 keys = sorted(self.waiting)
                 if keys:
@@ -643,7 +651,7 @@ class ScanCollator(TaskBase):
                     self.log("All Workers Claim Done.")
                     has_something = self.consume()
                     self.log("Checked Queue For Work: %r" % has_something)
-                    if not has_something and len(self.waiting) == 0 and self.queue.qsize() == 0:
+                    if not has_something and len(self.waiting) == 0 and self.queue.empty():
                         has_more = False
             else:
                 self.count_since_last += 1
