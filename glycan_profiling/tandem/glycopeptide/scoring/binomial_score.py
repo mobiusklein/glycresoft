@@ -12,7 +12,11 @@ Much of this logic is derived from:
 import numpy as np
 from scipy.misc import comb
 
-from ms_peak_picker.utils import draw_peaklist
+try:
+    from ms_peak_picker.utils import draw_peaklist
+except ImportError:
+    pass
+
 from glycopeptidepy.utils.memoize import memoize
 
 from ...spectrum_matcher_base import SpectrumMatcherBase
