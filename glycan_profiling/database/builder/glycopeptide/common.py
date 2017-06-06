@@ -584,16 +584,20 @@ class MultipleProcessPeptideGlycosylator(TaskBase):
             while has_work:
                 try:
                     batch = self.output_queue.get(True, 5)
-                    waiting_batches = self.output_queue.qsize()
-                    if waiting_batches > 10:
-                        self.create_barrier()
-                        self.log("%d waiting sets." % (waiting_batches,))
-                        try:
-                            for _ in range(waiting_batches):
-                                batch.extend(self.output_queue.get_nowait())
-                        except QueueEmptyException:
-                            pass
-                        self.teardown_barrier()
+                    try:
+                        waiting_batches = self.output_queue.qsize()
+                        if waiting_batches > 10:
+                            self.create_barrier()
+                            self.log("%d waiting sets." % (waiting_batches,))
+                            try:
+                                for _ in range(waiting_batches):
+                                    batch.extend(self.output_queue.get_nowait())
+                            except QueueEmptyException:
+                                pass
+                            self.teardown_barrier()
+                    except NotImplementedError:
+                        # platform does not support qsize()
+                        pass
                     i += len(batch)
 
                     self.create_barrier()
