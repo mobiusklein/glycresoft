@@ -5,13 +5,11 @@ from .piped_deconvolve import (
 
 from .chromatogram_tree import (
     MassShift, CompoundMassShift, Chromatogram, ChromatogramTreeList,
-    ChromatogramTreeNode, ChromatogramInterface, ChromatogramFilter)
+    ChromatogramTreeNode, ChromatogramInterface, ChromatogramFilter,
+    mass_shift)
 
 from .trace import (
     ChromatogramExtractor, ChromatogramProcessor)
-
-from .scan_cache import (
-    ThreadedDatabaseScanCacheHandler)
 
 from .database import (
     NeutralMassDatabase, GlycopeptideDiskBackedStructureDatabase,
@@ -20,3 +18,15 @@ from .database import (
 from . import serialize
 from . import profiler
 from . import plotting
+
+
+__all__ = [
+    "_startup", "ScanGenerator", "ScanGeneratorBase",
+    "MassShift", "CompoundMassShift", "Chromatogram",
+    "ChromatogramTreeNode", "ChromatogramTreeList",
+    "ChromatogramInterface", "ChromatogramFilter",
+    "mass_shift", "ChromatogramExtractor", "ChromatogramProcessor",
+    "NeutralMassDatabase", "GlycopeptideDiskBackedStructureDatabase",
+    "GlycanCompositionDiskBackedStructureDatabase", "serialize",
+    "profiler", "plotting"
+]

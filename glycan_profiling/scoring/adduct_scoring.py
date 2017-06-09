@@ -1,11 +1,14 @@
 import json
 import warnings
+
 from collections import defaultdict
+from io import StringIO
 
 from glycan_profiling.chromatogram_tree import Unmodified
 from .base import (
-    DiscreteCountScoringModelBase, MassScalingCountScoringModel,
-    UniformCountScoringModelBase, ScoringFeatureBase)
+    MassScalingCountScoringModel,
+    UniformCountScoringModelBase,
+    ScoringFeatureBase)
 
 
 class AdductScoringModelBase(ScoringFeatureBase):
@@ -32,6 +35,20 @@ class AdductScoringModelBase(ScoringFeatureBase):
             return [t for t in self.adduct_types
                     if t in chromatogram.adducts]
 
+    def get_signal_proportions(self, chromatogram):
+        fractions = chromatogram.adduct_signal_fractions()
+        total = sum(fractions.values())
+        if self.adduct_types is None:
+            return {k: v / total for k, v in fractions.items()}
+        else:
+            proportions = defaultdict(float)
+            for t in self.adduct_types:
+                for k, f in fractions.items():
+                    if k.composed_with(t):
+                        proportions[t] += f
+            total = sum(proportions.values())
+            return {k: v / total for k, v in proportions.items()}
+
 
 class UniformAdductScoringModel(AdductScoringModelBase, UniformCountScoringModelBase):
     pass
@@ -40,7 +57,7 @@ class UniformAdductScoringModel(AdductScoringModelBase, UniformCountScoringModel
 uniform_model = UniformAdductScoringModel()
 
 
-class AdductMassScalingCountScoringModel(AdductScoringModelBase, MassScalingCountScoringModel):
+class MassScalingAdductScoringModel(AdductScoringModelBase, MassScalingCountScoringModel):
     def __init__(self, table, adduct_types=None, neighborhood_width=100.):
         AdductScoringModelBase.__init__(self, adduct_types)
         MassScalingCountScoringModel.__init__(self, table, neighborhood_width)
@@ -58,6 +75,12 @@ class AdductMassScalingCountScoringModel(AdductScoringModelBase, MassScalingCoun
         warnings.warn("%s not found for this mass range (%f). Using bin average (%r)" % (
             key, neighborhood, chromatogram.adducts))
         return sum(bins.values()) / float(len(bins))
+
+    def clone(self):
+        text_buffer = StringIO()
+        self.save(text_buffer)
+        text_buffer.seek(0)
+        return self.load(text_buffer)
 
     def save(self, file_obj):
         json.dump(

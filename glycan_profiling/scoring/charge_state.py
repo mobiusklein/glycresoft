@@ -1,7 +1,10 @@
 import json
-import numpy as np
-from collections import defaultdict
 import warnings
+
+from collections import defaultdict
+from io import StringIO
+
+import numpy as np
 
 from .base import (
     UniformCountScoringModelBase,
@@ -19,6 +22,19 @@ class ChargeStateDistributionScoringModelBase(ScoringFeatureBase):
 
     def get_states(self, chromatogram):
         return chromatogram.charge_states
+
+    def get_signal_proportions(self, chromatogram):
+        proportions = {}
+        states = self.get_states(chromatogram)
+        rest = chromatogram
+        total = 0
+        for state in states:
+            part, rest = chromatogram.bisect_charge(state)
+            proportions[state] = part.total_signal
+            total += part.total_signal
+        for k in proportions:
+            proportions[k] /= total
+        return proportions
 
 
 _CHARGE_MODEL = ChargeStateDistributionScoringModelBase
@@ -80,10 +96,11 @@ class MassScalingChargeStateScoringModel(_CHARGE_MODEL, MassScalingCountScoringM
         return abs(state)
 
     @classmethod
-    def fit(cls, observations, missing=0.01, neighborhood_width=100., ignore_singly_charged=False):
+    def fit(cls, observations, missing=0.01, neighborhood_width=100.,
+            ignore_singly_charged=False):
         bins = defaultdict(lambda: defaultdict(float))
 
-        self = cls({})
+        self = cls({}, neighborhood_width=neighborhood_width)
 
         for sol in observations:
             neighborhood = self.neighborhood_of(sol.neutral_mass)
@@ -126,3 +143,54 @@ class MassScalingChargeStateScoringModel(_CHARGE_MODEL, MassScalingCountScoringM
         table = numeric_keys(table, convert_value=lambda x: numeric_keys(x, int))
 
         return cls(table=table, neighborhood_width=width)
+
+    def clone(self):
+        text_buffer = StringIO()
+        self.save(text_buffer)
+        text_buffer.seek(0)
+        return self.load(text_buffer)
+
+
+class WeightedMassScalingChargeStateScoringModel(MassScalingChargeStateScoringModel):
+    @classmethod
+    def fit(cls, observations, missing=0.01, neighborhood_width=100.,
+            ignore_singly_charged=False, smooth=0):
+        bins = defaultdict(lambda: defaultdict(float))
+
+        self = cls({}, neighborhood_width=neighborhood_width)
+
+        for sol in observations:
+            neighborhood = self.neighborhood_of(sol.neutral_mass)
+            for c in sol.charge_states:
+                if ignore_singly_charged and abs(c) == 1:
+                    continue
+                component, _ = sol.bisect_charge(c)
+                bins[neighborhood][c] += component.total_signal / sol.total_signal
+
+        model_table = {}
+
+        all_states = set()
+        for level in bins.values():
+            all_states.update(level.keys())
+
+        all_states.add(1 * (min(all_states) / abs(min(all_states))))
+
+        for neighborhood, counts in bins.items():
+            largest_charge = None
+            largest_charge_total = 0
+            for c in all_states:
+                counts[c] += missing
+                if counts[c] > largest_charge_total:
+                    largest_charge = c
+                    largest_charge_total = counts[c]
+            if smooth > 0:
+                smooth_shift = largest_charge_total * smooth
+                for c in all_states:
+                    if c != largest_charge and counts[c] > missing:
+                        counts[c] += smooth_shift
+
+            total = sum(counts.values())
+            entry = {k: v / total for k, v in counts.items()}
+            model_table[neighborhood] = entry
+
+        return cls(model_table, neighborhood_width)

@@ -1,12 +1,12 @@
 import math
 
-from ...spectrum_matcher_base import SpectrumMatcherBase
+from .base import GlycopeptideSpectrumMatcherBase
 from .fragment_match_map import FragmentMatchMap
 
 from glycopeptidepy.structure.fragment import IonSeries
 
 
-class SimpleCoverageScorer(SpectrumMatcherBase):
+class SimpleCoverageScorer(GlycopeptideSpectrumMatcherBase):
     def __init__(self, scan, sequence):
         super(SimpleCoverageScorer, self).__init__(scan, sequence)
         self._score = None

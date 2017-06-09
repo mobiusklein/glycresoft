@@ -12,15 +12,9 @@ Much of this logic is derived from:
 import numpy as np
 from scipy.misc import comb
 
-try:
-    from ms_peak_picker.utils import draw_peaklist
-except ImportError:
-    pass
-
 from glycopeptidepy.utils.memoize import memoize
 
-from ...spectrum_matcher_base import SpectrumMatcherBase
-from ...spectrum_annotation import annotate_matched_deconvoluted_peaks
+from .base import GlycopeptideSpectrumMatcherBase
 from .fragment_match_map import FragmentMatchMap
 
 
@@ -158,7 +152,7 @@ def calculate_precursor_mass(spectrum_match):
     return precursor_mass
 
 
-class BinomialSpectrumMatcher(SpectrumMatcherBase):
+class BinomialSpectrumMatcher(GlycopeptideSpectrumMatcherBase):
 
     def __init__(self, scan, target):
         super(BinomialSpectrumMatcher, self).__init__(scan, target)
@@ -287,11 +281,3 @@ class BinomialSpectrumMatcher(SpectrumMatcherBase):
         score = self._binomial_score(match_tolerance)
         self._score = score
         return score
-
-    def annotate(self, ax=None, label_font_size=12, labeler=None, **kwargs):
-        ax = draw_peaklist(self.spectrum, alpha=0.3, color='grey', ax=ax, **kwargs)
-        draw_peaklist(self._sanitized_spectrum, color='grey', ax=ax, alpha=0.5, **kwargs)
-        annotate_matched_deconvoluted_peaks(self.solution_map.items(), ax, labeler=labeler, fontsize=label_font_size)
-        return draw_peaklist(
-            sorted(self.solution_map.values(), key=lambda x: x.neutral_mass),
-            ax=ax, color='red', **kwargs)

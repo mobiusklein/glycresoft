@@ -1,6 +1,8 @@
 from collections import OrderedDict
+from functools import partial
 
 import numpy as np
+
 from scipy.optimize import leastsq
 from numpy import pi, sqrt, exp
 from scipy.special import erf
@@ -11,9 +13,77 @@ from ms_peak_picker import search
 from .base import ScoringFeatureBase, epsilon
 
 
+def linear_regression_residuals(x, y):
+    X = np.vstack((np.ones(len(x)), np.array(x))).T
+    Y = np.array(y)
+    B = np.linalg.inv(X.T.dot(X)).dot(X.T.dot(Y))
+    Yhat = X.dot(B)
+    return (Y - Yhat) ** 2
+
+
+def flat_line_residuals(y):
+    residuals = (
+        (y - ((y.max() + y.min()) / 2.))) ** 2
+    return residuals
+
+
 class PeakShapeModelBase(object):
     def __repr__(self):
         return "{self.__class__.__name__}()".format(self=self)
+
+
+class ConstrainedParameter(object):
+    def __init__(self, name, minimum=-float('inf'), maximum=float('inf')):
+        self.name = name
+        self.minimum = minimum
+        self.maximum = maximum
+
+    def __repr__(self):
+        return "ConstrainedParameter(%s, [%0.2f, %0.2f])" % (
+            self.name, self.minimum, self.maximum)
+
+    def clamp(self, value):
+        if value < self.minimum:
+            return self.minimum
+        elif value > self.maximum:
+            return self.maximum
+        else:
+            return value
+
+    def __call__(self, value):
+        return self.clamp(value)
+
+
+class ParameterDict(dict):
+    def __missing__(self, key):
+        param = ConstrainedParameter(key)
+        self[key] = param
+        return param
+
+
+class ConstrainedModel(object):
+    def __init__(self, model, param_spec=None):
+        if param_spec is None:
+            param_spec = ParameterDict()
+        self.model = model
+        self.param_spec = ParameterDict(param_spec)
+
+    def _fit(self, params, xs, ys, func=None):
+        if func is None:
+            func = self.model.fit
+        return leastsq(func, params, (xs, ys))[0]
+
+    def fit(self, params, xs, ys):
+        fit_params = self._fit(params, xs, ys)
+        params_dict = self.model.params_to_dict(fit_params)
+        fixed = dict()
+        for param_name, constraint in list(self.param_spec.items()):
+            estimated = params_dict[param_name]
+            revised = constraint.clamp(estimated)
+            if abs(revised - estimated) < 1e-3:
+                fixed[param_name] = revised
+        if fixed:
+            pass
 
 
 class SkewedGaussianModel(PeakShapeModelBase):
@@ -105,6 +175,42 @@ class BiGaussianModel(PeakShapeModelBase):
         return center, apex, sigma, sigma
 
 
+class FittedPeakShape(object):
+    def __init__(self, params, shape_model):
+        self.params = params
+        self.shape_model = shape_model
+
+    def keys(self):
+        return self.params.keys()
+
+    def values(self):
+        return self.params.values()
+
+    def items(self):
+        return self.params.items()
+
+    def __iter__(self):
+        return iter(self.params)
+
+    def shape(self, xs):
+        return self.shape_model.shape(xs, **self.params)
+
+    def __getitem__(self, key):
+        return self.params[key]
+
+    def __repr__(self):
+        return "Fitted{self.shape_model.__class__.__name__}({params})".format(
+            self=self, params=", ".join("%s=%0.3f" % (k, v) for k, v in self.params.items()))
+
+    @property
+    def center(self):
+        return self['center']
+
+    @property
+    def amplitude(self):
+        return self['amplitude']
+
+
 class ChromatogramShapeFitterBase(ScoringFeatureBase):
     feature_type = "line_score"
 
@@ -134,11 +240,15 @@ class ChromatogramShapeFitterBase(ScoringFeatureBase):
     def compute_residuals(self):
         return NotImplemented
 
+    def null_model_residuals(self):
+        residuals = flat_line_residuals(self.ys)
+        # residuals = linear_regression_residuals(self.xs, self.ys)
+        return residuals
+
     def perform_line_test(self):
-        ys = self.ys
         residuals = self.compute_residuals()
         line_test = (residuals ** 2).sum() / (
-            ((ys - ((ys.max() + ys.min()) / 2.)) ** 2).sum())
+            (self.null_model_residuals()).sum())
         self.line_test = line_test
 
     def plot(self, ax=None):
@@ -204,7 +314,7 @@ class ChromatogramShapeFitter(ChromatogramShapeFitterBase):
                       params, (xs, ys))
         params = fit[0]
         self.params = params
-        self.params_dict = self.shape_fitter.params_to_dict(params)
+        self.params_dict = FittedPeakShape(self.shape_fitter.params_to_dict(params), self.shape_fitter)
 
     def iterfits(self):
         yield self.compute_fitted()
@@ -285,7 +395,7 @@ class MultimodalChromatogramShapeFitter(ChromatogramShapeFitterBase):
         fit = leastsq(self.shape_fitter.fit,
                       params_dict.values(), (xs, ys))
         params = fit[0]
-        params_dict = self.shape_fitter.params_to_dict(params)
+        params_dict = FittedPeakShape(self.shape_fitter.params_to_dict(params), self.shape_fitter)
         self.params_list.append(params)
         self.params_dict_list.append(params_dict)
 
@@ -467,7 +577,7 @@ class ProfileSplittingMultimodalChromatogramShapeFitter(ChromatogramShapeFitterB
 
     def set_up_peak_fit(self, xs, ys):
         params = self.shape_fitter.guess(xs, ys)
-        params_dict = self.shape_fitter.params_to_dict(params)
+        params_dict = FittedPeakShape(self.shape_fitter.params_to_dict(params), self.shape_fitter)
         if len(params) > len(xs):
             self.params_list.append(params)
             self.params_dict_list.append(params_dict)
@@ -476,7 +586,7 @@ class ProfileSplittingMultimodalChromatogramShapeFitter(ChromatogramShapeFitterB
         fit = leastsq(self.shape_fitter.fit,
                       params_dict.values(), (xs, ys))
         params = fit[0]
-        params_dict = self.shape_fitter.params_to_dict(params)
+        params_dict = FittedPeakShape(self.shape_fitter.params_to_dict(params), self.shape_fitter)
         self.params_list.append(params)
         self.params_dict_list.append(params_dict)
 
