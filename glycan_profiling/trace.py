@@ -405,10 +405,10 @@ class ChromatogramEvaluator(TaskBase):
         self.scoring_model = scoring_model
         self.network = network
 
-    def evaluate(self, chromatograms, base_coef=0.8, support_coef=0.2, rt_delta=0.25,
+    def evaluate(self, chromatograms, base_coef=0.8, support_coef=0.2, delta_rt=0.25,
                  min_points=3, smooth=True):
         filtered = ChromatogramFilter.process(
-            chromatograms, delta_rt=rt_delta, min_points=min_points)
+            chromatograms, delta_rt=delta_rt, min_points=min_points)
         if smooth:
             filtered = ChromatogramOverlapSmoother(filtered)
 
@@ -432,15 +432,15 @@ class ChromatogramEvaluator(TaskBase):
             NetworkScoreDistributor(solutions, self.network).distribute(base_coef, support_coef)
         return ChromatogramFilter(solutions)
 
-    def score(self, chromatograms, base_coef=0.8, support_coef=0.2, rt_delta=0.25, min_points=3,
+    def score(self, chromatograms, base_coef=0.8, support_coef=0.2, delta_rt=0.25, min_points=3,
               smooth=True, adducts=None):
 
-        solutions = self.evaluate(chromatograms, base_coef, support_coef, rt_delta, min_points, smooth)
+        solutions = self.evaluate(chromatograms, base_coef, support_coef, delta_rt, min_points, smooth)
 
         if adducts is not None and len(adducts):
             hold = prune_bad_adduct_branches(ChromatogramFilter(solutions))
             self.log("Re-evaluating after adduct pruning")
-            solutions = self.evaluate(hold, base_coef, support_coef, rt_delta)
+            solutions = self.evaluate(hold, base_coef, support_coef, delta_rt)
 
         solutions = ChromatogramFilter(sol for sol in solutions if sol.score > 1e-5)
         return solutions
@@ -547,7 +547,7 @@ class ChromatogramProcessor(TaskBase):
 
     def __init__(self, chromatograms, database, adducts=None, mass_error_tolerance=1e-5,
                  scoring_model=None, network_sharing=0.,
-                 smooth=True, acceptance_threshold=0.4):
+                 smooth=True, acceptance_threshold=0.4, delta_rt=0.25):
         if adducts is None:
             adducts = []
         self._chromatograms = (chromatograms)
@@ -560,6 +560,7 @@ class ChromatogramProcessor(TaskBase):
         self.support_coef = network_sharing
         self.smooth = smooth
         self.acceptance_threshold = acceptance_threshold
+        self.delta_rt = delta_rt
 
         self.solutions = None
         self.accepted_solutions = None
@@ -581,11 +582,13 @@ class ChromatogramProcessor(TaskBase):
         self.log("Begin Matching Chromatograms")
         matches = self.match_compositions()
         self.log("End Matching Chromatograms")
+        self.log("%d Matches Found" % (len(matches),))
         self.log("Begin Evaluating Chromatograms")
         evaluator = self.make_evaluator()
         self.solutions = evaluator.score(
             matches, self.base_coef, self.support_coef,
-            smooth=self.smooth, adducts=self.adducts)
+            smooth=self.smooth, adducts=self.adducts,
+            delta_rt=self.delta_rt)
         self.accepted_solutions = evaluator.acceptance_filter(self.solutions)
         self.log("End Evaluating Chromatograms")
 
