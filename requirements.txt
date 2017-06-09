@@ -13,6 +13,7 @@ lxml
 click
 
 rdflib
+SPARQLWrapper
 requests
 
 glypy
