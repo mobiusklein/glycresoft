@@ -1,1 +1,2 @@
-add requirements.txt
+include requirements.txt
+recursive-include glycan_profiling/models/data *.json

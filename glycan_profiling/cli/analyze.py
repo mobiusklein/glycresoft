@@ -160,12 +160,15 @@ def search_glycopeptide(context, database_connection, sample_path, hypothesis_id
 @click.option("-f", "--ms1-scoring-feature", "scoring_model_features", multiple=True,
               type=click.Choice(sorted(ms1_model_features)),
               help="Additional features to include in evaluating chromatograms")
+@click.option("-r", "--delta-rt", default=0.25, type=float,
+              help='The maximum time between observed data points before splitting features')
 def search_glycan(context, database_connection, sample_path,
                   hypothesis_identifier,
                   analysis_name, adducts, grouping_error_tolerance=1.5e-5,
                   mass_error_tolerance=1e-5, minimum_mass=500.,
                   scoring_model=None, network_sharing=0.2,
-                  output_path=None, scoring_model_features=None):
+                  output_path=None, scoring_model_features=None,
+                  delta_rt=0.25):
     """Identify glycan compositions from preprocessed LC-MS data, stored in mzML
     format.
     """
@@ -210,5 +213,5 @@ def search_glycan(context, database_connection, sample_path,
         mass_error_tolerance=mass_error_tolerance,
         grouping_error_tolerance=grouping_error_tolerance, scoring_model=scoring_model,
         minimum_mass=minimum_mass, network_sharing=network_sharing,
-        analysis_name=analysis_name)
+        analysis_name=analysis_name, delta_rt=delta_rt)
     analyzer.start()

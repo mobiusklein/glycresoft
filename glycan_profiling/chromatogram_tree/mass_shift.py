@@ -50,6 +50,9 @@ class MassShift(MassShiftBase):
         composition = self.composition + other.composition
         return self.__class__(name, composition)
 
+    def composed_with(self, other):
+        return self == other
+
 
 class CompoundMassShift(MassShiftBase):
     def __init__(self, counts=None):
@@ -79,6 +82,15 @@ class CompoundMassShift(MassShiftBase):
             else:
                 parts.append("%s * %d" % (k.name, v))
         self.name = intern(" + ".join(sorted(parts)))
+
+    def composed_with(self, other):
+        if isinstance(other, MassShift):
+            return self.counts[other] == 1
+        elif isinstance(other, CompoundMassShift):
+            for key, count in other.counts.items():
+                if self.counts[key] != count:
+                    return False
+            return True
 
     def __add__(self, other):
         if other == Unmodified:

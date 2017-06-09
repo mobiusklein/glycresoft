@@ -600,7 +600,7 @@ class MzIdentMLProteomeExtraction(TaskBase):
                         protease = Protease(pattern)
                         processed_enzymes.append(protease)
                     except re.error as e:
-                        self.log("Could not resolve protease from name %r (%s)" % (enz['EnzymeName'].lower(), e))
+                        self.log("Could not resolve protease from name %r (%s)" % (enz['SiteRegexp'].lower(), e))
                 except KeyError:
                     self.log("No protease information available: %r" % (enz,))
         self.enzymes = processed_enzymes

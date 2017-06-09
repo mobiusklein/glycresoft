@@ -128,7 +128,7 @@ class CentroidingSampleConsumer(SampleConsumer):
                  n_processes=5, extract_only_tandem_envelopes=False):
 
         if cache_handler_type is None:
-            cache_handler_type = ThreadedDatabaseScanCacheHandler
+            cache_handler_type = ThreadedMzMLScanCacheHandler
         if isinstance(averagine, basestring):
             averagine = parse_averagine_formula(averagine)
 
@@ -175,7 +175,7 @@ class GlycanChromatogramAnalyzer(TaskBase):
     def __init__(self, database_connection, hypothesis_id, sample_run_id, adducts=None,
                  mass_error_tolerance=1e-5, grouping_error_tolerance=1.5e-5,
                  scoring_model=GeneralScorer, network_sharing=0.2, minimum_mass=500.,
-                 analysis_name=None):
+                 analysis_name=None, delta_rt=0.25):
         self.database_connection = database_connection
         self.hypothesis_id = hypothesis_id
         self.sample_run_id = sample_run_id
@@ -187,6 +187,7 @@ class GlycanChromatogramAnalyzer(TaskBase):
         self.adducts = adducts
         self.analysis_name = analysis_name
         self.analysis = None
+        self.delta_rt = delta_rt
 
     def save_solutions(self, solutions, extractor, database):
         if self.analysis_name is None:
@@ -234,14 +235,14 @@ class GlycanChromatogramAnalyzer(TaskBase):
     def make_chromatogram_extractor(self, peak_loader):
         extractor = ChromatogramExtractor(
             peak_loader, grouping_tolerance=self.grouping_error_tolerance,
-            minimum_mass=self.minimum_mass)
+            minimum_mass=self.minimum_mass, delta_rt=self.delta_rt)
         return extractor
 
     def make_chromatogram_processor(self, extractor, database):
         proc = ChromatogramProcessor(
             extractor, database, mass_error_tolerance=self.mass_error_tolerance,
             adducts=self.adducts, scoring_model=self.scoring_model,
-            network_sharing=self.network_sharing)
+            network_sharing=self.network_sharing, delta_rt=self.delta_rt)
         return proc
 
     def run(self):
@@ -258,12 +259,12 @@ class MzMLGlycanChromatogramAnalyzer(GlycanChromatogramAnalyzer):
     def __init__(self, database_connection, hypothesis_id, sample_path, output_path,
                  adducts=None, mass_error_tolerance=1e-5, grouping_error_tolerance=1.5e-5,
                  scoring_model=None, network_sharing=0.2, minimum_mass=500.,
-                 analysis_name=None):
+                 analysis_name=None, delta_rt=0.25):
         super(MzMLGlycanChromatogramAnalyzer, self).__init__(
             database_connection, hypothesis_id, -1, adducts,
             mass_error_tolerance, grouping_error_tolerance,
             scoring_model, network_sharing, minimum_mass,
-            analysis_name)
+            analysis_name, delta_rt)
         self.sample_path = sample_path
         self.output_path = output_path
 

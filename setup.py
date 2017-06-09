@@ -21,12 +21,16 @@ def run_setup(include_cext=True):
         name='glycan_profiling',
         version=version,
         packages=find_packages(),
+        include_package_data=True,
         author=', '.join(["Joshua Klein"]),
         author_email=["jaklein@bu.edu"],
         entry_points={
             'console_scripts': [
                 "glycresoft = glycan_profiling.cli.__main__:main"
             ],
+        },
+        package_data={
+            "glycan_profiling.models": ["glycan_profiling/models/data/*"],
         },
         install_requires=requirements,
         classifiers=[
