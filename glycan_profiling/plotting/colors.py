@@ -1,5 +1,6 @@
 from itertools import cycle
 from matplotlib.colors import cnames, hex2color
+from matplotlib import patches as mpatches
 
 
 def lighten(rgb, factor=0.25):
@@ -67,11 +68,25 @@ class ColorMapper(object):
     def items(self):
         return self.color_name_map.items()
 
+    def proxy_artists(self, subset=None):
+        proxy_artists = []
+        if subset is not None:
+            for name, color in self.items():
+                if name in subset:
+                    artist = mpatches.Rectangle((0, 0), 1, 1, fc=color, label=name)
+                    proxy_artists.append((name, artist))
+        else:
+            for name, color in self.items():
+                artist = mpatches.Rectangle((0, 0), 1, 1, fc=color, label=name)
+                proxy_artists.append((name, artist))
+        return proxy_artists
+
 
 _color_mapper = ColorMapper()
 
 color_name_map = _color_mapper.color_name_map
 get_color = _color_mapper.get_color
+proxy_artists = _color_mapper.proxy_artists
 
 
 def color_dict():
