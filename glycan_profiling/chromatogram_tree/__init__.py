@@ -1,7 +1,7 @@
 from . import mass_shift
 from .mass_shift import (
     MassShift, CompoundMassShift, Unmodified, Ammonium,
-    Sodiated, Formate)
+    Sodium, Formate, Potassium)
 
 from . import chromatogram
 from .chromatogram import (

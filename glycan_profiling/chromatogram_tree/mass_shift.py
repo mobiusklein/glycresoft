@@ -65,7 +65,7 @@ class CompoundMassShift(MassShiftBase):
 
         self._compute_composition()
         self._compute_name()
-        self._register_name()
+        # self._register_name()
 
     def _compute_composition(self):
         composition = Composition()
@@ -130,4 +130,5 @@ class CompoundMassShift(MassShiftBase):
 Unmodified = MassShift("Unmodified", Composition())
 Formate = MassShift("Formate", Composition('HCOOH'))
 Ammonium = MassShift("Ammonium", Composition("NH3"))
-Sodiated = MassShift("Sodiated", Composition("Na"))
+Sodium = MassShift("Sodium", Composition("Na"))
+Potassium = MassShift("Potassium", Composition("K"))
