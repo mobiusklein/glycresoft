@@ -21,7 +21,7 @@ from glycan_profiling.database.builder.glycan import (
 from glycan_profiling.database.builder.glycopeptide.proteomics import mzid_proteome
 from glycan_profiling.chromatogram_tree import (
     MassShift, Formate, Ammonium,
-    Sodiated)
+    Sodium, Potassium)
 
 from glycan_profiling.tandem.glycopeptide.scoring import (
     binomial_score, simple_score, coverage_weighted_binomial, SpectrumMatcherBase)
@@ -266,7 +266,8 @@ def validate_averagine(averagine_string):
 adducts = {
     "ammonium": Ammonium,
     "formate": Formate,
-    "sodium": Sodiated,
+    "sodium": Sodium,
+    "potassium": Potassium,
 }
 
 
@@ -276,13 +277,14 @@ def validate_adduct(adduct_string, multiplicity=1):
         return (adducts[adduct_string.lower()], multiplicity)
     else:
         try:
+            adduct_string = str(adduct_string)
             composition = Composition(adduct_string)
             shift = MassShift(adduct_string, composition)
             return (shift, multiplicity)
         except Exception as e:
             click.secho("%r" % (e,))
-            click.secho("Could not validate adduct %s" % (adduct_string,), fg='yellow')
-            raise click.Abort()
+            click.secho("Could not validate adduct %r" % (adduct_string,), fg='yellow')
+            raise click.Abort("Could not validate adduct %r" % (adduct_string,))
 
 
 glycopeptide_tandem_scoring_functions = {
