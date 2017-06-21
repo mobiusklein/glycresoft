@@ -86,7 +86,7 @@ def preprocess(ms_file, outfile_path, averagine=None, start_time=None, end_time=
         click.secho(
             "Cannot use both --ignore-msn and --extract-only-tandem-envelopes",
             fg='red')
-        raise click.Abort()
+        raise click.Abort("Cannot use both --ignore-msn and --extract-only-tandem-envelopes")
 
     cache_handler_type = ThreadedMzMLScanCacheHandler
     click.echo("Preprocessing %s" % ms_file)
@@ -176,7 +176,8 @@ def preprocess(ms_file, outfile_path, averagine=None, start_time=None, end_time=
         storage_path=outfile_path, sample_name=name,
         start_scan_id=start_scan_id, cache_handler_type=cache_handler_type,
         end_scan_id=end_scan_id, n_processes=processes,
-        extract_only_tandem_envelopes=extract_only_tandem_envelopes)
+        extract_only_tandem_envelopes=extract_only_tandem_envelopes,
+        ignore_msn=ignore_msn)
     consumer.start()
 
 
