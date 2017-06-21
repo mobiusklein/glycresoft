@@ -4,7 +4,7 @@ from matplotlib import pyplot as plt
 from matplotlib import patches as mpatches
 from matplotlib.textpath import TextPath
 
-from .svg_utils import ET, StringIO, IDMapper
+from .svg_utils import ET, BytesIO, IDMapper
 from .colors import lighten, darken, get_color
 
 
@@ -212,7 +212,6 @@ def plot_glycoforms_svg(protein, identifications, scale=1.5, ax=None, **kwargs):
     dimensions.
     '''
     ax, id_mapper = plot_glycoforms(protein, identifications, ax=ax, **kwargs)
-    old_size = matplotlib.rcParams["figure.figsize"]
     xlim = ax.get_xlim()
     ylim = ax.get_ylim()
     ax.autoscale()
@@ -224,16 +223,15 @@ def plot_glycoforms_svg(protein, identifications, scale=1.5, ax=None, **kwargs):
     canvas_x = 8.
     canvas_y = canvas_x / aspect_ratio
 
-    matplotlib.rcParams["figure.figsize"] = canvas_x, canvas_y
-
     fig = ax.get_figure()
-    fig.tight_layout(pad=0.2)
+    # fig.tight_layout(pad=0.2)
+    fig.tight_layout(pad=0)
     fig.patch.set_visible(False)
     fig.set_figwidth(canvas_x)
     fig.set_figheight(canvas_y)
 
     ax.patch.set_visible(False)
-    buff = StringIO()
+    buff = BytesIO()
     fig.savefig(buff, format='svg')
     root, ids = ET.XMLID(buff.getvalue())
     root.attrib['class'] = 'plot-glycoforms-svg'
@@ -258,5 +256,4 @@ def plot_glycoforms_svg(protein, identifications, scale=1.5, ax=None, **kwargs):
     svg = ET.tostring(root)
     plt.close()
 
-    matplotlib.rcParams["figure.figsize"] = old_size
     return svg

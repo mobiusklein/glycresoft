@@ -5,7 +5,8 @@
 #         from StringIO import StringIO
 #     except:
 #         from io import StringIO
-from io import StringIO
+# from io import StringIO
+from io import BytesIO
 try:  # pragma: no cover
     from lxml import etree as ET
 except ImportError:  # pragma: no cover
