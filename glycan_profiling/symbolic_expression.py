@@ -592,7 +592,7 @@ class GlycanSymbolContext(SymbolContext):
                 key = _FMR.from_iupac_lite(text_key)
                 is_derivatized = composition_transform.has_derivatization(key)
                 if is_derivatized:
-                    key = glycan_composition.from_iupac_lite.strip_derivatization(text_key)
+                    key = str(glycan_composition.from_iupac_lite.strip_derivatization(text_key))
                 else:
                     key = text_key
             store[key] = value
