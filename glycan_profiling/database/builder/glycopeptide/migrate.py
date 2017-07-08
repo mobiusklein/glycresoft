@@ -1,3 +1,5 @@
+from uuid import uuid4
+
 from glycan_profiling.serialize import (
     DatabaseBoundOperation, GlycopeptideHypothesis,
     Protein, Peptide, Glycopeptide, GlycanCombination,
@@ -33,10 +35,12 @@ class GlycopeptideHypothesisMigrator(DatabaseBoundOperation, TaskBase):
     def migrate_hypothesis(self, hypothesis):
         new_inst = GlycopeptideHypothesis(
             name=hypothesis.name,
-            uuid=hypothesis.uuid,
+            uuid=str(uuid4().hex),
             status=hypothesis.status,
             glycan_hypothesis_id=None,
             parameters=dict(hypothesis.parameters))
+        new_inst.parameters["original_uuid"] = hypothesis.uuid
+        new_inst.parameters['copied_from'] = get_uri_for_instance(hypothesis)
         self.hypothesis_id = self._migrate(new_inst)
         self.create_glycan_hypothesis_migrator(hypothesis.glycan_hypothesis)
         new_inst.glycan_hypothesis_id = self.glycan_hypothesis_id

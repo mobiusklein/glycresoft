@@ -7,6 +7,7 @@ from .common import (
     PeptideGlycosylatingProcess, MultipleProcessPeptideGlycosylator)
 from .proteomics import mzid_proteome
 
+
 from six import string_types as basestring
 
 

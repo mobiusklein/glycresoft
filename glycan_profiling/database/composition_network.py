@@ -40,11 +40,11 @@ def composition_distance(c1, c2):
 
 def n_glycan_distance(c1, c2):
     distance, weight = composition_distance(c1, c2)
-    if abs(c1[_hexose] - c2[_hexose]) == 1 and abs(c1[_hexnac] - c2[_hexnac]) == 1:
-        distance -= 1
-    else:
-        if c1[_hexose] == c1[_hexnac] or c2[_hexose] == c2[_hexnac]:
-            weight /= 2.
+    # if abs(c1[_hexose] - c2[_hexose]) == 1 and abs(c1[_hexnac] - c2[_hexnac]) == 1:
+    #     distance -= 1
+    # else:
+    #     if c1[_hexose] == c1[_hexnac] or c2[_hexose] == c2[_hexnac]:
+    #         weight /= 2.
     return distance, weight
 
 
@@ -538,14 +538,17 @@ class CompositionGraph(object):
     def __getstate__(self):
         string_buffer = StringIO()
         dump(self, string_buffer)
-        return string_buffer
+        return string_buffer, self.distance_fn
 
-    def __setstate__(self, string_buffer):
+    def __setstate__(self, state):
+        string_buffer, distance_fn = state
         string_buffer.seek(0)
         net = load(string_buffer)
         self.nodes = net.nodes
         self.node_map = net.node_map
         self.edges = net.edges
+        self.distance_fn = distance_fn
+        self._composition_normalizer = CompositionNormalizer()
 
     def clone(self):
         graph = CompositionGraph([], self.distance_fn)
@@ -631,6 +634,7 @@ class GraphReader(object):
         index = int(index)
         composition = HashableGlycanComposition.parse(composition)
         node = CompositionGraphNode(composition, index, score)
+        node.internal_score = score
         self.network.nodes.append(node)
         self.network.node_map[str(node.composition)] = node
 
@@ -993,13 +997,6 @@ def make_n_glycan_neighborhoods():
     high_mannose.name = "high-mannose"
     neighborhoods.add(high_mannose)
 
-    # over_extended = CompositionRangeRule("%s - %s" % (
-    #     _hexose,
-    #     _hexnac), 3) & CompositionRangeRule(
-    #     _neuraminic, 1, None)
-    # over_extended.name = 'over-extended'
-    # neighborhoods.add(over_extended)
-
     base_hexnac = 3
     base_neuac = 2
     for i, spec in enumerate(['hybrid', 'bi', 'tri', 'tetra', 'penta']):
@@ -1041,7 +1038,7 @@ _n_glycan_neighborhoods = make_n_glycan_neighborhoods()
 
 class NeighborhoodWalker(object):
 
-    def __init__(self, network, neighborhoods=None):
+    def __init__(self, network, neighborhoods=None, assign=True):
         if neighborhoods is None:
             neighborhoods = NeighborhoodCollection(_n_glycan_neighborhoods)
         self.network = network
@@ -1053,7 +1050,37 @@ class NeighborhoodWalker(object):
         self.symbols = symbolic_expression.SymbolSpace(self.filter_space.monosaccharides)
 
         self.neighborhood_maps = defaultdict(list)
-        self.assign()
+
+        if assign:
+            self.assign()
+
+    def _pack_maps(self):
+        key_neighborhood_assignments = defaultdict(set)
+        key_neighborhood_maps = defaultdict(list)
+
+        for key, value in self.neighborhood_assignments.items():
+            key_neighborhood_assignments[key.glycan_composition] = value
+        for key, value in self.neighborhood_maps.items():
+            key_neighborhood_maps[key.glycan_composition] = value
+        return key_neighborhood_assignments, key_neighborhood_maps
+
+    def _unpack_maps(self, packed_maps):
+        (key_neighborhood_assignments, key_neighborhood_maps) = packed_maps
+
+        for key, value in key_neighborhood_assignments.items():
+            self.neighborhood_assignments[self.network[key.glycan_composition]] = value
+
+        for key, value in key_neighborhood_maps.items():
+            self.neighborhood_maps[self.network[key.glycan_composition]] = value
+
+    def __getstate__(self):
+        return self._pack_maps()
+
+    def __setstate__(self, state):
+        self._unpack_maps(state)
+
+    def __reduce__(self):
+        return self.__class__, (self.network, self.neighborhoods, False)
 
     def neighborhood_names(self):
         return [n.name for n in self.neighborhoods]

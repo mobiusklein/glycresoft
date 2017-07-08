@@ -4,7 +4,14 @@ from glycan_profiling.serialize.hypothesis.peptide import Peptide, Protein
 
 from glycopeptidepy.algorithm import reverse_preserve_sequon
 
-from .proteomics.peptide_permutation import (ProteinDigestor, MultipleProcessProteinDigestor)
+from six import string_types as basestring
+
+from .proteomics.peptide_permutation import (
+    ProteinDigestor,
+    MultipleProcessProteinDigestor,
+    ProteinSplitter)
+from .proteomics.remove_duplicate_peptides import DeduplicatePeptides
+
 from .proteomics.fasta import ProteinFastaFileParser
 from .common import (
     GlycopeptideHypothesisSerializerBase,
@@ -33,8 +40,6 @@ class FastaGlycopeptideHypothesisSerializer(GlycopeptideHypothesisSerializerBase
             "max_missed_cleavages": max_missed_cleavages,
             "max_glycosylation_events": max_glycosylation_events
         }
-
-        # self.log("Setting Parameters (%r)" % (params,))
         self.set_parameters(params)
 
     def extract_proteins(self):
@@ -81,6 +86,33 @@ class FastaGlycopeptideHypothesisSerializer(GlycopeptideHypothesisSerializerBase
         self.session.commit()
         acc = []
 
+    def split_proteins(self):
+        self.log("Begin Applying Protein Annotations")
+        splitter = ProteinSplitter(
+            self.constant_modifications, self.variable_modifications)
+        i = 0
+        j = 0
+        protein_ids = self.protein_ids()
+        n = len(protein_ids)
+        interval = min(n / 10., 100000)
+        acc = []
+        for protein_id in protein_ids:
+            i += 1
+            protein = self.query(Protein).get(protein_id)
+            if i % interval == 0:
+                self.log("%0.3f%% Complete (%d/%d). %d Peptides Produced." % (i * 100. / n, i, n, j))
+            for peptide in splitter.handle_protein(protein):
+                acc.append(peptide)
+                j += 1
+                if len(acc) > 100000:
+                    self.session.bulk_save_objects(acc)
+                    self.session.commit()
+                    acc = []
+        self.session.bulk_save_objects(acc)
+        self.session.commit()
+        acc = []
+        DeduplicatePeptides(self._original_connection, self.hypothesis_id).run()
+
     def glycosylate_peptides(self):
         glycosylator = PeptideGlycosylator(self.session, self.hypothesis_id)
         acc = []
@@ -102,6 +134,7 @@ class FastaGlycopeptideHypothesisSerializer(GlycopeptideHypothesisSerializerBase
         self.extract_proteins()
         self.log("Digesting Proteins")
         self.digest_proteins()
+        self.split_proteins()
         self.log("Combinating Glycans")
         self.combinate_glycans(self.max_glycosylation_events)
         self.log("Building Glycopeptides")
