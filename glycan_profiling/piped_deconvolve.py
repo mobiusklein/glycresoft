@@ -73,9 +73,9 @@ class ScanIDYieldingProcess(Process):
                 scan, products = next(self.loader)
                 scan_id = scan.id
                 if not self.ignore_tandem_scans:
-                    self.queue.put((scan_id, [p.id for p in products]))
+                    self.queue.put((scan_id, [p.id for p in products], True))
                 else:
-                    self.queue.put((scan_id, []))
+                    self.queue.put((scan_id, [p.id for p in products], False))
                 if scan_id == end_scan:
                     break
                 index += 1
@@ -194,7 +194,7 @@ class PeakPickingProcess(Process, ScanTransformMixin):
         i = 0
         while has_input:
             try:
-                scan_id, product_scan_ids = self.input_queue.get(True, 10)
+                scan_id, product_scan_ids, process_msn = self.input_queue.get(True, 10)
             except QueueEmpty:
                 if self.no_more_event is not None and self.no_more_event.is_set():
                     has_input = False
@@ -228,7 +228,7 @@ class PeakPickingProcess(Process, ScanTransformMixin):
                 self.log_error(e, scan_id, scan, (product_scan_ids))
 
             for product_scan in product_scans:
-                if len(product_scan.arrays[0]) == 0:
+                if len(product_scan.arrays[0]) == 0 or not process_msn:
                     self.skip_scan(product_scan)
                     continue
                 try:
@@ -362,7 +362,8 @@ class ScanTransformingProcess(Process, ScanTransformMixin):
         i = 0
         while has_input:
             try:
-                scan_id, product_scan_ids = self.input_queue.get(True, 10)
+                scan_id, product_scan_ids, process_msn = self.input_queue.get(True, 10)
+                # self.log_message(repr((scan_id, "process msn", process_msn)))
             except QueueEmpty:
                 if self.no_more_event is not None and self.no_more_event.is_set():
                     has_input = False
@@ -397,7 +398,7 @@ class ScanTransformingProcess(Process, ScanTransformMixin):
                 self.log_error(e, scan_id, scan, (product_scan_ids))
 
             for product_scan in product_scans:
-                if len(product_scan.arrays[0]) == 0:
+                if len(product_scan.arrays[0]) == 0 or (not process_msn):
                     self.skip_scan(product_scan)
                     continue
                 try:
