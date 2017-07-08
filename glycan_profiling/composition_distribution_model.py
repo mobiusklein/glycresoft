@@ -1,4 +1,5 @@
 from collections import OrderedDict, namedtuple, defaultdict
+import re
 
 from six import string_types as basestring
 
@@ -15,7 +16,9 @@ from ms_deisotope.feature_map.profile_transform import peak_indices
 
 
 DEFAULT_LAPLACIAN_REGULARIZATION = 1.0
+DEFAULT_RHO = 0.1
 RESET_THRESHOLD_VALUE = 1e-3
+NORMALIZATION = 'colrow'
 
 
 class PriorBuilder(object):
@@ -263,7 +266,7 @@ def scale_network(network, maximum):
 class LaplacianSmoothingModel(object):
     def __init__(self, network, belongingness_matrix, threshold,
                  regularize=DEFAULT_LAPLACIAN_REGULARIZATION, neighborhood_walker=None,
-                 belongingness_normalization='colrow'):
+                 belongingness_normalization=NORMALIZATION):
         self.network = network
 
         if neighborhood_walker is None:
@@ -283,8 +286,14 @@ class LaplacianSmoothingModel(object):
         self.Am = belongingness_matrix[self.miss_ix, :]
         self.C0 = [node for node in self.network[self.obs_ix]]
 
-        # Intentionally use column-row normalization during fitting?
         self._belongingness_normalization = belongingness_normalization
+        self.variance_matrix = np.eye(len(self.S0))
+
+    def __reduce__(self):
+        return self.__class__, (
+            self.network, self.belongingness_matrix, self.threshold,
+            self.block_L.regularize, self.neighborhood_walker,
+            self._belongingness_normalization)
 
     @property
     def L_mm_inv(self):
@@ -315,7 +324,7 @@ class LaplacianSmoothingModel(object):
         return press
 
     def estimate_tau_from_S0(self, rho, lmda, sigma2=1.0):
-        X = ((rho / sigma2) * np.eye(len(self.S0))) + (
+        X = ((rho / sigma2) * self.variance_matrix) + (
             (1. / (lmda * sigma2)) * self.L_oo_inv) + self.A0.dot(self.A0.T)
         X = np.linalg.pinv(X)
         return self.A0.T.dot(X).dot(self.S0)
@@ -434,7 +443,7 @@ class GlycomeModel(LaplacianSmoothingModel):
 
     def __init__(self, observed_compositions, network, belongingness_matrix=None,
                  regularize=DEFAULT_LAPLACIAN_REGULARIZATION,
-                 belongingness_normalization='colrow'):
+                 belongingness_normalization=NORMALIZATION):
         observed_compositions = [
             o for o in observed_compositions if _has_glycan_composition(o)]
         self._network = network
@@ -446,6 +455,7 @@ class GlycomeModel(LaplacianSmoothingModel):
             self.network)
 
         self.neighborhood_names = self.neighborhood_walker.neighborhood_names()
+        self.node_names = [str(node) for node in self._network]
 
         self.obs_ix, self.miss_ix = network_indices(self.network)
 
@@ -458,6 +468,7 @@ class GlycomeModel(LaplacianSmoothingModel):
         self._belongingness_normalization = None
         self.S0 = []
         self.C0 = []
+        self.variance_matrix = None
 
         # Expensive Step
         if belongingness_matrix is None:
@@ -469,11 +480,17 @@ class GlycomeModel(LaplacianSmoothingModel):
         self.normalize_belongingness(belongingness_normalization)
         self._populate()
 
+    def __reduce__(self):
+        return self.__class__, (
+            self._observed_compositions, self._network, self.belongingness_matrix,
+            self.block_L.regularize, self._belongingness_normalization)
+
     def _populate(self):
         self.A0 = self.normalized_belongingness_matrix[self.obs_ix, :]
         self.Am = self.normalized_belongingness_matrix[self.miss_ix, :]
         self.S0 = np.array([g.score for g in self.network[self.obs_ix]])
         self.C0 = ([g for g in self.network[self.obs_ix]])
+        self.variance_matrix = np.eye(len(self.S0))
 
     def set_threshold(self, threshold):
         accepted = [
@@ -500,7 +517,7 @@ class GlycomeModel(LaplacianSmoothingModel):
             network, self.normalized_belongingness_matrix, threshold,
             neighborhood_walker=self.neighborhood_walker)
 
-    def normalize_belongingness(self, method='colrow'):
+    def normalize_belongingness(self, method=NORMALIZATION):
         self.normalized_belongingness_matrix = ProportionMatrixNormalization.normalize(
             self.belongingness_matrix, method)
         self._belongingness_normalization = method
@@ -538,7 +555,7 @@ class GlycomeModel(LaplacianSmoothingModel):
         return np.random.multivariate_normal(self.A0.dot(tau), (1. / lmda) * self.L_oo_inv)
 
     def find_optimal_lambda(self, rho, lambda_max=1, step=0.01, threshold=0.0001, fit_tau=True,
-                            drop_missing=True, renormalize_belongingness='colrow'):
+                            drop_missing=True, renormalize_belongingness=NORMALIZATION):
         obs = []
         missed = []
         network = self.network.clone()
@@ -573,7 +590,7 @@ class GlycomeModel(LaplacianSmoothingModel):
 
     def find_threshold_and_lambda(self, rho, lambda_max=1., lambda_step=0.01, threshold_start=0.,
                                   threshold_step=0.2, fit_tau=True, drop_missing=True,
-                                  renormalize_belongingness='colrow'):
+                                  renormalize_belongingness=NORMALIZATION):
         solutions = NetworkReduction()
         limit = max(self.S0)
         start = max(min(self.S0), threshold_start)
@@ -601,7 +618,6 @@ class GlycomeModel(LaplacianSmoothingModel):
                 network, self.normalized_belongingness_matrix, threshold,
                 neighborhood_walker=self.neighborhood_walker,
                 belongingness_normalization=renormalize_belongingness)
-            lum.apply_belongingness_patch()
             updates = []
             taus = []
             for lambd in lambda_values:
@@ -610,8 +626,6 @@ class GlycomeModel(LaplacianSmoothingModel):
                 else:
                     tau = np.zeros(self.A0.shape[1])
                 T = lum.optimize_observed_scores(lambd, lum.A0.dot(tau))
-                # Try rescaling
-                # T = T / T.max() * obs.max()
                 A = ident + lambd * wpl
 
                 H = np.linalg.inv(A)
@@ -657,9 +671,12 @@ class NeighborhoodPrior(object):
         return self.prior[name]
 
     def __repr__(self):
-        return "NeighborhoodPrior(%s)" % ([
+        return "NeighborhoodPrior(%s)" % ', '.join([
             "%s: %0.3f" % (n, t) for n, t in self.prior.items()
         ])
+
+    def __array__(self):
+        return np.array(self.tau)
 
 
 class GroupBelongingnessMatrix(object):
@@ -826,7 +843,8 @@ class NetworkReduction(object):
     def searchkey(self, value):
         array = list(self.store.keys())
         ix = self.binsearch(array, value)
-        key = array[ix + 1]
+        key = array[ix]
+        assert abs(value - key) < 1e-3
         return self.getkey(key)
 
     def put(self, key, value):
@@ -869,8 +887,8 @@ class NetworkReduction(object):
         ax.scatter(x, y)
         ax.set_xlim(*xbound)
         ax.set_ylim(*ybound)
-        ax.set_xlabel("$S_o$ Threshold")
-        ax.set_ylabel("Optimal $\lambda$")
+        ax.set_xlabel("$S_o$ Threshold", fontsize=18)
+        ax.set_ylabel("Optimal $\lambda$", fontsize=18)
         return ax
 
     def minimum_threshold_for_lambda(self, lmbda_target):
@@ -941,32 +959,140 @@ GridSearchSolution = namedtuple("GridSearchSolution", (
     "target_thresholds"))
 
 
-GridPointSolution = namedtuple("GridPointSolution", ("threshold", "lmbda", "tau", "belongingness_matrix"))
+class GridPointSolution(object):
+    def __init__(self, threshold, lmbda, tau, belongingness_matrix, neighborhood_names, node_names):
+        self.threshold = threshold
+        self.lmbda = lmbda
+        self.tau = tau
+        self.belongingness_matrix = belongingness_matrix
+        self.neighborhood_names = np.array(neighborhood_names)
+        self.node_names = np.array(node_names)
+
+    def __repr__(self):
+        return "GridPointSolution(threshold=%0.3f, lmbda=%0.3f, tau=%r)" % (
+            self.threshold, self.lmbda, self.tau)
+
+    def reindex(self, model):
+        node_indices, node_names = self._build_node_index_map(model)
+        tau_indices = self._build_neighborhood_index_map(model)
+
+        self.belongingness_matrix = self.belongingness_matrix[node_indices, :][:, tau_indices]
+        self.tau = self.tau[tau_indices]
+
+        self.neighborhood_names = model.neighborhood_names
+        self.node_names = node_names
+
+    def _build_node_index_map(self, model):
+        name_to_new_index = dict()
+        name_to_old_index = dict()
+        for i, node_name in enumerate(self.node_names):
+            name_to_old_index[node_name] = i
+            name_to_new_index[node_name] = model.network[node_name].index
+        assert len(name_to_new_index) == len(self.node_names)
+        ordering = [None for i in range(len(self.node_names))]
+        new_name_order = [None for i in range(len(self.node_names))]
+        for name, new_index in name_to_new_index.items():
+            old_index = name_to_old_index[name]
+            ordering[new_index] = old_index
+            new_name_order[new_index] = name
+        for x in ordering:
+            assert x is not None
+        return ordering, new_name_order
+
+    def _build_neighborhood_index_map(self, model):
+        tau_indices = [model.neighborhood_names.index(name) for name in self.neighborhood_names]
+        return tau_indices
+
+    def dump(self, fp):
+        fp.write("threshold: %f\n" % (self.threshold,))
+        fp.write("lambda: %f\n" % (self.lmbda,))
+        fp.write("tau:\n")
+        for i, t in enumerate(self.tau):
+            fp.write("\t%s\t%f\n" % (self.neighborhood_names[i], t,))
+        fp.write("belongingness:\n")
+        for g, row in enumerate(self.belongingness_matrix):
+            fp.write("\t%s\t" % (self.node_names[g]))
+            for i, a_ij in enumerate(row):
+                if i != 0:
+                    fp.write(",")
+                fp.write("%f" % (a_ij,))
+            fp.write("\n")
+        return fp
+
+    @classmethod
+    def load(cls, fp):
+        state = "BETWEEN"
+        threshold = 0
+        lmbda = 0
+        tau = []
+        belongingness_matrix = []
+        neighborhood_names = []
+        node_names = []
+        for line in fp:
+            line = line.strip("\n\r")
+            if line.startswith("threshold:"):
+                threshold = float(line.split(":")[1])
+                if state in ("TAU", "BELONG"):
+                    state = "BETWEEN"
+            elif line.startswith("lambda:"):
+                lmbda = float(line.split(":")[1])
+                if state in ("TAU", "BELONG"):
+                    state = "BETWEEN"
+            elif line.startswith("tau:"):
+                state = "TAU"
+            elif line.startswith("belongingness:"):
+                state = "BELONG"
+            elif line.startswith("\t") or line.startswith("  "):
+                if state == "TAU":
+                    _, name, value = re.split(r"\t|\s{4,}", line)
+                    tau.append(float(value))
+                    neighborhood_names.append(name)
+                elif state == "BELONG":
+                    _, name, values = re.split(r"\t|\s{4,}", line)
+                    belongingness_matrix.append([float(t) for t in values.split(",")])
+                    node_names.append(name)
+                else:
+                    state = "BETWEEN"
+        return cls(threshold, lmbda, np.array(tau, dtype=np.float64),
+                   np.array(belongingness_matrix, dtype=np.float64),
+                   neighborhood_names=neighborhood_names,
+                   node_names=node_names)
 
 
 class ThresholdSelectionGridSearch(object):
-    def __init__(self, model, network_reduction=None, apex_threshold=0.95):
+    def __init__(self, model, network_reduction=None, apex_threshold=0.9, threshold_bias=4.0):
         self.model = model
         self.network_reduction = network_reduction
         self.apex_threshold = apex_threshold
+        self.threshold_bias = float(threshold_bias)
+        if self.threshold_bias < 1:
+            raise ValueError("Threshold Bias must be 1 or greater")
+
+    def has_reduction(self):
+        return self.network_reduction is not None and bool(self.network_reduction)
 
     def explore_grid(self):
         if self.network_reduction is None:
             self.network_reduction = self.model.find_threshold_and_lambda(
-                rho=0.1, threshold_step=0.01, fit_tau=True)
+                rho=DEFAULT_RHO, threshold_step=0.1, fit_tau=True)
         stack = []
         tau_magnitude = []
         xaxis = []
 
         for level in self.network_reduction:
-            if level.threshold < 0.4:
-                continue
+            xaxis.append(level.threshold)
+
+        # Pull the distribution slightly to the right
+        bias_shift = 1 - (1 / self.threshold_bias)
+        # Reduces the influence of the threshold
+        bias_scale = self.threshold_bias
+
+        for level in self.network_reduction:
             stack.append(np.array(level.taus).mean(axis=0))
             tau_magnitude.append(
-                (np.abs(level.taus).sum()) + ((level.threshold / 4.) + 0.75)
-                # (np.abs(level.taus).sum()) * ((level.threshold / 3.) + (1 - (1. / 3.)))
-                )
-            xaxis.append(level.threshold)
+                np.abs(level.taus).sum() * (
+                    (level.threshold / bias_scale) + bias_shift)
+            )
         tau_magnitude = np.array(tau_magnitude)
         apex = peak_indices(tau_magnitude)
         xaxis = np.array(xaxis)
@@ -982,24 +1108,35 @@ class ThresholdSelectionGridSearch(object):
             states.append(self.network_reduction.searchkey(t))
         return states
 
-    def _get_estimate_for_state(self, state):
-        i = np.argmin(state.press_residuals)
-        lmbda = state.lambda_values[i]
-        self.model.set_threshold(state.threshold)
-        self.model.apply_belongingness_patch()
-        tau = self.model.estimate_tau_from_S0(0.1, lmbda)
-        A = self.model.normalized_belongingness_matrix.copy()
-        self.model.remove_belongingness_patch()
-        return GridPointSolution(state.threshold, lmbda, tau, A)
+    def _get_estimate_for_state(self, state, rho=DEFAULT_RHO, lmbda=None):
+        # Get optimal value of lambda based on
+        # the PRESS for this group
+        if lmbda is None:
+            i = np.argmin(state.press_residuals)
+            lmbda = state.lambda_values[i]
 
-    def get_solutions(self):
+        # Removes rows from A0
+        self.model.set_threshold(state.threshold)
+
+        # tau = self.model.estimate_tau_from_S0(rho, lmbda)
+        tau = self.model.estimate_tau_from_S0(rho, lmbda)
+        A = self.model.normalized_belongingness_matrix.copy()
+
+        self.model.remove_belongingness_patch()
+
+        return GridPointSolution(state.threshold, lmbda, tau, A,
+                                 self.model.neighborhood_names,
+                                 self.model.node_names)
+
+    def get_solutions(self, rho=DEFAULT_RHO, lmbda=None):
         states = self._get_solution_states()
-        solutions = [self._get_estimate_for_state(state) for state in states]
+        solutions = [self._get_estimate_for_state(
+            state, rho=rho, lmbda=lmbda) for state in states]
         self.model.reset()
         return solutions
 
-    def average_solution(self):
-        solutions = self.get_solutions()
+    def average_solution(self, rho=DEFAULT_RHO, lmbda=None):
+        solutions = self.get_solutions(rho=rho, lmbda=lmbda)
         tau_acc = np.zeros_like(solutions[0].tau)
         lmbda_acc = 0
         thresh_acc = 0
@@ -1014,12 +1151,12 @@ class ThresholdSelectionGridSearch(object):
         tau_acc /= n
         lmbda_acc /= n
         A /= n
-        A = ProportionMatrixNormalization.normalize(A, self.model._belongingness_normalization)
-        return GridPointSolution(thresh_acc, lmbda_acc, tau_acc, A)
+        # A = ProportionMatrixNormalization.normalize(A, self.model._belongingness_normalization)
+        return GridPointSolution(thresh_acc, lmbda_acc, tau_acc, A, self.model.neighborhood_names, self.model.node_names)
 
-    def estimate_phi_observed(self, solution=None, remove_threshold=True):
+    def estimate_phi_observed(self, solution=None, remove_threshold=True, rho=DEFAULT_RHO):
         if solution is None:
-            solution = self.average_solution()
+            solution = self.average_solution(rho=rho)
         if remove_threshold:
             self.model.reset()
         return self.model.optimize_observed_scores(
@@ -1068,9 +1205,9 @@ class ThresholdSelectionGridSearch(object):
         ax.scatter(
             solution.thresholds[solution.apexes],
             solution.tau_magnitude[solution.apexes])
-        ax.set_xlabel("Threshold")
-        ax.set_ylabel("Criterion")
-        ax.set_title("Locate Ideal Threshold\nBy Maximizing $\\bar{\\tau_j}$")
+        ax.set_xlabel("Threshold", fontsize=18)
+        ax.set_ylabel("Criterion", fontsize=18)
+        ax.set_title("Locate Ideal Threshold\nBy Maximizing ${\\bar \\tau_j}$", fontsize=28)
         ax.set_xticks([x_ for i, x_ in enumerate(solution.thresholds) if i % 5 == 0])
         ax.set_xticklabels(["%0.2f" % x_ for i, x_ in enumerate(solution.thresholds) if i % 5 == 0])
         return ax
@@ -1081,13 +1218,40 @@ class ThresholdSelectionGridSearch(object):
         solution = self.explore_grid()
         ax = self.network_reduction.plot(ax)
         ax.vlines(solution.thresholds[solution.apexes], 0, 1, color='red')
+        ax.set_title("Selected Estimation Points for ${\\bar \\tau}$", fontsize=28)
         return ax
 
 
-def smooth_network(network, observed_compositions, threshold_step=0.5, apex_threshold=0.95,
-                   belongingness_matrix=None, rho=0.1):
-    model = GlycomeModel(observed_compositions, network, belongingness_matrix=belongingness_matrix)
-    reduction = model.find_threshold_and_lambda(rho=rho, threshold_step=threshold_step)
-    search = ThresholdSelectionGridSearch(model, reduction, apex_threshold)
-    phi = search.average_solution()
-    return phi, search
+def smooth_network(network, observed_compositions, threshold_step=0.5, apex_threshold=0.9,
+                   belongingness_matrix=None, rho=DEFAULT_RHO, lambda_max=1,
+                   include_missing=False, lmbda=None, model_state=None):
+    model = GlycomeModel(
+        observed_compositions, network,
+        belongingness_matrix=belongingness_matrix)
+    if model_state is None:
+        reduction = model.find_threshold_and_lambda(
+            rho=rho, threshold_step=threshold_step,
+            lambda_max=lambda_max)
+        search = ThresholdSelectionGridSearch(model, reduction, apex_threshold)
+        params = search.average_solution(lmbda=lmbda)
+    else:
+        search = ThresholdSelectionGridSearch(model, None, apex_threshold)
+        model_state.reindex(model)
+        params = model_state
+        if lmbda is not None:
+            params.lmbda = lmbda
+    network = search.annotate_network(params, include_missing=include_missing)
+
+    return network, search, params
+
+
+def display_table(names, values, sigfig=3, filter_empty=1, print_fn=None):
+    values = np.array(values)
+    maxlen = len(max(names, key=len)) + 2
+    fstring = ("%%0.%df" % sigfig)
+    for i in range(len(values)):
+        if values[i, :].sum() or not filter_empty:
+            if print_fn is None:
+                print(names[i].ljust(maxlen) + ('|'.join([fstring % f for f in values[i, :]])))
+            else:
+                print_fn(names[i].ljust(maxlen) + ('|'.join([fstring % f for f in values[i, :]])))
