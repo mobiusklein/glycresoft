@@ -48,7 +48,8 @@ class GlycanChromatographySummaryGraphBuilder(object):
         agg = AggregatedAbundanceArtist(
             BundledGlycanComposition.aggregate([
                 sol for sol in self.solutions if (sol.score > min_score and
-                                                  sol.glycan_composition is not None)]),
+                                                  sol.glycan_composition is not None and
+                                                  not sol.used_as_adduct)]),
             ax=figax())
         if len(agg) == 0:
             ax = agg.ax

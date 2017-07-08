@@ -122,7 +122,7 @@ class AggregatedAbundanceArtist(EntitySummaryBarChartArtist):
     def get_heights(self, items, logscale=False):
         heights = [c.total_signal for c in items]
         if logscale:
-            heights = np.log(heights)
+            heights = np.log2(heights)
         return heights
 
 
