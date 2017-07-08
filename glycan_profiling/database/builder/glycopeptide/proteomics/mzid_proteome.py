@@ -15,7 +15,7 @@ from glycan_profiling.serialize import (
 from glycan_profiling.task import TaskBase
 
 from .mzid_parser import Parser
-from .peptide_permutation import ProteinDigestor
+from .peptide_permutation import ProteinDigestor, ProteinSplitter
 from .remove_duplicate_peptides import DeduplicatePeptides
 from .share_peptides import PeptideSharer
 from .fasta import ProteinSequenceListResolver
@@ -58,6 +58,11 @@ class allset(object):
     def __contains__(self, x):
         return True
 
+
+class ParameterizedProtease(Protease):
+    def __init__(self, name, used_missed_cleavages=1, cleavage_start=None, cleavage_end=None):
+        super(ParameterizedProtease, self).__init__(name, cleavage_start, cleavage_end)
+        self.used_missed_cleavages = used_missed_cleavages
 
 def resolve_database_url(url):
     if url.startswith("file://"):
@@ -586,10 +591,11 @@ class MzIdentMLProteomeExtraction(TaskBase):
         enzymes = list(self.parser.iterfind("Enzyme", retrieve_refs=True, iterative=True))
         processed_enzymes = []
         for enz in enzymes:
+            permitted_missed_cleavages = int(enz.get("missedCleavages", 1))
             # It's a standard enzyme, so we can look it up by name
             if "EnzymeName" in enz:
                 try:
-                    protease = Protease(enz['EnzymeName'].lower())
+                    protease = ParameterizedProtease(enz['EnzymeName'].lower(), permitted_missed_cleavages)
                     processed_enzymes.append(protease)
                 except (KeyError, re.error) as e:
                     self.log("Could not resolve protease from name %r (%s)" % (enz['EnzymeName'].lower(), e))
@@ -597,7 +603,7 @@ class MzIdentMLProteomeExtraction(TaskBase):
                 try:
                     pattern = enz['SiteRegexp']
                     try:
-                        protease = Protease(pattern)
+                        protease = ParameterizedProtease(pattern, permitted_missed_cleavages)
                         processed_enzymes.append(protease)
                     except re.error as e:
                         self.log("Could not resolve protease from name %r (%s)" % (enz['SiteRegexp'].lower(), e))
@@ -796,6 +802,7 @@ class Proteome(DatabaseBoundOperation, MzIdentMLProteomeExtraction):
         if self.include_baseline_peptides:
             self.log("... Building Baseline Peptides")
             self.build_baseline_peptides()
+        self.split_proteins()
         self.log("... Removing Duplicate Peptides")
         self.remove_duplicates()
 
@@ -830,7 +837,9 @@ class Proteome(DatabaseBoundOperation, MzIdentMLProteomeExtraction):
             constant_modifications=self.constant_modifications,
             variable_modifications=[])
         const_modifications = [mod_table[c] for c in self.constant_modifications]
-        digestor = ProteinDigestor(self.enzymes[0], const_modifications, max_missed_cleavages=1)
+        digestor = ProteinDigestor(
+            self.enzymes[0], const_modifications,
+            max_missed_cleavages=self.enzymes[0].used_missed_cleavages)
         accumulator = []
         i = 0
         for protein in self.get_target_proteins():
@@ -859,6 +868,38 @@ class Proteome(DatabaseBoundOperation, MzIdentMLProteomeExtraction):
             sharer.find_contained_peptides(protein)
             if i % 5 == 0:
                 self.log("... %0.3f%% Done (%s)" % (i / float(n) * 100., protein.name))
+
+    def split_proteins(self):
+        self.log("Begin Applying Protein Annotations")
+        mod_table = modification.RestrictedModificationTable(
+            constant_modifications=self.constant_modifications,
+            variable_modifications=[])
+        const_modifications = [mod_table[c] for c in self.constant_modifications]
+
+        splitter = ProteinSplitter(
+            constant_modifications=const_modifications,
+            variable_modifications=[])
+        i = 0
+        j = 0
+        protein_ids = self.retrieve_target_protein_ids()
+        n = len(protein_ids)
+        interval = min(n / 10., 100000)
+        acc = []
+        for protein_id in protein_ids:
+            i += 1
+            protein = self.query(Protein).get(protein_id)
+            if i % interval == 0:
+                self.log("%0.3f%% Complete (%d/%d). %d Peptides Produced." % (i * 100. / n, i, n, j))
+            for peptide in splitter.handle_protein(protein):
+                acc.append(peptide)
+                j += 1
+                if len(acc) > 100000:
+                    self.session.bulk_save_objects(acc)
+                    self.session.commit()
+                    acc = []
+        self.session.bulk_save_objects(acc)
+        self.session.commit()
+        acc = []
 
     def remove_duplicates(self):
         DeduplicatePeptides(self._original_connection, self.hypothesis_id).run()

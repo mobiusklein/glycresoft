@@ -12,6 +12,13 @@ from glycan_profiling.task import TaskBase
 from glycan_profiling.serialize import Protein
 
 
+def get_uniprot_accession(name):
+    try:
+        return fasta.partial_uniprot_parser(name).accession
+    except AttributeError:
+        return None
+
+
 class UniprotProteinDownloader(object):
     def __init__(self, accession_list, n_threads=4):
         self.accession_list = accession_list
