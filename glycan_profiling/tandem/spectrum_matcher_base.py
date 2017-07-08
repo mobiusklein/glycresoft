@@ -17,11 +17,15 @@ from .ref import TargetReference, SpectrumReference
 
 class _mass_wrapper(object):
 
-    def __init__(self, mass):
+    def __init__(self, mass, annotation=None):
         self.value = mass
+        self.annotation = annotation if annotation is not None else mass
 
     def mass(self, *args, **kwargs):
         return self.value
+
+    def __repr__(self):
+        return "MassWrapper(%f, %s)" % (self.value, self.annotation)
 
 
 _hexnac = FrozenMonosaccharideResidue.from_iupac_lite("HexNAc")
@@ -125,12 +129,13 @@ class SpectrumMatchBase(object):
         deconvoluted_peak_set._reindex()
         return deconvoluted_peak_set
 
+    @property
     def precursor_ion_mass(self):
         neutral_mass = self.scan.precursor_information.extracted_neutral_mass
         return neutral_mass
 
     def precursor_mass_accuracy(self):
-        observed = self.precursor_ion_mass()
+        observed = self.precursor_ion_mass
         theoretical = self.target.total_composition().mass
         return (observed - theoretical) / theoretical
 
@@ -287,6 +292,7 @@ class SpectrumSolutionSet(object):
             self._make_target_map()
         return self._target_map[target]
 
+    @property
     def precursor_ion_mass(self):
         neutral_mass = self.scan.precursor_information.extracted_neutral_mass
         return neutral_mass

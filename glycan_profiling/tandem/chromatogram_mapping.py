@@ -37,7 +37,7 @@ class TandemAnnotatedChromatogram(ChromatogramWrapper, SpectrumMatchSolutionColl
         self.best_msms_score = None
 
     def add_solution(self, item):
-        case_mass = item.precursor_ion_mass()
+        case_mass = item.precursor_ion_mass
         if abs(case_mass - self.chromatogram.neutral_mass) > 100:
             log_handle.log("Warning, mis-assigned spectrum match to chromatogram %r, %r" % (self, item))
         self.tandem_solutions.append(item)
@@ -161,7 +161,7 @@ class ChromatogramMSMSMapper(TaskBase):
     def distribute_orphans(self, threshold_fn=lambda x: x.q_value < 0.05):
         lost = []
         for orphan in self.orphans:
-            mass = orphan.solution.precursor_ion_mass()
+            mass = orphan.solution.precursor_ion_mass
             window = self.error_tolerance * mass
             candidates = self.chromatograms.mass_between(mass - window, mass + window)
             time = orphan.scan_time
