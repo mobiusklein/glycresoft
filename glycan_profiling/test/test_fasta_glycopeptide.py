@@ -91,6 +91,16 @@ o_glycans = """
 {Hex:1; HexNAc:1; Neu5Ac:2}    O-Glycan
 """
 
+decorin = """
+>sp|P21793|PGS2_BOVIN Decorin
+MKATIIFLLVAQVSWAGPFQQKGLFDFMLEDEASGIGPEEHFPEVPEIEPMGPVCPFRCQ
+CHLRVVQCSDLGLEKVPKDLPPDTALLDLQNNKITEIKDGDFKNLKNLHTLILINNKISK
+ISPGAFAPLVKLERLYLSKNQLKELPEKMPKTLQELRVHENEITKVRKSVFNGLNQMIVV
+ELGTNPLKSSGIENGAFQGMKKLSYIRIADTNITTIPQGLPPSLTELHLDGNKITKVDAA
+SLKGLNNLAKLGLSFNSISAVDNGSLANTPHLRELHLNNNKLVKVPGGLADHKYIQVVYL
+HNNNISAIGSNDFCPPGYNTKKASYSGVSLFSNPVQYWEIQPSTFRCVYVRAAVQLGNYK
+"""
+
 constant_modifications = ["Carbamidomethyl (C)"]
 variable_modifications = ["Deamidation (N)", "Pyro-glu from Q (Q@N-term)"]
 
@@ -187,6 +197,27 @@ class FastaGlycopeptideTests(unittest.TestCase):
         glycopeptide_builder.start()
         self.clear_file(db_file)
 
+    def test_uniprot_info(self):
+        fasta_file = self.setup_tempfile(decorin)
+        glycan_file = self.setup_tempfile(o_glycans)
+        db_file = self.setup_tempfile("")
+        glycan_builder = TextFileGlycanHypothesisSerializer(glycan_file, db_file)
+        glycan_builder.start()
+
+        glycopeptide_builder = naive_glycopeptide.MultipleProcessFastaGlycopeptideHypothesisSerializer(
+            fasta_file, db_file, glycan_builder.hypothesis_id,
+            protease=['trypsin'],
+            constant_modifications=constant_modifications,
+            variable_modifications=[], max_missed_cleavages=2)
+        glycopeptide_builder.start()
+
+        post_cleavage = glycopeptide_builder.query(serialize.Peptide).filter(
+            serialize.Peptide.base_peptide_sequence == "DEASGIGPEEHFPEVPEIEPMGPVCPFR").first()
+        self.assertIsNotNone(post_cleavage)
+
+        self.clear_file(db_file)
+        self.clear_file(fasta_file)
+        self.clear_file(glycan_file)
 
 
 if __name__ == '__main__':
