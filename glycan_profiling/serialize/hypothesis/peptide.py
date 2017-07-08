@@ -165,7 +165,8 @@ class Peptide(PeptideBase, Base):
         return inst
 
     def __repr__(self):
-        return "DBPeptideSequence({self.modified_peptide_sequence}, {self.n_glycosylation_sites})".format(self=self)
+        return ("DBPeptideSequence({self.modified_peptide_sequence}, {self.n_glycosylation_sites},"
+                " {self.start_position}, {self.end_position})").format(self=self)
 
     __table_args__ = (Index("ix_Peptide_mass_search_index", "calculated_mass", "hypothesis_id"),)
 

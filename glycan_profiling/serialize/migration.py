@@ -1,7 +1,7 @@
 from collections import defaultdict
 
 from glycan_profiling.task import TaskBase
-from glycan_profiling.chromatogram_tree import ChromatogramFilter
+from glycan_profiling.chromatogram_tree import ChromatogramFilter, DisjointChromatogramSet
 from glycan_profiling.serialize.hypothesis import GlycanComposition
 from glycan_profiling.serialize import DatabaseBoundOperation
 from glycan_profiling.database.builder.glycan.migrate import (
@@ -257,8 +257,11 @@ class GlycanCompositionChromatogramAnalysisSerializer(AnalysisMigrationBase):
         if chromatogram.used_as_adduct:
             for key, adduct in chromatogram.used_as_adduct:
                 disjoint_set_for_key = self.chromatogram_set.key_map[key]
+                if not isinstance(disjoint_set_for_key, DisjointChromatogramSet):
+                    disjoint_set_for_key = DisjointChromatogramSet(disjoint_set_for_key)
                 hit = disjoint_set_for_key.find_overlap(chromatogram)
-                yield hit, adduct
+                if hit is not None:
+                    yield hit, adduct
 
     def _get_solution_db_id_by_reference(self, ref_id):
         return self._analysis_serializer._chromatogram_solution_id_map[ref_id]

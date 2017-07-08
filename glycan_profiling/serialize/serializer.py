@@ -219,6 +219,14 @@ class AnalysisDeserializer(DatabaseBoundOperation):
         self._analysis_id = analysis_id
         self._analysis_name = analysis_name
 
+    @property
+    def chromatogram_scoring_model(self):
+        try:
+            return self.analysis.parameters["scoring_model"]
+        except KeyError:
+            from glycan_profiling.models import GeneralScorer
+            return GeneralScorer
+
     def _retrieve_analysis(self):
         if self._analysis_id is not None:
             self._analysis = self.session.query(Analysis).get(self._analysis_id)
@@ -251,14 +259,16 @@ class AnalysisDeserializer(DatabaseBoundOperation):
         from glycan_profiling.chromatogram_tree import ChromatogramFilter
         q = self.query(UnidentifiedChromatogram).filter(
             UnidentifiedChromatogram.analysis_id == self.analysis_id).yield_per(100)
-        chroma = ChromatogramFilter([c.convert() for c in q])
+        chroma = ChromatogramFilter([c.convert(
+            chromatogram_scoring_model=self.chromatogram_scoring_model) for c in q])
         return chroma
 
     def load_glycan_composition_chromatograms(self):
         from glycan_profiling.chromatogram_tree import ChromatogramFilter
         q = self.query(GlycanCompositionChromatogram).filter(
             GlycanCompositionChromatogram.analysis_id == self.analysis_id).yield_per(100)
-        chroma = ChromatogramFilter([c.convert() for c in q])
+        chroma = ChromatogramFilter([c.convert(
+            chromatogram_scoring_model=self.chromatogram_scoring_model) for c in q])
         return chroma
 
     def load_identified_glycopeptides_for_protein(self, protein_id):

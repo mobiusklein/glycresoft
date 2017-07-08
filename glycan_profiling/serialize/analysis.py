@@ -1,3 +1,5 @@
+from functools import partial
+
 from sqlalchemy import (
     Column, Numeric, Integer, String, ForeignKey, PickleType,
     Boolean, Table, func)
@@ -6,11 +8,15 @@ from sqlalchemy.orm import relationship, backref, object_session
 from sqlalchemy.ext.declarative import declared_attr
 from sqlalchemy.ext.mutable import MutableDict
 
+import dill
 
 from ms_deisotope.output.db import (
     Base, HasUniqueName, SampleRun)
 
 from glypy.utils import Enum
+
+
+DillType = partial(PickleType, pickler=dill)
 
 
 class AnalysisTypeEnum(Enum):
@@ -29,7 +35,7 @@ class Analysis(Base, HasUniqueName):
     sample_run_id = Column(Integer, ForeignKey(SampleRun.id, ondelete="CASCADE"), index=True)
     sample_run = relationship(SampleRun)
     analysis_type = Column(String(128))
-    parameters = Column(MutableDict.as_mutable(PickleType))
+    parameters = Column(MutableDict.as_mutable(DillType))
     status = Column(String(28))
 
     def __repr__(self):

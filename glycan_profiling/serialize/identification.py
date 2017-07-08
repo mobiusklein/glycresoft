@@ -39,7 +39,10 @@ class IdentifiedStructure(BoundToAnalysis):
 
     @property
     def total_signal(self):
-        return self.chromatogram.total_signal
+        try:
+            return self.chromatogram.total_signal
+        except AttributeError:
+            return 0
 
 
 class AmbiguousGlycopeptideGroup(Base, BoundToAnalysis):
