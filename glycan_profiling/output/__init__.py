@@ -9,3 +9,6 @@ from .csv_format import (
 
 from .xml import (
     MzIdentMLSerializer)
+
+from .report import (
+    GlycanChromatogramReportCreator)

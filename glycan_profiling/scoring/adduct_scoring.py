@@ -78,11 +78,11 @@ class MassScalingAdductScoringModel(AdductScoringModelBase, MassScalingCountScor
 
     def clone(self):
         text_buffer = StringIO()
-        self.save(text_buffer)
+        self.dump(text_buffer)
         text_buffer.seek(0)
         return self.load(text_buffer)
 
-    def save(self, file_obj):
+    def dump(self, file_obj):
         json.dump(
             {
                 "neighborhood_width": self.neighborhood_width,

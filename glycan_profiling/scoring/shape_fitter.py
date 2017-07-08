@@ -224,7 +224,7 @@ class ChromatogramShapeFitterBase(ScoringFeatureBase):
         self.shape_fitter = fitter
 
     def handle_invalid(self):
-        self.line_test = 0.5
+        self.line_test = 1 - 5e-6
 
     def extract_arrays(self):
         self.xs, self.ys = self.chromatogram.as_arrays()
@@ -241,8 +241,7 @@ class ChromatogramShapeFitterBase(ScoringFeatureBase):
         return NotImplemented
 
     def null_model_residuals(self):
-        residuals = flat_line_residuals(self.ys)
-        # residuals = linear_regression_residuals(self.xs, self.ys)
+        residuals = linear_regression_residuals(self.xs, self.ys)
         return residuals
 
     def perform_line_test(self):

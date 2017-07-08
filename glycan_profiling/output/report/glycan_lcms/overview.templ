@@ -1,0 +1,269 @@
+<!DOCTYPE html5>
+<html>
+<head>
+    <title></title>
+    <style>
+
+body {
+    font-family: sans-serif;
+}
+
+
+#lc-ms-overview img {
+    width: 50%;
+    margin-left: 24%;
+}
+
+#composition-abundance-overview img {
+    width: 50%;
+    margin-left: 24%;
+}
+
+.flex-container {
+    display: flex;
+    flex-direction: row;
+    flex-wrap: wrap;
+    flex-flow: row wrap;
+    align-content: flex-end;
+}
+
+.flex-justify {
+    justify-content: center;
+}
+
+.flex-left {
+    align-self: flex-start;
+}
+
+.flex-item {
+    flex: 1 0 0;
+    padding: 40px;
+}
+
+.display-table td {
+    text-align: center;
+}
+
+.score-facet-table td {
+    padding: 4px;
+}
+
+.neighborhood-table td {
+    padding: 4px;
+}
+
+section {
+    border-bottom: 2px lightgray solid;
+    margin-bottom: 3px;
+    border-radius: 5px;
+}
+
+body {
+    margin: 20px;
+}
+
+#glycan-chromatogram-details-listing :last-child {
+    border-bottom: 0px lightgray solid;
+}
+
+#glycan-chromatogram-table table {
+    margin-left: auto;
+    margin-right: auto;
+}
+
+.chromatogram-plot-item {
+    width: 600px;
+    margin-right: 220px;
+}
+
+.score-facet-table {
+    border-collapse: collapse;
+}
+
+.score-facet-table tr td:nth-child(2) {
+    border-left: 1px black solid;
+}
+
+@media print {
+    .glycan-chromatogram-detail h3 {
+        page-break-before: always;
+    }
+}
+
+    </style>
+</head>
+<body>
+    <div>
+        <h2>
+            {{analysis.name}}
+        </h2>
+        <section id='parameters' class='flex-container'>
+            <div class='flex-item'>
+                <b>Mass Accuracy:</b> {{analysis.parameters.mass_error_tolerance * (10 ** 6)}} PPM<br>
+                <b>Grouping Tolerance:</b> {{analysis.parameters.grouping_error_tolerance * (10 ** 6)}} PPM<br>
+                <b>Adducts:</b> {{analysis.parameters.adducts|join(", ")}}<br>
+                {% if analysis.parameters.get("network_parameters") is not none %}
+                    <b>Network &lambda;:</b> {{"%0.3g" % analysis.parameters.network_parameters.lmbda}}<br>
+                {% endif %}
+            </div>
+            <div class='flex-item'>
+                {% if analysis.parameters.get("network_parameters") is not none %}
+                    <b>Neighborhood Parameters</b><br>
+                    <table class='neighborhood-table'>
+                    {% for t in  analysis.parameters.network_parameters.tau %}
+                        <tr>
+                            <td>{{analysis.parameters.network_model.model.neighborhood_names[loop.index0]}}</td>
+                            <td>{{"%0.3g" % t}}</td>
+                        </tr>
+                    {% endfor %}
+                    </table>
+                {% endif %}
+            </div>
+            <div class='flex-item'>
+                <b>Target Database:</b>
+                <a>{{analysis.hypothesis.name}}</a><br>
+                <b>Sample Searched:</b>
+                <a>{{analysis.sample_run.name}}</a>
+            </div>
+        </section>
+        <section id='lc-ms-overview'>
+            {{lcms_plot}}
+        </section>
+        <section id='composition-abundance-overview'>
+            {{composition_abundance_plot}}
+        </section>
+        {% if analysis.parameters.get("network_model") is not none and analysis.parameters.get("network_model").has_reduction() %}
+            <section id='network-topology-fit-plots' class='flex-container'>
+                <div class='flex-item'>
+                    {{analysis.parameters.network_model.plot_thresholds() | svguri_plot(bbox_inches='tight', patchless=True)}}
+                </div>
+                <div class='flex-item'>
+                    {{analysis.parameters.network_model.plot() | svguri_plot(bbox_inches='tight', patchless=True)}}
+                </div>
+            </section>
+        {% endif %}
+        <section id='glycan-chromatogram-table' class="flex-container">
+            <div class='flex-item'>
+                <table class="">
+                    <thead>
+                        <tr>
+                            <th>Mass</th>
+                            <th class='medium-wide'>Glycan Composition</th>
+                            <th>Score</th>
+                            <th>Total Abundance</th>
+                            <th>Adducts</th>
+                            <th>Charge States</th>
+                            <th>Start Time</th>
+                            <th>Apex Time</th>
+                            <th>End Time</th>
+                        </tr>
+                    </thead>
+                    <tbody class='display-table'>
+                        {% for chrom in glycan_chromatograms %}
+                        <tr>
+                            <td>{{"%0.5f" % chrom.neutral_mass}}</td>
+                            <td class='medium-wide'>
+                                {{chrom.glycan_composition | glycan_link}}
+                            </td>
+                            <td>{{"%0.5f" % chrom.score}}</td>
+                            <td>{{"%0.3e" % chrom.total_signal}}</td>
+                            <td>
+                                {{chrom.adducts|join(', ', "name")}}
+                            </td>
+                            <td>
+                                {{chrom.charge_states|join(', ')}}
+                            </td>
+                            <td>
+                                {{"%0.4f" % chrom.start_time}}
+                            </td>
+                            <td>
+                                {{"%0.4f" % chrom.apex_time}}
+                            </td>
+                            <td>
+                                {{"%0.4f" % chrom.end_time}}
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </section>
+        <section id='glycan-chromatogram-details-listing'>
+            {% for chromatogram in glycan_chromatograms %}
+                <section class='glycan-chromatogram-detail' id='detail-{{chromatogram.glycan_composition.serialize()|urlencode}}'>
+                    <h3>{{chromatogram.glycan_composition}}</h3>
+                    <div class='flex-container'>
+                        <div class='flex-item'>
+                            <b>Observed Mass</b>: {{chromatogram.weighted_neutral_mass}} ({{
+                            
+                            "%0.4e" % ((chromatogram.glycan_composition.mass() - chromatogram.weighted_neutral_mass
+                                       ) / chromatogram.weighted_neutral_mass)
+
+                            }}) <br/>
+                            <b>Total Abundance</b>: {{"%0.4e" % chromatogram.total_signal}} <br/>
+                            <b>Adduct Signal Fractions</b>
+                            <ul class='adduct-signal-fraction-list' style='margin-top:0px;'>
+                            {% for adduct, fraction in chromatogram.adduct_signal_fractions().items() %}
+                                <li class='adduct-signal-fraction-item' style='margin-left:10px;'>
+                                    <b>{{adduct.name}}</b>: {{"%0.4e" % fraction}}
+                                </li>
+                            {% endfor %}
+                            </ul>
+                        </div>
+                        <div class='flex-item'>
+                            <b>Charge States</b>: {{chromatogram.charge_states | join(", ")}} <br/>
+                            <table class="score-facet-table" style='margin-top: 1px;'>
+                                <tr>
+                                    <td>
+                                        <b>Chromatogram Score</b>
+                                    </td>
+                                    <td>
+                                        <b>{{"%0.4g" % chromatogram.score}}</b>
+                                    </td>
+                                    <td>
+                                        ({{"%0.4g" % chromatogram.logitscore}})
+                                    </td>
+                                </tr>
+                                {% for facet_score, value in chromatogram.score_components().items() %}
+                                <tr>
+                                    <td>{{facet_score.replace("_", " ").title()}}</td>
+                                    <td>{{"%0.4g" % value}}</td>
+                                    <td>{{"%0.4g" % value | logit }}</td>
+                                </tr>
+                                {% endfor %}
+                            </table>
+                            {% if chromatogram.ambiguous_with|length > 0%}
+                                <b>Ambiguous Mass Shifts</b>
+                                <ul>
+                                {% for pair in chromatogram.ambiguous_with %}
+                                    <li style='margin-bottom: 5px;'>
+                                        {{pair[0] | glycan_link}} ~ {{pair[1].name}}
+                                    </li>
+                                {% endfor %}
+                                </ul>
+                            {% endif %}
+                            {% if chromatogram.used_as_adduct|length > 0 %}
+                                <b>Used As Adduct</b>
+                                <ul>
+                                    {% for pair in chromatogram.used_as_adduct %}
+                                        <li style='margin-bottom: 5px;'>
+                                            {{pair[0] | glycan_link}} ~ {{pair[1].name}}
+                                        </li>
+                                    {% endfor %}
+                                </ul>
+                            {% endif %}
+                        </div>
+                    </div>
+                    <div class='flex-container flex-justify'>
+                        {% for svgfig in chromatogram | chromatogram_figures %}
+                            <div class="chromatogram-plot-item">
+                                {{svgfig}}
+                            </div>
+                        {% endfor %}
+                    </div>
+                </section>
+            {% endfor %}
+        </section>
+    </div>
+</body>
+</html>

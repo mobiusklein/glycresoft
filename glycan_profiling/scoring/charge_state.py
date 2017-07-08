@@ -29,11 +29,13 @@ class ChargeStateDistributionScoringModelBase(ScoringFeatureBase):
         rest = chromatogram
         total = 0
         for state in states:
-            part, rest = chromatogram.bisect_charge(state)
+            part, rest = rest.bisect_charge(state)
             proportions[state] = part.total_signal
             total += part.total_signal
         for k in proportions:
             proportions[k] /= total
+        # Anything left in `rest` is from a charge state with too
+        # little support to be used
         return proportions
 
 
@@ -81,6 +83,11 @@ decay_model = DecayRateChargeStateScoringModel()
 
 
 class MassScalingChargeStateScoringModel(_CHARGE_MODEL, MassScalingCountScoringModel):
+    def __init__(self, table, neighborhood_width=100., fit_information=None):
+        self.table = table
+        self.neighborhood_width = neighborhood_width
+        self.fit_information = fit_information or {}
+
     def handle_missing_neighborhood(self, chromatogram, neighborhood, *args, **kwargs):
         warnings.warn(
             ("%f was not found for this charge state "
@@ -100,12 +107,18 @@ class MassScalingChargeStateScoringModel(_CHARGE_MODEL, MassScalingCountScoringM
             ignore_singly_charged=False):
         bins = defaultdict(lambda: defaultdict(float))
 
+        fit_info = {
+            "ignore_singly_charged": ignore_singly_charged,
+            "missing": missing,
+        }
+
         self = cls({}, neighborhood_width=neighborhood_width)
 
         for sol in observations:
             neighborhood = self.neighborhood_of(sol.neutral_mass)
-            for c in sol.charge_states:
-                if ignore_singly_charged and abs(c) == 1:
+            for c, val in self.get_signal_proportions(sol).items():
+                c = self.transform_state(c)
+                if ignore_singly_charged and c == 1:
                     continue
                 bins[neighborhood][c] += 1
 
@@ -124,11 +137,15 @@ class MassScalingChargeStateScoringModel(_CHARGE_MODEL, MassScalingCountScoringM
             entry = {k: v / total for k, v in counts.items()}
             model_table[neighborhood] = entry
 
-        return cls(model_table, neighborhood_width)
+        return cls(model_table, neighborhood_width, fit_information=fit_info)
 
-    def save(self, file_obj):
+    def dump(self, file_obj, include_fit_information=True):
         json.dump(
-            {"neighborhood_width": self.neighborhood_width, "table": self.table},
+            {
+                "neighborhood_width": self.neighborhood_width,
+                "table": self.table,
+                "fit_information": self.fit_information if include_fit_information else {}
+            },
             file_obj, indent=4, sort_keys=True)
 
     @classmethod
@@ -146,7 +163,7 @@ class MassScalingChargeStateScoringModel(_CHARGE_MODEL, MassScalingCountScoringM
 
     def clone(self):
         text_buffer = StringIO()
-        self.save(text_buffer)
+        self.dump(text_buffer)
         text_buffer.seek(0)
         return self.load(text_buffer)
 
@@ -157,15 +174,25 @@ class WeightedMassScalingChargeStateScoringModel(MassScalingChargeStateScoringMo
             ignore_singly_charged=False, smooth=0):
         bins = defaultdict(lambda: defaultdict(float))
 
+        fit_info = {
+            "ignore_singly_charged": ignore_singly_charged,
+            "missing": missing,
+            "smooth": smooth,
+            "track": defaultdict(lambda: defaultdict(list)),
+            "count": defaultdict(int)
+        }
+
         self = cls({}, neighborhood_width=neighborhood_width)
 
         for sol in observations:
             neighborhood = self.neighborhood_of(sol.neutral_mass)
-            for c in sol.charge_states:
-                if ignore_singly_charged and abs(c) == 1:
+            fit_info['count'][neighborhood] += 1
+            for c, val in self.get_signal_proportions(sol).items():
+                c = self.transform_state(c)
+                if ignore_singly_charged and c == 1:
                     continue
-                component, _ = sol.bisect_charge(c)
-                bins[neighborhood][c] += component.total_signal / sol.total_signal
+                fit_info['track'][neighborhood][c].append(val)
+                bins[neighborhood][c] += val
 
         model_table = {}
 
@@ -193,4 +220,4 @@ class WeightedMassScalingChargeStateScoringModel(MassScalingChargeStateScoringMo
             entry = {k: v / total for k, v in counts.items()}
             model_table[neighborhood] = entry
 
-        return cls(model_table, neighborhood_width)
+        return cls(model_table, neighborhood_width, fit_information=fit_info)
