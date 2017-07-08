@@ -15,7 +15,10 @@ from .chromatogram_tree import (
 from .scan_cache import NullScanCacheHandler
 
 from .scoring import (
-    ChromatogramSolution, NetworkScoreDistributor, ChromatogramScorer)
+    ChromatogramSolution,
+    ChromatogramScorer)
+
+from .composition_distribution_model import smooth_network, display_table
 
 
 class ScanSink(object):
@@ -399,17 +402,16 @@ class NonSplittingChromatogramMatcher(ChromatogramMatcher):
 
 
 class ChromatogramEvaluator(TaskBase):
-    def __init__(self, scoring_model=None, network=None):
+    def __init__(self, scoring_model=None):
         if scoring_model is None:
             scoring_model = ChromatogramScorer()
         self.scoring_model = scoring_model
-        self.network = network
 
-    def evaluate(self, chromatograms, base_coef=0.8, support_coef=0.2, delta_rt=0.25,
-                 min_points=3, smooth=True):
+    def evaluate(self, chromatograms, delta_rt=0.25, min_points=3, smooth_overlap_rt=True,
+                 *args, **kwargs):
         filtered = ChromatogramFilter.process(
             chromatograms, delta_rt=delta_rt, min_points=min_points)
-        if smooth:
+        if smooth_overlap_rt:
             filtered = ChromatogramOverlapSmoother(filtered)
 
         solutions = []
@@ -421,35 +423,116 @@ class ChromatogramEvaluator(TaskBase):
             if i % 1000 == 0:
                 self.log("%0.2f%% chromatograms evaluated (%d/%d)" % (i * 100. / n, i, n))
             try:
-                solutions.append(ChromatogramSolution(case, scorer=self.scoring_model))
+                sol = self.evaluate_chromatogram(case)
+                if self.scoring_model.accept(sol):
+                    solutions.append(sol)
                 end = time.time()
                 # Report on anything that took more than 30 seconds to evaluate
                 if end - start > 30.0:
                     self.log("%r took a long time to evaluated (%0.2fs)" % (case, end - start))
             except (IndexError, ValueError):
                 continue
-        if base_coef != 1.0 and self.network is not None:
-            NetworkScoreDistributor(solutions, self.network).distribute(base_coef, support_coef)
         return ChromatogramFilter(solutions)
 
-    def score(self, chromatograms, base_coef=0.8, support_coef=0.2, delta_rt=0.25, min_points=3,
-              smooth=True, adducts=None):
+    def evaluate_chromatogram(self, chromatogram):
+        score_set = self.scoring_model.compute_scores(chromatogram)
+        score = score_set.product()
+        return ChromatogramSolution(
+            chromatogram, score, scorer=self.scoring_model,
+            score_set=score_set)
 
-        solutions = self.evaluate(chromatograms, base_coef, support_coef, delta_rt, min_points, smooth)
+
+    def finalize_matches(self, solutions):
+        solutions = ChromatogramFilter(sol for sol in solutions if sol.score > 1e-5)
+        return solutions
+
+    def score(self, chromatograms, delta_rt=0.25, min_points=3, smooth_overlap_rt=True,
+              adducts=None, *args, **kwargs):
+
+        solutions = self.evaluate(
+            chromatograms, delta_rt, min_points, smooth_overlap_rt, *args, **kwargs)
 
         if adducts is not None and len(adducts):
             hold = prune_bad_adduct_branches(ChromatogramFilter(solutions))
             self.log("Re-evaluating after adduct pruning")
-            solutions = self.evaluate(hold, base_coef, support_coef, delta_rt)
+            solutions = self.evaluate(hold, delta_rt, min_points, smooth_overlap_rt,
+                                      *args, **kwargs)
 
-        solutions = ChromatogramFilter(sol for sol in solutions if sol.score > 1e-5)
+        solutions = self.finalize_matches(solutions)
         return solutions
 
-    def acceptance_filter(self, solutions, threshold=0.4):
+    def acceptance_filter(self, solutions, threshold=3):
         return ChromatogramFilter([
             sol for sol in solutions
             if sol.score >= threshold and not sol.used_as_adduct
         ])
+
+    def update_parameters(self, param_dict):
+        param_dict['scoring_model'] = self.scoring_model
+
+
+class LogitSumChromatogramEvaluator(ChromatogramEvaluator):
+    def __init__(self, scorer):
+        super(LogitSumChromatogramEvaluator, self).__init__(scorer)
+
+    def evaluate_chromatogram(self, chromatogram):
+        score_set = self.scoring_model.compute_scores(chromatogram)
+        logitsum_score = score_set.logitsum()
+        return ChromatogramSolution(
+            chromatogram, logitsum_score, scorer=self.scoring_model,
+            score_set=score_set)
+
+
+class LaplacianRegularizedChromatogramEvaluator(LogitSumChromatogramEvaluator):
+    def __init__(self, scorer, network, smoothing_factor=None, grid_smoothing_max=1.0,
+                 regularization_model=None):
+        super(LaplacianRegularizedChromatogramEvaluator,
+              self).__init__(scorer)
+        self.network = network
+        self.smoothing_factor = smoothing_factor
+        self.grid_smoothing_max = grid_smoothing_max
+        self.regularization_model = regularization_model
+
+    def evaluate(self, chromatograms, delta_rt=0.25, min_points=3, smooth_overlap_rt=True,
+                 *args, **kwargs):
+        solutions = super(LaplacianRegularizedChromatogramEvaluator, self).evaluate(
+            chromatograms, delta_rt=delta_rt, min_points=min_points,
+            smooth_overlap_rt=smooth_overlap_rt, *args, **kwargs)
+        self.log("... Applying Network Smoothing Regularization")
+        updated_network, search, params = smooth_network(
+            self.network, solutions, lmbda=self.smoothing_factor,
+            lambda_max=self.grid_smoothing_max,
+            model_state=self.regularization_model)
+        solutions = sorted(solutions, key=lambda x: x.score, reverse=True)
+        # TODO - Use aggregation across multiple observations for the same glycan composition
+        # instead of discarding all but the top scoring feature
+        seen = dict()
+        unannotated = []
+        for sol in solutions:
+            if sol.glycan_composition is None:
+                unannotated.append(sol)
+                continue
+            if sol.glycan_composition in seen:
+                continue
+            elif sol.score < 3:
+                break
+            seen[sol.glycan_composition] = sol
+            node = updated_network[sol.glycan_composition]
+            sol.score = node.score
+        self.network_parameters = params
+        self.grid_search = search
+        display_table(
+            search.model.neighborhood_names,
+            np.array(params.tau).reshape((-1, 1)),
+            print_fn=lambda x: self.log("...... %s" % (x,)))
+        self.log("...... smoothing factor: %0.3f; threshold: %0.3f" % (
+            params.lmbda, params.threshold))
+        return ChromatogramFilter(list(seen.values()) + unannotated)
+
+    def update_parameters(self, param_dict):
+        super(LaplacianRegularizedChromatogramEvaluator, self).update_parameters(param_dict)
+        param_dict['network_parameters'] = self.network_parameters
+        param_dict['network_model'] = self.grid_search
 
 
 class ChromatogramExtractor(TaskBase):
@@ -485,7 +568,7 @@ class ChromatogramExtractor(TaskBase):
         return self.peak_loader.convert_scan_id_to_retention_time(scan_id)
 
     def load_peaks(self):
-        self.accumulated = self.peak_loader.ms1_peaks_above(self.minimum_mass)
+        self.accumulated = self.peak_loader.ms1_peaks_above(self.minimum_mass, self.minimum_intensity)
         self.annotated_peaks = [x[:2] for x in self.accumulated]
         self.peak_mapping = {x[:2]: x[2] for x in self.accumulated}
         self.minimum_intensity = np.percentile([p[1].intensity for p in self.accumulated], 5)
@@ -546,19 +629,18 @@ class ChromatogramProcessor(TaskBase):
     matcher_type = GlycanChromatogramMatcher
 
     def __init__(self, chromatograms, database, adducts=None, mass_error_tolerance=1e-5,
-                 scoring_model=None, network_sharing=0.,
-                 smooth=True, acceptance_threshold=0.4, delta_rt=0.25):
+                 scoring_model=None, smooth_overlap_rt=True, acceptance_threshold=0.4,
+                 delta_rt=0.25):
         if adducts is None:
             adducts = []
-        self._chromatograms = (chromatograms)
+        self._chromatograms = chromatograms
         self.database = database
         self.adducts = adducts
         self.mass_error_tolerance = mass_error_tolerance
+
         self.scoring_model = scoring_model
-        self.network = database.glycan_composition_network
-        self.base_coef = 1 - network_sharing
-        self.support_coef = network_sharing
-        self.smooth = smooth
+
+        self.smooth_overlap_rt = smooth_overlap_rt
         self.acceptance_threshold = acceptance_threshold
         self.delta_rt = delta_rt
 
@@ -575,7 +657,7 @@ class ChromatogramProcessor(TaskBase):
         return matches
 
     def make_evaluator(self):
-        evaluator = ChromatogramEvaluator(self.scoring_model, self.network)
+        evaluator = ChromatogramEvaluator(self.scoring_model)
         return evaluator
 
     def run(self):
@@ -584,18 +666,52 @@ class ChromatogramProcessor(TaskBase):
         self.log("End Matching Chromatograms")
         self.log("%d Matches Found" % (len(matches),))
         self.log("Begin Evaluating Chromatograms")
-        evaluator = self.make_evaluator()
-        self.solutions = evaluator.score(
-            matches, self.base_coef, self.support_coef,
-            smooth=self.smooth, adducts=self.adducts,
-            delta_rt=self.delta_rt)
-        self.accepted_solutions = evaluator.acceptance_filter(self.solutions)
+        self.evaluator = self.make_evaluator()
+        self.solutions = self.evaluator.score(
+            matches, smooth_overlap_rt=self.smooth_overlap_rt,
+            adducts=self.adducts, delta_rt=self.delta_rt)
+        self.accepted_solutions = self.evaluator.acceptance_filter(self.solutions)
         self.log("End Evaluating Chromatograms")
 
     def __iter__(self):
         if self.accepted_solutions is None:
             self.run()
         return iter(self.accepted_solutions)
+
+
+class LogitSumChromatogramProcessor(ChromatogramProcessor):
+    def make_evaluator(self):
+        evaluator = LogitSumChromatogramEvaluator(self.scoring_model)
+        return evaluator
+
+
+class LaplacianRegularizedChromatogramProcessor(LogitSumChromatogramProcessor):
+    GRID_SEARCH = 'grid'
+
+    def __init__(self, chromatograms, database, adducts=None, mass_error_tolerance=1e-5,
+                 scoring_model=None, smooth_overlap_rt=True, acceptance_threshold=0.4,
+                 delta_rt=0.25, smoothing_factor=0.2, grid_smoothing_max=1.0,
+                 regularization_model=None):
+        super(LaplacianRegularizedChromatogramProcessor, self).__init__(
+            chromatograms, database, adducts, mass_error_tolerance,
+            scoring_model, smooth_overlap_rt, acceptance_threshold,
+            delta_rt)
+        if grid_smoothing_max is None:
+            grid_smoothing_max = 1.0
+        if self.GRID_SEARCH == smoothing_factor:
+            smoothing_factor = None
+        self.smoothing_factor = smoothing_factor
+        self.grid_smoothing_max = grid_smoothing_max
+        self.regularization_model = regularization_model
+
+    def make_evaluator(self):
+        evaluator = LaplacianRegularizedChromatogramEvaluator(
+            self.scoring_model,
+            self.database.glycan_composition_network,
+            smoothing_factor=self.smoothing_factor,
+            grid_smoothing_max=self.grid_smoothing_max,
+            regularization_model=self.regularization_model)
+        return evaluator
 
 
 class GlycopeptideChromatogramProcessor(ChromatogramProcessor):
