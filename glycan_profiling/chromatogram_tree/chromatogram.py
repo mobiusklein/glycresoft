@@ -121,6 +121,8 @@ class Chromatogram(object):
         adducts = set()
         for node in self.nodes:
             adducts.update(node.node_types())
+        if not adducts:
+            adducts = [Unmodified]
         self._adducts = list(adducts)
 
     def __getitem__(self, i):
