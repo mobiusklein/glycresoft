@@ -9,6 +9,7 @@ from glycan_profiling import task
 import multiprocessing
 from multiprocessing import current_process
 
+LOG_FILE_NAME = os.environ.get("GLYCRESOFT_LOG", "glycresoft-log")
 
 log_multiprocessing = False
 
@@ -17,7 +18,7 @@ def configure_logging(level=logging.INFO):
     file_fmter = logging.Formatter(
         "%(asctime)s - %(name)s:%(funcName)s:%(lineno)d - %(levelname)s - %(message)s",
         "%H:%M:%S")
-    handler = FlexibleFileHandler("glycresoft-log", mode='w')
+    handler = FlexibleFileHandler(LOG_FILE_NAME, mode='w')
     handler.setFormatter(file_fmter)
     handler.setLevel(level)
     logging.getLogger().addHandler(handler)

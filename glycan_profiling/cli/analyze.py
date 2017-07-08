@@ -13,9 +13,11 @@ from glycan_profiling.serialize import (
 from glycan_profiling.profiler import (
     MzMLGlycopeptideLCMSMSAnalyzer,
     MzMLGlycanChromatogramAnalyzer,
+    LaplacianRegularizedChromatogramProcessor,
     ProcessedMzMLDeserializer)
 
 from glycan_profiling.tandem.glycopeptide.scoring import CoverageWeightedBinomialScorer
+from glycan_profiling.composition_distribution_model import GridPointSolution
 
 from glycan_profiling.models import GeneralScorer
 
@@ -70,13 +72,15 @@ def analyze():
                     'or the number of CPUs, whichever is lower'))
 @click.option("-o", "--output-path", default=None, type=click.Path(writable=True), help=(
               "Path to write resulting analysis to."))
+@click.option("-w", "--workload-size", default=1000, type=int, help="Number of spectra to process at once")
 @click.option("--save-intermediate-results", default=None, type=click.Path(), required=False,
               help='Save intermediate spectrum matches to a file')
 def search_glycopeptide(context, database_connection, sample_path, hypothesis_identifier,
                         analysis_name, output_path=None, grouping_error_tolerance=1.5e-5, mass_error_tolerance=1e-5,
                         msn_mass_error_tolerance=2e-5, psm_fdr_threshold=0.05, peak_shape_scoring_model=None,
                         tandem_scoring_model=None, oxonium_threshold=0.15,
-                        save_intermediate_results=None, processes=4):
+                        save_intermediate_results=None, processes=4,
+                        workload_size=1000):
     """Identify glycopeptide sequences from preprocessed LC-MS/MS data, stored in mzML
     format.
     """
@@ -123,7 +127,8 @@ def search_glycopeptide(context, database_connection, sample_path, hypothesis_id
         peak_shape_scoring_model=peak_shape_scoring_model,
         tandem_scoring_model=tandem_scoring_model,
         oxonium_threshold=oxonium_threshold,
-        n_processes=processes)
+        n_processes=processes,
+        spectra_chunk_size=workload_size)
 
     gps, unassigned, target_hits, decoy_hits = analyzer.start()
     if save_intermediate_results is not None:
@@ -131,6 +136,25 @@ def search_glycopeptide(context, database_connection, sample_path, hypothesis_id
         analyzer.log("Saving Intermediate Results")
         with open(save_intermediate_results, 'wb') as handle:
             pickle.dump((target_hits, decoy_hits, gps), handle)
+
+
+class RegularizationParameterType(click.ParamType):
+    name = "\"grid\" or NUMBER > 0"
+
+    def convert(self, value, param, ctx):
+        value = value.strip().lower()
+        if value == 'grid':
+            return LaplacianRegularizedChromatogramProcessor.GRID_SEARCH
+        else:
+            try:
+                value = float(value)
+                if value < 0:
+                    self.fail("regularization parameter must be either \"grid\" or"
+                              " a non-negative number")
+                return value
+            except ValueError:
+                self.fail("regularization parameter must be either \"grid\" or"
+                          " a number between 0 and 1")
 
 
 @analyze.command("search-glycan", short_help=('Search preprocessed data for'
@@ -154,21 +178,26 @@ def search_glycopeptide(context, database_connection, sample_path, hypothesis_id
               help="The minimum mass to consider signal at.")
 @click.option("-o", "--output-path", default=None, help=(
               "Path to write resulting analysis to."))
-@click.option("-s", "--network-sharing", default=0.2, type=float,
-              help="The weight to place on similar compositions' confidence for evaluating"
-                   " one composition's confidence.")
 @click.option("-f", "--ms1-scoring-feature", "scoring_model_features", multiple=True,
               type=click.Choice(sorted(ms1_model_features)),
               help="Additional features to include in evaluating chromatograms")
-@click.option("-r", "--delta-rt", default=0.25, type=float,
+@click.option("-r", "--regularize", type=RegularizationParameterType(),
+              help=("Apply Laplacian regularization with either a"
+                    " specified weight or \"grid\" to grid search "))
+@click.option("-w", "--regularization-model-path", type=click.Path(exists=True),
+              default=None,
+              help="Path to a file containing neighborhood model for regularization")
+@click.option("-t", "--delta-rt", default=0.25, type=float,
               help='The maximum time between observed data points before splitting features')
+@click.option("--export", type=click.Choice(
+              ['csv', 'glycan-list', 'html', "model"]), multiple=True)
 def search_glycan(context, database_connection, sample_path,
                   hypothesis_identifier,
                   analysis_name, adducts, grouping_error_tolerance=1.5e-5,
                   mass_error_tolerance=1e-5, minimum_mass=500.,
-                  scoring_model=None, network_sharing=0.2,
+                  scoring_model=None, regularize=None, regularization_model_path=None,
                   output_path=None, scoring_model_features=None,
-                  delta_rt=0.25):
+                  delta_rt=0.25, export=None):
     """Identify glycan compositions from preprocessed LC-MS data, stored in mzML
     format.
     """
@@ -180,6 +209,12 @@ def search_glycan(context, database_connection, sample_path,
     if scoring_model_features:
         for feature in scoring_model_features:
             scoring_model.add_feature(validate_ms1_feature_name(feature))
+
+    if regularization_model_path is not None:
+        with open(regularization_model_path, 'r') as mod_file:
+            regularization_model = GridPointSolution.load(mod_file)
+    else:
+        regularization_model = None
 
     database_connection = DatabaseBoundOperation(database_connection)
     ms_data = ProcessedMzMLDeserializer(sample_path, use_index=False)
@@ -195,6 +230,7 @@ def search_glycan(context, database_connection, sample_path,
 
     if analysis_name is None:
         analysis_name = "%s @ %s" % (sample_run.name, hypothesis.name)
+
     analysis_name = validate_analysis_name(
         context, database_connection.session, analysis_name)
 
@@ -211,7 +247,55 @@ def search_glycan(context, database_connection, sample_path,
         database_connection._original_connection, hypothesis.id,
         sample_path=sample_path, output_path=output_path, adducts=adducts,
         mass_error_tolerance=mass_error_tolerance,
-        grouping_error_tolerance=grouping_error_tolerance, scoring_model=scoring_model,
-        minimum_mass=minimum_mass, network_sharing=network_sharing,
-        analysis_name=analysis_name, delta_rt=delta_rt)
+        grouping_error_tolerance=grouping_error_tolerance,
+        scoring_model=scoring_model,
+        minimum_mass=minimum_mass,
+        regularize=regularize,
+        regularization_model=regularization_model,
+        analysis_name=analysis_name,
+        delta_rt=delta_rt)
     analyzer.start()
+
+    if export:
+        for export_type in set(export):
+            click.echo("Handling Export: %s" % (export_type,))
+            if export_type == 'csv':
+                from glycan_profiling.cli.export import glycan_composition_identification
+                base = os.path.splitext(output_path)[0]
+                export_path = "%s-glycan-chromatograms.csv" % (base,)
+                context.invoke(
+                    glycan_composition_identification,
+                    database_connection=output_path,
+                    analysis_identifier=analyzer.analysis.id,
+                    output_path=export_path)
+            elif export_type == 'html':
+                from glycan_profiling.cli.export import glycan_composition_identification
+                base = os.path.splitext(output_path)[0]
+                export_path = "%s-report.html" % (base,)
+                context.invoke(
+                    glycan_composition_identification,
+                    database_connection=output_path,
+                    analysis_identifier=analyzer.analysis.id,
+                    output_path=export_path,
+                    report=True)
+            elif export_type == 'glycan-list':
+                from glycan_profiling.cli.export import glycan_hypothesis
+                base = os.path.splitext(output_path)[0]
+                export_path = "%s-glycan-chromatograms.csv" % (base,)
+                context.invoke(
+                    glycan_hypothesis,
+                    database_connection=output_path,
+                    hypothesis_identifier=analyzer.analysis.hypothesis_id,
+                    output_path=export_path,
+                    importable=True)
+            elif export_type == "model":
+                base = os.path.splitext(output_path)[0]
+                export_path = "%s-regularization-parameters.txt" % (base,)
+                params = analyzer.analysis.parameters.get("network_parameters")
+                if params is None:
+                    click.secho("No parameters were fitted, skipping \"model\"", fg='red')
+                else:
+                    with open(export_path, 'w') as fp:
+                        params.dump(fp)
+            else:
+                click.secho("Unrecognized Export: %s" (export_type,), fg='yellow')

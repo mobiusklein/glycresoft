@@ -177,7 +177,7 @@ def preprocess(ms_file, outfile_path, averagine=None, start_time=None, end_time=
         start_scan_id=start_scan_id, cache_handler_type=cache_handler_type,
         end_scan_id=end_scan_id, n_processes=processes,
         extract_only_tandem_envelopes=extract_only_tandem_envelopes,
-        ignore_msn=ignore_msn)
+        ignore_tandem_scans=ignore_msn)
     consumer.start()
 
 

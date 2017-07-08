@@ -7,17 +7,26 @@ from glycan_profiling.cli.validators import get_by_name_or_id
 
 from glycan_profiling.serialize import (
     DatabaseBoundOperation, GlycanHypothesis, GlycopeptideHypothesis,
-    Analysis, AnalysisTypeEnum, GlycanCompositionChromatogram,
-    Protein, Glycopeptide, IdentifiedGlycopeptide,
-    GlycopeptideSpectrumMatch, AnalysisDeserializer, GlycanComposition,
-    GlycanCombination, GlycanCombinationGlycanComposition)
+    Analysis,
+    AnalysisTypeEnum,
+    GlycanCompositionChromatogram,
+    Protein,
+    Glycopeptide,
+    IdentifiedGlycopeptide,
+    GlycopeptideSpectrumMatch,
+    AnalysisDeserializer,
+    GlycanComposition,
+    GlycanCombination,
+    GlycanCombinationGlycanComposition,
+    UnidentifiedChromatogram)
 
 from glycan_profiling.output import (
     GlycanHypothesisCSVSerializer, ImportableGlycanHypothesisCSVSerializer,
     GlycopeptideHypothesisCSVSerializer, GlycanLCMSAnalysisCSVSerializer,
     GlycopeptideLCMSMSAnalysisCSVSerializer,
     GlycopeptideSpectrumMatchAnalysisCSVSerializer,
-    MzIdentMLSerializer)
+    MzIdentMLSerializer,
+    GlycanChromatogramReportCreator)
 
 from glycan_profiling.serialize import (DatabaseScanDeserializer, SampleRun)
 from glycan_profiling.scan_cache import MzMLScanCacheHandler
@@ -103,11 +112,14 @@ def glycopeptide_hypothesis(database_connection, hypothesis_identifier, output_p
 
 
 @export.command("glycan-identification",
-                short_help="Exports assigned LC-MS features of Glycan Compositions to CSV")
+                short_help="Exports assigned LC-MS features of Glycan Compositions to CSV or HTML")
 @click.argument("database-connection")
 @click.argument("analysis-identifier")
 @click.option("-o", "--output-path", type=click.Path(), default=None, help='Path to write to instead of stdout')
-def glycan_composition_identification(database_connection, analysis_identifier, output_path=None):
+@click.option("-r", "--report", is_flag=True, help="Export an HTML report instead of a CSV")
+@click.option("-t", "--threshold", type=float, default=0)
+def glycan_composition_identification(database_connection, analysis_identifier, output_path=None,
+                                      threshold=0, report=False):
     '''Write each glycan chromatogram in CSV format
     '''
     database_connection = DatabaseBoundOperation(database_connection)
@@ -118,27 +130,51 @@ def glycan_composition_identification(database_connection, analysis_identifier, 
             str(analysis.name), str(analysis.analysis_type)), fg='red', err=True)
         raise click.Abort()
     analysis_id = analysis.id
-
-    def generate():
-        i = 0
-        interval = 100
-        query = session.query(GlycanCompositionChromatogram).filter(
-            GlycanCompositionChromatogram.analysis_id == analysis_id)
-        while True:
-            session.expire_all()
-            chunk = query.slice(i, i + interval).all()
-            if len(chunk) == 0:
-                break
-            for gcs in chunk:
-                yield gcs.convert()
-            i += interval
     if output_path is None:
         output_stream = ctxstream(sys.stdout)
     else:
         output_stream = open(output_path, 'wb')
-    with output_stream:
-        job = GlycanLCMSAnalysisCSVSerializer(output_stream, generate())
-        job.run()
+
+    if report:
+        with output_stream:
+            job = GlycanChromatogramReportCreator(
+                database_connection._original_connection,
+                analysis_id, output_stream, threshold=threshold)
+            job.run()
+    else:
+        def generate():
+            i = 0
+            interval = 100
+            query = session.query(GlycanCompositionChromatogram).filter(
+                GlycanCompositionChromatogram.analysis_id == analysis_id,
+                GlycanCompositionChromatogram.score > threshold)
+
+            while True:
+                session.expire_all()
+                chunk = query.slice(i, i + interval).all()
+                if len(chunk) == 0:
+                    break
+                for gcs in chunk:
+                    yield gcs.convert()
+                i += interval
+
+            i = 0
+            query = session.query(UnidentifiedChromatogram).filter(
+                UnidentifiedChromatogram.analysis_id == analysis_id,
+                UnidentifiedChromatogram.score > threshold)
+
+            while True:
+                session.expire_all()
+                chunk = query.slice(i, i + interval).all()
+                if len(chunk) == 0:
+                    break
+                for gcs in chunk:
+                    yield gcs.convert()
+                i += interval
+
+        with output_stream:
+            job = GlycanLCMSAnalysisCSVSerializer(output_stream, generate())
+            job.run()
 
 
 @export.command("glycopeptide-identification",

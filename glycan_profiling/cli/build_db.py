@@ -189,7 +189,8 @@ def cmd(*args, **kwargs):
 @glycopeptide_hypothesis_common_options
 @click.argument("fasta-file", type=click.Path(exists=True))
 @click.argument("database-connection")
-@click.option("-e", "--enzyme", default='trypsin', help='The proteolytic enzyme to use during digestion')
+@click.option("-e", "--enzyme", default='trypsin', multiple=True,
+              help='The proteolytic enzyme to use during digestion')
 @click.option("-m", "--missed-cleavages", type=int, default=1,
               help="The number of missed proteolytic cleavage sites permitted")
 @click.option("-n", "--name", default=None, help="The name for the hypothesis to be created")
