@@ -38,6 +38,8 @@ class TextFileGlycanCompositionLoader(object):
                 composition = tokens[0]
                 structure_classes = tokens[1:]
             gc = glycan_composition.GlycanComposition.parse(composition)
+        except StopIteration:
+            raise
         except Exception as e:
             raise Exception("Parsing Error %r occurred at %d" % (e, self.current_line))
         return gc, structure_classes
@@ -61,7 +63,8 @@ _default_label_map = {
 
 
 def normalize_lookup(string):
-    normalized_string = string.lower().replace("-", " ").strip().rstrip()
+    normalized_string = string.lower().replace("-", " ").replace(
+        "\"", '').replace("'", '').strip().rstrip()
     if normalized_string in _default_label_map:
         return _default_label_map[normalized_string]
     else:
@@ -257,7 +260,7 @@ class GlycanCompositionHypothesisMerger(GlycanHypothesisSerializerBase):
                 seen.add((composition_string, structure_class))
                 structure_class = structure_class_lookup[structure_class]
                 acc.append(dict(glycan_id=inst.id, class_id=structure_class.id))
-                if len(acc) % 100 == 0:
+                if (len(acc) % 10000) == 0:
                     self.session.execute(GlycanCompositionToClass.insert(), acc)
                     acc = []
             if acc:

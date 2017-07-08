@@ -1,3 +1,4 @@
+import re
 from itertools import product
 from collections import deque
 
@@ -221,7 +222,7 @@ def parse_rules_from_file(path):
 
         if line.startswith(";"):
             continue
-        parts = line.replace("\n", "").split(" ")
+        parts = re.split(r"\s+", line.replace("\n", ""))
         try:
             if len(parts) == 3:
                 ranges.append(cast(parts))
