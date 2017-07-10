@@ -402,6 +402,8 @@ class NonSplittingChromatogramMatcher(ChromatogramMatcher):
 
 
 class ChromatogramEvaluator(TaskBase):
+    acceptance_threshold = 0.4
+
     def __init__(self, scoring_model=None):
         if scoring_model is None:
             scoring_model = ChromatogramScorer()
@@ -441,7 +443,6 @@ class ChromatogramEvaluator(TaskBase):
             chromatogram, score, scorer=self.scoring_model,
             score_set=score_set)
 
-
     def finalize_matches(self, solutions):
         solutions = ChromatogramFilter(sol for sol in solutions if sol.score > 1e-5)
         return solutions
@@ -453,7 +454,7 @@ class ChromatogramEvaluator(TaskBase):
             chromatograms, delta_rt, min_points, smooth_overlap_rt, *args, **kwargs)
 
         if adducts is not None and len(adducts):
-            hold = prune_bad_adduct_branches(ChromatogramFilter(solutions))
+            hold = self.prune_adducts(solutions)
             self.log("Re-evaluating after adduct pruning")
             solutions = self.evaluate(hold, delta_rt, min_points, smooth_overlap_rt,
                                       *args, **kwargs)
@@ -461,7 +462,12 @@ class ChromatogramEvaluator(TaskBase):
         solutions = self.finalize_matches(solutions)
         return solutions
 
-    def acceptance_filter(self, solutions, threshold=3):
+    def prune_adducts(self, solutions):
+        return prune_bad_adduct_branches(ChromatogramFilter(solutions))
+
+    def acceptance_filter(self, solutions, threshold=None):
+        if threshold is None:
+            threshold = self.acceptance_threshold
         return ChromatogramFilter([
             sol for sol in solutions
             if sol.score >= threshold and not sol.used_as_adduct
@@ -472,8 +478,13 @@ class ChromatogramEvaluator(TaskBase):
 
 
 class LogitSumChromatogramEvaluator(ChromatogramEvaluator):
+    acceptance_threshold = 4
+
     def __init__(self, scorer):
         super(LogitSumChromatogramEvaluator, self).__init__(scorer)
+
+    def prune_adducts(self, solutions):
+        return prune_bad_adduct_branches(ChromatogramFilter(solutions), score_margin=1.5)
 
     def evaluate_chromatogram(self, chromatogram):
         score_set = self.scoring_model.compute_scores(chromatogram)
@@ -514,11 +525,14 @@ class LaplacianRegularizedChromatogramEvaluator(LogitSumChromatogramEvaluator):
                 continue
             if sol.glycan_composition in seen:
                 continue
-            elif sol.score < 3:
-                break
             seen[sol.glycan_composition] = sol
             node = updated_network[sol.glycan_composition]
-            sol.score = node.score
+            if sol.score > self.acceptance_threshold:
+                sol.score = node.score
+            else:
+                # Do not permit network smoothing to boost scores below acceptance_threshold
+                if node.score < sol.score:
+                    sol.score = node.score
         self.network_parameters = params
         self.grid_search = search
         display_table(

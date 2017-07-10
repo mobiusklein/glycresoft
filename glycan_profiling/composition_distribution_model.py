@@ -1028,8 +1028,10 @@ class GridPointSolution(object):
         belongingness_matrix = []
         neighborhood_names = []
         node_names = []
-        for line in fp:
+        for line_number, line in enumerate(fp):
             line = line.strip("\n\r")
+            if line.startswith(";"):
+                continue
             if line.startswith("threshold:"):
                 threshold = float(line.split(":")[1])
                 if state in ("TAU", "BELONG"):
@@ -1044,11 +1046,19 @@ class GridPointSolution(object):
                 state = "BELONG"
             elif line.startswith("\t") or line.startswith("  "):
                 if state == "TAU":
-                    _, name, value = re.split(r"\t|\s{4,}", line)
+                    try:
+                        _, name, value = re.split(r"\t|\s{2,}", line)
+                    except ValueError as e:
+                        print(line_number, line)
+                        raise e
                     tau.append(float(value))
                     neighborhood_names.append(name)
                 elif state == "BELONG":
-                    _, name, values = re.split(r"\t|\s{4,}", line)
+                    try:
+                        _, name, values = re.split(r"\t|\s{2,}", line)
+                    except ValueError as e:
+                        print(line_number, line)
+                        raise e
                     belongingness_matrix.append([float(t) for t in values.split(",")])
                     node_names.append(name)
                 else:

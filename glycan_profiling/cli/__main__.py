@@ -22,17 +22,6 @@ def info(type, value, tb):
         ipdb.post_mortem(tb)
 
 
-def strip_site_root(type, value, tb):
-    msg = traceback.format_exception(type, value, tb)
-    sanitized = []
-    for i, line in enumerate(msg):
-        if 'site-packages' in line:
-            sanitized.append(line.split("site-packages")[1])
-        else:
-            sanitized.append(line)
-    print(''.join(sanitized))
-
-
 # sys.excepthook = info
 
 

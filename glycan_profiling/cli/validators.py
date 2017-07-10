@@ -1,5 +1,6 @@
 import os
 import re
+import traceback
 from functools import partial
 
 import click
@@ -338,3 +339,14 @@ def validate_ms1_feature_name(feature_name):
         raise click.Abort(
             "Could not recognize scoring feature by name %r" % (
                 feature_name,))
+
+
+def strip_site_root(type, value, tb):
+    msg = traceback.format_exception(type, value, tb)
+    sanitized = []
+    for i, line in enumerate(msg):
+        if 'site-packages' in line:
+            sanitized.append(line.split("site-packages")[1])
+        else:
+            sanitized.append(line)
+    print(''.join(sanitized))

@@ -15,6 +15,9 @@ from .base import cli
 from glycan_profiling.serialize import (
     DatabaseBoundOperation, GlycanHypothesis, GlycopeptideHypothesis,
     SampleRun, Analysis)
+from glycan_profiling.database import (
+    GlycopeptideDiskBackedStructureDatabase,
+    GlycanCompositionDiskBackedStructureDatabase)
 
 from glycan_profiling.database.builder.glycopeptide.proteomics import mzid_proteome
 from glycan_profiling.database.builder.glycopeptide.proteomics.uniprot import UniprotProteinDownloader
@@ -350,3 +353,23 @@ def download_uniprot(name_file_path=None, output_path=None):
             # arrive and we can stop iterating
             else:
                 has_work = False
+
+
+@tools.command("mass-search")
+@click.option("-p", "--glycopeptide", is_flag=True)
+@click.option("-m", "--error-tolerance", type=float, default=1e-5)
+@click.argument("database-connection")
+@click.argument("hypothesis-identifier")
+@click.argument("target-mass", type=float)
+def mass_search(database_connection, hypothesis_identifier, target_mass, glycopeptide=False, error_tolerance=1e-5):
+    if glycopeptide:
+        handle = GlycopeptideDiskBackedStructureDatabase(database_connection, int(hypothesis_identifier))
+    else:
+        handle = GlycanCompositionDiskBackedStructureDatabase(database_connection, int(hypothesis_identifier))
+    width = (target_mass * error_tolerance)
+    click.secho("Mass Window: %f-%f" % (target_mass - width, target_mass + width), fg='yellow')
+    hits = list(handle.search_mass_ppm(target_mass, error_tolerance))
+    if not hits:
+        click.secho("No Matches", fg='red')
+    for hit in hits:
+        click.echo("\t".join(map(str, hit)))
