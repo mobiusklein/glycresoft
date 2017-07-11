@@ -409,11 +409,11 @@ class Chromatogram(Base, BoundToAnalysis):
 
         branch_intensities = select([apeak.c.intensity, anode.c.retention_time]).where(
             ChromatogramToChromatogramTreeNode.c.chromatogram_id == self.id
-            ).select_from(branch_peaks_join)
+        ).select_from(branch_peaks_join)
 
         root_intensities = select([apeak.c.intensity, anode.c.retention_time]).where(
             ChromatogramToChromatogramTreeNode.c.chromatogram_id == self.id
-            ).select_from(root_peaks_join)
+        ).select_from(root_peaks_join)
 
         all_intensities_q = root_intensities.union_all(branch_intensities).order_by(
             anode.c.retention_time)
@@ -435,7 +435,7 @@ class Chromatogram(Base, BoundToAnalysis):
                 current_signal = intensity
         time.append(current_time)
         signal.append(current_signal)
-        return np.array(time), np.array(signal)                
+        return np.array(time), np.array(signal)
 
     def as_arrays(self):
         session = object_session(self)

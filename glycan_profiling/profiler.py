@@ -269,6 +269,7 @@ class GlycanChromatogramAnalyzer(TaskBase):
         database = self.make_database()
         extractor = self.make_chromatogram_extractor(peak_loader)
         proc = self.make_chromatogram_processor(extractor, database)
+        self.processor = proc
         proc.run()
         self.save_solutions(proc.solutions, extractor, database, proc.evaluator)
         return proc
@@ -301,7 +302,7 @@ class MzMLGlycanChromatogramAnalyzer(GlycanChromatogramAnalyzer):
         return peak_loader
 
     def save_solutions(self, solutions, extractor, database, evaluator):
-        if self.analysis_name is None:
+        if self.analysis_name is None or self.output_path is None:
             return
         self.log('Saving solutions')
 

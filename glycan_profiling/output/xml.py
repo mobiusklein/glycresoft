@@ -350,7 +350,8 @@ class MzIdentMLSerializer(task.TaskBase):
             mods.append(pack_modification(mod, False))
         spec = {
             "enzymes": [
-                {"name": e, "missed_cleavages": hypothesis.parameters.get('max_missed_cleavages', None)}
+                {"name": getattr(e, 'name', e), "missed_cleavages": hypothesis.parameters.get(
+                    'max_missed_cleavages', None)}
                 for e in hypothesis.parameters.get('enzymes')
             ],
             "fragment_tolerance": (analysis.parameters['fragment_error_tolerance'] * 1e6, None, "parts per million"),

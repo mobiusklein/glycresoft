@@ -2,6 +2,11 @@ import os
 import multiprocessing
 from uuid import uuid4
 
+try:
+    import cPickle as pickle
+except ImportError:
+    import pickle
+
 import click
 from .base import cli
 
@@ -132,7 +137,6 @@ def search_glycopeptide(context, database_connection, sample_path, hypothesis_id
 
     gps, unassigned, target_hits, decoy_hits = analyzer.start()
     if save_intermediate_results is not None:
-        import cPickle as pickle
         analyzer.log("Saving Intermediate Results")
         with open(save_intermediate_results, 'wb') as handle:
             pickle.dump((target_hits, decoy_hits, gps), handle)
@@ -178,6 +182,7 @@ class RegularizationParameterType(click.ParamType):
               help="The minimum mass to consider signal at.")
 @click.option("-o", "--output-path", default=None, help=(
               "Path to write resulting analysis to."))
+@click.option("--interact", is_flag=True)
 @click.option("-f", "--ms1-scoring-feature", "scoring_model_features", multiple=True,
               type=click.Choice(sorted(ms1_model_features)),
               help="Additional features to include in evaluating chromatograms")
@@ -197,11 +202,11 @@ def search_glycan(context, database_connection, sample_path,
                   mass_error_tolerance=1e-5, minimum_mass=500.,
                   scoring_model=None, regularize=None, regularization_model_path=None,
                   output_path=None, scoring_model_features=None,
-                  delta_rt=0.25, export=None):
+                  delta_rt=0.25, export=None, interact=False):
     """Identify glycan compositions from preprocessed LC-MS data, stored in mzML
     format.
     """
-    if output_path is None:
+    if output_path is None and not interact:
         output_path = make_analysis_output_path("glycan")
     if scoring_model is None:
         scoring_model = GeneralScorer
@@ -255,7 +260,9 @@ def search_glycan(context, database_connection, sample_path,
         analysis_name=analysis_name,
         delta_rt=delta_rt)
     analyzer.start()
-
+    if interact:
+        import IPython
+        IPython.embed()
     if export:
         for export_type in set(export):
             click.echo("Handling Export: %s" % (export_type,))

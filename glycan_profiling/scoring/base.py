@@ -42,7 +42,7 @@ class ScoringFeatureBase(object):
     @classmethod
     def reject(self, score_components):
         score = score_components[self.get_feature_type()]
-        return score < 0.2
+        return score < 0.15
 
 
 class DummyFeature(ScoringFeatureBase):
@@ -101,7 +101,7 @@ class DiscreteCountScoringModelBase(object):
 
     def reject(self, score_components):
         score = score_components[self.feature_type]
-        return score < 0.2
+        return score < 0.15
 
 
 class UniformCountScoringModelBase(DiscreteCountScoringModelBase):

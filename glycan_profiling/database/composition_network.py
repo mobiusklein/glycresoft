@@ -1022,7 +1022,7 @@ def make_n_glycan_neighborhoods():
             asialo = CompositionRangeRule(
                 _hexnac, base_hexnac + i - 1, base_hexnac + i + 1
             ) & CompositionRangeRule(
-                _neuraminic, 0, 1
+                _neuraminic, 0, 1 if i < 2 else 0
             ) & CompositionRangeRule(
                 _hexose, base_hexnac + i - 1,
                 base_hexnac + i + 2)
