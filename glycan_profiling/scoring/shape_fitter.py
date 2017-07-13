@@ -1,6 +1,8 @@
 from collections import OrderedDict
 from functools import partial
 
+import six
+
 import numpy as np
 
 from scipy.optimize import leastsq
@@ -11,6 +13,9 @@ from scipy.ndimage import gaussian_filter1d
 from ms_peak_picker import search
 
 from .base import ScoringFeatureBase, epsilon
+
+
+MIN_POINTS = 5
 
 
 def linear_regression_residuals(x, y):
@@ -30,6 +35,10 @@ def flat_line_residuals(y):
 class PeakShapeModelBase(object):
     def __repr__(self):
         return "{self.__class__.__name__}()".format(self=self)
+
+    @classmethod
+    def nargs(self):
+        return six.get_function_code(self.shape).co_argcount - 1
 
 
 class ConstrainedParameter(object):
@@ -248,7 +257,7 @@ class ChromatogramShapeFitterBase(ScoringFeatureBase):
         residuals = self.compute_residuals()
         line_test = (residuals ** 2).sum() / (
             (self.null_model_residuals()).sum())
-        self.line_test = line_test
+        self.line_test = max(line_test, 1e-5)
 
     def plot(self, ax=None):
         if ax is None:
@@ -276,7 +285,7 @@ class ChromatogramShapeFitter(ChromatogramShapeFitterBase):
         self.params = None
         self.params_dict = None
 
-        if len(chromatogram) < 5:
+        if len(chromatogram) < MIN_POINTS:
             self.handle_invalid()
         else:
             self.extract_arrays()
@@ -363,12 +372,15 @@ class MultimodalChromatogramShapeFitter(ChromatogramShapeFitterBase):
         self.params_list = []
         self.params_dict_list = []
 
-        if len(self.chromatogram) < 5:
+        if len(self.chromatogram) < MIN_POINTS:
             self.handle_invalid()
         else:
-            self.extract_arrays()
-            self.peak_shape_fit()
-            self.perform_line_test()
+            try:
+                self.extract_arrays()
+                self.peak_shape_fit()
+                self.perform_line_test()
+            except TypeError:
+                self.handle_invalid()
 
     @property
     def fit_parameters(self):
@@ -448,7 +460,7 @@ class AdaptiveMultimodalChromatogramShapeFitter(ChromatogramShapeFitterBase):
         self.alternative_fits = []
         self.best_fit = None
 
-        if len(self.chromatogram) < 5:
+        if len(self.chromatogram) < MIN_POINTS:
             self.handle_invalid()
         else:
             self.extract_arrays()
@@ -517,7 +529,7 @@ class ProfileSplittingMultimodalChromatogramShapeFitter(ChromatogramShapeFitterB
         self.params_dict_list = []
         self.partition_sites = []
 
-        if len(self.chromatogram) < 5:
+        if len(self.chromatogram) < MIN_POINTS:
             self.handle_invalid()
         else:
             self.extract_arrays()

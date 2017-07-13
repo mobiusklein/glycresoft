@@ -972,6 +972,15 @@ class GridPointSolution(object):
         return "GridPointSolution(threshold=%0.3f, lmbda=%0.3f, tau=%r)" % (
             self.threshold, self.lmbda, self.tau)
 
+    def clone(self):
+        return self.__class__(
+            self.threshold,
+            self.lmbda,
+            self.tau.copy(),
+            self.belongingness_matrix.copy(),
+            self.neighborhood_names.copy(),
+            self.node_names.copy())
+
     def reindex(self, model):
         node_indices, node_names = self._build_node_index_map(model)
         tau_indices = self._build_neighborhood_index_map(model)
