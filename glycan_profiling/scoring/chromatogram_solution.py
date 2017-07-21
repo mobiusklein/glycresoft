@@ -39,6 +39,12 @@ def prod(*x):
 class ScorerBase(object):
     def __init__(self, *args, **kwargs):
         self.feature_set = OrderedDict()
+        self.configuration = dict()
+
+    def configure(self, analysis_info):
+        for feature in self.features():
+            config_data = feature.configure(analysis_info)
+            self.configuration[feature.get_feature_name()] = config_data
 
     def add_feature(self, scoring_feature):
         if scoring_feature is None:
