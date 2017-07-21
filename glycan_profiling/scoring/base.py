@@ -15,6 +15,23 @@ epsilon = 1e-6
 
 
 def symbolic_composition(obj):
+    """Extract the glycan composition from *obj* and converts it
+    into an instance of :class:`.GlycanSymbolContext`
+
+    The extraction process first attempts to access *obj.glycan_composition*
+    but on an :class:`AttributeError` calls :meth:`.HashableGlycanComposition.parse`
+    on *obj*. The resulting :class:`.GlycanComposition` object is then passed
+    to :class:`.GlycanSymbolContext`
+
+    Parameters
+    ----------
+    obj : object
+        The object to convert
+
+    Returns
+    -------
+    GlycanSymbolContext
+    """
     try:
         composition = obj.glycan_composition
     except AttributeError:
@@ -24,6 +41,10 @@ def symbolic_composition(obj):
 
 
 class ScoringFeatureBase(object):
+    """A base class for a type that either on instantiation
+    or on invokation of :meth:`score` will produce a confidence
+    metric for a (possibly annotated) chromatogram
+    """
     name = None
     feature_type = None
 
@@ -43,6 +64,10 @@ class ScoringFeatureBase(object):
     def reject(self, score_components):
         score = score_components[self.get_feature_type()]
         return score < 0.15
+
+    @classmethod
+    def configure(cls, analysis_data):
+        return {}
 
 
 class DummyFeature(ScoringFeatureBase):
