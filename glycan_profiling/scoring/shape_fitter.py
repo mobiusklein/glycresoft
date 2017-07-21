@@ -1,5 +1,6 @@
 from collections import OrderedDict
 from functools import partial
+from itertools import product
 
 import six
 
@@ -16,6 +17,8 @@ from .base import ScoringFeatureBase, epsilon
 
 
 MIN_POINTS = 5
+
+SIGMA_EPSILON = 1e-3
 
 
 def linear_regression_residuals(x, y):
@@ -95,6 +98,43 @@ class ConstrainedModel(object):
             pass
 
 
+class GaussianModel(PeakShapeModelBase):
+    @staticmethod
+    def fit(params, xs, ys):
+        center, amplitude, sigma = params
+        return ys - GaussianModel.shape(xs, center, amplitude, sigma)
+
+    @staticmethod
+    def shape(xs, center, amplitude, sigma):
+        if sigma == 0:
+            sigma = SIGMA_EPSILON
+        norm = (amplitude) / (sigma * sqrt(2 * pi)) * \
+            exp(-((xs - center) ** 2) / (2 * sigma ** 2))
+        return norm
+
+    @staticmethod
+    def guess(xs, ys):
+        center = np.average(xs, weights=ys / ys.sum())
+        height_at = np.abs(xs - center).argmin()
+        apex = ys[height_at]
+        sigma = np.abs(center - xs[[search.nearest_left(ys, apex / 2, height_at),
+                                    search.nearest_right(ys, apex / 2, height_at + 1)]]).sum()
+        return center, apex, sigma
+
+    @staticmethod
+    def params_to_dict(params):
+        center, amplitude, sigma = params
+        return OrderedDict((("center", center), ("amplitude", amplitude), ("sigma", sigma)))
+
+    @staticmethod
+    def center(params_dict):
+        return params_dict['center']
+
+    @staticmethod
+    def spread(params_dict):
+        return params_dict['sigma']
+
+
 class SkewedGaussianModel(PeakShapeModelBase):
     @staticmethod
     def fit(params, xs, ys):
@@ -119,6 +159,8 @@ class SkewedGaussianModel(PeakShapeModelBase):
 
     @staticmethod
     def shape(xs, center, amplitude, sigma, gamma):
+        if sigma == 0:
+            sigma = SIGMA_EPSILON
         norm = (amplitude) / (sigma * sqrt(2 * pi)) * \
             exp(-((xs - center) ** 2) / (2 * sigma ** 2))
         skew = (1 + erf((gamma * (xs - center)) / (sigma * sqrt(2))))
@@ -154,6 +196,10 @@ class BiGaussianModel(PeakShapeModelBase):
 
     @staticmethod
     def shape(xs, center, amplitude, sigma_left, sigma_right):
+        if sigma_left == 0:
+            sigma_left = SIGMA_EPSILON
+        if sigma_right == 0:
+            sigma_right = SIGMA_EPSILON
         ys = np.zeros_like(xs, dtype=np.float32)
         left_mask = xs < center
         ys[left_mask] = amplitude * np.exp(-(xs[left_mask] - center) ** 2 / (2 * sigma_left ** 2)) * sqrt(2 * pi)
@@ -263,10 +309,17 @@ class ChromatogramShapeFitterBase(ScoringFeatureBase):
         if ax is None:
             from matplotlib import pyplot as plt
             fig, ax = plt.subplots(1)
-        ax.plot(self.xs, self.ys, label='Observed')
-        ax.scatter(self.xs, self.ys, label='Observed')
-        ax.plot(self.xs, self.compute_fitted(), label='Fitted')
-        ax.plot(self.xs, self.compute_residuals(), label='Residuals')
+        ob1 = ax.plot(self.xs, self.ys, label='Observed')[0]
+        ob2 = ax.scatter(self.xs, self.ys, label='Observed')
+        f1 = ax.plot(self.xs, self.compute_fitted(), label='Fitted')[0]
+        r1 = ax.plot(self.xs, self.compute_residuals(), label='Residuals')[0]
+        ax.legend(
+            (
+                (ob1, ob2),
+                (f1,),
+                (r1,)
+            ), ("Observed", "Fitted", "Residuals")
+        )
         return ax
 
     @property
@@ -449,7 +502,7 @@ class MultimodalChromatogramShapeFitter(ChromatogramShapeFitterBase):
 class AdaptiveMultimodalChromatogramShapeFitter(ChromatogramShapeFitterBase):
     def __init__(self, chromatogram, max_peaks=5, smooth=True, fitters=None):
         if fitters is None:
-            fitters = (BiGaussianModel(), PenalizedSkewedGaussianModel(),)
+            fitters = (GaussianModel(), BiGaussianModel(), PenalizedSkewedGaussianModel(),)
         super(AdaptiveMultimodalChromatogramShapeFitter, self).__init__(
             chromatogram, smooth=smooth, fitter=fitters[0])
         self.max_peaks = max_peaks
@@ -477,6 +530,34 @@ class AdaptiveMultimodalChromatogramShapeFitter(ChromatogramShapeFitterBase):
     def compute_residuals(self):
         return self.best_fit.compute_residuals()
 
+    def _get_gap_size(self):
+        return np.average(self.xs[1:] - self.xs[:-1],
+                          weights=(self.ys[1:] + self.ys[:-1])) * 2
+
+    def has_sparse_tails(self):
+        gap = self._get_gap_size()
+        partition = [False, False]
+        if self.xs[1] - self.xs[0] > gap:
+            partition[0] = True
+        if self.xs[-1] - self.xs[-2] > gap:
+            partition[1] = True
+        return partition
+
+    def generate_trimmed_chromatogram_slices(self):
+        for tails in set(product(*zip(self.has_sparse_tails(), [False, False]))):
+            if not tails[0] and not tails[1]:
+                continue
+            if tails[0]:
+                slice_start = self.xs[1]
+            else:
+                slice_start = self.xs[0]
+            if tails[1]:
+                slice_end = self.xs[-2]
+            else:
+                slice_end = self.xs[-1]
+            subset = self.chromatogram.slice(slice_start, slice_end)
+            yield subset
+
     def peak_shape_fit(self):
         for fitter in self.fitters:
             model_fit = ProfileSplittingMultimodalChromatogramShapeFitter(
@@ -485,6 +566,11 @@ class AdaptiveMultimodalChromatogramShapeFitter(ChromatogramShapeFitterBase):
             model_fit = MultimodalChromatogramShapeFitter(
                 self.chromatogram, self.max_peaks, self.smooth, fitter=fitter)
             self.alternative_fits.append(model_fit)
+            for subset in self.generate_trimmed_chromatogram_slices():
+                model_fit = ProfileSplittingMultimodalChromatogramShapeFitter(
+                    subset, self.max_peaks,
+                    self.smooth, fitter=fitter)
+                self.alternative_fits.append(model_fit)
         self.best_fit = min(self.alternative_fits, key=lambda x: x.line_test)
         self.params_list = self.best_fit.params_list
         self.params_dict_list = self.best_fit.params_dict_list
@@ -492,6 +578,9 @@ class AdaptiveMultimodalChromatogramShapeFitter(ChromatogramShapeFitterBase):
 
     def perform_line_test(self):
         self.line_test = self.best_fit.line_test
+
+    def plot(self, *args, **kwargs):
+        return self.best_fit.plot(*args, **kwargs)
 
     def iterfits(self):
         xs = self.xs
@@ -579,11 +668,15 @@ class ProfileSplittingMultimodalChromatogramShapeFitter(ChromatogramShapeFitterB
         for point in self.partition_sites:
             mask = (self.xs <= point.minimum_index) & (self.xs > last_x)
             if any(mask):
-                segments.append((self.xs[mask], self.ys[mask]))
+                xs, ys = self.xs[mask], self.ys[mask]
+                # if len(xs) > 1:
+                segments.append((xs, ys))
             last_x = point.minimum_index
         mask = self.xs > last_x
         if any(mask):
-            segments.append((self.xs[mask], self.ys[mask]))
+            xs, ys = self.xs[mask], self.ys[mask]
+            # if len(xs) > 1:
+            segments.append((xs, ys))
         return segments
 
     def set_up_peak_fit(self, xs, ys):
