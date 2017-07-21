@@ -103,11 +103,11 @@ HexNAc > (NeuAc + NeuGc) + 1'''
             "tetra-antennary": 276,
             "hybrid": 80,
             # "over-extended": 170,
-            "asialo-tri-antennary": 120,
+            "asialo-tri-antennary": 60,
             "penta-antennary": 336,
-            "asialo-penta-antennary": 144,
+            "asialo-penta-antennary": 72,
             "high-mannose": 16,
-            "asialo-tetra-antennary": 136}
+            "asialo-tetra-antennary": 68}
         for k, v in neighborhood_sizes.items():
             self.assertEqual(v, len(walker.neighborhood_maps[k]), "%s had %d members, not %d" % (
                 k, len(walker.neighborhood_maps[k]), v))
@@ -127,11 +127,11 @@ HexNAc > (NeuAc + NeuGc) + 1'''
             'tetra-antennary': 720,
             'hybrid': 140,
             # 'over-extended': 363,
-            'asialo-tri-antennary': 180,
+            'asialo-tri-antennary': 60,
             'penta-antennary': 1080,
-            'asialo-penta-antennary': 216,
+            'asialo-penta-antennary': 72,
             'high-mannose': 16,
-            'asialo-tetra-antennary': 204,
+            'asialo-tetra-antennary': 68,
         }
         for k, v in neighborhood_sizes.items():
             self.assertEqual(v, len(walker.neighborhood_maps[k]), "%s had %d members, not %d" % (

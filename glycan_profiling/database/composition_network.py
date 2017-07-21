@@ -999,7 +999,7 @@ def make_n_glycan_neighborhoods():
 
     base_hexnac = 3
     base_neuac = 2
-    for i, spec in enumerate(['hybrid', 'bi', 'tri', 'tetra', 'penta']):
+    for i, spec in enumerate(['hybrid', 'bi', 'tri', 'tetra', 'penta', "hexa", "hepta"]):
         if i == 0:
             rule = CompositionRangeRule(
                 _hexnac, base_hexnac - 1, base_hexnac + 1
