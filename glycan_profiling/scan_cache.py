@@ -303,7 +303,14 @@ class MzMLScanCacheHandler(ScanCacheHandlerBase):
     def complete(self):
         self.save()
         self.serializer.complete()
-        self.serializer.format()
+        try:
+            self.serializer.format()
+        except OSError as e:
+            if e.errno == 32:
+                log_handle.log("Could not reformat the file in-place")
+        except Exception:
+            import traceback
+            traceback.print_exc()
 
 
 class ThreadedMzMLScanCacheHandler(MzMLScanCacheHandler):
@@ -374,11 +381,7 @@ class ThreadedMzMLScanCacheHandler(MzMLScanCacheHandler):
     def complete(self):
         self.save()
         self._end_thread()
-        try:
-            super(ThreadedMzMLScanCacheHandler, self).complete()
-        except Exception:
-            import traceback
-            traceback.print_exc()
+        super(ThreadedMzMLScanCacheHandler, self).complete()
 
 
 class SampleRunDestroyer(DatabaseBoundOperation, TaskBase):
