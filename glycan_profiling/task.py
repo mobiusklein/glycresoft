@@ -9,13 +9,17 @@ from datetime import datetime
 logger = logging.getLogger("glycan_profiling.task")
 
 
+def fmt_msg(message):
+    return "%s %s" % (datetime.now().isoformat(' '), str(message))
+
+
 def printer(obj, message):
-    print(datetime.now().isoformat(' ') + ' ' + str(message))
+    print(fmt_msg(message))
 
 
 def debug_printer(obj, message):
     if obj._debug_enabled:
-        print("DEBUG:" + datetime.now().isoformat(' ') + ' ' + str(message))
+        print("DEBUG:" + fmt_msg(message))
 
 
 class CallInterval(object):
@@ -57,6 +61,24 @@ class CallInterval(object):
 
 
 class MessageSpooler(object):
+    """An IPC-based logging helper
+
+    Attributes
+    ----------
+    halting : bool
+        Whether the object is attempting to
+        stop, so that the internal thread can
+        tell whne it should stop and tell other
+        objects using it it is trying to stop
+    handler : Callable
+        A Callable object which can be used to do
+        the actual logging
+    message_queue : multiprocessing.Queue
+        The Inter-Process Communication queue
+    thread : threading.Thread
+        The internal listener thread that will consume
+        message_queue work items
+    """
     def __init__(self, handler):
         self.handler = handler
         self.message_queue = multiprocessing.Queue()
@@ -69,7 +91,7 @@ class MessageSpooler(object):
             try:
                 message = self.message_queue.get(True, 2)
                 self.handler(message)
-            except:
+            except Exception:
                 continue
 
     def stop(self):
@@ -81,6 +103,14 @@ class MessageSpooler(object):
 
 
 class MessageSender(object):
+    """A simple callable for pushing objects into an IPC
+    queue.
+
+    Attributes
+    ----------
+    queue : multiprocessing.Queue
+        The Inter-Process Communication queue
+    """
     def __init__(self, queue):
         self.queue = queue
 
