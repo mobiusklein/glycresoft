@@ -218,6 +218,12 @@ class ChromatogramArtist(ArtistBase):
     def layout_axes(self, legend=True, axis_font_size=18, axis_label_font_size=24):
         self.ax.set_xlim(self.minimum_ident_time - 0.02,
                          self.maximum_ident_time + 0.02)
+        tick_values = np.linspace(
+            self.minimum_ident_time + 0.05,
+            self.maximum_ident_time - 0.05,
+            6)
+        self.ax.set_xticks(tick_values)
+        self.ax.set_xticklabels(["%0.2f" % v for v in tick_values])
         self.ax.set_ylim(0, self.maximum_intensity * 1.25)
         if legend:
             self.legend = self.ax.legend(bbox_to_anchor=(1.7, 1.), ncol=2, fontsize=10)
