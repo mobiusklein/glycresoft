@@ -1,24 +1,49 @@
 import logging
+import warnings
 import codecs
 import uuid
 from stat import S_IRUSR, S_IWUSR, S_IXUSR, S_IRGRP, S_IWGRP, S_IROTH, S_IWOTH
 import os
 from logging import FileHandler
-
-from glycan_profiling import task
 import multiprocessing
 from multiprocessing import current_process
 
-LOG_FILE_NAME = os.environ.get("GLYCRESOFT_LOG", "glycresoft-log")
+from glycan_profiling import task
+from glycan_profiling.config import config_file
+
+LOG_FILE_NAME = "glycresoft-log"
+LOG_FILE_MODE = 'w'
+
+user_config_data = config_file.get_configuration()
+try:
+    LOG_FILE_NAME = user_config_data['environment']['log_file_name']
+except KeyError:
+    pass
+try:
+    LOG_FILE_MODE = user_config_data['environment']['log_file_mode']
+except KeyError:
+    pass
+
+LOG_FILE_NAME = os.environ.get("GLYCRESOFT_LOG_FILE_NAME", LOG_FILE_NAME)
+LOG_FILE_MODE = os.environ.get("GLYCRESOFT_LOG_FILE_MODE", LOG_FILE_MODE)
+
 
 log_multiprocessing = False
 
 
-def configure_logging(level=logging.INFO):
+def configure_logging(level=logging.INFO, log_file_name=None, log_file_mode=None):
+    if log_file_name is None:
+        log_file_name = LOG_FILE_NAME
+    if log_file_mode is None:
+        log_file_mode = LOG_FILE_MODE
     file_fmter = logging.Formatter(
         "%(asctime)s - %(name)s:%(funcName)s:%(lineno)d - %(levelname)s - %(message)s",
         "%H:%M:%S")
-    handler = FlexibleFileHandler(LOG_FILE_NAME, mode='w')
+    if log_file_mode not in ("w", "a"):
+        warnings.warn("File Logger configured with mode %r not applicable, using \"w\" instead" % (
+            log_file_mode,))
+        log_file_mode = "w"
+    handler = FlexibleFileHandler(log_file_name, mode=log_file_mode)
     handler.setFormatter(file_fmter)
     handler.setLevel(level)
     logging.getLogger().addHandler(handler)

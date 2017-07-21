@@ -1,20 +1,31 @@
 import hjson
 import os
+import click
 
 from .peptide_modification import (load_modification_rule, save_modification_rule)
 from .substituent import (load_substituent_rule, save_substituent_rule)
 
+from psims.controlled_vocabulary import controlled_vocabulary as cv
 
-HOME_DIR = os.path.expanduser("~")
-USER_CONFIG_PATH = os.path.join(HOME_DIR, ".glycresoft-cfg.hjson")
+
+CONFIG_DIR = click.get_app_dir("glycresoft")
+if not os.path.exists(CONFIG_DIR):
+    os.makedirs(CONFIG_DIR)
+USER_CONFIG_PATH = os.path.join(CONFIG_DIR, "glycresoft-cfg.hjson")
+
+cv.configure_obo_store(os.path.join(CONFIG_DIR, "cv"))
 
 HAS_CONFIG = os.path.exists(USER_CONFIG_PATH)
 
 DEFAULT_CONFIG = {
-    "version": 0.2,
+    "version": 0.3,
     "peptide_modifications": {},
     "glycan_modifications": {},
-    "substituent_rules": {}
+    "substituent_rules": {},
+    "environment": {
+        "log_file_name": "glycresoft-log",
+        "log_file_mode": "a"
+    }
 }
 
 _CURRENT_CONFIG = None
