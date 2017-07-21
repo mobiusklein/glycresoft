@@ -12,6 +12,8 @@ from glycopeptidepy.io import fasta, uniprot
 from glycopeptidepy.structure.residue import UnknownAminoAcidException
 
 from .base import cli
+from .validators import RelativeMassErrorParam
+
 from glycan_profiling.serialize import (
     DatabaseBoundOperation, GlycanHypothesis, GlycopeptideHypothesis,
     SampleRun, Analysis)
@@ -357,7 +359,7 @@ def download_uniprot(name_file_path=None, output_path=None):
 
 @tools.command("mass-search")
 @click.option("-p", "--glycopeptide", is_flag=True)
-@click.option("-m", "--error-tolerance", type=float, default=1e-5)
+@click.option("-m", "--error-tolerance", type=RelativeMassErrorParam(), default=1e-5)
 @click.argument("database-connection")
 @click.argument("hypothesis-identifier")
 @click.argument("target-mass", type=float)

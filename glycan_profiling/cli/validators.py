@@ -350,3 +350,20 @@ def strip_site_root(type, value, tb):
         else:
             sanitized.append(line)
     print(''.join(sanitized))
+
+
+class RelativeMassErrorParam(click.types.FloatParamType):
+    name = 'NUMBER'
+
+    def convert(self, value, param, ctx):
+        value = super(RelativeMassErrorParam, self).convert(value, param, ctx)
+        if value >= 1:
+            self.fail("mass error value must be less than 1, as "
+                      "in parts-per-million error tolerance (e.g. 1e-5 for "
+                      "10 parts-per-million error tolerance)")
+        if value > 1e-3:
+            click.secho(
+                "Warning: %r has a relatively large margin, %f" % (
+                    getattr(param, "human_readable_name", param),
+                    value), fg='yellow')
+        return value

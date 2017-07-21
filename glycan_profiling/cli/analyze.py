@@ -25,6 +25,7 @@ from glycan_profiling.tandem.glycopeptide.scoring import CoverageWeightedBinomia
 from glycan_profiling.composition_distribution_model import GridPointSolution
 
 from glycan_profiling.models import GeneralScorer
+from glycan_profiling.task import fmt_msg
 
 from .validators import (
     validate_analysis_name,
@@ -32,7 +33,8 @@ from .validators import (
     glycopeptide_tandem_scoring_functions,
     get_by_name_or_id,
     validate_ms1_feature_name,
-    ms1_model_features)
+    ms1_model_features,
+    RelativeMassErrorParam)
 
 
 def make_analysis_output_path(prefix):
@@ -56,11 +58,11 @@ def analyze():
 @click.argument("database-connection")
 @click.argument("sample-path")
 @click.argument("hypothesis-identifier")
-@click.option("-m", "--mass-error-tolerance", type=float, default=1e-5,
+@click.option("-m", "--mass-error-tolerance", type=RelativeMassErrorParam(), default=1e-5,
               help="Mass accuracy constraint, in parts-per-million error, for matching MS^1 ions.")
-@click.option("-mn", "--msn-mass-error-tolerance", type=float, default=2e-5,
+@click.option("-mn", "--msn-mass-error-tolerance", type=RelativeMassErrorParam(), default=2e-5,
               help="Mass accuracy constraint, in parts-per-million error, for matching MS^n ions.")
-@click.option("-g", "--grouping-error-tolerance", type=float, default=1.5e-5,
+@click.option("-g", "--grouping-error-tolerance", type=RelativeMassErrorParam(), default=1.5e-5,
               help="Mass accuracy constraint, in parts-per-million error, for grouping chromatograms.")
 @click.option("-n", "--analysis-name", default=None, help='Name for analysis to be performed.')
 @click.option("-q", "--psm-fdr-threshold", default=0.05, type=float,
@@ -167,10 +169,10 @@ class RegularizationParameterType(click.ParamType):
 @click.argument("database-connection")
 @click.argument("sample-path")
 @click.argument("hypothesis-identifier")
-@click.option("-m", "--mass-error-tolerance", type=float, default=1e-5,
+@click.option("-m", "--mass-error-tolerance", type=RelativeMassErrorParam(), default=1e-5,
               help=("Mass accuracy constraint, in parts-per-million "
                     "error, for matching."))
-@click.option("-g", "--grouping-error-tolerance", type=float, default=1.5e-5,
+@click.option("-g", "--grouping-error-tolerance", type=RelativeMassErrorParam(), default=1.5e-5,
               help=("Mass accuracy constraint, in parts-per-million error, for"
                     " grouping chromatograms."))
 @click.option("-n", "--analysis-name", default=None,
@@ -261,11 +263,12 @@ def search_glycan(context, database_connection, sample_path,
         delta_rt=delta_rt)
     analyzer.start()
     if interact:
+        click.secho(fmt_msg("Beginning Interactive Session..."), fg='cyan')
         import IPython
         IPython.embed()
     if export:
         for export_type in set(export):
-            click.echo("Handling Export: %s" % (export_type,))
+            click.echo(fmt_msg("Handling Export: %s" % (export_type,)))
             if export_type == 'csv':
                 from glycan_profiling.cli.export import glycan_composition_identification
                 base = os.path.splitext(output_path)[0]
