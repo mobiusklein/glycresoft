@@ -43,62 +43,14 @@ class PeakShapeModelBase(object):
     def nargs(self):
         return six.get_function_code(self.shape).co_argcount - 1
 
-
-class ConstrainedParameter(object):
-    def __init__(self, name, minimum=-float('inf'), maximum=float('inf')):
-        self.name = name
-        self.minimum = minimum
-        self.maximum = maximum
-
-    def __repr__(self):
-        return "ConstrainedParameter(%s, [%0.2f, %0.2f])" % (
-            self.name, self.minimum, self.maximum)
-
-    def clamp(self, value):
-        if value < self.minimum:
-            return self.minimum
-        elif value > self.maximum:
-            return self.maximum
-        else:
-            return value
-
-    def __call__(self, value):
-        return self.clamp(value)
-
-
-class ParameterDict(dict):
-    def __missing__(self, key):
-        param = ConstrainedParameter(key)
-        self[key] = param
-        return param
-
-
-class ConstrainedModel(object):
-    def __init__(self, model, param_spec=None):
-        if param_spec is None:
-            param_spec = ParameterDict()
-        self.model = model
-        self.param_spec = ParameterDict(param_spec)
-
-    def _fit(self, params, xs, ys, func=None):
-        if func is None:
-            func = self.model.fit
-        return leastsq(func, params, (xs, ys))[0]
-
-    def fit(self, params, xs, ys):
-        fit_params = self._fit(params, xs, ys)
-        params_dict = self.model.params_to_dict(fit_params)
-        fixed = dict()
-        for param_name, constraint in list(self.param_spec.items()):
-            estimated = params_dict[param_name]
-            revised = constraint.clamp(estimated)
-            if abs(revised - estimated) < 1e-3:
-                fixed[param_name] = revised
-        if fixed:
-            pass
+    @classmethod
+    def get_min_points(self):
+        return getattr(self, "min_points", self.nargs() + 1)
 
 
 class GaussianModel(PeakShapeModelBase):
+    min_points = 6
+
     @staticmethod
     def fit(params, xs, ys):
         center, amplitude, sigma = params
@@ -278,6 +230,10 @@ class ChromatogramShapeFitterBase(ScoringFeatureBase):
         self.off_center = None
         self.shape_fitter = fitter
 
+    def is_invalid(self):
+        n = len(self.chromatogram)
+        return n < MIN_POINTS or n < self.shape_fitter.get_min_points()
+
     def handle_invalid(self):
         self.line_test = 1 - 5e-6
 
@@ -338,7 +294,7 @@ class ChromatogramShapeFitter(ChromatogramShapeFitterBase):
         self.params = None
         self.params_dict = None
 
-        if len(chromatogram) < MIN_POINTS:
+        if self.is_invalid():
             self.handle_invalid()
         else:
             self.extract_arrays()
@@ -425,7 +381,7 @@ class MultimodalChromatogramShapeFitter(ChromatogramShapeFitterBase):
         self.params_list = []
         self.params_dict_list = []
 
-        if len(self.chromatogram) < MIN_POINTS:
+        if self.is_invalid():
             self.handle_invalid()
         else:
             try:
@@ -513,12 +469,15 @@ class AdaptiveMultimodalChromatogramShapeFitter(ChromatogramShapeFitterBase):
         self.alternative_fits = []
         self.best_fit = None
 
-        if len(self.chromatogram) < MIN_POINTS:
+        if self.is_invalid():
             self.handle_invalid()
         else:
             self.extract_arrays()
             self.peak_shape_fit()
             self.perform_line_test()
+
+    def is_invalid(self):
+        return False
 
     @property
     def fit_parameters(self):
@@ -618,7 +577,7 @@ class ProfileSplittingMultimodalChromatogramShapeFitter(ChromatogramShapeFitterB
         self.params_dict_list = []
         self.partition_sites = []
 
-        if len(self.chromatogram) < MIN_POINTS:
+        if self.is_invalid():
             self.handle_invalid()
         else:
             self.extract_arrays()
