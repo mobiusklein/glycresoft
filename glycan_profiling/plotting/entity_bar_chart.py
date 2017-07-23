@@ -34,8 +34,8 @@ class EntitySummaryBarChartArtist(ArtistBase):
         self.ax.yaxis.tick_left()
         self.ax.xaxis.set_ticks_position('none')
         self.ax.xaxis.set_ticks_position('none')
-        self.ax.set_title(self.plot_title, fontsize=28)
-        self.ax.set_ylabel(self.y_label, fontsize=28)
+        self.ax.set_title(self.plot_title, fontsize=24)
+        self.ax.set_ylabel(self.y_label, fontsize=18)
 
     def __len__(self):
         return len(self.sort_items())
@@ -60,10 +60,14 @@ class EntitySummaryBarChartArtist(ArtistBase):
 
     def configure_x_axis(self):
         ax = self.ax
-        ax.set_xticks(self.indices + self.bar_width * 1.5)
-        font_size = min(max((200. / (len(self.indices) / 2.)), 3), 45)
+        ax.set_xticks(self.indices + (self.bar_width * 1.25))
+        font_size = min(
+            max(
+                (150. / (len(self.indices) / 2.)),
+                3),
+            45)
 
-        ax.set_xlabel(self.xtick_labeler.label_key, fontsize=28)
+        ax.set_xlabel(self.xtick_labeler.label_key, fontsize=14)
         ax.set_xticklabels(tuple(self.xtick_labeler), rotation=90, ha='center', size=font_size)
         if len(self.indices) == 1:
             lo, hi = ax.get_xlim()
@@ -117,7 +121,7 @@ class BundledGlycanComposition(object):
 
 class AggregatedAbundanceArtist(EntitySummaryBarChartArtist):
     y_label = "Relative Intensity"
-    plot_title = "Glycan Composition Total Abundances"
+    plot_title = "Glycan Composition\nTotal Abundances"
 
     def get_heights(self, items, logscale=False):
         heights = [c.total_signal for c in items]
