@@ -7,7 +7,7 @@ from glycan_profiling.scoring.chromatogram_solution import logit
 from glycan_profiling.symbolic_expression import GlycanSymbolContext
 from glypy import GlycanComposition
 
-from jinja2 import Markup
+from jinja2 import Markup, Template
 
 try:
     from urllib import quote
@@ -87,12 +87,36 @@ class GlycanChromatogramReportCreator(ReportCreatorBase):
         gcs = ads.load_glycan_composition_chromatograms()
         und = ads.load_unidentified_chromatograms()
 
+        if len(gcs) == 0:
+            self.log("No glycan compositions were identified. Skipping report building")
+            templ = Template('''
+                <html>
+                <style>
+                body {
+                    font-family: sans-serif;
+                }
+                </style>
+                <body>
+                    <h3>No glycan compositions were identified</h3>
+                </body>
+                </html>
+                ''')
+            return templ.stream()
+
         summary_plot = summaries.GlycanChromatographySummaryGraphBuilder(
             filter(lambda x: x.score > self.threshold, gcs + und))
         lcms_plot, composition_abundance_plot = summary_plot.draw(min_score=5)
+
         lcms_plot.ax.legend_.set_visible(False)
         lcms_plot.ax.set_title("Glycan Composition\nLC-MS Aggregated EICs", fontsize=24)
+
+        fig = lcms_plot.ax.figure
+        fig.set_figwidth(fig.get_figwidth() * 2.)
+        fig.set_figheight(fig.get_figheight() * 2.)
+
         composition_abundance_plot.ax.set_title("Glycan Composition\nTotal Abundances", fontsize=24)
+        composition_abundance_plot.ax.set_xlabel(
+            composition_abundance_plot.ax.get_xlabel(), fontsize=14)
 
         template_stream = (template_obj.stream(
             analysis=ads.analysis, lcms_plot=svguri_plot(

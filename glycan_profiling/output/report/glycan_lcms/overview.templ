@@ -112,8 +112,10 @@ body {
                     <table class='neighborhood-table'>
                     {% for t in  analysis.parameters.network_parameters.tau %}
                         <tr>
+                        {% if t > 0 %}
                             <td>{{analysis.parameters.network_model.model.neighborhood_names[loop.index0]}}</td>
                             <td>{{"%0.3g" % t}}</td>
+                        {% endif %}
                         </tr>
                     {% endfor %}
                     </table>
