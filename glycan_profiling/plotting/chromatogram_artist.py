@@ -105,7 +105,7 @@ class ChromatogramArtist(ArtistBase):
     default_label_function = staticmethod(default_label_extractor)
     include_points = True
 
-    def __init__(self, chromatograms, ax=None, colorizer=None):
+    def __init__(self, chromatograms, ax=None, colorizer=None, label_peaks=True):
         if colorizer is None:
             colorizer = ColorCycler()
         if ax is None:
@@ -123,6 +123,7 @@ class ChromatogramArtist(ArtistBase):
         self.ax = ax
         self.default_colorizer = colorizer
         self.legend = None
+        self.label_peaks = label_peaks
 
     def _resolve_chromatograms_from_argument(self, chromatograms):
         try:
@@ -212,6 +213,7 @@ class ChromatogramArtist(ArtistBase):
             label_peak = True
         else:
             label, label_peak = label
+        label_peak = label_peak & self.label_peaks
 
         self.draw_group(label, rt, heights, color, label_peak, chromatogram, **kwargs)
 
@@ -259,8 +261,9 @@ class ChromatogramArtist(ArtistBase):
 
 
 class SmoothingChromatogramArtist(ChromatogramArtist):
-    def __init__(self, chromatograms, ax=None, colorizer=None, smoothing_factor=1.0):
-        super(SmoothingChromatogramArtist, self).__init__(chromatograms, ax=ax, colorizer=colorizer)
+    def __init__(self, chromatograms, ax=None, colorizer=None, smoothing_factor=1.0, label_peaks=True):
+        super(SmoothingChromatogramArtist, self).__init__(
+            chromatograms, ax=ax, colorizer=colorizer, label_peaks=label_peaks)
         self.smoothing_factor = smoothing_factor
 
     def draw_group(self, label, rt, heights, color, label_peak=True, chromatogram=None, label_font_size=10):
