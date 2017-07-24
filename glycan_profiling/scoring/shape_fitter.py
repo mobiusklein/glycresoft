@@ -1,5 +1,4 @@
 from collections import OrderedDict
-from functools import partial
 from itertools import product
 
 import six
@@ -21,11 +20,23 @@ MIN_POINTS = 5
 SIGMA_EPSILON = 1e-3
 
 
-def linear_regression_residuals(x, y):
+def prepare_arrays_for_linear_fit(x, y):
     X = np.vstack((np.ones(len(x)), np.array(x))).T
     Y = np.array(y)
-    B = np.linalg.inv(X.T.dot(X)).dot(X.T.dot(Y))
-    Yhat = X.dot(B)
+    return X, Y
+
+
+def linear_regression_fit(x, y, prepare=False):
+    if prepare:
+        x, y = prepare_arrays_for_linear_fit(x, y)
+    B = np.linalg.inv(x.T.dot(x)).dot(x.T.dot(y))
+    Yhat = x.dot(B)
+    return Yhat
+
+
+def linear_regression_residuals(x, y):
+    X, Y = prepare_arrays_for_linear_fit(x, y)
+    Yhat = linear_regression_fit(X, Y)
     return (Y - Yhat) ** 2
 
 
@@ -482,6 +493,28 @@ class AdaptiveMultimodalChromatogramShapeFitter(ChromatogramShapeFitterBase):
     @property
     def fit_parameters(self):
         return self.best_fit.fit_parameters
+
+    @property
+    def xs(self):
+        try:
+            return self.best_fit.xs
+        except AttributeError:
+            return self._xs
+
+    @xs.setter
+    def xs(self, value):
+        self._xs = value
+
+    @property
+    def ys(self):
+        try:
+            return self.best_fit.ys
+        except AttributeError:
+            return self._ys
+
+    @ys.setter
+    def ys(self, value):
+        self._ys = value
 
     def compute_fitted(self):
         return self.best_fit.compute_fitted()
