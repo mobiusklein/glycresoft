@@ -118,8 +118,8 @@ SELECT DISTINCT ?saccharide ?glycoct ?taxon ?motif WHERE {
 
 
 taxonomy_query_template = """
-PREFIX up:<http://purl.uniprot.org/core/> 
-PREFIX taxondb:<http://purl.uniprot.org/taxonomy/> 
+PREFIX up:<http://purl.uniprot.org/core/>
+PREFIX taxondb:<http://purl.uniprot.org/taxonomy/>
 SELECT ?taxon
 FROM <http://sparql.uniprot.org/taxonomy>
 WHERE
