@@ -19,9 +19,10 @@ from ms_deisotope.output.db import (
     DatabaseScanDeserializer, FittedPeak,
     DeconvolutedPeak, DatabaseBoundOperation,
     MSScan)
+
 from glycan_profiling.piped_deconvolve import ScanGeneratorBase
 
-from .task import log_handle, TaskBase
+from glycan_profiling.task import log_handle, TaskBase
 
 
 DONE = b'---NO-MORE---'

@@ -7,7 +7,7 @@ import ms_deisotope
 import traceback
 
 from ms_deisotope.processor import (
-    ScanProcessor, MSFileLoader, ScanIntervalTree,
+    ScanProcessor, MSFileLoader,
     NoIsotopicClustersError)
 
 from ms_deisotope.feature_map.quick_index import index as build_scan_index
@@ -15,7 +15,7 @@ from ms_deisotope.feature_map.quick_index import index as build_scan_index
 from ms_deisotope.data_source.common import ProcessedScan
 
 import logging
-from .task import TaskBase, log_handle, CallInterval
+from glycan_profiling.task import TaskBase, log_handle, CallInterval
 
 
 from multiprocessing import Process, Queue
