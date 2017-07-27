@@ -3,12 +3,11 @@ from collections import defaultdict, namedtuple, OrderedDict
 from glycan_profiling.chromatogram_tree.chromatogram import GlycopeptideChromatogram
 from glycan_profiling.task import TaskBase
 
-from glycan_profiling.serialize import (
-    DatabaseBoundOperation, DatabaseScanDeserializer, func,
-    MSScan, PrecursorInformation)
+from glycan_profiling.serialize import DatabaseBoundOperation
 
 from glycan_profiling.database.disk_backed_database import (
     GlycopeptideDiskBackedStructureDatabase)
+
 from glycan_profiling.database.mass_collection import ConcatenatedDatabase
 
 from .scoring import TargetDecoyAnalyzer
@@ -17,7 +16,6 @@ from glycan_profiling.database.structure_loader import (
 
 from ..spectrum_matcher_base import (
     TandemClusterEvaluatorBase, gscore_scanner,
-    IdentificationProcessDispatcher,
     SpectrumIdentificationWorkerBase, Manager as IPCManager)
 from ..chromatogram_mapping import ChromatogramMSMSMapper
 

@@ -29,7 +29,6 @@ class PeakNode(object):
         return False
 
 
-
 class EdgeSet(object):
 
     def __init__(self, store=None):
@@ -75,7 +74,6 @@ class PeakGraphEdge(object):
 
         node1.edges.add(self)
         node2.edges.add(self)
-
 
     def __getitem__(self, key):
         if key == self.node1:
@@ -172,7 +170,7 @@ class PeakGraph(object):
             # edges, add to the waiting set
             if adjacency_matrix[:, i].sum() == 0:
                 waiting.add(self[i])
-            
+
         ordered = list()
         while waiting:
             node = waiting.pop()
@@ -199,6 +197,3 @@ class PeakGraph(object):
             longest_path_so_far = adjacency_matrix[:, node.index].max()
             distances[node.index] = longest_path_so_far + 1
         return distances
-
-
-
