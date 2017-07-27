@@ -24,9 +24,12 @@ class SpectrumMatchAnnotator(object):
         draw_peaklist(
             self.spectrum_match.spectrum,
             alpha=0.3, color='grey', ax=self.ax, **kwargs)
-        draw_peaklist(
-            self.spectrum_match._sanitized_spectrum,
-            color='grey', ax=self.ax, alpha=0.5, **kwargs)
+        try:
+            draw_peaklist(
+                self.spectrum_match._sanitized_spectrum,
+                color='grey', ax=self.ax, alpha=0.5, **kwargs)
+        except AttributeError:
+            pass
 
     def label_peak(self, fragment, peak, fontsize=12, rotation=90, **kw):
         label = "%s" % fragment.name
@@ -47,7 +50,10 @@ class SpectrumMatchAnnotator(object):
             ion_series_to_color = {}
 
         for peak, fragment in self.spectrum_match.solution_map:
-            peak_color = ion_series_to_color.get(fragment.series, color)
+            try:
+                peak_color = ion_series_to_color.get(fragment.series, color)
+            except AttributeError:
+                peak_color = ion_series_to_color.get(fragment.kind, color)
             draw_peaklist([peak], alpha=alpha, ax=self.ax, color=peak_color)
             self.label_peak(fragment, peak, fontsize=fontsize, **kwargs)
 
