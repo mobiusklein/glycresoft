@@ -45,11 +45,11 @@ def rt_to_id(ms_file, rt):
                     'Defaults to 8'))
 @click.option("-n", "--name", default=None,
               help="Name for the sample run to be stored. Defaults to the base name of the input mzML file")
-@click.option("-t", "--score-threshold", type=float, default=35.,
+@click.option("-t", "--score-threshold", type=float, default=SampleConsumer.MS1_SCORE_THRESHOLD,
               help="Minimum score to accept an isotopic pattern fit in an MS1 scan. Scales with intensity.")
-@click.option("-tn", "--msn-score-threshold", type=float, default=10.,
+@click.option("-tn", "--msn-score-threshold", type=float, default=SampleConsumer.MSN_SCORE_THRESHOLD,
               help="Minimum score to accept an isotopic pattern fit in an MS^n scan. Scales with intensity.")
-@click.option("-m", "--missed-peaks", type=int, default=1,
+@click.option("-m", "--missed-peaks", type=int, default=3,
               help="Number of missing peaks to permit before an isotopic fit is discarded")
 @click.option("-mn", "--msn-missed-peaks", type=int, default=1,
               help="Number of missing peaks to permit before an isotopic fit is discarded in an MSn scan")
