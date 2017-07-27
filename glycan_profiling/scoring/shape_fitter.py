@@ -16,7 +16,7 @@ from .base import ScoringFeatureBase, epsilon
 
 
 MIN_POINTS = 5
-
+MAX_POINTS = 2000
 SIGMA_EPSILON = 1e-3
 
 
@@ -59,6 +59,14 @@ class PeakShapeModelBase(object):
         return getattr(self, "min_points", self.nargs() + 1)
 
 
+def gaussian_shape(xs, center, amplitude, sigma):
+    if sigma == 0:
+        sigma = SIGMA_EPSILON
+    norm = (amplitude) / (sigma * sqrt(2 * pi)) * \
+        exp(-((xs - center) ** 2) / (2 * sigma ** 2))
+    return norm
+
+
 class GaussianModel(PeakShapeModelBase):
     min_points = 6
 
@@ -69,11 +77,7 @@ class GaussianModel(PeakShapeModelBase):
 
     @staticmethod
     def shape(xs, center, amplitude, sigma):
-        if sigma == 0:
-            sigma = SIGMA_EPSILON
-        norm = (amplitude) / (sigma * sqrt(2 * pi)) * \
-            exp(-((xs - center) ** 2) / (2 * sigma ** 2))
-        return norm
+        return gaussian_shape(xs, center, amplitude, sigma)
 
     @staticmethod
     def guess(xs, ys):
@@ -96,6 +100,15 @@ class GaussianModel(PeakShapeModelBase):
     @staticmethod
     def spread(params_dict):
         return params_dict['sigma']
+
+
+def skewed_gaussian_shape(xs, center, amplitude, sigma, gamma):
+    if sigma == 0:
+        sigma = SIGMA_EPSILON
+    norm = (amplitude) / (sigma * sqrt(2 * pi)) * \
+        exp(-((xs - center) ** 2) / (2 * sigma ** 2))
+    skew = (1 + erf((gamma * (xs - center)) / (sigma * sqrt(2))))
+    return norm * skew
 
 
 class SkewedGaussianModel(PeakShapeModelBase):
@@ -122,12 +135,7 @@ class SkewedGaussianModel(PeakShapeModelBase):
 
     @staticmethod
     def shape(xs, center, amplitude, sigma, gamma):
-        if sigma == 0:
-            sigma = SIGMA_EPSILON
-        norm = (amplitude) / (sigma * sqrt(2 * pi)) * \
-            exp(-((xs - center) ** 2) / (2 * sigma ** 2))
-        skew = (1 + erf((gamma * (xs - center)) / (sigma * sqrt(2))))
-        return norm * skew
+        return skewed_gaussian_shape(xs, center, amplitude, sigma, gamma)
 
     @staticmethod
     def center(params_dict):
@@ -147,6 +155,19 @@ class PenalizedSkewedGaussianModel(SkewedGaussianModel):
             center if center > xs[-1] or center < xs[0] else 1.)
 
 
+def bigaussian_shape(xs, center, amplitude, sigma_left, sigma_right):
+    if sigma_left == 0:
+        sigma_left = SIGMA_EPSILON
+    if sigma_right == 0:
+        sigma_right = SIGMA_EPSILON
+    ys = np.zeros_like(xs, dtype=np.float32)
+    left_mask = xs < center
+    ys[left_mask] = amplitude * np.exp(-(xs[left_mask] - center) ** 2 / (2 * sigma_left ** 2)) * sqrt(2 * pi)
+    right_mask = xs > center
+    ys[right_mask] = amplitude * np.exp(-(xs[right_mask] - center) ** 2 / (2 * sigma_right ** 2)) * sqrt(2 * pi)
+    return ys
+
+
 class BiGaussianModel(PeakShapeModelBase):
 
     @staticmethod
@@ -159,16 +180,7 @@ class BiGaussianModel(PeakShapeModelBase):
 
     @staticmethod
     def shape(xs, center, amplitude, sigma_left, sigma_right):
-        if sigma_left == 0:
-            sigma_left = SIGMA_EPSILON
-        if sigma_right == 0:
-            sigma_right = SIGMA_EPSILON
-        ys = np.zeros_like(xs, dtype=np.float32)
-        left_mask = xs < center
-        ys[left_mask] = amplitude * np.exp(-(xs[left_mask] - center) ** 2 / (2 * sigma_left ** 2)) * sqrt(2 * pi)
-        right_mask = xs > center
-        ys[right_mask] = amplitude * np.exp(-(xs[right_mask] - center) ** 2 / (2 * sigma_right ** 2)) * sqrt(2 * pi)
-        return ys
+        return bigaussian_shape(xs, center, amplitude, sigma_left, sigma_right)
 
     @staticmethod
     def fit(params, xs, ys):
@@ -252,8 +264,8 @@ class ChromatogramShapeFitterBase(ScoringFeatureBase):
         self.xs, self.ys = self.chromatogram.as_arrays()
         if self.smooth:
             self.ys = gaussian_filter1d(self.ys, 1)
-        if len(self.xs) > 2000:
-            new_xs = np.linspace(self.xs.min(), self.xs.max(), 2000)
+        if len(self.xs) > MAX_POINTS:
+            new_xs = np.linspace(self.xs.min(), self.xs.max(), MAX_POINTS)
             new_ys = np.interp(new_xs, self.xs, self.ys)
             self.xs = new_xs
             self.ys = new_ys
@@ -488,7 +500,7 @@ class AdaptiveMultimodalChromatogramShapeFitter(ChromatogramShapeFitterBase):
             self.perform_line_test()
 
     def is_invalid(self):
-        return False
+        return len(self.chromatogram) < MIN_POINTS
 
     @property
     def fit_parameters(self):
@@ -563,7 +575,9 @@ class AdaptiveMultimodalChromatogramShapeFitter(ChromatogramShapeFitterBase):
                     subset, self.max_peaks,
                     self.smooth, fitter=fitter)
                 self.alternative_fits.append(model_fit)
-        self.best_fit = min(self.alternative_fits, key=lambda x: x.line_test)
+        ix = np.nanargmin([f.line_test for f in self.alternative_fits])
+        # self.best_fit = min(self.alternative_fits, key=lambda x: x.line_test)
+        self.best_fit = self.alternative_fits[ix]
         self.params_list = self.best_fit.params_list
         self.params_dict_list = self.best_fit.params_dict_list
         self.shape_fitter = self.best_fit.shape_fitter
@@ -706,3 +720,16 @@ class ProfileSplittingMultimodalChromatogramShapeFitter(ChromatogramShapeFitterB
     def iterfits(self):
         for segment, params_dict in zip(self.build_partitions(), self.params_dict_list):
             yield self.shape_fitter.shape(segment[0], **params_dict)
+
+
+try:
+    _bigaussian_shape = bigaussian_shape
+    _skewed_gaussian_shape = skewed_gaussian_shape
+    _gaussian_shape = gaussian_shape
+
+    from ms_deisotope._c.feature_map.profile_transform import (
+        bigaussian_shape, skewed_gaussian_shape, gaussian_shape)
+
+    has_c = True
+except ImportError:
+    has_c = False
