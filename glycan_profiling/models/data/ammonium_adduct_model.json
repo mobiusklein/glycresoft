@@ -1,5 +1,40 @@
 {
-    "adduct_types": null,
+    "adduct_types": [
+        {
+            "composition": "H3N1", 
+            "counts": {
+                "Ammonium": 1
+            }, 
+            "definitions": {
+                "Ammonium": "H3N1"
+            }, 
+            "name": "Ammonium"
+        }, 
+        {
+            "composition": "H6N2", 
+            "counts": {
+                "Ammonium": 2
+            }, 
+            "definitions": {
+                "Ammonium": "H3N1"
+            }, 
+            "name": "Ammonium * 2"
+        }, 
+        {
+            "composition": "H9N3", 
+            "counts": {
+                "Ammonium": 3
+            }, 
+            "definitions": {
+                "Ammonium": "H3N1"
+            }, 
+            "name": "Ammonium * 3"
+        }, 
+        {
+            "composition": {}, 
+            "name": "Unmodified"
+        }
+    ],
     "neighborhood_width": 50.0,
     "table": {
         "2000.0": {

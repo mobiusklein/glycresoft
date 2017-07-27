@@ -22,10 +22,14 @@ class MassShiftBase(object):
     def _register_name(self):
         mass_shift_index[self.name] = self.composition
 
+    @classmethod
+    def get(cls, name):
+        return mass_shift_index[name]
+
 
 class MassShift(MassShiftBase):
     def __init__(self, name, composition):
-        self.name = intern(name)
+        self.name = name
         self.composition = composition
         self.mass = composition.mass
         self._register_name()
@@ -81,7 +85,7 @@ class CompoundMassShift(MassShiftBase):
                 parts.append(k.name)
             else:
                 parts.append("%s * %d" % (k.name, v))
-        self.name = intern(" + ".join(sorted(parts)))
+        self.name = " + ".join(sorted(parts))
 
     def composed_with(self, other):
         if isinstance(other, MassShift):
