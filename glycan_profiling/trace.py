@@ -291,7 +291,12 @@ class ChromatogramMatcher(TaskBase):
             last = disjoint_set[0]
             for case in disjoint_set[1:]:
                 if last.overlaps_in_time(case) or ((case.start_time - last.end_time) < delta_rt):
-                    last = last._merge_missing_only(case)
+                    merged = last._merge_missing_only(case)
+                    merged.used_as_adduct = list(last.used_as_adduct)
+                    for ua in case.used_as_adduct:
+                        if ua not in merged.used_as_adduct:
+                            merged.used_as_adduct.append(ua)
+                    last = merged
                     last.created_at = "join_common_identities"
                 else:
                     accumulated.append(last)
@@ -615,7 +620,7 @@ class ChromatogramProcessor(TaskBase):
         matcher = self.matcher_type(self.database)
         return matcher
 
-    def match_compositions(self):
+    def _match_compositions(self):
         matcher = self.make_matcher()
         matches = matcher.process(
             self._chromatograms, self.adducts, self.mass_error_tolerance,
@@ -626,11 +631,14 @@ class ChromatogramProcessor(TaskBase):
         evaluator = ChromatogramEvaluator(self.scoring_model)
         return evaluator
 
-    def run(self):
+    def match_compositions(self):
         self.log("Begin Matching Chromatograms")
-        matches = self.match_compositions()
+        matches = self._match_compositions()
         self.log("End Matching Chromatograms")
         self.log("%d Matches Found" % (len(matches),))
+        return matches
+
+    def evaluate_chromatograms(self, matches):
         self.log("Begin Evaluating Chromatograms")
         self.evaluator = self.make_evaluator()
         self.solutions = self.evaluator.score(
@@ -638,6 +646,10 @@ class ChromatogramProcessor(TaskBase):
             adducts=self.adducts, delta_rt=self.delta_rt)
         self.accepted_solutions = self.evaluator.acceptance_filter(self.solutions)
         self.log("End Evaluating Chromatograms")
+
+    def run(self):
+        matches = self.match_compositions()
+        self.evaluate_chromatograms(matches)
 
     def __iter__(self):
         if self.accepted_solutions is None:

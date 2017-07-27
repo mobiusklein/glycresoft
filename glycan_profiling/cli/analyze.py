@@ -8,7 +8,7 @@ except ImportError:
     import pickle
 
 import click
-from .base import cli
+from .base import cli, HiddenOption
 
 from glycan_profiling.serialize import (
     DatabaseBoundOperation,
@@ -184,7 +184,7 @@ class RegularizationParameterType(click.ParamType):
               help="The minimum mass to consider signal at.")
 @click.option("-o", "--output-path", default=None, help=(
               "Path to write resulting analysis to."))
-@click.option("--interact", is_flag=True)
+@click.option("--interact", is_flag=True, cls=HiddenOption)
 @click.option("-f", "--ms1-scoring-feature", "scoring_model_features", multiple=True,
               type=click.Choice(sorted(ms1_model_features)),
               help="Additional features to include in evaluating chromatograms")
@@ -198,13 +198,16 @@ class RegularizationParameterType(click.ParamType):
               help='The maximum time between observed data points before splitting features')
 @click.option("--export", type=click.Choice(
               ['csv', 'glycan-list', 'html', "model"]), multiple=True)
+@click.option('-s', '--require-msms-signature', type=float, default=0.0,
+              help="Minimum oxonium ion signature required in MS/MS scans to include.")
 def search_glycan(context, database_connection, sample_path,
                   hypothesis_identifier,
                   analysis_name, adducts, grouping_error_tolerance=1.5e-5,
                   mass_error_tolerance=1e-5, minimum_mass=500.,
                   scoring_model=None, regularize=None, regularization_model_path=None,
                   output_path=None, scoring_model_features=None,
-                  delta_rt=0.25, export=None, interact=False):
+                  delta_rt=0.25, export=None, interact=False,
+                  require_msms_signature=0.0):
     """Identify glycan compositions from preprocessed LC-MS data, stored in mzML
     format.
     """
@@ -260,7 +263,8 @@ def search_glycan(context, database_connection, sample_path,
         regularize=regularize,
         regularization_model=regularization_model,
         analysis_name=analysis_name,
-        delta_rt=delta_rt)
+        delta_rt=delta_rt,
+        require_msms_signature=require_msms_signature)
     analyzer.start()
     if interact:
         click.secho(fmt_msg("Beginning Interactive Session..."), fg='cyan')

@@ -37,7 +37,7 @@ class TandemAnnotatedChromatogram(ChromatogramWrapper, SpectrumMatchSolutionColl
         self.best_msms_score = None
 
     def add_solution(self, item):
-        case_mass = item.precursor_ion_mass
+        case_mass = item.precursor_information.neutral_mass
         if abs(case_mass - self.chromatogram.neutral_mass) > 100:
             log_handle.log("Warning, mis-assigned spectrum match to chromatogram %r, %r" % (self, item))
         self.tandem_solutions.append(item)
@@ -93,6 +93,13 @@ class ScanTimeBundle(object):
         self.solution = solution
         self.scan_time = scan_time
 
+    @property
+    def score(self):
+        try:
+            return self.solution.score
+        except AttributeError:
+            return None
+
     def __hash__(self):
         return hash((self.solution, self.scan_time))
 
@@ -101,7 +108,7 @@ class ScanTimeBundle(object):
 
     def __repr__(self):
         return "ScanTimeBundle(%s, %0.4f, %0.4f)" % (
-            self.solution.scan.id, self.solution.score, self.scan_time)
+            self.solution.scan.id, self.score, self.scan_time)
 
 
 def aggregate_by_assigned_entity(annotated_chromatograms, delta_rt=0.25):
@@ -140,15 +147,15 @@ class ChromatogramMSMSMapper(TaskBase):
         self.orphans = []
         self.error_tolerance = error_tolerance
 
-    def _find_chromatogram_spanning(self, time):
+    def find_chromatogram_spanning(self, time):
         return ChromatogramFilter([interv[0] for interv in self.rt_tree.contains_point(time)])
 
     def find_chromatogram_for(self, solution):
         precursor_scan_time = self.scan_id_to_rt(
-            solution.scan.precursor_information.precursor_scan_id)
-        overlapping_chroma = self._find_chromatogram_spanning(precursor_scan_time)
+            solution.precursor_information.precursor_scan_id)
+        overlapping_chroma = self.find_chromatogram_spanning(precursor_scan_time)
         chroma = overlapping_chroma.find_mass(
-            solution.scan.precursor_information.neutral_mass, self.error_tolerance)
+            solution.precursor_information.neutral_mass, self.error_tolerance)
         if chroma is None:
             self.orphans.append(ScanTimeBundle(solution, precursor_scan_time))
         else:
