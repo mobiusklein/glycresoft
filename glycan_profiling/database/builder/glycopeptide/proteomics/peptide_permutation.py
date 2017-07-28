@@ -350,7 +350,8 @@ class MultipleProcessProteinDigestor(TaskBase):
             input_queue.put(protein_ids[i:(i + chunk_size)])
             i += chunk_size
             if i - last > interval:
-                self.log("... Dealt Proteins %d-%d %0.2f%%" % (i - chunk_size, min(i, n), (min(i, n) / float(n)) * 100))
+                self.log("... Dealt Proteins %d-%d %0.2f%%" % (
+                    i - chunk_size, min(i, n), (min(i, n) / float(n)) * 100))
                 last = i
 
         done_event.set()
@@ -371,14 +372,20 @@ class ProteinSplitter(TaskBase):
         self.min_length = min_length
 
     def handle_protein(self, protein_obj):
-        accession = get_uniprot_accession(protein_obj.name)
-        if accession:
-            try:
-                sites = self.get_split_sites(accession)
-                return self.split_protein(protein_obj, sites)
-            except IOError:
+        try:
+            accession = get_uniprot_accession(protein_obj.name)
+            if accession:
+                try:
+                    sites = self.get_split_sites(accession)
+                    return self.split_protein(protein_obj, sites)
+                except IOError:
+                    return []
+            else:
                 return []
-        else:
+        except Exception as e:
+            self.error(
+                ("An unhandled error occurred while retrieving"
+                 " non-proteolytic cleavage sites"), e)
             return []
 
     def get_split_sites(self, accession):
