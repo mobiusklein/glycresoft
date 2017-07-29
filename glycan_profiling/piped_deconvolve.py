@@ -15,7 +15,10 @@ from ms_deisotope.feature_map.quick_index import index as build_scan_index
 from ms_deisotope.data_source.common import ProcessedScan
 
 import logging
-from glycan_profiling.task import TaskBase, log_handle, CallInterval
+from glycan_profiling.task import (
+    TaskBase,
+    log_handle,
+    CallInterval)
 
 
 from multiprocessing import Process, Queue
@@ -55,7 +58,6 @@ class ScanIDYieldingProcess(Process):
 
     def run(self):
         self.loader = MSFileLoader(self.mzml_path)
-
         index = 0
         if self.start_scan is not None:
             self.loader.start_from_scan(self.start_scan)
@@ -187,9 +189,10 @@ class PeakPickingProcess(Process, ScanTransformMixin):
         has_input = True
         transformer = self.make_scan_transformer()
 
-        logger_to_silence = logging.getLogger("deconvolution_scan_processor")
-        logger_to_silence.propagate = False
-        logger_to_silence.addHandler(logging.NullHandler())
+        for logname in ["deconvolution", "deconvolution_scan_processor"]:
+            logger_to_silence = logging.getLogger(logname)
+            logger_to_silence.propagate = False
+            logger_to_silence.addHandler(logging.NullHandler())
 
         i = 0
         while has_input:
@@ -363,7 +366,6 @@ class ScanTransformingProcess(Process, ScanTransformMixin):
         while has_input:
             try:
                 scan_id, product_scan_ids, process_msn = self.input_queue.get(True, 10)
-                # self.log_message(repr((scan_id, "process msn", process_msn)))
             except QueueEmpty:
                 if self.no_more_event is not None and self.no_more_event.is_set():
                     has_input = False
