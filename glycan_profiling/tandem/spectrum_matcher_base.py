@@ -143,26 +143,7 @@ class ScanStub(object):
             raise KeyError(self.id)
 
 
-class SpectrumMatchBase(object):
-    __slots__ = ['scan', 'target']
-
-    def __init__(self, scan, target):
-        self.scan = scan
-        self.target = target
-
-    @staticmethod
-    def threshold_peaks(deconvoluted_peak_set, threshold_fn=lambda peak: True):
-        deconvoluted_peak_set = DeconvolutedPeakSet([
-            p for p in deconvoluted_peak_set
-            if threshold_fn(p)
-        ])
-        deconvoluted_peak_set._reindex()
-        return deconvoluted_peak_set
-
-    def requires_scan(self):
-        if self.scan is None:
-            raise ValueError("%s is detatched from Scan" % (self.__class__.__name__))
-
+class ScanWrapperBase(object):
     @property
     def precursor_ion_mass(self):
         self.requires_scan()
@@ -178,6 +159,27 @@ class SpectrumMatchBase(object):
     def precursor_information(self):
         self.requires_scan()
         return self.scan.precursor_information
+
+    def requires_scan(self):
+        if self.scan is None:
+            raise ValueError("%s is detatched from Scan" % (self.__class__.__name__))
+
+
+class SpectrumMatchBase(ScanWrapperBase):
+    __slots__ = ['scan', 'target']
+
+    def __init__(self, scan, target):
+        self.scan = scan
+        self.target = target
+
+    @staticmethod
+    def threshold_peaks(deconvoluted_peak_set, threshold_fn=lambda peak: True):
+        deconvoluted_peak_set = DeconvolutedPeakSet([
+            p for p in deconvoluted_peak_set
+            if threshold_fn(p)
+        ])
+        deconvoluted_peak_set._reindex()
+        return deconvoluted_peak_set
 
     def precursor_mass_accuracy(self):
         observed = self.precursor_ion_mass
@@ -309,7 +311,7 @@ class SpectrumMatch(SpectrumMatchBase):
         return cls(match.scan, match.target, match.score)
 
 
-class SpectrumSolutionSet(object):
+class SpectrumSolutionSet(ScanWrapperBase):
 
     def __init__(self, scan, solutions):
         self.scan = scan
@@ -336,11 +338,6 @@ class SpectrumSolutionSet(object):
         if self._target_map is None:
             self._make_target_map()
         return self._target_map[target]
-
-    @property
-    def precursor_ion_mass(self):
-        neutral_mass = self.scan.precursor_information.extracted_neutral_mass
-        return neutral_mass
 
     def precursor_mass_accuracy(self):
         return self.best_solution().precursor_mass_accuracy()
