@@ -69,7 +69,6 @@ class CompoundMassShift(MassShiftBase):
 
         self._compute_composition()
         self._compute_name()
-        # self._register_name()
 
     def _compute_composition(self):
         composition = Composition()
