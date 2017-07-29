@@ -857,6 +857,12 @@ class ChromatogramWrapper(object):
     def apex_time(self):
         return self.chromatogram.apex_time
 
+    def __getattr__(self, name):
+        if name == 'chromatogram':
+            raise AttributeError(name)
+        else:
+            return getattr(self.chromatogram, name)
+
 
 class ChromatogramProxy(object):
     def __init__(self, chromatogram):
