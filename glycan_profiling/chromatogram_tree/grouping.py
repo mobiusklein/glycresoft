@@ -148,7 +148,7 @@ class ChromatogramMerger(TaskBase):
         for chroma in chromatogram_range:
             cond = (chroma.overlaps_in_time(new_chromatogram) and abs(
                     (chroma.neutral_mass - query_mass) / query_mass) < self.error_tolerance and
-                    chroma.common_nodes(new_chromatogram) == 0)
+                    not chroma.common_nodes(new_chromatogram))
             if cond:
                 chroma.merge(new_chromatogram)
                 has_merged = True

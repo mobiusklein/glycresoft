@@ -4,9 +4,20 @@ from collections import Counter
 
 from glypy.structure.fragment import Fragment
 from glypy.composition import Composition
+from glypy.composition.composition_transform import strip_derivatization
+from glypy.composition.glycan_composition import MonosaccharideResidue
+from glypy.io.nomenclature.identity import is_a
 
 from glycan_profiling.tandem.glycopeptide.scoring.fragment_match_map import FragmentMatchMap
 from glycan_profiling.tandem.spectrum_matcher_base import SpectrumMatcherBase
+
+fucose = MonosaccharideResidue.from_iupac_lite("Fuc")
+
+
+def is_fucose(residue):
+    return is_a(
+        strip_derivatization(residue.clone(
+            monosaccharide_type=MonosaccharideResidue)), fucose)
 
 
 class SignatureIonScorer(SpectrumMatcherBase):
@@ -21,6 +32,9 @@ class SignatureIonScorer(SpectrumMatcherBase):
 
         # Simple oxonium ions
         for k in glycan_composition.keys():
+            # Fucose does not produce a reliable oxonium ion
+            if is_fucose(k):
+                continue
             f = Fragment('B', {}, [], k.mass(), name=str(k),
                          composition=k.total_composition())
             for hit in peak_set.all_peaks_for(f.mass, error_tolerance):

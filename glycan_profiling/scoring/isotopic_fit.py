@@ -49,13 +49,14 @@ def unspool_nodes(node):
 class IsotopicPatternConsistencyFitter(ScoringFeatureBase):
     feature_type = "isotopic_fit"
 
-    def __init__(self, chromatogram, averagine=glycan, charge_carrier=PROTON):
+    def __init__(self, chromatogram, averagine=glycan, charge_carrier=PROTON, weighted=True):
         self.chromatogram = chromatogram
         self.averagine = averagine
         self.charge_carrier = charge_carrier
         self.scores = []
         self.intensity = []
         self.mean_fit = None
+        self.weighted = weighted
 
         if chromatogram.composition is not None:
             if chromatogram.elemental_composition is not None:
@@ -111,7 +112,10 @@ class IsotopicPatternConsistencyFitter(ScoringFeatureBase):
                 self.intensity.append(peak.intensity)
         self.intensity = np.array(self.intensity)
         self.scores = np.array(self.scores)
-        self.mean_fit = np.average(self.scores, weights=self.intensity)
+        if self.weighted:
+            self.mean_fit = np.average(self.scores, weights=self.intensity)
+        else:
+            self.mean_fit = np.mean(self.scores)
 
     @classmethod
     def score(cls, chromatogram, *args, **kwargs):

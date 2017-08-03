@@ -113,8 +113,7 @@ def prune_bad_adduct_branches(solutions, score_margin=0.05, ratio_threshold=1.5)
                     complement_signal = owner_item.total_signal - component_signal
                     signal_ratio = complement_signal / component_signal
 
-                    # The owner is more than half-again as abundant as the
-                    # used-as-adduct-case
+                    # The owner is more abundant than used-as-adduct-case
                     if signal_ratio > ratio_threshold:
                         is_weaker = False
                 if is_weaker:

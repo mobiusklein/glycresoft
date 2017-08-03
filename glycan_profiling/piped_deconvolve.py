@@ -58,6 +58,7 @@ class ScanIDYieldingProcess(Process):
 
     def run(self):
         self.loader = MSFileLoader(self.mzml_path)
+
         index = 0
         if self.start_scan is not None:
             self.loader.start_from_scan(self.start_scan)
@@ -74,14 +75,15 @@ class ScanIDYieldingProcess(Process):
             try:
                 scan, products = next(self.loader)
                 scan_id = scan.id
+
                 if not self.ignore_tandem_scans:
                     self.queue.put((scan_id, [p.id for p in products], True))
                 else:
                     self.queue.put((scan_id, [p.id for p in products], False))
-                if scan_id == end_scan:
-                    break
                 index += 1
                 count += 1
+                if scan_id == end_scan:
+                    break
             except StopIteration:
                 break
             except Exception as e:
@@ -90,7 +92,7 @@ class ScanIDYieldingProcess(Process):
 
         if self.no_more_event is not None:
             self.no_more_event.set()
-            log_handle.log("All Scan IDs have been dealt. %r finished." % self)
+            log_handle.log("All Scan IDs have been dealt. %d scan bunches." % (count,))
         else:
             self.queue.put(DONE)
 

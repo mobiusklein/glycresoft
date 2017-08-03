@@ -1,7 +1,9 @@
 *.pyc
 .ipynb_checkpoints/
-build/
-dist/
+/build/
+/dist/
 *.egg-info
 *.sublime*
 *glycresoft-log
+/htmlcov
+/.cache

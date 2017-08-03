@@ -2,11 +2,13 @@ from abc import ABCMeta
 from collections import defaultdict, Counter
 from operator import attrgetter
 
+from six import add_metaclass
+
 import numpy as np
 
 from glypy.utils import uid
 from glypy import Composition
-from glypy.composition.glycan_composition import FrozenGlycanComposition
+from glypy.composition.glycan_composition import HashableGlycanComposition
 
 
 from .mass_shift import Unmodified
@@ -41,17 +43,49 @@ def count_charge_states(peaks):
     return len(split_by_charge(peaks))
 
 
-def mask_subsequence(target, masker):
-    unmasked_nodes = []
-    target_nodes = target.nodes.unspool_strip_children()
-    masking_nodes = masker.nodes.unspool()
-    for node in target_nodes:
-        if node not in masking_nodes:
-            unmasked_nodes.append(node)
-    new = target.__class__(target.composition)
-    new.created_at = "mask_subsequence"
-    map(new.insert_node, unmasked_nodes)
-    return new
+class SubsequenceMasker(object):
+    def __init__(self, target, masker):
+        self.target = target
+        self.masker = masker
+
+        self.masking_nodes = []
+
+    def masking_nodes_from_masker(self):
+        self.masking_nodes = self.masker.nodes.unspool()
+
+    def masking_nodes_from_peaks(self, peaks):
+        nodes = []
+        for node in self.masker.nodes.unspool_strip_children():
+            for peak in node.members:
+                if peak in peaks:
+                    nodes.append(node)
+                    break
+        self.masking_nodes = nodes
+
+    def mask(self):
+        unmasked_nodes = []
+        target_nodes = self.target.nodes.unspool_strip_children()
+        for node in target_nodes:
+            if node not in self.masking_nodes:
+                unmasked_nodes.append(node)
+
+        new = self.target.__class__(self.target.composition)
+        new.created_at = "mask_subsequence"
+        for node in unmasked_nodes:
+            new.insert_node(node)
+        return new
+
+    @classmethod
+    def mask_subsequence(cls, target, masker, peaks=None):
+        inst = cls(target, masker)
+        if peaks is None:
+            inst.masking_nodes_from_masker()
+        else:
+            inst.masking_nodes_from_peaks(peaks)
+        return inst.mask()
+
+
+mask_subsequence = SubsequenceMasker.mask_subsequence
 
 
 class Chromatogram(object):
@@ -475,9 +509,11 @@ class ChromatogramTreeList(object):
             roots = []
         self.roots = list(roots)
         self._node_id_hash = None
+        self._peak_hash = None
 
     def _invalidate(self):
         self._node_id_hash = None
+        self._peak_hash = None
 
     def find_time(self, retention_time):
         if len(self.roots) == 0:
@@ -502,11 +538,23 @@ class ChromatogramTreeList(object):
             node_id_hash.add(node.node_id)
         self._node_id_hash = frozenset(node_id_hash)
 
+    def _build_peak_hash(self):
+        peak_hash = set()
+        for node in self.unspool():
+            peak_hash.update([(node.scan_id, peak) for peak in node.members])
+        self._peak_hash = frozenset(peak_hash)
+
     @property
     def node_id_hash(self):
         if self._node_id_hash is None:
             self._build_node_id_hash()
         return self._node_id_hash
+
+    @property
+    def peak_hash(self):
+        if self._peak_hash is None:
+            self._build_peak_hash()
+        return self._peak_hash
 
     def insert_node(self, node):
         self._invalidate()
@@ -570,7 +618,10 @@ class ChromatogramTreeList(object):
         return out_queue
 
     def common_nodes(self, other):
-        return len(self.node_id_hash & other.node_id_hash)
+        return not self.node_id_hash.isdisjoint(other.node_id_hash)
+
+    def common_peaks(self, other):
+        return not self.peak_hash.isdisjoint(other.peak_hash)
 
     def __repr__(self):
         return "ChromatogramTreeList(%d nodes, %0.2f-%0.2f)" % (
@@ -736,8 +787,9 @@ class ChromatogramTreeNode(object):
         return kinds
 
 
+@add_metaclass(ABCMeta)
 class ChromatogramInterface(object):
-    __metaclass__ = ABCMeta
+    pass
 
 
 ChromatogramInterface.register(Chromatogram)
@@ -864,15 +916,10 @@ class ChromatogramWrapper(object):
             return getattr(self.chromatogram, name)
 
 
-class ChromatogramProxy(object):
-    def __init__(self, chromatogram):
-        self.chromatogram = chromatogram
-
-
 ChromatogramInterface.register(ChromatogramWrapper)
 
 
-class CachedGlycanComposition(FrozenGlycanComposition):
+class CachedGlycanComposition(HashableGlycanComposition):
     _hash = None
 
     def __hash__(self):

@@ -17,10 +17,3 @@ jinja2
 rdflib
 requests
 SPARQLWrapper
-
-glypy
-glycopeptidepy
-
-brain-isotopic-distribution
-ms_peak_picker
-ms_deisotope

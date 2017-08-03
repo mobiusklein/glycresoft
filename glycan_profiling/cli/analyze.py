@@ -194,7 +194,7 @@ class RegularizationParameterType(click.ParamType):
 @click.option("-w", "--regularization-model-path", type=click.Path(exists=True),
               default=None,
               help="Path to a file containing neighborhood model for regularization")
-@click.option("-t", "--delta-rt", default=0.25, type=float,
+@click.option("-t", "--delta-rt", default=0.5, type=float,
               help='The maximum time between observed data points before splitting features')
 @click.option("--export", type=click.Choice(
               ['csv', 'glycan-list', 'html', "model"]), multiple=True)
@@ -206,7 +206,7 @@ def search_glycan(context, database_connection, sample_path,
                   mass_error_tolerance=1e-5, minimum_mass=500.,
                   scoring_model=None, regularize=None, regularization_model_path=None,
                   output_path=None, scoring_model_features=None,
-                  delta_rt=0.25, export=None, interact=False,
+                  delta_rt=0.5, export=None, interact=False,
                   require_msms_signature=0.0):
     """Identify glycan compositions from preprocessed LC-MS data, stored in mzML
     format.

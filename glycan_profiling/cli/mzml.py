@@ -1,14 +1,15 @@
 import click
 import os
 
-from glycan_profiling.cli.base import cli, HiddenOption, processes_option
-from glycan_profiling.cli.validators import (
-    validate_averagine, validate_sample_run_name)
-
-import ms_deisotope
 import ms_peak_picker
+import ms_deisotope
 
 from ms_deisotope.processor import MSFileLoader
+
+from glycan_profiling.cli.base import cli, HiddenOption, processes_option
+from glycan_profiling.cli.validators import (
+    validate_averagine)
+
 from glycan_profiling.profiler import (
     SampleConsumer,
     CentroidingSampleConsumer,

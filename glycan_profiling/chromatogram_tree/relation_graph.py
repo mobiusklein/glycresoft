@@ -1,4 +1,4 @@
-from collections import deque
+from collections import deque, defaultdict
 
 from .grouping import ChromatogramRetentionTimeInterval, IntervalTreeNode
 from ms_deisotope.peak_dependency_network.intervals import SpanningMixin
@@ -13,6 +13,24 @@ _standard_transitions = [
     FrozenMonosaccharideResidue.from_iupac_lite("Fuc"),
     FrozenMonosaccharideResidue.from_iupac_lite("HexA"),
 ]
+
+
+class UnknownTransition(object):
+    def __init__(self, mass):
+        self._mass = mass
+        self._hash = hash(mass)
+
+    def __eq__(self, other):
+        return self.mass() == other.mass()
+
+    def mass(self):
+        return self.mass()
+
+    def __hash__(self):
+        return self._hash
+
+    def __repr__(self):
+        return "{self.__class__.__name__}({self.mass()})".format(self=self)
 
 
 class TimeQuery(SpanningMixin):
@@ -148,6 +166,15 @@ class ChromatogramGraph(object):
                 ppm_error = (added - match.neutral_mass) / match.neutral_mass
                 rt_error = (node.center - match.center)
                 self.edges.add(ChromatogramGraphEdge(node, match, transition, mass_error=ppm_error, rt_error=rt_error))
+
+    def find_shared_peaks(self):
+        peak_map = defaultdict(set)
+        for chromatogram_node in self.nodes:
+            for peak_bunch in chromatogram_node.chromatogram.peaks:
+                for peak in peak_bunch:
+                    peak_map[peak].add(chromatogram_node)
+        # edge_map = defaultdict(set)
+        # for peak,
 
     def build(self, query_width=2., transitions=None, **kwargs):
         for node in self.iterseeds():

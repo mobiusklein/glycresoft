@@ -186,7 +186,7 @@ class GlycanChromatogramAnalyzer(TaskBase):
     def __init__(self, database_connection, hypothesis_id, sample_run_id, adducts=None,
                  mass_error_tolerance=1e-5, grouping_error_tolerance=1.5e-5,
                  scoring_model=GeneralScorer, minimum_mass=500., regularize=None,
-                 regularization_model=None, analysis_name=None, delta_rt=0.25,
+                 regularization_model=None, analysis_name=None, delta_rt=0.5,
                  require_msms_signature=0):
         self.database_connection = database_connection
         self.hypothesis_id = hypothesis_id
@@ -281,6 +281,25 @@ class GlycanChromatogramAnalyzer(TaskBase):
                 delta_rt=self.delta_rt)
         return proc
 
+    def make_mapper(self, chromatograms, peak_loader, msms_scans=None, default_glycan_composition=None):
+        mapper = SignatureIonMapper(
+            msms_scans, chromatograms, peak_loader.convert_scan_id_to_retention_time,
+            self.adducts, self.minimum_mass, chunk_size=1000,
+            default_glycan_composition=default_glycan_composition)
+        return mapper
+
+    def annotate_matches_with_msms(self, chromatograms, peak_loader, msms_scans, database):
+        default_glycan_composition = glypy.GlycanComposition(
+            database.hypothesis.monosaccharide_bounds())
+        mapper = self.make_mapper(
+            chromatograms, peak_loader, msms_scans, default_glycan_composition)
+        self.log("Mapping MS/MS")
+        mapped_matches = mapper.map_to_chromatograms(self.mass_error_tolerance)
+        self.log("Evaluating MS/MS")
+        annotate_matches = mapper.score_mapped_tandem(
+            mapped_matches, error_tolerance=self.mass_error_tolerance)
+        return annotate_matches
+
     def process_chromatograms(self, processor, peak_loader, database):
         if self.require_msms_signature > 0:
             self.log("Extracting MS/MS")
@@ -290,26 +309,17 @@ class GlycanChromatogramAnalyzer(TaskBase):
                 processor.run()
             else:
                 matches = processor.match_compositions()
-                default_glycan_composition = glypy.GlycanComposition(
-                    database.hypothesis.monosaccharide_bounds())
-                mapper = SignatureIonMapper(
-                    msms_scans, matches, peak_loader.convert_scan_id_to_retention_time,
-                    self.adducts, self.minimum_mass, chunk_size=1000,
-                    default_glycan_composition=default_glycan_composition)
-                self.log("Mapping MS/MS")
-                mapped_matches = mapper.map_to_chromatograms(self.mass_error_tolerance)
-                self.log("Evaluating MS/MS")
-                annotate_matches = mapper.score_mapped_tandem(
-                    mapped_matches, error_tolerance=self.mass_error_tolerance)
+                annotated_matches = self.annotate_matches_with_msms(
+                    matches, peak_loader, msms_scans, database)
                 kept_annotated_matches = []
-                for match in annotate_matches:
+                for match in annotated_matches:
                     accepted = False
                     for gsm in match.tandem_solutions:
                         if gsm.score > self.require_msms_signature:
                             accepted = True
                             break
                     if accepted:
-                        kept_annotated_matches.append(match.chromatogram)
+                        kept_annotated_matches.append(match)
                 kept_annotated_matches = ChromatogramFilter(kept_annotated_matches)
                 processor.evaluate_chromatograms(kept_annotated_matches)
         else:
@@ -330,7 +340,7 @@ class MzMLGlycanChromatogramAnalyzer(GlycanChromatogramAnalyzer):
     def __init__(self, database_connection, hypothesis_id, sample_path, output_path,
                  adducts=None, mass_error_tolerance=1e-5, grouping_error_tolerance=1.5e-5,
                  scoring_model=None, minimum_mass=500., regularize=None,
-                 regularization_model=None, analysis_name=None, delta_rt=0.25,
+                 regularization_model=None, analysis_name=None, delta_rt=0.5,
                  require_msms_signature=0):
         super(MzMLGlycanChromatogramAnalyzer, self).__init__(
             database_connection, hypothesis_id, -1, adducts,
