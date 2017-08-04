@@ -1,4 +1,5 @@
 from collections import deque, defaultdict
+import itertools
 
 from .grouping import ChromatogramRetentionTimeInterval, IntervalTreeNode
 from ms_deisotope.peak_dependency_network.intervals import SpanningMixin
@@ -173,8 +174,11 @@ class ChromatogramGraph(object):
             for peak_bunch in chromatogram_node.chromatogram.peaks:
                 for peak in peak_bunch:
                     peak_map[peak].add(chromatogram_node)
-        # edge_map = defaultdict(set)
-        # for peak,
+        edges = set()
+        for peak, nodes in peak_map.items():
+            for a, b in itertools.combinations(nodes, 2):
+                edges.add(frozenset((a, b)))
+        return edges
 
     def build(self, query_width=2., transitions=None, **kwargs):
         for node in self.iterseeds():

@@ -2,7 +2,7 @@ from ms_deisotope.peak_dependency_network.intervals import Interval, IntervalTre
 
 from glycan_profiling.task import TaskBase
 
-from .chromatogram import (Chromatogram)
+from .chromatogram import Chromatogram
 
 
 class ChromatogramForest(TaskBase):

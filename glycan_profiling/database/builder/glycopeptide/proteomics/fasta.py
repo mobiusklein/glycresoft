@@ -7,12 +7,6 @@ from glycan_profiling.serialize.hypothesis.peptide import Protein
 from .sequence_tree import SuffixTree
 
 
-def tryopen(path):
-    if hasattr(path, 'read'):
-        return path
-    return open(path)
-
-
 class ProteinFastaFileParser(FastaFileParser):
 
     def __init__(self, path):
