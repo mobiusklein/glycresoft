@@ -7,7 +7,7 @@ from sqlalchemy.orm.collections import attribute_mapped_collection
 from sqlalchemy.ext.declarative import declared_attr
 
 from .analysis import BoundToAnalysis
-from .chromatogram import ChromatogramSolution
+from .chromatogram import ChromatogramSolution, ChromatogramWrapper
 from .tandem import GlycopeptideSpectrumCluster
 from .hypothesis import Glycopeptide
 
@@ -21,7 +21,7 @@ from ms_deisotope.output.db import (
     Base)
 
 
-class IdentifiedStructure(BoundToAnalysis):
+class IdentifiedStructure(BoundToAnalysis, ChromatogramWrapper):
     @declared_attr
     def id(self):
         return Column(Integer, primary_key=True)
@@ -169,3 +169,6 @@ class IdentifiedGlycopeptide(Base, IdentifiedStructure):
 
     def __repr__(self):
         return "DB" + repr(self.convert())
+
+    def __str__(self):
+        return str(self.structure)

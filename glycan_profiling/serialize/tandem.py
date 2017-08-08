@@ -67,6 +67,16 @@ class GlycopeptideSpectrumSolutionSet(Base, BoundToAnalysis):
     scan_id = Column(Integer, ForeignKey(MSScan.id), index=True)
     scan = relationship(MSScan)
 
+    def best_solution(self):
+        return sorted(self.spectrum_matches, key=lambda x: x.score, reverse=True)[0]
+
+    @property
+    def score(self):
+        return self.best_solution().score
+
+    def __iter__(self):
+        return iter(self.spectrum_matches)
+
     @classmethod
     def serialize(cls, obj, session, scan_look_up_cache, analysis_id, cluster_id, is_decoy=False, *args, **kwargs):
         inst = cls(
@@ -115,6 +125,10 @@ class GlycopeptideSpectrumMatch(Base, SpectrumMatchBase):
         index=True)
 
     structure = relationship(Glycopeptide)
+
+    @property
+    def target(self):
+        return self.structure
 
     @classmethod
     def serialize(cls, obj, session, scan_look_up_cache, analysis_id, solution_set_id, is_decoy=False, *args, **kwargs):

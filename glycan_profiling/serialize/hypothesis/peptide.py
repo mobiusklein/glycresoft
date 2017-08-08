@@ -16,11 +16,36 @@ from ms_deisotope.output.db import (
 from .hypothesis import GlycopeptideHypothesis
 from .glycan import GlycanCombination
 
-from glycopeptidepy.structure import sequence, residue
+from glycopeptidepy.structure import sequence, residue, PeptideSequenceBase
 from glycan_profiling.database.structure_loader import PeptideProteinRelation, FragmentCachingGlycopeptide
 
 
-class Protein(Base):
+class PeptideSequenceWrapperBase(PeptideSequenceBase):
+    _sequence_obj = None
+
+    def _get_sequence_str(self):
+        raise NotImplementedError()
+
+    def _get_sequence(self):
+        if self._sequence_obj is None:
+            self._sequence_obj = sequence.PeptideSequence(
+                self._get_sequence_str())
+        return self._sequence_obj
+
+    def __iter__(self):
+        return iter(self._get_sequence())
+
+    def __getitem__(self, i):
+        return self._get_sequence()[i]
+
+    def __len__(self):
+        return len(self._get_sequence())
+
+    def __str__(self):
+        return str(self._get_sequence())
+
+
+class Protein(Base, PeptideSequenceWrapperBase):
     __tablename__ = "Protein"
 
     id = Column(Integer, primary_key=True, autoincrement=True)
@@ -30,6 +55,9 @@ class Protein(Base):
     hypothesis_id = Column(Integer, ForeignKey(
         GlycopeptideHypothesis.id, ondelete="CASCADE"))
     hypothesis = relationship(GlycopeptideHypothesis, backref=backref('proteins', lazy='dynamic'))
+
+    def _get_sequence_str(self):
+        return self.protein_sequence
 
     _n_glycan_sequon_sites = None
 
@@ -99,7 +127,7 @@ def _convert_class_name_to_collection_name(name):
     return '_'.join(parts) + 's'
 
 
-class PeptideBase(object):
+class PeptideBase(PeptideSequenceWrapperBase):
     @declared_attr
     def protein_id(self):
         return Column(Integer, ForeignKey(
@@ -159,6 +187,9 @@ class Peptide(PeptideBase, Base):
 
     hypothesis = relationship(GlycopeptideHypothesis, backref=backref('peptides', lazy='dynamic'))
 
+    def _get_sequence_str(self):
+        return self.modified_peptide_sequence
+
     def convert(self):
         inst = sequence.parse(self.modified_peptide_sequence)
         inst.id = self.id
@@ -184,6 +215,9 @@ class Glycopeptide(PeptideBase, Base):
     glycopeptide_sequence = Column(String(1024))
 
     hypothesis = relationship(GlycopeptideHypothesis, backref=backref('glycopeptides', lazy='dynamic'))
+
+    def _get_sequence_str(self):
+        return self.glycopeptide_sequence
 
     def convert(self):
         inst = FragmentCachingGlycopeptide(self.glycopeptide_sequence)
