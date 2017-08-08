@@ -217,19 +217,21 @@ class ChromatogramArtist(ArtistBase):
 
         self.draw_group(label, rt, heights, color, label_peak, chromatogram, **kwargs)
 
-    def layout_axes(self, legend=True, axis_font_size=18, axis_label_font_size=24):
-        self.ax.set_xlim(self.minimum_ident_time - 0.02,
-                         self.maximum_ident_time + 0.02)
-        span_time = self.maximum_ident_time - self.minimum_ident_time
+    def _interpolate_xticks(self, xlo, xhi):
+        self.ax.set_xlim(xlo - 0.02, xhi + 0.02)
+        span_time = xhi - xlo
         tick_values = np.linspace(
-            self.minimum_ident_time + min(0.05, 0.1 * span_time),
-            self.maximum_ident_time - min(0.05, 0.1 * span_time),
+            xlo + min(0.05, 0.1 * span_time),
+            xhi - min(0.05, 0.1 * span_time),
             6)
         self.ax.set_xticks(tick_values)
         self.ax.set_xticklabels(["%0.2f" % v for v in tick_values])
+
+    def layout_axes(self, legend=True, axis_font_size=18, axis_label_font_size=24):
+        self._interpolate_xticks(self.minimum_ident_time, self.maximum_ident_time)
         self.ax.set_ylim(0, self.maximum_intensity * 1.25)
         if legend:
-            self.legend = self.ax.legend(bbox_to_anchor=(1.7, 1.), ncol=2, fontsize=10)
+            self.legend = self.ax.legend(bbox_to_anchor=(1.2, 1.), ncol=2, fontsize=10)
         self.ax.axes.spines['right'].set_visible(False)
         self.ax.axes.spines['top'].set_visible(False)
         self.ax.yaxis.tick_left()
