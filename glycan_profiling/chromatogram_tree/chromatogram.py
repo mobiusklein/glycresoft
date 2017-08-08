@@ -68,7 +68,9 @@ class SubsequenceMasker(object):
             if node not in self.masking_nodes:
                 unmasked_nodes.append(node)
 
-        new = self.target.__class__(self.target.composition)
+        new = self.target.clone()
+        new.clear()
+        new.used_as_adduct = []
         new.created_at = "mask_subsequence"
         for node in unmasked_nodes:
             new.insert_node(node)
@@ -501,6 +503,10 @@ class Chromatogram(object):
                 adduct_charge_table[adduct][charge] = selected
         return adduct_charge_table
 
+    def clear(self):
+        self.nodes.clear()
+        self._invalidate()
+
 
 class ChromatogramTreeList(object):
     def __init__(self, roots=None):
@@ -593,6 +599,10 @@ class ChromatogramTreeList(object):
 
     def clone(self):
         return ChromatogramTreeList(node.clone() for node in self)
+
+    def clear(self):
+        self.roots = []
+        self._invalidate()
 
     def unspool(self):
         out_queue = []
@@ -914,6 +924,14 @@ class ChromatogramWrapper(object):
         else:
             return getattr(self.chromatogram, name)
 
+    def clone(self):
+        chromatogram = self.chromatogram.clone()
+        new = self.__class__(chromatogram)
+        return new
+
+    def clear(self):
+        self.chromatogram.clear()
+
 
 ChromatogramInterface.register(ChromatogramWrapper)
 
@@ -992,6 +1010,8 @@ def get_chromatogram(instance):
         return instance
     elif isinstance(instance, ChromatogramWrapper):
         return instance.chromatogram
+    elif isinstance(instance, ChromatogramInterface):
+        return instance
     else:
         try:
             return instance.get_chromatogram()
