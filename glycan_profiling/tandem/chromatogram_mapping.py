@@ -45,6 +45,12 @@ class TandemAnnotatedChromatogram(ChromatogramWrapper, SpectrumMatchSolutionColl
     def add_displaced_solution(self, item):
         self.add_solution(item)
 
+    def clone(self):
+        new = super(TandemAnnotatedChromatogram, self).clone()
+        new.tandem_solutions = list(self.tandem_solutions)
+        new.time_displaced_assignments = list(self.time_displaced_assignments)
+        new.best_msms_score = self.best_msms_score
+
     def merge(self, other):
         new = self.__class__(self.chromatogram.merge(other.chromatogram))
         new.tandem_solutions = self.tandem_solutions + other.tandem_solutions
