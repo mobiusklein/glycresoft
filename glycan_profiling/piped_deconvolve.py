@@ -752,6 +752,17 @@ class ScanGenerator(TaskBase, ScanGeneratorBase):
             for helper in self._deconv_helpers:
                 helper.terminate()
 
+    def _preindex_file(self):
+        reader = MSFileLoader(self.ms_file, use_index=False)
+        try:
+            reader.prebuild_byte_offset_file(self.ms_file)
+        except AttributeError as ae:
+            pass
+        except IOError as ioe:
+            pass
+        except Exception as e:
+            pass
+
     def _make_interval_tree(self, start_scan, end_scan):
         reader = MSFileLoader(self.ms_file)
         start_ix = reader.get_scan_by_id(start_scan).index
@@ -789,6 +800,8 @@ class ScanGenerator(TaskBase, ScanGeneratorBase):
             # Not all platforms permit limiting the size of queues
             self._input_queue = Queue()
             self._output_queue = Queue()
+
+        self._preindex_file()
 
         if self.extract_only_tandem_envelopes:
             self.log("Constructing Scan Interval Tree")
