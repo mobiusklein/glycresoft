@@ -504,7 +504,11 @@ class TandemClusterEvaluatorBase(TaskBase):
 
     def _evaluate_hit_groups_single_process(self, scan_map, hit_map, hit_to_scan, *args, **kwargs):
         scan_solution_map = defaultdict(list)
-        self.log("... Searching Hits (%d)" % (len(hit_to_scan),))
+        self.log("... Searching Hits (%d:%d)" % (
+            len(hit_to_scan),
+            sum(map(len, hit_to_scan.values()))
+            )
+        )
         i = 0
         n = len(hit_to_scan)
         for hit_id, scan_list in hit_to_scan.items():
