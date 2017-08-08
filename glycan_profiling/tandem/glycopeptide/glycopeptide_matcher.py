@@ -255,6 +255,20 @@ def format_identification(spectrum_solution):
         spectrum_solution.best_solution().target)
 
 
+def format_identification_batch(group, n):
+    representers = dict()
+    group = sorted(group, key=lambda x: x.score, reverse=True)
+    for ident in group:
+        key = str(ident.best_solution().target)
+        if key in representers:
+            continue
+        else:
+            representers[key] = ident
+    to_represent = sorted(
+        representers.values(), key=lambda x: x.score, reverse=True)
+    return '\n'.join(map(format_identification, to_represent[:n]))
+
+
 def format_work_batch(bunch, count, total):
     ratio = "%d/%d (%0.3f%%)" % (count, total, (count * 100. / total))
     info = bunch[0].precursor_information
@@ -332,7 +346,7 @@ class GlycopeptideDatabaseSearchIdentifier(TaskBase):
             target_hits.extend(o for o in t if o.score > 0)
             decoy_hits.extend(o for o in d if o.score > 0)
             t = sorted(t, key=lambda x: x.score, reverse=True)
-            self.log("......\n%s" % ('\n'.join(map(format_identification, t[:4]))))
+            self.log("......\n%s" % (format_identification_batch(t, 10)))
             if count >= limit:
                 self.log("Reached Limit. Halting.")
                 break
