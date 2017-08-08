@@ -25,13 +25,13 @@ class UnknownTransition(object):
         return self.mass() == other.mass()
 
     def mass(self):
-        return self.mass()
+        return self._mass
 
     def __hash__(self):
         return self._hash
 
     def __repr__(self):
-        return "{self.__class__.__name__}({self.mass()})".format(self=self)
+        return "{self.__class__.__name__}({mass})".format(self=self, mass=self.mass())
 
 
 class TimeQuery(SpanningMixin):
@@ -178,7 +178,15 @@ class ChromatogramGraph(object):
         for peak, nodes in peak_map.items():
             for a, b in itertools.combinations(nodes, 2):
                 edges.add(frozenset((a, b)))
-        return edges
+
+        result = []
+        for edge in edges:
+            start, end = sorted(edge, key=lambda x: x.index)
+            delta = -(start.neutral_mass - end.neutral_mass)
+            chromatogram_edge = ChromatogramGraphEdge(start, end, UnknownTransition(delta), rt_error=start.center - end.center)
+            result.append(chromatogram_edge)
+            self.edges.add(chromatogram_edge)
+        return result
 
     def build(self, query_width=2., transitions=None, **kwargs):
         for node in self.iterseeds():
