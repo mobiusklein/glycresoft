@@ -216,7 +216,7 @@ class GlycopeptideSpectrumMatchAnalysisCSVSerializer(CSVSerializerBase):
             precursor_mass,
             ((obj.target.total_mass - precursor_mass
               ) / precursor_mass),
-            obj.scan.id,
+            obj.scan.scan_id,
             obj.scan.precursor_information.extracted_charge,
             obj.score,
             obj.q_value,
