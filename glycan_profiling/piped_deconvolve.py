@@ -756,12 +756,15 @@ class ScanGenerator(TaskBase, ScanGeneratorBase):
         reader = MSFileLoader(self.ms_file, use_index=False)
         try:
             reader.prebuild_byte_offset_file(self.ms_file)
-        except AttributeError as ae:
+        except AttributeError:
+            # the type does not support this type of indexing
             pass
-        except IOError as ioe:
+        except IOError:
+            # the file could not be written
             pass
         except Exception as e:
-            pass
+            # something else went wrong
+            self.error("An error occurred while pre-indexing.", e)
 
     def _make_interval_tree(self, start_scan, end_scan):
         reader = MSFileLoader(self.ms_file)
