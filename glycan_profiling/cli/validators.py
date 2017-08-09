@@ -264,6 +264,15 @@ def validate_averagine(averagine_string):
         return parse_averagine_formula(averagine_string)
 
 
+class AveragineParamType(click.types.StringParamType):
+    name = "MODEL"
+
+    models = averagines
+
+    def convert(self, value, param, ctx):
+        return validate_averagine(value)
+
+
 adducts = {
     "ammonium": Ammonium,
     "formate": Formate,
