@@ -189,6 +189,9 @@ class SpectrumMatchBase(ScanWrapperBase):
     def __reduce__(self):
         return self.__class__, (self.scan, self.target)
 
+    def get_top_solutions(self):
+        return [self]
+
     def __eq__(self, other):
         try:
             target_id = self.target.id
@@ -254,6 +257,12 @@ class SpectrumMatcherBase(SpectrumMatchBase):
     def __repr__(self):
         return "{self.__class__.__name__}({self.spectrum}, {self.target}, {self.score})".format(
             self=self)
+
+    def plot(self, ax=None, **kwargs):
+        from glycan_profiling.plotting import spectral_annotation
+        art = spectral_annotation.SpectrumMatchAnnotator(self, ax=ax)
+        art.draw(**kwargs)
+        return art
 
 
 class DeconvolutingSpectrumMatcherBase(SpectrumMatcherBase):
