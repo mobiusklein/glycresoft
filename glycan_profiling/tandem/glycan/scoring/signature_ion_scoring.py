@@ -23,20 +23,31 @@ def is_fucose(residue):
 class SignatureIonScorer(SpectrumMatcherBase):
     def __init__(self, scan, glycan_composition):
         super(SignatureIonScorer, self).__init__(scan, glycan_composition)
+        self.fragments_searched = 0
+        self.fragments_matched = 0
 
-    def match(self, error_tolerance=2e-5, include_compound=False, *args, **kwargs):
+    def match(self, error_tolerance=2e-5, include_compound=False, combination_size=3, *args, **kwargs):
         glycan_composition = self.target
         peak_set = self.spectrum
         matches = FragmentMatchMap()
         max_peak = max([p.intensity for p in peak_set])
+        water = Composition("H2O")
+        counter = 0
 
         # Simple oxonium ions
         for k in glycan_composition.keys():
             # Fucose does not produce a reliable oxonium ion
             if is_fucose(k):
                 continue
+            counter += 1
             f = Fragment('B', {}, [], k.mass(), name=str(k),
                          composition=k.total_composition())
+            for hit in peak_set.all_peaks_for(f.mass, error_tolerance):
+                if hit.intensity / max_peak < 0.01:
+                    continue
+                matches.add(hit, f)
+            f = Fragment('B', {}, [], k.mass() - water.mass, name="%s-H2O" % str(k),
+                         composition=k.total_composition() - water)
             for hit in peak_set.all_peaks_for(f.mass, error_tolerance):
                 if hit.intensity / max_peak < 0.01:
                     continue
@@ -44,8 +55,9 @@ class SignatureIonScorer(SpectrumMatcherBase):
 
         # Compound oxonium ions
         if include_compound:
-            for i in range(2, 4):
+            for i in range(2, combination_size + 1):
                 for kk in itertools.combinations_with_replacement(sorted(glycan_composition, key=str), i):
+                    counter += 1
                     invalid = False
                     for k, v in Counter(kk).items():
                         if glycan_composition[k] < v:
@@ -62,17 +74,36 @@ class SignatureIonScorer(SpectrumMatcherBase):
                         if hit.intensity / max_peak < 0.01:
                             continue
                         matches.add(hit, f)
+
+                    f = Fragment('B', {}, [], mass - water.mass, name="%s-H2O" % key,
+                                 composition=composition - water)
+                    for hit in peak_set.all_peaks_for(f.mass, error_tolerance):
+                        if hit.intensity / max_peak < 0.01:
+                            continue
+                        matches.add(hit, f)
         self.solution_map = matches
+        self.fragments_searched = counter
         return matches
 
-    def calculate_score(self, error_tolerance=2e-5, include_compound=False, *args, **kwargs):
+    def loss(self, count, penalty=0.5):
+        return penalty / float(count)
+
+    def oxonium_ratio(self):
         imax = max(self.spectrum, key=lambda x: x.intensity).intensity
         oxonium = 0
         n = 0
         for peak, fragment in self.solution_map:
             oxonium += peak.intensity / imax
             n += 1
+        self.fragments_matched = n
         if n == 0:
-            return 0
-        self._score = oxonium / n
+            return 0, 0
+        return (oxonium / n), n
+
+    def calculate_score(self, error_tolerance=2e-5, include_compound=False, *args, **kwargs):
+        oxonium_ratio, n = self.oxonium_ratio()
+        if n == 0:
+            self._score = 0
+        else:
+            self._score = max(oxonium_ratio - self.loss(n, 0.5), 0)
         return self._score
