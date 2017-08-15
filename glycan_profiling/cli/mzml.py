@@ -128,9 +128,6 @@ def preprocess(ms_file, outfile_path, averagine=None, start_time=None, end_time=
         start_scan_id, start_time, end_scan_id, end_time))
     click.echo("charge range: %s" % (charge_range,))
 
-    averagine = validate_averagine(averagine)
-    msn_averagine = validate_averagine(msn_averagine)
-
     if is_profile:
         ms1_peak_picking_args = {
             "transforms": [
