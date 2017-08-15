@@ -634,7 +634,7 @@ class ChromatogramProcessor(TaskBase):
         self.log("Begin Matching Chromatograms")
         matches = self._match_compositions()
         self.log("End Matching Chromatograms")
-        self.log("%d Matches Found" % (len(matches),))
+        self.log("%d Chromatogram Candidates Found" % (len(matches),))
         return matches
 
     def evaluate_chromatograms(self, matches):
