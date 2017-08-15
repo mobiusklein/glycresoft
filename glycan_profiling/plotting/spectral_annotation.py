@@ -5,6 +5,8 @@ from ms_peak_picker.utils import draw_peaklist
 default_ion_series_to_color = {
     "y": 'red',
     "b": 'blue',
+    'B': 'blue',
+    'Y': 'red',
     'oxonium_ion': 'green',
     'stub_glycopeptide': 'goldenrod'
 }
@@ -67,3 +69,7 @@ class SpectrumMatchAnnotator(object):
             rotation=rotation, **kwargs)
         self.format_axes()
         return self
+
+    def __repr__(self):
+        return "{self.__class__.__name__}({self.spectrum_match})".format(
+            self=self)
