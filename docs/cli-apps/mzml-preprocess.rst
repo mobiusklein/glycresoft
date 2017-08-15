@@ -13,6 +13,12 @@ to share the work.
 	:prog: glycresoft mzml preprocess
 
 
+.. code-block:: bash
+	:caption: example usage
+
+	glycresoft-cli mzml preprocess -a permethylated-glycan -t 20 -p 6 \
+		-s 5.0 -e 60.0 "path/to/input" "path/to/output.mzML"
+
 Averagine Models
 ----------------
 
@@ -48,6 +54,70 @@ Supported File Formats
 
 ``MS_FILE`` may be in mzML or mzXML format.
 
+
+Signal Filters
+--------------
+
+Prior to picking peaks, the raw mass spectral signal may be filtered a number
+of ways. By default, a local noise reduction filter is applied, modulated by 
+``-b`` and ``-bn`` options respectively. Other filers may be set using ``-r``
+and ``-rn``:
+
+1. ``mean_below_mean`` - Remove all points below the mean of all points below the mean of all unfiltered points of this scan
+2. ``median`` - Remove all points below the median intensity of this scan
+3. ``one_percent_of_max`` - Remove all points with intensity less than 1% of the maximum intensity point of this scan
+4. ``fticr_baseline`` - Apply the same background reduction algorithm used by ``-b`` and ``-bn``
+5. ``savitsky_golay`` - Apply Savtisky-Golay smoothing on the intensities of this scan
+
+
+Output Information
+------------------
+
+The resulting mzML file from this tool attempts to preserve as much metadata as possible
+from the source data file, and records its own metadata in the appropriate sections of
+the document.
+
+Each scan has a standard set of ``cvParam`` entries covering scan polarity,
+peak mode, and MS level. In addition to the normal ``m/z array`` and ``intensity array``
+entries, each scan also includes the standardized ``charge array``, as well as two non-standard
+arrays, ``deconvolution score array`` and ``isotopic envelopes array``. The ``deconvolution score array``
+is just the result of the goodness-of-fit function used to evaluate the isotopic envelopes resulting
+in the reported peaks. The ``isotopic envelopes array`` is more complex, as it encodes the set of isotopic
+peaks used to fit each reported peak, and does not have a one-to-one relationship with other arrays.
+
+To unpack the ``isotopic envelopes array`` after decoding, the we use the following logic:
+
+.. code-block:: python
+	:linenos:
+
+	def decode_envelopes(array):
+		'''
+		Arguments
+		---------
+		array: float32 array
+		'''
+	    envelope_list = []
+	    current_envelope = []
+	    i = 0
+	    n = len(array)
+	    while i < n:
+	    	# fetch the next two values
+	        mz = array[i]
+	        intensity = array[i + 1]
+	        i += 2
+
+	        # if both numbers are zero, this denotes the beginning
+	        # of a new envelope
+	        if mz == 0 and intensity == 0:
+	            if current_envelope is not None:
+	                if current_envelope:
+	                    envelope_list.append(Envelope(current_envelope))
+	                current_envelope = []
+	        # otherwise add the current point to the existing envelope
+	        else:
+	            current_envelope.append(EnvelopePair(mz, intensity))
+	    envelope_list.append(Envelope(current_envelope))
+	    return envelope_list
 
 Bibliography
 ------------
