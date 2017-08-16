@@ -108,6 +108,8 @@ class CombinatoricCompositionGenerator(object):
             passed = True
             combin = SymbolContext(combin)
             structure_classes = []
+            if sum(combin.values()) == 0:
+                continue
             for constraint in self.constraints:
                 if not constraint(combin):
                     passed = False

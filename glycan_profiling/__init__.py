@@ -1,23 +1,23 @@
-from . import startup as _startup
+from glycan_profiling import startup as _startup
 
-from .piped_deconvolve import (
+from glycan_profiling.piped_deconvolve import (
     ScanGenerator, ScanGeneratorBase)
 
-from .chromatogram_tree import (
+from glycan_profiling.chromatogram_tree import (
     MassShift, CompoundMassShift, Chromatogram, ChromatogramTreeList,
     ChromatogramTreeNode, ChromatogramInterface, ChromatogramFilter,
     mass_shift)
 
-from .trace import (
+from glycan_profiling.trace import (
     ChromatogramExtractor, ChromatogramProcessor)
 
-from .database import (
+from glycan_profiling.database import (
     NeutralMassDatabase, GlycopeptideDiskBackedStructureDatabase,
     GlycanCompositionDiskBackedStructureDatabase)
 
-from . import serialize
-from . import profiler
-from . import plotting
+from glycan_profiling import serialize
+from glycan_profiling import profiler
+from glycan_profiling import plotting
 
 
 __all__ = [
