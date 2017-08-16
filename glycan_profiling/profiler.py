@@ -35,6 +35,7 @@ from glycan_profiling.tandem.glycopeptide.glycopeptide_matcher import Glycopepti
 from glycan_profiling.tandem.glycopeptide import (
     identified_structure as identified_glycopeptide)
 from glycan_profiling.tandem.glycan.composition_matching import SignatureIonMapper
+from glycan_profiling.tandem.glycan.scoring.signature_ion_scoring import SignatureIonScorer
 
 
 from glycan_profiling.scan_cache import (
@@ -281,11 +282,13 @@ class GlycanChromatogramAnalyzer(TaskBase):
                 delta_rt=self.delta_rt)
         return proc
 
-    def make_mapper(self, chromatograms, peak_loader, msms_scans=None, default_glycan_composition=None):
+    def make_mapper(self, chromatograms, peak_loader, msms_scans=None, default_glycan_composition=None,
+                    scorer_type=SignatureIonScorer):
         mapper = SignatureIonMapper(
             msms_scans, chromatograms, peak_loader.convert_scan_id_to_retention_time,
             self.adducts, self.minimum_mass, chunk_size=1000,
-            default_glycan_composition=default_glycan_composition)
+            default_glycan_composition=default_glycan_composition,
+            scorer_type=scorer_type)
         return mapper
 
     def annotate_matches_with_msms(self, chromatograms, peak_loader, msms_scans, database):

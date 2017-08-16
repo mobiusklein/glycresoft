@@ -5,14 +5,15 @@ from ..chromatogram_mapping import ChromatogramMSMSMapper
 
 
 class SignatureIonMapper(TaskBase):
-    scorer_type = SignatureIonScorer
 
     # simple default value from experimentation
     minimum_score = 0.034367
 
     def __init__(self, tandem_scans, chromatograms, scan_id_to_rt=lambda x: x,
                  adducts=None, minimum_mass=500, chunk_size=1000,
-                 default_glycan_composition=None):
+                 default_glycan_composition=None, scorer_type=None):
+        if scorer_type is None:
+            scorer_type = SignatureIonScorer
         if adducts is None:
             adducts = []
         self.chromatograms = chromatograms
@@ -23,6 +24,7 @@ class SignatureIonMapper(TaskBase):
         self.adducts = adducts
         self.minimum_mass = minimum_mass
         self.default_glycan_composition = default_glycan_composition
+        self.scorer_type = scorer_type
 
     def prepare_scan_set(self, scan_set):
         if hasattr(scan_set[0], 'convert'):

@@ -2,6 +2,8 @@ import itertools
 
 from collections import Counter
 
+import numpy as np
+
 from glypy.structure.fragment import Fragment
 from glypy.composition import Composition
 from glypy.composition.composition_transform import strip_derivatization
@@ -85,8 +87,10 @@ class SignatureIonScorer(SpectrumMatcherBase):
         self.fragments_searched = counter
         return matches
 
-    def loss(self, count, penalty=0.5):
-        return penalty / float(count)
+    def penalize(self, ratio, count):
+        count = float(count)
+        scale = min(np.log(count) / np.log(4), 1)
+        return ratio * scale
 
     def oxonium_ratio(self):
         imax = max(self.spectrum, key=lambda x: x.intensity).intensity
@@ -105,5 +109,5 @@ class SignatureIonScorer(SpectrumMatcherBase):
         if n == 0:
             self._score = 0
         else:
-            self._score = max(oxonium_ratio - self.loss(n, 0.5), 0)
+            self._score = self.penalize(oxonium_ratio, n)
         return self._score
