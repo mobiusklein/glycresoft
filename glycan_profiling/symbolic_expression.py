@@ -579,6 +579,12 @@ class SymbolContext(SymbolSpace):
     def items(self):
         return self.context.items()
 
+    def keys(self):
+        return self.context.keys()
+
+    def values(self):
+        return self.context.values()
+
 
 class GlycanSymbolContext(SymbolContext):
     @staticmethod
