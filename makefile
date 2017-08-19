@@ -5,3 +5,7 @@ test:
 
 retest:
 	py.test -v  glycan_profiling --lf	
+
+build-pyinstaller:
+	cd pyinstaller && bash make-pyinstaller.sh
+	pyinstaller/dist/glycresoft-cli/glycresoft-cli -h

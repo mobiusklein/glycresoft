@@ -21,4 +21,4 @@ install:
   - pip install git+https://github.com/mobiusklein/psims.git
   - pip install git+https://github.com/mobiusklein/ms_deisotope.git
   - pip install git+https://github.com/mobiusklein/pysqlite.git
-script: make test
+script: make test build-pyinstaller
