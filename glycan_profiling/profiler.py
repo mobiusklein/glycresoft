@@ -1,6 +1,8 @@
 import re
 import warnings
 
+from collections import defaultdict
+
 import glypy
 
 from glycan_profiling.database.disk_backed_database import (
@@ -315,8 +317,10 @@ class GlycanChromatogramAnalyzer(TaskBase):
                 annotated_matches = self.annotate_matches_with_msms(
                     matches, peak_loader, msms_scans, database)
                 kept_annotated_matches = []
+                key_to_tandem = defaultdict(list)
                 for match in annotated_matches:
                     accepted = False
+                    key_to_tandem[match.key].extend(match.tandem_solutions)
                     for gsm in match.tandem_solutions:
                         if gsm.score > self.require_msms_signature:
                             accepted = True
@@ -325,6 +329,16 @@ class GlycanChromatogramAnalyzer(TaskBase):
                         kept_annotated_matches.append(match)
                 kept_annotated_matches = ChromatogramFilter(kept_annotated_matches)
                 processor.evaluate_chromatograms(kept_annotated_matches)
+                for solution in processor.solutions:
+                    mapped = []
+                    try:
+                        gsms = key_to_tandem[solution.key]
+                        for gsm in gsms:
+                            if solution.spans_time_point(gsm.scan_time):
+                                mapped.append(gsm)
+                        solution.tandem_solutions = mapped
+                    except KeyError:
+                        continue
         else:
             processor.run()
 
