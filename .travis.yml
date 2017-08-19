@@ -17,11 +17,11 @@ install:
   - pip install -r external-requirements.txt
   # - pip install git+https://github.com/mobiusklein/glypy.git
   - git clone https://github.com/mobiusklein/glypy.git && cd glypy && python setup.py install
-  - pip install git+https://github.com/mobiusklein/glycopeptidepy.git
+  - git clone https://github.com/mobiusklein/glycopeptidepy.git && cd glycopeptidepy && python setup.py install
   - pip install git+https://github.com/mobiusklein/ms_peak_picker.git
-  - pip install git+https://github.com/mobiusklein/psims.git
+  - pip install psims
   - pip install git+https://github.com/mobiusklein/ms_deisotope.git
   - pip install git+https://github.com/mobiusklein/pysqlite.git
   - pip install PyInstaller
   - python setup.py install
-script: make build-pyinstaller
+script: make test build-pyinstaller
