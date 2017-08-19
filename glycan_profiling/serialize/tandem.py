@@ -11,7 +11,7 @@ from glycan_profiling.tandem.spectrum_matcher_base import (
     TargetReference)
 
 from .analysis import BoundToAnalysis
-from .hypothesis import Glycopeptide
+from .hypothesis import Glycopeptide, GlycanComposition
 
 from ms_deisotope.output.db import (
     Base, MSScan)
@@ -131,7 +131,8 @@ class GlycopeptideSpectrumMatch(Base, SpectrumMatchBase):
         return self.structure
 
     @classmethod
-    def serialize(cls, obj, session, scan_look_up_cache, analysis_id, solution_set_id, is_decoy=False, *args, **kwargs):
+    def serialize(cls, obj, session, scan_look_up_cache, analysis_id,
+                  solution_set_id, is_decoy=False, *args, **kwargs):
         inst = cls(
             scan_id=scan_look_up_cache[obj.scan.id],
             is_decoy=is_decoy,
@@ -156,3 +157,272 @@ class GlycopeptideSpectrumMatch(Base, SpectrumMatchBase):
 
     def __repr__(self):
         return "DB" + repr(self.convert())
+
+
+class GlycanCompositionSpectrumCluster(Base, BoundToAnalysis):
+    __tablename__ = "GlycanCompositionSpectrumCluster"
+
+    id = Column(Integer, primary_key=True)
+
+    @classmethod
+    def serialize(cls, obj, session, scan_look_up_cache, analysis_id, *args, **kwargs):
+        inst = cls()
+        session.add(inst)
+        session.flush()
+        cluster_id = inst.id
+        for solution_set in obj.tandem_solutions:
+            GlycanCompositionSpectrumSolutionSet.serialize(
+                solution_set, session, scan_look_up_cache, analysis_id,
+                cluster_id, *args, **kwargs)
+        return inst
+
+    def convert(self):
+        return [x.convert() for x in self.spectrum_solutions]
+
+    source = relationship(
+        "GlycanCompositionChromatogram",
+        secondary=lambda: GlycanCompositionChromatogramToGlycanCompositionSpectrumCluster,
+        backref=backref("spectrum_cluster", uselist=False))
+
+
+class GlycanCompositionSpectrumSolutionSet(Base, BoundToAnalysis):
+    __tablename__ = "GlycanCompositionSpectrumSolutionSet"
+
+    id = Column(Integer, primary_key=True)
+    cluster_id = Column(
+        Integer,
+        ForeignKey(GlycanCompositionSpectrumCluster.id, ondelete="CASCADE"),
+        index=True)
+
+    cluster = relationship(GlycanCompositionSpectrumCluster, backref=backref(
+        "spectrum_solutions", lazy='subquery'))
+
+    scan_id = Column(Integer, ForeignKey(MSScan.id), index=True)
+    scan = relationship(MSScan)
+
+    def best_solution(self):
+        return sorted(self.spectrum_matches, key=lambda x: x.score, reverse=True)[0]
+
+    @property
+    def score(self):
+        return self.best_solution().score
+
+    def __iter__(self):
+        return iter(self.spectrum_matches)
+
+    @classmethod
+    def serialize(cls, obj, session, scan_look_up_cache, analysis_id, cluster_id, *args, **kwargs):
+        inst = cls(
+            scan_id=scan_look_up_cache[obj.scan.id],
+            analysis_id=analysis_id,
+            cluster_id=cluster_id)
+        session.add(inst)
+        session.flush()
+        # if we have a real SpectrumSolutionSet, then it will be iterable
+        try:
+            list(obj)
+        except TypeError:
+            # otherwise we have a single SpectrumMatch
+            obj = [obj]
+        for solution in obj:
+            GlycanCompositionSpectrumMatch.serialize(
+                solution, session, scan_look_up_cache,
+                analysis_id, inst.id, *args, **kwargs)
+        return inst
+
+    def convert(self):
+        matches = [x.convert() for x in self.spectrum_matches]
+        matches.sort(key=lambda x: x.score, reverse=True)
+        inst = MemorySpectrumSolutionSet(
+            SpectrumReference(self.scan.scan_id, self.scan.precursor_information),
+            matches
+        )
+        inst.q_value = min(x.q_value for x in inst)
+        inst.id = self.id
+        return inst
+
+    def __repr__(self):
+        return "DB" + repr(self.convert())
+
+
+class GlycanCompositionSpectrumMatch(Base, SpectrumMatchBase):
+    __tablename__ = "GlycanCompositionSpectrumMatch"
+
+    id = Column(Integer, primary_key=True)
+    solution_set_id = Column(
+        Integer, ForeignKey(
+            GlycanCompositionSpectrumSolutionSet.id, ondelete='CASCADE'),
+        index=True)
+    solution_set = relationship(GlycanCompositionSpectrumSolutionSet,
+                                backref=backref("spectrum_matches", lazy='subquery'))
+
+    composition_id = Column(
+        Integer, ForeignKey(GlycanComposition.id, ondelete='CASCADE'),
+        index=True)
+
+    composition = relationship(GlycanComposition)
+
+    @property
+    def target(self):
+        return self.composition
+
+    @classmethod
+    def serialize(cls, obj, session, scan_look_up_cache, analysis_id, solution_set_id,
+                  is_decoy=False, *args, **kwargs):
+        inst = cls(
+            scan_id=scan_look_up_cache[obj.scan.id],
+            analysis_id=analysis_id,
+            score=obj.score,
+            solution_set_id=solution_set_id,
+            composition_id=obj.target.id)
+        session.add(inst)
+        session.flush()
+        return inst
+
+    def convert(self):
+        session = object_session(self)
+        scan = session.query(MSScan).get(self.scan_id).convert()
+        target = session.query(GlycanComposition).get(self.composition_id).convert()
+        inst = MemorySpectrumMatch(scan, target, self.score)
+        inst.id = self.id
+        return inst
+
+    def __repr__(self):
+        return "DB" + repr(self.convert())
+
+
+class UnidentifiedSpectrumCluster(Base, BoundToAnalysis):
+    __tablename__ = "UnidentifiedSpectrumCluster"
+
+    id = Column(Integer, primary_key=True)
+
+    @classmethod
+    def serialize(cls, obj, session, scan_look_up_cache, analysis_id, *args, **kwargs):
+        inst = cls()
+        session.add(inst)
+        session.flush()
+        cluster_id = inst.id
+        for solution_set in obj.tandem_solutions:
+            UnidentifiedSpectrumSolutionSet.serialize(
+                solution_set, session, scan_look_up_cache, analysis_id,
+                cluster_id, *args, **kwargs)
+        return inst
+
+    def convert(self):
+        return [x.convert() for x in self.spectrum_solutions]
+
+    source = relationship(
+        "UnidentifiedChromatogram",
+        secondary=lambda: UnidentifiedChromatogramToUnidentifiedSpectrumCluster,
+        backref=backref("spectrum_cluster", uselist=False))
+
+
+class UnidentifiedSpectrumSolutionSet(Base, BoundToAnalysis):
+    __tablename__ = "UnidentifiedSpectrumSolutionSet"
+
+    id = Column(Integer, primary_key=True)
+    cluster_id = Column(
+        Integer,
+        ForeignKey(UnidentifiedSpectrumCluster.id, ondelete="CASCADE"),
+        index=True)
+
+    cluster = relationship(UnidentifiedSpectrumCluster, backref=backref(
+        "spectrum_solutions", lazy='subquery'))
+
+    scan_id = Column(Integer, ForeignKey(MSScan.id), index=True)
+    scan = relationship(MSScan)
+
+    def best_solution(self):
+        return sorted(self.spectrum_matches, key=lambda x: x.score, reverse=True)[0]
+
+    @property
+    def score(self):
+        return self.best_solution().score
+
+    def __iter__(self):
+        return iter(self.spectrum_matches)
+
+    @classmethod
+    def serialize(cls, obj, session, scan_look_up_cache, analysis_id, cluster_id, *args, **kwargs):
+        inst = cls(
+            scan_id=scan_look_up_cache[obj.scan.id],
+            analysis_id=analysis_id,
+            cluster_id=cluster_id)
+        session.add(inst)
+        session.flush()
+        # if we have a real SpectrumSolutionSet, then it will be iterable
+        try:
+            list(obj)
+        except TypeError:
+            # otherwise we have a single SpectrumMatch
+            obj = [obj]
+        for solution in obj:
+            UnidentifiedSpectrumMatch.serialize(
+                solution, session, scan_look_up_cache,
+                analysis_id, inst.id, *args, **kwargs)
+        return inst
+
+    def convert(self):
+        matches = [x.convert() for x in self.spectrum_matches]
+        matches.sort(key=lambda x: x.score, reverse=True)
+        inst = MemorySpectrumSolutionSet(
+            SpectrumReference(self.scan.scan_id, self.scan.precursor_information),
+            matches
+        )
+        inst.q_value = min(x.q_value for x in inst)
+        inst.id = self.id
+        return inst
+
+    def __repr__(self):
+        return "DB" + repr(self.convert())
+
+
+class UnidentifiedSpectrumMatch(Base, SpectrumMatchBase):
+    __tablename__ = "UnidentifiedSpectrumMatch"
+
+    id = Column(Integer, primary_key=True)
+    solution_set_id = Column(
+        Integer, ForeignKey(
+            UnidentifiedSpectrumSolutionSet.id, ondelete='CASCADE'),
+        index=True)
+
+    solution_set = relationship(UnidentifiedSpectrumSolutionSet,
+                                backref=backref("spectrum_matches", lazy='subquery'))
+
+    @classmethod
+    def serialize(cls, obj, session, scan_look_up_cache, analysis_id, solution_set_id,
+                  is_decoy=False, *args, **kwargs):
+        inst = cls(
+            scan_id=scan_look_up_cache[obj.scan.id],
+            analysis_id=analysis_id,
+            score=obj.score,
+            solution_set_id=solution_set_id)
+        session.add(inst)
+        session.flush()
+        return inst
+
+    def convert(self):
+        session = object_session(self)
+        scan = session.query(MSScan).get(self.scan_id).convert()
+        inst = MemorySpectrumMatch(scan, None, self.score)
+        inst.id = self.id
+        return inst
+
+    def __repr__(self):
+        return "DB" + repr(self.convert())
+
+
+GlycanCompositionChromatogramToGlycanCompositionSpectrumCluster = Table(
+    "GlycanCompositionChromatogramToGlycanCompositionSpectrumCluster", Base.metadata,
+    Column("chromatogram_id", Integer, ForeignKey(
+        "GlycanCompositionChromatogram.id", ondelete="CASCADE"), primary_key=True),
+    Column("cluster_id", Integer, ForeignKey(
+        GlycanCompositionSpectrumCluster.id, ondelete="CASCADE"), primary_key=True))
+
+
+UnidentifiedChromatogramToUnidentifiedSpectrumCluster = Table(
+    "UnidentifiedChromatogramToUnidentifiedSpectrumCluster", Base.metadata,
+    Column("chromatogram_id", Integer, ForeignKey(
+        "UnidentifiedChromatogram.id", ondelete="CASCADE"), primary_key=True),
+    Column("cluster_id", Integer, ForeignKey(
+        UnidentifiedSpectrumCluster.id, ondelete="CASCADE"), primary_key=True))

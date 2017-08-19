@@ -31,10 +31,16 @@ def fetch_scans_used_in_chromatogram(chromatogram_set, extractor):
     scan_ids = set()
     for chroma in chromatogram_set:
         scan_ids.update(chroma.scan_ids)
+
+        tandem_solutions = getattr(chroma, "tandem_solutions", [])
+        for tsm in tandem_solutions:
+            scan_ids.add(tsm.scan.id)
+            scan_ids.add(tsm.scan.precursor_information.precursor_scan_id)
+
     scans = []
     for scan_id in scan_ids:
         scans.append(extractor.get_scan_header_by_id(scan_id))
-    return sorted(scans, key=lambda x: x.index)
+    return sorted(scans, key=lambda x: (x.ms_level, x.index))
 
 
 def fetch_glycan_compositions_from_chromatograms(chromatogram_set, glycan_db):
@@ -311,6 +317,7 @@ class GlycanCompositionChromatogramAnalysisSerializer(AnalysisMigrationBase):
 
         n = len(self.chromatogram_set)
         i = 0
+
         for chroma in self.chromatogram_set:
             i += 1
             if i % 100 == 0:

@@ -25,7 +25,11 @@ from .hypothesis import (
     Glycopeptide)
 
 from .tandem import (
-    GlycopeptideSpectrumCluster)
+    GlycopeptideSpectrumCluster,
+    GlycanCompositionSpectrumCluster,
+    UnidentifiedSpectrumCluster,
+    GlycanCompositionChromatogramToGlycanCompositionSpectrumCluster,
+    UnidentifiedChromatogramToUnidentifiedSpectrumCluster)
 
 from .identification import (
     AmbiguousGlycopeptideGroup,
@@ -130,6 +134,11 @@ class AnalysisSerializer(DatabaseBoundOperation, TaskBase):
         return result
 
     def save_glycan_composition_chromatogram_solution(self, solution, commit=False):
+        try:
+            cluster = self.save_glycan_composition_spectrum_cluster(solution)
+            cluster_id = cluster.id
+        except AttributeError:
+            cluster_id = None
         result = GlycanCompositionChromatogram.serialize(
             solution, self.session, analysis_id=self.analysis_id,
             peak_lookup_table=self._peak_lookup_table,
@@ -137,6 +146,13 @@ class AnalysisSerializer(DatabaseBoundOperation, TaskBase):
             composition_cache=self._composition_cache,
             scan_lookup_table=self._scan_id_map,
             node_peak_map=self._node_peak_map)
+        if cluster_id is not None:
+            self.session.execute(
+                GlycanCompositionChromatogramToGlycanCompositionSpectrumCluster.insert(), {
+                    "chromatogram_id": result.id,
+                    "cluster_id": cluster_id
+                })
+            self.session.flush()
         try:
             self._chromatogram_solution_id_map[solution.id] = result.solution.id
         except AttributeError:
@@ -147,6 +163,11 @@ class AnalysisSerializer(DatabaseBoundOperation, TaskBase):
         return result
 
     def save_unidentified_chromatogram_solution(self, solution, commit=False):
+        try:
+            cluster = self.save_unidentified_spectrum_cluster(solution)
+            cluster_id = cluster.id
+        except AttributeError:
+            cluster_id = None
         result = UnidentifiedChromatogram.serialize(
             solution, self.session, analysis_id=self.analysis_id,
             peak_lookup_table=self._peak_lookup_table,
@@ -154,6 +175,13 @@ class AnalysisSerializer(DatabaseBoundOperation, TaskBase):
             composition_cache=self._composition_cache,
             scan_lookup_table=self._scan_id_map,
             node_peak_map=self._node_peak_map)
+        if cluster_id is not None:
+            self.session.execute(
+                UnidentifiedChromatogramToUnidentifiedSpectrumCluster.insert(), {
+                    "chromatogram_id": result.id,
+                    "cluster_id": cluster_id
+                })
+            self.session.flush()
         try:
             self._chromatogram_solution_id_map[solution.id] = result.solution.id
         except AttributeError:
@@ -162,6 +190,26 @@ class AnalysisSerializer(DatabaseBoundOperation, TaskBase):
         if commit:
             self.commit()
         return result
+
+    def save_glycan_composition_spectrum_cluster(self, glycan_spectrum_cluster, commit=False):
+        inst = GlycanCompositionSpectrumCluster.serialize(
+            glycan_spectrum_cluster,
+            self.session,
+            self._scan_id_map,
+            self.analysis_id)
+        if commit:
+            self.commit()
+        return inst
+
+    def save_unidentified_spectrum_cluster(self, unidentified_spectrum_cluster, commit=False):
+        inst = UnidentifiedSpectrumCluster.serialize(
+            unidentified_spectrum_cluster,
+            self.session,
+            self._scan_id_map,
+            self.analysis_id)
+        if commit:
+            self.commit()
+        return inst
 
     def save_glycopeptide_identification(self, identification, commit=False):
         if identification.chromatogram is not None:

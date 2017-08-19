@@ -9,12 +9,12 @@ from ms_deisotope.output.db import (
     FittedPeak,
     DeconvolutedPeak)
 
-from .analysis import (
+from glycan_profiling.serialize.analysis import (
     Analysis,
     BoundToAnalysis,
     AnalysisTypeEnum)
 
-from .chromatogram import (
+from glycan_profiling.serialize.chromatogram import (
     ChromatogramTreeNode,
     Chromatogram,
     ChromatogramSolution,
@@ -25,25 +25,31 @@ from .chromatogram import (
     GlycanCompositionChromatogram,
     ChromatogramSolutionAdductedToChromatogramSolution)
 
-from .tandem import (
+from glycan_profiling.serialize.tandem import (
     GlycopeptideSpectrumCluster,
     GlycopeptideSpectrumMatch,
-    GlycopeptideSpectrumSolutionSet)
+    GlycopeptideSpectrumSolutionSet,
+    GlycanCompositionSpectrumCluster,
+    GlycanCompositionSpectrumSolutionSet,
+    GlycanCompositionSpectrumMatch,
+    UnidentifiedSpectrumCluster,
+    UnidentifiedSpectrumSolutionSet,
+    UnidentifiedSpectrumMatch)
 
-from .identification import (
+from glycan_profiling.serialize.identification import (
     IdentifiedGlycopeptide,
     AmbiguousGlycopeptideGroup)
 
-from .serializer import (
+from glycan_profiling.serialize.serializer import (
     AnalysisSerializer,
     AnalysisDeserializer,
     DatabaseScanDeserializer,
     DatabaseBoundOperation)
 
-from .hypothesis import *
+from glycan_profiling.serialize.hypothesis import *
 
-from . import config
+from glycan_profiling.serialize import config
 
-from .migration import (
+from glycan_profiling.serialize.migration import (
     GlycanCompositionChromatogramAnalysisSerializer,
     GlycopeptideMSMSAnalysisSerializer)

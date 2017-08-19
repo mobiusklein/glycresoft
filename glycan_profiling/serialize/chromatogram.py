@@ -9,6 +9,7 @@ from sqlalchemy.orm import relationship, backref, object_session
 from sqlalchemy.ext.associationproxy import association_proxy
 from sqlalchemy.orm.collections import attribute_mapped_collection
 from sqlalchemy.ext.declarative import declared_attr
+from sqlalchemy.exc import OperationalError
 
 from glycan_profiling.chromatogram_tree import (
     ChromatogramTreeNode as MemoryChromatogramTreeNode,
@@ -672,7 +673,6 @@ class ChromatogramSolution(Base, BoundToAnalysis, ScoredChromatogram, Chromatogr
     composition_group = relationship(CompositionGroup)
 
     def get_chromatogram(self):
-        # return self.chromatogram.convert()
         return self.chromatogram.get_chromatogram()
 
     @property
@@ -681,18 +681,6 @@ class ChromatogramSolution(Base, BoundToAnalysis, ScoredChromatogram, Chromatogr
             return self.composition_group._key()
         else:
             return self.neutral_mass
-
-    # @property
-    # def neutral_mass(self):
-    #     return self.chromatogram.neutral_mass
-
-    # @property
-    # def start_time(self):
-    #     return self.chromatogram.start_time
-
-    # @property
-    # def end_time(self):
-    #     return self.chromatogram.end_time
 
     @property
     def composition(self):
@@ -755,19 +743,8 @@ class ChromatogramSolution(Base, BoundToAnalysis, ScoredChromatogram, Chromatogr
         session.flush()
         return inst
 
-    # @property
-    # def total_signal(self):
-    #     return self.chromatogram.total_signal
-
-    # @property
-    # def weighted_neutral_mass(self):
-    #     return self.chromatogram.weighted_neutral_mass
-
     def __repr__(self):
         return "DB" + repr(self.convert())
-
-    # def __len__(self):
-    #     return len(self.chromatogram)
 
 
 class ChromatogramSolutionWrapper(ChromatogramWrapper):
@@ -807,11 +784,18 @@ class GlycanCompositionChromatogram(Base, BoundToAnalysis, ScoredChromatogram, C
 
         solution.id = self.id
         solution.solution_id = self.solution.id
+
+        try:
+            solution.tandem_solutions = self.spectrum_cluster.convert()
+        except AttributeError:
+            solution.tandem_solutions = []
+
         return solution
 
     @classmethod
     def serialize(cls, obj, session, analysis_id, peak_lookup_table=None, mass_shift_cache=None,
-                  scan_lookup_table=None, composition_cache=None, node_peak_map=None, *args, **kwargs):
+                  scan_lookup_table=None, composition_cache=None, node_peak_map=None,
+                  *args, **kwargs):
         solution = ChromatogramSolution.serialize(
             obj, session, analysis_id, peak_lookup_table=peak_lookup_table,
             mass_shift_cache=mass_shift_cache, scan_lookup_table=scan_lookup_table,
@@ -850,11 +834,18 @@ class UnidentifiedChromatogram(Base, BoundToAnalysis, ScoredChromatogram, Chroma
         solution = self.solution.convert(*args, **kwargs)
         solution.id = self.id
         solution.solution_id = self.solution.id
+
+        try:
+            solution.tandem_solutions = self.spectrum_cluster.convert()
+        except AttributeError:
+            solution.tandem_solutions = []
+
         return solution
 
     @classmethod
     def serialize(cls, obj, session, analysis_id, peak_lookup_table=None, mass_shift_cache=None,
-                  scan_lookup_table=None, composition_cache=None, node_peak_map=None, *args, **kwargs):
+                  scan_lookup_table=None, composition_cache=None, node_peak_map=None,
+                  *args, **kwargs):
         solution = ChromatogramSolution.serialize(
             obj, session, analysis_id, peak_lookup_table,
             mass_shift_cache, scan_lookup_table, composition_cache,

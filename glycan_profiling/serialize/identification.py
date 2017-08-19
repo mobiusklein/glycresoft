@@ -2,13 +2,17 @@ from sqlalchemy import (
     Column, Numeric, Integer, String, ForeignKey, PickleType,
     Boolean, Table)
 from sqlalchemy.orm import relationship, backref
-from sqlalchemy.ext.associationproxy import association_proxy
-from sqlalchemy.orm.collections import attribute_mapped_collection
 from sqlalchemy.ext.declarative import declared_attr
 
 from .analysis import BoundToAnalysis
-from .chromatogram import ChromatogramSolution, ChromatogramWrapper
-from .tandem import GlycopeptideSpectrumCluster
+
+from .chromatogram import (
+    ChromatogramSolution,
+    ChromatogramWrapper)
+
+from .tandem import (
+    GlycopeptideSpectrumCluster)
+
 from .hypothesis import Glycopeptide
 
 from glycan_profiling.tandem.glycopeptide.identified_structure import (
