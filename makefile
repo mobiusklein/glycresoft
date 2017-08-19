@@ -8,4 +8,5 @@ retest:
 
 build-pyinstaller:
 	cd pyinstaller && bash make-pyinstaller.sh
+	ls pyinstaller/dist/glycresoft-cli/*
 	pyinstaller/dist/glycresoft-cli/glycresoft-cli -h
