@@ -16,8 +16,8 @@ install:
   - pip install --only-binary=numpy,scipy numpy scipy
   - pip install -r external-requirements.txt
   # - pip install git+https://github.com/mobiusklein/glypy.git
-  - git clone https://github.com/mobiusklein/glypy.git && cd glypy && python setup.py install
-  - git clone https://github.com/mobiusklein/glycopeptidepy.git && cd glycopeptidepy && python setup.py install
+  - git clone https://github.com/mobiusklein/glypy.git && cd glypy && python setup.py install && cd ..
+  - git clone https://github.com/mobiusklein/glycopeptidepy.git && cd glycopeptidepy && python setup.py install && cd ..
   - pip install git+https://github.com/mobiusklein/ms_peak_picker.git
   - pip install psims
   - pip install git+https://github.com/mobiusklein/ms_deisotope.git
