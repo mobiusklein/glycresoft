@@ -144,6 +144,8 @@ class ScanStub(object):
 
 
 class ScanWrapperBase(object):
+    __slots__ = []
+
     @property
     def precursor_ion_mass(self):
         self.requires_scan()
@@ -281,7 +283,7 @@ class DeconvolutingSpectrumMatcherBase(SpectrumMatcherBase):
 
 class SpectrumMatch(SpectrumMatchBase):
 
-    __slots__ = ['scan', 'target', 'score', 'best_match', 'data_bundle', "q_value", 'id']
+    __slots__ = ['score', 'best_match', 'data_bundle', "q_value", 'id']
 
     def __init__(self, scan, target, score, best_match=False, data_bundle=None,
                  q_value=None, id=None):
