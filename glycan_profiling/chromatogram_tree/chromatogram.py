@@ -89,7 +89,21 @@ class SubsequenceMasker(object):
 mask_subsequence = SubsequenceMasker.mask_subsequence
 
 
-class Chromatogram(object):
+class _TimeIntervalMethods(object):
+    def overlaps_in_time(self, interval):
+        cond = ((self.start_time <= interval.start_time and self.end_time >= interval.end_time) or (
+            self.start_time >= interval.start_time and self.end_time <= interval.end_time) or (
+            self.start_time >= interval.start_time and self.end_time >= interval.end_time and
+            self.start_time <= interval.end_time) or (
+            self.start_time <= interval.start_time and self.end_time >= interval.start_time) or (
+            self.start_time <= interval.end_time and self.end_time >= interval.end_time))
+        return cond
+
+    def spans_time_point(self, point):
+        return self.start_time <= point <= self.end_time
+
+
+class Chromatogram(_TimeIntervalMethods):
     created_at = "new"
     glycan_composition = None
 
@@ -464,15 +478,6 @@ class Chromatogram(object):
     def __hash__(self):
         return hash((self.neutral_mass, self.start_time, self.end_time))
 
-    def overlaps_in_time(self, interval):
-        cond = ((self.start_time <= interval.start_time and self.end_time >= interval.end_time) or (
-            self.start_time >= interval.start_time and self.end_time <= interval.end_time) or (
-            self.start_time >= interval.start_time and self.end_time >= interval.end_time and
-            self.start_time <= interval.end_time) or (
-            self.start_time <= interval.start_time and self.end_time >= interval.start_time) or (
-            self.start_time <= interval.end_time and self.end_time >= interval.end_time))
-        return cond
-
     @property
     def elemental_composition(self):
         return None
@@ -804,7 +809,7 @@ class ChromatogramInterface(object):
 ChromatogramInterface.register(Chromatogram)
 
 
-class ChromatogramWrapper(object):
+class ChromatogramWrapper(_TimeIntervalMethods):
     def __init__(self, chromatogram):
         self.chromatogram = chromatogram
 
