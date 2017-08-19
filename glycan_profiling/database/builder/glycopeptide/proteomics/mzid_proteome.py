@@ -778,12 +778,15 @@ class Proteome(DatabaseBoundOperation, MzIdentMLProteomeExtraction):
             peptide_converter.handle_peptide_dict(spectrum_identification)
             i += 1
             if i % 1000 == 0:
-                self.log("%d spectrum matches processed." % i)
+                self.log("... %d spectrum matches processed." % i)
             if (peptide_converter.counter - last) > 1000000:
                 last = peptide_converter.counter
-                self.log("%d peptides saved. %d distinct cases." % (
+                self.log("... %d peptides saved. %d distinct cases." % (
                     peptide_converter.counter, len(
                         peptide_converter.peptide_grouper)))
+        self.log("... %d peptides saved. %d distinct cases." % (
+            peptide_converter.counter, len(
+                peptide_converter.peptide_grouper)))
         peptide_converter.save_accumulation()
 
     def load(self):
@@ -799,12 +802,16 @@ class Proteome(DatabaseBoundOperation, MzIdentMLProteomeExtraction):
         self.remove_duplicates()
         self.share_common_peptides()
         self.remove_duplicates()
+        self.log("... %d Peptides Total" % (self.count_peptides()))
         if self.include_baseline_peptides:
             self.log("... Building Baseline Peptides")
             self.build_baseline_peptides()
+            self.remove_duplicates()
+            self.log("... %d Peptides Total" % (self.count_peptides()))
         self.split_proteins()
         self.log("... Removing Duplicate Peptides")
         self.remove_duplicates()
+        self.log("... %d Peptides Total" % (self.count_peptides()))
 
     def retrieve_target_protein_ids(self):
         if len(self.target_proteins) == 0:
@@ -831,6 +838,11 @@ class Proteome(DatabaseBoundOperation, MzIdentMLProteomeExtraction):
     def get_target_proteins(self):
         ids = self.retrieve_target_protein_ids()
         return [self.session.query(Protein).get(i) for i in ids]
+
+    def count_peptides(self):
+        peptide_count = self.session.query(Peptide).filter(
+            Peptide.hypothesis_id == self.hypothesis_id).count()
+        return peptide_count
 
     def build_baseline_peptides(self):
         mod_table = modification.RestrictedModificationTable(
@@ -870,7 +882,7 @@ class Proteome(DatabaseBoundOperation, MzIdentMLProteomeExtraction):
                 self.log("... %0.3f%% Done (%s)" % (i / float(n) * 100., protein.name))
 
     def split_proteins(self):
-        self.log("Begin Applying Protein Annotations")
+        self.log("... Begin Applying Protein Annotations")
         mod_table = modification.RestrictedModificationTable(
             constant_modifications=self.constant_modifications,
             variable_modifications=[])
@@ -889,7 +901,8 @@ class Proteome(DatabaseBoundOperation, MzIdentMLProteomeExtraction):
             i += 1
             protein = self.query(Protein).get(protein_id)
             if i % interval == 0:
-                self.log("%0.3f%% Complete (%d/%d). %d Peptides Produced." % (i * 100. / n, i, n, j))
+                self.log("... %0.3f%% Complete (%d/%d). %d Peptides Produced." % (
+                    i * 100. / n, i, n, j))
             for peptide in splitter.handle_protein(protein):
                 acc.append(peptide)
                 j += 1
