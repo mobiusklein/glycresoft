@@ -6,7 +6,11 @@ test:
 retest:
 	py.test -v  glycan_profiling --lf	
 
+clean:
+	rm -rf build/ dist/ pyinstaller/build/ pyinstaller/dist pyinstaller/gitsrc/
+	coverage erase
+	
+
 build-pyinstaller:
 	cd pyinstaller && bash make-pyinstaller.sh
-	ls pyinstaller/dist/glycresoft-cli/*
 	pyinstaller/dist/glycresoft-cli/glycresoft-cli -h
