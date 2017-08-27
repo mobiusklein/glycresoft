@@ -416,7 +416,7 @@ class MzIdentMLSerializer(task.TaskBase):
             f.register("SearchDatabase", search_database['id'])
             f.register("SpectrumIdentificationList", self._spectrum_identification_list['id'])
 
-            f.sequence_collection(self._proteins, self._peptides, self._peptide_evidence)
+            f._sequence_collection(self._proteins, self._peptides, self._peptide_evidence)
 
             with f.analysis_protocol_collection():
                 f.spectrum_identification_protocol(**protocol)
