@@ -22,11 +22,11 @@ class ChromatogramSpacingFitter(ScoringFeatureBase):
             self.fit()
 
     def fit(self):
-        intensities = map(total_intensity, self.chromatogram.peaks)
-        last_rt = self.chromatogram.retention_times[0]
+        times, intensities = self.chromatogram.as_arrays()
+        last_rt = times[0]
         last_int = intensities[0]
 
-        for rt, inten in zip(self.chromatogram.retention_times[1:], intensities[1:]):
+        for rt, inten in zip(times[1:], intensities[1:]):
             d_rt = rt - last_rt
             self.rt_deltas.append(d_rt)
             self.intensity_deltas.append(abs(last_int - inten))
@@ -34,7 +34,7 @@ class ChromatogramSpacingFitter(ScoringFeatureBase):
             last_int = inten
 
         self.rt_deltas = np.array(self.rt_deltas, dtype=np.float16)
-        self.intensity_deltas = np.array(self.intensity_deltas, dtype=np.float32)
+        self.intensity_deltas = np.array(self.intensity_deltas, dtype=np.float32) + 1
 
         self.score = np.average(self.rt_deltas, weights=self.intensity_deltas)
 
