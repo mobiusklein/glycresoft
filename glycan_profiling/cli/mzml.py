@@ -75,15 +75,20 @@ def rt_to_id(ms_file, rt):
     help="Scan transformations to apply to MS^n scans. May specify more than once.")
 @click.option("-v", "--extract-only-tandem-envelopes", is_flag=True, default=False,
               help='Only work on regions that will be chosen for MS/MS')
+@click.option("-g", "--ms1-averaging", default=0, type=int, help=(
+    "The number of MS1 scans before and after the current MS1 "
+    "scan to average when picking peaks."))
 @click.option("--ignore-msn", is_flag=True, default=False, help="Ignore MS^n scans")
 @click.option("--profile", default=False, is_flag=True, help=(
               "Force profile scan configuration."), cls=HiddenOption)
 @click.option("-i", "--isotopic-strictness", default=2.0, type=float, cls=HiddenOption)
+@click.option("-in", "--msn-isotopic-strictness", default=0.0, type=float, cls=HiddenOption)
 def preprocess(ms_file, outfile_path, averagine=None, start_time=None, end_time=None, maximum_charge=None,
                name=None, msn_averagine=None, score_threshold=35., msn_score_threshold=10., missed_peaks=1,
                msn_missed_peaks=1, background_reduction=5., msn_background_reduction=0.,
                transform=None, msn_transform=None, processes=4, extract_only_tandem_envelopes=False,
-               ignore_msn=False, profile=False, isotopic_strictness=2.0):
+               ignore_msn=False, profile=False, isotopic_strictness=2.0, ms1_averaging=0,
+               msn_isotopic_strictness=0.0):
     '''Convert raw mass spectra data into deisotoped neutral mass peak lists written to mzML.
     '''
     if transform is None:
@@ -165,8 +170,14 @@ def preprocess(ms_file, outfile_path, averagine=None, start_time=None, end_time=
         "ignore_below": SampleConsumer.MS1_IGNORE_BELOW
     }
 
+    if msn_isotopic_strictness >= 1:
+        msn_isotopic_scorer = ms_deisotope.scoring.PenalizedMSDeconVFitter(
+            msn_score_threshold, msn_isotopic_strictness)
+    else:
+        msn_isotopic_scorer = ms_deisotope.scoring.MSDeconVFitter(msn_score_threshold)
+
     msn_deconvolution_args = {
-        "scorer": ms_deisotope.scoring.MSDeconVFitter(msn_score_threshold),
+        "scorer": msn_isotopic_scorer,
         "averagine": msn_averagine,
         "max_missed_peaks": msn_missed_peaks,
         "truncate_after": SampleConsumer.MSN_ISOTOPIC_PATTERN_WIDTH,
@@ -183,8 +194,12 @@ def preprocess(ms_file, outfile_path, averagine=None, start_time=None, end_time=
         start_scan_id=start_scan_id, cache_handler_type=cache_handler_type,
         end_scan_id=end_scan_id, n_processes=processes,
         extract_only_tandem_envelopes=extract_only_tandem_envelopes,
-        ignore_tandem_scans=ignore_msn)
-    consumer.start()
+        ignore_tandem_scans=ignore_msn,
+        ms1_averaging=ms1_averaging)
+    try:
+        consumer.start()
+    except Exception as error:
+        raise click.ClickException("glycresoft: An error occurred: %r" % error)
 
 
 @mzml_cli.command("peak-picking", short_help=(
@@ -285,4 +300,7 @@ def peak_picker(ms_file, outfile_path, start_time=None, end_time=None,
         start_scan_id=start_scan_id, cache_handler_type=cache_handler_type,
         end_scan_id=end_scan_id, n_processes=processes,
         extract_only_tandem_envelopes=extract_only_tandem_envelopes)
-    consumer.start()
+    try:
+        consumer.start()
+    except Exception as error:
+        raise click.ClickException("glycresoft: An error occurred: %r" % error)
