@@ -87,3 +87,7 @@ class SampleConsumerTest(unittest.TestCase):
             os.remove(directory)
         except OSError:
             pass
+
+
+if __name__ == '__main__':
+    unittest.main()
