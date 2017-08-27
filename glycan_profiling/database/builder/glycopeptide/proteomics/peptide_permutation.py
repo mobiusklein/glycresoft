@@ -2,6 +2,8 @@ from collections import defaultdict
 import itertools
 from multiprocessing import Process, Queue, Event
 
+from lxml.etree import XMLSyntaxError
+
 from glycopeptidepy import enzyme
 from .utils import slurp
 from .uniprot import uniprot, get_uniprot_accession
@@ -382,6 +384,8 @@ class ProteinSplitter(TaskBase):
                     return []
             else:
                 return []
+        except XMLSyntaxError:
+            return []
         except Exception as e:
             self.error(
                 ("An unhandled error occurred while retrieving"
