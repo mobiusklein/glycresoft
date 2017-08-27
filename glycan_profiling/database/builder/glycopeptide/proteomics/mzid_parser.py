@@ -94,6 +94,9 @@ class Parser(MzIdentML):
         info.multi = multi
         return info, multi
 
+    def _find_by_id_reset(self, *a, **kw):
+        return MzIdentML._find_by_id_reset(self, *a, **kw)
+
     def _insert_param(self, info, param, **kwargs):
         newinfo = self._handle_param(param, **kwargs)
         if not ('name' in info and 'name' in newinfo):
