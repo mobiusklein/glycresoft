@@ -76,7 +76,8 @@ class SampleConsumer(TaskBase):
                  ms1_peak_picking_args=None, msn_peak_picking_args=None, ms1_deconvolution_args=None,
                  msn_deconvolution_args=None, start_scan_id=None, end_scan_id=None, storage_path=None,
                  sample_name=None, cache_handler_type=None, n_processes=5,
-                 extract_only_tandem_envelopes=False, ignore_tandem_scans=False):
+                 extract_only_tandem_envelopes=False, ignore_tandem_scans=False,
+                 ms1_averaging=0):
 
         if cache_handler_type is None:
             cache_handler_type = ThreadedMzMLScanCacheHandler
@@ -90,6 +91,15 @@ class SampleConsumer(TaskBase):
         self.n_processes = n_processes
         self.cache_handler_type = cache_handler_type
         self.extract_only_tandem_envelopes = extract_only_tandem_envelopes
+        self.ms1_averaging = ms1_averaging
+        self.ms1_processing_args = {
+            "peak_picking": ms1_peak_picking_args,
+            "deconvolution": ms1_deconvolution_args
+        }
+        self.msn_processing_args = {
+            "peak_picking": msn_peak_picking_args,
+            "deconvolution": msn_deconvolution_args
+        }
 
         n_helpers = max(self.n_processes - 1, 0)
         self.scan_generator = PipedScanGenerator(
@@ -100,7 +110,8 @@ class SampleConsumer(TaskBase):
             ms1_deconvolution_args=ms1_deconvolution_args,
             msn_deconvolution_args=msn_deconvolution_args,
             extract_only_tandem_envelopes=extract_only_tandem_envelopes,
-            ignore_tandem_scans=ignore_tandem_scans)
+            ignore_tandem_scans=ignore_tandem_scans,
+            ms1_averaging=ms1_averaging)
 
         self.start_scan_id = start_scan_id
         self.end_scan_id = end_scan_id
@@ -138,7 +149,7 @@ class CentroidingSampleConsumer(SampleConsumer):
     def __init__(self, ms_file, averagine=n_glycan_averagine, charge_range=(-1, -8),
                  ms1_peak_picking_args=None, msn_peak_picking_args=None, start_scan_id=None,
                  end_scan_id=None, storage_path=None, sample_name=None, cache_handler_type=None,
-                 n_processes=5, extract_only_tandem_envelopes=False):
+                 n_processes=5, extract_only_tandem_envelopes=False, ms1_averaging=0):
 
         if cache_handler_type is None:
             cache_handler_type = ThreadedMzMLScanCacheHandler
@@ -152,6 +163,13 @@ class CentroidingSampleConsumer(SampleConsumer):
         self.n_processes = n_processes
         self.cache_handler_type = cache_handler_type
         self.extract_only_tandem_envelopes = extract_only_tandem_envelopes
+        self.ms1_averaging = ms1_averaging
+        self.ms1_processing_args = {
+            "peak_picking": ms1_peak_picking_args,
+        }
+        self.msn_processing_args = {
+            "peak_picking": msn_peak_picking_args,
+        }
 
         n_helpers = max(self.n_processes - 1, 0)
         self.scan_generator = RawPipedScanGenerator(
@@ -159,7 +177,8 @@ class CentroidingSampleConsumer(SampleConsumer):
             number_of_helpers=n_helpers,
             ms1_peak_picking_args=ms1_peak_picking_args,
             msn_peak_picking_args=msn_peak_picking_args,
-            extract_only_tandem_envelopes=extract_only_tandem_envelopes)
+            extract_only_tandem_envelopes=extract_only_tandem_envelopes,
+            ms1_averaging=self.ms1_averaging)
 
         self.start_scan_id = start_scan_id
         self.end_scan_id = end_scan_id
@@ -190,7 +209,7 @@ class GlycanChromatogramAnalyzer(TaskBase):
                  mass_error_tolerance=1e-5, grouping_error_tolerance=1.5e-5,
                  scoring_model=GeneralScorer, minimum_mass=500., regularize=None,
                  regularization_model=None, analysis_name=None, delta_rt=0.5,
-                 require_msms_signature=0):
+                 require_msms_signature=0, n_processes=4):
         self.database_connection = database_connection
         self.hypothesis_id = hypothesis_id
         self.sample_run_id = sample_run_id
@@ -211,6 +230,7 @@ class GlycanChromatogramAnalyzer(TaskBase):
 
         self.analysis_name = analysis_name
         self.analysis = None
+        self.n_processes = n_processes
 
     def save_solutions(self, solutions, extractor, database, evaluator):
         if self.analysis_name is None:
@@ -290,7 +310,7 @@ class GlycanChromatogramAnalyzer(TaskBase):
             msms_scans, chromatograms, peak_loader.convert_scan_id_to_retention_time,
             self.adducts, self.minimum_mass, chunk_size=1000,
             default_glycan_composition=default_glycan_composition,
-            scorer_type=scorer_type)
+            scorer_type=scorer_type, n_processes=self.n_processes)
         return mapper
 
     def annotate_matches_with_msms(self, chromatograms, peak_loader, msms_scans, database):
@@ -302,7 +322,7 @@ class GlycanChromatogramAnalyzer(TaskBase):
         mapped_matches = mapper.map_to_chromatograms(self.mass_error_tolerance)
         self.log("Evaluating MS/MS")
         annotate_matches = mapper.score_mapped_tandem(
-            mapped_matches, error_tolerance=self.mass_error_tolerance)
+            mapped_matches, error_tolerance=self.mass_error_tolerance, include_compound=True)
         return annotate_matches
 
     def process_chromatograms(self, processor, peak_loader, database):
@@ -358,12 +378,12 @@ class MzMLGlycanChromatogramAnalyzer(GlycanChromatogramAnalyzer):
                  adducts=None, mass_error_tolerance=1e-5, grouping_error_tolerance=1.5e-5,
                  scoring_model=None, minimum_mass=500., regularize=None,
                  regularization_model=None, analysis_name=None, delta_rt=0.5,
-                 require_msms_signature=0):
+                 require_msms_signature=0, n_processes=4):
         super(MzMLGlycanChromatogramAnalyzer, self).__init__(
             database_connection, hypothesis_id, -1, adducts,
             mass_error_tolerance, grouping_error_tolerance,
             scoring_model, minimum_mass, regularize, regularization_model,
-            analysis_name, delta_rt, require_msms_signature)
+            analysis_name, delta_rt, require_msms_signature, n_processes)
         self.sample_path = sample_path
         self.output_path = output_path
 
