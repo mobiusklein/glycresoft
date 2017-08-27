@@ -37,6 +37,25 @@ def default_label_extractor(chromatogram, **kwargs):
         return "%0.3f %r" % (chromatogram.neutral_mass, tuple(chromatogram.charge_states))
 
 
+def binsearch(array, x):
+    lo = 0
+    hi = len(array)
+
+    while hi != lo:
+        mid = (hi + lo) // 2
+        y = array[mid]
+        err = y - x
+        if abs(err) < 1e-6:
+            return mid
+        elif (hi - 1) == lo:
+            return mid
+        elif err > 0:
+            hi = mid
+        else:
+            lo = mid
+    return 0
+
+
 class ColorCycler(object):
     def __init__(self, colors=None):
         if colors is None:
@@ -187,11 +206,17 @@ class ChromatogramArtist(ArtistBase):
                 s=1)
             s.set_gid(key + "-points")
         apex = max(heights)
-        apex_ind = np.argmax(heights)
+        heights = np.array(heights)
+        maximum_height_mask = (heights > apex * 0.95)
+        apex_indices = np.where(maximum_height_mask)[0]
+        apex_ind = apex_indices[apex_indices.shape[0] // 2]
         rt_apex = rt[apex_ind]
 
         if label is not None and label_peak:
             self.ax.text(rt_apex, min(apex * 1.1, apex + 1200), label, ha='center', fontsize=label_font_size)
+
+    def transform_group(self, rt, heights):
+        return rt, heights
 
     def process_group(self, composition, chromatogram, label_function=None, **kwargs):
         if label_function is None:
@@ -199,7 +224,7 @@ class ChromatogramArtist(ArtistBase):
 
         color = self.default_colorizer(chromatogram)
 
-        rt, heights = chromatogram.as_arrays()
+        rt, heights = self.transform_group(*chromatogram.as_arrays())
 
         self.maximum_ident_time = max(max(rt), self.maximum_ident_time)
         self.minimum_ident_time = min(min(rt), self.minimum_ident_time)
@@ -217,13 +242,43 @@ class ChromatogramArtist(ArtistBase):
 
         self.draw_group(label, rt, heights, color, label_peak, chromatogram, **kwargs)
 
+        try:
+            tandem_solutions = chromatogram.tandem_solutions
+        except AttributeError:
+            tandem_solutions = []
+        for tandem in tandem_solutions:
+            try:
+                x = tandem.scan_time
+            except AttributeError:
+                # we're dealing with a reference or a stub
+                continue
+            i = binsearch(rt, x)
+            x0 = rt[i]
+            y0 = heights[i]
+            y1 = 0
+            if x0 < x:
+                if i < len(rt):
+                    x1 = rt[i + 1]
+                    y1 = heights[i + 1]
+                else:
+                    x1 = rt[i]
+                    y1 = heights[i]
+            else:
+                x1 = x0
+                y1 = y0
+                if i > 0:
+                    x0 = rt[i - 1]
+                    y0 = heights[i - 1]
+                else:
+                    x0 = rt[i]
+                    y0 = heights[i]
+            # interpolate the height at the time coordinate
+            y = (y0 * (x1 - x) + y1 * (x - x0)) / (x1 - x0)
+            self.ax.scatter(x, y, marker='X', s=35, color=color)
+
     def _interpolate_xticks(self, xlo, xhi):
-        self.ax.set_xlim(xlo - 0.02, xhi + 0.02)
-        span_time = xhi - xlo
-        tick_values = np.linspace(
-            xlo + min(0.05, 0.1 * span_time),
-            xhi - min(0.05, 0.1 * span_time),
-            6)
+        self.ax.set_xlim(xlo - 0.01, xhi + 0.01)
+        tick_values = np.linspace(xlo, xhi, 5)
         self.ax.set_xticks(tick_values)
         self.ax.set_xticklabels(["%0.2f" % v for v in tick_values])
 
@@ -268,35 +323,9 @@ class SmoothingChromatogramArtist(ChromatogramArtist):
             chromatograms, ax=ax, colorizer=colorizer, label_peaks=label_peaks)
         self.smoothing_factor = smoothing_factor
 
-    def draw_group(self, label, rt, heights, color, label_peak=True, chromatogram=None, label_font_size=10):
-        if chromatogram is not None:
-            try:
-                key = str(chromatogram.id)
-            except AttributeError:
-                key = str(id(chromatogram))
-        else:
-            key = str(label)
+    def transform_group(self, rt, heights):
         heights = gaussian_filter1d(heights, self.smoothing_factor)
-        s = self.ax.fill_between(
-            rt,
-            heights,
-            alpha=0.25,
-            color=color,
-            label=label
-        )
-        s.set_gid(key + "-area")
-        s = self.ax.scatter(
-            rt,
-            heights,
-            color=color,
-            s=1)
-        s.set_gid(key + "-points")
-        apex = max(heights)
-        apex_ind = np.argmax(heights)
-        rt_apex = rt[apex_ind]
-
-        if label is not None and label_peak:
-            self.ax.text(rt_apex, min(apex * 1.1, apex + 1200), label, ha='center', fontsize=label_font_size)
+        return rt, heights
 
     def draw_generic_chromatogram(self, label, rt, heights, color, fill=False, label_font_size=10):
         heights = gaussian_filter1d(heights, self.smoothing_factor)
