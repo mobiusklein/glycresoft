@@ -147,6 +147,11 @@ class ScanWrapperBase(object):
     __slots__ = []
 
     @property
+    def scan_id(self):
+        self.requires_scan()
+        return self.scan.scan_id
+
+    @property
     def precursor_ion_mass(self):
         self.requires_scan()
         neutral_mass = self.scan.precursor_information.extracted_neutral_mass
@@ -517,8 +522,7 @@ class TandemClusterEvaluatorBase(TaskBase):
         scan_solution_map = defaultdict(list)
         self.log("... Searching Hits (%d:%d)" % (
             len(hit_to_scan),
-            sum(map(len, hit_to_scan.values()))
-            )
+            sum(map(len, hit_to_scan.values())))
         )
         i = 0
         n = len(hit_to_scan)
@@ -777,8 +781,17 @@ class IdentificationProcessDispatcher(TaskBase):
                             self.log(
                                 "...... Too much time has elapsed with missing items. Breaking.")
                             has_work = False
+                else:
+                    strikes += 1
+                    if strikes % 50 == 0:
+                        self.log(
+                            "...... %d cycles without output (%d/%d, %0.2f%% Done)" % (
+                                strikes, len(seen), n, len(seen) * 100. / n))
                 continue
-            target.clear_caches()
+            try:
+                target.clear_caches()
+            except AttributeError:
+                pass
 
             j = 0
             for scan_id, score in score_map.items():
@@ -840,7 +853,10 @@ class SpectrumIdentificationWorkerBase(Process):
             self.solution_map[scan.id] = solution.score
             solution_target = solution.target
         if solution is not None:
-            solution.target.clear_caches()
+            try:
+                solution.target.clear_caches()
+            except AttributeError:
+                pass
         self.pack_output(solution_target)
 
     def task(self):
@@ -855,16 +871,6 @@ class SpectrumIdentificationWorkerBase(Process):
                     break
             items_handled += 1
             self.handle_item(structure, scan_ids)
-            # scans = [self.fetch_scan(i) for i in scan_ids]
-            # solution_target = None
-            # solution = None
-            # for scan in scans:
-            #     solution = self.evaluate(scan, structure, **self.evaluation_args)
-            #     self.solution_map[scan.id] = solution.score
-            #     solution_target = solution.target
-            # if solution is not None:
-            #     solution.target.clear_caches()
-            # self.pack_output(solution_target)
 
         self._work_complete.set()
         # self.log_handler("...... %s Finished. Handled %d items." % (self.name, items_handled))
