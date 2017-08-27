@@ -11,6 +11,7 @@ from glypy.composition.glycan_composition import HashableGlycanComposition
 
 
 from .mass_shift import Unmodified
+from .utils import ArithmeticMapping
 
 
 MIN_POINTS_FOR_CHARGE_STATE = 3
@@ -189,9 +190,9 @@ class Chromatogram(_TimeIntervalMethods):
         return total
 
     def adduct_signal_fractions(self):
-        return {
+        return ArithmeticMapping({
             k: self.total_signal_for(k) for k in self.adducts
-        }
+        })
 
     @property
     def integrated_abundance(self):

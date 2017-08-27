@@ -1,9 +1,11 @@
+import numpy as np
+
 from collections import deque, defaultdict
 import itertools
 
 from .grouping import ChromatogramRetentionTimeInterval, IntervalTreeNode
 from ms_deisotope.peak_dependency_network.intervals import SpanningMixin
-from glycan_profiling.trace import ChromatogramFilter
+from .index import ChromatogramFilter
 
 from glypy.composition.glycan_composition import FrozenMonosaccharideResidue
 
@@ -59,6 +61,9 @@ class ChromatogramGraphNode(ChromatogramRetentionTimeInterval):
             total += node.retention_time * intensity
             abundance += intensity
         self.center = total / abundance
+
+    def get_chromatogram(self):
+        return self.chromatogram
 
     def __repr__(self):
         return "ChromatogramGraphNode(%s)" % (self.chromatogram,)
@@ -132,6 +137,9 @@ class ChromatogramGraph(object):
         self.rt_tree = IntervalTreeNode.build(self.nodes)
         self.edges = set()
 
+    def __len__(self):
+        return len(self.nodes)
+
     def _construct_graph_nodes(self, chromatograms):
         nodes = []
         for i, chroma in enumerate(chromatograms):
@@ -183,7 +191,8 @@ class ChromatogramGraph(object):
         for edge in edges:
             start, end = sorted(edge, key=lambda x: x.index)
             delta = -(start.neutral_mass - end.neutral_mass)
-            chromatogram_edge = ChromatogramGraphEdge(start, end, UnknownTransition(delta), rt_error=start.center - end.center)
+            chromatogram_edge = ChromatogramGraphEdge(
+                start, end, UnknownTransition(delta), rt_error=start.center - end.center)
             result.append(chromatogram_edge)
             self.edges.add(chromatogram_edge)
         return result
@@ -191,3 +200,37 @@ class ChromatogramGraph(object):
     def build(self, query_width=2., transitions=None, **kwargs):
         for node in self.iterseeds():
             self.find_edges(node, query_width=query_width, transitions=transitions, **kwargs)
+
+    def adjacency_matrix(self):
+        adjmat = np.zeros((len(self), len(self)))
+        nodes = self.nodes
+        for node in nodes:
+            for edge in node.edges:
+                adjmat[edge.node_a.index, edge.node_b.index] = 1
+        return adjmat
+
+    def connected_components(self):
+        pool = set(self.nodes)
+        components = []
+
+        i = 0
+        while pool:
+            i += 1
+            current_component = set()
+            visited = set()
+            node = pool.pop()
+            current_component.add(node)
+            j = 0
+            while current_component:
+                j += 1
+                node = current_component.pop()
+                visited.add(node)
+                for edge in node.edges:
+                    if edge.node_a not in visited and edge.node_a in pool:
+                        current_component.add(edge.node_a)
+                        pool.remove(edge.node_a)
+                    if edge.node_b not in visited and edge.node_b in pool:
+                        current_component.add(edge.node_b)
+                        pool.remove(edge.node_b)
+            components.append(list(visited))
+        return components

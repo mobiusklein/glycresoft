@@ -24,3 +24,7 @@ from .generic import (
 
 from . import index
 from .index import ChromatogramFilter, DisjointChromatogramSet
+
+
+from . import relation_graph
+from .relation_graph import ChromatogramGraph
