@@ -94,6 +94,7 @@ class ChromatogramFilter(object):
             self._key_map[chrom.key].append(chrom)
         for key in self._key_map.keys():
             self._key_map[key] = DisjointChromatogramSet(self._key_map[key])
+        return self._key_map
 
     def _build_rt_interval_tree(self):
         self._intervals = build_rt_interval_tree(self)
