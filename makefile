@@ -14,3 +14,14 @@ clean:
 build-pyinstaller:
 	cd pyinstaller && bash make-pyinstaller.sh
 	pyinstaller/dist/glycresoft-cli/glycresoft-cli -h
+
+
+install-dependencies:
+	pip install --upgrade pip setuptools wheel
+	pip install Cython --install-option="--no-cython-compile"
+	pip install coverage pytest pytest-cov
+	pip install lxml pyteomics brain-isotopic-distribution
+	pip install --only-binary=numpy,scipy numpy scipy
+	pip install -r external-requirements.txt
+	python pyinstaller/install-from-git.py
+	python setup.py install
