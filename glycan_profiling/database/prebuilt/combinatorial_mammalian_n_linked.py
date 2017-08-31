@@ -14,6 +14,7 @@ HexNAc > (NeuAc + NeuGc) + 1'''
 
 hypothesis_metadata = {
     "name": 'Combinatorial Mammalian N-Glycans',
+    "hypothesis_type": 'glycan_composition'
 }
 
 

@@ -14,6 +14,7 @@ enHexA  0   1
 
 hypothesis_metadata = {
     "name": 'Low Molecular Weight Heparans',
+    "hypothesis_type": 'glycan_composition'
 }
 
 
