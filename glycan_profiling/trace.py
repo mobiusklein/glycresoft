@@ -328,7 +328,7 @@ class ChromatogramMatcher(TaskBase):
                         err = abs((adduct.mass - mass_shift) / mass_shift)
                         if err < mass_error_tolerance and err < best_err:
                             best_err = err
-                            best_match = mass_shift
+                            best_match = adduct
                 else:
                     # self.log("%r and %r have a 0 mass shift." % (a, b))
                     problem_pairs.add(frozenset((a, b)))
@@ -366,7 +366,7 @@ class ChromatogramMatcher(TaskBase):
                         problem_pairs.add(frozenset((a, b)))
                 else:
                     used_set = set(b.used_as_adduct)
-                    used_set.add((a.key, mass_shift))
+                    used_set.add((a.key, best_match))
                     b.used_as_adduct = list(used_set)
 
     def process(self, chromatograms, adducts=None, mass_error_tolerance=1e-5, delta_rt=0):

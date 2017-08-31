@@ -13,6 +13,9 @@ to share the work.
 	:prog: glycresoft mzml preprocess
 
 
+Usage example
+-------------
+
 .. code-block:: bash
 	:caption: example usage
 
