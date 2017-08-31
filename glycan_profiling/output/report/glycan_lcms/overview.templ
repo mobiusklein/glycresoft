@@ -122,7 +122,7 @@ body {
                 {% endif %}
             </div>
             <div class='flex-item'>
-                <b>Target Database:</b>
+                <b>Glycan Hypothesis:</b>
                 <a>{{analysis.hypothesis.name}}</a><br>
                 <b>Sample Searched:</b>
                 <a>{{analysis.sample_run.name}}</a>
@@ -234,6 +234,26 @@ body {
                                 </tr>
                                 {% endfor %}
                             </table>
+                            {% if chromatogram.tandem_solutions is defined %}
+                                <div class='ms2-score-container'>
+                                    <table>
+                                        <tr>
+                                            <th>Scan ID</th>
+                                            <th>Signature Ion Score</th>
+                                        </tr>                                        
+                                        {% for gsm in chromatogram.tandem_solutions if gsm.score > 0.0001 %}
+                                            <tr>
+                                                <td>
+                                                    {{gsm.scan_id}}
+                                                </td>
+                                                <td>
+                                                    {{gsm.score}}
+                                                </td>
+                                            </tr>
+                                        {% endfor %}
+                                    </table>
+                                </div>
+                            {% endif %}
                             {% if chromatogram.ambiguous_with|length > 0%}
                                 <b>Ambiguous Mass Shifts</b>
                                 <ul>
