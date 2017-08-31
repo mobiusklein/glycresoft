@@ -1,5 +1,4 @@
 import os
-import multiprocessing
 from uuid import uuid4
 
 try:
@@ -8,7 +7,8 @@ except ImportError:
     import pickle
 
 import click
-from .base import cli, HiddenOption
+from .base import (
+    cli, HiddenOption, processes_option)
 
 from glycan_profiling.serialize import (
     DatabaseBoundOperation,
@@ -73,10 +73,7 @@ def analyze():
 @click.option("-x", "--oxonium-threshold", default=0.05, type=float,
               help=('Minimum HexNAc-derived oxonium ion abundance '
                     'ratio to filter MS/MS scans. Defaults to 0.05.'))
-@click.option("-p", "--processes", 'processes', type=click.IntRange(1, multiprocessing.cpu_count()),
-              default=min(multiprocessing.cpu_count(), 4),
-              help=('Number of worker processes to use. Defaults to 4 '
-                    'or the number of CPUs, whichever is lower'))
+@processes_option
 @click.option("-o", "--output-path", default=None, type=click.Path(writable=True), help=(
               "Path to write resulting analysis to."))
 @click.option("-w", "--workload-size", default=1000, type=int, help="Number of spectra to process at once")
@@ -200,6 +197,7 @@ class RegularizationParameterType(click.ParamType):
               ['csv', 'glycan-list', 'html', "model"]), multiple=True)
 @click.option('-s', '--require-msms-signature', type=float, default=0.0,
               help="Minimum oxonium ion signature required in MS/MS scans to include.")
+@processes_option
 def search_glycan(context, database_connection, sample_path,
                   hypothesis_identifier,
                   analysis_name, adducts, grouping_error_tolerance=1.5e-5,
@@ -207,7 +205,7 @@ def search_glycan(context, database_connection, sample_path,
                   scoring_model=None, regularize=None, regularization_model_path=None,
                   output_path=None, scoring_model_features=None,
                   delta_rt=0.5, export=None, interact=False,
-                  require_msms_signature=0.0):
+                  require_msms_signature=0.0, processes=4):
     """Identify glycan compositions from preprocessed LC-MS data, stored in mzML
     format.
     """
@@ -264,7 +262,8 @@ def search_glycan(context, database_connection, sample_path,
         regularization_model=regularization_model,
         analysis_name=analysis_name,
         delta_rt=delta_rt,
-        require_msms_signature=require_msms_signature)
+        require_msms_signature=require_msms_signature,
+        n_processes=processes)
     analyzer.start()
     if interact:
         click.secho(fmt_msg("Beginning Interactive Session..."), fg='cyan')
