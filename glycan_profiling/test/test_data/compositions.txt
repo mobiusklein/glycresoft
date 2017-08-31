@@ -1,43 +1,43 @@
-{Hex:5; HexNAc:4; Neu5Ac:1}
-{Hex:5; HexNAc:4; Neu5Ac:2}
-{Fuc:1; Hex:5; HexNAc:4; Neu5Ac:2}
-{Hex:6; HexNAc:4; Neu5Ac:2}
-{Fuc:3; Hex:8; HexNAc:4}
-{Fuc:2; Hex:6; HexNAc:5; Neu5Ac:1}
-{Fuc:1; Hex:6; HexNAc:5; Neu5Ac:2}
-{Fuc:3; Hex:6; HexNAc:5; Neu5Ac:1}
-{Hex:6; HexNAc:5; Neu5Ac:3}
-{Fuc:2; Hex:6; HexNAc:5; Neu5Ac:2}
-{Hex:7; HexNAc:6; Neu5Ac:2}
-{Fuc:1; Hex:6; HexNAc:5; Neu5Ac:3}
-{Fuc:1; Hex:7; HexNAc:6; Neu5Ac:2}
-{Hex:10; HexNAc:6; Neu5Ac:1}
-{Fuc:2; Hex:6; HexNAc:5; Neu5Ac:3}
-{Hex:7; HexNAc:6; Neu5Ac:3}
-{Fuc:2; Hex:7; HexNAc:6; Neu5Ac:2}
-{Hex:8; HexNAc:7; Neu5Ac:2}
-{Fuc:1; Hex:7; HexNAc:6; Neu5Ac:3}
-{Hex:7; HexNAc:6; Neu5Ac:4}
-{Fuc:2; Hex:7; HexNAc:6; Neu5Ac:3}
-{Hex:8; HexNAc:7; Neu5Ac:3}
-{Fuc:1; Hex:7; HexNAc:6; Neu5Ac:4}
-{Fuc:1; Hex:8; HexNAc:7; Neu5Ac:3}
-{Fuc:2; Hex:7; HexNAc:6; Neu5Ac:4}
-{Hex:8; HexNAc:7; Neu5Ac:4}
-{Fuc:2; Hex:8; HexNAc:7; Neu5Ac:3}
-{Fuc:2; Hex:8; HexNAc:10; Neu5Ac:1}
-{Fuc:3; Hex:7; HexNAc:6; Neu5Ac:4}
-{Hex:9; HexNAc:8; Neu5Ac:3}
-{Fuc:5; Hex:7; HexNAc:9; Neu5Ac:1}
-{Fuc:1; Hex:8; HexNAc:7; Neu5Ac:4}
-{Fuc:2; Hex:8; HexNAc:7; Neu5Ac:4}
-{Hex:9; HexNAc:8; Neu5Ac:4}
-{Fuc:2; Hex:9; HexNAc:8; Neu5Ac:3}
-{Fuc:3; Hex:8; HexNAc:7; Neu5Ac:4}
-{Fuc:1; Hex:9; HexNAc:8; Neu5Ac:4}
-{Fuc:3; Hex:11; HexNAc:8; Neu5Ac:2}
-{Hex:9; HexNAc:8; Neu5Ac:5}
-{Fuc:2; Hex:9; HexNAc:8; Neu5Ac:4}
-{Fuc:3; Hex:9; HexNAc:8; Neu5Ac:4}
-{Fuc:2; Hex:9; HexNAc:8; Neu5Ac:5}
-{Fuc:5; Hex:12; HexNAc:9; Neu5Ac:2}
+{Hex:5; HexNAc:4; Neu5Ac:1}  N-Glycan
+{Hex:5; HexNAc:4; Neu5Ac:2}  N-Glycan
+{Fuc:1; Hex:5; HexNAc:4; Neu5Ac:2}  N-Glycan
+{Hex:6; HexNAc:4; Neu5Ac:2}  N-Glycan
+{Fuc:3; Hex:8; HexNAc:4}  N-Glycan
+{Fuc:2; Hex:6; HexNAc:5; Neu5Ac:1}  N-Glycan
+{Fuc:1; Hex:6; HexNAc:5; Neu5Ac:2}  N-Glycan
+{Fuc:3; Hex:6; HexNAc:5; Neu5Ac:1}  N-Glycan
+{Hex:6; HexNAc:5; Neu5Ac:3}  N-Glycan
+{Fuc:2; Hex:6; HexNAc:5; Neu5Ac:2}  N-Glycan
+{Hex:7; HexNAc:6; Neu5Ac:2}  N-Glycan
+{Fuc:1; Hex:6; HexNAc:5; Neu5Ac:3}  N-Glycan
+{Fuc:1; Hex:7; HexNAc:6; Neu5Ac:2}  N-Glycan
+{Hex:10; HexNAc:6; Neu5Ac:1}  N-Glycan
+{Fuc:2; Hex:6; HexNAc:5; Neu5Ac:3}  N-Glycan
+{Hex:7; HexNAc:6; Neu5Ac:3}  N-Glycan
+{Fuc:2; Hex:7; HexNAc:6; Neu5Ac:2}  N-Glycan
+{Hex:8; HexNAc:7; Neu5Ac:2}  N-Glycan
+{Fuc:1; Hex:7; HexNAc:6; Neu5Ac:3}  N-Glycan
+{Hex:7; HexNAc:6; Neu5Ac:4}  N-Glycan
+{Fuc:2; Hex:7; HexNAc:6; Neu5Ac:3}  N-Glycan
+{Hex:8; HexNAc:7; Neu5Ac:3}  N-Glycan
+{Fuc:1; Hex:7; HexNAc:6; Neu5Ac:4}  N-Glycan
+{Fuc:1; Hex:8; HexNAc:7; Neu5Ac:3}  N-Glycan
+{Fuc:2; Hex:7; HexNAc:6; Neu5Ac:4}  N-Glycan
+{Hex:8; HexNAc:7; Neu5Ac:4}  N-Glycan
+{Fuc:2; Hex:8; HexNAc:7; Neu5Ac:3}  N-Glycan
+{Fuc:2; Hex:8; HexNAc:10; Neu5Ac:1}  N-Glycan
+{Fuc:3; Hex:7; HexNAc:6; Neu5Ac:4}  N-Glycan
+{Hex:9; HexNAc:8; Neu5Ac:3}  N-Glycan
+{Fuc:5; Hex:7; HexNAc:9; Neu5Ac:1}  N-Glycan
+{Fuc:1; Hex:8; HexNAc:7; Neu5Ac:4}  N-Glycan
+{Fuc:2; Hex:8; HexNAc:7; Neu5Ac:4}  N-Glycan
+{Hex:9; HexNAc:8; Neu5Ac:4}  N-Glycan
+{Fuc:2; Hex:9; HexNAc:8; Neu5Ac:3}  N-Glycan
+{Fuc:3; Hex:8; HexNAc:7; Neu5Ac:4}  N-Glycan
+{Fuc:1; Hex:9; HexNAc:8; Neu5Ac:4}  N-Glycan
+{Fuc:3; Hex:11; HexNAc:8; Neu5Ac:2}  N-Glycan
+{Hex:9; HexNAc:8; Neu5Ac:5}  N-Glycan
+{Fuc:2; Hex:9; HexNAc:8; Neu5Ac:4}  N-Glycan
+{Fuc:3; Hex:9; HexNAc:8; Neu5Ac:4}  N-Glycan
+{Fuc:2; Hex:9; HexNAc:8; Neu5Ac:5}  N-Glycan
+{Fuc:5; Hex:12; HexNAc:9; Neu5Ac:2}  N-Glycan
