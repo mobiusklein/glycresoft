@@ -8,7 +8,6 @@ from ms_deisotope.processor import MSFileLoader
 
 from glycan_profiling.cli.base import cli, HiddenOption, processes_option
 from glycan_profiling.cli.validators import (
-    validate_averagine,
     AveragineParamType)
 
 from glycan_profiling.profiler import (
