@@ -1,16 +1,17 @@
 import time
 from collections import defaultdict
+from itertools import permutations
 
 import numpy as np
 
 from glycan_profiling.task import TaskBase
 
-from .chromatogram_tree import (
+from glycan_profiling.chromatogram_tree import (
     Chromatogram, ChromatogramForest, Unmodified,
     mask_subsequence, DuplicateNodeError, get_chromatogram,
     SimpleChromatogram, find_truncation_points,
     ChromatogramFilter, GlycanCompositionChromatogram, GlycopeptideChromatogram,
-    ChromatogramOverlapSmoother)
+    ChromatogramOverlapSmoother, ChromatogramGraph)
 
 from .scan_cache import NullScanCacheHandler
 
@@ -108,14 +109,18 @@ def prune_bad_adduct_branches(solutions, score_margin=0.05, ratio_threshold=1.5)
                     continue
                 is_close = abs(case.score - owner_item.score) < score_margin
                 is_weaker = case.score > owner_item.score
+                # If the owning group is lower scoring, but the scores are close
                 if is_weaker and is_close:
                     component_signal = case.total_signal
                     complement_signal = owner_item.total_signal - component_signal
                     signal_ratio = complement_signal / component_signal
-
                     # The owner is more abundant than used-as-adduct-case
                     if signal_ratio > ratio_threshold:
                         is_weaker = False
+                # If the scores are close, but the owning group is less abundant,
+                # e.g. more mass shift groups
+                elif is_close and (owner_item.total_signal / case.total_signal) < 0.75:
+                    is_weaker = True
                 if is_weaker:
                     new_masked = mask_subsequence(get_chromatogram(owner_item), get_chromatogram(case))
                     new_masked.created_at = "prune_bad_adduct_branches"
@@ -304,6 +309,66 @@ class ChromatogramMatcher(TaskBase):
             out.extend(accumulated)
         return ChromatogramFilter(out)
 
+    def find_related_profiles(self, chromatograms, adducts, mass_error_tolerance=1e-5):
+        graph = ChromatogramGraph(chromatograms)
+        graph.find_shared_peaks()
+        components = graph.connected_components()
+
+        for component in components:
+            component = [node.chromatogram for node in component]
+            if len(component) == 1:
+                continue
+            problem_pairs = set()
+            for a, b in permutations(component, 2):
+                best_err = float('inf')
+                best_match = None
+                mass_shift = a.weighted_neutral_mass - b.weighted_neutral_mass
+                if mass_shift != 0:
+                    for adduct in adducts:
+                        err = abs((adduct.mass - mass_shift) / mass_shift)
+                        if err < mass_error_tolerance and err < best_err:
+                            best_err = err
+                            best_match = mass_shift
+                else:
+                    # self.log("%r and %r have a 0 mass shift." % (a, b))
+                    problem_pairs.add(frozenset((a, b)))
+                if best_match is None:
+                    # these two chromatograms may be adducts already.
+                    used_as_adduct = False
+                    for key, shift_type in a.used_as_adduct:
+                        if key == b.key:
+                            used_as_adduct = True
+                    if used_as_adduct:
+                        continue
+                    for key, shift_type in b.used_as_adduct:
+                        if key == a.key:
+                            used_as_adduct = True
+                    if used_as_adduct:
+                        continue
+                    mass_diff_ppm = abs((a.theoretical_mass - b.theoretical_mass) /
+                                        b.theoretical_mass)
+                    if mass_diff_ppm < mass_error_tolerance:
+                        # self.log(
+                        #     ("There is a peak-sharing relationship between %r and %r"
+                        #      " which may indicating these two entities should be"
+                        #      " merged.") % (a, b))
+                        pass
+                    else:
+                        # really ambiguous. needs more attention.
+                        if frozenset((a, b)) in problem_pairs:
+                            continue
+
+                        # self.log(
+                        #     ("There is a peak-sharing relationship between %r"
+                        #      " and %r (%g) but no experimental mass shift could be"
+                        #      " found to explain it") % (
+                        #         a, b, mass_diff_ppm * b.theoretical_mass))
+                        problem_pairs.add(frozenset((a, b)))
+                else:
+                    used_set = set(b.used_as_adduct)
+                    used_set.add((a.key, mass_shift))
+                    b.used_as_adduct = list(used_set)
+
     def process(self, chromatograms, adducts=None, mass_error_tolerance=1e-5, delta_rt=0):
         if adducts is None:
             adducts = []
@@ -323,6 +388,7 @@ class ChromatogramMatcher(TaskBase):
         self.log("Handling Adducts")
         matches = self.reverse_adduct_search(matches, adducts, mass_error_tolerance)
         matches = self.join_common_identities(matches, delta_rt)
+        self.find_related_profiles(matches, adducts, mass_error_tolerance)
         return matches
 
 
@@ -357,6 +423,7 @@ class NonSplittingChromatogramMatcher(ChromatogramMatcher):
 
 class ChromatogramEvaluator(TaskBase):
     acceptance_threshold = 0.4
+    ignore_below = 1e-5
 
     def __init__(self, scoring_model=None):
         if scoring_model is None:
@@ -398,7 +465,7 @@ class ChromatogramEvaluator(TaskBase):
             score_set=score_set)
 
     def finalize_matches(self, solutions):
-        solutions = ChromatogramFilter(sol for sol in solutions if sol.score > 1e-5)
+        solutions = ChromatogramFilter(sol for sol in solutions if sol.score > self.ignore_below)
         return solutions
 
     def score(self, chromatograms, delta_rt=0.25, min_points=3, smooth_overlap_rt=True,
@@ -433,6 +500,7 @@ class ChromatogramEvaluator(TaskBase):
 
 class LogitSumChromatogramEvaluator(ChromatogramEvaluator):
     acceptance_threshold = 4
+    ignore_below = 2
 
     def __init__(self, scorer):
         super(LogitSumChromatogramEvaluator, self).__init__(scorer)
@@ -446,6 +514,28 @@ class LogitSumChromatogramEvaluator(ChromatogramEvaluator):
         return ChromatogramSolution(
             chromatogram, logitsum_score, scorer=self.scoring_model,
             score_set=score_set)
+
+    def evaluate(self, chromatograms, delta_rt=0.25, min_points=3, smooth_overlap_rt=True,
+                 *args, **kwargs):
+        solutions = super(LogitSumChromatogramEvaluator, self).evaluate(
+            chromatograms, delta_rt=delta_rt, min_points=min_points,
+            smooth_overlap_rt=smooth_overlap_rt, *args, **kwargs)
+
+        accumulator = defaultdict(list)
+        for case in solutions:
+            accumulator[case.key].append(case)
+        solutions = []
+        for group, members in accumulator.items():
+            members = sorted(members, key=lambda x: x.score, reverse=True)
+            reference = members[0]
+            base = reference.clone()
+            for other in members[1:]:
+                base = base.merge(other)
+            merged = reference.__class__(
+                base, reference.score, scorer=reference.scorer,
+                score_set=reference.score_set)
+            solutions.append(merged)
+        return ChromatogramFilter(solutions)
 
 
 class LaplacianRegularizedChromatogramEvaluator(LogitSumChromatogramEvaluator):
@@ -623,7 +713,7 @@ class ChromatogramProcessor(TaskBase):
         matcher = self.make_matcher()
         matches = matcher.process(
             self._chromatograms, self.adducts, self.mass_error_tolerance,
-            delta_rt=(self.delta_rt * 2 if self.smooth_overlap_rt else 0))
+            delta_rt=(self.delta_rt * 4 if self.smooth_overlap_rt else 0))
         return matches
 
     def make_evaluator(self):
