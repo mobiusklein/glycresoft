@@ -32,10 +32,14 @@ class SignatureIonScorer(SpectrumMatcherBase):
         glycan_composition = self.target
         peak_set = self.spectrum
         matches = FragmentMatchMap()
-        max_peak = max([p.intensity for p in peak_set])
         water = Composition("H2O")
         counter = 0
-
+        try:
+            max_peak = max([p.intensity for p in peak_set])
+        except ValueError:
+            self.solution_map = matches
+            self.fragments_searched = counter
+            return matches
         # Simple oxonium ions
         for k in glycan_composition.keys():
             # Fucose does not produce a reliable oxonium ion
@@ -105,9 +109,17 @@ class SignatureIonScorer(SpectrumMatcherBase):
         return (oxonium / n), n
 
     def calculate_score(self, error_tolerance=2e-5, include_compound=False, *args, **kwargs):
-        oxonium_ratio, n = self.oxonium_ratio()
+        try:
+            oxonium_ratio, n = self.oxonium_ratio()
+        except ValueError:
+            oxonium_ratio, n = 0, 0
         if n == 0:
             self._score = 0
         else:
-            self._score = self.penalize(oxonium_ratio, n)
+            # simple glycan compositions like high mannose N-glycans don't produce
+            # many distinct oxonium ions
+            if len(self.target.items()) > 2:
+                self._score = self.penalize(oxonium_ratio, n)
+            else:
+                self._score = oxonium_ratio
         return self._score
