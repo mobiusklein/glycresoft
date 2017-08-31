@@ -215,9 +215,3 @@ target both Asparagine and Glutamine.
 
 For more information about supported post-translational modifications, please
 see `Peptide Modifications <todo>`_
-
-
-UniProt Integration
-~~~~~~~~~~~~~~~~~~~
-
-todo
