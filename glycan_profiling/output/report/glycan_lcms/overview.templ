@@ -234,7 +234,7 @@ body {
                                 </tr>
                                 {% endfor %}
                             </table>
-                            {% if chromatogram.tandem_solutions is defined %}
+                            {% if chromatogram.tandem_solutions is defined and chromatogram.tandem_solutions|length > 0 %}
                                 <div class='ms2-score-container'>
                                     <table>
                                         <tr>
