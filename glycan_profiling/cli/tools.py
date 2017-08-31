@@ -2,11 +2,14 @@ import sys
 import cmd
 import csv
 import threading
+import code
 try:
     from Queue import Queue, Empty
 except ImportError:
     from queue import Queue, Empty
+
 import click
+import pkg_resources
 
 from glypy.composition.glycan_composition import HashableGlycanComposition
 from glycopeptidepy.io import fasta, uniprot
@@ -26,7 +29,7 @@ from glycan_profiling.database.builder.glycopeptide.proteomics import mzid_prote
 from glycan_profiling.database.builder.glycopeptide.proteomics.uniprot import UniprotProteinDownloader
 
 
-@cli.group("tools", short_help="Odds and ends to help inspect data and diagnose issues.")
+@cli.group("tools", short_help="Odds and ends to help inspect data and diagnose issues")
 def tools():
     pass
 
@@ -407,7 +410,6 @@ def mass_search(database_connection, hypothesis_identifier, target_mass, glycope
 
 @tools.command("version-check")
 def version_check():
-    import pkg_resources
     packages = [
         "glycan_profiling",
         "glycresoft_app",
@@ -429,3 +431,8 @@ def version_check():
             click.echo(str(rev[0]))
         except Exception:
             continue
+
+
+@tools.command("interactive-shell")
+def interactive_shell():
+    code.interact()
