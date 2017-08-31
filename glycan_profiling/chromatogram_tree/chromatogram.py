@@ -229,6 +229,13 @@ class Chromatogram(_TimeIntervalMethods):
                 self._infer_neutral_mass(self.adducts[0])
         return self._weighted_neutral_mass
 
+    @property
+    def theoretical_mass(self):
+        if self.composition:
+            return self.composition.total_composition().mass
+        else:
+            return self.weighted_neutral_mass
+
     def _infer_neutral_mass(self, node_type=Unmodified):
         prod = 0
         total = 0
@@ -603,6 +610,12 @@ class ChromatogramTreeList(object):
     def __iter__(self):
         return iter(self.roots)
 
+    def __eq__(self, other):
+        return list(self) == list(other)
+
+    def __ne__(self, other):
+        return not (self == other)
+
     def clone(self):
         return ChromatogramTreeList(node.clone() for node in self)
 
@@ -843,6 +856,10 @@ class ChromatogramWrapper(_TimeIntervalMethods):
     @property
     def weighted_neutral_mass(self):
         return self.chromatogram.weighted_neutral_mass
+
+    @property
+    def theoretical_mass(self):
+        return self.chromatogram.theoretical_mass
 
     @property
     def n_charge_states(self):
