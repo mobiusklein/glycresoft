@@ -403,3 +403,29 @@ def mass_search(database_connection, hypothesis_identifier, target_mass, glycope
         click.secho("No Matches", fg='red')
     for hit in hits:
         click.echo("\t".join(map(str, hit)))
+
+
+@tools.command("version-check")
+def version_check():
+    import pkg_resources
+    packages = [
+        "glycan_profiling",
+        "glycresoft_app",
+        "glypy",
+        "glycopeptidepy",
+        "ms_peak_picker",
+        "brain-isotopic-distribution",
+        "ms_deisotope",
+        "pyteomics",
+        "lxml",
+        "numpy",
+        "scipy",
+        "matplotlib"
+    ]
+    click.secho("Library Versions", fg='yellow')
+    for dep in packages:
+        try:
+            rev = pkg_resources.require(dep)
+            click.echo(str(rev[0]))
+        except Exception:
+            continue
