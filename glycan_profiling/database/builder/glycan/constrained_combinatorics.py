@@ -176,6 +176,8 @@ class CombinatorialGlycanHypothesisSerializer(GlycanHypothesisSerializerBase):
                 if len(acc) % 100 == 0:
                     self.session.execute(GlycanCompositionToClass.insert(), acc)
                     acc = []
+            if counter % 1000 == 0:
+                self.log("%d glycan compositions created" % (counter,))
         if acc:
             self.session.execute(GlycanCompositionToClass.insert(), acc)
             acc = []
@@ -247,7 +249,7 @@ def parse_rules_from_file(path):
         try:
             constraints.append(ConstraintExpression.parse(line))
         except Exception as e:
-            raise Exception("Failed to interpret line %r at line %d (%r)" % (line, i, e))            
+            raise Exception("Failed to interpret line %r at line %d (%r)" % (line, i, e))
 
     rules_table = CombinatoricCompositionGenerator.build_rules_table(
         *zip(*ranges))
