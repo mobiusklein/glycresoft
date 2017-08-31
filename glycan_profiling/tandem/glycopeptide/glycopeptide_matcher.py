@@ -3,20 +3,16 @@ from collections import defaultdict, namedtuple, OrderedDict
 from glycan_profiling.chromatogram_tree.chromatogram import GlycopeptideChromatogram
 from glycan_profiling.task import TaskBase
 
-from glycan_profiling.serialize import DatabaseBoundOperation
-
-from glycan_profiling.database.disk_backed_database import (
-    GlycopeptideDiskBackedStructureDatabase)
-
-from glycan_profiling.database.mass_collection import ConcatenatedDatabase
-
-from .scoring import TargetDecoyAnalyzer
 from glycan_profiling.database.structure_loader import (
     CachingGlycopeptideParser, DecoyMakingCachingGlycopeptideParser)
 
+from .scoring import TargetDecoyAnalyzer
+
 from ..spectrum_matcher_base import (
-    TandemClusterEvaluatorBase, gscore_scanner,
-    SpectrumIdentificationWorkerBase, Manager as IPCManager)
+    TandemClusterEvaluatorBase,
+    SpectrumIdentificationWorkerBase,
+    Manager as IPCManager)
+from ..oxonium_ions import gscore_scanner
 from ..chromatogram_mapping import ChromatogramMSMSMapper
 
 
@@ -310,7 +306,9 @@ class GlycopeptideDatabaseSearchIdentifier(TaskBase):
             # not actually present in the MS data
             for o in scan_set:
                 try:
-                    out.append(self.scorer_type.load_peaks(o))
+                    scan = (self.scorer_type.load_peaks(o))
+                    if len(scan.deconvoluted_peak_set) > 0:
+                        out.append(scan)
                 except KeyError:
                     self.log("Missing Scan: %s" % (o.id,))
             scan_set = out
@@ -319,7 +317,8 @@ class GlycopeptideDatabaseSearchIdentifier(TaskBase):
             try:
                 scan.deconvoluted_peak_set = self.scan_transformer(
                     scan.deconvoluted_peak_set)
-                out.append(scan)
+                if len(scan.deconvoluted_peak_set) > 0:
+                    out.append(scan)
             except AttributeError:
                 self.log("Missing Scan: %s" % (scan.id,))
                 continue
