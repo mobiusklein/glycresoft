@@ -91,6 +91,7 @@ class SampleConsumer(TaskBase):
         self.n_processes = n_processes
         self.cache_handler_type = cache_handler_type
         self.extract_only_tandem_envelopes = extract_only_tandem_envelopes
+        self.ignore_tandem_scans = ignore_tandem_scans
         self.ms1_averaging = ms1_averaging
         self.ms1_processing_args = {
             "peak_picking": ms1_peak_picking_args,
@@ -149,8 +150,8 @@ class CentroidingSampleConsumer(SampleConsumer):
     def __init__(self, ms_file, averagine=n_glycan_averagine, charge_range=(-1, -8),
                  ms1_peak_picking_args=None, msn_peak_picking_args=None, start_scan_id=None,
                  end_scan_id=None, storage_path=None, sample_name=None, cache_handler_type=None,
-                 n_processes=5, extract_only_tandem_envelopes=False, ms1_averaging=0):
-
+                 n_processes=5, extract_only_tandem_envelopes=False, ignore_tandem_scans=False,
+                 ms1_averaging=0):
         if cache_handler_type is None:
             cache_handler_type = ThreadedMzMLScanCacheHandler
         if isinstance(averagine, basestring):
@@ -163,6 +164,7 @@ class CentroidingSampleConsumer(SampleConsumer):
         self.n_processes = n_processes
         self.cache_handler_type = cache_handler_type
         self.extract_only_tandem_envelopes = extract_only_tandem_envelopes
+        self.ignore_tandem_scans = ignore_tandem_scans
         self.ms1_averaging = ms1_averaging
         self.ms1_processing_args = {
             "peak_picking": ms1_peak_picking_args,
@@ -336,6 +338,10 @@ class GlycanChromatogramAnalyzer(TaskBase):
                 matches = processor.match_compositions()
                 annotated_matches = self.annotate_matches_with_msms(
                     matches, peak_loader, msms_scans, database)
+                # filter out those matches which do not have sufficient signature ion signal
+                # from MS2 to include. As the MS1 scoring procedure will not preserve the
+                # MS2 mapping, we must keep a mapping from Chromatogram Key to mapped tandem
+                # matches to re-align later
                 kept_annotated_matches = []
                 key_to_tandem = defaultdict(list)
                 for match in annotated_matches:
