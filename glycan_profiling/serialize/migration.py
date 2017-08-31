@@ -57,12 +57,19 @@ def fetch_glycan_compositions_from_chromatograms(chromatogram_set, glycan_db):
 
 def update_glycan_chromatogram_composition_ids(hypothesis_migration, glycan_chromatograms):
     mapping = dict()
+    tandem_mapping = defaultdict(list)
     for chromatogram in glycan_chromatograms:
         if chromatogram.composition is None:
             continue
         mapping[chromatogram.composition.id] = chromatogram.composition
+        for match in getattr(chromatogram, 'tandem_solutions', []):
+            tandem_mapping[match.target.id].append(match.target)
+
     for key, value in mapping.items():
         value.id = hypothesis_migration.glycan_composition_id_map[value.id]
+    for key, group in tandem_mapping.items():
+        for value in group:
+            value.id = hypothesis_migration.glycan_composition_id_map[key]
 
 
 def update_glycopeptide_ids(hypothesis_migration, identified_glycopeptide_set):
