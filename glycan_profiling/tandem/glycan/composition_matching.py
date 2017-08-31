@@ -7,6 +7,7 @@ from ..chromatogram_mapping import ChromatogramMSMSMapper
 from ..spectrum_matcher_base import (
     IdentificationProcessDispatcher,
     SpectrumIdentificationWorkerBase, Manager as IPCManager)
+from ..ref import SpectrumReference
 
 
 class ChromatogramAssignmentRecord(GlycanCompositionProxy):
@@ -79,44 +80,43 @@ class SignatureIonMapper(TaskBase):
             # Account for cases where the scan may be mentioned in the index, but
             # not actually present in the MS data
             for o in scan_set:
-                if o.precursor_information.neutral_mass < self.minimum_mass:
-                    continue
                 try:
-                    out.append(self.scorer_type.load_peaks(o))
-                except KeyError as e:
-                    self.log("Missing Scan: %s (%r)" % (o.id, e))
+                    scan = (self.scorer_type.load_peaks(o))
+                    out.append(scan)
+                except KeyError:
+                    self.log("Missing Scan: %s" % (o.id,))
             scan_set = out
-        else:
-            out = []
-            for o in scan_set:
-                if o.precursor_information.neutral_mass < self.minimum_mass:
-                    continue
-                out.append(o)
+        out = []
+        for scan in scan_set:
+            try:
+                out.append(scan)
+            except AttributeError as e:
+                self.log("Missing Scan: %s %r" % (scan.id, e))
+                continue
         return out
 
     def map_to_chromatograms(self, precursor_error_tolerance=1e-5):
         mapper = ChromatogramMSMSMapper(
             self.chromatograms, error_tolerance=precursor_error_tolerance,
             scan_id_to_rt=self.scan_id_to_rt)
-        for scan in self.prepare_scan_set(self.tandem_scans):
-            hits = mapper.find_chromatogram_spanning(scan.scan_time)
+        for scan in self.tandem_scans:
+            scan_time = mapper.scan_id_to_rt(scan.precursor_information.precursor_scan_id)
+            hits = mapper.find_chromatogram_spanning(scan_time)
             if hits is None:
                 continue
             match = hits.find_all_by_mass(
                 scan.precursor_information.neutral_mass,
                 precursor_error_tolerance)
-            if not match:
-                continue
-            for m in match:
-                m.add_solution(scan)
+            if match:
+                for m in match:
+                    m.add_solution(scan)
             for adduct in self.adducts:
                 match = hits.find_all_by_mass(
                     scan.precursor_information.neutral_mass - adduct.mass,
                     precursor_error_tolerance)
-                if not match:
-                    continue
-                for m in match:
-                    m.add_solution(scan)
+                if match:
+                    for m in match:
+                        m.add_solution(scan)
         return mapper
 
     def _build_scan_to_entity_map(self, annotated_chromatograms):
@@ -133,33 +133,47 @@ class SignatureIonMapper(TaskBase):
             record = ChromatogramAssignmentRecord.build(chroma, default, index=i - 1)
             hit_map[record.id] = record
             scans = []
-            for scan in chroma.tandem_solutions:
+            for scan in self.prepare_scan_set(chroma.tandem_solutions):
                 scan_map[scan.id] = scan
                 scans.append(scan)
             hit_to_scan[record.id] = scans
         return scan_map, hit_map, hit_to_scan
 
-    def _score_mapped_tandem_parallel(self, annotated_chromatograms, *args, **kwargs):
-        scan_map, hit_map, hit_to_scan = self._build_scan_to_entity_map(annotated_chromatograms)
-        ipd = IdentificationProcessDispatcher(
-            worker_type=GlycanCompositionIdentificationWorker,
-            scorer_type=self.scorer_type,
-            init_args={}, evaluation_args=kwargs,
-            n_processes=self.n_processes,
-            ipc_manager=self.ipc_manager)
-        scan_solution_map = ipd.process(scan_map, hit_map, hit_to_scan)
+    def _chunk_chromatograms(self, chromatograms, chunk_size=3500):
+        chunk = []
+        k = 0
+        for chroma in chromatograms:
+            chunk.append(chroma)
+            k += len(chroma.tandem_solutions)
+            if k >= chunk_size:
+                yield chunk
+                chunk = []
+                k = 0
+        yield chunk
 
-        for scan_id, matches in scan_solution_map.items():
-            for match in matches:
-                chroma = annotated_chromatograms[match.target.index]
-                updated_scans = []
-                for scan in chroma.tandem_solutions:
-                    if scan.scan_id == scan_id:
-                        match.target = match.target.glycan_composition
-                        updated_scans.append(match)
-                    else:
-                        updated_scans.append(scan)
-                chroma.tandem_solutions = updated_scans
+    def _score_mapped_tandem_parallel(self, annotated_chromatograms, *args, **kwargs):
+        for chunk in self._chunk_chromatograms(annotated_chromatograms):
+            scan_map, hit_map, hit_to_scan = self._build_scan_to_entity_map(chunk)
+            ipd = IdentificationProcessDispatcher(
+                worker_type=GlycanCompositionIdentificationWorker,
+                scorer_type=self.scorer_type,
+                init_args={}, evaluation_args=kwargs,
+                n_processes=self.n_processes,
+                ipc_manager=self.ipc_manager)
+            scan_solution_map = ipd.process(scan_map, hit_map, hit_to_scan)
+
+            for scan_id, matches in scan_solution_map.items():
+                for match in matches:
+                    chroma = chunk[match.target.index]
+                    updated_scans = []
+                    for scan in chroma.tandem_solutions:
+                        if scan.scan_id == scan_id:
+                            # match.scan = SpectrumReference(scan_id, scan.precursor_information)
+                            match.target = match.target.glycan_composition
+                            updated_scans.append(match)
+                        else:
+                            updated_scans.append(scan)
+                    chroma.tandem_solutions = updated_scans
         return annotated_chromatograms
 
     def _score_mapped_tandem_sequential(self, annotated_chromatograms, *args, **kwargs):
@@ -170,7 +184,7 @@ class SignatureIonMapper(TaskBase):
             i += 1
             if i % 500 == 0:
                 self.log("... Handling chromatogram %d/%d (%0.3f%%)" % (i, ni, (i * 100. / ni)))
-            tandem_scans = chroma.tandem_solutions
+            tandem_scans = self.prepare_scan_set(chroma.tandem_solutions)
             if chroma.glycan_composition is None:
                 if self.default_glycan_composition is None:
                     continue
