@@ -24,7 +24,8 @@ class CombinatorialMammalianNGlycansBuilder(BuildBase):
         return hypothesis_metadata
 
     def build(self, database_connection, **kwargs):
+        kwargs.setdefault('hypothesis_name', self.hypothesis_metadata['name'])
         task = CombinatorialGlycanHypothesisSerializer(
             StringIO(combinatorial_source), database_connection,
-            hypothesis_name=hypothesis_metadata['name'])
+            **kwargs)
         task.start()

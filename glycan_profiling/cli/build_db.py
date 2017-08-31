@@ -39,6 +39,8 @@ from glycan_profiling.database.builder.glycan import (
     GlycanAnalysisHypothesisSerializer,
     GlycopeptideAnalysisGlycanCompositionExtractionHypothesisSerializer)
 
+from glycan_profiling.database.prebuilt import hypothesis_register as prebuilt_hypothesis_register
+
 from glycopeptidepy.utils.collectiontools import decoratordict
 from glycopeptidepy.structure.modification import RestrictedModificationTable
 
@@ -425,6 +427,27 @@ def from_analysis(context, database_connection, analysis_identifier, reduction, 
     else:
         click.secho("Analysis Type %r could not be converted" % (
             analysis.analysis_type.name,), fg='red')
+
+
+@build_hypothesis.command("prebuilt-glycan", short_help=(
+    'Construct a glycan hypothesis from a list of pre-made recipes'))
+@click.pass_context
+@click.argument("database-connection")
+@click.option("-r", "--recipe-name", type=click.Choice(prebuilt_hypothesis_register.keys()), required=True)
+@click.option("-n", "--name", default=None, help="The name for the hypothesis to be created")
+@click.option("-r", "--reduction", default=None, help='Reducing end modification')
+@click.option("-d", "--derivatization", default=None, help='Chemical derivatization to apply')
+def prebuilt_glycan(context, database_connection, recipe_name, name, reduction, derivatization):
+    database_connection = DatabaseBoundOperation(database_connection)
+    reduction = validate_reduction(context, reduction)
+    derivatization = validate_derivatization(context, derivatization)
+    if name is not None:
+        name = validate_glycan_hypothesis_name(
+            context, database_connection._original_connection, name)
+    recipe = prebuilt_hypothesis_register[recipe_name]()
+    recipe(database_connection._original_connection,
+           hypothesis_name=name, reduction=reduction,
+           derivatization=derivatization)
 
 
 if __name__ == '__main__':
