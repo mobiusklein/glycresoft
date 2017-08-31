@@ -1,8 +1,8 @@
 import multiprocessing
 import click
 import textwrap
+from glycan_profiling.cli.base import cli, HiddenOption
 
-from glycan_profiling.cli.base import cli
 from glycan_profiling.cli.validators import (
     glycan_source_validators,
     validate_modifications,
@@ -51,6 +51,12 @@ def build_hypothesis():
 
 
 command_group = build_hypothesis
+
+
+def database_connection(fn):
+    arg = click.argument("database-connection", doc_help=(
+        "A connection URI for a database, or a path on the file system"))
+    return arg(fn)
 
 
 _glycan_hypothesis_builders = decoratordict()
@@ -189,19 +195,19 @@ def cmd(*args, **kwargs):
                           short_help="Build glycopeptide search spaces with a FASTA file of proteins")
 @click.pass_context
 @glycopeptide_hypothesis_common_options
-@click.argument("fasta-file", type=click.Path(exists=True))
-@click.argument("database-connection")
+@click.argument("fasta-file", type=click.Path(exists=True), doc_help=(
+    "A file containing protein sequences in FASTA format"))
+@database_connection
 @click.option("-e", "--enzyme", default='trypsin', multiple=True,
               help='The proteolytic enzyme to use during digestion')
 @click.option("-m", "--missed-cleavages", type=int, default=1,
               help="The number of missed proteolytic cleavage sites permitted")
-@click.option("-n", "--name", default=None, help="The name for the hypothesis to be created")
 @click.option("-c", "--constant-modification", multiple=True,
               help='Peptide modification rule which will be applied constantly')
 @click.option("-v", "--variable-modification", multiple=True,
               help='Peptide modification rule which will be applied variablely')
-@click.option("--reverse", default=False, is_flag=True, help='Reverse protein sequences')
-@click.option("--dry-run", default=False, is_flag=True, help="Do not save glycopeptides")
+@click.option("--reverse", default=False, is_flag=True, help='Reverse protein sequences', cls=HiddenOption)
+@click.option("--dry-run", default=False, is_flag=True, help="Do not save glycopeptides", cls=HiddenOption)
 def glycopeptide_fa(context, fasta_file, database_connection, enzyme, missed_cleavages, occupied_glycosites, name,
                     constant_modification, variable_modification, processes, glycan_source, glycan_source_type,
                     glycan_source_identifier=None, reverse=False, dry_run=False):
@@ -256,7 +262,7 @@ def glycopeptide_fa(context, fasta_file, database_connection, enzyme, missed_cle
                           short_help="Build a glycopeptide search space with an mzIdentML file")
 @click.pass_context
 @click.argument("mzid-file", type=click.Path(exists=True))
-@click.argument("database-connection")
+@database_connection
 @glycopeptide_hypothesis_common_options
 @click.option("-t", "--target-protein", multiple=True,
               help='Specifies the name of a protein to include in the hypothesis. May be used many times.')
@@ -304,7 +310,7 @@ def glycopeptide_mzid(context, mzid_file, database_connection, name, occupied_gl
                           short_help='Build a glycan search space with a text file of glycan compositions')
 @click.pass_context
 @click.argument("text-file", type=click.Path(exists=True))
-@click.argument("database-connection")
+@database_connection
 @click.option("-r", "--reduction", default=None, help='Reducing end modification')
 @click.option("-d", "--derivatization", default=None, help='Chemical derivatization to apply')
 @click.option("-n", "--name", default=None, help="The name for the hypothesis to be created")
@@ -324,7 +330,7 @@ def glycan_text(context, text_file, database_connection, reduction, derivatizati
                                                               ' containing algebraic combination rules'))
 @click.pass_context
 @click.argument("rule-file", type=click.Path(exists=True))
-@click.argument("database-connection")
+@database_connection
 @click.option("-r", "--reduction", default=None, help='Reducing end modification')
 @click.option("-d", "--derivatization", default=None, help='Chemical derivatization to apply')
 @click.option("-n", "--name", default=None, help="The name for the hypothesis to be created")
@@ -343,7 +349,7 @@ def glycan_combinatorial(context, rule_file, database_connection, reduction, der
 @build_hypothesis.command("merge-glycan", short_help=("Combine two or more glycan search spaces to create a "
                                                       "new one containing unique entries from all constituents"))
 @click.pass_context
-@click.argument("database-connection")
+@database_connection
 @click.option("-n", "--name", default=None, help="The name for the hypothesis to be created")
 @click.option(
     "-i", "--hypothesis-specification", multiple=True,
@@ -367,7 +373,7 @@ def merge_glycan_hypotheses(context, database_connection, hypothesis_specificati
 
 @build_hypothesis.command("glyspace-glycan", short_help=("Construct a glycan hypothesis from GlySpace"))
 @click.pass_context
-@click.argument("database-connection")
+@database_connection
 @click.option("-r", "--reduction", default=None, help='Reducing end modification')
 @click.option("-d", "--derivatization", default=None, help='Chemical derivatization to apply')
 @click.option("-n", "--name", default=None, help="The name for the hypothesis to be created")
@@ -403,7 +409,7 @@ def glyspace_glycan_hypothesis(context, database_connection, motif_class, reduct
 
 @build_hypothesis.command("glycan-from-analysis", short_help=("Construct a glycan hypothesis from a matched analysis"))
 @click.pass_context
-@click.argument("database-connection")
+@database_connection
 @click.argument("analysis-identifier")
 @click.option("-r", "--reduction", default=None, help='Reducing end modification')
 @click.option("-d", "--derivatization", default=None, help='Chemical derivatization to apply')
@@ -432,7 +438,7 @@ def from_analysis(context, database_connection, analysis_identifier, reduction, 
 @build_hypothesis.command("prebuilt-glycan", short_help=(
     'Construct a glycan hypothesis from a list of pre-made recipes'))
 @click.pass_context
-@click.argument("database-connection")
+@database_connection
 @click.option("-r", "--recipe-name", type=click.Choice(prebuilt_hypothesis_register.keys()), required=True)
 @click.option("-n", "--name", default=None, help="The name for the hypothesis to be created")
 @click.option("-r", "--reduction", default=None, help='Reducing end modification')
