@@ -1,0 +1,218 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+
+
+<html xmlns="http://www.w3.org/1999/xhtml">
+  <head>
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+    
+    <title>Exporting Glycopeptide Search Results &#8212; glycresoft  documentation</title>
+    
+    <link rel="stylesheet" href="../_static/alabaster.css" type="text/css" />
+    <link rel="stylesheet" href="../_static/pygments.css" type="text/css" />
+    
+    <script type="text/javascript">
+      var DOCUMENTATION_OPTIONS = {
+        URL_ROOT:    '../',
+        VERSION:     '',
+        COLLAPSE_INDEX: false,
+        FILE_SUFFIX: '.html',
+        HAS_SOURCE:  true,
+        SOURCELINK_SUFFIX: '.txt'
+      };
+    </script>
+    <script type="text/javascript" src="../_static/jquery.js"></script>
+    <script type="text/javascript" src="../_static/underscore.js"></script>
+    <script type="text/javascript" src="../_static/doctools.js"></script>
+    <link rel="index" title="Index" href="../genindex.html" />
+    <link rel="search" title="Search" href="../search.html" />
+    <link rel="prev" title="Searching a Processed Sample with a Glycopeptide Database" href="search-glycopeptide.html" />
+   
+  <link rel="stylesheet" href="../_static/custom.css" type="text/css" />
+  
+  
+  <meta name="viewport" content="width=device-width, initial-scale=0.9, maximum-scale=0.9" />
+
+  </head>
+  <body role="document">
+  
+
+    <div class="document">
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          <div class="body" role="main">
+            
+  <div class="section" id="exporting-glycopeptide-search-results">
+<h1>Exporting Glycopeptide Search Results<a class="headerlink" href="#exporting-glycopeptide-search-results" title="Permalink to this headline">¶</a></h1>
+<p><cite>glycresoft</cite> stores its search results
+in a SQLite3 database like the one it writes hypotheses
+into. This lets it search for results quickly, but the
+format is not as easy to read through as a text file, and
+adds extra layers of complexity to find information requiring
+complex SQL queries. It&#8217;s possible to export search results in
+several other formats which can be read by other tools.</p>
+<div class="section" id="glycresoft-export-glycopeptide-identification">
+<h2>glycresoft export glycopeptide-identification<a class="headerlink" href="#glycresoft-export-glycopeptide-identification" title="Permalink to this headline">¶</a></h2>
+<p>Write each distinct identified glycopeptide in CSV format</p>
+<div class="highlight-shell"><div class="highlight"><pre><span></span>glycresoft <span class="nb">export</span> glycopeptide-identification <span class="o">[</span>OPTIONS<span class="o">]</span> DATABASE_CONNECTION
+                                              ANALYSIS_IDENTIFIER
+</pre></div>
+</div>
+<p class="rubric">Options</p>
+<dl class="option">
+<dt id="cmdoption-glycresoft-export-glycopeptide-identification-o">
+<code class="descname">-o</code><code class="descclassname"></code><code class="descclassname">, </code><code class="descname">--output-path</code><code class="descclassname"> &lt;path&gt;</code><a class="headerlink" href="#cmdoption-glycresoft-export-glycopeptide-identification-o" title="Permalink to this definition">¶</a></dt>
+<dd><p>Path to write to instead of stdout</p>
+</dd></dl>
+
+<p class="rubric">Arguments</p>
+<dl class="option">
+<dt id="cmdoption-glycresoft-export-glycopeptide-identification-arg-database-connection">
+<code class="descname">DATABASE_CONNECTION</code><code class="descclassname"></code><a class="headerlink" href="#cmdoption-glycresoft-export-glycopeptide-identification-arg-database-connection" title="Permalink to this definition">¶</a></dt>
+<dd><p>Required argument
+&lt;stringparamtype&gt; A connection URI for a database, or a path on the file system</p>
+</dd></dl>
+
+<dl class="option">
+<dt id="cmdoption-glycresoft-export-glycopeptide-identification-arg-analysis-identifier">
+<code class="descname">ANALYSIS_IDENTIFIER</code><code class="descclassname"></code><a class="headerlink" href="#cmdoption-glycresoft-export-glycopeptide-identification-arg-analysis-identifier" title="Permalink to this definition">¶</a></dt>
+<dd><p>Required argument
+&lt;stringparamtype&gt; The ID number or name of the glycopeptide analysis to use</p>
+</dd></dl>
+
+</div>
+<div class="section" id="glycresoft-export-glycopeptide-spectrum-matches">
+<h2>glycresoft export glycopeptide-spectrum-matches<a class="headerlink" href="#glycresoft-export-glycopeptide-spectrum-matches" title="Permalink to this headline">¶</a></h2>
+<p>Write each matched glycopeptide spectrum in CSV format</p>
+<div class="highlight-shell"><div class="highlight"><pre><span></span>glycresoft <span class="nb">export</span> glycopeptide-spectrum-matches <span class="o">[</span>OPTIONS<span class="o">]</span> DATABASE_CONNECTION
+                                                ANALYSIS_IDENTIFIER
+</pre></div>
+</div>
+<p class="rubric">Options</p>
+<dl class="option">
+<dt id="cmdoption-glycresoft-export-glycopeptide-spectrum-matches-o">
+<code class="descname">-o</code><code class="descclassname"></code><code class="descclassname">, </code><code class="descname">--output-path</code><code class="descclassname"> &lt;path&gt;</code><a class="headerlink" href="#cmdoption-glycresoft-export-glycopeptide-spectrum-matches-o" title="Permalink to this definition">¶</a></dt>
+<dd><p>Path to write to instead of stdout</p>
+</dd></dl>
+
+<p class="rubric">Arguments</p>
+<dl class="option">
+<dt id="cmdoption-glycresoft-export-glycopeptide-spectrum-matches-arg-database-connection">
+<code class="descname">DATABASE_CONNECTION</code><code class="descclassname"></code><a class="headerlink" href="#cmdoption-glycresoft-export-glycopeptide-spectrum-matches-arg-database-connection" title="Permalink to this definition">¶</a></dt>
+<dd><p>Required argument
+&lt;stringparamtype&gt; A connection URI for a database, or a path on the file system</p>
+</dd></dl>
+
+<dl class="option">
+<dt id="cmdoption-glycresoft-export-glycopeptide-spectrum-matches-arg-analysis-identifier">
+<code class="descname">ANALYSIS_IDENTIFIER</code><code class="descclassname"></code><a class="headerlink" href="#cmdoption-glycresoft-export-glycopeptide-spectrum-matches-arg-analysis-identifier" title="Permalink to this definition">¶</a></dt>
+<dd><p>Required argument
+&lt;stringparamtype&gt; The ID number or name of the glycopeptide analysis to use</p>
+</dd></dl>
+
+</div>
+<div class="section" id="glycresoft-export-mzid">
+<h2>glycresoft export mzid<a class="headerlink" href="#glycresoft-export-mzid" title="Permalink to this headline">¶</a></h2>
+<p>Write identified glycopeptides as mzIdentML file, and associated MSn spectra
+to a paired mzML file if the matched data are available. If an mzML file is written
+it will also contain the extracted ion chromatograms for each glycopeptide with an
+extracted elution profile.</p>
+<div class="highlight-shell"><div class="highlight"><pre><span></span>glycresoft <span class="nb">export</span> mzid <span class="o">[</span>OPTIONS<span class="o">]</span> DATABASE_CONNECTION ANALYSIS_IDENTIFIER
+                       OUTPUT_PATH
+</pre></div>
+</div>
+<p class="rubric">Options</p>
+<dl class="option">
+<dt id="cmdoption-glycresoft-export-mzid-m">
+<code class="descname">-m</code><code class="descclassname"></code><code class="descclassname">, </code><code class="descname">--mzml-path</code><code class="descclassname"> &lt;path&gt;</code><a class="headerlink" href="#cmdoption-glycresoft-export-mzid-m" title="Permalink to this definition">¶</a></dt>
+<dd><p>Alternative path to find the source mzML file</p>
+</dd></dl>
+
+<p class="rubric">Arguments</p>
+<dl class="option">
+<dt id="cmdoption-glycresoft-export-mzid-arg-database-connection">
+<code class="descname">DATABASE_CONNECTION</code><code class="descclassname"></code><a class="headerlink" href="#cmdoption-glycresoft-export-mzid-arg-database-connection" title="Permalink to this definition">¶</a></dt>
+<dd><p>Required argument
+&lt;stringparamtype&gt; A connection URI for a database, or a path on the file system</p>
+</dd></dl>
+
+<dl class="option">
+<dt id="cmdoption-glycresoft-export-mzid-arg-analysis-identifier">
+<code class="descname">ANALYSIS_IDENTIFIER</code><code class="descclassname"></code><a class="headerlink" href="#cmdoption-glycresoft-export-mzid-arg-analysis-identifier" title="Permalink to this definition">¶</a></dt>
+<dd><p>Required argument
+&lt;stringparamtype&gt; The ID number or name of the glycopeptide analysis to use</p>
+</dd></dl>
+
+<dl class="option">
+<dt id="cmdoption-glycresoft-export-mzid-arg-output-path">
+<code class="descname">OUTPUT_PATH</code><code class="descclassname"></code><a class="headerlink" href="#cmdoption-glycresoft-export-mzid-arg-output-path" title="Permalink to this definition">¶</a></dt>
+<dd><p>Required argument
+&lt;stringparamtype&gt;</p>
+</dd></dl>
+
+</div>
+</div>
+
+
+          </div>
+        </div>
+      </div>
+      <div class="sphinxsidebar" role="navigation" aria-label="main navigation">
+        <div class="sphinxsidebarwrapper">
+  <h3><a href="../index.html">Table Of Contents</a></h3>
+  <ul>
+<li><a class="reference internal" href="#">Exporting Glycopeptide Search Results</a><ul>
+<li><a class="reference internal" href="#glycresoft-export-glycopeptide-identification">glycresoft export glycopeptide-identification</a></li>
+<li><a class="reference internal" href="#glycresoft-export-glycopeptide-spectrum-matches">glycresoft export glycopeptide-spectrum-matches</a></li>
+<li><a class="reference internal" href="#glycresoft-export-mzid">glycresoft export mzid</a></li>
+</ul>
+</li>
+</ul>
+<div class="relations">
+<h3>Related Topics</h3>
+<ul>
+  <li><a href="../index.html">Documentation overview</a><ul>
+  <li><a href="index.html">Command Line Applications</a><ul>
+      <li>Previous: <a href="search-glycopeptide.html" title="previous chapter">Searching a Processed Sample with a Glycopeptide Database</a></li>
+  </ul></li>
+  </ul></li>
+</ul>
+</div>
+  <div role="note" aria-label="source link">
+    <h3>This Page</h3>
+    <ul class="this-page-menu">
+      <li><a href="../_sources/cli-apps/export-glycopeptide.rst.txt"
+            rel="nofollow">Show Source</a></li>
+    </ul>
+   </div>
+<div id="searchbox" style="display: none" role="search">
+  <h3>Quick search</h3>
+    <form class="search" action="../search.html" method="get">
+      <div><input type="text" name="q" /></div>
+      <div><input type="submit" value="Go" /></div>
+      <input type="hidden" name="check_keywords" value="yes" />
+      <input type="hidden" name="area" value="default" />
+    </form>
+</div>
+<script type="text/javascript">$('#searchbox').show(0);</script>
+        </div>
+      </div>
+      <div class="clearer"></div>
+    </div>
+    <div class="footer">
+      &copy;2017, Joshua Klein.
+      
+      |
+      Powered by <a href="http://sphinx-doc.org/">Sphinx 1.5.6</a>
+      &amp; <a href="https://github.com/bitprophet/alabaster">Alabaster 0.7.10</a>
+      
+      |
+      <a href="../_sources/cli-apps/export-glycopeptide.rst.txt"
+          rel="nofollow">Page source</a>
+    </div>
+
+    
+
+    
+  </body>
+</html>
