@@ -19,7 +19,6 @@ build-pyinstaller:
 install-dependencies:
 	pip install --upgrade pip setuptools wheel
 	pip install Cython --install-option="--no-cython-compile"
-	pip install coverage pytest pytest-cov
 	pip install lxml pyteomics brain-isotopic-distribution
 	pip install --only-binary=numpy,scipy numpy scipy
 	pip install -r external-requirements.txt

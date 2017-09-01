@@ -10,7 +10,9 @@ Welcome to glycresoft's documentation!
    :maxdepth: 2
    :caption: Contents:
 
+   Installing <installing>
    Command Line Applications <cli-apps/index>
+   Tutorials <tutorials/index>
 
 
 Indices and tables
