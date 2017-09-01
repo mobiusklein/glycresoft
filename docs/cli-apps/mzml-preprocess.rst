@@ -1,5 +1,5 @@
-Raw Data Deconvolution
-======================
+LC-MS/MS Data Preprocessing and Deconvolution
+=============================================
 
 
 Convert raw mass spectral data files into deisotoped neutral mass peak lists

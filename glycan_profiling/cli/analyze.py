@@ -53,11 +53,25 @@ def analyze():
     pass
 
 
+def database_connection(fn):
+    arg = click.argument("database-connection", doc_help=(
+        "A connection URI for a database, or a path on the file system"))
+    return arg(fn)
+
+
+def hypothesis_identifier(hypothesis_type):
+    def wrapper(fn):
+        arg = click.argument("hypothesis-identifier", doc_help=(
+            "The ID number or name of the %s hypothesis to use" % (hypothesis_type,)))
+        return arg(fn)
+    return wrapper
+
+
 @analyze.command("search-glycopeptide", short_help='Search preprocessed data for glycopeptide sequences')
 @click.pass_context
-@click.argument("database-connection")
+@database_connection
 @click.argument("sample-path")
-@click.argument("hypothesis-identifier")
+@hypothesis_identifier("glycopeptide")
 @click.option("-m", "--mass-error-tolerance", type=RelativeMassErrorParam(), default=1e-5,
               help="Mass accuracy constraint, in parts-per-million error, for matching MS^1 ions.")
 @click.option("-mn", "--msn-mass-error-tolerance", type=RelativeMassErrorParam(), default=2e-5,
@@ -66,7 +80,7 @@ def analyze():
               help="Mass accuracy constraint, in parts-per-million error, for grouping chromatograms.")
 @click.option("-n", "--analysis-name", default=None, help='Name for analysis to be performed.')
 @click.option("-q", "--psm-fdr-threshold", default=0.05, type=float,
-              help='Minimum FDR Threshold to use for filtering PSMs when selecting identified glycopeptides')
+              help='Minimum FDR Threshold to use for filtering GPSMs when selecting identified glycopeptides')
 @click.option("-s", "--tandem-scoring-model", default='coverage_weighted_binomial', type=click.Choice(
               glycopeptide_tandem_scoring_functions.keys()),
               help="Select a scoring function to use for evaluating glycopeptide-spectrum matches")
@@ -78,15 +92,14 @@ def analyze():
               "Path to write resulting analysis to."))
 @click.option("-w", "--workload-size", default=1000, type=int, help="Number of spectra to process at once")
 @click.option("--save-intermediate-results", default=None, type=click.Path(), required=False,
-              help='Save intermediate spectrum matches to a file')
+              help='Save intermediate spectrum matches to a file', cls=HiddenOption)
 def search_glycopeptide(context, database_connection, sample_path, hypothesis_identifier,
                         analysis_name, output_path=None, grouping_error_tolerance=1.5e-5, mass_error_tolerance=1e-5,
                         msn_mass_error_tolerance=2e-5, psm_fdr_threshold=0.05, peak_shape_scoring_model=None,
                         tandem_scoring_model=None, oxonium_threshold=0.15,
                         save_intermediate_results=None, processes=4,
                         workload_size=1000):
-    """Identify glycopeptide sequences from preprocessed LC-MS/MS data, stored in mzML
-    format.
+    """Identify glycopeptide sequences from processed LC-MS/MS data
     """
     if output_path is None:
         output_path = make_analysis_output_path("glycopeptide")
@@ -160,12 +173,12 @@ class RegularizationParameterType(click.ParamType):
                           " a number between 0 and 1")
 
 
-@analyze.command("search-glycan", short_help=('Search preprocessed data for'
+@analyze.command("search-glycan", short_help=('Search processed data for'
                                               ' glycan compositions'))
 @click.pass_context
-@click.argument("database-connection")
+@database_connection
 @click.argument("sample-path")
-@click.argument("hypothesis-identifier")
+@hypothesis_identifier("glycan")
 @click.option("-m", "--mass-error-tolerance", type=RelativeMassErrorParam(), default=1e-5,
               help=("Mass accuracy constraint, in parts-per-million "
                     "error, for matching."))
