@@ -7,7 +7,7 @@ and deconvoluted an LC-MS/MS data file, you're ready to do just that.
 
 
 .. click:: glycan_profiling.cli.analyze:search_glycopeptide
-	:prog: glycresoft analyze search-glycopeptide
+    :prog: glycresoft analyze search-glycopeptide
 
 
 Usage Example
@@ -15,8 +15,8 @@ Usage Example
 
 .. code-block:: bash
 
-	$ glycresoft analyze search-glycopeptide -m 5e-6 -mn 1e-5 fasta-glycopeptides.db path/to/processed/sample.mzML 1\
-		 -o "agp-glycopepitdes-in-sample.db"
+    $ glycresoft analyze search-glycopeptide -m 5e-6 -mn 1e-5 fasta-glycopeptides.db path/to/processed/sample.mzML 1\
+         -o "agp-glycopepitdes-in-sample.db"
 
 
 Memory Consumption and Workload Size

@@ -14,3 +14,5 @@ Command Line Applications
 
    Searching a Processed Sample with a Glycopeptide Database <search-glycopeptide>
    Exporting Glycopeptide Search Results <export-glycopeptide>
+
+   Searching a Processed Sample with a Glycan Database <search-glycan>

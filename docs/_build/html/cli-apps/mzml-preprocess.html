@@ -138,7 +138,7 @@ to share the work.</p>
 <dl class="option">
 <dt id="cmdoption-glycresoft-mzml-preprocess-r">
 <code class="descname">-r</code><code class="descclassname"></code><code class="descclassname">, </code><code class="descname">--transform</code><code class="descclassname"> &lt;choice&gt;</code><a class="headerlink" href="#cmdoption-glycresoft-mzml-preprocess-r" title="Permalink to this definition">¶</a></dt>
-<dd><p>Scan transformations to apply to MS1 scans. May specify more than once.</p>
+<dd><p>Scan transformations to apply to MS1 scans. May specify more than once. (May specify more than once)</p>
 <div class="line-block">
 <div class="line">Choices: [</div>
 <div class="line-block">
@@ -153,7 +153,7 @@ to share the work.</p>
 <dl class="option">
 <dt id="cmdoption-glycresoft-mzml-preprocess-rn">
 <code class="descname">-rn</code><code class="descclassname"></code><code class="descclassname">, </code><code class="descname">--msn-transform</code><code class="descclassname"> &lt;choice&gt;</code><a class="headerlink" href="#cmdoption-glycresoft-mzml-preprocess-rn" title="Permalink to this definition">¶</a></dt>
-<dd><p>Scan transformations to apply to MS^n scans. May specify more than once.</p>
+<dd><p>Scan transformations to apply to MS^n scans. May specify more than once. (May specify more than once)</p>
 <div class="line-block">
 <div class="line">Choices: [</div>
 <div class="line-block">
@@ -204,7 +204,7 @@ to share the work.</p>
 <div class="literal-block-wrapper docutils container" id="id3">
 <div class="code-block-caption"><span class="caption-text">example usage</span><a class="headerlink" href="#id3" title="Permalink to this code">¶</a></div>
 <div class="highlight-bash"><div class="highlight"><pre><span></span>glycresoft-cli mzml preprocess -a permethylated-glycan -t <span class="m">20</span> -p <span class="m">6</span> <span class="se">\</span>
-        -s <span class="m">5</span>.0 -e <span class="m">60</span>.0 <span class="s2">&quot;path/to/input&quot;</span> <span class="s2">&quot;path/to/output.mzML&quot;</span>
+    -s <span class="m">5</span>.0 -e <span class="m">60</span>.0 <span class="s2">&quot;path/to/input&quot;</span> <span class="s2">&quot;path/to/output.mzML&quot;</span>
 </pre></div>
 </div>
 </div>
@@ -306,11 +306,11 @@ peaks used to fit each reported peak, and does not have a one-to-one relationshi
 26
 27
 28</pre></div></td><td class="code"><div class="highlight"><pre><span></span><span class="k">def</span> <span class="nf">decode_envelopes</span><span class="p">(</span><span class="n">array</span><span class="p">):</span>
-        <span class="sd">&#39;&#39;&#39;</span>
-<span class="sd">        Arguments</span>
-<span class="sd">        ---------</span>
-<span class="sd">        array: float32 array</span>
-<span class="sd">        &#39;&#39;&#39;</span>
+    <span class="sd">&#39;&#39;&#39;</span>
+<span class="sd">    Arguments</span>
+<span class="sd">    ---------</span>
+<span class="sd">    array: float32 array</span>
+<span class="sd">    &#39;&#39;&#39;</span>
     <span class="n">envelope_list</span> <span class="o">=</span> <span class="p">[]</span>
     <span class="n">current_envelope</span> <span class="o">=</span> <span class="p">[]</span>
     <span class="n">i</span> <span class="o">=</span> <span class="mi">0</span>

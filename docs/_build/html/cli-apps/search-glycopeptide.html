@@ -58,19 +58,19 @@ and deconvoluted an LC-MS/MS data file, you&#8217;re ready to do just that.</p>
 <p class="rubric">Options</p>
 <dl class="option">
 <dt id="cmdoption-glycresoft-analyze-search-glycopeptide-m">
-<code class="descname">-m</code><code class="descclassname"></code><code class="descclassname">, </code><code class="descname">--mass-error-tolerance</code><code class="descclassname"> &lt;relativemasserrorparam&gt;</code><a class="headerlink" href="#cmdoption-glycresoft-analyze-search-glycopeptide-m" title="Permalink to this definition">¶</a></dt>
+<code class="descname">-m</code><code class="descclassname"></code><code class="descclassname">, </code><code class="descname">--mass-error-tolerance</code><code class="descclassname"> &lt;relative mass error&gt;</code><a class="headerlink" href="#cmdoption-glycresoft-analyze-search-glycopeptide-m" title="Permalink to this definition">¶</a></dt>
 <dd><p>Mass accuracy constraint, in parts-per-million error, for matching MS^1 ions.  [default: 1e-05]</p>
 </dd></dl>
 
 <dl class="option">
 <dt id="cmdoption-glycresoft-analyze-search-glycopeptide-mn">
-<code class="descname">-mn</code><code class="descclassname"></code><code class="descclassname">, </code><code class="descname">--msn-mass-error-tolerance</code><code class="descclassname"> &lt;relativemasserrorparam&gt;</code><a class="headerlink" href="#cmdoption-glycresoft-analyze-search-glycopeptide-mn" title="Permalink to this definition">¶</a></dt>
+<code class="descname">-mn</code><code class="descclassname"></code><code class="descclassname">, </code><code class="descname">--msn-mass-error-tolerance</code><code class="descclassname"> &lt;relative mass error&gt;</code><a class="headerlink" href="#cmdoption-glycresoft-analyze-search-glycopeptide-mn" title="Permalink to this definition">¶</a></dt>
 <dd><p>Mass accuracy constraint, in parts-per-million error, for matching MS^n ions.  [default: 2e-05]</p>
 </dd></dl>
 
 <dl class="option">
 <dt id="cmdoption-glycresoft-analyze-search-glycopeptide-g">
-<code class="descname">-g</code><code class="descclassname"></code><code class="descclassname">, </code><code class="descname">--grouping-error-tolerance</code><code class="descclassname"> &lt;relativemasserrorparam&gt;</code><a class="headerlink" href="#cmdoption-glycresoft-analyze-search-glycopeptide-g" title="Permalink to this definition">¶</a></dt>
+<code class="descname">-g</code><code class="descclassname"></code><code class="descclassname">, </code><code class="descname">--grouping-error-tolerance</code><code class="descclassname"> &lt;relative mass error&gt;</code><a class="headerlink" href="#cmdoption-glycresoft-analyze-search-glycopeptide-g" title="Permalink to this definition">¶</a></dt>
 <dd><p>Mass accuracy constraint, in parts-per-million error, for grouping chromatograms.  [default: 1.5e-05]</p>
 </dd></dl>
 
@@ -127,28 +127,28 @@ and deconvoluted an LC-MS/MS data file, you&#8217;re ready to do just that.</p>
 <dt id="cmdoption-glycresoft-analyze-search-glycopeptide-arg-database-connection">
 <code class="descname">DATABASE_CONNECTION</code><code class="descclassname"></code><a class="headerlink" href="#cmdoption-glycresoft-analyze-search-glycopeptide-arg-database-connection" title="Permalink to this definition">¶</a></dt>
 <dd><p>Required argument
-&lt;stringparamtype&gt; A connection URI for a database, or a path on the file system</p>
+&lt;string&gt; A connection URI for a database, or a path on the file system</p>
 </dd></dl>
 
 <dl class="option">
 <dt id="cmdoption-glycresoft-analyze-search-glycopeptide-arg-sample-path">
 <code class="descname">SAMPLE_PATH</code><code class="descclassname"></code><a class="headerlink" href="#cmdoption-glycresoft-analyze-search-glycopeptide-arg-sample-path" title="Permalink to this definition">¶</a></dt>
 <dd><p>Required argument
-&lt;stringparamtype&gt;</p>
+&lt;string&gt;</p>
 </dd></dl>
 
 <dl class="option">
 <dt id="cmdoption-glycresoft-analyze-search-glycopeptide-arg-hypothesis-identifier">
 <code class="descname">HYPOTHESIS_IDENTIFIER</code><code class="descclassname"></code><a class="headerlink" href="#cmdoption-glycresoft-analyze-search-glycopeptide-arg-hypothesis-identifier" title="Permalink to this definition">¶</a></dt>
 <dd><p>Required argument
-&lt;stringparamtype&gt; The ID number or name of the glycopeptide hypothesis to use</p>
+&lt;string&gt; The ID number or name of the glycopeptide hypothesis to use</p>
 </dd></dl>
 
 </div>
 <div class="section" id="usage-example">
 <h2>Usage Example<a class="headerlink" href="#usage-example" title="Permalink to this headline">¶</a></h2>
 <div class="highlight-bash"><div class="highlight"><pre><span></span>$ glycresoft analyze search-glycopeptide -m 5e-6 -mn 1e-5 fasta-glycopeptides.db path/to/processed/sample.mzML <span class="m">1</span><span class="se">\</span>
-         -o <span class="s2">&quot;agp-glycopepitdes-in-sample.db&quot;</span>
+     -o <span class="s2">&quot;agp-glycopepitdes-in-sample.db&quot;</span>
 </pre></div>
 </div>
 </div>

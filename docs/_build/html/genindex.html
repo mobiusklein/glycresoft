@@ -63,10 +63,24 @@
 <table style="width: 100%" class="indextable genindextable"><tr>
   <td style="width: 33%; vertical-align: top;"><ul>
       <li>
+    --export &lt;choice&gt;
+
+      <ul>
+        <li><a href="cli-apps/search-glycan.html#cmdoption-glycresoft-analyze-search-glycan-export">glycresoft-analyze-search-glycan command line option</a>
+</li>
+      </ul></li>
+      <li>
     --ignore-msn
 
       <ul>
         <li><a href="cli-apps/mzml-preprocess.html#cmdoption-glycresoft-mzml-preprocess-ignore-msn">glycresoft-mzml-preprocess command line option</a>
+</li>
+      </ul></li>
+      <li>
+    -a, --adduct &lt;string&gt;
+
+      <ul>
+        <li><a href="cli-apps/search-glycan.html#cmdoption-glycresoft-analyze-search-glycan-a">glycresoft-analyze-search-glycan command line option</a>
 </li>
       </ul></li>
       <li>
@@ -123,6 +137,13 @@
 </li>
       </ul></li>
       <li>
+    -d, --minimum-mass &lt;float&gt;
+
+      <ul>
+        <li><a href="cli-apps/search-glycan.html#cmdoption-glycresoft-analyze-search-glycan-d">glycresoft-analyze-search-glycan command line option</a>
+</li>
+      </ul></li>
+      <li>
     -e, --end-time &lt;float&gt;
 
       <ul>
@@ -134,6 +155,13 @@
 
       <ul>
         <li><a href="cli-apps/fasta-glycopeptide.html#cmdoption-glycresoft-build-hypothesis-glycopeptide-fa-e">glycresoft-build-hypothesis-glycopeptide-fa command line option</a>
+</li>
+      </ul></li>
+      <li>
+    -f, --ms1-scoring-feature &lt;choice&gt;
+
+      <ul>
+        <li><a href="cli-apps/search-glycan.html#cmdoption-glycresoft-analyze-search-glycan-f">glycresoft-analyze-search-glycan command line option</a>
 </li>
       </ul></li>
       <li>
@@ -151,9 +179,11 @@
 </li>
       </ul></li>
       <li>
-    -g, --grouping-error-tolerance &lt;relativemasserrorparam&gt;
+    -g, --grouping-error-tolerance &lt;relative mass error&gt;
 
       <ul>
+        <li><a href="cli-apps/search-glycan.html#cmdoption-glycresoft-analyze-search-glycan-g">glycresoft-analyze-search-glycan command line option</a>
+</li>
         <li><a href="cli-apps/search-glycopeptide.html#cmdoption-glycresoft-analyze-search-glycopeptide-g">glycresoft-analyze-search-glycopeptide command line option</a>
 </li>
       </ul></li>
@@ -172,9 +202,11 @@
 </li>
       </ul></li>
       <li>
-    -m, --mass-error-tolerance &lt;relativemasserrorparam&gt;
+    -m, --mass-error-tolerance &lt;relative mass error&gt;
 
       <ul>
+        <li><a href="cli-apps/search-glycan.html#cmdoption-glycresoft-analyze-search-glycan-m">glycresoft-analyze-search-glycan command line option</a>
+</li>
         <li><a href="cli-apps/search-glycopeptide.html#cmdoption-glycresoft-analyze-search-glycopeptide-m">glycresoft-analyze-search-glycopeptide command line option</a>
 </li>
       </ul></li>
@@ -207,7 +239,7 @@
 </li>
       </ul></li>
       <li>
-    -mn, --msn-mass-error-tolerance &lt;relativemasserrorparam&gt;
+    -mn, --msn-mass-error-tolerance &lt;relative mass error&gt;
 
       <ul>
         <li><a href="cli-apps/search-glycopeptide.html#cmdoption-glycresoft-analyze-search-glycopeptide-mn">glycresoft-analyze-search-glycopeptide command line option</a>
@@ -224,6 +256,8 @@
     -n, --analysis-name &lt;string&gt;
 
       <ul>
+        <li><a href="cli-apps/search-glycan.html#cmdoption-glycresoft-analyze-search-glycan-n">glycresoft-analyze-search-glycan command line option</a>
+</li>
         <li><a href="cli-apps/search-glycopeptide.html#cmdoption-glycresoft-analyze-search-glycopeptide-n">glycresoft-analyze-search-glycopeptide command line option</a>
 </li>
       </ul></li>
@@ -256,9 +290,18 @@
 </li>
       </ul></li>
       <li>
+    -o, --output-path &lt;string&gt;
+
+      <ul>
+        <li><a href="cli-apps/search-glycan.html#cmdoption-glycresoft-analyze-search-glycan-o">glycresoft-analyze-search-glycan command line option</a>
+</li>
+      </ul></li>
+      <li>
     -p, --processes &lt;int&gt;
 
       <ul>
+        <li><a href="cli-apps/search-glycan.html#cmdoption-glycresoft-analyze-search-glycan-p">glycresoft-analyze-search-glycan command line option</a>
+</li>
         <li><a href="cli-apps/search-glycopeptide.html#cmdoption-glycresoft-analyze-search-glycopeptide-p">glycresoft-analyze-search-glycopeptide command line option</a>
 </li>
         <li><a href="cli-apps/fasta-glycopeptide.html#cmdoption-glycresoft-build-hypothesis-glycopeptide-fa-p">glycresoft-build-hypothesis-glycopeptide-fa command line option</a>
@@ -285,6 +328,13 @@
 </li>
       </ul></li>
       <li>
+    -r, --regularize &lt;regularization parameter&gt;
+
+      <ul>
+        <li><a href="cli-apps/search-glycan.html#cmdoption-glycresoft-analyze-search-glycan-r">glycresoft-analyze-search-glycan command line option</a>
+</li>
+      </ul></li>
+      <li>
     -r, --transform &lt;choice&gt;
 
       <ul>
@@ -306,6 +356,13 @@
 </li>
       </ul></li>
       <li>
+    -s, --require-msms-signature &lt;float&gt;
+
+      <ul>
+        <li><a href="cli-apps/search-glycan.html#cmdoption-glycresoft-analyze-search-glycan-s">glycresoft-analyze-search-glycan command line option</a>
+</li>
+      </ul></li>
+      <li>
     -s, --start-time &lt;float&gt;
 
       <ul>
@@ -317,6 +374,13 @@
 
       <ul>
         <li><a href="cli-apps/search-glycopeptide.html#cmdoption-glycresoft-analyze-search-glycopeptide-s">glycresoft-analyze-search-glycopeptide command line option</a>
+</li>
+      </ul></li>
+      <li>
+    -t, --delta-rt &lt;float&gt;
+
+      <ul>
+        <li><a href="cli-apps/search-glycan.html#cmdoption-glycresoft-analyze-search-glycan-t">glycresoft-analyze-search-glycan command line option</a>
 </li>
       </ul></li>
       <li>
@@ -362,6 +426,13 @@
 </li>
       </ul></li>
       <li>
+    -w, --regularization-model-path &lt;path&gt;
+
+      <ul>
+        <li><a href="cli-apps/search-glycan.html#cmdoption-glycresoft-analyze-search-glycan-w">glycresoft-analyze-search-glycan command line option</a>
+</li>
+      </ul></li>
+      <li>
     -w, --workload-size &lt;int&gt;
 
       <ul>
@@ -402,6 +473,8 @@
     DATABASE_CONNECTION
 
       <ul>
+        <li><a href="cli-apps/search-glycan.html#cmdoption-glycresoft-analyze-search-glycan-arg-database-connection">glycresoft-analyze-search-glycan command line option</a>
+</li>
         <li><a href="cli-apps/search-glycopeptide.html#cmdoption-glycresoft-analyze-search-glycopeptide-arg-database-connection">glycresoft-analyze-search-glycopeptide command line option</a>
 </li>
         <li><a href="cli-apps/combinatorial-glycan.html#cmdoption-glycresoft-build-hypothesis-glycan-combinatorial-arg-database-connection">glycresoft-build-hypothesis-glycan-combinatorial command line option</a>
@@ -439,14 +512,51 @@
 <table style="width: 100%" class="indextable genindextable"><tr>
   <td style="width: 33%; vertical-align: top;"><ul>
       <li>
+    glycresoft-analyze-search-glycan command line option
+
+      <ul>
+        <li><a href="cli-apps/search-glycan.html#cmdoption-glycresoft-analyze-search-glycan-export">--export &lt;choice&gt;</a>
+</li>
+        <li><a href="cli-apps/search-glycan.html#cmdoption-glycresoft-analyze-search-glycan-a">-a, --adduct &lt;string&gt;</a>
+</li>
+        <li><a href="cli-apps/search-glycan.html#cmdoption-glycresoft-analyze-search-glycan-d">-d, --minimum-mass &lt;float&gt;</a>
+</li>
+        <li><a href="cli-apps/search-glycan.html#cmdoption-glycresoft-analyze-search-glycan-f">-f, --ms1-scoring-feature &lt;choice&gt;</a>
+</li>
+        <li><a href="cli-apps/search-glycan.html#cmdoption-glycresoft-analyze-search-glycan-g">-g, --grouping-error-tolerance &lt;relative mass error&gt;</a>
+</li>
+        <li><a href="cli-apps/search-glycan.html#cmdoption-glycresoft-analyze-search-glycan-m">-m, --mass-error-tolerance &lt;relative mass error&gt;</a>
+</li>
+        <li><a href="cli-apps/search-glycan.html#cmdoption-glycresoft-analyze-search-glycan-n">-n, --analysis-name &lt;string&gt;</a>
+</li>
+        <li><a href="cli-apps/search-glycan.html#cmdoption-glycresoft-analyze-search-glycan-o">-o, --output-path &lt;string&gt;</a>
+</li>
+        <li><a href="cli-apps/search-glycan.html#cmdoption-glycresoft-analyze-search-glycan-p">-p, --processes &lt;int&gt;</a>
+</li>
+        <li><a href="cli-apps/search-glycan.html#cmdoption-glycresoft-analyze-search-glycan-r">-r, --regularize &lt;regularization parameter&gt;</a>
+</li>
+        <li><a href="cli-apps/search-glycan.html#cmdoption-glycresoft-analyze-search-glycan-s">-s, --require-msms-signature &lt;float&gt;</a>
+</li>
+        <li><a href="cli-apps/search-glycan.html#cmdoption-glycresoft-analyze-search-glycan-t">-t, --delta-rt &lt;float&gt;</a>
+</li>
+        <li><a href="cli-apps/search-glycan.html#cmdoption-glycresoft-analyze-search-glycan-w">-w, --regularization-model-path &lt;path&gt;</a>
+</li>
+        <li><a href="cli-apps/search-glycan.html#cmdoption-glycresoft-analyze-search-glycan-arg-database-connection">DATABASE_CONNECTION</a>
+</li>
+        <li><a href="cli-apps/search-glycan.html#cmdoption-glycresoft-analyze-search-glycan-arg-hypothesis-identifier">HYPOTHESIS_IDENTIFIER</a>
+</li>
+        <li><a href="cli-apps/search-glycan.html#cmdoption-glycresoft-analyze-search-glycan-arg-sample-path">SAMPLE_PATH</a>
+</li>
+      </ul></li>
+      <li>
     glycresoft-analyze-search-glycopeptide command line option
 
       <ul>
-        <li><a href="cli-apps/search-glycopeptide.html#cmdoption-glycresoft-analyze-search-glycopeptide-g">-g, --grouping-error-tolerance &lt;relativemasserrorparam&gt;</a>
+        <li><a href="cli-apps/search-glycopeptide.html#cmdoption-glycresoft-analyze-search-glycopeptide-g">-g, --grouping-error-tolerance &lt;relative mass error&gt;</a>
 </li>
-        <li><a href="cli-apps/search-glycopeptide.html#cmdoption-glycresoft-analyze-search-glycopeptide-m">-m, --mass-error-tolerance &lt;relativemasserrorparam&gt;</a>
+        <li><a href="cli-apps/search-glycopeptide.html#cmdoption-glycresoft-analyze-search-glycopeptide-m">-m, --mass-error-tolerance &lt;relative mass error&gt;</a>
 </li>
-        <li><a href="cli-apps/search-glycopeptide.html#cmdoption-glycresoft-analyze-search-glycopeptide-mn">-mn, --msn-mass-error-tolerance &lt;relativemasserrorparam&gt;</a>
+        <li><a href="cli-apps/search-glycopeptide.html#cmdoption-glycresoft-analyze-search-glycopeptide-mn">-mn, --msn-mass-error-tolerance &lt;relative mass error&gt;</a>
 </li>
         <li><a href="cli-apps/search-glycopeptide.html#cmdoption-glycresoft-analyze-search-glycopeptide-n">-n, --analysis-name &lt;string&gt;</a>
 </li>
@@ -528,6 +638,8 @@
         <li><a href="cli-apps/fasta-glycopeptide.html#cmdoption-glycresoft-build-hypothesis-glycopeptide-fa-arg-fasta-file">FASTA_FILE</a>
 </li>
       </ul></li>
+  </ul></td>
+  <td style="width: 33%; vertical-align: top;"><ul>
       <li>
     glycresoft-build-hypothesis-glyspace-glycan command line option
 
@@ -547,8 +659,6 @@
         <li><a href="cli-apps/glyspace-glycan.html#cmdoption-glycresoft-build-hypothesis-glyspace-glycan-arg-database-connection">DATABASE_CONNECTION</a>
 </li>
       </ul></li>
-  </ul></td>
-  <td style="width: 33%; vertical-align: top;"><ul>
       <li>
     glycresoft-export-glycopeptide-identification command line option
 
@@ -639,6 +749,8 @@
     HYPOTHESIS_IDENTIFIER
 
       <ul>
+        <li><a href="cli-apps/search-glycan.html#cmdoption-glycresoft-analyze-search-glycan-arg-hypothesis-identifier">glycresoft-analyze-search-glycan command line option</a>
+</li>
         <li><a href="cli-apps/search-glycopeptide.html#cmdoption-glycresoft-analyze-search-glycopeptide-arg-hypothesis-identifier">glycresoft-analyze-search-glycopeptide command line option</a>
 </li>
       </ul></li>
@@ -700,6 +812,8 @@
     SAMPLE_PATH
 
       <ul>
+        <li><a href="cli-apps/search-glycan.html#cmdoption-glycresoft-analyze-search-glycan-arg-sample-path">glycresoft-analyze-search-glycan command line option</a>
+</li>
         <li><a href="cli-apps/search-glycopeptide.html#cmdoption-glycresoft-analyze-search-glycopeptide-arg-sample-path">glycresoft-analyze-search-glycopeptide command line option</a>
 </li>
       </ul></li>

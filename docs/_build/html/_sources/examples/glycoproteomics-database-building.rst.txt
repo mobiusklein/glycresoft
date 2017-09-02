@@ -1,6 +1,0 @@
-Building a Glycopeptide Database
-================================
-
-The first step to using ``glycresoft`` is to design a search space
-appropriate to your sample, based on what information is available
-to you.
