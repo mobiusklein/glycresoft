@@ -1,9 +1,22 @@
+import re
+
 from docutils import nodes
 from docutils.parsers.rst import directives
 from docutils import statemachine
 
 import click
 from sphinx.util.compat import Directive
+
+
+def clean_type_name(typename):
+    if not isinstance(typename, str):
+        try:
+            typename = typename.human_readable_name
+        except AttributeError:
+            typename = ' '.join(re.findall(r"[A-Z]+[^A-Z]+", typename.__class__.__name__)
+                                ).lower().strip()
+    cleaned = re.sub(r"(param$)|(param type)|(range)|(type)", "", typename).strip()
+    return cleaned
 
 
 def _indent(text, level=1):
@@ -42,8 +55,7 @@ def _get_help_record(opt):
         rv, _ = click.formatting.join_options(opts)
         if not opt.is_flag and not opt.count:
             rv += ' <{}>'.format(
-                opt.type.__class__.__name__.lower().replace(
-                    "paramtype", "").replace("range", ""))
+                clean_type_name(opt.type))
         return rv
 
     rv = [_write_opts(opt.opts)]
@@ -84,14 +96,17 @@ def _get_help_record(opt):
 
 def _format_option(opt):
     """Format the output a `click.Option`."""
+    is_multiple = opt.multiple
     opt = _get_help_record(opt)
     if opt is None:
         return
     yield '.. option:: {}'.format(opt[0])
     if opt[1]:
         yield ''
-        for line in statemachine.string2lines(
-                opt[1], tab_width=4, convert_whitespace=True):
+        lines = list(statemachine.string2lines(opt[1], tab_width=4, convert_whitespace=True))
+        if is_multiple:
+            lines[-1] += " (May specify more than once)"
+        for line in lines:
             yield _indent(line)
     if opt[2]:
         yield ''
@@ -109,7 +124,8 @@ def _format_argument(arg):
         '(s)' if arg.nargs != 1 else ''))
     # yield _indent("")
 
-    description = "<{}> ".format(arg.type.__class__.__name__.lower())
+    description = "<{}> ".format(arg.type.__class__.__name__.lower().replace(
+        "paramtype", ""))
 
     yield _indent(description + getattr(arg, "doc_help", ""))
 

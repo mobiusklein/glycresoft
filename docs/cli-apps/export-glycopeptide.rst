@@ -11,14 +11,14 @@ several other formats which can be read by other tools.
 
 
 .. click:: glycan_profiling.cli.export:glycopeptide_identification
-	:prog: glycresoft export glycopeptide-identification
+    :prog: glycresoft export glycopeptide-identification
 
 
 .. click:: glycan_profiling.cli.export:glycopeptide_spectrum_matches
-	:prog: glycresoft export glycopeptide-spectrum-matches
+    :prog: glycresoft export glycopeptide-spectrum-matches
 
 
 .. click:: glycan_profiling.cli.export:glycopeptide_mzidentml
-	:prog: glycresoft export mzid
+    :prog: glycresoft export mzid
 
 

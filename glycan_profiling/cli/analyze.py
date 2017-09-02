@@ -207,7 +207,8 @@ class RegularizationParameterType(click.ParamType):
 @click.option("-t", "--delta-rt", default=0.5, type=float,
               help='The maximum time between observed data points before splitting features')
 @click.option("--export", type=click.Choice(
-              ['csv', 'glycan-list', 'html', "model"]), multiple=True)
+              ['csv', 'glycan-list', 'html', "model"]), multiple=True,
+              help="export command to after search is complete")
 @click.option('-s', '--require-msms-signature', type=float, default=0.0,
               help="Minimum oxonium ion signature required in MS/MS scans to include.")
 @processes_option

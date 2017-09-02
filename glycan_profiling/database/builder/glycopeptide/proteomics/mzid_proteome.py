@@ -64,6 +64,7 @@ class ParameterizedProtease(Protease):
         super(ParameterizedProtease, self).__init__(name, cleavage_start, cleavage_end)
         self.used_missed_cleavages = used_missed_cleavages
 
+
 def resolve_database_url(url):
     if url.startswith("file://"):
         path = url.replace("file://", "")
