@@ -13,6 +13,16 @@ glycan database construction methods).
     :prog: glycresoft analyze search-glycan
 
 
+Usage Example
+-------------
+
+.. code-block:: bash
+
+    $ glycresoft analyze search-glycan -a Formate 1 -o agp-native-results.db\
+        ../hypothesis/native-n-glycans.db path/to/sample.preprocessed.mzML 1\
+        --export csv
+
+
 Adducts
 -------
 
