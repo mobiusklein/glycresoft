@@ -10,17 +10,17 @@ This task is computationally intensive, and uses several collaborative processes
 to share the work.
 
 .. click:: glycan_profiling.cli.mzml:preprocess
-	:prog: glycresoft mzml preprocess
+    :prog: glycresoft mzml preprocess
 
 
 Usage example
 -------------
 
 .. code-block:: bash
-	:caption: example usage
+    :caption: example usage
 
-	glycresoft-cli mzml preprocess -a permethylated-glycan -t 20 -p 6 \
-		-s 5.0 -e 60.0 "path/to/input" "path/to/output.mzML"
+    glycresoft-cli mzml preprocess -a permethylated-glycan -t 20 -p 6 \
+        -s 5.0 -e 60.0 "path/to/input" "path/to/output.mzML"
 
 Averagine Models
 ----------------
@@ -36,20 +36,20 @@ Builtin Models
 
 .. exec::
 
-	from glycan_profiling.cli.validators import AveragineParamType
-	from rst_table import as_rest_table
+    from glycan_profiling.cli.validators import AveragineParamType
+    from rst_table import as_rest_table
 
-	rows = [
-		("Model Name", "Formula")
-	]
+    rows = [
+        ("Model Name", "Formula")
+    ]
 
-	def formula(mapping):
-		return ''.join(["%s%0.2g" % (k, v) for k, v in mapping.items()])
+    def formula(mapping):
+        return ''.join(["%s%0.2g" % (k, v) for k, v in mapping.items()])
 
-	for name, model in AveragineParamType.models.items():
-		rows.append((name, formula(model)))
-	
-	print(as_rest_table(rows))
+    for name, model in AveragineParamType.models.items():
+        rows.append((name, formula(model)))
+    
+    print(as_rest_table(rows))
 
 
 Supported File Formats
@@ -91,48 +91,48 @@ peaks used to fit each reported peak, and does not have a one-to-one relationshi
 To unpack the ``isotopic envelopes array`` after decoding, the we use the following logic:
 
 .. code-block:: python
-	:linenos:
+    :linenos:
 
-	def decode_envelopes(array):
-		'''
-		Arguments
-		---------
-		array: float32 array
-		'''
-	    envelope_list = []
-	    current_envelope = []
-	    i = 0
-	    n = len(array)
-	    while i < n:
-	    	# fetch the next two values
-	        mz = array[i]
-	        intensity = array[i + 1]
-	        i += 2
+    def decode_envelopes(array):
+        '''
+        Arguments
+        ---------
+        array: float32 array
+        '''
+        envelope_list = []
+        current_envelope = []
+        i = 0
+        n = len(array)
+        while i < n:
+            # fetch the next two values
+            mz = array[i]
+            intensity = array[i + 1]
+            i += 2
 
-	        # if both numbers are zero, this denotes the beginning
-	        # of a new envelope
-	        if mz == 0 and intensity == 0:
-	            if current_envelope is not None:
-	                if current_envelope:
-	                    envelope_list.append(Envelope(current_envelope))
-	                current_envelope = []
-	        # otherwise add the current point to the existing envelope
-	        else:
-	            current_envelope.append(EnvelopePair(mz, intensity))
-	    envelope_list.append(Envelope(current_envelope))
-	    return envelope_list
+            # if both numbers are zero, this denotes the beginning
+            # of a new envelope
+            if mz == 0 and intensity == 0:
+                if current_envelope is not None:
+                    if current_envelope:
+                        envelope_list.append(Envelope(current_envelope))
+                    current_envelope = []
+            # otherwise add the current point to the existing envelope
+            else:
+                current_envelope.append(EnvelopePair(mz, intensity))
+        envelope_list.append(Envelope(current_envelope))
+        return envelope_list
 
 Bibliography
 ------------
 
 .. [Senko1995]
-	Senko, M. W., Beu, S. C., & McLafferty, F. W. (1995). Determination of
-	monoisotopic masses and ion populations for large biomolecules from resolved
-	isotopic distributions.
-	Journal of the American Society for Mass Spectrometry, 6(4), 229–233.
-	https://doi.org/10.1016/1044-0305(95)00017-8
+    Senko, M. W., Beu, S. C., & McLafferty, F. W. (1995). Determination of
+    monoisotopic masses and ion populations for large biomolecules from resolved
+    isotopic distributions.
+    Journal of the American Society for Mass Spectrometry, 6(4), 229–233.
+    https://doi.org/10.1016/1044-0305(95)00017-8
 .. [Martens2011]
-	Martens, L., Chambers, M., Sturm, M., Kessner, D., Levander, F., Shofstahl, J.,
-	… Deutsch, E. W. (2011). mzML--a community standard for mass spectrometry data.
-	Molecular & Cellular Proteomics : MCP, 10(1), R110.000133.
-	https://doi.org/10.1074/mcp.R110.000133
+    Martens, L., Chambers, M., Sturm, M., Kessner, D., Levander, F., Shofstahl, J.,
+    … Deutsch, E. W. (2011). mzML--a community standard for mass spectrometry data.
+    Molecular & Cellular Proteomics : MCP, 10(1), R110.000133.
+    https://doi.org/10.1074/mcp.R110.000133

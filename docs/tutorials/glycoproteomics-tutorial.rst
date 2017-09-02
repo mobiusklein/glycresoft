@@ -70,7 +70,7 @@ run the database search:
          -o agp-glycopepitdes-20150710_3um_AGP_001.db -p 5
 
 
-The search process should take between 10 and 20 minutes.
+The search process should take between 2 and 10 minutes.
 
 Once the database search process has completed, we can export the search results in CSV format
 for downstream analysis.
