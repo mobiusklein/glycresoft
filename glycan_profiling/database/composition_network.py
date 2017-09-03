@@ -343,13 +343,16 @@ class CompositionGraphEdge(object):
 
 
 class CompositionGraph(object):
-    def __init__(self, compositions, distance_fn=n_glycan_distance):
+    def __init__(self, compositions, distance_fn=n_glycan_distance, neighborhoods=None):
+        if neighborhoods is None:
+            neighborhoods = []
         self.nodes = []
         self.node_map = {}
         self._composition_normalizer = CompositionNormalizer()
         self.distance_fn = distance_fn
         self.create_nodes(compositions)
         self.edges = EdgeSet()
+        self.neighborhoods = NeighborhoodCollection(neighborhoods)
 
     def create_nodes(self, compositions):
         """Given an iterable of GlycanComposition-like or strings encoding GlycanComposition-like
@@ -543,7 +546,7 @@ class CompositionGraph(object):
     def __setstate__(self, state):
         string_buffer, distance_fn = state
         string_buffer.seek(0)
-        net = load(string_buffer)
+        net, neighborhoods = load(string_buffer)
         self.nodes = net.nodes
         self.node_map = net.node_map
         self.edges = net.edges
@@ -578,44 +581,50 @@ class GraphWriter(object):
         self.file_obj = file_obj
         self.handle_graph(self.network)
 
+    def write(self, text):
+        self.file_obj.write(text)
+
     def handle_node(self, node):
         composition = node.composition.serialize()
         index = (node.index)
         score = node.score
-        self.file_obj.write("%d\t%s\t%f\n" % (index, composition, score))
+        self.write("%d\t%s\t%f\n" % (index, composition, score))
 
     def handle_edge(self, edge):
         index1 = edge.node1.index
         index2 = edge.node2.index
         diff = edge.order
         weight = edge.weight
-        self.file_obj.write("%d\t%d\t%d\t%f\n" %
-                            (index1, index2, diff, weight))
+        self.write("%d\t%d\t%d\t%f\n" % (index1, index2, diff, weight))
 
-    def handle_graph(self, graph, neighborhoods=None):
-        self.file_obj.write("#COMPOSITIONGRAPH 1.0\n")
-        self.file_obj.write("#NODE\n")
+    def handle_graph(self, graph):
+        self.write("#COMPOSITIONGRAPH 1.0\n")
+        self.write("#NODE\n")
         for node in self.network.nodes:
             self.handle_node(node)
-        self.file_obj.write("#EDGE\n")
+        self.write("#EDGE\n")
         for edge in self.network.edges:
             self.handle_edge(edge)
-
-        if neighborhoods is not None:
-            for neighborhood in neighborhoods:
-                self.handle_neighborhood(neighborhoods)
+        try:
+            if graph.neighborhoods:
+                self.write("#NEIGHBORHOOD")
+                for neighborhood in graph.neighborhoods:
+                    self.handle_neighborhood(neighborhood)
+        except AttributeError:
+            pass
 
     def handle_neighborhood(self, neighborhood_rule):
-        self.file_obj.write("BEGIN NEIGHBORHOOD\n")
-        self.file_obj.write(neighborhood_rule.serialize())
-        self.file_obj.write("END NEIGHBORHOOD\n")
+        self.write("BEGIN NEIGHBORHOOD\n")
+        self.write(neighborhood_rule.serialize())
+        self.write("END NEIGHBORHOOD\n")
 
 
 class GraphReader(object):
 
     @classmethod
     def read(cls, file_obj):
-        return cls(file_obj).network
+        inst = cls(file_obj)
+        return inst.network, inst.neighborhoods
 
     def __init__(self, file_obj):
         self.file_obj = file_obj
@@ -661,7 +670,10 @@ class GraphReader(object):
                 else:
                     self.handle_node_line(line)
             elif state == "EDGE":
-                self.handle_edge_line(line)
+                if line == "#NEIGHBORHOOD":
+                    state = "NEIGHBORHOOD"
+                else:
+                    self.handle_edge_line(line)
             elif state == "NEIGHBORHOOD":
                 if line.startswith("BEGIN NEIGHBORHOOD"):
                     if buffering:
