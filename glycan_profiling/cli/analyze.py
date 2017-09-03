@@ -88,6 +88,9 @@ def hypothesis_identifier(hypothesis_type):
               help=('Minimum HexNAc-derived oxonium ion abundance '
                     'ratio to filter MS/MS scans. Defaults to 0.05.'))
 @processes_option
+@click.option("--export", type=click.Choice(
+              ['csv', 'glycan-list', 'html', "model"]), multiple=True,
+              help="export command to after search is complete")
 @click.option("-o", "--output-path", default=None, type=click.Path(writable=True), help=(
               "Path to write resulting analysis to."))
 @click.option("-w", "--workload-size", default=1000, type=int, help="Number of spectra to process at once")
@@ -98,7 +101,7 @@ def search_glycopeptide(context, database_connection, sample_path, hypothesis_id
                         msn_mass_error_tolerance=2e-5, psm_fdr_threshold=0.05, peak_shape_scoring_model=None,
                         tandem_scoring_model=None, oxonium_threshold=0.15,
                         save_intermediate_results=None, processes=4,
-                        workload_size=1000):
+                        workload_size=1000, export=None):
     """Identify glycopeptide sequences from processed LC-MS/MS data
     """
     if output_path is None:
