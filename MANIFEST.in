@@ -1,3 +1,5 @@
 include requirements.txt
 recursive-include glycan_profiling/models/data *.json
 recursive-include glycan_profiling/output *.templ
+recursive-include glycan_profiling/output *.js
+recursive-include glycan_profiling/output *.css

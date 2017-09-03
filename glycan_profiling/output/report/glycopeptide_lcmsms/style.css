@@ -5,11 +5,11 @@
 
 #protein-table-container table {
     width: 75%;
-    margin-left: 12%;
+    margin: 2% auto;
     border-collapse: collapse;
 }
 
-#protein-table-container td, #protein-table-container td {
+#protein-table-container th, #protein-table-container td {
     text-align: center;
     border: lightgrey 1px solid;
 }

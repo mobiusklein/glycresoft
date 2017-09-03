@@ -26,7 +26,8 @@ from glycan_profiling.output import (
     GlycopeptideLCMSMSAnalysisCSVSerializer,
     GlycopeptideSpectrumMatchAnalysisCSVSerializer,
     MzIdentMLSerializer,
-    GlycanChromatogramReportCreator)
+    GlycanChromatogramReportCreator,
+    GlycopeptideDatabaseSearchReportCreator)
 
 from glycan_profiling.serialize import (DatabaseScanDeserializer, SampleRun)
 from glycan_profiling.scan_cache import MzMLScanCacheHandler
@@ -200,11 +201,16 @@ def glycan_composition_identification(database_connection, analysis_identifier, 
 
 
 @export.command("glycopeptide-identification",
-                short_help="Exports assigned LC-MS/MS features of Glycopeptides to CSV")
+                short_help="Exports assigned LC-MS/MS features of Glycopeptides to CSV or HTML")
 @database_connection
 @analysis_identifier("glycopeptide")
 @click.option("-o", "--output-path", type=click.Path(), default=None, help='Path to write to instead of stdout')
-def glycopeptide_identification(database_connection, analysis_identifier, output_path=None):
+@click.option("-r", "--report", is_flag=True, help="Export an HTML report instead of a CSV")
+@click.option("-m", "--mzml-path", type=click.Path(exists=True), default=None, help=(
+    "Path to read processed spectra from instead of the path embedded in the analysis metadata"))
+@click.option("-t", "--threshold", type=float, default=0)
+def glycopeptide_identification(database_connection, analysis_identifier, output_path=None,
+                                report=False, mzml_path=None, threshold=0):
     '''Write each distinct identified glycopeptide in CSV format
     '''
     database_connection = DatabaseBoundOperation(database_connection)
@@ -215,32 +221,38 @@ def glycopeptide_identification(database_connection, analysis_identifier, output
             str(analysis.name), str(analysis.analysis_type)), fg='red', err=True)
         raise click.Abort()
     analysis_id = analysis.id
-    query = session.query(Protein.id, Protein.name).join(Protein.glycopeptides).join(
-        IdentifiedGlycopeptide).filter(
-        IdentifiedGlycopeptide.analysis_id == analysis.id)
-    protein_index = dict(query)
-
-    def generate():
-        i = 0
-        interval = 100
-        query = session.query(IdentifiedGlycopeptide).filter(
-            IdentifiedGlycopeptide.analysis_id == analysis_id)
-        while True:
-            session.expire_all()
-            chunk = query.slice(i, i + interval).all()
-            if len(chunk) == 0:
-                break
-            for glycopeptide in chunk:
-                yield glycopeptide.convert()
-            i += interval
-
     if output_path is None:
         output_stream = ctxstream(sys.stdout)
     else:
         output_stream = open(output_path, 'wb')
-    with output_stream:
-        job = GlycopeptideLCMSMSAnalysisCSVSerializer(output_stream, generate(), protein_index)
-        job.run()
+    if report:
+        with output_stream:
+            GlycopeptideDatabaseSearchReportCreator(
+                database_connection._original_connection, analysis_id,
+                stream=output_stream, threshold=threshold,
+                mzml_path=mzml_path).run()
+    else:
+        query = session.query(Protein.id, Protein.name).join(Protein.glycopeptides).join(
+            IdentifiedGlycopeptide).filter(
+            IdentifiedGlycopeptide.analysis_id == analysis.id)
+        protein_index = dict(query)
+
+        def generate():
+            i = 0
+            interval = 100
+            query = session.query(IdentifiedGlycopeptide).filter(
+                IdentifiedGlycopeptide.analysis_id == analysis_id)
+            while True:
+                session.expire_all()
+                chunk = query.slice(i, i + interval).all()
+                if len(chunk) == 0:
+                    break
+                for glycopeptide in chunk:
+                    yield glycopeptide.convert()
+                i += interval
+        with output_stream:
+            job = GlycopeptideLCMSMSAnalysisCSVSerializer(output_stream, generate(), protein_index)
+            job.run()
 
 
 @export.command("glycopeptide-spectrum-matches",

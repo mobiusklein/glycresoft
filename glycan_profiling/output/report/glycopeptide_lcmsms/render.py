@@ -25,7 +25,7 @@ except ImportError:
 
 
 from glycan_profiling.output.report.base import (
-    svguri_plot, ReportCreatorBase, svg_plot)
+    svguri_plot, ReportCreatorBase)
 
 
 class GlycopeptideDatabaseSearchReportCreator(ReportCreatorBase):
@@ -38,9 +38,19 @@ class GlycopeptideDatabaseSearchReportCreator(ReportCreatorBase):
         self.scan_loader = None
         self.threshold = threshold
         self.analysis = self.session.query(serialize.Analysis).get(self.analysis_id)
-        self.hypothesis_id = self.analysis.hypothesis_id
+        self._resolve_hypothesis_id()
         self._build_protein_index()
         self._make_scan_loader()
+
+    def _resolve_hypothesis_id(self):
+        self.hypothesis_id = self.analysis.hypothesis_id
+        hypothesis = self.session.query(serialize.GlycopeptideHypothesis).get(self.hypothesis_id)
+        if hypothesis is None:
+            self.hypothesis_id = 1
+            hypothesis = self.session.query(serialize.GlycopeptideHypothesis).get(
+                self.hypothesis_id)
+            if hypothesis is None:
+                raise ValueError("Could not resolve Glycopeptide Hypothesis!")
 
     def prepare_environment(self):
         super(GlycopeptideDatabaseSearchReportCreator, self).prepare_environment()
@@ -110,7 +120,7 @@ class GlycopeptideDatabaseSearchReportCreator(ReportCreatorBase):
         ax = figax()
         svg = plot_glycoforms_svg(
             glycoprotein, glycoprotein.identified_glycopeptides, ax=ax,
-            margin_left=85, margin_top=0, height_padding_scale=1.0)
+            margin_left=85, margin_top=0, height_padding_scale=1.1)
         return svg
 
     def chromatogram_plot(self, glycopeptide):

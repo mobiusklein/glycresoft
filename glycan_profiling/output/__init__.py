@@ -11,4 +11,5 @@ from .xml import (
     MzIdentMLSerializer)
 
 from .report import (
-    GlycanChromatogramReportCreator)
+    GlycanChromatogramReportCreator,
+    GlycopeptideDatabaseSearchReportCreator)
