@@ -60,12 +60,12 @@ class EntitySummaryBarChartArtist(ArtistBase):
 
     def configure_x_axis(self):
         ax = self.ax
-        ax.set_xticks(self.indices + (self.bar_width * 1.25))
+        ax.set_xticks(self.indices + (self.bar_width))
         font_size = min(
             max(
                 (150. / (len(self.indices) / 2.)),
                 3),
-            45)
+            24)
 
         ax.set_xlabel(self.xtick_labeler.label_key, fontsize=14)
         ax.set_xticklabels(tuple(self.xtick_labeler), rotation=90, ha='center', size=font_size)

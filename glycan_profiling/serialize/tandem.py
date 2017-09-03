@@ -51,6 +51,10 @@ class SolutionSetBase(object):
     def scan(self):
         return relationship(MSScan)
 
+    @property
+    def scan_time(self):
+        return self.scan.scan_time
+
     def best_solution(self):
         return sorted(self.spectrum_matches, key=lambda x: x.score, reverse=True)[0]
 

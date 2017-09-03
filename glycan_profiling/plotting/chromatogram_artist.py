@@ -257,7 +257,7 @@ class ChromatogramArtist(ArtistBase):
             y0 = heights[i]
             y1 = 0
             if x0 < x:
-                if i < len(rt):
+                if i < len(rt) - 1:
                     x1 = rt[i + 1]
                     y1 = heights[i + 1]
                 else:

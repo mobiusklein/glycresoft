@@ -1,0 +1,182 @@
+#lc-ms-overview img {
+    width: 50%;
+    margin-left: 24%;
+}
+
+#protein-table-container table {
+    width: 75%;
+    margin-left: 12%;
+    border-collapse: collapse;
+}
+
+#protein-table-container td, #protein-table-container td {
+    text-align: center;
+    border: lightgrey 1px solid;
+}
+
+#protein-table-container tbody tr:hover {
+    background: lightgrey;
+    cursor: pointer;
+}
+
+.centered {
+    text-align: center;
+}
+
+.flex-container {
+    display: flex;
+    flex-direction: row;
+    flex-wrap: wrap;
+    flex-flow: row wrap;
+    align-content: flex-end;
+}
+
+.flex-justify {
+    justify-content: center;
+}
+
+.flex-left {
+    align-self: flex-start;
+}
+
+.flex-padding {
+    padding: 40px;
+}
+
+.flex-item {
+    flex: 1 0 0;
+}
+
+.flex-item-wide {
+    flex: 2 0 0;
+}
+
+.display-table td {
+    text-align: center;
+}
+
+.glycoprotein-entry-detail h3 {
+    text-align: center;
+}
+
+.glycoprotein-sequence {
+    max-height: 200px;
+    overflow-y: auto;
+}
+
+.glycosylation-site {
+    color: red;
+    font-weight: 600;
+}
+
+.fasta-entry {
+    font-size: 1em;
+}
+
+.fasta-entry .fasta-header {
+    font-size: 0.9rem;
+}
+
+
+.glycosylation-site-list table {
+    margin: 0 auto;
+}
+
+.glycosylation-site-list td, .glycosylation-site-list th {
+    padding: 5px;
+    text-align: center;
+}
+
+.glycoform-pileup-container {
+    padding: 20px;
+}
+
+.modification-chip {
+    padding-left:1px;
+    padding-right:2px;
+    border-radius:2px;
+}
+
+.monosaccharide-composition-name {
+    padding: 2px;
+    border-radius: 2px;
+    word-break: keep-all;
+    display: inline-block;
+    margin-top: 3px;
+}
+
+.glycopeptide-detail-table table {
+    margin: 0 auto;
+}
+
+.glycopeptide-detail-table tbody tr:hover {
+    background: lightgrey;
+    cursor: pointer;
+}
+
+.glycopeptide-detail-table table td, .glycopeptide-detail-table table th {
+    border: lightgrey 1px solid;
+}
+
+.glycopeptide-detail-table table {
+    border-collapse: collapse;
+}
+
+.glycopeptide-detail-table td, .glycopeptide-detail-table th {
+    font-size: 0.8rem;
+    padding: 3px;
+}
+
+.glycopeptide-facet {
+    padding: 3px;
+    font-size: 0.8rem;
+}
+
+.glycopeptide-mass-entry-container {
+
+}
+
+.glycopeptide-mass-entry {
+    padding: 3px;
+}
+
+.glycopeptide-mass-error {
+    padding: 3px;
+}
+
+.glycopeptide-charge-list {
+    padding: 3px;
+}
+
+.glycopeptide-coordinates-entry-container {
+
+}
+
+.glycopeptide-coordinates-entry {
+    padding: 3px;
+}
+
+section {
+    border-bottom: 2px lightgray solid;
+    margin-bottom: 3px;
+    border-radius: 5px;
+}
+
+body {
+    margin: 20px;
+    font-family: sans-serif;
+}
+
+#display-panel {
+    z-index: 999;
+    width: 40%;
+    height: 20%;
+    position: fixed;
+    display: none;
+    background: rgba(255, 255, 255, 0.95);
+    border: solid lightgrey 1px;
+    border-radius: 3px;
+    bottom: 50px;
+    padding: 10px;
+}
+

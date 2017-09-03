@@ -1,0 +1,64 @@
+{% set spectral_match_info=renderer.spectrum_match_info(glycopeptide) %}
+<section class='glycopeptide-detail-container' id='detail-glycopeptide-{{glycopeptide.id}}'>
+    <h3>{{glycopeptide.structure | glycopeptide_string}}</h3>
+    <div class="flex-container">
+        <div class='flex-item'>
+            <div class='glycopeptide-mass-entry-container'>
+                <span class='glycopeptide-mass-entry'>
+                    {% if glycopeptide.chromatogram %}
+                    <b>Mass: </b> {{"%0.4f"|format(
+                        glycopeptide.chromatogram.weighted_neutral_mass)}}
+                    {% else %}
+                    <b>Mass: </b> {{"%0.4f"|format(
+                        glycopeptide.tandem_solutions[0].scan.precursor_information.neutral_mass)}}
+                    {% endif %}
+                </span>
+                <span class='glycopeptide-mass-error'>
+                    ({{"%0.3e"|format(spectral_match_info.precursor_mass_accuracy)}})                                    
+                </span>
+                <span class='glycopeptide-charge-list'>
+                    {% if glycopeptide.chromatogram %}
+                        <b>Charge States:</b> {{glycopeptide.charge_states|join(", ")}}
+                    {% endif %}
+                </span>
+            </div>
+            <div class='glycopeptide-coordinates-entry-container'>
+                <span class='glycopeptide-coordinates-entry'>
+                    <b>Start Position</b>: {{glycopeptide.start_position}}
+                </span>
+                <span>
+                    <b>End Position</b>: {{glycopeptide.end_position}}
+                </span>
+            </div>
+            <table class='glycopeptide-facet'>
+                <thead>
+                    <tr>
+                        <th>Profile Score</th>
+                        <th>Tandem Score</th>
+                        <th>TDA q-value</th>
+                        <th>Volume</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td>{{"%0.4f"|format(glycopeptide.ms1_score)}}</td>
+                        <td>{{"%0.4f"|format(glycopeptide.ms2_score)}}</td>
+                        <td>{{"%0.4f"|format(glycopeptide.q_value)}}</td>
+                        <td>{{"%0.4e"|format(glycopeptide.total_signal)}}</td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+        <div class='flex-item centered'>
+            {{spectral_match_info.logo_plot|safe}}
+        </div>
+    </div>
+    <div class='flex-container'>
+        <div class='flex-item centered'>
+            {{renderer.chromatogram_plot(glycopeptide)|safe}}
+        </div>
+        <div class='flex-item centered'>
+            {{spectral_match_info.spectrum_plot|safe}}
+        </div>
+    </div>
+</section>

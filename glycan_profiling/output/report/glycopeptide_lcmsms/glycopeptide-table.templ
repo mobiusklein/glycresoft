@@ -18,13 +18,13 @@
             </thead>
             <tbody class='display-table'>
             {% for glycopeptide in glycoprotein.identified_glycopeptides %}
-                <tr>
+                <tr class='glycopeptide-detail-table-row' data-glycopeptide-id="{{glycopeptide.id}}">
                     {% if glycopeptide.chromatogram %}
-                        <td class='narrow'>{{"%0.4f"|format(
+                        <td>{{"%0.4f"|format(
                             glycopeptide.chromatogram.weighted_neutral_mass)}}
                         </td>
                     {% else %}
-                        <td class='narrow'>{{"%0.4f"|format(
+                        <td>{{"%0.4f"|format(
                             glycopeptide.tandem_solutions[0].scan.precursor_information.neutral_mass)}}
                         </td>
                     {% endif %}

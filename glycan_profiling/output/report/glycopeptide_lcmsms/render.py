@@ -1,4 +1,5 @@
 import os
+from collections import OrderedDict
 
 from glycan_profiling import serialize
 from glycan_profiling.serialize import (
@@ -12,10 +13,10 @@ from glycan_profiling.plotting.plot_glycoforms import plot_glycoforms_svg, plot_
 from glycan_profiling.plotting.spectral_annotation import SpectrumMatchAnnotator
 from glycan_profiling.tandem.glycopeptide.identified_structure import IdentifiedGlycoprotein
 from glycan_profiling.tandem.glycopeptide.scoring import CoverageWeightedBinomialScorer
+from glycan_profiling.plotting.entity_bar_chart import (
+    AggregatedAbundanceArtist, BundledGlycanComposition)
 
 from ms_deisotope.output.mzml import ProcessedMzMLDeserializer
-
-from jinja2 import Markup, Template
 
 try:
     from urllib import quote
@@ -92,6 +93,19 @@ class GlycopeptideDatabaseSearchReportCreator(ReportCreatorBase):
             glycoprotein.id = protein.id
             yield glycoprotein
 
+    def site_specific_abundance_plots(self, glycoprotein):
+        axes = OrderedDict()
+        for site in sorted(glycoprotein.glycosylation_sites):
+            spanning_site = glycoprotein.site_map[site]
+            if len(spanning_site) == 0:
+                continue
+            bundle = BundledGlycanComposition.aggregate(spanning_site)
+            ax = figax()
+            AggregatedAbundanceArtist(bundle, ax=ax).draw()
+            ax.set_title("Glycans\nat Site %d" % (site,), fontsize=18)
+            axes[site] = svguri_plot(ax, bbox_inches='tight')
+        return axes
+
     def draw_glycoforms(self, glycoprotein):
         ax = figax()
         svg = plot_glycoforms_svg(
@@ -103,14 +117,15 @@ class GlycopeptideDatabaseSearchReportCreator(ReportCreatorBase):
         ax = figax()
         try:
             SmoothingChromatogramArtist(
-                glycopeptide, ax=ax, label_peaks=False).draw(legend=False)
+                glycopeptide, ax=ax, label_peaks=False,
+                colorizer=lambda x: "#48afd0").draw(legend=False)
             ax.set_xlabel("Time (Minutes)", fontsize=16)
             ax.set_ylabel("Relative Abundance", fontsize=16)
             return svguri_plot(ax, bbox_inches='tight')
         except ValueError:
-            return "No Chromatogram Found"
+            return "<div style='text-align:center;'>No Chromatogram Found</div>"
 
-    def spectrum_match_plot(self, glycopeptide):
+    def spectrum_match_info(self, glycopeptide):
         matched_scans = []
 
         for solution_set in glycopeptide.spectrum_matches:
@@ -158,7 +173,7 @@ class GlycopeptideDatabaseSearchReportCreator(ReportCreatorBase):
         def xml_transform(root):
             view_box_str = root.attrib["viewBox"]
             x_start, y_start, x_end, y_end = map(float, view_box_str.split(" "))
-            x_start += 25
+            x_start += 0
             updated_view_box_str = " ".join(map(str, [x_start, y_start, x_end, y_end]))
             root.attrib["viewBox"] = updated_view_box_str
             fig_g = root.find(".//{http://www.w3.org/2000/svg}g[@id=\"figure_1\"]")
@@ -170,8 +185,10 @@ class GlycopeptideDatabaseSearchReportCreator(ReportCreatorBase):
             width=8, patchless=True)
         logo_plot = svguri_plot(
             sequence_logo_plot, svg_width="100%", xml_transform=xml_transform,
-            bbox_inches='tight', height=3, width=6, patchless=True)
-        return dict(spectrum_plot=spectrum_plot, logo_plot=logo_plot)
+            bbox_inches='tight', height=2, width=6, patchless=True)
+        return dict(
+            spectrum_plot=spectrum_plot, logo_plot=logo_plot,
+            precursor_mass_accuracy=match.precursor_mass_accuracy())
 
     def make_template_stream(self):
         template_obj = self.env.get_template("overview.templ")

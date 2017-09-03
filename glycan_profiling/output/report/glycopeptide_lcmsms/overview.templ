@@ -6,142 +6,8 @@
         {% include "behaviors.js" %}
     </script>
     <style>
-
-#lc-ms-overview img {
-    width: 50%;
-    margin-left: 24%;
-}
-
-#protein-table-container table {
-    width: 75%;
-    margin-left: 12%;
-}
-
-#protein-table-container td, #protein-table-container td {
-    text-align: center;
-}
-
-.flex-container {
-    display: flex;
-    flex-direction: row;
-    flex-wrap: wrap;
-    flex-flow: row wrap;
-    align-content: flex-end;
-}
-
-.flex-justify {
-    justify-content: center;
-}
-
-.flex-left {
-    align-self: flex-start;
-}
-
-.flex-padding {
-    padding: 40px;
-}
-
-.flex-item {
-    flex: 1 0 0;
-}
-
-.flex-item-wide {
-    flex: 2 0 0;
-}
-
-.display-table td {
-    text-align: center;
-}
-
-.glycoprotein-entry-detail h3 {
-    text-align: center;
-}
-
-.glycoprotein-sequence {
-    max-height: 200px;
-    overflow-y: auto;
-}
-
-.glycosylation-site {
-    color: red;
-    font-weight: 600;
-}
-
-.fasta-entry {
-    font-size: 1em;
-}
-
-.fasta-entry .fasta-header {
-    font-size: 0.9rem;
-}
-
-
-.glycosylation-site-list table {
-    margin: 0 auto;
-}
-
-.glycosylation-site-list td, .glycosylation-site-list th {
-    padding: 5px;
-    text-align: center;
-}
-
-.glycoform-pileup-container {
-    padding: 20px;
-}
-
-.modification-chip {
-    padding-left:1px;
-    padding-right:2px;
-    border-radius:2px;
-}
-
-.monosaccharide-composition-name {
-    padding: 2px;
-    border-radius: 2px;
-    word-break: keep-all;
-    display: inline-block;
-    margin-top: 3px;
-}
-
-.glycopeptide-detail-table table {
-    margin: 0 auto;
-}
-
-.glycopeptide-detail-table td, .glycopeptide-detail-table th {
-    font-size: 0.8rem;
-    padding: 3px;
-}
-
-.glycopeptide-facet {
-    padding: 3px;
-    font-size: 0.8rem;
-}
-
-section {
-    border-bottom: 2px lightgray solid;
-    margin-bottom: 3px;
-    border-radius: 5px;
-}
-
-body {
-    margin: 20px;
-    font-family: sans-serif;
-}
-
-#display-panel {
-    z-index: 999;
-    width: 40%;
-    height: 20%;
-    position: fixed;
-    display: none;
-    background: rgba(255, 255, 255, 0.95);
-    border: solid lightgrey 1px;
-    border-radius: 3px;
-    bottom: 50px;
-    padding: 10px;
-}
-
-</style>
+        {% include "style.css" %}
+    </style>
 </head>
 <body>
 <div>
@@ -179,7 +45,7 @@ body {
             </thead>
             <tbody>
                 {% for row in protein_index %}
-                    <tr>
+                    <tr class='protein-table-row' data-protein-id='{{row.protein_id}}'>
                         <td>
                             {{row.protein_name}}
                         </td>
@@ -194,60 +60,22 @@ body {
     <section id='glycoprotein-detail-list'>
         {% for glycoprotein in glycoprotein_iterator %}
             <div class='glycoprotein-entry-detail' id='detail-glycoprotein-{{glycoprotein.id}}'>
+                <section>
                 {% include "protein-heading.templ" %}
                 <div class='glycoform-pileup-container'>
                     {{renderer.draw_glycoforms(glycoprotein)}}
                 </div>
                 {% include "glycopeptide-table.templ" %}
+                <div class='flex-container'>
+                {% for site, axis in renderer.site_specific_abundance_plots(glycoprotein).items() %}
+                    <div class='flex-item'>
+                        {{axis|safe}}
+                    </div>
+                {% endfor %}
+                </div>
+                </section>
                 {% for glycopeptide in glycoprotein.identified_glycopeptides %}
-                    {% set spectral_match_info=renderer.spectrum_match_plot(glycopeptide) %}
-                    <section class='glycopeptide-detail-container' id='detail-glycopeptide-{{glycopeptide.id}}'>
-                        <h3>{{glycopeptide.structure | glycopeptide_string}}</h3>
-                        <div class="flex-container">
-                            <div class='flex-item'>
-                                {% if glycopeptide.chromatogram %}
-                                    <b>Mass: </b> {{"%0.4f"|format(
-                                        glycopeptide.chromatogram.weighted_neutral_mass)}}
-                                {% else %}
-                                    <b>Mass: </b> {{"%0.4f"|format(
-                                        glycopeptide.tandem_solutions[0].scan.precursor_information.neutral_mass)}}
-                                {% endif %}
-                                <br>
-                                <b>Start Position</b>: {{glycopeptide.start_position}}
-                                &nbsp;
-                                <b>End Position</b>: {{glycopeptide.end_position}}
-                                <table class='glycopeptide-facet'>
-                                    <thead>
-                                        <tr>
-                                            <th>Profile Score</th>
-                                            <th>Tandem Score</th>
-                                            <th>TDA q-value</th>
-                                            <th>Volume</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody>
-                                        <tr>
-                                            <td>{{"%0.4f"|format(glycopeptide.ms1_score)}}</td>
-                                            <td>{{"%0.4f"|format(glycopeptide.ms2_score)}}</td>
-                                            <td>{{"%0.4f"|format(glycopeptide.q_value)}}</td>
-                                            <td>{{"%0.4e"|format(glycopeptide.total_signal)}}</td>
-                                        </tr>
-                                    </tbody>
-                                </table>
-                            </div>
-                            <div class='flex-item'>
-                                {{spectral_match_info.logo_plot|safe}}
-                            </div>
-                        </div>
-                        <div class='flex-container'>
-                            <div class='flex-item'>
-                                {{renderer.chromatogram_plot(glycopeptide)|safe}}
-                            </div>
-                            <div class='flex-item'>
-                                {{spectral_match_info.spectrum_plot|safe}}
-                            </div>
-                        </div>
-                    </section>
+                    {% include "glycopeptide-detail-entry.templ" %}
                 {% endfor %}
             </div>
         {% endfor %}

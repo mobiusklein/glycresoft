@@ -56,6 +56,7 @@ class IdentifiedStructure(BoundToAnalysis, ChromatogramWrapper):
     def entity(self):
         raise NotImplementedError()
 
+
 class AmbiguousGlycopeptideGroup(Base, BoundToAnalysis):
     __tablename__ = "AmbiguousGlycopeptideGroup"
 
