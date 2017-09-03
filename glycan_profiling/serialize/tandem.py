@@ -30,7 +30,54 @@ class SpectrumMatchBase(BoundToAnalysis):
         return relationship(MSScan)
 
 
-class GlycopeptideSpectrumCluster(Base, BoundToAnalysis):
+class SpectrumClusterBase(object):
+    def __getitem__(self, i):
+        return self.spectrum_solutions[i]
+
+    def __iter__(self):
+        return iter(self.spectrum_solutions)
+
+    def convert(self):
+        return [x.convert() for x in self.spectrum_solutions]
+
+
+class SolutionSetBase(object):
+
+    @declared_attr
+    def scan_id(self):
+        return Column(Integer, ForeignKey(MSScan.id), index=True)
+
+    @declared_attr
+    def scan(self):
+        return relationship(MSScan)
+
+    def best_solution(self):
+        return sorted(self.spectrum_matches, key=lambda x: x.score, reverse=True)[0]
+
+    @property
+    def score(self):
+        return self.best_solution().score
+
+    def __getitem__(self, i):
+        return self.spectrum_matches[i]
+
+    def __iter__(self):
+        return iter(self.spectrum_matches)
+
+    _target_map = None
+
+    def _make_target_map(self):
+        self._target_map = {
+            sol.target: sol for sol in self
+        }
+
+    def solution_for(self, target):
+        if self._target_map is None:
+            self._make_target_map()
+        return self._target_map[target]
+
+
+class GlycopeptideSpectrumCluster(Base, SpectrumClusterBase, BoundToAnalysis):
     __tablename__ = "GlycopeptideSpectrumCluster"
 
     id = Column(Integer, primary_key=True)
@@ -47,11 +94,8 @@ class GlycopeptideSpectrumCluster(Base, BoundToAnalysis):
                 cluster_id, *args, **kwargs)
         return inst
 
-    def convert(self):
-        return [x.convert() for x in self.spectrum_solutions]
 
-
-class GlycopeptideSpectrumSolutionSet(Base, BoundToAnalysis):
+class GlycopeptideSpectrumSolutionSet(Base, SolutionSetBase, BoundToAnalysis):
     __tablename__ = "GlycopeptideSpectrumSolutionSet"
 
     id = Column(Integer, primary_key=True)
@@ -64,18 +108,18 @@ class GlycopeptideSpectrumSolutionSet(Base, BoundToAnalysis):
 
     is_decoy = Column(Boolean, index=True)
 
-    scan_id = Column(Integer, ForeignKey(MSScan.id), index=True)
-    scan = relationship(MSScan)
+    # scan_id = Column(Integer, ForeignKey(MSScan.id), index=True)
+    # scan = relationship(MSScan)
 
-    def best_solution(self):
-        return sorted(self.spectrum_matches, key=lambda x: x.score, reverse=True)[0]
+    # def best_solution(self):
+    #     return sorted(self.spectrum_matches, key=lambda x: x.score, reverse=True)[0]
 
-    @property
-    def score(self):
-        return self.best_solution().score
+    # @property
+    # def score(self):
+    #     return self.best_solution().score
 
-    def __iter__(self):
-        return iter(self.spectrum_matches)
+    # def __iter__(self):
+    #     return iter(self.spectrum_matches)
 
     @classmethod
     def serialize(cls, obj, session, scan_look_up_cache, analysis_id, cluster_id, is_decoy=False, *args, **kwargs):
@@ -159,7 +203,7 @@ class GlycopeptideSpectrumMatch(Base, SpectrumMatchBase):
         return "DB" + repr(self.convert())
 
 
-class GlycanCompositionSpectrumCluster(Base, BoundToAnalysis):
+class GlycanCompositionSpectrumCluster(Base, SpectrumClusterBase, BoundToAnalysis):
     __tablename__ = "GlycanCompositionSpectrumCluster"
 
     id = Column(Integer, primary_key=True)
@@ -176,16 +220,13 @@ class GlycanCompositionSpectrumCluster(Base, BoundToAnalysis):
                 cluster_id, *args, **kwargs)
         return inst
 
-    def convert(self):
-        return [x.convert() for x in self.spectrum_solutions]
-
     source = relationship(
         "GlycanCompositionChromatogram",
         secondary=lambda: GlycanCompositionChromatogramToGlycanCompositionSpectrumCluster,
         backref=backref("spectrum_cluster", uselist=False))
 
 
-class GlycanCompositionSpectrumSolutionSet(Base, BoundToAnalysis):
+class GlycanCompositionSpectrumSolutionSet(Base, SolutionSetBase, BoundToAnalysis):
     __tablename__ = "GlycanCompositionSpectrumSolutionSet"
 
     id = Column(Integer, primary_key=True)
@@ -197,18 +238,18 @@ class GlycanCompositionSpectrumSolutionSet(Base, BoundToAnalysis):
     cluster = relationship(GlycanCompositionSpectrumCluster, backref=backref(
         "spectrum_solutions", lazy='subquery'))
 
-    scan_id = Column(Integer, ForeignKey(MSScan.id), index=True)
-    scan = relationship(MSScan)
+    # scan_id = Column(Integer, ForeignKey(MSScan.id), index=True)
+    # scan = relationship(MSScan)
 
-    def best_solution(self):
-        return sorted(self.spectrum_matches, key=lambda x: x.score, reverse=True)[0]
+    # def best_solution(self):
+    #     return sorted(self.spectrum_matches, key=lambda x: x.score, reverse=True)[0]
 
-    @property
-    def score(self):
-        return self.best_solution().score
+    # @property
+    # def score(self):
+    #     return self.best_solution().score
 
-    def __iter__(self):
-        return iter(self.spectrum_matches)
+    # def __iter__(self):
+    #     return iter(self.spectrum_matches)
 
     @classmethod
     def serialize(cls, obj, session, scan_look_up_cache, analysis_id, cluster_id, *args, **kwargs):
@@ -291,7 +332,7 @@ class GlycanCompositionSpectrumMatch(Base, SpectrumMatchBase):
         return "DB" + repr(self.convert())
 
 
-class UnidentifiedSpectrumCluster(Base, BoundToAnalysis):
+class UnidentifiedSpectrumCluster(Base, SpectrumClusterBase, BoundToAnalysis):
     __tablename__ = "UnidentifiedSpectrumCluster"
 
     id = Column(Integer, primary_key=True)
@@ -308,16 +349,13 @@ class UnidentifiedSpectrumCluster(Base, BoundToAnalysis):
                 cluster_id, *args, **kwargs)
         return inst
 
-    def convert(self):
-        return [x.convert() for x in self.spectrum_solutions]
-
     source = relationship(
         "UnidentifiedChromatogram",
         secondary=lambda: UnidentifiedChromatogramToUnidentifiedSpectrumCluster,
         backref=backref("spectrum_cluster", uselist=False))
 
 
-class UnidentifiedSpectrumSolutionSet(Base, BoundToAnalysis):
+class UnidentifiedSpectrumSolutionSet(Base, SolutionSetBase, BoundToAnalysis):
     __tablename__ = "UnidentifiedSpectrumSolutionSet"
 
     id = Column(Integer, primary_key=True)
@@ -329,18 +367,18 @@ class UnidentifiedSpectrumSolutionSet(Base, BoundToAnalysis):
     cluster = relationship(UnidentifiedSpectrumCluster, backref=backref(
         "spectrum_solutions", lazy='subquery'))
 
-    scan_id = Column(Integer, ForeignKey(MSScan.id), index=True)
-    scan = relationship(MSScan)
+    # scan_id = Column(Integer, ForeignKey(MSScan.id), index=True)
+    # scan = relationship(MSScan)
 
-    def best_solution(self):
-        return sorted(self.spectrum_matches, key=lambda x: x.score, reverse=True)[0]
+    # def best_solution(self):
+    #     return sorted(self.spectrum_matches, key=lambda x: x.score, reverse=True)[0]
 
-    @property
-    def score(self):
-        return self.best_solution().score
+    # @property
+    # def score(self):
+    #     return self.best_solution().score
 
-    def __iter__(self):
-        return iter(self.spectrum_matches)
+    # def __iter__(self):
+    #     return iter(self.spectrum_matches)
 
     @classmethod
     def serialize(cls, obj, session, scan_look_up_cache, analysis_id, cluster_id, *args, **kwargs):

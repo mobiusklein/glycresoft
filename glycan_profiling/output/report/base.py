@@ -8,9 +8,15 @@ from matplotlib import rcParams as mpl_params
 from lxml import etree
 
 import jinja2
+from jinja2 import escape
+
+from glypy.composition.glycan_composition import GlycanComposition
+from glycopeptidepy import PeptideSequence
 
 from glycan_profiling.task import TaskBase
 from glycan_profiling.serialize import DatabaseBoundOperation
+from glycan_profiling.symbolic_expression import GlycanSymbolContext
+from glycan_profiling.plotting import colors
 
 
 mpl_params.update({
@@ -64,6 +70,94 @@ def svg_plot(figure, svg_width=None, xml_transform=None, **kwargs):
     return etree.tostring(root)
 
 
+def rgbpack(color):
+    return "rgba(%d,%d,%d,0.5)" % tuple(i * 255 for i in color)
+
+
+def formula(composition):
+    return ''.join("<b>%s</b><sub>%d</sub>" % (k, v) for k, v in sorted(composition.items()))
+
+
+def glycan_composition_string(composition):
+    try:
+        composition = GlycanComposition.parse(
+            GlycanSymbolContext(
+                GlycanComposition.parse(
+                    composition)).serialize())
+    except ValueError:
+        return "<code>%s</code>" % composition
+
+    parts = []
+    template = ("<span class='monosaccharide-composition-name'"
+                "style='background-color:%s'>"
+                "%s&nbsp;%d</span>")
+    for k, v in sorted(composition.items(), key=lambda x: x[0].mass()):
+        name = str(k)
+        color = colors.get_color(str(name))
+        parts.append(template % (rgbpack(color), name, v))
+    reduced = composition.reducing_end
+    if reduced:
+        reducing_end_template = (
+            "<span class='monosaccharide-composition-name'"
+            "style='background-color:%s;padding:2px;border-radius:2px;'>"
+            "%s</span>")
+        name = formula(reduced.composition)
+        color = colors.get_color(str(name))
+        parts.append(reducing_end_template % (rgbpack(color), name))
+
+    return ' '.join(parts)
+
+
+def glycopeptide_string(sequence, long=False, include_glycan=True):
+    sequence = PeptideSequence(str(sequence))
+    parts = []
+    template = "(<span class='modification-chip'"\
+        " style='background-color:%s;padding-left:1px;padding-right:2px;border-radius:2px;'"\
+        " title='%s' data-modification='%s'>%s</span>)"
+
+    n_term_template = template.replace("(", "").replace(")", "") + '-'
+    c_term_template = "-" + (template.replace("(", "").replace(")", ""))
+
+    def render(mod, template=template):
+        color = colors.get_color(str(mod))
+        letter = escape(mod.name if long else mod.name[0])
+        name = escape(mod.name)
+        parts.append(template % (rgbpack(color), name, name, letter))
+
+    if sequence.n_term != "H":
+        render(sequence.n_term, n_term_template)
+    for res, mods in sequence:
+        parts.append(res.symbol)
+        for mod in mods:
+            render(mod)
+    if sequence.c_term != "OH":
+        render(sequence.c_term, c_term_template)
+    parts.append((
+        ' ' + glycan_composition_string(str(sequence.glycan)) if sequence.glycan is not None else "")
+        if include_glycan else "")
+    return ''.join(parts)
+
+
+def highlight_sequence_site(amino_acid_sequence, site_list, site_type_list):
+    if isinstance(site_type_list, basestring):
+        site_type_list = [site_type_list for i in site_list]
+    sequence = list(amino_acid_sequence)
+    for site, site_type in zip(site_list, site_type_list):
+        sequence[site] = "<span class='{}'>{}</span>".format(site_type, sequence[site])
+    return sequence
+
+
+def n_per_row(sequence, n=60):
+    row_buffer = []
+    i = 0
+    while i < len(sequence):
+        row_buffer.append(
+            ''.join(sequence[i:(i + n)])
+        )
+        i += n
+    return '<br>'.join(row_buffer)
+
+
 class ReportCreatorBase(TaskBase):
     def __init__(self, database_connection, analysis_id, stream=None):
         self.database_connection = DatabaseBoundOperation(database_connection)
@@ -71,9 +165,20 @@ class ReportCreatorBase(TaskBase):
         self.stream = stream
         self.env = jinja2.Environment()
 
+    @property
+    def session(self):
+        return self.database_connection.session
+
     def prepare_environment(self):
         self.env.filters['svguri_plot'] = svguri_plot
         self.env.filters['png_plot'] = png_plot
+        self.env.filters['svg_plot'] = svg_plot
+        self.env.filters["n_per_row"] = n_per_row
+        self.env.filters['highlight_sequence_site'] = highlight_sequence_site
+        self.env.filters['svg_plot'] = svg_plot
+        self.env.filters['glycopeptide_string'] = glycopeptide_string
+        self.env.filters['glycan_composition_string'] = glycan_composition_string
+        self.env.filters["formula"] = formula
 
     def set_template_loader(self, path):
         self.env.loader = jinja2.FileSystemLoader(path)

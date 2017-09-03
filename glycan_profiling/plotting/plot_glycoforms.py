@@ -129,7 +129,7 @@ def draw_layers(layers, protein, scale_factor=1.0, ax=None, row_width=50, **kwar
                     facecolor=color, edgecolor='none',
                     alpha=alpha)
 
-                label = id_mapper.add("glycopeptide-%d", rect, {
+                id_mapper.add("glycopeptide-%d", rect, {
                     "sequence": str(gpm.structure),
                     "start-position": gpm.start_position,
                     "end-position": gpm.end_position,
@@ -193,8 +193,8 @@ def draw_layers(layers, protein, scale_factor=1.0, ax=None, row_width=50, **kwar
         cur_y += y_step * 3
         cur_position = next_row
 
-    ax.set_ylim(cur_y - 50, 50)
-    ax.set_xlim(-30, row_width + 30)
+    ax.set_ylim(cur_y - 5, 5)
+    ax.set_xlim(-5, row_width + 5)
     ax.axis('off')
     return ax, id_mapper
 
@@ -205,7 +205,9 @@ def plot_glycoforms(protein, identifications, **kwargs):
     return ax, id_mapper
 
 
-def plot_glycoforms_svg(protein, identifications, scale=1.5, ax=None, **kwargs):
+def plot_glycoforms_svg(protein, identifications, scale=1.5, ax=None,
+                        margin_left=80, margin_top=0, height_padding_scale=1.2,
+                        **kwargs):
     '''
     A specialization of :func:`plot_glycoforms` which adds additional features to SVG images, such as
     adding shape metadata to XML tags and properly configuring the viewport and canvas for the figure's
@@ -241,7 +243,8 @@ def plot_glycoforms_svg(protein, identifications, scale=1.5, ax=None, **kwargs):
                                for k, v in attributes.items()})
         element.attrib['class'] = id.rsplit('-')[0]
     min_x, min_y, max_x, max_y = map(int, root.attrib["viewBox"].split(" "))
-    min_x += 100
+    min_x += margin_left
+    min_y += margin_top
     max_x += 200
     view_box = ' '.join(map(str, (min_x, min_y, max_x, max_y)))
     root.attrib["viewBox"] = view_box
@@ -250,7 +253,7 @@ def plot_glycoforms_svg(protein, identifications, scale=1.5, ax=None, **kwargs):
 
     height = width / (aspect_ratio)
 
-    root.attrib["height"] = "%dpt" % (height * 1.2)
+    root.attrib["height"] = "%dpt" % (height * height_padding_scale)
     root.attrib["preserveAspectRatio"] = "xMinYMin meet"
     root[1].attrib["transform"] = "scale(%f)" % scale
     svg = ET.tostring(root)

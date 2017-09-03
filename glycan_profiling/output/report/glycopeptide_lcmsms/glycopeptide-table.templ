@@ -1,0 +1,56 @@
+<sections class="glycopeptide-detail-table flex-container">
+    <div class='flex-item'>
+        <table>
+            <thead>
+                <tr>
+                    <th>Mass</th>
+                    <th>Sequence</th>
+                    <th>MS<sub>2</sub> Score</th>
+                    <th><code>q</code>-value</th>
+                    <th>MS<sub>1</sub> Score</th>
+                    <th>Signal</th>
+                    <th>Protein<br>Coordinates</th>
+                    <th>Tandem<br>Scans</th>
+                    <th>Start Time</th>
+                    <th>Apex Time</th>
+                    <th>End Time</th>
+                </tr>
+            </thead>
+            <tbody class='display-table'>
+            {% for glycopeptide in glycoprotein.identified_glycopeptides %}
+                <tr>
+                    {% if glycopeptide.chromatogram %}
+                        <td class='narrow'>{{"%0.4f"|format(
+                            glycopeptide.chromatogram.weighted_neutral_mass)}}
+                        </td>
+                    {% else %}
+                        <td class='narrow'>{{"%0.4f"|format(
+                            glycopeptide.tandem_solutions[0].scan.precursor_information.neutral_mass)}}
+                        </td>
+                    {% endif %}
+                    <td>
+                        {{glycopeptide.structure | glycopeptide_string}}
+                    </td>
+                    <td>{{"%0.3f"|format(glycopeptide.ms2_score)}}</td>
+                    <td>{{"%0.3f"|format(glycopeptide.q_value) if glycopeptide.q_value != 0.0 else 0.0}}</td>
+                    <td>{{"%0.3f"|format(glycopeptide.ms1_score)}}</td>
+                    <td>{{"%0.3e"|format(glycopeptide.total_signal)}}</td>
+                    <td data-start="{{glycopeptide.start_position}}" data-end="{{glycopeptide.end_position}}">
+                        {{glycopeptide.start_position}} - {{glycopeptide.end_position}}
+                    </td>
+                    <td>{{glycopeptide.spectrum_matches|length}}</td>
+                    {% if glycopeptide.chromatogram %}
+                        <td>{{"%0.2f"|format(glycopeptide.chromatogram.start_time)}}</td>
+                        <td>{{"%0.2f"|format(glycopeptide.chromatogram.apex_time)}}</td>
+                        <td>{{"%0.2f"|format(glycopeptide.chromatogram.end_time)}}</td>
+                    {% else %}
+                        <td>-</td>
+                        <td>-</td>
+                        <td>-</td>
+                    {% endif %}
+                </tr>
+            {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</sections>

@@ -1,0 +1,27 @@
+<h3>{{glycoprotein.name}}</h3>
+<div class='flex-container'>
+    <div class='glycoprotein-sequence fasta-entry flex-item'>
+        <b class='fasta-header'>>{{glycoprotein.name}}</b><br>
+        <code>
+            {{glycoprotein.protein_sequence |
+              highlight_sequence_site(glycoprotein.glycosylation_sites, "glycosylation-site") |
+              n_per_row(80)}}        
+        </code>
+    </div>
+    <div class='flex-item glycosylation-site-list'>
+        <table>
+            <tr>
+                <th>Site</th>
+                <th>Type</th>
+                <th>Count</th>
+            </tr>
+            {% for site, mapped in glycoprotein.site_map.items() %}
+                <tr>
+                    <td>{{site}}</td>
+                    <td>N-linked</td>
+                    <td>{{mapped|length}}</td>
+                </tr>
+            {% endfor %}
+        </table>
+    </div>
+</div>

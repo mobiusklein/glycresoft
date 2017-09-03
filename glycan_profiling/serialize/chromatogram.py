@@ -566,9 +566,15 @@ class Chromatogram(Base, BoundToAnalysis):
 ChromatogramInterface.register(Chromatogram)
 
 
+class MissingChromatogramError(ValueError):
+    pass
+
+
 class ChromatogramWrapper(object):
 
     def _get_chromatogram(self):
+        if self.chromatogram is None:
+            raise MissingChromatogramError()
         return self.chromatogram
 
     @property
