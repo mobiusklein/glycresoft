@@ -60,7 +60,7 @@ class SpectrumMatchAnnotator(object):
             self.label_peak(fragment, peak, fontsize=fontsize, **kwargs)
 
     def draw(self, **kwargs):
-        fontsize = kwargs.pop('fontsize', 12)
+        fontsize = kwargs.pop('fontsize', 9)
         rotation = kwargs.pop("rotation", 90)
         ion_series_to_color = kwargs.pop("ion_series_to_color", default_ion_series_to_color)
         self.draw_all_peaks(**kwargs)
