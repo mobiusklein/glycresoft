@@ -1,10 +1,7 @@
 import os
 from uuid import uuid4
 
-try:
-    import cPickle as pickle
-except ImportError:
-    import pickle
+import dill as pickle
 
 import click
 from .base import (
@@ -88,6 +85,9 @@ def hypothesis_identifier(hypothesis_type):
               help=('Minimum HexNAc-derived oxonium ion abundance '
                     'ratio to filter MS/MS scans. Defaults to 0.05.'))
 @processes_option
+@click.option("--export", type=click.Choice(
+              ['csv', 'html']), multiple=True,
+              help="export command to after search is complete")
 @click.option("-o", "--output-path", default=None, type=click.Path(writable=True), help=(
               "Path to write resulting analysis to."))
 @click.option("-w", "--workload-size", default=1000, type=int, help="Number of spectra to process at once")
@@ -98,7 +98,7 @@ def search_glycopeptide(context, database_connection, sample_path, hypothesis_id
                         msn_mass_error_tolerance=2e-5, psm_fdr_threshold=0.05, peak_shape_scoring_model=None,
                         tandem_scoring_model=None, oxonium_threshold=0.15,
                         save_intermediate_results=None, processes=4,
-                        workload_size=1000):
+                        workload_size=1000, export=None):
     """Identify glycopeptide sequences from processed LC-MS/MS data
     """
     if output_path is None:
@@ -152,6 +152,28 @@ def search_glycopeptide(context, database_connection, sample_path, hypothesis_id
         analyzer.log("Saving Intermediate Results")
         with open(save_intermediate_results, 'wb') as handle:
             pickle.dump((target_hits, decoy_hits, gps), handle)
+    if export:
+        for export_type in set(export):
+            click.echo(fmt_msg("Handling Export: %s" % (export_type,)))
+            if export_type == 'csv':
+                from glycan_profiling.cli.export import glycopeptide_identification
+                base = os.path.splitext(output_path)[0]
+                export_path = "%s-glycopeptides.csv" % (base,)
+                context.invoke(
+                    glycopeptide_identification,
+                    database_connection=output_path,
+                    analysis_identifier=analyzer.analysis.id,
+                    output_path=export_path)
+            elif export_type == 'html':
+                from glycan_profiling.cli.export import glycopeptide_identification
+                base = os.path.splitext(output_path)[0]
+                export_path = "%s-report.html" % (base,)
+                context.invoke(
+                    glycopeptide_identification,
+                    database_connection=output_path,
+                    analysis_identifier=analyzer.analysis.id,
+                    output_path=export_path,
+                    report=True)
 
 
 class RegularizationParameterType(click.ParamType):
