@@ -17,6 +17,12 @@ class SymbolicExpressionTest(unittest.TestCase):
 
         self.assertEqual(base, normd_composition)
 
+    def test_complex_expression(self):
+        ex = symbolic_expression.parse_expression("X + 1 + abs(-2Z) * 5")
+        ctx = ctx = symbolic_expression.SymbolContext({"X": 5, "Z": 3})
+        expected = 36
+        self.assertEqual(ex.evaluate(ctx), expected)
+
 
 if __name__ == '__main__':
     unittest.main()

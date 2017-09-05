@@ -77,6 +77,9 @@ class ExpressionBase(object):
     def __or__(self, other):
         return self._as_compound(Operator.get("or"), other)
 
+    def __call__(self, other):
+        return self._as_compound(Operator.get("call"), other)
+
     def get_symbols(self):
         return []
 
@@ -180,7 +183,7 @@ class SymbolNode(ExpressionBase):
     def parse(cls, string):
         coef = []
         i = 0
-        while i < len(string) and string[i].isdigit():
+        while i < len(string) and (string[i].isdigit() or string[i] in '-+'):
             coef.append(string[i])
             i += 1
         coef_val = int(''.join(coef) or 1)
@@ -311,27 +314,44 @@ def parse_expression(string):
     current_symbol = ''
     expression_stack = []
     resolver_stack = []
+    current_function = ''
+    function_stack = []
 
     while i < size:
         c = string[i]
         if c == " ":
             if current_symbol != "":
-                expression_stack.append(current_symbol)
+                if current_symbol.endswith(","):
+                    expression_stack.append(current_symbol[:-1])
+                    expression_stack.append(",")
+                else:
+                    expression_stack.append(current_symbol)
             current_symbol = ""
         elif c == "(":
             paren_level += 1
             if current_symbol != "":
-                expression_stack.append(current_symbol)
+                if current_function != '':
+                    function_stack.append(current_function)
+                current_function = current_symbol
             current_symbol = ""
             resolver_stack.append(expression_stack)
             expression_stack = []
         elif c == ")":
             paren_level -= 1
             if current_symbol != "":
+                if current_symbol.endswith(","):
+                    current_symbol = current_symbol[:-1]
                 expression_stack.append(current_symbol)
             current_symbol = ""
             term = collapse_expression_sequence(expression_stack)
             expression_stack = resolver_stack.pop()
+            if current_function != "":
+                fn = SymbolNode(current_function)
+                term = FunctionCallNode(fn, Operator.get("call"), term)
+                if function_stack:
+                    current_function = function_stack.pop()
+                else:
+                    current_function = ''
             expression_stack.append(term)
         else:
             current_symbol += c
@@ -343,6 +363,31 @@ def parse_expression(string):
     if len(resolver_stack) > 0:
         raise SyntaxError("Unpaired parenthesis")
     return collapse_expression_sequence(expression_stack)
+
+
+def collapse_expression_sequence(expression_sequence):
+    stack = []
+    i = 0
+    size = len(expression_sequence)
+    if size == 1:
+        return typify(expression_sequence[0])
+
+    while i < size:
+        next_term = expression_sequence[i]
+        stack.append(next_term)
+        if len(stack) == 3:
+            node = ExpressionNode(*stack)
+            if hasattr(node.left, 'op'):
+                if node.left.op.precedence < node.op.precedence:
+                    node = ExpressionNode(
+                        left=node.left.left, op=node.left.op, right=ExpressionNode(
+                            left=node.left.right, op=node.op, right=node.right))
+            stack = [node]
+        i += 1
+    if len(stack) != 1:
+        raise SyntaxError("Incomplete Expression: %s" %
+                          ' '.join(expression_sequence))
+    return stack[0]
 
 
 class ExpressionNode(ExpressionBase):
@@ -409,29 +454,9 @@ class ExpressionNode(ExpressionBase):
         return self.left.get_symbols() + self.right.get_symbols()
 
 
-def collapse_expression_sequence(expression_sequence):
-    stack = []
-    i = 0
-    size = len(expression_sequence)
-    if size == 1:
-        return typify(expression_sequence[0])
-
-    while i < size:
-        next_term = expression_sequence[i]
-        stack.append(next_term)
-        if len(stack) == 3:
-            node = ExpressionNode(*stack)
-            if hasattr(node.left, 'op'):
-                if node.left.op.precedence < node.op.precedence:
-                    node = ExpressionNode(
-                        left=node.left.left, op=node.left.op, right=ExpressionNode(
-                            left=node.left.right, op=node.op, right=node.right))
-            stack = [node]
-        i += 1
-    if len(stack) != 1:
-        raise SyntaxError("Incomplete Expression: %s" %
-                          ' '.join(expression_sequence))
-    return stack[0]
+class FunctionCallNode(ExpressionNode):
+    def __repr__(self):
+        return "{}({})".format(re.sub(r"\)|\(", '', str(self.left)), self.right)
 
 
 class SymbolSpace(object):
@@ -553,7 +578,7 @@ class SymbolContext(SymbolSpace):
                 return 1
             else:
                 try:
-                    return self.context[node]
+                    return self.context[node] * node.coefficient
                 except KeyError:
                     return 0
         elif isinstance(node, ValueNode):
@@ -871,8 +896,43 @@ class Append(Operator):
             lval = (lval,)
         if not isinstance(rval, tuple):
             rval = (rval,)
+        return lval + rval
 
-        return context[left] + context[right]
+
+@register_operator
+class Call(Operator):
+    symbol = "call"
+
+    def __call__(self, left, right, context):
+        try:
+            fn = function_table[left]
+            return fn(right, context)
+        except KeyError:
+            raise UnknownFunctionError(left)
+
+
+class UnknownFunctionError(KeyError):
+    pass
+
+
+def symbolic_sum(terms, context):
+    value = 0
+    try:
+        for term in context[terms]:
+            value += context[term]
+        return value
+    except TypeError:
+        return context[terms]
+
+
+def symbolic_abs(terms, context):
+    return abs(context[terms])
+
+
+function_table = {
+    "sum": symbolic_sum,
+    "abs": symbolic_abs
+}
 
 
 class OrCompoundConstraint(ConstraintExpression):
