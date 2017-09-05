@@ -436,6 +436,7 @@ class MzMLGlycanChromatogramAnalyzer(GlycanChromatogramAnalyzer):
         exporter.run()
         exporter.set_parameters(param_dict)
         self.analysis = exporter.analysis
+        self.analysis_id = exporter.analysis.id
 
 
 class GlycopeptideLCMSMSAnalyzer(TaskBase):
@@ -683,3 +684,4 @@ class MzMLGlycopeptideLCMSMSAnalyzer(GlycopeptideLCMSMSAnalyzer):
         })
 
         self.analysis = exporter.analysis
+        self.analysis_id = exporter.analysis.id
