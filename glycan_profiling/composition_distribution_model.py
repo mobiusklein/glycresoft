@@ -1171,7 +1171,8 @@ class ThresholdSelectionGridSearch(object):
         lmbda_acc /= n
         A /= n
         # A = ProportionMatrixNormalization.normalize(A, self.model._belongingness_normalization)
-        return GridPointSolution(thresh_acc, lmbda_acc, tau_acc, A, self.model.neighborhood_names, self.model.node_names)
+        return GridPointSolution(thresh_acc, lmbda_acc, tau_acc, A,
+                                 self.model.neighborhood_names, self.model.node_names)
 
     def estimate_phi_observed(self, solution=None, remove_threshold=True, rho=DEFAULT_RHO):
         if solution is None:

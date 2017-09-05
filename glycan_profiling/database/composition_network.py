@@ -991,6 +991,12 @@ class NeighborhoodCollection(object):
 
 
 def make_n_glycan_neighborhoods():
+    """Create broad N-glycan neighborhoods
+
+    Returns
+    -------
+    NeighborhoodCollection
+    """
     neighborhoods = NeighborhoodCollection()
 
     _neuraminic = "(%s)" % ' + '.join(map(str, (
@@ -1043,6 +1049,22 @@ def make_n_glycan_neighborhoods():
             neighborhoods.add(sialo)
             neighborhoods.add(asialo)
     return neighborhoods
+
+
+def make_adjacency_neighborhoods(network):
+    space = CompositionSpace([node.composition for node in network])
+
+    rules = []
+    for node in network:
+        terms = []
+        for monosaccharide in space.monosaccharides:
+            terms.append(("abs({} - {})".format(
+                monosaccharide, node.composition[monosaccharide])))
+        expr = '(%s) < 2' % (' + '.join(terms),)
+        expr_rule = CompositionExpressionRule(expr)
+        rule = CompositionRuleClassifier(str(node.composition), [expr_rule])
+        rules.append(rule)
+    return rules
 
 
 _n_glycan_neighborhoods = make_n_glycan_neighborhoods()
