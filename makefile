@@ -24,3 +24,13 @@ install-dependencies:
 	pip install -r external-requirements.txt
 	python pyinstaller/install-from-git.py
 	python setup.py install
+
+
+update-docs:
+	git checkout gh-pages
+	git pull origin master
+	cd docs && make clean html
+	git add docs/_build/html
+	git commit -m "update docs"
+	git push origin gh-pages
+	git checkout master
