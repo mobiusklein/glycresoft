@@ -3,8 +3,9 @@ from collections import defaultdict, namedtuple, OrderedDict
 from glycan_profiling.chromatogram_tree.chromatogram import GlycopeptideChromatogram
 from glycan_profiling.task import TaskBase
 
-from glycan_profiling.database.structure_loader import (
-    CachingGlycopeptideParser, DecoyMakingCachingGlycopeptideParser)
+from glycan_profiling.structure import (
+    CachingGlycopeptideParser,
+    DecoyMakingCachingGlycopeptideParser)
 
 from .scoring import TargetDecoyAnalyzer
 

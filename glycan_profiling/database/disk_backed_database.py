@@ -16,8 +16,8 @@ from glycan_profiling.serialize import (
 from sqlalchemy import select, join
 
 from .mass_collection import SearchableMassCollection, NeutralMassDatabase
-from .lru import LRUCache
-from .structure_loader import CachingGlycanCompositionParser
+from glycan_profiling.structure.lru import LRUCache
+from glycan_profiling.structure.structure_loader import CachingGlycanCompositionParser
 from .composition_network import CompositionGraph, n_glycan_distance
 
 
