@@ -11,8 +11,6 @@ from glycan_profiling.database.composition_network import (
     CompositionRatioRule,
     normalize_composition)
 
-from glycan_profiling import symbolic_expression
-
 
 def _degree_monosaccharide_alteration(x):
     try:
