@@ -8,7 +8,7 @@ from sqlalchemy.orm import relationship, object_session
 from sqlalchemy.ext.declarative import declared_attr
 from sqlalchemy.ext.mutable import MutableDict
 
-from ms_deisotope.output.db import (
+from glycan_profiling.serialize.base import (
     Base, HasUniqueName)
 
 

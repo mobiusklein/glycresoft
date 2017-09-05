@@ -1,12 +1,11 @@
 from sqlalchemy import exc, func
 from sqlalchemy.orm.session import object_session
 
-from ms_deisotope.output.db import (
+from glycan_profiling.serialize.base import (
     Base,
     SampleRun,
     MSScan,
     PrecursorInformation,
-    FittedPeak,
     DeconvolutedPeak)
 
 from glycan_profiling.serialize.analysis import (
@@ -48,8 +47,8 @@ from glycan_profiling.serialize.serializer import (
 
 from glycan_profiling.serialize.hypothesis import *
 
-from glycan_profiling.serialize import config
-
 from glycan_profiling.serialize.migration import (
     GlycanCompositionChromatogramAnalysisSerializer,
     GlycopeptideMSMSAnalysisSerializer)
+
+from glycan_profiling.serialize import config

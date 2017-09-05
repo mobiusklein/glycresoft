@@ -2,9 +2,11 @@ from collections import defaultdict
 from uuid import uuid4
 
 from ms_deisotope.output.db import (
-    MSScan,
-    DatabaseScanDeserializer,
-    DatabaseBoundOperation)
+    DatabaseScanDeserializer)
+
+
+from .base import MSScan, DatabaseBoundOperation
+
 
 from glycan_profiling.task import TaskBase
 
@@ -15,8 +17,7 @@ from .chromatogram import (
     CompositionGroupSerializer,
     ChromatogramSolution,
     GlycanCompositionChromatogram,
-    UnidentifiedChromatogram,
-    ChromatogramSolutionAdductedToChromatogramSolution)
+    UnidentifiedChromatogram)
 
 from .hypothesis import (
     GlycanComposition,

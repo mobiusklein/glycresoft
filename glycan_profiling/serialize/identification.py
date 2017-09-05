@@ -21,7 +21,7 @@ from glycan_profiling.tandem.glycopeptide.identified_structure import (
 from glycan_profiling.tandem.chromatogram_mapping import TandemAnnotatedChromatogram
 from glycan_profiling.chromatogram_tree import GlycopeptideChromatogram
 
-from ms_deisotope.output.db import (
+from .base import (
     Base)
 
 

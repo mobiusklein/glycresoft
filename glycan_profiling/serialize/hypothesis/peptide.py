@@ -9,7 +9,7 @@ from sqlalchemy import (
     Boolean, Table, Text, Index)
 from sqlalchemy.ext.mutable import MutableDict
 
-from ms_deisotope.output.db import (
+from glycan_profiling.serialize.base import (
     Base, MutableList)
 
 
@@ -17,7 +17,7 @@ from .hypothesis import GlycopeptideHypothesis
 from .glycan import GlycanCombination
 
 from glycopeptidepy.structure import sequence, residue, PeptideSequenceBase
-from glycan_profiling.database.structure_loader import PeptideProteinRelation, FragmentCachingGlycopeptide
+from glycan_profiling.structure.structure_loader import PeptideProteinRelation, FragmentCachingGlycopeptide
 
 
 class PeptideSequenceWrapperBase(PeptideSequenceBase):

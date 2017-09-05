@@ -13,7 +13,7 @@ from glycan_profiling.tandem.spectrum_matcher_base import (
 from .analysis import BoundToAnalysis
 from .hypothesis import Glycopeptide, GlycanComposition
 
-from ms_deisotope.output.db import (
+from .base import (
     Base, MSScan)
 
 

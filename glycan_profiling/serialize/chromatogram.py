@@ -29,7 +29,7 @@ from glycan_profiling.models import GeneralScorer
 from .analysis import BoundToAnalysis
 from .hypothesis import GlycanComposition
 
-from ms_deisotope.output.db import (
+from .base import (
     Base, DeconvolutedPeak, MSScan, Mass, make_memory_deconvoluted_peak)
 
 from glypy.composition.base import formula

@@ -5,7 +5,7 @@ from sqlalchemy import (
     Column, Numeric, Integer, String, ForeignKey,
     Table, Index)
 
-from ms_deisotope.output.db import (Base)
+from glycan_profiling.serialize.base import (Base)
 
 
 from glypy import Composition

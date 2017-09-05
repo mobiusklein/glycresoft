@@ -10,7 +10,7 @@ from sqlalchemy.ext.mutable import MutableDict
 
 import dill
 
-from ms_deisotope.output.db import (
+from .base import (
     Base, HasUniqueName, SampleRun)
 
 from glypy.utils import Enum
