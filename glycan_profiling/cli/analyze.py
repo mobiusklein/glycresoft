@@ -162,7 +162,7 @@ def search_glycopeptide(context, database_connection, sample_path, hypothesis_id
                 context.invoke(
                     glycopeptide_identification,
                     database_connection=output_path,
-                    analysis_identifier=analyzer.analysis.id,
+                    analysis_identifier=analyzer.analysis_id,
                     output_path=export_path)
             elif export_type == 'html':
                 from glycan_profiling.cli.export import glycopeptide_identification
@@ -171,7 +171,7 @@ def search_glycopeptide(context, database_connection, sample_path, hypothesis_id
                 context.invoke(
                     glycopeptide_identification,
                     database_connection=output_path,
-                    analysis_identifier=analyzer.analysis.id,
+                    analysis_identifier=analyzer.analysis_id,
                     output_path=export_path,
                     report=True)
 
@@ -315,7 +315,7 @@ def search_glycan(context, database_connection, sample_path,
                 context.invoke(
                     glycan_composition_identification,
                     database_connection=output_path,
-                    analysis_identifier=analyzer.analysis.id,
+                    analysis_identifier=analyzer.analysis_id,
                     output_path=export_path)
             elif export_type == 'html':
                 from glycan_profiling.cli.export import glycan_composition_identification
@@ -324,7 +324,7 @@ def search_glycan(context, database_connection, sample_path,
                 context.invoke(
                     glycan_composition_identification,
                     database_connection=output_path,
-                    analysis_identifier=analyzer.analysis.id,
+                    analysis_identifier=analyzer.analysis_id,
                     output_path=export_path,
                     report=True)
             elif export_type == 'glycan-list':
@@ -334,7 +334,7 @@ def search_glycan(context, database_connection, sample_path,
                 context.invoke(
                     glycan_hypothesis,
                     database_connection=output_path,
-                    hypothesis_identifier=analyzer.analysis.hypothesis_id,
+                    hypothesis_identifier=analyzer.hypothesis_id,
                     output_path=export_path,
                     importable=True)
             elif export_type == "model":
