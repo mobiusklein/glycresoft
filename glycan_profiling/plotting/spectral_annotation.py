@@ -59,6 +59,16 @@ class SpectrumMatchAnnotator(object):
             draw_peaklist([peak], alpha=alpha, ax=self.ax, color=peak_color)
             self.label_peak(fragment, peak, fontsize=fontsize, **kwargs)
 
+    def draw_peak_pair(self, pair, color='red', alpha=0.8, fontsize=12, label=None, **kwargs):
+        p1, p2 = pair
+        self.ax.plot((p1.mz, p2.mz), (p1.intensity, p2.intensity),
+                     color=color, alpha=alpha, **kwargs)
+        if label:
+            midx = (p1.mz + p2.mz) / 2
+            # interpolate the midpoint's height
+            midy = (p1.intensity * (p2.mz - midx) + p2.intensity * (midx - p1.mz)) / (p2.mz - p1.mz)
+            self.ax.text(midx, midy, label, fontsize=fontsize, ha='center', va='bottom')
+
     def draw(self, **kwargs):
         fontsize = kwargs.pop('fontsize', 9)
         rotation = kwargs.pop("rotation", 90)
