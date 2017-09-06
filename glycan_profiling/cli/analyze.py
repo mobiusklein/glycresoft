@@ -31,7 +31,8 @@ from .validators import (
     get_by_name_or_id,
     validate_ms1_feature_name,
     ms1_model_features,
-    RelativeMassErrorParam)
+    RelativeMassErrorParam,
+    DatabaseConnectionParam)
 
 
 def make_analysis_output_path(prefix):
@@ -51,8 +52,11 @@ def analyze():
 
 
 def database_connection(fn):
-    arg = click.argument("database-connection", doc_help=(
-        "A connection URI for a database, or a path on the file system"))
+    arg = click.argument(
+        "database-connection",
+        type=DatabaseConnectionParam(exists=True),
+        doc_help=(
+            "A connection URI for a database, or a path on the file system"))
     return arg(fn)
 
 
@@ -64,10 +68,19 @@ def hypothesis_identifier(hypothesis_type):
     return wrapper
 
 
+def sample_path(fn):
+    arg = click.argument(
+        "sample-path",
+        type=click.Path(exists=True, dir_okay=False, file_okay=True),
+        doc_help=(
+            "The path to the deconvoluted sample file"))
+    return arg(fn)
+
+
 @analyze.command("search-glycopeptide", short_help='Search preprocessed data for glycopeptide sequences')
 @click.pass_context
 @database_connection
-@click.argument("sample-path")
+@sample_path
 @hypothesis_identifier("glycopeptide")
 @click.option("-m", "--mass-error-tolerance", type=RelativeMassErrorParam(), default=1e-5,
               help="Mass accuracy constraint, in parts-per-million error, for matching MS^1 ions.")
@@ -199,7 +212,7 @@ class RegularizationParameterType(click.ParamType):
                                               ' glycan compositions'))
 @click.pass_context
 @database_connection
-@click.argument("sample-path")
+@sample_path
 @hypothesis_identifier("glycan")
 @click.option("-m", "--mass-error-tolerance", type=RelativeMassErrorParam(), default=1e-5,
               help=("Mass accuracy constraint, in parts-per-million "

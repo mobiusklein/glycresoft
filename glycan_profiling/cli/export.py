@@ -3,7 +3,7 @@ import sys
 import click
 
 from glycan_profiling.cli.base import cli
-from glycan_profiling.cli.validators import get_by_name_or_id
+from glycan_profiling.cli.validators import get_by_name_or_id, DatabaseConnectionParam
 
 from glycan_profiling.serialize import (
     DatabaseBoundOperation, GlycanHypothesis, GlycopeptideHypothesis,
@@ -51,8 +51,11 @@ class ctxstream(object):
 
 
 def database_connection(fn):
-    arg = click.argument("database-connection", doc_help=(
-        "A connection URI for a database, or a path on the file system"))
+    arg = click.argument(
+        "database-connection",
+        type=DatabaseConnectionParam(exists=True),
+        doc_help=(
+            "A connection URI for a database, or a path on the file system"))
     return arg(fn)
 
 
