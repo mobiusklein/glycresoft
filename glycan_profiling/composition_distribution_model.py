@@ -171,6 +171,23 @@ def weighted_laplacian_matrix(network):
     return weighted_degree_matrix(network) - weighted_adjacency_matrix(network)
 
 
+class GlycanCompositionSolutionRecord(object):
+    def __init__(self, glycan_composition, score, total_signal):
+        self.glycan_composition = glycan_composition
+        self.score = score
+        self.internal_score = self.score
+        self.total_signal = total_signal
+
+    @classmethod
+    def from_glycan_composition_chromatogram(cls, solution):
+        return cls(solution.glycan_composition, solution.score,
+                   solution.total_signal)
+
+    def __repr__(self):
+        return ("{self.__class__.__name__}({self.glycan_composition}, "
+                "{self.score}, {self.total_signal})").format(self=self)
+
+
 class BlockLaplacian(object):
     def __init__(self, network, threshold=0.0001, regularize=1.0):
         structure_matrix = weighted_laplacian_matrix(network)
@@ -1245,6 +1262,9 @@ class ThresholdSelectionGridSearch(object):
 def smooth_network(network, observed_compositions, threshold_step=0.5, apex_threshold=0.9,
                    belongingness_matrix=None, rho=DEFAULT_RHO, lambda_max=1,
                    include_missing=False, lmbda=None, model_state=None):
+    convert = GlycanCompositionSolutionRecord.from_glycan_composition_chromatogram
+    observed_compositions = [
+        convert(o) for o in observed_compositions if _has_glycan_composition(o)]
     model = GlycomeModel(
         observed_compositions, network,
         belongingness_matrix=belongingness_matrix)
