@@ -4,6 +4,15 @@ import numpy as np
 from glycopeptidepy.structure import sequence_composition
 
 
+class MassWrapper(object):
+    def __init__(self, obj, mass):
+        self.obj = obj
+        self.mass = mass
+
+    def __repr__(self):
+        return "MassWrapper(%s, %f)" % (self.obj, self.mass)
+
+
 class PeakNode(object):
     def __init__(self, peak):
         self.peak = peak
@@ -12,6 +21,10 @@ class PeakNode(object):
         self.index = peak.index.neutral_mass
         self.mass = self.peak.neutral_mass
         self.charge = self.peak.charge
+
+    @property
+    def intensity(self):
+        return self.peak.intensity
 
     def __hash__(self):
         return self._hash
@@ -134,7 +147,6 @@ class PeakGraph(object):
 
     def __getitem__(self, i):
         node = self.nodes[i]
-        assert node.index == i
         return node
 
     def __len__(self):
