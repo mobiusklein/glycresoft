@@ -85,7 +85,9 @@ class GlycanChromatogramReportCreator(ReportCreatorBase):
             analysis_id=self.analysis_id)
 
         gcs = ads.load_glycan_composition_chromatograms()
-        und = ads.load_unidentified_chromatograms()
+        # und = ads.load_unidentified_chromatograms()
+        und = ads.query(serialize.UnidentifiedChromatogram).filter(
+            serialize.UnidentifiedChromatogram.analysis_id == self.analysis_id).all()
 
         if len(gcs) == 0:
             self.log("No glycan compositions were identified. Skipping report building")
