@@ -39,7 +39,7 @@ get_configuration()
 
 
 __all__ = [
-    "_startup", "ScanGenerator", "ScanGeneratorBase",
+    "ScanGenerator", "ScanGeneratorBase",
     "MassShift", "CompoundMassShift", "Chromatogram",
     "ChromatogramTreeNode", "ChromatogramTreeList",
     "ChromatogramInterface", "ChromatogramFilter",
