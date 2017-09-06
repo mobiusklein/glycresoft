@@ -211,13 +211,15 @@ class GlycanChromatogramAnalyzer(TaskBase):
                  mass_error_tolerance=1e-5, grouping_error_tolerance=1.5e-5,
                  scoring_model=GeneralScorer, minimum_mass=500., regularize=None,
                  regularization_model=None, analysis_name=None, delta_rt=0.5,
-                 require_msms_signature=0, n_processes=4):
+                 require_msms_signature=0, msn_mass_error_tolerance=2e-5,
+                 n_processes=4):
         self.database_connection = database_connection
         self.hypothesis_id = hypothesis_id
         self.sample_run_id = sample_run_id
 
         self.mass_error_tolerance = mass_error_tolerance
         self.grouping_error_tolerance = grouping_error_tolerance
+        self.msn_mass_error_tolerance = msn_mass_error_tolerance
 
         self.scoring_model = scoring_model
         self.regularize = regularize
@@ -251,6 +253,7 @@ class GlycanChromatogramAnalyzer(TaskBase):
             "adducts": [adduct.name for adduct in self.adducts],
             "minimum_mass": self.minimum_mass,
             "require_msms_signature": self.require_msms_signature,
+            "msn_mass_error_tolerance": self.msn_mass_error_tolerance
         }
 
         evaluator.update_parameters(param_dict)
@@ -324,7 +327,7 @@ class GlycanChromatogramAnalyzer(TaskBase):
         mapped_matches = mapper.map_to_chromatograms(self.mass_error_tolerance)
         self.log("Evaluating MS/MS")
         annotate_matches = mapper.score_mapped_tandem(
-            mapped_matches, error_tolerance=self.mass_error_tolerance, include_compound=True)
+            mapped_matches, error_tolerance=self.msn_mass_error_tolerance, include_compound=True)
         return annotate_matches
 
     def process_chromatograms(self, processor, peak_loader, database):
@@ -384,12 +387,14 @@ class MzMLGlycanChromatogramAnalyzer(GlycanChromatogramAnalyzer):
                  adducts=None, mass_error_tolerance=1e-5, grouping_error_tolerance=1.5e-5,
                  scoring_model=None, minimum_mass=500., regularize=None,
                  regularization_model=None, analysis_name=None, delta_rt=0.5,
-                 require_msms_signature=0, n_processes=4):
+                 require_msms_signature=0, msn_mass_error_tolerance=2e-5,
+                 n_processes=4):
         super(MzMLGlycanChromatogramAnalyzer, self).__init__(
             database_connection, hypothesis_id, -1, adducts,
             mass_error_tolerance, grouping_error_tolerance,
             scoring_model, minimum_mass, regularize, regularization_model,
-            analysis_name, delta_rt, require_msms_signature, n_processes)
+            analysis_name, delta_rt, require_msms_signature, msn_mass_error_tolerance,
+            n_processes)
         self.sample_path = sample_path
         self.output_path = output_path
 
@@ -429,6 +434,8 @@ class MzMLGlycanChromatogramAnalyzer(GlycanChromatogramAnalyzer):
             "grouping_error_tolerance": self.grouping_error_tolerance,
             "adducts": [adduct.name for adduct in self.adducts],
             "minimum_mass": self.minimum_mass,
+            "require_msms_signature": self.require_msms_signature,
+            "msn_mass_error_tolerance": self.msn_mass_error_tolerance
         }
 
         evaluator.update_parameters(param_dict)
