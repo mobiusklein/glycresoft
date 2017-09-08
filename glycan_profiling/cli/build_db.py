@@ -439,7 +439,7 @@ def from_analysis(context, database_connection, analysis_identifier, reduction, 
     'Construct a glycan hypothesis from a list of pre-made recipes'))
 @click.pass_context
 @database_connection
-@click.option("-r", "--recipe-name", type=click.Choice(prebuilt_hypothesis_register.keys()), required=True)
+@click.option("-p", "--recipe-name", type=click.Choice(prebuilt_hypothesis_register.keys()), required=True)
 @click.option("-n", "--name", default=None, help="The name for the hypothesis to be created")
 @click.option("-r", "--reduction", default=None, help='Reducing end modification')
 @click.option("-d", "--derivatization", default=None, help='Chemical derivatization to apply')
