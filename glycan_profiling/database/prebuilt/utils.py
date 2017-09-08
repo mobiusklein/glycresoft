@@ -8,7 +8,9 @@ class BuildBase(object):
     def get_hypothesis_metadata(self):
         raise NotImplementedError()
 
-    hypothesis_metadata = property(get_hypothesis_metadata)
+    @property
+    def hypothesis_metadata(self):
+        return self.get_hypothesis_metadata()
 
     def build(self, database_connection, **kwargs):
         raise NotImplementedError()
