@@ -1,3 +1,4 @@
+import os
 import sys
 
 import click
@@ -230,6 +231,13 @@ def glycopeptide_identification(database_connection, analysis_identifier, output
         output_stream = open(output_path, 'wb')
     if report:
         with output_stream:
+            if mzml_path is None:
+                mzml_path = analysis.parameters['sample_path']
+                if not os.path.exists(mzml_path):
+                    raise click.ClickException(
+                        ("Sample path {} not found. Pass the path to"
+                         " this file as `-m/--mzml-path` for this command.").format(
+                            mzml_path))
             GlycopeptideDatabaseSearchReportCreator(
                 database_connection._original_connection, analysis_id,
                 stream=output_stream, threshold=threshold,
