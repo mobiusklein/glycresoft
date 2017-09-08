@@ -1,4 +1,4 @@
-from collections import namedtuple, OrderedDict
+from collections import OrderedDict
 from operator import mul
 try:
     reduce
@@ -13,9 +13,7 @@ from .charge_state import UniformChargeStateScoringModel
 from .isotopic_fit import IsotopicPatternConsistencyFitter
 from .base import symbolic_composition
 
-from glycan_profiling import symbolic_expression
 from glycan_profiling.chromatogram_tree import ChromatogramInterface
-from glycopeptidepy import HashableGlycanComposition
 
 
 epsilon = 1e-6
@@ -88,6 +86,9 @@ class ChromatogramScoreSet(object):
     def __getitem__(self, key):
         return self.scores[key]
 
+    def __setitem__(self, key, value):
+        self.scores[key] = value
+
     def __getattr__(self, key):
         if key == "scores":
             raise AttributeError(key)
@@ -96,8 +97,35 @@ class ChromatogramScoreSet(object):
         except KeyError:
             raise AttributeError(key)
 
+    def keys(self):
+        return self.scores.keys()
+
+    def values(self):
+        return self.scores.values()
+
     def items(self):
         return self.scores.items()
+
+    def __mul__(self, i):
+        new = self.__class__(self.scores)
+        for feature in self.keys():
+            new[feature] *= i
+        return new
+
+    def __div__(self, i):
+        new = self.__class__(self.scores)
+        for feature in self.keys():
+            new[feature] /= i
+        return new
+
+    def __add__(self, other):
+        new = self.__class__(self.scores)
+        for key, value in other.items():
+            try:
+                new[key] += value
+            except KeyError:
+                new[key] = value
+        return new
 
     def product(self):
         return prod(*self)
@@ -183,11 +211,13 @@ class ModelAveragingScorer(ScorerBase):
         self.weights = a
 
     def compute_scores(self, chromatogram):
-        score_set = []
+        score_set = ChromatogramScoreSet({})
+        weights = 0
         for model, weight in zip(self.models, self.weights):
             score = model.compute_scores(chromatogram)
-            score_set.append(np.array(score) * weight)
-        return scores(*sum(score_set, np.zeros_like(score_set[0])))
+            score_set += (score * weight)
+            weights += weight
+        return score_set / weights
 
     def clone(self):
         return self.__class__(list(self.models), list(self.weights))
@@ -226,7 +256,7 @@ class CompositionDispatchScorer(ScorerBase):
     def accept(self, solution):
         composition = self.get_composition(solution)
         model = self.find_model(composition)
-        return model.accept(solution)        
+        return model.accept(solution)
 
 
 class ChromatogramSolution(object):
@@ -236,6 +266,8 @@ class ChromatogramSolution(object):
                  score_set=None):
         if internal_score is None:
             internal_score = score
+        if isinstance(chromatogram, ChromatogramSolution):
+            chromatogram = chromatogram.get_chromatogram()
         self.chromatogram = chromatogram
         self.scorer = scorer
         self.internal_score = internal_score

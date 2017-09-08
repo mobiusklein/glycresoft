@@ -301,12 +301,14 @@ class GlycanChromatogramAnalyzer(TaskBase):
                 extractor, database, mass_error_tolerance=self.mass_error_tolerance,
                 adducts=self.adducts, scoring_model=self.scoring_model,
                 delta_rt=self.delta_rt, smoothing_factor=self.regularize,
-                regularization_model=self.regularization_model)
+                regularization_model=self.regularization_model,
+                peak_loader=extractor.peak_loader)
         else:
             proc = LogitSumChromatogramProcessor(
                 extractor, database, mass_error_tolerance=self.mass_error_tolerance,
                 adducts=self.adducts, scoring_model=self.scoring_model,
-                delta_rt=self.delta_rt)
+                delta_rt=self.delta_rt,
+                peak_loader=extractor.peak_loader)
         return proc
 
     def make_mapper(self, chromatograms, peak_loader, msms_scans=None, default_glycan_composition=None,

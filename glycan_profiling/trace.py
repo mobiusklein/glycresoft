@@ -133,7 +133,8 @@ def prune_bad_adduct_branches(solutions, score_margin=0.05, ratio_threshold=1.5)
             case.chromatogram.used_as_adduct = keepers
     out = [s.chromatogram for k in (set(key_map) - updated) for s in key_map[k]]
     out.extend(s for k in updated for s in key_map[k])
-    return ChromatogramFilter(out)
+    out = ChromatogramFilter(out)
+    return out
 
 
 class CompositionGroup(object):
@@ -385,8 +386,9 @@ class ChromatogramMatcher(TaskBase):
         matches = ChromatogramFilter(matches)
         matches = self.join_common_identities(matches, delta_rt)
         matches = self.join_mass_shifted(matches, adducts, mass_error_tolerance)
-        self.log("Handling Adducts")
-        matches = self.reverse_adduct_search(matches, adducts, mass_error_tolerance)
+        if adducts:
+            self.log("Handling Adducts")
+            matches = self.reverse_adduct_search(matches, adducts, mass_error_tolerance)
         matches = self.join_common_identities(matches, delta_rt)
         self.find_related_profiles(matches, adducts, mass_error_tolerance)
         return matches
@@ -429,6 +431,9 @@ class ChromatogramEvaluator(TaskBase):
         if scoring_model is None:
             scoring_model = ChromatogramScorer()
         self.scoring_model = scoring_model
+
+    def configure(self, analysis_info):
+        self.scoring_model.configure(analysis_info)
 
     def evaluate(self, chromatograms, delta_rt=0.25, min_points=3, smooth_overlap_rt=True,
                  *args, **kwargs):
@@ -474,7 +479,7 @@ class ChromatogramEvaluator(TaskBase):
         solutions = self.evaluate(
             chromatograms, delta_rt, min_points, smooth_overlap_rt, *args, **kwargs)
 
-        if adducts is not None and len(adducts):
+        if adducts:
             hold = self.prune_adducts(solutions)
             self.log("Re-evaluating after adduct pruning")
             solutions = self.evaluate(hold, delta_rt, min_points, smooth_overlap_rt,
@@ -560,7 +565,7 @@ class LaplacianRegularizedChromatogramEvaluator(LogitSumChromatogramEvaluator):
             model_state=self.regularization_model)
         solutions = sorted(solutions, key=lambda x: x.score, reverse=True)
         # TODO - Use aggregation across multiple observations for the same glycan composition
-        # instead of discarding all but the top scoring feature
+        # instead of discarding all but the top scoring feature?
         seen = dict()
         unannotated = []
         for sol in solutions:
@@ -688,13 +693,14 @@ class ChromatogramProcessor(TaskBase):
 
     def __init__(self, chromatograms, database, adducts=None, mass_error_tolerance=1e-5,
                  scoring_model=None, smooth_overlap_rt=True, acceptance_threshold=0.4,
-                 delta_rt=0.25):
+                 delta_rt=0.25, peak_loader=None):
         if adducts is None:
             adducts = []
         self._chromatograms = chromatograms
         self.database = database
         self.adducts = adducts
         self.mass_error_tolerance = mass_error_tolerance
+        self.peak_loader = peak_loader
 
         self.scoring_model = scoring_model
 
@@ -730,6 +736,12 @@ class ChromatogramProcessor(TaskBase):
     def evaluate_chromatograms(self, matches):
         self.log("Begin Evaluating Chromatograms")
         self.evaluator = self.make_evaluator()
+        self.evaluator.configure({
+            "peak_loader": self.peak_loader,
+            "adducts": self.adducts,
+            "delta_rt": self.delta_rt,
+            "mass_error_tolerance": self.mass_error_tolerance,
+        })
         self.solutions = self.evaluator.score(
             matches, smooth_overlap_rt=self.smooth_overlap_rt,
             adducts=self.adducts, delta_rt=self.delta_rt)
@@ -757,12 +769,12 @@ class LaplacianRegularizedChromatogramProcessor(LogitSumChromatogramProcessor):
 
     def __init__(self, chromatograms, database, adducts=None, mass_error_tolerance=1e-5,
                  scoring_model=None, smooth_overlap_rt=True, acceptance_threshold=0.4,
-                 delta_rt=0.25, smoothing_factor=0.2, grid_smoothing_max=1.0,
+                 delta_rt=0.25, peak_loader=None, smoothing_factor=0.2, grid_smoothing_max=1.0,
                  regularization_model=None):
         super(LaplacianRegularizedChromatogramProcessor, self).__init__(
             chromatograms, database, adducts, mass_error_tolerance,
             scoring_model, smooth_overlap_rt, acceptance_threshold,
-            delta_rt)
+            delta_rt, peak_loader)
         if grid_smoothing_max is None:
             grid_smoothing_max = 1.0
         if self.GRID_SEARCH == smoothing_factor:
