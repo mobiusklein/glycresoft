@@ -39,7 +39,8 @@ def rt_to_id(ms_file, rt):
     "Path to write the processed output to"))
 @click.option("-a", "--averagine", default='glycan',
               type=AveragineParamType(),
-              help='Averagine model to use for MS1 scans. Either a name or formula')
+              help='Averagine model to use for MS1 scans. Either a name or formula',
+              multiple=True)
 @click.option("-an", "--msn-averagine", default='peptide',
               type=AveragineParamType(),
               help='Averagine model to use for MS^n scans. Either a name or formula')
@@ -161,12 +162,19 @@ def preprocess(ms_file, outfile_path, averagine=None, start_time=None, end_time=
             ] + list(msn_transform)
         }
 
+    if len(averagine) == 1:
+        averagine = averagine[0]
+        ms1_deconvoluter_type = ms_deisotope.deconvolution.AveraginePeakDependenceGraphDeconvoluter
+    else:
+        ms1_deconvoluter_type = ms_deisotope.deconvolution.MultiAveraginePeakDependenceGraphDeconvoluter
+
     ms1_deconvolution_args = {
         "scorer": ms_deisotope.scoring.PenalizedMSDeconVFitter(score_threshold, isotopic_strictness),
         "max_missed_peaks": missed_peaks,
         "averagine": averagine,
         "truncate_after": SampleConsumer.MS1_ISOTOPIC_PATTERN_WIDTH,
-        "ignore_below": SampleConsumer.MS1_IGNORE_BELOW
+        "ignore_below": SampleConsumer.MS1_IGNORE_BELOW,
+        "deconvoluter_type": ms1_deconvoluter_type
     }
 
     if msn_isotopic_strictness >= 1:
@@ -195,10 +203,8 @@ def preprocess(ms_file, outfile_path, averagine=None, start_time=None, end_time=
         extract_only_tandem_envelopes=extract_only_tandem_envelopes,
         ignore_tandem_scans=ignore_msn,
         ms1_averaging=ms1_averaging)
-    try:
-        consumer.start()
-    except Exception as error:
-        raise click.ClickException("glycresoft: An error occurred: %r" % error)
+
+    consumer.start()
 
 
 @mzml_cli.command("peak-picking", short_help=(
