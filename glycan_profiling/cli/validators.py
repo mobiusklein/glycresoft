@@ -10,7 +10,7 @@ from sqlalchemy.engine.url import _parse_rfc1738_args as parse_engine_uri
 from brainpy import periodic_table
 from ms_deisotope.averagine import (
     Averagine, glycan as n_glycan_averagine, permethylated_glycan,
-    peptide, glycopeptide, heparin)
+    peptide, glycopeptide, heparin, heparan_sulfate)
 
 from glycan_profiling.serialize import (
     DatabaseBoundOperation, GlycanHypothesis, GlycopeptideHypothesis,
@@ -254,7 +254,8 @@ averagines = {
     'permethylated-glycan': permethylated_glycan,
     'peptide': peptide,
     'glycopeptide': glycopeptide,
-    'heparin': heparin
+    'heparin': heparin,
+    "heparan-sulfate": heparan_sulfate
 }
 
 
@@ -272,6 +273,12 @@ class AveragineParamType(click.types.StringParamType):
 
     def convert(self, value, param, ctx):
         return validate_averagine(value)
+
+    def get_metavar(self, param):
+        return '[%s]' % '|'.join(sorted(averagines.keys()))
+
+    def get_missing_message(self, param):
+        return 'Choose from %s, or provide a formula.' % ', '.join(self.choices)
 
 
 adducts = {
