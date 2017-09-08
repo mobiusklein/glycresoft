@@ -84,9 +84,17 @@ class GlycopeptideDatabaseSearchReportCreator(ReportCreatorBase):
 
     def _make_scan_loader(self):
         if self.mzml_path is not None:
+            if not os.path.exists(self.mzml_path):
+                raise IOError("No such file {}".format(self.mzml_path))
             self.scan_loader = ProcessedMzMLDeserializer(self.mzml_path)
         else:
             self.mzml_path = self.analysis.parameters['sample_path']
+            if not os.path.exists(self.mzml_path):
+                raise IOError((
+                    "No such file {}. If {} was relocated, you may need to explicily pass the"
+                    " corrected file path.").format(
+                    self.mzml_path,
+                    self.database_connection._original_connection))
             self.scan_loader = ProcessedMzMLDeserializer(self.mzml_path)
 
     def iterglycoproteins(self):

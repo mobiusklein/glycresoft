@@ -99,15 +99,12 @@ body {
 
 .ms2-score-container table td, .ms2-score-container table th {
     border: lightgrey 1px solid;
+    padding: 5px;
+    font-size: 0.8rem;
 }
 
 .ms2-score-container table {
     border-collapse: collapse;
-}
-
-.ms2-score-container td, .ms2-score-container th {
-    font-size: 0.8rem;
-    padding: 3px;
 }
 
 .chromatogram-plot-item {
