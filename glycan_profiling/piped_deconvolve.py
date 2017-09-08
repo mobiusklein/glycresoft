@@ -312,8 +312,8 @@ class ScanTransformingProcess(Process, ScanTransformMixin):
     """
 
     def __init__(self, mzml_path, input_queue, output_queue,
-                 averagine=ms_deisotope.averagine.glycan, charge_range=(1, 8),
-                 no_more_event=None, ms1_peak_picking_args=None, msn_peak_picking_args=None,
+                 no_more_event=None, ms1_peak_picking_args=None,
+                 msn_peak_picking_args=None,
                  ms1_deconvolution_args=None, msn_deconvolution_args=None,
                  envelope_selector=None, ms1_averaging=0, log_handler=None):
         if log_handler is None:
@@ -333,14 +333,14 @@ class ScanTransformingProcess(Process, ScanTransformMixin):
         if ms1_deconvolution_args is None:
             ms1_deconvolution_args = {
                 "scorer": ms_deisotope.scoring.PenalizedMSDeconVFitter(35., 2),
-                "charge_range": charge_range,
-                "averagine": averagine
+                "charge_range": (1, 8),
+                "averagine": ms_deisotope.glycopeptide
             }
         if msn_deconvolution_args is None:
             msn_deconvolution_args = {
                 "scorer": ms_deisotope.scoring.MSDeconVFitter(10.),
-                "charge_range": charge_range,
-                "averagine": averagine
+                "charge_range": (1, 8),
+                "averagine": ms_deisotope.glycopeptide
             }
 
         Process.__init__(self)
@@ -349,19 +349,11 @@ class ScanTransformingProcess(Process, ScanTransformMixin):
         self.mzml_path = mzml_path
         self.input_queue = input_queue
         self.output_queue = output_queue
-        self.averagine = dict(averagine)
-        self.charge_range = charge_range
 
         self.ms1_peak_picking_args = ms1_peak_picking_args
         self.msn_peak_picking_args = msn_peak_picking_args
         self.ms1_deconvolution_args = ms1_deconvolution_args
-        self.ms1_deconvolution_args.setdefault(
-            "charge_range", self.charge_range)
-        self.ms1_deconvolution_args.setdefault("averagine", averagine)
         self.msn_deconvolution_args = msn_deconvolution_args
-        self.msn_deconvolution_args.setdefault(
-            "charge_range", self.charge_range)
-        self.msn_deconvolution_args.setdefault("averagine", averagine)
         self.envelope_selector = envelope_selector
         self.ms1_averaging = ms1_averaging
 
@@ -810,8 +802,6 @@ class ScanGenerator(TaskBase, ScanGeneratorBase):
             self.ms_file,
             self._input_queue,
             self._output_queue,
-            self.averagine,
-            self.charge_range,
             self.scan_ids_exhausted_event,
             ms1_peak_picking_args=self.ms1_peak_picking_args,
             msn_peak_picking_args=self.msn_peak_picking_args,
