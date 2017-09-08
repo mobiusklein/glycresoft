@@ -7,14 +7,24 @@ from sqlalchemy.orm import relationship, backref, object_session
 from sqlalchemy.ext.declarative import declared_attr
 
 from glycan_profiling.tandem.spectrum_matcher_base import (
-    SpectrumMatch as MemorySpectrumMatch, SpectrumSolutionSet as MemorySpectrumSolutionSet, SpectrumReference,
+    SpectrumMatch as MemorySpectrumMatch,
+    SpectrumSolutionSet as MemorySpectrumSolutionSet,
+    SpectrumReference,
     TargetReference)
+
+from glycan_profiling.structure import ScanInformation
 
 from .analysis import BoundToAnalysis
 from .hypothesis import Glycopeptide, GlycanComposition
 
 from .base import (
     Base, MSScan)
+
+
+def convert_scan_to_record(scan):
+    return ScanInformation(
+        scan.scan_id, scan.index, scan.scan_time,
+        scan.ms_level, scan.precursor_information)
 
 
 class SpectrumMatchBase(BoundToAnalysis):
@@ -112,19 +122,6 @@ class GlycopeptideSpectrumSolutionSet(Base, SolutionSetBase, BoundToAnalysis):
 
     is_decoy = Column(Boolean, index=True)
 
-    # scan_id = Column(Integer, ForeignKey(MSScan.id), index=True)
-    # scan = relationship(MSScan)
-
-    # def best_solution(self):
-    #     return sorted(self.spectrum_matches, key=lambda x: x.score, reverse=True)[0]
-
-    # @property
-    # def score(self):
-    #     return self.best_solution().score
-
-    # def __iter__(self):
-    #     return iter(self.spectrum_matches)
-
     @classmethod
     def serialize(cls, obj, session, scan_look_up_cache, analysis_id, cluster_id, is_decoy=False, *args, **kwargs):
         inst = cls(
@@ -144,7 +141,7 @@ class GlycopeptideSpectrumSolutionSet(Base, SolutionSetBase, BoundToAnalysis):
         matches = [x.convert() for x in self.spectrum_matches]
         matches.sort(key=lambda x: x.score, reverse=True)
         inst = MemorySpectrumSolutionSet(
-            SpectrumReference(self.scan.scan_id, self.scan.precursor_information),
+            convert_scan_to_record(self.scan),
             matches
         )
         inst.q_value = min(x.q_value for x in inst)
@@ -279,7 +276,7 @@ class GlycanCompositionSpectrumSolutionSet(Base, SolutionSetBase, BoundToAnalysi
         matches = [x.convert() for x in self.spectrum_matches]
         matches.sort(key=lambda x: x.score, reverse=True)
         inst = MemorySpectrumSolutionSet(
-            SpectrumReference(self.scan.scan_id, self.scan.precursor_information),
+            convert_scan_to_record(self.scan),
             matches
         )
         inst.q_value = min(x.q_value for x in inst)
@@ -408,7 +405,7 @@ class UnidentifiedSpectrumSolutionSet(Base, SolutionSetBase, BoundToAnalysis):
         matches = [x.convert() for x in self.spectrum_matches]
         matches.sort(key=lambda x: x.score, reverse=True)
         inst = MemorySpectrumSolutionSet(
-            SpectrumReference(self.scan.scan_id, self.scan.precursor_information),
+            convert_scan_to_record(self.scan),
             matches
         )
         inst.q_value = min(x.q_value for x in inst)

@@ -6,3 +6,7 @@ from .structure_loader import (
     PeptideProteinRelation,
     DecoyMakingCachingGlycopeptideParser,
     GlycopeptideCache)
+from .scan import (
+    ScanStub,
+    ScanWrapperBase,
+    ScanInformation)
