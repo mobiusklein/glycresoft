@@ -8,9 +8,9 @@ except NameError:
 import numpy as np
 
 from .shape_fitter import AdaptiveMultimodalChromatogramShapeFitter
-from .spacing_fitter import ChromatogramSpacingFitter
+from .spacing_fitter import ChromatogramSpacingModel
 from .charge_state import UniformChargeStateScoringModel
-from .isotopic_fit import IsotopicPatternConsistencyFitter
+from .isotopic_fit import IsotopicPatternConsistencyModel
 from .base import symbolic_composition
 
 from glycan_profiling.chromatogram_tree import ChromatogramInterface
@@ -71,6 +71,10 @@ class ScorerBase(object):
             if feature.reject(scored_features):
                 return False
         return True
+
+    def __repr__(self):
+        template = "{self.__class__.__name__}({self.feature_set})"
+        return template.format(self=self)
 
 
 class ChromatogramScoreSet(object):
@@ -170,18 +174,20 @@ class DummyScorer(ScorerBase):
 
 class ChromatogramScorer(ScorerBase):
     def __init__(self, shape_fitter_type=AdaptiveMultimodalChromatogramShapeFitter,
-                 isotopic_fitter_type=IsotopicPatternConsistencyFitter,
-                 charge_scoring_model=UniformChargeStateScoringModel(),
-                 spacing_fitter_type=ChromatogramSpacingFitter,
+                 isotopic_fitter_model=IsotopicPatternConsistencyModel,
+                 charge_scoring_model=UniformChargeStateScoringModel,
+                 spacing_fitter_model=ChromatogramSpacingModel,
                  adduct_scoring_model=None, *models):
         super(ChromatogramScorer, self).__init__()
         self.add_feature(shape_fitter_type)
-        self.add_feature(isotopic_fitter_type)
-        self.add_feature(spacing_fitter_type)
-        self.add_feature(charge_scoring_model)
-        self.add_feature(adduct_scoring_model)
+        self.add_feature(isotopic_fitter_model())
+        self.add_feature(spacing_fitter_model())
+        self.add_feature(charge_scoring_model())
+        if adduct_scoring_model is not None:
+            self.add_feature(adduct_scoring_model())
         for model in models:
-            self.add_feature(model)
+            if model is not None:
+                self.add_feature(model())
 
     def compute_scores(self, chromatogram):
         scores = []

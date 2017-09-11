@@ -120,3 +120,20 @@ class IsotopicPatternConsistencyFitter(ScoringFeatureBase):
     @classmethod
     def score(cls, chromatogram, *args, **kwargs):
         return max(1 - cls(chromatogram).mean_fit, epsilon)
+
+
+class IsotopicPatternConsistencyModel(ScoringFeatureBase):
+    feature_type = "isotopic_fit"
+
+    def __init__(self, averagine=glycan, charge_carrier=PROTON):
+        self.averagine = averagine
+        self.charge_carrier = charge_carrier
+
+    def fit(self, chromatogram):
+        fitter = IsotopicPatternConsistencyFitter(
+            chromatogram, averagine=self.averagine,
+            charge_carrier=self.charge_carrier)
+        return fitter
+
+    def score(self, chromatogram, *args, **kwargs):
+        return max(1 - self.fit(chromatogram).mean_fit, epsilon)
