@@ -213,6 +213,10 @@ class GlycanChromatogramAnalyzer(TaskBase):
                  regularization_model=None, analysis_name=None, delta_rt=0.5,
                  require_msms_signature=0, msn_mass_error_tolerance=2e-5,
                  n_processes=4):
+
+        if adducts is None:
+            adducts = []
+
         self.database_connection = database_connection
         self.hypothesis_id = hypothesis_id
         self.sample_run_id = sample_run_id
