@@ -73,8 +73,9 @@ class ScorerBase(object):
         return True
 
     def __repr__(self):
-        template = "{self.__class__.__name__}({self.feature_set})"
-        return template.format(self=self)
+        template = "{self.__class__.__name__}({features})"
+        features = ', '.join(["%r: %s" % kv for kv in self.feature_set.items()])
+        return template.format(self=self, features=features)
 
 
 class ChromatogramScoreSet(object):
