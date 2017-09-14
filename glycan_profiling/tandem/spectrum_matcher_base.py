@@ -12,7 +12,6 @@ from ms_deisotope import DeconvolutedPeakSet
 
 from glycan_profiling.task import TaskBase
 from glycan_profiling.structure import (
-    ScanStub,
     ScanWrapperBase)
 from .ref import TargetReference, SpectrumReference
 

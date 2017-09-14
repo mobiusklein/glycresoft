@@ -95,7 +95,7 @@ class TargetDecoyInterleavingGlycopeptideMatcher(TandemClusterEvaluatorBase):
             if ratio >= self.minimum_oxonium_ratio:
                 keep.append(scan)
             else:
-                self.debug("Skipping scan %s with G-score %f" % (scan.id, ratio))
+                self.debug("... Skipping scan %s with G-score %f" % (scan.id, ratio))
         self.tandem_cluster = keep
 
     def score_one(self, scan, precursor_error_tolerance=1e-5, *args, **kwargs):
