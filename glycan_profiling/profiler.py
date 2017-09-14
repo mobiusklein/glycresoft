@@ -31,7 +31,7 @@ from glycan_profiling.trace import (
 from glycan_profiling.models import GeneralScorer
 
 from glycan_profiling.tandem import chromatogram_mapping
-from glycan_profiling.tandem.spectrum_matcher_base import ScanStub
+from glycan_profiling.structure import ScanStub
 from glycan_profiling.tandem.glycopeptide.scoring import CoverageWeightedBinomialScorer
 from glycan_profiling.tandem.glycopeptide.glycopeptide_matcher import GlycopeptideDatabaseSearchIdentifier
 from glycan_profiling.tandem.glycopeptide import (
@@ -72,7 +72,7 @@ class SampleConsumer(TaskBase):
     MS1_SCORE_THRESHOLD = 20.0
     MSN_SCORE_THRESHOLD = 10.0
 
-    def __init__(self, ms_file, averagine=n_glycan_averagine, charge_range=(-1, -8),
+    def __init__(self, ms_file,
                  ms1_peak_picking_args=None, msn_peak_picking_args=None, ms1_deconvolution_args=None,
                  msn_deconvolution_args=None, start_scan_id=None, end_scan_id=None, storage_path=None,
                  sample_name=None, cache_handler_type=None, n_processes=5,
@@ -81,8 +81,6 @@ class SampleConsumer(TaskBase):
 
         if cache_handler_type is None:
             cache_handler_type = ThreadedMzMLScanCacheHandler
-        if isinstance(averagine, basestring):
-            averagine = parse_averagine_formula(averagine)
 
         self.ms_file = ms_file
         self.storage_path = storage_path
@@ -104,7 +102,7 @@ class SampleConsumer(TaskBase):
 
         n_helpers = max(self.n_processes - 1, 0)
         self.scan_generator = PipedScanGenerator(
-            ms_file, averagine=averagine, charge_range=charge_range,
+            ms_file,
             number_of_helpers=n_helpers,
             ms1_peak_picking_args=ms1_peak_picking_args,
             msn_peak_picking_args=msn_peak_picking_args,

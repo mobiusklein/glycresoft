@@ -716,16 +716,13 @@ class ScanGeneratorBase(object):
 class ScanGenerator(TaskBase, ScanGeneratorBase):
     deconvoluting = True
 
-    def __init__(self, ms_file, averagine=ms_deisotope.averagine.glycopeptide,
-                 charge_range=(-1, -8), number_of_helpers=4,
+    def __init__(self, ms_file, number_of_helpers=4,
                  ms1_peak_picking_args=None, msn_peak_picking_args=None,
                  ms1_deconvolution_args=None, msn_deconvolution_args=None,
                  extract_only_tandem_envelopes=False, ignore_tandem_scans=False,
                  ms1_averaging=0):
         self.ms_file = ms_file
-        self.averagine = averagine
         self.time_cache = {}
-        self.charge_range = charge_range
         self.ignore_tandem_scans = ignore_tandem_scans
 
         self.scan_ids_exhausted_event = multiprocessing.Event()

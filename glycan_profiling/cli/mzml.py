@@ -192,7 +192,7 @@ def preprocess(ms_file, outfile_path, averagine=None, start_time=None, end_time=
     }
 
     consumer = SampleConsumer(
-        ms_file, averagine=averagine, charge_range=charge_range,
+        ms_file,
         ms1_peak_picking_args=ms1_peak_picking_args,
         ms1_deconvolution_args=ms1_deconvolution_args,
         msn_peak_picking_args=msn_peak_picking_args,
