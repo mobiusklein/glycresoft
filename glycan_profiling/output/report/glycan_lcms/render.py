@@ -4,6 +4,7 @@ from glycan_profiling import serialize
 from glycan_profiling.plotting import summaries, figax, SmoothingChromatogramArtist
 from glycan_profiling.plotting.chromatogram_artist import ChargeSeparatingSmoothingChromatogramArtist
 from glycan_profiling.scoring.chromatogram_solution import logit
+from glycan_profiling.chromatogram_tree import ChromatogramFilter
 from glycan_profiling.symbolic_expression import GlycanSymbolContext
 from glypy import GlycanComposition
 
@@ -86,8 +87,9 @@ class GlycanChromatogramReportCreator(ReportCreatorBase):
 
         gcs = ads.load_glycan_composition_chromatograms()
         # und = ads.load_unidentified_chromatograms()
-        und = ads.query(serialize.UnidentifiedChromatogram).filter(
-            serialize.UnidentifiedChromatogram.analysis_id == self.analysis_id).all()
+        und = ChromatogramFilter(
+            ads.query(serialize.UnidentifiedChromatogram).filter(
+                serialize.UnidentifiedChromatogram.analysis_id == self.analysis_id).all())
 
         if len(gcs) == 0:
             self.log("No glycan compositions were identified. Skipping report building")
@@ -120,6 +122,12 @@ class GlycanChromatogramReportCreator(ReportCreatorBase):
         composition_abundance_plot.ax.set_xlabel(
             composition_abundance_plot.ax.get_xlabel(), fontsize=14)
 
+        def resolve_key(key):
+            match = gcs.find_key(key)
+            if match is None:
+                match = und.find_key(key)
+            return match
+
         template_stream = (template_obj.stream(
             analysis=ads.analysis, lcms_plot=svguri_plot(
                 lcms_plot.ax, bbox_inches='tight', patchless=True,
@@ -128,5 +136,7 @@ class GlycanChromatogramReportCreator(ReportCreatorBase):
                 composition_abundance_plot.ax, bbox_inches='tight', patchless=True,
                 svg_width="100%"),
             glycan_chromatograms=gcs,
+            unidentified_chromatograms=und,
+            resolve_key=resolve_key
         ))
         return template_stream

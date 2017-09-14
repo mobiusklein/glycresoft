@@ -174,6 +174,10 @@
                                 {% for pair in chromatogram.ambiguous_with %}
                                     <li style='margin-bottom: 5px;'>
                                         {{pair[0] | glycan_link}} ~ {{pair[1].name}}
+                                        {% set reference = resolve_key(pair[0]) %}
+                                        {% if reference is not none %}
+                                            ({{"%0.4g" % reference.score}})
+                                        {% endif %}
                                     </li>
                                 {% endfor %}
                                 </ul>
@@ -184,6 +188,10 @@
                                     {% for pair in chromatogram.used_as_adduct %}
                                         <li style='margin-bottom: 5px;'>
                                             {{pair[0] | glycan_link}} ~ {{pair[1].name}}
+                                            {% set reference = resolve_key(pair[0]) %}
+                                            {% if reference is not none %}
+                                                ({{"%0.4g" % reference.score}})
+                                            {% endif %}
                                         </li>
                                     {% endfor %}
                                 </ul>
