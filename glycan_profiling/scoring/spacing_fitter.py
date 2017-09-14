@@ -81,7 +81,7 @@ class ChromatogramSpacingFitter(ScoringFeatureBase):
 
     @classmethod
     def score(cls, chromatogram, *args, **kwargs):
-        return max(1 - cls(chromatogram, *args, **kwargs).score * 2, epsilon)
+        return max(1 - 2 * cls(chromatogram, *args, **kwargs).score, epsilon)
 
 
 class RelativeScaleChromatogramSpacingFitter(ChromatogramSpacingFitter):
@@ -110,29 +110,86 @@ class RelativeScaleChromatogramSpacingFitter(ChromatogramSpacingFitter):
         self.score = np.average(self.rt_deltas, weights=self.intensity_deltas)
 
 
+class PartitionAwareRelativeScaleChromatogramSpacingFitter(RelativeScaleChromatogramSpacingFitter):
+    def __init__(self, chromatogram, index, gap_size=0.25, *args, **kwargs):
+        self.gap_size = gap_size
+        self.partitions = [0]
+        self.intensities = []
+        super(PartitionAwareRelativeScaleChromatogramSpacingFitter, self).__init__(
+            chromatogram, index, *args, **kwargs)
+
+    def best_partition(self):
+        i = 0
+        n = len(self.partitions) - 1
+        abundance = 0
+        best_score = 0
+        for i in range(n):
+            start = self.partitions[i]
+            end = self.partitions[i + 1] - 1
+            score = np.average(
+                self.rt_deltas[start:end],
+                weights=self.intensity_deltas[start:end])
+            current_abundance = np.sum(self.intensities[start:end])
+            if current_abundance > abundance:
+                abundance = current_abundance
+                best_score = score
+
+        return best_score
+
+    def fit(self):
+        times, intensities = self.chromatogram.as_arrays()
+        last_rt = times[0]
+        last_int = intensities[0]
+
+        i = 1
+        for rt, inten in zip(times[1:], intensities[1:]):
+            d_rt = rt - last_rt
+            if d_rt > self.gap_size:
+                self.partitions.append(i)
+            scale = d_rt / self.index.delta(rt)
+            self.rt_deltas.append(d_rt * scale)
+            self.intensity_deltas.append(abs(last_int - inten))
+            self.intensities.append(inten)
+            last_rt = rt
+            last_int = inten
+            i += 1
+
+        self.partitions.append(i - 1)
+
+        self.rt_deltas = np.array(self.rt_deltas, dtype=np.float16)
+        self.intensity_deltas = np.array(self.intensity_deltas, dtype=np.float32) + 1
+        self.intensities = np.array(self.intensities, dtype=np.float32)
+
+        self.score = self.best_partition()
+
+
 class ChromatogramSpacingModel(ScoringFeatureBase):
     feature_type = 'spacing_fit'
 
-    def __init__(self, index=None):
+    def __init__(self, index=None, gap_size=0.25):
         self.index = index
+        self.gap_size = gap_size
 
     def configure(self, analysis_data):
         peak_loader = analysis_data['peak_loader']
+        gap_size = analysis_data['delta_rt']
         self.index = TimeOffsetIndex(peak_loader.ms1_scan_times())
+        self.gap_size = gap_size
         return {
-            "index": self.index
+            "index": self.index,
+            "gap_size": self.gap_size
         }
 
     def fit(self, chromatogram):
         if self.index is None:
             return ChromatogramSpacingFitter(chromatogram)
         else:
-            return RelativeScaleChromatogramSpacingFitter(
-                chromatogram, index=self.index)
+            return PartitionAwareRelativeScaleChromatogramSpacingFitter(
+                chromatogram, index=self.index, gap_size=self.gap_size)
 
     def score(self, chromatogram, *args, **kwargs):
         if self.index is None:
             return ChromatogramSpacingFitter.score(chromatogram)
         else:
-            return RelativeScaleChromatogramSpacingFitter.score(
-                chromatogram, index=self.index)
+            return PartitionAwareRelativeScaleChromatogramSpacingFitter.score(
+                chromatogram, index=self.index, gap_size=self.gap_size)
