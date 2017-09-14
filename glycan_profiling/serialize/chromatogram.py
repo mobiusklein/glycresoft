@@ -822,6 +822,10 @@ class GlycanCompositionChromatogram(Base, BoundToAnalysis, ScoredChromatogram, C
     def composition(self):
         return self.glycan_composition
 
+    @property
+    def key(self):
+        return self.glycan_composition
+
     def __repr__(self):
         return "DB" + repr(self.convert())
 
@@ -835,6 +839,10 @@ class UnidentifiedChromatogram(Base, BoundToAnalysis, ScoredChromatogram, Chroma
         Integer, ForeignKey(ChromatogramSolution.id, ondelete='CASCADE'), index=True)
 
     solution = relationship(ChromatogramSolution)
+
+    @property
+    def key(self):
+        return self.neutral_mass
 
     def convert(self, *args, **kwargs):
         solution = self.solution.convert(*args, **kwargs)
