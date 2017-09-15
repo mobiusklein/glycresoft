@@ -92,10 +92,6 @@ class FrequencyCounter(object):
         return inst
 
 
-def is_glycosylated(frag):
-    return "HexNAc" in frag.modification_dict
-
-
 class FrequencyScorer(SpectrumMatcherBase):
     def __init__(self, scan, sequence, model=None):
         super(FrequencyScorer, self).__init__(scan, sequence)
@@ -113,7 +109,7 @@ class FrequencyScorer(SpectrumMatcherBase):
         for frags in self.target.get_fragments('b'):
             glycosylated_position = False
             for frag in frags:
-                glycosylated_position |= is_glycosylated(frag)
+                glycosylated_position |= frag.is_glycosylated
                 peak = spectrum.has_peak(frag.mass, error_tolerance)
                 if peak:
                     solution_map.add(peak, frag)
@@ -124,7 +120,7 @@ class FrequencyScorer(SpectrumMatcherBase):
         for frags in self.target.get_fragments('y'):
             glycosylated_position = False
             for frag in frags:
-                glycosylated_position |= is_glycosylated(frag)
+                glycosylated_position |= frag.is_glycosylated
                 peak = spectrum.has_peak(frag.mass, error_tolerance)
                 if peak:
                     solution_map.add(peak, frag)
