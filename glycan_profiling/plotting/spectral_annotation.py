@@ -63,6 +63,7 @@ class SpectrumMatchAnnotator(object):
         p1, p2 = pair
         self.ax.plot((p1.mz, p2.mz), (p1.intensity, p2.intensity),
                      color=color, alpha=alpha, **kwargs)
+        draw_peaklist(pair, ax=self.ax, alpha=0.4, color='orange')
         if label:
             midx = (p1.mz + p2.mz) / 2
             # interpolate the midpoint's height
