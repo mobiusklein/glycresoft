@@ -31,12 +31,12 @@ from glycan_profiling.database import (
     GlycanCompositionDiskBackedStructureDatabase)
 
 from glycan_profiling import profiler
-from glycan_profiling import plotting
 
 from glycan_profiling.config.config_file import get_configuration
 
 get_configuration()
 
+from glycan_profiling import plotting
 
 __all__ = [
     "ScanGenerator", "ScanGeneratorBase",
