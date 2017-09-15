@@ -144,6 +144,15 @@ class ChromatogramArtist(ArtistBase):
         self.legend = None
         self.label_peaks = label_peaks
 
+    def __iter__(self):
+        return iter(self.chromatograms)
+
+    def __getitem__(self, i):
+        return self.chromatograms[i]
+
+    def __len__(self):
+        return len(self.chromatograms)
+
     def _resolve_chromatograms_from_argument(self, chromatograms):
         try:
             # if not hasattr(chromatograms[0], "get_chromatogram"):
