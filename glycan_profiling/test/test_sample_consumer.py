@@ -57,7 +57,7 @@ class SampleConsumerTest(unittest.TestCase):
         outpath = os.path.join(outdir, "test-output.mzML")
 
         consumer = SampleConsumer(
-            agp_glycomics_mzml, averagine=ms_deisotope.glycan, charge_range=(-1, -8),
+            agp_glycomics_mzml,
             ms1_peak_picking_args=ms1_peak_picking_args,
             ms1_deconvolution_args=ms1_deconvolution_args,
             msn_peak_picking_args=msn_peak_picking_args,

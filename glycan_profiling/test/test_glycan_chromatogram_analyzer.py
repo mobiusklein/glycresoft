@@ -33,7 +33,7 @@ class GlycanProfilerConsumerTest(unittest.TestCase):
     def confirm_score(self, chroma, key, score):
         match = chroma.find_key(key)
         self.assertIsNotNone(match)
-        self.assertAlmostEqual(match.score, score, 2)
+        self.assertAlmostEqual(score, match.score, 2)
 
     def confirm_absent(self, chroma, key):
         match = chroma.find_key(key)
