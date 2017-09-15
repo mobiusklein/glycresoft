@@ -16,6 +16,10 @@ build-pyinstaller:
 	pyinstaller/dist/glycresoft-cli/glycresoft-cli -h
 
 
+pack-pyinstaller:
+	cd pyinstaller/dist && 7z a glycresoft-cli.zip glycresoft-cli && cp glycresoft-cli.zip ../
+
+
 install-dependencies:
 	pip install --upgrade pip setuptools wheel
 	pip install Cython --install-option="--no-cython-compile"
