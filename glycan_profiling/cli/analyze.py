@@ -217,6 +217,8 @@ class RegularizationParameterType(click.ParamType):
 @click.option("-m", "--mass-error-tolerance", type=RelativeMassErrorParam(), default=1e-5,
               help=("Mass accuracy constraint, in parts-per-million "
                     "error, for matching."))
+@click.option("-mn", "--msn-mass-error-tolerance", type=RelativeMassErrorParam(), default=2e-5,
+              help="Mass accuracy constraint, in parts-per-million error, for matching MS^n ions.")
 @click.option("-g", "--grouping-error-tolerance", type=RelativeMassErrorParam(), default=1.5e-5,
               help=("Mass accuracy constraint, in parts-per-million error, for"
                     " grouping chromatograms."))
@@ -254,7 +256,8 @@ def search_glycan(context, database_connection, sample_path,
                   scoring_model=None, regularize=None, regularization_model_path=None,
                   output_path=None, scoring_model_features=None,
                   delta_rt=0.5, export=None, interact=False,
-                  require_msms_signature=0.0, processes=4):
+                  require_msms_signature=0.0, msn_mass_error_tolerance=2e-5,
+                  processes=4):
     """Identify glycan compositions from preprocessed LC-MS data, stored in mzML
     format.
     """
@@ -304,6 +307,7 @@ def search_glycan(context, database_connection, sample_path,
         database_connection._original_connection, hypothesis.id,
         sample_path=sample_path, output_path=output_path, adducts=adducts,
         mass_error_tolerance=mass_error_tolerance,
+        msn_mass_error_tolerance=msn_mass_error_tolerance,
         grouping_error_tolerance=grouping_error_tolerance,
         scoring_model=scoring_model,
         minimum_mass=minimum_mass,
