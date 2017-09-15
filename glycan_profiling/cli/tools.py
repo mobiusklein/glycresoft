@@ -430,8 +430,21 @@ def version_check():
             rev = pkg_resources.require(dep)
             click.echo(str(rev[0]))
         except Exception:
-            continue
-
+            try:
+                module = __import__(dep)
+            except ImportError:
+                continue
+            version =  getattr(module, "__version__", None)
+            if version is None:
+                version = getattr(module, "version", None)
+            if version is None:
+                try:
+                    module = __import__("%s.version" % dep).version
+                    version = module.version
+                except ImportError:
+                    continue
+            if version:
+                click.echo("%s %s" % (dep, version))
 
 @tools.command("interactive-shell")
 def interactive_shell():
