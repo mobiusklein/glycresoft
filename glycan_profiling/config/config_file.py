@@ -1,5 +1,6 @@
 import hjson
 import os
+import platform
 import click
 
 from .peptide_modification import (load_modification_rule, save_modification_rule)
@@ -11,6 +12,18 @@ from psims.controlled_vocabulary import controlled_vocabulary as cv
 CONFIG_DIR = click.get_app_dir("glycresoft")
 if not os.path.exists(CONFIG_DIR):
     os.makedirs(CONFIG_DIR)
+
+if platform.system().lower() != 'windows':
+    os.environ["NOWAL"] = "1"
+
+_mpl_cache_dir = os.path.join(CONFIG_DIR, 'mpl')
+
+if not os.path.exists(_mpl_cache_dir):
+    os.makedirs(_mpl_cache_dir)
+
+os.environ["MPLCONFIGDIR"] = _mpl_cache_dir
+
+
 USER_CONFIG_PATH = os.path.join(CONFIG_DIR, "glycresoft-cfg.hjson")
 
 cv.configure_obo_store(os.path.join(CONFIG_DIR, "cv"))
