@@ -85,7 +85,7 @@ class MassScalingAdductScoringModel(AdductScoringModelBase, MassScalingCountScor
         return self.load(text_buffer)
 
     def _serialize_mass_shift(self, mass_shift):
-        return {"name": mass_shift.name, "composition": dict(mass_shift.composition)}
+        return {"name": mass_shift.name, "composition": formula(mass_shift.composition)}
 
     def _serialize_compound_mass_shift(self, mass_shift):
         return {

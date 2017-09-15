@@ -8,6 +8,8 @@ from .features import register_feature
 load_model = make_model_loader(MassScalingAdductScoringModel)
 
 AmmoniumAdductFeature = load_model("ammonium_adduct_model")
+MethylLossFeature = load_model("methyl_loss_adduct_model")
 
 
 register_feature("permethylated_ammonium_adducts", AmmoniumAdductFeature)
+register_feature("methyl_loss", MethylLossFeature)
