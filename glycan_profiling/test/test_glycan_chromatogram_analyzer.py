@@ -54,7 +54,7 @@ class GlycanProfilerConsumerTest(unittest.TestCase):
 
         self.confirm_score(gcs, "{Fuc:1; Hex:7; HexNAc:6; Neu5Ac:4}", 16.97)
         self.confirm_score(gcs, "{Hex:8; HexNAc:7; Neu5Ac:3}", 13.47)
-        self.confirm_score(gcs, "{Hex:7; HexNAc:6; Neu5Ac:4}", 20.35)
+        self.confirm_score(gcs, "{Hex:7; HexNAc:6; Neu5Ac:4}", 20.44)
         self.confirm_score(gcs, "{Fuc:2; Hex:6; HexNAc:5; Neu5Ac:3}", 14.11)
 
         ads.close()
