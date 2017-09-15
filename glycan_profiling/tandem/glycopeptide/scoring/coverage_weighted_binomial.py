@@ -1,6 +1,6 @@
 from .binomial_score import BinomialSpectrumMatcher
 from .simple_score import SimpleCoverageScorer
-from .fragment_match_map import FragmentMatchMap
+from glycan_profiling.structure import FragmentMatchMap
 
 
 class CoverageWeightedBinomialScorer(BinomialSpectrumMatcher, SimpleCoverageScorer):

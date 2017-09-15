@@ -1,7 +1,7 @@
 import math
 
 from .base import GlycopeptideSpectrumMatcherBase
-from .fragment_match_map import FragmentMatchMap
+from glycan_profiling.structure import FragmentMatchMap
 
 from glycopeptidepy.structure.fragment import IonSeries
 

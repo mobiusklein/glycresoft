@@ -4,7 +4,7 @@ from itertools import chain
 import math
 
 from ...spectrum_matcher_base import SpectrumMatcherBase
-from .fragment_match_map import FragmentMatchMap
+from glycan_profiling.structure import FragmentMatchMap
 
 from glycopeptidepy.structure.fragment import IonSeries
 

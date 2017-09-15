@@ -15,7 +15,7 @@ from scipy.misc import comb
 from glycopeptidepy.utils.memoize import memoize
 
 from .base import GlycopeptideSpectrumMatcherBase
-from .fragment_match_map import FragmentMatchMap
+from glycan_profiling.structure import FragmentMatchMap
 
 
 @memoize(100000000000)

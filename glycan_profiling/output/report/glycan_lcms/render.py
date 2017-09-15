@@ -5,8 +5,6 @@ from glycan_profiling.plotting import summaries, figax, SmoothingChromatogramArt
 from glycan_profiling.plotting.chromatogram_artist import ChargeSeparatingSmoothingChromatogramArtist
 from glycan_profiling.scoring.chromatogram_solution import logit
 from glycan_profiling.chromatogram_tree import ChromatogramFilter
-from glycan_profiling.symbolic_expression import GlycanSymbolContext
-from glypy import GlycanComposition
 
 from jinja2 import Markup, Template
 

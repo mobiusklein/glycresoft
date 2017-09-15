@@ -10,12 +10,15 @@ from glypy.composition.composition_transform import strip_derivatization
 from glypy.composition.glycan_composition import MonosaccharideResidue
 from glypy.io.nomenclature.identity import is_a
 
-from glycan_profiling.tandem.glycopeptide.scoring.fragment_match_map import FragmentMatchMap
+from glycan_profiling.structure import FragmentMatchMap
 from glycan_profiling.tandem.spectrum_matcher_base import SpectrumMatcherBase
+
+from glycopeptidepy.utils.memoize import memoize
 
 fucose = MonosaccharideResidue.from_iupac_lite("Fuc")
 
 
+@memoize(100000000000)
 def is_fucose(residue):
     return is_a(
         strip_derivatization(residue.clone(
@@ -28,11 +31,31 @@ class SignatureIonScorer(SpectrumMatcherBase):
         self.fragments_searched = 0
         self.fragments_matched = 0
 
+    def _get_matched_peaks(self):
+        peaks = set()
+        for peak in self.solution_map.by_peak:
+            peaks.add(peak)
+        for p1, p2, label in self.pairs:
+            peaks.add(p1)
+            peaks.add(p2)
+        return peaks
+
+    def percent_matched_intensity(self):
+        matched = 0
+        total = 0
+
+        for peak in self._get_matched_peaks():
+            matched += peak.intensity
+
+        for peak in self.spectrum:
+            total += peak.intensity
+        return matched / total
+
     def _find_peak_pairs(self, error_tolerance=2e-5, include_compound=False, *args, **kwargs):
         pairs = []
         peak_set = self.spectrum
 
-        blocks = [(part, part.mass()) for part in self.target]
+        blocks = [(part, part.mass()) for part in self.target if not is_fucose(part)]
         if include_compound:
             compound_blocks = list(itertools.combinations(self.target, 2))
             compound_blocks = [(block, sum(part.mass() for part in block))
@@ -45,7 +68,7 @@ class SignatureIonScorer(SpectrumMatcherBase):
             return []
 
         for peak in peak_set:
-            if peak.intensity < threshold:
+            if peak.intensity < threshold or peak.neutral_mass < 150:
                 continue
             for block, mass in blocks:
                 for other in peak_set.all_peaks_for(peak.neutral_mass + mass, error_tolerance):
@@ -99,7 +122,7 @@ class SignatureIonScorer(SpectrumMatcherBase):
                             break
                     if invalid:
                         continue
-                    key = ''.join(map(str, kk))
+                    key = '-'.join(map(str, kk))
                     mass = sum(k.mass() for k in kk)
                     composition = sum((k.total_composition() for k in kk), Composition())
                     f = Fragment('B', {}, [], mass, name=key,

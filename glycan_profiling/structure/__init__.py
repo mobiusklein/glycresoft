@@ -10,3 +10,4 @@ from .scan import (
     ScanStub,
     ScanWrapperBase,
     ScanInformation)
+from .fragment_match_map import FragmentMatchMap

@@ -5,6 +5,9 @@
     <style>
         {% include "style.css" %}
     </style>
+    <script type="text/javascript">
+        {% include "behaviors.js" %}
+    </script>
 </head>
 <body>
     <div>
@@ -76,7 +79,7 @@
                     </thead>
                     <tbody class='display-table'>
                         {% for chrom in glycan_chromatograms %}
-                        <tr>
+                        <tr class='glycan-detail-table-row' data-glycan-id="{{chromatogram.glycan_composition.serialize()|urlencode}}">
                             <td>{{"%0.5f" % chrom.neutral_mass}}</td>
                             <td class='medium-wide'>
                                 {{chrom.glycan_composition | glycan_link}}
