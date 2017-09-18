@@ -233,7 +233,7 @@ class RegularizationParameterType(click.ParamType):
               "Path to write resulting analysis to."))
 @click.option("--interact", is_flag=True, cls=HiddenOption)
 @click.option("-f", "--ms1-scoring-feature", "scoring_model_features", multiple=True,
-              type=click.Choice(sorted(ms1_model_features)),
+              type=click.Choice(ms1_model_features.keys(lambda x: x.replace("_", "-"))),
               help="Additional features to include in evaluating chromatograms")
 @click.option("-r", "--regularize", type=RegularizationParameterType(),
               help=("Apply Laplacian regularization with either a"
