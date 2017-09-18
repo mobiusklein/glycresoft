@@ -11,3 +11,4 @@ from .scan import (
     ScanWrapperBase,
     ScanInformation)
 from .fragment_match_map import FragmentMatchMap
+from .utils import KeyTransformingDecoratorDict
