@@ -1,4 +1,11 @@
-ms1_model_features = dict()
+from glycan_profiling.structure import KeyTransformingDecoratorDict
+
+
+def transform_key(key):
+    return key.replace("-", "_")
+
+
+ms1_model_features = KeyTransformingDecoratorDict(transform_key)
 
 
 def register_feature(name, feature):

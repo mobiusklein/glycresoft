@@ -84,9 +84,12 @@ class DummyFeature(ScoringFeatureBase):
     def get_feature_name(self):
         name = getattr(self, "name", None)
         if name is None:
-            return "%s:%s" % (self.get_feature_type(), self.__name__)
-        else:
-            return name
+            name = self.__name__
+        return "%s:%s" % (self.get_feature_type(), name)
+
+    def reject(self, score_components):
+        score = score_components[self.feature_type]
+        return score < 0.15
 
     def clone(self):
         return self
@@ -318,3 +321,7 @@ neu = FMR.from_iupac_lite("Neu")
 
 def is_sialylated(composition):
     return (composition[neuac] + composition[neugc] + composition[neu]) > 0
+
+
+def degree_of_sialylation(composition):
+    return (composition[neuac] + composition[neugc] + composition[neu])
