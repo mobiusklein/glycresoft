@@ -22,6 +22,17 @@
                 {% if analysis.parameters.get("network_parameters") is not none %}
                     <b>Network &lambda;:</b> {{"%0.3g" % analysis.parameters.network_parameters.lmbda}}<br>
                 {% endif %}
+                <b>Scoring Model Features</b>
+                <ul class='scoring-feature-name-list'>
+                    {% for feature in analysis.parameters.get("scoring_model").features() %}
+                    <li>
+                        {{feature.get_feature_type()}}: {{
+                            feature.get_feature_name().replace(
+                                feature.get_feature_type(), "").replace(":", "")
+                        }}
+                    </li>
+                    {% endfor %}                    
+                </ul>
             </div>
             <div class='flex-item'>
                 {% if analysis.parameters.get("network_parameters") is not none %}
