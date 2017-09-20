@@ -7,7 +7,7 @@ except NameError:
 
 import numpy as np
 
-from .shape_fitter import AdaptiveMultimodalChromatogramShapeFitter
+from .shape_fitter import ChromatogramShapeModel
 from .spacing_fitter import ChromatogramSpacingModel
 from .charge_state import UniformChargeStateScoringModel
 from .isotopic_fit import IsotopicPatternConsistencyModel
@@ -38,6 +38,18 @@ class ScorerBase(object):
     def __init__(self, *args, **kwargs):
         self.feature_set = OrderedDict()
         self.configuration = dict()
+
+    def __getitem__(self, k):
+        return self.feature_set[k]
+
+    def __contains__(self, k):
+        return k in self.feature_set
+
+    def __iter__(self):
+        return iter(self.feature_set)
+
+    def __len__(self):
+        return len(self.feature_set)
 
     def configure(self, analysis_info):
         for feature in self.features():
@@ -174,13 +186,13 @@ class DummyScorer(ScorerBase):
 
 
 class ChromatogramScorer(ScorerBase):
-    def __init__(self, shape_fitter_type=AdaptiveMultimodalChromatogramShapeFitter,
+    def __init__(self, shape_fitter_model=ChromatogramShapeModel,
                  isotopic_fitter_model=IsotopicPatternConsistencyModel,
                  charge_scoring_model=UniformChargeStateScoringModel,
                  spacing_fitter_model=ChromatogramSpacingModel,
                  adduct_scoring_model=None, *models):
         super(ChromatogramScorer, self).__init__()
-        self.add_feature(shape_fitter_type)
+        self.add_feature(shape_fitter_model())
         self.add_feature(isotopic_fitter_model())
         self.add_feature(spacing_fitter_model())
         self.add_feature(charge_scoring_model())
