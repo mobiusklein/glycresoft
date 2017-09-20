@@ -11,6 +11,7 @@ from glypy.composition.glycan_composition import MonosaccharideResidue
 from glypy.io.nomenclature.identity import is_a
 
 from glycan_profiling.structure import FragmentMatchMap
+from glycan_profiling.structure.fragment_match_map import SpectrumGraph
 from glycan_profiling.tandem.spectrum_matcher_base import SpectrumMatcherBase
 
 from glycopeptidepy.utils.memoize import memoize
@@ -30,12 +31,13 @@ class SignatureIonScorer(SpectrumMatcherBase):
         super(SignatureIonScorer, self).__init__(scan, glycan_composition)
         self.fragments_searched = 0
         self.fragments_matched = 0
+        self.minimum_intensity_threshold = 0.01
 
     def _get_matched_peaks(self):
         peaks = set()
         for peak in self.solution_map.by_peak:
             peaks.add(peak)
-        for p1, p2, label in self.pairs:
+        for p1, p2, label in self.spectrum_graph:
             peaks.add(p1)
             peaks.add(p2)
         return peaks
@@ -52,8 +54,8 @@ class SignatureIonScorer(SpectrumMatcherBase):
         return matched / total
 
     def _find_peak_pairs(self, error_tolerance=2e-5, include_compound=False, *args, **kwargs):
-        pairs = []
         peak_set = self.spectrum
+        pairs = SpectrumGraph()
 
         blocks = [(part, part.mass()) for part in self.target if not is_fucose(part)]
         if include_compound:
@@ -63,7 +65,7 @@ class SignatureIonScorer(SpectrumMatcherBase):
             blocks.extend(compound_blocks)
         try:
             max_peak = max([p.intensity for p in peak_set])
-            threshold = max_peak * 0.01
+            threshold = max_peak * self.minimum_intensity_threshold
         except ValueError:
             return []
 
@@ -74,7 +76,7 @@ class SignatureIonScorer(SpectrumMatcherBase):
                 for other in peak_set.all_peaks_for(peak.neutral_mass + mass, error_tolerance):
                     if other.intensity < threshold:
                         continue
-                    pairs.append((peak, other, block))
+                    pairs.add(peak, other, block)
         return pairs
 
     def match(self, error_tolerance=2e-5, include_compound=False, combination_size=3, *args, **kwargs):
@@ -85,11 +87,11 @@ class SignatureIonScorer(SpectrumMatcherBase):
         counter = 0
         try:
             max_peak = max([p.intensity for p in peak_set])
-            threshold = max_peak * 0.01
+            threshold = max_peak * self.minimum_intensity_threshold
         except ValueError:
             self.solution_map = matches
             self.fragments_searched = counter
-            self.pairs = []
+            self.pairs = SpectrumGraph()
             return matches
         # Simple oxonium ions
         for k in glycan_composition.keys():
@@ -106,7 +108,7 @@ class SignatureIonScorer(SpectrumMatcherBase):
             f = Fragment('B', {}, [], k.mass() - water.mass, name="%s-H2O" % str(k),
                          composition=k.total_composition() - water)
             for hit in peak_set.all_peaks_for(f.mass, error_tolerance):
-                if hit.intensity / max_peak < 0.01:
+                if hit.intensity / max_peak < self.minimum_intensity_threshold:
                     continue
                 matches.add(hit, f)
 
@@ -139,7 +141,7 @@ class SignatureIonScorer(SpectrumMatcherBase):
                             continue
                         matches.add(hit, f)
 
-        self.pairs = self._find_peak_pairs(error_tolerance, include_compound)
+        self.spectrum_graph = self._find_peak_pairs(error_tolerance, include_compound)
         self.solution_map = matches
         self.fragments_searched = counter
         return matches
@@ -168,7 +170,7 @@ class SignatureIonScorer(SpectrumMatcherBase):
             return 0
         edge_weight = 0
         n = 0
-        for p1, p2, label in self.pairs:
+        for p1, p2, label in self.spectrum_graph:
             edge_weight += (p1.intensity + p2.intensity) / imax
             n += 1
         if n == 0:
