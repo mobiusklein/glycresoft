@@ -118,8 +118,9 @@ def prune_bad_adduct_branches(solutions, score_margin=0.05, ratio_threshold=1.5)
                     if signal_ratio > ratio_threshold:
                         is_weaker = False
                 # If the scores are close, but the owning group is less abundant,
-                # e.g. more mass shift groups
-                elif is_close and (owner_item.total_signal / case.total_signal) < 0.75:
+                # e.g. more mass shift groups or mass accuracy prevents propagation
+                # of mass shifts
+                elif is_close and (owner_item.total_signal / case.total_signal) < 1:
                     is_weaker = True
                 if is_weaker:
                     new_masked = mask_subsequence(get_chromatogram(owner_item), get_chromatogram(case))
@@ -511,7 +512,7 @@ class LogitSumChromatogramEvaluator(ChromatogramEvaluator):
         super(LogitSumChromatogramEvaluator, self).__init__(scorer)
 
     def prune_adducts(self, solutions):
-        return prune_bad_adduct_branches(ChromatogramFilter(solutions), score_margin=1.5)
+        return prune_bad_adduct_branches(ChromatogramFilter(solutions), score_margin=2.5)
 
     def evaluate_chromatogram(self, chromatogram):
         score_set = self.scoring_model.compute_scores(chromatogram)
