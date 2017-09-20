@@ -21,5 +21,5 @@ for repo in repos:
     repopath = ospath.join(clone_dir, ospath.splitext(ospath.basename(repo))[0])
     os.system("git clone %s %s" % (repo, repopath))
     os.chdir(repopath)
-    os.system("%r setup.py install" % (sys.executable,))
+    os.system("\"%s\" setup.py install" % (sys.executable,))
     os.chdir(origin_path)
