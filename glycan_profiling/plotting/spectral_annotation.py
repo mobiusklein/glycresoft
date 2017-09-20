@@ -1,3 +1,4 @@
+import numpy as np
 from matplotlib import pyplot as plt
 from ms_peak_picker.utils import draw_peaklist
 
@@ -59,7 +60,20 @@ class SpectrumMatchAnnotator(object):
             draw_peaklist([peak], alpha=alpha, ax=self.ax, color=peak_color)
             self.label_peak(fragment, peak, fontsize=fontsize, **kwargs)
 
-    def draw_peak_pair(self, pair, color='red', alpha=0.8, fontsize=12, label=None, **kwargs):
+    def draw_spectrum_graph(self, color='red', alpha=0.8, fontsize=12, **kwargs):
+        try:
+            graph = self.spectrum_match.spectrum_graph
+        except AttributeError:
+            return
+
+        paths = graph.longest_paths()
+
+        for path in paths:
+            for edge in path:
+                self.draw_peak_pair((edge.start, edge.end), color, alpha, fontsize,
+                                    label=edge.annotation, **kwargs)
+
+    def draw_peak_pair(self, pair, color='red', alpha=0.8, fontsize=12, label=None, rotation=45, **kwargs):
         p1, p2 = pair
         self.ax.plot((p1.mz, p2.mz), (p1.intensity, p2.intensity),
                      color=color, alpha=alpha, **kwargs)
@@ -68,7 +82,12 @@ class SpectrumMatchAnnotator(object):
             midx = (p1.mz + p2.mz) / 2
             # interpolate the midpoint's height
             midy = (p1.intensity * (p2.mz - midx) + p2.intensity * (midx - p1.mz)) / (p2.mz - p1.mz)
-            self.ax.text(midx, midy, label, fontsize=fontsize, ha='center', va='bottom')
+            if isinstance(label, (list, tuple)):
+                label = '-'.join(map(str, label))
+            else:
+                label = str(label)
+            self.ax.text(midx, midy, label, fontsize=fontsize,
+                         ha='center', va='bottom', rotation=rotation)
 
     def draw(self, **kwargs):
         fontsize = kwargs.pop('fontsize', 9)
@@ -78,6 +97,7 @@ class SpectrumMatchAnnotator(object):
         self.draw_matched_peaks(
             fontsize=fontsize, ion_series_to_color=ion_series_to_color,
             rotation=rotation, **kwargs)
+        self.draw_spectrum_graph(fontsize=fontsize, rotation=rotation / 2)
         self.format_axes()
         return self
 
