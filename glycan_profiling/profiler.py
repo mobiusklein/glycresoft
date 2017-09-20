@@ -371,7 +371,16 @@ class GlycanChromatogramAnalyzer(TaskBase):
                                 mapped.append(gsm)
                         solution.tandem_solutions = mapped
                     except KeyError:
+                        solution.tandem_solutions = []
                         continue
+                processor.solutions = ChromatogramFilter([
+                    solution for solution in processor.solutions
+                    if len(solution.tandem_solutions) > 0
+                ])
+                processor.accepted_solutions = ChromatogramFilter([
+                    solution for solution in processor.accepted_solutions
+                    if len(solution.tandem_solutions) > 0
+                ])
         else:
             processor.run()
 
