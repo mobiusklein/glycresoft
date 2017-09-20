@@ -253,7 +253,7 @@ def glycopeptide_fa(context, fasta_file, database_connection, enzyme, missed_cle
         max_glycosylation_events=occupied_glycosites,
         hypothesis_name=name,
         n_processes=processes)
-
+    builder.display_header()
     builder.start()
     return builder.hypothesis_id
 
@@ -302,6 +302,7 @@ def glycopeptide_mzid(context, mzid_file, database_connection, name, occupied_gl
         max_glycosylation_events=occupied_glycosites,
         reference_fasta=reference_fasta,
         n_processes=processes)
+    builder.display_header()
     builder.start()
     return builder.hypothesis_id
 
@@ -323,6 +324,7 @@ def glycan_text(context, text_file, database_connection, reduction, derivatizati
     builder = TextFileGlycanHypothesisSerializer(
         text_file, database_connection, reduction=reduction, derivatization=derivatization,
         hypothesis_name=name)
+    builder.display_header()
     builder.start()
 
 
@@ -343,6 +345,7 @@ def glycan_combinatorial(context, rule_file, database_connection, reduction, der
     builder = CombinatorialGlycanHypothesisSerializer(
         rule_file, database_connection, reduction=reduction, derivatization=derivatization,
         hypothesis_name=name)
+    builder.display_header()
     builder.start()
 
 
@@ -368,6 +371,7 @@ def merge_glycan_hypotheses(context, database_connection, hypothesis_specificati
 
     task = GlycanCompositionHypothesisMerger(
         database_connection._original_connection, hypothesis_ids, name)
+    task.display_header()
     task.start()
 
 
@@ -404,6 +408,7 @@ def glyspace_glycan_hypothesis(context, database_connection, motif_class, reduct
     job = serializer_type(
         database_connection._original_connection, name, reduction, derivatization, filter_funcs,
         simplify=True)
+    job.display_header()
     job.start()
 
 
@@ -425,10 +430,12 @@ def from_analysis(context, database_connection, analysis_identifier, reduction, 
     analysis = get_by_name_or_id(database_connection.session, Analysis, analysis_identifier)
     if analysis.analysis_type == AnalysisTypeEnum.glycan_lc_ms:
         job = GlycanAnalysisHypothesisSerializer(database_connection._original_connection, analysis.id, name)
+        job.display_header()
         job.start()
     elif analysis.analysis_type == AnalysisTypeEnum.glycopeptide_lc_msms:
         job = GlycopeptideAnalysisGlycanCompositionExtractionHypothesisSerializer(
             database_connection._original_connection, analysis.id, name)
+        job.display_header()
         job.start()
     else:
         click.secho("Analysis Type %r could not be converted" % (

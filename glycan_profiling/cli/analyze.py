@@ -159,7 +159,7 @@ def search_glycopeptide(context, database_connection, sample_path, hypothesis_id
         oxonium_threshold=oxonium_threshold,
         n_processes=processes,
         spectra_chunk_size=workload_size)
-
+    analyzer.display_header()
     gps, unassigned, target_hits, decoy_hits = analyzer.start()
     if save_intermediate_results is not None:
         analyzer.log("Saving Intermediate Results")
@@ -317,11 +317,15 @@ def search_glycan(context, database_connection, sample_path,
         delta_rt=delta_rt,
         require_msms_signature=require_msms_signature,
         n_processes=processes)
+    analyzer.display_header()
     analyzer.start()
     if interact:
-        click.secho(fmt_msg("Beginning Interactive Session..."), fg='cyan')
-        import IPython
-        IPython.embed()
+        try:
+            import IPython
+            click.secho(fmt_msg("Beginning Interactive Session..."), fg='cyan')
+            IPython.embed()
+        except ImportError:
+            click.secho(fmt_msg("Interactive Session Not Supported"), fg='red')
     if export:
         for export_type in set(export):
             click.echo(fmt_msg("Handling Export: %s" % (export_type,)))

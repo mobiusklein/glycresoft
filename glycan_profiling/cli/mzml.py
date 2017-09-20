@@ -203,7 +203,7 @@ def preprocess(ms_file, outfile_path, averagine=None, start_time=None, end_time=
         extract_only_tandem_envelopes=extract_only_tandem_envelopes,
         ignore_tandem_scans=ignore_msn,
         ms1_averaging=ms1_averaging)
-
+    consumer.display_header()
     consumer.start()
 
 
@@ -305,6 +305,7 @@ def peak_picker(ms_file, outfile_path, start_time=None, end_time=None,
         start_scan_id=start_scan_id, cache_handler_type=cache_handler_type,
         end_scan_id=end_scan_id, n_processes=processes,
         extract_only_tandem_envelopes=extract_only_tandem_envelopes)
+    consumer.display_header()
     try:
         consumer.start()
     except Exception as error:
