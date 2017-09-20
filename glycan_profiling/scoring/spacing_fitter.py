@@ -28,13 +28,21 @@ def binsearch(array, x):
 class TimeOffsetIndex(object):
     def __init__(self, array):
         self.array = np.array(array)
-        self.average_delta = np.mean(self[1:] - self[:-1])
+        self.average_delta = self.estimate_average_delta()
+
+    def estimate_average_delta(self, weights=None):
+        if weights is None:
+            weights = np.ones(len(self) - 1)
+        return np.average(self[1:] - self[:-1], weights=weights)
 
     def index_for(self, x):
         return binsearch(self.array, x)
 
     def __getitem__(self, i):
         return self.array[i]
+
+    def __len__(self):
+        return len(self.array)
 
     def delta(self, x):
         i = self.index_for(x)
@@ -44,19 +52,36 @@ class TimeOffsetIndex(object):
         return y - x
 
 
+def blunt(x):
+    if x < 0.1:
+        return x
+    elif 0.1 < x < 0.5:
+        return np.sqrt(x) / 3.5
+    else:
+        return x
+
+
 class ChromatogramSpacingFitter(ScoringFeatureBase):
     feature_type = "spacing_fit"
 
     def __init__(self, chromatogram, *args, **kwargs):
+        transform_fn = kwargs.get("transform_fn")
+        if transform_fn is None:
+            def transform_fn(x):
+                return x
         self.chromatogram = chromatogram
         self.rt_deltas = []
         self.intensity_deltas = []
         self.score = None
+        self.transform_fn = transform_fn
 
         if len(chromatogram) < 3:
             self.score = 1.0
         else:
             self.fit()
+
+    def transform(self, d_rt):
+        return self.transform_fn(d_rt)
 
     def fit(self):
         times, intensities = self.chromatogram.as_arrays()
@@ -65,7 +90,7 @@ class ChromatogramSpacingFitter(ScoringFeatureBase):
 
         for rt, inten in zip(times[1:], intensities[1:]):
             d_rt = rt - last_rt
-            self.rt_deltas.append(d_rt)
+            self.rt_deltas.append(self.transform(d_rt))
             self.intensity_deltas.append(abs(last_int - inten))
             last_rt = rt
             last_int = inten
@@ -98,7 +123,7 @@ class RelativeScaleChromatogramSpacingFitter(ChromatogramSpacingFitter):
         for rt, inten in zip(times[1:], intensities[1:]):
             d_rt = rt - last_rt
             scale = d_rt / self.index.delta(rt)
-            self.rt_deltas.append(d_rt * scale)
+            self.rt_deltas.append(self.transform(d_rt) * scale)
             self.intensity_deltas.append(abs(last_int - inten))
             last_rt = rt
             last_int = inten
@@ -146,7 +171,7 @@ class PartitionAwareRelativeScaleChromatogramSpacingFitter(RelativeScaleChromato
             if d_rt > self.gap_size:
                 self.partitions.append(i)
             scale = d_rt / self.index.delta(rt)
-            self.rt_deltas.append(d_rt * scale)
+            self.rt_deltas.append(self.transform(d_rt) * scale)
             self.intensity_deltas.append(abs(last_int - inten))
             self.intensities.append(inten)
             last_rt = rt
@@ -168,15 +193,25 @@ class ChromatogramSpacingModel(ScoringFeatureBase):
     def __init__(self, index=None, gap_size=0.25):
         self.index = index
         self.gap_size = gap_size
+        self.transform_fn = None
 
     def configure(self, analysis_data):
         peak_loader = analysis_data['peak_loader']
         gap_size = analysis_data['delta_rt']
         self.index = TimeOffsetIndex(peak_loader.ms1_scan_times())
+        tic = peak_loader.extract_total_ion_current_chromatogram()
+        self.index.average_delta = self.index.estimate_average_delta(tic[1:])
         self.gap_size = gap_size
+        if self.index.average_delta > 0.2:
+            def transform_fn(x):
+                return x / (self.index.average_delta * 15)
+        else:
+            transform_fn = None
+        self.transform_fn = transform_fn
         return {
             "index": self.index,
-            "gap_size": self.gap_size
+            "gap_size": self.gap_size,
+            "transform_fn": self.transform_fn
         }
 
     def fit(self, chromatogram):
@@ -184,11 +219,13 @@ class ChromatogramSpacingModel(ScoringFeatureBase):
             return ChromatogramSpacingFitter(chromatogram)
         else:
             return PartitionAwareRelativeScaleChromatogramSpacingFitter(
-                chromatogram, index=self.index, gap_size=self.gap_size)
+                chromatogram, index=self.index,
+                gap_size=self.gap_size, transform_fn=self.transform_fn)
 
     def score(self, chromatogram, *args, **kwargs):
         if self.index is None:
             return ChromatogramSpacingFitter.score(chromatogram)
         else:
             return PartitionAwareRelativeScaleChromatogramSpacingFitter.score(
-                chromatogram, index=self.index, gap_size=self.gap_size)
+                chromatogram, index=self.index, gap_size=self.gap_size,
+                transform_fn=self.transform_fn)
