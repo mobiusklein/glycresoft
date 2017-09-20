@@ -733,3 +733,17 @@ try:
     has_c = True
 except ImportError:
     has_c = False
+
+
+class ChromatogramShapeModel(ScoringFeatureBase):
+    feature_type = "line_score"
+
+    def __init__(self, smooth=True):
+        self.smooth = smooth
+
+    def fit(self, chromatogram, *args, **kwargs):
+        return AdaptiveMultimodalChromatogramShapeFitter(chromatogram, smooth=self.smooth)
+
+    def score(self, chromatogram, *args, **kwargs):
+        fit = self.fit(chromatogram, *args, **kwargs)
+        return max(1 - fit.line_test, epsilon)
