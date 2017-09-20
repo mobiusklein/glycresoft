@@ -6,7 +6,15 @@ import multiprocessing
 import threading
 from datetime import datetime
 
+from glycan_profiling.version import version
+
+
 logger = logging.getLogger("glycan_profiling.task")
+
+
+def display_version(print_fn):
+    msg = "glycresoft: version %s" % version
+    print_fn(msg)
 
 
 def fmt_msg(message):
@@ -182,6 +190,9 @@ class TaskBase(object):
         if exception is not None:
             self.error_print_fn(traceback.format_exc(exception))
 
+    def display_header(self):
+        display_version(self.log)
+
     def _begin(self, verbose=True, *args, **kwargs):
         self.on_begin()
         self.start_time = datetime.now()
@@ -235,6 +246,24 @@ class TaskBase(object):
             self.status = 'completed'
         self._end(*args, **kwargs)
         return out
+
+    def interact(self, **kwargs):
+        from IPython.terminal.embed import InteractiveShellEmbed, load_default_config
+        import sys
+        config = kwargs.get('config')
+        header = kwargs.pop('header', u'')
+        compile_flags = kwargs.pop('compile_flags', None)
+        if config is None:
+            config = load_default_config()
+            config.InteractiveShellEmbed = config.TerminalInteractiveShell
+            kwargs['config'] = config
+        frame = sys._getframe(1)
+        shell = InteractiveShellEmbed.instance(
+            _init_location_id='%s:%s' % (
+                frame.f_code.co_filename, frame.f_lineno), **kwargs)
+        shell(header=header, stack_depth=2, compile_flags=compile_flags,
+              _call_location_id='%s:%s' % (frame.f_code.co_filename, frame.f_lineno))
+        InteractiveShellEmbed.clear_instance()
 
 
 log_handle = TaskBase()
