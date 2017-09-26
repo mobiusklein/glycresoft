@@ -1,7 +1,6 @@
 from collections import defaultdict
 from glypy import Composition
 
-
 mass_shift_index = dict()
 
 
@@ -88,10 +87,10 @@ class CompoundMassShift(MassShiftBase):
 
     def composed_with(self, other):
         if isinstance(other, MassShift):
-            return self.counts[other] == 1
+            return self.counts.get(other, 0) == 1
         elif isinstance(other, CompoundMassShift):
             for key, count in other.counts.items():
-                if self.counts[key] != count:
+                if self.counts.get(key, 0) != count:
                     return False
             return True
 
