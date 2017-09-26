@@ -35,7 +35,9 @@ class AdductScoringModelBase(ScoringFeatureBase):
             return chromatogram.adducts
         else:
             return [t for t in self.adduct_types
-                    if t in chromatogram.adducts]
+                    # if t in chromatogram.adducts
+                    if [k for k in chromatogram.adducts if k == t or k.composed_with(t)]
+                    ]
 
     def get_signal_proportions(self, chromatogram):
         fractions = chromatogram.adduct_signal_fractions()
