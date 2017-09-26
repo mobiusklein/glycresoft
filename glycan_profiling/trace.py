@@ -471,7 +471,14 @@ class ChromatogramEvaluator(TaskBase):
             score_set=score_set)
 
     def finalize_matches(self, solutions):
-        solutions = ChromatogramFilter(sol for sol in solutions if sol.score > self.ignore_below)
+        out = []
+        for sol in solutions:
+            if sol.score <= self.ignore_below:
+                continue
+            elif (sol.composition is None) and (Unmodified not in sol.adducts):
+                continue
+            out.append(sol)
+        solutions = ChromatogramFilter(out)
         return solutions
 
     def score(self, chromatograms, delta_rt=0.25, min_points=3, smooth_overlap_rt=True,
