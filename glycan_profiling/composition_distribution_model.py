@@ -937,11 +937,13 @@ class NetworkTrimmingSearchSolution(object):
         self.lambda_values = lambda_values
         self.press_residuals = press_residuals
         self.network = network
-        self.optimal_lambda = self.lambda_values[np.argmin(self.press_residuals)]
+        self.taus = taus
+        optimal_ix = np.argmin(self.press_residuals)
+        self.optimal_lambda = self.lambda_values[optimal_ix]
+        self.optimal_tau = self.taus[optimal_ix]
         self.minimum_residuals = self.press_residuals.min()
         self.observed = observed
         self.updated = updated
-        self.taus = taus
         self.model = model
 
     @property
@@ -1126,7 +1128,7 @@ class ThresholdSelectionGridSearch(object):
         for level in self.network_reduction:
             stack.append(np.array(level.taus).mean(axis=0))
             tau_magnitude.append(
-                np.abs(level.taus).sum() * (
+                np.abs(level.optimal_tau).sum() * (
                     (level.threshold / bias_scale) + bias_shift)
             )
         tau_magnitude = np.array(tau_magnitude)
