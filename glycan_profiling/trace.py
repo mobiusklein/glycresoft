@@ -154,6 +154,7 @@ class CompositionGroup(object):
 
 
 class ChromatogramMatcher(TaskBase):
+
     def __init__(self, database, chromatogram_type=None):
         if chromatogram_type is None:
             chromatogram_type = GlycanCompositionChromatogram
@@ -211,8 +212,13 @@ class ChromatogramMatcher(TaskBase):
                 exclude_compositions[chroma.composition].append(chroma)
             else:
                 candidate_chromatograms.append(chroma)
-
+        n = len(chromatograms)
+        i = 0
+        self.log("Begin Reverse Search")
         for chroma in candidate_chromatograms:
+            i += 1
+            if i % 1000 == 0:
+                self.log("... %0.2f%% chromatograms searched (%d/%d)" % (i * 100. / n, i, n))
             candidate_mass = chroma.weighted_neutral_mass
             matched = False
             exclude = False
@@ -264,7 +270,12 @@ class ChromatogramMatcher(TaskBase):
     def join_mass_shifted(self, chromatograms, adducts, mass_error_tolerance=1e-5):
         out = []
         i = 0
+        n = len(chromatograms)
+        self.log("Begin Forward Search")
         for chroma in chromatograms:
+            i += 1
+            if i % 1000 == 0:
+                self.log("... %0.2f%% chromatograms searched (%d/%d)" % (i * 100. / n, i, n))
             add = chroma
             for adduct in adducts:
                 match = chromatograms.find_mass(chroma.weighted_neutral_mass + adduct.mass, mass_error_tolerance)
@@ -281,7 +292,6 @@ class ChromatogramMatcher(TaskBase):
                         e.adduct = adduct
                         raise e
             out.append(add)
-            i += 1
         return ChromatogramFilter(out)
 
     def join_common_identities(self, chromatograms, delta_rt=0):
@@ -376,19 +386,19 @@ class ChromatogramMatcher(TaskBase):
             adducts = []
         matches = []
         chromatograms = ChromatogramFilter(chromatograms)
-        self.log("Matching chromatograms")
+        self.log("Matching Chromatograms")
         i = 0
         n = len(chromatograms)
         for chro in chromatograms:
             i += 1
             if i % 1000 == 0:
-                self.log("%0.2f%% chromatograms searched (%d/%d)" % (i * 100. / n, i, n))
+                self.log("... %0.2f%% chromatograms searched (%d/%d)" % (i * 100. / n, i, n))
             matches.extend(self.search(chro, mass_error_tolerance))
         matches = ChromatogramFilter(matches)
         matches = self.join_common_identities(matches, delta_rt)
-        matches = self.join_mass_shifted(matches, adducts, mass_error_tolerance)
         if adducts:
             self.log("Handling Adducts")
+            matches = self.join_mass_shifted(matches, adducts, mass_error_tolerance)
             matches = self.reverse_adduct_search(matches, adducts, mass_error_tolerance)
         matches = self.join_common_identities(matches, delta_rt)
         self.find_related_profiles(matches, adducts, mass_error_tolerance)
@@ -442,7 +452,6 @@ class ChromatogramEvaluator(TaskBase):
             chromatograms, delta_rt=delta_rt, min_points=min_points)
         if smooth_overlap_rt:
             filtered = ChromatogramOverlapSmoother(filtered)
-
         solutions = []
         i = 0
         n = len(filtered)
@@ -455,13 +464,18 @@ class ChromatogramEvaluator(TaskBase):
                 sol = self.evaluate_chromatogram(case)
                 if self.scoring_model.accept(sol):
                     solutions.append(sol)
+                else:
+                    if sol.glycan_composition:
+                        self.debug("Rejecting %s with score %s %s" % (
+                            sol, sol.score, sol.score_components()))
                 end = time.time()
                 # Report on anything that took more than 30 seconds to evaluate
                 if end - start > 30.0:
                     self.log("%r took a long time to evaluated (%0.2fs)" % (case, end - start))
             except (IndexError, ValueError):
                 continue
-        return ChromatogramFilter(solutions)
+        solutions = ChromatogramFilter(solutions)
+        return solutions
 
     def evaluate_chromatogram(self, chromatogram):
         score_set = self.scoring_model.compute_scores(chromatogram)
@@ -515,8 +529,8 @@ class LogitSumChromatogramEvaluator(ChromatogramEvaluator):
     acceptance_threshold = 4
     ignore_below = 2
 
-    def __init__(self, scorer):
-        super(LogitSumChromatogramEvaluator, self).__init__(scorer)
+    def __init__(self, scoring_model):
+        super(LogitSumChromatogramEvaluator, self).__init__(scoring_model)
 
     def prune_adducts(self, solutions):
         return prune_bad_adduct_branches(ChromatogramFilter(solutions), score_margin=2.5)
@@ -552,10 +566,10 @@ class LogitSumChromatogramEvaluator(ChromatogramEvaluator):
 
 
 class LaplacianRegularizedChromatogramEvaluator(LogitSumChromatogramEvaluator):
-    def __init__(self, scorer, network, smoothing_factor=None, grid_smoothing_max=1.0,
+    def __init__(self, scoring_model, network, smoothing_factor=None, grid_smoothing_max=1.0,
                  regularization_model=None):
         super(LaplacianRegularizedChromatogramEvaluator,
-              self).__init__(scorer)
+              self).__init__(scoring_model)
         self.network = network
         self.smoothing_factor = smoothing_factor
         self.grid_smoothing_max = grid_smoothing_max
@@ -639,7 +653,7 @@ class ChromatogramExtractor(TaskBase):
         return self.peak_loader.convert_scan_id_to_retention_time(scan_id)
 
     def load_peaks(self):
-        self.accumulated = self.peak_loader.ms1_peaks_above(self.minimum_mass, self.minimum_intensity)
+        self.accumulated = self.peak_loader.ms1_peaks_above(min(500, self.minimum_mass), self.minimum_intensity)
         self.annotated_peaks = [x[:2] for x in self.accumulated]
         self.peak_mapping = {x[:2]: x[2] for x in self.accumulated}
         self.minimum_intensity = np.percentile([p[1].intensity for p in self.accumulated], 5)
