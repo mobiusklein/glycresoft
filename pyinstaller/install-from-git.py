@@ -8,6 +8,7 @@ repos = [
     "https://github.com/mobiusklein/glypy.git",
     "https://github.com/mobiusklein/glycopeptidepy.git",
     "https://github.com/mobiusklein/ms_peak_picker.git",
+    "https://github.com/mobiusklein/brainpy.git",
     "https://github.com/mobiusklein/psims.git",
     "https://github.com/mobiusklein/ms_deisotope.git",
 ]
