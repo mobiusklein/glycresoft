@@ -306,18 +306,26 @@ class AnalysisDeserializer(DatabaseBoundOperation):
 
     def load_unidentified_chromatograms(self):
         from glycan_profiling.chromatogram_tree import ChromatogramFilter
+        node_type_cache = dict()
+        scan_id_cache = dict()
         q = self.query(UnidentifiedChromatogram).filter(
             UnidentifiedChromatogram.analysis_id == self.analysis_id).yield_per(100)
         chroma = ChromatogramFilter([c.convert(
-            chromatogram_scoring_model=self.chromatogram_scoring_model) for c in q])
+            chromatogram_scoring_model=self.chromatogram_scoring_model,
+            node_type_cache=node_type_cache,
+            scan_id_cache=scan_id_cache) for c in q])
         return chroma
 
     def load_glycan_composition_chromatograms(self):
         from glycan_profiling.chromatogram_tree import ChromatogramFilter
+        node_type_cache = dict()
+        scan_id_cache = dict()
         q = self.query(GlycanCompositionChromatogram).filter(
             GlycanCompositionChromatogram.analysis_id == self.analysis_id).yield_per(100)
         chroma = ChromatogramFilter([c.convert(
-            chromatogram_scoring_model=self.chromatogram_scoring_model) for c in q])
+            chromatogram_scoring_model=self.chromatogram_scoring_model,
+            node_type_cache=node_type_cache,
+            scan_id_cache=scan_id_cache) for c in q])
         return chroma
 
     def load_identified_glycopeptides_for_protein(self, protein_id):

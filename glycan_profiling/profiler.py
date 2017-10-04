@@ -353,13 +353,20 @@ class GlycanChromatogramAnalyzer(TaskBase):
                 key_to_tandem = defaultdict(list)
                 for match in annotated_matches:
                     accepted = False
+                    best_score = 0
                     key_to_tandem[match.key].extend(match.tandem_solutions)
                     for gsm in match.tandem_solutions:
+                        if gsm.score > best_score:
+                            best_score = gsm.score
                         if gsm.score > self.require_msms_signature:
                             accepted = True
                             break
                     if accepted:
                         kept_annotated_matches.append(match)
+                    else:
+                        self.debug(
+                            "%s was discarded with insufficient MS/MS evidence %f" % (
+                                match, best_score))
                 kept_annotated_matches = ChromatogramFilter(kept_annotated_matches)
                 processor.evaluate_chromatograms(kept_annotated_matches)
                 for solution in processor.solutions:

@@ -203,8 +203,8 @@ class ChromatogramFilter(object):
             low_index += 1
         high_index, flag = binary_search_with_flag(self.chromatograms, high, 1e-5)
         high_index += 2
-        high_index = min(n - 1, high_index)
-        if self[high_index].neutral_mass > high:
+        # high_index = min(n - 1, high_index)
+        if (high_index < n) and (self[high_index].neutral_mass > high):
             high_index -= 1
         items = self[low_index:high_index]
         items = [c for c in items if low <= c.neutral_mass <= high]

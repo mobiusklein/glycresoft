@@ -8,11 +8,6 @@ from glycan_profiling.chromatogram_tree import ChromatogramFilter
 
 from jinja2 import Markup, Template
 
-try:
-    from urllib import quote
-except ImportError:
-    from urllib.parse import quote
-
 
 from glycan_profiling.output.report.base import (
     svguri_plot, ReportCreatorBase)

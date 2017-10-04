@@ -61,7 +61,7 @@ class ScoringFeatureBase(object):
             return name
 
     @classmethod
-    def reject(self, score_components):
+    def reject(self, score_components, solution):
         score = score_components[self.get_feature_type()]
         return score < 0.15
 
@@ -87,7 +87,7 @@ class DummyFeature(ScoringFeatureBase):
             name = self.__name__
         return "%s:%s" % (self.get_feature_type(), name)
 
-    def reject(self, score_components):
+    def reject(self, score_components, solution):
         score = score_components[self.feature_type]
         return score < 0.15
 
@@ -127,7 +127,7 @@ class DiscreteCountScoringModelBase(object):
         # total signal observed in state
         raise NotImplementedError()
 
-    def reject(self, score_components):
+    def reject(self, score_components, solution):
         score = score_components[self.feature_type]
         return score < 0.15
 
@@ -306,9 +306,12 @@ class CompositionDispatchingModel(ScoringFeatureBase):
             ", ".join([v.get_feature_name()
                        for v in self.rule_model_map.values()]))
 
-    def reject(self, score_components):
-        score = score_components[self.get_feature_type()]
-        return score < 0.15
+    def reject(self, score_components, solution):
+        # score = score_components[self.get_feature_type()]
+        # return score < 0.15
+        composition = self.get_composition(solution)
+        model = self.find_model(composition)
+        return model.reject(score_components, solution)
 
     def clone(self):
         return self.__class__(self.rule_model_map, self.default_model)

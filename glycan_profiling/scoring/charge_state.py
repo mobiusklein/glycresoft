@@ -38,6 +38,10 @@ class ChargeStateDistributionScoringModelBase(ScoringFeatureBase):
         # little support to be used
         return proportions
 
+    def reject(self, score_components, solution):
+        score = score_components[self.feature_type]
+        return score < 0.05
+
 
 _CHARGE_MODEL = ChargeStateDistributionScoringModelBase
 

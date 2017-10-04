@@ -26,6 +26,7 @@ from glycan_profiling.chromatogram_tree import (
 from glycan_profiling.trace import (
     ChromatogramExtractor, ChromatogramProcessor)
 
+from glycan_profiling import database
 from glycan_profiling.database import (
     NeutralMassDatabase, GlycopeptideDiskBackedStructureDatabase,
     GlycanCompositionDiskBackedStructureDatabase)

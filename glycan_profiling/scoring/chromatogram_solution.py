@@ -80,7 +80,7 @@ class ScorerBase(object):
     def accept(self, solution):
         scored_features = solution.score_components()
         for feature in self.features():
-            if feature.reject(scored_features):
+            if feature.reject(scored_features, solution):
                 return False
         return True
 

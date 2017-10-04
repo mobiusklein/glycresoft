@@ -334,7 +334,7 @@ class Chromatogram(_TimeIntervalMethods):
         return len(self.nodes)
 
     def __repr__(self):
-        return "Chromatogram(%s, %0.4f)" % (self.composition, self.neutral_mass)
+        return "Chromatogram(%s, %0.4f)" % (self.composition, self.weighted_neutral_mass)
 
     def split_sparse(self, delta_rt=1.):
         chunks = []

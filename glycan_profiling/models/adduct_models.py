@@ -21,11 +21,12 @@ register_feature("methyl_loss", MethylLossFeature)
 
 
 class PermethylatedAmmoniumAndMethylLossModel(DummyFeature):
-    def __init__(self):
+    def __init__(self, boosting=True):
         DummyFeature.__init__(
             self, name=self.__class__.__name__, feature_type="adduct_score")
         self.ammonium = AmmoniumAdductFeature
         self.methyl_loss = MethylLossFeature
+        self.boosting = boosting
 
     def score(self, chromatogram, *args, **kwargs):
         methyl_score = self.methyl_loss.score(chromatogram)
@@ -38,8 +39,11 @@ class PermethylatedAmmoniumAndMethylLossModel(DummyFeature):
         # case where unmodified is detecteded should map to essentially
         # 1.0 or the case where no loss is registered
         methyl_score *= 2
+        if not self.boosting:
+            if methyl_score > 1:
+                methyl_score = 1
         # there was no methyl loss
-        if methyl_score == 0:
+        if methyl_score < 1e-3:
             methyl_score = 1
         # elif methyl_score > 1:
         #     methyl_score = 1

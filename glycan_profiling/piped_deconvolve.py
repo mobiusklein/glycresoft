@@ -36,7 +36,7 @@ SCAN_STATUS_GOOD = b"good"
 SCAN_STATUS_SKIP = b"skip"
 
 savgol = ms_peak_picker.scan_filter.SavitskyGolayFilter()
-denoise = ms_peak_picker.scan_filter.FTICRBaselineRemoval(scale=2.)
+denoise = ms_peak_picker.scan_filter.FTICRBaselineRemoval(window_length=2.)
 
 
 class ScanIDYieldingProcess(Process):
@@ -383,6 +383,7 @@ class ScanTransformingProcess(Process, ScanTransformMixin):
         logger_to_silence = logging.getLogger("deconvolution_scan_processor")
         logger_to_silence.propagate = False
         logger_to_silence.addHandler(logging.NullHandler())
+        # logger_to_silence.addHandler(logging.StreamHandler())
 
         i = 0
         while has_input:

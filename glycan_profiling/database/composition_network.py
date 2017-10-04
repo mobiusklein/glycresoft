@@ -607,7 +607,7 @@ class GraphWriter(object):
             self.handle_edge(edge)
         try:
             if graph.neighborhoods:
-                self.write("#NEIGHBORHOOD")
+                self.write("#NEIGHBORHOOD\n")
                 for neighborhood in graph.neighborhoods:
                     self.handle_neighborhood(neighborhood)
         except AttributeError:
@@ -686,9 +686,9 @@ class GraphReader(object):
                 else:
                     buffering.append(line)
 
-        def handle_neighborhood(self, lines):
-            rule = CompositionRuleClassifier.parse(lines)
-            self.neighborhoods.add(rule)
+    def handle_neighborhood(self, lines):
+        rule = CompositionRuleClassifier.parse(lines)
+        self.neighborhoods.add(rule)
 
 
 dump = GraphWriter
@@ -941,7 +941,7 @@ class CompositionRuleClassifier(object):
         for line in lines[1:]:
             if line == "":
                 continue
-            rule_type = line.split("\t")[1]
+            rule_type = line.split("\t")[0]
             if rule_type == "CompositionRangeRule":
                 rule = CompositionRangeRule.parse(line)
             elif rule_type == "CompositionRatioRule":
@@ -973,6 +973,12 @@ class NeighborhoodCollection(object):
 
     def __repr__(self):
         return "NeighborhoodCollection(%s)" % (', '.join(self.neighborhoods.keys()))
+
+    def __eq__(self, other):
+        return list(self) == list(other)
+
+    def __ne__(self, other):
+        return not (self == other)
 
     def get_neighborhood(self, key):
         return self.neighborhoods[key]
@@ -1156,8 +1162,7 @@ class NeighborhoodWalker(object):
         for neighborhood in self.neighborhoods:
             query = self.query_neighborhood(neighborhood)
             if query is None:
-                print(neighborhood, self.filter_space)
-                raise ValueError()
+                raise ValueError("Query cannot be None! %r" % neighborhood)
             for composition in query:
                 if neighborhood(composition):
                     self.neighborhood_assignments[
