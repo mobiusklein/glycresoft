@@ -316,20 +316,20 @@ class GlycopeptideDatabaseSearchIdentifier(TaskBase):
                     self.log("Missing Scan: %s" % (o.id,))
             scan_set = out
         out = []
-        orphans = []
+        unconfirmed_precursors = []
         for scan in scan_set:
             try:
                 scan.deconvoluted_peak_set = self.scan_transformer(
                     scan.deconvoluted_peak_set)
                 if len(scan.deconvoluted_peak_set) > 0:
-                    if scan.precursor_information.orphan:
-                        orphans.append(scan)
+                    if scan.precursor_information.defaulted:
+                        unconfirmed_precursors.append(scan)
                     else:
                         out.append(scan)
             except AttributeError:
                 self.log("Missing Scan: %s" % (scan.id,))
                 continue
-        return out, orphans
+        return out, unconfirmed_precursors
 
     def search(self, precursor_error_tolerance=1e-5, simplify=True, chunk_size=1000, limit=None, *args, **kwargs):
         target_hits = []
@@ -342,11 +342,11 @@ class GlycopeptideDatabaseSearchIdentifier(TaskBase):
             count += len(scan_collection)
             for item in format_work_batch(scan_collection, count, total):
                 self.log("... %s" % item)
-            scan_collection, orphans = self.prepare_scan_set(scan_collection)
-            self.log("... %d Orphan Spectra" % (len(orphans,)))
+            scan_collection, unconfirmed_precursors = self.prepare_scan_set(scan_collection)
+            self.log("... %d Unconfirmed Precursor Spectra" % (len(unconfirmed_precursors,)))
             self.log("... Spectra Extracted")
-            # TODO: handle orphans differently here
-            evaluator = self._make_evaluator(scan_collection + orphans)
+            # TODO: handle unconfirmed_precursors differently here
+            evaluator = self._make_evaluator(scan_collection + unconfirmed_precursors)
             t, d = evaluator.score_all(
                 precursor_error_tolerance=precursor_error_tolerance,
                 simplify=simplify, *args, **kwargs)

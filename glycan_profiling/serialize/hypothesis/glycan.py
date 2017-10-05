@@ -37,6 +37,9 @@ class GlycanBase(object):
             self._glycan_composition = HashableGlycanComposition.parse(self.composition)
         return self._glycan_composition.keys()
 
+    def mass(self):
+        return self.calculated_mass
+
 
 class GlycanComposition(GlycanBase, Base):
     __tablename__ = 'GlycanComposition'

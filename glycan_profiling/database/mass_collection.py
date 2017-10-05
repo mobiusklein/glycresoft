@@ -1,3 +1,5 @@
+from abc import ABCMeta, abstractmethod, abstractproperty
+from six import add_metaclass
 import operator
 
 from glycopeptidepy import HashableGlycanComposition
@@ -5,6 +7,7 @@ from glycopeptidepy import HashableGlycanComposition
 from .composition_network import CompositionGraph, n_glycan_distance
 
 
+@add_metaclass(ABCMeta)
 class SearchableMassCollection(object):
     def __len__(self):
         return len(self.structures)
@@ -45,6 +48,7 @@ class SearchableMassCollection(object):
         tol = mass * error_tolerance
         return self.search_mass(mass, tol)
 
+    @abstractmethod
     def search_mass(self, mass, error_tolerance=0.1):
         raise NotImplementedError()
 
@@ -74,7 +78,7 @@ class MassDatabase(SearchableMassCollection):
         if network is None:
             self.network = CompositionGraph(self.structures)
             if distance_fn is not None:
-                self.network._create_edges(1, distance_fn=distance_fn)
+                self.network.create_edges(1, distance_fn=distance_fn)
         else:
             self.network = network
 

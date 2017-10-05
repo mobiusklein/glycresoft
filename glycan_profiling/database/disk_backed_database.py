@@ -17,7 +17,8 @@ from sqlalchemy import select, join
 
 from .mass_collection import SearchableMassCollection, NeutralMassDatabase
 from glycan_profiling.structure.lru import LRUCache
-from glycan_profiling.structure.structure_loader import CachingGlycanCompositionParser
+from glycan_profiling.structure.structure_loader import (
+    CachingGlycanCompositionParser, CachingGlycopeptideParser)
 from .composition_network import CompositionGraph, n_glycan_distance
 
 
@@ -324,6 +325,19 @@ class GlycopeptideDiskBackedStructureDatabase(DeclarativeDiskBackedDatabase):
     mass_field = Glycopeptide.__table__.c.calculated_mass
     identity_field = Glycopeptide.__table__.c.id
 
+    def __init__(self, connection, hypothesis_id, cache_size=DEFAULT_CACHE_SIZE,
+                 loading_interval=DEFAULT_LOADING_INTERVAL,
+                 threshold_cache_total_count=DEFAULT_THRESHOLD_CACHE_TOTAL_COUNT):
+        super(GlycopeptideDiskBackedStructureDatabase, self).__init__(
+            connection, hypothesis_id, cache_size, loading_interval,
+            threshold_cache_total_count)
+        self._convert_cache = CachingGlycopeptideParser()
+
+    def _convert(self, bundle):
+        inst = self._convert_cache.parse(bundle)
+        inst.hypothesis_id = self.hypothesis_id
+        return inst
+
     @property
     def hypothesis(self):
         return self.session.query(GlycopeptideHypothesis).get(self.hypothesis_id)
@@ -372,7 +386,9 @@ class GlycanCompositionDiskBackedStructureDatabase(DeclarativeDiskBackedDatabase
         self._convert_cache = CachingGlycanCompositionParser()
 
     def _convert(self, bundle):
-        return self._convert_cache(bundle)
+        inst = self._convert_cache(bundle)
+        inst.hypothesis_id = self.hypothesis_id
+        return inst
 
     @property
     def glycan_composition_network(self):

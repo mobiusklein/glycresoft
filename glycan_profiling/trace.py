@@ -175,7 +175,7 @@ class ChromatogramMatcher(TaskBase):
         except KeyError:
             bundle = CompositionGroup(key, [
                 self.database._convert(m)
-                for m in sorted(matches, key=lambda x: x.calculated_mass)])
+                for m in sorted(matches, key=lambda x: getattr(x, "calculated_mass", 0))])
             self._group_bundle[ids] = bundle
             return bundle
 

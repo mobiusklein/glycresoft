@@ -320,6 +320,8 @@ class CompositionDispatchingModel(ScoringFeatureBase):
 neuac = FMR.from_iupac_lite("NeuAc")
 neugc = FMR.from_iupac_lite("NeuGc")
 neu = FMR.from_iupac_lite("Neu")
+sulfate = FMR.from_iupac_lite("@sulfate")
+hexuronic_acid = FMR.from_iupac_lite("aHex")
 
 
 def is_sialylated(composition):

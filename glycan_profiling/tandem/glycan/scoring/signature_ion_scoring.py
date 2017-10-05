@@ -21,9 +21,15 @@ fucose = MonosaccharideResidue.from_iupac_lite("Fuc")
 
 @memoize(100000000000)
 def is_fucose(residue):
-    return is_a(
-        strip_derivatization(residue.clone(
-            monosaccharide_type=MonosaccharideResidue)), fucose)
+    try:
+        return is_a(
+            strip_derivatization(residue.clone(
+                monosaccharide_type=MonosaccharideResidue)), fucose)
+    except TypeError:
+        if not isinstance(residue, MonosaccharideResidue):
+            return False
+        else:
+            raise
 
 
 class SignatureIonScorer(SpectrumMatcherBase):
