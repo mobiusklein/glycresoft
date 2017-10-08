@@ -331,7 +331,7 @@ class GlycopeptideDatabaseSearchIdentifier(TaskBase):
                 continue
         return out, unconfirmed_precursors
 
-    def search(self, precursor_error_tolerance=1e-5, simplify=True, chunk_size=1000, limit=None, *args, **kwargs):
+    def search(self, precursor_error_tolerance=1e-5, simplify=True, chunk_size=500, limit=None, *args, **kwargs):
         target_hits = []
         decoy_hits = []
         total = len(self.tandem_scans)

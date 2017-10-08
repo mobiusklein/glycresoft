@@ -9,10 +9,13 @@ from glycan_profiling.database.disk_backed_database import (
     GlycanCompositionDiskBackedStructureDatabase,
     GlycopeptideDiskBackedStructureDatabase)
 
+from glycan_profiling.database.analysis import (
+    GlycanCompositionChromatogramAnalysisSerializer,
+    GlycopeptideMSMSAnalysisSerializer)
+
 from glycan_profiling.serialize import (
     DatabaseScanDeserializer, AnalysisSerializer,
-    AnalysisTypeEnum, GlycanCompositionChromatogramAnalysisSerializer,
-    GlycopeptideMSMSAnalysisSerializer)
+    AnalysisTypeEnum)
 
 from glycan_profiling.piped_deconvolve import (
     ScanGenerator as PipedScanGenerator,

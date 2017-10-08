@@ -4,16 +4,16 @@ from sqlalchemy import (
 from sqlalchemy.orm import relationship, backref
 from sqlalchemy.ext.declarative import declared_attr
 
-from .analysis import BoundToAnalysis
+from glycan_profiling.serialize.analysis import BoundToAnalysis
 
-from .chromatogram import (
+from glycan_profiling.serialize.chromatogram import (
     ChromatogramSolution,
     ChromatogramWrapper)
 
-from .tandem import (
+from glycan_profiling.serialize.tandem import (
     GlycopeptideSpectrumCluster)
 
-from .hypothesis import Glycopeptide
+from glycan_profiling.serialize.hypothesis import Glycopeptide
 
 from glycan_profiling.tandem.glycopeptide.identified_structure import (
     IdentifiedGlycopeptide as MemoryIdentifiedGlycopeptide)
@@ -21,7 +21,7 @@ from glycan_profiling.tandem.glycopeptide.identified_structure import (
 from glycan_profiling.tandem.chromatogram_mapping import TandemAnnotatedChromatogram
 from glycan_profiling.chromatogram_tree import GlycopeptideChromatogram
 
-from .base import (
+from glycan_profiling.serialize.base import (
     Base)
 
 

@@ -47,8 +47,8 @@ from glycan_profiling.serialize.serializer import (
 
 from glycan_profiling.serialize.hypothesis import *
 
-from glycan_profiling.serialize.migration import (
-    GlycanCompositionChromatogramAnalysisSerializer,
-    GlycopeptideMSMSAnalysisSerializer)
+# from glycan_profiling.serialize.migration import (
+#     GlycanCompositionChromatogramAnalysisSerializer,
+#     GlycopeptideMSMSAnalysisSerializer)
 
 from glycan_profiling.serialize import config

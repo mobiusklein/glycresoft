@@ -10,7 +10,7 @@ from sqlalchemy.ext.mutable import MutableDict
 
 import dill
 
-from .base import (
+from glycan_profiling.serialize.base import (
     Base, HasUniqueName, SampleRun)
 
 from glypy.utils import Enum

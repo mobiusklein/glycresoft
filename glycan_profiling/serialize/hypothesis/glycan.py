@@ -12,7 +12,7 @@ from glypy import Composition
 from glypy.io import glycoct
 from glycopeptidepy import HashableGlycanComposition
 
-from .hypothesis import GlycanHypothesis, GlycopeptideHypothesis
+from glycan_profiling.serialize.hypothesis.hypothesis import GlycanHypothesis, GlycopeptideHypothesis
 
 
 class GlycanBase(object):
