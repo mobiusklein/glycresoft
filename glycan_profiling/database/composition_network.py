@@ -392,19 +392,19 @@ class CompositionGraph(object):
         if reindex:
             self._reindex()
 
-    def create_edges(self, degree=2, distance_fn=composition_distance):
+    def create_edges(self, distance=1, distance_fn=composition_distance):
         """Traverse composition-space to find nodes similar to each other
         and construct CompositionGraphEdges between them to represent that
         similarity.
 
         Parameters
         ----------
-        degree : int, optional
+        distance : int, optional
             The maximum dissimilarity between two nodes permitted
             to allow the construction of an edge between them
         distance_fn : callable, optional
             A function to use to compute the bounded distance between two nodes
-            that are within `degree` of eachother in raw composition-space
+            that are within `distance` of eachother in raw composition-space
         """
         if distance_fn is None:
             distance_fn = self.distance_fn
@@ -412,7 +412,7 @@ class CompositionGraph(object):
         for node in self:
             if node is None:
                 continue
-            for related in space.find_narrowly_related(node.composition, degree):
+            for related in space.find_narrowly_related(node.composition, distance):
                 related_node = self.node_map[str(related)]
                 # Ensures no duplicates assuming symmetric search window
                 if node.index < related_node.index:
@@ -595,10 +595,14 @@ class GraphWriter(object):
         index2 = edge.node2.index
         diff = edge.order
         weight = edge.weight
-        self.write("%d\t%d\t%d\t%f\n" % (index1, index2, diff, weight))
+        line = ("%d\t%d\t%d\t%f" % (index1, index2, diff, weight))
+        trimmed = line.rstrip("0")
+        if line != trimmed:
+            trimmed += '0'
+        self.write(trimmed + '\n')
 
     def handle_graph(self, graph):
-        self.write("#COMPOSITIONGRAPH 1.0\n")
+        self.write("#COMPOSITIONGRAPH 1.1\n")
         self.write("#NODE\n")
         for node in self.network.nodes:
             self.handle_node(node)
@@ -629,7 +633,7 @@ class GraphReader(object):
     def __init__(self, file_obj):
         self.file_obj = file_obj
         self.network = CompositionGraph([])
-        self.neighborhoods = NeighborhoodCollection()
+        self.neighborhoods = self.network.neighborhoods
         self.handle_graph_file()
 
     def handle_node_line(self, line):
@@ -774,7 +778,7 @@ class CompositionExpressionRule(CompositionRuleBase):
         if i >= n:
             raise ValueError("Coult not parse %r with %s" % (line, cls))
         expr = symbolic_expression.parse_expression(tokens[i])
-        required = tokens[i + 1].lower() == 'true'
+        required = tokens[i + 1].lower() in ('true', 'yes', '1')
         return cls(expr, required)
 
 
@@ -821,7 +825,7 @@ class CompositionRangeRule(CompositionRuleBase):
         expr = symbolic_expression.parse_expression(tokens[i])
         low = int_or_none(tokens[i + 1])
         high = int_or_none(tokens[i + 2])
-        required = tokens[i + 3].lower() == 'true'
+        required = tokens[i + 3].lower() in ('true', 'yes', '1')
         return cls(expr, low, high, required)
 
 
@@ -868,7 +872,7 @@ class CompositionRatioRule(CompositionRuleBase):
         numerator = symbolic_expression.parse_expression(tokens[i])
         denominator = symbolic_expression.parse_expression(tokens[i + 1])
         ratio_threshold = float(tokens[i + 2])
-        required = tokens[i + 3].lower() == 'true'
+        required = tokens[i + 3].lower() in ('true', 'yes', '1')
         return cls(numerator, denominator, ratio_threshold, required)
 
 
@@ -967,6 +971,16 @@ class NeighborhoodCollection(object):
 
     def add(self, classifier):
         self.neighborhoods[classifier.name] = classifier
+
+    def remove(self, key):
+        return self.neighborhoods.pop(key)
+
+    def update(self, iterable):
+        for case in iterable:
+            self.add(case)
+
+    def clear(self):
+        self.neighborhoods.clear()
 
     def __iter__(self):
         return iter(self.neighborhoods.values())
