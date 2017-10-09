@@ -1,3 +1,4 @@
+import sys
 import multiprocessing
 import click
 import textwrap
@@ -13,7 +14,10 @@ from glycan_profiling.cli.validators import (
     validate_reduction,
     validate_derivatization,
     validate_mzid_proteins,
-    GlycanHypothesisCopier)
+    GlycanHypothesisCopier,
+    DatabaseConnectionParam)
+
+from glycan_profiling.cli.utils import ctxstream
 
 from glycan_profiling.serialize import (
     DatabaseBoundOperation,
@@ -40,6 +44,14 @@ from glycan_profiling.database.builder.glycan import (
     GlycopeptideAnalysisGlycanCompositionExtractionHypothesisSerializer)
 
 from glycan_profiling.database.prebuilt import hypothesis_register as prebuilt_hypothesis_register
+
+from glycan_profiling.database.disk_backed_database import GlycanCompositionDiskBackedStructureDatabase
+from glycan_profiling.database.composition_network import (
+    CompositionGraph, GraphWriter, GraphReader,
+    CompositionRangeRule,
+    CompositionRatioRule,
+    CompositionRuleClassifier,
+    CompositionExpressionRule)
 
 from glycopeptidepy.utils.collectiontools import decoratordict
 from glycopeptidepy.structure.modification import RestrictedModificationTable
@@ -415,11 +427,13 @@ def glyspace_glycan_hypothesis(context, database_connection, motif_class, reduct
 @build_hypothesis.command("glycan-from-analysis", short_help=("Construct a glycan hypothesis from a matched analysis"))
 @click.pass_context
 @database_connection
+@click.argument("analysis-connection", type=DatabaseConnectionParam(exists=True))
 @click.argument("analysis-identifier")
 @click.option("-r", "--reduction", default=None, help='Reducing end modification')
 @click.option("-d", "--derivatization", default=None, help='Chemical derivatization to apply')
 @click.option("-n", "--name", default=None, help="The name for the hypothesis to be created")
-def from_analysis(context, database_connection, analysis_identifier, reduction, derivatization, name):
+def from_analysis(context, database_connection, analysis_connection, analysis_identifier,
+                  reduction, derivatization, name):
     database_connection = DatabaseBoundOperation(database_connection)
     if name is not None:
         name = validate_glycan_hypothesis_name(context, database_connection._original_connection, name)
@@ -427,14 +441,18 @@ def from_analysis(context, database_connection, analysis_identifier, reduction, 
     reduction = validate_reduction(context, reduction)
     derivatization = validate_derivatization(context, derivatization)
 
-    analysis = get_by_name_or_id(database_connection.session, Analysis, analysis_identifier)
+    analysis_connection = DatabaseBoundOperation(analysis_connection)
+    analysis = get_by_name_or_id(analysis_connection.session, Analysis, analysis_identifier)
     if analysis.analysis_type == AnalysisTypeEnum.glycan_lc_ms:
-        job = GlycanAnalysisHypothesisSerializer(database_connection._original_connection, analysis.id, name)
+        job = GlycanAnalysisHypothesisSerializer(
+            analysis_connection._original_connection, analysis.id, name,
+            output_connection=database_connection._original_connection)
         job.display_header()
         job.start()
     elif analysis.analysis_type == AnalysisTypeEnum.glycopeptide_lc_msms:
         job = GlycopeptideAnalysisGlycanCompositionExtractionHypothesisSerializer(
-            database_connection._original_connection, analysis.id, name)
+            analysis_connection._original_connection, analysis.id, name,
+            output_connection=database_connection._original_connection)
         job.display_header()
         job.start()
     else:
@@ -461,6 +479,109 @@ def prebuilt_glycan(context, database_connection, recipe_name, name, reduction, 
     recipe(database_connection._original_connection,
            hypothesis_name=name, reduction=reduction,
            derivatization=derivatization)
+
+
+@build_hypothesis.command("glycan-network", short_help=(
+    "Build a glycan network for an existing glycan hypothesis"))
+@click.pass_context
+@database_connection
+@click.argument("hypothesis-identifier", doc_help=(
+                "The ID number or name of the glycan hypothesis to use"))
+@click.option("-o", "--output-path", type=click.Path(
+    file_okay=True, dir_okay=False, writable=True), default=None,
+    help='Path to write to instead of stdout')
+@click.option("-e", "--edge-strategy", type=click.Choice(["manhattan", ]), default='manhattan',
+              help="Strategy to use to decide when two nodes are connected by an edge")
+def glycan_network(context, database_connection, hypothesis_identifier, edge_strategy, output_path):
+    conn = DatabaseBoundOperation(database_connection)
+    hypothesis = get_by_name_or_id(conn, GlycanHypothesis, hypothesis_identifier)
+    if output_path is None:
+        output_stream = ctxstream(sys.stdout)
+    else:
+        output_stream = open(output_path, 'wb')
+    with output_stream:
+        db = GlycanCompositionDiskBackedStructureDatabase(
+            database_connection, hypothesis.id)
+        glycans = list(db)
+        graph = CompositionGraph(glycans)
+        if edge_strategy == 'manhattan':
+            graph.create_edges(1)
+        else:
+            raise click.ClickException(
+                "Could not find edge strategy %r" % (edge_strategy,))
+        GraphWriter(graph, output_stream)
+
+
+@build_hypothesis.command("add-neighborhood-to-network")
+@click.pass_context
+@click.option("-i", "--input-path", type=click.Path(dir_okay=False), default=None)
+@click.option("-o", "--output-path", type=click.Path(dir_okay=False, writable=True),
+              default=None)
+@click.option("-n", "--name", help='Set the neighborhood name', required=True)
+@click.option("-r", "--range-rule", nargs=4, multiple=True)
+@click.option("-e", "--expression-rule", nargs=2, multiple=True)
+@click.option("-a", "--ratio-rule", nargs=4, multiple=True)
+def add_neighborhood_to_network(context, input_path, output_path, name, range_rule, expression_rule,
+                                ratio_rule):
+    if input_path is None:
+        input_stream = ctxstream(sys.stdin)
+    else:
+        input_stream = open(input_path, 'r')
+    with input_stream:
+        graph = GraphReader(input_stream).network
+    if name in graph.neighborhoods:
+        click.secho(
+            "This network already has a neighborhood called %s, overwriting" % name,
+            fg='yellow', err=True)
+    rules = []
+    for rule in range_rule:
+        expr, lo, hi, req = rule
+        lo = int(lo)
+        hi = int(hi)
+        req = req.lower().strip() in ('true', 'yes', '1')
+        rules.append(CompositionRangeRule(expr, lo, hi, req))
+    for rule in expression_rule:
+        expr, req = rule
+        req = req.lower().strip() in ('true', 'yes', '1')
+        rules.append(CompositionExpressionRule(expr, req))
+    for rule in ratio_rule:
+        numer, denom, threshold, req = rule
+        threshold = float(threshold)
+        req = req.lower().strip() in ('true', 'yes', '1')
+        rules.append(CompositionRatioRule(numer, denom, threshold, req))
+    graph.neighborhoods.add(CompositionRuleClassifier(name, rules))
+    if output_path is None:
+        output_stream = ctxstream(sys.stdout)
+    else:
+        output_stream = open(output_path, 'w')
+    with output_stream:
+        GraphWriter(graph, output_stream)
+
+
+@build_hypothesis.command("remove-neighborhood-from-network")
+@click.pass_context
+@click.option("-i", "--input-path", type=click.Path(dir_okay=False), default=None)
+@click.option("-o", "--output-path", type=click.Path(dir_okay=False, writable=True),
+              default=None)
+@click.option("-n", "--name", help='Set the neighborhood name', required=True)
+def remove_neighborhood(context, input_path, output_path, name):
+    if input_path is None:
+        input_stream = ctxstream(sys.stdin)
+    else:
+        input_stream = open(input_path, 'r')
+    with input_stream:
+        graph = GraphReader(input_stream).network
+    try:
+        graph.neighborhoods.remove(name)
+    except KeyError:
+        click.secho(
+            "No neighborhood with name %r was found" % name, err=True, fg='yellow')
+    if output_path is None:
+        output_stream = ctxstream(sys.stdout)
+    else:
+        output_stream = open(output_path, 'w')
+    with output_stream:
+        GraphWriter(graph, output_stream)
 
 
 if __name__ == '__main__':
