@@ -261,6 +261,24 @@ class Chromatogram(_TimeIntervalMethods):
             raise KeyError(node_type)
         return best_neutral_mass
 
+    def mzs(self):
+        return self._average_mz_included()
+
+    def _average_mz_included(self):
+        peaks = defaultdict(list)
+        for node in self.nodes.unspool():
+            for member in node.members:
+                peaks[node.node_type, member.charge].append(member)
+        mzs = dict()
+        for key, value in peaks.items():
+            product = 0
+            weight = 0
+            for v in value:
+                product += v.mz * v.intensity
+                weight += v.intensity
+            mzs[key] = product / weight
+        return tuple(mzs.values())
+
     @property
     def neutral_mass(self):
         if self._neutral_mass is None:
@@ -954,6 +972,9 @@ class ChromatogramWrapper(_TimeIntervalMethods):
 
     def clear(self):
         self.chromatogram.clear()
+
+    def mzs(self):
+        return self.chromatogram.mzs()
 
 
 ChromatogramInterface.register(ChromatogramWrapper)
