@@ -211,8 +211,8 @@ class GlycanChromatogramAnalyzer(TaskBase):
     def __init__(self, database_connection, hypothesis_id, sample_run_id, adducts=None,
                  mass_error_tolerance=1e-5, grouping_error_tolerance=1.5e-5,
                  scoring_model=GeneralScorer, minimum_mass=500., regularize=None,
-                 regularization_model=None, analysis_name=None, delta_rt=0.5,
-                 require_msms_signature=0, msn_mass_error_tolerance=2e-5,
+                 regularization_model=None, network=None, analysis_name=None,
+                 delta_rt=0.5, require_msms_signature=0, msn_mass_error_tolerance=2e-5,
                  n_processes=4):
 
         if adducts is None:
@@ -229,6 +229,7 @@ class GlycanChromatogramAnalyzer(TaskBase):
         self.scoring_model = scoring_model
         self.regularize = regularize
 
+        self.network = network
         self.regularization_model = regularization_model
 
         self.minimum_mass = minimum_mass
@@ -303,7 +304,8 @@ class GlycanChromatogramAnalyzer(TaskBase):
     def make_chromatogram_processor(self, extractor, database):
         if self.regularize is not None or self.regularization_model is not None:
             proc = LaplacianRegularizedChromatogramProcessor(
-                extractor, database, mass_error_tolerance=self.mass_error_tolerance,
+                extractor, database, network=self.network,
+                mass_error_tolerance=self.mass_error_tolerance,
                 adducts=self.adducts, scoring_model=self.scoring_model,
                 delta_rt=self.delta_rt, smoothing_factor=self.regularize,
                 regularization_model=self.regularization_model,
@@ -409,13 +411,13 @@ class MzMLGlycanChromatogramAnalyzer(GlycanChromatogramAnalyzer):
     def __init__(self, database_connection, hypothesis_id, sample_path, output_path,
                  adducts=None, mass_error_tolerance=1e-5, grouping_error_tolerance=1.5e-5,
                  scoring_model=None, minimum_mass=500., regularize=None,
-                 regularization_model=None, analysis_name=None, delta_rt=0.5,
+                 regularization_model=None, network=None, analysis_name=None, delta_rt=0.5,
                  require_msms_signature=0, msn_mass_error_tolerance=2e-5,
                  n_processes=4):
         super(MzMLGlycanChromatogramAnalyzer, self).__init__(
             database_connection, hypothesis_id, -1, adducts,
             mass_error_tolerance, grouping_error_tolerance,
-            scoring_model, minimum_mass, regularize, regularization_model,
+            scoring_model, minimum_mass, regularize, regularization_model, network,
             analysis_name, delta_rt, require_msms_signature, msn_mass_error_tolerance,
             n_processes)
         self.sample_path = sample_path

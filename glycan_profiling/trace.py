@@ -789,7 +789,7 @@ class LogitSumChromatogramProcessor(ChromatogramProcessor):
 class LaplacianRegularizedChromatogramProcessor(LogitSumChromatogramProcessor):
     GRID_SEARCH = 'grid'
 
-    def __init__(self, chromatograms, database, adducts=None, mass_error_tolerance=1e-5,
+    def __init__(self, chromatograms, database, network=None, adducts=None, mass_error_tolerance=1e-5,
                  scoring_model=None, smooth_overlap_rt=True, acceptance_threshold=0.4,
                  delta_rt=0.25, peak_loader=None, smoothing_factor=0.2, grid_smoothing_max=1.0,
                  regularization_model=None):
@@ -801,6 +801,9 @@ class LaplacianRegularizedChromatogramProcessor(LogitSumChromatogramProcessor):
             grid_smoothing_max = 1.0
         if self.GRID_SEARCH == smoothing_factor:
             smoothing_factor = None
+        if network is None:
+            network = database.glycan_composition_network
+        self.network = network
         self.smoothing_factor = smoothing_factor
         self.grid_smoothing_max = grid_smoothing_max
         self.regularization_model = regularization_model
@@ -808,7 +811,7 @@ class LaplacianRegularizedChromatogramProcessor(LogitSumChromatogramProcessor):
     def make_evaluator(self):
         evaluator = LaplacianRegularizedChromatogramEvaluator(
             self.scoring_model,
-            self.database.glycan_composition_network,
+            self.network,
             smoothing_factor=self.smoothing_factor,
             grid_smoothing_max=self.grid_smoothing_max,
             regularization_model=self.regularization_model)

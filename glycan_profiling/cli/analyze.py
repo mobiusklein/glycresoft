@@ -20,6 +20,7 @@ from glycan_profiling.profiler import (
 
 from glycan_profiling.tandem.glycopeptide.scoring import CoverageWeightedBinomialScorer
 from glycan_profiling.composition_distribution_model import GridPointSolution
+from glycan_profiling.database.composition_network import GraphReader
 
 from glycan_profiling.models import GeneralScorer
 from glycan_profiling.task import fmt_msg
@@ -241,6 +242,9 @@ class RegularizationParameterType(click.ParamType):
 @click.option("-w", "--regularization-model-path", type=click.Path(exists=True),
               default=None,
               help="Path to a file containing neighborhood model for regularization")
+@click.option("-k", "--network-path", type=click.Path(exists=True), default=None,
+              help=("Path to a file containing the glycan composition network"
+                    " and neighborhood rules"))
 @click.option("-t", "--delta-rt", default=0.5, type=float,
               help='The maximum time between observed data points before splitting features')
 @click.option("--export", type=click.Choice(
@@ -254,6 +258,7 @@ def search_glycan(context, database_connection, sample_path,
                   analysis_name, adducts, grouping_error_tolerance=1.5e-5,
                   mass_error_tolerance=1e-5, minimum_mass=500.,
                   scoring_model=None, regularize=None, regularization_model_path=None,
+                  network_path=None,
                   output_path=None, scoring_model_features=None,
                   delta_rt=0.5, export=None, interact=False,
                   require_msms_signature=0.0, msn_mass_error_tolerance=2e-5,
@@ -275,6 +280,12 @@ def search_glycan(context, database_connection, sample_path,
             regularization_model = GridPointSolution.load(mod_file)
     else:
         regularization_model = None
+
+    if network_path is not None:
+        with open(network_path, 'r') as netfile:
+            network = GraphReader(netfile).network
+    else:
+        network = None
 
     database_connection = DatabaseBoundOperation(database_connection)
     ms_data = ProcessedMzMLDeserializer(sample_path, use_index=False)
@@ -313,6 +324,7 @@ def search_glycan(context, database_connection, sample_path,
         minimum_mass=minimum_mass,
         regularize=regularize,
         regularization_model=regularization_model,
+        network=network,
         analysis_name=analysis_name,
         delta_rt=delta_rt,
         require_msms_signature=require_msms_signature,
