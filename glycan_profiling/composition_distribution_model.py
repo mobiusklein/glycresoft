@@ -370,6 +370,7 @@ class ProportionMatrixNormalization(object):
 
     def normalize_columns_and_rows(self):
         self.normalize_columns()
+        self.clean()
         self.normalize_rows()
 
     def normalize_columns_scaled(self, scaler=2.0):
@@ -463,18 +464,11 @@ class GlycomeModel(LaplacianSmoothingModel):
                  belongingness_normalization=NORMALIZATION):
         observed_compositions = [
             o for o in observed_compositions if _has_glycan_composition(o)]
-        self._network = network
         self._observed_compositions = observed_compositions
-
-        self.network = assign_network(network.clone(), observed_compositions)
-
-        self.neighborhood_walker = NeighborhoodWalker(
-            self.network)
-
-        self.neighborhood_names = self.neighborhood_walker.neighborhood_names()
-        self.node_names = [str(node) for node in self._network]
-
-        self.obs_ix, self.miss_ix = network_indices(self.network)
+        self._configure_with_network(network)
+        if len(self.miss_ix) == 0:
+            self._network.add_node(CompositionGraphNode(GlycanComposition(), -1), reindex=True)
+            self._configure_with_network(self._network)
 
         self.block_L = BlockLaplacian(self.network, regularize=regularize)
         self.threshold = self.block_L.threshold
@@ -496,6 +490,17 @@ class GlycomeModel(LaplacianSmoothingModel):
         # Normalize and populate
         self.normalize_belongingness(belongingness_normalization)
         self._populate()
+
+    def _configure_with_network(self, network):
+        self._network = network
+        self.network = assign_network(network.clone(), self._observed_compositions)
+
+        self.neighborhood_walker = NeighborhoodWalker(self.network)
+
+        self.neighborhood_names = self.neighborhood_walker.neighborhood_names()
+        self.node_names = [str(node) for node in self._network]
+
+        self.obs_ix, self.miss_ix = network_indices(self.network)
 
     def __reduce__(self):
         return self.__class__, (
