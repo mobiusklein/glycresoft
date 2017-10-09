@@ -30,25 +30,7 @@ from glycan_profiling.output import (
     GlycanChromatogramReportCreator,
     GlycopeptideDatabaseSearchReportCreator)
 
-from glycan_profiling.serialize import (DatabaseScanDeserializer, SampleRun)
-from glycan_profiling.scan_cache import MzMLScanCacheHandler
-
-
-class ctxstream(object):
-    def __init__(self, stream):
-        self.stream = stream
-
-    def write(self, string):
-        self.stream.write(string)
-
-    def flush(self):
-        self.stream.flush()
-
-    def __enter__(self):
-        return self
-
-    def __exit__(self, exc_type, exc_val, exc_tb):
-        return False
+from glycan_profiling.cli.utils import ctxstream
 
 
 def database_connection(fn):
