@@ -8,7 +8,7 @@ try:
 except ImportError:
     from queue import Empty as QueueEmptyException
 
-from ms_deisotope import DeconvolutedPeakSet
+from ms_deisotope import DeconvolutedPeakSet, isotopic_shift
 
 from glycan_profiling.task import TaskBase
 from glycan_profiling.structure import (
@@ -307,21 +307,35 @@ class SpectrumSolutionSet(ScanWrapperBase):
 
 class TandemClusterEvaluatorBase(TaskBase):
 
+    neutron_offset = isotopic_shift()
+
     def __init__(self, tandem_cluster, scorer_type, structure_database, verbose=False,
-                 n_processes=1, ipc_manager=None):
+                 n_processes=1, ipc_manager=None, probing_range_for_missing_precursors=0):
         self.tandem_cluster = tandem_cluster
         self.scorer_type = scorer_type
         self.structure_database = structure_database
         self.verbose = verbose
         self.n_processes = n_processes
         self.ipc_manager = ipc_manager
+        self.probing_range_for_missing_precursors = probing_range_for_missing_precursors
+
+    def search_database_for_precursors(self, mass, precursor_error_tolerance=1e-5):
+        return self.structure_database.search_mass_ppm(mass, precursor_error_tolerance)
+
+    def find_precursor_candidates(self, scan, precursor_error_tolerance=1e-5, probing_range=0):
+        hits = []
+        intact_mass = scan.precursor_information.extracted_neutral_mass
+        for i in range(probing_range + 1):
+            query_mass = intact_mass - (i * self.neutron_offset)
+            hits.extend(self.search_database_for_precursors(query_mass, precursor_error_tolerance))
+        return hits
 
     def score_one(self, scan, precursor_error_tolerance=1e-5, **kwargs):
         solutions = []
 
-        hits = self.structure_database.search_mass_ppm(
-            scan.precursor_information.extracted_neutral_mass,
-            precursor_error_tolerance)
+        probe = 0 if scan.precursor_information.defaulted else self.probing_range_for_missing_precursors
+        hits = self.find_precursor_candidates(
+            scan, precursor_error_tolerance, probing_range=probe)
 
         for structure in hits:
             result = self.evaluate(scan, structure, **kwargs)
@@ -375,9 +389,9 @@ class TandemClusterEvaluatorBase(TaskBase):
             j = 0
             for scan in group:
                 scan_map[scan.id] = scan
-                hits = self.structure_database.search_mass_ppm(
-                    scan.precursor_information.extracted_neutral_mass,
-                    precursor_error_tolerance)
+                probe = 0 if scan.precursor_information.defaulted else self.probing_range_for_missing_precursors
+                hits = self.find_precursor_candidates(
+                    scan, precursor_error_tolerance, probing_range=probe)
                 for hit in hits:
                     j += 1
                     hit_to_scan[hit.id].append(scan)
