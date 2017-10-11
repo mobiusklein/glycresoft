@@ -631,8 +631,8 @@ class GlycanSymbolContext(SymbolContext):
 
     def serialize(self):
         form = "{%s}" % '; '.join("{}:{}".format(str(k), v) for k, v in sorted(
-            self.items(), key=lambda x: _FMR.from_iupac_lite(
-                str(x[0])).mass()) if v > 0)
+            self.items(), key=lambda x: (
+                _FMR.from_iupac_lite(str(x[0])).mass(), str(x[0]))) if v != 0)
         return form
 
     @staticmethod

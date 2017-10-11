@@ -367,9 +367,9 @@ class CompositionGraph(object):
             An iterable source of GlycanComposition-like objects
         """
         i = 0
-        compositions = map(self._composition_normalizer, compositions)
+        compositions = map(self.normalize_composition, compositions)
 
-        for c in compositions:
+        for c in sorted(set(compositions), key=lambda x: x.mass()):
             n = CompositionGraphNode(c, i)
             self.add_node(n)
             i += 1
@@ -386,8 +386,11 @@ class CompositionGraph(object):
         node : CompositionGraphNode
             The node to be added
         """
+        key = str(self.normalize_composition(node.composition))
+        if key in self.node_map:
+            raise ValueError("Redundant composition!")
         self.nodes.append(node)
-        self.node_map[str(node.composition)] = node
+        self.node_map[key] = node
 
         if reindex:
             self._reindex()
@@ -500,9 +503,12 @@ class CompositionGraph(object):
             node.index = i
             i += 1
 
+    def normalize_composition(self, composition):
+        return self._composition_normalizer(composition)
+
     def __getitem__(self, key):
         if isinstance(key, (basestring, GlycanComposition, GlycanCompositionProxy)):
-            key = self._composition_normalizer(key)
+            key = self.normalize_composition(key)
             return self.node_map[key]
         # use the ABC Integral to catch all numerical types that could be used as an
         # index including builtin int and long, as well as all the NumPy flavors of
@@ -1099,7 +1105,7 @@ class NeighborhoodWalker(object):
         self.neighborhood_assignments = defaultdict(set)
         self.neighborhoods = neighborhoods
         self.filter_space = GlycanCompositionFilter(
-            [node.composition for node in self.network])
+            [self.normalize_composition(node.composition) for node in self.network])
 
         self.symbols = symbolic_expression.SymbolSpace(self.filter_space.monosaccharides)
 
@@ -1107,6 +1113,9 @@ class NeighborhoodWalker(object):
 
         if assign:
             self.assign()
+
+    def normalize_composition(self, composition):
+        return self.network.normalize_composition(composition)
 
     def _pack_maps(self):
         key_neighborhood_assignments = defaultdict(set)
@@ -1178,6 +1187,7 @@ class NeighborhoodWalker(object):
             if query is None:
                 raise ValueError("Query cannot be None! %r" % neighborhood)
             for composition in query:
+                composition = self.normalize_composition(composition)
                 if neighborhood(composition):
                     self.neighborhood_assignments[
                         self.network[composition]].add(neighborhood.name)

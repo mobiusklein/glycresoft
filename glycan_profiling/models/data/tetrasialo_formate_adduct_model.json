@@ -31,6 +31,14 @@
     ], 
     "neighborhood_width": 100.0, 
     "table": {
+        "2000.0": {
+            "Formate": 0,
+            "Unmodified": 1.0
+        }, 
+        "3000.0": {
+            "Formate": 0,
+            "Unmodified": 1.0
+        }, 
         "4000.0": {
             "Formate": 0,
             "Unmodified": 1.0
