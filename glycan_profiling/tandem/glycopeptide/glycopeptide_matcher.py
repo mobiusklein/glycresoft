@@ -351,8 +351,8 @@ class GlycopeptideDatabaseSearchIdentifier(TaskBase):
                 precursor_error_tolerance=precursor_error_tolerance,
                 simplify=simplify, *args, **kwargs)
             self.log("... Spectra Searched")
-            target_hits.extend(o for o in t if o.score > 0)
-            decoy_hits.extend(o for o in d if o.score > 0)
+            target_hits.extend(o for o in t if o.score > 0.5)
+            decoy_hits.extend(o for o in d if o.score > 0.5)
             t = sorted(t, key=lambda x: x.score, reverse=True)
             self.log("......\n%s" % (format_identification_batch(t, 10)))
             if count >= limit:

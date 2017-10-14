@@ -14,17 +14,19 @@ class MassAccuracyModel(object):
         sigma = np.std(obs)
         return cls(mu, sigma)
 
-    def __init__(self, mu, sigma):
+    def __init__(self, mu, sigma, scale=1e6):
         self.mu = mu
         self.sigma = sigma
-        self.scale = 1e6
+        self.scale = scale
         self.mu *= self.scale
         self.sigma *= self.scale
 
     def _sample(self):
-        w = self.sigma * 3
-        return self.score(
-            np.arange(self.mu - w, self.mu + w, 1) / self.scale)
+        return self.score(self._interval(n_std=3))
+
+    def _interval(self, n_std=3):
+        w = self.sigma * n_std
+        return np.arange(self.mu - w, self.mu + w, 1) / self.scale
 
     def score(self, error):
         return gauss(self.scale * error, self.mu, self.sigma)

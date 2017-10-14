@@ -1,6 +1,12 @@
+import math
+
 from .binomial_score import BinomialSpectrumMatcher
 from .simple_score import SimpleCoverageScorer
+from .precursor_mass_accuracy import MassAccuracyModel
 from glycan_profiling.structure import FragmentMatchMap
+
+
+accuracy_bias = MassAccuracyModel(-2.673807e-07, 5.022458e-06)
 
 
 class CoverageWeightedBinomialScorer(BinomialSpectrumMatcher, SimpleCoverageScorer):
@@ -73,5 +79,7 @@ class CoverageWeightedBinomialScorer(BinomialSpectrumMatcher, SimpleCoverageScor
         bin_score = BinomialSpectrumMatcher.calculate_score(
             self, match_tolerance=match_tolerance)
         coverage_score = SimpleCoverageScorer.calculate_score(self)
-        self._score = bin_score * coverage_score
+        mass_accuracy = -10 * math.log10(
+            1 - accuracy_bias.score(self.precursor_mass_accuracy()))
+        self._score = bin_score * coverage_score + mass_accuracy
         return self._score
