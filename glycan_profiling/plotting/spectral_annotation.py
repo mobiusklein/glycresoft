@@ -1,5 +1,5 @@
 import numpy as np
-from matplotlib import pyplot as plt
+from matplotlib import pyplot as plt, font_manager
 from ms_peak_picker.utils import draw_peaklist
 
 
@@ -11,6 +11,9 @@ default_ion_series_to_color = {
     'oxonium_ion': 'green',
     'stub_glycopeptide': 'goldenrod'
 }
+
+
+font_options = font_manager.FontProperties(family='sans serif')
 
 
 class SpectrumMatchAnnotator(object):
@@ -43,7 +46,7 @@ class SpectrumMatchAnnotator(object):
 
         return self.ax.text(
             peak.mz, y, label, rotation=rotation, va='bottom',
-            ha='center', fontsize=fontsize)
+            ha='center', fontsize=fontsize, fontproperties=font_options)
 
     def format_axes(self):
         draw_peaklist([], self.ax, pretty=True)
