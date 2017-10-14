@@ -1,3 +1,4 @@
+import sys
 import logging
 import warnings
 import codecs
@@ -75,6 +76,13 @@ def configure_logging(level=None, log_file_name=None, log_file_mode=None):
 
     logger = logging.getLogger("glycresoft")
     task.TaskBase.log_with_logger(logger)
+
+    status_logger = logging.getLogger("glycresoft.status")
+    status_logger.propagate = False
+    handler = logging.StreamHandler(sys.stderr)
+    handler.setFormatter(
+        logging.Formatter("%(asctime)s - %(name)s: %(message)s", "%H:%M:%S"))
+    status_logger.addHandler(handler)
 
     if current_process().name == "MainProcess":
         fmt = logging.Formatter(
