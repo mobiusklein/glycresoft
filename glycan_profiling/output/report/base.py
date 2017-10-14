@@ -1,4 +1,6 @@
 import urllib
+import logging
+
 from io import BytesIO
 
 from matplotlib.axes import Axes
@@ -27,6 +29,9 @@ mpl_params.update({
     'figure.subplot.bottom': .125})
 
 
+status_logger = logging.getLogger("glycresoft.status")
+
+
 def render_plot(figure, **kwargs):
     if isinstance(figure, Axes):
         figure = figure.get_figure()
@@ -43,9 +48,18 @@ def render_plot(figure, **kwargs):
     return data_buffer
 
 
-def png_plot(figure, **kwargs):
+def xmlattrs(**kwargs):
+    return ' '.join("%s=\"%s\"" % kv for kv in kwargs.items())
+
+
+def png_plot(figure, img_width=None, **kwargs):
+    xml_attributes = {}
+    if img_width is not None:
+        xml_attributes['width'] = img_width
     data_buffer = render_plot(figure, format='png', **kwargs)
-    return "<img src='data:image/png;base64,%s'>" % urllib.quote(data_buffer.getvalue().encode("base64"))
+    return "<img %s src='data:image/png;base64,%s'>" % (
+        xmlattrs(**xml_attributes),
+        urllib.quote(data_buffer.getvalue().encode("base64")))
 
 
 def svguri_plot(figure, **kwargs):
@@ -168,6 +182,9 @@ class ReportCreatorBase(TaskBase):
     @property
     def session(self):
         return self.database_connection.session
+
+    def status_update(self, message):
+        status_logger.info(message)
 
     def prepare_environment(self):
         self.env.filters['svguri_plot'] = svguri_plot
