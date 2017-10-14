@@ -330,3 +330,8 @@ def is_sialylated(composition):
 
 def degree_of_sialylation(composition):
     return (composition[neuac] + composition[neugc] + composition[neu])
+
+
+def is_high_mannose(composition):
+    return (composition['HexNAc'] == 2 and composition['Hex'] > 3 and
+            not is_sialylated(composition))
