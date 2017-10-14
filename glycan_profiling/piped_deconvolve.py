@@ -150,6 +150,9 @@ class ScanTransformMixin(object):
         self.log_handler(message + ", %r" %
                          (multiprocessing.current_process()))
 
+    def skip_entry(self, index, ms_level):
+        self.output_queue.put((SCAN_STATUS_SKIP, index, ms_level))
+
     def skip_scan(self, scan):
         self.output_queue.put((SCAN_STATUS_SKIP, scan.index, scan.ms_level))
 
