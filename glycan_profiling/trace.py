@@ -278,19 +278,21 @@ class ChromatogramMatcher(TaskBase):
                 self.log("... %0.2f%% chromatograms searched (%d/%d)" % (i * 100. / n, i, n))
             add = chroma
             for adduct in adducts:
-                match = chromatograms.find_mass(chroma.weighted_neutral_mass + adduct.mass, mass_error_tolerance)
-                if match and span_overlap(add, match):
-                    try:
-                        match.used_as_adduct.append((add.key, adduct))
-                        add = add.merge(match, node_type=adduct)
-                        add.created_at = "join_mass_shifted"
-                        add.adducts.append(adduct)
-                    except DuplicateNodeError as e:
-                        e.original = chroma
-                        e.to_add = match
-                        e.accumulated = add
-                        e.adduct = adduct
-                        raise e
+                query_mass = chroma.weighted_neutral_mass + adduct.mass
+                matches = chromatograms.find_all_by_mass(query_mass, mass_error_tolerance)
+                for match in matches:
+                    if match and span_overlap(add, match):
+                        try:
+                            match.used_as_adduct.append((add.key, adduct))
+                            add = add.merge(match, node_type=adduct)
+                            add.created_at = "join_mass_shifted"
+                            add.adducts.append(adduct)
+                        except DuplicateNodeError as e:
+                            e.original = chroma
+                            e.to_add = match
+                            e.accumulated = add
+                            e.adduct = adduct
+                            raise e
             out.append(add)
         return ChromatogramFilter(out)
 
@@ -381,9 +383,7 @@ class ChromatogramMatcher(TaskBase):
                     used_set.add((a.key, best_match))
                     b.used_as_adduct = list(used_set)
 
-    def process(self, chromatograms, adducts=None, mass_error_tolerance=1e-5, delta_rt=0):
-        if adducts is None:
-            adducts = []
+    def search_all(self, chromatograms, mass_error_tolerance=1e-5):
         matches = []
         chromatograms = ChromatogramFilter(chromatograms)
         self.log("Matching Chromatograms")
@@ -395,6 +395,14 @@ class ChromatogramMatcher(TaskBase):
                 self.log("... %0.2f%% chromatograms searched (%d/%d)" % (i * 100. / n, i, n))
             matches.extend(self.search(chro, mass_error_tolerance))
         matches = ChromatogramFilter(matches)
+        return matches
+
+    def process(self, chromatograms, adducts=None, mass_error_tolerance=1e-5, delta_rt=0):
+        if adducts is None:
+            adducts = []
+        matches = []
+        chromatograms = ChromatogramFilter(chromatograms)
+        matches = self.search_all(chromatograms, mass_error_tolerance)
         matches = self.join_common_identities(matches, delta_rt)
         if adducts:
             self.log("Handling Adducts")
@@ -763,6 +771,7 @@ class ChromatogramProcessor(TaskBase):
             "adducts": self.adducts,
             "delta_rt": self.delta_rt,
             "mass_error_tolerance": self.mass_error_tolerance,
+            "matches": matches
         })
         self.solutions = self.evaluator.score(
             matches, smooth_overlap_rt=self.smooth_overlap_rt,

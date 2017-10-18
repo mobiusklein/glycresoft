@@ -49,6 +49,10 @@ from glycan_profiling.scan_cache import (
 from glycan_profiling.task import TaskBase
 
 from brainpy import periodic_table
+
+import ms_deisotope
+import ms_peak_picker
+
 from ms_deisotope.averagine import Averagine, glycan as n_glycan_averagine
 from ms_deisotope.output.mzml import ProcessedMzMLDeserializer
 from glycopeptidepy.utils.collectiontools import descending_combination_counter
@@ -119,6 +123,41 @@ class SampleConsumer(TaskBase):
         self.end_scan_id = end_scan_id
 
         self.sample_run = None
+
+    @staticmethod
+    def default_processing_configuration(averagine=ms_deisotope.glycopeptide, msn_averagine=None):
+        if msn_averagine is None:
+            msn_averagine = averagine
+
+        ms1_peak_picking_args = {
+            "transforms": [
+                ms_peak_picker.scan_filter.FTICRBaselineRemoval(
+                    scale=5.0, window_length=2),
+                ms_peak_picker.scan_filter.SavitskyGolayFilter()
+            ]
+        }
+
+        ms1_deconvolution_args = {
+            "scorer": ms_deisotope.scoring.PenalizedMSDeconVFitter(20, 2.),
+            "max_missed_peaks": 3,
+            "averagine": averagine,
+            "truncate_after": SampleConsumer.MS1_ISOTOPIC_PATTERN_WIDTH,
+            "ignore_below": SampleConsumer.MS1_IGNORE_BELOW,
+            "deconvoluter_type": ms_deisotope.AveraginePeakDependenceGraphDeconvoluter
+        }
+
+        msn_peak_picking_args = {}
+
+        msn_deconvolution_args = {
+            "scorer": ms_deisotope.scoring.MSDeconVFitter(10),
+            "averagine": msn_averagine,
+            "max_missed_peaks": 1,
+            "truncate_after": SampleConsumer.MSN_ISOTOPIC_PATTERN_WIDTH,
+            "ignore_below": SampleConsumer.MSN_IGNORE_BELOW
+        }
+
+        return (ms1_peak_picking_args, msn_peak_picking_args,
+                ms1_deconvolution_args, msn_deconvolution_args)
 
     def run(self):
         self.log("Initializing Generator")

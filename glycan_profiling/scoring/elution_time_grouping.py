@@ -2,11 +2,18 @@ from collections import namedtuple, defaultdict
 import random
 
 import numpy as np
+from scipy import stats
+from scipy.ndimage import gaussian_filter1d
 
+try:
+    from matplotlib import pyplot as plt
+except ImportError:
+    pass
 
-from matplotlib import pyplot as plt
-
-from glycan_profiling.scoring.base import symbolic_composition, is_sialylated, degree_of_sialylation
+from glycan_profiling.scoring.base import (
+    ScoringFeatureBase,
+    symbolic_composition,
+    is_sialylated)
 
 
 WLSSolution = namedtuple("WLSSolution", [
@@ -75,6 +82,7 @@ def ransac(x, y, w=None, max_trials=100):
     score_best = -np.inf
     X_inlier_best = None
     y_inlier_best = None
+    w_inlier_best = None
 
     while n_trials < max_trials:
         n_trials += 1
@@ -100,10 +108,14 @@ def ransac(x, y, w=None, max_trials=100):
         inlier_subset_ix = sample_indices[inlier_subset_mask]
         X_inlier_subset = X[inlier_subset_ix]
         y_inlier_subset = y[inlier_subset_ix]
+        w_inlier_subset = np.diag(np.diag(w)[inlier_subset_ix])
+        # w_inlier_best = 1
 
         yhat_inlier_subset = X_inlier_subset.dot(fit.parameters)
-        rss = np.square(y_inlier_subset - yhat_inlier_subset).sum()
-        tss = np.square(y_inlier_subset - y_inlier_subset.mean()).sum()
+        rss = (w_inlier_subset * np.square(
+            y_inlier_subset - yhat_inlier_subset)).sum()
+        tss = (w_inlier_subset * np.square(
+            y_inlier_subset - y_inlier_subset.mean())).sum()
 
         score_subset = 1 - (rss / tss)
 
@@ -115,27 +127,35 @@ def ransac(x, y, w=None, max_trials=100):
         score_best = score_subset
         X_inlier_best = X_inlier_subset
         y_inlier_best = y_inlier_subset
+        w_inlier_best = w_inlier_subset
 
     # fit the final best inlier set for the final parameters
-    return weighted_linear_regression_fit(X_inlier_best, y_inlier_best)
+    return weighted_linear_regression_fit(X_inlier_best, y_inlier_best, w_inlier_best)
 
 
-def prediction_interval(solution, x0, y0):
-    pred_variance = solution.rss / (len(solution.residuals) - len(solution.parameters))
+def prediction_interval(solution, x0, y0, alpha=0.05):
+    n = len(solution.residuals)
+    k = len(solution.parameters)
+    df = n - k
+    sigma2 = solution.rss / df
     X = solution.data[0]
     w = solution.weights
+
     xtx_inv = np.linalg.pinv(X.T.dot(w).dot(X))
     h = x0.dot(xtx_inv).dot(x0.T)
     if not np.isscalar(h):
         h = np.diag(h)
-    forecast_variance = 2 * pred_variance * h
-    Z = 1.960
-    width = Z * np.sqrt(forecast_variance)
+    error_of_prediction = np.sqrt(sigma2 * (1 + h))
+
+    t = stats.t.isf(alpha / 2., df)
+    width = t * error_of_prediction
     return np.stack([y0 - width, y0 + width])
 
 
-class ElutionTimeFitter(object):
-    def __init__(self, chromatograms):
+class ElutionTimeFitter(ScoringFeatureBase):
+    feature_type = 'elution_time'
+
+    def __init__(self, chromatograms, scale=2):
         self.chromatograms = chromatograms
         self.neutral_mass_array = np.array([
             x.weighted_neutral_mass for x in chromatograms
@@ -143,7 +163,7 @@ class ElutionTimeFitter(object):
         self.data = self._prepare_data_matrix(self.neutral_mass_array)
 
         self.apex_time_array = np.array([
-            x.apex_time for x in chromatograms
+            self._get_apex_time(x) for x in chromatograms
         ])
 
         self.weight_matrix = self.build_weight_matrix()
@@ -151,6 +171,12 @@ class ElutionTimeFitter(object):
         self.parameters = None
         self.residuals = None
         self.estimate = None
+        self.scale = scale
+
+    def _get_apex_time(self, chromatogram):
+        x, y = chromatogram.as_arrays()
+        y = gaussian_filter1d(y, 1)
+        return x[np.argmax(y)]
 
     def build_weight_matrix(self):
         return np.eye(len(self.chromatograms))
@@ -171,19 +197,36 @@ class ElutionTimeFitter(object):
     def _fit(self, resample=True):
         if resample:
             solution = ransac(self.data, self.apex_time_array, self.weight_matrix)
+            alt = weighted_linear_regression_fit(self.data, self.apex_time_array, self.weight_matrix)
+            if alt.R2 > solution.R2:
+                return alt
+            return solution
         else:
             solution = weighted_linear_regression_fit(
                 self.data, self.apex_time_array, self.weight_matrix)
         return solution
 
-    def fit(self, bootstrap=True):
-        solution = self._fit(bootstrap)
+    def fit(self, resample=True):
+        solution = self._fit(resample=resample)
         self.estimate = solution.yhat
         self.residuals = solution.residuals
         self.parameters = solution.parameters
         self.projection_matrix = solution.projection_matrix
         self.rss = solution.rss
         self.solution = solution
+        return self
+
+    def R2(self):
+        x = self.data
+        y = self.apex_time_array
+        w = self.weight_matrix
+        yhat = x.dot(self.parameters)
+        residuals = (y - yhat)
+        rss = (np.diag(w) * residuals * residuals).sum()
+        tss = (y - y.mean())
+        tss = (np.diag(w) * tss * tss).sum()
+        R2 = (1 - (rss / tss))
+        return R2
 
     def predict(self, chromatogram):
         return self._predict(self._prepare_data_vector(chromatogram))
@@ -191,19 +234,24 @@ class ElutionTimeFitter(object):
     def _predict(self, x):
         return x.dot(self.parameters)
 
-    def predict_ci(self, chromatogram):
+    def predict_interval(self, chromatogram):
         x = self._prepare_data_vector(chromatogram)
-        return self._predict_ci(x)
+        return self._predict_interval(x)
 
-    def _predict_ci(self, x):
+    def _predict_interval(self, x):
         y = self._predict(x)
         return prediction_interval(self.solution, x, y)
 
     def score(self, chromatogram):
         apex = self.predict(chromatogram)
-        score = (1 - abs(apex - chromatogram.apex_time) / max(
-                 apex, chromatogram.apex_time)) / 1.5
-        return score - 1e-6
+        # Use heavier tails (scale 2) to be more tolerant of larger chromatographic
+        # errors.
+        # The survival function's maximum value is 0.5, so double this to map the
+        # range of values to be (0, 1)
+        score = stats.t.sf(
+            abs(apex - self._get_apex_time(chromatogram)),
+            1, scale=self.scale) * 2
+        return max((score - 1e-3), 1e-3)
 
     def plot(self, ax=None):
         if ax is None:
@@ -215,7 +263,7 @@ class ElutionTimeFitter(object):
         X = self._prepare_data_matrix(theoretical_mass)
         Y = X.dot(self.parameters)
         ax.plot(theoretical_mass, Y, linestyle='--', label='Trend Line')
-        pred_interval = self._predict_ci(X)
+        pred_interval = self._predict_interval(X)
         ax.fill_between(
             theoretical_mass, pred_interval[0, :], pred_interval[1, :],
             alpha=0.4, label='Prediction Interval')
@@ -227,16 +275,20 @@ class ElutionTimeFitter(object):
 
 class ScoreWeightedElutionTimeFitter(ElutionTimeFitter):
     def build_weight_matrix(self):
-        return np.eye(len(self.chromatograms)) * [
+        W = np.eye(len(self.chromatograms)) * [
             x.score for x in self.chromatograms
         ]
+        W /= W.max()
+        return W
 
 
 class AbundanceWeightedElutionTimeFitter(ElutionTimeFitter):
     def build_weight_matrix(self):
-        return np.eye(len(self.chromatograms)) * [
+        W = np.eye(len(self.chromatograms)) * [
             x.total_signal for x in self.chromatograms
         ]
+        W /= W.max()
+        return W
 
 
 def is_high_mannose(composition):
@@ -246,10 +298,11 @@ def is_high_mannose(composition):
 
 class PartitioningElutionTimeFitter(ElutionTimeFitter):
 
-    def __init__(self, chromatograms, fitter_cls=ElutionTimeFitter):
+    def __init__(self, chromatograms, scale=2, fitter_cls=ElutionTimeFitter):
         self.fitter_cls = fitter_cls
         self.subfits = dict()
         self.chromatograms = chromatograms
+        self.scale = scale
         self.partitions = self.partition_chromatograms(chromatograms)
 
     def label(self, chromatogram):
@@ -260,24 +313,54 @@ class PartitioningElutionTimeFitter(ElutionTimeFitter):
             else:
                 return 'other'
         else:
-            return 'other'
+            return 'unassigned'
 
-    def fit(self):
+    def fit(self, resample=True):
         for group, members in self.partitions.items():
-            subfit = self.fitter_cls(members)
-            subfit.fit()
+            subfit = self.fitter_cls(members, scale=self.scale)
+            subfit.fit(resample=resample)
             self.subfits[group] = subfit
+        return self
 
     def partition_chromatograms(self, chromatograms):
         partitions = defaultdict(list)
         for chromatogram in chromatograms:
-            partitions[self.label(chromatogram)].append(chromatogram)
+            label = self.label(chromatogram)
+            if label != "unassigned":
+                partitions[label].append(chromatogram)
         return partitions
 
     def predict(self, chromatogram):
         label = self.label(chromatogram)
-        fit = self.subfits[label]
-        return fit.predict(chromatogram)
+        if label != 'unassigned':
+            fit = self.subfits[label]
+            return fit.predict(chromatogram)
+        else:
+            group, closest = self._find_best_fit_for_unassigned(chromatogram)
+            return closest
+
+    def predict_ci(self, chromatogram):
+        label = self.label(chromatogram)
+        if label != 'unassigned':
+            fit = self.subfits[label]
+            return fit.predict_ci(chromatogram)
+        else:
+            group, closest = self._find_best_fit_for_unassigned(chromatogram)
+            subfit = self.subfits[group]
+            return subfit.predict_ci(chromatogram)
+
+    def _find_best_fit_for_unassigned(self, chromatogram):
+        closest = 0
+        distance = float('inf')
+        closest_group = None
+        for group, subfit in self.subfits.items():
+            predicted = subfit.predict(chromatogram)
+            delta = abs(predicted - chromatogram.apex_time)
+            if delta < distance:
+                closest = predicted
+                distance = delta
+                closest_group = group
+        return closest_group, closest
 
     def plot(self, ax=None):
         if ax is None:
@@ -295,10 +378,39 @@ class PartitioningElutionTimeFitter(ElutionTimeFitter):
             X = fit._prepare_data_matrix(theoretical_mass)
             Y = X.dot(fit.parameters)
             ax.plot(theoretical_mass, Y, linestyle='--', color=color)
-            pred_interval = fit._predict_ci(X)
+            pred_interval = fit._predict_interval(X)
             ax.fill_between(
                 theoretical_mass, pred_interval[0, :], pred_interval[1, :],
                 alpha=0.4, color=color)
         ax.set_xlabel("Neutral Mass", fontsize=16)
         ax.set_ylabel("Elution Apex Time\n(Minutes)", fontsize=16)
         return ax
+
+    def R2(self):
+        total = 0
+        weights = 0
+        for group, subfit in self.subfits.items():
+            weight = subfit.weight_matrix.sum() * 100
+            total += subfit.R2() * weight
+            weights += weight
+        return total / weights
+
+
+class ElutionTimeModel(ScoringFeatureBase):
+    feature_type = 'elution_time'
+
+    def __init__(self, fit=None):
+        self.fit = fit
+
+    def configure(self, analysis_data):
+        if self.fit is None:
+            matches = analysis_data['matches']
+            fitter = PartitioningElutionTimeFitter(matches)
+            fitter.fit()
+            self.fit = fitter
+
+    def score(self, chromatogram, *args, **kwargs):
+        if self.fit is not None:
+            return self.fit.score(chromatogram)
+        else:
+            return 0.5

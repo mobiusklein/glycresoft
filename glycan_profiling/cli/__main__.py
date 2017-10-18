@@ -25,7 +25,10 @@ def info(type, value, tb):
 # sys.excepthook = info
 
 
-main = base.cli.main
-if __name__ == '__main__':
+def main():
     freeze_support()
+    base.cli.main(standalone_mode=True)
+
+
+if __name__ == '__main__':
     main()
