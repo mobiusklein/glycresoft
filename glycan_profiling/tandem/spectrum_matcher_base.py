@@ -305,6 +305,23 @@ class SpectrumSolutionSet(ScanWrapperBase):
         self._invalidate()
 
 
+class DatabaseSearchTrackingMetadata(object):
+    def __init__(self, storage=None):
+        if storage is None:
+            storage = defaultdict(dict)
+        self.storage = storage
+
+    def __getitem__(self, key):
+        return self.storage[key]
+
+    def __setitem__(self, key, value):
+        self.storage[key] = value
+
+    def no_precursor_matches(self, neutral_mass):
+        record = self['no_precursor_matches']
+        record[neutral_mass] = 1 + record.get(neutral_mass, 0)
+
+
 class TandemClusterEvaluatorBase(TaskBase):
 
     neutron_offset = isotopic_shift()
@@ -400,8 +417,11 @@ class TandemClusterEvaluatorBase(TaskBase):
                     probe = 0
                 else:
                     probe = self.probing_range_for_missing_precursors
+                    self.log("Missing Precursor for %s" % (scan.id,))
                 hits = self.find_precursor_candidates(
                     scan, precursor_error_tolerance, probing_range=probe)
+                if scan.precursor_information.defaulted:
+                    self.log("%d Candidates For Missing Precursor" % (len(hits),))
                 for hit in hits:
                     j += 1
                     hit_to_scan[hit.id].append(scan)
