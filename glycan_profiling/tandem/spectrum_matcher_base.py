@@ -67,7 +67,7 @@ class SpectrumMatchBase(ScanWrapperBase):
         best_offset = 0
         best_error = float('inf')
         for i in range(probing_range + 1):
-            error = self.precursor_mass_accuracy(i)
+            error = abs(self.precursor_mass_accuracy(i))
             if error < best_error:
                 best_error = error
                 best_offset = i
