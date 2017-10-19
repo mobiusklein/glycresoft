@@ -1,10 +1,13 @@
+from collections import defaultdict
+
 import click
 import os
 
 import ms_peak_picker
 import ms_deisotope
 
-from ms_deisotope.processor import MSFileLoader
+from ms_deisotope import MSFileLoader
+from ms_deisotope.output.mzml import ProcessedMzMLDeserializer
 
 from glycan_profiling.cli.base import cli, HiddenOption, processes_option
 from glycan_profiling.cli.validators import (
@@ -207,6 +210,42 @@ def preprocess(ms_file, outfile_path, averagine=None, start_time=None, end_time=
     consumer.start()
 
 
+@mzml_cli.command("info", short_help='Summary information describing a processed mzML file')
+@click.argument("ms-file", type=click.Path(exists=True, file_okay=True, dir_okay=False))
+def msfile_info(ms_file):
+    reader = ProcessedMzMLDeserializer(ms_file)
+    if not reader.has_index_file():
+        reader.build_extended_index()
+    click.echo("Name: %s" % (os.path.basename(ms_file),))
+    click.echo("MS1 Scans: %d" % (len(reader.extended_index.ms1_ids),))
+    click.echo("MSn Scans: %d" % (len(reader.extended_index.msn_ids),))
+
+    n_defaulted = 0
+    n_orphan = 0
+
+    charges = defaultdict(int)
+    first_msn = float('inf')
+    last_msn = 0
+    for scan_info in reader.extended_index.msn_ids.values():
+        n_defaulted += scan_info['defaulted']
+        n_orphan += scan_info['orphan']
+        charges[scan_info['charge']] += 1
+        rt = scan_info['scan_time']
+        if rt < first_msn:
+            first_msn = rt
+        if rt > last_msn:
+            last_msn = rt
+
+    click.echo("First MSn Scan: %0.2f Minutes" % (first_msn,))
+    click.echo("Last MSn Scan: %0.2f Minutes" % (last_msn,))
+
+    for charge, count in sorted(charges.items()):
+        click.echo("Precursors with Charge State %d: %d" % (charge, count))
+
+    click.echo("Defaulted MSn Scans: %d" % (n_defaulted,))
+    click.echo("Orphan MSn Scans: %d" % (n_orphan,))
+
+
 @mzml_cli.command("peak-picking", short_help=(
     "Convert raw mass spectra data into centroid peak lists written to mzML."
     " Can accept mzML or mzXML with either profile or centroided scans."))
@@ -310,3 +349,6 @@ def peak_picker(ms_file, outfile_path, start_time=None, end_time=None,
         consumer.start()
     except Exception as error:
         raise click.ClickException("glycresoft: An error occurred: %r" % error)
+
+
+
