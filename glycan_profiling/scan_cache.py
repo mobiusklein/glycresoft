@@ -270,7 +270,7 @@ class MzMLScanCacheHandler(ScanCacheHandlerBase):
                 source_file_list_container = description.get('sourceFileList', {'sourceFile': []})
 
                 for source_file in source_file_list_container.get("sourceFile", []):
-                    inst.add_source_file(source_file)
+                    inst.serializer.add_source_file(source_file)
                 print(inst.source_file_list)
             except AttributeError:
                 pass
