@@ -255,6 +255,7 @@ def msfile_info(ms_file):
     " Can accept mzML or mzXML with either profile or centroided scans."))
 @click.argument("ms-file", type=click.Path(exists=True))
 @click.argument("outfile-path", type=click.Path(writable=True))
+@processes_option
 @click.option("-b", "--background-reduction", type=float, default=5., help=(
               "Background reduction factor. Larger values more aggresively remove low abundance"
               " signal in MS1 scans."))
