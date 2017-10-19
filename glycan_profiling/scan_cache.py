@@ -267,8 +267,11 @@ class MzMLScanCacheHandler(ScanCacheHandlerBase):
                 description = reader.file_description()
                 for key in description.get("fileContent", []):
                     inst.serializer.add_file_contents(key)
-                for source_file in description.get('sourceFileList', []):
+                source_file_list_container = description.get('sourceFileList', {'sourceFile': []})
+
+                for source_file in source_file_list_container.get("sourceFile", []):
                     inst.add_source_file(source_file)
+                print(inst.source_file_list)
             except AttributeError:
                 pass
             for trans in source.ms1_peak_picking_args.get("transforms"):
