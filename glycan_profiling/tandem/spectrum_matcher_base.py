@@ -310,7 +310,7 @@ class TandemClusterEvaluatorBase(TaskBase):
     neutron_offset = isotopic_shift()
 
     def __init__(self, tandem_cluster, scorer_type, structure_database, verbose=False,
-                 n_processes=1, ipc_manager=None, probing_range_for_missing_precursors=0):
+                 n_processes=1, ipc_manager=None, probing_range_for_missing_precursors=3):
         self.tandem_cluster = tandem_cluster
         self.scorer_type = scorer_type
         self.structure_database = structure_database
@@ -333,7 +333,10 @@ class TandemClusterEvaluatorBase(TaskBase):
     def score_one(self, scan, precursor_error_tolerance=1e-5, **kwargs):
         solutions = []
 
-        probe = 0 if scan.precursor_information.defaulted else self.probing_range_for_missing_precursors
+        if not scan.precursor_information.defaulted:
+            probe = 0
+        else:
+            probe = self.probing_range_for_missing_precursors
         hits = self.find_precursor_candidates(
             scan, precursor_error_tolerance, probing_range=probe)
 
@@ -364,7 +367,6 @@ class TandemClusterEvaluatorBase(TaskBase):
     def _map_scans_to_hits(self, scans, precursor_error_tolerance=1e-5):
         groups = group_by_precursor_mass(
             scans, precursor_error_tolerance * 1.5)
-
         hit_to_scan = defaultdict(list)
         scan_map = {}
         hit_map = {}
@@ -389,7 +391,15 @@ class TandemClusterEvaluatorBase(TaskBase):
             j = 0
             for scan in group:
                 scan_map[scan.id] = scan
-                probe = 0 if scan.precursor_information.defaulted else self.probing_range_for_missing_precursors
+
+                # For a sufficiently dense database or large value of probe, this
+                # could easily throw the mass interval cache scheme into hysteresis.
+                # If this does occur, instead of doing this here, we could search all
+                # defaulted precursors afterwards.
+                if not scan.precursor_information.defaulted:
+                    probe = 0
+                else:
+                    probe = self.probing_range_for_missing_precursors
                 hits = self.find_precursor_candidates(
                     scan, precursor_error_tolerance, probing_range=probe)
                 for hit in hits:
