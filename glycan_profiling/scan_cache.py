@@ -264,15 +264,13 @@ class MzMLScanCacheHandler(ScanCacheHandlerBase):
             deconvoluting = getattr(source, "deconvoluting", True)
             inst = cls(path, sample_name, n_spectra=n_spectra, deconvoluted=deconvoluting)
             try:
-                import IPython
-                IPython.embed()
                 description = reader.file_description()
                 for key in description.get("fileContent", []):
                     inst.serializer.add_file_contents(key)
                 source_file_list_container = description.get('sourceFileList', {'sourceFile': []})
                 for source_file in source_file_list_container.get("sourceFile", []):
                     inst.serializer.add_source_file(source_file)
-                print(inst.source_file_list)
+
             except AttributeError:
                 pass
             for trans in source.ms1_peak_picking_args.get("transforms"):
