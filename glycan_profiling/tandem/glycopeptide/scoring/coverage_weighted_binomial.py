@@ -79,7 +79,8 @@ class CoverageWeightedBinomialScorer(BinomialSpectrumMatcher, SimpleCoverageScor
         bin_score = BinomialSpectrumMatcher.calculate_score(
             self, match_tolerance=match_tolerance)
         coverage_score = SimpleCoverageScorer.calculate_score(self)
+        offset = self.determine_precursor_offset()
         mass_accuracy = -10 * math.log10(
-            1 - accuracy_bias.score(self.precursor_mass_accuracy()))
+            1 - accuracy_bias.score(self.precursor_mass_accuracy(offset)))
         self._score = bin_score * coverage_score + mass_accuracy
         return self._score

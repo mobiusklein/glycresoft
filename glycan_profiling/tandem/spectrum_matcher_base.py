@@ -15,6 +15,8 @@ from glycan_profiling.structure import (
     ScanWrapperBase)
 from .ref import TargetReference, SpectrumReference
 
+neutron_offset = isotopic_shift()
+
 
 def group_by_precursor_mass(scans, window_size=1.5e-5):
     scans = sorted(
@@ -56,10 +58,20 @@ class SpectrumMatchBase(ScanWrapperBase):
         deconvoluted_peak_set._reindex()
         return deconvoluted_peak_set
 
-    def precursor_mass_accuracy(self):
+    def precursor_mass_accuracy(self, offset=0):
         observed = self.precursor_ion_mass
-        theoretical = self.target.total_composition().mass
+        theoretical = self.target.total_composition().mass + (offset * neutron_offset)
         return (observed - theoretical) / theoretical
+
+    def determine_precursor_offset(self, probing_range=3):
+        best_offset = 0
+        best_error = float('inf')
+        for i in range(probing_range + 1):
+            error = self.precursor_mass_accuracy(i)
+            if error < best_error:
+                best_error = error
+                best_offset = i
+        return best_offset
 
     def __reduce__(self):
         return self.__class__, (self.scan, self.target)
@@ -417,11 +429,8 @@ class TandemClusterEvaluatorBase(TaskBase):
                     probe = 0
                 else:
                     probe = self.probing_range_for_missing_precursors
-                    self.log("Missing Precursor for %s" % (scan.id,))
                 hits = self.find_precursor_candidates(
                     scan, precursor_error_tolerance, probing_range=probe)
-                if scan.precursor_information.defaulted:
-                    self.log("%d Candidates For Missing Precursor" % (len(hits),))
                 for hit in hits:
                     j += 1
                     hit_to_scan[hit.id].append(scan)
