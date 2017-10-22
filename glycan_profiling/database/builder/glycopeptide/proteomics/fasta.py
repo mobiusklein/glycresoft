@@ -65,7 +65,7 @@ class FastaIndex(object):
         self.build_index()
 
     def _chunk_iterator(self):
-        delim = b">"
+        delim = b"\n>"
         read_size = self.block_size
         with open(self.path, 'rb') as f:
             buff = f.read(read_size)
