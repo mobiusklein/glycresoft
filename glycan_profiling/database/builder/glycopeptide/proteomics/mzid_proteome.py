@@ -406,7 +406,11 @@ class ProteinStubLoader(object):
             return self.store[protein_name]
         except KeyError:
             db_prot = self._get_protein_from_db(protein_name)
-            stub = ProteinStub.from_protein(db_prot)
+            try:
+                stub = ProteinStub.from_protein(db_prot)
+            except AttributeError:
+                logger.error("Failed to load stub for %s" % (protein_name,))
+                raise
             self.store[protein_name] = stub
             return stub
 

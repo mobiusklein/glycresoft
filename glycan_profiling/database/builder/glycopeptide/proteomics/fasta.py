@@ -177,26 +177,45 @@ class DeflineSuffix(object):
 
 
 class FastaProteinSequenceResolver(object):
-    def __init__(self, path, encoding='utf-8'):
+    def __init__(self, path, encoding='utf-8', strategy='exact'):
         self.path = path
         self.encoding = encoding
         self.index = FastaIndex(self.path, encoding=self.encoding)
-        self.resolver = SuffixTree()
+        self.resolver = None
+        self.strategy = strategy
 
-        self._build_resolver()
+        self._build_resolver(strategy)
 
-    def _build_resolver(self):
-        keys = self.index.keys()
-        resolver = SuffixTree()
-        for key in keys:
-            label = DeflineSuffix(key.decode(self.encoding).split(" ")[0], key)
-            resolver.add_ngram(label)
-        self.resolver = resolver
+    def _build_resolver(self, strategy='exact'):
+        if strategy == 'suffix':
+            keys = self.index.keys()
+            resolver = SuffixTree()
+            i = 0
+            for key in keys:
+                i += 1
+                label = DeflineSuffix(key.decode(self.encoding).split(" ")[0], key)
+                resolver.add_ngram(label)
+            self.resolver = resolver
+        elif strategy == 'exact':
+            keys = self.index.keys()
+            resolver = dict()
+            for key in keys:
+                i += 1
+                label = DeflineSuffix(key.decode(self.encoding).split(" ")[0], key)
+                self.resolver[label.label] = label
+            self.resolver = resolver
 
     def find(self, name):
-        labels = self.resolver.subsequences_of(name)
-        sequences = [
-            self.index[label.original] for label in labels]
+        if self.strategy == 'suffix':
+            labels = self.resolver.subsequences_of(name)
+            sequences = [
+                self.index[label.original] for label in labels]
+        else:
+            try:
+                label = self.resolver[name]
+                return [self.index[label.original]]
+            except KeyError:
+                return []
         return sequences
 
     def __getitem__(self, name):
