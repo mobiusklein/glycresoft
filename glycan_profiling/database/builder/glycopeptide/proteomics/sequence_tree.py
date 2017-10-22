@@ -57,7 +57,7 @@ class PrefixTree(TreeReprMixin, defaultdict):
         to the tree by calling :meth:`add`. This process
         is identical to calling :meth:`add` once for a prefix
         tree.
-        
+
         Parameters
         ----------
         sequence : Sequence
