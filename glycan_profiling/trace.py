@@ -421,7 +421,7 @@ class GlycopeptideChromatogramMatcher(ChromatogramMatcher):
     def __init__(self, database, chromatogram_type=None):
         if chromatogram_type is None:
             chromatogram_type = GlycopeptideChromatogram
-        super(GlycopeptideChromatogramMatcher).__init__(database, chromatogram_type)
+        super(GlycopeptideChromatogramMatcher, self).__init__(database, chromatogram_type)
 
 
 class NonSplittingChromatogramMatcher(ChromatogramMatcher):
