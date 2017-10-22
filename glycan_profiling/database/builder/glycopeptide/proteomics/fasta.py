@@ -189,7 +189,7 @@ class FastaProteinSequenceResolver(object):
         keys = self.index.keys()
         resolver = SuffixTree()
         for key in keys:
-            label = DeflineSuffix(key.decode(self.encoding), key)
+            label = DeflineSuffix(key.decode(self.encoding).split(" ")[0], key)
             resolver.add_ngram(label)
         self.resolver = resolver
 
