@@ -203,7 +203,7 @@ class FastaProteinSequenceResolver(object):
             for key in keys:
                 i += 1
                 label = DeflineSuffix(key.decode(self.encoding).split(" ")[0], key)
-                self.resolver[label.label] = label
+                resolver[label.label] = label
             self.resolver = resolver
 
     def find(self, name):
