@@ -199,6 +199,7 @@ class FastaProteinSequenceResolver(object):
         elif strategy == 'exact':
             keys = self.index.keys()
             resolver = dict()
+            i = 0
             for key in keys:
                 i += 1
                 label = DeflineSuffix(key.decode(self.encoding).split(" ")[0], key)
