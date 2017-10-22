@@ -13,6 +13,7 @@ from ms_deisotope import DeconvolutedPeakSet, isotopic_shift
 from glycan_profiling.task import TaskBase
 from glycan_profiling.structure import (
     ScanWrapperBase)
+from glycan_profiling.chromatogram_tree import Unmodified
 from .ref import TargetReference, SpectrumReference
 
 neutron_offset = isotopic_shift()
@@ -43,11 +44,23 @@ def group_by_precursor_mass(scans, window_size=1.5e-5):
 
 
 class SpectrumMatchBase(ScanWrapperBase):
-    __slots__ = ['scan', 'target']
+    __slots__ = ['scan', 'target', "_mass_shift"]
 
-    def __init__(self, scan, target):
+    def __init__(self, scan, target, mass_shift=None):
+        if mass_shift is None:
+            mass_shift = Unmodified
         self.scan = scan
         self.target = target
+        self._mass_shift = None
+        self.mass_shift = mass_shift
+
+    @property
+    def mass_shift(self):
+        return self._mass_shift
+
+    @mass_shift.setter
+    def mass_shift(self, value):
+        self._mass_shift = value
 
     @staticmethod
     def threshold_peaks(deconvoluted_peak_set, threshold_fn=lambda peak: True):
@@ -60,7 +73,8 @@ class SpectrumMatchBase(ScanWrapperBase):
 
     def precursor_mass_accuracy(self, offset=0):
         observed = self.precursor_ion_mass
-        theoretical = self.target.total_composition().mass + (offset * neutron_offset)
+        theoretical = self.target.total_composition().mass + (
+            offset * neutron_offset) + self.mass_shift.mass
         return (observed - theoretical) / theoretical
 
     def determine_precursor_offset(self, probing_range=3):
@@ -102,11 +116,15 @@ class SpectrumMatchBase(ScanWrapperBase):
 class SpectrumMatcherBase(SpectrumMatchBase):
     __slots__ = ["spectrum", "_score"]
 
-    def __init__(self, scan, target):
+    def __init__(self, scan, target, mass_shift=None):
+        if mass_shift is None:
+            mass_shift = Unmodified
         self.scan = scan
         self.spectrum = scan.deconvoluted_peak_set
         self.target = target
         self._score = 0
+        self._mass_shift = None
+        self.mass_shift = mass_shift
 
     @property
     def score(self):
@@ -120,7 +138,8 @@ class SpectrumMatcherBase(SpectrumMatchBase):
 
     @classmethod
     def evaluate(cls, scan, target, *args, **kwargs):
-        inst = cls(scan, target)
+        mass_shift = kwargs.get("mass_shift")
+        inst = cls(scan, target, mass_shift=mass_shift)
         inst.match(*args, **kwargs)
         inst.calculate_score(*args, **kwargs)
         return inst
@@ -171,11 +190,13 @@ class SpectrumMatch(SpectrumMatchBase):
     __slots__ = ['score', 'best_match', 'data_bundle', "q_value", 'id']
 
     def __init__(self, scan, target, score, best_match=False, data_bundle=None,
-                 q_value=None, id=None):
+                 q_value=None, id=None, mass_shift=None):
         if data_bundle is None:
             data_bundle = dict()
-        self.scan = scan
-        self.target = target
+
+        super(SpectrumMatch, self).__init__(
+            self, scan, target, mass_shift)
+
         self.score = score
         self.best_match = best_match
         self.data_bundle = data_bundle
@@ -190,7 +211,7 @@ class SpectrumMatch(SpectrumMatchBase):
 
     def __reduce__(self):
         return self.__class__, (self.scan, self.target, self.score, self.best_match,
-                                self.data_bundle, self.q_value, self.id)
+                                self.data_bundle, self.q_value, self.id, self.mass_shift)
 
     def evaluate(self, scorer_type, *args, **kwargs):
         if isinstance(self.scan, SpectrumReference):
@@ -339,7 +360,10 @@ class TandemClusterEvaluatorBase(TaskBase):
     neutron_offset = isotopic_shift()
 
     def __init__(self, tandem_cluster, scorer_type, structure_database, verbose=False,
-                 n_processes=1, ipc_manager=None, probing_range_for_missing_precursors=3):
+                 n_processes=1, ipc_manager=None, probing_range_for_missing_precursors=3,
+                 mass_shifts=None):
+        if mass_shifts is None:
+            mass_shifts = [Unmodified]
         self.tandem_cluster = tandem_cluster
         self.scorer_type = scorer_type
         self.structure_database = structure_database
@@ -347,31 +371,40 @@ class TandemClusterEvaluatorBase(TaskBase):
         self.n_processes = n_processes
         self.ipc_manager = ipc_manager
         self.probing_range_for_missing_precursors = probing_range_for_missing_precursors
+        self.mass_shifts = mass_shifts
 
     def search_database_for_precursors(self, mass, precursor_error_tolerance=1e-5):
         return self.structure_database.search_mass_ppm(mass, precursor_error_tolerance)
 
-    def find_precursor_candidates(self, scan, precursor_error_tolerance=1e-5, probing_range=0):
+    def find_precursor_candidates(self, scan, error_tolerance=1e-5, probing_range=0,
+                                  mass_shift=None):
+        if mass_shift is None:
+            mass_shift = Unmodified
         hits = []
         intact_mass = scan.precursor_information.extracted_neutral_mass
         for i in range(probing_range + 1):
-            query_mass = intact_mass - (i * self.neutron_offset)
-            hits.extend(self.search_database_for_precursors(query_mass, precursor_error_tolerance))
+            query_mass = intact_mass - (i * self.neutron_offset) + mass_shift.mass
+            hits.extend(self.search_database_for_precursors(query_mass, error_tolerance))
         return hits
 
-    def score_one(self, scan, precursor_error_tolerance=1e-5, **kwargs):
+    def score_one(self, scan, precursor_error_tolerance=1e-5, mass_shifts=None, **kwargs):
+        if mass_shifts is None:
+            mass_shifts = (Unmodified,)
         solutions = []
 
         if not scan.precursor_information.defaulted:
             probe = 0
         else:
             probe = self.probing_range_for_missing_precursors
-        hits = self.find_precursor_candidates(
-            scan, precursor_error_tolerance, probing_range=probe)
-
-        for structure in hits:
-            result = self.evaluate(scan, structure, **kwargs)
-            solutions.append(result)
+        hits = []
+        for mass_shift in mass_shifts:
+            hits.extend(self.find_precursor_candidates(
+                scan, precursor_error_tolerance, probing_range=probe,
+                mass_shift=mass_shift))
+            for structure in hits:
+                result = self.evaluate(
+                    scan, structure, mass_shift=mass_shift, **kwargs)
+                solutions.append(result)
         out = SpectrumSolutionSet(
             scan, sorted(
                 solutions, key=lambda x: x.score, reverse=True)).threshold()
@@ -379,11 +412,16 @@ class TandemClusterEvaluatorBase(TaskBase):
 
     def score_all(self, precursor_error_tolerance=1e-5, simplify=False, **kwargs):
         out = []
-        for scan in self.tandem_cluster:
-            solutions = self.score_one(
-                scan, precursor_error_tolerance, **kwargs)
-            if len(solutions) > 0:
-                out.append(solutions)
+        for mass_shift in self.mass_shifts:
+            # make iterable for score_one API
+            mass_shift = (mass_shift,)
+            for scan in self.tandem_cluster:
+                solutions = self.score_one(
+                    scan, precursor_error_tolerance,
+                    mass_shifts=mass_shift,
+                    **kwargs)
+                if len(solutions) > 0:
+                    out.append(solutions)
         if simplify:
             for case in out:
                 case.simplify()
