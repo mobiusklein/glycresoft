@@ -209,7 +209,7 @@ class Glycopeptide(PeptideBase, Base):
     peptide_id = Column(Integer, ForeignKey(Peptide.id, ondelete='CASCADE'), index=True)
     glycan_combination_id = Column(Integer, ForeignKey(GlycanCombination.id, ondelete='CASCADE'), index=True)
 
-    peptide = relationship(Peptide)
+    peptide = relationship(Peptide, backref=backref("glycopeptides", lazy='dynamic'))
     glycan_combination = relationship(GlycanCombination)
 
     glycopeptide_sequence = Column(String(1024))
