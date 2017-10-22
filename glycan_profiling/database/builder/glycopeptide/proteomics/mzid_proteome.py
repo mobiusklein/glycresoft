@@ -18,7 +18,7 @@ from .mzid_parser import Parser
 from .peptide_permutation import ProteinDigestor, ProteinSplitter
 from .remove_duplicate_peptides import DeduplicatePeptides
 from .share_peptides import PeptideSharer
-from .fasta import ProteinSequenceListResolver
+from .fasta import FastaProteinSequenceResolver
 
 logger = logging.getLogger("mzid")
 
@@ -638,12 +638,12 @@ class MzIdentMLProteomeExtraction(TaskBase):
 
     def _make_protein_resolver(self):
         if self.reference_fasta is not None:
-            self._protein_resolver = ProteinSequenceListResolver.build_from_fasta(self.reference_fasta)
+            self._protein_resolver = FastaProteinSequenceResolver(self.reference_fasta)
             return
         else:
             path = self._find_used_database()
             if path is not None:
-                self._protein_resolver = ProteinSequenceListResolver.build_from_fasta(path)
+                self._protein_resolver = FastaProteinSequenceResolver(path)
                 return
         raise ValueError("Cannot construct a Protein Resolver. Cannot fetch additional protein information.")
 
