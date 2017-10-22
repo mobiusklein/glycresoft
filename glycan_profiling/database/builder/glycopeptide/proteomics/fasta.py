@@ -98,6 +98,7 @@ class FastaIndex(object):
                 front = parts[:-1]
                 for part in front:
                     yield delim + part
+            yield delim + tail
 
     def _generate_offsets(self):
         i = 0
@@ -116,7 +117,7 @@ class FastaIndex(object):
         last_defline = None
         for offset, defline in g:
             if last_defline is not None:
-                index[last_defline] = (last_offset, offset - 1)
+                index[last_defline] = (last_offset, offset)
             last_defline = defline
             last_offset = offset
         assert last_defline is None
