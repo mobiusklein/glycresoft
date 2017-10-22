@@ -154,8 +154,8 @@ def calculate_precursor_mass(spectrum_match):
 
 class BinomialSpectrumMatcher(GlycopeptideSpectrumMatcherBase):
 
-    def __init__(self, scan, target):
-        super(BinomialSpectrumMatcher, self).__init__(scan, target)
+    def __init__(self, scan, target, mass_shift=None):
+        super(BinomialSpectrumMatcher, self).__init__(scan, target, mass_shift)
         self._sanitized_spectrum = set(self.spectrum)
         self._score = None
         self.solution_map = FragmentMatchMap()

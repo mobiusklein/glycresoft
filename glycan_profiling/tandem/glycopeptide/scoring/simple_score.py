@@ -7,8 +7,8 @@ from glycopeptidepy.structure.fragment import IonSeries
 
 
 class SimpleCoverageScorer(GlycopeptideSpectrumMatcherBase):
-    def __init__(self, scan, sequence):
-        super(SimpleCoverageScorer, self).__init__(scan, sequence)
+    def __init__(self, scan, sequence, mass_shift=None):
+        super(SimpleCoverageScorer, self).__init__(scan, sequence, mass_shift)
         self._score = None
         self.solution_map = FragmentMatchMap()
         self.glycosylated_b_ion_count = 0

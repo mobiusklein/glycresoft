@@ -383,7 +383,7 @@ class TandemClusterEvaluatorBase(TaskBase):
         hits = []
         intact_mass = scan.precursor_information.extracted_neutral_mass
         for i in range(probing_range + 1):
-            query_mass = intact_mass - (i * self.neutron_offset) + mass_shift.mass
+            query_mass = intact_mass - (i * self.neutron_offset) - mass_shift.mass
             hits.extend(self.search_database_for_precursors(query_mass, error_tolerance))
         return hits
 

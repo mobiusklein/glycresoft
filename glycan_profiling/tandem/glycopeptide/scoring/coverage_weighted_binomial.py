@@ -10,8 +10,8 @@ accuracy_bias = MassAccuracyModel(-2.673807e-07, 5.022458e-06)
 
 
 class CoverageWeightedBinomialScorer(BinomialSpectrumMatcher, SimpleCoverageScorer):
-    def __init__(self, scan, sequence):
-        BinomialSpectrumMatcher.__init__(self, scan, sequence)
+    def __init__(self, scan, sequence, mass_shift=None):
+        BinomialSpectrumMatcher.__init__(self, scan, sequence, mass_shift)
         self.glycosylated_b_ion_count = 0
         self.glycosylated_y_ion_count = 0
 

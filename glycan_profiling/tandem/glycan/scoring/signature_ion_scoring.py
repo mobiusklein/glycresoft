@@ -33,8 +33,8 @@ def is_fucose(residue):
 
 
 class SignatureIonScorer(SpectrumMatcherBase):
-    def __init__(self, scan, glycan_composition):
-        super(SignatureIonScorer, self).__init__(scan, glycan_composition)
+    def __init__(self, scan, glycan_composition, mass_shift=None):
+        super(SignatureIonScorer, self).__init__(scan, glycan_composition, mass_shift)
         self.fragments_searched = 0
         self.fragments_matched = 0
         self.minimum_intensity_threshold = 0.01

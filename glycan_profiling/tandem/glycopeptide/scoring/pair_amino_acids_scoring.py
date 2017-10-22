@@ -93,8 +93,8 @@ class FrequencyCounter(object):
 
 
 class FrequencyScorer(SpectrumMatcherBase):
-    def __init__(self, scan, sequence, model=None):
-        super(FrequencyScorer, self).__init__(scan, sequence)
+    def __init__(self, scan, sequence, model=None, mass_shift=None):
+        super(FrequencyScorer, self).__init__(scan, sequence, mass_shift)
         self._score = None
         self.solution_map = FragmentMatchMap()
         self.glycosylated_b_ion_count = 0
