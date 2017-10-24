@@ -563,7 +563,7 @@ class ScanCollator(TaskBase):
         try:
             item, index, ms_level = self.queue.get(blocking, timeout)
             # DONE message may be sent many times.
-            if item == DONE:
+            while item == DONE:
                 item, index, ms_level = self.queue.get(blocking, timeout)
             self.store_item(item, index)
             return True
