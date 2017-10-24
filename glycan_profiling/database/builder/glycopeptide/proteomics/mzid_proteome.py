@@ -100,8 +100,9 @@ def protein_names(mzid_path, pattern=r'.*'):
 
 
 def parent_sequence_aware_n_glycan_sequon_sites(peptide, protein):
-    sites = set(sequence.find_n_glycosylation_sequons(peptide.modified_peptide_sequence))
-    sites |= set(site - peptide.start_position for site in protein.glycosylation_sites
+    sites = set(sequence.find_n_glycosylation_sequons(
+        peptide.modified_peptide_sequence, WHITELIST_GLYCOSITE_PTMS))
+    sites |= set(site - peptide.start_position for site in protein.n_glycan_sequon_sites
                  if peptide.start_position <= site < peptide.end_position)
     return list(sites)
 
