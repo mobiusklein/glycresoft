@@ -64,7 +64,10 @@ class Protein(Base, PeptideSequenceWrapperBase):
     @property
     def n_glycan_sequon_sites(self):
         if self._n_glycan_sequon_sites is None:
-            self._n_glycan_sequon_sites = sequence.find_n_glycosylation_sequons(self.protein_sequence)
+            try:
+                self._n_glycan_sequon_sites = sequence.find_n_glycosylation_sequons(self.protein_sequence)
+            except residue.UnknownAminoAcidException:
+                return []
         return self._n_glycan_sequon_sites
 
     _o_glycan_sequon_sites = None
@@ -72,7 +75,10 @@ class Protein(Base, PeptideSequenceWrapperBase):
     @property
     def o_glycan_sequon_sites(self):
         if self._o_glycan_sequon_sites is None:
-            self._o_glycan_sequon_sites = sequence.find_o_glycosylation_sequons(self.protein_sequence)
+            try:
+                self._o_glycan_sequon_sites = sequence.find_o_glycosylation_sequons(self.protein_sequence)
+            except residue.UnknownAminoAcidException:
+                return []
         return self._o_glycan_sequon_sites
 
     _glycosaminoglycan_sequon_sites = None
@@ -80,7 +86,10 @@ class Protein(Base, PeptideSequenceWrapperBase):
     @property
     def glycosaminoglycan_sequon_sites(self):
         if self._glycosaminoglycan_sequon_sites is None:
-            self._glycosaminoglycan_sequon_sites = sequence.find_glycosaminoglycan_sequons(self.protein_sequence)
+            try:
+                self._glycosaminoglycan_sequon_sites = sequence.find_glycosaminoglycan_sequons(self.protein_sequence)
+            except residue.UnknownAminoAcidException:
+                return []
         return self._glycosaminoglycan_sequon_sites
 
     @property
