@@ -379,15 +379,15 @@ class PeptideIdentification(object):
 
 
 class ProteinStub(object):
-    def __init__(self, name, id, sequence, glycosylation_sites):
+    def __init__(self, name, id, sequence, n_glycan_sequon_sites):
         self.name = name
         self.id = id
         self.protein_sequence = sequence
-        self.glycosylation_sites = glycosylation_sites
+        self.n_glycan_sequon_sites = n_glycan_sequon_sites
 
     @classmethod
     def from_protein(cls, protein):
-        return cls(protein.name, protein.id, protein.protein_sequence, protein.glycosylation_sites)
+        return cls(protein.name, protein.id, protein.protein_sequence, protein.n_glycan_sequon_sites)
 
 
 class ProteinStubLoader(object):
