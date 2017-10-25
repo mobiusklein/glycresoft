@@ -228,8 +228,13 @@ class GlycopeptideDatabaseSearchReportCreator(ReportCreatorBase):
             self.database_connection._original_connection,
             analysis_id=self.analysis_id)
 
+        hypothesis = ads.analysis.hypothesis
+        sample_run = ads.analysis.sample_run
+
         template_stream = template_obj.stream(
             analysis=ads.analysis,
+            hypothesis=hypothesis,
+            sample_run=sample_run,
             protein_index=self.protein_index,
             glycoprotein_iterator=self.iterglycoproteins(),
             renderer=self,)
