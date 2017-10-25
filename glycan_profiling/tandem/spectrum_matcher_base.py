@@ -354,6 +354,27 @@ class DatabaseSearchTrackingMetadata(object):
         record[neutral_mass] = 1 + record.get(neutral_mass, 0)
 
 
+class WorkloadManager(object):
+    def __init__(self):
+        self.scan_map = dict()
+        self.hit_map = dict()
+        self.hit_to_scan_map = defaultdict(list)
+        self.scan_hit_count = defaultdict(int)
+
+    def add_scan(self, scan):
+        self.scan_map[scan.id] = scan
+
+    def add_scan_hit(self, scan, hit):
+        self.hit_to_scan_map[hit.id].append(scan)
+        self.hit_map[hit.id] = hit
+        self.scan_hit_count[scan.id] += 1
+
+    def __iter__(self):
+        yield self.scan_map
+        yield self.hit_map
+        yield self.hit_to_scan_map
+
+
 class TandemClusterEvaluatorBase(TaskBase):
 
     neutron_offset = isotopic_shift()
@@ -433,9 +454,12 @@ class TandemClusterEvaluatorBase(TaskBase):
     def _map_scans_to_hits(self, scans, precursor_error_tolerance=1e-5):
         groups = group_by_precursor_mass(
             scans, precursor_error_tolerance * 1.5)
-        hit_to_scan = defaultdict(list)
-        scan_map = {}
-        hit_map = {}
+        # hit_to_scan = defaultdict(list)
+        # scan_map = {}
+        # hit_map = {}
+
+        workload = WorkloadManager()
+
         i = 0
         n = len(scans)
         report_interval = 0.1 * n
@@ -456,7 +480,8 @@ class TandemClusterEvaluatorBase(TaskBase):
                     last_report += report_interval
             j = 0
             for scan in group:
-                scan_map[scan.id] = scan
+                # scan_map[scan.id] = scan
+                workload.add_scan(scan)
 
                 # For a sufficiently dense database or large value of probe, this
                 # could easily throw the mass interval cache scheme into hysteresis.
@@ -470,11 +495,13 @@ class TandemClusterEvaluatorBase(TaskBase):
                     scan, precursor_error_tolerance, probing_range=probe)
                 for hit in hits:
                     j += 1
-                    hit_to_scan[hit.id].append(scan)
-                    hit_map[hit.id] = hit
+                    workload.add_scan_hit(scan, hit)
+                    # hit_to_scan[hit.id].append(scan)
+                    # hit_map[hit.id] = hit
             if report:
                 self.log("... Mapping Segment Done. (%d spectrum-pairs)" % (j,))
-        return scan_map, hit_map, hit_to_scan
+        # return scan_map, hit_map, hit_to_scan
+        return tuple(workload)
 
     def _evaluate_hit_groups_single_process(self, scan_map, hit_map, hit_to_scan, *args, **kwargs):
         scan_solution_map = defaultdict(list)
