@@ -588,7 +588,7 @@ class MultipleProcessPeptideGlycosylator(TaskBase):
                         waiting_batches = self.output_queue.qsize()
                         if waiting_batches > 10:
                             self.create_barrier()
-                            self.log("%d waiting sets." % (waiting_batches,))
+                            self.log("... %d waiting sets." % (waiting_batches,))
                             try:
                                 for _ in range(waiting_batches):
                                     batch.extend(self.output_queue.get_nowait())
