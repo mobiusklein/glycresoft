@@ -1,4 +1,4 @@
-from collections import deque
+from collections import defaultdict
 
 import numpy as np
 from glycopeptidepy.structure import sequence_composition
@@ -61,7 +61,7 @@ class EdgeSet(object):
     def edge_to(self, node1, node2):
         if node2.index < node1.index:
             node1, node2 = node2, node1
-        return self.store[node1, node2]
+        return self.store.get((node1, node2))
 
     def add(self, edge):
         self.store[edge.node1, edge.node2] = edge
@@ -69,17 +69,37 @@ class EdgeSet(object):
     def remove(self, edge):
         self.store.pop((edge.node1, edge.node2))
 
-    def __iter__(self):
-        return iter(self.store.values())
-
     def __len__(self):
         return len(self.store)
 
-    def __repr__(self):
-        return str(set(self.store.values()))
+    def __iter__(self):
+        return iter(self.store.values())
 
-    def __eq__(self, other):
-        return self.store == other.store
+    def __repr__(self):
+        template = '{self.__class__.__name__}({self.store})'
+        return template.format(self=self)
+
+
+class AnnotatedMultiEdgeSet(EdgeSet):
+    def __init__(self, store=None):
+        if store is None:
+            store = defaultdict(dict)
+        EdgeSet.__init__(self, store)
+
+    def __iter__(self):
+        for subgroup in self.store.values():
+            for edge in subgroup.values():
+                yield edge
+
+    def add(self, edge):
+        self.store[edge.node1, edge.node2][edge.annotation] = edge
+
+    def __len__(self):
+        return sum(map(len, self.store.values()))
+
+    def __repr__(self):
+        template = '{self.__class__.__name__}({self.store})'
+        return template.format(self=self)
 
 
 class GraphEdgeBase(object):
@@ -294,6 +314,7 @@ class ScanNode(NodeBase):
     def __init__(self, scan, index):
         self.scan = scan
         NodeBase.__init__(self, index)
+        self.edges = AnnotatedMultiEdgeSet()
 
     @property
     def id(self):
@@ -333,6 +354,7 @@ class ScanGraph(GraphBase):
         self.scans = scans
         self.nodes = [ScanNode(scan, i) for i, scan in enumerate(scans)]
         self.node_map = {node.scan.id: node for node in self.nodes}
+        self.edges = AnnotatedMultiEdgeSet()
 
     def get_node_by_id(self, scan_id):
         return self.node_map[scan_id]
