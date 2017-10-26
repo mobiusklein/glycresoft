@@ -396,9 +396,10 @@ class WorkloadManager(object):
         for scans, load in workloads:
             handle.write("Work: %d Comparisons\n" % (load,))
             for scan_node in scans:
-                handle.write("%s\t%f\n" % (
-                    scan_node.scan.id,
-                    scan_node.scan.precursor_information.neutral_mass))
+                handle.write("%s\t%f\t%d\n" % (
+                    scan_node.id,
+                    scan_node.precursor_information.neutral_mass,
+                    len(scan_node.edges)))
 
     def __iter__(self):
         yield self.scan_map
@@ -542,6 +543,7 @@ class TandemClusterEvaluatorBase(TaskBase):
         self.log("... Computing Workload Graph")
         try:
             with open("worklog.txt", 'a') as f:
+                f.write("\n#GENERATION\n%s\n" % (workload,))
                 workload.log_workloads(f)
         except IOError as e:
             self.error("An error occurred while trying to write workload log", e)
