@@ -540,8 +540,11 @@ class TandemClusterEvaluatorBase(TaskBase):
                 self.log("... Mapping Segment Done. (%d spectrum-pairs)" % (j,))
         # return scan_map, hit_map, hit_to_scan
         self.log("... Computing Workload Graph")
-        with open("worklog.txt", 'a') as f:
-            workload.log_workloads(f)
+        try:
+            with open("worklog.txt", 'a') as f:
+                workload.log_workloads(f)
+        except IOError as e:
+            self.error("An error occurred while trying to write workload log", e)
         self.log("... Workload Graph Traversed")
         return workload
 
