@@ -15,6 +15,8 @@ from glycan_profiling.structure import (
     ScanWrapperBase)
 from glycan_profiling.chromatogram_tree import Unmodified
 from .ref import TargetReference, SpectrumReference
+from .spectrum_graph import ScanGraph
+
 
 neutron_offset = isotopic_shift()
 
@@ -359,20 +361,56 @@ class WorkloadManager(object):
         self.scan_map = dict()
         self.hit_map = dict()
         self.hit_to_scan_map = defaultdict(list)
-        self.scan_hit_count = defaultdict(int)
+        self.scan_to_hit_map = defaultdict(list)
 
     def add_scan(self, scan):
         self.scan_map[scan.id] = scan
 
     def add_scan_hit(self, scan, hit):
-        self.hit_to_scan_map[hit.id].append(scan)
         self.hit_map[hit.id] = hit
-        self.scan_hit_count[scan.id] += 1
+        self.hit_to_scan_map[hit.id].append(scan)
+        self.scan_to_hit_map[scan.id].append(hit.id)
+
+    def build_scan_graph(self):
+        graph = ScanGraph(self.scan_map.values())
+        for key, values in self.hit_to_scan_map.items():
+            values = sorted(values, key=lambda x: x.index)
+            for i, scan in enumerate(values):
+                for other in values[i + 1:]:
+                    graph.add_edge_between(scan.id, other.id, key)
+        return graph
+
+    def compute_workloads(self):
+        graph = self.build_scan_graph()
+        components = graph.connected_components()
+        workloads = []
+        for m in components:
+            workloads.append((m, sum([len(c.edges) for c in m])))
+        return workloads
+
+    def log_workloads(self, handle, workloads=None):
+        if workloads is None:
+            workloads = self.compute_workloads()
+        workloads = sorted(workloads, key=lambda x: x[0][0].precursor_information.neutral_mass,
+                           reverse=True)
+        for scans, load in workloads:
+            handle.write("Work: %d Comparisons\n" % (load,))
+            for scan_node in scans:
+                handle.write("%s\t%f\n" % (
+                    scan_node.scan.id,
+                    scan_node.scan.precursor_information.neutral_mass))
 
     def __iter__(self):
         yield self.scan_map
         yield self.hit_map
         yield self.hit_to_scan_map
+
+    def __repr__(self):
+        template = 'WorkloadManager(scan_map_size={}, hit_map_size={}, total_cross_product={})'
+        rendered = template.format(
+            len(self.scan_map), len(self.hit_map),
+            sum(map(len, self.scan_to_hit_map.values())))
+        return rendered
 
 
 class TandemClusterEvaluatorBase(TaskBase):
@@ -501,7 +539,11 @@ class TandemClusterEvaluatorBase(TaskBase):
             if report:
                 self.log("... Mapping Segment Done. (%d spectrum-pairs)" % (j,))
         # return scan_map, hit_map, hit_to_scan
-        return tuple(workload)
+        self.log("... Computing Workload Graph")
+        with open("worklog.txt", 'a') as f:
+            workload.log_workloads(f)
+        self.log("... Workload Graph Traversed")
+        return workload
 
     def _evaluate_hit_groups_single_process(self, scan_map, hit_map, hit_to_scan, *args, **kwargs):
         scan_solution_map = defaultdict(list)

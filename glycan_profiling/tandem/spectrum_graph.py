@@ -13,12 +13,30 @@ class MassWrapper(object):
         return "MassWrapper(%s, %f)" % (self.obj, self.mass)
 
 
-class PeakNode(object):
+class NodeBase(object):
+    def __init__(self, index):
+        self.index = index
+        self._hash = hash(self.index)
+        self.edges = EdgeSet()
+
+    def __hash__(self):
+        return self._hash
+
+    def __eq__(self, other):
+        return self.index == other.index
+
+    def has_incoming_edge(self):
+        for edge in self.edges:
+            if edge.is_incoming(self):
+                return True
+        return False
+
+
+class PeakNode(NodeBase):
     def __init__(self, peak):
         self.peak = peak
+        NodeBase.__init__(self, peak.index.neutral_mass)
         self._hash = hash(peak)
-        self.edges = EdgeSet()
-        self.index = peak.index.neutral_mass
         self.mass = self.peak.neutral_mass
         self.charge = self.peak.charge
 
@@ -26,20 +44,11 @@ class PeakNode(object):
     def intensity(self):
         return self.peak.intensity
 
-    def __hash__(self):
-        return self._hash
-
     def __eq__(self, other):
         return self.peak == other.peak
 
     def __repr__(self):
         return "PeakNode({}, {}, {})".format(self.mass, self.charge, self.index)
-
-    def has_incoming_edge(self):
-        for edge in self.edges:
-            if edge.is_incoming(self):
-                return True
-        return False
 
 
 class EdgeSet(object):
@@ -73,20 +82,26 @@ class EdgeSet(object):
         return self.store == other.store
 
 
-class PeakGraphEdge(object):
-    __slots__ = ["node1", "node2", "annotation", "weight", "_hash", "_str", "indices"]
+class GraphEdgeBase(object):
+    __slots__ = ["node1", "node2", "_hash", "_str", "indices"]
 
-    def __init__(self, node1, node2, annotation, weight=1.0):
+    def __init__(self, node1, node2):
         self.node1 = node1
         self.node2 = node2
-        self.annotation = annotation
-        self.weight = weight
+
         self.indices = (self.node1.index, self.node2.index)
-        self._hash = hash((node1, node2, annotation))
-        self._str = "PeakGraphEdge(%s)" % ', '.join(map(str, (node1, node2, annotation)))
+
+        self._hash = self._make_hash()
+        self._str = self._make_str()
 
         node1.edges.add(self)
         node2.edges.add(self)
+
+    def _make_hash(self):
+        return hash((self.node1, self.node2))
+
+    def _make_str(self):
+        return "GraphEdge(%s)" % ', '.join(map(str, (self.node1, self.node2)))
 
     def __getitem__(self, key):
         if key == self.node1:
@@ -120,10 +135,10 @@ class PeakGraphEdge(object):
         return self._hash
 
     def __reduce__(self):
-        return self.__class__, (self.node1, self.node2, self.annotation, self.weight)
+        return self.__class__, (self.node1, self.node2,)
 
     def copy_for(self, node1, node2):
-        return self.__class__(node1, node2, self.annotation, self.weight)
+        return self.__class__(node1, node2,)
 
     def remove(self):
         try:
@@ -136,11 +151,42 @@ class PeakGraphEdge(object):
             pass
 
 
-class PeakGraph(object):
-    def __init__(self, peak_set):
-        self.peak_set = peak_set.clone()
-        self.nodes = [PeakNode(p) for p in self.peak_set]
-        self.edges = EdgeSet()
+class PeakGraphEdge(GraphEdgeBase):
+    __slots__ = ["annotation", "weight"]
+
+    def __init__(self, node1, node2, annotation, weight=1.0):
+        self.annotation = annotation
+        self.weight = weight
+
+        GraphEdgeBase.__init__(self, node1, node2)
+        # self.node1 = node1
+        # self.node2 = node2
+        # self.indices = (self.node1.index, self.node2.index)
+        # self._hash = hash((node1, node2, annotation))
+        # self._str = "PeakGraphEdge(%s)" % ', '.join(map(str, (node1, node2, annotation)))
+
+        # node1.edges.add(self)
+        # node2.edges.add(self)
+
+    def _make_hash(self):
+        return hash((self.node1, self.node2, self.annotation))
+
+    def _make_str(self):
+        return "PeakGraphEdge(%s)" % ', '.join(map(str, (self.node1, self.node2, self.annotation)))
+
+    def __reduce__(self):
+        return self.__class__, (self.node1, self.node2, self.annotation, self.weight)
+
+    def copy_for(self, node1, node2):
+        return self.__class__(node1, node2, self.annotation, self.weight)
+
+
+class GraphBase(object):
+    def __init__(self, edges=None):
+        if edges is None:
+            edges = EdgeSet()
+        self.edges = edges
+        self.nodes = []
 
     def __iter__(self):
         return iter(self.nodes)
@@ -151,18 +197,6 @@ class PeakGraph(object):
 
     def __len__(self):
         return len(self.nodes)
-
-    def add_edges(self, blocks, error_tolerance=1e-5):
-        for peak in self.peak_set:
-            start_node = self.nodes[peak.index.neutral_mass]
-            for block in blocks:
-                delta = peak.neutral_mass + block.mass
-                matched_peaks = self.peak_set.all_peaks_for(delta, error_tolerance)
-                if matched_peaks:
-                    for end_peak in matched_peaks:
-                        end_node = self.nodes[end_peak.index.neutral_mass]
-                        edge = PeakGraphEdge(start_node, end_node, block)
-                        self.edges.add(edge)
 
     def adjacency_matrix(self):
         N = len(self)
@@ -209,3 +243,102 @@ class PeakGraph(object):
             longest_path_so_far = adjacency_matrix[:, node.index].max()
             distances[node.index] = longest_path_so_far + 1
         return distances
+
+    def connected_components(self):
+        pool = set(self.nodes)
+        components = []
+
+        i = 0
+        while pool:
+            i += 1
+            current_component = set()
+            visited = set()
+            node = pool.pop()
+            current_component.add(node)
+            j = 0
+            while current_component:
+                j += 1
+                node = current_component.pop()
+                visited.add(node)
+                for edge in node.edges:
+                    if edge.node1 not in visited and edge.node1 in pool:
+                        current_component.add(edge.node1)
+                        pool.remove(edge.node1)
+                    if edge.node2 not in visited and edge.node2 in pool:
+                        current_component.add(edge.node2)
+                        pool.remove(edge.node2)
+            components.append(list(visited))
+        return components
+
+
+class PeakGraph(GraphBase):
+    def __init__(self, peak_set):
+        GraphBase.__init__(self)
+        self.peak_set = peak_set.clone()
+        self.nodes = [PeakNode(p) for p in self.peak_set]
+
+    def add_edges(self, blocks, error_tolerance=1e-5):
+        for peak in self.peak_set:
+            start_node = self.nodes[peak.index.neutral_mass]
+            for block in blocks:
+                delta = peak.neutral_mass + block.mass
+                matched_peaks = self.peak_set.all_peaks_for(delta, error_tolerance)
+                if matched_peaks:
+                    for end_peak in matched_peaks:
+                        end_node = self.nodes[end_peak.index.neutral_mass]
+                        edge = PeakGraphEdge(start_node, end_node, block)
+                        self.edges.add(edge)
+
+
+class ScanNode(NodeBase):
+    def __init__(self, scan, index):
+        self.scan = scan
+        NodeBase.__init__(self, index)
+
+    @property
+    def id(self):
+        return self.scan.id
+
+    @property
+    def precursor_information(self):
+        return self.scan.precursor_information
+
+    def __repr__(self):
+        return "ScanNode(%s)" % self.scan.id
+
+
+class ScanGraphEdge(GraphEdgeBase):
+    __slots__ = ["annotation"]
+
+    def __init__(self, node1, node2, annotation):
+        self.annotation = annotation
+        GraphEdgeBase.__init__(self, node1, node2)
+
+    def _make_hash(self):
+        return hash((self.node1, self.node2, self.annotation))
+
+    def _make_str(self):
+        return "ScanGraphEdge(%s)" % ', '.join(map(str, (self.node1, self.node2, self.annotation)))
+
+    def __reduce__(self):
+        return self.__class__, (self.node1, self.node2, self.annotation)
+
+    def copy_for(self, node1, node2):
+        return self.__class__(node1, node2, self.annotation)
+
+
+class ScanGraph(GraphBase):
+    def __init__(self, scans):
+        GraphBase.__init__(self)
+        self.scans = scans
+        self.nodes = [ScanNode(scan, i) for i, scan in enumerate(scans)]
+        self.node_map = {node.scan.id: node for node in self.nodes}
+
+    def get_node_by_id(self, scan_id):
+        return self.node_map[scan_id]
+
+    def add_edge_between(self, scan_id1, scan_id2, annotation=None):
+        node1 = self.get_node_by_id(scan_id1)
+        node2 = self.get_node_by_id(scan_id2)
+        edge = ScanGraphEdge(node1, node2, annotation)
+        self.edges.add(edge)
