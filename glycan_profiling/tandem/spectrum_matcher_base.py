@@ -627,6 +627,8 @@ class TandemClusterEvaluatorBase(TaskBase):
     def _collect_scan_solutions(self, scan_solution_map, scan_map):
         result_set = []
         for scan_id, solutions in scan_solution_map.items():
+            if not solutions:
+                continue
             scan = scan_map[scan_id]
             out = SpectrumSolutionSet(scan, sorted(
                 solutions, key=lambda x: x.score, reverse=True)).threshold()
