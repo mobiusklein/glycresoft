@@ -91,6 +91,12 @@
     padding: 20px;
 }
 
+.glycoform-pileup-container svg {
+    display: block;
+    margin-left: auto;
+    margin-right: auto;
+}
+
 .modification-chip {
     padding-left:1px;
     padding-right:2px;
@@ -166,6 +172,8 @@ body {
     margin: 20px;
     font-family: sans-serif;
 }
+
+
 
 #display-panel {
     z-index: 999;

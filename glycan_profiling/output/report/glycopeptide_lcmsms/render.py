@@ -8,7 +8,8 @@ from glycan_profiling.serialize import (
 from glycan_profiling.tandem.ref import SpectrumReference
 from glycan_profiling.plotting import (figax, SmoothingChromatogramArtist)
 from glycan_profiling.plotting.sequence_fragment_logo import glycopeptide_match_logo
-from glycan_profiling.plotting.plot_glycoforms import plot_glycoforms_svg, plot_glycoforms
+from glycan_profiling.plotting.plot_glycoforms import (
+    plot_glycoforms_svg, plot_glycoforms, GlycoformLayout)
 from glycan_profiling.plotting.spectral_annotation import SpectrumMatchAnnotator
 from glycan_profiling.tandem.glycopeptide.identified_structure import IdentifiedGlycoprotein
 from glycan_profiling.tandem.glycopeptide.scoring import CoverageWeightedBinomialScorer
@@ -136,9 +137,12 @@ class GlycopeptideDatabaseSearchReportCreator(ReportCreatorBase):
 
     def draw_glycoforms(self, glycoprotein):
         ax = figax()
-        svg = plot_glycoforms_svg(
-            glycoprotein, glycoprotein.identified_glycopeptides, ax=ax,
-            margin_left=85, margin_top=0, height_padding_scale=1.1)
+        layout = GlycoformLayout(glycoprotein, glycoprotein.identified_glycopeptides, ax=ax)
+        layout.draw()
+        svg = layout.to_svg(scale=2.0, height_padding_scale=1.1)
+        # svg = plot_glycoforms_svg(
+        #     glycoprotein, glycoprotein.identified_glycopeptides, ax=ax,
+        #     margin_left=85, margin_top=0, height_padding_scale=1.1)
         return svg
 
     def chromatogram_plot(self, glycopeptide):
