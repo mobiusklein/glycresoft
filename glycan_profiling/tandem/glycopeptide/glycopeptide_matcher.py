@@ -127,8 +127,12 @@ class TargetDecoyInterleavingGlycopeptideMatcher(TandemClusterEvaluatorBase):
             temp = self._collect_scan_solutions(target_scan_solution_map, batch.scan_map)
             if simplify:
                 for case in temp:
-                    case.simplify()
-                    case.select_top()
+                    try:
+                        case.simplify()
+                        case.select_top()
+                    except IndexError:
+                        self.log("Failed to simplify %r" % (case.scan.id,))
+                        raise
             target_solutions += temp
 
         # Reuse mapped hits from target database using the decoy evaluator
