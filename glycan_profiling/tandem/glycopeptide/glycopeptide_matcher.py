@@ -12,7 +12,8 @@ from .scoring import TargetDecoyAnalyzer
 from ..spectrum_matcher_base import (
     TandemClusterEvaluatorBase,
     SpectrumIdentificationWorkerBase,
-    Manager as IPCManager)
+    Manager as IPCManager,
+    Unmodified)
 from ..oxonium_ions import gscore_scanner
 from ..chromatogram_mapping import ChromatogramMSMSMapper
 
@@ -40,12 +41,15 @@ def make_target_decoy_cell():
 
 class GlycopeptideMatcher(TandemClusterEvaluatorBase):
     def __init__(self, tandem_cluster, scorer_type, structure_database, parser_type=None,
-                 n_processes=5, ipc_manager=None):
+                 n_processes=5, ipc_manager=None, probing_range_for_missing_precursors=3,
+                 mass_shifts=None):
         if parser_type is None:
             parser_type = self._default_parser_type()
         super(GlycopeptideMatcher, self).__init__(
             tandem_cluster, scorer_type, structure_database, verbose=False, n_processes=n_processes,
-            ipc_manager=ipc_manager)
+            ipc_manager=ipc_manager,
+            probing_range_for_missing_precursors=probing_range_for_missing_precursors,
+            mass_shifts=mass_shifts)
         self.parser_type = parser_type
         self.parser = parser_type()
 
@@ -72,20 +76,27 @@ class DecoyGlycopeptideMatcher(GlycopeptideMatcher):
 
 class TargetDecoyInterleavingGlycopeptideMatcher(TandemClusterEvaluatorBase):
     def __init__(self, tandem_cluster, scorer_type, structure_database, minimum_oxonium_ratio=0.05,
-                 n_processes=5, ipc_manager=None):
+                 n_processes=5, ipc_manager=None, probing_range_for_missing_precursors=3,
+                 mass_shifts=None):
         super(TargetDecoyInterleavingGlycopeptideMatcher, self).__init__(
             tandem_cluster, scorer_type, structure_database, verbose=False,
-            n_processes=n_processes, ipc_manager=ipc_manager)
+            n_processes=n_processes, ipc_manager=ipc_manager,
+            probing_range_for_missing_precursors=probing_range_for_missing_precursors,
+            mass_shifts=mass_shifts)
         self.tandem_cluster = tandem_cluster
         self.scorer_type = scorer_type
         self.structure_database = structure_database
         self.minimum_oxonium_ratio = minimum_oxonium_ratio
         self.target_evaluator = GlycopeptideMatcher(
             [], self.scorer_type, self.structure_database, n_processes=n_processes,
-            ipc_manager=ipc_manager)
+            ipc_manager=ipc_manager,
+            probing_range_for_missing_precursors=probing_range_for_missing_precursors,
+            mass_shifts=mass_shifts)
         self.decoy_evaluator = DecoyGlycopeptideMatcher(
             [], self.scorer_type, self.structure_database, n_processes=n_processes,
-            ipc_manager=ipc_manager)
+            ipc_manager=ipc_manager,
+            probing_range_for_missing_precursors=probing_range_for_missing_precursors,
+            mass_shifts=mass_shifts)
 
     def filter_for_oxonium_ions(self, error_tolerance=1e-5):
         keep = []
@@ -289,7 +300,12 @@ def format_work_batch(bunch, count, total):
 
 class GlycopeptideDatabaseSearchIdentifier(TaskBase):
     def __init__(self, tandem_scans, scorer_type, structure_database, scan_id_to_rt=lambda x: x,
-                 minimum_oxonium_ratio=0.05, scan_transformer=lambda x: x, n_processes=5):
+                 minimum_oxonium_ratio=0.05, scan_transformer=lambda x: x, adducts=None,
+                 n_processes=5):
+        if adducts is None:
+            adducts = []
+        if Unmodified not in adducts:
+            adducts = [Unmodified] + adducts
         self.tandem_scans = sorted(
             tandem_scans, key=lambda x: x.precursor_information.extracted_neutral_mass, reverse=True)
         self.scorer_type = scorer_type
@@ -299,13 +315,15 @@ class GlycopeptideDatabaseSearchIdentifier(TaskBase):
         self.scan_transformer = scan_transformer
         self.n_processes = n_processes
         self.ipc_manager = IPCManager()
+        self.adducts = adducts
 
     def _make_evaluator(self, bunch):
         evaluator = TargetDecoyInterleavingGlycopeptideMatcher(
             bunch, self.scorer_type, self.structure_database,
             minimum_oxonium_ratio=self.minimum_oxonium_ratio,
             n_processes=self.n_processes,
-            ipc_manager=self.ipc_manager)
+            ipc_manager=self.ipc_manager,
+            mass_shifts=self.adducts)
         return evaluator
 
     def prepare_scan_set(self, scan_set):
