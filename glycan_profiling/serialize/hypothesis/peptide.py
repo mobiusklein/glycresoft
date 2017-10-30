@@ -168,6 +168,31 @@ class PeptideBase(PeptideSequenceWrapperBase):
     def total_mass(self):
         return self.convert().total_mass
 
+    _protein_relation = None
+
+    @property
+    def protein_relation(self):
+        if self._protein_relation is None:
+            peptide = self
+            self._protein_relation = PeptideProteinRelation(
+                peptide.start_position, peptide.end_position, peptide.protein_id,
+                peptide.hypothesis_id)
+        return self._protein_relation
+
+    @property
+    def start_position(self):
+        return self.protein_relation.start_position
+
+    @property
+    def end_position(self):
+        return self.protein_relation.end_position
+
+    def overlaps(self, other):
+        return self.protein_relation.overlaps(other.protein_relation)
+
+    def spans(self, position):
+        return position in self.protein_relation
+
 
 class Peptide(PeptideBase, Base):
     __tablename__ = 'Peptide'
