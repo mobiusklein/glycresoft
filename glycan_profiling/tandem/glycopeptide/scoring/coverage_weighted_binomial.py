@@ -3,19 +3,27 @@ import math
 from .binomial_score import BinomialSpectrumMatcher
 from .simple_score import SimpleCoverageScorer
 from .precursor_mass_accuracy import MassAccuracyModel
+from .glycan_signature_ions import GlycanCompositionSignatureMatcher
 from glycan_profiling.structure import FragmentMatchMap
 
 
 accuracy_bias = MassAccuracyModel(-2.673807e-07, 5.022458e-06)
 
 
-class CoverageWeightedBinomialScorer(BinomialSpectrumMatcher, SimpleCoverageScorer):
+class CoverageWeightedBinomialScorer(BinomialSpectrumMatcher, SimpleCoverageScorer, GlycanCompositionSignatureMatcher):
     def __init__(self, scan, sequence, mass_shift=None):
         BinomialSpectrumMatcher.__init__(self, scan, sequence, mass_shift)
         self.glycosylated_b_ion_count = 0
         self.glycosylated_y_ion_count = 0
 
+        self.glycan_composition = FrozenGlycanComposition(self.target.glycan_composition)
+        self.expected_matches = dict()
+        self.unexpected_matches = dict()
+        self.maximum_intensity = float('inf')
+
+
     def match(self, error_tolerance=2e-5, *args, **kwargs):
+        GlycanCompositionSignatureMatcher.match(self, error_tolerance=error_tolerance)
         solution_map = FragmentMatchMap()
         spectrum = self.spectrum
         n_theoretical = 0
@@ -82,5 +90,6 @@ class CoverageWeightedBinomialScorer(BinomialSpectrumMatcher, SimpleCoverageScor
         offset = self.determine_precursor_offset()
         mass_accuracy = -10 * math.log10(
             1 - accuracy_bias.score(self.precursor_mass_accuracy(offset)))
-        self._score = bin_score * coverage_score + mass_accuracy
+        signature_component = GlycanCompositionSignatureMatcher.calculate_score(self)
+        self._score = bin_score * coverage_score + mass_accuracy + signature_component
         return self._score
