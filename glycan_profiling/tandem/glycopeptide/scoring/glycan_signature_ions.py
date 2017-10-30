@@ -65,16 +65,24 @@ class GlycanCompositionSignatureMatcher(GlycopeptideSpectrumMatcherBase):
             ratio = peak.intensity / self.maximum_intensity
             if ratio < 0.01:
                 continue
-            component = -10 * np.log10(1 - ratio)
-            if np.isnan(component):
+            x = 1 - ratio
+            if x <= 0:
                 component = 20
+            else:
+                component = -10 * np.log10(x)
+                if np.isnan(component):
+                    component = 20
             penalty += component
         for key, peak in self.expected_matches.items():
             if peak is None:
                 importance = self.estimate_missing_ion_importance(key)
-                component = -10 * np.log10(1 - importance)
-                if np.isnan(component):
+                x = 1 - importance
+                if x <= 0:
                     component = 20
+                else:
+                    component = -10 * np.log10(x)
+                    if np.isnan(component):
+                        component = 20
                 penalty += component
                 
         self._score = -penalty

@@ -176,6 +176,8 @@ class TargetDecoyInterleavingGlycopeptideMatcher(TandemClusterEvaluatorBase):
             for case in decoy_out:
                 case.simplify()
                 case.select_top()
+        target_out = [x for x in target_out if len(x) > 0]
+        decoy_out = [x for x in decoy_out if len(x) > 0]
         return target_out, decoy_out
 
 
