@@ -10,8 +10,8 @@ from glypy.composition.glycan_composition import (
 
 
 signatures = {
-    FrozenMonosaccharideResidue.from_iupac_lite("NeuAc"): 0.25,
-    FrozenMonosaccharideResidue.from_iupac_lite("NeuGc"): 0.25,
+    FrozenMonosaccharideResidue.from_iupac_lite("NeuAc"): 0.5,
+    FrozenMonosaccharideResidue.from_iupac_lite("NeuGc"): 0.5,
 }
 
 _water = Composition("H2O")
