@@ -16,7 +16,7 @@ class CoverageWeightedBinomialScorer(BinomialSpectrumMatcher, SimpleCoverageScor
         self.glycosylated_b_ion_count = 0
         self.glycosylated_y_ion_count = 0
 
-        self.glycan_composition = FrozenGlycanComposition(self.target.glycan_composition)
+        self.glycan_composition = self._copy_glycan_composition()
         self.expected_matches = dict()
         self.unexpected_matches = dict()
         self.maximum_intensity = float('inf')

@@ -22,10 +22,13 @@ _water = Composition("H2O")
 class GlycanCompositionSignatureMatcher(GlycopeptideSpectrumMatcherBase):
     def __init__(self, scan, target, mass_shift=None):
         super(GlycanCompositionSignatureMatcher, self).__init__(scan, target, mass_shift)
-        self.glycan_composition = FrozenGlycanComposition(self.target.glycan_composition)
+        self.glycan_composition = self._copy_glycan_composition()
         self.expected_matches = dict()
         self.unexpected_matches = dict()
         self.maximum_intensity = float('inf')
+
+    def _copy_glycan_composition(self):
+        return FrozenGlycanComposition(self.target.glycan_composition)
 
     signatures = signatures
 
