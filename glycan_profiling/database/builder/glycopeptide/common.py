@@ -95,7 +95,6 @@ class GlycopeptideHypothesisSerializerBase(DatabaseBoundOperation, HypothesisSer
             self.hypothesis_id, n)
         combinator.run()
         self.total_glycan_combination_count = combinator.total_count
-        # self.log("set total_glycan_combination_count = %d" % (self.total_glycan_combination_count,))
 
     def _count_produced_glycopeptides(self):
         count = self.query(
