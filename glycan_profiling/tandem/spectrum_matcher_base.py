@@ -1,4 +1,4 @@
-from collections import defaultdict
+from collections import defaultdict, namedtuple
 from threading import Thread
 from multiprocessing import Process, Queue, Event, Manager
 
@@ -362,14 +362,16 @@ class WorkloadManager(object):
         self.hit_map = dict()
         self.hit_to_scan_map = defaultdict(list)
         self.scan_to_hit_map = defaultdict(list)
+        self.scan_hit_type_map = defaultdict(lambda: Unmodified.name)
 
     def add_scan(self, scan):
         self.scan_map[scan.id] = scan
 
-    def add_scan_hit(self, scan, hit):
+    def add_scan_hit(self, scan, hit, hit_type=Unmodified.name):
         self.hit_map[hit.id] = hit
         self.hit_to_scan_map[hit.id].append(scan)
         self.scan_to_hit_map[scan.id].append(hit.id)
+        self.scan_hit_type_map[scan.id, hit.id] = hit_type
 
     def build_scan_graph(self):
         graph = ScanGraph(self.scan_map.values())
@@ -412,6 +414,51 @@ class WorkloadManager(object):
             len(self.scan_map), len(self.hit_map),
             sum(map(len, self.scan_to_hit_map.values())))
         return rendered
+
+    _workload_batch = staticmethod(
+        namedtuple("WorkloadBatch",
+                   ['batch_size', 'scan_map',
+                    'hit_map', 'hit_to_scan_map',
+                    'scan_hit_type_map']))
+
+    def batches(self, max_size=1e6):
+        current_batch_size = 0
+        current_scan_map = dict()
+        current_hit_map = dict()
+        current_hit_to_scan_map = defaultdict(list)
+        current_scan_hit_type_map = defaultdict(lambda: Unmodified.name)
+
+        source = sorted(
+            self.scan_map.items(),
+            key=lambda x: x[1].precursor_information.neutral_mass)
+
+        for scan_id, scan in source:
+            current_scan_map[scan_id] = scan
+            for hit_id in self.scan_to_hit_map[scan_id]:
+                current_hit_map[hit_id] = self.hit_map[hit_id]
+                current_hit_to_scan_map[hit_id].append(scan_id)
+                current_scan_hit_type_map[
+                    scan_id, hit_id] = self.scan_hit_type_map[scan_id, hit_id]
+                current_batch_size += 1
+
+            if current_batch_size > max_size:
+                batch = self._workload_batch(
+                    current_batch_size, current_scan_map,
+                    current_hit_map, current_hit_to_scan_map,
+                    current_scan_hit_type_map)
+                current_batch_size = 0
+                current_scan_map = dict()
+                current_hit_map = dict()
+                current_hit_to_scan_map = defaultdict(list)
+                current_scan_hit_type_map = defaultdict(lambda: Unmodified.name)
+                yield batch
+
+        if current_batch_size > 0:
+            batch = self._workload_batch(
+                current_batch_size, current_scan_map,
+                current_hit_map, current_hit_to_scan_map,
+                current_scan_hit_type_map)
+            yield batch
 
 
 class TandemClusterEvaluatorBase(TaskBase):
@@ -493,9 +540,6 @@ class TandemClusterEvaluatorBase(TaskBase):
     def _map_scans_to_hits(self, scans, precursor_error_tolerance=1e-5):
         groups = group_by_precursor_mass(
             scans, precursor_error_tolerance * 1.5)
-        # hit_to_scan = defaultdict(list)
-        # scan_map = {}
-        # hit_map = {}
 
         workload = WorkloadManager()
 
@@ -504,41 +548,43 @@ class TandemClusterEvaluatorBase(TaskBase):
         report_interval = 0.1 * n
         last_report = report_interval
         self.log("... Begin Collecting Hits")
-        for group in groups:
-            if len(group) == 0:
-                continue
-            i += len(group)
-            report = False
-            if i > last_report:
-                report = True
-                self.log(
-                    "... Mapping %0.2f%% of spectra (%d/%d) %0.4f" % (
-                        i * 100. / n, i, n,
-                        group[0].precursor_information.extracted_neutral_mass))
-                while last_report < i and report_interval != 0:
-                    last_report += report_interval
-            j = 0
-            for scan in group:
-                # scan_map[scan.id] = scan
-                workload.add_scan(scan)
+        for mass_shift in self.mass_shifts:
+            for group in groups:
+                if len(group) == 0:
+                    continue
+                i += len(group)
+                report = False
+                if i > last_report:
+                    report = True
+                    self.log(
+                        "... Mapping %0.2f%% of spectra (%d/%d) %0.4f" % (
+                            i * 100. / n, i, n,
+                            group[0].precursor_information.extracted_neutral_mass))
+                    while last_report < i and report_interval != 0:
+                        last_report += report_interval
+                j = 0
+                for scan in group:
+                    # scan_map[scan.id] = scan
+                    workload.add_scan(scan)
 
-                # For a sufficiently dense database or large value of probe, this
-                # could easily throw the mass interval cache scheme into hysteresis.
-                # If this does occur, instead of doing this here, we could search all
-                # defaulted precursors afterwards.
-                if not scan.precursor_information.defaulted:
-                    probe = 0
-                else:
-                    probe = self.probing_range_for_missing_precursors
-                hits = self.find_precursor_candidates(
-                    scan, precursor_error_tolerance, probing_range=probe)
-                for hit in hits:
-                    j += 1
-                    workload.add_scan_hit(scan, hit)
-                    # hit_to_scan[hit.id].append(scan)
-                    # hit_map[hit.id] = hit
-            if report:
-                self.log("... Mapping Segment Done. (%d spectrum-pairs)" % (j,))
+                    # For a sufficiently dense database or large value of probe, this
+                    # could easily throw the mass interval cache scheme into hysteresis.
+                    # If this does occur, instead of doing this here, we could search all
+                    # defaulted precursors afterwards.
+                    if not scan.precursor_information.defaulted:
+                        probe = 0
+                    else:
+                        probe = self.probing_range_for_missing_precursors
+                    hits = self.find_precursor_candidates(
+                        scan, precursor_error_tolerance, probing_range=probe,
+                        mass_shift=mass_shift)
+                    for hit in hits:
+                        j += 1
+                        workload.add_scan_hit(scan, hit, mass_shift.name)
+                        # hit_to_scan[hit.id].append(scan)
+                        # hit_map[hit.id] = hit
+                if report:
+                    self.log("... Mapping Segment Done. (%d spectrum-pairs)" % (j,))
         # return scan_map, hit_map, hit_to_scan
         self.log("... Computing Workload Graph")
         try:
@@ -550,7 +596,8 @@ class TandemClusterEvaluatorBase(TaskBase):
         self.log("... Workload Graph Traversed")
         return workload
 
-    def _evaluate_hit_groups_single_process(self, scan_map, hit_map, hit_to_scan, *args, **kwargs):
+    def _evaluate_hit_groups_single_process(self, workload, *args, **kwargs):
+        batch_size, scan_map, hit_map, hit_to_scan, scan_hit_type_map = workload
         scan_solution_map = defaultdict(list)
         self.log("... Searching Hits (%d:%d)" % (
             len(hit_to_scan),
@@ -565,7 +612,8 @@ class TandemClusterEvaluatorBase(TaskBase):
                          (i * 100. / n, i, n))
             hit = hit_map[hit_id]
             solutions = []
-            for scan in scan_list:
+            for scan_id in scan_list:
+                scan = scan_map[scan_id]
                 match = SpectrumMatch.from_match_solution(
                     self.evaluate(scan, hit, *args, **kwargs))
                 scan_solution_map[scan.id].append(match)
@@ -589,26 +637,31 @@ class TandemClusterEvaluatorBase(TaskBase):
     def _worker_specification(self):
         raise NotImplementedError()
 
-    def _evaluate_hit_groups_multiple_processes(self, scan_map, hit_map, hit_to_scan, **kwargs):
+    def _evaluate_hit_groups_multiple_processes(self, workload, **kwargs):
+        batch_size, scan_map, hit_map, hit_to_scan, scan_hit_type_map = workload
         worker_type, init_args = self._worker_specification
         dispatcher = IdentificationProcessDispatcher(
             worker_type, self.scorer_type, evaluation_args=kwargs, init_args=init_args,
             n_processes=self.n_processes, ipc_manager=self.ipc_manager)
-        return dispatcher.process(scan_map, hit_map, hit_to_scan)
+        return dispatcher.process(scan_map, hit_map, hit_to_scan, scan_hit_type_map)
 
-    def _evaluate_hit_groups(self, scan_map, hit_map, hit_to_scan, **kwargs):
-        if self.n_processes == 1 or len(hit_map) < 500:
+    def _evaluate_hit_groups(self, batch, **kwargs):
+        if self.n_processes == 1 or len(batch.hit_map) < 500:
             return self._evaluate_hit_groups_single_process(
-                scan_map, hit_map, hit_to_scan, **kwargs)
+                batch, **kwargs)
         else:
             return self._evaluate_hit_groups_multiple_processes(
-                scan_map, hit_map, hit_to_scan, **kwargs)
+                batch, **kwargs)
 
     def score_bunch(self, scans, precursor_error_tolerance=1e-5, **kwargs):
-        scan_map, hit_map, hit_to_scan = self._map_scans_to_hits(
+        workload = self._map_scans_to_hits(
             scans, precursor_error_tolerance)
-        scan_solution_map = self._evaluate_hit_groups(scan_map, hit_map, hit_to_scan, **kwargs)
-        solutions = self._collect_scan_solutions(scan_solution_map, scan_map)
+        solutions = []
+        import IPython
+        IPython.embed()
+        for batch in workload.batches():
+            scan_solution_map = self._evaluate_hit_groups(batch, **kwargs)
+            solutions += self._collect_scan_solutions(scan_solution_map, batch.scan_map)
         return solutions
 
 
@@ -664,12 +717,16 @@ class IdentificationProcessDispatcher(TaskBase):
         Container for created workers.
     """
     def __init__(self, worker_type, scorer_type, evaluation_args=None, init_args=None,
-                 n_processes=3, ipc_manager=None):
+                 mass_shift_map=None, n_processes=3, ipc_manager=None):
         if ipc_manager is None:
             self.log("Creating IPC Manager. Prefer to pass a reusable IPC Manager instead.")
             ipc_manager = Manager()
         if evaluation_args is None:
             evaluation_args = dict()
+        if mass_shift_map is None:
+            mass_shift_map = {
+                Unmodified.name: Unmodified
+            }
 
         self.worker_type = worker_type
         self.scorer_type = scorer_type
@@ -684,6 +741,8 @@ class IdentificationProcessDispatcher(TaskBase):
         self.log_controller = self.ipc_logger()
         self.ipc_manager = ipc_manager
         self.scan_load_map = self.ipc_manager.dict()
+        self.local_mass_shift_map = mass_shift_map
+        self.mass_shift_load_map = self.ipc_manager.dict(mass_shift_map)
 
     def clear_pool(self):
         # self.log("... Clearing Worker Pool")
@@ -703,7 +762,7 @@ class IdentificationProcessDispatcher(TaskBase):
             worker = self.worker_type(
                 self.input_queue, self.output_queue, self.done_event,
                 self.scorer_type, self.evaluation_args,
-                self.scan_load_map,
+                self.scan_load_map, self.mass_shift_load_map,
                 log_handler=self.log_controller.sender(), **self.init_args)
             worker.start()
             self.workers.append(worker)
@@ -711,7 +770,7 @@ class IdentificationProcessDispatcher(TaskBase):
     def all_workers_finished(self):
         return all([worker.all_work_done() for worker in self.workers])
 
-    def feeder(self, hit_map, hit_to_scan):
+    def feeder(self, hit_map, hit_to_scan, scan_hit_type_map):
         i = 0
         n = len(hit_to_scan)
         seen = dict()
@@ -737,7 +796,8 @@ class IdentificationProcessDispatcher(TaskBase):
             seen[hit.id] = hit_id
 
             try:
-                self.input_queue.put((hit_map[hit_id], [s.id for s in scan_ids]))
+                self.input_queue.put((hit_map[hit_id], [(s, scan_hit_type_map[s, hit_id])
+                                                        for s in scan_ids]))
                 # Set a long progress update interval because the feeding step is less
                 # important than the processing step. Additionally, as the two threads
                 # run concurrently, the feeding thread can log a short interval before
@@ -751,8 +811,9 @@ class IdentificationProcessDispatcher(TaskBase):
         self.done_event.set()
         return
 
-    def spawn_queue_feeder(self, hit_map, hit_to_scan):
-        feeder_thread = Thread(target=self.feeder, args=(hit_map, hit_to_scan))
+    def spawn_queue_feeder(self, hit_map, hit_to_scan, scan_hit_type_map):
+        feeder_thread = Thread(target=self.feeder, args=(hit_map, hit_to_scan,
+                                                         scan_hit_type_map))
         feeder_thread.daemon = True
         feeder_thread.start()
         return feeder_thread
@@ -762,9 +823,9 @@ class IdentificationProcessDispatcher(TaskBase):
         for missing_id in missing:
             pass
 
-    def process(self, scan_map, hit_map, hit_to_scan):
+    def process(self, scan_map, hit_map, hit_to_scan, scan_hit_type_map):
         feeder_thread = self.spawn_queue_feeder(
-            hit_map, hit_to_scan)
+            hit_map, hit_to_scan, scan_hit_type_map)
         self.create_pool(scan_map)
         has_work = True
         i = 0
@@ -826,12 +887,14 @@ class IdentificationProcessDispatcher(TaskBase):
                 pass
 
             j = 0
-            for scan_id, score in score_map.items():
+            for hit_spec, score in score_map.items():
+                scan_id, shift_type = hit_spec
                 j += 1
                 if j % 1000 == 0:
                     self.log("...... Mapping match %d for %s on %s with score %r" % (j, target, scan_id, score))
                 self.scan_solution_map[scan_id].append(
-                    SpectrumMatch(scan_map[scan_id], target, score))
+                    SpectrumMatch(scan_map[scan_id], target, score,
+                                  mass_shift=self.local_mass_shift_map[shift_type]))
         self.log("... Finished Processing Matches (%d)" % (i,))
         self.clear_pool()
         self.log_controller.stop()
@@ -841,7 +904,7 @@ class IdentificationProcessDispatcher(TaskBase):
 
 class SpectrumIdentificationWorkerBase(Process):
     def __init__(self, input_queue, output_queue, done_event, scorer_type, evaluation_args,
-                 spectrum_map, log_handler):
+                 spectrum_map, mass_shift_map, log_handler):
         Process.__init__(self)
         self.daemon = True
         self.input_queue = input_queue
@@ -851,19 +914,32 @@ class SpectrumIdentificationWorkerBase(Process):
         self.evaluation_args = evaluation_args
 
         self.spectrum_map = spectrum_map
+        self.mass_shift_map = mass_shift_map
 
-        self.local_map = dict()
+        self.local_scan_map = dict()
+        self.local_mass_shift_map = dict({
+            Unmodified.name: Unmodified
+        })
         self.solution_map = dict()
         self._work_complete = Event()
         self.log_handler = log_handler
 
     def fetch_scan(self, key):
         try:
-            return self.local_map[key]
+            return self.local_scan_map[key]
         except KeyError:
             scan = self.spectrum_map[key]
-            self.local_map[key] = scan
+            self.local_scan_map[key] = scan
             return scan
+
+    def fetch_mass_shift(self, key):
+        try:
+            return self.local_mass_shift_map[key]
+        except KeyError:
+            mass_shift = self.mass_shift_map[key]
+            self.local_mass_shift_map[key] = mass_shift
+            print "Fetching %s" % key
+            return mass_shift
 
     def all_work_done(self):
         return self._work_complete.is_set()
@@ -876,13 +952,14 @@ class SpectrumIdentificationWorkerBase(Process):
     def evaluate(self, scan, structure, *args, **kwargs):
         raise NotImplementedError()
 
-    def handle_item(self, structure, scan_ids):
-        scans = [self.fetch_scan(i) for i in scan_ids]
+    def handle_item(self, structure, scan_specification):
+        scan_specification = [(self.fetch_scan(i), self.fetch_mass_shift(j)) for i, j in scan_specification]
         solution_target = None
         solution = None
-        for scan in scans:
-            solution = self.evaluate(scan, structure, **self.evaluation_args)
-            self.solution_map[scan.id] = solution.score
+        for scan, mass_shift in scan_specification:
+            solution = self.evaluate(scan, structure, mass_shift=mass_shift,
+                                     **self.evaluation_args)
+            self.solution_map[scan.id, mass_shift.name] = solution.score
             solution_target = solution.target
         if solution is not None:
             try:

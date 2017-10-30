@@ -19,10 +19,10 @@ from ..chromatogram_mapping import ChromatogramMSMSMapper
 
 class GlycopeptideIdentificationWorker(SpectrumIdentificationWorkerBase):
     def __init__(self, input_queue, output_queue, done_event, scorer_type, evaluation_args,
-                 spectrum_map, log_handler, parser_type):
+                 spectrum_map, mass_shift_map, log_handler, parser_type):
         SpectrumIdentificationWorkerBase.__init__(
             self, input_queue, output_queue, done_event, scorer_type, evaluation_args,
-            spectrum_map, log_handler=log_handler)
+            spectrum_map, mass_shift_map, log_handler=log_handler)
         self.parser = parser_type()
 
     def evaluate(self, scan, structure, *args, **kwargs):
@@ -105,29 +105,35 @@ class TargetDecoyInterleavingGlycopeptideMatcher(TandemClusterEvaluatorBase):
 
     def score_bunch(self, scans, precursor_error_tolerance=1e-5, simplify=True, *args, **kwargs):
         # Map scans to target database
-        scan_map, hit_map, hit_to_scan = self.target_evaluator._map_scans_to_hits(
+        workload = self.target_evaluator._map_scans_to_hits(
             scans, precursor_error_tolerance)
         # Evaluate mapped target hits
-        target_scan_solution_map = self.target_evaluator._evaluate_hit_groups(
-            scan_map, hit_map, hit_to_scan, *args, **kwargs)
-        # Aggregate and reduce target solutions
-        target_solutions = self._collect_scan_solutions(target_scan_solution_map, scan_map)
-        if simplify:
-            for case in target_solutions:
-                case.simplify()
-                case.select_top()
+        target_solutions = []
+        for batch in workload.batches():
+            target_scan_solution_map = self.target_evaluator._evaluate_hit_groups(
+                batch, *args, **kwargs)
+            # Aggregate and reduce target solutions
+            temp = self._collect_scan_solutions(target_scan_solution_map, batch.scan_map)
+            if simplify:
+                for case in temp:
+                    case.simplify()
+                    case.select_top()
+            target_solutions += temp
 
         # Reuse mapped hits from target database using the decoy evaluator
         # since this assumes that the decoys will be direct reversals of
         # target sequences. The decoy evaluator will handle the reversals.
-        decoy_scan_solution_map = self.decoy_evaluator._evaluate_hit_groups(
-            scan_map, hit_map, hit_to_scan, *args, **kwargs)
-        # Aggregate and reduce target solutions
-        decoy_solutions = self._collect_scan_solutions(decoy_scan_solution_map, scan_map)
-        if simplify:
-            for case in decoy_solutions:
-                case.simplify()
-                case.select_top()
+        decoy_solutions = []
+        for batch in workload.batches():
+            decoy_scan_solution_map = self.decoy_evaluator._evaluate_hit_groups(
+                batch, *args, **kwargs)
+            # Aggregate and reduce target solutions
+            temp = self._collect_scan_solutions(decoy_scan_solution_map, batch.scan_map)
+            if simplify:
+                for case in temp:
+                    case.simplify()
+                    case.select_top()
+            decoy_solutions += temp
         return target_solutions, decoy_solutions
 
     def score_all(self, precursor_error_tolerance=1e-5, simplify=False, *args, **kwargs):
