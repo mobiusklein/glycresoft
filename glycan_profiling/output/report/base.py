@@ -52,10 +52,14 @@ def xmlattrs(**kwargs):
     return ' '.join("%s=\"%s\"" % kv for kv in kwargs.items())
 
 
-def png_plot(figure, img_width=None, **kwargs):
-    xml_attributes = {}
+def png_plot(figure, img_width=None, img_height=None, xattrs=None, **kwargs):
+    if xattrs is None:
+        xattrs = dict()
+    xml_attributes = dict(xattrs)
     if img_width is not None:
         xml_attributes['width'] = img_width
+    if img_height is not None:
+        xml_attributes['height'] = img_height
     data_buffer = render_plot(figure, format='png', **kwargs)
     return "<img %s src='data:image/png;base64,%s'>" % (
         xmlattrs(**xml_attributes),

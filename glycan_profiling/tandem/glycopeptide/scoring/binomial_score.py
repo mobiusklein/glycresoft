@@ -93,21 +93,27 @@ def _intensity_tiers(peak_list, matched_peaks, total_product_ion_count):
     counts = dict()
     last_count = total_product_ion_count
     next_count = (matched_intensities > m1).sum()
-    if last_count == next_count:
+    if last_count == 0:
+        counts[1] = 1.0
+    elif last_count == next_count:
         counts[1] = binomial_tail_probability(last_count, next_count - 1, 0.5)
     else:
         counts[1] = binomial_tail_probability(last_count, next_count, 0.5)
     last_count = next_count
 
     next_count = (matched_intensities > m2).sum()
-    if last_count == next_count:
+    if last_count == 0:
+        counts[2] = 1.0
+    elif last_count == next_count:
         counts[2] = binomial_tail_probability(last_count, next_count - 1, 0.5)
     else:
         counts[2] = binomial_tail_probability(last_count, next_count, 0.5)
     last_count = next_count
 
     next_count = (matched_intensities > m3).sum()
-    if last_count == next_count:
+    if last_count == 0:
+        counts[3] = 1.0
+    elif last_count == next_count:
         counts[3] = binomial_tail_probability(last_count, next_count - 1, 0.5)
     else:
         counts[3] = binomial_tail_probability(last_count, next_count, 0.5)
@@ -115,7 +121,9 @@ def _intensity_tiers(peak_list, matched_peaks, total_product_ion_count):
     last_count = next_count
 
     next_count = (matched_intensities > m4).sum()
-    if last_count == next_count:
+    if last_count == 0:
+        counts[4] = 1.0
+    elif last_count == next_count:
         counts[4] = binomial_tail_probability(last_count, next_count - 1, 0.5)
     else:
         counts[4] = binomial_tail_probability(last_count, next_count, 0.5)
@@ -131,21 +139,27 @@ def _score_tiers(peak_list, matched_peaks, total_product_ion_count):
     counts = dict()
     last_count = total_product_ion_count
     next_count = (matched_intensities > m1).sum()
-    if last_count == next_count:
+    if last_count == 0:
+        counts[1] = 1.0
+    elif last_count == next_count:
         counts[1] = binomial_tail_probability(last_count, next_count - 1, 0.5)
     else:
         counts[1] = binomial_tail_probability(last_count, next_count, 0.5)
     last_count = next_count
 
     next_count = (matched_intensities > m2).sum()
-    if last_count == next_count:
+    if last_count == 0:
+        counts[2] = 1.0
+    elif last_count == next_count:
         counts[2] = binomial_tail_probability(last_count, next_count - 1, 0.5)
     else:
         counts[2] = binomial_tail_probability(last_count, next_count, 0.5)
     last_count = next_count
 
     next_count = (matched_intensities > m3).sum()
-    if last_count == next_count:
+    if last_count == 0:
+        counts[3] = 1.0
+    elif last_count == next_count:
         counts[3] = binomial_tail_probability(last_count, next_count - 1, 0.5)
     else:
         counts[3] = binomial_tail_probability(last_count, next_count, 0.5)
@@ -153,7 +167,9 @@ def _score_tiers(peak_list, matched_peaks, total_product_ion_count):
     last_count = next_count
 
     next_count = (matched_intensities > m4).sum()
-    if last_count == next_count:
+    if last_count == 0:
+        counts[4] = 1.0
+    elif last_count == next_count:
         counts[4] = binomial_tail_probability(last_count, next_count - 1, 0.5)
     else:
         counts[4] = binomial_tail_probability(last_count, next_count, 0.5)
