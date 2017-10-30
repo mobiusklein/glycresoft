@@ -9,12 +9,10 @@ from glypy.composition.glycan_composition import (
     MonosaccharideResidue, Composition)
 
 
-signatures = [
-    FrozenMonosaccharideResidue.from_iupac_lite("NeuAc"),
-    FrozenMonosaccharideResidue.from_iupac_lite("NeuGc"),
-    FrozenMonosaccharideResidue.from_iupac_lite("HexS"),
-    FrozenMonosaccharideResidue.from_iupac_lite("HexNAc(S)"),
-]
+signatures = {
+    FrozenMonosaccharideResidue.from_iupac_lite("NeuAc"): 0.25,
+    FrozenMonosaccharideResidue.from_iupac_lite("NeuGc"): 0.25,
+}
 
 _water = Composition("H2O")
 
@@ -48,12 +46,19 @@ class GlycanCompositionSignatureMatcher(GlycopeptideSpectrumMatcherBase):
             if peak:
                 peak = max(peak, key=keyfn)
             else:
+                if is_expected:
+                    self.expected_matches[monosaccharide] = None
                 continue
             if is_expected:
                 self.expected_matches[monosaccharide] = peak
             else:
                 self.unexpected_matches[monosaccharide] = peak
         
+    def estimate_missing_ion_importance(self, key):
+        count = self.glycan_composition[key]
+        weight = self.signatures[key]
+        return max(weight * count, 0.99)
+
     def calculate_score(self, match_tolerance=2e-5, *args, **kwargs):
         penalty = 0
         for key, peak in self.unexpected_matches.items():
@@ -61,5 +66,9 @@ class GlycanCompositionSignatureMatcher(GlycopeptideSpectrumMatcherBase):
             if ratio < 0.01:
                 continue
             penalty += -10 * np.log10(1 - ratio)
+        for key, peak in self.expected_matches.items():
+            if peak is None:
+                penalty += -10 * np.log10(1 - self.estimate_missing_ion_importance(key))
+
         self._score = -penalty
         return self._score
