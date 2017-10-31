@@ -87,12 +87,14 @@ def rt_to_id(ms_file, rt):
               "Force profile scan configuration."), cls=HiddenOption)
 @click.option("-i", "--isotopic-strictness", default=2.0, type=float, cls=HiddenOption)
 @click.option("-in", "--msn-isotopic-strictness", default=0.0, type=float, cls=HiddenOption)
+@click.option("-n", "--signal-to-noise-threshold", default=1.0, type=float, help=(
+    "Signal-to-noise ratio threshold to apply when filtering peaks"))
 def preprocess(ms_file, outfile_path, averagine=None, start_time=None, end_time=None, maximum_charge=None,
                name=None, msn_averagine=None, score_threshold=35., msn_score_threshold=10., missed_peaks=1,
                msn_missed_peaks=1, background_reduction=5., msn_background_reduction=0.,
                transform=None, msn_transform=None, processes=4, extract_only_tandem_envelopes=False,
                ignore_msn=False, profile=False, isotopic_strictness=2.0, ms1_averaging=0,
-               msn_isotopic_strictness=0.0):
+               msn_isotopic_strictness=0.0, signal_to_noise_threshold=1.0):
     '''Convert raw mass spectra data into deisotoped neutral mass peak lists written to mzML.
     '''
     if transform is None:
@@ -143,7 +145,8 @@ def preprocess(ms_file, outfile_path, averagine=None, start_time=None, end_time=
                 ms_peak_picker.scan_filter.FTICRBaselineRemoval(
                     scale=background_reduction, window_length=2),
                 ms_peak_picker.scan_filter.SavitskyGolayFilter()
-            ] + list(transform)
+            ] + list(transform),
+            "signal_to_noise_threshold": signal_to_noise_threshold
         }
     else:
         ms1_peak_picking_args = {
