@@ -74,9 +74,9 @@ class TandemAnnotatedChromatogram(ChromatogramWrapper, SpectrumMatchSolutionColl
             self.chromatogram.nodes, self.chromatogram.adducts,
             self.chromatogram.used_as_adduct)
         entity_chroma.entity = solution_entry.solution
-        entity_chroma.chromatogram.adducts.append(solution_entry.match.mass_shift)
         self.chromatogram = entity_chroma
         self.best_msms_score = solution_entry.best_score
+        entity_chroma.chromatogram.adducts.append(solution_entry.match.mass_shift)
 
 
 class TandemSolutionsWithoutChromatogram(SpectrumMatchSolutionCollectionBase):
