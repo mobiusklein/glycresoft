@@ -1,5 +1,7 @@
 from glycan_profiling.task import TaskBase, log_handle
-from glycan_profiling.chromatogram_tree import ChromatogramWrapper, build_rt_interval_tree, ChromatogramFilter
+from glycan_profiling.chromatogram_tree import (
+    ChromatogramWrapper, build_rt_interval_tree, ChromatogramFilter,
+    Unmodified)
 from glycan_profiling.chromatogram_tree.chromatogram import GlycopeptideChromatogram
 from collections import defaultdict, namedtuple
 
@@ -55,8 +57,12 @@ class TandemAnnotatedChromatogram(ChromatogramWrapper, SpectrumMatchSolutionColl
         new.best_msms_score = self.best_msms_score
 
     def merge(self, other):
-        new = self.__class__(self.chromatogram.merge(other.chromatogram))
-        new.adducts = self.adducts + other.adducts
+        mass_shift = sorted((set(other.adducts) - set(self.adducts)), key=lambda x: x.mass)
+        if mass_shift:
+            mass_shift = mass_shift[0]
+        else:
+            mass_shift = Unmodified
+        new = self.__class__(self.chromatogram.merge(other.chromatogram, node_type=mass_shift))
         new.tandem_solutions = self.tandem_solutions + other.tandem_solutions
         new.time_displaced_assignments = self.time_displaced_assignments + other.time_displaced_assignments
         return new
@@ -126,9 +132,11 @@ class ScanTimeBundle(object):
 def aggregate_by_assigned_entity(annotated_chromatograms, delta_rt=0.25):
     aggregated = defaultdict(list)
     finished = []
+    log_handle.log("Aggregating Common Entities: %d chromatograms" % (len(annotated_chromatograms,)))
     for chroma in annotated_chromatograms:
         if chroma.composition is not None:
             if chroma.entity is not None:
+                log_handle.log("... %s (%s)" % (chroma.entity, chroma.adducts))
                 aggregated[chroma.entity].append(chroma)
             else:
                 aggregated[chroma.composition].append(chroma)
@@ -147,6 +155,7 @@ def aggregate_by_assigned_entity(annotated_chromatograms, delta_rt=0.25):
                 chroma = obs
         out.append(chroma)
         finished.extend(out)
+    log_handle.log("After merging: %d chromatograms" % (len(finished),))
     return finished
 
 
