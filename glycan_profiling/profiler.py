@@ -574,7 +574,8 @@ class GlycopeptideLCMSMSAnalyzer(TaskBase):
             peak_loader.convert_scan_id_to_retention_time,
             minimum_oxonium_ratio=self.minimum_oxonium_ratio,
             scan_transformer=self.scan_transformer,
-            n_processes=self.n_processes)
+            n_processes=self.n_processes,
+            adducts=self.adducts)
         return searcher
 
     def do_search(self, searcher):
