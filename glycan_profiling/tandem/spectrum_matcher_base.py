@@ -551,6 +551,7 @@ class TandemClusterEvaluatorBase(TaskBase):
         for mass_shift in self.mass_shifts:
             self.log("... Mapping For %s" % (mass_shift.name,))
             i = 0
+            last_report = report_interval
             for group in groups:
                 if len(group) == 0:
                     continue
@@ -880,7 +881,7 @@ class IdentificationProcessDispatcher(TaskBase):
                 solution.target.clear_caches()
             except AttributeError:
                 pass
-        self.store_result(solution_target, solution_map, self.local_scan_map)
+        return solution_target, solution_map
 
     def evaluate(self, scan, structure, *args, **kwargs):
         if not self.workers:
