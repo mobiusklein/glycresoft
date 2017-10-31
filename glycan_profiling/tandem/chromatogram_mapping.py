@@ -64,7 +64,7 @@ class TandemAnnotatedChromatogram(ChromatogramWrapper, SpectrumMatchSolutionColl
     def merge_in_place(self, other):
         new = self.chromatogram.merge(other.chromatogram)
         self.chromatogram = new
-        self.adducts += other.adducts
+        self.chromatogram.adducts += other.adducts
         self.tandem_solutions = self.tandem_solutions + other.tandem_solutions
         self.time_displaced_assignments = self.time_displaced_assignments + other.time_displaced_assignments
 
@@ -74,7 +74,7 @@ class TandemAnnotatedChromatogram(ChromatogramWrapper, SpectrumMatchSolutionColl
             self.chromatogram.nodes, self.chromatogram.adducts,
             self.chromatogram.used_as_adduct)
         entity_chroma.entity = solution_entry.solution
-        entity_chroma.adducts.append(solution_entry.match.mass_shift)
+        entity_chroma.chromatogram.adducts.append(solution_entry.match.mass_shift)
         self.chromatogram = entity_chroma
         self.best_msms_score = solution_entry.best_score
 
