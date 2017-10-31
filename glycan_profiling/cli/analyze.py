@@ -98,6 +98,9 @@ def sample_path(fn):
 @click.option("-x", "--oxonium-threshold", default=0.05, type=float,
               help=('Minimum HexNAc-derived oxonium ion abundance '
                     'ratio to filter MS/MS scans. Defaults to 0.05.'))
+@click.option("-a", "--adduct", 'adducts', multiple=True, nargs=2,
+              help=("Adducts to consider. Specify name or formula, and a"
+                    " multiplicity."))
 @processes_option
 @click.option("--export", type=click.Choice(
               ['csv', 'html']), multiple=True,
@@ -112,7 +115,7 @@ def search_glycopeptide(context, database_connection, sample_path, hypothesis_id
                         msn_mass_error_tolerance=2e-5, psm_fdr_threshold=0.05, peak_shape_scoring_model=None,
                         tandem_scoring_model=None, oxonium_threshold=0.15,
                         save_intermediate_results=None, processes=4,
-                        workload_size=500, export=None):
+                        workload_size=500, adducts=None, export=None):
     """Identify glycopeptide sequences from processed LC-MS/MS data
     """
     if output_path is None:
@@ -135,6 +138,9 @@ def search_glycopeptide(context, database_connection, sample_path, hypothesis_id
 
     tandem_scoring_model = validate_glycopeptide_tandem_scoring_function(
         context, tandem_scoring_model)
+
+    adducts = [validate_adduct(adduct, multiplicity)
+               for adduct, multiplicity in adducts]
 
     if analysis_name is None:
         analysis_name = "%s @ %s" % (sample_run.name, hypothesis.name)
@@ -159,7 +165,8 @@ def search_glycopeptide(context, database_connection, sample_path, hypothesis_id
         tandem_scoring_model=tandem_scoring_model,
         oxonium_threshold=oxonium_threshold,
         n_processes=processes,
-        spectra_chunk_size=workload_size)
+        spectra_chunk_size=workload_size,
+        adducts=adducts)
     analyzer.display_header()
     gps, unassigned, target_hits, decoy_hits = analyzer.start()
     if save_intermediate_results is not None:
