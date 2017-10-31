@@ -53,7 +53,7 @@ class GlycanCompositionSignatureMatcher(GlycopeptideSpectrumMatcherBase):
                 self.expected_matches[monosaccharide] = peak
             else:
                 self.unexpected_matches[monosaccharide] = peak
-        
+
     def estimate_missing_ion_importance(self, key):
         count = self.glycan_composition[key]
         weight = self.signatures[key]
@@ -84,6 +84,5 @@ class GlycanCompositionSignatureMatcher(GlycopeptideSpectrumMatcherBase):
                     if np.isnan(component):
                         component = 20
                 penalty += component
-                
         self._score = -penalty
         return self._score
