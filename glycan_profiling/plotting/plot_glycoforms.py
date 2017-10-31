@@ -362,10 +362,14 @@ class CompressedPileupLayout(GlycoformLayout):
                 layers.append([gpm])
         return layers
 
-    def draw_protein_main_sequence(self, current_position):
-        next_row = current_position + self.row_width
+    def _make_text_scaler(self):
         transform = Affine2D()
         transform.scale(self.row_width / 75., 0.5)
+        return transform
+
+    def draw_protein_main_sequence(self, current_position):
+        next_row = current_position + self.row_width
+        transform = self._make_text_scaler()
         for i, aa in enumerate(self.protein.protein_sequence[current_position:next_row]):
             color = self.n_glycosite_bar_color if (i + current_position) in self.glycosites\
                 else self.default_protein_bar_color
