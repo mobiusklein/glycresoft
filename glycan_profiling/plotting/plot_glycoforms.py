@@ -158,7 +158,7 @@ class GlycoformLayout(object):
             "record-id": gpm.id if hasattr(gpm, 'id') else None,
             "calculated-mass": gpm.structure.total_mass,
             "spectra-count": len(gpm.spectrum_matches)
-        })        
+        })
 
     def _get_sequence(self, gpm):
         return gpm.structure
@@ -249,7 +249,7 @@ class GlycoformLayout(object):
     def draw_peptidoform(self, gpm, current_position, next_row):
         self.draw_peptide_block(gpm, current_position, next_row)
         self.draw_modification_chips(gpm, current_position)
-  
+
     def draw_current_row(self, current_position):
         next_row = current_position + self.row_width
         for layer in self.layers:
@@ -261,7 +261,7 @@ class GlycoformLayout(object):
                     break
                 c += 1
                 self.draw_peptidoform(gpm, current_position, next_row)
-                
+
             if c > 0:
                 self.cur_y += self.y_step
 
@@ -332,7 +332,7 @@ class CompressedPileupLayout(GlycoformLayout):
 
     def layout_layers(self, matches):
         layers = [[]]
-        glycopeptides = list(matches)
+        matches = list(matches)
         matches.sort(key=lambda x: getattr(x, "ms2_score", float('inf')), reverse=True)
         for gpm in matches:
             placed = False
@@ -354,7 +354,7 @@ class CompressedPileupLayout(GlycoformLayout):
         next_row = current_position + self.row_width
         for i, aa in enumerate(self.protein.protein_sequence[current_position:next_row]):
             color = self.n_glycosite_bar_color if (i + current_position) in self.glycosites\
-                    else self.default_protein_bar_color
+                else self.default_protein_bar_color
             rect = mpatches.Rectangle(
                 (self.protein_pad + i, self.layer_height + .05 + self.cur_y),
                 width=self.sequence_font_size / 4.5,
