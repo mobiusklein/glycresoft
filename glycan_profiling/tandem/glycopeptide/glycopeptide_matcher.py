@@ -132,7 +132,7 @@ class TargetDecoyInterleavingGlycopeptideMatcher(TandemClusterEvaluatorBase):
         # Evaluate mapped target hits
         target_solutions = []
         for i, batch in enumerate(workload.batches()):
-            self.log("Batch %d" % (i + 1,))
+            self.log("... Batch %d" % (i + 1,))
             target_scan_solution_map = self.target_evaluator._evaluate_hit_groups(
                 batch, *args, **kwargs)
             # Aggregate and reduce target solutions
@@ -155,7 +155,7 @@ class TargetDecoyInterleavingGlycopeptideMatcher(TandemClusterEvaluatorBase):
         # target sequences. The decoy evaluator will handle the reversals.
         decoy_solutions = []
         for i, batch in enumerate(workload.batches()):
-            self.log("Batch %d" % (i + 1,))
+            self.log("... Batch %d" % (i + 1,))
             decoy_scan_solution_map = self.decoy_evaluator._evaluate_hit_groups(
                 batch, *args, **kwargs)
             # Aggregate and reduce target solutions
@@ -242,7 +242,7 @@ class ComparisonGlycopeptideMatcher(TargetDecoyInterleavingGlycopeptideMatcher):
         # Evaluate mapped target hits
         target_solutions = []
         for i, batch in enumerate(workload.batches()):
-            self.log("Batch %d" % (i + 1,))
+            self.log("... Batch %d" % (i + 1,))
             target_scan_solution_map = self.target_evaluator._evaluate_hit_groups(
                 batch, *args, **kwargs)
             # Aggregate and reduce target solutions
@@ -265,7 +265,7 @@ class ComparisonGlycopeptideMatcher(TargetDecoyInterleavingGlycopeptideMatcher):
         # Evaluate mapped target hits
         decoy_solutions = []
         for i, batch in enumerate(workload.batches()):
-            self.log("Batch %d" % (i + 1,))
+            self.log("... Batch %d" % (i + 1,))
             decoy_scan_solution_map = self.decoy_evaluator._evaluate_hit_groups(
                 batch, *args, **kwargs)
             # Aggregate and reduce decoy solutions
