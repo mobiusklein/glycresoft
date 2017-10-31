@@ -38,6 +38,7 @@
                         <th>Tandem Score</th>
                         <th>TDA q-value</th>
                         <th>Volume</th>
+                        <th>Spectrum Matches</th>
                     </tr>
                 </thead>
                 <tbody>
@@ -46,6 +47,7 @@
                         <td>{{"%0.4f"|format(glycopeptide.ms2_score)}}</td>
                         <td>{{"%0.4f"|format(glycopeptide.q_value)}}</td>
                         <td>{{"%0.4e"|format(glycopeptide.total_signal)}}</td>
+                        <td>{{glycopeptide.spectrum_matches|length}}</td>
                     </tr>
                 </tbody>
             </table>

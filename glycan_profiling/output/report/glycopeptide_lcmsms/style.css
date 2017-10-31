@@ -138,6 +138,11 @@
     font-size: 0.8rem;
 }
 
+.glycopeptide-facet td, .glycopeptide-facet th {
+    padding: 1px;
+    text-align: center;
+}
+
 .glycopeptide-mass-entry-container {
 
 }

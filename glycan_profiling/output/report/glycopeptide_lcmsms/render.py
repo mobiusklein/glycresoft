@@ -9,7 +9,7 @@ from glycan_profiling.tandem.ref import SpectrumReference
 from glycan_profiling.plotting import (figax, SmoothingChromatogramArtist)
 from glycan_profiling.plotting.sequence_fragment_logo import glycopeptide_match_logo
 from glycan_profiling.plotting.plot_glycoforms import (
-    plot_glycoforms_svg, plot_glycoforms, GlycoformLayout)
+    GlycoformLayout)
 from glycan_profiling.plotting.spectral_annotation import SpectrumMatchAnnotator
 from glycan_profiling.tandem.glycopeptide.identified_structure import IdentifiedGlycoprotein
 from glycan_profiling.tandem.glycopeptide.scoring import CoverageWeightedBinomialScorer
