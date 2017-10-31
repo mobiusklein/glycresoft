@@ -3,6 +3,9 @@ from matplotlib import font_manager
 from matplotlib import pyplot as plt
 from matplotlib import patches as mpatches
 from matplotlib.textpath import TextPath
+from matplotlib.transforms import IdentityTransform, Affine2D
+
+import numpy as np
 
 from .svg_utils import ET, BytesIO, IDMapper
 from .colors import lighten, darken, get_color
@@ -106,7 +109,7 @@ class GlycoformLayout(object):
                 layers.append([gpm])
         return layers
 
-    def draw_protein_primary(self, current_position):
+    def draw_protein_main_sequence(self, current_position):
         next_row = current_position + self.row_width
         i = -1
         offset = current_position + 1
@@ -274,10 +277,10 @@ class GlycoformLayout(object):
             ax.axis('off')
 
     def draw(self):
-        self.draw_protein_primary(self.cur_position)
+        self.draw_protein_main_sequence(self.cur_position)
         self.draw_current_row(self.cur_position)
         while self.next_row():
-            self.draw_protein_primary(self.cur_position)
+            self.draw_protein_main_sequence(self.cur_position)
             self.draw_current_row(self.cur_position)
         self.finalize_axes()
         return self
@@ -330,6 +333,15 @@ class CompressedPileupLayout(GlycoformLayout):
     default_protein_bar_color = 'black'
     n_glycosite_bar_color = 'red'
 
+    def __init__(self, protein, glycopeptides, scale_factor=1.0, ax=None, row_width=50, compression=8, **kwargs):
+        super(CompressedPileupLayout, self).__init__(
+            protein, glycopeptides, scale_factor, ax, row_width, **kwargs)
+        self.compress(compression)
+
+    def compress(self, scale):
+        self.layer_height /= scale
+        self.y_step /= scale
+
     def layout_layers(self, matches):
         layers = [[]]
         matches = list(matches)
@@ -350,17 +362,31 @@ class CompressedPileupLayout(GlycoformLayout):
                 layers.append([gpm])
         return layers
 
-    def draw_protein_primary(self, current_position):
+    def draw_protein_main_sequence(self, current_position):
         next_row = current_position + self.row_width
+        transform = Affine2D()
+        transform.scale(self.row_width / 75., 0.5)
         for i, aa in enumerate(self.protein.protein_sequence[current_position:next_row]):
             color = self.n_glycosite_bar_color if (i + current_position) in self.glycosites\
                 else self.default_protein_bar_color
             rect = mpatches.Rectangle(
                 (self.protein_pad + i, self.layer_height + .05 + self.cur_y),
                 width=self.sequence_font_size / 4.5,
-                height=self.sequence_font_size / 20.,
+                height=self.sequence_font_size / 30.,
                 facecolor=color)
             self.ax.add_patch(rect)
+            if i % 100 == 0 and i != 0:
+                xy = np.array((self.protein_pad + i, self.layer_height + .35 + self.cur_y))
+                text_path = TextPath(
+                    xy,
+                    str(current_position + i), size=self.sequence_font_size / 7.5,
+                    prop=font_options)
+                text_path = text_path.transformed(transform)
+                new_center = transform.transform(xy)
+                delta = xy - new_center - (1, 0)
+                text_path = text_path.transformed(Affine2D().translate(*delta))
+                patch = mpatches.PathPatch(text_path, facecolor='grey', lw=0.04)
+                self.ax.add_patch(patch)
 
     def _pack_sequence_metadata(self, rect, gpm):
         pass
@@ -390,6 +416,10 @@ class CompressedPileupLayout(GlycoformLayout):
 
     def draw_modification_chips(self, gpm, current_position):
         return
+
+    def finalize_axes(self, ax=None, remove_axes=True):
+        super(CompressedPileupLayout, self).finalize_axes(ax, remove_axes)
+        self.ax.set_xlim(1., self.row_width + 2)
 
 
 def draw_layers(layers, protein, scale_factor=1.0, ax=None, row_width=50, **kwargs):
