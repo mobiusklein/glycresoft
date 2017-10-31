@@ -53,6 +53,7 @@ class TandemAnnotatedChromatogram(ChromatogramWrapper, SpectrumMatchSolutionColl
 
     def merge(self, other):
         new = self.__class__(self.chromatogram.merge(other.chromatogram))
+        new.adducts = self.adducts + other.adducts
         new.tandem_solutions = self.tandem_solutions + other.tandem_solutions
         new.time_displaced_assignments = self.time_displaced_assignments + other.time_displaced_assignments
         return new
@@ -60,6 +61,7 @@ class TandemAnnotatedChromatogram(ChromatogramWrapper, SpectrumMatchSolutionColl
     def merge_in_place(self, other):
         new = self.chromatogram.merge(other.chromatogram)
         self.chromatogram = new
+        self.adducts += other.adducts
         self.tandem_solutions = self.tandem_solutions + other.tandem_solutions
         self.time_displaced_assignments = self.time_displaced_assignments + other.time_displaced_assignments
 
@@ -69,6 +71,7 @@ class TandemAnnotatedChromatogram(ChromatogramWrapper, SpectrumMatchSolutionColl
             self.chromatogram.nodes, self.chromatogram.adducts,
             self.chromatogram.used_as_adduct)
         entity_chroma.entity = solution_entry.solution
+        entity_chroma.adducts.append(solution_entry.solution.mass_shift)
         self.chromatogram = entity_chroma
         self.best_msms_score = solution_entry.best_score
 
@@ -207,10 +210,12 @@ class ChromatogramMSMSMapper(TaskBase):
     def merge_common_entities(self, annotated_chromatograms):
         aggregated = defaultdict(list)
         finished = []
+        self.log("Aggregating Common Entities: %d chromatograms" % (len(annotated_chromatograms,)))
         for chroma in annotated_chromatograms:
             if chroma.composition is not None:
                 if chroma.entity is not None:
                     aggregated[chroma.entity].append(chroma)
+                    self.log("... %s (%s)" % (chroma.entity, chroma.adducts))
                 else:
                     aggregated[chroma.composition].append(chroma)
             else:
@@ -226,6 +231,7 @@ class ChromatogramMSMSMapper(TaskBase):
                     chroma = obs
             out.append(chroma)
             finished.extend(out)
+        self.log("After merging: %d chromatograms" % (len(finished),))
         return finished
 
     def __len__(self):
