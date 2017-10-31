@@ -17,7 +17,7 @@
                 </tr>
             </thead>
             <tbody class='display-table'>
-            {% for glycopeptide in glycoprotein.identified_glycopeptides %}
+            {% for glycopeptide in glycoprotein.identified_glycopeptides|sort(reverse=True, attribute='ms2_score') %}
                 <tr class='glycopeptide-detail-table-row' data-glycopeptide-id="{{glycopeptide.id}}">
                     {% if glycopeptide.chromatogram %}
                         <td>{{"%0.4f"|format(

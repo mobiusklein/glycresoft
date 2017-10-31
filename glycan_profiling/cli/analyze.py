@@ -141,6 +141,9 @@ def search_glycopeptide(context, database_connection, sample_path, hypothesis_id
 
     adducts = [validate_adduct(adduct, multiplicity)
                for adduct, multiplicity in adducts]
+    expanded = []
+    expanded = MzMLGlycanChromatogramAnalyzer.expand_adducts(dict(adducts))
+    adducts = expanded
 
     if analysis_name is None:
         analysis_name = "%s @ %s" % (sample_run.name, hypothesis.name)

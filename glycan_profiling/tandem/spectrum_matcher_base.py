@@ -140,7 +140,7 @@ class SpectrumMatcherBase(SpectrumMatchBase):
 
     @classmethod
     def evaluate(cls, scan, target, *args, **kwargs):
-        mass_shift = kwargs.get("mass_shift")
+        mass_shift = kwargs.pop("mass_shift", Unmodified)
         inst = cls(scan, target, mass_shift=mass_shift)
         inst.match(*args, **kwargs)
         inst.calculate_score(*args, **kwargs)
@@ -478,6 +478,7 @@ class TandemClusterEvaluatorBase(TaskBase):
         self.ipc_manager = ipc_manager
         self.probing_range_for_missing_precursors = probing_range_for_missing_precursors
         self.mass_shifts = mass_shifts
+        print(self.mass_shifts)
 
     def search_database_for_precursors(self, mass, precursor_error_tolerance=1e-5):
         return self.structure_database.search_mass_ppm(mass, precursor_error_tolerance)

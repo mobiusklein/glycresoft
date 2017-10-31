@@ -75,7 +75,7 @@
                 {% endfor %}
                 </div>
                 </section>
-                {% for glycopeptide in glycoprotein.identified_glycopeptides %}
+                {% for glycopeptide in glycoprotein.identified_glycopeptides|sort(reverse=True, attribute='ms2_score') %}
                     {% include "glycopeptide-detail-entry.templ" %}
                 {% endfor %}
             </div>
