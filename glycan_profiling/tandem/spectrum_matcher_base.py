@@ -910,7 +910,7 @@ class IdentificationProcessDispatcher(TaskBase):
         self.log("... Searching Matches (%d)" % (n,))
         while has_work:
             try:
-                target, score_map = self.output_queue.get(True, 2)
+                target, score_map = self.output_queue.get(True, 1)
                 if target.id in seen:
                     self.log(
                         "Duplicate Results For %s. First seen at %d, now again at %d" % (
