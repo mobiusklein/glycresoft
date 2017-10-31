@@ -549,6 +549,8 @@ class TandemClusterEvaluatorBase(TaskBase):
         last_report = report_interval
         self.log("... Begin Collecting Hits")
         for mass_shift in self.mass_shifts:
+            self.log("... Mapping For %s" % (mass_shift.name,))
+            i = 0
             for group in groups:
                 if len(group) == 0:
                     continue
@@ -663,8 +665,6 @@ class TandemClusterEvaluatorBase(TaskBase):
         workload = self._map_scans_to_hits(
             scans, precursor_error_tolerance)
         solutions = []
-        import IPython
-        IPython.embed()
         for batch in workload.batches():
             scan_solution_map = self._evaluate_hit_groups(batch, **kwargs)
             solutions += self._collect_scan_solutions(scan_solution_map, batch.scan_map)
@@ -944,7 +944,6 @@ class SpectrumIdentificationWorkerBase(Process):
         except KeyError:
             mass_shift = self.mass_shift_map[key]
             self.local_mass_shift_map[key] = mass_shift
-            print "Fetching %s" % key
             return mass_shift
 
     def all_work_done(self):

@@ -75,6 +75,17 @@ class DecoyGlycopeptideMatcher(GlycopeptideMatcher):
 
 
 class TargetDecoyInterleavingGlycopeptideMatcher(TandemClusterEvaluatorBase):
+    '''Searches a single database against all spectra, where targets are
+    database matches, and decoys are the reverse of the individual target
+    glycopeptides.
+
+    A spectrum has a best target match and a best decoy match tracked
+    separately.
+
+    This means that targets and decoys share the same glycan composition and
+    peptide backbone mass, and ergo share stub glycopeptides. This may not produce
+    "random" enough decoy matches.
+    '''
     def __init__(self, tandem_cluster, scorer_type, structure_database, minimum_oxonium_ratio=0.05,
                  n_processes=5, ipc_manager=None, probing_range_for_missing_precursors=3,
                  mass_shifts=None):
@@ -120,7 +131,8 @@ class TargetDecoyInterleavingGlycopeptideMatcher(TandemClusterEvaluatorBase):
             scans, precursor_error_tolerance)
         # Evaluate mapped target hits
         target_solutions = []
-        for batch in workload.batches():
+        for i, batch in enumerate(workload.batches()):
+            self.log("Batch %d" % (i + 1,))
             target_scan_solution_map = self.target_evaluator._evaluate_hit_groups(
                 batch, *args, **kwargs)
             # Aggregate and reduce target solutions
@@ -142,7 +154,8 @@ class TargetDecoyInterleavingGlycopeptideMatcher(TandemClusterEvaluatorBase):
         # since this assumes that the decoys will be direct reversals of
         # target sequences. The decoy evaluator will handle the reversals.
         decoy_solutions = []
-        for batch in workload.batches():
+        for i, batch in enumerate(workload.batches()):
+            self.log("Batch %d" % (i + 1,))
             decoy_scan_solution_map = self.decoy_evaluator._evaluate_hit_groups(
                 batch, *args, **kwargs)
             # Aggregate and reduce target solutions
@@ -182,6 +195,9 @@ class TargetDecoyInterleavingGlycopeptideMatcher(TandemClusterEvaluatorBase):
 
 
 class CompetativeTargetDecoyInterleavingGlycopeptideMatcher(TargetDecoyInterleavingGlycopeptideMatcher):
+    '''A variation of :class:`TargetDecoyInterleavingGlycopeptideMatcher` where
+    a spectrum can have only one match which is either a target or a decoy.
+    '''
     def score_bunch(self, scans, precursor_error_tolerance=1e-5, simplify=True, *args, **kwargs):
         target_solutions, decoy_solutions = super(
             CompetativeTargetDecoyInterleavingGlycopeptideMatcher, self).score_bunch(
@@ -203,7 +219,6 @@ class CompetativeTargetDecoyInterleavingGlycopeptideMatcher(TargetDecoyInterleav
         return list(target_solutions.values()), list(decoy_solutions.values())
 
 
-# These matchers are missing patches for parallelism
 class ComparisonGlycopeptideMatcher(TargetDecoyInterleavingGlycopeptideMatcher):
     def __init__(self, tandem_cluster, scorer_type, target_structure_database, decoy_structure_database,
                  minimum_oxonium_ratio=0.05, n_processes=5, ipc_manager=None):
@@ -222,24 +237,54 @@ class ComparisonGlycopeptideMatcher(TargetDecoyInterleavingGlycopeptideMatcher):
 
     def score_bunch(self, scans, precursor_error_tolerance=1e-5, simplify=True, *args, **kwargs):
         # Map scans to target database
-        scan_map, hit_map, hit_to_scan = self.target_evaluator._map_scans_to_hits(scans, precursor_error_tolerance)
+        workload = self.target_evaluator._map_scans_to_hits(
+            scans, precursor_error_tolerance)
         # Evaluate mapped target hits
-        target_scan_solution_map = self.target_evaluator._evaluate_hit_groups(
-            scan_map, hit_map, hit_to_scan, *args, **kwargs)
-        # Aggregate and reduce target solutions
-        target_solutions = self._collect_scan_solutions(target_scan_solution_map, scan_map)
+        target_solutions = []
+        for i, batch in enumerate(workload.batches()):
+            self.log("Batch %d" % (i + 1,))
+            target_scan_solution_map = self.target_evaluator._evaluate_hit_groups(
+                batch, *args, **kwargs)
+            # Aggregate and reduce target solutions
+            temp = self._collect_scan_solutions(target_scan_solution_map, batch.scan_map)
+            if simplify:
+                temp = [case for case in temp if len(case) > 0]
+                for case in temp:
+                    try:
+                        case.simplify()
+                        case.select_top()
+                    except IndexError:
+                        self.log("Failed to simplify %r" % (case.scan.id,))
+                        raise
+            else:
+                temp = [case for case in temp if len(case) > 0]
+            target_solutions += temp
 
-        # Map scans to decoy database
-        scan_map, hit_map, hit_to_scan = self.decoy_evaluator._map_scans_to_hits(scans, precursor_error_tolerance)
-        # Evaluate mapped decoy hits
-        decoy_scan_solution_map = self.decoy_evaluator._evaluate_hit_groups(
-            scan_map, hit_map, hit_to_scan, *args, **kwargs)
-        # Aggregate and reduce decoy solutions
-        decoy_solutions = self._collect_scan_solutions(decoy_scan_solution_map, scan_map)
+        workload = self.target_evaluator._map_scans_to_hits(
+            scans, precursor_error_tolerance)
+        # Evaluate mapped target hits
+        decoy_solutions = []
+        for i, batch in enumerate(workload.batches()):
+            self.log("Batch %d" % (i + 1,))
+            decoy_scan_solution_map = self.decoy_evaluator._evaluate_hit_groups(
+                batch, *args, **kwargs)
+            # Aggregate and reduce decoy solutions
+            temp = self._collect_scan_solutions(decoy_scan_solution_map, batch.scan_map)
+            if simplify:
+                temp = [case for case in temp if len(case) > 0]
+                for case in temp:
+                    try:
+                        case.simplify()
+                        case.select_top()
+                    except IndexError:
+                        self.log("Failed to simplify %r" % (case.scan.id,))
+                        raise
+            else:
+                temp = [case for case in temp if len(case) > 0]
+            decoy_solutions += temp
         return target_solutions, decoy_solutions
 
 
-# These matchers are missing patches for parallelism
 class ConcatenatedGlycopeptideMatcher(ComparisonGlycopeptideMatcher):
     def score_bunch(self, scans, precursor_information=1e-5, *args, **kwargs):
         target_solutions, decoy_solutions = super(ConcatenatedGlycopeptideMatcher, self).score_bunch(

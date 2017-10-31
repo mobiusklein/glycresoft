@@ -3,22 +3,25 @@ from glycan_profiling.chromatogram_tree import ChromatogramWrapper, build_rt_int
 from glycan_profiling.chromatogram_tree.chromatogram import GlycopeptideChromatogram
 from collections import defaultdict, namedtuple
 
-SolutionEntry = namedtuple("SolutionEntry", "solution, score, percentile, best_score")
+SolutionEntry = namedtuple("SolutionEntry", "solution, score, percentile, best_score, match")
 
 
 class SpectrumMatchSolutionCollectionBase(object):
     def _compute_representative_weights(self, threshold_fn=lambda x: True):
         scores = defaultdict(float)
         best_scores = defaultdict(float)
+        best_spectrum_match = dict()
         for psm in self.tandem_solutions:
             if threshold_fn(psm):
                 for sol in psm.get_top_solutions():
                     scores[sol.target] += (sol.score)
                     if best_scores[sol.target] < sol.score:
                         best_scores[sol.target] = sol.score
+                        best_spectrum_match[sol.target] = sol
         total = sum(scores.values())
         weights = [
-            SolutionEntry(k, v, v / total, best_scores[k]) for k, v in scores.items()
+            SolutionEntry(k, v, v / total, best_scores[k],
+                          best_spectrum_match[k]) for k, v in scores.items()
         ]
         weights.sort(key=lambda x: x.percentile, reverse=True)
         return weights
@@ -71,7 +74,7 @@ class TandemAnnotatedChromatogram(ChromatogramWrapper, SpectrumMatchSolutionColl
             self.chromatogram.nodes, self.chromatogram.adducts,
             self.chromatogram.used_as_adduct)
         entity_chroma.entity = solution_entry.solution
-        entity_chroma.adducts.append(solution_entry.solution.mass_shift)
+        entity_chroma.adducts.append(solution_entry.match.mass_shift)
         self.chromatogram = entity_chroma
         self.best_msms_score = solution_entry.best_score
 
