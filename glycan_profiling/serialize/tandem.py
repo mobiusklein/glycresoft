@@ -3,20 +3,19 @@ from weakref import WeakValueDictionary
 from sqlalchemy import (
     Column, Numeric, Integer, String, ForeignKey, PickleType,
     Boolean, Table)
-from sqlalchemy.orm import relationship, backref, object_session
+from sqlalchemy.orm import relationship, backref, object_session, deferred
 from sqlalchemy.ext.declarative import declared_attr
+from sqlalchemy.exc import OperationalError
 
 from glycan_profiling.tandem.spectrum_matcher_base import (
     SpectrumMatch as MemorySpectrumMatch,
-    SpectrumSolutionSet as MemorySpectrumSolutionSet,
-    SpectrumReference,
-    TargetReference)
+    SpectrumSolutionSet as MemorySpectrumSolutionSet)
 
 from glycan_profiling.structure import ScanInformation
 
 from .analysis import BoundToAnalysis
 from .hypothesis import Glycopeptide, GlycanComposition
-
+from .chromatogram import CompoundMassShift
 from .base import (
     Base, MSScan)
 
@@ -39,6 +38,45 @@ class SpectrumMatchBase(BoundToAnalysis):
     def scan(self):
         return relationship(MSScan)
 
+    @declared_attr
+    def mass_shift_id(self):
+        return deferred(Column(Integer, ForeignKey(CompoundMassShift.id), index=True))
+
+    @declared_attr
+    def mass_shift(self):
+        return relationship(CompoundMassShift, uselist=False)
+
+    def _check_mass_shift(self, session):
+        flag = session.info.get("has_spectrum_match_mass_shift")
+        if flag:
+            return self.mass_shift
+        elif flag is None:
+            try:
+                session.begin_nested()
+                shift = self.mass_shift
+                session.rollback()
+                return shift
+            except OperationalError:
+                session.rollback()
+                session.info["has_spectrum_match_mass_shift"] = False
+                return None
+        else:
+            return None
+
+    def _resolve_mass_shift(self, session, mass_shift_cache=None):
+        mass_shift = self._check_mass_shift(session)
+        if mass_shift is not None:
+            if mass_shift_cache is not None:
+                try:
+                    mass_shift = mass_shift_cache[mass_shift.id]
+                except KeyError:
+                    mass_shift = mass_shift_cache[mass_shift.id] = mass_shift.convert()
+                return mass_shift
+            else:
+                return mass_shift.convert()
+        else:
+            return None
+
 
 class SpectrumClusterBase(object):
     def __getitem__(self, i):
@@ -47,8 +85,10 @@ class SpectrumClusterBase(object):
     def __iter__(self):
         return iter(self.spectrum_solutions)
 
-    def convert(self):
-        return [x.convert() for x in self.spectrum_solutions]
+    def convert(self, mass_shift_cache=None):
+        if mass_shift_cache is None:
+            mass_shift_cache = dict()
+        return [x.convert(mass_shift_cache=mass_shift_cache) for x in self.spectrum_solutions]
 
 
 class SolutionSetBase(object):
@@ -97,14 +137,14 @@ class GlycopeptideSpectrumCluster(Base, SpectrumClusterBase, BoundToAnalysis):
     id = Column(Integer, primary_key=True)
 
     @classmethod
-    def serialize(cls, obj, session, scan_look_up_cache, analysis_id, *args, **kwargs):
+    def serialize(cls, obj, session, scan_look_up_cache, mass_shift_cache, analysis_id, *args, **kwargs):
         inst = cls()
         session.add(inst)
         session.flush()
         cluster_id = inst.id
         for solution_set in obj.tandem_solutions:
             GlycopeptideSpectrumSolutionSet.serialize(
-                solution_set, session, scan_look_up_cache, analysis_id,
+                solution_set, session, scan_look_up_cache, mass_shift_cache, analysis_id,
                 cluster_id, *args, **kwargs)
         return inst
 
@@ -123,7 +163,8 @@ class GlycopeptideSpectrumSolutionSet(Base, SolutionSetBase, BoundToAnalysis):
     is_decoy = Column(Boolean, index=True)
 
     @classmethod
-    def serialize(cls, obj, session, scan_look_up_cache, analysis_id, cluster_id, is_decoy=False, *args, **kwargs):
+    def serialize(cls, obj, session, scan_look_up_cache, mass_shift_cache, analysis_id,
+                  cluster_id, is_decoy=False, *args, **kwargs):
         inst = cls(
             scan_id=scan_look_up_cache[obj.scan.id],
             is_decoy=is_decoy,
@@ -133,12 +174,12 @@ class GlycopeptideSpectrumSolutionSet(Base, SolutionSetBase, BoundToAnalysis):
         session.flush()
         for solution in obj:
             GlycopeptideSpectrumMatch.serialize(
-                solution, session, scan_look_up_cache,
+                solution, session, scan_look_up_cache, mass_shift_cache,
                 analysis_id, inst.id, is_decoy, *args, **kwargs)
         return inst
 
-    def convert(self):
-        matches = [x.convert() for x in self.spectrum_matches]
+    def convert(self, mass_shift_cache=None):
+        matches = [x.convert(mass_shift_cache=mass_shift_cache) for x in self.spectrum_matches]
         matches.sort(key=lambda x: x.score, reverse=True)
         inst = MemorySpectrumSolutionSet(
             convert_scan_to_record(self.scan),
@@ -176,7 +217,7 @@ class GlycopeptideSpectrumMatch(Base, SpectrumMatchBase):
         return self.structure
 
     @classmethod
-    def serialize(cls, obj, session, scan_look_up_cache, analysis_id,
+    def serialize(cls, obj, session, scan_look_up_cache, mass_shift_cache, analysis_id,
                   solution_set_id, is_decoy=False, *args, **kwargs):
         inst = cls(
             scan_id=scan_look_up_cache[obj.scan.id],
@@ -186,16 +227,19 @@ class GlycopeptideSpectrumMatch(Base, SpectrumMatchBase):
             q_value=obj.q_value,
             solution_set_id=solution_set_id,
             is_best_match=obj.best_match,
-            structure_id=obj.target.id)
+            structure_id=obj.target.id,
+            mass_shift_id=mass_shift_cache[obj.mass_shift].id)
         session.add(inst)
         session.flush()
         return inst
 
-    def convert(self):
+    def convert(self, mass_shift_cache=None):
         session = object_session(self)
         scan = session.query(MSScan).get(self.scan_id).convert()
         target = session.query(Glycopeptide).get(self.structure_id).convert()
-        inst = MemorySpectrumMatch(scan, target, self.score, self.is_best_match)
+        mass_shift = self._resolve_mass_shift(session, mass_shift_cache)
+        inst = MemorySpectrumMatch(scan, target, self.score, self.is_best_match,
+                                   mass_shift=mass_shift)
         inst.q_value = self.q_value
         inst.id = self.id
         return inst
@@ -210,14 +254,14 @@ class GlycanCompositionSpectrumCluster(Base, SpectrumClusterBase, BoundToAnalysi
     id = Column(Integer, primary_key=True)
 
     @classmethod
-    def serialize(cls, obj, session, scan_look_up_cache, analysis_id, *args, **kwargs):
+    def serialize(cls, obj, session, scan_look_up_cache, mass_shift_cache, analysis_id, *args, **kwargs):
         inst = cls()
         session.add(inst)
         session.flush()
         cluster_id = inst.id
         for solution_set in obj.tandem_solutions:
             GlycanCompositionSpectrumSolutionSet.serialize(
-                solution_set, session, scan_look_up_cache, analysis_id,
+                solution_set, session, scan_look_up_cache, mass_shift_cache, analysis_id,
                 cluster_id, *args, **kwargs)
         return inst
 
@@ -239,21 +283,8 @@ class GlycanCompositionSpectrumSolutionSet(Base, SolutionSetBase, BoundToAnalysi
     cluster = relationship(GlycanCompositionSpectrumCluster, backref=backref(
         "spectrum_solutions", lazy='subquery'))
 
-    # scan_id = Column(Integer, ForeignKey(MSScan.id), index=True)
-    # scan = relationship(MSScan)
-
-    # def best_solution(self):
-    #     return sorted(self.spectrum_matches, key=lambda x: x.score, reverse=True)[0]
-
-    # @property
-    # def score(self):
-    #     return self.best_solution().score
-
-    # def __iter__(self):
-    #     return iter(self.spectrum_matches)
-
     @classmethod
-    def serialize(cls, obj, session, scan_look_up_cache, analysis_id, cluster_id, *args, **kwargs):
+    def serialize(cls, obj, session, scan_look_up_cache, mass_shift_cache, analysis_id, cluster_id, *args, **kwargs):
         inst = cls(
             scan_id=scan_look_up_cache[obj.scan.id],
             analysis_id=analysis_id,
@@ -268,12 +299,12 @@ class GlycanCompositionSpectrumSolutionSet(Base, SolutionSetBase, BoundToAnalysi
             obj = [obj]
         for solution in obj:
             GlycanCompositionSpectrumMatch.serialize(
-                solution, session, scan_look_up_cache,
+                solution, session, scan_look_up_cache, mass_shift_cache,
                 analysis_id, inst.id, *args, **kwargs)
         return inst
 
-    def convert(self):
-        matches = [x.convert() for x in self.spectrum_matches]
+    def convert(self, mass_shift_cache=None):
+        matches = [x.convert(mass_shift_cache=mass_shift_cache) for x in self.spectrum_matches]
         matches.sort(key=lambda x: x.score, reverse=True)
         inst = MemorySpectrumSolutionSet(
             convert_scan_to_record(self.scan),
@@ -309,23 +340,25 @@ class GlycanCompositionSpectrumMatch(Base, SpectrumMatchBase):
         return self.composition
 
     @classmethod
-    def serialize(cls, obj, session, scan_look_up_cache, analysis_id, solution_set_id,
-                  is_decoy=False, *args, **kwargs):
+    def serialize(cls, obj, session, scan_look_up_cache, mass_shift_cache, analysis_id,
+                  solution_set_id, is_decoy=False, *args, **kwargs):
         inst = cls(
             scan_id=scan_look_up_cache[obj.scan.id],
             analysis_id=analysis_id,
             score=obj.score,
             solution_set_id=solution_set_id,
-            composition_id=obj.target.id)
+            composition_id=obj.target.id,
+            mass_shift_id=mass_shift_cache[obj.mass_shift].id)
         session.add(inst)
         session.flush()
         return inst
 
-    def convert(self):
+    def convert(self, mass_shift_cache=None):
         session = object_session(self)
         scan = session.query(MSScan).get(self.scan_id).convert()
+        mass_shift = self._resolve_mass_shift(session, mass_shift_cache)
         target = session.query(GlycanComposition).get(self.composition_id).convert()
-        inst = MemorySpectrumMatch(scan, target, self.score)
+        inst = MemorySpectrumMatch(scan, target, self.score, mass_shift=mass_shift)
         inst.id = self.id
         return inst
 
@@ -339,14 +372,14 @@ class UnidentifiedSpectrumCluster(Base, SpectrumClusterBase, BoundToAnalysis):
     id = Column(Integer, primary_key=True)
 
     @classmethod
-    def serialize(cls, obj, session, scan_look_up_cache, analysis_id, *args, **kwargs):
+    def serialize(cls, obj, session, scan_look_up_cache, mass_shift_cache, analysis_id, *args, **kwargs):
         inst = cls()
         session.add(inst)
         session.flush()
         cluster_id = inst.id
         for solution_set in obj.tandem_solutions:
             UnidentifiedSpectrumSolutionSet.serialize(
-                solution_set, session, scan_look_up_cache, analysis_id,
+                solution_set, session, scan_look_up_cache, mass_shift_cache, analysis_id,
                 cluster_id, *args, **kwargs)
         return inst
 
@@ -368,21 +401,8 @@ class UnidentifiedSpectrumSolutionSet(Base, SolutionSetBase, BoundToAnalysis):
     cluster = relationship(UnidentifiedSpectrumCluster, backref=backref(
         "spectrum_solutions", lazy='subquery'))
 
-    # scan_id = Column(Integer, ForeignKey(MSScan.id), index=True)
-    # scan = relationship(MSScan)
-
-    # def best_solution(self):
-    #     return sorted(self.spectrum_matches, key=lambda x: x.score, reverse=True)[0]
-
-    # @property
-    # def score(self):
-    #     return self.best_solution().score
-
-    # def __iter__(self):
-    #     return iter(self.spectrum_matches)
-
     @classmethod
-    def serialize(cls, obj, session, scan_look_up_cache, analysis_id, cluster_id, *args, **kwargs):
+    def serialize(cls, obj, session, scan_look_up_cache, mass_shift_cache, analysis_id, cluster_id, *args, **kwargs):
         inst = cls(
             scan_id=scan_look_up_cache[obj.scan.id],
             analysis_id=analysis_id,
@@ -397,12 +417,12 @@ class UnidentifiedSpectrumSolutionSet(Base, SolutionSetBase, BoundToAnalysis):
             obj = [obj]
         for solution in obj:
             UnidentifiedSpectrumMatch.serialize(
-                solution, session, scan_look_up_cache,
+                solution, session, scan_look_up_cache, mass_shift_cache,
                 analysis_id, inst.id, *args, **kwargs)
         return inst
 
-    def convert(self):
-        matches = [x.convert() for x in self.spectrum_matches]
+    def convert(self, mass_shift_cache=None):
+        matches = [x.convert(mass_shift_cache=mass_shift_cache) for x in self.spectrum_matches]
         matches.sort(key=lambda x: x.score, reverse=True)
         inst = MemorySpectrumSolutionSet(
             convert_scan_to_record(self.scan),
@@ -429,21 +449,23 @@ class UnidentifiedSpectrumMatch(Base, SpectrumMatchBase):
                                 backref=backref("spectrum_matches", lazy='subquery'))
 
     @classmethod
-    def serialize(cls, obj, session, scan_look_up_cache, analysis_id, solution_set_id,
+    def serialize(cls, obj, session, scan_look_up_cache, mass_shift_cache, analysis_id, solution_set_id,
                   is_decoy=False, *args, **kwargs):
         inst = cls(
             scan_id=scan_look_up_cache[obj.scan.id],
             analysis_id=analysis_id,
             score=obj.score,
-            solution_set_id=solution_set_id)
+            solution_set_id=solution_set_id,
+            mass_shift_id=mass_shift_cache[obj.mass_shift].id)
         session.add(inst)
         session.flush()
         return inst
 
-    def convert(self):
+    def convert(self, mass_shift_cache=None):
         session = object_session(self)
         scan = session.query(MSScan).get(self.scan_id).convert()
-        inst = MemorySpectrumMatch(scan, None, self.score)
+        mass_shift = self._resolve_mass_shift(session, mass_shift_cache)
+        inst = MemorySpectrumMatch(scan, None, self.score, mass_shift=mass_shift)
         inst.id = self.id
         return inst
 

@@ -69,6 +69,9 @@ class SimpleSerializerCacheBase(object):
             self.store[extract_key(db_obj)] = db_obj
             return db_obj
 
+    def __getitem__(self, obj):
+        return self.serialize(obj)
+
 
 class MassShift(Base):
     __tablename__ = "MassShift"

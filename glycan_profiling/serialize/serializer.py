@@ -197,6 +197,7 @@ class AnalysisSerializer(DatabaseBoundOperation, TaskBase):
             glycan_spectrum_cluster,
             self.session,
             self._scan_id_map,
+            self._mass_shift_cache,
             self.analysis_id)
         if commit:
             self.commit()
@@ -207,6 +208,7 @@ class AnalysisSerializer(DatabaseBoundOperation, TaskBase):
             unidentified_spectrum_cluster,
             self.session,
             self._scan_id_map,
+            self._mass_shift_cache,
             self.analysis_id)
         if commit:
             self.commit()
@@ -220,7 +222,7 @@ class AnalysisSerializer(DatabaseBoundOperation, TaskBase):
         else:
             chromatogram_solution_id = None
         cluster = GlycopeptideSpectrumCluster.serialize(
-            identification, self.session, self._scan_id_map,
+            identification, self.session, self._scan_id_map, self._mass_shift_cache,
             analysis_id=self.analysis_id)
         cluster_id = cluster.id
         inst = IdentifiedGlycopeptide.serialize(
