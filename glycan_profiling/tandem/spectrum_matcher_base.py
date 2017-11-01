@@ -617,8 +617,10 @@ class TandemClusterEvaluatorBase(TaskBase):
             solutions = []
             for scan_id in scan_list:
                 scan = scan_map[scan_id]
+                mass_shift = scan_hit_type_map[scan_id, hit_id]
                 match = SpectrumMatch.from_match_solution(
-                    self.evaluate(scan, hit, *args, **kwargs))
+                    self.evaluate(scan, hit, mass_shift=mass_shift,
+                                  *args, **kwargs))
                 scan_solution_map[scan.id].append(match)
                 solutions.append(match)
             # Assumes all matches to the same target structure share a cache
