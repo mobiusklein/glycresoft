@@ -469,12 +469,9 @@ class GlycopeptideDatabaseSearchIdentifier(TaskBase):
             return chromatograms
         mapper = ChromatogramMSMSMapper(
             chromatograms, precursor_error_tolerance, self.scan_id_to_rt)
-        import IPython
-        IPython.embed()
         mapper.assign_solutions_to_chromatograms(tandem_identifications)
         mapper.distribute_orphans()
         mapper.assign_entities(threshold_fn, entity_chromatogram_type=entity_chromatogram_type)
-        IPython.embed()
         return mapper.chromatograms, mapper.orphans
 
 

@@ -136,7 +136,6 @@ def aggregate_by_assigned_entity(annotated_chromatograms, delta_rt=0.25):
     for chroma in annotated_chromatograms:
         if chroma.composition is not None:
             if chroma.entity is not None:
-                log_handle.log("... %s (%s)" % (chroma.entity, chroma.adducts))
                 aggregated[chroma.entity].append(chroma)
             else:
                 aggregated[chroma.composition].append(chroma)
