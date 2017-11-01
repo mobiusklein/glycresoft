@@ -478,6 +478,9 @@ class TandemClusterEvaluatorBase(TaskBase):
         self.ipc_manager = ipc_manager
         self.probing_range_for_missing_precursors = probing_range_for_missing_precursors
         self.mass_shifts = mass_shifts
+        self.mass_shift_map = {
+            m.name: m for m in self.mass_shifts
+        }
 
     def search_database_for_precursors(self, mass, precursor_error_tolerance=1e-5):
         return self.structure_database.search_mass_ppm(mass, precursor_error_tolerance)
@@ -617,7 +620,7 @@ class TandemClusterEvaluatorBase(TaskBase):
             solutions = []
             for scan_id in scan_list:
                 scan = scan_map[scan_id]
-                mass_shift = scan_hit_type_map[scan_id, hit_id]
+                mass_shift = self.mass_shift_map[scan_hit_type_map[scan_id, hit_id]]
                 match = SpectrumMatch.from_match_solution(
                     self.evaluate(scan, hit, mass_shift=mass_shift,
                                   *args, **kwargs))
