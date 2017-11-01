@@ -51,6 +51,13 @@ class IdentifiedStructure(object):
         except AttributeError:
             return None
 
+    @property
+    def adducts(self):
+        try:
+            return self.chromatogram.adducts
+        except AttributeError:
+            return []
+
     def __repr__(self):
         return "IdentifiedStructure(%s, %0.3f, %0.3f, %0.3e)" % (
             self.structure, self.ms2_score, self.ms1_score, self.total_signal)
