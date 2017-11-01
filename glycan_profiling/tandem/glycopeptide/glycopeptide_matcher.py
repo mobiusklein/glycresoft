@@ -325,11 +325,10 @@ def chunkiter(collection, size=200):
 
 
 def format_identification(spectrum_solution):
-    return "%s:%0.3f:(%0.3f) -> (%s)\n%s" % (
+    return "%s:%0.3f:(%0.3f) ->\n%s" % (
         spectrum_solution.scan.id,
         spectrum_solution.scan.precursor_information.neutral_mass,
         spectrum_solution.best_solution().score,
-        spectrum_solution.best_solution().mass_shift,
         spectrum_solution.best_solution().target)
 
 
@@ -470,9 +469,12 @@ class GlycopeptideDatabaseSearchIdentifier(TaskBase):
             return chromatograms
         mapper = ChromatogramMSMSMapper(
             chromatograms, precursor_error_tolerance, self.scan_id_to_rt)
+        import IPython
+        IPython.embed()
         mapper.assign_solutions_to_chromatograms(tandem_identifications)
         mapper.distribute_orphans()
         mapper.assign_entities(threshold_fn, entity_chromatogram_type=entity_chromatogram_type)
+        IPython.embed()
         return mapper.chromatograms, mapper.orphans
 
 

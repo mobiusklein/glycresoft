@@ -156,8 +156,6 @@ def aggregate_by_assigned_entity(annotated_chromatograms, delta_rt=0.25):
         out.append(chroma)
         finished.extend(out)
     log_handle.log("After merging: %d chromatograms" % (len(finished),))
-    import IPython
-    IPython.embed()
     return finished
 
 
