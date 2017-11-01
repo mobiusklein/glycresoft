@@ -70,7 +70,8 @@ class SpectrumMatchBase(BoundToAnalysis):
                 try:
                     mass_shift = mass_shift_cache[mass_shift.id]
                 except KeyError:
-                    mass_shift = mass_shift_cache[mass_shift.id] = mass_shift.convert()
+                    mass_shift_cache[mass_shift.id] = mass_shift.convert()
+                    mass_shift = mass_shift_cache[mass_shift.id]
                 return mass_shift
             else:
                 return mass_shift.convert()
