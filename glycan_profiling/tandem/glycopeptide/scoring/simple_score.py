@@ -1,4 +1,5 @@
 import math
+import numpy as np
 
 from .base import GlycopeptideSpectrumMatcherBase
 from glycan_profiling.structure import FragmentMatchMap
@@ -46,9 +47,9 @@ class SimpleCoverageScorer(GlycopeptideSpectrumMatcherBase):
         self.solution_map = solution_map
         return solution_map
 
-    def compute_coverage(self):
-        b_ions = [0] * len(self.target)
-        y_ions = [0] * len(self.target)
+    def _compute_coverage_vectors(self):
+        b_ions = np.zeros(len(self.target))
+        y_ions = np.zeros(len(self.target))
         stub_count = 0
         glycosylated_b_ions = 0
         glycosylated_y_ions = 0
@@ -64,9 +65,14 @@ class SimpleCoverageScorer(GlycopeptideSpectrumMatcherBase):
                     glycosylated_y_ions += 1
             elif frag.series == IonSeries.stub_glycopeptide:
                 stub_count += 1
+        return b_ions, y_ions, stub_count, glycosylated_b_ions, glycosylated_y_ions
 
-        mean_coverage = sum([math.log(1 + (b + y), 2) / math.log(3, 2)
-                             for b, y in zip(b_ions, y_ions[::-1])]) / float(len(self.target))
+    def compute_coverage(self):
+        (b_ions, y_ions, stub_count,
+         glycosylated_b_ions,
+         glycosylated_y_ions) = self._compute_coverage_vectors()
+
+        mean_coverage = np.mean(np.log2(b_ions + y_ions[::-1] + 1) / np.log2(3))
 
         glycosylated_coverage = 0.
         ladders = 0.

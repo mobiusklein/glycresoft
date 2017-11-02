@@ -629,7 +629,10 @@ class ChromatogramWrapper(object):
 
     @property
     def adducts(self):
-        return self._get_chromatogram().adducts
+        try:
+            return self._get_chromatogram().adducts
+        except MissingChromatogramError:
+            return []
 
     @property
     def weighted_neutral_mass(self):

@@ -846,7 +846,7 @@ class IdentificationProcessDispatcher(TaskBase):
                 missing_id, hit_map, scan_hit_type_map, hit_to_scan)
             target, score_map = self.evalute_work_order_local(target, scan_spec)
             seen[target.id] = -1
-            self.store_result(target, score_map, self.scan_map)
+            self.store_result(target, score_map, self.local_scan_map)
 
     def store_result(self, target, score_map, scan_map):
         try:
@@ -917,13 +917,13 @@ class IdentificationProcessDispatcher(TaskBase):
                 target, score_map = self.output_queue.get(True, 1)
                 if target.id in seen:
                     self.log(
-                        "Duplicate Results For %s. First seen at %d, now again at %d" % (
+                        "...... Duplicate Results For %s. First seen at %d, now again at %d" % (
                             target.id, seen[target.id], i))
                 else:
                     seen[target.id] = i
-                if i > n:
+                if (i > n) and ((i - n) % 10 == 0):
                     self.log(
-                        "Warning: %d additional output received. %s and %d matches." % (
+                        "...... Warning: %d additional output received. %s and %d matches." % (
                             i - n, target, len(score_map)))
 
                 i += 1
