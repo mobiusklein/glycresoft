@@ -421,7 +421,7 @@ class WorkloadManager(object):
                     'hit_map', 'hit_to_scan_map',
                     'scan_hit_type_map']))
 
-    def batches(self, max_size=1e5):
+    def batches(self, max_size=5e4):
         current_batch_size = 0
         current_scan_map = dict()
         current_hit_map = dict()
