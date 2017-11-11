@@ -41,11 +41,11 @@ def rt_to_id(ms_file, rt):
     "Path to an mass spectral data file in one of the supported formats"))
 @click.argument("outfile-path", type=click.Path(writable=True), doc_help=(
     "Path to write the processed output to"))
-@click.option("-a", "--averagine", default='glycan',
+@click.option("-a", "--averagine", default=["glycan"],
               type=AveragineParamType(),
               help='Averagine model to use for MS1 scans. Either a name or formula',
               multiple=True)
-@click.option("-an", "--msn-averagine", default='peptide',
+@click.option("-an", "--msn-averagine", default="peptide",
               type=AveragineParamType(),
               help='Averagine model to use for MS^n scans. Either a name or formula')
 @click.option("-s", "--start-time", type=float, default=0.0,

@@ -339,23 +339,6 @@ class SpectrumSolutionSet(ScanWrapperBase):
         self._invalidate()
 
 
-class DatabaseSearchTrackingMetadata(object):
-    def __init__(self, storage=None):
-        if storage is None:
-            storage = defaultdict(dict)
-        self.storage = storage
-
-    def __getitem__(self, key):
-        return self.storage[key]
-
-    def __setitem__(self, key, value):
-        self.storage[key] = value
-
-    def no_precursor_matches(self, neutral_mass):
-        record = self['no_precursor_matches']
-        record[neutral_mass] = 1 + record.get(neutral_mass, 0)
-
-
 class WorkloadManager(object):
     def __init__(self):
         self.scan_map = dict()

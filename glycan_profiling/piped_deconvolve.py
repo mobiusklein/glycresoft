@@ -86,7 +86,6 @@ class ScanIDYieldingProcess(Process):
             max_scans = self.max_scans
 
         end_scan = self.end_scan
-
         while count < max_scans:
             try:
                 batch, ids = self._make_scan_batch()
@@ -222,6 +221,7 @@ class PeakPickingProcess(Process, ScanTransformMixin):
         for logname in ["deconvolution", "deconvolution_scan_processor"]:
             logger_to_silence = logging.getLogger(logname)
             logger_to_silence.propagate = False
+            logger_to_silence.setLevel("CRITICAL")
             logger_to_silence.addHandler(logging.NullHandler())
 
         i = 0
@@ -833,7 +833,6 @@ class ScanGenerator(TaskBase, ScanGeneratorBase):
             self._make_interval_tree(start_scan, end_scan)
 
         self._terminate()
-
         self._scan_yielder_process = ScanIDYieldingProcess(
             self.ms_file, self._input_queue, start_scan=start_scan, end_scan=end_scan,
             max_scans=max_scans, no_more_event=self.scan_ids_exhausted_event,

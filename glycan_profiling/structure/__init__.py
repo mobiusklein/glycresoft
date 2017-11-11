@@ -10,5 +10,5 @@ from .scan import (
     ScanStub,
     ScanWrapperBase,
     ScanInformation)
-from .fragment_match_map import FragmentMatchMap
+from .fragment_match_map import FragmentMatchMap, SpectrumGraph
 from .utils import KeyTransformingDecoratorDict

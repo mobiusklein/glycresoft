@@ -353,9 +353,13 @@ def format_work_batch(bunch, count, total):
         name = info.precursor.scan_id
     else:
         name = info.precursor.id
-    batch_header = "%s: %f (%s%r)" % (
-        name, info.neutral_mass, "+" if info.charge > 0 else "-", abs(
-            info.charge))
+    if isinstance(info.charge, (int, float)):
+        batch_header = "%s: %f (%s%r)" % (
+            name, info.neutral_mass, "+" if info.charge > 0 else "-", abs(
+                info.charge))
+    else:
+        batch_header = "%s: %f (%s)" % (
+            name, info.neutral_mass, "?")
     return "Begin Batch", batch_header, ratio
 
 

@@ -1,6 +1,9 @@
+import itertools
 from operator import attrgetter
-
 import numpy as np
+
+
+from glycan_profiling.structure import FragmentMatchMap, SpectrumGraph
 
 from .base import GlycopeptideSpectrumMatcherBase
 
@@ -53,6 +56,33 @@ class GlycanCompositionSignatureMatcher(GlycopeptideSpectrumMatcherBase):
                 self.expected_matches[monosaccharide] = peak
             else:
                 self.unexpected_matches[monosaccharide] = peak
+
+    def _find_peak_pairs(self, error_tolerance=2e-5, include_compound=False, *args, **kwargs):
+        peak_set = self.spectrum
+        pairs = SpectrumGraph()
+        minimum_intensity_threshold = 0.01
+        blocks = [(part, part.mass()) for part in self.glycan_composition]
+        if include_compound:
+            compound_blocks = list(itertools.combinations(self.target, 2))
+            compound_blocks = [(block, sum(part.mass() for part in block))
+                               for block in compound_blocks]
+            blocks.extend(compound_blocks)
+        try:
+            max_peak = max([p.intensity for p in peak_set])
+            threshold = max_peak * minimum_intensity_threshold
+        except ValueError:
+            return []
+
+        for peak in peak_set:
+            if peak.intensity < threshold or peak.neutral_mass < 150:
+                continue
+            for block, mass in blocks:
+                for other in peak_set.all_peaks_for(peak.neutral_mass + mass, error_tolerance):
+                    if other.intensity < threshold:
+                        continue
+                    pairs.add(peak, other, block)
+        self.spectrum_graph = pairs
+        return pairs
 
     def estimate_missing_ion_importance(self, key):
         count = self.glycan_composition[key]
