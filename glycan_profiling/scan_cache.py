@@ -265,7 +265,15 @@ class MzMLScanCacheHandler(ScanCacheHandlerBase):
             inst = cls(path, sample_name, n_spectra=n_spectra, deconvoluted=deconvoluting)
             try:
                 description = reader.file_description()
+                wrote_spectrum_type = False
                 for key in description.get("fileContent", []):
+                    if 'profile spectrum' in key:
+                        key = {"centroid spectrum": ''}
+                    if 'centroid spectrum' in key:
+                        if wrote_spectrum_type:
+                            continue
+                    else:
+                        wrote_spectrum_type = True
                     inst.serializer.add_file_contents(key)
                 source_file_list_container = description.get('sourceFileList', {'sourceFile': []})
                 for source_file in source_file_list_container.get("sourceFile", []):
