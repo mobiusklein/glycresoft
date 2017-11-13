@@ -121,6 +121,7 @@ def preprocess(ms_file, outfile_path, averagine=None, start_time=None, end_time=
         loader.get_scan_by_time(end_time)).id
 
     loader.reset()
+    loader.start_from_scan(start_scan_id)
     is_profile = (next(loader).precursor.is_profile or profile)
     if is_profile:
         click.secho("Spectra are profile")
