@@ -273,6 +273,13 @@ class MzMLScanCacheHandler(ScanCacheHandlerBase):
 
             except AttributeError:
                 pass
+            try:
+                instrument_configs = reader.instrument_configuration()
+                for config in instrument_configs:
+                    inst.serializer.add_instrument_configuration(config)
+            except Exception as e:
+                log_handle.error(
+                    "An error occurred while writing instrument configuration", e)
             for trans in source.ms1_peak_picking_args.get("transforms"):
                 inst.register_parameter("parameter: ms1-%s" % trans.__class__.__name__, repr(trans))
             if deconvoluting:
