@@ -68,7 +68,7 @@
                 </div>
                 {% include "glycopeptide-table.templ" %}
                 <div class='flex-container'>
-                {% for site, axis in renderer.site_specific_abundance_plots(glycoprotein).items() %}
+                {% for site_type, axis in renderer.site_specific_abundance_plots(glycoprotein).items() %}
                     <div class='flex-item'>
                         {{axis|safe}}
                     </div>

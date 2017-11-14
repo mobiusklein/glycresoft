@@ -1,6 +1,8 @@
 import os
 from collections import OrderedDict
 
+from glycopeptidepy.structure.glycan import GlycosylationType
+
 from glycan_profiling import serialize
 from glycan_profiling.serialize import (
     Protein, Glycopeptide, IdentifiedGlycopeptide,
@@ -124,15 +126,16 @@ class GlycopeptideDatabaseSearchReportCreator(ReportCreatorBase):
 
     def site_specific_abundance_plots(self, glycoprotein):
         axes = OrderedDict()
-        for site in sorted(glycoprotein.glycosylation_sites):
-            spanning_site = glycoprotein.site_map[site]
-            if len(spanning_site) == 0:
-                continue
-            bundle = BundledGlycanComposition.aggregate(spanning_site)
-            ax = figax()
-            AggregatedAbundanceArtist(bundle, ax=ax).draw()
-            ax.set_title("Glycans\nat Site %d" % (site,), fontsize=18)
-            axes[site] = svguri_plot(ax, bbox_inches='tight')
+        for glyco_type in glycoprotein.glycosylation_types:
+            for site in sorted(glycoprotein.glycosylation_sites_for(glyco_type)):
+                spanning_site = glycoprotein.site_map[glyco_type][site]
+                if len(spanning_site) == 0:
+                    continue
+                bundle = BundledGlycanComposition.aggregate(spanning_site)
+                ax = figax()
+                AggregatedAbundanceArtist(bundle, ax=ax).draw()
+                ax.set_title("%s Glycans\nat Site %d" % (glyco_type.name, site,), fontsize=18)
+                axes[site, glyco_type] = svguri_plot(ax, bbox_inches='tight')
         return axes
 
     def draw_glycoforms(self, glycoprotein):

@@ -15,10 +15,24 @@
                 <th>Type</th>
                 <th>Count</th>
             </tr>
-            {% for site, mapped in glycoprotein.site_map.items() %}
+            {% for site, mapped in glycoprotein.site_map['N-Linked'].items() %}
                 <tr>
                     <td>{{site}}</td>
                     <td>N-linked</td>
+                    <td>{{mapped|length}}</td>
+                </tr>
+            {% endfor %}
+            {% for site, mapped in glycoprotein.site_map['O-Linked'].items() %}
+                <tr>
+                    <td>{{site}}</td>
+                    <td>O-linked</td>
+                    <td>{{mapped|length}}</td>
+                </tr>
+            {% endfor %}
+            {% for site, mapped in glycoprotein.site_map['Glycosaminonglycan'].items() %}
+                <tr>
+                    <td>{{site}}</td>
+                    <td>Glycosaminonglycan</td>
                     <td>{{mapped|length}}</td>
                 </tr>
             {% endfor %}
