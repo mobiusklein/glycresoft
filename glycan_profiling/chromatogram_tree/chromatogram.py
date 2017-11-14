@@ -539,7 +539,7 @@ class Chromatogram(_TimeIntervalMethods):
         self._invalidate()
 
     def is_distinct(self, other):
-        return self.nodes.common_peaks(get_chromatogram(other).nodes)
+        return not self.nodes.common_peaks(get_chromatogram(other).nodes)
 
 
 class ChromatogramTreeList(object):
@@ -980,7 +980,7 @@ class ChromatogramWrapper(_TimeIntervalMethods):
         return self.chromatogram.mzs()
 
     def is_distinct(self, other):
-        return self.chromatogram.is_distinct(get_chromatogram(other).nodes)
+        return self.chromatogram.is_distinct(get_chromatogram(other))
 
 
 ChromatogramInterface.register(ChromatogramWrapper)
