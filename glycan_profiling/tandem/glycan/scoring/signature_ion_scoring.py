@@ -16,15 +16,16 @@ from glycan_profiling.tandem.spectrum_matcher_base import SpectrumMatcherBase
 
 from glycopeptidepy.utils.memoize import memoize
 
-fucose = MonosaccharideResidue.from_iupac_lite("Fuc")
+
+dhex = MonosaccharideResidue.from_iupac_lite("dHex")
 
 
 @memoize(100000000000)
-def is_fucose(residue):
+def is_dhex(residue):
     try:
         return is_a(
             strip_derivatization(residue.clone(
-                monosaccharide_type=MonosaccharideResidue)), fucose)
+                monosaccharide_type=MonosaccharideResidue)), dhex)
     except TypeError:
         if not isinstance(residue, MonosaccharideResidue):
             return False
@@ -63,7 +64,7 @@ class SignatureIonScorer(SpectrumMatcherBase):
         peak_set = self.spectrum
         pairs = SpectrumGraph()
 
-        blocks = [(part, part.mass()) for part in self.target if not is_fucose(part)]
+        blocks = [(part, part.mass()) for part in self.target if not is_dhex(part)]
         if include_compound:
             compound_blocks = list(itertools.combinations(self.target, 2))
             compound_blocks = [(block, sum(part.mass() for part in block))
@@ -101,8 +102,8 @@ class SignatureIonScorer(SpectrumMatcherBase):
             return matches
         # Simple oxonium ions
         for k in glycan_composition.keys():
-            # Fucose does not produce a reliable oxonium ion
-            if is_fucose(k):
+            # dhex does not produce a reliable oxonium ion
+            if is_dhex(k):
                 continue
             counter += 1
             f = Fragment('B', {}, [], k.mass(), name=str(k),
