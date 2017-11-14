@@ -407,3 +407,18 @@ class RestrictedOGlycanGlyspaceHypothesisSerializer(GlyspaceGlycanStructureHypot
 
     def _get_store_name(self):
         return "restricted-o-glycans-query.sparql.xml"
+
+
+class UserSPARQLQueryGlySpaceHypothesisSerializer(GlycanHypothesisSerializerBase):
+    def __init__(self, database_connection, query, hypothesis_name=None, reduction=None, derivatization=None,
+                 filter_functions=None, simplify=False):
+        super(UserSPARQLQueryGlySpaceHypothesisSerializer, self).__init__(
+            database_connection, hypothesis_name, reduction, derivatization,
+            filter_functions, simplify)
+        self._query = query
+
+    def _get_sparql(self):
+        return self._query
+
+    def _get_store_name(self):
+        return "user-query-{}.sparql.xml".format(hash(self._query))
