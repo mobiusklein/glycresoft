@@ -1,3 +1,5 @@
+from glycan_profiling.chromatogram_tree import get_chromatogram
+
 from .chromatogram_mapping import TandemSolutionsWithoutChromatogram
 
 
@@ -64,6 +66,9 @@ class IdentifiedStructure(object):
 
     def get_chromatogram(self):
         return self.chromatogram
+
+    def is_distinct(self, other):
+        return get_chromatogram(self).is_distinct(get_chromatogram(other))
 
     @property
     def tandem_solutions(self):
