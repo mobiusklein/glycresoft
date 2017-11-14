@@ -426,8 +426,58 @@ class Chromatogram(Base, BoundToAnalysis):
         return node_types
 
     def get_chromatogram(self):
-        # return self.convert()
         return self
+
+    def _peaks_query(self, session):
+        anode = alias(ChromatogramTreeNode.__table__)
+        bnode = alias(ChromatogramTreeNode.__table__)
+        apeak = alias(DeconvolutedPeak.__table__)
+
+        peak_join = apeak.join(
+            ChromatogramTreeNodeToDeconvolutedPeak,
+            ChromatogramTreeNodeToDeconvolutedPeak.c.peak_id == apeak.c.id)
+
+        root_peaks_join = peak_join.join(
+            anode,
+            ChromatogramTreeNodeToDeconvolutedPeak.c.node_id == anode.c.id).join(
+            ChromatogramToChromatogramTreeNode,
+            ChromatogramToChromatogramTreeNode.c.node_id == anode.c.id)
+
+        branch_peaks_join = peak_join.join(
+            anode,
+            ChromatogramTreeNodeToDeconvolutedPeak.c.node_id == anode.c.id).join(
+            ChromatogramTreeNodeBranch,
+            ChromatogramTreeNodeBranch.child_id == anode.c.id).join(
+            bnode, ChromatogramTreeNodeBranch.parent_id == bnode.c.id).join(
+            ChromatogramToChromatogramTreeNode,
+            ChromatogramToChromatogramTreeNode.c.node_id == bnode.c.id)
+
+        branch_ids = select([apeak.c.id]).where(
+            ChromatogramToChromatogramTreeNode.c.chromatogram_id == self.id
+        ).select_from(branch_peaks_join)
+
+        root_ids = select([apeak.c.id]).where(
+            ChromatogramToChromatogramTreeNode.c.chromatogram_id == self.id
+        ).select_from(root_peaks_join)
+
+        all_ids = root_ids.union_all(branch_ids)
+        peaks = session.execute(all_ids).fetchall()
+        return {p[0] for p in peaks}
+
+    _peak_hash_ = None
+
+    def _build_peak_hash(self):
+        if self._peak_hash_ is None:
+            session = object_session(self)
+            self._peak_hash_ = frozenset(self._peaks_query(session))
+        return self._peak_hash_
+
+    @property
+    def _peak_hash(self):
+        return self._build_peak_hash()
+
+    def is_distinct(self, other):
+        return self._peak_hash.isdisjoint(other._peak_hash)
 
     @property
     def charge_states(self):
@@ -626,6 +676,16 @@ class ChromatogramWrapper(object):
         if self.chromatogram is None:
             raise MissingChromatogramError()
         return self.chromatogram
+
+    @property
+    def _peak_hash(self):
+        try:
+            return self._get_chromatogram()._peak_hash
+        except MissingChromatogramError:
+            return frozenset()
+
+    def is_distinct(self, other):
+        return self._peak_hash.isdisjoint(other._peak_hash)
 
     @property
     def adducts(self):
