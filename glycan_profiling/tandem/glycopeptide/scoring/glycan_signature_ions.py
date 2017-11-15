@@ -7,7 +7,7 @@ from glycan_profiling.structure import FragmentMatchMap, SpectrumGraph
 
 from .base import GlycopeptideSpectrumMatcherBase
 
-from glypy.composition.glycan_composition import (
+from glypy.structure.glycan_composition import (
     FrozenGlycanComposition, FrozenMonosaccharideResidue,
     MonosaccharideResidue, Composition)
 

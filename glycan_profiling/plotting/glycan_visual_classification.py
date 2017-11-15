@@ -2,7 +2,7 @@ from collections import OrderedDict
 
 from matplotlib import patches as mpatches
 
-from glypy.composition.glycan_composition import FrozenGlycanComposition, FrozenMonosaccharideResidue
+from glypy.structure.glycan_composition import FrozenGlycanComposition, FrozenMonosaccharideResidue
 from glycopeptidepy.utils import simple_repr
 
 from glycan_profiling.database.composition_network import (

@@ -12,7 +12,7 @@ try:
 except NameError:
     basestring = (str, bytes)
 
-from glypy.composition.glycan_composition import FrozenMonosaccharideResidue, GlycanComposition
+from glypy.structure.glycan_composition import FrozenMonosaccharideResidue, GlycanComposition
 
 
 from glycopeptidepy import HashableGlycanComposition

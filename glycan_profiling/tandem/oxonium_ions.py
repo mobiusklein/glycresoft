@@ -1,4 +1,4 @@
-from glypy.composition.glycan_composition import FrozenMonosaccharideResidue, Composition
+from glypy.structure.glycan_composition import FrozenMonosaccharideResidue, Composition
 
 
 class _mass_wrapper(object):

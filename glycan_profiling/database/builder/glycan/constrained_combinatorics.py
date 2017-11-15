@@ -3,7 +3,7 @@ from itertools import product
 from collections import deque
 
 from glypy import GlycanComposition as MemoryGlycanComposition
-from glypy.composition.glycan_composition import FrozenMonosaccharideResidue
+from glypy.structure.glycan_composition import FrozenMonosaccharideResidue
 from glypy.io.iupac import IUPACError
 from glycan_profiling.serialize.hypothesis.glycan import GlycanComposition as DBGlycanComposition
 

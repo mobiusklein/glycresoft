@@ -7,7 +7,7 @@ import numpy as np
 from glypy.structure.fragment import Fragment
 from glypy.composition import Composition
 from glypy.composition.composition_transform import strip_derivatization
-from glypy.composition.glycan_composition import MonosaccharideResidue
+from glypy.structure.glycan_composition import MonosaccharideResidue
 from glypy.io.nomenclature.identity import is_a
 
 from glycan_profiling.structure import FragmentMatchMap

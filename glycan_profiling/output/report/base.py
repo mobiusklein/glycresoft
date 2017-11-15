@@ -12,7 +12,7 @@ from lxml import etree
 import jinja2
 from jinja2 import escape
 
-from glypy.composition.glycan_composition import GlycanComposition
+from glypy.structure.glycan_composition import GlycanComposition
 from glycopeptidepy import PeptideSequence
 
 from glycan_profiling.task import TaskBase

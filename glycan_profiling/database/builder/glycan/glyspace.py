@@ -9,7 +9,7 @@ except Exception:
 import os
 from glypy.io import glycoct, glyspace
 from glypy.structure.glycan import NamedGlycan
-from glypy.composition.glycan_composition import GlycanComposition
+from glypy.structure.glycan_composition import GlycanComposition
 
 from rdflib.plugins.sparql.results import xmlresults
 

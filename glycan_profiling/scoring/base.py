@@ -8,7 +8,7 @@ from six import add_metaclass
 
 from glycan_profiling import symbolic_expression
 from glycopeptidepy import HashableGlycanComposition
-from glypy.composition.glycan_composition import FrozenMonosaccharideResidue as FMR
+from glypy.structure.glycan_composition import FrozenMonosaccharideResidue as FMR
 
 
 epsilon = 1e-6

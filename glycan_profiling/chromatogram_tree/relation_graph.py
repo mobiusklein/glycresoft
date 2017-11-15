@@ -7,7 +7,7 @@ from .grouping import ChromatogramRetentionTimeInterval, IntervalTreeNode
 from ms_deisotope.peak_dependency_network.intervals import SpanningMixin
 from .index import ChromatogramFilter
 
-from glypy.composition.glycan_composition import FrozenMonosaccharideResidue
+from glypy.structure.glycan_composition import FrozenMonosaccharideResidue
 
 _standard_transitions = [
     FrozenMonosaccharideResidue.from_iupac_lite("HexNAc"),

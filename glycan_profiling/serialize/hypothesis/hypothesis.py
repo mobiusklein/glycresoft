@@ -12,7 +12,7 @@ from glycan_profiling.serialize.base import (
     Base, HasUniqueName)
 
 
-from glypy.composition.glycan_composition import FrozenGlycanComposition
+from glypy.structure.glycan_composition import FrozenGlycanComposition
 
 
 class HypothesisBase(HasUniqueName):

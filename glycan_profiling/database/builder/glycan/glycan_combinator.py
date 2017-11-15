@@ -1,7 +1,7 @@
 import itertools
 from collections import Counter, defaultdict
 
-from glypy.composition.glycan_composition import FrozenGlycanComposition
+from glypy.structure.glycan_composition import FrozenGlycanComposition
 from glypy.composition import formula, Composition
 
 from glycan_profiling.serialize.hypothesis.glycan import (

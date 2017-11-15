@@ -7,7 +7,7 @@ from six import add_metaclass
 import numpy as np
 
 from glypy.utils import uid
-from glypy.composition.glycan_composition import HashableGlycanComposition
+from glypy.structure.glycan_composition import HashableGlycanComposition
 
 
 from .mass_shift import Unmodified

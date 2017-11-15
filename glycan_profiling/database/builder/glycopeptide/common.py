@@ -12,7 +12,7 @@ except ImportError:
 
 from glypy import Composition
 from glypy.composition import formula
-from glypy.composition.glycan_composition import FrozenGlycanComposition
+from glypy.structure.glycan_composition import FrozenGlycanComposition
 
 from glycan_profiling.serialize import DatabaseBoundOperation, func
 from glycan_profiling.serialize.hypothesis import GlycopeptideHypothesis

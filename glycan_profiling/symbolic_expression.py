@@ -9,7 +9,8 @@ from numbers import Number
 
 from six import string_types as basestring, PY3
 
-from glypy.composition import glycan_composition, composition_transform
+from glypy.composition import composition_transform
+from glypy.structure import glycan_composition
 
 
 _FMR = glycan_composition.FrozenMonosaccharideResidue
