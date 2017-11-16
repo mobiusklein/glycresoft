@@ -1,6 +1,7 @@
 import unittest
 
-from glypy.composition import glycan_composition, composition_transform
+from glypy.composition import composition_transform
+from glypy.structure import glycan_composition
 
 from glycan_profiling import symbolic_expression
 
