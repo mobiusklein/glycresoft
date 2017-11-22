@@ -18,8 +18,7 @@ from glycan_profiling.serialize import (
     AnalysisTypeEnum)
 
 from glycan_profiling.piped_deconvolve import (
-    ScanGenerator as PipedScanGenerator,
-    RawScanGenerator as RawPipedScanGenerator)
+    ScanGenerator as PipedScanGenerator)
 
 from glycan_profiling.scoring import (
     ChromatogramSolution)
@@ -84,7 +83,7 @@ class SampleConsumer(TaskBase):
                  msn_deconvolution_args=None, start_scan_id=None, end_scan_id=None, storage_path=None,
                  sample_name=None, cache_handler_type=None, n_processes=5,
                  extract_only_tandem_envelopes=False, ignore_tandem_scans=False,
-                 ms1_averaging=0):
+                 ms1_averaging=0, deconvolute=True):
 
         if cache_handler_type is None:
             cache_handler_type = ThreadedMzMLScanCacheHandler
@@ -100,13 +99,17 @@ class SampleConsumer(TaskBase):
         self.ms1_averaging = ms1_averaging
         self.ms1_processing_args = {
             "peak_picking": ms1_peak_picking_args,
-            "deconvolution": ms1_deconvolution_args
         }
         self.msn_processing_args = {
             "peak_picking": msn_peak_picking_args,
-            "deconvolution": msn_deconvolution_args
         }
 
+        self.deconvolute = deconvolute
+
+        if deconvolute:
+            self.ms1_processing_args["deconvolution"] = ms1_deconvolution_args
+            self.msn_processing_args["deconvolution"] = msn_deconvolution_args
+ 
         n_helpers = max(self.n_processes - 1, 0)
         self.scan_generator = PipedScanGenerator(
             ms_file,
@@ -117,7 +120,7 @@ class SampleConsumer(TaskBase):
             msn_deconvolution_args=msn_deconvolution_args,
             extract_only_tandem_envelopes=extract_only_tandem_envelopes,
             ignore_tandem_scans=ignore_tandem_scans,
-            ms1_averaging=ms1_averaging)
+            ms1_averaging=ms1_averaging, deconvolute=deconvolute)
 
         self.start_scan_id = start_scan_id
         self.end_scan_id = end_scan_id
@@ -182,50 +185,6 @@ class SampleConsumer(TaskBase):
         sink.complete()
         self.log("Completed Sample %s" % (self.sample_name,))
         sink.commit()
-
-        self.sample_run = sink.sample_run
-
-
-class CentroidingSampleConsumer(SampleConsumer):
-    def __init__(self, ms_file, averagine=n_glycan_averagine, charge_range=(-1, -8),
-                 ms1_peak_picking_args=None, msn_peak_picking_args=None, start_scan_id=None,
-                 end_scan_id=None, storage_path=None, sample_name=None, cache_handler_type=None,
-                 n_processes=5, extract_only_tandem_envelopes=False, ignore_tandem_scans=False,
-                 ms1_averaging=0):
-        if cache_handler_type is None:
-            cache_handler_type = ThreadedMzMLScanCacheHandler
-        if isinstance(averagine, basestring):
-            averagine = parse_averagine_formula(averagine)
-
-        self.ms_file = ms_file
-        self.storage_path = storage_path
-        self.sample_name = sample_name
-
-        self.n_processes = n_processes
-        self.cache_handler_type = cache_handler_type
-        self.extract_only_tandem_envelopes = extract_only_tandem_envelopes
-        self.ignore_tandem_scans = ignore_tandem_scans
-        self.ms1_averaging = ms1_averaging
-        self.ms1_processing_args = {
-            "peak_picking": ms1_peak_picking_args,
-        }
-        self.msn_processing_args = {
-            "peak_picking": msn_peak_picking_args,
-        }
-
-        n_helpers = max(self.n_processes - 1, 0)
-        self.scan_generator = RawPipedScanGenerator(
-            ms_file,
-            number_of_helpers=n_helpers,
-            ms1_peak_picking_args=ms1_peak_picking_args,
-            msn_peak_picking_args=msn_peak_picking_args,
-            extract_only_tandem_envelopes=extract_only_tandem_envelopes,
-            ms1_averaging=self.ms1_averaging)
-
-        self.start_scan_id = start_scan_id
-        self.end_scan_id = end_scan_id
-
-        self.sample_run = None
 
 
 class GlycanChromatogramAnalyzer(TaskBase):
