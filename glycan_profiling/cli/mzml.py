@@ -143,12 +143,14 @@ def preprocess(ms_file, outfile_path, averagine=None, start_time=None, end_time=
     if is_profile:
         ms1_peak_picking_args = {
             "transforms": [
-                ms_peak_picker.scan_filter.FTICRBaselineRemoval(
-                    scale=background_reduction, window_length=2),
-                ms_peak_picker.scan_filter.SavitskyGolayFilter()
             ] + list(transform),
             "signal_to_noise_threshold": signal_to_noise_threshold
         }
+        if background_reduction:
+            ms1_peak_picking_args['transforms'].append(
+                ms_peak_picker.scan_filter.FTICRBaselineRemoval(
+                    scale=background_reduction, window_length=2))
+            ms1_peak_picking_args['transforms'].append(ms_peak_picker.scan_filter.SavitskyGolayFilter())
     else:
         ms1_peak_picking_args = {
             "transforms": [

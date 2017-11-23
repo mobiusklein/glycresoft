@@ -2,6 +2,7 @@ import sys
 import multiprocessing
 import click
 import textwrap
+
 from glycan_profiling.cli.base import cli, HiddenOption
 
 from glycan_profiling.cli.validators import (
@@ -15,7 +16,8 @@ from glycan_profiling.cli.validators import (
     validate_derivatization,
     validate_mzid_proteins,
     GlycanHypothesisCopier,
-    DatabaseConnectionParam)
+    DatabaseConnectionParam,
+    SubstituentParamType)
 
 from glycan_profiling.cli.utils import ctxstream
 
@@ -195,12 +197,6 @@ def glycopeptide_hypothesis_common_options(cmd):
     for opt in options:
         cmd = opt(cmd)
     return cmd
-
-
-@build_hypothesis.command("dummy")
-@glycopeptide_hypothesis_common_options
-def cmd(*args, **kwargs):
-    print(args, kwargs)
 
 
 @build_hypothesis.command("glycopeptide-fa",
@@ -387,7 +383,7 @@ def merge_glycan_hypotheses(context, database_connection, hypothesis_specificati
     task.start()
 
 
-@build_hypothesis.command("glyspace-glycan", short_help=("Construct a glycan hypothesis from GlySpace"))
+@build_hypothesis.command("glycan-glyspace", short_help=("Construct a glycan hypothesis from GlySpace"))
 @click.pass_context
 @database_connection
 @click.option("-r", "--reduction", default=None, help='Reducing end modification')
@@ -398,8 +394,10 @@ def merge_glycan_hypotheses(context, database_connection, hypothesis_specificati
 @click.option("-t", "--target-taxon", default=None, help="Only select structures annotated with this taxonomy")
 @click.option("-i", "--include-children", default=False, is_flag=True,
               help="Include child taxa of --target-taxon. No effect otherwise.")
+@click.option("-s", "--detatch-substituent", multiple=True, type=SubstituentParamType(),
+              help='Substituent type to detatch from all monosaccharides')
 def glyspace_glycan_hypothesis(context, database_connection, motif_class, reduction, derivatization, name,
-                               target_taxon=None, include_children=False):
+                               target_taxon=None, include_children=False, detatch_substituent=None):
     database_connection = DatabaseBoundOperation(database_connection)
     if name is not None:
         name = validate_glycan_hypothesis_name(context, database_connection._original_connection, name)
@@ -419,7 +417,7 @@ def glyspace_glycan_hypothesis(context, database_connection, motif_class, reduct
     derivatization = validate_derivatization(context, derivatization)
     job = serializer_type(
         database_connection._original_connection, name, reduction, derivatization, filter_funcs,
-        simplify=True)
+        simplify=True, substituents_to_detatch=detatch_substituent)
     job.display_header()
     job.start()
 
@@ -481,7 +479,12 @@ def prebuilt_glycan(context, database_connection, recipe_name, name, reduction, 
            derivatization=derivatization)
 
 
-@build_hypothesis.command("glycan-network", short_help=(
+@build_hypothesis.group("glycan-network")
+def glycan_network_tools():
+    pass
+
+
+@glycan_network_tools.command("build-network", short_help=(
     "Build a glycan network for an existing glycan hypothesis"))
 @click.pass_context
 @database_connection
@@ -512,15 +515,21 @@ def glycan_network(context, database_connection, hypothesis_identifier, edge_str
         GraphWriter(graph, output_stream)
 
 
-@build_hypothesis.command("add-neighborhood-to-network")
+@glycan_network_tools.command("add-neighborhood")
 @click.pass_context
 @click.option("-i", "--input-path", type=click.Path(dir_okay=False), default=None)
 @click.option("-o", "--output-path", type=click.Path(dir_okay=False, writable=True),
               default=None)
 @click.option("-n", "--name", help='Set the neighborhood name', required=True)
-@click.option("-r", "--range-rule", nargs=4, multiple=True)
-@click.option("-e", "--expression-rule", nargs=2, multiple=True)
-@click.option("-a", "--ratio-rule", nargs=4, multiple=True)
+@click.option("-r", "--range-rule", nargs=4, multiple=True, help=(
+    "Format: <expression:str> <low:int> <high:int> <required:bool>"
+))
+@click.option("-e", "--expression-rule", nargs=2, multiple=True, help=(
+    "Format: <bool-expression:str> <required:bool>"
+))
+@click.option("-a", "--ratio-rule", nargs=4, multiple=True, help=(
+    "Format: <numerator-expr:str> <denominator-expr:str> <threshold:float> <required:bool>"
+))
 def add_neighborhood_to_network(context, input_path, output_path, name, range_rule, expression_rule,
                                 ratio_rule):
     if input_path is None:
@@ -558,7 +567,7 @@ def add_neighborhood_to_network(context, input_path, output_path, name, range_ru
         GraphWriter(graph, output_stream)
 
 
-@build_hypothesis.command("remove-neighborhood-from-network")
+@glycan_network_tools.command("remove-neighborhood")
 @click.pass_context
 @click.option("-i", "--input-path", type=click.Path(dir_okay=False), default=None)
 @click.option("-o", "--output-path", type=click.Path(dir_okay=False, writable=True),

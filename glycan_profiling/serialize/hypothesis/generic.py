@@ -88,7 +88,7 @@ class HasTaxonomy(object):
         try:
             iter(ids)
             return cls.taxa.any(Taxon.id.in_(tuple(ids)))
-        except:
+        except Exception:
             return cls.taxa.any(Taxon.id == ids)
 
 

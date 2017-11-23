@@ -170,8 +170,10 @@ class SampleConsumer(TaskBase):
         self.log("Begin Processing")
         last_scan_time = 0
         last_scan_index = 0
+        i = 0
         for scan in sink:
-            if scan.scan_time - last_scan_time > 1.0:
+            i += 1
+            if (scan.scan_time - last_scan_time > 1.0) or (i % 1000 == 0):
                 self.log("Processed %s (time: %f)" % (
                     scan.id, scan.scan_time,))
                 if last_scan_index != 0:

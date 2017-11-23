@@ -13,6 +13,7 @@ from glypy.io import glycoct
 from glycopeptidepy import HashableGlycanComposition
 
 from glycan_profiling.serialize.hypothesis.hypothesis import GlycanHypothesis, GlycopeptideHypothesis
+from glycan_profiling.serialize.hypothesis.generic import HasReferenceAccessionNumber
 
 
 class GlycanBase(object):
@@ -66,7 +67,7 @@ class GlycanComposition(GlycanBase, Base):
     __table_args__ = (Index("ix_GlycanComposition_mass_search_index", "calculated_mass", "hypothesis_id"),)
 
 
-class GlycanStructure(GlycanBase, Base):
+class GlycanStructure(GlycanBase, Base, HasReferenceAccessionNumber):
     __tablename__ = "GlycanStructure"
 
     id = Column(Integer, primary_key=True)

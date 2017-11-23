@@ -188,7 +188,7 @@ class ChromatogramArtist(ArtistBase):
         rt_apex = rt[apex_ind]
 
         if label is not None:
-            self.ax.text(rt_apex, apex + 1200, label, ha='center', fontsize=label_font_size)
+            self.ax.text(rt_apex, apex + 1200, label, ha='center', fontsize=label_font_size, clip_on=True)
 
     def draw_group(self, label, rt, heights, color, label_peak=True, chromatogram=None, label_font_size=10):
         if chromatogram is not None:
@@ -222,7 +222,9 @@ class ChromatogramArtist(ArtistBase):
         rt_apex = rt[apex_ind]
 
         if label is not None and label_peak:
-            self.ax.text(rt_apex, min(apex * 1.1, apex + 1200), label, ha='center', fontsize=label_font_size)
+            self.ax.text(
+                rt_apex, min(apex * 1.1, apex + 1200), label, ha='center', fontsize=label_font_size,
+                clip_on=True)
 
     def transform_group(self, rt, heights):
         return rt, heights
@@ -362,7 +364,8 @@ class SmoothingChromatogramArtist(ChromatogramArtist):
         rt_apex = rt[apex_ind]
 
         if label is not None:
-            self.ax.text(rt_apex, apex + 1200, label, ha='center', fontsize=label_font_size)
+            self.ax.text(rt_apex, apex + 1200, label, ha='center', fontsize=label_font_size,
+                         clip_on=True)
 
 
 class ChargeSeparatingChromatogramArtist(ChromatogramArtist):

@@ -285,6 +285,16 @@ class AveragineParamType(click.types.StringParamType):
         return 'Choose from %s, or provide a formula.' % ', '.join(self.choices)
 
 
+class SubstituentParamType(click.types.StringParamType):
+    name = "SUBSTITUENT"
+
+    def convert(self, value, param, ctx):
+        t = Substituent(value)
+        if not t.composition:
+            raise ValueError("%s is not a recognized substituent" % value)
+        return t
+
+
 adducts = {
     "ammonium": Ammonium,
     "formate": Formate,

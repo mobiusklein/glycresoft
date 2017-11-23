@@ -263,24 +263,13 @@ class MzMLScanCacheHandler(ScanCacheHandlerBase):
             n_spectra = len(reader.index)
             deconvoluting = getattr(source, "deconvoluting", True)
             inst = cls(path, sample_name, n_spectra=n_spectra, deconvoluted=deconvoluting)
+            description = reader.file_description()
+            inst.serializer.add_file_information(description)
             try:
-                description = reader.file_description()
-                wrote_spectrum_type = False
-                for key in description.get("fileContent", []):
-                    if 'profile spectrum' in key:
-                        key = {"centroid spectrum": ''}
-                    if 'centroid spectrum' in key:
-                        if wrote_spectrum_type:
-                            continue
-                    else:
-                        wrote_spectrum_type = True
-                    inst.serializer.add_file_contents(key)
-                source_file_list_container = description.get('sourceFileList', {'sourceFile': []})
-                for source_file in source_file_list_container.get("sourceFile", []):
-                    inst.serializer.add_source_file(source_file)
-
-            except AttributeError:
+                inst.serializer.remove_file_contents("profile spectrum")
+            except KeyError:
                 pass
+            inst.serializer.add_file_contents("centroid spectrum")
             try:
                 instrument_configs = reader.instrument_configuration()
                 for config in instrument_configs:
@@ -341,6 +330,12 @@ class ThreadedMzMLScanCacheHandler(MzMLScanCacheHandler):
 
     def _save_bunch(self, precursor, products):
         self.serializer.save(ScanBunch(precursor, products))
+        try:
+            precursor.clear()
+            for product in products:
+                product.clear()
+        except AttributeError:
+            pass
 
     def save_bunch(self, precursor, products):
         self.queue.put((precursor, products))
@@ -367,6 +362,12 @@ class ThreadedMzMLScanCacheHandler(MzMLScanCacheHandler):
                 if next_bunch == DONE:
                     has_work = False
                     continue
+                # log_handle.log("Writing %s %f (%d, %d)" % (
+                #     next_bunch[0].id,
+                #     next_bunch[0].scan_time,
+                #     len(next_bunch[0].deconvoluted_peak_set) + sum(
+                #         [len(p.deconvoluted_peak_set) for p in next_bunch[1]]),
+                #     self.queue.qsize()))
                 self._save_bunch(*next_bunch)
                 if self.queue.qsize() > 0:
                     current_work = drain_queue()
@@ -375,6 +376,12 @@ class ThreadedMzMLScanCacheHandler(MzMLScanCacheHandler):
                         if next_bunch == DONE:
                             has_work = False
                         else:
+                            # log_handle.log("Writing %s %f (%d, %d)" % (
+                            #     next_bunch[0].id,
+                            #     next_bunch[0].scan_time,
+                            #     len(next_bunch[0].deconvoluted_peak_set) + sum(
+                            #         [len(p.deconvoluted_peak_set) for p in next_bunch[1]]),
+                            #     self.queue.qsize()))
                             self._save_bunch(*next_bunch)
                             i += 1
             except QueueEmptyException:

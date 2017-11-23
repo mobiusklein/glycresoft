@@ -434,7 +434,7 @@ def version_check():
                 module = __import__(dep)
             except ImportError:
                 continue
-            version =  getattr(module, "__version__", None)
+            version = getattr(module, "__version__", None)
             if version is None:
                 version = getattr(module, "version", None)
             if version is None:
@@ -445,6 +445,7 @@ def version_check():
                     continue
             if version:
                 click.echo("%s %s" % (dep, version))
+
 
 @tools.command("interactive-shell")
 def interactive_shell():
