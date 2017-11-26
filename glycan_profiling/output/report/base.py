@@ -210,4 +210,4 @@ class ReportCreatorBase(TaskBase):
     def run(self):
         self.prepare_environment()
         template_stream = self.make_template_stream()
-        template_stream.dump(self.stream)
+        template_stream.dump(self.stream, encoding='utf-8')
