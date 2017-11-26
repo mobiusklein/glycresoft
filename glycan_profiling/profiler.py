@@ -328,6 +328,25 @@ class GlycanChromatogramAnalyzer(TaskBase):
         return mapper
 
     def annotate_matches_with_msms(self, chromatograms, peak_loader, msms_scans, database):
+        """Map MSn scans to chromatograms matched by precursor mass, and
+        evaluate each glycan compostion-spectrum match
+
+        Parameters
+        ----------
+        chromatograms : ChromatogramFilter
+            Description
+        peak_loader : RandomAccessScanIterator
+            Description
+        msms_scans : list
+            Description
+        database : SearchableMassCollection
+            Description
+
+        Returns
+        -------
+        ChromatogramFilter
+            The chromatograms with matched and scored MSn scans attached to them
+        """
         default_glycan_composition = glypy.GlycanComposition(
             database.hypothesis.monosaccharide_bounds())
         mapper = self.make_mapper(
@@ -340,6 +359,23 @@ class GlycanChromatogramAnalyzer(TaskBase):
         return annotate_matches
 
     def process_chromatograms(self, processor, peak_loader, database):
+        """Extract, match and evaluate chromatograms against the glycan database.
+
+        If MSn are available and required, then MSn scan will be extracted
+        and mapped onto chromatograms, and search each MSn scan with the
+        pseudo-fragments of the glycans matching the chromatograms they
+        map to.
+
+        Parameters
+        ----------
+        processor : ChromatgramProcessor
+            The container responsible for carrying out the matching
+            and evaluating of chromatograms
+        peak_loader : RandomAccessScanIterator
+            An object which can be used iterate over MS scans
+        database : SearchableMassCollection
+            The database of glycan compositions to serch against
+        """
         if self.require_msms_signature > 0:
             self.log("Extracting MS/MS")
             msms_scans = self.load_msms(peak_loader)

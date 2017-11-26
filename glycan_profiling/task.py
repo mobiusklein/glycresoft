@@ -76,7 +76,7 @@ class MessageSpooler(object):
     halting : bool
         Whether the object is attempting to
         stop, so that the internal thread can
-        tell whne it should stop and tell other
+        tell when it should stop and tell other
         objects using it it is trying to stop
     handler : Callable
         A Callable object which can be used to do
