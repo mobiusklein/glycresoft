@@ -261,7 +261,7 @@ class MzMLScanCacheHandler(ScanCacheHandlerBase):
         if source is not None:
             reader = MSFileLoader(source.scan_source)
             n_spectra = len(reader.index)
-            deconvoluting = getattr(source, "deconvoluting", True)
+            deconvoluting = source.deconvoluting
             inst = cls(path, sample_name, n_spectra=n_spectra, deconvoluted=deconvoluting)
             description = reader.file_description()
             inst.serializer.add_file_information(description)
