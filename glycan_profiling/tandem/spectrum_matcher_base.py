@@ -8,6 +8,7 @@ try:
 except ImportError:
     from queue import Empty as QueueEmptyException
 
+from glypy.utils import uid
 from ms_deisotope import DeconvolutedPeakSet, isotopic_shift
 
 from glycan_profiling.task import TaskBase
@@ -863,7 +864,7 @@ class IdentificationProcessDispatcher(TaskBase):
             target, scan_spec = self.build_work_order(
                 missing_id, hit_map, scan_hit_type_map, hit_to_scan)
             target, score_map = self.evalute_work_order_local(target, scan_spec)
-            seen[target.id] = -1
+            seen[target.id] = (-1, 0)
             self.store_result(target, score_map, self.local_scan_map)
 
     def store_result(self, target, score_map, scan_map):
@@ -932,13 +933,13 @@ class IdentificationProcessDispatcher(TaskBase):
         self.log("... Searching Matches (%d)" % (n,))
         while has_work:
             try:
-                target, score_map = self.output_queue.get(True, 1)
+                target, score_map, token = self.output_queue.get(True, 1)
                 if target.id in seen:
                     self.log(
-                        "...... Duplicate Results For %s. First seen at %d, now again at %d" % (
-                            target.id, seen[target.id], i))
+                        "...... Duplicate Results For %s. First seen at %r, now again at %r" % (
+                            target.id, seen[target.id], (i, token)))
                 else:
-                    seen[target.id] = i
+                    seen[target.id] = (i, token)
                 if (i > n) and ((i - n) % 10 == 0):
                     self.log(
                         "...... Warning: %d additional output received. %s and %d matches." % (
@@ -1002,6 +1003,7 @@ class SpectrumIdentificationWorkerBase(Process):
         self.solution_map = dict()
         self._work_complete = Event()
         self.log_handler = log_handler
+        self.token = uid()
 
     def fetch_scan(self, key):
         try:
@@ -1024,7 +1026,7 @@ class SpectrumIdentificationWorkerBase(Process):
 
     def pack_output(self, target):
         if self.solution_map:
-            self.output_queue.put((target, self.solution_map))
+            self.output_queue.put((target, self.solution_map, self.token))
         self.solution_map = dict()
 
     def evaluate(self, scan, structure, *args, **kwargs):
