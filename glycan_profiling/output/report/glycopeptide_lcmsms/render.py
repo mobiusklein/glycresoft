@@ -8,6 +8,9 @@ from glycan_profiling.serialize import (
     Protein, Glycopeptide, IdentifiedGlycopeptide,
     func, MSScan)
 from glycan_profiling.tandem.ref import SpectrumReference
+from glycan_profiling.plotting.glycan_visual_classification import (
+    GlycanCompositionClassifierColorizer,
+    NGlycanCompositionColorizer)
 from glycan_profiling.plotting import (figax, SmoothingChromatogramArtist)
 from glycan_profiling.plotting.sequence_fragment_logo import glycopeptide_match_logo
 from glycan_profiling.plotting.plot_glycoforms import (
@@ -23,6 +26,13 @@ from ms_deisotope.output.mzml import ProcessedMzMLDeserializer
 
 from glycan_profiling.output.report.base import (
     svguri_plot, png_plot, ReportCreatorBase)
+
+
+glycan_colorizer_type_map = {
+    GlycosylationType.n_linked: NGlycanCompositionColorizer,
+    GlycosylationType.glycosaminoglycan: GlycanCompositionClassifierColorizer({}, 'slateblue'),
+    GlycosylationType.o_linked: GlycanCompositionClassifierColorizer({}, 'slateblue')
+}
 
 
 def scale_fix_xml_transform(root):
@@ -133,7 +143,7 @@ class GlycopeptideDatabaseSearchReportCreator(ReportCreatorBase):
                     continue
                 bundle = BundledGlycanComposition.aggregate(spanning_site)
                 ax = figax()
-                AggregatedAbundanceArtist(bundle, ax=ax).draw()
+                AggregatedAbundanceArtist(bundle, ax=ax, colorizer=glycan_colorizer_type_map[glyco_type]).draw()
                 ax.set_title("%s Glycans\nat Site %d" % (glyco_type.name, site,), fontsize=18)
                 axes[site, glyco_type] = svguri_plot(ax, bbox_inches='tight')
         return axes
