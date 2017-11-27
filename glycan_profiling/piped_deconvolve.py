@@ -608,6 +608,16 @@ class ScanGeneratorBase(object):
     def scan_source(self):
         return None
 
+    _deconvoluting = False
+
+    @property
+    def deconvoluting(self):
+        return self._deconvoluting
+
+    @deconvoluting.setter
+    def deconvoluting(self, value):
+        self._deconvoluting = value
+
 
 class ScanGenerator(TaskBase, ScanGeneratorBase):
     def __init__(self, ms_file, number_of_helpers=4,
