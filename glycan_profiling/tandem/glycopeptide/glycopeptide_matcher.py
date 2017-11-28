@@ -1,6 +1,8 @@
 from collections import defaultdict, namedtuple, OrderedDict
+from multiprocessing import Manager as IPCManager
 
 from glycan_profiling.chromatogram_tree.chromatogram import GlycopeptideChromatogram
+from glycan_profiling.chromatogram_tree import Unmodified
 from glycan_profiling.task import TaskBase
 
 from glycan_profiling.structure import (
@@ -9,11 +11,9 @@ from glycan_profiling.structure import (
 
 from .scoring import TargetDecoyAnalyzer
 
-from ..spectrum_matcher_base import (
-    TandemClusterEvaluatorBase,
-    SpectrumIdentificationWorkerBase,
-    Manager as IPCManager,
-    Unmodified)
+from ..spectrum_evaluation import TandemClusterEvaluatorBase
+from ..process_dispatcher import SpectrumIdentificationWorkerBase
+
 from ..oxonium_ions import gscore_scanner
 from ..chromatogram_mapping import ChromatogramMSMSMapper
 

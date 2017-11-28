@@ -3,7 +3,7 @@ from collections import Counter
 from itertools import chain
 import math
 
-from ...spectrum_matcher_base import SpectrumMatcherBase
+from .base import GlycopeptideSpectrumMatcherBase
 from glycan_profiling.structure import FragmentMatchMap
 
 from glycopeptidepy.structure.fragment import IonSeries
@@ -92,7 +92,7 @@ class FrequencyCounter(object):
         return inst
 
 
-class FrequencyScorer(SpectrumMatcherBase):
+class FrequencyScorer(GlycopeptideSpectrumMatcherBase):
     def __init__(self, scan, sequence, model=None, mass_shift=None):
         super(FrequencyScorer, self).__init__(scan, sequence, mass_shift)
         self._score = None

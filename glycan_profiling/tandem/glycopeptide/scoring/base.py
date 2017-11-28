@@ -1,4 +1,4 @@
-from ...spectrum_matcher_base import SpectrumMatcherBase
+from ...spectrum_match import SpectrumMatcherBase
 
 
 class GlycopeptideSpectrumMatcherBase(SpectrumMatcherBase):
