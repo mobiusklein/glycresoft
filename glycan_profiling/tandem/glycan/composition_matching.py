@@ -1,13 +1,14 @@
+from multiprocessing import Manager as IPCManager
 
 from glycopeptidepy.structure.glycan import GlycanCompositionProxy
 
 from glycan_profiling.task import TaskBase
 from .scoring.signature_ion_scoring import SignatureIonScorer
 from ..chromatogram_mapping import ChromatogramMSMSMapper
-from ..spectrum_matcher_base import (
+
+from ..process_dispatcher import (
     IdentificationProcessDispatcher,
-    SpectrumIdentificationWorkerBase, Manager as IPCManager)
-from ..ref import SpectrumReference
+    SpectrumIdentificationWorkerBase)
 
 
 class ChromatogramAssignmentRecord(GlycanCompositionProxy):

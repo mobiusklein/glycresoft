@@ -12,7 +12,7 @@ from glypy.io.nomenclature.identity import is_a
 
 from glycan_profiling.structure import FragmentMatchMap
 from glycan_profiling.structure.fragment_match_map import SpectrumGraph
-from glycan_profiling.tandem.spectrum_matcher_base import SpectrumMatcherBase
+from glycan_profiling.tandem.spectrum_match import SpectrumMatcherBase
 
 from glycopeptidepy.utils.memoize import memoize
 
