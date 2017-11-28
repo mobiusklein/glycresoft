@@ -131,8 +131,14 @@ class TargetDecoyInterleavingGlycopeptideMatcher(TandemClusterEvaluatorBase):
             scans, precursor_error_tolerance)
         # Evaluate mapped target hits
         target_solutions = []
+        workload_graph = workload.compute_workloads()
+        total_work = workload.total_work_required(workload_graph)
+        running_total_work = 0
         for i, batch in enumerate(workload.batches()):
-            self.log("... Batch %d" % (i + 1,))
+            running_total_work += batch.batch_size
+            self.log("... Batch %d (%d/%d) %0.2f%%" % (
+                i + 1, running_total_work, total_work,
+                (100. * running_total_work) / total_work))
             target_scan_solution_map = self.target_evaluator._evaluate_hit_groups(
                 batch, *args, **kwargs)
             # Aggregate and reduce target solutions
@@ -154,8 +160,12 @@ class TargetDecoyInterleavingGlycopeptideMatcher(TandemClusterEvaluatorBase):
         # since this assumes that the decoys will be direct reversals of
         # target sequences. The decoy evaluator will handle the reversals.
         decoy_solutions = []
+        running_total_work = 0
         for i, batch in enumerate(workload.batches()):
-            self.log("... Batch %d" % (i + 1,))
+            self.log("... Batch %d (%d/%d) %0.2f%%" % (
+                i + 1, running_total_work, total_work,
+                (100. * running_total_work) / total_work))
+
             decoy_scan_solution_map = self.decoy_evaluator._evaluate_hit_groups(
                 batch, *args, **kwargs)
             # Aggregate and reduce target solutions
@@ -241,8 +251,15 @@ class ComparisonGlycopeptideMatcher(TargetDecoyInterleavingGlycopeptideMatcher):
             scans, precursor_error_tolerance)
         # Evaluate mapped target hits
         target_solutions = []
+        workload_graph = workload.compute_workloads()
+        total_work = workload.total_work_required(workload_graph)
+        running_total_work = 0
         for i, batch in enumerate(workload.batches()):
-            self.log("... Batch %d" % (i + 1,))
+            running_total_work += batch.batch_size
+            self.log("... Batch %d (%d/%d) %0.2f%%" % (
+                i + 1, running_total_work, total_work,
+                (100. * running_total_work) / total_work))
+
             target_scan_solution_map = self.target_evaluator._evaluate_hit_groups(
                 batch, *args, **kwargs)
             # Aggregate and reduce target solutions
@@ -260,12 +277,19 @@ class ComparisonGlycopeptideMatcher(TargetDecoyInterleavingGlycopeptideMatcher):
                 temp = [case for case in temp if len(case) > 0]
             target_solutions += temp
 
-        workload = self.target_evaluator._map_scans_to_hits(
+        workload = self.decoy_evaluator._map_scans_to_hits(
             scans, precursor_error_tolerance)
         # Evaluate mapped target hits
         decoy_solutions = []
+        workload_graph = workload.compute_workloads()
+        total_work = workload.total_work_required(workload_graph)
+        running_total_work = 0
         for i, batch in enumerate(workload.batches()):
-            self.log("... Batch %d" % (i + 1,))
+            running_total_work += batch.batch_size
+            self.log("... Batch %d (%d/%d) %0.2f%%" % (
+                i + 1, running_total_work, total_work,
+                (100. * running_total_work) / total_work))
+
             decoy_scan_solution_map = self.decoy_evaluator._evaluate_hit_groups(
                 batch, *args, **kwargs)
             # Aggregate and reduce decoy solutions
