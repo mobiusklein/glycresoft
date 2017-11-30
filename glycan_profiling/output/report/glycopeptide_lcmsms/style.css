@@ -167,6 +167,10 @@
     padding: 3px;
 }
 
+.plot-grid .flex-item {
+    text-align: center;
+}
+
 section {
     border-bottom: 2px lightgray solid;
     margin-bottom: 3px;
