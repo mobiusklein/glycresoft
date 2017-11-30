@@ -23,8 +23,8 @@ if not os.path.exists(_mpl_cache_dir):
 
 os.environ["MPLCONFIGDIR"] = _mpl_cache_dir
 
-
-USER_CONFIG_PATH = os.path.join(CONFIG_DIR, "glycresoft-cfg.hjson")
+CONFIG_FILE_NAME = "glycresoft-cfg.hjson"
+USER_CONFIG_PATH = os.path.join(CONFIG_DIR, CONFIG_FILE_NAME)
 
 cv.configure_obo_store(os.path.join(CONFIG_DIR, "cv"))
 
@@ -55,12 +55,27 @@ def process(config):
         load_substituent_rule(value)
 
 
+def recursive_merge(a, b):
+    for k, v in b.items():
+        if isinstance(b[k], dict) and isinstance(a.get(k), dict):
+            recursive_merge(a[k], v)
+        else:
+            a[k] = v
+
+
 def get_configuration():
     global _CURRENT_CONFIG
-    if _CURRENT_CONFIG is None:
-        _CURRENT_CONFIG = hjson.load(open(USER_CONFIG_PATH))
-    process(_CURRENT_CONFIG)
+    _CURRENT_CONFIG = load_configuration_from_path(USER_CONFIG_PATH)
+    if os.path.exists(os.path.join(os.getcwd(), CONFIG_FILE_NAME)):
+        local_config = load_substituent_rule(os.path.join(os.getcwd(), CONFIG_FILE_NAME))
+        recursive_merge(_CURRENT_CONFIG, local_config)
     return _CURRENT_CONFIG
+
+
+def load_configuration_from_path(path):
+    cfg = hjson.load(open(path))
+    process(cfg)
+    return cfg
 
 
 def set_configuration(obj):
