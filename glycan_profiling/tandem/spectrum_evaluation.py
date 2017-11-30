@@ -41,7 +41,7 @@ class TandemClusterEvaluatorBase(TaskBase):
 
     def __init__(self, tandem_cluster, scorer_type, structure_database, verbose=False,
                  n_processes=1, ipc_manager=None, probing_range_for_missing_precursors=3,
-                 mass_shifts=None):
+                 mass_shifts=None, batch_size=15e4):
         if mass_shifts is None:
             mass_shifts = [Unmodified]
         self.tandem_cluster = tandem_cluster
@@ -55,6 +55,7 @@ class TandemClusterEvaluatorBase(TaskBase):
         self.mass_shift_map = {
             m.name: m for m in self.mass_shifts
         }
+        self.batch_size = batch_size
 
     def search_database_for_precursors(self, mass, precursor_error_tolerance=1e-5):
         return self.structure_database.search_mass_ppm(mass, precursor_error_tolerance)
@@ -244,7 +245,7 @@ class TandemClusterEvaluatorBase(TaskBase):
         workload = self._map_scans_to_hits(
             scans, precursor_error_tolerance)
         solutions = []
-        for batch in workload.batches():
+        for batch in workload.batches(self.batch_size):
             scan_solution_map = self._evaluate_hit_groups(batch, **kwargs)
             solutions += self._collect_scan_solutions(scan_solution_map, batch.scan_map)
         return solutions

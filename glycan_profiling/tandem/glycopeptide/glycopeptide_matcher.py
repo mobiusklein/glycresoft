@@ -88,12 +88,12 @@ class TargetDecoyInterleavingGlycopeptideMatcher(TandemClusterEvaluatorBase):
     '''
     def __init__(self, tandem_cluster, scorer_type, structure_database, minimum_oxonium_ratio=0.05,
                  n_processes=5, ipc_manager=None, probing_range_for_missing_precursors=3,
-                 mass_shifts=None):
+                 mass_shifts=None, batch_size=15e4):
         super(TargetDecoyInterleavingGlycopeptideMatcher, self).__init__(
             tandem_cluster, scorer_type, structure_database, verbose=False,
             n_processes=n_processes, ipc_manager=ipc_manager,
             probing_range_for_missing_precursors=probing_range_for_missing_precursors,
-            mass_shifts=mass_shifts)
+            mass_shifts=mass_shifts, batch_size=batch_size)
         self.tandem_cluster = tandem_cluster
         self.scorer_type = scorer_type
         self.structure_database = structure_database
@@ -134,7 +134,7 @@ class TargetDecoyInterleavingGlycopeptideMatcher(TandemClusterEvaluatorBase):
         workload_graph = workload.compute_workloads()
         total_work = workload.total_work_required(workload_graph)
         running_total_work = 0
-        for i, batch in enumerate(workload.batches()):
+        for i, batch in enumerate(workload.batches(self.batch_size)):
             running_total_work += batch.batch_size
             self.log("... Batch %d (%d/%d) %0.2f%%" % (
                 i + 1, running_total_work, total_work,
@@ -161,7 +161,7 @@ class TargetDecoyInterleavingGlycopeptideMatcher(TandemClusterEvaluatorBase):
         # target sequences. The decoy evaluator will handle the reversals.
         decoy_solutions = []
         running_total_work = 0
-        for i, batch in enumerate(workload.batches()):
+        for i, batch in enumerate(workload.batches(self.batch_size)):
             self.log("... Batch %d (%d/%d) %0.2f%%" % (
                 i + 1, running_total_work, total_work,
                 (100. * running_total_work) / total_work))
@@ -231,8 +231,13 @@ class CompetativeTargetDecoyInterleavingGlycopeptideMatcher(TargetDecoyInterleav
 
 class ComparisonGlycopeptideMatcher(TargetDecoyInterleavingGlycopeptideMatcher):
     def __init__(self, tandem_cluster, scorer_type, target_structure_database, decoy_structure_database,
-                 minimum_oxonium_ratio=0.05, n_processes=5, ipc_manager=None):
-
+                 minimum_oxonium_ratio=0.05, n_processes=5, ipc_manager=None,
+                 probing_range_for_missing_precursors=3, mass_shifts=None, batch_size=15e4):
+        super(TargetDecoyInterleavingGlycopeptideMatcher, self).__init__(
+            tandem_cluster, scorer_type, target_structure_database,
+            verbose=False, n_processes=n_processes, ipc_manager=ipc_manager,
+            probing_range_for_missing_precursors=probing_range_for_missing_precursors,
+            mass_shifts=mass_shifts, batch_size=batch_size)
         self.tandem_cluster = tandem_cluster
         self.scorer_type = scorer_type
         self.target_structure_database = target_structure_database
@@ -240,10 +245,14 @@ class ComparisonGlycopeptideMatcher(TargetDecoyInterleavingGlycopeptideMatcher):
         self.minimum_oxonium_ratio = minimum_oxonium_ratio
         self.target_evaluator = GlycopeptideMatcher(
             [], self.scorer_type, self.target_structure_database,
-            n_processes=n_processes, ipc_manager=ipc_manager)
+            n_processes=n_processes, ipc_manager=ipc_manager,
+            probing_range_for_missing_precursors=probing_range_for_missing_precursors,
+            mass_shifts=mass_shifts)
         self.decoy_evaluator = GlycopeptideMatcher(
             [], self.scorer_type, self.decoy_structure_database,
-            n_processes=n_processes, ipc_manager=ipc_manager)
+            n_processes=n_processes, ipc_manager=ipc_manager,
+            probing_range_for_missing_precursors=probing_range_for_missing_precursors,
+            mass_shifts=mass_shifts)
 
     def score_bunch(self, scans, precursor_error_tolerance=1e-5, simplify=True, *args, **kwargs):
         # Map scans to target database
@@ -254,7 +263,7 @@ class ComparisonGlycopeptideMatcher(TargetDecoyInterleavingGlycopeptideMatcher):
         workload_graph = workload.compute_workloads()
         total_work = workload.total_work_required(workload_graph)
         running_total_work = 0
-        for i, batch in enumerate(workload.batches()):
+        for i, batch in enumerate(workload.batches(self.batch_size)):
             running_total_work += batch.batch_size
             self.log("... Batch %d (%d/%d) %0.2f%%" % (
                 i + 1, running_total_work, total_work,
@@ -284,7 +293,7 @@ class ComparisonGlycopeptideMatcher(TargetDecoyInterleavingGlycopeptideMatcher):
         workload_graph = workload.compute_workloads()
         total_work = workload.total_work_required(workload_graph)
         running_total_work = 0
-        for i, batch in enumerate(workload.batches()):
+        for i, batch in enumerate(workload.batches(self.batch_size)):
             running_total_work += batch.batch_size
             self.log("... Batch %d (%d/%d) %0.2f%%" % (
                 i + 1, running_total_work, total_work,
