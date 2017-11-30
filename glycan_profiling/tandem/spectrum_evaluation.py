@@ -35,13 +35,16 @@ def group_by_precursor_mass(scans, window_size=1.5e-5):
     return groups
 
 
+DEFAULT_BATCH_SIZE = 25e4
+
+
 class TandemClusterEvaluatorBase(TaskBase):
 
     neutron_offset = isotopic_shift()
 
     def __init__(self, tandem_cluster, scorer_type, structure_database, verbose=False,
                  n_processes=1, ipc_manager=None, probing_range_for_missing_precursors=3,
-                 mass_shifts=None, batch_size=15e4):
+                 mass_shifts=None, batch_size=DEFAULT_BATCH_SIZE):
         if mass_shifts is None:
             mass_shifts = [Unmodified]
         self.tandem_cluster = tandem_cluster
