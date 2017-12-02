@@ -156,7 +156,14 @@ class ScanTransformMixin(object):
         self.output_queue.put((SCAN_STATUS_SKIP, scan.index, scan.ms_level))
 
     def send_scan(self, scan):
-        self.output_queue.put((scan.pack(), scan.index, scan.ms_level))
+        scan = scan.pack()
+        # this attribute is not needed, and for MS1 scans is dangerous
+        # to pickle.
+        # It can pull other scans which may not yet have been packed
+        # into the message sent back to the main process which in
+        # turn can form a reference cycle and eat a lot of memory
+        scan.product_scans = []
+        self.output_queue.put((scan, scan.index, scan.ms_level))
 
     def all_work_done(self):
         return self._work_complete.is_set()
@@ -266,7 +273,7 @@ class ScanTransformingProcess(Process, ScanTransformMixin):
 
         has_input = True
         transformer = self.make_scan_transformer(loader)
-        
+
         nologs = ["deconvolution_scan_processor"]
         if not self.deconvolute:
             nologs.append("deconvolution")
@@ -557,6 +564,7 @@ class ScanCollator(TaskBase):
                     if found_content:
                         self.last_index = scan.index
                         yield self.produce(scan)
+                    if self.last_index is not None:
                         self.start_helper_producers()
             elif self.last_index + 1 in self.waiting:
                 while self.last_index + 1 in self.waiting:
