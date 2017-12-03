@@ -75,6 +75,24 @@ class TandemClusterEvaluatorBase(TaskBase):
         return hits
 
     def score_one(self, scan, precursor_error_tolerance=1e-5, mass_shifts=None, **kwargs):
+        """Search one MSn scan against the database and score all candidate matches
+
+        Parameters
+        ----------
+        scan : ms_deisotope.ProcessedScan
+            The MSn scan to search
+        precursor_error_tolerance : float, optional
+            The mass error tolerance for the precursor
+        mass_shifts : Iterable of MassShift, optional
+            The set of MassShifts to consider. Defaults to (Unmodified,)
+        **kwargs
+            Keyword arguments passed to :meth:`evaluate`
+
+        Returns
+        -------
+        SpectrumSolutionSet
+            The set of solutions for the searched scan
+        """
         if mass_shifts is None:
             mass_shifts = (Unmodified,)
         solutions = []
@@ -98,7 +116,26 @@ class TandemClusterEvaluatorBase(TaskBase):
         return out
 
     def score_all(self, precursor_error_tolerance=1e-5, simplify=False, **kwargs):
+        """Search and score all scans in :attr:`tandem_cluster`
+
+        Parameters
+        ----------
+        precursor_error_tolerance : float, optional
+            The mass error tolerance for the precursor
+        simplify : bool, optional
+            Whether or not to call :meth:`.SpectrumSolutionSet.simplify` on each
+            scan's search result.
+        **kwargs
+            Keyword arguments passed to :meth:`evaluate`
+
+        Returns
+        -------
+        list of SpectrumSolutionSet
+        """
         out = []
+
+        # loop over mass_shifts so that sequential queries deals with similar masses to
+        # make better use of the database's cache
         for mass_shift in self.mass_shifts:
             # make iterable for score_one API
             mass_shift = (mass_shift,)
@@ -116,6 +153,27 @@ class TandemClusterEvaluatorBase(TaskBase):
         return out
 
     def evaluate(self, scan, structure, *args, **kwargs):
+        """Computes the quality of the match between ``scan``
+        and the component fragments of ``structure``.
+
+        To be overridden by implementing classes.
+
+        Parameters
+        ----------
+        scan : ms_deisotope.ProcessedScan
+            The scan to evaluate
+        structure : object
+            An object representing a structure (peptide, glycan, glycopeptide)
+            to produce fragments from and search against ``scan``
+        *args
+            Propagated
+        **kwargs
+            Propagated
+
+        Returns
+        -------
+        SpectrumMatcherBase
+        """
         raise NotImplementedError()
 
     def _map_scans_to_hits(self, scans, precursor_error_tolerance=1e-5):
