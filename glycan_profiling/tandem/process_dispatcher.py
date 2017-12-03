@@ -96,7 +96,9 @@ class IdentificationProcessDispatcher(TaskBase):
         self.mass_shift_load_map = self.ipc_manager.dict(mass_shift_map)
 
     def clear_pool(self):
-        # self.log("... Clearing Worker Pool")
+        """Tear down spawned worker processes and clear
+        the shared memory server
+        """
         self.scan_load_map.clear()
         self.local_scan_map.clear()
         self.ipc_manager = None
@@ -107,6 +109,15 @@ class IdentificationProcessDispatcher(TaskBase):
                 pass
 
     def create_pool(self, scan_map):
+        """Spawn a pool of workers and a supporting process
+        for sharing scans from ``scan_map`` by id with the workers
+        so they can load scans on demand.
+
+        Parameters
+        ----------
+        scan_map : dict
+            Map scan id to :class:`.ProcessedScan` object
+        """
         self.scan_load_map.clear()
         self.scan_load_map.update(scan_map)
         self.local_scan_map.clear()
@@ -125,6 +136,19 @@ class IdentificationProcessDispatcher(TaskBase):
         return all([worker.all_work_done() for worker in self.workers])
 
     def feeder(self, hit_map, hit_to_scan, scan_hit_type_map):
+        """Push tasks onto the input queue feeding the worker
+        processes.
+
+        Parameters
+        ----------
+        hit_map : dict
+            Maps hit id to structure
+        hit_to_scan : dict
+            Maps hit id to list of scan ids
+        scan_hit_type_map : dict
+            Maps (hit id, scan id) to the type of mass shift
+            applied for this match
+        """
         i = 0
         n = len(hit_to_scan)
         seen = dict()
@@ -167,11 +191,48 @@ class IdentificationProcessDispatcher(TaskBase):
         return
 
     def build_work_order(self, hit_id, hit_map, scan_hit_type_map, hit_to_scan):
+        """Packs several task-defining data structures into a simple to unpack payload for
+        sending over IPC to worker processes.
+
+        Parameters
+        ----------
+        hit_id : int
+            The id number of a hit structure
+        hit_map : dict
+            Maps hit_id to hit structure
+        hit_to_scan : dict
+            Maps hit id to list of scan ids
+        scan_hit_type_map : dict
+            Maps (hit id, scan id) to the type of mass shift
+            applied for this match
+
+        Returns
+        -------
+        tuple
+            Packaged message payload
+        """
         return (hit_map[hit_id],
                 [(s, scan_hit_type_map[s, hit_id])
                  for s in hit_to_scan[hit_id]])
 
     def spawn_queue_feeder(self, hit_map, hit_to_scan, scan_hit_type_map):
+        """Create a thread to run :meth:`feeder` with the provided arguments
+        so that work can be sent in tandem with waiting for results
+
+        Parameters
+        ----------
+        hit_map : dict
+            Maps hit id to structure
+        hit_to_scan : dict
+            Maps hit id to list of scan ids
+        scan_hit_type_map : dict
+            Maps (hit id, scan id) to the type of mass shift
+            applied for this match
+
+        Returns
+        -------
+        Thread
+        """
         feeder_thread = Thread(target=self.feeder, args=(hit_map, hit_to_scan,
                                                          scan_hit_type_map))
         feeder_thread.daemon = True
@@ -179,6 +240,21 @@ class IdentificationProcessDispatcher(TaskBase):
         return feeder_thread
 
     def _reconstruct_missing_work_items(self, seen, hit_map, hit_to_scan, scan_hit_type_map):
+        """Handle task items that are pending after it is believed that the workers
+        have crashed or the network communication has failed.
+
+        Parameters
+        ----------
+        seen : dict
+            Map of hit ids that have already been handled
+        hit_map : dict
+            Maps hit_id to hit structure
+        hit_to_scan : dict
+            Maps hit id to list of scan ids
+        scan_hit_type_map : dict
+            Maps (hit id, scan id) to the type of mass shift
+            applied for this match
+        """
         missing = set(hit_to_scan) - set(seen)
         for missing_id in missing:
             target, scan_spec = self.build_work_order(
@@ -188,6 +264,18 @@ class IdentificationProcessDispatcher(TaskBase):
             self.store_result(target, score_map, self.local_scan_map)
 
     def store_result(self, target, score_map, scan_map):
+        """Save the spectrum match scores for ``target`` against the
+        set of matched scans
+
+        Parameters
+        ----------
+        target : object
+            Structure that was matched
+        score_map : dict
+            Maps (scan id, mass shift name) to score
+        scan_map : dict
+            Maps scan id to :class:`.ProcessedScan`
+        """
         try:
             target.clear_caches()
         except AttributeError:
@@ -210,6 +298,23 @@ class IdentificationProcessDispatcher(TaskBase):
         return self.local_mass_shift_map[key]
 
     def evalute_work_order_local(self, structure, scan_specification):
+        """Mimic the main loop of :class:`SpectrumIdentificationWorkerBase`
+        to evaluate task items locally.
+
+        Parameters
+        ----------
+        structure : object
+            object to match against MSn scans
+        scan_specification : list
+            List of tuples of (scan id, mass shift name) to match against ``structure``
+
+        Returns
+        -------
+        object
+            Fully processed version of ``structure``
+        dict
+            Mapping of (scan id, mass shift name) to match score
+        """
         scan_specification = [(self.fetch_scan(i), self.fetch_mass_shift(j)) for i, j in scan_specification]
         solution_target = None
         solution = None
@@ -227,6 +332,31 @@ class IdentificationProcessDispatcher(TaskBase):
         return solution_target, solution_map
 
     def evaluate(self, scan, structure, *args, **kwargs):
+        """Evaluate the match between ``structure`` and ``scan``
+        using the scoring method provided by a worker process
+        locally.
+
+        Parameters
+        ----------
+        scan : ms_deisotope.ProcessedScan
+            MSn scan to match against
+        structure : object
+            Structure to match against ``scan``
+        *args
+            Propagated to scoring function
+        **kwargs
+            Propagated to scoring function
+
+        Returns
+        -------
+        SpectrumMatcherBase
+
+        Raises
+        ------
+        ValueError
+            If no workers have been created, then we cannot use their
+            evaluate method.
+        """
         if not self.workers:
             raise ValueError(
                 "Cannot evaluate a spectrum match without an instantiated worker pool.")
