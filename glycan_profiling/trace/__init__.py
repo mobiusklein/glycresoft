@@ -1,16 +1,18 @@
-from .match import (
+from glycan_profiling.trace.sink import ScanSink
+
+from glycan_profiling.trace.match import (
     ChromatogramMatcher,
     GlycanChromatogramMatcher,
     GlycopeptideChromatogramMatcher)
 
-from .extract import ChromatogramExtractor
+from glycan_profiling.trace.extract import ChromatogramExtractor
 
-from .evaluate import (
+from glycan_profiling.trace.evaluate import (
     ChromatogramEvaluator,
     LogitSumChromatogramEvaluator,
     LaplacianRegularizedChromatogramEvaluator)
 
-from .process import (
+from glycan_profiling.trace.process import (
     ChromatogramProcessor,
     LogitSumChromatogramProcessor,
     LaplacianRegularizedChromatogramProcessor,
@@ -19,6 +21,7 @@ from .process import (
 
 
 __all__ = [
+    "ScanSink",
     "ChromatogramMatcher",
     "GlycanChromatogramMatcher",
     "GlycopeptideChromatogramMatcher",
