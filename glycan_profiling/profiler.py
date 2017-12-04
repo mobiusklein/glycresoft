@@ -48,26 +48,11 @@ from glycan_profiling.scan_cache import (
 
 from glycan_profiling.task import TaskBase
 
-from brainpy import periodic_table
-
 import ms_deisotope
 import ms_peak_picker
 
-from ms_deisotope.averagine import Averagine, glycan as n_glycan_averagine
 from ms_deisotope.output.mzml import ProcessedMzMLDeserializer
 from glycopeptidepy.utils.collectiontools import descending_combination_counter
-
-
-def validate_element(element):
-    valid = element in periodic_table
-    if not valid:
-        warnings.warn("%r is not a valid element" % element)
-    return valid
-
-
-def parse_averagine_formula(formula):
-    return Averagine({k: float(v) for k, v in re.findall(r"([A-Z][a-z]*)([0-9\.]*)", formula)
-                      if float(v or 0) > 0 and validate_element(k)})
 
 
 class SampleConsumer(TaskBase):
@@ -110,7 +95,7 @@ class SampleConsumer(TaskBase):
         if deconvolute:
             self.ms1_processing_args["deconvolution"] = ms1_deconvolution_args
             self.msn_processing_args["deconvolution"] = msn_deconvolution_args
- 
+
         n_helpers = max(self.n_processes - 1, 0)
         self.scan_generator = PipedScanGenerator(
             ms_file,
