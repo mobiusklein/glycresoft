@@ -1103,7 +1103,7 @@ class GridPointSolution(object):
 
 
 class ThresholdSelectionGridSearch(object):
-    def __init__(self, model, network_reduction=None, apex_threshold=0.9, threshold_bias=4.0):
+    def __init__(self, model, network_reduction=None, apex_threshold=0.95, threshold_bias=4.0):
         self.model = model
         self.network_reduction = network_reduction
         self.apex_threshold = apex_threshold
@@ -1195,8 +1195,10 @@ class ThresholdSelectionGridSearch(object):
         lmbda_acc /= n
         A /= n
         # A = ProportionMatrixNormalization.normalize(A, self.model._belongingness_normalization)
-        return GridPointSolution(thresh_acc, lmbda_acc, tau_acc, A,
-                                 self.model.neighborhood_names, self.model.node_names)
+        average_solution = GridPointSolution(
+            thresh_acc, lmbda_acc, tau_acc, A,
+            self.model.neighborhood_names, self.model.node_names)
+        return average_solution
 
     def estimate_phi_observed(self, solution=None, remove_threshold=True, rho=DEFAULT_RHO):
         if solution is None:
@@ -1266,7 +1268,7 @@ class ThresholdSelectionGridSearch(object):
         return ax
 
 
-def smooth_network(network, observed_compositions, threshold_step=0.5, apex_threshold=0.9,
+def smooth_network(network, observed_compositions, threshold_step=0.5, apex_threshold=0.95,
                    belongingness_matrix=None, rho=DEFAULT_RHO, lambda_max=1,
                    include_missing=False, lmbda=None, model_state=None):
     convert = GlycanCompositionSolutionRecord.from_glycan_composition_chromatogram
