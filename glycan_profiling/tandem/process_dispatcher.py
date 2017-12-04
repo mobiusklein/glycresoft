@@ -125,9 +125,12 @@ class IdentificationProcessDispatcher(TaskBase):
 
         for i in range(self.n_processes):
             worker = self.worker_type(
-                self.input_queue, self.output_queue, self.done_event,
-                self.scorer_type, self.evaluation_args,
-                self.scan_load_map, self.mass_shift_load_map,
+                input_queue=self.input_queue, output_queue=self.output_queue,
+                done_event=self.done_event,
+                scorer_type=self.scorer_type,
+                evaluation_args=self.evaluation_args,
+                spectrum_map=self.scan_load_map,
+                mass_shift_map=self.mass_shift_load_map,
                 log_handler=self.log_controller.sender(), **self.init_args)
             worker.start()
             self.workers.append(worker)
