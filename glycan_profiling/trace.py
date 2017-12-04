@@ -11,7 +11,8 @@ from glycan_profiling.chromatogram_tree import (
     mask_subsequence, DuplicateNodeError, get_chromatogram,
     SimpleChromatogram, find_truncation_points,
     ChromatogramFilter, GlycanCompositionChromatogram, GlycopeptideChromatogram,
-    ChromatogramOverlapSmoother, ChromatogramGraph)
+    ChromatogramOverlapSmoother, ChromatogramGraph,
+    prune_bad_adduct_branches)
 
 from .scan_cache import NullScanCacheHandler
 
@@ -83,59 +84,26 @@ class ScanSink(object):
         return self.next_scan()
 
 
-def span_overlap(self, interval):
-    cond = ((self.start_time <= interval.start_time and self.end_time >= interval.end_time) or (
-        self.start_time >= interval.start_time and self.end_time <= interval.end_time) or (
-        self.start_time >= interval.start_time and self.end_time >= interval.end_time and
-        self.start_time <= interval.end_time) or (
-        self.start_time <= interval.start_time and self.end_time >= interval.start_time) or (
-        self.start_time <= interval.end_time and self.end_time >= interval.end_time))
+def span_overlap(reference, target):
+    """test whether two time Chromatogram objects
+    overlap each other in the time domain
+
+    Parameters
+    ----------
+    reference: Chromatogram
+    target: Chromatogram
+
+    Returns
+    -------
+    bool
+    """
+    cond = ((reference.start_time <= target.start_time and reference.end_time >= target.end_time) or (
+        reference.start_time >= target.start_time and reference.end_time <= target.end_time) or (
+        reference.start_time >= target.start_time and reference.end_time >= target.end_time and
+        reference.start_time <= target.end_time) or (
+        reference.start_time <= target.start_time and reference.end_time >= target.start_time) or (
+        reference.start_time <= target.end_time and reference.end_time >= target.end_time))
     return cond
-
-
-def prune_bad_adduct_branches(solutions, score_margin=0.05, ratio_threshold=1.5):
-    solutions._build_key_map()
-    key_map = solutions._key_map
-    updated = set()
-    for case in solutions:
-        if case.used_as_adduct:
-            keepers = []
-            for owning_key, adduct in case.used_as_adduct:
-                owner = key_map.get(owning_key)
-                if owner is None:
-                    continue
-                owner_item = owner.find_overlap(case)
-                if owner_item is None:
-                    continue
-                is_close = abs(case.score - owner_item.score) < score_margin
-                is_weaker = case.score > owner_item.score
-                # If the owning group is lower scoring, but the scores are close
-                if is_weaker and is_close:
-                    component_signal = case.total_signal
-                    complement_signal = owner_item.total_signal - component_signal
-                    signal_ratio = complement_signal / component_signal
-                    # The owner is more abundant than used-as-adduct-case
-                    if signal_ratio > ratio_threshold:
-                        is_weaker = False
-                # If the scores are close, but the owning group is less abundant,
-                # e.g. more mass shift groups or mass accuracy prevents propagation
-                # of mass shifts
-                elif is_close and (owner_item.total_signal / case.total_signal) < 1:
-                    is_weaker = True
-                if is_weaker:
-                    new_masked = mask_subsequence(get_chromatogram(owner_item), get_chromatogram(case))
-                    new_masked.created_at = "prune_bad_adduct_branches"
-                    new_masked.score = owner_item.score
-                    if len(new_masked) != 0:
-                        owner.replace(owner_item, new_masked)
-                    updated.add(owning_key)
-                else:
-                    keepers.append((owning_key, adduct))
-            case.chromatogram.used_as_adduct = keepers
-    out = [s.chromatogram for k in (set(key_map) - updated) for s in key_map[k]]
-    out.extend(s for k in updated for s in key_map[k])
-    out = ChromatogramFilter(out)
-    return out
 
 
 class CompositionGroup(object):
