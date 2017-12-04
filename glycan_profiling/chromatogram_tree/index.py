@@ -137,6 +137,8 @@ class ChromatogramFilter(object):
             return None
 
     def find_all_by_mass(self, mass, ppm_error_tolerance=1e-5):
+        if len(self) == 0:
+            return ChromatogramFilter([], sort=False)
         center_index, _ = self._binary_search(mass, ppm_error_tolerance)
         low_index = center_index
         while low_index > 0:
@@ -147,7 +149,7 @@ class ChromatogramFilter(object):
 
         n = len(self.chromatograms)
         high_index = center_index - 1
-        while high_index < n:
+        while high_index < n - 1:
             x = self.chromatograms[high_index + 1]
             if abs((mass - x.neutral_mass) / x.neutral_mass) > ppm_error_tolerance:
                 break
