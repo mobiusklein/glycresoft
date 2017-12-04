@@ -14,7 +14,6 @@ from .chromatogram import (
 from . import grouping
 from .grouping import (
     ChromatogramForest, ChromatogramOverlapSmoother,
-    is_sorted, is_sparse, is_sparse_and_disjoint, distill_peaks,
     smooth_overlaps, build_rt_interval_tree)
 
 
@@ -28,3 +27,7 @@ from .index import ChromatogramFilter, DisjointChromatogramSet
 
 from . import relation_graph
 from .relation_graph import ChromatogramGraph
+
+
+from . import mass_shift_tree
+from .mass_shift_tree import (prune_bad_adduct_branches, AdductTreePruner)
