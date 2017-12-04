@@ -175,7 +175,6 @@ class ChromatogramMerger(TaskBase):
         else:
             self.insert_chromatogram(new_chromatogram, index)
         self.count += 1
-        # assert is_sorted(self.chromatograms)
 
     def insert_chromatogram(self, chromatogram, index):
         if index[0] != 0:
@@ -309,52 +308,6 @@ def binary_search_exact(array, mass):
             hi = mid
         else:
             lo = mid
-
-
-def is_sorted(mass_list):
-    i = 0
-    for a, b in zip(mass_list[:-1], mass_list[1:]):
-        if not a.neutral_mass <= b.neutral_mass:
-            print(a.neutral_mass, b.neutral_mass, i)
-            raise ValueError("Not sorted")
-            return False
-        i += 1
-    return True
-
-
-def is_sparse(mass_list):
-    i = 0
-    for a, b in zip(mass_list[:-1], mass_list[1:]):
-        err = (a.neutral_mass - b.neutral_mass) / b.neutral_mass
-        if abs(err) < 1e-5 and a.composition is None:
-            print(a.neutral_mass, b.neutral_mass, err, i)
-            raise ValueError("Not sparse")
-            return False
-        i += 1
-    return True
-
-
-def is_sparse_and_disjoint(chromatogram_list):
-    i = 0
-    n = len(chromatogram_list)
-    for i in range(n - 1):
-        a = chromatogram_list[i]
-        b = chromatogram_list[i + 1]
-        err = (a.neutral_mass - b.neutral_mass) / b.neutral_mass
-        if abs(err) < 1e-5 and a.composition is None and a.overlaps_in_time(b):
-            print(a.neutral_mass, b.neutral_mass, err, i)
-            raise ValueError("Not sparse")
-            return False
-    return True
-
-
-def distill_peaks(chromatograms):
-    peaks = set()
-    for chroma in chromatograms:
-        for node in chroma.nodes.unspool():
-            for peak in node.members:
-                peaks.add((node.scan_id, peak))
-    return peaks
 
 
 def smooth_overlaps(chromatogram_list, error_tolerance=1e-5):
