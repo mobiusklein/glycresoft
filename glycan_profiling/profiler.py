@@ -1,6 +1,3 @@
-import re
-import warnings
-
 from collections import defaultdict
 
 import glypy
