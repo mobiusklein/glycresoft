@@ -626,6 +626,36 @@ class ScanGeneratorBase(object):
     def deconvoluting(self, value):
         self._deconvoluting = value
 
+    _ms1_averaging = 0
+
+    @property
+    def ms1_averaging(self):
+        return self._ms1_averaging
+
+    @ms1_averaging.setter
+    def ms1_averaging(self, value):
+        self._ms1_averaging = value
+
+    _ignore_tandem_scans = False
+
+    @property
+    def ignore_tandem_scans(self):
+        return self._ignore_tandem_scans
+
+    @ignore_tandem_scans.setter
+    def ignore_tandem_scans(self, value):
+        self._ignore_tandem_scans = value
+
+    _extract_only_tandem_envelopes = False
+
+    @property
+    def extract_only_tandem_envelopes(self):
+        return self._extract_only_tandem_envelopes
+
+    @extract_only_tandem_envelopes.setter
+    def extract_only_tandem_envelopes(self, value):
+        self._extract_only_tandem_envelopes = value
+
 
 class ScanGenerator(TaskBase, ScanGeneratorBase):
     def __init__(self, ms_file, number_of_helpers=4,

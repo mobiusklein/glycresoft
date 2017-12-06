@@ -286,6 +286,13 @@ class MzMLScanCacheHandler(ScanCacheHandlerBase):
                 if source.ms1_deconvolution_args.get("scorer"):
                     inst.register_parameter(
                         "parameter: ms1-scorer", repr(source.ms1_deconvolution_args.get("scorer")))
+                if source.ms1_averaging > 0:
+                    inst.register_parameter("parameter: ms1-averaging", repr(source.ms1_averaging))
+                if source.ignore_tandem_scans:
+                    inst.register_parameter("parameter: ignore-tandem-scans", "")
+                if source.extract_only_tandem_envelopes:
+                    inst.register_parameter("parameter: extract-only-tandem-envelopes", "")
+
             if source.msn_peak_picking_args is not None:
                 for trans in source.msn_peak_picking_args.get("transforms"):
                     inst.register_parameter("parameter: msn-%s" % trans.__class__.__name__, repr(trans))
