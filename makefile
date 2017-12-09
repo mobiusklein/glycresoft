@@ -4,12 +4,12 @@ test:
 	py.test -v  glycan_profiling --cov=glycan_profiling --cov-report=html -s
 
 retest:
-	py.test -v  glycan_profiling --lf	
+	py.test -v  glycan_profiling --lf
 
 clean:
 	rm -rf build/ dist/ pyinstaller/build/ pyinstaller/dist pyinstaller/gitsrc/
 	coverage erase
-	
+
 
 build-pyinstaller:
 	cd pyinstaller && bash make-pyinstaller.sh
@@ -24,7 +24,8 @@ install-dependencies:
 	pip install --upgrade pip setuptools wheel
 	pip install Cython --install-option="--no-cython-compile"
 	pip install lxml pyteomics brain-isotopic-distribution
-	pip install --only-binary=numpy,scipy numpy scipy
+	pip install --only-binary=numpy numpy
+	pip install --only-binary=scipy "scipy<1.0.0"
 	pip install -r external-requirements.txt
 	python pyinstaller/install-from-git.py
 	python setup.py install

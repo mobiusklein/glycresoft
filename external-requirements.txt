@@ -4,7 +4,7 @@ six
 sqlalchemy
 
 numpy
-scipy
+scipy<1.0.0
 matplotlib
 
 pyteomics
