@@ -11,6 +11,8 @@ except ImportError:
     from queue import Queue, Empty as QueueEmptyException
 
 from ms_deisotope.data_source import MSFileLoader
+from ms_deisotope.data_source.metadata.file_information import (
+    SourceFile as MetadataSourceFile)
 
 from ms_deisotope.output.mzml import MzMLScanSerializer
 
@@ -264,12 +266,15 @@ class MzMLScanCacheHandler(ScanCacheHandlerBase):
             deconvoluting = source.deconvoluting
             inst = cls(path, sample_name, n_spectra=n_spectra, deconvoluted=deconvoluting)
             description = reader.file_description()
+            source_file_metadata = MetadataSourceFile.from_path(source.scan_source)
             inst.serializer.add_file_information(description)
             try:
                 inst.serializer.remove_file_contents("profile spectrum")
             except KeyError:
                 pass
             inst.serializer.add_file_contents("centroid spectrum")
+            if source_file_metadata not in description.source_files:
+                inst.serializer.add_source_file(source_file_metadata)
             try:
                 instrument_configs = reader.instrument_configuration()
                 for config in instrument_configs:
