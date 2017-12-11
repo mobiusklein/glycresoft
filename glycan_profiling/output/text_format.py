@@ -58,7 +58,7 @@ class AnnotatedMGFSerializer(mgf.MGFSerializer):
         self.add_parameter("precursor_defaulted", header_dict['defaulted'])
         self.add_parameter("activation_method", header_dict['precursor_activation_method'])
         self.add_parameter("activation_energy", header_dict['precursor_activation_energy'])
-        self.add_parameter("analyzer", header_dict.get('analyzer'))
+        self.add_parameter("analyzers", header_dict.get('analyzers'))
         self.add_parameter("scan_id", header_dict['id'])
         self.add_parameter("precursor_scan_id", header_dict['precursor_scan_id'])
         for key, value in header_dict['annotations'].items():
