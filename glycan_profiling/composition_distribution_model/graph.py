@@ -105,28 +105,34 @@ def scale_network(network, maximum):
 
 
 class BlockLaplacian(object):
-    def __init__(self, network, threshold=0.0001, regularize=1.0):
+    def __init__(self, network=None, threshold=0.0001, regularize=1.0):
+        self.regularize = regularize
+        self.threshold = threshold
+        if network is not None:
+            self._build_from_network(network)
+
+    def _build_from_network(self, network):
         structure_matrix = weighted_laplacian_matrix(network)
-        structure_matrix = structure_matrix + (np.eye(structure_matrix.shape[0]) * regularize)
-        observed_indices, missing_indices = network_indices(network, threshold)
-
-        oo_block = structure_matrix[observed_indices, :][:, observed_indices]
-        om_block = structure_matrix[observed_indices, :][:, missing_indices]
-        mo_block = structure_matrix[missing_indices, :][:, observed_indices]
-        mm_block = structure_matrix[missing_indices, :][:, missing_indices]
-
-        self.matrix = structure_matrix
-        self.blocks = {"oo": oo_block, "om": om_block, "mo": mo_block, "mm": mm_block}
+        structure_matrix = structure_matrix + (np.eye(
+            structure_matrix.shape[0]) * self.regularize)
+        observed_indices, missing_indices = network_indices(network, self.threshold)
 
         self.obs_ix = observed_indices
         self.miss_ix = missing_indices
+
+        self.matrix = structure_matrix
+        self.blocks = self._blocks_from(structure_matrix)
 
         self.L_mm_inv = np.linalg.inv(self['mm'])
         self.L_oo_inv = np.linalg.pinv(
             self["oo"] - (self['om'].dot(self.L_mm_inv).dot(self['mo'])))
 
-        self.regularize = regularize
-        self.threshold = threshold
+    def _blocks_from(self, matrix):
+        oo_block = matrix[self.obs_ix, :][:, self.obs_ix]
+        om_block = matrix[self.obs_ix, :][:, self.miss_ix]
+        mo_block = matrix[self.miss_ix, :][:, self.obs_ix]
+        mm_block = matrix[self.miss_ix, :][:, self.miss_ix]
+        return {"oo": oo_block, "om": om_block, "mo": mo_block, "mm": mm_block}
 
     def __getitem__(self, k):
         return self.blocks[k]
