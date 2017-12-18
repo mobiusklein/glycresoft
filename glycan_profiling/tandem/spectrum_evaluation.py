@@ -227,15 +227,14 @@ class TandemClusterEvaluatorBase(TaskBase):
                         # hit_map[hit.id] = hit
                 if report:
                     self.log("... Mapping Segment Done. (%d spectrum-pairs)" % (j,))
-        # return scan_map, hit_map, hit_to_scan
-        self.log("... Computing Workload Graph")
-        try:
-            with open("worklog.txt", 'a') as f:
-                f.write("\n#GENERATION\n%s\n" % (workload,))
-                workload.log_workloads(f)
-        except IOError as e:
-            self.error("An error occurred while trying to write workload log", e)
-        self.log("... Workload Graph Traversed")
+        # self.log("... Computing Workload Graph")
+        # try:
+        #     with open("worklog.txt", 'a') as f:
+        #         f.write("\n#GENERATION\n%s\n" % (workload,))
+        #         workload.log_workloads(f)
+        # except IOError as e:
+        #     self.error("An error occurred while trying to write workload log", e)
+        # self.log("... Workload Graph Traversed")
         return workload
 
     def _evaluate_hit_groups_single_process(self, workload, *args, **kwargs):

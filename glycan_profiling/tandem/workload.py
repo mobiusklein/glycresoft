@@ -38,15 +38,53 @@ class WorkloadManager(object):
         self._scan_graph = None
 
     def add_scan(self, scan):
+        """Register a Scan-like object for tracking
+
+        Parameters
+        ----------
+        scan : Scan-like
+        """
         self.scan_map[scan.id] = scan
 
     def add_scan_hit(self, scan, hit, hit_type=Unmodified.name):
+        """Register a matching relationship between ``scan`` and ``hit``
+        with a mass shift of type ``hit_type``
+
+        Parameters
+        ----------
+        scan : Scan-like
+            The scan that was matched
+        hit : StructureRecord-like
+            The structure that was matched
+        hit_type : str, optional
+            The name of the :class:`.MassShift` that was used to
+            bridge the total mass of the match.
+        """
         self.hit_map[hit.id] = hit
         self.hit_to_scan_map[hit.id].append(scan)
         self.scan_to_hit_map[scan.id].append(hit.id)
         self.scan_hit_type_map[scan.id, hit.id] = hit_type
 
     def build_scan_graph(self, recompute=False):
+        """Constructs a graph of scans where scans
+        with common hits are conneted by an edge.
+
+        This can be used to determine the set of scans
+        which all depend upon the same structures and
+        so should be processed together to minimize the
+        amount of work done to recompute fragments.
+
+        Parameters
+        ----------
+        recompute : bool, optional
+            If recompute is True, the graph will be built
+            from scratch, ignoring the cached copy if it
+            exists.
+
+        Returns
+        -------
+        ScanGraph
+        """
         if self._scan_graph is not None and not recompute:
             return self._scan_graph
         graph = ScanGraph(self.scan_map.values())
@@ -59,6 +97,18 @@ class WorkloadManager(object):
         return graph
 
     def compute_workloads(self):
+        """Determine how much work is needed to evaluate all matches
+        to a set of common scans.
+
+        Construct a dependency graph relating scans and hit
+        structures using :meth:`build_scan_graph` and build connected components.
+
+        Returns
+        -------
+        list
+            A list of tuples, each tuple containing a connected component and
+            the number of comparisons contained in that component.
+        """
         graph = self.build_scan_graph()
         components = graph.connected_components()
         workloads = []
@@ -67,14 +117,42 @@ class WorkloadManager(object):
         return workloads
 
     def total_work_required(self, workloads=None):
+        """Compute the total amount of work required to
+        resolve this complete workload
+
+        Parameters
+        ----------
+        workloads : list, optional
+            The precomputed workload graph clusters. If None, they will
+            be computed with :meth:`compute_workloads`
+
+        Returns
+        -------
+        int
+            The amount of work contained in this load, or 1
+            if the workload is empty.
+        """
         if workloads is None:
             workloads = self.compute_workloads()
-        total = 0
+        total = 1
         for m, w in workloads:
             total += w
+        if total > 1:
+            total -= 1
         return total
 
     def log_workloads(self, handle, workloads=None):
+        """Writes the current workload graph cluster sizes to a text file
+        for diagnostic purposes
+
+        Parameters
+        ----------
+        handle : file-like
+            The file to write the workload graph cluster sizes to
+        workloads : list, optional
+            The precomputed workload graph clusters. If None, they will
+            be computed with :meth:`compute_workloads`
+        """
         if workloads is None:
             workloads = self.compute_workloads()
         workloads = sorted(workloads, key=lambda x: x[0][0].precursor_information.neutral_mass,
@@ -106,6 +184,23 @@ class WorkloadManager(object):
                     'scan_hit_type_map']))
 
     def batches(self, max_size=15e4):
+        """Partition the workload into batches of approximately
+        ``max_size`` comparisons.
+
+        This guarantee is only approximate because a batch will
+        only be broken at the level of a scan.
+
+        Parameters
+        ----------
+        max_size : float, optional
+            The maximum size of a workload
+
+        Yields
+        ------
+        WorkloadBatch
+            self-contained work required for a set of related scans
+            whose total work is approximately ``max_size``
+        """
         current_batch_size = 0
         current_scan_map = dict()
         current_hit_map = dict()
