@@ -71,6 +71,7 @@ class ChromatogramProcessor(TaskBase):
             adducts=self.adducts, delta_rt=self.delta_rt)
         self.accepted_solutions = self.evaluator.acceptance_filter(self.solutions)
         self.log("End Evaluating Chromatograms")
+        return self.accepted_solutions
 
     def run(self):
         matches = self.match_compositions()
