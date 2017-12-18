@@ -7,6 +7,9 @@ from glycopeptidepy.structure.sequence import PeptideSequence
 from glycopeptidepy.structure.parser import sequence_tokenizer
 from glycopeptidepy.algorithm import reverse_preserve_sequon
 from glycopeptidepy.structure.glycan import HashableGlycanComposition
+from glycopeptidepy.structure.fragmentation_strategy import StubGlycopeptideStrategy
+from glypy.structure.glycan_composition import FrozenMonosaccharideResidue
+
 
 from .lru import LRUCache
 
@@ -273,12 +276,48 @@ class CachingGlycopeptideParser(object):
         return self.parse(value)
 
 
+class DecoyFragmentCachingGlycopeptide(FragmentCachingGlycopeptide):
+
+    stub_length_threshold = 10
+    use_legacy_stub_method = True
+
+    def stub_fragments(self, *args, **kwargs):
+        key = ('stub_fragments', args, frozenset(kwargs.items()))
+        try:
+            return self.fragment_caches[key]
+        except KeyError:
+            if (len(self) > self.stub_length_threshold) or self.use_legacy_stub_method:
+                result = list(super(FragmentCachingGlycopeptide, self).stub_fragments(*args, **kwargs))
+            else:
+                result = list(DecoyShiftingStubGlycopeptideStrategy(self, *args, **kwargs))
+            self.fragment_caches[key] = result
+            return result
+
+
 class DecoyMakingCachingGlycopeptideParser(CachingGlycopeptideParser):
 
     def _make_new_value(self, struct):
-        value = FragmentCachingGlycopeptide(str(reverse_preserve_sequon(struct.glycopeptide_sequence)))
+        value = DecoyFragmentCachingGlycopeptide(str(reverse_preserve_sequon(struct.glycopeptide_sequence)))
         value.id = struct.id
         value.protein_relation = PeptideProteinRelation(
             struct.start_position, struct.end_position,
             struct.protein_id, struct.hypothesis_id)
         return value
+
+
+class DecoyMonosaccharideResidue(FrozenMonosaccharideResidue):
+    _delta = 3.0
+    __cache = {}
+
+    @classmethod
+    def get_cache(self):
+        return self.__cache
+
+    def mass(self, *args, **kwargs):
+        return super(DecoyMonosaccharideResidue, self).mass(*args, **kwargs) + self._delta
+
+
+class DecoyShiftingStubGlycopeptideStrategy(StubGlycopeptideStrategy):
+
+    def _prepare_monosaccharide(self, name):
+        return DecoyMonosaccharideResidue.from_iupac_lite(name)
