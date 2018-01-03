@@ -9,7 +9,7 @@ from glycan_profiling.structure import (
     CachingGlycopeptideParser,
     DecoyMakingCachingGlycopeptideParser)
 
-from .scoring import TargetDecoyAnalyzer
+from .scoring import GroupwiseTargetDecoyAnalyzer
 
 from ..spectrum_evaluation import TandemClusterEvaluatorBase, DEFAULT_BATCH_SIZE
 from ..process_dispatcher import SpectrumIdentificationWorkerBase
@@ -489,7 +489,8 @@ class GlycopeptideDatabaseSearchIdentifier(TaskBase):
     def target_decoy(self, target_hits, decoy_hits, with_pit=False, *args, **kwargs):
         self.log("Running Target Decoy Analysis with %d targets and %d decoys" % (
             len(target_hits), len(decoy_hits)))
-        tda = TargetDecoyAnalyzer(target_hits, decoy_hits, *args, with_pit=with_pit, **kwargs)
+        tda = GroupwiseTargetDecoyAnalyzer(
+            target_hits, decoy_hits, *args, with_pit=with_pit, **kwargs)
         tda.q_values()
         for sol in target_hits:
             for hit in sol:
