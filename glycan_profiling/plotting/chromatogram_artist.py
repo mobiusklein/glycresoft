@@ -297,7 +297,13 @@ class ChromatogramArtist(ArtistBase):
         self._interpolate_xticks(self.minimum_ident_time, self.maximum_ident_time)
         self.ax.set_ylim(0, self.maximum_intensity * 1.25)
         if legend:
-            self.legend = self.ax.legend(bbox_to_anchor=(1.2, 1.), ncol=2, fontsize=10)
+            try:
+                self.legend = self.ax.legend(bbox_to_anchor=(1.2, 1.), ncol=2, fontsize=10)
+            except ValueError:
+                # matplotlib 2.1.1 bug compares array-like colors using == and expects a
+                # scalar boolean, triggering a ValueError. When this happens, we can't
+                # render a legend.
+                self.legend = None
         self.ax.axes.spines['right'].set_visible(False)
         self.ax.axes.spines['top'].set_visible(False)
         self.ax.yaxis.tick_left()
