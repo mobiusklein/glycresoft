@@ -229,7 +229,8 @@ class GlycopeptideDatabaseSearchReportCreator(ReportCreatorBase):
             height=2, width=6 * 1.5, patchless=True)
         return dict(
             spectrum_plot=spectrum_plot, logo_plot=logo_plot,
-            precursor_mass_accuracy=match.precursor_mass_accuracy())
+            precursor_mass_accuracy=match.precursor_mass_accuracy(),
+            spectrum_match=match)
 
     def track_entry(self, glycopeptide):
         self._glycopeptide_counter += 1

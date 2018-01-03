@@ -70,7 +70,7 @@
         <div class='flex-item centered'>
             {{renderer.chromatogram_plot(glycopeptide)|safe}}
         </div>
-        <div class='flex-item centered'>
+        <div class='flex-item centered' scan-id="{{spectral_match_info.match.scan.scan_id}}">
             {{spectral_match_info.spectrum_plot|safe}}
         </div>
     </div>
