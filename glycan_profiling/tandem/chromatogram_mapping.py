@@ -41,6 +41,24 @@ class TandemAnnotatedChromatogram(ChromatogramWrapper, SpectrumMatchSolutionColl
         self.time_displaced_assignments = []
         self.best_msms_score = None
 
+    def bisect_charge(self, charge):
+        new_charge, new_no_charge = map(self.__class__, self.chromatogram.bisect_charge(charge))
+        for hit in self.tandem_solutions:
+            if hit.precursor_information.charge == charge:
+                new_charge.add_solution(hit)
+            else:
+                new_no_charge.add_solution(hit)
+        return new_charge, new_no_charge
+
+    def bisect_adduct(self, adduct):
+        new_adduct, new_no_adduct = map(self.__class__, self.chromatogram.bisect_adduct(adduct))
+        for hit in self.tandem_solutions:
+            if hit.best_solution().mass_shift == adduct:
+                new_adduct.add_solution(hit)
+            else:
+                new_no_adduct.add_solution(hit)
+        return new_adduct, new_no_adduct
+
     def add_solution(self, item):
         case_mass = item.precursor_information.neutral_mass
         if abs(case_mass - self.chromatogram.neutral_mass) > 100:
@@ -57,6 +75,7 @@ class TandemAnnotatedChromatogram(ChromatogramWrapper, SpectrumMatchSolutionColl
         new.best_msms_score = self.best_msms_score
 
     def merge(self, other):
+        # this logic needs to be tested with multiple adducts on self and other
         mass_shift = sorted((set(other.adducts) - set(self.adducts)), key=lambda x: x.mass)
         if mass_shift:
             mass_shift = mass_shift[0]
