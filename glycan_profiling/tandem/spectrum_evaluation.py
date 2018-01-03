@@ -44,7 +44,7 @@ class TandemClusterEvaluatorBase(TaskBase):
 
     def __init__(self, tandem_cluster, scorer_type, structure_database, verbose=False,
                  n_processes=1, ipc_manager=None, probing_range_for_missing_precursors=3,
-                 mass_shifts=None, batch_size=DEFAULT_BATCH_SIZE):
+                 mass_shifts=None, batch_size=DEFAULT_BATCH_SIZE, trust_precursor_fits=True):
         if mass_shifts is None:
             mass_shifts = [Unmodified]
         self.tandem_cluster = tandem_cluster
@@ -59,6 +59,7 @@ class TandemClusterEvaluatorBase(TaskBase):
             m.name: m for m in self.mass_shifts
         }
         self.batch_size = batch_size
+        self.trust_precursor_fits = trust_precursor_fits
 
     def search_database_for_precursors(self, mass, precursor_error_tolerance=1e-5):
         return self.structure_database.search_mass_ppm(mass, precursor_error_tolerance)
@@ -97,7 +98,7 @@ class TandemClusterEvaluatorBase(TaskBase):
             mass_shifts = (Unmodified,)
         solutions = []
 
-        if not scan.precursor_information.defaulted:
+        if (not scan.precursor_information.defaulted and self.trust_precursor_fits):
             probe = 0
         else:
             probe = self.probing_range_for_missing_precursors
@@ -213,7 +214,7 @@ class TandemClusterEvaluatorBase(TaskBase):
                     # could easily throw the mass interval cache scheme into hysteresis.
                     # If this does occur, instead of doing this here, we could search all
                     # defaulted precursors afterwards.
-                    if not scan.precursor_information.defaulted:
+                    if not scan.precursor_information.defaulted and self.trust_precursor_fits:
                         probe = 0
                     else:
                         probe = self.probing_range_for_missing_precursors
