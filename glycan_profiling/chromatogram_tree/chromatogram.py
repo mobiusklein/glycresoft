@@ -982,6 +982,9 @@ class ChromatogramWrapper(_TimeIntervalMethods):
     def is_distinct(self, other):
         return self.chromatogram.is_distinct(get_chromatogram(other))
 
+    def adduct_signal_fractions(self):
+        return self.chromatogram.adduct_signal_fractions()
+
 
 ChromatogramInterface.register(ChromatogramWrapper)
 
