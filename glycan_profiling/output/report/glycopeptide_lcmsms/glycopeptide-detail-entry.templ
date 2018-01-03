@@ -1,6 +1,6 @@
 {% set spectral_match_info=renderer.spectrum_match_info(glycopeptide) %}
 <section class='glycopeptide-detail-container' id='detail-glycopeptide-{{glycopeptide.id}}'
-         data-index="{{renderer.track_entry(glycopeptide)}}">
+         data-index="{{renderer.track_entry(glycopeptide)}}" data-structure="{{glycopeptide.structure}}">
     <h3>{{glycopeptide.structure | glycopeptide_string}}</h3>
     <div class="flex-container">
         <div class='flex-item'>
@@ -51,6 +51,16 @@
                     </tr>
                 </tbody>
             </table>
+            <div>
+                <b>Adduct Signal Fractions</b>
+                <ul class='adduct-signal-fraction-list' style='margin-top:0px;'>
+                {% for adduct, fraction in glycopeptide.chromatogram.adduct_signal_fractions().items() %}
+                    <li class='adduct-signal-fraction-item' style='margin-left:10px;'>
+                        <b>{{adduct.name}}</b>: {{"%0.4e" % fraction}}
+                    </li>
+                {% endfor %}
+                </ul>
+            </div>
         </div>
         <div class='flex-item centered'>
             {{spectral_match_info.logo_plot|safe}}
