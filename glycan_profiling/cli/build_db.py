@@ -53,7 +53,7 @@ from glycan_profiling.database.composition_network import (
     CompositionRangeRule,
     CompositionRatioRule,
     CompositionRuleClassifier,
-    CompositionExpressionRule)
+    CompositionExpressionRule, make_n_glycan_neighborhoods)
 
 from glycopeptidepy.utils.collectiontools import decoratordict
 from glycopeptidepy.structure.modification import RestrictedModificationTable
@@ -479,7 +479,7 @@ def prebuilt_glycan(context, database_connection, recipe_name, name, reduction, 
            derivatization=derivatization)
 
 
-@build_hypothesis.group("glycan-network")
+@build_hypothesis.group("glycan-network", short_help='Build and manipulate glycan network definitions')
 def glycan_network_tools():
     pass
 
@@ -515,7 +515,36 @@ def glycan_network(context, database_connection, hypothesis_identifier, edge_str
         GraphWriter(graph, output_stream)
 
 
-@glycan_network_tools.command("add-neighborhood")
+@glycan_network_tools.command("add-prebuilt-neighborhoods", short_help=(
+    "Add a set of neighborhoods with built-in rules"))
+@click.pass_context
+@click.option("-i", "--input-path", type=click.Path(dir_okay=False), default=None)
+@click.option("-o", "--output-path", type=click.Path(dir_okay=False, writable=True),
+              default=None)
+@click.option("-n", "--name", help='Set the neighborhood name', type=click.Choice(["n-glycan"]), required=True)
+def add_prebuild_neighborhoods_to_network(context, input_path, output_path, name):
+    if input_path is None:
+        input_stream = ctxstream(sys.stdin)
+    else:
+        input_stream = open(input_path, 'r')
+    with input_stream:
+        graph = GraphReader(input_stream).network
+    if name == 'n-glycan':
+        neighborhoods = make_n_glycan_neighborhoods()
+    else:
+        raise LookupError(name)
+    for n in neighborhoods:
+        graph.neighborhoods.add(n)
+    if output_path is None:
+        output_stream = ctxstream(sys.stdout)
+    else:
+        output_stream = open(output_path, 'w')
+    with output_stream:
+        GraphWriter(graph, output_stream)
+
+
+@glycan_network_tools.command("add-neighborhood", short_help=(
+    'Add a neighborhood definition to a glycan network'))
 @click.pass_context
 @click.option("-i", "--input-path", type=click.Path(dir_okay=False), default=None)
 @click.option("-o", "--output-path", type=click.Path(dir_okay=False, writable=True),
@@ -567,7 +596,8 @@ def add_neighborhood_to_network(context, input_path, output_path, name, range_ru
         GraphWriter(graph, output_stream)
 
 
-@glycan_network_tools.command("remove-neighborhood")
+@glycan_network_tools.command("remove-neighborhood", short_help=(
+    'Remove a neighborhood definition to a glycan network'))
 @click.pass_context
 @click.option("-i", "--input-path", type=click.Path(dir_okay=False), default=None)
 @click.option("-o", "--output-path", type=click.Path(dir_okay=False, writable=True),

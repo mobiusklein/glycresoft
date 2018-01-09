@@ -175,9 +175,9 @@ def preprocess(ms_file, outfile_path, averagine=None, start_time=None, end_time=
 
     if mass_offset != 0.0:
         ms1_peak_picking_args['transforms'].append(
-                ms_peak_picker.scan_filter.RecalibrateMass(offset=mass_offset))
+            ms_peak_picker.scan_filter.RecalibrateMass(offset=mass_offset))
         msn_peak_picking_args['transforms'].append(
-                ms_peak_picker.scan_filter.RecalibrateMass(offset=mass_offset))
+            ms_peak_picker.scan_filter.RecalibrateMass(offset=mass_offset))
 
     if deconvolute:
         if len(averagine) == 1:
@@ -299,4 +299,4 @@ def peak_picker(ctx, ms_file, outfile_path, start_time=None, end_time=None,
                 name=None, background_reduction=5., msn_background_reduction=0.,
                 transform=None, msn_transform=None, processes=4, extract_only_tandem_envelopes=False,
                 mzml=True, profile=False,):
-    ctx.forward(preprocess,deconvolute=False)
+    ctx.forward(preprocess, deconvolute=False)

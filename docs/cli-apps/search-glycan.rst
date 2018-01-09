@@ -46,7 +46,8 @@ At this time, adduction models do not have any interaction with charge state.
 Network Regularization
 ----------------------
 
-This feature is experimental. Do not use it yet.
+Apply network smoothing by laplacian regularization to the glycan composition identification
+scores. 
 
 
 MS/MS Signatures
