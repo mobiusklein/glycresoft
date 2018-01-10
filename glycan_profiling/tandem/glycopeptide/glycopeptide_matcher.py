@@ -113,7 +113,7 @@ class TargetDecoyInterleavingGlycopeptideMatcher(TandemClusterEvaluatorBase):
     def filter_for_oxonium_ions(self, error_tolerance=1e-5):
         keep = []
         for scan in self.tandem_cluster:
-            ratio = gscore_scanner(scan.deconvoluted_peak_set)
+            ratio = gscore_scanner(peak_list=scan.deconvoluted_peak_set, error_tolerance=error_tolerance)
             scan.oxonium_score = ratio
             if ratio >= self.minimum_oxonium_ratio:
                 keep.append(scan)
@@ -190,7 +190,7 @@ class TargetDecoyInterleavingGlycopeptideMatcher(TandemClusterEvaluatorBase):
         target_out = []
         decoy_out = []
 
-        self.filter_for_oxonium_ions()
+        self.filter_for_oxonium_ions(**kwargs)
         target_out, decoy_out = self.score_bunch(
             self.tandem_cluster, precursor_error_tolerance,
             simplify=simplify, *args, **kwargs)
