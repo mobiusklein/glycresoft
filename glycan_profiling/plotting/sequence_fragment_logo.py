@@ -51,13 +51,17 @@ class SequenceGlyph(object):
         self.sequence = peptide
         self.ax = ax
         self.size = size
-        self.step_coefficient = 1.0
+        self.step_coefficient = step_coefficient
         self.sequence_position_glyphs = []
         self.x = kwargs.get('x', 1)
         self.y = kwargs.get('y', 1)
         self.options = kwargs
 
         self.render()
+
+    def make_position_glyph(self, position, i, x, y, size):
+        glyph = SequencePositionGlyph(position, i, x, y, size=size)
+        return glyph
 
     def render(self):
         ax = self.ax
@@ -73,7 +77,7 @@ class SequenceGlyph(object):
         glyphs = self.sequence_position_glyphs = []
         i = 0
         for position in self.sequence:
-            glyph = SequencePositionGlyph(position, i, x, y, size=size)
+            glyph = self.make_position_glyph(position, i, x, y, size=size)
             glyph.render(ax)
             glyphs.append(glyph)
             x += size * self.step_coefficient
