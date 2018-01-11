@@ -12,6 +12,15 @@ from psims.controlled_vocabulary import controlled_vocabulary as cv
 CONFIG_DIR = click.get_app_dir("glycresoft")
 if not os.path.exists(CONFIG_DIR):
     os.makedirs(CONFIG_DIR)
+    cv_store = os.path.join(CONFIG_DIR, 'cv')
+
+    # Pre-populate OBO Cache to avoid needing to look these up
+    # by URL later
+    os.makedirs(cv_store)
+    with open(os.path.join(cv_store, 'psi-ms.obo'), 'wb') as fh:
+        fh.write(cv._use_vendored_psims_obo().read())
+    with open(os.path.join(cv_store, 'unit.obo'), 'wb') as fh:
+        fh.write(cv._use_vendored_unit_obo().read())
 
 if platform.system().lower() != 'windows':
     os.environ["NOWAL"] = "1"
