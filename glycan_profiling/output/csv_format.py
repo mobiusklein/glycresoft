@@ -200,6 +200,7 @@ class GlycopeptideSpectrumMatchAnalysisCSVSerializer(CSVSerializerBase):
             "neutral_mass",
             "mass_accuracy",
             "scan_id",
+            "scan_time",
             "charge",
             "ms2_score",
             "q_value",
@@ -217,6 +218,7 @@ class GlycopeptideSpectrumMatchAnalysisCSVSerializer(CSVSerializerBase):
             ((obj.target.total_mass - precursor_mass
               ) / precursor_mass),
             obj.scan.scan_id,
+            obj.scan.scan_time,
             obj.scan.precursor_information.extracted_charge,
             obj.score,
             obj.q_value,
