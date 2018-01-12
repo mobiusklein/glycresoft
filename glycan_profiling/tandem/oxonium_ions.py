@@ -51,24 +51,30 @@ class OxoniumIonScanner(object):
             ions_to_search = _standard_oxonium_ions
         self.ions_to_search = ions_to_search
 
-    def scan(self, peak_list, charge=0, error_tolerance=2e-5):
+    def scan(self, peak_list, charge=0, error_tolerance=2e-5, minimum_mass=0):
         matches = []
         for ion in self.ions_to_search:
+            if ion.mass() < minimum_mass:
+                continue
             match = peak_list.has_peak(
                 ion.mass(charge=charge), error_tolerance)
             if match is not None:
                 matches.append(match)
         return matches
 
-    def ratio(self, peak_list, charge=0, error_tolerance=2e-5):
-        maximum = max(p.intensity for p in peak_list)
+    def ratio(self, peak_list, charge=0, error_tolerance=2e-5, minimum_mass=0):
+        try:
+            maximum = max(p.intensity for p in peak_list)
+        except ValueError:
+            return 0
         oxonium = sum(
-            p.intensity / maximum for p in self.scan(peak_list, charge, error_tolerance))
-        n = len(self.ions_to_search)
+            p.intensity / maximum for p in self.scan(
+                peak_list, charge, error_tolerance, minimum_mass))
+        n = len([i for i in self.ions_to_search if i.mass() > minimum_mass])
         return oxonium / n
 
-    def __call__(self, peak_list, charge=0, error_tolerance=2e-5):
-        return self.ratio(peak_list, charge, error_tolerance)
+    def __call__(self, peak_list, charge=0, error_tolerance=2e-5, minimum_mass=0):
+        return self.ratio(peak_list, charge, error_tolerance, minimum_mass)
 
 
 oxonium_detector = OxoniumIonScanner()
