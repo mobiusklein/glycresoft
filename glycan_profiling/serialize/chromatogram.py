@@ -22,6 +22,7 @@ from glycan_profiling.chromatogram_tree import (
     ChromatogramInterface)
 
 from glycan_profiling.chromatogram_tree.chromatogram import MIN_POINTS_FOR_CHARGE_STATE
+from glycan_profiling.chromatogram_tree.utils import ArithmeticMapping
 
 from glycan_profiling.scoring import (
     ChromatogramSolution as MemoryChromatogramSolution)
@@ -379,7 +380,7 @@ class Chromatogram(Base, BoundToAnalysis):
         session = object_session(self)
         return self._adducts_query(session)
 
-    def _adducts_query(self, session):
+    def _adducts_query_inner(self, session):
         anode = alias(ChromatogramTreeNode.__table__)
         bnode = alias(ChromatogramTreeNode.__table__)
         apeak = alias(DeconvolutedPeak.__table__)
@@ -402,6 +403,11 @@ class Chromatogram(Base, BoundToAnalysis):
             bnode, ChromatogramTreeNodeBranch.parent_id == bnode.c.id).join(
             ChromatogramToChromatogramTreeNode,
             ChromatogramToChromatogramTreeNode.c.node_id == bnode.c.id)
+        return root_peaks_join, branch_peaks_join, anode, bnode, apeak
+
+    def _adducts_query(self, session):
+        (root_peaks_join, branch_peaks_join,
+         anode, bnode, apeak) = self._adducts_query_inner(session)
 
         branch_node_info = select([anode.c.node_type_id, anode.c.retention_time]).where(
             ChromatogramToChromatogramTreeNode.c.chromatogram_id == self.id
@@ -424,6 +430,31 @@ class Chromatogram(Base, BoundToAnalysis):
         for ntid in node_type_ids:
             node_types.append(session.query(CompoundMassShift).get(ntid).convert())
         return node_types
+
+    def adduct_signal_fractions(self):
+        session = object_session(self)
+        return self._adduct_signal_fraction_query(session)
+
+    def _adduct_signal_fraction_query(self, session):
+        (root_peaks_join, branch_peaks_join,
+         anode, bnode, apeak) = self._adducts_query_inner(session)
+        root_node_info = select([anode.c.node_type_id, anode.c.retention_time, apeak.c.intensity]).where(
+            ChromatogramToChromatogramTreeNode.c.chromatogram_id == self.id
+        ).select_from(root_peaks_join)
+
+        branch_node_info = select([anode.c.node_type_id, anode.c.retention_time, apeak.c.intensity]).where(
+            ChromatogramToChromatogramTreeNode.c.chromatogram_id == self.id
+        ).select_from(branch_peaks_join)
+
+        all_node_info_q = root_node_info.union_all(branch_node_info).order_by(anode.c.retention_time)
+        acc = ArithmeticMapping()
+        for r in session.execute(all_node_info_q):
+            acc[r.node_type_id] += r.intensity
+
+        acc = ArithmeticMapping(
+            {(session.query(CompoundMassShift).get(ntid).convert()): signal
+             for ntid, signal in acc.items()})
+        return acc
 
     def get_chromatogram(self):
         return self
@@ -693,6 +724,12 @@ class ChromatogramWrapper(object):
             return self._get_chromatogram().adducts
         except MissingChromatogramError:
             return []
+
+    def adduct_signal_fractions(self):
+        try:
+            return self._get_chromatogram().adduct_signal_fractions()
+        except MissingChromatogramError:
+            return ArithmeticMapping()
 
     @property
     def weighted_neutral_mass(self):

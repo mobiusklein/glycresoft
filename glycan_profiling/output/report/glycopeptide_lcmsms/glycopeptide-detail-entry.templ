@@ -52,6 +52,7 @@
                 </tbody>
             </table>
             <div>
+                {% if glycopeptide.chromatogram is not none %}
                 <b>Adduct Signal Fractions</b>
                 <ul class='adduct-signal-fraction-list' style='margin-top:0px;'>
                 {% for adduct, fraction in glycopeptide.chromatogram.adduct_signal_fractions().items() %}
@@ -60,6 +61,7 @@
                     </li>
                 {% endfor %}
                 </ul>
+                {% endif %}
             </div>
         </div>
         <div class='flex-item centered'>
@@ -70,7 +72,7 @@
         <div class='flex-item centered'>
             {{renderer.chromatogram_plot(glycopeptide)|safe}}
         </div>
-        <div class='flex-item centered' scan-id="{{spectral_match_info.match.scan.scan_id}}">
+        <div class='flex-item centered' scan-id="{{spectral_match_info.spectrum_match.scan.scan_id}}">
             {{spectral_match_info.spectrum_plot|safe}}
         </div>
     </div>
