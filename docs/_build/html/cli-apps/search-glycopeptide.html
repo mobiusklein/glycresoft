@@ -1,16 +1,13 @@
+
 <!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
   "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
-
 
 <html xmlns="http://www.w3.org/1999/xhtml">
   <head>
     <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
-    
     <title>Searching a Processed Sample with a Glycopeptide Database &#8212; glycresoft  documentation</title>
-    
     <link rel="stylesheet" href="../_static/alabaster.css" type="text/css" />
     <link rel="stylesheet" href="../_static/pygments.css" type="text/css" />
-    
     <script type="text/javascript">
       var DOCUMENTATION_OPTIONS = {
         URL_ROOT:    '../',
@@ -35,7 +32,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=0.9, maximum-scale=0.9" />
 
   </head>
-  <body role="document">
+  <body>
   <div class="document">
     
       <div class="sphinxsidebar" role="navigation" aria-label="main navigation">
@@ -91,8 +88,8 @@
   <div class="section" id="searching-a-processed-sample-with-a-glycopeptide-database">
 <h1>Searching a Processed Sample with a Glycopeptide Database<a class="headerlink" href="#searching-a-processed-sample-with-a-glycopeptide-database" title="Permalink to this headline">¶</a></h1>
 <p>The end-goal of all of these tools is to be able to identify glycopeptides
-from experimental data. After you&#8217;ve constructed a glycopeptide database
-and deconvoluted an LC-MS/MS data file, you&#8217;re ready to do just that.</p>
+from experimental data. After you’ve constructed a glycopeptide database
+and deconvoluted an LC-MS/MS data file, you’re ready to do just that.</p>
 <div class="section" id="glycresoft-analyze-search-glycopeptide">
 <h2>glycresoft analyze search-glycopeptide<a class="headerlink" href="#glycresoft-analyze-search-glycopeptide" title="Permalink to this headline">¶</a></h2>
 <p>Identify glycopeptide sequences from processed LC-MS/MS data</p>
@@ -150,6 +147,12 @@ and deconvoluted an LC-MS/MS data file, you&#8217;re ready to do just that.</p>
 </dd></dl>
 
 <dl class="option">
+<dt id="cmdoption-glycresoft-analyze-search-glycopeptide-a">
+<code class="descname">-a</code><code class="descclassname"></code><code class="descclassname">, </code><code class="descname">--adduct</code><code class="descclassname"> &lt;string&gt;</code><a class="headerlink" href="#cmdoption-glycresoft-analyze-search-glycopeptide-a" title="Permalink to this definition">¶</a></dt>
+<dd><p>Adducts to consider. Specify name or formula, and a multiplicity. (May specify more than once)</p>
+</dd></dl>
+
+<dl class="option">
 <dt id="cmdoption-glycresoft-analyze-search-glycopeptide-p">
 <code class="descname">-p</code><code class="descclassname"></code><code class="descclassname">, </code><code class="descname">--processes</code><code class="descclassname"> &lt;int&gt;</code><a class="headerlink" href="#cmdoption-glycresoft-analyze-search-glycopeptide-p" title="Permalink to this definition">¶</a></dt>
 <dd><p>Number of worker processes to use. Defaults to 4 or the number of CPUs, whichever is lower  [default: 4]</p>
@@ -176,7 +179,7 @@ and deconvoluted an LC-MS/MS data file, you&#8217;re ready to do just that.</p>
 <dl class="option">
 <dt id="cmdoption-glycresoft-analyze-search-glycopeptide-w">
 <code class="descname">-w</code><code class="descclassname"></code><code class="descclassname">, </code><code class="descname">--workload-size</code><code class="descclassname"> &lt;int&gt;</code><a class="headerlink" href="#cmdoption-glycresoft-analyze-search-glycopeptide-w" title="Permalink to this definition">¶</a></dt>
-<dd><p>Number of spectra to process at once  [default: 1000]</p>
+<dd><p>Number of spectra to process at once  [default: 500]</p>
 </dd></dl>
 
 <p class="rubric">Arguments</p>
@@ -184,14 +187,14 @@ and deconvoluted an LC-MS/MS data file, you&#8217;re ready to do just that.</p>
 <dt id="cmdoption-glycresoft-analyze-search-glycopeptide-arg-database-connection">
 <code class="descname">DATABASE_CONNECTION</code><code class="descclassname"></code><a class="headerlink" href="#cmdoption-glycresoft-analyze-search-glycopeptide-arg-database-connection" title="Permalink to this definition">¶</a></dt>
 <dd><p>Required argument
-&lt;string&gt; A connection URI for a database, or a path on the file system</p>
+&lt;databaseconnectionparam&gt; A connection URI for a database, or a path on the file system</p>
 </dd></dl>
 
 <dl class="option">
 <dt id="cmdoption-glycresoft-analyze-search-glycopeptide-arg-sample-path">
 <code class="descname">SAMPLE_PATH</code><code class="descclassname"></code><a class="headerlink" href="#cmdoption-glycresoft-analyze-search-glycopeptide-arg-sample-path" title="Permalink to this definition">¶</a></dt>
 <dd><p>Required argument
-&lt;string&gt;</p>
+&lt;path&gt; The path to the deconvoluted sample file</p>
 </dd></dl>
 
 <dl class="option">
@@ -227,7 +230,7 @@ consider shrinking the <code class="docutils literal"><span class="pre">-w</span
       &copy;2017, Joshua Klein.
       
       |
-      Powered by <a href="http://sphinx-doc.org/">Sphinx 1.5.6</a>
+      Powered by <a href="http://sphinx-doc.org/">Sphinx 1.6.6</a>
       &amp; <a href="https://github.com/bitprophet/alabaster">Alabaster 0.7.10</a>
       
       |

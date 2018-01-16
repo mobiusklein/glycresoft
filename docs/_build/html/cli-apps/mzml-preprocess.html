@@ -1,16 +1,13 @@
+
 <!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
   "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
-
 
 <html xmlns="http://www.w3.org/1999/xhtml">
   <head>
     <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
-    
     <title>LC-MS/MS Data Preprocessing and Deconvolution &#8212; glycresoft  documentation</title>
-    
     <link rel="stylesheet" href="../_static/alabaster.css" type="text/css" />
     <link rel="stylesheet" href="../_static/pygments.css" type="text/css" />
-    
     <script type="text/javascript">
       var DOCUMENTATION_OPTIONS = {
         URL_ROOT:    '../',
@@ -35,7 +32,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=0.9, maximum-scale=0.9" />
 
   </head>
-  <body role="document">
+  <body>
   <div class="document">
     
       <div class="sphinxsidebar" role="navigation" aria-label="main navigation">
@@ -112,7 +109,7 @@ to share the work.</p>
 <dl class="option">
 <dt id="cmdoption-glycresoft-mzml-preprocess-a">
 <code class="descname">-a</code><code class="descclassname"></code><code class="descclassname">, </code><code class="descname">--averagine</code><code class="descclassname"> &lt;averagine&gt;</code><a class="headerlink" href="#cmdoption-glycresoft-mzml-preprocess-a" title="Permalink to this definition">¶</a></dt>
-<dd><p>Averagine model to use for MS1 scans. Either a name or formula  [default: glycan]</p>
+<dd><p>Averagine model to use for MS1 scans. Either a name or formula  [default: glycan] (May specify more than once)</p>
 </dd></dl>
 
 <dl class="option">
@@ -235,6 +232,18 @@ to share the work.</p>
 <dd><p>Ignore MS^n scans  [default: False]</p>
 </dd></dl>
 
+<dl class="option">
+<dt id="cmdoption-glycresoft-mzml-preprocess-signal-to-noise-threshold">
+<code class="descname">-n</code><code class="descclassname"></code><code class="descclassname">, </code><code class="descname">--signal-to-noise-threshold</code><code class="descclassname"> &lt;float&gt;</code><a class="headerlink" href="#cmdoption-glycresoft-mzml-preprocess-signal-to-noise-threshold" title="Permalink to this definition">¶</a></dt>
+<dd><p>Signal-to-noise ratio threshold to apply when filtering peaks  [default: 1.0]</p>
+</dd></dl>
+
+<dl class="option">
+<dt id="cmdoption-glycresoft-mzml-preprocess-mo">
+<code class="descname">-mo</code><code class="descclassname"></code><code class="descclassname">, </code><code class="descname">--mass-offset</code><code class="descclassname"> &lt;float&gt;</code><a class="headerlink" href="#cmdoption-glycresoft-mzml-preprocess-mo" title="Permalink to this definition">¶</a></dt>
+<dd><p>Shift peak masses by the given amount  [default: 0.0]</p>
+</dd></dl>
+
 <p class="rubric">Arguments</p>
 <dl class="option">
 <dt id="cmdoption-glycresoft-mzml-preprocess-arg-ms-file">
@@ -266,7 +275,7 @@ to share the work.</p>
 <p>Argument type for <code class="docutils literal"><span class="pre">&lt;averagine&gt;</span></code>. The model selected influences how isotopic
 patterns are estimated for an arbitrary mass. The value of this parameter may
 be a builtin model name or a formula.</p>
-<p>For a more complete discsussion of how &#8220;averagine&#8221; isotopic models work, see <a class="reference internal" href="#senko1995" id="id2">[Senko1995]</a>.</p>
+<p>For a more complete discsussion of how “averagine” isotopic models work, see <a class="reference internal" href="#senko1995" id="id2">[Senko1995]</a>.</p>
 <div class="section" id="builtin-models">
 <h3>Builtin Models<a class="headerlink" href="#builtin-models" title="Permalink to this headline">¶</a></h3>
 <table border="1" class="docutils">
@@ -283,16 +292,19 @@ be a builtin model name or a formula.</p>
 <tr class="row-even"><td>heparin</td>
 <td>H10C6S0.5O5.5N0.5</td>
 </tr>
+<tr class="row-odd"><td>peptide</td>
+<td>H7.8C4.9S0.042O1.5N1.4</td>
+</tr>
+<tr class="row-even"><td>heparan-sulfate</td>
+<td>H11C6S1.3O9N0.67</td>
+</tr>
 <tr class="row-odd"><td>permethylated-glycan</td>
 <td>H22C12O5.2N0.5</td>
 </tr>
 <tr class="row-even"><td>glycan</td>
 <td>H12C7O5.2N0.5</td>
 </tr>
-<tr class="row-odd"><td>peptide</td>
-<td>H7.8C4.9S0.042O1.5N1.4</td>
-</tr>
-<tr class="row-even"><td>glycopeptide</td>
+<tr class="row-odd"><td>glycopeptide</td>
 <td>H16C11S0.021O6.5N1.7</td>
 </tr>
 </tbody>
@@ -404,7 +416,7 @@ Journal of the American Society for Mass Spectrometry, 6(4), 229–233.
 <colgroup><col class="label" /><col /></colgroup>
 <tbody valign="top">
 <tr><td class="label"><a class="fn-backref" href="#id1">[Martens2011]</a></td><td>Martens, L., Chambers, M., Sturm, M., Kessner, D., Levander, F., Shofstahl, J.,
-… Deutsch, E. W. (2011). mzML&#8211;a community standard for mass spectrometry data.
+… Deutsch, E. W. (2011). mzML–a community standard for mass spectrometry data.
 Molecular &amp; Cellular Proteomics : MCP, 10(1), R110.000133.
 <a class="reference external" href="https://doi.org/10.1074/mcp.R110.000133">https://doi.org/10.1074/mcp.R110.000133</a></td></tr>
 </tbody>
@@ -422,7 +434,7 @@ Molecular &amp; Cellular Proteomics : MCP, 10(1), R110.000133.
       &copy;2017, Joshua Klein.
       
       |
-      Powered by <a href="http://sphinx-doc.org/">Sphinx 1.5.6</a>
+      Powered by <a href="http://sphinx-doc.org/">Sphinx 1.6.6</a>
       &amp; <a href="https://github.com/bitprophet/alabaster">Alabaster 0.7.10</a>
       
       |

@@ -1,16 +1,13 @@
+
 <!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
   "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
-
 
 <html xmlns="http://www.w3.org/1999/xhtml">
   <head>
     <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
-    
     <title>Glycopeptide Analysis Tutorial &#8212; glycresoft  documentation</title>
-    
     <link rel="stylesheet" href="../_static/alabaster.css" type="text/css" />
     <link rel="stylesheet" href="../_static/pygments.css" type="text/css" />
-    
     <script type="text/javascript">
       var DOCUMENTATION_OPTIONS = {
         URL_ROOT:    '../',
@@ -34,7 +31,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=0.9, maximum-scale=0.9" />
 
   </head>
-  <body role="document">
+  <body>
   <div class="document">
     
       <div class="sphinxsidebar" role="navigation" aria-label="main navigation">
@@ -97,7 +94,7 @@ $ <span class="nb">echo</span> P02763 &gt;&gt; accession.txt
 $ glycresoft tools download-uniprot -i accession.txt -o agp.fa
 </pre></div>
 </div>
-<p>Copy the following text into a file &#8220;combinatorial-rules.txt&#8221;</p>
+<p>Copy the following text into a file “combinatorial-rules.txt”</p>
 <div class="literal-block-wrapper docutils container" id="id2">
 <div class="code-block-caption"><span class="caption-text">Glycan Combinatorial Rules</span><a class="headerlink" href="#id2" title="Permalink to this code">¶</a></div>
 <div class="highlight-text"><div class="highlight"><pre><span></span>Hex 3 10
@@ -110,14 +107,14 @@ HexNAc &gt; NeuAc + 1
 </pre></div>
 </div>
 </div>
-<p>Next, we&#8217;ll build the glycan hypothesis</p>
+<p>Next, we’ll build the glycan hypothesis</p>
 <div class="literal-block-wrapper docutils container" id="id3">
 <div class="code-block-caption"><span class="caption-text">Build glycan hypothesis</span><a class="headerlink" href="#id3" title="Permalink to this code">¶</a></div>
 <div class="highlight-bash"><div class="highlight"><pre><span></span>$ glycresoft build-hypothesis glycan-combinatorial combinatorial-rules.txt glycans.db
 </pre></div>
 </div>
 </div>
-<p>Now, we&#8217;ll build the glycopeptide hypothesis using these glycans and the protein
+<p>Now, we’ll build the glycopeptide hypothesis using these glycans and the protein
 FASTA we downloaded earlier</p>
 <div class="literal-block-wrapper docutils container" id="id4">
 <div class="code-block-caption"><span class="caption-text">Build glycopeptide hypothesis</span><a class="headerlink" href="#id4" title="Permalink to this code">¶</a></div>
@@ -160,7 +157,7 @@ for downstream analysis.</p>
       &copy;2017, Joshua Klein.
       
       |
-      Powered by <a href="http://sphinx-doc.org/">Sphinx 1.5.6</a>
+      Powered by <a href="http://sphinx-doc.org/">Sphinx 1.6.6</a>
       &amp; <a href="https://github.com/bitprophet/alabaster">Alabaster 0.7.10</a>
       
       |

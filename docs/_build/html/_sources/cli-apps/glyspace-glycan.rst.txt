@@ -16,7 +16,7 @@ with or without taxonomic filters.
 
 
 .. click:: glycan_profiling.cli.build_db:glyspace_glycan_hypothesis
-    :prog: glycresoft build-hypothesis glyspace-glycan
+    :prog: glycresoft build-hypothesis glycan-glyspace
 
 For more information on reductions and derivatizations, please see `Glycan Modifications <todo>`_
 
@@ -27,7 +27,7 @@ Usage Example
 .. code-block:: bash
 
     # Get all human N-glycans
-    $ glycresoft build-hypothesis glyspace-glycan -m n-linked -t 9606 glyspace-glycans.db -n "Human N-Linked Glycans"
+    $ glycresoft build-hypothesis glycan-glyspace -m n-linked -t 9606 glyspace-glycans.db -n "Human N-Linked Glycans"
     Building Glycan Hypothesis Human N-Linked Glycans (2)
     14:35:34 - glycresoft:log:175 - INFO - Begin N Glycan Glyspace Hypothesis Serializer
     {'composition_cache': None,

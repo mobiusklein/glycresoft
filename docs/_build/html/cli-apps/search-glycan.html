@@ -1,16 +1,13 @@
+
 <!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
   "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
-
 
 <html xmlns="http://www.w3.org/1999/xhtml">
   <head>
     <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
-    
     <title>Searching a Processed Sample with a Glycan Database &#8212; glycresoft  documentation</title>
-    
     <link rel="stylesheet" href="../_static/alabaster.css" type="text/css" />
     <link rel="stylesheet" href="../_static/pygments.css" type="text/css" />
-    
     <script type="text/javascript">
       var DOCUMENTATION_OPTIONS = {
         URL_ROOT:    '../',
@@ -35,7 +32,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=0.9, maximum-scale=0.9" />
 
   </head>
-  <body role="document">
+  <body>
   <div class="document">
     
       <div class="sphinxsidebar" role="navigation" aria-label="main navigation">
@@ -113,6 +110,12 @@ format.</p>
 </dd></dl>
 
 <dl class="option">
+<dt id="cmdoption-glycresoft-analyze-search-glycan-mn">
+<code class="descname">-mn</code><code class="descclassname"></code><code class="descclassname">, </code><code class="descname">--msn-mass-error-tolerance</code><code class="descclassname"> &lt;relative mass error&gt;</code><a class="headerlink" href="#cmdoption-glycresoft-analyze-search-glycan-mn" title="Permalink to this definition">¶</a></dt>
+<dd><p>Mass accuracy constraint, in parts-per-million error, for matching MS^n ions.  [default: 2e-05]</p>
+</dd></dl>
+
+<dl class="option">
 <dt id="cmdoption-glycresoft-analyze-search-glycan-g">
 <code class="descname">-g</code><code class="descclassname"></code><code class="descclassname">, </code><code class="descname">--grouping-error-tolerance</code><code class="descclassname"> &lt;relative mass error&gt;</code><a class="headerlink" href="#cmdoption-glycresoft-analyze-search-glycan-g" title="Permalink to this definition">¶</a></dt>
 <dd><p>Mass accuracy constraint, in parts-per-million error, for grouping chromatograms.  [default: 1.5e-05]</p>
@@ -149,7 +152,8 @@ format.</p>
 <div class="line-block">
 <div class="line">Choices: [</div>
 <div class="line-block">
-<div class="line">null_charge; permethylated_ammonium_adducts]</div>
+<div class="line">formate-adduct-model; null-charge; permethylated-ammonium-adducts-methyl-loss;</div>
+<div class="line">methyl-loss; permethylated-ammonium-adducts]</div>
 </div>
 </div>
 </dd></dl>
@@ -157,13 +161,19 @@ format.</p>
 <dl class="option">
 <dt id="cmdoption-glycresoft-analyze-search-glycan-r">
 <code class="descname">-r</code><code class="descclassname"></code><code class="descclassname">, </code><code class="descname">--regularize</code><code class="descclassname"> &lt;regularization parameter&gt;</code><a class="headerlink" href="#cmdoption-glycresoft-analyze-search-glycan-r" title="Permalink to this definition">¶</a></dt>
-<dd><p>Apply Laplacian regularization with either a specified weight or &#8220;grid&#8221; to grid search</p>
+<dd><p>Apply Laplacian regularization with either a specified weight or “grid” to grid search</p>
 </dd></dl>
 
 <dl class="option">
 <dt id="cmdoption-glycresoft-analyze-search-glycan-w">
 <code class="descname">-w</code><code class="descclassname"></code><code class="descclassname">, </code><code class="descname">--regularization-model-path</code><code class="descclassname"> &lt;path&gt;</code><a class="headerlink" href="#cmdoption-glycresoft-analyze-search-glycan-w" title="Permalink to this definition">¶</a></dt>
 <dd><p>Path to a file containing neighborhood model for regularization</p>
+</dd></dl>
+
+<dl class="option">
+<dt id="cmdoption-glycresoft-analyze-search-glycan-k">
+<code class="descname">-k</code><code class="descclassname"></code><code class="descclassname">, </code><code class="descname">--network-path</code><code class="descclassname"> &lt;path&gt;</code><a class="headerlink" href="#cmdoption-glycresoft-analyze-search-glycan-k" title="Permalink to this definition">¶</a></dt>
+<dd><p>Path to a file containing the glycan composition network and neighborhood rules</p>
 </dd></dl>
 
 <dl class="option">
@@ -202,14 +212,14 @@ format.</p>
 <dt id="cmdoption-glycresoft-analyze-search-glycan-arg-database-connection">
 <code class="descname">DATABASE_CONNECTION</code><code class="descclassname"></code><a class="headerlink" href="#cmdoption-glycresoft-analyze-search-glycan-arg-database-connection" title="Permalink to this definition">¶</a></dt>
 <dd><p>Required argument
-&lt;string&gt; A connection URI for a database, or a path on the file system</p>
+&lt;databaseconnectionparam&gt; A connection URI for a database, or a path on the file system</p>
 </dd></dl>
 
 <dl class="option">
 <dt id="cmdoption-glycresoft-analyze-search-glycan-arg-sample-path">
 <code class="descname">SAMPLE_PATH</code><code class="descclassname"></code><a class="headerlink" href="#cmdoption-glycresoft-analyze-search-glycan-arg-sample-path" title="Permalink to this definition">¶</a></dt>
 <dd><p>Required argument
-&lt;string&gt;</p>
+&lt;path&gt; The path to the deconvoluted sample file</p>
 </dd></dl>
 
 <dl class="option">
@@ -260,7 +270,11 @@ incomplete permethylation, the program would search for</p>
 </div>
 <div class="section" id="network-regularization">
 <h2>Network Regularization<a class="headerlink" href="#network-regularization" title="Permalink to this headline">¶</a></h2>
-<p>This feature is experimental. Do not use it yet.</p>
+<p>Apply network smoothing by laplacian regularization to the glycan composition identification
+scores. This procedure is described in detail in XXX. By default, the network used is simply
+the full set of all glycan compositions in the hypothesis, with edges between compositions
+whose composition-distance is less than or equal to  and with neighborhoods defined
+for <em>N</em>-glycans.</p>
 </div>
 <div class="section" id="ms-ms-signatures">
 <h2>MS/MS Signatures<a class="headerlink" href="#ms-ms-signatures" title="Permalink to this headline">¶</a></h2>
@@ -268,7 +282,7 @@ incomplete permethylation, the program would search for</p>
 LC-MS, this can lead to lots of strange matches. If your data contain MS/MS
 scans, passing a non-zero value to <code class="docutils literal"><span class="pre">--require-msms-signature</span></code> causes the
 program to include only features which contain MS/MS scans which look
-&#8220;glycan-like&#8221;. Here &#8220;glycan-like&#8221; means containing abundant peaks which have
+“glycan-like”. Here “glycan-like” means containing abundant peaks which have
 masses derived from mono-, di-, or tri-saccharide losses. The value of this
 parameter sets the minimum ratio score.</p>
 </div>
@@ -284,7 +298,7 @@ parameter sets the minimum ratio score.</p>
       &copy;2017, Joshua Klein.
       
       |
-      Powered by <a href="http://sphinx-doc.org/">Sphinx 1.5.6</a>
+      Powered by <a href="http://sphinx-doc.org/">Sphinx 1.6.6</a>
       &amp; <a href="https://github.com/bitprophet/alabaster">Alabaster 0.7.10</a>
       
       |

@@ -1,16 +1,13 @@
+
 <!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
   "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
-
 
 <html xmlns="http://www.w3.org/1999/xhtml">
   <head>
     <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
-    
     <title>Building a Glycan Hypothesis from glySpace &#8212; glycresoft  documentation</title>
-    
     <link rel="stylesheet" href="../_static/alabaster.css" type="text/css" />
     <link rel="stylesheet" href="../_static/pygments.css" type="text/css" />
-    
     <script type="text/javascript">
       var DOCUMENTATION_OPTIONS = {
         URL_ROOT:    '../',
@@ -35,7 +32,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=0.9, maximum-scale=0.9" />
 
   </head>
-  <body role="document">
+  <body>
   <div class="document">
     
       <div class="sphinxsidebar" role="navigation" aria-label="main navigation">
@@ -48,7 +45,7 @@
   <h3><a href="../index.html">Table Of Contents</a></h3>
   <ul>
 <li><a class="reference internal" href="#">Building a Glycan Hypothesis from glySpace</a><ul>
-<li><a class="reference internal" href="#glycresoft-build-hypothesis-glyspace-glycan">glycresoft build-hypothesis glyspace-glycan</a></li>
+<li><a class="reference internal" href="#glycresoft-build-hypothesis-glycan-glyspace">glycresoft build-hypothesis glycan-glyspace</a></li>
 <li><a class="reference internal" href="#usage-example">Usage Example</a></li>
 <li><a class="reference internal" href="#bibliography">Bibliography</a></li>
 </ul>
@@ -92,40 +89,40 @@
 <span id="glyspace-glycan-hypothesis"></span><h1>Building a Glycan Hypothesis from glySpace<a class="headerlink" href="#building-a-glycan-hypothesis-from-glyspace" title="Permalink to this headline">¶</a></h1>
 <p>The glycoinformatics community has developed a federation of
 databases called <cite>glySpace</cite>, which composes
-the &#8220;namespace of all glycan structures&#8221;. It uses semantic web
+the “namespace of all glycan structures”. It uses semantic web
 technologies to describe and relate these entities, and gateways
 into <cite>glySpace</cite> such as <a class="reference internal" href="#glytoucan" id="id1">[GlyTouCan]</a>
 provide query-able access to this data.</p>
 <p>You can build a glycan composition hypothesis from the set of annotated
 glycan structures in <cite>glySpace</cite> for N-glycans and O-glycans,
 with or without taxonomic filters.</p>
-<div class="section" id="glycresoft-build-hypothesis-glyspace-glycan">
-<h2>glycresoft build-hypothesis glyspace-glycan<a class="headerlink" href="#glycresoft-build-hypothesis-glyspace-glycan" title="Permalink to this headline">¶</a></h2>
-<div class="highlight-shell"><div class="highlight"><pre><span></span>glycresoft build-hypothesis glyspace-glycan <span class="o">[</span>OPTIONS<span class="o">]</span> DATABASE_CONNECTION
+<div class="section" id="glycresoft-build-hypothesis-glycan-glyspace">
+<h2>glycresoft build-hypothesis glycan-glyspace<a class="headerlink" href="#glycresoft-build-hypothesis-glycan-glyspace" title="Permalink to this headline">¶</a></h2>
+<div class="highlight-shell"><div class="highlight"><pre><span></span>glycresoft build-hypothesis glycan-glyspace <span class="o">[</span>OPTIONS<span class="o">]</span> DATABASE_CONNECTION
 </pre></div>
 </div>
 <p class="rubric">Options</p>
 <dl class="option">
-<dt id="cmdoption-glycresoft-build-hypothesis-glyspace-glycan-r">
-<code class="descname">-r</code><code class="descclassname"></code><code class="descclassname">, </code><code class="descname">--reduction</code><code class="descclassname"> &lt;string&gt;</code><a class="headerlink" href="#cmdoption-glycresoft-build-hypothesis-glyspace-glycan-r" title="Permalink to this definition">¶</a></dt>
+<dt id="cmdoption-glycresoft-build-hypothesis-glycan-glyspace-r">
+<code class="descname">-r</code><code class="descclassname"></code><code class="descclassname">, </code><code class="descname">--reduction</code><code class="descclassname"> &lt;string&gt;</code><a class="headerlink" href="#cmdoption-glycresoft-build-hypothesis-glycan-glyspace-r" title="Permalink to this definition">¶</a></dt>
 <dd><p>Reducing end modification</p>
 </dd></dl>
 
 <dl class="option">
-<dt id="cmdoption-glycresoft-build-hypothesis-glyspace-glycan-d">
-<code class="descname">-d</code><code class="descclassname"></code><code class="descclassname">, </code><code class="descname">--derivatization</code><code class="descclassname"> &lt;string&gt;</code><a class="headerlink" href="#cmdoption-glycresoft-build-hypothesis-glyspace-glycan-d" title="Permalink to this definition">¶</a></dt>
+<dt id="cmdoption-glycresoft-build-hypothesis-glycan-glyspace-d">
+<code class="descname">-d</code><code class="descclassname"></code><code class="descclassname">, </code><code class="descname">--derivatization</code><code class="descclassname"> &lt;string&gt;</code><a class="headerlink" href="#cmdoption-glycresoft-build-hypothesis-glycan-glyspace-d" title="Permalink to this definition">¶</a></dt>
 <dd><p>Chemical derivatization to apply</p>
 </dd></dl>
 
 <dl class="option">
-<dt id="cmdoption-glycresoft-build-hypothesis-glyspace-glycan-n">
-<code class="descname">-n</code><code class="descclassname"></code><code class="descclassname">, </code><code class="descname">--name</code><code class="descclassname"> &lt;string&gt;</code><a class="headerlink" href="#cmdoption-glycresoft-build-hypothesis-glyspace-glycan-n" title="Permalink to this definition">¶</a></dt>
+<dt id="cmdoption-glycresoft-build-hypothesis-glycan-glyspace-n">
+<code class="descname">-n</code><code class="descclassname"></code><code class="descclassname">, </code><code class="descname">--name</code><code class="descclassname"> &lt;string&gt;</code><a class="headerlink" href="#cmdoption-glycresoft-build-hypothesis-glycan-glyspace-n" title="Permalink to this definition">¶</a></dt>
 <dd><p>The name for the hypothesis to be created</p>
 </dd></dl>
 
 <dl class="option">
-<dt id="cmdoption-glycresoft-build-hypothesis-glyspace-glycan-m">
-<code class="descname">-m</code><code class="descclassname"></code><code class="descclassname">, </code><code class="descname">--motif-class</code><code class="descclassname"> &lt;choice&gt;</code><a class="headerlink" href="#cmdoption-glycresoft-build-hypothesis-glyspace-glycan-m" title="Permalink to this definition">¶</a></dt>
+<dt id="cmdoption-glycresoft-build-hypothesis-glycan-glyspace-m">
+<code class="descname">-m</code><code class="descclassname"></code><code class="descclassname">, </code><code class="descname">--motif-class</code><code class="descclassname"> &lt;choice&gt;</code><a class="headerlink" href="#cmdoption-glycresoft-build-hypothesis-glycan-glyspace-m" title="Permalink to this definition">¶</a></dt>
 <dd><p>Specify a glycan structure family to search for</p>
 <div class="line-block">
 <div class="line">Choices: [</div>
@@ -136,21 +133,27 @@ with or without taxonomic filters.</p>
 </dd></dl>
 
 <dl class="option">
-<dt id="cmdoption-glycresoft-build-hypothesis-glyspace-glycan-t">
-<code class="descname">-t</code><code class="descclassname"></code><code class="descclassname">, </code><code class="descname">--target-taxon</code><code class="descclassname"> &lt;string&gt;</code><a class="headerlink" href="#cmdoption-glycresoft-build-hypothesis-glyspace-glycan-t" title="Permalink to this definition">¶</a></dt>
+<dt id="cmdoption-glycresoft-build-hypothesis-glycan-glyspace-t">
+<code class="descname">-t</code><code class="descclassname"></code><code class="descclassname">, </code><code class="descname">--target-taxon</code><code class="descclassname"> &lt;string&gt;</code><a class="headerlink" href="#cmdoption-glycresoft-build-hypothesis-glycan-glyspace-t" title="Permalink to this definition">¶</a></dt>
 <dd><p>Only select structures annotated with this taxonomy</p>
 </dd></dl>
 
 <dl class="option">
-<dt id="cmdoption-glycresoft-build-hypothesis-glyspace-glycan-i">
-<code class="descname">-i</code><code class="descclassname"></code><code class="descclassname">, </code><code class="descname">--include-children</code><code class="descclassname"></code><a class="headerlink" href="#cmdoption-glycresoft-build-hypothesis-glyspace-glycan-i" title="Permalink to this definition">¶</a></dt>
-<dd><p>Include child taxa of &#8211;target-taxon. No effect otherwise.  [default: False]</p>
+<dt id="cmdoption-glycresoft-build-hypothesis-glycan-glyspace-i">
+<code class="descname">-i</code><code class="descclassname"></code><code class="descclassname">, </code><code class="descname">--include-children</code><code class="descclassname"></code><a class="headerlink" href="#cmdoption-glycresoft-build-hypothesis-glycan-glyspace-i" title="Permalink to this definition">¶</a></dt>
+<dd><p>Include child taxa of –target-taxon. No effect otherwise.  [default: False]</p>
+</dd></dl>
+
+<dl class="option">
+<dt id="cmdoption-glycresoft-build-hypothesis-glycan-glyspace-s">
+<code class="descname">-s</code><code class="descclassname"></code><code class="descclassname">, </code><code class="descname">--detatch-substituent</code><code class="descclassname"> &lt;substituent&gt;</code><a class="headerlink" href="#cmdoption-glycresoft-build-hypothesis-glycan-glyspace-s" title="Permalink to this definition">¶</a></dt>
+<dd><p>Substituent type to detatch from all monosaccharides (May specify more than once)</p>
 </dd></dl>
 
 <p class="rubric">Arguments</p>
 <dl class="option">
-<dt id="cmdoption-glycresoft-build-hypothesis-glyspace-glycan-arg-database-connection">
-<code class="descname">DATABASE_CONNECTION</code><code class="descclassname"></code><a class="headerlink" href="#cmdoption-glycresoft-build-hypothesis-glyspace-glycan-arg-database-connection" title="Permalink to this definition">¶</a></dt>
+<dt id="cmdoption-glycresoft-build-hypothesis-glycan-glyspace-arg-database-connection">
+<code class="descname">DATABASE_CONNECTION</code><code class="descclassname"></code><a class="headerlink" href="#cmdoption-glycresoft-build-hypothesis-glycan-glyspace-arg-database-connection" title="Permalink to this definition">¶</a></dt>
 <dd><p>Required argument
 &lt;string&gt; A connection URI for a database, or a path on the file system</p>
 </dd></dl>
@@ -160,7 +163,7 @@ with or without taxonomic filters.</p>
 <div class="section" id="usage-example">
 <h2>Usage Example<a class="headerlink" href="#usage-example" title="Permalink to this headline">¶</a></h2>
 <div class="highlight-bash"><div class="highlight"><pre><span></span><span class="c1"># Get all human N-glycans</span>
-$ glycresoft build-hypothesis glyspace-glycan -m n-linked -t <span class="m">9606</span> glyspace-glycans.db -n <span class="s2">&quot;Human N-Linked Glycans&quot;</span>
+$ glycresoft build-hypothesis glycan-glyspace -m n-linked -t <span class="m">9606</span> glyspace-glycans.db -n <span class="s2">&quot;Human N-Linked Glycans&quot;</span>
 Building Glycan Hypothesis Human N-Linked Glycans <span class="o">(</span><span class="m">2</span><span class="o">)</span>
 <span class="m">14</span>:35:34 - glycresoft:log:175 - INFO - Begin N Glycan Glyspace Hypothesis Serializer
 <span class="o">{</span><span class="s1">&#39;composition_cache&#39;</span>: None,
@@ -236,7 +239,7 @@ GlyTouCan 1.0 – The international glycan structure repository. Nucleic Acids R
       &copy;2017, Joshua Klein.
       
       |
-      Powered by <a href="http://sphinx-doc.org/">Sphinx 1.5.6</a>
+      Powered by <a href="http://sphinx-doc.org/">Sphinx 1.6.6</a>
       &amp; <a href="https://github.com/bitprophet/alabaster">Alabaster 0.7.10</a>
       
       |
