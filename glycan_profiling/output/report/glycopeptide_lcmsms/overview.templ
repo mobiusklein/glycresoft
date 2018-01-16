@@ -1,7 +1,8 @@
-<!DOCTYPE html5>
+<!DOCTYPE html>
 <html>
 <head>
     <title></title>
+    <meta charset="utf-8">
     <script type="text/javascript">
         {% include "behaviors.js" %}
     </script>
@@ -26,9 +27,9 @@
         </div>
         <div class='flex-item flex-padding'>
             <b>Glycopeptide Hypothesis:</b>
-            <a>{{analysis.hypothesis.name}}</a><br>
+            <a>{{hypothesis.name}}</a><br>
             <b>Sample Searched:</b>
-            <a>{{analysis.sample_run.name}}</a>
+            <a>{{sample_run.name}}</a>
         </div>
     </section>
     <section id='protein-table-container' class='flex-container'>
@@ -66,15 +67,15 @@
                     {{renderer.draw_glycoforms(glycoprotein)}}
                 </div>
                 {% include "glycopeptide-table.templ" %}
-                <div class='flex-container'>
-                {% for site, axis in renderer.site_specific_abundance_plots(glycoprotein).items() %}
+                <div class='flex-container plot-grid'>
+                {% for site_type, axis in renderer.site_specific_abundance_plots(glycoprotein).items() %}
                     <div class='flex-item'>
                         {{axis|safe}}
                     </div>
                 {% endfor %}
                 </div>
                 </section>
-                {% for glycopeptide in glycoprotein.identified_glycopeptides %}
+                {% for glycopeptide in glycoprotein.identified_glycopeptides|sort(reverse=True, attribute='ms2_score') %}
                     {% include "glycopeptide-detail-entry.templ" %}
                 {% endfor %}
             </div>

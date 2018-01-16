@@ -1,4 +1,6 @@
 import urllib
+import logging
+
 from io import BytesIO
 
 from matplotlib.axes import Axes
@@ -10,7 +12,7 @@ from lxml import etree
 import jinja2
 from jinja2 import escape
 
-from glypy.composition.glycan_composition import GlycanComposition
+from glypy.structure.glycan_composition import GlycanComposition
 from glycopeptidepy import PeptideSequence
 
 from glycan_profiling.task import TaskBase
@@ -25,6 +27,9 @@ mpl_params.update({
     'font.size': 10,
     'savefig.dpi': 72,
     'figure.subplot.bottom': .125})
+
+
+status_logger = logging.getLogger("glycresoft.status")
 
 
 def render_plot(figure, **kwargs):
@@ -43,9 +48,22 @@ def render_plot(figure, **kwargs):
     return data_buffer
 
 
-def png_plot(figure, **kwargs):
+def xmlattrs(**kwargs):
+    return ' '.join("%s=\"%s\"" % kv for kv in kwargs.items())
+
+
+def png_plot(figure, img_width=None, img_height=None, xattrs=None, **kwargs):
+    if xattrs is None:
+        xattrs = dict()
+    xml_attributes = dict(xattrs)
+    if img_width is not None:
+        xml_attributes['width'] = img_width
+    if img_height is not None:
+        xml_attributes['height'] = img_height
     data_buffer = render_plot(figure, format='png', **kwargs)
-    return "<img src='data:image/png;base64,%s'>" % urllib.quote(data_buffer.getvalue().encode("base64"))
+    return "<img %s src='data:image/png;base64,%s'>" % (
+        xmlattrs(**xml_attributes),
+        urllib.quote(data_buffer.getvalue().encode("base64")))
 
 
 def svguri_plot(figure, **kwargs):
@@ -169,6 +187,9 @@ class ReportCreatorBase(TaskBase):
     def session(self):
         return self.database_connection.session
 
+    def status_update(self, message):
+        status_logger.info(message)
+
     def prepare_environment(self):
         self.env.filters['svguri_plot'] = svguri_plot
         self.env.filters['png_plot'] = png_plot
@@ -189,4 +210,4 @@ class ReportCreatorBase(TaskBase):
     def run(self):
         self.prepare_environment()
         template_stream = self.make_template_stream()
-        template_stream.dump(self.stream)
+        template_stream.dump(self.stream, encoding='utf-8')

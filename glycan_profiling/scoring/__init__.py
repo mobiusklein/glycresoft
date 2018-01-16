@@ -1,3 +1,8 @@
+from .base import (
+    ScoringFeatureBase,
+    DummyFeature,
+    epsilon)
+
 from .shape_fitter import (
     ChromatogramShapeFitter)
 

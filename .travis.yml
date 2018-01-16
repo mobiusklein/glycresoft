@@ -12,8 +12,8 @@ install:
   - pip install --upgrade pip setuptools wheel
   - pip install Cython --install-option="--no-cython-compile"
   - pip install coverage pytest pytest-cov
-  - pip install lxml pyteomics brain-isotopic-distribution
-  - pip install --only-binary=numpy,scipy numpy scipy
+  - pip install lxml pyteomics
+  - pip install --only-binary=numpy,scipy numpy scipy==0.19.0
   - pip install -r external-requirements.txt
   - pip install psims
   - python pyinstaller/install-from-git.py

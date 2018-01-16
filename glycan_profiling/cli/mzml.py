@@ -1,10 +1,14 @@
+from collections import defaultdict
+
 import click
 import os
 
 import ms_peak_picker
 import ms_deisotope
 
-from ms_deisotope.processor import MSFileLoader
+from ms_deisotope import MSFileLoader
+from ms_deisotope.output.mzml import ProcessedMzMLDeserializer
+from ms_deisotope.feature_map import quick_index
 
 from glycan_profiling.cli.base import cli, HiddenOption, processes_option
 from glycan_profiling.cli.validators import (
@@ -12,7 +16,6 @@ from glycan_profiling.cli.validators import (
 
 from glycan_profiling.profiler import (
     SampleConsumer,
-    CentroidingSampleConsumer,
     ThreadedMzMLScanCacheHandler)
 
 
@@ -37,10 +40,11 @@ def rt_to_id(ms_file, rt):
     "Path to an mass spectral data file in one of the supported formats"))
 @click.argument("outfile-path", type=click.Path(writable=True), doc_help=(
     "Path to write the processed output to"))
-@click.option("-a", "--averagine", default='glycan',
+@click.option("-a", "--averagine", default=["glycan"],
               type=AveragineParamType(),
-              help='Averagine model to use for MS1 scans. Either a name or formula')
-@click.option("-an", "--msn-averagine", default='peptide',
+              help='Averagine model to use for MS1 scans. Either a name or formula',
+              multiple=True)
+@click.option("-an", "--msn-averagine", default="peptide",
               type=AveragineParamType(),
               help='Averagine model to use for MS^n scans. Either a name or formula')
 @click.option("-s", "--start-time", type=float, default=0.0,
@@ -82,12 +86,15 @@ def rt_to_id(ms_file, rt):
               "Force profile scan configuration."), cls=HiddenOption)
 @click.option("-i", "--isotopic-strictness", default=2.0, type=float, cls=HiddenOption)
 @click.option("-in", "--msn-isotopic-strictness", default=0.0, type=float, cls=HiddenOption)
+@click.option("-n", "--signal-to-noise-threshold", default=1.0, type=float, help=(
+    "Signal-to-noise ratio threshold to apply when filtering peaks"))
+@click.option("-mo", "--mass-offset", default=0.0, type=float, help=("Shift peak masses by the given amount"))
 def preprocess(ms_file, outfile_path, averagine=None, start_time=None, end_time=None, maximum_charge=None,
                name=None, msn_averagine=None, score_threshold=35., msn_score_threshold=10., missed_peaks=1,
                msn_missed_peaks=1, background_reduction=5., msn_background_reduction=0.,
                transform=None, msn_transform=None, processes=4, extract_only_tandem_envelopes=False,
                ignore_msn=False, profile=False, isotopic_strictness=2.0, ms1_averaging=0,
-               msn_isotopic_strictness=0.0):
+               msn_isotopic_strictness=0.0, signal_to_noise_threshold=1.0, mass_offset=0.0, deconvolute=True):
     '''Convert raw mass spectra data into deisotoped neutral mass peak lists written to mzML.
     '''
     if transform is None:
@@ -114,6 +121,7 @@ def preprocess(ms_file, outfile_path, averagine=None, start_time=None, end_time=
         loader.get_scan_by_time(end_time)).id
 
     loader.reset()
+    loader.start_from_scan(start_scan_id)
     is_profile = (next(loader).precursor.is_profile or profile)
     if is_profile:
         click.secho("Spectra are profile")
@@ -130,16 +138,20 @@ def preprocess(ms_file, outfile_path, averagine=None, start_time=None, end_time=
     click.secho("Initializing %s" % name, fg='green')
     click.echo("from %s (%0.2f) to %s (%0.2f)" % (
         start_scan_id, start_time, end_scan_id, end_time))
-    click.echo("charge range: %s" % (charge_range,))
+    if deconvolute:
+        click.echo("charge range: %s" % (charge_range,))
 
     if is_profile:
         ms1_peak_picking_args = {
             "transforms": [
-                ms_peak_picker.scan_filter.FTICRBaselineRemoval(
-                    scale=background_reduction, window_length=2),
-                ms_peak_picker.scan_filter.SavitskyGolayFilter()
-            ] + list(transform)
+            ] + list(transform),
+            "signal_to_noise_threshold": signal_to_noise_threshold
         }
+        if background_reduction:
+            ms1_peak_picking_args['transforms'].append(
+                ms_peak_picker.scan_filter.FTICRBaselineRemoval(
+                    scale=background_reduction, window_length=2))
+            ms1_peak_picking_args['transforms'].append(ms_peak_picker.scan_filter.SavitskyGolayFilter())
     else:
         ms1_peak_picking_args = {
             "transforms": [
@@ -161,30 +173,47 @@ def preprocess(ms_file, outfile_path, averagine=None, start_time=None, end_time=
             ] + list(msn_transform)
         }
 
-    ms1_deconvolution_args = {
-        "scorer": ms_deisotope.scoring.PenalizedMSDeconVFitter(score_threshold, isotopic_strictness),
-        "max_missed_peaks": missed_peaks,
-        "averagine": averagine,
-        "truncate_after": SampleConsumer.MS1_ISOTOPIC_PATTERN_WIDTH,
-        "ignore_below": SampleConsumer.MS1_IGNORE_BELOW
-    }
+    if mass_offset != 0.0:
+        ms1_peak_picking_args['transforms'].append(
+            ms_peak_picker.scan_filter.RecalibrateMass(offset=mass_offset))
+        msn_peak_picking_args['transforms'].append(
+            ms_peak_picker.scan_filter.RecalibrateMass(offset=mass_offset))
 
-    if msn_isotopic_strictness >= 1:
-        msn_isotopic_scorer = ms_deisotope.scoring.PenalizedMSDeconVFitter(
-            msn_score_threshold, msn_isotopic_strictness)
+    if deconvolute:
+        if len(averagine) == 1:
+            averagine = averagine[0]
+            ms1_deconvoluter_type = ms_deisotope.deconvolution.AveraginePeakDependenceGraphDeconvoluter
+        else:
+            ms1_deconvoluter_type = ms_deisotope.deconvolution.MultiAveraginePeakDependenceGraphDeconvoluter
+
+        ms1_deconvolution_args = {
+            "scorer": ms_deisotope.scoring.PenalizedMSDeconVFitter(score_threshold, isotopic_strictness),
+            "max_missed_peaks": missed_peaks,
+            "averagine": averagine,
+            "truncate_after": SampleConsumer.MS1_ISOTOPIC_PATTERN_WIDTH,
+            "ignore_below": SampleConsumer.MS1_IGNORE_BELOW,
+            "deconvoluter_type": ms1_deconvoluter_type
+        }
+
+        if msn_isotopic_strictness >= 1:
+            msn_isotopic_scorer = ms_deisotope.scoring.PenalizedMSDeconVFitter(
+                msn_score_threshold, msn_isotopic_strictness)
+        else:
+            msn_isotopic_scorer = ms_deisotope.scoring.MSDeconVFitter(msn_score_threshold)
+
+        msn_deconvolution_args = {
+            "scorer": msn_isotopic_scorer,
+            "averagine": msn_averagine,
+            "max_missed_peaks": msn_missed_peaks,
+            "truncate_after": SampleConsumer.MSN_ISOTOPIC_PATTERN_WIDTH,
+            "ignore_below": SampleConsumer.MSN_IGNORE_BELOW
+        }
     else:
-        msn_isotopic_scorer = ms_deisotope.scoring.MSDeconVFitter(msn_score_threshold)
-
-    msn_deconvolution_args = {
-        "scorer": msn_isotopic_scorer,
-        "averagine": msn_averagine,
-        "max_missed_peaks": msn_missed_peaks,
-        "truncate_after": SampleConsumer.MSN_ISOTOPIC_PATTERN_WIDTH,
-        "ignore_below": SampleConsumer.MSN_IGNORE_BELOW
-    }
+        ms1_deconvolution_args = None
+        msn_deconvolution_args = None
 
     consumer = SampleConsumer(
-        ms_file, averagine=averagine, charge_range=charge_range,
+        ms_file,
         ms1_peak_picking_args=ms1_peak_picking_args,
         ms1_deconvolution_args=ms1_deconvolution_args,
         msn_peak_picking_args=msn_peak_picking_args,
@@ -194,11 +223,49 @@ def preprocess(ms_file, outfile_path, averagine=None, start_time=None, end_time=
         end_scan_id=end_scan_id, n_processes=processes,
         extract_only_tandem_envelopes=extract_only_tandem_envelopes,
         ignore_tandem_scans=ignore_msn,
-        ms1_averaging=ms1_averaging)
-    try:
-        consumer.start()
-    except Exception as error:
-        raise click.ClickException("glycresoft: An error occurred: %r" % error)
+        ms1_averaging=ms1_averaging,
+        deconvolute=deconvolute)
+    consumer.display_header()
+    consumer.start()
+
+
+@mzml_cli.command("info", short_help='Summary information describing a processed mzML file')
+@click.argument("ms-file", type=click.Path(exists=True, file_okay=True, dir_okay=False))
+def msfile_info(ms_file):
+    reader = ProcessedMzMLDeserializer(ms_file)
+    if not reader.has_index_file():
+        index, intervals = quick_index.index(ms_deisotope.MSFileLoader(ms_file))
+        reader.extended_index = index
+        with open(reader._index_file_name, 'w') as handle:
+            index.serialize(handle)
+    click.echo("Name: %s" % (os.path.basename(ms_file),))
+    click.echo("MS1 Scans: %d" % (len(reader.extended_index.ms1_ids),))
+    click.echo("MSn Scans: %d" % (len(reader.extended_index.msn_ids),))
+
+    n_defaulted = 0
+    n_orphan = 0
+
+    charges = defaultdict(int)
+    first_msn = float('inf')
+    last_msn = 0
+    for scan_info in reader.extended_index.msn_ids.values():
+        n_defaulted += scan_info.get('defaulted', False)
+        n_orphan += scan_info.get('orphan', False)
+        charges[scan_info['charge']] += 1
+        rt = scan_info['scan_time']
+        if rt < first_msn:
+            first_msn = rt
+        if rt > last_msn:
+            last_msn = rt
+
+    click.echo("First MSn Scan: %0.2f Minutes" % (first_msn,))
+    click.echo("Last MSn Scan: %0.2f Minutes" % (last_msn,))
+
+    for charge, count in sorted(charges.items()):
+        click.echo("Precursors with Charge State %d: %d" % (charge, count))
+
+    click.echo("Defaulted MSn Scans: %d" % (n_defaulted,))
+    click.echo("Orphan MSn Scans: %d" % (n_orphan,))
 
 
 @mzml_cli.command("peak-picking", short_help=(
@@ -206,6 +273,7 @@ def preprocess(ms_file, outfile_path, averagine=None, start_time=None, end_time=
     " Can accept mzML or mzXML with either profile or centroided scans."))
 @click.argument("ms-file", type=click.Path(exists=True))
 @click.argument("outfile-path", type=click.Path(writable=True))
+@processes_option
 @click.option("-b", "--background-reduction", type=float, default=5., help=(
               "Background reduction factor. Larger values more aggresively remove low abundance"
               " signal in MS1 scans."))
@@ -226,80 +294,9 @@ def preprocess(ms_file, outfile_path, averagine=None, start_time=None, end_time=
 @click.option("-e", "--end-time", type=float, default=float('inf'), help='Scan time to stop processing at')
 @click.option("-n", "--name", default=None,
               help="Name for the sample run to be stored. Defaults to the base name of the input mzML file")
-def peak_picker(ms_file, outfile_path, start_time=None, end_time=None,
+@click.pass_context
+def peak_picker(ctx, ms_file, outfile_path, start_time=None, end_time=None,
                 name=None, background_reduction=5., msn_background_reduction=0.,
                 transform=None, msn_transform=None, processes=4, extract_only_tandem_envelopes=False,
                 mzml=True, profile=False,):
-    if transform is None:
-        transform = []
-    if msn_transform is None:
-        msn_transform = []
-    cache_handler_type = ThreadedMzMLScanCacheHandler
-    click.echo("Preprocessing %s" % ms_file)
-
-    loader = MSFileLoader(ms_file)
-
-    start_scan_id = loader._locate_ms1_scan(
-        loader.get_scan_by_time(start_time)).id
-    end_scan_id = loader._locate_ms1_scan(
-        loader.get_scan_by_time(end_time)).id
-
-    loader.reset()
-    is_profile = (next(loader).precursor.is_profile or profile)
-    if is_profile:
-        click.secho("Spectra are profile")
-    else:
-        click.secho("Spectra are centroided")
-
-    if name is None:
-        name = os.path.splitext(os.path.basename(ms_file))[0]
-
-    if os.path.exists(outfile_path) and not os.access(outfile_path, os.W_OK):
-        click.secho("Can't write to output file path", fg='red')
-        raise click.Abort()
-
-    click.secho("Initializing %s" % name, fg='green')
-    click.echo("from %s (%0.2f) to %s (%0.2f)" % (
-        start_scan_id, start_time, end_scan_id, end_time))
-
-    if is_profile:
-        ms1_peak_picking_args = {
-            "transforms": [
-                ms_peak_picker.scan_filter.FTICRBaselineRemoval(
-                    scale=background_reduction, window_length=2),
-                ms_peak_picker.scan_filter.SavitskyGolayFilter()
-            ] + list(transform)
-        }
-    else:
-        ms1_peak_picking_args = {
-            "transforms": [
-                ms_peak_picker.scan_filter.FTICRBaselineRemoval(
-                    scale=background_reduction, window_length=2),
-            ] + list(transform)
-        }
-
-    if msn_background_reduction > 0.0:
-        msn_peak_picking_args = {
-            "transforms": [
-                ms_peak_picker.scan_filter.FTICRBaselineRemoval(
-                    scale=msn_background_reduction, window_length=2),
-            ] + list(msn_transform)
-        }
-    else:
-        msn_peak_picking_args = {
-            "transforms": [
-            ] + list(msn_transform)
-        }
-
-    consumer = CentroidingSampleConsumer(
-        ms_file,
-        ms1_peak_picking_args=ms1_peak_picking_args,
-        msn_peak_picking_args=msn_peak_picking_args,
-        storage_path=outfile_path, sample_name=name,
-        start_scan_id=start_scan_id, cache_handler_type=cache_handler_type,
-        end_scan_id=end_scan_id, n_processes=processes,
-        extract_only_tandem_envelopes=extract_only_tandem_envelopes)
-    try:
-        consumer.start()
-    except Exception as error:
-        raise click.ClickException("glycresoft: An error occurred: %r" % error)
+    ctx.forward(preprocess, deconvolute=False)

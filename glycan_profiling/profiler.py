@@ -1,6 +1,3 @@
-import re
-import warnings
-
 from collections import defaultdict
 
 import glypy
@@ -9,29 +6,32 @@ from glycan_profiling.database.disk_backed_database import (
     GlycanCompositionDiskBackedStructureDatabase,
     GlycopeptideDiskBackedStructureDatabase)
 
-from glycan_profiling.serialize import (
-    DatabaseScanDeserializer, AnalysisSerializer,
-    AnalysisTypeEnum, GlycanCompositionChromatogramAnalysisSerializer,
+from glycan_profiling.database.analysis import (
+    GlycanCompositionChromatogramAnalysisSerializer,
     GlycopeptideMSMSAnalysisSerializer)
 
+from glycan_profiling.serialize import (
+    DatabaseScanDeserializer, AnalysisSerializer,
+    AnalysisTypeEnum)
+
 from glycan_profiling.piped_deconvolve import (
-    ScanGenerator as PipedScanGenerator,
-    RawScanGenerator as RawPipedScanGenerator)
+    ScanGenerator as PipedScanGenerator)
 
 from glycan_profiling.scoring import (
     ChromatogramSolution)
 
 from glycan_profiling.trace import (
     ScanSink,
-    ChromatogramFilter,
     ChromatogramExtractor,
     LogitSumChromatogramProcessor,
     LaplacianRegularizedChromatogramProcessor)
 
+from glycan_profiling.chromatogram_tree import ChromatogramFilter
+
 from glycan_profiling.models import GeneralScorer
 
 from glycan_profiling.tandem import chromatogram_mapping
-from glycan_profiling.tandem.spectrum_matcher_base import ScanStub
+from glycan_profiling.structure import ScanStub
 from glycan_profiling.tandem.glycopeptide.scoring import CoverageWeightedBinomialScorer
 from glycan_profiling.tandem.glycopeptide.glycopeptide_matcher import GlycopeptideDatabaseSearchIdentifier
 from glycan_profiling.tandem.glycopeptide import (
@@ -45,22 +45,11 @@ from glycan_profiling.scan_cache import (
 
 from glycan_profiling.task import TaskBase
 
-from brainpy import periodic_table
-from ms_deisotope.averagine import Averagine, glycan as n_glycan_averagine
+import ms_deisotope
+import ms_peak_picker
+
 from ms_deisotope.output.mzml import ProcessedMzMLDeserializer
 from glycopeptidepy.utils.collectiontools import descending_combination_counter
-
-
-def validate_element(element):
-    valid = element in periodic_table
-    if not valid:
-        warnings.warn("%r is not a valid element" % element)
-    return valid
-
-
-def parse_averagine_formula(formula):
-    return Averagine({k: float(v) for k, v in re.findall(r"([A-Z][a-z]*)([0-9\.]*)", formula)
-                      if float(v or 0) > 0 and validate_element(k)})
 
 
 class SampleConsumer(TaskBase):
@@ -72,17 +61,15 @@ class SampleConsumer(TaskBase):
     MS1_SCORE_THRESHOLD = 20.0
     MSN_SCORE_THRESHOLD = 10.0
 
-    def __init__(self, ms_file, averagine=n_glycan_averagine, charge_range=(-1, -8),
+    def __init__(self, ms_file,
                  ms1_peak_picking_args=None, msn_peak_picking_args=None, ms1_deconvolution_args=None,
                  msn_deconvolution_args=None, start_scan_id=None, end_scan_id=None, storage_path=None,
                  sample_name=None, cache_handler_type=None, n_processes=5,
                  extract_only_tandem_envelopes=False, ignore_tandem_scans=False,
-                 ms1_averaging=0):
+                 ms1_averaging=0, deconvolute=True):
 
         if cache_handler_type is None:
             cache_handler_type = ThreadedMzMLScanCacheHandler
-        if isinstance(averagine, basestring):
-            averagine = parse_averagine_formula(averagine)
 
         self.ms_file = ms_file
         self.storage_path = storage_path
@@ -95,16 +82,20 @@ class SampleConsumer(TaskBase):
         self.ms1_averaging = ms1_averaging
         self.ms1_processing_args = {
             "peak_picking": ms1_peak_picking_args,
-            "deconvolution": ms1_deconvolution_args
         }
         self.msn_processing_args = {
             "peak_picking": msn_peak_picking_args,
-            "deconvolution": msn_deconvolution_args
         }
+
+        self.deconvolute = deconvolute
+
+        if deconvolute:
+            self.ms1_processing_args["deconvolution"] = ms1_deconvolution_args
+            self.msn_processing_args["deconvolution"] = msn_deconvolution_args
 
         n_helpers = max(self.n_processes - 1, 0)
         self.scan_generator = PipedScanGenerator(
-            ms_file, averagine=averagine, charge_range=charge_range,
+            ms_file,
             number_of_helpers=n_helpers,
             ms1_peak_picking_args=ms1_peak_picking_args,
             msn_peak_picking_args=msn_peak_picking_args,
@@ -112,12 +103,47 @@ class SampleConsumer(TaskBase):
             msn_deconvolution_args=msn_deconvolution_args,
             extract_only_tandem_envelopes=extract_only_tandem_envelopes,
             ignore_tandem_scans=ignore_tandem_scans,
-            ms1_averaging=ms1_averaging)
+            ms1_averaging=ms1_averaging, deconvolute=deconvolute)
 
         self.start_scan_id = start_scan_id
         self.end_scan_id = end_scan_id
 
         self.sample_run = None
+
+    @staticmethod
+    def default_processing_configuration(averagine=ms_deisotope.glycopeptide, msn_averagine=None):
+        if msn_averagine is None:
+            msn_averagine = averagine
+
+        ms1_peak_picking_args = {
+            "transforms": [
+                ms_peak_picker.scan_filter.FTICRBaselineRemoval(
+                    scale=5.0, window_length=2),
+                ms_peak_picker.scan_filter.SavitskyGolayFilter()
+            ]
+        }
+
+        ms1_deconvolution_args = {
+            "scorer": ms_deisotope.scoring.PenalizedMSDeconVFitter(20, 2.),
+            "max_missed_peaks": 3,
+            "averagine": averagine,
+            "truncate_after": SampleConsumer.MS1_ISOTOPIC_PATTERN_WIDTH,
+            "ignore_below": SampleConsumer.MS1_IGNORE_BELOW,
+            "deconvoluter_type": ms_deisotope.AveraginePeakDependenceGraphDeconvoluter
+        }
+
+        msn_peak_picking_args = {}
+
+        msn_deconvolution_args = {
+            "scorer": ms_deisotope.scoring.MSDeconVFitter(10),
+            "averagine": msn_averagine,
+            "max_missed_peaks": 1,
+            "truncate_after": SampleConsumer.MSN_ISOTOPIC_PATTERN_WIDTH,
+            "ignore_below": SampleConsumer.MSN_IGNORE_BELOW
+        }
+
+        return (ms1_peak_picking_args, msn_peak_picking_args,
+                ms1_deconvolution_args, msn_deconvolution_args)
 
     def run(self):
         self.log("Initializing Generator")
@@ -130,8 +156,10 @@ class SampleConsumer(TaskBase):
         self.log("Begin Processing")
         last_scan_time = 0
         last_scan_index = 0
+        i = 0
         for scan in sink:
-            if scan.scan_time - last_scan_time > 1.0:
+            i += 1
+            if (scan.scan_time - last_scan_time > 1.0) or (i % 1000 == 0):
                 self.log("Processed %s (time: %f)" % (
                     scan.id, scan.scan_time,))
                 if last_scan_index != 0:
@@ -142,50 +170,6 @@ class SampleConsumer(TaskBase):
         sink.complete()
         self.log("Completed Sample %s" % (self.sample_name,))
         sink.commit()
-
-        self.sample_run = sink.sample_run
-
-
-class CentroidingSampleConsumer(SampleConsumer):
-    def __init__(self, ms_file, averagine=n_glycan_averagine, charge_range=(-1, -8),
-                 ms1_peak_picking_args=None, msn_peak_picking_args=None, start_scan_id=None,
-                 end_scan_id=None, storage_path=None, sample_name=None, cache_handler_type=None,
-                 n_processes=5, extract_only_tandem_envelopes=False, ignore_tandem_scans=False,
-                 ms1_averaging=0):
-        if cache_handler_type is None:
-            cache_handler_type = ThreadedMzMLScanCacheHandler
-        if isinstance(averagine, basestring):
-            averagine = parse_averagine_formula(averagine)
-
-        self.ms_file = ms_file
-        self.storage_path = storage_path
-        self.sample_name = sample_name
-
-        self.n_processes = n_processes
-        self.cache_handler_type = cache_handler_type
-        self.extract_only_tandem_envelopes = extract_only_tandem_envelopes
-        self.ignore_tandem_scans = ignore_tandem_scans
-        self.ms1_averaging = ms1_averaging
-        self.ms1_processing_args = {
-            "peak_picking": ms1_peak_picking_args,
-        }
-        self.msn_processing_args = {
-            "peak_picking": msn_peak_picking_args,
-        }
-
-        n_helpers = max(self.n_processes - 1, 0)
-        self.scan_generator = RawPipedScanGenerator(
-            ms_file,
-            number_of_helpers=n_helpers,
-            ms1_peak_picking_args=ms1_peak_picking_args,
-            msn_peak_picking_args=msn_peak_picking_args,
-            extract_only_tandem_envelopes=extract_only_tandem_envelopes,
-            ms1_averaging=self.ms1_averaging)
-
-        self.start_scan_id = start_scan_id
-        self.end_scan_id = end_scan_id
-
-        self.sample_run = None
 
 
 class GlycanChromatogramAnalyzer(TaskBase):
@@ -210,18 +194,25 @@ class GlycanChromatogramAnalyzer(TaskBase):
     def __init__(self, database_connection, hypothesis_id, sample_run_id, adducts=None,
                  mass_error_tolerance=1e-5, grouping_error_tolerance=1.5e-5,
                  scoring_model=GeneralScorer, minimum_mass=500., regularize=None,
-                 regularization_model=None, analysis_name=None, delta_rt=0.5,
-                 require_msms_signature=0, n_processes=4):
+                 regularization_model=None, network=None, analysis_name=None,
+                 delta_rt=0.5, require_msms_signature=0, msn_mass_error_tolerance=2e-5,
+                 n_processes=4):
+
+        if adducts is None:
+            adducts = []
+
         self.database_connection = database_connection
         self.hypothesis_id = hypothesis_id
         self.sample_run_id = sample_run_id
 
         self.mass_error_tolerance = mass_error_tolerance
         self.grouping_error_tolerance = grouping_error_tolerance
+        self.msn_mass_error_tolerance = msn_mass_error_tolerance
 
         self.scoring_model = scoring_model
         self.regularize = regularize
 
+        self.network = network
         self.regularization_model = regularization_model
 
         self.minimum_mass = minimum_mass
@@ -251,6 +242,7 @@ class GlycanChromatogramAnalyzer(TaskBase):
             "adducts": [adduct.name for adduct in self.adducts],
             "minimum_mass": self.minimum_mass,
             "require_msms_signature": self.require_msms_signature,
+            "msn_mass_error_tolerance": self.msn_mass_error_tolerance
         }
 
         evaluator.update_parameters(param_dict)
@@ -295,15 +287,18 @@ class GlycanChromatogramAnalyzer(TaskBase):
     def make_chromatogram_processor(self, extractor, database):
         if self.regularize is not None or self.regularization_model is not None:
             proc = LaplacianRegularizedChromatogramProcessor(
-                extractor, database, mass_error_tolerance=self.mass_error_tolerance,
+                extractor, database, network=self.network,
+                mass_error_tolerance=self.mass_error_tolerance,
                 adducts=self.adducts, scoring_model=self.scoring_model,
                 delta_rt=self.delta_rt, smoothing_factor=self.regularize,
-                regularization_model=self.regularization_model)
+                regularization_model=self.regularization_model,
+                peak_loader=extractor.peak_loader)
         else:
             proc = LogitSumChromatogramProcessor(
                 extractor, database, mass_error_tolerance=self.mass_error_tolerance,
                 adducts=self.adducts, scoring_model=self.scoring_model,
-                delta_rt=self.delta_rt)
+                delta_rt=self.delta_rt,
+                peak_loader=extractor.peak_loader)
         return proc
 
     def make_mapper(self, chromatograms, peak_loader, msms_scans=None, default_glycan_composition=None,
@@ -316,6 +311,25 @@ class GlycanChromatogramAnalyzer(TaskBase):
         return mapper
 
     def annotate_matches_with_msms(self, chromatograms, peak_loader, msms_scans, database):
+        """Map MSn scans to chromatograms matched by precursor mass, and
+        evaluate each glycan compostion-spectrum match
+
+        Parameters
+        ----------
+        chromatograms : ChromatogramFilter
+            Description
+        peak_loader : RandomAccessScanIterator
+            Description
+        msms_scans : list
+            Description
+        database : SearchableMassCollection
+            Description
+
+        Returns
+        -------
+        ChromatogramFilter
+            The chromatograms with matched and scored MSn scans attached to them
+        """
         default_glycan_composition = glypy.GlycanComposition(
             database.hypothesis.monosaccharide_bounds())
         mapper = self.make_mapper(
@@ -324,10 +338,27 @@ class GlycanChromatogramAnalyzer(TaskBase):
         mapped_matches = mapper.map_to_chromatograms(self.mass_error_tolerance)
         self.log("Evaluating MS/MS")
         annotate_matches = mapper.score_mapped_tandem(
-            mapped_matches, error_tolerance=self.mass_error_tolerance, include_compound=True)
+            mapped_matches, error_tolerance=self.msn_mass_error_tolerance, include_compound=True)
         return annotate_matches
 
     def process_chromatograms(self, processor, peak_loader, database):
+        """Extract, match and evaluate chromatograms against the glycan database.
+
+        If MSn are available and required, then MSn scan will be extracted
+        and mapped onto chromatograms, and search each MSn scan with the
+        pseudo-fragments of the glycans matching the chromatograms they
+        map to.
+
+        Parameters
+        ----------
+        processor : ChromatgramProcessor
+            The container responsible for carrying out the matching
+            and evaluating of chromatograms
+        peak_loader : RandomAccessScanIterator
+            An object which can be used iterate over MS scans
+        database : SearchableMassCollection
+            The database of glycan compositions to serch against
+        """
         if self.require_msms_signature > 0:
             self.log("Extracting MS/MS")
             msms_scans = self.load_msms(peak_loader)
@@ -346,13 +377,20 @@ class GlycanChromatogramAnalyzer(TaskBase):
                 key_to_tandem = defaultdict(list)
                 for match in annotated_matches:
                     accepted = False
+                    best_score = 0
                     key_to_tandem[match.key].extend(match.tandem_solutions)
                     for gsm in match.tandem_solutions:
+                        if gsm.score > best_score:
+                            best_score = gsm.score
                         if gsm.score > self.require_msms_signature:
                             accepted = True
                             break
                     if accepted:
                         kept_annotated_matches.append(match)
+                    else:
+                        self.debug(
+                            "%s was discarded with insufficient MS/MS evidence %f" % (
+                                match, best_score))
                 kept_annotated_matches = ChromatogramFilter(kept_annotated_matches)
                 processor.evaluate_chromatograms(kept_annotated_matches)
                 for solution in processor.solutions:
@@ -364,7 +402,16 @@ class GlycanChromatogramAnalyzer(TaskBase):
                                 mapped.append(gsm)
                         solution.tandem_solutions = mapped
                     except KeyError:
+                        solution.tandem_solutions = []
                         continue
+                processor.solutions = ChromatogramFilter([
+                    solution for solution in processor.solutions
+                    if len(solution.tandem_solutions) > 0
+                ])
+                processor.accepted_solutions = ChromatogramFilter([
+                    solution for solution in processor.accepted_solutions
+                    if len(solution.tandem_solutions) > 0
+                ])
         else:
             processor.run()
 
@@ -383,13 +430,15 @@ class MzMLGlycanChromatogramAnalyzer(GlycanChromatogramAnalyzer):
     def __init__(self, database_connection, hypothesis_id, sample_path, output_path,
                  adducts=None, mass_error_tolerance=1e-5, grouping_error_tolerance=1.5e-5,
                  scoring_model=None, minimum_mass=500., regularize=None,
-                 regularization_model=None, analysis_name=None, delta_rt=0.5,
-                 require_msms_signature=0, n_processes=4):
+                 regularization_model=None, network=None, analysis_name=None, delta_rt=0.5,
+                 require_msms_signature=0, msn_mass_error_tolerance=2e-5,
+                 n_processes=4):
         super(MzMLGlycanChromatogramAnalyzer, self).__init__(
             database_connection, hypothesis_id, -1, adducts,
             mass_error_tolerance, grouping_error_tolerance,
-            scoring_model, minimum_mass, regularize, regularization_model,
-            analysis_name, delta_rt, require_msms_signature, n_processes)
+            scoring_model, minimum_mass, regularize, regularization_model, network,
+            analysis_name, delta_rt, require_msms_signature, msn_mass_error_tolerance,
+            n_processes)
         self.sample_path = sample_path
         self.output_path = output_path
 
@@ -429,6 +478,8 @@ class MzMLGlycanChromatogramAnalyzer(GlycanChromatogramAnalyzer):
             "grouping_error_tolerance": self.grouping_error_tolerance,
             "adducts": [adduct.name for adduct in self.adducts],
             "minimum_mass": self.minimum_mass,
+            "require_msms_signature": self.require_msms_signature,
+            "msn_mass_error_tolerance": self.msn_mass_error_tolerance
         }
 
         evaluator.update_parameters(param_dict)
@@ -436,6 +487,7 @@ class MzMLGlycanChromatogramAnalyzer(GlycanChromatogramAnalyzer):
         exporter.run()
         exporter.set_parameters(param_dict)
         self.analysis = exporter.analysis
+        self.analysis_id = exporter.analysis.id
 
 
 class GlycopeptideLCMSMSAnalyzer(TaskBase):
@@ -443,7 +495,7 @@ class GlycopeptideLCMSMSAnalyzer(TaskBase):
                  analysis_name=None, grouping_error_tolerance=1.5e-5, mass_error_tolerance=1e-5,
                  msn_mass_error_tolerance=2e-5, psm_fdr_threshold=0.05, peak_shape_scoring_model=None,
                  tandem_scoring_model=None, minimum_mass=1000., save_unidentified=False,
-                 oxonium_threshold=0.05, scan_transformer=None, n_processes=5,
+                 oxonium_threshold=0.05, scan_transformer=None, adducts=None, n_processes=5,
                  spectra_chunk_size=1000):
         if tandem_scoring_model is None:
             tandem_scoring_model = CoverageWeightedBinomialScorer
@@ -452,6 +504,8 @@ class GlycopeptideLCMSMSAnalyzer(TaskBase):
         if scan_transformer is None:
             def scan_transformer(x):
                 return x
+        if adducts is None:
+            adducts = []
 
         self.database_connection = database_connection
         self.hypothesis_id = hypothesis_id
@@ -463,6 +517,7 @@ class GlycopeptideLCMSMSAnalyzer(TaskBase):
         self.psm_fdr_threshold = psm_fdr_threshold
         self.peak_shape_scoring_model = peak_shape_scoring_model
         self.tandem_scoring_model = tandem_scoring_model
+        self.adducts = adducts
         self.analysis = None
         self.analysis_id = None
         self.minimum_mass = minimum_mass
@@ -499,7 +554,8 @@ class GlycopeptideLCMSMSAnalyzer(TaskBase):
             peak_loader.convert_scan_id_to_retention_time,
             minimum_oxonium_ratio=self.minimum_oxonium_ratio,
             scan_transformer=self.scan_transformer,
-            n_processes=self.n_processes)
+            n_processes=self.n_processes,
+            adducts=self.adducts)
         return searcher
 
     def do_search(self, searcher):
@@ -624,7 +680,8 @@ class MzMLGlycopeptideLCMSMSAnalyzer(GlycopeptideLCMSMSAnalyzer):
                  analysis_name=None, grouping_error_tolerance=1.5e-5, mass_error_tolerance=1e-5,
                  msn_mass_error_tolerance=2e-5, psm_fdr_threshold=0.05, peak_shape_scoring_model=None,
                  tandem_scoring_model=None, minimum_mass=1000., save_unidentified=False,
-                 oxonium_threshold=0.05, scan_transformer=None, n_processes=5, spectra_chunk_size=1000):
+                 oxonium_threshold=0.05, scan_transformer=None, adducts=None,
+                 n_processes=5, spectra_chunk_size=1000):
         super(MzMLGlycopeptideLCMSMSAnalyzer, self).__init__(
             database_connection,
             hypothesis_id, -1,
@@ -633,7 +690,7 @@ class MzMLGlycopeptideLCMSMSAnalyzer(GlycopeptideLCMSMSAnalyzer):
             psm_fdr_threshold, peak_shape_scoring_model,
             tandem_scoring_model, minimum_mass,
             save_unidentified, oxonium_threshold,
-            scan_transformer,
+            scan_transformer, adducts,
             n_processes, spectra_chunk_size)
         self.sample_path = sample_path
         self.output_path = output_path
@@ -683,3 +740,4 @@ class MzMLGlycopeptideLCMSMSAnalyzer(GlycopeptideLCMSMSAnalyzer):
         })
 
         self.analysis = exporter.analysis
+        self.analysis_id = exporter.analysis.id

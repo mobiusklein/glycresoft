@@ -12,7 +12,7 @@ except ImportError:
 
 from glypy import Composition
 from glypy.composition import formula
-from glypy.composition.glycan_composition import FrozenGlycanComposition
+from glypy.structure.glycan_composition import FrozenGlycanComposition
 
 from glycan_profiling.serialize import DatabaseBoundOperation, func
 from glycan_profiling.serialize.hypothesis import GlycopeptideHypothesis
@@ -95,7 +95,6 @@ class GlycopeptideHypothesisSerializerBase(DatabaseBoundOperation, HypothesisSer
             self.hypothesis_id, n)
         combinator.run()
         self.total_glycan_combination_count = combinator.total_count
-        # self.log("set total_glycan_combination_count = %d" % (self.total_glycan_combination_count,))
 
     def _count_produced_glycopeptides(self):
         count = self.query(
@@ -588,7 +587,7 @@ class MultipleProcessPeptideGlycosylator(TaskBase):
                         waiting_batches = self.output_queue.qsize()
                         if waiting_batches > 10:
                             self.create_barrier()
-                            self.log("%d waiting sets." % (waiting_batches,))
+                            self.log("... %d waiting sets." % (waiting_batches,))
                             try:
                                 for _ in range(waiting_batches):
                                     batch.extend(self.output_queue.get_nowait())

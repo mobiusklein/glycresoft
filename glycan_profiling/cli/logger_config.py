@@ -1,3 +1,4 @@
+import sys
 import logging
 import warnings
 import codecs
@@ -11,8 +12,19 @@ from multiprocessing import current_process
 from glycan_profiling import task
 from glycan_profiling.config import config_file
 
+logging_levels = {
+    'CRITICAL': 50,
+    'DEBUG': 10,
+    'ERROR': 40,
+    'INFO': 20,
+    'NOTSET': 0,
+    'WARN': 30,
+    'WARNING': 30
+}
+
 LOG_FILE_NAME = "glycresoft-log"
 LOG_FILE_MODE = 'w'
+LOG_LEVEL = 'INFO'
 
 user_config_data = config_file.get_configuration()
 try:
@@ -23,15 +35,24 @@ try:
     LOG_FILE_MODE = user_config_data['environment']['log_file_mode']
 except KeyError:
     pass
+try:
+    LOG_LEVEL = user_config_data['environment']['log_level']
+    LOG_LEVEL = str(LOG_LEVEL).upper()
+except KeyError:
+    pass
+
 
 LOG_FILE_NAME = os.environ.get("GLYCRESOFT_LOG_FILE_NAME", LOG_FILE_NAME)
 LOG_FILE_MODE = os.environ.get("GLYCRESOFT_LOG_FILE_MODE", LOG_FILE_MODE)
+LOG_LEVEL = str(os.environ.get("GLYCRESOFT_LOG_LEVEL", LOG_LEVEL)).upper()
 
 
 log_multiprocessing = False
 
 
-def configure_logging(level=logging.INFO, log_file_name=None, log_file_mode=None):
+def configure_logging(level=None, log_file_name=None, log_file_mode=None):
+    if level is None:
+        level = logging_levels.get(LOG_LEVEL, "INFO")
     if log_file_name is None:
         log_file_name = LOG_FILE_NAME
     if log_file_mode is None:
@@ -55,6 +76,13 @@ def configure_logging(level=logging.INFO, log_file_name=None, log_file_mode=None
 
     logger = logging.getLogger("glycresoft")
     task.TaskBase.log_with_logger(logger)
+
+    status_logger = logging.getLogger("glycresoft.status")
+    status_logger.propagate = False
+    handler = logging.StreamHandler(sys.stderr)
+    handler.setFormatter(
+        logging.Formatter("%(asctime)s - %(name)s: %(message)s", "%H:%M:%S"))
+    status_logger.addHandler(handler)
 
     if current_process().name == "MainProcess":
         fmt = logging.Formatter(

@@ -1,0 +1,39 @@
+{
+    "adduct_types": [
+        {
+            "composition": {}, 
+            "name": "Unmodified"
+        }, 
+        {
+            "composition": "C-1H-2", 
+            "name": "C-1H-2"
+        }
+    ],
+    "neighborhood_width": 100.0, 
+    "table": {
+        "1000.0": {
+            "C-1H-2": 0.1, 
+            "Unmodified": 0.5001
+        },
+        "2000.0": {
+            "C-1H-2": 0.1, 
+            "Unmodified": 0.5001
+        },
+        "3000.0": {
+            "C-1H-2": 0.1, 
+            "Unmodified": 0.5001
+        }, 
+        "4000.0": {
+            "C-1H-2": 0.1, 
+            "Unmodified": 0.5001
+        },
+        "5000.0": {
+            "C-1H-2": 0.1, 
+            "Unmodified": 0.5001
+        },
+        "6000.0": {
+            "C-1H-2": 0.1, 
+            "Unmodified": 0.5001
+        }
+    }
+}

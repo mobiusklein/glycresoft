@@ -1,0 +1,127 @@
+
+body {
+    font-family: sans-serif;
+}
+
+
+#lc-ms-overview img {
+    width: 50%;
+    margin-left: 24%;
+}
+
+#composition-abundance-overview img {
+    width: 50%;
+    margin-left: 24%;
+}
+
+.flex-container {
+    display: flex;
+    flex-direction: row;
+    flex-wrap: wrap;
+    flex-flow: row wrap;
+    align-content: flex-end;
+}
+
+.flex-justify {
+    justify-content: center;
+}
+
+.flex-left {
+    align-self: flex-start;
+}
+
+.flex-item {
+    flex: 1 0 0;
+    padding: 40px;
+}
+
+.display-table td {
+    text-align: center;
+}
+
+.score-facet-table td {
+    padding: 4px;
+}
+
+.neighborhood-table td {
+    padding: 4px;
+}
+
+section {
+    border-bottom: 2px lightgray solid;
+    margin-bottom: 3px;
+    border-radius: 5px;
+}
+
+body {
+    margin: 20px;
+}
+
+#glycan-chromatogram-details-listing .glycan-chromatogram-detail:last-child {
+    border-bottom: 0px lightgray solid;
+}
+
+#glycan-chromatogram-table table {
+    margin-left: auto;
+    margin-right: auto;
+}
+
+#glycan-chromatogram-table table {
+    margin: 0 auto;
+}
+
+#glycan-chromatogram-table tbody tr:hover {
+    background: lightgrey;
+    cursor: pointer;
+}
+
+#glycan-chromatogram-table table td, #glycan-chromatogram-table table th {
+    border: lightgrey 1px solid;
+}
+
+#glycan-chromatogram-table table {
+    border-collapse: collapse;
+}
+
+#glycan-chromatogram-table td, #glycan-chromatogram-table th {
+    font-size: 0.8rem;
+    padding: 5px;
+}
+
+.ms2-score-container {
+    max-height: 400px;
+    overflow-y: auto;
+}
+
+.ms2-score-container table {
+    margin: 15px 0;
+}
+
+.ms2-score-container table td, .ms2-score-container table th {
+    border: lightgrey 1px solid;
+    padding: 5px;
+    font-size: 0.8rem;
+}
+
+.ms2-score-container table {
+    border-collapse: collapse;
+}
+
+.chromatogram-plot-item {
+    width: 600px;
+    margin-right: 220px;
+}
+
+.score-facet-table {
+    border-collapse: collapse;
+}
+
+.score-facet-table tr td:nth-child(2) {
+    border-left: 1px black solid;
+}
+
+@media print {
+    .glycan-chromatogram-detail h3 {
+        page-break-before: always;
+    }
+}

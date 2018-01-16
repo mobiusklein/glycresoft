@@ -11,7 +11,8 @@ from glycan_profiling.serialize import DatabaseBoundOperation, func
 
 from glycan_profiling.database.builder.base import HypothesisSerializerBase
 
-from glypy.composition import glycan_composition, composition_transform, formula
+from glypy.composition import composition_transform, formula
+from glypy.structure import glycan_composition
 from glypy import ReducedEnd
 
 

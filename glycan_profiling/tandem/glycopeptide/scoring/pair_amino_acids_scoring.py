@@ -3,8 +3,8 @@ from collections import Counter
 from itertools import chain
 import math
 
-from ...spectrum_matcher_base import SpectrumMatcherBase
-from .fragment_match_map import FragmentMatchMap
+from .base import GlycopeptideSpectrumMatcherBase
+from glycan_profiling.structure import FragmentMatchMap
 
 from glycopeptidepy.structure.fragment import IonSeries
 
@@ -92,13 +92,9 @@ class FrequencyCounter(object):
         return inst
 
 
-def is_glycosylated(frag):
-    return "HexNAc" in frag.modification_dict
-
-
-class FrequencyScorer(SpectrumMatcherBase):
-    def __init__(self, scan, sequence, model=None):
-        super(FrequencyScorer, self).__init__(scan, sequence)
+class FrequencyScorer(GlycopeptideSpectrumMatcherBase):
+    def __init__(self, scan, sequence, model=None, mass_shift=None):
+        super(FrequencyScorer, self).__init__(scan, sequence, mass_shift)
         self._score = None
         self.solution_map = FragmentMatchMap()
         self.glycosylated_b_ion_count = 0
@@ -113,7 +109,7 @@ class FrequencyScorer(SpectrumMatcherBase):
         for frags in self.target.get_fragments('b'):
             glycosylated_position = False
             for frag in frags:
-                glycosylated_position |= is_glycosylated(frag)
+                glycosylated_position |= frag.is_glycosylated
                 peak = spectrum.has_peak(frag.mass, error_tolerance)
                 if peak:
                     solution_map.add(peak, frag)
@@ -124,7 +120,7 @@ class FrequencyScorer(SpectrumMatcherBase):
         for frags in self.target.get_fragments('y'):
             glycosylated_position = False
             for frag in frags:
-                glycosylated_position |= is_glycosylated(frag)
+                glycosylated_position |= frag.is_glycosylated
                 peak = spectrum.has_peak(frag.mass, error_tolerance)
                 if peak:
                     solution_map.add(peak, frag)

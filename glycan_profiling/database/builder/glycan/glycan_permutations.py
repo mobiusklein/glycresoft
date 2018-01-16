@@ -2,7 +2,7 @@ from collections import defaultdict, Counter
 import itertools
 
 import glypy
-from glypy.composition.glycan_composition import FrozenGlycanComposition
+from glypy.structure.glycan_composition import FrozenGlycanComposition
 from glypy.composition import formula
 from glypy import ReducedEnd
 

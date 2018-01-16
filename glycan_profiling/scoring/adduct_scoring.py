@@ -35,7 +35,9 @@ class AdductScoringModelBase(ScoringFeatureBase):
             return chromatogram.adducts
         else:
             return [t for t in self.adduct_types
-                    if t in chromatogram.adducts]
+                    # if t in chromatogram.adducts
+                    if [k for k in chromatogram.adducts if k == t or k.composed_with(t)]
+                    ]
 
     def get_signal_proportions(self, chromatogram):
         fractions = chromatogram.adduct_signal_fractions()
@@ -60,23 +62,24 @@ uniform_model = UniformAdductScoringModel()
 
 
 class MassScalingAdductScoringModel(AdductScoringModelBase, MassScalingCountScoringModel):
-    def __init__(self, table, adduct_types=None, neighborhood_width=100.):
+    def __init__(self, table, adduct_types=None, neighborhood_width=100., fit_information=None):
         AdductScoringModelBase.__init__(self, adduct_types)
         MassScalingCountScoringModel.__init__(self, table, neighborhood_width)
+        self.fit_information = fit_information or {}
 
     def transform_state(self, state):
         return state.name
 
     def handle_missing_neighborhood(self, chromatogram, neighborhood, *args, **kwargs):
         warnings.warn(
-            ("%f was not found for this charge state "
+            ("%f was not found for this adduct "
              "scoring model. Defaulting to uniform model") % neighborhood)
         return uniform_model.score(chromatogram, *args, **kwargs)
 
     def handle_missing_bin(self, chromatogram, bins, key, neighborhood, *args, **kwargs):
         warnings.warn("%s not found for this mass range (%f). Using bin average (%r)" % (
             key, neighborhood, chromatogram.adducts))
-        return sum(bins.values()) / float(len(bins))
+        return 0
 
     def clone(self):
         text_buffer = StringIO()
@@ -85,7 +88,7 @@ class MassScalingAdductScoringModel(AdductScoringModelBase, MassScalingCountScor
         return self.load(text_buffer)
 
     def _serialize_mass_shift(self, mass_shift):
-        return {"name": mass_shift.name, "composition": dict(mass_shift.composition)}
+        return {"name": mass_shift.name, "composition": formula(mass_shift.composition)}
 
     def _serialize_compound_mass_shift(self, mass_shift):
         return {
@@ -159,6 +162,7 @@ class MassScalingAdductScoringModel(AdductScoringModelBase, MassScalingCountScor
                 "neighborhood_width": self.neighborhood_width,
                 "table": self.table,
                 "adduct_types": self._serialize_adduct_types(),
+                "fit_information": self.fit_information
             },
             file_obj, indent=4, sort_keys=True)
 
@@ -190,13 +194,23 @@ class MassScalingAdductScoringModel(AdductScoringModelBase, MassScalingCountScor
         self = cls({}, adduct_types=adduct_types,
                    neighborhood_width=neighborhood_width)
 
+        fit_info = {
+            "scale_unmodified": scale_unmodified,
+            "missing": missing,
+            "track": defaultdict(lambda: defaultdict(list)),
+            "count": defaultdict(int)
+        }
+
         all_keys = set()
         for sol in observations:
             neighborhood = self.neighborhood_of(sol.neutral_mass)
+            fit_info['count'][neighborhood] += 1
             for c in self.get_states(sol):
                 key = self.transform_state(c)
                 all_keys.add(key)
-                bins[neighborhood][key] += sol.total_signal_for(c) / (sol.total_signal)
+                val = sol.total_signal_for(c) / (sol.total_signal)
+                bins[neighborhood][key] += val
+                fit_info['track'][neighborhood][key].append(val)
 
         model_table = {}
 
@@ -213,4 +227,5 @@ class MassScalingAdductScoringModel(AdductScoringModelBase, MassScalingCountScor
             entry = {k: v / total for k, v in counts.items()}
             model_table[neighborhood] = entry
 
-        return cls(model_table, adduct_types=adduct_types, neighborhood_width=neighborhood_width)
+        return cls(model_table, adduct_types=adduct_types, neighborhood_width=neighborhood_width,
+                   fit_information=fit_info)

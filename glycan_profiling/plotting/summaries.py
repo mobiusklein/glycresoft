@@ -14,7 +14,9 @@ class GlycanChromatographySummaryGraphBuilder(object):
         self.solutions = solutions
 
     def chromatograms(self, min_score=0.4, min_signal=0.2, colorizer=None, total_ion_chromatogram=None,
-                      base_peak_chromatogram=None):
+                      base_peak_chromatogram=None, ax=None):
+        if ax is None:
+            ax = figax()
         monosaccharides = set()
 
         for sol in self.solutions:
@@ -30,7 +32,7 @@ class GlycanChromatographySummaryGraphBuilder(object):
 
         results = [sol for sol in self.solutions if sol.score > min_score and not sol.used_as_adduct]
         chrom = SmoothingChromatogramArtist(
-            results, ax=figax(), colorizer=colorizer).draw(label_function=label_abundant)
+            results, ax=ax, colorizer=colorizer).draw(label_function=label_abundant)
 
         if total_ion_chromatogram is not None:
             rt, intens = total_ion_chromatogram.as_arrays()
@@ -44,13 +46,15 @@ class GlycanChromatographySummaryGraphBuilder(object):
                 "BPC", rt, intens, 'green')
         return chrom
 
-    def aggregated_abundance(self, min_score=0.4):
+    def aggregated_abundance(self, min_score=0.4, ax=None):
+        if ax is None:
+            ax = figax()
         agg = AggregatedAbundanceArtist(
             BundledGlycanComposition.aggregate([
                 sol for sol in self.solutions if (sol.score > min_score and
                                                   sol.glycan_composition is not None and
                                                   not sol.used_as_adduct)]),
-            ax=figax())
+            ax=ax)
         if len(agg) == 0:
             ax = agg.ax
             ax.text(0.5, 0.5, "No Entities Matched", ha='center')

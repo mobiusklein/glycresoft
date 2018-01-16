@@ -4,8 +4,8 @@ import numpy as np
 from matplotlib import pyplot as plt
 
 from .glycan_visual_classification import (
-    NGlycanCompositionColorizer, NGlycanCompositionOrderer,
-
+    NGlycanCompositionColorizer,
+    NGlycanCompositionOrderer,
     GlycanLabelTransformer)
 from .chromatogram_artist import ArtistBase
 
@@ -16,14 +16,20 @@ class EntitySummaryBarChartArtist(ArtistBase):
     y_label = "<SET self.y_label>"
     plot_title = "<SET self.plot_title>"
 
-    def __init__(self, chromatograms, ax=None):
+    def __init__(self, chromatograms, ax=None, colorizer=None, orderer=None):
         if ax is None:
             fig, ax = plt.subplots(1)
+        if colorizer is None:
+            colorizer = NGlycanCompositionColorizer
+        if orderer is None:
+            orderer = NGlycanCompositionOrderer
         self.ax = ax
+        self.colorizer = colorizer
+        self.orderer = orderer
         self.chromatograms = [c for c in chromatograms if c.glycan_composition is not None]
 
     def sort_items(self):
-        return NGlycanCompositionOrderer.sort(self.chromatograms, key=lambda x: x.glycan_composition)
+        return self.orderer.sort(self.chromatograms, key=lambda x: x.glycan_composition)
 
     def get_heights(self, items, **kwargs):
         raise NotImplementedError()
@@ -45,9 +51,9 @@ class EntitySummaryBarChartArtist(ArtistBase):
         if len(items) == 0:
             raise ValueError("Cannot render. Zero items to plot.")
         keys = [c.glycan_composition for c in items]
-        include_classes = set(map(NGlycanCompositionColorizer.classify, keys))
-        xtick_labeler = GlycanLabelTransformer(keys, NGlycanCompositionOrderer)
-        color = map(NGlycanCompositionColorizer, keys)
+        include_classes = set(map(self.colorizer.classify, keys))
+        xtick_labeler = GlycanLabelTransformer(keys, self.orderer)
+        color = map(self.colorizer, keys)
         self.indices = indices = np.arange(len(items))
 
         self.xtick_labeler = xtick_labeler
@@ -123,7 +129,7 @@ class AggregatedAbundanceArtist(EntitySummaryBarChartArtist):
     y_label = "Relative Intensity"
     plot_title = "Glycan Composition\nTotal Abundances"
 
-    def get_heights(self, items, logscale=False):
+    def get_heights(self, items, logscale=False, *args, **kwargs):
         heights = [c.total_signal for c in items]
         if logscale:
             heights = np.log2(heights)

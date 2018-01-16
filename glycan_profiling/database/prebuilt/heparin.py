@@ -13,7 +13,7 @@ enHexA  0   1
 '''
 
 hypothesis_metadata = {
-    "name": 'Low Molecular Weight Heparans',
+    "name": 'Low Molecular Weight Heparins',
     "hypothesis_type": 'glycan_composition'
 }
 

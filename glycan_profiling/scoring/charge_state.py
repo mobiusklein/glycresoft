@@ -38,6 +38,10 @@ class ChargeStateDistributionScoringModelBase(ScoringFeatureBase):
         # little support to be used
         return proportions
 
+    def reject(self, score_components, solution):
+        score = score_components[self.feature_type]
+        return score < 0.05
+
 
 _CHARGE_MODEL = ChargeStateDistributionScoringModelBase
 
@@ -84,8 +88,10 @@ decay_model = DecayRateChargeStateScoringModel()
 
 class MassScalingChargeStateScoringModel(_CHARGE_MODEL, MassScalingCountScoringModel):
     def __init__(self, table, neighborhood_width=100., fit_information=None):
-        self.table = table
-        self.neighborhood_width = neighborhood_width
+        # self.table = table
+        # self.neighborhood_width = neighborhood_width
+        _CHARGE_MODEL.__init__(self)
+        MassScalingCountScoringModel.__init__(self, table, neighborhood_width)
         self.fit_information = fit_information or {}
 
     def handle_missing_neighborhood(self, chromatogram, neighborhood, *args, **kwargs):

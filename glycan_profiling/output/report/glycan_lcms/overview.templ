@@ -1,96 +1,14 @@
-<!DOCTYPE html5>
+<!DOCTYPE html>
 <html>
 <head>
     <title></title>
+    <meta charset="utf-8">
     <style>
-
-body {
-    font-family: sans-serif;
-}
-
-
-#lc-ms-overview img {
-    width: 50%;
-    margin-left: 24%;
-}
-
-#composition-abundance-overview img {
-    width: 50%;
-    margin-left: 24%;
-}
-
-.flex-container {
-    display: flex;
-    flex-direction: row;
-    flex-wrap: wrap;
-    flex-flow: row wrap;
-    align-content: flex-end;
-}
-
-.flex-justify {
-    justify-content: center;
-}
-
-.flex-left {
-    align-self: flex-start;
-}
-
-.flex-item {
-    flex: 1 0 0;
-    padding: 40px;
-}
-
-.display-table td {
-    text-align: center;
-}
-
-.score-facet-table td {
-    padding: 4px;
-}
-
-.neighborhood-table td {
-    padding: 4px;
-}
-
-section {
-    border-bottom: 2px lightgray solid;
-    margin-bottom: 3px;
-    border-radius: 5px;
-}
-
-body {
-    margin: 20px;
-}
-
-#glycan-chromatogram-details-listing :last-child {
-    border-bottom: 0px lightgray solid;
-}
-
-#glycan-chromatogram-table table {
-    margin-left: auto;
-    margin-right: auto;
-}
-
-.chromatogram-plot-item {
-    width: 600px;
-    margin-right: 220px;
-}
-
-.score-facet-table {
-    border-collapse: collapse;
-}
-
-.score-facet-table tr td:nth-child(2) {
-    border-left: 1px black solid;
-}
-
-@media print {
-    .glycan-chromatogram-detail h3 {
-        page-break-before: always;
-    }
-}
-
+        {% include "style.css" %}
     </style>
+    <script type="text/javascript">
+        {% include "behaviors.js" %}
+    </script>
 </head>
 <body>
     <div>
@@ -105,6 +23,17 @@ body {
                 {% if analysis.parameters.get("network_parameters") is not none %}
                     <b>Network &lambda;:</b> {{"%0.3g" % analysis.parameters.network_parameters.lmbda}}<br>
                 {% endif %}
+                <b>Scoring Model Features</b>
+                <ul class='scoring-feature-name-list'>
+                    {% for feature in analysis.parameters.get("scoring_model").features() %}
+                    <li>
+                        {{feature.get_feature_type()}}: {{
+                            feature.get_feature_name().replace(
+                                feature.get_feature_type(), "").replace(":", "")
+                        }}
+                    </li>
+                    {% endfor %}                    
+                </ul>
             </div>
             <div class='flex-item'>
                 {% if analysis.parameters.get("network_parameters") is not none %}
@@ -162,7 +91,7 @@ body {
                     </thead>
                     <tbody class='display-table'>
                         {% for chrom in glycan_chromatograms %}
-                        <tr>
+                        <tr class='glycan-detail-table-row' data-glycan-id="{{chrom.id}}">
                             <td>{{"%0.5f" % chrom.neutral_mass}}</td>
                             <td class='medium-wide'>
                                 {{chrom.glycan_composition | glycan_link}}
@@ -192,7 +121,7 @@ body {
         </section>
         <section id='glycan-chromatogram-details-listing'>
             {% for chromatogram in glycan_chromatograms %}
-                <section class='glycan-chromatogram-detail' id='detail-{{chromatogram.glycan_composition.serialize()|urlencode}}'>
+                <section class='glycan-chromatogram-detail' id='detail-{{chromatogram.id}}'>
                     <h3>{{chromatogram.glycan_composition}}</h3>
                     <div class='flex-container'>
                         <div class='flex-item'>
@@ -247,7 +176,7 @@ body {
                                                     {{gsm.scan_id}}
                                                 </td>
                                                 <td>
-                                                    {{gsm.score}}
+                                                    {{"%0.4g" % gsm.score}}
                                                 </td>
                                             </tr>
                                         {% endfor %}
@@ -260,6 +189,10 @@ body {
                                 {% for pair in chromatogram.ambiguous_with %}
                                     <li style='margin-bottom: 5px;'>
                                         {{pair[0] | glycan_link}} ~ {{pair[1].name}}
+                                        {% set reference = resolve_key(pair[0]) %}
+                                        {% if reference is not none %}
+                                            ({{"%0.4g" % reference.score}})
+                                        {% endif %}
                                     </li>
                                 {% endfor %}
                                 </ul>
@@ -270,6 +203,10 @@ body {
                                     {% for pair in chromatogram.used_as_adduct %}
                                         <li style='margin-bottom: 5px;'>
                                             {{pair[0] | glycan_link}} ~ {{pair[1].name}}
+                                            {% set reference = resolve_key(pair[0]) %}
+                                            {% if reference is not none %}
+                                                ({{"%0.4g" % reference.score}})
+                                            {% endif %}
                                         </li>
                                     {% endfor %}
                                 </ul>

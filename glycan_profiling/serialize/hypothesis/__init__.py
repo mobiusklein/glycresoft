@@ -9,4 +9,5 @@ from .peptide import (
     Protein, Peptide, Glycopeptide)
 
 from .generic import (
-    TemplateNumberStore as TemplateNumberStore)
+    TemplateNumberStore as TemplateNumberStore,
+    ReferenceDatabase, ReferenceAccessionNumber)

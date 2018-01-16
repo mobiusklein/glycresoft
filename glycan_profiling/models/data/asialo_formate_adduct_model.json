@@ -1,0 +1,58 @@
+{
+    "adduct_types": [
+        {
+            "composition": "C1H2O2", 
+            "name": "Formate"
+        }, 
+        {
+            "composition": "", 
+            "name": "Unmodified"
+        }, 
+        {
+            "composition": "C3H6O6", 
+            "counts": {
+                "Formate": 3
+            }, 
+            "definitions": {
+                "Formate": "C1H2O2"
+            }, 
+            "name": "Formate * 3"
+        }, 
+        {
+            "composition": "C2H4O4", 
+            "counts": {
+                "Formate": 2
+            }, 
+            "definitions": {
+                "Formate": "C1H2O2"
+            }, 
+            "name": "Formate * 2"
+        }
+    ],
+    "scale_unmodified": 0.25,
+    "neighborhood_width": 100.0, 
+    "table": {
+        "2000.0": {
+            "Formate": 0.3319421910129766, 
+            "Formate * 2": 0.6675710912768372, 
+            "Unmodified": 0.000486717710186116
+        }, 
+        "3000.0": {
+            "Formate": 0.39599901092963374, 
+            "Formate * 2": 0.602755659057913, 
+            "Unmodified": 0.0012453300124533003
+        }, 
+        "4000.0": {
+            "Formate": 0.0028443409420869014, 
+            "Formate * 2": 0.602755659057913,
+            "Formate * 3": 0.394,
+            "Unmodified": 0.0004
+        }, 
+        "5000.0": {
+            "Formate": 0.0028443409420869014, 
+            "Formate * 2": 0.602755659057913,
+            "Formate * 3": 0.394,
+            "Unmodified": 0.0004
+        }
+    }
+}

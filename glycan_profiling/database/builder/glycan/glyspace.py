@@ -7,9 +7,12 @@ except Exception:
     pass
 
 import os
+import hashlib
+from collections import Counter
+
 from glypy.io import glycoct, glyspace
 from glypy.structure.glycan import NamedGlycan
-from glypy.composition.glycan_composition import GlycanComposition
+from glypy.structure.glycan_composition import GlycanComposition
 
 from rdflib.plugins.sparql.results import xmlresults
 
@@ -18,7 +21,8 @@ from glycan_profiling.serialize import (
     GlycanClass,
     GlycanStructure,
     GlycanHypothesis,
-    GlycanStructureToClass, GlycanCompositionToClass)
+    GlycanStructureToClass, GlycanCompositionToClass,
+    ReferenceDatabase, ReferenceAccessionNumber)
 
 from .glycan_source import (
     GlycanTransformer, GlycanHypothesisSerializerBase,
@@ -231,12 +235,37 @@ class GlyspaceQueryHandler(TaskBase):
         return self.translate_response(self.response)
 
 
+def detatch_monosaccharide_subgroups(composition, substituents=None):
+    if substituents is None:
+        substituents = []
+    composition = GlycanComposition.parse(composition)
+    if not substituents:
+        return composition
+
+    gc = GlycanComposition()
+
+    for key, value in composition.items():
+        node_substituents = [s for p, s in key.substituents()]
+        counts = Counter()
+        for node_sub in node_substituents:
+            for sub in substituents:
+                if node_sub.name == sub.name:
+                    key.drop_substituent(-1, sub.name)
+                    counts[sub.name] += 1
+        gc[key] = value
+        for sub_key, count in counts.items():
+            gc['@%s' % sub_key] += count * value
+    return gc
+
+
 class GlyspaceGlycanStructureHypothesisSerializerBase(GlycanHypothesisSerializerBase):
     def __init__(self, database_connection, hypothesis_name=None, reduction=None, derivatization=None,
-                 filter_functions=None, simplify=False):
+                 filter_functions=None, simplify=False, substituents_to_detatch=None):
         super(GlyspaceGlycanStructureHypothesisSerializerBase, self).__init__(database_connection, hypothesis_name)
         if filter_functions is None:
             filter_functions = []
+        if substituents_to_detatch is None:
+            substituents_to_detatch = []
         self.reduction = reduction
         self.derivatization = derivatization
         self.loader = None
@@ -245,12 +274,16 @@ class GlyspaceGlycanStructureHypothesisSerializerBase(GlycanHypothesisSerializer
         self.seen = dict()
         self.filter_functions = filter_functions
         self.simplify = simplify
+        self.substituents_to_detatch = substituents_to_detatch
+        self._glytoucan_reference_db = None
 
     def _get_sparql(self):
         raise NotImplementedError()
 
     def _get_store_name(self):
         raise NotImplementedError()
+
+    detatch_monosaccharide_subgroups = staticmethod(detatch_monosaccharide_subgroups)
 
     def _store_result(self, response):
         dir_path = get_transient_store()
@@ -325,8 +358,12 @@ class GlyspaceGlycanStructureHypothesisSerializerBase(GlycanHypothesisSerializer
             glycan_comp.drop_configurations()
             glycan_comp.drop_stems()
             glycan_comp.drop_positions()
+        glycan_comp = self.detatch_monosaccharide_subgroups(glycan_comp, self.substituents_to_detatch)
         composition_string = glycan_comp.serialize()
 
+        accn = ReferenceAccessionNumber.get(
+            self.session, structure.name, self._glytoucan_reference_db.id)
+        self.session.flush()
         structure = GlycanStructure(
             glycan_sequence=structure_string,
             formula=formula_string,
@@ -335,6 +372,7 @@ class GlyspaceGlycanStructureHypothesisSerializerBase(GlycanHypothesisSerializer
             calculated_mass=mass)
         composition_obj = self.composition_cache[composition_string]
         structure.glycan_composition_id = composition_obj.id
+        structure.references.append(accn)
         self.session.add(structure)
         self.session.flush()
         structure_class = self.structure_class_loader[motif]
@@ -348,6 +386,7 @@ class GlyspaceGlycanStructureHypothesisSerializerBase(GlycanHypothesisSerializer
         if structure_class not in db_structure.structure_classes:
             rel = dict(glycan_id=db_structure.id, class_id=structure_class.id)
             self.session.execute(GlycanStructureToClass.insert(), rel)
+        self.session.flush()
 
     def propagate_composition_motifs(self):
         pairs = self.query(
@@ -363,6 +402,9 @@ class GlyspaceGlycanStructureHypothesisSerializerBase(GlycanHypothesisSerializer
 
     def run(self):
         self.make_pipeline()
+        self._glytoucan_reference_db = ReferenceDatabase.get(
+            self.session, name='GlyTouCan', url='https://glytoucan.org/')
+        self.session.commit()
         self.composition_cache = GlycanCompositionSerializationCache(self.session, self.hypothesis_id)
         i = 0
         last = 0
@@ -407,3 +449,20 @@ class RestrictedOGlycanGlyspaceHypothesisSerializer(GlyspaceGlycanStructureHypot
 
     def _get_store_name(self):
         return "restricted-o-glycans-query.sparql.xml"
+
+
+class UserSPARQLQueryGlySpaceHypothesisSerializer(GlycanHypothesisSerializerBase):
+    def __init__(self, database_connection, query, hypothesis_name=None, reduction=None, derivatization=None,
+                 filter_functions=None, simplify=False, substituents_to_detatch=None):
+        super(UserSPARQLQueryGlySpaceHypothesisSerializer, self).__init__(
+            database_connection, hypothesis_name, reduction, derivatization,
+            filter_functions, simplify, substituents_to_detatch)
+        self._query = query
+
+    def _get_sparql(self):
+        return self._query
+
+    def _get_store_name(self):
+        sha1 = hashlib.new("sha1")
+        sha1.update(self._query)
+        return "user-query-{}.sparql.xml".format(sha1.hexdigest())

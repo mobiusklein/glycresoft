@@ -8,7 +8,7 @@ from six import add_metaclass
 
 from glycan_profiling import symbolic_expression
 from glycopeptidepy import HashableGlycanComposition
-from glypy.composition.glycan_composition import FrozenMonosaccharideResidue as FMR
+from glypy.structure.glycan_composition import FrozenMonosaccharideResidue as FMR
 
 
 epsilon = 1e-6
@@ -61,7 +61,7 @@ class ScoringFeatureBase(object):
             return name
 
     @classmethod
-    def reject(self, score_components):
+    def reject(self, score_components, solution):
         score = score_components[self.get_feature_type()]
         return score < 0.15
 
@@ -84,9 +84,12 @@ class DummyFeature(ScoringFeatureBase):
     def get_feature_name(self):
         name = getattr(self, "name", None)
         if name is None:
-            return "%s:%s" % (self.get_feature_type(), self.__name__)
-        else:
-            return name
+            name = self.__name__
+        return "%s:%s" % (self.get_feature_type(), name)
+
+    def reject(self, score_components, solution):
+        score = score_components[self.feature_type]
+        return score < 0.15
 
     def clone(self):
         return self
@@ -124,7 +127,7 @@ class DiscreteCountScoringModelBase(object):
         # total signal observed in state
         raise NotImplementedError()
 
-    def reject(self, score_components):
+    def reject(self, score_components, solution):
         score = score_components[self.feature_type]
         return score < 0.15
 
@@ -303,9 +306,12 @@ class CompositionDispatchingModel(ScoringFeatureBase):
             ", ".join([v.get_feature_name()
                        for v in self.rule_model_map.values()]))
 
-    def reject(self, score_components):
-        score = score_components[self.get_feature_type()]
-        return score < 0.15
+    def reject(self, score_components, solution):
+        # score = score_components[self.get_feature_type()]
+        # return score < 0.15
+        composition = self.get_composition(solution)
+        model = self.find_model(composition)
+        return model.reject(score_components, solution)
 
     def clone(self):
         return self.__class__(self.rule_model_map, self.default_model)
@@ -314,7 +320,18 @@ class CompositionDispatchingModel(ScoringFeatureBase):
 neuac = FMR.from_iupac_lite("NeuAc")
 neugc = FMR.from_iupac_lite("NeuGc")
 neu = FMR.from_iupac_lite("Neu")
+sulfate = FMR.from_iupac_lite("@sulfate")
+hexuronic_acid = FMR.from_iupac_lite("aHex")
 
 
 def is_sialylated(composition):
     return (composition[neuac] + composition[neugc] + composition[neu]) > 0
+
+
+def degree_of_sialylation(composition):
+    return (composition[neuac] + composition[neugc] + composition[neu])
+
+
+def is_high_mannose(composition):
+    return (composition['HexNAc'] == 2 and composition['Hex'] > 3 and
+            not is_sialylated(composition))

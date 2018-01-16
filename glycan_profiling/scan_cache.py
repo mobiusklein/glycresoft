@@ -11,6 +11,8 @@ except ImportError:
     from queue import Queue, Empty as QueueEmptyException
 
 from ms_deisotope.data_source import MSFileLoader
+from ms_deisotope.data_source.metadata.file_information import (
+    SourceFile as MetadataSourceFile)
 
 from ms_deisotope.output.mzml import MzMLScanSerializer
 
@@ -261,16 +263,25 @@ class MzMLScanCacheHandler(ScanCacheHandlerBase):
         if source is not None:
             reader = MSFileLoader(source.scan_source)
             n_spectra = len(reader.index)
-            deconvoluting = getattr(source, "deconvoluting", True)
+            deconvoluting = source.deconvoluting
             inst = cls(path, sample_name, n_spectra=n_spectra, deconvoluted=deconvoluting)
+            description = reader.file_description()
+            source_file_metadata = MetadataSourceFile.from_path(source.scan_source)
+            inst.serializer.add_file_information(description)
             try:
-                description = reader.file_description()
-                for key in description.get("fileContent", []):
-                    inst.serializer.add_file_contents(key)
-                for source_file in description.get('sourceFileList', []):
-                    inst.add_source_file(source_file)
-            except AttributeError:
+                inst.serializer.remove_file_contents("profile spectrum")
+            except KeyError:
                 pass
+            inst.serializer.add_file_contents("centroid spectrum")
+            if source_file_metadata not in description.source_files:
+                inst.serializer.add_source_file(source_file_metadata)
+            try:
+                instrument_configs = reader.instrument_configuration()
+                for config in instrument_configs:
+                    inst.serializer.add_instrument_configuration(config)
+            except Exception as e:
+                log_handle.error(
+                    "An error occurred while writing instrument configuration", e)
             for trans in source.ms1_peak_picking_args.get("transforms"):
                 inst.register_parameter("parameter: ms1-%s" % trans.__class__.__name__, repr(trans))
             if deconvoluting:
@@ -280,6 +291,13 @@ class MzMLScanCacheHandler(ScanCacheHandlerBase):
                 if source.ms1_deconvolution_args.get("scorer"):
                     inst.register_parameter(
                         "parameter: ms1-scorer", repr(source.ms1_deconvolution_args.get("scorer")))
+                if source.ms1_averaging > 0:
+                    inst.register_parameter("parameter: ms1-averaging", repr(source.ms1_averaging))
+                if source.ignore_tandem_scans:
+                    inst.register_parameter("parameter: ignore-tandem-scans", "")
+                if source.extract_only_tandem_envelopes:
+                    inst.register_parameter("parameter: extract-only-tandem-envelopes", "")
+
             if source.msn_peak_picking_args is not None:
                 for trans in source.msn_peak_picking_args.get("transforms"):
                     inst.register_parameter("parameter: msn-%s" % trans.__class__.__name__, repr(trans))
@@ -324,6 +342,12 @@ class ThreadedMzMLScanCacheHandler(MzMLScanCacheHandler):
 
     def _save_bunch(self, precursor, products):
         self.serializer.save(ScanBunch(precursor, products))
+        try:
+            precursor.clear()
+            for product in products:
+                product.clear()
+        except AttributeError:
+            pass
 
     def save_bunch(self, precursor, products):
         self.queue.put((precursor, products))
@@ -350,6 +374,12 @@ class ThreadedMzMLScanCacheHandler(MzMLScanCacheHandler):
                 if next_bunch == DONE:
                     has_work = False
                     continue
+                # log_handle.log("Writing %s %f (%d, %d)" % (
+                #     next_bunch[0].id,
+                #     next_bunch[0].scan_time,
+                #     len(next_bunch[0].deconvoluted_peak_set) + sum(
+                #         [len(p.deconvoluted_peak_set) for p in next_bunch[1]]),
+                #     self.queue.qsize()))
                 self._save_bunch(*next_bunch)
                 if self.queue.qsize() > 0:
                     current_work = drain_queue()
@@ -358,6 +388,12 @@ class ThreadedMzMLScanCacheHandler(MzMLScanCacheHandler):
                         if next_bunch == DONE:
                             has_work = False
                         else:
+                            # log_handle.log("Writing %s %f (%d, %d)" % (
+                            #     next_bunch[0].id,
+                            #     next_bunch[0].scan_time,
+                            #     len(next_bunch[0].deconvoluted_peak_set) + sum(
+                            #         [len(p.deconvoluted_peak_set) for p in next_bunch[1]]),
+                            #     self.queue.qsize()))
                             self._save_bunch(*next_bunch)
                             i += 1
             except QueueEmptyException:

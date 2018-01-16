@@ -1,7 +1,9 @@
 from collections import defaultdict
 
-from glycopeptidepy.structure import sequence
+import glycopeptidepy
+from glycopeptidepy.structure import sequence, modification
 from glycopeptidepy.utils import simple_repr
+from glypy.plot import plot as draw_tree
 
 from .colors import darken, cnames, hex2color
 
@@ -49,13 +51,17 @@ class SequenceGlyph(object):
         self.sequence = peptide
         self.ax = ax
         self.size = size
-        self.step_coefficient = 1.0
+        self.step_coefficient = step_coefficient
         self.sequence_position_glyphs = []
         self.x = kwargs.get('x', 1)
         self.y = kwargs.get('y', 1)
         self.options = kwargs
 
         self.render()
+
+    def make_position_glyph(self, position, i, x, y, size):
+        glyph = SequencePositionGlyph(position, i, x, y, size=size)
+        return glyph
 
     def render(self):
         ax = self.ax
@@ -71,7 +77,7 @@ class SequenceGlyph(object):
         glyphs = self.sequence_position_glyphs = []
         i = 0
         for position in self.sequence:
-            glyph = SequencePositionGlyph(position, i, x, y, size=size)
+            glyph = self.make_position_glyph(position, i, x, y, size=size)
             glyph.render(ax)
             glyphs.append(glyph)
             x += size * self.step_coefficient
@@ -82,7 +88,8 @@ class SequenceGlyph(object):
         for i, position in enumerate(self.sequence_position_glyphs, 1):
             if i == index:
                 break
-        return position.x + (self.step_coefficient * self.size) / 1.3
+        mid_point_offset = (self.step_coefficient * self.size) / 1.3
+        return position.x + mid_point_offset
 
     def draw_bar_at(self, index, height=0.25, color='red', **kwargs):
         x = self.next_between(index)
@@ -247,3 +254,49 @@ def glycopeptide_match_logo(glycopeptide_match, ax=None, color='red', glycosylat
         glycopeptide_match, color=color,
         glycosylated_color=glycosylated_color, ax=ax, **kwargs)
     return inst.ax
+
+
+def draw_proteoform(proteoform, width=60):
+    '''Draw a sequence logo for a proteoform
+    '''
+    fig, ax = plt.subplots(1)
+    i = 0
+    n = len(proteoform)
+    y = 1
+    x = 1
+    rows = []
+    # partion the protein sequence into chunks of width positions
+    while i < n:
+        rows.append(glycopeptidepy.PeptideSequence.from_iterable(proteoform[i:i + width]))
+        i += width
+    # draw each row, starting from the last row and going up
+    # so that if the current row has a glycan on it, we can
+    # compute its height and start drawing the next row further
+    # up the plot
+    for row in rows[::-1]:
+        sg = SequenceGlyph(row, x=x, y=y, ax=ax)
+        sg.layout()
+        drawn_trees = []
+        for position in sg.sequence_position_glyphs:
+            # check for glycosylation at each position
+            if position.position[1] and position.position[1][0].is_a(
+                    modification.ModificationCategory.glycosylation):
+                mod = position.position[1][0]
+                dtree, ax = draw_tree(
+                    mod.rule._original, at=(position.x, position.y + 1),
+                    orientation='vertical', ax=sg.ax, center=False)
+                # re-center tree because draw_tree's layout only sets the starting
+                # coordinates of the tree root, and later transforms move it around.
+                # this sequence of translates will re-center it above the residue
+                dtree.transform.translate(-dtree.x, 0).translate(0.3, 0)
+                drawn_trees.append(dtree)
+        # get the height of the tallest glycan
+        if drawn_trees:
+            tree_height = max(dtree.extrema()[3] for dtree in drawn_trees) + 0.5
+        else:
+            tree_height = 0
+        ymax = tree_height + 1
+        y += ymax
+    ax.set_xlim(0, width + 10)
+    ax.set_ylim(-1, y + 1)
+    return ax

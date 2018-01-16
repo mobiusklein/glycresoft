@@ -6,6 +6,10 @@ const displayPanelSelector = '#display-panel'
 function initViewer(scope) {
     scope.displayPanel = document.querySelector(displayPanelSelector)
 
+    function querySelectorAll(selector) {
+        return Array.from(document.querySelectorAll(selector))
+    }
+
     function glycopeptidePileUpMouseOverHandler(event) {
         const leftSideThreshold = window.screen.width / 2
         let isLeftSide = event.screenX < leftSideThreshold
@@ -27,13 +31,13 @@ function initViewer(scope) {
         scope.displayPanel.style.display = 'none'
     }
 
-    let glycopeptideRects = document.querySelectorAll("g.glycopeptide");
+    let glycopeptideRects = querySelectorAll("g.glycopeptide");
     for(let glycopeptide of glycopeptideRects) {
         glycopeptide.addEventListener("mouseover", glycopeptidePileUpMouseOverHandler)
         glycopeptide.addEventListener("mouseout", glycopeptidePileUpMouseOutHandler)
     }
 
-    let glycoproteinTableRows = document.querySelectorAll("tr.protein-table-row")
+    let glycoproteinTableRows = querySelectorAll("tr.protein-table-row")
     function scrollToGlycoproteinEntry(event) {
         let proteinId = this.dataset.proteinId
         let selector = `#detail-glycoprotein-${proteinId}`
@@ -43,7 +47,7 @@ function initViewer(scope) {
         glycoproteinRow.addEventListener("click", scrollToGlycoproteinEntry)
     }
 
-    let glycopeptideTableRows = document.querySelectorAll("tr.glycopeptide-detail-table-row")
+    let glycopeptideTableRows = querySelectorAll("tr.glycopeptide-detail-table-row")
     function scrollToGlycopeptideEntry(event) {
         let glycopeptideId = this.dataset.glycopeptideId
         let selector = `#detail-glycopeptide-${glycopeptideId}`

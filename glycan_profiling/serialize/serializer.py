@@ -2,9 +2,11 @@ from collections import defaultdict
 from uuid import uuid4
 
 from ms_deisotope.output.db import (
-    MSScan,
-    DatabaseScanDeserializer,
-    DatabaseBoundOperation)
+    DatabaseScanDeserializer)
+
+
+from .base import MSScan, DatabaseBoundOperation
+
 
 from glycan_profiling.task import TaskBase
 
@@ -15,8 +17,7 @@ from .chromatogram import (
     CompositionGroupSerializer,
     ChromatogramSolution,
     GlycanCompositionChromatogram,
-    UnidentifiedChromatogram,
-    ChromatogramSolutionAdductedToChromatogramSolution)
+    UnidentifiedChromatogram)
 
 from .hypothesis import (
     GlycanComposition,
@@ -196,6 +197,7 @@ class AnalysisSerializer(DatabaseBoundOperation, TaskBase):
             glycan_spectrum_cluster,
             self.session,
             self._scan_id_map,
+            self._mass_shift_cache,
             self.analysis_id)
         if commit:
             self.commit()
@@ -206,6 +208,7 @@ class AnalysisSerializer(DatabaseBoundOperation, TaskBase):
             unidentified_spectrum_cluster,
             self.session,
             self._scan_id_map,
+            self._mass_shift_cache,
             self.analysis_id)
         if commit:
             self.commit()
@@ -219,7 +222,7 @@ class AnalysisSerializer(DatabaseBoundOperation, TaskBase):
         else:
             chromatogram_solution_id = None
         cluster = GlycopeptideSpectrumCluster.serialize(
-            identification, self.session, self._scan_id_map,
+            identification, self.session, self._scan_id_map, self._mass_shift_cache,
             analysis_id=self.analysis_id)
         cluster_id = cluster.id
         inst = IdentifiedGlycopeptide.serialize(
@@ -305,18 +308,26 @@ class AnalysisDeserializer(DatabaseBoundOperation):
 
     def load_unidentified_chromatograms(self):
         from glycan_profiling.chromatogram_tree import ChromatogramFilter
+        node_type_cache = dict()
+        scan_id_cache = dict()
         q = self.query(UnidentifiedChromatogram).filter(
             UnidentifiedChromatogram.analysis_id == self.analysis_id).yield_per(100)
         chroma = ChromatogramFilter([c.convert(
-            chromatogram_scoring_model=self.chromatogram_scoring_model) for c in q])
+            chromatogram_scoring_model=self.chromatogram_scoring_model,
+            node_type_cache=node_type_cache,
+            scan_id_cache=scan_id_cache) for c in q])
         return chroma
 
     def load_glycan_composition_chromatograms(self):
         from glycan_profiling.chromatogram_tree import ChromatogramFilter
+        node_type_cache = dict()
+        scan_id_cache = dict()
         q = self.query(GlycanCompositionChromatogram).filter(
             GlycanCompositionChromatogram.analysis_id == self.analysis_id).yield_per(100)
         chroma = ChromatogramFilter([c.convert(
-            chromatogram_scoring_model=self.chromatogram_scoring_model) for c in q])
+            chromatogram_scoring_model=self.chromatogram_scoring_model,
+            node_type_cache=node_type_cache,
+            scan_id_cache=scan_id_cache) for c in q])
         return chroma
 
     def load_identified_glycopeptides_for_protein(self, protein_id):

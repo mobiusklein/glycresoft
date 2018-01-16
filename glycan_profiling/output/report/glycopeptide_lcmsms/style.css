@@ -91,6 +91,12 @@
     padding: 20px;
 }
 
+.glycoform-pileup-container svg {
+    display: block;
+    margin-left: auto;
+    margin-right: auto;
+}
+
 .modification-chip {
     padding-left:1px;
     padding-right:2px;
@@ -132,6 +138,11 @@
     font-size: 0.8rem;
 }
 
+.glycopeptide-facet td, .glycopeptide-facet th {
+    padding: 1px;
+    text-align: center;
+}
+
 .glycopeptide-mass-entry-container {
 
 }
@@ -156,6 +167,10 @@
     padding: 3px;
 }
 
+.plot-grid .flex-item {
+    text-align: center;
+}
+
 section {
     border-bottom: 2px lightgray solid;
     margin-bottom: 3px;
@@ -166,6 +181,8 @@ body {
     margin: 20px;
     font-family: sans-serif;
 }
+
+
 
 #display-panel {
     z-index: 999;

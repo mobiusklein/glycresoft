@@ -18,7 +18,7 @@ from .mzid_parser import Parser
 from .peptide_permutation import ProteinDigestor, ProteinSplitter
 from .remove_duplicate_peptides import DeduplicatePeptides
 from .share_peptides import PeptideSharer
-from .fasta import ProteinSequenceListResolver
+from .fasta import FastaProteinSequenceResolver
 
 logger = logging.getLogger("mzid")
 
@@ -100,8 +100,9 @@ def protein_names(mzid_path, pattern=r'.*'):
 
 
 def parent_sequence_aware_n_glycan_sequon_sites(peptide, protein):
-    sites = set(sequence.find_n_glycosylation_sequons(peptide.modified_peptide_sequence))
-    sites |= set(site - peptide.start_position for site in protein.glycosylation_sites
+    sites = set(sequence.find_n_glycosylation_sequons(
+        peptide.modified_peptide_sequence, WHITELIST_GLYCOSITE_PTMS))
+    sites |= set(site - peptide.start_position for site in protein.n_glycan_sequon_sites
                  if peptide.start_position <= site < peptide.end_position)
     return list(sites)
 
@@ -378,15 +379,15 @@ class PeptideIdentification(object):
 
 
 class ProteinStub(object):
-    def __init__(self, name, id, sequence, glycosylation_sites):
+    def __init__(self, name, id, sequence, n_glycan_sequon_sites):
         self.name = name
         self.id = id
         self.protein_sequence = sequence
-        self.glycosylation_sites = glycosylation_sites
+        self.n_glycan_sequon_sites = n_glycan_sequon_sites
 
     @classmethod
     def from_protein(cls, protein):
-        return cls(protein.name, protein.id, protein.protein_sequence, protein.glycosylation_sites)
+        return cls(protein.name, protein.id, protein.protein_sequence, protein.n_glycan_sequon_sites)
 
 
 class ProteinStubLoader(object):
@@ -406,7 +407,11 @@ class ProteinStubLoader(object):
             return self.store[protein_name]
         except KeyError:
             db_prot = self._get_protein_from_db(protein_name)
-            stub = ProteinStub.from_protein(db_prot)
+            try:
+                stub = ProteinStub.from_protein(db_prot)
+            except AttributeError:
+                logger.error("Failed to load stub for %s" % (protein_name,))
+                raise
             self.store[protein_name] = stub
             return stub
 
@@ -638,12 +643,12 @@ class MzIdentMLProteomeExtraction(TaskBase):
 
     def _make_protein_resolver(self):
         if self.reference_fasta is not None:
-            self._protein_resolver = ProteinSequenceListResolver.build_from_fasta(self.reference_fasta)
+            self._protein_resolver = FastaProteinSequenceResolver(self.reference_fasta)
             return
         else:
             path = self._find_used_database()
             if path is not None:
-                self._protein_resolver = ProteinSequenceListResolver.build_from_fasta(path)
+                self._protein_resolver = FastaProteinSequenceResolver(path)
                 return
         raise ValueError("Cannot construct a Protein Resolver. Cannot fetch additional protein information.")
 

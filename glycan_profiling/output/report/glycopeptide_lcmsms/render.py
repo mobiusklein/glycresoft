@@ -1,15 +1,20 @@
 import os
 from collections import OrderedDict
 
+from glycopeptidepy.structure.glycan import GlycosylationType
+
 from glycan_profiling import serialize
 from glycan_profiling.serialize import (
     Protein, Glycopeptide, IdentifiedGlycopeptide,
     func, MSScan)
 from glycan_profiling.tandem.ref import SpectrumReference
-from glycan_profiling.plotting import (
-    summaries, figax, SmoothingChromatogramArtist)
+from glycan_profiling.plotting.glycan_visual_classification import (
+    GlycanCompositionClassifierColorizer,
+    NGlycanCompositionColorizer)
+from glycan_profiling.plotting import (figax, SmoothingChromatogramArtist)
 from glycan_profiling.plotting.sequence_fragment_logo import glycopeptide_match_logo
-from glycan_profiling.plotting.plot_glycoforms import plot_glycoforms_svg, plot_glycoforms
+from glycan_profiling.plotting.plot_glycoforms import (
+    GlycoformLayout)
 from glycan_profiling.plotting.spectral_annotation import SpectrumMatchAnnotator
 from glycan_profiling.tandem.glycopeptide.identified_structure import IdentifiedGlycoprotein
 from glycan_profiling.tandem.glycopeptide.scoring import CoverageWeightedBinomialScorer
@@ -18,14 +23,27 @@ from glycan_profiling.plotting.entity_bar_chart import (
 
 from ms_deisotope.output.mzml import ProcessedMzMLDeserializer
 
-try:
-    from urllib import quote
-except ImportError:
-    from urllib.parse import quote
-
 
 from glycan_profiling.output.report.base import (
-    svguri_plot, ReportCreatorBase)
+    svguri_plot, png_plot, ReportCreatorBase)
+
+
+glycan_colorizer_type_map = {
+    GlycosylationType.n_linked: NGlycanCompositionColorizer,
+    GlycosylationType.glycosaminoglycan: GlycanCompositionClassifierColorizer({}, 'slateblue'),
+    GlycosylationType.o_linked: GlycanCompositionClassifierColorizer({}, 'slateblue')
+}
+
+
+def scale_fix_xml_transform(root):
+    view_box_str = root.attrib["viewBox"]
+    x_start, y_start, x_end, y_end = map(float, view_box_str.split(" "))
+    x_start += 0
+    updated_view_box_str = " ".join(map(str, [x_start, y_start, x_end, y_end]))
+    root.attrib["viewBox"] = updated_view_box_str
+    fig_g = root.find(".//{http://www.w3.org/2000/svg}g[@id=\"figure_1\"]")
+    fig_g.attrib["transform"] = "scale(1.0, 1.0)"
+    return root
 
 
 class GlycopeptideDatabaseSearchReportCreator(ReportCreatorBase):
@@ -41,6 +59,7 @@ class GlycopeptideDatabaseSearchReportCreator(ReportCreatorBase):
         self._resolve_hypothesis_id()
         self._build_protein_index()
         self._make_scan_loader()
+        self._glycopeptide_counter = 0
 
     def _resolve_hypothesis_id(self):
         self.hypothesis_id = self.analysis.hypothesis_id
@@ -84,13 +103,22 @@ class GlycopeptideDatabaseSearchReportCreator(ReportCreatorBase):
 
     def _make_scan_loader(self):
         if self.mzml_path is not None:
+            if not os.path.exists(self.mzml_path):
+                raise IOError("No such file {}".format(self.mzml_path))
             self.scan_loader = ProcessedMzMLDeserializer(self.mzml_path)
         else:
             self.mzml_path = self.analysis.parameters['sample_path']
+            if not os.path.exists(self.mzml_path):
+                raise IOError((
+                    "No such file {}. If {} was relocated, you may need to explicily pass the"
+                    " corrected file path.").format(
+                    self.mzml_path,
+                    self.database_connection._original_connection))
             self.scan_loader = ProcessedMzMLDeserializer(self.mzml_path)
 
     def iterglycoproteins(self):
-        for row in self.protein_index:
+        n = float(len(self.protein_index))
+        for i, row in enumerate(self.protein_index, 1):
             protein = row['protein']
             glycopeptides = self.session.query(
                 IdentifiedGlycopeptide).join(Glycopeptide).join(
@@ -101,26 +129,33 @@ class GlycopeptideDatabaseSearchReportCreator(ReportCreatorBase):
                 Protein.id == protein.id).all()
             glycoprotein = IdentifiedGlycoprotein(protein, glycopeptides)
             glycoprotein.id = protein.id
+            self.status_update(
+                "Processing %s (%d/%d) %0.2f%%" % (
+                    protein.name, i, n, (i / n * 100)))
             yield glycoprotein
 
     def site_specific_abundance_plots(self, glycoprotein):
         axes = OrderedDict()
-        for site in sorted(glycoprotein.glycosylation_sites):
-            spanning_site = glycoprotein.site_map[site]
-            if len(spanning_site) == 0:
-                continue
-            bundle = BundledGlycanComposition.aggregate(spanning_site)
-            ax = figax()
-            AggregatedAbundanceArtist(bundle, ax=ax).draw()
-            ax.set_title("Glycans\nat Site %d" % (site,), fontsize=18)
-            axes[site] = svguri_plot(ax, bbox_inches='tight')
+        for glyco_type in glycoprotein.glycosylation_types:
+            for site in sorted(glycoprotein.glycosylation_sites_for(glyco_type)):
+                spanning_site = glycoprotein.site_map[glyco_type][site]
+                if len(spanning_site) == 0:
+                    continue
+                bundle = BundledGlycanComposition.aggregate(spanning_site)
+                ax = figax()
+                AggregatedAbundanceArtist(bundle, ax=ax, colorizer=glycan_colorizer_type_map[glyco_type]).draw()
+                ax.set_title("%s Glycans\nat Site %d" % (glyco_type.name, site,), fontsize=18)
+                axes[site, glyco_type] = svguri_plot(ax, bbox_inches='tight')
         return axes
 
     def draw_glycoforms(self, glycoprotein):
         ax = figax()
-        svg = plot_glycoforms_svg(
-            glycoprotein, glycoprotein.identified_glycopeptides, ax=ax,
-            margin_left=85, margin_top=0, height_padding_scale=1.1)
+        layout = GlycoformLayout(glycoprotein, glycoprotein.identified_glycopeptides, ax=ax)
+        layout.draw()
+        svg = layout.to_svg(scale=2.0, height_padding_scale=1.1)
+        # svg = plot_glycoforms_svg(
+        #     glycoprotein, glycoprotein.identified_glycopeptides, ax=ax,
+        #     margin_left=85, margin_top=0, height_padding_scale=1.1)
         return svg
 
     def chromatogram_plot(self, glycopeptide):
@@ -131,7 +166,7 @@ class GlycopeptideDatabaseSearchReportCreator(ReportCreatorBase):
                 colorizer=lambda x: "#48afd0").draw(legend=False)
             ax.set_xlabel("Time (Minutes)", fontsize=16)
             ax.set_ylabel("Relative Abundance", fontsize=16)
-            return svguri_plot(ax, bbox_inches='tight')
+            return png_plot(ax, bbox_inches='tight', img_height='100%')
         except ValueError:
             return "<div style='text-align:center;'>No Chromatogram Found</div>"
 
@@ -180,25 +215,29 @@ class GlycopeptideDatabaseSearchReportCreator(ReportCreatorBase):
 
         sequence_logo_plot.set_xlim(xlim[0], xlim[1])
 
-        def xml_transform(root):
-            view_box_str = root.attrib["viewBox"]
-            x_start, y_start, x_end, y_end = map(float, view_box_str.split(" "))
-            x_start += 0
-            updated_view_box_str = " ".join(map(str, [x_start, y_start, x_end, y_end]))
-            root.attrib["viewBox"] = updated_view_box_str
-            fig_g = root.find(".//{http://www.w3.org/2000/svg}g[@id=\"figure_1\"]")
-            fig_g.attrib["transform"] = "scale(1.0, 1.0)"
-            return root
-
-        spectrum_plot = svguri_plot(
-            annotated_match_ax, svg_width="100%", bbox_inches='tight', height=3,
-            width=8, patchless=True)
-        logo_plot = svguri_plot(
-            sequence_logo_plot, svg_width="100%", xml_transform=xml_transform,
-            bbox_inches='tight', height=2, width=6, patchless=True)
+        spectrum_plot = png_plot(
+            annotated_match_ax, svg_width="100%", bbox_inches='tight', height=3 * 1.5,
+            width=8 * 1.5,
+            img_width="100%",
+            patchless=True)
+        logo_plot = png_plot(
+            sequence_logo_plot,
+            svg_width="100%",
+            img_width="100%",
+            xml_transform=scale_fix_xml_transform,
+            bbox_inches='tight',
+            height=2, width=6 * 1.5, patchless=True)
         return dict(
             spectrum_plot=spectrum_plot, logo_plot=logo_plot,
-            precursor_mass_accuracy=match.precursor_mass_accuracy())
+            precursor_mass_accuracy=match.precursor_mass_accuracy(),
+            spectrum_match=match)
+
+    def track_entry(self, glycopeptide):
+        self._glycopeptide_counter += 1
+        if self._glycopeptide_counter % 15 == 0:
+            self.status_update(
+                " ... %d glycopeptides handled" % (self._glycopeptide_counter,))
+        return self._glycopeptide_counter
 
     def make_template_stream(self):
         template_obj = self.env.get_template("overview.templ")
@@ -207,8 +246,13 @@ class GlycopeptideDatabaseSearchReportCreator(ReportCreatorBase):
             self.database_connection._original_connection,
             analysis_id=self.analysis_id)
 
+        hypothesis = ads.analysis.hypothesis
+        sample_run = ads.analysis.sample_run
+
         template_stream = template_obj.stream(
             analysis=ads.analysis,
+            hypothesis=hypothesis,
+            sample_run=sample_run,
             protein_index=self.protein_index,
             glycoprotein_iterator=self.iterglycoproteins(),
             renderer=self,)

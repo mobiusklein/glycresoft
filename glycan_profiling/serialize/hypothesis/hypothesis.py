@@ -8,11 +8,11 @@ from sqlalchemy.orm import relationship, object_session
 from sqlalchemy.ext.declarative import declared_attr
 from sqlalchemy.ext.mutable import MutableDict
 
-from ms_deisotope.output.db import (
+from glycan_profiling.serialize.base import (
     Base, HasUniqueName)
 
 
-from glypy.composition.glycan_composition import FrozenGlycanComposition
+from glypy.structure.glycan_composition import FrozenGlycanComposition
 
 
 class HypothesisBase(HasUniqueName):

@@ -5,11 +5,12 @@ from functools import partial
 
 import click
 
-from sqlalchemy.exc import OperationalError
+from sqlalchemy.exc import OperationalError, ArgumentError
+from sqlalchemy.engine.url import _parse_rfc1738_args as parse_engine_uri
 from brainpy import periodic_table
 from ms_deisotope.averagine import (
     Averagine, glycan as n_glycan_averagine, permethylated_glycan,
-    peptide, glycopeptide, heparin)
+    peptide, glycopeptide, heparin, heparan_sulfate)
 
 from glycan_profiling.serialize import (
     DatabaseBoundOperation, GlycanHypothesis, GlycopeptideHypothesis,
@@ -244,6 +245,8 @@ def validate_element(element):
 
 
 def parse_averagine_formula(formula):
+    if isinstance(formula, Averagine):
+        return formula
     return Averagine({k: float(v) for k, v in re.findall(r"([A-Z][a-z]*)([0-9\.]*)", formula)
                       if float(v or 0) > 0 and validate_element(k)})
 
@@ -253,11 +256,14 @@ averagines = {
     'permethylated-glycan': permethylated_glycan,
     'peptide': peptide,
     'glycopeptide': glycopeptide,
-    'heparin': heparin
+    'heparin': heparin,
+    "heparan-sulfate": heparan_sulfate
 }
 
 
 def validate_averagine(averagine_string):
+    if isinstance(averagine_string, Averagine):
+        return averagine_string
     if averagine_string in averagines:
         return averagines[averagine_string]
     else:
@@ -271,6 +277,22 @@ class AveragineParamType(click.types.StringParamType):
 
     def convert(self, value, param, ctx):
         return validate_averagine(value)
+
+    def get_metavar(self, param):
+        return '[%s]' % '|'.join(sorted(averagines.keys()))
+
+    def get_missing_message(self, param):
+        return 'Choose from %s, or provide a formula.' % ', '.join(self.choices)
+
+
+class SubstituentParamType(click.types.StringParamType):
+    name = "SUBSTITUENT"
+
+    def convert(self, value, param, ctx):
+        t = Substituent(value)
+        if not t.composition:
+            raise ValueError("%s is not a recognized substituent" % value)
+        return t
 
 
 adducts = {
@@ -376,3 +398,23 @@ class RelativeMassErrorParam(click.types.FloatParamType):
                     getattr(param, "human_readable_name", param),
                     value), fg='yellow')
         return value
+
+
+class DatabaseConnectionParam(click.types.StringParamType):
+    name = "CONN"
+
+    def __init__(self, exists=False):
+        self.exists = exists
+
+    def convert(self, value, param, ctx):
+        value = super(DatabaseConnectionParam, self).convert(value, param, ctx)
+        try:
+            parse_engine_uri(value)
+            return value
+        except ArgumentError:
+            # not a uri
+            if self.exists:
+                if not os.path.exists(value):
+                    raise self.fail(
+                        "Database file {} does not exist.".format(value), param, ctx)
+            return value

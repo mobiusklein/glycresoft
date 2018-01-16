@@ -1,27 +1,29 @@
 from collections import defaultdict, namedtuple, OrderedDict
+from multiprocessing import Manager as IPCManager
 
 from glycan_profiling.chromatogram_tree.chromatogram import GlycopeptideChromatogram
+from glycan_profiling.chromatogram_tree import Unmodified
 from glycan_profiling.task import TaskBase
 
-from glycan_profiling.database.structure_loader import (
-    CachingGlycopeptideParser, DecoyMakingCachingGlycopeptideParser)
+from glycan_profiling.structure import (
+    CachingGlycopeptideParser,
+    DecoyMakingCachingGlycopeptideParser)
 
-from .scoring import TargetDecoyAnalyzer
+from .scoring import GroupwiseTargetDecoyAnalyzer
 
-from ..spectrum_matcher_base import (
-    TandemClusterEvaluatorBase,
-    SpectrumIdentificationWorkerBase,
-    Manager as IPCManager)
+from ..spectrum_evaluation import TandemClusterEvaluatorBase, DEFAULT_BATCH_SIZE
+from ..process_dispatcher import SpectrumIdentificationWorkerBase
+
 from ..oxonium_ions import gscore_scanner
 from ..chromatogram_mapping import ChromatogramMSMSMapper
 
 
 class GlycopeptideIdentificationWorker(SpectrumIdentificationWorkerBase):
     def __init__(self, input_queue, output_queue, done_event, scorer_type, evaluation_args,
-                 spectrum_map, log_handler, parser_type):
+                 spectrum_map, mass_shift_map, log_handler, parser_type):
         SpectrumIdentificationWorkerBase.__init__(
             self, input_queue, output_queue, done_event, scorer_type, evaluation_args,
-            spectrum_map, log_handler=log_handler)
+            spectrum_map, mass_shift_map, log_handler=log_handler)
         self.parser = parser_type()
 
     def evaluate(self, scan, structure, *args, **kwargs):
@@ -39,12 +41,16 @@ def make_target_decoy_cell():
 
 class GlycopeptideMatcher(TandemClusterEvaluatorBase):
     def __init__(self, tandem_cluster, scorer_type, structure_database, parser_type=None,
-                 n_processes=5, ipc_manager=None):
+                 n_processes=5, ipc_manager=None, probing_range_for_missing_precursors=3,
+                 mass_shifts=None, batch_size=DEFAULT_BATCH_SIZE):
         if parser_type is None:
             parser_type = self._default_parser_type()
         super(GlycopeptideMatcher, self).__init__(
             tandem_cluster, scorer_type, structure_database, verbose=False, n_processes=n_processes,
-            ipc_manager=ipc_manager)
+            ipc_manager=ipc_manager,
+            probing_range_for_missing_precursors=probing_range_for_missing_precursors,
+            mass_shifts=mass_shifts,
+            batch_size=batch_size)
         self.parser_type = parser_type
         self.parser = parser_type()
 
@@ -70,29 +76,59 @@ class DecoyGlycopeptideMatcher(GlycopeptideMatcher):
 
 
 class TargetDecoyInterleavingGlycopeptideMatcher(TandemClusterEvaluatorBase):
+    '''Searches a single database against all spectra, where targets are
+    database matches, and decoys are the reverse of the individual target
+    glycopeptides.
+
+    A spectrum has a best target match and a best decoy match tracked
+    separately.
+
+    This means that targets and decoys share the same glycan composition and
+    peptide backbone mass, and ergo share stub glycopeptides. This may not produce
+    "random" enough decoy matches.
+    '''
     def __init__(self, tandem_cluster, scorer_type, structure_database, minimum_oxonium_ratio=0.05,
-                 n_processes=5, ipc_manager=None):
+                 n_processes=5, ipc_manager=None, probing_range_for_missing_precursors=3,
+                 mass_shifts=None, batch_size=DEFAULT_BATCH_SIZE):
         super(TargetDecoyInterleavingGlycopeptideMatcher, self).__init__(
             tandem_cluster, scorer_type, structure_database, verbose=False,
-            n_processes=n_processes, ipc_manager=ipc_manager)
+            n_processes=n_processes, ipc_manager=ipc_manager,
+            probing_range_for_missing_precursors=probing_range_for_missing_precursors,
+            mass_shifts=mass_shifts, batch_size=batch_size)
         self.tandem_cluster = tandem_cluster
         self.scorer_type = scorer_type
         self.structure_database = structure_database
         self.minimum_oxonium_ratio = minimum_oxonium_ratio
         self.target_evaluator = GlycopeptideMatcher(
             [], self.scorer_type, self.structure_database, n_processes=n_processes,
-            ipc_manager=ipc_manager)
+            ipc_manager=ipc_manager,
+            probing_range_for_missing_precursors=probing_range_for_missing_precursors,
+            mass_shifts=mass_shifts)
         self.decoy_evaluator = DecoyGlycopeptideMatcher(
             [], self.scorer_type, self.structure_database, n_processes=n_processes,
-            ipc_manager=ipc_manager)
+            ipc_manager=ipc_manager,
+            probing_range_for_missing_precursors=probing_range_for_missing_precursors,
+            mass_shifts=mass_shifts)
 
     def filter_for_oxonium_ions(self, error_tolerance=1e-5):
         keep = []
         for scan in self.tandem_cluster:
-            ratio = gscore_scanner(scan.deconvoluted_peak_set)
+            minimum_mass = 0
+            if scan.acquisition_information:
+                try:
+                    scan_windows = scan.acquisition_information[0]
+                    window = scan_windows[0]
+                    minimum_mass = window.lower
+                except IndexError:
+                    pass
+            ratio = gscore_scanner(
+                peak_list=scan.deconvoluted_peak_set, error_tolerance=error_tolerance,
+                minimum_mass=minimum_mass)
             scan.oxonium_score = ratio
             if ratio >= self.minimum_oxonium_ratio:
                 keep.append(scan)
+            else:
+                self.debug("... Skipping scan %s with G-score %f" % (scan.id, ratio))
         self.tandem_cluster = keep
 
     def score_one(self, scan, precursor_error_tolerance=1e-5, *args, **kwargs):
@@ -102,36 +138,69 @@ class TargetDecoyInterleavingGlycopeptideMatcher(TandemClusterEvaluatorBase):
 
     def score_bunch(self, scans, precursor_error_tolerance=1e-5, simplify=True, *args, **kwargs):
         # Map scans to target database
-        scan_map, hit_map, hit_to_scan = self.target_evaluator._map_scans_to_hits(
+        workload = self.target_evaluator._map_scans_to_hits(
             scans, precursor_error_tolerance)
         # Evaluate mapped target hits
-        target_scan_solution_map = self.target_evaluator._evaluate_hit_groups(
-            scan_map, hit_map, hit_to_scan, *args, **kwargs)
-        # Aggregate and reduce target solutions
-        target_solutions = self._collect_scan_solutions(target_scan_solution_map, scan_map)
-        if simplify:
-            for case in target_solutions:
-                case.simplify()
-                case.select_top()
+        target_solutions = []
+        workload_graph = workload.compute_workloads()
+        total_work = workload.total_work_required(workload_graph)
+        running_total_work = 0
+        for i, batch in enumerate(workload.batches(self.batch_size)):
+            self.log("... Batch %d (%d/%d) %0.2f%%" % (
+                i + 1, running_total_work, total_work,
+                (100. * running_total_work) / total_work))
+            target_scan_solution_map = self.target_evaluator._evaluate_hit_groups(
+                batch, *args, **kwargs)
+            running_total_work += batch.batch_size
+            # Aggregate and reduce target solutions
+            temp = self._collect_scan_solutions(target_scan_solution_map, batch.scan_map)
+            if simplify:
+                temp = [case for case in temp if len(case) > 0]
+                for case in temp:
+                    try:
+                        case.simplify()
+                        case.select_top()
+                    except IndexError:
+                        self.log("Failed to simplify %r" % (case.scan.id,))
+                        raise
+            else:
+                temp = [case for case in temp if len(case) > 0]
+            target_solutions += temp
 
         # Reuse mapped hits from target database using the decoy evaluator
         # since this assumes that the decoys will be direct reversals of
         # target sequences. The decoy evaluator will handle the reversals.
-        decoy_scan_solution_map = self.decoy_evaluator._evaluate_hit_groups(
-            scan_map, hit_map, hit_to_scan, *args, **kwargs)
-        # Aggregate and reduce target solutions
-        decoy_solutions = self._collect_scan_solutions(decoy_scan_solution_map, scan_map)
-        if simplify:
-            for case in decoy_solutions:
-                case.simplify()
-                case.select_top()
+        decoy_solutions = []
+        running_total_work = 0
+        for i, batch in enumerate(workload.batches(self.batch_size)):
+            self.log("... Batch %d (%d/%d) %0.2f%%" % (
+                i + 1, running_total_work, total_work,
+                (100. * running_total_work) / total_work))
+
+            decoy_scan_solution_map = self.decoy_evaluator._evaluate_hit_groups(
+                batch, *args, **kwargs)
+            # Aggregate and reduce target solutions
+            temp = self._collect_scan_solutions(decoy_scan_solution_map, batch.scan_map)
+            if simplify:
+                temp = [case for case in temp if len(case) > 0]
+                for case in temp:
+                    try:
+                        case.simplify()
+                        case.select_top()
+                    except IndexError:
+                        self.log("Failed to simplify %r" % (case.scan.id,))
+                        raise
+            else:
+                temp = [case for case in temp if len(case) > 0]
+            decoy_solutions += temp
+            running_total_work += batch.batch_size
         return target_solutions, decoy_solutions
 
     def score_all(self, precursor_error_tolerance=1e-5, simplify=False, *args, **kwargs):
         target_out = []
         decoy_out = []
 
-        self.filter_for_oxonium_ions()
+        self.filter_for_oxonium_ions(**kwargs)
         target_out, decoy_out = self.score_bunch(
             self.tandem_cluster, precursor_error_tolerance,
             simplify=simplify, *args, **kwargs)
@@ -142,10 +211,15 @@ class TargetDecoyInterleavingGlycopeptideMatcher(TandemClusterEvaluatorBase):
             for case in decoy_out:
                 case.simplify()
                 case.select_top()
+        target_out = [x for x in target_out if len(x) > 0]
+        decoy_out = [x for x in decoy_out if len(x) > 0]
         return target_out, decoy_out
 
 
 class CompetativeTargetDecoyInterleavingGlycopeptideMatcher(TargetDecoyInterleavingGlycopeptideMatcher):
+    '''A variation of :class:`TargetDecoyInterleavingGlycopeptideMatcher` where
+    a spectrum can have only one match which is either a target or a decoy.
+    '''
     def score_bunch(self, scans, precursor_error_tolerance=1e-5, simplify=True, *args, **kwargs):
         target_solutions, decoy_solutions = super(
             CompetativeTargetDecoyInterleavingGlycopeptideMatcher, self).score_bunch(
@@ -167,11 +241,16 @@ class CompetativeTargetDecoyInterleavingGlycopeptideMatcher(TargetDecoyInterleav
         return list(target_solutions.values()), list(decoy_solutions.values())
 
 
-# These matchers are missing patches for parallelism
 class ComparisonGlycopeptideMatcher(TargetDecoyInterleavingGlycopeptideMatcher):
     def __init__(self, tandem_cluster, scorer_type, target_structure_database, decoy_structure_database,
-                 minimum_oxonium_ratio=0.05, n_processes=5, ipc_manager=None):
-
+                 minimum_oxonium_ratio=0.05, n_processes=5, ipc_manager=None,
+                 probing_range_for_missing_precursors=3, mass_shifts=None,
+                 batch_size=DEFAULT_BATCH_SIZE):
+        super(TargetDecoyInterleavingGlycopeptideMatcher, self).__init__(
+            tandem_cluster, scorer_type, target_structure_database,
+            verbose=False, n_processes=n_processes, ipc_manager=ipc_manager,
+            probing_range_for_missing_precursors=probing_range_for_missing_precursors,
+            mass_shifts=mass_shifts, batch_size=batch_size)
         self.tandem_cluster = tandem_cluster
         self.scorer_type = scorer_type
         self.target_structure_database = target_structure_database
@@ -179,31 +258,79 @@ class ComparisonGlycopeptideMatcher(TargetDecoyInterleavingGlycopeptideMatcher):
         self.minimum_oxonium_ratio = minimum_oxonium_ratio
         self.target_evaluator = GlycopeptideMatcher(
             [], self.scorer_type, self.target_structure_database,
-            n_processes=n_processes, ipc_manager=ipc_manager)
+            n_processes=n_processes, ipc_manager=ipc_manager,
+            probing_range_for_missing_precursors=probing_range_for_missing_precursors,
+            mass_shifts=mass_shifts)
         self.decoy_evaluator = GlycopeptideMatcher(
             [], self.scorer_type, self.decoy_structure_database,
-            n_processes=n_processes, ipc_manager=ipc_manager)
+            n_processes=n_processes, ipc_manager=ipc_manager,
+            probing_range_for_missing_precursors=probing_range_for_missing_precursors,
+            mass_shifts=mass_shifts)
 
     def score_bunch(self, scans, precursor_error_tolerance=1e-5, simplify=True, *args, **kwargs):
         # Map scans to target database
-        scan_map, hit_map, hit_to_scan = self.target_evaluator._map_scans_to_hits(scans, precursor_error_tolerance)
+        workload = self.target_evaluator._map_scans_to_hits(
+            scans, precursor_error_tolerance)
         # Evaluate mapped target hits
-        target_scan_solution_map = self.target_evaluator._evaluate_hit_groups(
-            scan_map, hit_map, hit_to_scan, *args, **kwargs)
-        # Aggregate and reduce target solutions
-        target_solutions = self._collect_scan_solutions(target_scan_solution_map, scan_map)
+        target_solutions = []
+        workload_graph = workload.compute_workloads()
+        total_work = workload.total_work_required(workload_graph)
+        running_total_work = 0
+        for i, batch in enumerate(workload.batches(self.batch_size)):
+            running_total_work += batch.batch_size
+            self.log("... Batch %d (%d/%d) %0.2f%%" % (
+                i + 1, running_total_work, total_work,
+                (100. * running_total_work) / total_work))
 
-        # Map scans to decoy database
-        scan_map, hit_map, hit_to_scan = self.decoy_evaluator._map_scans_to_hits(scans, precursor_error_tolerance)
-        # Evaluate mapped decoy hits
-        decoy_scan_solution_map = self.decoy_evaluator._evaluate_hit_groups(
-            scan_map, hit_map, hit_to_scan, *args, **kwargs)
-        # Aggregate and reduce decoy solutions
-        decoy_solutions = self._collect_scan_solutions(decoy_scan_solution_map, scan_map)
+            target_scan_solution_map = self.target_evaluator._evaluate_hit_groups(
+                batch, *args, **kwargs)
+            # Aggregate and reduce target solutions
+            temp = self._collect_scan_solutions(target_scan_solution_map, batch.scan_map)
+            if simplify:
+                temp = [case for case in temp if len(case) > 0]
+                for case in temp:
+                    try:
+                        case.simplify()
+                        case.select_top()
+                    except IndexError:
+                        self.log("Failed to simplify %r" % (case.scan.id,))
+                        raise
+            else:
+                temp = [case for case in temp if len(case) > 0]
+            target_solutions += temp
+
+        workload = self.decoy_evaluator._map_scans_to_hits(
+            scans, precursor_error_tolerance)
+        # Evaluate mapped target hits
+        decoy_solutions = []
+        workload_graph = workload.compute_workloads()
+        total_work = workload.total_work_required(workload_graph)
+        running_total_work = 0
+        for i, batch in enumerate(workload.batches(self.batch_size)):
+            running_total_work += batch.batch_size
+            self.log("... Batch %d (%d/%d) %0.2f%%" % (
+                i + 1, running_total_work, total_work,
+                (100. * running_total_work) / total_work))
+
+            decoy_scan_solution_map = self.decoy_evaluator._evaluate_hit_groups(
+                batch, *args, **kwargs)
+            # Aggregate and reduce decoy solutions
+            temp = self._collect_scan_solutions(decoy_scan_solution_map, batch.scan_map)
+            if simplify:
+                temp = [case for case in temp if len(case) > 0]
+                for case in temp:
+                    try:
+                        case.simplify()
+                        case.select_top()
+                    except IndexError:
+                        self.log("Failed to simplify %r" % (case.scan.id,))
+                        raise
+            else:
+                temp = [case for case in temp if len(case) > 0]
+            decoy_solutions += temp
         return target_solutions, decoy_solutions
 
 
-# These matchers are missing patches for parallelism
 class ConcatenatedGlycopeptideMatcher(ComparisonGlycopeptideMatcher):
     def score_bunch(self, scans, precursor_information=1e-5, *args, **kwargs):
         target_solutions, decoy_solutions = super(ConcatenatedGlycopeptideMatcher, self).score_bunch(
@@ -272,15 +399,24 @@ def format_work_batch(bunch, count, total):
         name = info.precursor.scan_id
     else:
         name = info.precursor.id
-    batch_header = "%s: %f (%s%r)" % (
-        name, info.neutral_mass, "+" if info.charge > 0 else "-", abs(
-            info.charge))
+    if isinstance(info.charge, (int, float)):
+        batch_header = "%s: %f (%s%r)" % (
+            name, info.neutral_mass, "+" if info.charge > 0 else "-", abs(
+                info.charge))
+    else:
+        batch_header = "%s: %f (%s)" % (
+            name, info.neutral_mass, "?")
     return "Begin Batch", batch_header, ratio
 
 
 class GlycopeptideDatabaseSearchIdentifier(TaskBase):
     def __init__(self, tandem_scans, scorer_type, structure_database, scan_id_to_rt=lambda x: x,
-                 minimum_oxonium_ratio=0.05, scan_transformer=lambda x: x, n_processes=5):
+                 minimum_oxonium_ratio=0.05, scan_transformer=lambda x: x, adducts=None,
+                 n_processes=5):
+        if adducts is None:
+            adducts = []
+        if Unmodified not in adducts:
+            adducts = [Unmodified] + adducts
         self.tandem_scans = sorted(
             tandem_scans, key=lambda x: x.precursor_information.extracted_neutral_mass, reverse=True)
         self.scorer_type = scorer_type
@@ -290,13 +426,15 @@ class GlycopeptideDatabaseSearchIdentifier(TaskBase):
         self.scan_transformer = scan_transformer
         self.n_processes = n_processes
         self.ipc_manager = IPCManager()
+        self.adducts = adducts
 
     def _make_evaluator(self, bunch):
         evaluator = TargetDecoyInterleavingGlycopeptideMatcher(
             bunch, self.scorer_type, self.structure_database,
             minimum_oxonium_ratio=self.minimum_oxonium_ratio,
             n_processes=self.n_processes,
-            ipc_manager=self.ipc_manager)
+            ipc_manager=self.ipc_manager,
+            mass_shifts=self.adducts)
         return evaluator
 
     def prepare_scan_set(self, scan_set):
@@ -313,18 +451,22 @@ class GlycopeptideDatabaseSearchIdentifier(TaskBase):
                     self.log("Missing Scan: %s" % (o.id,))
             scan_set = out
         out = []
+        unconfirmed_precursors = []
         for scan in scan_set:
             try:
                 scan.deconvoluted_peak_set = self.scan_transformer(
                     scan.deconvoluted_peak_set)
                 if len(scan.deconvoluted_peak_set) > 0:
-                    out.append(scan)
+                    if scan.precursor_information.defaulted:
+                        unconfirmed_precursors.append(scan)
+                    else:
+                        out.append(scan)
             except AttributeError:
                 self.log("Missing Scan: %s" % (scan.id,))
                 continue
-        return out
+        return out, unconfirmed_precursors
 
-    def search(self, precursor_error_tolerance=1e-5, simplify=True, chunk_size=1000, limit=None, *args, **kwargs):
+    def search(self, precursor_error_tolerance=1e-5, simplify=True, chunk_size=500, limit=None, *args, **kwargs):
         target_hits = []
         decoy_hits = []
         total = len(self.tandem_scans)
@@ -335,15 +477,17 @@ class GlycopeptideDatabaseSearchIdentifier(TaskBase):
             count += len(scan_collection)
             for item in format_work_batch(scan_collection, count, total):
                 self.log("... %s" % item)
-            scan_collection = self.prepare_scan_set(scan_collection)
+            scan_collection, unconfirmed_precursors = self.prepare_scan_set(scan_collection)
+            self.log("... %d Unconfirmed Precursor Spectra" % (len(unconfirmed_precursors,)))
             self.log("... Spectra Extracted")
-            evaluator = self._make_evaluator(scan_collection)
+            # TODO: handle unconfirmed_precursors differently here
+            evaluator = self._make_evaluator(scan_collection + unconfirmed_precursors)
             t, d = evaluator.score_all(
                 precursor_error_tolerance=precursor_error_tolerance,
                 simplify=simplify, *args, **kwargs)
             self.log("... Spectra Searched")
-            target_hits.extend(o for o in t if o.score > 0)
-            decoy_hits.extend(o for o in d if o.score > 0)
+            target_hits.extend(o for o in t if o.score > 0.5)
+            decoy_hits.extend(o for o in d if o.score > 0.5)
             t = sorted(t, key=lambda x: x.score, reverse=True)
             self.log("......\n%s" % (format_identification_batch(t, 10)))
             if count >= limit:
@@ -355,7 +499,8 @@ class GlycopeptideDatabaseSearchIdentifier(TaskBase):
     def target_decoy(self, target_hits, decoy_hits, with_pit=False, *args, **kwargs):
         self.log("Running Target Decoy Analysis with %d targets and %d decoys" % (
             len(target_hits), len(decoy_hits)))
-        tda = TargetDecoyAnalyzer(target_hits, decoy_hits, *args, with_pit=with_pit, **kwargs)
+        tda = GroupwiseTargetDecoyAnalyzer(
+            target_hits, decoy_hits, *args, with_pit=with_pit, **kwargs)
         tda.q_values()
         for sol in target_hits:
             for hit in sol:

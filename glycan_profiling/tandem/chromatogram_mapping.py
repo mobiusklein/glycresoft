@@ -1,24 +1,29 @@
 from glycan_profiling.task import TaskBase, log_handle
-from glycan_profiling.chromatogram_tree import ChromatogramWrapper, build_rt_interval_tree, ChromatogramFilter
+from glycan_profiling.chromatogram_tree import (
+    ChromatogramWrapper, build_rt_interval_tree, ChromatogramFilter,
+    Unmodified)
 from glycan_profiling.chromatogram_tree.chromatogram import GlycopeptideChromatogram
 from collections import defaultdict, namedtuple
 
-SolutionEntry = namedtuple("SolutionEntry", "solution, score, percentile, best_score")
+SolutionEntry = namedtuple("SolutionEntry", "solution, score, percentile, best_score, match")
 
 
 class SpectrumMatchSolutionCollectionBase(object):
     def _compute_representative_weights(self, threshold_fn=lambda x: True):
         scores = defaultdict(float)
         best_scores = defaultdict(float)
+        best_spectrum_match = dict()
         for psm in self.tandem_solutions:
             if threshold_fn(psm):
                 for sol in psm.get_top_solutions():
                     scores[sol.target] += (sol.score)
                     if best_scores[sol.target] < sol.score:
                         best_scores[sol.target] = sol.score
+                        best_spectrum_match[sol.target] = sol
         total = sum(scores.values())
         weights = [
-            SolutionEntry(k, v, v / total, best_scores[k]) for k, v in scores.items()
+            SolutionEntry(k, v, v / total, best_scores[k],
+                          best_spectrum_match[k]) for k, v in scores.items()
         ]
         weights.sort(key=lambda x: x.percentile, reverse=True)
         return weights
@@ -36,6 +41,24 @@ class TandemAnnotatedChromatogram(ChromatogramWrapper, SpectrumMatchSolutionColl
         self.time_displaced_assignments = []
         self.best_msms_score = None
 
+    def bisect_charge(self, charge):
+        new_charge, new_no_charge = map(self.__class__, self.chromatogram.bisect_charge(charge))
+        for hit in self.tandem_solutions:
+            if hit.precursor_information.charge == charge:
+                new_charge.add_solution(hit)
+            else:
+                new_no_charge.add_solution(hit)
+        return new_charge, new_no_charge
+
+    def bisect_adduct(self, adduct):
+        new_adduct, new_no_adduct = map(self.__class__, self.chromatogram.bisect_adduct(adduct))
+        for hit in self.tandem_solutions:
+            if hit.best_solution().mass_shift == adduct:
+                new_adduct.add_solution(hit)
+            else:
+                new_no_adduct.add_solution(hit)
+        return new_adduct, new_no_adduct
+
     def add_solution(self, item):
         case_mass = item.precursor_information.neutral_mass
         if abs(case_mass - self.chromatogram.neutral_mass) > 100:
@@ -52,7 +75,13 @@ class TandemAnnotatedChromatogram(ChromatogramWrapper, SpectrumMatchSolutionColl
         new.best_msms_score = self.best_msms_score
 
     def merge(self, other):
-        new = self.__class__(self.chromatogram.merge(other.chromatogram))
+        # this logic needs to be tested with multiple adducts on self and other
+        mass_shift = sorted((set(other.adducts) - set(self.adducts)), key=lambda x: x.mass)
+        if mass_shift:
+            mass_shift = mass_shift[0]
+        else:
+            mass_shift = Unmodified
+        new = self.__class__(self.chromatogram.merge(other.chromatogram, node_type=mass_shift))
         new.tandem_solutions = self.tandem_solutions + other.tandem_solutions
         new.time_displaced_assignments = self.time_displaced_assignments + other.time_displaced_assignments
         return new
@@ -60,6 +89,7 @@ class TandemAnnotatedChromatogram(ChromatogramWrapper, SpectrumMatchSolutionColl
     def merge_in_place(self, other):
         new = self.chromatogram.merge(other.chromatogram)
         self.chromatogram = new
+        self.chromatogram.adducts += other.adducts
         self.tandem_solutions = self.tandem_solutions + other.tandem_solutions
         self.time_displaced_assignments = self.time_displaced_assignments + other.time_displaced_assignments
 
@@ -71,6 +101,7 @@ class TandemAnnotatedChromatogram(ChromatogramWrapper, SpectrumMatchSolutionColl
         entity_chroma.entity = solution_entry.solution
         self.chromatogram = entity_chroma
         self.best_msms_score = solution_entry.best_score
+        self.chromatogram.adducts.append(solution_entry.match.mass_shift)
 
 
 class TandemSolutionsWithoutChromatogram(SpectrumMatchSolutionCollectionBase):
@@ -120,6 +151,7 @@ class ScanTimeBundle(object):
 def aggregate_by_assigned_entity(annotated_chromatograms, delta_rt=0.25):
     aggregated = defaultdict(list)
     finished = []
+    log_handle.log("Aggregating Common Entities: %d chromatograms" % (len(annotated_chromatograms,)))
     for chroma in annotated_chromatograms:
         if chroma.composition is not None:
             if chroma.entity is not None:
@@ -141,6 +173,7 @@ def aggregate_by_assigned_entity(annotated_chromatograms, delta_rt=0.25):
                 chroma = obs
         out.append(chroma)
         finished.extend(out)
+    log_handle.log("After merging: %d chromatograms" % (len(finished),))
     return finished
 
 
@@ -207,10 +240,12 @@ class ChromatogramMSMSMapper(TaskBase):
     def merge_common_entities(self, annotated_chromatograms):
         aggregated = defaultdict(list)
         finished = []
+        self.log("Aggregating Common Entities: %d chromatograms" % (len(annotated_chromatograms,)))
         for chroma in annotated_chromatograms:
             if chroma.composition is not None:
                 if chroma.entity is not None:
                     aggregated[chroma.entity].append(chroma)
+                    self.log("... %s (%s)" % (chroma.entity, chroma.adducts))
                 else:
                     aggregated[chroma.composition].append(chroma)
             else:
@@ -226,6 +261,7 @@ class ChromatogramMSMSMapper(TaskBase):
                     chroma = obs
             out.append(chroma)
             finished.extend(out)
+        self.log("After merging: %d chromatograms" % (len(finished),))
         return finished
 
     def __len__(self):

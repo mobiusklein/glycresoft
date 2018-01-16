@@ -3,6 +3,7 @@ import cmd
 import csv
 import threading
 import code
+import pprint
 try:
     from Queue import Queue, Empty
 except ImportError:
@@ -11,12 +12,12 @@ except ImportError:
 import click
 import pkg_resources
 
-from glypy.composition.glycan_composition import HashableGlycanComposition
+from glypy.structure.glycan_composition import HashableGlycanComposition
 from glycopeptidepy.io import fasta, uniprot
 from glycopeptidepy.structure.residue import UnknownAminoAcidException
 
 from .base import cli
-from .validators import RelativeMassErrorParam
+from .validators import RelativeMassErrorParam, get_by_name_or_id
 
 from glycan_profiling.serialize import (
     DatabaseBoundOperation, GlycanHypothesis, GlycopeptideHypothesis,
@@ -34,9 +35,22 @@ def tools():
     pass
 
 
+def database_connection(fn):
+    arg = click.argument("database-connection", doc_help=(
+        "A connection URI for a database, or a path on the file system"),
+        type=DatabaseBoundOperation)
+    return arg(fn)
+
+
+def analysis_identifier(fn):
+    arg = click.argument("analysis-identifier", doc_help=(
+        "The ID number or name of the analysis to use"))
+    return arg(fn)
+
+
 @tools.command("list", short_help='List names and ids of collections in the database')
 @click.pass_context
-@click.argument("database-connection", type=DatabaseBoundOperation)
+@database_connection
 def list_contents(context, database_connection):
     click.echo("Glycan Hypothesis")
     for hypothesis in database_connection.query(GlycanHypothesis):
@@ -430,9 +444,38 @@ def version_check():
             rev = pkg_resources.require(dep)
             click.echo(str(rev[0]))
         except Exception:
-            continue
+            try:
+                module = __import__(dep)
+            except ImportError:
+                continue
+            version = getattr(module, "__version__", None)
+            if version is None:
+                version = getattr(module, "version", None)
+            if version is None:
+                try:
+                    module = __import__("%s.version" % dep).version
+                    version = module.version
+                except ImportError:
+                    continue
+            if version:
+                click.echo("%s %s" % (dep, version))
 
 
 @tools.command("interactive-shell")
 def interactive_shell():
     code.interact()
+
+
+@tools.command("update-analysis-parameters")
+@database_connection
+@analysis_identifier
+@click.option("-p", "--parameter", nargs=2, multiple=True, required=False)
+def update_analysis_parameters(database_connection, analysis_identifier, parameter):
+    session = database_connection.session
+    analysis = get_by_name_or_id(session, Analysis, analysis_identifier)
+    click.echo("Current Parameters:")
+    pprint.pprint(analysis.parameters)
+    for name, value in parameter:
+        analysis.parameters[name] = value
+    session.add(analysis)
+    session.commit()

@@ -1,5 +1,6 @@
 import hjson
 import os
+import platform
 import click
 
 from .peptide_modification import (load_modification_rule, save_modification_rule)
@@ -11,7 +12,28 @@ from psims.controlled_vocabulary import controlled_vocabulary as cv
 CONFIG_DIR = click.get_app_dir("glycresoft")
 if not os.path.exists(CONFIG_DIR):
     os.makedirs(CONFIG_DIR)
-USER_CONFIG_PATH = os.path.join(CONFIG_DIR, "glycresoft-cfg.hjson")
+    cv_store = os.path.join(CONFIG_DIR, 'cv')
+
+    # Pre-populate OBO Cache to avoid needing to look these up
+    # by URL later
+    os.makedirs(cv_store)
+    with open(os.path.join(cv_store, 'psi-ms.obo'), 'wb') as fh:
+        fh.write(cv._use_vendored_psims_obo().read())
+    with open(os.path.join(cv_store, 'unit.obo'), 'wb') as fh:
+        fh.write(cv._use_vendored_unit_obo().read())
+
+if platform.system().lower() != 'windows':
+    os.environ["NOWAL"] = "1"
+
+_mpl_cache_dir = os.path.join(CONFIG_DIR, 'mpl')
+
+if not os.path.exists(_mpl_cache_dir):
+    os.makedirs(_mpl_cache_dir)
+
+os.environ["MPLCONFIGDIR"] = _mpl_cache_dir
+
+CONFIG_FILE_NAME = "glycresoft-cfg.hjson"
+USER_CONFIG_PATH = os.path.join(CONFIG_DIR, CONFIG_FILE_NAME)
 
 cv.configure_obo_store(os.path.join(CONFIG_DIR, "cv"))
 
@@ -42,12 +64,27 @@ def process(config):
         load_substituent_rule(value)
 
 
+def recursive_merge(a, b):
+    for k, v in b.items():
+        if isinstance(b[k], dict) and isinstance(a.get(k), dict):
+            recursive_merge(a[k], v)
+        else:
+            a[k] = v
+
+
 def get_configuration():
     global _CURRENT_CONFIG
-    if _CURRENT_CONFIG is None:
-        _CURRENT_CONFIG = hjson.load(open(USER_CONFIG_PATH))
-    process(_CURRENT_CONFIG)
+    _CURRENT_CONFIG = load_configuration_from_path(USER_CONFIG_PATH)
+    if os.path.exists(os.path.join(os.getcwd(), CONFIG_FILE_NAME)):
+        local_config = load_substituent_rule(os.path.join(os.getcwd(), CONFIG_FILE_NAME))
+        recursive_merge(_CURRENT_CONFIG, local_config)
     return _CURRENT_CONFIG
+
+
+def load_configuration_from_path(path):
+    cfg = hjson.load(open(path))
+    process(cfg)
+    return cfg
 
 
 def set_configuration(obj):

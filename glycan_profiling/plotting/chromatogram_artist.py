@@ -144,6 +144,15 @@ class ChromatogramArtist(ArtistBase):
         self.legend = None
         self.label_peaks = label_peaks
 
+    def __iter__(self):
+        return iter(self.chromatograms)
+
+    def __getitem__(self, i):
+        return self.chromatograms[i]
+
+    def __len__(self):
+        return len(self.chromatograms)
+
     def _resolve_chromatograms_from_argument(self, chromatograms):
         try:
             # if not hasattr(chromatograms[0], "get_chromatogram"):
@@ -179,7 +188,7 @@ class ChromatogramArtist(ArtistBase):
         rt_apex = rt[apex_ind]
 
         if label is not None:
-            self.ax.text(rt_apex, apex + 1200, label, ha='center', fontsize=label_font_size)
+            self.ax.text(rt_apex, apex + 1200, label, ha='center', fontsize=label_font_size, clip_on=True)
 
     def draw_group(self, label, rt, heights, color, label_peak=True, chromatogram=None, label_font_size=10):
         if chromatogram is not None:
@@ -213,7 +222,9 @@ class ChromatogramArtist(ArtistBase):
         rt_apex = rt[apex_ind]
 
         if label is not None and label_peak:
-            self.ax.text(rt_apex, min(apex * 1.1, apex + 1200), label, ha='center', fontsize=label_font_size)
+            self.ax.text(
+                rt_apex, min(apex * 1.1, apex + 1200), label, ha='center', fontsize=label_font_size,
+                clip_on=True)
 
     def transform_group(self, rt, heights):
         return rt, heights
@@ -286,7 +297,13 @@ class ChromatogramArtist(ArtistBase):
         self._interpolate_xticks(self.minimum_ident_time, self.maximum_ident_time)
         self.ax.set_ylim(0, self.maximum_intensity * 1.25)
         if legend:
-            self.legend = self.ax.legend(bbox_to_anchor=(1.2, 1.), ncol=2, fontsize=10)
+            try:
+                self.legend = self.ax.legend(bbox_to_anchor=(1.2, 1.), ncol=2, fontsize=10)
+            except ValueError:
+                # matplotlib 2.1.1 bug compares array-like colors using == and expects a
+                # scalar boolean, triggering a ValueError. When this happens, we can't
+                # render a legend.
+                self.legend = None
         self.ax.axes.spines['right'].set_visible(False)
         self.ax.axes.spines['top'].set_visible(False)
         self.ax.yaxis.tick_left()
@@ -353,7 +370,8 @@ class SmoothingChromatogramArtist(ChromatogramArtist):
         rt_apex = rt[apex_ind]
 
         if label is not None:
-            self.ax.text(rt_apex, apex + 1200, label, ha='center', fontsize=label_font_size)
+            self.ax.text(rt_apex, apex + 1200, label, ha='center', fontsize=label_font_size,
+                         clip_on=True)
 
 
 class ChargeSeparatingChromatogramArtist(ChromatogramArtist):

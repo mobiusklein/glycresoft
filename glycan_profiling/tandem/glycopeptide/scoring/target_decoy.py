@@ -205,3 +205,51 @@ class TargetDecoyAnalyzer(object):
     def score(self, spectrum_match):
         spectrum_match.q_value = self._q_value_map[spectrum_match.score]
         return spectrum_match
+
+
+class GroupwiseTargetDecoyAnalyzer(object):
+    def __init__(self, target_series, decoy_series, with_pit=False, grouping_functions=None):
+        if grouping_functions is None:
+            grouping_functions = [lambda x: True]
+        self.target_series = target_series
+        self.decoy_series = decoy_series
+        self.with_pit = with_pit
+        self.grouping_functions = []
+        self.groups = []
+        self.group_fits = []
+
+        for fn in grouping_functions:
+            self.add_group(fn)
+
+        self.partition()
+
+    def partition(self):
+        for target in self.target_series:
+            i = self.find_group(target)
+            self.groups[i][0].append(target)
+        for decoy in self.decoy_series:
+            i = self.find_group(decoy)
+            self.groups[i][1].append(decoy)
+        for group in self.groups:
+            fit = TargetDecoyAnalyzer(*group, with_pit=self.with_pit)
+            self.group_fits.append(fit)
+
+    def add_group(self, fn):
+        self.grouping_functions.append(fn)
+        self.groups.append(([], []))
+        return len(self.groups)
+
+    def find_group(self, spectrum_match):
+        for i, fn in enumerate(self.grouping_functions):
+            if fn(spectrum_match):
+                return i
+        return None
+
+    def q_values(self):
+        for group in self.group_fits:
+            group.q_values()
+
+    def score(self, spectrum_match):
+        i = self.find_group(spectrum_match)
+        fit = self.group_fits[i]
+        return fit.score(spectrum_match)

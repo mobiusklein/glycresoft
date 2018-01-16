@@ -102,6 +102,22 @@ class GaussianModel(PeakShapeModelBase):
         return params_dict['sigma']
 
 
+class SimplifiedGaussianModel(GaussianModel):
+    def __init__(self, chromatogram):
+        xs, ys = chromatogram.as_arrays()
+        self.mean, self.base_amplitude, self.sigma = GaussianModel.guess(xs, ys)
+
+    def guess(self, chromatogram):
+        return (self.base_amplitude,)
+
+    def shape(self, xs, amplitude):
+        return GaussianModel.shape(xs, self.mean, amplitude, self.sigma)
+
+    def fit(self, xs, ys, params):
+        amplitude, = params
+        return ys - self.shape(xs, amplitude)
+
+
 def skewed_gaussian_shape(xs, center, amplitude, sigma, gamma):
     if sigma == 0:
         sigma = SIGMA_EPSILON
@@ -733,3 +749,17 @@ try:
     has_c = True
 except ImportError:
     has_c = False
+
+
+class ChromatogramShapeModel(ScoringFeatureBase):
+    feature_type = "line_score"
+
+    def __init__(self, smooth=True):
+        self.smooth = smooth
+
+    def fit(self, chromatogram, *args, **kwargs):
+        return AdaptiveMultimodalChromatogramShapeFitter(chromatogram, smooth=self.smooth)
+
+    def score(self, chromatogram, *args, **kwargs):
+        fit = self.fit(chromatogram, *args, **kwargs)
+        return max(1 - fit.line_test, epsilon)

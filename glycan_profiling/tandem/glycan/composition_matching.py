@@ -1,13 +1,16 @@
+from collections import defaultdict
+
+from multiprocessing import Manager as IPCManager
 
 from glycopeptidepy.structure.glycan import GlycanCompositionProxy
 
 from glycan_profiling.task import TaskBase
 from .scoring.signature_ion_scoring import SignatureIonScorer
 from ..chromatogram_mapping import ChromatogramMSMSMapper
-from ..spectrum_matcher_base import (
+
+from ..process_dispatcher import (
     IdentificationProcessDispatcher,
-    SpectrumIdentificationWorkerBase, Manager as IPCManager)
-from ..ref import SpectrumReference
+    SpectrumIdentificationWorkerBase)
 
 
 class ChromatogramAssignmentRecord(GlycanCompositionProxy):
@@ -37,10 +40,10 @@ class ChromatogramAssignmentRecord(GlycanCompositionProxy):
 
 class GlycanCompositionIdentificationWorker(SpectrumIdentificationWorkerBase):
     def __init__(self, input_queue, output_queue, done_event, scorer_type, evaluation_args,
-                 spectrum_map, log_handler):
+                 spectrum_map, mass_shift_map, log_handler):
         SpectrumIdentificationWorkerBase.__init__(
             self, input_queue, output_queue, done_event, scorer_type, evaluation_args,
-            spectrum_map, log_handler=log_handler)
+            spectrum_map, mass_shift_map, log_handler=log_handler)
 
     def evaluate(self, scan, structure, *args, **kwargs):
         target = structure
@@ -135,7 +138,7 @@ class SignatureIonMapper(TaskBase):
             scans = []
             for scan in self.prepare_scan_set(chroma.tandem_solutions):
                 scan_map[scan.id] = scan
-                scans.append(scan)
+                scans.append(scan.id)
             hit_to_scan[record.id] = scans
         return scan_map, hit_map, hit_to_scan
 
@@ -160,7 +163,7 @@ class SignatureIonMapper(TaskBase):
                 init_args={}, evaluation_args=kwargs,
                 n_processes=self.n_processes,
                 ipc_manager=self.ipc_manager)
-            scan_solution_map = ipd.process(scan_map, hit_map, hit_to_scan)
+            scan_solution_map = ipd.process(scan_map, hit_map, hit_to_scan, defaultdict(lambda: "Unmodified"))
 
             for scan_id, matches in scan_solution_map.items():
                 for match in matches:

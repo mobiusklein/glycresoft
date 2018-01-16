@@ -4,15 +4,9 @@ from glycan_profiling import serialize
 from glycan_profiling.plotting import summaries, figax, SmoothingChromatogramArtist
 from glycan_profiling.plotting.chromatogram_artist import ChargeSeparatingSmoothingChromatogramArtist
 from glycan_profiling.scoring.chromatogram_solution import logit
-from glycan_profiling.symbolic_expression import GlycanSymbolContext
-from glypy import GlycanComposition
+from glycan_profiling.chromatogram_tree import ChromatogramFilter
 
 from jinja2 import Markup, Template
-
-try:
-    from urllib import quote
-except ImportError:
-    from urllib.parse import quote
 
 
 from glycan_profiling.output.report.base import (
@@ -59,9 +53,9 @@ def chromatogram_figures(chroma):
     return figures
 
 
-def glycan_link(glycan_composition):
-    escaped = quote(str(glycan_composition))
-    return Markup("<a href=\"#detail-{0}\">{1}</a>").format(escaped, str(glycan_composition))
+def chromatogram_link(chromatogram):
+    id_string = str(chromatogram.id)
+    return Markup("<a href=\"#detail-{0}\">{1}</a>").format(id_string, str(chromatogram.key))
 
 
 class GlycanChromatogramReportCreator(ReportCreatorBase):
@@ -70,12 +64,23 @@ class GlycanChromatogramReportCreator(ReportCreatorBase):
             database_path, analysis_id, stream)
         self.set_template_loader(os.path.dirname(__file__))
         self.threshold = threshold
+        self.glycan_chromatograms = ChromatogramFilter([])
+        self.unidentified_chromatograms = ChromatogramFilter([])
+
+    def glycan_link(self, key):
+        match = self.glycan_chromatograms.find_key(key)
+        if match is not None:
+            return chromatogram_link(match)
+        match = self.unidentified_chromatograms.find_key(key)
+        if match is not None:
+            return chromatogram_link(match)
+        return None
 
     def prepare_environment(self):
         super(GlycanChromatogramReportCreator, self).prepare_environment()
         self.env.filters["logit"] = logit
         self.env.filters['chromatogram_figures'] = chromatogram_figures
-        self.env.filters['glycan_link'] = glycan_link
+        self.env.filters['glycan_link'] = self.glycan_link
 
     def make_template_stream(self):
         template_obj = self.env.get_template("overview.templ")
@@ -84,8 +89,11 @@ class GlycanChromatogramReportCreator(ReportCreatorBase):
             self.database_connection._original_connection,
             analysis_id=self.analysis_id)
 
-        gcs = ads.load_glycan_composition_chromatograms()
-        und = ads.load_unidentified_chromatograms()
+        self.glycan_chromatograms = gcs = ads.load_glycan_composition_chromatograms()
+        # und = ads.load_unidentified_chromatograms()
+        self.unidentified_chromatograms = und = ChromatogramFilter(
+            ads.query(serialize.UnidentifiedChromatogram).filter(
+                serialize.UnidentifiedChromatogram.analysis_id == self.analysis_id).all())
 
         if len(gcs) == 0:
             self.log("No glycan compositions were identified. Skipping report building")
@@ -107,7 +115,11 @@ class GlycanChromatogramReportCreator(ReportCreatorBase):
             filter(lambda x: x.score > self.threshold, gcs + und))
         lcms_plot, composition_abundance_plot = summary_plot.draw(min_score=5)
 
-        lcms_plot.ax.legend_.set_visible(False)
+        try:
+            lcms_plot.ax.legend_.set_visible(False)
+        except AttributeError:
+            # The legend may not have been created
+            pass
         lcms_plot.ax.set_title("Glycan Composition\nLC-MS Aggregated EICs", fontsize=24)
 
         fig = lcms_plot.ax.figure
@@ -118,6 +130,12 @@ class GlycanChromatogramReportCreator(ReportCreatorBase):
         composition_abundance_plot.ax.set_xlabel(
             composition_abundance_plot.ax.get_xlabel(), fontsize=14)
 
+        def resolve_key(key):
+            match = gcs.find_key(key)
+            if match is None:
+                match = und.find_key(key)
+            return match
+
         template_stream = (template_obj.stream(
             analysis=ads.analysis, lcms_plot=svguri_plot(
                 lcms_plot.ax, bbox_inches='tight', patchless=True,
@@ -126,5 +144,7 @@ class GlycanChromatogramReportCreator(ReportCreatorBase):
                 composition_abundance_plot.ax, bbox_inches='tight', patchless=True,
                 svg_width="100%"),
             glycan_chromatograms=gcs,
+            unidentified_chromatograms=und,
+            resolve_key=resolve_key
         ))
         return template_stream

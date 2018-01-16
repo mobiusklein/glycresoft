@@ -36,7 +36,7 @@ SCAN_STATUS_GOOD = b"good"
 SCAN_STATUS_SKIP = b"skip"
 
 savgol = ms_peak_picker.scan_filter.SavitskyGolayFilter()
-denoise = ms_peak_picker.scan_filter.FTICRBaselineRemoval(scale=2.)
+denoise = ms_peak_picker.scan_filter.FTICRBaselineRemoval(window_length=2.)
 
 
 class ScanIDYieldingProcess(Process):
@@ -86,7 +86,6 @@ class ScanIDYieldingProcess(Process):
             max_scans = self.max_scans
 
         end_scan = self.end_scan
-
         while count < max_scans:
             try:
                 batch, ids = self._make_scan_batch()
@@ -150,134 +149,27 @@ class ScanTransformMixin(object):
         self.log_handler(message + ", %r" %
                          (multiprocessing.current_process()))
 
+    def skip_entry(self, index, ms_level):
+        self.output_queue.put((SCAN_STATUS_SKIP, index, ms_level))
+
     def skip_scan(self, scan):
         self.output_queue.put((SCAN_STATUS_SKIP, scan.index, scan.ms_level))
 
     def send_scan(self, scan):
-        self.output_queue.put((scan.pack(), scan.index, scan.ms_level))
+        scan = scan.pack()
+        # this attribute is not needed, and for MS1 scans is dangerous
+        # to pickle.
+        # It can pull other scans which may not yet have been packed
+        # into the message sent back to the main process which in
+        # turn can form a reference cycle and eat a lot of memory
+        scan.product_scans = []
+        self.output_queue.put((scan, scan.index, scan.ms_level))
 
     def all_work_done(self):
         return self._work_complete.is_set()
 
     def make_scan_transformer(self, loader=None):
         raise NotImplementedError()
-
-
-class PeakPickingProcess(Process, ScanTransformMixin):
-    def __init__(self, mzml_path, input_queue, output_queue,
-                 no_more_event=None, ms1_peak_picking_args=None,
-                 msn_peak_picking_args=None, envelope_selector=None,
-                 ms1_averaging=0, log_handler=None):
-        if log_handler is None:
-            def print_message(msg):
-                print(msg)
-            log_handler = print_message
-
-        if ms1_peak_picking_args is None:
-            ms1_peak_picking_args = {
-                "transforms": [denoise, savgol],
-                "start_mz": 250
-            }
-        if msn_peak_picking_args is None:
-            msn_peak_picking_args = {
-                "transforms": []
-            }
-        Process.__init__(self)
-        self._init_batch_store()
-        self.daemon = True
-        self.mzml_path = mzml_path
-        self.input_queue = input_queue
-        self.output_queue = output_queue
-
-        self.ms1_peak_picking_args = ms1_peak_picking_args
-        self.msn_peak_picking_args = msn_peak_picking_args
-        self.ms1_averaging = ms1_averaging
-
-        self.envelope_selector = envelope_selector
-
-        self.no_more_event = no_more_event
-        self._work_complete = multiprocessing.Event()
-        self.log_handler = log_handler
-
-    def make_scan_transformer(self, loader=None):
-        transformer = ScanProcessor(
-            loader,
-            ms1_peak_picking_args=self.ms1_peak_picking_args,
-            msn_peak_picking_args=self.msn_peak_picking_args,
-            loader_type=lambda x: x,
-            envelope_selector=self.envelope_selector,
-            ms1_averaging=self.ms1_averaging)
-        return transformer
-
-    def run(self):
-        loader = MSFileLoader(self.mzml_path)
-        queued_loader = ScanBunchLoader(loader)
-
-        has_input = True
-        transformer = self.make_scan_transformer(loader)
-
-        for logname in ["deconvolution", "deconvolution_scan_processor"]:
-            logger_to_silence = logging.getLogger(logname)
-            logger_to_silence.propagate = False
-            logger_to_silence.addHandler(logging.NullHandler())
-
-        i = 0
-        while has_input:
-            try:
-                scan_id, product_scan_ids, process_msn = self.get_work(True, 10)
-            except QueueEmpty:
-                if self.no_more_event is not None and self.no_more_event.is_set():
-                    has_input = False
-                continue
-
-            i += 1 + len(product_scan_ids)
-            if scan_id == DONE:
-                has_input = False
-                break
-
-            try:
-                queued_loader.put(scan_id, product_scan_ids)
-                scan, product_scans = queued_loader.get()
-            except Exception as e:
-                self.log_message("Something went wrong when loading bunch (%s): %r.\nRecovery is not possible." % (
-                    (scan_id, product_scan_ids), e))
-
-            if len(scan.arrays[0]) == 0:
-                self.skip_scan(scan)
-                continue
-
-            try:
-                scan, priorities, product_scans = transformer.process_scan_group(
-                    scan, product_scans)
-                self.send_scan(scan)
-            except NoIsotopicClustersError as e:
-                self.log_message("No isotopic clusters were extracted from scan %s (%r)" % (
-                    e.scan_id, len(scan.peak_set)))
-            except Exception as e:
-                self.skip_scan(scan)
-                self.log_error(e, scan_id, scan, (product_scan_ids))
-
-            for product_scan in product_scans:
-                if len(product_scan.arrays[0]) == 0 or not process_msn:
-                    self.skip_scan(product_scan)
-                    continue
-                try:
-                    transformer.pick_product_scan_peaks(product_scan)
-                    self.send_scan(product_scan)
-                except NoIsotopicClustersError as e:
-                    self.log_message("No isotopic clusters were extracted from scan %s (%r)" % (
-                        e.scan_id, len(product_scan.peak_set)))
-                except Exception as e:
-                    self.skip_scan(product_scan)
-                    self.log_error(e, product_scan.id,
-                                   product_scan, (product_scan_ids))
-
-        self.log_message("Done (%d scans)" % i)
-
-        if self.no_more_event is None:
-            self.output_queue.put((DONE, DONE, DONE))
-
-        self._work_complete.set()
 
 
 class ScanTransformingProcess(Process, ScanTransformMixin):
@@ -312,10 +204,11 @@ class ScanTransformingProcess(Process, ScanTransformMixin):
     """
 
     def __init__(self, mzml_path, input_queue, output_queue,
-                 averagine=ms_deisotope.averagine.glycan, charge_range=(1, 8),
-                 no_more_event=None, ms1_peak_picking_args=None, msn_peak_picking_args=None,
+                 no_more_event=None, ms1_peak_picking_args=None,
+                 msn_peak_picking_args=None,
                  ms1_deconvolution_args=None, msn_deconvolution_args=None,
-                 envelope_selector=None, ms1_averaging=0, log_handler=None):
+                 envelope_selector=None, ms1_averaging=0, log_handler=None,
+                 deconvolute=True):
         if log_handler is None:
             def print_message(msg):
                 print(msg)
@@ -333,14 +226,14 @@ class ScanTransformingProcess(Process, ScanTransformMixin):
         if ms1_deconvolution_args is None:
             ms1_deconvolution_args = {
                 "scorer": ms_deisotope.scoring.PenalizedMSDeconVFitter(35., 2),
-                "charge_range": charge_range,
-                "averagine": averagine
+                "charge_range": (1, 8),
+                "averagine": ms_deisotope.glycopeptide
             }
         if msn_deconvolution_args is None:
             msn_deconvolution_args = {
                 "scorer": ms_deisotope.scoring.MSDeconVFitter(10.),
-                "charge_range": charge_range,
-                "averagine": averagine
+                "charge_range": (1, 8),
+                "averagine": ms_deisotope.glycopeptide
             }
 
         Process.__init__(self)
@@ -349,21 +242,14 @@ class ScanTransformingProcess(Process, ScanTransformMixin):
         self.mzml_path = mzml_path
         self.input_queue = input_queue
         self.output_queue = output_queue
-        self.averagine = dict(averagine)
-        self.charge_range = charge_range
 
         self.ms1_peak_picking_args = ms1_peak_picking_args
         self.msn_peak_picking_args = msn_peak_picking_args
         self.ms1_deconvolution_args = ms1_deconvolution_args
-        self.ms1_deconvolution_args.setdefault(
-            "charge_range", self.charge_range)
-        self.ms1_deconvolution_args.setdefault("averagine", averagine)
         self.msn_deconvolution_args = msn_deconvolution_args
-        self.msn_deconvolution_args.setdefault(
-            "charge_range", self.charge_range)
-        self.msn_deconvolution_args.setdefault("averagine", averagine)
         self.envelope_selector = envelope_selector
         self.ms1_averaging = ms1_averaging
+        self.deconvolute = deconvolute
 
         self.no_more_event = no_more_event
         self._work_complete = multiprocessing.Event()
@@ -388,9 +274,16 @@ class ScanTransformingProcess(Process, ScanTransformMixin):
         has_input = True
         transformer = self.make_scan_transformer(loader)
 
-        logger_to_silence = logging.getLogger("deconvolution_scan_processor")
-        logger_to_silence.propagate = False
-        logger_to_silence.addHandler(logging.NullHandler())
+        nologs = ["deconvolution_scan_processor"]
+        if not self.deconvolute:
+            nologs.append("deconvolution")
+
+        for logname in nologs:
+            logger_to_silence = logging.getLogger("deconvolution_scan_processor")
+            logger_to_silence.propagate = False
+            logger_to_silence.setLevel("CRITICAL")
+            logger_to_silence.addHandler(logging.NullHandler())
+            # logger_to_silence.addHandler(logging.StreamHandler())
 
         i = 0
         while has_input:
@@ -420,7 +313,8 @@ class ScanTransformingProcess(Process, ScanTransformMixin):
             try:
                 scan, priorities, product_scans = transformer.process_scan_group(
                     scan, product_scans)
-                transformer.deconvolute_precursor_scan(scan, priorities)
+                if self.deconvolute:
+                    transformer.deconvolute_precursor_scan(scan, priorities)
                 self.send_scan(scan)
             except NoIsotopicClustersError as e:
                 self.log_message("No isotopic clusters were extracted from scan %s (%r)" % (
@@ -435,7 +329,8 @@ class ScanTransformingProcess(Process, ScanTransformMixin):
                     continue
                 try:
                     transformer.pick_product_scan_peaks(product_scan)
-                    transformer.deconvolute_product_scan(product_scan)
+                    if self.deconvolute:
+                        transformer.deconvolute_product_scan(product_scan)
                     self.send_scan(product_scan)
                 except NoIsotopicClustersError as e:
                     self.log_message("No isotopic clusters were extracted from scan %s (%r)" % (
@@ -567,7 +462,7 @@ class ScanCollator(TaskBase):
         try:
             item, index, ms_level = self.queue.get(blocking, timeout)
             # DONE message may be sent many times.
-            if item == DONE:
+            while item == DONE:
                 item, index, ms_level = self.queue.get(blocking, timeout)
             self.store_item(item, index)
             return True
@@ -669,6 +564,7 @@ class ScanCollator(TaskBase):
                     if found_content:
                         self.last_index = scan.index
                         yield self.produce(scan)
+                    if self.last_index is not None:
                         self.start_helper_producers()
             elif self.last_index + 1 in self.waiting:
                 while self.last_index + 1 in self.waiting:
@@ -720,20 +616,55 @@ class ScanGeneratorBase(object):
     def scan_source(self):
         return None
 
+    _deconvoluting = False
+
+    @property
+    def deconvoluting(self):
+        return self._deconvoluting
+
+    @deconvoluting.setter
+    def deconvoluting(self, value):
+        self._deconvoluting = value
+
+    _ms1_averaging = 0
+
+    @property
+    def ms1_averaging(self):
+        return self._ms1_averaging
+
+    @ms1_averaging.setter
+    def ms1_averaging(self, value):
+        self._ms1_averaging = value
+
+    _ignore_tandem_scans = False
+
+    @property
+    def ignore_tandem_scans(self):
+        return self._ignore_tandem_scans
+
+    @ignore_tandem_scans.setter
+    def ignore_tandem_scans(self, value):
+        self._ignore_tandem_scans = value
+
+    _extract_only_tandem_envelopes = False
+
+    @property
+    def extract_only_tandem_envelopes(self):
+        return self._extract_only_tandem_envelopes
+
+    @extract_only_tandem_envelopes.setter
+    def extract_only_tandem_envelopes(self, value):
+        self._extract_only_tandem_envelopes = value
+
 
 class ScanGenerator(TaskBase, ScanGeneratorBase):
-    deconvoluting = True
-
-    def __init__(self, ms_file, averagine=ms_deisotope.averagine.glycopeptide,
-                 charge_range=(-1, -8), number_of_helpers=4,
+    def __init__(self, ms_file, number_of_helpers=4,
                  ms1_peak_picking_args=None, msn_peak_picking_args=None,
                  ms1_deconvolution_args=None, msn_deconvolution_args=None,
                  extract_only_tandem_envelopes=False, ignore_tandem_scans=False,
-                 ms1_averaging=0):
+                 ms1_averaging=0, deconvolute=True):
         self.ms_file = ms_file
-        self.averagine = averagine
         self.time_cache = {}
-        self.charge_range = charge_range
         self.ignore_tandem_scans = ignore_tandem_scans
 
         self.scan_ids_exhausted_event = multiprocessing.Event()
@@ -754,6 +685,7 @@ class ScanGenerator(TaskBase, ScanGeneratorBase):
         self.msn_peak_picking_args = msn_peak_picking_args
         self.ms1_averaging = ms1_averaging
 
+        self.deconvoluting = deconvolute
         self.ms1_deconvolution_args = ms1_deconvolution_args
         self.msn_deconvolution_args = msn_deconvolution_args
         self.extract_only_tandem_envelopes = extract_only_tandem_envelopes
@@ -810,8 +742,6 @@ class ScanGenerator(TaskBase, ScanGeneratorBase):
             self.ms_file,
             self._input_queue,
             self._output_queue,
-            self.averagine,
-            self.charge_range,
             self.scan_ids_exhausted_event,
             ms1_peak_picking_args=self.ms1_peak_picking_args,
             msn_peak_picking_args=self.msn_peak_picking_args,
@@ -819,12 +749,14 @@ class ScanGenerator(TaskBase, ScanGeneratorBase):
             msn_deconvolution_args=self.msn_deconvolution_args,
             envelope_selector=self._scan_interval_tree,
             log_handler=self.log_controller.sender(),
-            ms1_averaging=self.ms1_averaging)
+            ms1_averaging=self.ms1_averaging,
+            deconvolute=self.deconvoluting)
 
     def _make_collator(self):
         return ScanCollator(
             self._output_queue, self.scan_ids_exhausted_event, self._deconv_helpers,
-            self._deconv_process, input_queue=self._input_queue)
+            self._deconv_process, input_queue=self._input_queue,
+            include_fitted=not self.deconvoluting)
 
     def make_iterator(self, start_scan=None, end_scan=None, max_scans=None):
         try:
@@ -842,7 +774,6 @@ class ScanGenerator(TaskBase, ScanGeneratorBase):
             self._make_interval_tree(start_scan, end_scan)
 
         self._terminate()
-
         self._scan_yielder_process = ScanIDYieldingProcess(
             self.ms_file, self._input_queue, start_scan=start_scan, end_scan=end_scan,
             max_scans=max_scans, no_more_event=self.scan_ids_exhausted_event,
@@ -874,55 +805,3 @@ class ScanGenerator(TaskBase, ScanGeneratorBase):
 
     def close(self):
         self._terminate()
-
-
-class RawScanGenerator(ScanGenerator):
-    deconvoluting = False
-
-    def __init__(self, ms_file, ms1_peak_picking_args=None, msn_peak_picking_args=None,
-                 number_of_helpers=4, extract_only_tandem_envelopes=False,
-                 ignore_tandem_scans=False, ms1_averaging=0):
-        self.ms_file = ms_file
-
-        self.time_cache = {}
-        self.scan_ids_exhausted_event = multiprocessing.Event()
-
-        self._iterator = None
-
-        self._scan_yielder_process = None
-        self._deconv_process = None
-
-        self._input_queue = None
-        self._output_queue = None
-        self._deconv_helpers = None
-        self._order_manager = None
-
-        self.number_of_helpers = number_of_helpers
-
-        self.ms1_peak_picking_args = ms1_peak_picking_args
-        self.msn_peak_picking_args = msn_peak_picking_args
-
-        self.ms1_averaging = ms1_averaging
-
-        self.extract_only_tandem_envelopes = extract_only_tandem_envelopes
-        self.ignore_tandem_scans = ignore_tandem_scans
-        self._scan_interval_tree = None
-
-        self.log_controller = self.ipc_logger()
-
-    def _make_transforming_process(self):
-        return PeakPickingProcess(
-            self.ms_file,
-            self._input_queue,
-            self._output_queue,
-            self.scan_ids_exhausted_event,
-            ms1_peak_picking_args=self.ms1_peak_picking_args,
-            msn_peak_picking_args=self.msn_peak_picking_args,
-            envelope_selector=self._scan_interval_tree,
-            log_handler=self.log_controller.sender(),
-            ms1_averaging=self.ms1_averaging)
-
-    def _make_collator(self):
-        return ScanCollator(
-            self._output_queue, self.scan_ids_exhausted_event, self._deconv_helpers,
-            self._deconv_process, include_fitted=True, input_queue=self._input_queue)

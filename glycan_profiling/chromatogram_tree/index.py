@@ -92,7 +92,7 @@ class ChromatogramFilter(object):
         self._key_map = defaultdict(list)
         for chrom in self:
             self._key_map[chrom.key].append(chrom)
-        for key in self._key_map.keys():
+        for key in tuple(self._key_map.keys()):
             self._key_map[key] = DisjointChromatogramSet(self._key_map[key])
         return self._key_map
 
@@ -112,9 +112,7 @@ class ChromatogramFilter(object):
         return self._intervals
 
     def find_all_instances(self, key):
-        if self._key_map is None:
-            self._build_key_map()
-        return self._key_map[key]
+        return self.key_map[key]
 
     def __iter__(self):
         return iter(self.chromatograms)
@@ -126,9 +124,10 @@ class ChromatogramFilter(object):
         return len(self.chromatograms)
 
     def find_key(self, key):
-        for obj in self:
-            if obj.key == key:
-                return obj
+        try:
+            return self.key_map[key][0]
+        except (KeyError, IndexError):
+            return None
 
     def find_mass(self, mass, ppm_error_tolerance=1e-5):
         index, flag = binary_search_with_flag(self.chromatograms, mass, ppm_error_tolerance)
@@ -138,8 +137,33 @@ class ChromatogramFilter(object):
             return None
 
     def find_all_by_mass(self, mass, ppm_error_tolerance=1e-5):
-        width = mass * ppm_error_tolerance
-        return self.mass_between(mass - width, mass + width)
+        if len(self) == 0:
+            return ChromatogramFilter([], sort=False)
+        center_index, _ = self._binary_search(mass, ppm_error_tolerance)
+        low_index = center_index
+        while low_index > 0:
+            x = self.chromatograms[low_index - 1]
+            if abs((mass - x.neutral_mass) / x.neutral_mass) > ppm_error_tolerance:
+                break
+            low_index -= 1
+
+        n = len(self.chromatograms)
+        high_index = center_index - 1
+        while high_index < n - 1:
+            x = self.chromatograms[high_index + 1]
+            if abs((mass - x.neutral_mass) / x.neutral_mass) > ppm_error_tolerance:
+                break
+            high_index += 1
+        if low_index == high_index == center_index:
+            x = self.chromatograms[center_index]
+            if abs((mass - x.neutral_mass) / x.neutral_mass) > ppm_error_tolerance:
+                return ChromatogramFilter([], sort=False)
+        items = self[low_index:high_index + 1]
+        items = [
+            c for c in items if abs(
+                (c.neutral_mass - mass) / mass) < ppm_error_tolerance
+        ]
+        return ChromatogramFilter(items, sort=False)
 
     def _binary_search(self, mass, error_tolerance=1e-5):
         return binary_search_with_flag(self, mass, error_tolerance)
@@ -203,8 +227,8 @@ class ChromatogramFilter(object):
             low_index += 1
         high_index, flag = binary_search_with_flag(self.chromatograms, high, 1e-5)
         high_index += 2
-        high_index = min(n - 1, high_index)
-        if self[high_index].neutral_mass > high:
+        # high_index = min(n - 1, high_index)
+        if (high_index < n) and (self[high_index].neutral_mass > high):
             high_index -= 1
         items = self[low_index:high_index]
         items = [c for c in items if low <= c.neutral_mass <= high]

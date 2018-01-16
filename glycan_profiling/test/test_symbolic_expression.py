@@ -1,6 +1,7 @@
 import unittest
 
-from glypy.composition import glycan_composition, composition_transform
+from glypy.composition import composition_transform
+from glypy.structure import glycan_composition
 
 from glycan_profiling import symbolic_expression
 
@@ -16,6 +17,12 @@ class SymbolicExpressionTest(unittest.TestCase):
         normd_composition = glycan_composition.GlycanComposition.parse(normd_symbol.serialize())
 
         self.assertEqual(base, normd_composition)
+
+    def test_complex_expression(self):
+        ex = symbolic_expression.parse_expression("X + 1 + abs(-2Z) * 5")
+        ctx = ctx = symbolic_expression.SymbolContext({"X": 5, "Z": 3})
+        expected = 36
+        self.assertEqual(ex.evaluate(ctx), expected)
 
 
 if __name__ == '__main__':

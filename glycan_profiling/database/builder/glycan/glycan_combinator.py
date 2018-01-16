@@ -1,7 +1,7 @@
 import itertools
-from collections import Counter
+from collections import Counter, defaultdict
 
-from glypy.composition.glycan_composition import FrozenGlycanComposition
+from glypy.structure.glycan_composition import FrozenGlycanComposition
 from glypy.composition import formula, Composition
 
 from glycan_profiling.serialize.hypothesis.glycan import (
@@ -28,6 +28,17 @@ class GlycanCompositionRecord(object):
 
     def __eq__(self, other):
         return self._str == other._str
+
+
+class GlycanCombinationSpecification(object):
+    def __init__(self, class_combinations=None, default=1):
+        if class_combinations is None:
+            class_combinations = defaultdict(lambda: self.default)
+        self.default = default
+        self.class_combinations = class_combinations
+
+    def __getitem__(self, class_spec):
+        return self.class_combinations[class_spec]
 
 
 def merge_compositions_frozen(composition_list):

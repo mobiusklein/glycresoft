@@ -9,7 +9,7 @@ from sqlalchemy import (
     Boolean, Table, Text, Index)
 from sqlalchemy.ext.mutable import MutableDict
 
-from ms_deisotope.output.db import (
+from glycan_profiling.serialize.base import (
     Base, MutableList)
 
 
@@ -17,7 +17,7 @@ from .hypothesis import GlycopeptideHypothesis
 from .glycan import GlycanCombination
 
 from glycopeptidepy.structure import sequence, residue, PeptideSequenceBase
-from glycan_profiling.database.structure_loader import PeptideProteinRelation, FragmentCachingGlycopeptide
+from glycan_profiling.structure.structure_loader import PeptideProteinRelation, FragmentCachingGlycopeptide
 
 
 class PeptideSequenceWrapperBase(PeptideSequenceBase):
@@ -64,7 +64,10 @@ class Protein(Base, PeptideSequenceWrapperBase):
     @property
     def n_glycan_sequon_sites(self):
         if self._n_glycan_sequon_sites is None:
-            self._n_glycan_sequon_sites = sequence.find_n_glycosylation_sequons(self.protein_sequence)
+            try:
+                self._n_glycan_sequon_sites = sequence.find_n_glycosylation_sequons(self.protein_sequence)
+            except residue.UnknownAminoAcidException:
+                return []
         return self._n_glycan_sequon_sites
 
     _o_glycan_sequon_sites = None
@@ -72,7 +75,10 @@ class Protein(Base, PeptideSequenceWrapperBase):
     @property
     def o_glycan_sequon_sites(self):
         if self._o_glycan_sequon_sites is None:
-            self._o_glycan_sequon_sites = sequence.find_o_glycosylation_sequons(self.protein_sequence)
+            try:
+                self._o_glycan_sequon_sites = sequence.find_o_glycosylation_sequons(self.protein_sequence)
+            except residue.UnknownAminoAcidException:
+                return []
         return self._o_glycan_sequon_sites
 
     _glycosaminoglycan_sequon_sites = None
@@ -80,7 +86,10 @@ class Protein(Base, PeptideSequenceWrapperBase):
     @property
     def glycosaminoglycan_sequon_sites(self):
         if self._glycosaminoglycan_sequon_sites is None:
-            self._glycosaminoglycan_sequon_sites = sequence.find_glycosaminoglycan_sequons(self.protein_sequence)
+            try:
+                self._glycosaminoglycan_sequon_sites = sequence.find_glycosaminoglycan_sequons(self.protein_sequence)
+            except residue.UnknownAminoAcidException:
+                return []
         return self._glycosaminoglycan_sequon_sites
 
     @property
@@ -159,6 +168,31 @@ class PeptideBase(PeptideSequenceWrapperBase):
     def total_mass(self):
         return self.convert().total_mass
 
+    _protein_relation = None
+
+    @property
+    def protein_relation(self):
+        if self._protein_relation is None:
+            peptide = self
+            self._protein_relation = PeptideProteinRelation(
+                peptide.start_position, peptide.end_position, peptide.protein_id,
+                peptide.hypothesis_id)
+        return self._protein_relation
+
+    @property
+    def start_position(self):
+        return self.protein_relation.start_position
+
+    @property
+    def end_position(self):
+        return self.protein_relation.end_position
+
+    def overlaps(self, other):
+        return self.protein_relation.overlaps(other.protein_relation)
+
+    def spans(self, position):
+        return position in self.protein_relation
+
 
 class Peptide(PeptideBase, Base):
     __tablename__ = 'Peptide'
@@ -209,7 +243,7 @@ class Glycopeptide(PeptideBase, Base):
     peptide_id = Column(Integer, ForeignKey(Peptide.id, ondelete='CASCADE'), index=True)
     glycan_combination_id = Column(Integer, ForeignKey(GlycanCombination.id, ondelete='CASCADE'), index=True)
 
-    peptide = relationship(Peptide)
+    peptide = relationship(Peptide, backref=backref("glycopeptides", lazy='dynamic'))
     glycan_combination = relationship(GlycanCombination)
 
     glycopeptide_sequence = Column(String(1024))

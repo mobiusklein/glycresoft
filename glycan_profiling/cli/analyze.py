@@ -20,6 +20,7 @@ from glycan_profiling.profiler import (
 
 from glycan_profiling.tandem.glycopeptide.scoring import CoverageWeightedBinomialScorer
 from glycan_profiling.composition_distribution_model import GridPointSolution
+from glycan_profiling.database.composition_network import GraphReader
 
 from glycan_profiling.models import GeneralScorer
 from glycan_profiling.task import fmt_msg
@@ -31,7 +32,8 @@ from .validators import (
     get_by_name_or_id,
     validate_ms1_feature_name,
     ms1_model_features,
-    RelativeMassErrorParam)
+    RelativeMassErrorParam,
+    DatabaseConnectionParam)
 
 
 def make_analysis_output_path(prefix):
@@ -51,8 +53,11 @@ def analyze():
 
 
 def database_connection(fn):
-    arg = click.argument("database-connection", doc_help=(
-        "A connection URI for a database, or a path on the file system"))
+    arg = click.argument(
+        "database-connection",
+        type=DatabaseConnectionParam(exists=True),
+        doc_help=(
+            "A connection URI for a database, or a path on the file system"))
     return arg(fn)
 
 
@@ -64,10 +69,19 @@ def hypothesis_identifier(hypothesis_type):
     return wrapper
 
 
+def sample_path(fn):
+    arg = click.argument(
+        "sample-path",
+        type=click.Path(exists=True, dir_okay=False, file_okay=True),
+        doc_help=(
+            "The path to the deconvoluted sample file"))
+    return arg(fn)
+
+
 @analyze.command("search-glycopeptide", short_help='Search preprocessed data for glycopeptide sequences')
 @click.pass_context
 @database_connection
-@click.argument("sample-path")
+@sample_path
 @hypothesis_identifier("glycopeptide")
 @click.option("-m", "--mass-error-tolerance", type=RelativeMassErrorParam(), default=1e-5,
               help="Mass accuracy constraint, in parts-per-million error, for matching MS^1 ions.")
@@ -84,13 +98,16 @@ def hypothesis_identifier(hypothesis_type):
 @click.option("-x", "--oxonium-threshold", default=0.05, type=float,
               help=('Minimum HexNAc-derived oxonium ion abundance '
                     'ratio to filter MS/MS scans. Defaults to 0.05.'))
+@click.option("-a", "--adduct", 'adducts', multiple=True, nargs=2,
+              help=("Adducts to consider. Specify name or formula, and a"
+                    " multiplicity."))
 @processes_option
 @click.option("--export", type=click.Choice(
               ['csv', 'html']), multiple=True,
               help="export command to after search is complete")
 @click.option("-o", "--output-path", default=None, type=click.Path(writable=True), help=(
               "Path to write resulting analysis to."))
-@click.option("-w", "--workload-size", default=1000, type=int, help="Number of spectra to process at once")
+@click.option("-w", "--workload-size", default=500, type=int, help="Number of spectra to process at once")
 @click.option("--save-intermediate-results", default=None, type=click.Path(), required=False,
               help='Save intermediate spectrum matches to a file', cls=HiddenOption)
 def search_glycopeptide(context, database_connection, sample_path, hypothesis_identifier,
@@ -98,7 +115,7 @@ def search_glycopeptide(context, database_connection, sample_path, hypothesis_id
                         msn_mass_error_tolerance=2e-5, psm_fdr_threshold=0.05, peak_shape_scoring_model=None,
                         tandem_scoring_model=None, oxonium_threshold=0.15,
                         save_intermediate_results=None, processes=4,
-                        workload_size=1000, export=None):
+                        workload_size=500, adducts=None, export=None):
     """Identify glycopeptide sequences from processed LC-MS/MS data
     """
     if output_path is None:
@@ -121,6 +138,12 @@ def search_glycopeptide(context, database_connection, sample_path, hypothesis_id
 
     tandem_scoring_model = validate_glycopeptide_tandem_scoring_function(
         context, tandem_scoring_model)
+
+    adducts = [validate_adduct(adduct, multiplicity)
+               for adduct, multiplicity in adducts]
+    expanded = []
+    expanded = MzMLGlycanChromatogramAnalyzer.expand_adducts(dict(adducts))
+    adducts = expanded
 
     if analysis_name is None:
         analysis_name = "%s @ %s" % (sample_run.name, hypothesis.name)
@@ -145,8 +168,9 @@ def search_glycopeptide(context, database_connection, sample_path, hypothesis_id
         tandem_scoring_model=tandem_scoring_model,
         oxonium_threshold=oxonium_threshold,
         n_processes=processes,
-        spectra_chunk_size=workload_size)
-
+        spectra_chunk_size=workload_size,
+        adducts=adducts)
+    analyzer.display_header()
     gps, unassigned, target_hits, decoy_hits = analyzer.start()
     if save_intermediate_results is not None:
         analyzer.log("Saving Intermediate Results")
@@ -162,7 +186,7 @@ def search_glycopeptide(context, database_connection, sample_path, hypothesis_id
                 context.invoke(
                     glycopeptide_identification,
                     database_connection=output_path,
-                    analysis_identifier=analyzer.analysis.id,
+                    analysis_identifier=analyzer.analysis_id,
                     output_path=export_path)
             elif export_type == 'html':
                 from glycan_profiling.cli.export import glycopeptide_identification
@@ -171,7 +195,7 @@ def search_glycopeptide(context, database_connection, sample_path, hypothesis_id
                 context.invoke(
                     glycopeptide_identification,
                     database_connection=output_path,
-                    analysis_identifier=analyzer.analysis.id,
+                    analysis_identifier=analyzer.analysis_id,
                     output_path=export_path,
                     report=True)
 
@@ -199,11 +223,13 @@ class RegularizationParameterType(click.ParamType):
                                               ' glycan compositions'))
 @click.pass_context
 @database_connection
-@click.argument("sample-path")
+@sample_path
 @hypothesis_identifier("glycan")
 @click.option("-m", "--mass-error-tolerance", type=RelativeMassErrorParam(), default=1e-5,
               help=("Mass accuracy constraint, in parts-per-million "
                     "error, for matching."))
+@click.option("-mn", "--msn-mass-error-tolerance", type=RelativeMassErrorParam(), default=2e-5,
+              help="Mass accuracy constraint, in parts-per-million error, for matching MS^n ions.")
 @click.option("-g", "--grouping-error-tolerance", type=RelativeMassErrorParam(), default=1.5e-5,
               help=("Mass accuracy constraint, in parts-per-million error, for"
                     " grouping chromatograms."))
@@ -218,7 +244,7 @@ class RegularizationParameterType(click.ParamType):
               "Path to write resulting analysis to."))
 @click.option("--interact", is_flag=True, cls=HiddenOption)
 @click.option("-f", "--ms1-scoring-feature", "scoring_model_features", multiple=True,
-              type=click.Choice(sorted(ms1_model_features)),
+              type=click.Choice(ms1_model_features.keys(lambda x: x.replace("_", "-"))),
               help="Additional features to include in evaluating chromatograms")
 @click.option("-r", "--regularize", type=RegularizationParameterType(),
               help=("Apply Laplacian regularization with either a"
@@ -226,6 +252,9 @@ class RegularizationParameterType(click.ParamType):
 @click.option("-w", "--regularization-model-path", type=click.Path(exists=True),
               default=None,
               help="Path to a file containing neighborhood model for regularization")
+@click.option("-k", "--network-path", type=click.Path(exists=True), default=None,
+              help=("Path to a file containing the glycan composition network"
+                    " and neighborhood rules"))
 @click.option("-t", "--delta-rt", default=0.5, type=float,
               help='The maximum time between observed data points before splitting features')
 @click.option("--export", type=click.Choice(
@@ -239,9 +268,11 @@ def search_glycan(context, database_connection, sample_path,
                   analysis_name, adducts, grouping_error_tolerance=1.5e-5,
                   mass_error_tolerance=1e-5, minimum_mass=500.,
                   scoring_model=None, regularize=None, regularization_model_path=None,
+                  network_path=None,
                   output_path=None, scoring_model_features=None,
                   delta_rt=0.5, export=None, interact=False,
-                  require_msms_signature=0.0, processes=4):
+                  require_msms_signature=0.0, msn_mass_error_tolerance=2e-5,
+                  processes=4):
     """Identify glycan compositions from preprocessed LC-MS data, stored in mzML
     format.
     """
@@ -259,6 +290,12 @@ def search_glycan(context, database_connection, sample_path,
             regularization_model = GridPointSolution.load(mod_file)
     else:
         regularization_model = None
+
+    if network_path is not None:
+        with open(network_path, 'r') as netfile:
+            network = GraphReader(netfile).network
+    else:
+        network = None
 
     database_connection = DatabaseBoundOperation(database_connection)
     ms_data = ProcessedMzMLDeserializer(sample_path, use_index=False)
@@ -291,20 +328,26 @@ def search_glycan(context, database_connection, sample_path,
         database_connection._original_connection, hypothesis.id,
         sample_path=sample_path, output_path=output_path, adducts=adducts,
         mass_error_tolerance=mass_error_tolerance,
+        msn_mass_error_tolerance=msn_mass_error_tolerance,
         grouping_error_tolerance=grouping_error_tolerance,
         scoring_model=scoring_model,
         minimum_mass=minimum_mass,
         regularize=regularize,
         regularization_model=regularization_model,
+        network=network,
         analysis_name=analysis_name,
         delta_rt=delta_rt,
         require_msms_signature=require_msms_signature,
         n_processes=processes)
+    analyzer.display_header()
     analyzer.start()
     if interact:
-        click.secho(fmt_msg("Beginning Interactive Session..."), fg='cyan')
-        import IPython
-        IPython.embed()
+        try:
+            import IPython
+            click.secho(fmt_msg("Beginning Interactive Session..."), fg='cyan')
+            IPython.embed()
+        except ImportError:
+            click.secho(fmt_msg("Interactive Session Not Supported"), fg='red')
     if export:
         for export_type in set(export):
             click.echo(fmt_msg("Handling Export: %s" % (export_type,)))
@@ -315,7 +358,7 @@ def search_glycan(context, database_connection, sample_path,
                 context.invoke(
                     glycan_composition_identification,
                     database_connection=output_path,
-                    analysis_identifier=analyzer.analysis.id,
+                    analysis_identifier=analyzer.analysis_id,
                     output_path=export_path)
             elif export_type == 'html':
                 from glycan_profiling.cli.export import glycan_composition_identification
@@ -324,7 +367,7 @@ def search_glycan(context, database_connection, sample_path,
                 context.invoke(
                     glycan_composition_identification,
                     database_connection=output_path,
-                    analysis_identifier=analyzer.analysis.id,
+                    analysis_identifier=analyzer.analysis_id,
                     output_path=export_path,
                     report=True)
             elif export_type == 'glycan-list':
@@ -334,7 +377,7 @@ def search_glycan(context, database_connection, sample_path,
                 context.invoke(
                     glycan_hypothesis,
                     database_connection=output_path,
-                    hypothesis_identifier=analyzer.analysis.hypothesis_id,
+                    hypothesis_identifier=analyzer.hypothesis_id,
                     output_path=export_path,
                     importable=True)
             elif export_type == "model":
