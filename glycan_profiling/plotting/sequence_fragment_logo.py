@@ -88,7 +88,8 @@ class SequenceGlyph(object):
         for i, position in enumerate(self.sequence_position_glyphs, 1):
             if i == index:
                 break
-        return position.x + (self.step_coefficient * self.size) / 1.3
+        mid_point_offset = (self.step_coefficient * self.size) / 1.3
+        return position.x + mid_point_offset
 
     def draw_bar_at(self, index, height=0.25, color='red', **kwargs):
         x = self.next_between(index)
