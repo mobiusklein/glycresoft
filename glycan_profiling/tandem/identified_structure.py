@@ -1,4 +1,4 @@
-from glycan_profiling.chromatogram_tree import get_chromatogram
+from glycan_profiling.chromatogram_tree import get_chromatogram, ArithmeticMapping
 
 from .chromatogram_mapping import TandemSolutionsWithoutChromatogram
 
@@ -59,6 +59,12 @@ class IdentifiedStructure(object):
             return self.chromatogram.adducts
         except AttributeError:
             return []
+
+    def adduct_signal_fractions(self):
+        try:
+            return self.chromatogram.adduct_signal_fractions()
+        except AttributeError:
+            return ArithmeticMapping()
 
     def __repr__(self):
         return "IdentifiedStructure(%s, %0.3f, %0.3f, %0.3e)" % (
