@@ -67,10 +67,12 @@ class OxoniumIonScanner(object):
             maximum = max(p.intensity for p in peak_list)
         except ValueError:
             return 0
+        n = len([i for i in self.ions_to_search if i.mass() > minimum_mass])
+        if n == 0:
+            return 0
         oxonium = sum(
             p.intensity / maximum for p in self.scan(
                 peak_list, charge, error_tolerance, minimum_mass))
-        n = len([i for i in self.ions_to_search if i.mass() > minimum_mass])
         return oxonium / n
 
     def __call__(self, peak_list, charge=0, error_tolerance=2e-5, minimum_mass=0):
