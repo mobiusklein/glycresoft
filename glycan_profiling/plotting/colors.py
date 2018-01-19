@@ -28,6 +28,16 @@ class ColorMapper(object):
     def __init__(self):
         self.color_name_map = {
             "HexNAc": hex2color(cnames["mediumseagreen"]),
+            "N-Glycosylation": hex2color(cnames["mediumseagreen"]),
+            "O-Glycosylation": hex2color(cnames["cadetblue"]),
+            "GAG-Linker": hex2color(cnames['burlywood']),
+            "Xyl": hex2color(cnames['darkorange']),
+            "a,enHex": hex2color(cnames['lightskyblue']),
+            "aHex": hex2color(cnames['plum']),
+            "Hex": hex2color(cnames['steelblue']),
+            "Neu5Ac": hex2color(cnames['blueviolet']),
+            "Neu5Gc": hex2color(cnames['lightsteelblue']),
+            "Fuc": hex2color(cnames['crimson'])
         }
         self.color_generator = cycle(self.colors)
 
