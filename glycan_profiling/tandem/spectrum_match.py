@@ -134,7 +134,7 @@ class SpectrumMatcherBase(SpectrumMatchBase):
 
     def plot(self, ax=None, **kwargs):
         from glycan_profiling.plotting import spectral_annotation
-        art = spectral_annotation.SpectrumMatchAnnotator(self, ax=ax)
+        art = spectral_annotation.TidySpectrumMatchAnnotator(self, ax=ax)
         art.draw(**kwargs)
         return art
 
