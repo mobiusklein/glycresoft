@@ -8,7 +8,7 @@ import traceback
 
 from ms_deisotope.processor import (
     ScanProcessor, MSFileLoader,
-    NoIsotopicClustersError)
+    NoIsotopicClustersError, EmptyScanError)
 
 from ms_deisotope.feature_map.quick_index import index as build_scan_index
 
@@ -319,6 +319,8 @@ class ScanTransformingProcess(Process, ScanTransformMixin):
             except NoIsotopicClustersError as e:
                 self.log_message("No isotopic clusters were extracted from scan %s (%r)" % (
                     e.scan_id, len(scan.peak_set)))
+            except EmptyScanError as e:
+                self.skip_scan(scan)
             except Exception as e:
                 self.skip_scan(scan)
                 self.log_error(e, scan_id, scan, (product_scan_ids))
@@ -335,6 +337,8 @@ class ScanTransformingProcess(Process, ScanTransformMixin):
                 except NoIsotopicClustersError as e:
                     self.log_message("No isotopic clusters were extracted from scan %s (%r)" % (
                         e.scan_id, len(product_scan.peak_set)))
+                except EmptyScanError as e:
+                    self.skip_scan(scan)
                 except Exception as e:
                     self.skip_scan(product_scan)
                     self.log_error(e, product_scan.id,
