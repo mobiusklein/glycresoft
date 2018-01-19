@@ -114,3 +114,65 @@ class MultipleProcessMzIdentMLGlycopeptideHypothesisSerializer(MzIdentMLGlycopep
             glycan_combination_count=self.total_glycan_combination_count,
             n_processes=self.n_processes)
         dispatcher.process(self.peptide_ids())
+
+
+class MzIdentMLPeptideHypothesisSerializer(GlycopeptideHypothesisSerializerBase):
+    def __init__(self, mzid_path, connection, hypothesis_name=None,
+                 target_proteins=None, reference_fasta=None, include_baseline_peptides=False):
+        if target_proteins is None:
+            target_proteins = []
+        GlycopeptideHypothesisSerializerBase.__init__(self, connection, hypothesis_name, 0)
+        self.mzid_path = mzid_path
+        self.reference_fasta = reference_fasta
+        self.proteome = mzid_proteome.Proteome(
+            mzid_path, self._original_connection, self.hypothesis_id,
+            target_proteins=target_proteins, reference_fasta=reference_fasta,
+            include_baseline_peptides=include_baseline_peptides)
+        self.target_proteins = target_proteins
+        self.include_baseline_peptides = include_baseline_peptides
+
+        self.set_parameters({
+            "mzid_file": os.path.abspath(mzid_path),
+            "reference_fasta": os.path.abspath(
+                reference_fasta) if reference_fasta is not None else None,
+            "target_proteins": target_proteins,
+        })
+
+    def retrieve_target_protein_ids(self):
+        if len(self.target_proteins) == 0:
+            return [
+                i[0] for i in
+                self.query(Protein.id).filter(
+                    Protein.hypothesis_id == self.hypothesis_id).all()
+            ]
+        else:
+            result = []
+            for target in self.target_proteins:
+                if isinstance(target, basestring):
+                    match = self.query(Protein.id).filter(
+                        Protein.name == target,
+                        Protein.hypothesis_id == self.hypothesis_id).first()
+                    if match:
+                        result.append(match[0])
+                    else:
+                        self.log("Could not locate protein '%s'" % target)
+                elif isinstance(target, int):
+                    result.append(target)
+            return result
+
+    def peptide_ids(self):
+        out = []
+        for protein_id in self.retrieve_target_protein_ids():
+            out.extend(i[0] for i in self.query(Peptide.id).filter(
+                Peptide.protein_id == protein_id))
+        return out
+
+    def run(self):
+        self.log("Loading Proteome")
+        self.proteome.load()
+        self.set_parameters({
+            "enzymes": self.proteome.enzymes,
+            "constant_modifications": self.proteome.constant_modifications,
+            "include_baseline_peptides": self.proteome.include_baseline_peptides
+        })
+        self.log("Done")

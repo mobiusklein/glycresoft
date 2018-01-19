@@ -250,7 +250,7 @@ class PeptideCollection(object):
         return sum(map(len, self.store.values()))
 
 
-class PeptideIdentification(object):
+class MzIdentMLPeptide(object):
     def __init__(self, peptide_dict, enzyme=None, constant_modifications=None,
                  modification_translation_table=None, process=True):
         if modification_translation_table is None:
@@ -274,6 +274,7 @@ class PeptideIdentification(object):
         self.constant_modifications = constant_modifications
         self.modification_translation_table = modification_translation_table
         self.enzyme = enzyme
+        self.mzid_id = peptide_dict.get('id')
 
         if process:
             self.process()
@@ -354,6 +355,19 @@ class PeptideIdentification(object):
         sequence_copy = remove_peptide_sequence_alterations(
             self.base_sequence, self.insert_sites, self.deleteion_sites)
         return sequence_copy
+
+    def __repr__(self):
+        return "%s(%s, %s)" % (
+            self.__class__.__name__, self.peptide_sequence,
+            self.glycosite_candidates)
+
+
+class PeptideIdentification(MzIdentMLPeptide):
+    def __init__(self, peptide_dict, enzyme=None, constant_modifications=None,
+                 modification_translation_table=None, process=True):
+        super(PeptideIdentification, self).__init__(
+            peptide_dict, enzyme, constant_modifications, modification_translation_table,
+            process)
 
     @property
     def score_type(self):
@@ -541,9 +555,9 @@ class PeptideConverter(object):
                 continue
 
             parent_protein = self.get_protein(evidence)
-
             if parent_protein is None:
                 continue
+
             start = evidence["start"] - 1
             end = evidence["end"]
 
@@ -698,6 +712,23 @@ class MzIdentMLProteomeExtraction(TaskBase):
             raise KeyError(name)
         return proteins[0]
 
+    def _load_peptides(self):
+        self.parser.reset()
+        i = 0
+        try:
+            enzyme = self.enzymes[0]
+        except IndexError as e:
+            logger.exception("Enzyme not found.", exc_info=e)
+            enzyme = None
+        for peptide in self.parser.iterfind("Peptide", iterative=True, retrieve_refs=True):
+            i += 1
+            mzid_peptide = MzIdentMLPeptide(
+                peptide, enzyme, self.constant_modifications,
+                self.modification_translation_table)
+            if i % 1000 == 0:
+                self.log("Loaded Peptide %r" % (mzid_peptide,))
+            yield mzid_peptide
+
 
 class Proteome(DatabaseBoundOperation, MzIdentMLProteomeExtraction):
     def __init__(self, mzid_path, connection, hypothesis_id, include_baseline_peptides=True,
@@ -814,7 +845,7 @@ class Proteome(DatabaseBoundOperation, MzIdentMLProteomeExtraction):
             self.build_baseline_peptides()
             self.remove_duplicates()
             self.log("... %d Peptides Total" % (self.count_peptides()))
-        self.split_proteins()
+            self.split_proteins()
         self.log("... Removing Duplicate Peptides")
         self.remove_duplicates()
         self.log("... %d Peptides Total" % (self.count_peptides()))
