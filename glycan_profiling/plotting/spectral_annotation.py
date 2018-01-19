@@ -1,6 +1,8 @@
 import numpy as np
-from matplotlib import pyplot as plt, font_manager
+
+from matplotlib import pyplot as plt, font_manager, transforms as mtransforms
 from ms_peak_picker.utils import draw_peaklist
+from .sequence_fragment_logo import SequenceGlyph
 
 
 default_ion_series_to_color = {
@@ -106,6 +108,31 @@ class SpectrumMatchAnnotator(object):
         self.format_axes()
         return self
 
+    def add_logo_plot(self, xrel=0.1, yrel=0.85, yrelscale=0.05):
+        ax = self.ax
+        xlim = ax.get_xlim()
+        ylim = ax.get_ylim()
+
+        xwidth = xlim[1] - xlim[0]
+        ywidth = ylim[1] - ylim[0]
+
+        aspect_ratio = xwidth / ywidth
+        logo_height = ywidth * yrelscale
+        trans = mtransforms.Affine2D()
+        trans.scale(logo_height * aspect_ratio, logo_height).translate(xlim[1] * xrel, ylim[1] * yrel)
+        logo = SequenceGlyph.from_spectrum_match(self.spectrum_match, set_layout=False, ax=ax)
+        logo.transform(trans)
+        return logo
+
     def __repr__(self):
         return "{self.__class__.__name__}({self.spectrum_match})".format(
             self=self)
+
+
+class TidySpectrumMatchAnnotator(SpectrumMatchAnnotator):
+    def label_peak(self, fragment, peak, fontsize=12, rotation=90, **kw):
+        min_intensity = self.upper / 1.35
+        if fragment.series == 'oxonium_ion':
+            if peak.intensity < min_intensity:
+                return
+        super(TidySpectrumMatchAnnotator, self).label_peak(fragment, peak, fontsize, rotation, **kw)
