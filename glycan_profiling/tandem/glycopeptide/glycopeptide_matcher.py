@@ -121,9 +121,13 @@ class TargetDecoyInterleavingGlycopeptideMatcher(TandemClusterEvaluatorBase):
                     minimum_mass = window.lower
                 except IndexError:
                     pass
-            ratio = gscore_scanner(
-                peak_list=scan.deconvoluted_peak_set, error_tolerance=error_tolerance,
-                minimum_mass=minimum_mass)
+            try:
+                ratio = gscore_scanner(
+                    peak_list=scan.deconvoluted_peak_set, error_tolerance=error_tolerance,
+                    minimum_mass=minimum_mass)
+            except Exception:
+                self.error("An error occurred while calculating the G-score for \"%s\"" % scan.id)
+                ratio = 0
             scan.oxonium_score = ratio
             if ratio >= self.minimum_oxonium_ratio:
                 keep.append(scan)
