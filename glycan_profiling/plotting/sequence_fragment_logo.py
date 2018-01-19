@@ -42,6 +42,9 @@ class SequencePositionGlyph(object):
         ax.add_patch(tpatch)
         return ax
 
+    def set_transform(self, transform):
+        self._patch.set_transform(transform)
+
 
 class SequenceGlyph(object):
 
@@ -53,11 +56,19 @@ class SequenceGlyph(object):
         self.size = size
         self.step_coefficient = step_coefficient
         self.sequence_position_glyphs = []
+        self.annotations = []
         self.x = kwargs.get('x', 1)
         self.y = kwargs.get('y', 1)
         self.options = kwargs
 
         self.render()
+
+    def transform(self, transform):
+        for glyph in self.sequence_position_glyphs:
+            glyph.set_transform(transform + self.ax.transData)
+        for annot in self.annotations:
+            annot.set_transform(transform + self.ax.transData)
+        return self
 
     def make_position_glyph(self, position, i, x, y, size):
         glyph = SequencePositionGlyph(position, i, x, y, size=size)
@@ -97,6 +108,7 @@ class SequenceGlyph(object):
         rect = mpatches.Rectangle(
             (x, y - height), 0.05, 1 + height, color=color, **kwargs)
         self.ax.add_patch(rect)
+        self.annotations.append(rect)
 
     def draw_n_term_label(
             self, index, label, height=0.25, length=0.75, size=0.45,
@@ -111,6 +123,7 @@ class SequenceGlyph(object):
         tpatch = mpatches.PathPatch(
             tpath, color='black', lw=0.25)
         self.ax.add_patch(tpatch)
+        self.annotations.append(tpatch)
 
     def draw_n_term_annotation(
             self, index, height=0.25, length=0.75, color='red', **kwargs):
@@ -120,6 +133,7 @@ class SequenceGlyph(object):
         rect = mpatches.Rectangle(
             (x - length, y), length, 0.05, color=color, **kwargs)
         self.ax.add_patch(rect)
+        self.annotations.append(rect)
 
     def draw_c_term_label(
             self, index, label, height=0.25, length=0.75, size=0.45,
@@ -134,6 +148,7 @@ class SequenceGlyph(object):
         tpatch = mpatches.PathPatch(
             tpath, color='black', lw=0.25)
         self.ax.add_patch(tpatch)
+        self.annotations.append(tpatch)
 
     def draw_c_term_annotation(
             self, index, height=0., length=0.75, color='red', **kwargs):
@@ -142,6 +157,7 @@ class SequenceGlyph(object):
         length *= self.step_coefficient
         rect = mpatches.Rectangle((x, y), length, 0.05, color=color, **kwargs)
         self.ax.add_patch(rect)
+        self.annotations.append(rect)
 
     def layout(self):
         ax = self.ax
@@ -236,12 +252,17 @@ class SequenceGlyph(object):
                 labeled.add(label)
 
     @classmethod
-    def from_spectrum_match(cls, spectrum_match, ax=None, **kwargs):
-        annotation_options = kwargs.pop("annotation_options", {})
+    def from_spectrum_match(cls, spectrum_match, ax=None, set_layout=True, color='red',
+                            glycosylated_color='forestgreen', **kwargs):
+        annotation_options = kwargs.get("annotation_options", {})
+        annotation_options['color'] = color
+        annotation_options['glycosylated_color'] = glycosylated_color
+        kwargs['annotation_options'] = annotation_options
         inst = cls(spectrum_match.target, ax=ax, **kwargs)
         fragments = [f for f in spectrum_match.solution_map.fragments()]
         inst.annotate_from_fragments(fragments, **annotation_options)
-        inst.layout()
+        if set_layout:
+            inst.layout()
         return inst
 
 
