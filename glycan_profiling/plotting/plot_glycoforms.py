@@ -1,3 +1,5 @@
+import operator
+
 import matplotlib
 from matplotlib import font_manager
 from matplotlib import pyplot as plt
@@ -23,13 +25,13 @@ def span_overlap(a, b):
             b.spans(a.start_position + 1) or b.spans(a.end_position))
 
 
-def layout_layers(gpms):
+def layout_layers(gpms, sort_key=operator.attrgetter("ms2_score")):
     '''
     Produce a non-overlapping stacked layout of individual peptide-like
     identifications across a protein sequence.
     '''
     layers = [[]]
-    gpms.sort(key=lambda x: x.ms2_score, reverse=True)
+    gpms.sort(key=sort_key, reverse=True)
     for gpm in gpms:
         placed = False
         for layer in layers:
@@ -58,10 +60,12 @@ def ndigits(x):
 
 
 class GlycoformLayout(object):
-    def __init__(self, protein, glycopeptides, scale_factor=1.0, ax=None, row_width=50, **kwargs):
+    def __init__(self, protein, glycopeptides, scale_factor=1.0, ax=None, row_width=50,
+                 sort_key=operator.attrgetter('ms2_score'), **kwargs):
         if ax is None:
             figure, ax = plt.subplots(1, 1)
         self.protein = protein
+        self.sort_key = sort_key
         layers = self.layout_layers(glycopeptides)
         for layer in layers:
             layer.sort(key=lambda x: x.start_position)
@@ -92,7 +96,7 @@ class GlycoformLayout(object):
     def layout_layers(self, glycopeptides):
         layers = [[]]
         glycopeptides = list(glycopeptides)
-        glycopeptides.sort(key=lambda x: x.ms2_score, reverse=True)
+        glycopeptides.sort(key=self.sort_key, reverse=True)
         for gpm in glycopeptides:
             placed = False
             for layer in layers:
@@ -164,7 +168,10 @@ class GlycoformLayout(object):
         })
 
     def _get_sequence(self, gpm):
-        return gpm.structure
+        try:
+            return gpm.structure
+        except AttributeError:
+            return PeptideSequence(str(gpm))
 
     def draw_peptide_block(self, gpm, current_position, next_row):
         color, alpha = self._compute_sequence_color(gpm)
@@ -193,7 +200,7 @@ class GlycoformLayout(object):
             if gpm.end_position - start_index > self.row_width:
                 end_index = min(
                     self.row_width,
-                    len(gpm.structure))
+                    len(self._get_sequence(gpm)))
             else:
                 end_index = gpm.end_position - start_index
         else:
@@ -205,7 +212,7 @@ class GlycoformLayout(object):
 
     def _compute_sequence_color(self, gpm):
         color = "lightblue"
-        alpha = min(max(gpm.ms2_score * 2, 0.2), 0.8)
+        alpha = min(max(self.sort_key(gpm) * 2, 0.2), 0.8)
         return color, alpha
 
     def _compute_modification_color(self, gpm, modification):
@@ -217,7 +224,7 @@ class GlycoformLayout(object):
 
         # Extract PTMs from the peptide sequence to draw over the
         # peptide rectangle
-        seq = gpm.structure
+        seq = self._get_sequence(gpm)
 
         for i, pos in enumerate(seq[start_index:end_index]):
             if len(pos[1]) > 0:
