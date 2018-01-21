@@ -1,3 +1,4 @@
+import os
 from collections import defaultdict
 
 import glypy
@@ -472,7 +473,7 @@ class MzMLGlycanChromatogramAnalyzer(GlycanChromatogramAnalyzer):
         param_dict = {
             "hypothesis_id": self.hypothesis_id,
             "sample_run_id": self.sample_path,
-            "sample_path": self.sample_path,
+            "sample_path": os.path.abspath(self.sample_path),
             "sample_name": extractor.peak_loader.sample_run.name,
             "mass_error_tolerance": self.mass_error_tolerance,
             "grouping_error_tolerance": self.grouping_error_tolerance,
@@ -730,7 +731,7 @@ class MzMLGlycopeptideLCMSMSAnalyzer(GlycopeptideLCMSMSAnalyzer):
         exporter.set_parameters({
             "hypothesis_id": self.hypothesis_id,
             "sample_run_id": self.sample_run_id,
-            "sample_path": self.sample_path,
+            "sample_path": os.path.abspath(self.sample_path),
             "sample_name": chromatogram_extractor.peak_loader.sample_run.name,
             "mass_error_tolerance": self.mass_error_tolerance,
             "fragment_error_tolerance": self.msn_mass_error_tolerance,
