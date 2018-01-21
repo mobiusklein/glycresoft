@@ -131,7 +131,7 @@ class SpectrumMatchAnnotator(object):
 
 class TidySpectrumMatchAnnotator(SpectrumMatchAnnotator):
     def label_peak(self, fragment, peak, fontsize=12, rotation=90, **kw):
-        min_intensity = self.upper / 1.35
+        min_intensity = 0.02 * (self.upper / 1.35)
         if fragment.series == 'oxonium_ion':
             if peak.intensity < min_intensity:
                 return
