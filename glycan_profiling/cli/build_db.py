@@ -214,11 +214,13 @@ def glycopeptide_hypothesis_common_options(cmd):
               help='Peptide modification rule which will be applied constantly')
 @click.option("-v", "--variable-modification", multiple=True,
               help='Peptide modification rule which will be applied variablely')
+@click.option("-y", "--semispecific-digest", is_flag=True, help=(
+    "Apply a semispecific enzyme digest permitting one peptide terminal to be non-specific"))
 @click.option("--reverse", default=False, is_flag=True, help='Reverse protein sequences', cls=HiddenOption)
 @click.option("--dry-run", default=False, is_flag=True, help="Do not save glycopeptides", cls=HiddenOption)
 def glycopeptide_fa(context, fasta_file, database_connection, enzyme, missed_cleavages, occupied_glycosites, name,
                     constant_modification, variable_modification, processes, glycan_source, glycan_source_type,
-                    glycan_source_identifier=None, reverse=False, dry_run=False):
+                    glycan_source_identifier=None, semispecific_digest=False, reverse=False, dry_run=False):
     '''Constructs a glycopeptide hypothesis from a FASTA file of proteins and a
     collection of glycans.
     '''
@@ -260,6 +262,7 @@ def glycopeptide_fa(context, fasta_file, database_connection, enzyme, missed_cle
         max_missed_cleavages=missed_cleavages,
         max_glycosylation_events=occupied_glycosites,
         hypothesis_name=name,
+        semispecific=semispecific_digest,
         n_processes=processes)
     builder.display_header()
     builder.start()

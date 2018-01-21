@@ -23,7 +23,7 @@ from .common import (
 class FastaGlycopeptideHypothesisSerializer(GlycopeptideHypothesisSerializerBase):
     def __init__(self, fasta_file, connection, glycan_hypothesis_id, hypothesis_name=None,
                  protease='trypsin', constant_modifications=None, variable_modifications=None,
-                 max_missed_cleavages=2, max_glycosylation_events=1):
+                 max_missed_cleavages=2, max_glycosylation_events=1, semispecific=False):
         GlycopeptideHypothesisSerializerBase.__init__(self, connection, hypothesis_name, glycan_hypothesis_id)
         self.fasta_file = fasta_file
         self.protease = protease
@@ -31,6 +31,7 @@ class FastaGlycopeptideHypothesisSerializer(GlycopeptideHypothesisSerializerBase
         self.variable_modifications = variable_modifications
         self.max_missed_cleavages = max_missed_cleavages
         self.max_glycosylation_events = max_glycosylation_events
+        self.semispecific = semispecific
 
         params = {
             "fasta_file": fasta_file,
@@ -38,7 +39,8 @@ class FastaGlycopeptideHypothesisSerializer(GlycopeptideHypothesisSerializerBase
             "constant_modifications": constant_modifications,
             "variable_modifications": variable_modifications,
             "max_missed_cleavages": max_missed_cleavages,
-            "max_glycosylation_events": max_glycosylation_events
+            "max_glycosylation_events": max_glycosylation_events,
+            "semispecific": semispecific
         }
         self.set_parameters(params)
 
@@ -63,7 +65,7 @@ class FastaGlycopeptideHypothesisSerializer(GlycopeptideHypothesisSerializerBase
     def digest_proteins(self):
         digestor = ProteinDigestor(
             self.protease, self.constant_modifications, self.variable_modifications,
-            self.max_missed_cleavages)
+            self.max_missed_cleavages, semispecific=self.semispecific)
         i = 0
         j = 0
         protein_ids = self.protein_ids()
@@ -147,17 +149,18 @@ class FastaGlycopeptideHypothesisSerializer(GlycopeptideHypothesisSerializerBase
 class MultipleProcessFastaGlycopeptideHypothesisSerializer(FastaGlycopeptideHypothesisSerializer):
     def __init__(self, fasta_file, connection, glycan_hypothesis_id, hypothesis_name=None,
                  protease='trypsin', constant_modifications=None, variable_modifications=None,
-                 max_missed_cleavages=2, max_glycosylation_events=1, n_processes=4):
+                 max_missed_cleavages=2, max_glycosylation_events=1, semispecific=False,
+                 n_processes=4):
         super(MultipleProcessFastaGlycopeptideHypothesisSerializer, self).__init__(
             fasta_file, connection, glycan_hypothesis_id, hypothesis_name,
             protease, constant_modifications, variable_modifications,
-            max_missed_cleavages, max_glycosylation_events)
+            max_missed_cleavages, max_glycosylation_events, semispecific)
         self.n_processes = n_processes
 
     def digest_proteins(self):
         digestor = ProteinDigestor(
             self.protease, self.constant_modifications, self.variable_modifications,
-            self.max_missed_cleavages)
+            self.max_missed_cleavages, semispecific=self.semispecific)
         task = MultipleProcessProteinDigestor(
             self._original_connection,
             self.hypothesis_id,

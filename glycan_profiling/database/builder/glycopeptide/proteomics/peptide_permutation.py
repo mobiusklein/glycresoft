@@ -227,11 +227,10 @@ class PeptidePermuter(object):
 peptide_permutations = PeptidePermuter.peptide_permutations
 
 
-def cleave_sequence(sequence, protease, missed_cleavages=2, min_length=6):
+def cleave_sequence(sequence, protease, missed_cleavages=2, min_length=6, max_length=60, semispecific=False):
     for peptide, start, end, missed in protease.cleave(sequence, missed_cleavages=missed_cleavages,
-                                                       min_length=min_length):
-        if missed > missed_cleavages:
-            continue
+                                                       min_length=min_length, max_length=max_length,
+                                                       semispecific=semispecific):
         if "X" in peptide:
             continue
         yield peptide, start, end, missed
@@ -240,7 +239,7 @@ def cleave_sequence(sequence, protease, missed_cleavages=2, min_length=6):
 class ProteinDigestor(TaskBase):
 
     def __init__(self, protease, constant_modifications=None, variable_modifications=None,
-                 max_missed_cleavages=2, max_length=60, min_length=6):
+                 max_missed_cleavages=2, min_length=6, max_length=60, semispecific=False):
         if constant_modifications is None:
             constant_modifications = []
         if variable_modifications is None:
@@ -254,6 +253,7 @@ class ProteinDigestor(TaskBase):
         self.max_missed_cleavages = max_missed_cleavages
         self.min_length = min_length
         self.max_length = max_length
+        self.semispecific = semispecific
 
     def _prepare_protease(self, protease):
         if isinstance(protease, enzyme.Protease):
@@ -266,7 +266,8 @@ class ProteinDigestor(TaskBase):
 
     def cleave(self, sequence):
         return cleave_sequence(sequence, self.protease, self.max_missed_cleavages,
-                               min_length=self.min_length)
+                               min_length=self.min_length, max_length=self.max_length,
+                               semispecific=self.semispecific)
 
     def digest(self, protein):
         sequence = protein.protein_sequence
@@ -318,10 +319,10 @@ class ProteinDigestor(TaskBase):
     @classmethod
     def digest_protein(cls, sequence, protease, constant_modifications=None,
                        variable_modifications=None, max_missed_cleavages=2,
-                       max_length=60, min_length=6):
+                       min_length=6, max_length=60, semispecific=False):
         inst = cls(
             protease, constant_modifications, variable_modifications,
-            max_missed_cleavages, max_length, min_length)
+            max_missed_cleavages, min_length, max_length, semispecific)
         if isinstance(sequence, basestring):
             sequence = Protein(protein_sequence=sequence)
         return inst(sequence)
