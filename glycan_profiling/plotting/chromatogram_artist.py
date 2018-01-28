@@ -313,23 +313,13 @@ class ChromatogramArtist(ArtistBase):
         [t.set(fontsize=axis_font_size) for t in self.ax.get_xticklabels()]
         [t.set(fontsize=axis_font_size) for t in self.ax.get_yticklabels()]
 
-    def draw(self, filter_function=lambda x, y: False, label_function=None,
-             legend=True, label_font_size=10):
+    def draw(self, label_function=None, legend=True, label_font_size=10):
         if label_function is None:
             label_function = self.default_label_function
         for chroma in self.chromatograms:
             composition = chroma.composition
-            if composition is not None:
-                if hasattr(chroma, 'entity') and chroma.entity is not None:
-                    gc = chroma.glycan_composition
-                else:
-                    gc = glypy.GlycanComposition.parse(composition)
-            else:
-                gc = None
-            if filter_function(gc, chroma):
-                continue
-
-            self.process_group(composition, chroma, label_function, label_font_size=label_font_size)
+            self.process_group(composition, chroma, label_function,
+                               label_font_size=label_font_size)
         self.layout_axes(legend=legend)
         return self
 
@@ -389,3 +379,24 @@ class ChargeSeparatingChromatogramArtist(ChromatogramArtist):
 class ChargeSeparatingSmoothingChromatogramArtist(
         ChargeSeparatingChromatogramArtist, SmoothingChromatogramArtist):
     pass
+
+
+def adduct_separating_chromatogram(chroma, ax=None):
+    adducts = list(chroma.adducts)
+    labels = {}
+    for adduct in adducts:
+        with_adduct, _ = chroma.bisect_adduct(adduct)
+        labels[adduct] = with_adduct
+    adduct_plot = SmoothingChromatogramArtist(
+        labels.values(),
+        colorizer=lambda *a, **k: 'green', ax=ax).draw(
+        label_function=lambda *a, **k: tuple(a[0].adducts)[0].name,
+        legend=False)
+    rt, intens = chroma.as_arrays()
+    adduct_plot.draw_generic_chromatogram(
+        "Total", rt, intens, color='steelblue')
+    ymin = adduct_plot.ax.get_ylim()[0]
+    adduct_plot.ax.set_ylim(ymin, intens.max() * 1.01)
+    adduct_plot.ax.set_title(
+        "Adduct-Separated\nExtracted Ion Chromatogram", fontsize=24)
+    return adduct_plot.ax

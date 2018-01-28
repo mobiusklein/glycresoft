@@ -503,15 +503,28 @@ class GlycopeptideDatabaseSearchIdentifier(TaskBase):
     def target_decoy(self, target_hits, decoy_hits, with_pit=False, *args, **kwargs):
         self.log("Running Target Decoy Analysis with %d targets and %d decoys" % (
             len(target_hits), len(decoy_hits)))
+
+        def over_10_aa(x):
+            return len(x.target) >= 10
+
+        def under_10_aa(x):
+            return len(x.target) < 10
+
+        grouping_fns = [over_10_aa, under_10_aa]
+
         tda = GroupwiseTargetDecoyAnalyzer(
-            target_hits, decoy_hits, *args, with_pit=with_pit, **kwargs)
+            [x.best_solution() for x in target_hits],
+            [x.best_solution() for x in decoy_hits], *args, with_pit=with_pit,
+            grouping_functions=grouping_fns, **kwargs)
         tda.q_values()
         for sol in target_hits:
             for hit in sol:
                 tda.score(hit)
+            sol.q_value = sol.best_solution().q_value
         for sol in decoy_hits:
             for hit in sol:
                 tda.score(hit)
+            sol.q_value = sol.best_solution().q_value
         return tda
 
     def map_to_chromatograms(self, chromatograms, tandem_identifications,

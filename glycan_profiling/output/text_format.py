@@ -74,6 +74,10 @@ class TrainingMGFExporterBase(TaskBase):
         scan = spectrum_match.scan
         scan = scan.clone()
         scan.annotations['structure'] = spectrum_match.target
+        try:
+            scan.annotations['mass_shift'] = spectrum_match.mass_shift.name
+        except AttributeError:
+            pass
         scan.annotations['ms2_score'] = spectrum_match.score
         try:
             scan.annotations['q_value'] = spectrum_match.q_value

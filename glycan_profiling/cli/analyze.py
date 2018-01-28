@@ -120,8 +120,8 @@ def search_glycopeptide(context, database_connection, sample_path, hypothesis_id
     """
     if output_path is None:
         output_path = make_analysis_output_path("glycopeptide")
-    if peak_shape_scoring_model is None:
-        peak_shape_scoring_model = GeneralScorer
+    # if peak_shape_scoring_model is None:
+    #     peak_shape_scoring_model = GeneralScorer
     if tandem_scoring_model is None:
         tandem_scoring_model = CoverageWeightedBinomialScorer
     database_connection = DatabaseBoundOperation(database_connection)
@@ -142,7 +142,8 @@ def search_glycopeptide(context, database_connection, sample_path, hypothesis_id
     adducts = [validate_adduct(adduct, multiplicity)
                for adduct, multiplicity in adducts]
     expanded = []
-    expanded = MzMLGlycanChromatogramAnalyzer.expand_adducts(dict(adducts))
+    expanded = MzMLGlycanChromatogramAnalyzer.expand_adducts(
+        dict(adducts), crossproduct=False)
     adducts = expanded
 
     if analysis_name is None:

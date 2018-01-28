@@ -20,6 +20,7 @@ from glycan_profiling.tandem.glycopeptide.identified_structure import (
 
 from glycan_profiling.tandem.chromatogram_mapping import TandemAnnotatedChromatogram
 from glycan_profiling.chromatogram_tree import GlycopeptideChromatogram
+from glycan_profiling.chromatogram_tree.utils import ArithmeticMapping
 
 from glycan_profiling.serialize.base import (
     Base)
@@ -55,6 +56,16 @@ class IdentifiedStructure(BoundToAnalysis, ChromatogramWrapper):
     @property
     def entity(self):
         raise NotImplementedError()
+
+    def bisect_adduct(self, adduct):
+        chromatogram = self._get_chromatogram()
+        new_adduct, new_no_adduct = chromatogram.bisect_adduct(adduct)
+
+        for chrom in (new_adduct, new_no_adduct):
+            chrom.entity = self.entity
+            chrom.composition = self.entity
+            chrom.glycan_composition = self.glycan_composition
+        return new_adduct, new_no_adduct
 
 
 class AmbiguousGlycopeptideGroup(Base, BoundToAnalysis):
@@ -149,7 +160,13 @@ class IdentifiedGlycopeptide(Base, IdentifiedStructure):
 
     @property
     def tandem_solutions(self):
-        return self.spectrum_cluster
+        return self.spectrum_cluster.spectrum_solutions
+
+    def adduct_tandem_solutions(self):
+        mapping = ArithmeticMapping()
+        for sm in self.tandem_solutions:
+            mapping[sm.best_solution().mass_shift] += 1
+        return mapping
 
     def get_chromatogram(self, *args, **kwargs):
         chromatogram = self.chromatogram.convert(*args, **kwargs)

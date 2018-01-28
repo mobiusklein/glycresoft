@@ -21,7 +21,7 @@ from .validators import RelativeMassErrorParam, get_by_name_or_id
 
 from glycan_profiling.serialize import (
     DatabaseBoundOperation, GlycanHypothesis, GlycopeptideHypothesis,
-    SampleRun, Analysis)
+    SampleRun, Analysis, Protein, Glycopeptide, func)
 from glycan_profiling.database import (
     GlycopeptideDiskBackedStructureDatabase,
     GlycanCompositionDiskBackedStructureDatabase)
@@ -40,6 +40,14 @@ def database_connection(fn):
         "A connection URI for a database, or a path on the file system"),
         type=DatabaseBoundOperation)
     return arg(fn)
+
+
+def hypothesis_identifier(hypothesis_type):
+    def wrapper(fn):
+        arg = click.argument("hypothesis-identifier", doc_help=(
+            "The ID number or name of the %s hypothesis to use" % (hypothesis_type,)))
+        return arg(fn)
+    return wrapper
 
 
 def analysis_identifier(fn):
@@ -479,3 +487,19 @@ def update_analysis_parameters(database_connection, analysis_identifier, paramet
         analysis.parameters[name] = value
     session.add(analysis)
     session.commit()
+
+
+@tools.command("summarize-glycopeptide-hypothesis")
+@database_connection
+@hypothesis_identifier(GlycopeptideHypothesis)
+def summarize_glycopeptide_hypothesis(database_connection, hypothesis_identifier):
+    session = database_connection.session
+    hypothesis = get_by_name_or_id(session, GlycopeptideHypothesis, hypothesis_identifier)
+    counts = session.query(Protein, func.count(Glycopeptide.id)).join(
+        Glycopeptide).group_by(Protein.id).filter(Protein.hypothesis_id == hypothesis.id).all()
+    counts = sorted(counts, key=lambda x: x[1], reverse=1)
+    total = 0
+    for protein, count in counts:
+        click.echo("%s: %d" % (protein.name, count))
+        total += count
+    click.echo("Total: %d" % (total,))

@@ -1,4 +1,4 @@
-from .features import (ms1_model_features, register_feature, available_features)
+from .features import (ms1_model_features, register_feature, available_features, get_feature)
 from .charge_models import GeneralScorer
 from .adduct_models import (
     AmmoniumAdductFeature, MethylLossFeature,
@@ -7,6 +7,7 @@ from .adduct_models import (
 
 __all__ = [
     "ms1_model_features", "register_feature", "available_features",
+    "get_feature",
     "GeneralScorer", "AmmoniumAdductFeature", "MethylLossFeature",
     "PermethylatedAmmoniumAndMethylLossFeature", "GeneralizedFormateAdductFeature"
 ]

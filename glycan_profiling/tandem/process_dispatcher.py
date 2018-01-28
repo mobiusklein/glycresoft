@@ -123,6 +123,9 @@ class IdentificationProcessDispatcher(TaskBase):
         self.local_scan_map.clear()
         self.local_scan_map.update(scan_map)
 
+        self.input_queue = Queue(1000)
+        self.output_queue = Queue(1000)
+
         for i in range(self.n_processes):
             worker = self.worker_type(
                 input_queue=self.input_queue, output_queue=self.output_queue,
@@ -191,6 +194,7 @@ class IdentificationProcessDispatcher(TaskBase):
                 self.log("An exception occurred while feeding %r and %d scan ids: %r" % (hit_id, len(scan_ids), e))
         # self.log("...... Finished dealing %d work items" % (i,))
         self.done_event.set()
+        self.input_queue.close()
         return
 
     def build_work_order(self, hit_id, hit_map, scan_hit_type_map, hit_to_scan):
@@ -367,9 +371,9 @@ class IdentificationProcessDispatcher(TaskBase):
         return worker.evaluate(scan, structure, *args, **kwargs)
 
     def process(self, scan_map, hit_map, hit_to_scan, scan_hit_type_map):
+        self.create_pool(scan_map)
         feeder_thread = self.spawn_queue_feeder(
             hit_map, hit_to_scan, scan_hit_type_map)
-        self.create_pool(scan_map)
         has_work = True
         i = 0
         n = len(hit_to_scan)
@@ -432,6 +436,7 @@ class IdentificationProcessDispatcher(TaskBase):
         self.clear_pool()
         self.log_controller.stop()
         feeder_thread.join()
+        self.output_queue.close()
         return self.scan_solution_map
 
 
@@ -515,7 +520,8 @@ class SpectrumIdentificationWorkerBase(Process):
                     continue
             items_handled += 1
             self.handle_item(structure, scan_ids)
-
+        self.output_queue.close()
+        self.input_queue.close()
         self._work_complete.set()
 
     def run(self):

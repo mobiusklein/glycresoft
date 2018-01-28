@@ -137,7 +137,7 @@ class TandemClusterEvaluatorBase(TaskBase):
 
         # loop over mass_shifts so that sequential queries deals with similar masses to
         # make better use of the database's cache
-        for mass_shift in self.mass_shifts:
+        for mass_shift in sorted(self.mass_shifts, key=lambda x: x.mass):
             # make iterable for score_one API
             mass_shift = (mass_shift,)
             for scan in self.tandem_cluster:
@@ -188,7 +188,7 @@ class TandemClusterEvaluatorBase(TaskBase):
         report_interval = 0.1 * n
         last_report = report_interval
         self.log("... Begin Collecting Hits")
-        for mass_shift in self.mass_shifts:
+        for mass_shift in sorted(self.mass_shifts, key=lambda x: x.mass):
             self.log("... Mapping For %s" % (mass_shift.name,))
             i = 0
             last_report = report_interval
@@ -207,7 +207,6 @@ class TandemClusterEvaluatorBase(TaskBase):
                         last_report += report_interval
                 j = 0
                 for scan in group:
-                    # scan_map[scan.id] = scan
                     workload.add_scan(scan)
 
                     # For a sufficiently dense database or large value of probe, this
@@ -224,18 +223,8 @@ class TandemClusterEvaluatorBase(TaskBase):
                     for hit in hits:
                         j += 1
                         workload.add_scan_hit(scan, hit, mass_shift.name)
-                        # hit_to_scan[hit.id].append(scan)
-                        # hit_map[hit.id] = hit
                 if report:
                     self.log("... Mapping Segment Done. (%d spectrum-pairs)" % (j,))
-        # self.log("... Computing Workload Graph")
-        # try:
-        #     with open("worklog.txt", 'a') as f:
-        #         f.write("\n#GENERATION\n%s\n" % (workload,))
-        #         workload.log_workloads(f)
-        # except IOError as e:
-        #     self.error("An error occurred while trying to write workload log", e)
-        # self.log("... Workload Graph Traversed")
         return workload
 
     def _evaluate_hit_groups_single_process(self, workload, *args, **kwargs):

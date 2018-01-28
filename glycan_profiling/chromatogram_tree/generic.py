@@ -86,8 +86,7 @@ def find_truncation_points(rt, signal, sigma=3, pad=3):
 
 
 class SimpleChromatogram(OrderedDict):
-    def __init__(self, time_converter):
-        self.time_converter = time_converter
+    def __init__(self):
         super(SimpleChromatogram, self).__init__()
 
     composition = None
@@ -95,11 +94,20 @@ class SimpleChromatogram(OrderedDict):
 
     def as_arrays(self):
         return (
-            np.array(map(self.time_converter.scan_id_to_rt, self)),
+            np.array(self.keys()),
             np.array(self.values()))
 
     def get_chromatogram(self):
         return self
+
+
+class SimpleEntityChromatogram(SimpleChromatogram):
+
+    def __init__(self, entity=None, glycan_composition=None):
+        self.entity = entity
+        self.composition = entity
+        self.glycan_composition = glycan_composition
+        super(SimpleEntityChromatogram, self).__init__()
 
 
 class PairedArray(object):

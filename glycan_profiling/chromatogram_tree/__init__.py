@@ -19,7 +19,9 @@ from .grouping import (
 
 from . import generic
 from .generic import (
-    SimpleChromatogram, find_truncation_points)
+    SimpleChromatogram,
+    SimpleEntityChromatogram,
+    find_truncation_points)
 
 from . import index
 from .index import ChromatogramFilter, DisjointChromatogramSet

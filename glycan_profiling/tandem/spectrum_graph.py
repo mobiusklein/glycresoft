@@ -1,7 +1,6 @@
 from collections import defaultdict
 
 import numpy as np
-from glycopeptidepy.structure import sequence_composition
 
 
 class MassWrapper(object):
@@ -179,14 +178,6 @@ class PeakGraphEdge(GraphEdgeBase):
         self.weight = weight
 
         GraphEdgeBase.__init__(self, node1, node2)
-        # self.node1 = node1
-        # self.node2 = node2
-        # self.indices = (self.node1.index, self.node2.index)
-        # self._hash = hash((node1, node2, annotation))
-        # self._str = "PeakGraphEdge(%s)" % ', '.join(map(str, (node1, node2, annotation)))
-
-        # node1.edges.add(self)
-        # node2.edges.add(self)
 
     def _make_hash(self):
         return hash((self.node1, self.node2, self.annotation))

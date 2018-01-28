@@ -293,13 +293,21 @@ class SpectrumSolutionSet(ScanWrapperBase):
         self._is_simplified = True
         self._invalidate()
 
-    def get_top_solutions(self):
+    def get_top_solutions(self, d=3):
         score = self.best_solution().score
-        return [x for x in self.solutions if abs(x.score - score) < 1e-6]
+        return [x for x in self.solutions if abs(x.score - score) < d]
 
-    def select_top(self):
+    def select_top(self, d=3):
         if self._is_top_only:
             return
-        self.solutions = self.get_top_solutions()
+        trivial = False
+        score = self.best_solution().score
+        if score <= d:
+            d = 0
+            trivial = True
+        n = len(self)
+        self.solutions = self.get_top_solutions(d)
+        if len(self) == n and trivial and n > 1:
+            self.solutions = [self.best_solution()]
         self._is_top_only = True
         self._invalidate()

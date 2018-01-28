@@ -9,13 +9,15 @@ SolutionEntry = namedtuple("SolutionEntry", "solution, score, percentile, best_s
 
 
 class SpectrumMatchSolutionCollectionBase(object):
-    def _compute_representative_weights(self, threshold_fn=lambda x: True):
+    def _compute_representative_weights(self, threshold_fn=lambda x: True, reject_shifted=False):
         scores = defaultdict(float)
         best_scores = defaultdict(float)
         best_spectrum_match = dict()
         for psm in self.tandem_solutions:
             if threshold_fn(psm):
                 for sol in psm.get_top_solutions():
+                    if reject_shifted and sol.mass_shift != Unmodified:
+                        continue
                     scores[sol.target] += (sol.score)
                     if best_scores[sol.target] < sol.score:
                         best_scores[sol.target] = sol.score
@@ -28,8 +30,8 @@ class SpectrumMatchSolutionCollectionBase(object):
         weights.sort(key=lambda x: x.percentile, reverse=True)
         return weights
 
-    def most_representative_solutions(self, threshold_fn=lambda x: True):
-        weights = self._compute_representative_weights(threshold_fn)
+    def most_representative_solutions(self, threshold_fn=lambda x: True, reject_shifted=False):
+        weights = self._compute_representative_weights(threshold_fn, reject_shifted)
         if weights:
             return [x for x in weights if abs(x.percentile - weights[0].percentile) < 1e-5]
 
@@ -40,6 +42,7 @@ class TandemAnnotatedChromatogram(ChromatogramWrapper, SpectrumMatchSolutionColl
         self.tandem_solutions = []
         self.time_displaced_assignments = []
         self.best_msms_score = None
+        self.representative_solutions = None
 
     def bisect_charge(self, charge):
         new_charge, new_no_charge = map(self.__class__, self.chromatogram.bisect_charge(charge))
@@ -75,13 +78,7 @@ class TandemAnnotatedChromatogram(ChromatogramWrapper, SpectrumMatchSolutionColl
         new.best_msms_score = self.best_msms_score
 
     def merge(self, other):
-        # this logic needs to be tested with multiple adducts on self and other
-        mass_shift = sorted((set(other.adducts) - set(self.adducts)), key=lambda x: x.mass)
-        if mass_shift:
-            mass_shift = mass_shift[0]
-        else:
-            mass_shift = Unmodified
-        new = self.__class__(self.chromatogram.merge(other.chromatogram, node_type=mass_shift))
+        new = self.__class__(self.chromatogram.merge(other.chromatogram))
         new.tandem_solutions = self.tandem_solutions + other.tandem_solutions
         new.time_displaced_assignments = self.time_displaced_assignments + other.time_displaced_assignments
         return new
@@ -95,13 +92,20 @@ class TandemAnnotatedChromatogram(ChromatogramWrapper, SpectrumMatchSolutionColl
 
     def assign_entity(self, solution_entry, entity_chromatogram_type=GlycopeptideChromatogram):
         entity_chroma = entity_chromatogram_type(
-            self.chromatogram.composition,
+            None,
             self.chromatogram.nodes, self.chromatogram.adducts,
             self.chromatogram.used_as_adduct)
         entity_chroma.entity = solution_entry.solution
+        if solution_entry.match.mass_shift != Unmodified:
+            identified_shift = solution_entry.match.mass_shift
+            for node in entity_chroma.nodes.unspool():
+                if node.node_type == Unmodified:
+                    node.node_type = identified_shift
+                else:
+                    node.node_type = (node.node_type + identified_shift)
+            entity_chroma.invalidate()
         self.chromatogram = entity_chroma
         self.best_msms_score = solution_entry.best_score
-        self.chromatogram.adducts.append(solution_entry.match.mass_shift)
 
 
 class TandemSolutionsWithoutChromatogram(SpectrumMatchSolutionCollectionBase):
@@ -148,7 +152,8 @@ class ScanTimeBundle(object):
             self.solution.scan.id, self.score, self.scan_time)
 
 
-def aggregate_by_assigned_entity(annotated_chromatograms, delta_rt=0.25):
+def aggregate_by_assigned_entity(annotated_chromatograms, delta_rt=0.25, require_unmodified=True,
+                                 threshold_fn=lambda x: x.q_value < 0.05):
     aggregated = defaultdict(list)
     finished = []
     log_handle.log("Aggregating Common Entities: %d chromatograms" % (len(annotated_chromatograms,)))
@@ -174,6 +179,63 @@ def aggregate_by_assigned_entity(annotated_chromatograms, delta_rt=0.25):
         out.append(chroma)
         finished.extend(out)
     log_handle.log("After merging: %d chromatograms" % (len(finished),))
+    if require_unmodified:
+        out = []
+        for chromatogram in finished:
+            # the structure's best match has not been identified in an unmodified state
+            if Unmodified not in chromatogram.adducts:
+                solutions = chromatogram.most_representative_solutions(
+                    threshold_fn, reject_shifted=True)
+                # if there is a reasonable solution in an unmodified state
+                if solutions:
+                    # select the best solution
+                    solutions = sorted(solutions, key=lambda x: x.score, reverse=True)
+
+                    # remove the invalidated mass shifts
+                    current_shifts = chromatogram.chromatogram.adducts
+                    partitions = []
+                    for shift in current_shifts:
+                        partition, _ = chromatogram.chromatogram.bisect_adduct(shift)
+                        partitions.append(partition.deduct_node_type(shift))
+                    accumulated_chromatogram = partitions[0]
+                    for partition in partitions[1:]:
+                        accumulated_chromatogram = accumulated_chromatogram.merge(partition)
+                    chromatogram.chromatogram = accumulated_chromatogram
+
+                    # update the tandem annotations
+                    chromatogram.assign_entity(
+                        solutions[0],
+                        entity_chromatogram_type=chromatogram.chromatogram.__class__)
+                    chromatogram.representative_solutions = solutions
+                    out.append(chromatogram)
+                else:
+                    log_handle.log("... Could not find an alternative option for %r" % (chromatogram,))
+                    out.append(chromatogram)
+            else:
+                out.append(chromatogram)
+        finished = []
+        aggregated = defaultdict(list)
+        for chroma in out:
+            if chroma.composition is not None:
+                if chroma.entity is not None:
+                    aggregated[chroma.entity].append(chroma)
+                else:
+                    aggregated[chroma.composition].append(chroma)
+            else:
+                finished.append(chroma)
+        for entity, group in aggregated.items():
+            out = []
+            group = sorted(group, key=lambda x: x.start_time)
+            chroma = group[0]
+            for obs in group[1:]:
+                if chroma.chromatogram.overlaps_in_time(obs) or (
+                        chroma.end_time - obs.start_time) < delta_rt:
+                    chroma = chroma.merge(obs)
+                else:
+                    out.append(chroma)
+                    chroma = obs
+            out.append(chroma)
+            finished.extend(out)
     return finished
 
 
@@ -236,6 +298,7 @@ class ChromatogramMSMSMapper(TaskBase):
             if solutions:
                 solutions = sorted(solutions, key=lambda x: x.score, reverse=True)
                 chromatogram.assign_entity(solutions[0], entity_chromatogram_type=entity_chromatogram_type)
+                chromatogram.representative_solutions = solutions
 
     def merge_common_entities(self, annotated_chromatograms):
         aggregated = defaultdict(list)

@@ -71,12 +71,12 @@ def split_terminal_modifications(modifications):
 
     for mod in modifications:
         n_term = mod.n_term_targets
-        if n_term:
+        if n_term and all([t.amino_acid_targets is None for t in n_term]):
             n_term_rule = mod.clone(n_term)
             mod = mod - n_term_rule
             n_terminal.append(n_term_rule)
         c_term = mod.c_term_targets
-        if c_term:
+        if c_term and all([t.amino_acid_targets is None for t in c_term]):
             c_term_rule = mod.clone(c_term)
             mod = mod - c_term_rule
             c_terminal.append(c_term_rule)

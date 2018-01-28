@@ -12,6 +12,10 @@ class MassShiftBase(object):
         except AttributeError:
             return False
 
+    @property
+    def tandem_mass(self):
+        return self.tandem_composition.mass
+
     def __ne__(self, other):
         return not self == other
 
@@ -27,10 +31,13 @@ class MassShiftBase(object):
 
 
 class MassShift(MassShiftBase):
-    def __init__(self, name, composition):
+    def __init__(self, name, composition, tandem_composition=None):
         self.name = name
         self.composition = composition
         self.mass = composition.mass
+        if tandem_composition is None:
+            tandem_composition = self.composition.copy()
+        self.tandem_composition = tandem_composition
         self._register_name()
 
     def __repr__(self):
@@ -53,6 +60,18 @@ class MassShift(MassShiftBase):
         composition = self.composition + other.composition
         return self.__class__(name, composition)
 
+    def __sub__(self, other):
+        if other.composition == {}:
+            return self
+
+        if self.composition == {}:
+            name = "-(%s)" % other.name
+            composition = -other.composition
+        else:
+            name = "(%s) - (%s)" % (self.name, other.name)
+            composition = self.composition - other.composition
+        return self.__class__(name, composition)
+
     def composed_with(self, other):
         return self == other
 
@@ -63,6 +82,7 @@ class CompoundMassShift(MassShiftBase):
             counts = {}
         self.counts = defaultdict(int, counts)
         self.composition = None
+        self.tandem_composition = None
         self.name = None
         self.mass = None
 
@@ -71,10 +91,13 @@ class CompoundMassShift(MassShiftBase):
 
     def _compute_composition(self):
         composition = Composition()
+        tandem_composition = Composition()
         for k, v in self.counts.items():
             composition += k.composition * v
+            tandem_composition += k.tandem_composition * v
         self.composition = composition
         self.mass = composition.mass
+        self.tandem_composition = tandem_composition
 
     def _compute_name(self):
         parts = []
@@ -112,6 +135,24 @@ class CompoundMassShift(MassShiftBase):
         else:
             return NotImplemented
 
+    def __sub__(self, other):
+        if other == Unmodified:
+            return self
+        if not self.composed_with(other):
+            raise ValueError("Cannot subtract %r from %r, not part of the compound" % (other, self))
+
+        if isinstance(other, MassShift):
+            counts = defaultdict(int, self.counts)
+            counts[other] -= 1
+            return self.__class__(counts)
+        elif isinstance(other, CompoundMassShift):
+            counts = defaultdict(int, self.counts)
+            for k, v in other.counts.items():
+                counts[k] -= v
+            return self.__class__(counts)
+        else:
+            return NotImplemented
+
     def __mul__(self, i):
         if self.composition == {}:
             return self
@@ -131,6 +172,6 @@ class CompoundMassShift(MassShiftBase):
 
 Unmodified = MassShift("Unmodified", Composition())
 Formate = MassShift("Formate", Composition('HCOOH'))
-Ammonium = MassShift("Ammonium", Composition("NH3"))
+Ammonium = MassShift("Ammonium", Composition("NH3"), Composition())
 Sodium = MassShift("Sodium", Composition("Na"))
 Potassium = MassShift("Potassium", Composition("K"))

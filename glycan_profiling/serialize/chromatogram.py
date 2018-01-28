@@ -1,11 +1,11 @@
-from collections import Counter
+from collections import Counter, deque
 
 import numpy as np
 
 from sqlalchemy import (
     Column, Numeric, Integer, String, ForeignKey, PickleType,
     Boolean, Table, func, select, join, alias, bindparam)
-from sqlalchemy.orm import relationship, backref, object_session
+from sqlalchemy.orm import relationship, backref, object_session, deferred
 from sqlalchemy.ext.associationproxy import association_proxy
 from sqlalchemy.orm.collections import attribute_mapped_collection
 from sqlalchemy.ext.declarative import declared_attr
@@ -19,7 +19,7 @@ from glycan_profiling.chromatogram_tree import (
     MassShift as MemoryMassShift,
     CompoundMassShift as MemoryCompoundMassShift,
     GlycanCompositionChromatogram as MemoryGlycanCompositionChromatogram,
-    ChromatogramInterface)
+    ChromatogramInterface, SimpleEntityChromatogram)
 
 from glycan_profiling.chromatogram_tree.chromatogram import MIN_POINTS_FOR_CHARGE_STATE
 from glycan_profiling.chromatogram_tree.utils import ArithmeticMapping
@@ -80,11 +80,17 @@ class MassShift(Base):
     id = Column(Integer, primary_key=True, autoincrement=True)
     name = Column(String(64), index=True, unique=True)
     composition = Column(String(128))
+    tandem_composition = deferred(Column(String(128)))
 
     _hash = None
 
     def convert(self):
-        return MemoryMassShift(str(self.name), Composition(str(self.composition)))
+        try:
+            tandem_composition = Composition(str(self.tandem_composition))
+        except:
+            tandem_composition = None
+        return MemoryMassShift(
+            str(self.name), Composition(str(self.composition)), tandem_composition)
 
     @classmethod
     def serialize(cls, obj, session, *args, **kwargs):
@@ -92,7 +98,9 @@ class MassShift(Base):
         if shift:
             return shift[0]
         else:
-            db_obj = MassShift(name=obj.name, composition=formula(obj.composition))
+            db_obj = MassShift(
+                name=obj.name, composition=formula(obj.composition),
+                tandem_composition=formula(obj.tandem_composition))
             session.add(db_obj)
             session.flush()
             return db_obj
@@ -435,6 +443,39 @@ class Chromatogram(Base, BoundToAnalysis):
         session = object_session(self)
         return self._adduct_signal_fraction_query(session)
 
+    def bisect_adduct(self, adduct):
+        session = object_session(self)
+
+        (root_peaks_join, branch_peaks_join,
+         anode, bnode, apeak) = self._adducts_query_inner(session)
+        root_node_info = select(
+            [anode.c.node_type_id, anode.c.retention_time, apeak.c.intensity]).where(
+            ChromatogramToChromatogramTreeNode.c.chromatogram_id == self.id
+        ).select_from(root_peaks_join)
+
+        branch_node_info = select(
+            [anode.c.node_type_id, anode.c.retention_time, apeak.c.intensity]).where(
+            ChromatogramToChromatogramTreeNode.c.chromatogram_id == self.id
+        ).select_from(branch_peaks_join)
+
+        all_node_info_q = root_node_info.union_all(branch_node_info).order_by(anode.c.retention_time)
+        adduct_id = session.query(CompoundMassShift.id).filter(CompoundMassShift.name == adduct.name).scalar()
+
+        new_adduct = SimpleEntityChromatogram()
+        new_no_adduct = SimpleEntityChromatogram()
+
+        for r in sorted(session.execute(all_node_info_q), key=lambda x: x.retention_time):
+            if r.node_type_id == adduct_id:
+                new_adduct.setdefault(r.retention_time, 0)
+                new_adduct[r.retention_time] += r.intensity
+            else:
+                new_no_adduct.setdefault(r.retention_time, 0)
+                new_no_adduct[r.retention_time] += r.intensity
+        new_adduct.adducts = {adduct}
+        new_no_adduct.adducts = set(self.adducts) - {adduct}
+
+        return new_adduct, new_no_adduct
+
     def _adduct_signal_fraction_query(self, session):
         (root_peaks_join, branch_peaks_join,
          anode, bnode, apeak) = self._adducts_query_inner(session)
@@ -765,6 +806,9 @@ class ChromatogramWrapper(object):
     def charge_states(self):
         return self._get_chromatogram().charge_states
 
+    def bisect_adduct(self, adduct):
+        return self._get_chromatogram().bisect_adduct(adduct)
+
 
 ChromatogramInterface.register(ChromatogramWrapper)
 
@@ -914,6 +958,16 @@ class ChromatogramSolutionWrapper(ChromatogramWrapper):
     @property
     def ambiguous_with(self):
         return self._get_chromatogram().ambiguous_with
+
+    def bisect_adduct(self, adduct):
+        chromatogram = self._get_chromatogram()
+        new_adduct, new_no_adduct = chromatogram.bisect_adduct(adduct)
+
+        for chrom in (new_adduct, new_no_adduct):
+            chrom.entity = self.entity
+            chrom.composition = self.entity
+            chrom.glycan_composition = self.glycan_composition
+        return new_adduct, new_no_adduct
 
 
 class GlycanCompositionChromatogram(Base, BoundToAnalysis, ScoredChromatogram, ChromatogramSolutionWrapper):

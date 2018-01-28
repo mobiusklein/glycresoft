@@ -125,10 +125,10 @@
                     <h3>{{chromatogram.glycan_composition}}</h3>
                     <div class='flex-container'>
                         <div class='flex-item'>
-                            <b>Observed Mass</b>: {{chromatogram.weighted_neutral_mass}} ({{
+                            <b>Observed Mass</b>: {{chromatogram.neutral_mass}} ({{
                             
-                            "%0.4e" % ((chromatogram.glycan_composition.mass() - chromatogram.weighted_neutral_mass
-                                       ) / chromatogram.weighted_neutral_mass)
+                            "%0.4e" % ((chromatogram.glycan_composition.mass() - chromatogram.neutral_mass
+                                       ) / chromatogram.neutral_mass)
 
                             }}) <br/>
                             <b>Total Abundance</b>: {{"%0.4e" % chromatogram.total_signal}} <br/>

@@ -60,12 +60,13 @@ class ChromatogramExtractor(TaskBase):
         mapping = defaultdict(list)
         for scan_id, peak in self.annotated_peaks:
             mapping[scan_id].append(peak.intensity)
-        bpc = SimpleChromatogram(self)
-        tic = SimpleChromatogram(self)
+        bpc = SimpleChromatogram()
+        tic = SimpleChromatogram()
         collection = sorted(mapping.items(), key=lambda b: self.scan_id_to_rt(b[0]))
         for scan_id, intensities in collection:
-            bpc[scan_id] = max(intensities)
-            tic[scan_id] = sum(intensities)
+            rt = self.scan_id_to_rt(scan_id)
+            bpc[rt] = max(intensities)
+            tic[rt] = sum(intensities)
         self.base_peak_chromatogram = bpc
         self.total_ion_chromatogram = tic
 

@@ -38,17 +38,20 @@ class TempFileManager(object):
 
 
 class SpectrumMatchWriter(object):
-    def __init__(self, path):
+    def __init__(self, path, manager):
         self.path = path
         self.handle = open(path, 'wb')
         self.writer = writer(self.handle)
+        self.manager = manager
 
     def write(self, spectrum_match):
+        self.manager.put_mass_shift(spectrum_match.mass_shift)
         self.writer.writerow(list(map(str, [
             spectrum_match.scan.id,
             spectrum_match.target.id,
             spectrum_match.score,
             spectrum_match.best_match,
+            spectrum_match.mass_shift.name
         ])))
 
     def write_all(self, iterable):
@@ -63,10 +66,11 @@ class SpectrumMatchWriter(object):
 
 
 class SpectrumMatchReader(object):
-    def __init__(self, path):
+    def __init__(self, path, manager):
         self.path = path
         self.handle = open(path, 'rb')
         self.reader = reader(self.handle)
+        self.manager = manager
 
     def handle_line(self):
         row = next(self.reader)
@@ -74,11 +78,14 @@ class SpectrumMatchReader(object):
         target_id = int(row[1])
         score = float(row[2])
         best_match = bool(row[3])
+        mass_shift_name = row[4]
+        mass_shift = self.manager.get_mass_shift(mass_shift_name)
         return SpectrumMatch(
             SpectrumReference(scan_id, None),
             TargetReference(target_id),
             score,
-            best_match)
+            best_match,
+            mass_shift=mass_shift)
 
     def __next__(self):
         return self.handle_line()
@@ -98,9 +105,16 @@ class SpectrumMatchReader(object):
 class SpectrumMatchStore(object):
     def __init__(self, base_directory=None):
         self.temp_manager = TempFileManager(base_directory)
+        self.mass_shift_by_name = dict()
+
+    def put_mass_shift(self, mass_shift):
+        self.mass_shift_by_name[mass_shift.name] = mass_shift
+
+    def get_mass_shift(self, name):
+        return self.mass_shift_by_name[name]
 
     def writer(self, key):
-        return SpectrumMatchWriter(self.temp_manager.get(key))
+        return SpectrumMatchWriter(self.temp_manager.get(key), self)
 
     def reader(self, key):
-        return SpectrumMatchReader(self.temp_manager.get(key))
+        return SpectrumMatchReader(self.temp_manager.get(key), self)

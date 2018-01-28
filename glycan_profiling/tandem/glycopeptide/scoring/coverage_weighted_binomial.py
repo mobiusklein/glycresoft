@@ -1,5 +1,6 @@
 import math
 
+from .base import ChemicalShift
 from .binomial_score import BinomialSpectrumMatcher
 from .simple_score import SimpleCoverageScorer
 from .precursor_mass_accuracy import MassAccuracyModel
@@ -42,7 +43,11 @@ class CoverageWeightedBinomialScorer(BinomialSpectrumMatcher, SimpleCoverageScor
                     self._sanitized_spectrum.remove(peak)
                 except KeyError:
                     continue
-
+        if self.mass_shift.tandem_mass != 0:
+            chemical_shift = ChemicalShift(
+                self.mass_shift.name, self.mass_shift.tandem_composition)
+        else:
+            chemical_shift = None
         for frag in self.target.stub_fragments(extended=True):
             for peak in spectrum.all_peaks_for(frag.mass, error_tolerance):
                 # should we be masking these? peptides which have amino acids which are
@@ -52,6 +57,17 @@ class CoverageWeightedBinomialScorer(BinomialSpectrumMatcher, SimpleCoverageScor
                 #
                 masked_peaks.add(peak.index.neutral_mass)
                 solution_map.add(peak, frag)
+
+            # If the precursor match was caused by a mass shift, that mass shift may
+            # be associated with stub fragments.
+            if chemical_shift is not None:
+                shifted_mass = frag.mass + self.mass_shift.tandem_mass
+                for peak in spectrum.all_peaks_for(shifted_mass, error_tolerance):
+                    masked_peaks.add(peak.index.neutral_mass)
+                    shifted_frag = frag.clone()
+                    shifted_frag.chemical_shift = chemical_shift
+                    shifted_frag.name += "+ %s" % (self.mass_shift.name,)
+                    solution_map.add(peak, shifted_frag)
 
         n_glycosylated_b_ions = 0
         for frags in self.target.get_fragments('b', neutral_losses):

@@ -80,6 +80,12 @@ class IdentifiedStructure(object):
     def tandem_solutions(self):
         return self.spectrum_matches
 
+    def adduct_tandem_solutions(self):
+        mapping = ArithmeticMapping()
+        for sm in self.tandem_solutions:
+            mapping[sm.best_solution().mass_shift] += 1
+        return mapping
+
     @property
     def glycan_composition(self):
         return self.structure.glycan_composition
@@ -107,7 +113,12 @@ def extract_identified_structures(tandem_annotated_chromatograms, threshold_fn, 
     for chroma in tandem_annotated_chromatograms:
         if chroma.composition is not None:
             if hasattr(chroma, 'entity'):
-                representers = chroma.most_representative_solutions(threshold_fn)
+                try:
+                    representers = chroma.representative_solutions
+                    if representers is None:
+                        representers = chroma.most_representative_solutions(threshold_fn)
+                except AttributeError:
+                    representers = chroma.most_representative_solutions(threshold_fn)
                 bunch = []
                 if isinstance(chroma, TandemSolutionsWithoutChromatogram):
                     chromatogram_entry = None

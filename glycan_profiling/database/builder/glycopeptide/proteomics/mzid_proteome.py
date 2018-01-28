@@ -325,6 +325,20 @@ class MzIdentMLPeptide(object):
                         self.modification_counter += 1
 
                     if pos == -1:
+                        targets = modification.rule.n_term_targets
+                        for t in targets:
+                            if t.position_modifier is not None and t.amino_acid_targets is None:
+                                break
+                        else:
+                            pos += 1
+                    if pos == len(self.peptide_sequence):
+                        targets = modification.rule.c_term_targets
+                        for t in targets:
+                            if t.position_modifier is not None and t.amino_acid_targets is None:
+                                break
+                        else:
+                            pos -= 1
+                    if pos == -1:
                         self.peptide_sequence.n_term = modification
                     elif pos == len(self.peptide_sequence):
                         self.peptide_sequence.c_term = modification

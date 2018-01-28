@@ -29,7 +29,7 @@ from glycan_profiling.trace import (
 
 from glycan_profiling.chromatogram_tree import ChromatogramFilter
 
-from glycan_profiling.models import GeneralScorer
+from glycan_profiling.models import GeneralScorer, get_feature
 
 from glycan_profiling.tandem import chromatogram_mapping
 from glycan_profiling.structure import ScanStub
@@ -176,20 +176,25 @@ class SampleConsumer(TaskBase):
 class GlycanChromatogramAnalyzer(TaskBase):
 
     @staticmethod
-    def expand_adducts(adduct_counts):
-        counts = descending_combination_counter(adduct_counts)
+    def expand_adducts(adduct_counts, crossproduct=True):
         combinations = []
-        for combo in counts:
-            scaled = []
-            for k, v in combo.items():
-                if v == 0:
-                    continue
-                scaled.append(k * v)
-            if scaled:
-                base = scaled[0]
-                for ad in scaled[1:]:
-                    base += ad
-                combinations.append(base)
+        if crossproduct:
+            counts = descending_combination_counter(adduct_counts)
+            for combo in counts:
+                scaled = []
+                for k, v in combo.items():
+                    if v == 0:
+                        continue
+                    scaled.append(k * v)
+                if scaled:
+                    base = scaled[0]
+                    for ad in scaled[1:]:
+                        base += ad
+                    combinations.append(base)
+        else:
+            for k, total in adduct_counts.items():
+                for t in range(1, total + 1):
+                    combinations.append(k * t)
         return combinations
 
     def __init__(self, database_connection, hypothesis_id, sample_run_id, adducts=None,
@@ -502,6 +507,7 @@ class GlycopeptideLCMSMSAnalyzer(TaskBase):
             tandem_scoring_model = CoverageWeightedBinomialScorer
         if peak_shape_scoring_model is None:
             peak_shape_scoring_model = GeneralScorer
+            peak_shape_scoring_model.add_feature(get_feature("null_charge"))
         if scan_transformer is None:
             def scan_transformer(x):
                 return x
@@ -570,10 +576,15 @@ class GlycopeptideLCMSMSAnalyzer(TaskBase):
         searcher.target_decoy(target_hits, decoy_hits)
 
     def map_chromatograms(self, searcher, extractor, target_hits):
+
+        def threshold_fn(x):
+            return x.q_value < self.psm_fdr_threshold
+
         chroma_with_sols, orphans = searcher.map_to_chromatograms(
             tuple(extractor), target_hits, self.mass_error_tolerance,
-            threshold_fn=lambda x: x.q_value < self.psm_fdr_threshold)
-        merged = chromatogram_mapping.aggregate_by_assigned_entity(chroma_with_sols)
+            threshold_fn=threshold_fn)
+        merged = chromatogram_mapping.aggregate_by_assigned_entity(
+            chroma_with_sols, threshold_fn=threshold_fn)
         return merged, orphans
 
     def score_chromatograms(self, merged):

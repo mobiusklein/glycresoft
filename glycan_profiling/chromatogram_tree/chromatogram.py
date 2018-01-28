@@ -151,6 +151,9 @@ class Chromatogram(_TimeIntervalMethods):
         self._last_most_abundant_member = self._most_abundant_member
         self._most_abundant_member = None
 
+    def invalidate(self):
+        self._invalidate()
+
     def retain_most_abundant_member(self):
         self._neutral_mass = self._last_neutral_mass
         self._most_abundant_member = self._last_most_abundant_member
@@ -422,6 +425,16 @@ class Chromatogram(_TimeIntervalMethods):
             node.node_type = node.node_type + node_type
             new.insert_node(node)
         new.created_at = "merge"
+        return new
+
+    def deduct_node_type(self, node_type):
+        new = self.clone()
+        for node in new.nodes.unspool():
+            if node.node_type == node_type:
+                node.node_type = Unmodified
+            else:
+                node.node_type = node.node_type - node_type
+        new.invalidate()
         return new
 
     def _merge_missing_only(self, other, node_type=Unmodified):
