@@ -590,16 +590,32 @@ class MultipleProcessPeptideGlycosylator(TaskBase):
                             self.log("... %d waiting sets." % (waiting_batches,))
                             try:
                                 for _ in range(waiting_batches):
-                                    batch.extend(self.output_queue.get_nowait())
+                                    batch.extend(self.output_queue.get(True, 1))
+                                # check to see if any new work items have arrived while
+                                # we've been draining the queue
+                                waiting_batches = self.output_queue.qsize()
+                                if waiting_batches != 0:
+                                    # if so, while the barrier is up, let's write the batch
+                                    # to disk and then try to drain the queue again
+                                    i += len(batch)
+                                    try:
+                                        session.bulk_save_objects(batch)
+                                        session.commit()
+                                    except Exception:
+                                        session.rollback()
+                                        raise
+                                    batch = []
+                                    for _ in range(waiting_batches):
+                                        batch.extend(self.output_queue.get_nowait())
                             except QueueEmptyException:
                                 pass
                             self.teardown_barrier()
                     except NotImplementedError:
                         # platform does not support qsize()
                         pass
-                    i += len(batch)
 
                     self.create_barrier()
+                    i += len(batch)
 
                     try:
                         session.bulk_save_objects(batch)
