@@ -122,7 +122,7 @@ class BundledGlycanComposition(object):
         signals = Counter()
         for obs in observations:
             signals[obs.glycan_composition] += obs.total_signal
-        return [cls(k, v) for k, v in signals.items()]
+        return [cls(k, v) for k, v in signals.items() if v > 0]
 
 
 class AggregatedAbundanceArtist(EntitySummaryBarChartArtist):
