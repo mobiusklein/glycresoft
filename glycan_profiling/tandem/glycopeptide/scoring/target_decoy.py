@@ -58,10 +58,21 @@ class NearestValueLookUp(object):
     def get_pair(self, key):
         return self.items[self._find_closest_item(key) + 1]
 
+    def __len__(self):
+        return len(self.items)
+
+    def __repr__(self):
+        return "{s.__class__.__name__}({size})".format(
+            s=self, size=len(self))
+
     def __getitem__(self, key):
         ix = self._find_closest_item(key)
         ix += 1
-        pair = self.items[ix]
+        try:
+            pair = self.items[ix]
+        except IndexError:
+            print("IndexError in %r with index %r and query %r" % (self, ix, key))
+            raise
         if pair[0] < key:
             return 0
         return pair[1]
