@@ -427,6 +427,8 @@ class IdentificationProcessDispatcher(TaskBase):
                 else:
                     strikes += 1
                     if strikes % 50 == 0:
+                        if len(seen) == n:
+                            has_work = False
                         self.log(
                             "...... %d cycles without output (%d/%d, %0.2f%% Done)" % (
                                 strikes, len(seen), n, len(seen) * 100. / n))
