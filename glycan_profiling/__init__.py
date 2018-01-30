@@ -51,8 +51,6 @@ from glycan_profiling.config.config_file import get_configuration
 
 get_configuration()
 
-from glycan_profiling import plotting
-
 __all__ = [
     "ScanGenerator", "ScanGeneratorBase",
     "MassShift", "CompoundMassShift", "Chromatogram",
