@@ -53,14 +53,16 @@
             </table>
             <div class='adduct-signal-fraction-container'>
                 {% if glycopeptide.chromatogram is not none %}
-                <b>Adduct Signal Fractions</b>
-                <ul class='adduct-signal-fraction-list' style='margin-top:0px;'>
-                {% for adduct, fraction in glycopeptide.chromatogram.adduct_signal_fractions().items()|sort(attribute=1) %}
-                    <li class='adduct-signal-fraction-item' style='margin-left:10px;'>
-                        <b>{{adduct.name}}</b>: {{"%0.4e" % fraction}}
-                    </li>
-                {% endfor %}
-                </ul>
+                    <b>Adduct Signal Fractions</b>
+                    <ul class='adduct-signal-fraction-list' style='margin-top:0px;'>
+                    {% for adduct, fraction in glycopeptide.chromatogram.adduct_signal_fractions().items()|sort(attribute=1) %}
+                        <li class='adduct-signal-fraction-item' style='margin-left:10px;'>
+                            <b>{{adduct.name}}</b>: {{"%0.4e" % fraction}}
+                        </li>
+                    {% endfor %}
+                    </ul>
+                {% else %}
+                    Adduct: {{spectral_match_info.spectrum_match.name}}
                 {% endif %}
             </div>
         </div>

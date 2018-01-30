@@ -7,6 +7,7 @@ from glycan_profiling import serialize
 from glycan_profiling.serialize import (
     Protein, Glycopeptide, IdentifiedGlycopeptide,
     func, MSScan)
+from glycan_profiling.chromatogram_tree import Unmodified
 from glycan_profiling.tandem.ref import SpectrumReference
 from glycan_profiling.plotting.glycan_visual_classification import (
     GlycanCompositionClassifierColorizer,
@@ -143,7 +144,8 @@ class GlycopeptideDatabaseSearchReportCreator(ReportCreatorBase):
                     continue
                 bundle = BundledGlycanComposition.aggregate(spanning_site)
                 ax = figax()
-                AggregatedAbundanceArtist(bundle, ax=ax, colorizer=glycan_colorizer_type_map[glyco_type]).draw()
+                AggregatedAbundanceArtist(
+                    bundle, ax=ax, colorizer=glycan_colorizer_type_map[glyco_type]).draw()
                 ax.set_title("%s Glycans\nat Site %d" % (glyco_type.name, site,), fontsize=18)
                 axes[site, glyco_type] = svguri_plot(ax, bbox_inches='tight')
         return axes
@@ -197,10 +199,19 @@ class GlycopeptideDatabaseSearchReportCreator(ReportCreatorBase):
         spectrum_match_ref = max(glycopeptide.spectrum_matches, key=lambda x: x.score)
         scan_id = spectrum_match_ref.scan.scan_id
         scan = self.scan_loader.get_scan_by_id(scan_id)
+        try:
+            mass_shift = spectrum_match_ref.mass_shift
+        except AttributeError:
+            mass_shift = Unmodified
+        if mass_shift.name != Unmodified.name:
+            mass_shift = mass_shift.convert()
+        else:
+            mass_shift = Unmodified
 
         match = CoverageWeightedBinomialScorer.evaluate(
             scan, glycopeptide.structure.convert(),
-            error_tolerance=self.analysis.parameters["fragment_error_tolerance"])
+            error_tolerance=self.analysis.parameters["fragment_error_tolerance"],
+            mass_shift=mass_shift)
         specmatch_artist = TidySpectrumMatchAnnotator(match, ax=figax())
         specmatch_artist.draw(fontsize=10, pretty=True)
         annotated_match_ax = specmatch_artist.ax
