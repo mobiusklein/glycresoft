@@ -1,5 +1,6 @@
 from collections import defaultdict
 from threading import Thread
+import multiprocessing
 from multiprocessing import Process, Queue, Event, Manager
 
 try:
@@ -408,6 +409,7 @@ class IdentificationProcessDispatcher(TaskBase):
                     self.log(
                         "...... Processed %d matches (%0.2f%%)" % (i, i * 100. / n))
             except QueueEmptyException:
+                # do worker life cycle management here
                 if self.all_workers_finished():
                     if len(seen) == n:
                         has_work = False
@@ -432,6 +434,14 @@ class IdentificationProcessDispatcher(TaskBase):
                         self.log(
                             "...... %d cycles without output (%d/%d, %0.2f%% Done)" % (
                                 strikes, len(seen), n, len(seen) * 100. / n))
+                    if strikes > 1e4:
+                        self.log(
+                            "...... Too much time has elapsed with"
+                            " missing items (%d children still alive). Evaluating serially." % (
+                                multiprocessing.active_children()))
+                        self._reconstruct_missing_work_items(
+                            seen, hit_map, hit_to_scan, scan_hit_type_map)
+                        has_work = False
                 continue
             self.store_result(target, score_map, scan_map)
         self.log("... Finished Processing Matches (%d)" % (i,))

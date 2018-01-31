@@ -202,7 +202,7 @@ class GlycopeptideDatabaseSearchReportCreator(ReportCreatorBase):
         scan_id = spectrum_match_ref.scan.scan_id
         scan = self.scan_loader.get_scan_by_id(scan_id)
         try:
-            mass_shift = spectrum_match_ref.mass_shift
+            mass_shift = spectrum_match_ref[0].mass_shift
         except AttributeError:
             mass_shift = Unmodified
         if mass_shift.name != Unmodified.name:
