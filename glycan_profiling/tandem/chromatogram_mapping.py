@@ -300,7 +300,7 @@ class ChromatogramMSMSMapper(TaskBase):
                 chromatogram.assign_entity(solutions[0], entity_chromatogram_type=entity_chromatogram_type)
                 chromatogram.representative_solutions = solutions
 
-    def merge_common_entities(self, annotated_chromatogramsdelta_rt=0.25, require_unmodified=True,
+    def merge_common_entities(self, annotated_chromatograms, delta_rt=0.25, require_unmodified=True,
                               threshold_fn=lambda x: x.q_value < 0.05):
         aggregated = defaultdict(list)
         finished = []
