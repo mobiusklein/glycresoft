@@ -72,6 +72,7 @@ class NearestValueLookUp(object):
             pair = self.items[ix]
         except IndexError:
             print("IndexError in %r with index %r and query %r" % (self, ix, key))
+            print(self.items)
             raise
         if pair[0] < key:
             return 0
