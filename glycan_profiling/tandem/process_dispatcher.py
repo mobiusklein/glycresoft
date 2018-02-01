@@ -96,6 +96,10 @@ class IdentificationProcessDispatcher(TaskBase):
         self.local_mass_shift_map = mass_shift_map
         self.mass_shift_load_map = self.ipc_manager.dict(mass_shift_map)
 
+    def purge_workers(self):
+        for worker in self.workers:
+            worker.terminate()
+
     def clear_pool(self):
         """Tear down spawned worker processes and clear
         the shared memory server
@@ -439,6 +443,7 @@ class IdentificationProcessDispatcher(TaskBase):
                             "...... Too much time has elapsed with"
                             " missing items (%d children still alive). Evaluating serially." % (
                                 len(multiprocessing.active_children()),))
+                        self.purge_workers()
                         self._reconstruct_missing_work_items(
                             seen, hit_map, hit_to_scan, scan_hit_type_map)
                         has_work = False
