@@ -268,6 +268,25 @@ def msfile_info(ms_file):
     click.echo("Orphan MSn Scans: %d" % (n_orphan,))
 
 
+@mzml_cli.command("oxonium-signature")
+@click.argument("ms-file", type=click.Path(exists=True, file_okay=True, dir_okay=False))
+def oxonium_signature(ms_file):
+    reader = ProcessedMzMLDeserializer(ms_file)
+    if not reader.has_index_file():
+        index, intervals = quick_index.index(ms_deisotope.MSFileLoader(ms_file))
+        reader.extended_index = index
+        with open(reader._index_file_name, 'w') as handle:
+            index.serialize(handle)
+
+    threshold = 0.05
+    from glycan_profiling.tandem.oxonium_ions import gscore_scanner
+    for scan_id in reader.extended_index.msn_ids.keys():
+        scan = reader.get_scan_by_id(scan_id)
+        score = gscore_scanner(scan.deconvoluted_peak_set)
+        if score >= threshold:
+            click.echo("%s\t%f" % (scan_id, score))
+
+
 @mzml_cli.command("peak-picking", short_help=(
     "Convert raw mass spectra data into centroid peak lists written to mzML."
     " Can accept mzML or mzXML with either profile or centroided scans."))

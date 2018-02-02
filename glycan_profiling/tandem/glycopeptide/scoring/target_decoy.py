@@ -68,6 +68,8 @@ class NearestValueLookUp(object):
     def __getitem__(self, key):
         ix = self._find_closest_item(key)
         ix += 1
+        if ix > len(self):
+            ix = len(self) - 1
         try:
             pair = self.items[ix]
         except IndexError:
@@ -87,7 +89,7 @@ class ScoreThresholdCounter(object):
         self.counts_above_threshold = None
         self.n_thresholds = len(self.thresholds)
         self.threshold_index = 0
-        self.current_threshold = thresholds[self.threshold_index]
+        self.current_threshold = self.thresholds[self.threshold_index]
         self.current_count = 0
 
         self._i = 0
@@ -154,9 +156,11 @@ class TargetDecoyAnalyzer(object):
 
         thresholds = sorted({case.score for case in target_series} | {case.score for case in decoy_series})
         self.thresholds = thresholds
-
-        self.n_targets_at = ScoreThresholdCounter(target_series, thresholds).counts_above_threshold
-        self.n_decoys_at = ScoreThresholdCounter(decoy_series, thresholds).counts_above_threshold
+        if len(thresholds) > 0:
+            self.n_targets_at = ScoreThresholdCounter(
+                target_series, self.thresholds).counts_above_threshold
+            self.n_decoys_at = ScoreThresholdCounter(
+                decoy_series, self.thresholds).counts_above_threshold
 
     def n_decoys_above_threshold(self, threshold):
         return self.n_decoys_at[threshold]
