@@ -1,3 +1,5 @@
+import numpy as np
+
 from glycan_profiling.chromatogram_tree import get_chromatogram, ArithmeticMapping
 
 from .chromatogram_mapping import TandemSolutionsWithoutChromatogram
@@ -52,6 +54,12 @@ class IdentifiedStructure(object):
             return self.chromatogram.apex_time
         except AttributeError:
             return None
+
+    def as_arrays(self):
+        try:
+            return self.chromatogram.as_arrays()
+        except AttributeError:
+            return np.array([]), np.array([])
 
     @property
     def adducts(self):
