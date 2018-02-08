@@ -138,12 +138,13 @@ class ScoreThresholdCounter(object):
 
 
 class TargetDecoyAnalyzer(object):
-    def __init__(self, target_series, decoy_series, with_pit=False):
+    def __init__(self, target_series, decoy_series, with_pit=False, decoy_correction=0):
         self.targets = target_series
         self.decoys = decoy_series
         self.target_count = len(target_series)
         self.decoy_count = len(decoy_series)
         self.with_pit = with_pit
+        self.decoy_correction = decoy_correction
         self.calculate_thresholds()
         self._q_value_map = self._calculate_q_values()
 
@@ -163,10 +164,22 @@ class TargetDecoyAnalyzer(object):
                 decoy_series, self.thresholds).counts_above_threshold
 
     def n_decoys_above_threshold(self, threshold):
-        return self.n_decoys_at[threshold]
+        try:
+            return self.n_decoys_at[threshold] + self.decoy_correction
+        except IndexError:
+            if len(self.n_decoys_at) == 0:
+                return self.decoy_correction
+            else:
+                raise
 
     def n_targets_above_threshold(self, threshold):
-        return self.n_targets_at[threshold]
+        try:
+            return self.n_targets_at[threshold]
+        except IndexError:
+            if len(self.n_targets_at) == 0:
+                return 0
+            else:
+                raise
 
     def target_decoy_ratio(self, cutoff):
 
@@ -224,7 +237,7 @@ class TargetDecoyAnalyzer(object):
 
 
 class GroupwiseTargetDecoyAnalyzer(object):
-    def __init__(self, target_series, decoy_series, with_pit=False, grouping_functions=None):
+    def __init__(self, target_series, decoy_series, with_pit=False, grouping_functions=None, decoy_correction=0):
         if grouping_functions is None:
             grouping_functions = [lambda x: True]
         self.target_series = target_series
@@ -233,6 +246,7 @@ class GroupwiseTargetDecoyAnalyzer(object):
         self.grouping_functions = []
         self.groups = []
         self.group_fits = []
+        self.decoy_correction = decoy_correction
 
         for fn in grouping_functions:
             self.add_group(fn)
@@ -247,7 +261,9 @@ class GroupwiseTargetDecoyAnalyzer(object):
             i = self.find_group(decoy)
             self.groups[i][1].append(decoy)
         for group in self.groups:
-            fit = TargetDecoyAnalyzer(*group, with_pit=self.with_pit)
+            fit = TargetDecoyAnalyzer(
+                *group, with_pit=self.with_pit,
+                decoy_correction=self.decoy_correction)
             self.group_fits.append(fit)
 
     def add_group(self, fn):
