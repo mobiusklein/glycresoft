@@ -5,6 +5,7 @@ import os
 
 import ms_peak_picker
 import ms_deisotope
+import glypy
 
 from ms_deisotope import MSFileLoader
 from ms_deisotope.output.mzml import ProcessedMzMLDeserializer
@@ -268,23 +269,29 @@ def msfile_info(ms_file):
     click.echo("Orphan MSn Scans: %d" % (n_orphan,))
 
 
-@mzml_cli.command("oxonium-signature")
+@mzml_cli.command("oxonium-signature", short_help=(
+    'Report Oxonium Ion Signature Score (G-Score) and Glycan Structure Signature Score'
+    ' for each MSn scan in a processed mzML file'))
 @click.argument("ms-file", type=click.Path(exists=True, file_okay=True, dir_okay=False))
-def oxonium_signature(ms_file):
+@click.option("-g", "--g-score-threshold", type=float, default=0.05, help="Minimum G-Score to report")
+def oxonium_signature(ms_file, g_score_threshold=0.05):
     reader = ProcessedMzMLDeserializer(ms_file)
     if not reader.has_index_file():
+        click.secho("Building temporary index...", fg='yellow')
         index, intervals = quick_index.index(ms_deisotope.MSFileLoader(ms_file))
         reader.extended_index = index
         with open(reader._index_file_name, 'w') as handle:
             index.serialize(handle)
 
-    threshold = 0.05
+    from glycan_profiling.tandem.glycan.scoring.signature_ion_scoring import SignatureIonScorer
     from glycan_profiling.tandem.oxonium_ions import gscore_scanner
+    refcomp = glypy.GlycanComposition.parse("{Fuc:1; Hex:5; HexNAc:4; Neu5Ac:2}")
     for scan_id in reader.extended_index.msn_ids.keys():
         scan = reader.get_scan_by_id(scan_id)
-        score = gscore_scanner(scan.deconvoluted_peak_set)
-        if score >= threshold:
-            click.echo("%s\t%f" % (scan_id, score))
+        gscore = gscore_scanner(scan.deconvoluted_peak_set)
+        if gscore >= g_score_threshold:
+            signature_match = SignatureIonScorer.evaluate(scan, refcomp)
+            click.echo("%s\t%f\t%f" % (scan_id, gscore, signature_match.score))
 
 
 @mzml_cli.command("peak-picking", short_help=(
