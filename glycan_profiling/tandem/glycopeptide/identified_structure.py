@@ -227,6 +227,9 @@ class IdentifiedGlycoprotein(object):
         for glycotype in self.glycosylation_types:
             self._map_glycopeptides_to_glycosites(glycotype)
 
+    def __len__(self):
+        return len(self.protein_sequence)
+
     @property
     def glycosylation_sites(self):
         return self.n_glycan_sequon_sites
