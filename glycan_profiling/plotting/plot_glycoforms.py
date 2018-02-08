@@ -147,11 +147,11 @@ class GlycoformLayout(object):
             self.ax.add_patch(patch)
 
     def next_row(self):
-        if self.cur_position > len(self.protein.protein_sequence):
+        if self.cur_position > len(self.protein):
             return False
         self.cur_y += self.y_step * 3
         self.cur_position += self.row_width
-        if self.cur_position >= len(self.protein.protein_sequence):
+        if self.cur_position >= len(self.protein):
             return False
         return True
 
