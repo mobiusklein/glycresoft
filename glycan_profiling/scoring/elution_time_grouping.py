@@ -184,14 +184,12 @@ class ElutionTimeFitter(ScoringFeatureBase):
     def _prepare_data_vector(self, chromatogram):
         return np.array([1,
                          chromatogram.weighted_neutral_mass,
-                         # chromatogram.weighted_neutral_mass ** 2
                          ])
 
     def _prepare_data_matrix(self, mass_array):
         return np.vstack((
             np.ones(len(mass_array)),
             np.array(mass_array),
-            # np.square(np.array(mass_array))
         )).T
 
     def _fit(self, resample=True):
@@ -289,6 +287,66 @@ class AbundanceWeightedElutionTimeFitter(ElutionTimeFitter):
         ]
         W /= W.max()
         return W
+
+
+class FactorElutionTimeFitter(ElutionTimeFitter):
+    def __init__(self, chromatograms, factors=['Fuc', 'Neu5Ac'], scale=2):
+        self.factors = factors
+        super(FactorElutionTimeFitter, self).__init__(chromatograms, scale=scale)
+
+    def _prepare_data_matrix(self, mass_array):
+        return np.vstack((
+            np.ones(len(mass_array)),
+            np.array(mass_array),) + tuple(
+            np.array([c.glycan_composition[f] for c in self.chromatograms])
+            for f in self.factors)
+        ).T
+
+    def _prepare_data_vector(self, chromatogram):
+        return np.array(
+            [1, chromatogram.neutral_mass] + [
+                chromatogram.glycan_composition[f] for f in self.factors])
+
+    def plot(self, ax=None, include_intervals=True):
+        from glycan_profiling.plotting.colors import ColorMapper
+        if ax is None:
+            fig, ax = plt.subplots(1)
+        colorer = ColorMapper()
+        factors = self.factors
+        column_offset = 2
+        distinct_combinations = set()
+        partitions = defaultdict(list)
+        for i, row in enumerate(self.data):
+            key = tuple(row[column_offset:])
+            distinct_combinations.add(key)
+            partitions[key].append(((row[1]), self.apex_time_array[i]))
+
+        theoretical_mass = np.linspace(
+            max(self.neutral_mass_array.min() - 200, 0),
+            self.neutral_mass_array.max() + 200, 400)
+        for combination in distinct_combinations:
+            members = partitions[combination]
+            ox, oy = zip(*members)
+            v = np.ones_like(theoretical_mass)
+            factor_partition = [v * f for f in combination]
+            label_part = ','.join(["%s:%d" % (fl, fv) for fl, fv in zip(
+                factors, combination)])
+            color = colorer[combination]
+            ax.scatter(ox, oy, label=label_part, color=color)
+            X = np.vstack([
+                np.ones_like(theoretical_mass),
+                theoretical_mass,
+            ] + factor_partition).T
+            Y = X.dot(self.parameters)
+            ax.plot(
+                theoretical_mass, Y, linestyle='--', color=color)
+            if include_intervals:
+                pred_interval = self._predict_interval(X)
+                ax.fill_between(
+                    theoretical_mass, pred_interval[0, :], pred_interval[1, :],
+                    alpha=0.4, color=color)
+
+        return ax
 
 
 def is_high_mannose(composition):
