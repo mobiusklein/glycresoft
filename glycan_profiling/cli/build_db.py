@@ -206,7 +206,7 @@ def glycopeptide_hypothesis_common_options(cmd):
 @click.argument("fasta-file", type=click.Path(exists=True), doc_help=(
     "A file containing protein sequences in FASTA format"))
 @database_connection
-@click.option("-e", "--enzyme", default='trypsin', multiple=True,
+@click.option("-e", "--enzyme", default=['trypsin'], multiple=True,
               help='The proteolytic enzyme to use during digestion')
 @click.option("-m", "--missed-cleavages", type=int, default=1,
               help="The number of missed proteolytic cleavage sites permitted")
