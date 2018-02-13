@@ -200,7 +200,7 @@ class IdentificationProcessDispatcher(TaskBase):
                 self.log("An exception occurred while feeding %r and %d scan ids: %r" % (hit_id, len(scan_ids), e))
         # self.log("...... Finished dealing %d work items" % (i,))
         self.done_event.set()
-        self.input_queue.close()
+        # self.input_queue.close()
         return
 
     def build_work_order(self, hit_id, hit_map, scan_hit_type_map, hit_to_scan):
@@ -439,6 +439,13 @@ class IdentificationProcessDispatcher(TaskBase):
                         self.log(
                             "...... %d cycles without output (%d/%d, %0.2f%% Done, %d children still alive)" % (
                                 strikes, len(seen), n, len(seen) * 100. / n, len(multiprocessing.active_children())))
+                        try:
+                            input_queue_size = self.input_queue.qsize()
+                        except Exception:
+                            input_queue_size = -1
+                        is_feeder_done = self.done_event.is_set()
+                        self.log("...... Input Queue Status: %r. Is Feeder Done? %r" % (
+                            input_queue_size, is_feeder_done))
                     if strikes > 2e3:
                         self.log(
                             "...... Too much time has elapsed with"
@@ -527,6 +534,7 @@ class SpectrumIdentificationWorkerBase(Process):
     def task(self):
         has_work = True
         items_handled = 0
+        strikes = 0
         while has_work:
             try:
                 structure, scan_ids = self.input_queue.get(True, 5)
@@ -535,6 +543,7 @@ class SpectrumIdentificationWorkerBase(Process):
                     has_work = False
                     break
                 else:
+                    strikes += 1
                     continue
             items_handled += 1
             self.handle_item(structure, scan_ids)
