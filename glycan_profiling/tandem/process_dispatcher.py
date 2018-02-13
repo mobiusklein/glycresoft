@@ -99,6 +99,7 @@ class IdentificationProcessDispatcher(TaskBase):
     def purge_workers(self):
         for worker in self.workers:
             worker.terminate()
+        self.workers = []
 
     def clear_pool(self):
         """Tear down spawned worker processes and clear
@@ -436,9 +437,9 @@ class IdentificationProcessDispatcher(TaskBase):
                         if len(seen) == n:
                             has_work = False
                         self.log(
-                            "...... %d cycles without output (%d/%d, %0.2f%% Done)" % (
-                                strikes, len(seen), n, len(seen) * 100. / n))
-                    if strikes > 2e2:
+                            "...... %d cycles without output (%d/%d, %0.2f%% Done, %d children still alive)" % (
+                                strikes, len(seen), n, len(seen) * 100. / n, len(multiprocessing.active_children())))
+                    if strikes > 5e4:
                         self.log(
                             "...... Too much time has elapsed with"
                             " missing items (%d children still alive). Evaluating serially." % (

@@ -290,8 +290,8 @@ class ComparisonGlycopeptideMatcher(TargetDecoyInterleavingGlycopeptideMatcher):
                 batch, *args, **kwargs)
             # Aggregate and reduce target solutions
             temp = self._collect_scan_solutions(target_scan_solution_map, batch.scan_map)
+            temp = [case for case in temp if len(case) > 0]
             if simplify:
-                temp = [case for case in temp if len(case) > 0]
                 for case in temp:
                     try:
                         case.simplify()
@@ -299,8 +299,6 @@ class ComparisonGlycopeptideMatcher(TargetDecoyInterleavingGlycopeptideMatcher):
                     except IndexError:
                         self.log("Failed to simplify %r" % (case.scan.id,))
                         raise
-            else:
-                temp = [case for case in temp if len(case) > 0]
             target_solutions += temp
 
         workload = self.decoy_evaluator._map_scans_to_hits(
@@ -320,8 +318,8 @@ class ComparisonGlycopeptideMatcher(TargetDecoyInterleavingGlycopeptideMatcher):
                 batch, *args, **kwargs)
             # Aggregate and reduce decoy solutions
             temp = self._collect_scan_solutions(decoy_scan_solution_map, batch.scan_map)
+            temp = [case for case in temp if len(case) > 0]
             if simplify:
-                temp = [case for case in temp if len(case) > 0]
                 for case in temp:
                     try:
                         case.simplify()
@@ -329,8 +327,6 @@ class ComparisonGlycopeptideMatcher(TargetDecoyInterleavingGlycopeptideMatcher):
                     except IndexError:
                         self.log("Failed to simplify %r" % (case.scan.id,))
                         raise
-            else:
-                temp = [case for case in temp if len(case) > 0]
             decoy_solutions += temp
         return target_solutions, decoy_solutions
 
