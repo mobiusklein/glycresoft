@@ -83,7 +83,7 @@ class IdentificationProcessDispatcher(TaskBase):
         self.scorer_type = scorer_type
         self.n_processes = n_processes
         self.done_event = Event()
-        self.input_queue = Queue(1000)
+        self.input_queue = Queue(10000)
         self.output_queue = Queue(1000)
         self.scan_solution_map = defaultdict(list)
         self.evaluation_args = evaluation_args
@@ -195,9 +195,8 @@ class IdentificationProcessDispatcher(TaskBase):
                              i * 100.0 / n))
             except Exception as e:
                 self.log("An exception occurred while feeding %r and %d scan ids: %r" % (hit_id, len(scan_ids), e))
-        # self.log("...... Finished dealing %d work items" % (i,))
+        self.log("...... Finished dealing %d work items" % (i,))
         self.done_event.set()
-        # self.input_queue.close()
         return
 
     def build_work_order(self, hit_id, hit_map, scan_hit_type_map, hit_to_scan):
