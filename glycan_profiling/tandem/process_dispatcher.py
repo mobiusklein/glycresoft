@@ -441,7 +441,7 @@ class IdentificationProcessDispatcher(TaskBase):
                         is_feeder_done = self.done_event.is_set()
                         self.log("...... Input Queue Status: %r. Is Feeder Done? %r" % (
                             input_queue_size, is_feeder_done))
-                    if strikes > 2e3:
+                    if strikes > 1e3:
                         self.log(
                             ("...... Too much time has elapsed with"
                              " missing items (%d children still alive). Evaluating serially.") % (
@@ -541,14 +541,17 @@ class SpectrumIdentificationWorkerBase(Process):
                     continue
             items_handled += 1
             self.handle_item(structure, scan_ids)
-        self.output_queue.close()
-        self.input_queue.close()
+        # self.output_queue.close()
+        # self.input_queue.close()
         self._work_complete.set()
 
     def run(self):
         try:
             self.task()
-        except Exception:
+        except Exception as ex:
+            print("Something went wrong")
+            print(ex)
+            print(multiprocessing.current_process())
             import traceback
             print(traceback.format_exc())
             self.log_handler("An exception occurred while executing %r.\n%s" % (
