@@ -544,6 +544,7 @@ class SpectrumIdentificationWorkerBase(Process):
         # self.output_queue.close()
         # self.input_queue.close()
         self._work_complete.set()
+        self.log_handler("%r Finished Successfully" % (multiprocessing.current_process(),))
 
     def run(self):
         try:
