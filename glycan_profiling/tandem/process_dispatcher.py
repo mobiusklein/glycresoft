@@ -100,10 +100,12 @@ class IdentificationProcessDispatcher(TaskBase):
         """Tear down spawned worker processes and clear
         the shared memory server
         """
+        self.log("Clearing Spectra Store")
         self.scan_load_map.clear()
         self.local_scan_map.clear()
-        self.ipc_manager = None
-        for worker in self.workers:
+        self.log("Joining Workers")
+        for i, worker in enumerate(self.workers):
+            self.log("Joining %dth Process %r" % (i, worker))
             try:
                 worker.join()
             except AttributeError:
@@ -529,20 +531,22 @@ class SpectrumIdentificationWorkerBase(Process):
         has_work = True
         items_handled = 0
         strikes = 0
+        self.log_handler("%r starting work" % (self,))
         while has_work:
             try:
                 structure, scan_ids = self.input_queue.get(True, 5)
+                strikes = 0
             except QueueEmptyException:
                 if self.done_event.is_set():
                     has_work = False
                     break
                 else:
                     strikes += 1
+                    if strikes % 1000 == 0:
+                        self.log_handler("%d iterations without work for %r" % (strikes, self))
                     continue
             items_handled += 1
             self.handle_item(structure, scan_ids)
-        # self.output_queue.close()
-        # self.input_queue.close()
         self._work_complete.set()
         self.log_handler("%r Finished Successfully" % (multiprocessing.current_process(),))
 
