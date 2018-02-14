@@ -457,7 +457,6 @@ class IdentificationProcessDispatcher(TaskBase):
         self.clear_pool()
         self.log_controller.stop()
         feeder_thread.join()
-        self.output_queue.close()
         return self.scan_solution_map
 
 
