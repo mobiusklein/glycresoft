@@ -96,11 +96,6 @@ class IdentificationProcessDispatcher(TaskBase):
         self.local_mass_shift_map = mass_shift_map
         self.mass_shift_load_map = self.ipc_manager.dict(mass_shift_map)
 
-    def purge_workers(self):
-        for worker in self.workers:
-            worker.terminate()
-        self.workers = []
-
     def clear_pool(self):
         """Tear down spawned worker processes and clear
         the shared memory server
@@ -448,10 +443,9 @@ class IdentificationProcessDispatcher(TaskBase):
                             input_queue_size, is_feeder_done))
                     if strikes > 2e3:
                         self.log(
-                            "...... Too much time has elapsed with"
-                            " missing items (%d children still alive). Evaluating serially." % (
+                            ("...... Too much time has elapsed with"
+                             " missing items (%d children still alive). Evaluating serially.") % (
                                 len(multiprocessing.active_children()),))
-                        self.purge_workers()
                         self._reconstruct_missing_work_items(
                             seen, hit_map, hit_to_scan, scan_hit_type_map)
                         has_work = False
@@ -556,6 +550,8 @@ class SpectrumIdentificationWorkerBase(Process):
             self.task()
         except Exception:
             import traceback
+            print(traceback.format_exc())
             self.log_handler("An exception occurred while executing %r.\n%s" % (
                 self, traceback.format_exc()))
+
             raise

@@ -31,16 +31,11 @@ _empty_interval = NeutralMassDatabase([])
 # is allowed to hold in memory at once before it must start pruning intervals.
 # This is to prevent the program from running out of memory because it loaded
 # too many large intervals into memory while not exceeding the maximum number of
-# intervals allowed. 200,000 is reasonable given the current memory consumption
-# patterns.
-DEFAULT_THRESHOLD_CACHE_TOTAL_COUNT = 2e5
+# intervals allowed.
+DEFAULT_THRESHOLD_CACHE_TOTAL_COUNT = 6e5
 
 # The maximum number of mass intervals to hold in memory at once.
-# The current algorithms used elsewhere order queries such that this
-# number could even be set to 1 and not suffer runtime penalties becase
-# overlapping intervals are merged and only consume a single slot, but
-# this is retained at >1 for convenience.
-DEFAULT_CACHE_SIZE = 2
+DEFAULT_CACHE_SIZE = 3
 
 # Controls the mass interval loaded from the database when a
 # query misses the alreadly loaded intervals. Uses the assumption
