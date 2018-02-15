@@ -100,7 +100,7 @@ class IdentificationProcessDispatcher(TaskBase):
         return Queue(int(1e7))
 
     def _make_output_queue(self):
-        return Queue(3000)
+        return Queue(int(1e7))
 
     def clear_pool(self):
         """Tear down spawned worker processes and clear
@@ -201,6 +201,8 @@ class IdentificationProcessDispatcher(TaskBase):
             except Exception as e:
                 self.log("An exception occurred while feeding %r and %d scan ids: %r" % (hit_id, len(scan_ids), e))
         self.log("...... Finished dealing %d work items" % (i,))
+        self.input_queue.close()
+        self.input_queue.join_thread()
         self.done_event.set()
         return
 
@@ -271,6 +273,7 @@ class IdentificationProcessDispatcher(TaskBase):
         """
         missing = set(hit_to_scan) - set(seen)
         i = 0
+        n = len(missing)
         for missing_id in missing:
             target, scan_spec = self.build_work_order(
                 missing_id, hit_map, scan_hit_type_map, hit_to_scan)
@@ -278,6 +281,8 @@ class IdentificationProcessDispatcher(TaskBase):
             seen[target.id] = (-1, 0)
             self.store_result(target, score_map, self.local_scan_map)
             i += 1
+            if i % 1000 == 0:
+                self.log("...... Processed %d local matches (%0.2f%%)" % (i, i * 100. / n))
         return i
 
     def store_result(self, target, score_map, scan_map):
@@ -390,6 +395,7 @@ class IdentificationProcessDispatcher(TaskBase):
         if n != len(hit_map):
             self.log("There is a mismatch between hit_map (%d) and hit_to_scan (%d)" % (
                 len(hit_map), n))
+        n_spectrum_matches = sum(map(len, hit_to_scan.values()))
         # Track the iteration number a particular structure (id) has been received
         # on. This may be used to detect if a structure has been received multiple
         # times, and to determine when all expected structures have been received.
@@ -397,11 +403,11 @@ class IdentificationProcessDispatcher(TaskBase):
         # Keep a running tally of the number of iterations when there are pending
         # structure matches to process, but all workers claim to be done.
         strikes = 0
-        self.log("... Searching Matches (%d)" % (n,))
+        self.log("... Searching Matches (%d)" % (n_spectrum_matches,))
         while has_work:
             try:
                 target, score_map, token = self.output_queue.get(True, 1)
-                if (target.id, token) in seen:
+                if target.id in seen:
                     self.debug(
                         "...... Duplicate Results For %s. First seen at %r, now again at %r" % (
                             target.id, seen[target.id], (i, token)))
@@ -461,7 +467,8 @@ class IdentificationProcessDispatcher(TaskBase):
                         has_work = False
                 continue
             self.store_result(target, score_map, scan_map)
-        self.log("... Finished Processing Matches (%d)" % (i,))
+        i_spectrum_matches = sum(map(len, self.scan_solution_map.values()))
+        self.log("... Finished Processing Matches (%d)" % (i_spectrum_matches,))
         self.clear_pool()
         self.log_controller.stop()
         feeder_thread.join()
@@ -553,8 +560,9 @@ class SpectrumIdentificationWorkerBase(Process):
                     continue
             items_handled += 1
             self.handle_item(structure, scan_ids)
+        self.output_queue.close()
+        self.output_queue.join_thread()
         self._work_complete.set()
-        self.log_handler("%r Finished Successfully" % (multiprocessing.current_process(),))
 
     def run(self):
         try:
