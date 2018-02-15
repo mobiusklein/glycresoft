@@ -151,8 +151,8 @@ class TargetDecoyInterleavingGlycopeptideMatcher(TandemClusterEvaluatorBase):
         running_total_work = 0
         for i, batch in enumerate(workload.batches(self.batch_size)):
             self.log("... Batch %d (%d/%d) %0.2f%%" % (
-                i + 1, running_total_work, total_work,
-                (100. * running_total_work) / total_work))
+                i + 1, running_total_work + batch.batch_size, total_work,
+                (100. * (running_total_work + batch.batch_size)) / total_work))
             target_scan_solution_map = self.target_evaluator._evaluate_hit_groups(
                 batch, *args, **kwargs)
             running_total_work += batch.batch_size
@@ -178,8 +178,8 @@ class TargetDecoyInterleavingGlycopeptideMatcher(TandemClusterEvaluatorBase):
         running_total_work = 0
         for i, batch in enumerate(workload.batches(self.batch_size)):
             self.log("... Batch %d (%d/%d) %0.2f%%" % (
-                i + 1, running_total_work, total_work,
-                (100. * running_total_work) / total_work))
+                i + 1, running_total_work + batch.batch_size, total_work,
+                (100. * (running_total_work + batch.batch_size)) / total_work))
 
             decoy_scan_solution_map = self.decoy_evaluator._evaluate_hit_groups(
                 batch, *args, **kwargs)
