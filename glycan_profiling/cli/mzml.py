@@ -291,7 +291,10 @@ def oxonium_signature(ms_file, g_score_threshold=0.05):
         gscore = gscore_scanner(scan.deconvoluted_peak_set)
         if gscore >= g_score_threshold:
             signature_match = SignatureIonScorer.evaluate(scan, refcomp)
-            click.echo("%s\t%f\t%f" % (scan_id, gscore, signature_match.score))
+            click.echo("%s\t%f\t%d\t%f\t%f" % (
+                scan_id, scan.precursor_information.neutral_mass,
+                scan.precursor_information.charge, gscore,
+                signature_match.score))
 
 
 @mzml_cli.command("peak-picking", short_help=(
