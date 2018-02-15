@@ -1,3 +1,4 @@
+import warnings
 from collections import defaultdict, namedtuple
 
 from glycan_profiling.chromatogram_tree import Unmodified
@@ -177,12 +178,6 @@ class WorkloadManager(object):
             sum(map(len, self.scan_to_hit_map.values())))
         return rendered
 
-    _workload_batch = staticmethod(
-        namedtuple("WorkloadBatch",
-                   ['batch_size', 'scan_map',
-                    'hit_map', 'hit_to_scan_map',
-                    'scan_hit_type_map']))
-
     def batches(self, max_size=15e4):
         """Partition the workload into batches of approximately
         ``max_size`` comparisons.
@@ -211,6 +206,7 @@ class WorkloadManager(object):
             self.scan_map.items(),
             key=lambda x: x[1].precursor_information.neutral_mass)
 
+        batch_index = 0
         for scan_id, scan in source:
             current_scan_map[scan_id] = scan
             for hit_id in self.scan_to_hit_map[scan_id]:
@@ -221,10 +217,14 @@ class WorkloadManager(object):
                 current_batch_size += 1
 
             if current_batch_size > max_size:
-                batch = self._workload_batch(
+                batch = WorkloadBatch(
                     current_batch_size, current_scan_map,
                     current_hit_map, current_hit_to_scan_map,
                     current_scan_hit_type_map)
+                if batch.batch_size / max_size > 2:
+                    warnings.warn("Batch %d has size %d, %0.3f%% larger than threshold" % (
+                        batch_index, batch.batch_size, batch.batch_size * 100. / max_size))
+                batch_index += 1
                 current_batch_size = 0
                 current_scan_map = dict()
                 current_hit_map = dict()
@@ -233,8 +233,17 @@ class WorkloadManager(object):
                 yield batch
 
         if current_batch_size > 0:
-            batch = self._workload_batch(
+            batch = WorkloadBatch(
                 current_batch_size, current_scan_map,
                 current_hit_map, current_hit_to_scan_map,
                 current_scan_hit_type_map)
             yield batch
+
+
+_WorkloadBatch = namedtuple("WorkloadBatch", [
+    'batch_size', 'scan_map', 'hit_map', 'hit_to_scan_map',
+    'scan_hit_type_map'])
+
+
+class WorkloadBatch(_WorkloadBatch):
+    pass
