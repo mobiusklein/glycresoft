@@ -21,7 +21,7 @@ class IdentificationProcessDispatcher(TaskBase):
     task across several processes.
 
     The distribution pushes individual structures ("targets") and
-    the scan ids they mapped to in the MS1 dimension to each worker.
+    the scan ids they mapped to in the MSn dimension to each worker.
 
     All scans in the batch being worked on are made available over
     an IPC synchronized dictionary.
@@ -83,8 +83,8 @@ class IdentificationProcessDispatcher(TaskBase):
         self.scorer_type = scorer_type
         self.n_processes = n_processes
         self.done_event = Event()
-        self.input_queue = Queue(10000)
-        self.output_queue = Queue(1000)
+        self.input_queue = self._make_input_queue()
+        self.output_queue = self._make_output_queue()
         self.scan_solution_map = defaultdict(list)
         self.evaluation_args = evaluation_args
         self.init_args = init_args
@@ -96,18 +96,23 @@ class IdentificationProcessDispatcher(TaskBase):
         self.local_mass_shift_map = mass_shift_map
         self.mass_shift_load_map = self.ipc_manager.dict(mass_shift_map)
 
+    def _make_input_queue(self):
+        return Queue(int(1e7))
+
+    def _make_output_queue(self):
+        return Queue(3000)
+
     def clear_pool(self):
         """Tear down spawned worker processes and clear
         the shared memory server
         """
-        self.log("Clearing Spectra Store")
         self.scan_load_map.clear()
         self.local_scan_map.clear()
-        self.log("Joining Workers")
         for i, worker in enumerate(self.workers):
-            self.log("Joining %dth Process %r" % (i, worker))
+            if worker.exitcode != 0 and worker.exitcode is not None:
+                self.log("Worker Process %r had exitcode %r" % (worker, worker.exitcode))
             try:
-                worker.join()
+                worker.join(15)
             except AttributeError:
                 pass
 
@@ -126,8 +131,8 @@ class IdentificationProcessDispatcher(TaskBase):
         self.local_scan_map.clear()
         self.local_scan_map.update(scan_map)
 
-        self.input_queue = Queue(1000)
-        self.output_queue = Queue(1000)
+        self.input_queue = self._make_input_queue()
+        self.output_queue = self._make_output_queue()
 
         for i in range(self.n_processes):
             worker = self.worker_type(
@@ -265,12 +270,15 @@ class IdentificationProcessDispatcher(TaskBase):
             applied for this match
         """
         missing = set(hit_to_scan) - set(seen)
+        i = 0
         for missing_id in missing:
             target, scan_spec = self.build_work_order(
                 missing_id, hit_map, scan_hit_type_map, hit_to_scan)
             target, score_map = self.evalute_work_order_local(target, scan_spec)
             seen[target.id] = (-1, 0)
             self.store_result(target, score_map, self.local_scan_map)
+            i += 1
+        return i
 
     def store_result(self, target, score_map, scan_map):
         """Save the spectrum match scores for ``target`` against the
@@ -393,14 +401,14 @@ class IdentificationProcessDispatcher(TaskBase):
         while has_work:
             try:
                 target, score_map, token = self.output_queue.get(True, 1)
-                if target.id in seen:
-                    self.log(
+                if (target.id, token) in seen:
+                    self.debug(
                         "...... Duplicate Results For %s. First seen at %r, now again at %r" % (
                             target.id, seen[target.id], (i, token)))
                 else:
                     seen[target.id] = (i, token)
                 if (i > n) and ((i - n) % 10 == 0):
-                    self.log(
+                    self.debug(
                         "...... Warning: %d additional output received. %s and %d matches." % (
                             i - n, target, len(score_map)))
 
@@ -424,7 +432,7 @@ class IdentificationProcessDispatcher(TaskBase):
                             self.log(
                                 "...... Too much time has elapsed with"
                                 " missing items. Evaluating serially.")
-                            self._reconstruct_missing_work_items(
+                            i += self._reconstruct_missing_work_items(
                                 seen, hit_map, hit_to_scan, scan_hit_type_map)
                             has_work = False
                 else:
@@ -434,7 +442,8 @@ class IdentificationProcessDispatcher(TaskBase):
                             has_work = False
                         self.log(
                             "...... %d cycles without output (%d/%d, %0.2f%% Done, %d children still alive)" % (
-                                strikes, len(seen), n, len(seen) * 100. / n, len(multiprocessing.active_children())))
+                                strikes, len(seen), n, len(seen) * 100. / n,
+                                len(multiprocessing.active_children()) - 1))
                         try:
                             input_queue_size = self.input_queue.qsize()
                         except Exception:
@@ -446,8 +455,8 @@ class IdentificationProcessDispatcher(TaskBase):
                         self.log(
                             ("...... Too much time has elapsed with"
                              " missing items (%d children still alive). Evaluating serially.") % (
-                                len(multiprocessing.active_children()),))
-                        self._reconstruct_missing_work_items(
+                                len(multiprocessing.active_children()) - 1,))
+                        i += self._reconstruct_missing_work_items(
                             seen, hit_map, hit_to_scan, scan_hit_type_map)
                         has_work = False
                 continue
@@ -529,7 +538,6 @@ class SpectrumIdentificationWorkerBase(Process):
         has_work = True
         items_handled = 0
         strikes = 0
-        self.log_handler("%r starting work" % (self,))
         while has_work:
             try:
                 structure, scan_ids = self.input_queue.get(True, 5)
