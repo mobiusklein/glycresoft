@@ -122,6 +122,9 @@ class DiskBackedStructureDatabaseBase(SearchableMassCollection, DatabaseBoundOpe
             # Not worth inserting, so just return the group
             return nearest_interval.group
 
+    def clear_cache(self):
+        self._intervals.clear()
+
     def has_interval(self, mass, ppm_error_tolerance):
         q = PPMQueryInterval(mass, ppm_error_tolerance)
         match = self._intervals.find_interval(q)
@@ -180,6 +183,9 @@ class DiskBackedStructureDatabaseBase(SearchableMassCollection, DatabaseBoundOpe
     def highest_mass(self):
         return self.session.query(func.max(self.model_type.calculated_mass)).filter(
             self.model_type.hypothesis_id == self.hypothesis_id).first()
+
+    def get_record(self, id):
+        return self.session.query(self.model_type).get(id)
 
     def get_object_by_id(self, id):
         return self.session.query(self.model_type).get(id)
@@ -291,10 +297,14 @@ class DeclarativeDiskBackedDatabase(DiskBackedStructureDatabaseBase):
                 mass - error_tolerance, mass + error_tolerance))
         return conn.execute(stmt).fetchall()
 
-    def get_object_by_id(self, id):
-        return self._convert(self.session.execute(select(self._get_record_properties()).select_from(
+    def get_record(self, id):
+        record = self.session.execute(select(self._get_record_properties()).select_from(
             self.selectable).where(
-            self.identity_field == id)).first())
+            self.identity_field == id)).first()
+        return record
+
+    def get_object_by_id(self, id):
+        return self._convert(self._get_record(id))
 
     def get_object_by_reference(self, reference):
         return self._convert(self.get_object_by_id(reference.id))
@@ -619,6 +629,9 @@ class IntervalSet(object):
         ix, match = self.find_insertion_point(center)
         self.intervals.pop(ix)
 
+    def clear(self):
+        self.intervals = []
+
 
 class LRUIntervalSet(IntervalSet):
 
@@ -663,3 +676,7 @@ class LRUIntervalSet(IntervalSet):
         self.lru.remove_node(lru_interval)
         self.remove_interval(lru_interval.center)
         self.current_size -= 1
+
+    def clear(self):
+        while self.current_size > 0:
+            self.remove_lru_interval()

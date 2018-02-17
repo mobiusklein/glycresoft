@@ -97,7 +97,7 @@ class IdentificationProcessDispatcher(TaskBase):
         self.mass_shift_load_map = self.ipc_manager.dict(mass_shift_map)
 
     def _make_input_queue(self):
-        return Queue(int(1e7))
+        return Queue(int(1e5))
 
     def _make_output_queue(self):
         return Queue(int(1e7))
@@ -136,7 +136,8 @@ class IdentificationProcessDispatcher(TaskBase):
 
         for i in range(self.n_processes):
             worker = self.worker_type(
-                input_queue=self.input_queue, output_queue=self.output_queue,
+                input_queue=self.input_queue,
+                output_queue=self.output_queue,
                 done_event=self.done_event,
                 scorer_type=self.scorer_type,
                 evaluation_args=self.evaluation_args,
@@ -422,7 +423,7 @@ class IdentificationProcessDispatcher(TaskBase):
                 strikes = 0
                 if i % 1000 == 0:
                     self.log(
-                        "...... Processed %d matches (%0.2f%%)" % (i, i * 100. / n))
+                        "...... Processed %d structures (%0.2f%%)" % (i, i * 100. / n))
             except QueueEmptyException:
                 # do worker life cycle management here
                 if self.all_workers_finished():
@@ -434,7 +435,7 @@ class IdentificationProcessDispatcher(TaskBase):
                             self.log(
                                 "...... %d cycles without output (%d/%d, %0.2f%% Done)" % (
                                     strikes, len(seen), n, len(seen) * 100. / n))
-                        if strikes > 1e2:
+                        if strikes > 5e2:
                             self.log(
                                 "...... Too much time has elapsed with"
                                 " missing items. Evaluating serially.")

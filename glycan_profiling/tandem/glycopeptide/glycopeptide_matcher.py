@@ -13,7 +13,7 @@ from .scoring import GroupwiseTargetDecoyAnalyzer
 
 from ..spectrum_evaluation import TandemClusterEvaluatorBase, DEFAULT_BATCH_SIZE
 from ..process_dispatcher import SpectrumIdentificationWorkerBase
-
+from ..temp_store import TempFileManager, SpectrumMatchStore
 from ..oxonium_ions import gscore_scanner
 from ..chromatogram_mapping import ChromatogramMSMSMapper
 
@@ -37,6 +37,25 @@ _target_decoy_cell = namedtuple("_target_decoy_cell", ["target", "decoy"])
 
 def make_target_decoy_cell():
     return _target_decoy_cell(target=None, decoy=None)
+
+
+class GlycopeptideResolver(object):
+    def __init__(self, database, parser):
+        self.database = database
+        self.parser = parser
+        self.cache = dict()
+
+    def resolve(self, id):
+        try:
+            return self.cache[id]
+        except KeyError:
+            record = self.database.get_record(id)
+            structure = self.parser(record)
+            self.cache[id] = structure
+            return structure
+
+    def __call__(self, id):
+        return self.resolve(id)
 
 
 class GlycopeptideMatcher(TandemClusterEvaluatorBase):
@@ -146,13 +165,12 @@ class TargetDecoyInterleavingGlycopeptideMatcher(TandemClusterEvaluatorBase):
             scans, precursor_error_tolerance)
         # Evaluate mapped target hits
         target_solutions = []
-        workload_graph = workload.compute_workloads()
-        total_work = workload.total_work_required(workload_graph)
+        total_work = workload.total_work_required()
         running_total_work = 0
         for i, batch in enumerate(workload.batches(self.batch_size)):
-            self.log("... Batch %d (%d/%d) %0.2f%%" % (
+            self.log("... Batch %d (%d/%d) %0.2g%%" % (
                 i + 1, running_total_work + batch.batch_size, total_work,
-                (100. * (running_total_work + batch.batch_size)) / total_work))
+                ((running_total_work + batch.batch_size) * 100.) / float(total_work)))
             target_scan_solution_map = self.target_evaluator._evaluate_hit_groups(
                 batch, *args, **kwargs)
             running_total_work += batch.batch_size
@@ -177,9 +195,9 @@ class TargetDecoyInterleavingGlycopeptideMatcher(TandemClusterEvaluatorBase):
         decoy_solutions = []
         running_total_work = 0
         for i, batch in enumerate(workload.batches(self.batch_size)):
-            self.log("... Batch %d (%d/%d) %0.2f%%" % (
+            self.log("... Batch %d (%d/%d) %0.2g%%" % (
                 i + 1, running_total_work + batch.batch_size, total_work,
-                (100. * (running_total_work + batch.batch_size)) / total_work))
+                ((running_total_work + batch.batch_size) * 100.) / float(total_work)))
 
             decoy_scan_solution_map = self.decoy_evaluator._evaluate_hit_groups(
                 batch, *args, **kwargs)
@@ -412,7 +430,9 @@ def format_work_batch(bunch, count, total):
 class GlycopeptideDatabaseSearchIdentifier(TaskBase):
     def __init__(self, tandem_scans, scorer_type, structure_database, scan_id_to_rt=lambda x: x,
                  minimum_oxonium_ratio=0.05, scan_transformer=lambda x: x, adducts=None,
-                 n_processes=5):
+                 n_processes=5, file_manager=None):
+        if file_manager is None:
+            file_manager = TempFileManager()
         if adducts is None:
             adducts = []
         if Unmodified not in adducts:
@@ -423,10 +443,14 @@ class GlycopeptideDatabaseSearchIdentifier(TaskBase):
         self.structure_database = structure_database
         self.scan_id_to_rt = scan_id_to_rt
         self.minimum_oxonium_ratio = minimum_oxonium_ratio
+        self.adducts = adducts
         self.scan_transformer = scan_transformer
+
         self.n_processes = n_processes
         self.ipc_manager = IPCManager()
-        self.adducts = adducts
+
+        self.file_manager = file_manager
+        self.spectrum_match_store = SpectrumMatchStore(self.file_manager)
 
     def _make_evaluator(self, bunch):
         evaluator = TargetDecoyInterleavingGlycopeptideMatcher(
@@ -467,12 +491,18 @@ class GlycopeptideDatabaseSearchIdentifier(TaskBase):
         return out, unconfirmed_precursors
 
     def search(self, precursor_error_tolerance=1e-5, simplify=True, chunk_size=500, limit=None, *args, **kwargs):
-        target_hits = []
-        decoy_hits = []
+        # target_hits = []
+        # decoy_hits = []
+        target_hits = self.spectrum_match_store.writer("targets")
+        decoy_hits = self.spectrum_match_store.writer("decoys")
+
         total = len(self.tandem_scans)
         count = 0
+
         if limit is None:
             limit = float('inf')
+
+        self.log("Writing Matches To %r" % (self.file_manager,))
         for scan_collection in chunkiter(self.tandem_scans, chunk_size):
             count += len(scan_collection)
             for item in format_work_batch(scan_collection, count, total):
@@ -489,11 +519,30 @@ class GlycopeptideDatabaseSearchIdentifier(TaskBase):
             target_hits.extend(o for o in t if o.score > 0.5)
             decoy_hits.extend(o for o in d if o.score > 0.5)
             t = sorted(t, key=lambda x: x.score, reverse=True)
-            self.log("......\n%s" % (format_identification_batch(t, 10)))
+            self.log("...... Total Matches So Far: %d Tagets, %d Decoys\n%s" % (
+                len(target_hits), len(decoy_hits), format_identification_batch(t, 10)))
             if count >= limit:
                 self.log("Reached Limit. Halting.")
                 break
+            # clear these lists as they may be quite large and we don't need them around for the
+            # next iteration
+            t = []
+            d = []
         self.log('Search Done')
+
+        target_hits.close()
+        decoy_hits.close()
+        self.structure_database.clear_cache()
+
+        self.log("Reloading Spectrum Matches")
+        target_resolver = GlycopeptideResolver(self.structure_database, CachingGlycopeptideParser())
+        decoy_resolver = GlycopeptideResolver(self.structure_database, DecoyMakingCachingGlycopeptideParser())
+
+        # target_hits = FileBackedSpectrumMatchCollection(self.spectrum_match_store, 'targets', target_resolver)
+        # decoy_hits = FileBackedSpectrumMatchCollection(self.spectrum_match_store, 'decoys', decoy_resolver)
+        target_hits = list(self.spectrum_match_store.reader("targets", target_resolver))
+        decoy_hits = list(self.spectrum_match_store.reader("decoys", decoy_resolver))
+        self.spectrum_match_store.clear()
         return target_hits, decoy_hits
 
     def target_decoy(self, target_hits, decoy_hits, with_pit=False, *args, **kwargs):

@@ -75,3 +75,9 @@ class ScanInformation(Base):
     @property
     def scan_id(self):
         return self.id
+
+    @classmethod
+    def from_scan(cls, scan):
+        return cls(
+            scan.scan_id, scan.index, scan.scan_time, scan.ms_level,
+            scan.precursor_information)

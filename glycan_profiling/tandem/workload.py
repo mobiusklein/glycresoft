@@ -133,14 +133,7 @@ class WorkloadManager(object):
             The amount of work contained in this load, or 1
             if the workload is empty.
         """
-        if workloads is None:
-            workloads = self.compute_workloads()
-        total = 1
-        for m, w in workloads:
-            total += w
-        if total > 1:
-            total -= 1
-        return total
+        return sum(map(len, self.scan_to_hit_map.values()))
 
     def log_workloads(self, handle, workloads=None):
         """Writes the current workload graph cluster sizes to a text file

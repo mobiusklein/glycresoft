@@ -311,3 +311,10 @@ class SpectrumSolutionSet(ScanWrapperBase):
             self.solutions = [self.best_solution()]
         self._is_top_only = True
         self._invalidate()
+
+    def merge(self, other):
+        self.solutions.extend(other)
+        self.solutions.sort(key=lambda x: x.score, reverse=True)
+        if self._is_top_only:
+            self._is_top_only = False
+            self.select_top()
