@@ -225,6 +225,8 @@ class MaximumSolutionCountRetentionStrategy(SpectrumMatchRetentionStrategyBase):
 
 class TopScoringSolutionsRetentionStrategy(SpectrumMatchRetentionStrategyBase):
     def filter_matches(self, solution_set):
+        if len(solution_set) == 0:
+            return solution_set
         best_score = solution_set[0].score
         retain = []
         for solution in solution_set:
