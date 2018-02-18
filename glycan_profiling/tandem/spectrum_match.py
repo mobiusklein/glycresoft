@@ -195,6 +195,64 @@ class SpectrumMatch(SpectrumMatchBase):
         return cls(match.scan, match.target, match.score, mass_shift=match.mass_shift)
 
 
+class SpectrumMatchRetentionStrategyBase(object):
+    def __init__(self, threshold):
+        self.threshold = threshold
+
+    def filter_matches(self, solution_set):
+        raise NotImplementedError()
+
+    def __call__(self, solution_set):
+        return self.filter_matches(solution_set)
+
+    def __repr__(self):
+        return "{self.__class__.__name__}({self.threshold})".format(self=self)
+
+
+class MinimumScoreRetentionStrategy(SpectrumMatchRetentionStrategyBase):
+    def filter_matches(self, solution_set):
+        retain = []
+        for match in solution_set:
+            if match.score > self.threshold:
+                retain.append(match)
+        return retain
+
+
+class MaximumSolutionCountRetentionStrategy(SpectrumMatchRetentionStrategyBase):
+    def filter_matches(self, solution_set):
+        return solution_set[:self.threshold]
+
+
+class TopScoringSolutionsRetentionStrategy(SpectrumMatchRetentionStrategyBase):
+    def filter_matches(self, solution_set):
+        best_score = solution_set[0].score
+        retain = []
+        for solution in solution_set:
+            if solution.score - best_score < self.threshold:
+                retain.append(solution)
+        return retain
+
+
+class SpectrumMatchRetentionMethod(object):
+    def __init__(self, strategies=None):
+        if strategies is None:
+            strategies = []
+        self.strategies = strategies
+
+    def filter_matches(self, solution_set):
+        retained = list(solution_set)
+        for strategy in self.strategies:
+            retained = strategy(retained)
+        return retained
+
+
+default_selection_method = SpectrumMatchRetentionMethod([
+    MinimumScoreRetentionStrategy(4.),
+    TopScoringSolutionsRetentionStrategy(3.),
+    MaximumSolutionCountRetentionStrategy(100)
+])
+
+
 class SpectrumSolutionSet(ScanWrapperBase):
 
     def __init__(self, scan, solutions):
@@ -294,21 +352,16 @@ class SpectrumSolutionSet(ScanWrapperBase):
         self._invalidate()
 
     def get_top_solutions(self, d=3):
-        score = self.best_solution().score
-        return [x for x in self.solutions if abs(x.score - score) < d]
+        best_score = self.best_solution().score
+        return [x for x in self.solutions if (best_score - x.score) < d]
 
-    def select_top(self, d=3):
+    def select_top(self, method=default_selection_method):
         if self._is_top_only:
             return
-        trivial = False
-        score = self.best_solution().score
-        if score <= d:
-            d = 0
-            trivial = True
-        n = len(self)
-        self.solutions = self.get_top_solutions(d)
-        if len(self) == n and trivial and n > 1:
-            self.solutions = [self.best_solution()]
+        best_solution = self.best_solution()
+        self.solutions = method(self)
+        if len(self) == 0:
+            self.solutions = [best_solution]
         self._is_top_only = True
         self._invalidate()
 

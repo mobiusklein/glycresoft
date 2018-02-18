@@ -535,13 +535,23 @@ class GlycopeptideDatabaseSearchIdentifier(TaskBase):
         self.structure_database.clear_cache()
 
         self.log("Reloading Spectrum Matches")
-        target_resolver = GlycopeptideResolver(self.structure_database, CachingGlycopeptideParser())
-        decoy_resolver = GlycopeptideResolver(self.structure_database, DecoyMakingCachingGlycopeptideParser())
+        target_resolver = GlycopeptideResolver(self.structure_database, CachingGlycopeptideParser(int(1e6)))
+        decoy_resolver = GlycopeptideResolver(self.structure_database, DecoyMakingCachingGlycopeptideParser(int(1e6)))
 
+        target_count = len(target_hits)
+        decoy_count = len(decoy_hits)
         # target_hits = FileBackedSpectrumMatchCollection(self.spectrum_match_store, 'targets', target_resolver)
         # decoy_hits = FileBackedSpectrumMatchCollection(self.spectrum_match_store, 'decoys', decoy_resolver)
-        target_hits = list(self.spectrum_match_store.reader("targets", target_resolver))
-        decoy_hits = list(self.spectrum_match_store.reader("decoys", decoy_resolver))
+        target_hits = []
+        for i, solset in enumerate(self.spectrum_match_store.reader("targets", target_resolver)):
+            if i % 5000 == 0:
+                self.log("Loaded %d/%d Targets (%0.3g%%)" % (i, target_count, (100. * i / target_count)))
+            target_hits.append(solset)
+        decoy_hits = []
+        for i, solset in (self.spectrum_match_store.reader("decoys", decoy_resolver)):
+            if i % 5000 == 0:
+                self.log("Loaded %d/%d Decoys (%0.3g%%)" % (i, decoy_count, (100. * i / decoy_count)))
+            decoy_hits.append(solset)
         self.spectrum_match_store.clear()
         return target_hits, decoy_hits
 
