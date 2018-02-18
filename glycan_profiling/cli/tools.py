@@ -273,7 +273,8 @@ def has_known_glycosylation(accession):
     'Checks UniProt to see if a list of proteins contains any known glycoproteins'))
 @click.option("-i", "--file-path", help="Read input from a file instead of STDIN")
 @click.option("-f", "--fasta-format", is_flag=True, help="Indicate input is in FASTA format")
-def known_uniprot_glycoprotein(file_path=None, fasta_format=False):
+@click.option("-o", "--output-path", help="Write output to a file instead of STDOUT")
+def known_uniprot_glycoprotein(file_path=None, output_path=None, fasta_format=False):
     if file_path is not None:
         handle = open(file_path)
     else:
@@ -294,6 +295,11 @@ def known_uniprot_glycoprotein(file_path=None, fasta_format=False):
             except Exception:
                 return header[0]
 
+    if output_path is None:
+        outhandle = sys.stdout
+    else:
+        outhandle = open(output_path, 'w')
+
     def checker_task(inqueue, outqueue, no_more_event):
         has_work = True
         while has_work:
@@ -307,16 +313,16 @@ def known_uniprot_glycoprotein(file_path=None, fasta_format=False):
                 if has_known_glycosylation(name_getter(protein)):
                     outqueue.put(protein)
             except Exception as e:
-                print(e, protein, type(protein), protein)
+                click.secho("%r occurred for %s" % (e, protein), err=True, fg='yellow')
 
     def consumer_task(outqueue, no_more_event):
         has_work = True
         if fasta_format:
-            writer = fasta.ProteinFastaFileWriter(sys.stdout)
+            writer = fasta.ProteinFastaFileWriter(outhandle)
             write_fn = writer.write
         else:
             def write_fn(payload):
-                sys.stdout.write(str(payload).strip() + '\n')
+                outhandle.write(str(payload).strip() + '\n')
         while has_work:
             try:
                 protein = outqueue.get(True, 1)
@@ -325,7 +331,7 @@ def known_uniprot_glycoprotein(file_path=None, fasta_format=False):
                     has_work = False
                 continue
             write_fn(protein)
-        sys.stdout.close()
+        outhandle.close()
 
     producer_done = threading.Event()
     checker_done = threading.Event()

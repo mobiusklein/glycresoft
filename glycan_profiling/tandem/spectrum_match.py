@@ -357,7 +357,9 @@ class SpectrumSolutionSet(ScanWrapperBase):
         best_score = self.best_solution().score
         return [x for x in self.solutions if (best_score - x.score) < d]
 
-    def select_top(self, method=default_selection_method):
+    def select_top(self, method=None):
+        if method is None:
+            method = default_selection_method
         if self._is_top_only:
             return
         best_solution = self.best_solution()

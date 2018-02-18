@@ -519,7 +519,7 @@ class GlycopeptideDatabaseSearchIdentifier(TaskBase):
             target_hits.extend(o for o in t if o.score > 0.5)
             decoy_hits.extend(o for o in d if o.score > 0.5)
             t = sorted(t, key=lambda x: x.score, reverse=True)
-            self.log("...... Total Matches So Far: %d Tagets, %d Decoys\n%s" % (
+            self.log("...... Total Matches So Far: %d Targets, %d Decoys\n%s" % (
                 len(target_hits), len(decoy_hits), format_identification_batch(t, 10)))
             if count >= limit:
                 self.log("Reached Limit. Halting.")
@@ -540,8 +540,6 @@ class GlycopeptideDatabaseSearchIdentifier(TaskBase):
 
         target_count = len(target_hits)
         decoy_count = len(decoy_hits)
-        # target_hits = FileBackedSpectrumMatchCollection(self.spectrum_match_store, 'targets', target_resolver)
-        # decoy_hits = FileBackedSpectrumMatchCollection(self.spectrum_match_store, 'decoys', decoy_resolver)
         target_hits = []
         for i, solset in enumerate(self.spectrum_match_store.reader("targets", target_resolver)):
             if i % 5000 == 0:
