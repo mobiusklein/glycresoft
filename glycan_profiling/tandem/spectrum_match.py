@@ -233,7 +233,7 @@ class TopScoringSolutionsRetentionStrategy(SpectrumMatchRetentionStrategyBase):
         return retain
 
 
-class SpectrumMatchRetentionMethod(object):
+class SpectrumMatchRetentionMethod(SpectrumMatchRetentionStrategyBase):
     def __init__(self, strategies=None):
         if strategies is None:
             strategies = []
