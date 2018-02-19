@@ -11,6 +11,8 @@ Much of this logic is derived from:
 
 import numpy as np
 from scipy.misc import comb
+from decimal import Decimal
+import math
 
 from glycopeptidepy.utils.memoize import memoize
 
@@ -20,7 +22,14 @@ from glycan_profiling.structure import FragmentMatchMap
 
 @memoize(100000000000)
 def binomial_pmf(n, i, p):
-    return comb(n, i, exact=True) * (p ** i) * ((1 - p) ** (n - i))
+    try:
+        return comb(n, i, exact=True) * (p ** i) * ((1 - p) ** (n - i))
+    except OverflowError:
+        dn = Decimal(n)
+        di = Decimal(i)
+        dp = Decimal(p)
+        x = math.factorial(dn) / (math.factorial(di) * math.factorial(dn - di))
+        return float(x * dp ** di * ((1 - dp) ** (dn - di)))
 
 
 @memoize(100000000000)
