@@ -95,6 +95,7 @@ class IdentificationProcessDispatcher(TaskBase):
         self.scan_load_map = self.ipc_manager.dict()
         self.local_mass_shift_map = mass_shift_map
         self.mass_shift_load_map = self.ipc_manager.dict(mass_shift_map)
+        self.structure_map = dict()
 
     def _make_input_queue(self):
         return Queue(int(1e5))
@@ -278,31 +279,28 @@ class IdentificationProcessDispatcher(TaskBase):
         for missing_id in missing:
             target, scan_spec = self.build_work_order(
                 missing_id, hit_map, scan_hit_type_map, hit_to_scan)
-            target, score_map = self.evalute_work_order_local(target, scan_spec)
-            seen[target.id] = (-1, 0)
-            self.store_result(target, score_map, self.local_scan_map)
+            target_id, score_map = self.evalute_work_order_local(target, scan_spec)
+            seen[target_id] = (-1, 0)
+            self.store_result(target_id, score_map, self.local_scan_map)
             i += 1
             if i % 1000 == 0:
                 self.log("...... Processed %d local matches (%0.2f%%)" % (i, i * 100. / n))
         return i
 
-    def store_result(self, target, score_map, scan_map):
+    def store_result(self, target_id, score_map, scan_map):
         """Save the spectrum match scores for ``target`` against the
         set of matched scans
 
         Parameters
         ----------
-        target : object
-            Structure that was matched
+        target : int
+            hit id mapping to the structure that was matched
         score_map : dict
             Maps (scan id, mass shift name) to score
         scan_map : dict
             Maps scan id to :class:`.ProcessedScan`
         """
-        try:
-            target.clear_caches()
-        except AttributeError:
-            pass
+        target = self.structure_map[target_id]
 
         j = 0
         for hit_spec, score in score_map.items():
@@ -321,7 +319,7 @@ class IdentificationProcessDispatcher(TaskBase):
         return self.local_mass_shift_map[key]
 
     def evalute_work_order_local(self, structure, scan_specification):
-        """Mimic the main loop of :class:`SpectrumIdentificationWorkerBase`
+        """Mimic one iteration of the main loop of :class:`SpectrumIdentificationWorkerBase`
         to evaluate task items locally.
 
         Parameters
@@ -387,6 +385,7 @@ class IdentificationProcessDispatcher(TaskBase):
         return worker.evaluate(scan, structure, *args, **kwargs)
 
     def process(self, scan_map, hit_map, hit_to_scan, scan_hit_type_map):
+        self.structure_map = hit_map
         self.create_pool(scan_map)
         feeder_thread = self.spawn_queue_feeder(
             hit_map, hit_to_scan, scan_hit_type_map)
@@ -407,17 +406,17 @@ class IdentificationProcessDispatcher(TaskBase):
         self.log("... Searching Matches (%d)" % (n_spectrum_matches,))
         while has_work:
             try:
-                target, score_map, token = self.output_queue.get(True, 1)
-                if target.id in seen:
+                target_id, score_map, token = self.output_queue.get(True, 1)
+                if target_id in seen:
                     self.debug(
                         "...... Duplicate Results For %s. First seen at %r, now again at %r" % (
-                            target.id, seen[target.id], (i, token)))
+                            target_id, seen[target_id], (i, token)))
                 else:
-                    seen[target.id] = (i, token)
+                    seen[target_id] = (i, token)
                 if (i > n) and ((i - n) % 10 == 0):
                     self.debug(
                         "...... Warning: %d additional output received. %s and %d matches." % (
-                            i - n, target, len(score_map)))
+                            i - n, target_id, len(score_map)))
 
                 i += 1
                 strikes = 0
@@ -467,7 +466,7 @@ class IdentificationProcessDispatcher(TaskBase):
                             seen, hit_map, hit_to_scan, scan_hit_type_map)
                         has_work = False
                 continue
-            self.store_result(target, score_map, scan_map)
+            self.store_result(target_id, score_map, scan_map)
         i_spectrum_matches = sum(map(len, self.scan_solution_map.values()))
         self.log("... Finished Processing Matches (%d)" % (i_spectrum_matches,))
         self.clear_pool()
@@ -520,7 +519,7 @@ class SpectrumIdentificationWorkerBase(Process):
 
     def pack_output(self, target):
         if self.solution_map:
-            self.output_queue.put((target, self.solution_map, self.token))
+            self.output_queue.put((target.id, self.solution_map, self.token))
         self.solution_map = dict()
 
     def evaluate(self, scan, structure, *args, **kwargs):
