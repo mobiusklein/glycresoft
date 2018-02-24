@@ -306,7 +306,7 @@ class BinomialSpectrumMatcher(GlycopeptideSpectrumMatcherBase):
 
         fragment_match_component = binomial_fragments_matched(
             self.n_theoretical,
-            len(self._sanitize_solution_map()),
+            len(solution_map),
             self._compute_average_window_size(match_tolerance),
             precursor_mass
         )
