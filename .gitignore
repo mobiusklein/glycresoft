@@ -1,3 +1,4 @@
+*.pyd
 *.pyc
 .ipynb_checkpoints/
 /build/

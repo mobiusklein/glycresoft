@@ -1,10 +1,25 @@
+# cython: embedsignature=True
 from collections import defaultdict
 
+cimport cython
+from cpython cimport PyList_Append, PyList_Size, PyList_GetItem
+
 import numpy as np
+cimport numpy as np
+
+from ms_deisotope._c.peak_set cimport DeconvolutedPeak
+
+np.import_array()
 
 
-class PeakFragmentPair(object):
-    __slots__ = ["peak", "fragment", "fragment_name", "_hash"]
+@cython.freelist(1000000)
+cdef class PeakFragmentPair(object):
+
+    cdef:
+        public DeconvolutedPeak peak
+        public object fragment
+        public str fragment_name
+        public long _hash
 
     def __init__(self, peak, fragment):
         self.peak = peak
@@ -32,85 +47,15 @@ class PeakFragmentPair(object):
         yield self.fragment
 
 
-class FragmentMatchMap(object):
-    def __init__(self):
-        self.members = set()
-        self.by_fragment = defaultdict(list)
-        self.by_peak = defaultdict(list)
+@cython.freelist(1000000)
+cdef class PeakPairTransition(object):
+    cdef:
+        public DeconvolutedPeak start
+        public DeconvolutedPeak end
+        public object annotation
+        public tuple key
+        public long _hash
 
-    def add(self, peak, fragment=None):
-        if fragment is not None:
-            peak = PeakFragmentPair(peak, fragment)
-        if peak not in self.members:
-            self.members.add(peak)
-            self.by_fragment[peak.fragment].append(peak.peak)
-            self.by_peak[peak.peak].append(peak.fragment)
-
-    def fragments_for(self, peak):
-        return self.by_peak[peak]
-
-    def peaks_for(self, fragment):
-        return self.by_fragment[fragment]
-
-    def __iter__(self):
-        return iter(self.members)
-
-    def __len__(self):
-        return len(self.members)
-
-    def items(self):
-        for peak, fragment in self.members:
-            yield fragment, peak
-
-    def values(self):
-        for pair in self.members:
-            yield pair.peak
-
-    def fragments(self):
-        frags = set()
-        for peak, fragment in self:
-            frags.add(fragment)
-        return iter(frags)
-
-    def remove_fragment(self, fragment):
-        peaks = self.peaks_for(fragment)
-        for peak in peaks:
-            fragments_from_peak = self.by_peak[peak]
-            kept = [f for f in fragments_from_peak if f != fragment]
-            if len(kept) == 0:
-                self.by_peak.pop(peak)
-            else:
-                self.by_peak[peak] = kept
-            self.members.remove(PeakFragmentPair(peak, fragment))
-        self.by_fragment.pop(fragment)
-
-    def remove_peak(self, peak):
-        fragments = self.fragments_for(peak)
-        for fragment in fragments:
-            peaks_from_fragment = self.by_fragment[fragment]
-            kept = [p for p in peaks_from_fragment if p != peak]
-            if len(kept) == 0:
-                self.by_fragment.pop(fragment)
-            else:
-                self.by_fragment[fragment] = kept
-            self.members.remove(PeakFragmentPair(peak, fragment))
-        self.by_peak.pop(peak)
-
-    def copy(self):
-        inst = self.__class__()
-        for case in self.members:
-            inst.add(case)
-        return inst
-
-    def clone(self):
-        return self.copy()
-
-    def __repr__(self):
-        return "FragmentMatchMap(%s)" % (', '.join(
-            f.name for f in self.fragments()),)
-
-
-class PeakPairTransition(object):
     def __init__(self, start, end, annotation):
         self.start = start
         self.end = end
@@ -118,6 +63,9 @@ class PeakPairTransition(object):
         # The indices of the start peak and end peak
         self.key = (self.start.index.neutral_mass, self.end.index.neutral_mass)
         self._hash = hash(self.key)
+
+    def __reduce__(self):
+        return self.__class__, (self.start, self.end, self.annotation)
 
     def __eq__(self, other):
         if self.key != other.key:
@@ -143,14 +91,23 @@ class PeakPairTransition(object):
                 "-{self.annotation}-> {self.end.neutral_mass:0.3f})").format(self=self)
 
 
-class SpectrumGraph(object):
+cdef class SpectrumGraph(object):
+
+    cdef:
+        public set transitions
+        public object by_first
+        public object by_second
+
     def __init__(self):
         self.transitions = set()
         self.by_first = defaultdict(list)
         self.by_second = defaultdict(list)
 
-    def add(self, p1, p2, annotation):
-        p1, p2 = sorted((p1, p2), key=lambda x: x.index.neutral_mass)
+    cpdef add(self, DeconvolutedPeak p1, DeconvolutedPeak p2, object annotation):
+        if p1._index.neutral_mass > p2._index.neutral_mass:
+            temp = p2
+            p2 = p1
+            p1 = temp
         trans = PeakPairTransition(p1, p2, annotation)
         self.transitions.add(trans)
         self.by_first[trans.key[0]].append(trans)
@@ -180,7 +137,7 @@ class SpectrumGraph(object):
             A[trans.key] = 1
         return A
 
-    def topological_sort(self, adjacency_matrix=None):
+    cpdef list topological_sort(self, adjacency_matrix=None):
         if adjacency_matrix is None:
             adjacency_matrix = self.adjacency_matrix()
         else:
@@ -222,7 +179,7 @@ class SpectrumGraph(object):
                 distances[ix] = longest_path_so_far + 1
         return distances
 
-    def paths_starting_at(self, ix):
+    cpdef list paths_starting_at(self, ix):
         paths = []
         for trans in self.by_first[ix]:
             paths.append([trans])
@@ -241,7 +198,7 @@ class SpectrumGraph(object):
                 break
         return self.transitive_closure(finished_paths)
 
-    def paths_ending_at(self, ix):
+    cpdef list paths_ending_at(self, ix):
         paths = []
         for trans in self.by_second[ix]:
             paths.append([trans])
@@ -254,34 +211,48 @@ class SpectrumGraph(object):
                 if not edges:
                     finished_paths.append(path)
                 for trans in edges:
-                    extended_paths.append([trans] + path)
+                    new_path = [trans]
+                    new_path.extend(path)
+                    extended_paths.append(new_path)
             paths = extended_paths
             if len(paths) == 0:
                 break
         return self.transitive_closure(finished_paths)
 
-    def transitive_closure(self, paths):
+    cpdef list transitive_closure(self, list paths):
+        cdef:
+            list path
+            list node_sets, keep, node_sets_items
+            set node_set, other_node_set
+            PeakPairTransition node
+            size_t i, j
+            bint is_enclosed
+
         # precompute node_sets for each path
-        node_sets = {}
-        for i, path in enumerate(paths):
+        node_sets = []
+        for i in range(PyList_Size(paths)):
+            path = <list>PyList_GetItem(paths, i)
             # track all nodes by index in this path in node_set
             node_set = set()
-            for node in path:
+            for j in range(PyList_Size(path)):
+                node = <PeakPairTransition>PyList_GetItem(path, j)
                 # add the start node index and end node index to the
                 # set of nodes on this path
-                node_set.update(node.key)
-            node_sets[i] = (node_set, len(path))
+                # node_set.update(node.key)
+                if j == 0:
+                    node_set.add(node.start._index.neutral_mass)
+                node_set.add(node.end._index.neutral_mass)
+            node_sets.append(node_set)
+
         keep = []
-        node_sets_items = list(node_sets.items())
-        for i, path in enumerate(paths):
-            node_set, length = node_sets[i]
+        for i in range(PyList_Size(paths)):
+            path = <list>PyList_GetItem(paths, i)
             is_enclosed = False
-            for key, value_pair in node_sets_items:
-                # attempting to be clever here seems to cost more
-                # time than it saves.
-                if key == i:
+            node_set = <set>PyList_GetItem(node_sets, i)
+            for j in range(PyList_Size(paths)):
+                if i == j:
                     continue
-                other_node_set, other_length = value_pair
+                other_node_set = <set>PyList_GetItem(node_sets, j)
                 if node_set < other_node_set:
                     is_enclosed = True
                     break
@@ -297,15 +268,3 @@ class SpectrumGraph(object):
         # remove redundant paths
         paths = self.transitive_closure(paths)
         return paths
-
-
-try:
-    has_c = True
-    _PeakFragmentPair = PeakFragmentPair
-    _PeakPairTransition = PeakPairTransition
-    _SpectrumGraph = SpectrumGraph
-
-    from glycan_profiling._c.structure.fragment_match_map import (
-        PeakFragmentPair, PeakPairTransition, SpectrumGraph)
-except ImportError:
-    has_c = False
