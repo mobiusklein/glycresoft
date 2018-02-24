@@ -1,4 +1,6 @@
 *.pyd
+glycan_profiling/_c/**/*.c
+glycan_profiling/_c/**/*.html
 *.pyc
 .ipynb_checkpoints/
 /build/
