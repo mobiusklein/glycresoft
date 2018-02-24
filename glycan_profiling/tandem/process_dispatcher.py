@@ -279,28 +279,27 @@ class IdentificationProcessDispatcher(TaskBase):
         for missing_id in missing:
             target, scan_spec = self.build_work_order(
                 missing_id, hit_map, scan_hit_type_map, hit_to_scan)
-            target_id, score_map = self.evalute_work_order_local(target, scan_spec)
-            seen[target_id] = (-1, 0)
-            self.store_result(target_id, score_map, self.local_scan_map)
+            target, score_map = self.evalute_work_order_local(target, scan_spec)
+            seen[target.id] = (-1, 0)
+            self.store_result(target, score_map, self.local_scan_map)
             i += 1
             if i % 1000 == 0:
                 self.log("...... Processed %d local matches (%0.2f%%)" % (i, i * 100. / n))
         return i
 
-    def store_result(self, target_id, score_map, scan_map):
+    def store_result(self, target, score_map, scan_map):
         """Save the spectrum match scores for ``target`` against the
         set of matched scans
 
         Parameters
         ----------
-        target : int
-            hit id mapping to the structure that was matched
+        target : object
+            The structure that was matched
         score_map : dict
             Maps (scan id, mass shift name) to score
         scan_map : dict
             Maps scan id to :class:`.ProcessedScan`
         """
-        target = self.structure_map[target_id]
 
         j = 0
         for hit_spec, score in score_map.items():
@@ -519,7 +518,7 @@ class SpectrumIdentificationWorkerBase(Process):
 
     def pack_output(self, target):
         if self.solution_map:
-            self.output_queue.put((target.id, self.solution_map, self.token))
+            self.output_queue.put((target, self.solution_map, self.token))
         self.solution_map = dict()
 
     def evaluate(self, scan, structure, *args, **kwargs):
