@@ -9,7 +9,10 @@ from glycan_profiling.structure import (
     CachingGlycopeptideParser,
     DecoyMakingCachingGlycopeptideParser)
 
+from glycan_profiling.database.disk_backed_database import PPMQueryInterval
+
 from .scoring import GroupwiseTargetDecoyAnalyzer
+from .core_search import GlycanCombinationRecord, GlycanFilteringPeptideMassEstimator
 
 from ..spectrum_evaluation import TandemClusterEvaluatorBase, DEFAULT_BATCH_SIZE
 from ..process_dispatcher import SpectrumIdentificationWorkerBase
@@ -58,10 +61,33 @@ class GlycopeptideResolver(object):
         return self.resolve(id)
 
 
-class GlycopeptideMatcher(TandemClusterEvaluatorBase):
+class PeptideMassFilteringDatabaseSearchMixin(object):
+
+    def find_precursor_candidates(self, scan, error_tolerance=1e-5, probing_range=0,
+                                  mass_shift=None):
+        if mass_shift is None:
+            mass_shift = Unmodified
+        peptide_filter = None
+        hits = []
+        intact_mass = scan.precursor_information.extracted_neutral_mass
+        if self.peptide_mass_filter:
+            peptide_filter = self.peptide_mass_filter.build_peptide_filter(
+                scan, error_tolerance, mass_shift=mass_shift)
+        for i in range(probing_range + 1):
+            query_mass = intact_mass - (i * self.neutron_offset) - mass_shift.mass
+            unfiltered_matches = self.search_database_for_precursors(query_mass, error_tolerance)
+            if self.peptide_mass_filter:
+                hits.extend([match for match in unfiltered_matches if peptide_filter(
+                             match.peptide_mass - (i * self.neutron_offset))])
+            else:
+                hits.extend(unfiltered_matches)
+        return hits
+
+
+class GlycopeptideMatcher(PeptideMassFilteringDatabaseSearchMixin, TandemClusterEvaluatorBase):
     def __init__(self, tandem_cluster, scorer_type, structure_database, parser_type=None,
                  n_processes=5, ipc_manager=None, probing_range_for_missing_precursors=3,
-                 mass_shifts=None, batch_size=DEFAULT_BATCH_SIZE):
+                 mass_shifts=None, batch_size=DEFAULT_BATCH_SIZE, peptide_mass_filter=None):
         if parser_type is None:
             parser_type = self._default_parser_type()
         super(GlycopeptideMatcher, self).__init__(
@@ -70,6 +96,7 @@ class GlycopeptideMatcher(TandemClusterEvaluatorBase):
             probing_range_for_missing_precursors=probing_range_for_missing_precursors,
             mass_shifts=mass_shifts,
             batch_size=batch_size)
+        self.peptide_mass_filter = peptide_mass_filter
         self.parser_type = parser_type
         self.parser = parser_type()
 
@@ -94,7 +121,7 @@ class DecoyGlycopeptideMatcher(GlycopeptideMatcher):
         return DecoyMakingCachingGlycopeptideParser
 
 
-class TargetDecoyInterleavingGlycopeptideMatcher(TandemClusterEvaluatorBase):
+class TargetDecoyInterleavingGlycopeptideMatcher(PeptideMassFilteringDatabaseSearchMixin, TandemClusterEvaluatorBase):
     '''Searches a single database against all spectra, where targets are
     database matches, and decoys are the reverse of the individual target
     glycopeptides.
@@ -108,7 +135,7 @@ class TargetDecoyInterleavingGlycopeptideMatcher(TandemClusterEvaluatorBase):
     '''
     def __init__(self, tandem_cluster, scorer_type, structure_database, minimum_oxonium_ratio=0.05,
                  n_processes=5, ipc_manager=None, probing_range_for_missing_precursors=3,
-                 mass_shifts=None, batch_size=DEFAULT_BATCH_SIZE):
+                 mass_shifts=None, batch_size=DEFAULT_BATCH_SIZE, peptide_mass_filter=None):
         super(TargetDecoyInterleavingGlycopeptideMatcher, self).__init__(
             tandem_cluster, scorer_type, structure_database, verbose=False,
             n_processes=n_processes, ipc_manager=ipc_manager,
@@ -118,16 +145,17 @@ class TargetDecoyInterleavingGlycopeptideMatcher(TandemClusterEvaluatorBase):
         self.scorer_type = scorer_type
         self.structure_database = structure_database
         self.minimum_oxonium_ratio = minimum_oxonium_ratio
+        self.peptide_mass_filter = peptide_mass_filter
         self.target_evaluator = GlycopeptideMatcher(
             [], self.scorer_type, self.structure_database, n_processes=n_processes,
             ipc_manager=ipc_manager,
             probing_range_for_missing_precursors=probing_range_for_missing_precursors,
-            mass_shifts=mass_shifts)
+            mass_shifts=mass_shifts, peptide_mass_filter=peptide_mass_filter)
         self.decoy_evaluator = DecoyGlycopeptideMatcher(
             [], self.scorer_type, self.structure_database, n_processes=n_processes,
             ipc_manager=ipc_manager,
             probing_range_for_missing_precursors=probing_range_for_missing_precursors,
-            mass_shifts=mass_shifts)
+            mass_shifts=mass_shifts, peptide_mass_filter=peptide_mass_filter)
 
     def filter_for_oxonium_ions(self, error_tolerance=1e-5):
         keep = []
@@ -267,12 +295,12 @@ class ComparisonGlycopeptideMatcher(TargetDecoyInterleavingGlycopeptideMatcher):
     def __init__(self, tandem_cluster, scorer_type, target_structure_database, decoy_structure_database,
                  minimum_oxonium_ratio=0.05, n_processes=5, ipc_manager=None,
                  probing_range_for_missing_precursors=3, mass_shifts=None,
-                 batch_size=DEFAULT_BATCH_SIZE):
+                 batch_size=DEFAULT_BATCH_SIZE, peptide_mass_filter=None):
         super(TargetDecoyInterleavingGlycopeptideMatcher, self).__init__(
             tandem_cluster, scorer_type, target_structure_database,
             verbose=False, n_processes=n_processes, ipc_manager=ipc_manager,
             probing_range_for_missing_precursors=probing_range_for_missing_precursors,
-            mass_shifts=mass_shifts, batch_size=batch_size)
+            mass_shifts=mass_shifts, batch_size=batch_size, peptide_mass_filter=peptide_mass_filter)
         self.tandem_cluster = tandem_cluster
         self.scorer_type = scorer_type
         self.target_structure_database = target_structure_database
@@ -282,12 +310,12 @@ class ComparisonGlycopeptideMatcher(TargetDecoyInterleavingGlycopeptideMatcher):
             [], self.scorer_type, self.target_structure_database,
             n_processes=n_processes, ipc_manager=ipc_manager,
             probing_range_for_missing_precursors=probing_range_for_missing_precursors,
-            mass_shifts=mass_shifts)
+            mass_shifts=mass_shifts, peptide_mass_filter=peptide_mass_filter)
         self.decoy_evaluator = GlycopeptideMatcher(
             [], self.scorer_type, self.decoy_structure_database,
             n_processes=n_processes, ipc_manager=ipc_manager,
             probing_range_for_missing_precursors=probing_range_for_missing_precursors,
-            mass_shifts=mass_shifts)
+            mass_shifts=mass_shifts, peptide_mass_filter=peptide_mass_filter)
 
     def score_bunch(self, scans, precursor_error_tolerance=1e-5, simplify=True, *args, **kwargs):
         # Map scans to target database
@@ -430,7 +458,7 @@ def format_work_batch(bunch, count, total):
 class GlycopeptideDatabaseSearchIdentifier(TaskBase):
     def __init__(self, tandem_scans, scorer_type, structure_database, scan_id_to_rt=lambda x: x,
                  minimum_oxonium_ratio=0.05, scan_transformer=lambda x: x, adducts=None,
-                 n_processes=5, file_manager=None):
+                 n_processes=5, file_manager=None, use_peptide_mass_filter=True):
         if file_manager is None:
             file_manager = TempFileManager()
         if adducts is None:
@@ -444,6 +472,8 @@ class GlycopeptideDatabaseSearchIdentifier(TaskBase):
         self.scan_id_to_rt = scan_id_to_rt
         self.minimum_oxonium_ratio = minimum_oxonium_ratio
         self.adducts = adducts
+        self.use_peptide_mass_filter = use_peptide_mass_filter
+        self._peptide_mass_filter = None
         self.scan_transformer = scan_transformer
 
         self.n_processes = n_processes
@@ -458,7 +488,8 @@ class GlycopeptideDatabaseSearchIdentifier(TaskBase):
             minimum_oxonium_ratio=self.minimum_oxonium_ratio,
             n_processes=self.n_processes,
             ipc_manager=self.ipc_manager,
-            mass_shifts=self.adducts)
+            mass_shifts=self.adducts,
+            peptide_mass_filter=self._peptide_mass_filter)
         return evaluator
 
     def prepare_scan_set(self, scan_set):
@@ -490,6 +521,14 @@ class GlycopeptideDatabaseSearchIdentifier(TaskBase):
                 continue
         return out, unconfirmed_precursors
 
+    def _make_peptide_mass_filter(self, error_tolerance=1e-5):
+        hypothesis_id = self.structure_database.hypothesis_id
+        glycan_combination_list = GlycanCombinationRecord.from_hypothesis(
+            self.structure_database.session, hypothesis_id)
+        peptide_filter = GlycanFilteringPeptideMassEstimator(
+            glycan_combination_list, product_error_tolerance=error_tolerance)
+        return peptide_filter
+
     def search(self, precursor_error_tolerance=1e-5, simplify=True, chunk_size=500, limit=None, *args, **kwargs):
         # target_hits = []
         # decoy_hits = []
@@ -501,6 +540,9 @@ class GlycopeptideDatabaseSearchIdentifier(TaskBase):
 
         if limit is None:
             limit = float('inf')
+        if self.use_peptide_mass_filter:
+            self._peptide_mass_filter = self._make_peptide_mass_filter(
+                kwargs.get("error_tolerance", 1e-5))
 
         self.log("Writing Matches To %r" % (self.file_manager,))
         for scan_collection in chunkiter(self.tandem_scans, chunk_size):

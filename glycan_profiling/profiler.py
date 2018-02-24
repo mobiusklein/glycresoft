@@ -503,7 +503,7 @@ class GlycopeptideLCMSMSAnalyzer(TaskBase):
                  msn_mass_error_tolerance=2e-5, psm_fdr_threshold=0.05, peak_shape_scoring_model=None,
                  tandem_scoring_model=None, minimum_mass=1000., save_unidentified=False,
                  oxonium_threshold=0.05, scan_transformer=None, adducts=None, n_processes=5,
-                 spectra_chunk_size=1000):
+                 spectra_chunk_size=1000, use_peptide_mass_filter=False):
         if tandem_scoring_model is None:
             tandem_scoring_model = CoverageWeightedBinomialScorer
         if peak_shape_scoring_model is None:
@@ -534,6 +534,7 @@ class GlycopeptideLCMSMSAnalyzer(TaskBase):
         self.scan_transformer = scan_transformer
         self.n_processes = n_processes
         self.spectra_chunk_size = spectra_chunk_size
+        self.use_peptide_mass_filter = use_peptide_mass_filter
 
     def make_peak_loader(self):
         peak_loader = DatabaseScanDeserializer(
@@ -563,7 +564,8 @@ class GlycopeptideLCMSMSAnalyzer(TaskBase):
             minimum_oxonium_ratio=self.minimum_oxonium_ratio,
             scan_transformer=self.scan_transformer,
             n_processes=self.n_processes,
-            adducts=self.adducts)
+            adducts=self.adducts,
+            use_peptide_mass_filter=self.use_peptide_mass_filter)
         return searcher
 
     def do_search(self, searcher):
@@ -668,6 +670,8 @@ class GlycopeptideLCMSMSAnalyzer(TaskBase):
             "grouping_error_tolerance": self.grouping_error_tolerance,
             "psm_fdr_threshold": self.psm_fdr_threshold,
             "minimum_mass": self.minimum_mass,
+            "use_peptide_mass_filter": self.use_peptide_mass_filter,
+            "adducts": self.adducts
         })
 
         analysis_saver.save_glycopeptide_identification_set(identified_glycopeptides)
@@ -694,7 +698,7 @@ class MzMLGlycopeptideLCMSMSAnalyzer(GlycopeptideLCMSMSAnalyzer):
                  msn_mass_error_tolerance=2e-5, psm_fdr_threshold=0.05, peak_shape_scoring_model=None,
                  tandem_scoring_model=None, minimum_mass=1000., save_unidentified=False,
                  oxonium_threshold=0.05, scan_transformer=None, adducts=None,
-                 n_processes=5, spectra_chunk_size=1000):
+                 n_processes=5, spectra_chunk_size=1000, use_peptide_mass_filter=False):
         super(MzMLGlycopeptideLCMSMSAnalyzer, self).__init__(
             database_connection,
             hypothesis_id, -1,
@@ -703,8 +707,8 @@ class MzMLGlycopeptideLCMSMSAnalyzer(GlycopeptideLCMSMSAnalyzer):
             psm_fdr_threshold, peak_shape_scoring_model,
             tandem_scoring_model, minimum_mass,
             save_unidentified, oxonium_threshold,
-            scan_transformer, adducts,
-            n_processes, spectra_chunk_size)
+            scan_transformer, adducts, n_processes, spectra_chunk_size,
+            use_peptide_mass_filter)
         self.sample_path = sample_path
         self.output_path = output_path
 
@@ -751,6 +755,8 @@ class MzMLGlycopeptideLCMSMSAnalyzer(GlycopeptideLCMSMSAnalyzer):
             "grouping_error_tolerance": self.grouping_error_tolerance,
             "psm_fdr_threshold": self.psm_fdr_threshold,
             "minimum_mass": self.minimum_mass,
+            "adducts": self.adducts,
+            "use_peptide_mass_filter": self.use_peptide_mass_filter
         })
 
         self.analysis = exporter.analysis

@@ -325,6 +325,7 @@ class GlycopeptideDiskBackedStructureDatabase(DeclarativeDiskBackedDatabase):
         Glycopeptide.__table__.c.protein_id,
         Peptide.__table__.c.start_position,
         Peptide.__table__.c.end_position,
+        Peptide.__table__.c.calculated_mass.label("peptide_mass"),
         Glycopeptide.__table__.c.hypothesis_id,
     ]
     mass_field = Glycopeptide.__table__.c.calculated_mass

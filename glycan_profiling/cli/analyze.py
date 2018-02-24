@@ -101,6 +101,9 @@ def sample_path(fn):
 @click.option("-a", "--adduct", 'adducts', multiple=True, nargs=2,
               help=("Adducts to consider. Specify name or formula, and a"
                     " multiplicity."))
+@click.option("-f", "--use-peptide-mass-filter", is_flag=True, help=(
+        "Filter putative spectrum matches by estimating the peptide backbone mass "
+        "from the precursor mass and stub glycopeptide signature ions"))
 @processes_option
 @click.option("--export", type=click.Choice(
               ['csv', 'html']), multiple=True,
@@ -113,9 +116,9 @@ def sample_path(fn):
 def search_glycopeptide(context, database_connection, sample_path, hypothesis_identifier,
                         analysis_name, output_path=None, grouping_error_tolerance=1.5e-5, mass_error_tolerance=1e-5,
                         msn_mass_error_tolerance=2e-5, psm_fdr_threshold=0.05, peak_shape_scoring_model=None,
-                        tandem_scoring_model=None, oxonium_threshold=0.15,
-                        save_intermediate_results=None, processes=4,
-                        workload_size=500, adducts=None, export=None):
+                        tandem_scoring_model=None, oxonium_threshold=0.15, save_intermediate_results=None,
+                        processes=4, workload_size=500, adducts=None, export=None,
+                        use_peptide_mass_filter=False):
     """Identify glycopeptide sequences from processed LC-MS/MS data
     """
     if output_path is None:
@@ -170,7 +173,8 @@ def search_glycopeptide(context, database_connection, sample_path, hypothesis_id
         oxonium_threshold=oxonium_threshold,
         n_processes=processes,
         spectra_chunk_size=workload_size,
-        adducts=adducts)
+        adducts=adducts,
+        use_peptide_mass_filter=use_peptide_mass_filter)
     analyzer.display_header()
     gps, unassigned, target_hits, decoy_hits = analyzer.start()
     if save_intermediate_results is not None:
