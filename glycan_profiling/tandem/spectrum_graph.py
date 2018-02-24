@@ -226,22 +226,23 @@ class GraphBase(object):
             # Check for incoming edges. If no incoming
             # edges, add to the waiting set
             if adjacency_matrix[:, i].sum() == 0:
-                waiting.add(self[i])
+                waiting.add(i)
 
         ordered = list()
         while waiting:
-            node = waiting.pop()
+            ix = waiting.pop()
+            node = self[ix]
             ordered.append(node)
             # Get the set of outgoing edge terminal indices
-            outgoing_edges = adjacency_matrix[node.index, :]
+            outgoing_edges = adjacency_matrix[ix, :]
             indices_of_neighbors = np.nonzero(outgoing_edges)[0]
             # For each outgoing edge
             for neighbor_ix in indices_of_neighbors:
                 # Remove the edge
-                adjacency_matrix[node.index, neighbor_ix] = 0
+                adjacency_matrix[ix, neighbor_ix] = 0
                 # Test for incoming edges
                 if (adjacency_matrix[:, neighbor_ix] == 0).all():
-                    waiting.add(self[neighbor_ix])
+                    waiting.add(neighbor_ix)
         if adjacency_matrix.sum() > 0:
             raise ValueError("%d edges left over" % (adjacency_matrix.sum(),))
         else:
@@ -251,8 +252,12 @@ class GraphBase(object):
         adjacency_matrix = self.adjacency_matrix()
         distances = np.zeros(len(self))
         for node in self.topological_sort():
-            longest_path_so_far = adjacency_matrix[:, node.index].max()
-            distances[node.index] = longest_path_so_far + 1
+            incoming_edges = np.nonzero(adjacency_matrix[:, node.index])[0]
+            if incoming_edges.shape[0] == 0:
+                distances[node.index] = 0
+            else:
+                longest_path_so_far = distances[incoming_edges].max()
+                distances[node.index] = longest_path_so_far + 1
         return distances
 
     def connected_components(self):
@@ -286,6 +291,7 @@ class PeakGraph(GraphBase):
     def __init__(self, peak_set):
         GraphBase.__init__(self)
         self.peak_set = peak_set.clone()
+        self.peak_set.reindex()
         self.nodes = [PeakNode(p) for p in self.peak_set]
 
     def add_edges(self, blocks, error_tolerance=1e-5):
