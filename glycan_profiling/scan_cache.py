@@ -22,7 +22,6 @@ from ms_deisotope.output.db import (
     DeconvolutedPeak, DatabaseBoundOperation,
     MSScan)
 
-from glycan_profiling.piped_deconvolve import ScanGeneratorBase
 
 from glycan_profiling.task import log_handle, TaskBase
 
@@ -374,12 +373,6 @@ class ThreadedMzMLScanCacheHandler(MzMLScanCacheHandler):
                 if next_bunch == DONE:
                     has_work = False
                     continue
-                # log_handle.log("Writing %s %f (%d, %d)" % (
-                #     next_bunch[0].id,
-                #     next_bunch[0].scan_time,
-                #     len(next_bunch[0].deconvoluted_peak_set) + sum(
-                #         [len(p.deconvoluted_peak_set) for p in next_bunch[1]]),
-                #     self.queue.qsize()))
                 self._save_bunch(*next_bunch)
                 if self.queue.qsize() > 0:
                     current_work = drain_queue()
@@ -388,12 +381,6 @@ class ThreadedMzMLScanCacheHandler(MzMLScanCacheHandler):
                         if next_bunch == DONE:
                             has_work = False
                         else:
-                            # log_handle.log("Writing %s %f (%d, %d)" % (
-                            #     next_bunch[0].id,
-                            #     next_bunch[0].scan_time,
-                            #     len(next_bunch[0].deconvoluted_peak_set) + sum(
-                            #         [len(p.deconvoluted_peak_set) for p in next_bunch[1]]),
-                            #     self.queue.qsize()))
                             self._save_bunch(*next_bunch)
                             i += 1
             except QueueEmptyException:
