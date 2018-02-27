@@ -56,11 +56,14 @@ class GlycopeptideDatabaseSearchReportCreator(ReportCreatorBase):
         self.mzml_path = mzml_path
         self.scan_loader = None
         self.threshold = threshold
+        self.use_dynamic_display_mode = False
         self.analysis = self.session.query(serialize.Analysis).get(self.analysis_id)
         self._resolve_hypothesis_id()
         self._build_protein_index()
         self._make_scan_loader()
         self._glycopeptide_counter = 0
+        if len(self.protein_index) > 10:
+            self.use_dynamic_display_mode = True
 
     def _resolve_hypothesis_id(self):
         self.hypothesis_id = self.analysis.hypothesis_id
@@ -133,7 +136,7 @@ class GlycopeptideDatabaseSearchReportCreator(ReportCreatorBase):
             self.status_update(
                 "Processing %s (%d/%d) %0.2f%%" % (
                     protein.name, i, n, (i / n * 100)))
-            yield glycoprotein
+            yield i, glycoprotein
 
     def site_specific_abundance_plots(self, glycoprotein):
         axes = OrderedDict()
@@ -157,9 +160,6 @@ class GlycopeptideDatabaseSearchReportCreator(ReportCreatorBase):
         layout = GlycoformLayout(glycoprotein, glycoprotein.identified_glycopeptides, ax=ax)
         layout.draw()
         svg = layout.to_svg(scale=2.0, height_padding_scale=1.1)
-        # svg = plot_glycoforms_svg(
-        #     glycoprotein, glycoprotein.identified_glycopeptides, ax=ax,
-        #     margin_left=85, margin_top=0, height_padding_scale=1.1)
         return svg
 
     def chromatogram_plot(self, glycopeptide):
@@ -268,6 +268,7 @@ class GlycopeptideDatabaseSearchReportCreator(ReportCreatorBase):
             sample_run=sample_run,
             protein_index=self.protein_index,
             glycoprotein_iterator=self.iterglycoproteins(),
-            renderer=self,)
+            renderer=self,
+            use_dynamic_display_mode=False)
 
         return template_stream

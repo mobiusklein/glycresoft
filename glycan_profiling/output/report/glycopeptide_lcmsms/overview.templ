@@ -59,13 +59,20 @@
         </table>
     </section>
     <section id='glycoprotein-detail-list'>
-        {% for glycoprotein in glycoprotein_iterator %}
-            <div class='glycoprotein-entry-detail' id='detail-glycoprotein-{{glycoprotein.id}}'>
+        {% for i, glycoprotein in glycoprotein_iterator %}
+            <div class='glycoprotein-entry-detail' id='detail-glycoprotein-{{glycoprotein.id}}'
+            {% if use_dynamic_display_mode and i > 0 %}
+                 style='display: none;'
+            {% endif %}
+            >
                 <section>
                 {% include "protein-heading.templ" %}
-                <div class='glycoform-pileup-container'>
-                    {{renderer.draw_glycoforms(glycoprotein)}}
-                </div>
+
+                {% if not use_dynamic_display_mode or (use_dynamic_display_mode and glycoprotein.identified_glycopeptides|length > 1) %}
+                    <div class='glycoform-pileup-container'>
+                        {{renderer.draw_glycoforms(glycoprotein)}}
+                    </div>
+                {% endif %}
                 {% include "glycopeptide-table.templ" %}
                 <div class='flex-container plot-grid'>
                 {% for site_type, axis in renderer.site_specific_abundance_plots(glycoprotein).items() %}
