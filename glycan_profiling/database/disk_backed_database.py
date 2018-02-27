@@ -170,7 +170,9 @@ class DiskBackedStructureDatabaseBase(SearchableMassCollection, DatabaseBoundOpe
     def make_memory_interval(self, mass, error=None):
         if error is None:
             error = self.loading_interval
+        logger.debug("Querying the database for mass %f with error %r", mass, error)
         out = self.search_mass(mass, error)
+        logger.debug("Retrieved %d records", len(out))
         self.on_memory_interval(mass, out)
         return NeutralMassDatabase(out, operator.attrgetter("calculated_mass"))
 
