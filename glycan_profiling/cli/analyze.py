@@ -102,8 +102,8 @@ def sample_path(fn):
               help=("Adducts to consider. Specify name or formula, and a"
                     " multiplicity."))
 @click.option("-f", "--use-peptide-mass-filter", is_flag=True, help=(
-        "Filter putative spectrum matches by estimating the peptide backbone mass "
-        "from the precursor mass and stub glycopeptide signature ions"))
+    "Filter putative spectrum matches by estimating the peptide backbone mass "
+    "from the precursor mass and stub glycopeptide signature ions"))
 @processes_option
 @click.option("--export", type=click.Choice(
               ['csv', 'html']), multiple=True,
