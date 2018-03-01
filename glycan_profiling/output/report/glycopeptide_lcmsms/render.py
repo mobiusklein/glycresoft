@@ -56,14 +56,14 @@ class GlycopeptideDatabaseSearchReportCreator(ReportCreatorBase):
         self.mzml_path = mzml_path
         self.scan_loader = None
         self.threshold = threshold
-        self.use_dynamic_display_mode = False
+        self.use_dynamic_display_mode = 0
         self.analysis = self.session.query(serialize.Analysis).get(self.analysis_id)
         self._resolve_hypothesis_id()
         self._build_protein_index()
         self._make_scan_loader()
         self._glycopeptide_counter = 0
         if len(self.protein_index) > 10:
-            self.use_dynamic_display_mode = True
+            self.use_dynamic_display_mode = 1
 
     def _resolve_hypothesis_id(self):
         self.hypothesis_id = self.analysis.hypothesis_id
@@ -261,7 +261,8 @@ class GlycopeptideDatabaseSearchReportCreator(ReportCreatorBase):
 
         hypothesis = ads.analysis.hypothesis
         sample_run = ads.analysis.sample_run
-
+        if self.use_dynamic_display_mode:
+            self.status_update("Using dynamic display mode")
         template_stream = template_obj.stream(
             analysis=ads.analysis,
             hypothesis=hypothesis,
@@ -269,6 +270,6 @@ class GlycopeptideDatabaseSearchReportCreator(ReportCreatorBase):
             protein_index=self.protein_index,
             glycoprotein_iterator=self.iterglycoproteins(),
             renderer=self,
-            use_dynamic_display_mode=False)
+            use_dynamic_display_mode=self.use_dynamic_display_mode)
 
         return template_stream
