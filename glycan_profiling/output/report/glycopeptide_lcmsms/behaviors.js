@@ -71,7 +71,10 @@ function initViewer(scope) {
     scope.displayPanel = document.querySelector(displayPanelSelector)
     if (useDynamicDisplayMode) {
         activateDynamicDisplayMode(scope)
+        let detailEntries = document.querySelectorAll(".glycoprotein-entry-detail")
+        detailEntries[0].style.display = 'block'
     }
+
     function querySelectorAll(selector) {
         return Array.from(document.querySelectorAll(selector))
     }

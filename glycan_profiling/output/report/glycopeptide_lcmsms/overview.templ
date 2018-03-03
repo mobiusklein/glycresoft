@@ -61,10 +61,11 @@
     <section id='glycoprotein-detail-list'>
         {% for i, glycoprotein in glycoprotein_iterator %}
             <div class='glycoprotein-entry-detail' id='detail-glycoprotein-{{glycoprotein.id}}'
-            {% if use_dynamic_display_mode and i > 0 %}
-                 style='display: none;'
-            {% endif %}
-            >
+                 data-glycoprotein-index="{{i}}"
+                {% if use_dynamic_display_mode and i > 0 %}
+                     style='display: none;'
+                {% endif %}
+                >
                 <section>
                 {% include "protein-heading.templ" %}
 

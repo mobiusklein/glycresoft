@@ -168,18 +168,22 @@ class GlycopeptideLCMSMSAnalysisCSVSerializer(CSVSerializerBase):
         ]
 
     def convert_object(self, obj):
+        try:
+            weighted_neutral_mass = obj.weighted_neutral_mass
+        except Exception:
+            weighted_neutral_mass = obj.tandem_solutions[0].scan.precursor_information.neutral_mass
         attribs = [
             str(obj.structure),
-            obj.weighted_neutral_mass,
-            ((obj.structure.total_mass - obj.weighted_neutral_mass
-              ) / obj.weighted_neutral_mass),
+            weighted_neutral_mass,
+            ((obj.structure.total_mass - weighted_neutral_mass
+              ) / weighted_neutral_mass),
             obj.ms1_score,
             obj.ms2_score,
             obj.q_value,
             obj.total_signal,
-            obj.start_time,
-            obj.end_time,
-            obj.apex_time,
+            obj.start_time if obj.chromatogram else '',
+            obj.end_time if obj.chromatogram else '',
+            obj.apex_time if obj.chromatogram else '',
             ";".join(map(str, obj.charge_states)),
             len(obj.spectrum_matches),
             obj.protein_relation.start_position,
@@ -199,6 +203,7 @@ class GlycopeptideSpectrumMatchAnalysisCSVSerializer(CSVSerializerBase):
             "glycopeptide",
             "neutral_mass",
             "mass_accuracy",
+            "mass_shift_name"
             "scan_id",
             "scan_time",
             "charge",
@@ -212,11 +217,16 @@ class GlycopeptideSpectrumMatchAnalysisCSVSerializer(CSVSerializerBase):
 
     def convert_object(self, obj):
         precursor_mass = obj.scan.precursor_information.extracted_neutral_mass
+        try:
+            mass_shift_name = obj.mass_shift.name
+        except Exception:
+            mass_shift_name = "Unmodified"
         attribs = [
             str(obj.target),
             precursor_mass,
             ((obj.target.total_mass - precursor_mass
               ) / precursor_mass),
+            mass_shift_name,
             obj.scan.scan_id,
             obj.scan.scan_time,
             obj.scan.precursor_information.extracted_charge,
