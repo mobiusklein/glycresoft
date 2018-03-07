@@ -68,7 +68,7 @@ class NearestValueLookUp(object):
     def __getitem__(self, key):
         ix = self._find_closest_item(key)
         ix += 1
-        if ix > len(self):
+        if ix >= len(self):
             ix = len(self) - 1
         try:
             pair = self.items[ix]
