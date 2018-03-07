@@ -46,6 +46,13 @@ class FragmentMatchMap(object):
             self.by_fragment[peak.fragment].append(peak.peak)
             self.by_peak[peak.peak].append(peak.fragment)
 
+    def pairs_by_name(self, name):
+        pairs = []
+        for pair in self:
+            if pair.fragment_name == name:
+                pairs.append(pair)
+        return pairs
+
     def fragments_for(self, peak):
         return self.by_peak[peak]
 

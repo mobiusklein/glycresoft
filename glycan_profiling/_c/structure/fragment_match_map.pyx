@@ -28,7 +28,15 @@ cdef class PeakFragmentPair(object):
         self._hash = hash(self.peak)
 
     def __eq__(self, other):
-        return (self.peak == other.peak) and (self.fragment_name == other.fragment_name)
+        if other is None:
+            return False
+        if not isinstance(self, PeakFragmentPair):
+            return False
+        return (self.peak == (<PeakFragmentPair>other).peak) and (
+            self.fragment_name == (<PeakFragmentPair>other).fragment_name)
+
+    def __ne__(self, other):
+        return not (self == other)
 
     def __hash__(self):
         return self._hash

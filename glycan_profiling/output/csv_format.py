@@ -172,6 +172,10 @@ class GlycopeptideLCMSMSAnalysisCSVSerializer(CSVSerializerBase):
             weighted_neutral_mass = obj.weighted_neutral_mass
         except Exception:
             weighted_neutral_mass = obj.tandem_solutions[0].scan.precursor_information.neutral_mass
+        try:
+            charge_states = obj.charge_states
+        except Exception:
+            charge_states = (obj.tandem_solutions[0].scan.precursor_information.charge)
         attribs = [
             str(obj.structure),
             weighted_neutral_mass,
@@ -184,7 +188,7 @@ class GlycopeptideLCMSMSAnalysisCSVSerializer(CSVSerializerBase):
             obj.start_time if obj.chromatogram else '',
             obj.end_time if obj.chromatogram else '',
             obj.apex_time if obj.chromatogram else '',
-            ";".join(map(str, obj.charge_states)),
+            ";".join(map(str, charge_states)),
             len(obj.spectrum_matches),
             obj.protein_relation.start_position,
             obj.protein_relation.end_position,
