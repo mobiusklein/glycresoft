@@ -2,6 +2,15 @@ import re
 import logging
 from lxml.etree import LxmlError
 from pyteomics import mzid
+from pyteomics.xml import (
+    unitint, unitfloat, unitstr)
+
+try:
+    from pyteomics.xml import cvstr
+except ImportError:
+    def cvstr(x, *a, **kw):
+        return str(x)
+
 
 logger = logging.getLogger("mzid")
 
@@ -93,6 +102,29 @@ class Parser(MzIdentML):
         info = MultipleProteinInfoDict(info)
         info.multi = multi
         return info, multi
+
+    def _handle_param(self, element, **kwargs):
+        """Unpacks cvParam and userParam tags into key-value pairs"""
+        types = {'int': unitint, 'float': unitfloat, 'string': unitstr}
+        attribs = element.attrib
+        unit_info = None
+        unit_accesssion = None
+        if 'unitCvRef' in attribs or 'unitName' in attribs:
+            unit_accesssion = attribs.get('unitAccession')
+            unit_name = attribs.get("unitName", unit_accesssion)
+            unit_info = unit_name
+        accession = attribs.get("accession")
+        if 'value' in attribs and attribs['value'] != '':
+            try:
+                if attribs.get('type') in types:
+                    value = types[attribs['type']](attribs['value'], unit_info)
+                else:
+                    value = unitfloat(attribs['value'], unit_info)
+            except ValueError:
+                value = unitstr(attribs['value'], unit_info)
+            return {cvstr(attribs['name'], accession, unit_accesssion): value}
+        else:
+            return {'name': cvstr(attribs['name'], accession, unit_accesssion)}
 
     def _find_by_id_reset(self, *a, **kw):
         return MzIdentML._find_by_id_reset(self, *a, **kw)

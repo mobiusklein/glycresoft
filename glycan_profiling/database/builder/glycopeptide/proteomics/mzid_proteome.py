@@ -27,6 +27,7 @@ PeptideSequence = sequence.PeptideSequence
 Residue = residue.Residue
 Modification = modification.Modification
 ModificationNameResolutionError = modification.ModificationNameResolutionError
+AnonymousModificationRule = modification.AnonymousModificationRule
 
 GT = "greater"
 LT = "lesser"
@@ -35,7 +36,8 @@ PROTEOMICS_SCORE = {
     "PEAKS:peptideScore": GT,
     "mascot:score": GT,
     "PEAKS:proteinScore": GT,
-    "MS-GF:EValue": LT
+    "MS-GF:EValue": LT,
+    "Byonic:Score": GT
 }
 
 
@@ -294,6 +296,34 @@ class MzIdentMLPeptide(object):
                 self.peptide_sequence.substitute(pos, replace)
                 self.modification_counter += 1
 
+    def add_modification(self, modification, position):
+        if position == -1:
+            targets = modification.rule.n_term_targets
+            for t in targets:
+                if t.position_modifier is not None and t.amino_acid_targets is None:
+                    break
+            else:
+                position += 1
+        if position == len(self.peptide_sequence):
+            targets = modification.rule.c_term_targets
+            for t in targets:
+                if t.position_modifier is not None and t.amino_acid_targets is None:
+                    break
+            else:
+                position -= 1
+        if position == -1:
+            self.peptide_sequence.n_term = modification
+        elif position == len(self.peptide_sequence):
+            self.peptide_sequence.c_term = modification
+        else:
+            self.peptide_sequence.add_modification(position, modification)
+
+    def add_insertion(self, site, symbol=None):
+        self.insert_sites.append((site, symbol))
+
+    def add_deletion(self, site, symbol):
+        self.deleteion_sites.append((site, symbol))
+
     def handle_modifications(self):
         if "Modification" in self.peptide_dict:
             mods = self.peptide_dict["Modification"]
@@ -324,26 +354,7 @@ class MzIdentMLPeptide(object):
                     except KeyError:
                         self.modification_counter += 1
 
-                    if pos == -1:
-                        targets = modification.rule.n_term_targets
-                        for t in targets:
-                            if t.position_modifier is not None and t.amino_acid_targets is None:
-                                break
-                        else:
-                            pos += 1
-                    if pos == len(self.peptide_sequence):
-                        targets = modification.rule.c_term_targets
-                        for t in targets:
-                            if t.position_modifier is not None and t.amino_acid_targets is None:
-                                break
-                        else:
-                            pos -= 1
-                    if pos == -1:
-                        self.peptide_sequence.n_term = modification
-                    elif pos == len(self.peptide_sequence):
-                        self.peptide_sequence.c_term = modification
-                    else:
-                        self.peptide_sequence.add_modification(pos, modification)
+                    self.add_modification(modification, pos)
                 except KeyError:
                     if "unknown modification" in mod:
                         mod_description = mod["unknown modification"]
@@ -351,10 +362,14 @@ class MzIdentMLPeptide(object):
                         deletion = re.search(r"(\S{3})\sdeletion", mod_description)
                         self.modification_counter += 1
                         if insertion:
-                            self.insert_sites.append((mod['location'] - 1, None))
+                            self.add_insertion(mod['location'] - 1, None)
                         elif deletion:
                             sym = Residue(deletion.groups()[0]).symbol
-                            self.deleteion_sites.append((mod['location'] - 1, sym))
+                            self.add_deletion(mod['location'] - 1, sym)
+                        elif 'monoisotopicMassDelta' in mod:
+                            mass = float(mod['monoisotopicMassDelta'])
+                            modification = AnonymousModificationRule(_name, mass)()
+                            self.add_modification(modification, pos)
                         else:
                             raise
                     else:
@@ -629,7 +644,13 @@ class MzIdentMLProteomeExtraction(TaskBase):
             # It's a standard enzyme, so we can look it up by name
             if "EnzymeName" in enz:
                 try:
-                    protease = ParameterizedProtease(enz['EnzymeName'].lower(), permitted_missed_cleavages)
+                    enz_name = enz['EnzymeName']
+                    if isinstance(enz_name, dict):
+                        if len(enz_name) == 1:
+                            enz_name = list(enz_name)[0]
+                        else:
+                            raise ValueError("Could not interpret Enzyme Name %r" % (enz,))
+                    protease = ParameterizedProtease(enz_name.lower(), permitted_missed_cleavages)
                     processed_enzymes.append(protease)
                 except (KeyError, re.error) as e:
                     self.log("Could not resolve protease from name %r (%s)" % (enz['EnzymeName'].lower(), e))
