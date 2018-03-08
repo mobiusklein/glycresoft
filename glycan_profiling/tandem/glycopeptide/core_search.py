@@ -1,4 +1,4 @@
-from collections import Sequence
+from collections import Sequence, defaultdict
 
 import numpy as np
 
@@ -97,102 +97,113 @@ class CoreMotifFinder(object):
                         graph.add(peak, other_peak, component)
         return graph
 
-    def _init_paths(self, graph):
+    def _init_paths(self, graph, limit=5000):
         paths = []
         min_start_mass = max(c.mass() for c in self.components) + 1
-        for path in graph.longest_paths():
+        for path in graph.longest_paths(limit=limit):
             path = Path(path)
             if path.start_mass < min_start_mass:
                 continue
             paths.append(path)
         return paths
 
-    def find_n_linked_core(self, paths, min_size=1):
+    def _aggregate_paths(self, paths):
+        groups = defaultdict(list)
+        for path in paths:
+            label = tuple(p.annotation for p in path)
+            groups[label].append(path)
+        return groups
+
+    def find_n_linked_core(self, groups, min_size=1):
         sequence = [hexnac, hexnac, hexose, hexose, hexose]
         expected_n = len(sequence)
         terminals = dict()
 
-        for path in paths:
-            path_i = 0
+        for label, paths in groups.items():
+            label_i = 0
             expected_i = 0
-            path_n = len(path)
-            while path_i < path_n and expected_i < expected_n:
-                edge = path[path_i]
-                path_i += 1
+            path_n = len(label)
+            while label_i < path_n and expected_i < expected_n:
+                edge = label[label_i]
+                label_i += 1
                 expected = sequence[expected_i]
-                if expected == edge.annotation:
+                if expected == edge:
                     expected_i += 1
-                elif edge.annotation == fucose:
+                elif edge == fucose:
                     continue
                 else:
                     break
             if expected_i >= min_size:
-                last_path = terminals.get(path[0].start)
-                if last_path is None:
-                    terminals[path[0].start] = path
-                else:
-                    terminals[path[0].start] = max((path, last_path), key=lambda x: x.total_signal)
+                for path in paths:
+                    last_path = terminals.get(path[0].start)
+                    if last_path is None:
+                        terminals[path[0].start] = path
+                    else:
+                        terminals[path[0].start] = max((path, last_path), key=lambda x: x.total_signal)
         return PathSet(terminals.values())
 
-    def find_o_linked_core(self, paths, min_size=1):
+    def find_o_linked_core(self, groups, min_size=1):
         sequence = [(hexnac, hexose), (hexnac, hexose, fucose, neuac), (hexnac, hexose, fucose, neuac)]
         expected_n = len(sequence)
         terminals = dict()
 
-        for path in paths:
-            path_i = 0
+        for label, paths in groups.items():
+            label_i = 0
             expected_i = 0
-            path_n = len(path)
-            while path_i < path_n and expected_i < expected_n:
-                edge = path[path_i]
-                path_i += 1
+            path_n = len(label)
+            while label_i < path_n and expected_i < expected_n:
+                edge = label[label_i]
+                label_i += 1
                 expected = sequence[expected_i]
-                if edge.annotation in expected:
+                if edge in expected:
                     expected_i += 1
                 else:
                     break
             if expected_i >= min_size:
-                last_path = terminals.get(path[0].start)
-                if last_path is None:
-                    terminals[path[0].start] = path
-                else:
-                    terminals[path[0].start] = max((path, last_path), key=lambda x: x.total_signal)
+                for path in paths:
+                    last_path = terminals.get(path[0].start)
+                    if last_path is None:
+                        terminals[path[0].start] = path
+                    else:
+                        terminals[path[0].start] = max((path, last_path), key=lambda x: x.total_signal)
         return PathSet(terminals.values())
 
-    def find_gag_linker_core(self, paths, min_size=1):
+    def find_gag_linker_core(self, groups, min_size=1):
         sequence = [xylose, hexose, hexose, ]
         expected_n = len(sequence)
         terminals = dict()
 
-        for path in paths:
-            path_i = 0
+        for label, paths in groups.items():
+            label_i = 0
             expected_i = 0
-            path_n = len(path)
-            while path_i < path_n and expected_i < expected_n:
-                edge = path[path_i]
-                path_i += 1
+            path_n = len(label)
+            while label_i < path_n and expected_i < expected_n:
+                edge = label[label_i]
+                label_i += 1
                 expected = sequence[expected_i]
-                if expected == edge.annotation:
+                if expected == edge:
                     expected_i += 1
-                elif edge.annotation == fucose:
+                elif edge == fucose:
                     continue
                 else:
                     break
             if expected_i >= min_size:
-                last_path = terminals.get(path[0].start)
-                if last_path is None:
-                    terminals[path[0].start] = path
-                else:
-                    terminals[path[0].start] = max((path, last_path), key=lambda x: x.total_signal)
+                for path in paths:
+                    last_path = terminals.get(path[0].start)
+                    if last_path is None:
+                        terminals[path[0].start] = path
+                    else:
+                        terminals[path[0].start] = max((path, last_path), key=lambda x: x.total_signal)
         return PathSet(terminals.values())
 
     def estimate_peptide_mass(self, scan, topn=100, mass_shift=Unmodified):
         graph = self._find_edges(scan, mass_shift=mass_shift)
         paths = self._init_paths(graph)
+        groups = self._aggregate_paths(paths)
 
-        n_linked_paths = self.find_n_linked_core(paths)
-        o_linked_paths = self.find_o_linked_core(paths)
-        gag_linker_paths = self.find_gag_linker_core(paths)
+        n_linked_paths = self.find_n_linked_core(groups)
+        o_linked_paths = self.find_o_linked_core(groups)
+        gag_linker_paths = self.find_gag_linker_core(groups)
         peptide_masses = []
 
         # TODO: split the different motif masses up according to core type efficiently

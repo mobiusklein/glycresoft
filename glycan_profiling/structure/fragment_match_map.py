@@ -296,13 +296,16 @@ class SpectrumGraph(object):
                 keep.append(path)
         return sorted(keep, key=len, reverse=True)
 
-    def longest_paths(self):
+    def longest_paths(self, limit=-1):
         # get all distinct paths
         paths = []
         for ix in np.nonzero(self.path_lengths())[0]:
             paths.extend(self.paths_ending_at(ix))
-        # remove redundant paths
-        paths = self.transitive_closure(paths)
+            # remove redundant paths
+            paths = self.transitive_closure(paths)
+            if limit > 0:
+                if len(paths) > limit:
+                    break
         return paths
 
 

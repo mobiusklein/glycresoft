@@ -592,7 +592,7 @@ class GlycopeptideDatabaseSearchIdentifier(TaskBase):
             if i % 5000 == 0:
                 self.log("Loaded %d/%d Decoys (%0.3g%%)" % (i, decoy_count, (100. * i / decoy_count)))
             decoy_hits.append(solset)
-        self.spectrum_match_store.clear()
+        # self.spectrum_match_store.clear()
         return target_hits, decoy_hits
 
     def target_decoy(self, target_hits, decoy_hits, with_pit=False, *args, **kwargs):

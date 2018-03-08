@@ -73,7 +73,7 @@ class SpectrumMatchAnnotator(object):
         except AttributeError:
             return
 
-        paths = graph.longest_paths()
+        paths = graph.longest_paths(limit=1000)
 
         for path in paths:
             for edge in path:
