@@ -273,6 +273,7 @@ cdef class SpectrumGraph(object):
         paths = []
         for ix in np.nonzero(self.path_lengths())[0]:
             paths.extend(self.paths_ending_at(ix))
-        # remove redundant paths
-        paths = self.transitive_closure(paths)
+            # remove redundant paths
+            paths = self.transitive_closure(paths)
+        # paths = self.transitive_closure(paths)
         return paths

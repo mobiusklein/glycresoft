@@ -14,7 +14,13 @@ class TempFileManager(object):
         if base_directory is None:
             base_directory = tempfile.mkdtemp("glycresoft"[::-1])
         else:
-            os.makedirs(base_directory)
+            try:
+                os.makedirs(base_directory)
+            except OSError:
+                if os.path.exists(base_directory) and os.path.isdir(base_directory):
+                    pass
+                else:
+                    raise
         self.base_directory = base_directory
         self.cache = {}
 
@@ -34,7 +40,7 @@ class TempFileManager(object):
         shutil.rmtree(self.base_directory)
 
     def __repr__(self):
-        return "TempFileManager(%s)" % self.base_directory
+        return "TempFileManager(%r)" % self.base_directory
 
 
 class FileWrapperBase(object):
@@ -66,7 +72,7 @@ class SpectrumSolutionSetWriter(FileWrapperBase):
             self.manager.put_mass_shift(spectrum_match.mass_shift)
             values.append(spectrum_match.target.id)
             values.append(spectrum_match.score)
-            values.append(spectrum_match.best_match)
+            values.append(int(spectrum_match.best_match))
             values.append(spectrum_match.mass_shift.name)
 
         self.writer.writerow(list(map(str, values)))
@@ -114,7 +120,10 @@ class SpectrumSolutionSetReader(FileWrapperBase):
         while i < n:
             target_id = int(row[i])
             score = float(row[i + 1])
-            best_match = bool(row[i + 2])
+            try:
+                best_match = bool(int(row[i + 2]))
+            except ValueError:
+                best_match = bool(row[i + 2])
             mass_shift_name = row[i + 3]
             mass_shift = self.manager.get_mass_shift(mass_shift_name)
             match = SpectrumMatch(

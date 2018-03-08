@@ -47,11 +47,17 @@ def make_extensions():
             Extension(name='glycan_profiling._c.structure.fragment_match_map',
                       sources=["glycan_profiling/_c/structure/fragment_match_map.pyx"],
                       include_dirs=[numpy.get_include()]),
+            Extension(name='glycan_profiling._c.structure.intervals',
+                      sources=["glycan_profiling/_c/structure/intervals.pyx"],
+                      include_dirs=[numpy.get_include()])
         ], compiler_directives=cython_directives, force=force_cythonize)
     except ImportError:
         extensions = ([
             Extension(name='glycan_profiling._c.structure.fragment_match_map',
                       sources=["glycan_profiling/_c/structure/fragment_match_map.c"],
+                      include_dirs=[numpy.get_include()]),
+            Extension(name='glycan_profiling._c.structure.intervals',
+                      sources=["glycan_profiling/_c/structure/intervals.c"],
                       include_dirs=[numpy.get_include()]),
         ])
     return extensions
