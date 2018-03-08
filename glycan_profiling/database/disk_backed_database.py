@@ -509,6 +509,15 @@ class QueryIntervalBase(SpanningMixin):
         self.center = (self.start + self.end) / 2.
 
 
+try:
+    has_c = True
+    _QueryIntervalBase = QueryIntervalBase
+
+    from glycan_profiling._c.structure.intervals import QueryIntervalBase
+except ImportError:
+    has_c = False
+
+
 class PPMQueryInterval(QueryIntervalBase):
 
     def __init__(self, mass, error_tolerance=2e-5):
@@ -523,6 +532,16 @@ class FixedQueryInterval(QueryIntervalBase):
         self.center = mass
         self.start = mass - width
         self.end = mass + width
+
+
+try:
+    has_c = True
+    _PPMQueryInterval = PPMQueryInterval
+    _FixedQueryInterval = FixedQueryInterval
+
+    from glycan_profiling._c.structure.intervals import PPMQueryInterval, FixedQueryInterval
+except ImportError:
+    has_c = False
 
 
 class IntervalSet(object):

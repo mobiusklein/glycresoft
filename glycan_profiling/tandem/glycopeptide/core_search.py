@@ -375,3 +375,12 @@ class IntervalFilter(Sequence):
 
     def __call__(self, mass):
         return self.test(mass)
+
+
+try:
+    has_c = True
+    _IntervalFilter = IntervalFilter
+
+    from glycan_profiling._c.structure.intervals import IntervalFilter
+except ImportError:
+    has_c = False

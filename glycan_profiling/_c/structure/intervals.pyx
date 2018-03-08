@@ -25,7 +25,7 @@ cdef class QueryIntervalBase(SpanningMixin):
         self.center = (self.start + self.end) / 2.
 
 
-class PPMQueryInterval(QueryIntervalBase):
+cdef class PPMQueryInterval(QueryIntervalBase):
 
     def __init__(self, mass, error_tolerance=2e-5):
         self.center = mass
@@ -33,7 +33,7 @@ class PPMQueryInterval(QueryIntervalBase):
         self.end = mass + (mass * error_tolerance)
 
 
-class FixedQueryInterval(QueryIntervalBase):
+cdef class FixedQueryInterval(QueryIntervalBase):
 
     def __init__(self, mass, width=3):
         self.center = mass
@@ -41,7 +41,7 @@ class FixedQueryInterval(QueryIntervalBase):
         self.end = mass + width
 
 
-cdef class IntervalSet(object):
+cdef class IntervalFilter(object):
     cdef:
         public list intervals
 
