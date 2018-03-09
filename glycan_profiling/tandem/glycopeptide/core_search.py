@@ -1,8 +1,9 @@
+import logging
+
 from collections import Sequence, defaultdict
 
 import numpy as np
 
-import glypy
 from glypy.structure.glycan_composition import FrozenMonosaccharideResidue
 from glycopeptidepy.structure.fragmentation_strategy import StubGlycopeptideStrategy
 
@@ -11,11 +12,14 @@ from glycan_profiling.structure import SpectrumGraph
 from glycan_profiling.database.disk_backed_database import PPMQueryInterval
 from glycan_profiling.chromatogram_tree import Unmodified
 
+logger = logging.getLogger("glycresoft.tandem.core_search")
+
+
 hexnac = FrozenMonosaccharideResidue.from_iupac_lite("HexNAc")
 hexose = FrozenMonosaccharideResidue.from_iupac_lite("Hex")
 xylose = FrozenMonosaccharideResidue.from_iupac_lite("Xyl")
 fucose = FrozenMonosaccharideResidue.from_iupac_lite("Fuc")
-neuac =  FrozenMonosaccharideResidue.from_iupac_lite("NeuAc")
+# neuac = FrozenMonosaccharideResidue.from_iupac_lite("NeuAc")
 
 
 default_components = (hexnac, hexose, xylose, fucose,)
@@ -97,7 +101,7 @@ class CoreMotifFinder(object):
                         graph.add(peak, other_peak, component)
         return graph
 
-    def _init_paths(self, graph, limit=5000):
+    def _init_paths(self, graph, limit=1000):
         paths = []
         min_start_mass = max(c.mass() for c in self.components) + 1
         for path in graph.longest_paths(limit=limit):
@@ -143,7 +147,7 @@ class CoreMotifFinder(object):
         return PathSet(terminals.values())
 
     def find_o_linked_core(self, groups, min_size=1):
-        sequence = [(hexnac, hexose), (hexnac, hexose, fucose, neuac), (hexnac, hexose, fucose, neuac)]
+        sequence = [(hexnac, hexose), (hexnac, hexose, fucose,), (hexnac, hexose, fucose,)]
         expected_n = len(sequence)
         terminals = dict()
 
@@ -198,7 +202,9 @@ class CoreMotifFinder(object):
 
     def estimate_peptide_mass(self, scan, topn=100, mass_shift=Unmodified):
         graph = self._find_edges(scan, mass_shift=mass_shift)
+        logger.debug("%s -> %s" % (scan.id, graph))
         paths = self._init_paths(graph)
+        logger.debug("%d paths" % (len(paths),))
         groups = self._aggregate_paths(paths)
 
         n_linked_paths = self.find_n_linked_core(groups)

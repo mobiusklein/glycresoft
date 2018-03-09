@@ -552,7 +552,7 @@ class GlycopeptideDatabaseSearchIdentifier(TaskBase):
             scan_collection, unconfirmed_precursors = self.prepare_scan_set(scan_collection)
             self.log("... %d Unconfirmed Precursor Spectra" % (len(unconfirmed_precursors,)))
             self.log("... Spectra Extracted")
-            # TODO: handle unconfirmed_precursors differently here
+            # TODO: handle unconfirmed_precursors differently here?
             evaluator = self._make_evaluator(scan_collection + unconfirmed_precursors)
             t, d = evaluator.score_all(
                 precursor_error_tolerance=precursor_error_tolerance,

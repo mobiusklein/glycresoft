@@ -113,12 +113,13 @@ def sample_path(fn):
 @click.option("-w", "--workload-size", default=500, type=int, help="Number of spectra to process at once")
 @click.option("--save-intermediate-results", default=None, type=click.Path(), required=False,
               help='Save intermediate spectrum matches to a file', cls=HiddenOption)
+@click.option("--maximum-mass", default=float('inf'), type=float, cls=HiddenOption)
 def search_glycopeptide(context, database_connection, sample_path, hypothesis_identifier,
                         analysis_name, output_path=None, grouping_error_tolerance=1.5e-5, mass_error_tolerance=1e-5,
                         msn_mass_error_tolerance=2e-5, psm_fdr_threshold=0.05, peak_shape_scoring_model=None,
                         tandem_scoring_model=None, oxonium_threshold=0.15, save_intermediate_results=None,
                         processes=4, workload_size=500, adducts=None, export=None,
-                        use_peptide_mass_filter=False):
+                        use_peptide_mass_filter=False, maximum_mass=float('inf')):
     """Identify glycopeptide sequences from processed LC-MS/MS data
     """
     if output_path is None:
@@ -174,7 +175,8 @@ def search_glycopeptide(context, database_connection, sample_path, hypothesis_id
         n_processes=processes,
         spectra_chunk_size=workload_size,
         adducts=adducts,
-        use_peptide_mass_filter=use_peptide_mass_filter)
+        use_peptide_mass_filter=use_peptide_mass_filter,
+        maximum_mass=maximum_mass)
     analyzer.display_header()
     gps, unassigned, target_hits, decoy_hits = analyzer.start()
     if save_intermediate_results is not None:
