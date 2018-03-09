@@ -561,7 +561,7 @@ class GlycopeptideLCMSMSAnalyzer(TaskBase):
     def make_search_engine(self, msms_scans, database, peak_loader):
         searcher = GlycopeptideDatabaseSearchIdentifier(
             [scan for scan in msms_scans
-             if scan.precursor_information.neutral_mass > self.maximum_mass],
+             if scan.precursor_information.neutral_mass < self.maximum_mass],
             self.tandem_scoring_model, database,
             peak_loader.convert_scan_id_to_retention_time,
             minimum_oxonium_ratio=self.minimum_oxonium_ratio,
