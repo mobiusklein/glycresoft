@@ -37,7 +37,11 @@ PROTEOMICS_SCORE = {
     "mascot:score": GT,
     "PEAKS:proteinScore": GT,
     "MS-GF:EValue": LT,
-    "Byonic:Score": GT
+    "Byonic:Score": GT,
+    "percolator:Q value": LT,
+    "X\!Tandem:expect": GT,
+    "Morpheus:Morpheus score": GT,
+    "MetaMorpheus:score": GT,
 }
 
 

@@ -700,5 +700,5 @@ class LRUIntervalSet(IntervalSet):
         self.current_size -= 1
 
     def clear(self):
-        while self.current_size > 0:
-            self.remove_lru_interval()
+        super(LRUIntervalSet, self).clear()
+        self.lru = LRUCache()
