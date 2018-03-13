@@ -87,21 +87,29 @@ oxonium_ion_cache = GlycanFragmentCache()
 
 
 class PeptideProteinRelation(SpanningMixin):
-    __slots__ = ["start_position", "end_position", "protein_id", "hypothesis_id"]
+    __slots__ = ["protein_id", "hypothesis_id"]
 
     def __init__(self, start_position, end_position, protein_id, hypothesis_id):
-        self.start_position = start_position
-        self.end_position = end_position
+        self.start = start_position
+        self.end = end_position
         self.protein_id = protein_id
         self.hypothesis_id = hypothesis_id
 
     @property
-    def start(self):
-        return self.start_position
+    def start_position(self):
+        return int(self.start)
+
+    @start_position.setter
+    def start_position(self, value):
+        self.start = value
 
     @property
-    def end(self):
-        return self.end_position
+    def end_position(self):
+        return int(self.end)
+
+    @end_position.setter
+    def end_position(self, value):
+        self.end = value
 
     def __repr__(self):
         return "PeptideProteinRelation(%d, %d, %d, %d)" % (self.start, self.end, self.protein_id, self.hypothesis_id)
