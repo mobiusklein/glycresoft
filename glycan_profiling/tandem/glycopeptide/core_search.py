@@ -327,6 +327,8 @@ class GlycanFilteringPeptideMassEstimator(object):
 
     def n_glycan_coarse_score(self, scan, glycan_combination, mass_shift=Unmodified):
         peptide_mass = (scan.precursor_information.neutral_mass - glycan_combination.dehydrated_mass)
+        if peptide_mass < 0:
+            return peptide_mass, -1e6
         matched_fragments, n_matched, n_theoretical, core_matched, core_theoretical = self._n_glycan_match_stubs(
             scan, peptide_mass, glycan_combination, mass_shift=mass_shift)
         ratio_fragments = (n_matched / n_theoretical)
