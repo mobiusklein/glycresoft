@@ -34,7 +34,8 @@ from glycan_profiling.models import GeneralScorer, get_feature
 from glycan_profiling.tandem import chromatogram_mapping
 from glycan_profiling.structure import ScanStub
 from glycan_profiling.tandem.glycopeptide.scoring import CoverageWeightedBinomialScorer
-from glycan_profiling.tandem.glycopeptide.glycopeptide_matcher import GlycopeptideDatabaseSearchIdentifier
+from glycan_profiling.tandem.glycopeptide.glycopeptide_matcher import (
+    GlycopeptideDatabaseSearchIdentifier, GlycopeptideDatabaseSearchComparer)
 from glycan_profiling.tandem.glycopeptide import (
     identified_structure as identified_glycopeptide)
 from glycan_profiling.tandem.glycan.composition_matching import SignatureIonMapper
@@ -766,3 +767,44 @@ class MzMLGlycopeptideLCMSMSAnalyzer(GlycopeptideLCMSMSAnalyzer):
 
         self.analysis = exporter.analysis
         self.analysis_id = exporter.analysis.id
+
+
+class MzMLComparisonGlycopeptideLCMSMSAnalyzer(MzMLGlycopeptideLCMSMSAnalyzer):
+    def __init__(self, database_connection, decoy_database_connection, hypothesis_id,
+                 sample_path, output_path,
+                 analysis_name=None, grouping_error_tolerance=1.5e-5, mass_error_tolerance=1e-5,
+                 msn_mass_error_tolerance=2e-5, psm_fdr_threshold=0.05, peak_shape_scoring_model=None,
+                 tandem_scoring_model=None, minimum_mass=1000., save_unidentified=False,
+                 oxonium_threshold=0.05, scan_transformer=None, adducts=None,
+                 n_processes=5, spectra_chunk_size=1000, use_peptide_mass_filter=False,
+                 maximum_mass=float('inf')):
+        super(MzMLComparisonGlycopeptideLCMSMSAnalyzer, self).__init__(
+            database_connection, hypothesis_id, sample_path, output_path,
+            analysis_name, grouping_error_tolerance, mass_error_tolerance,
+            msn_mass_error_tolerance, psm_fdr_threshold, peak_shape_scoring_model,
+            tandem_scoring_model, minimum_mass, save_unidentified,
+            oxonium_threshold, scan_transformer, adducts,
+            n_processes, spectra_chunk_size, use_peptide_mass_filter,
+            maximum_mass)
+        self.decoy_database_connection = decoy_database_connection
+
+    def make_search_engine(self, msms_scans, database, peak_loader):
+        searcher = GlycopeptideDatabaseSearchComparer(
+            [scan for scan in msms_scans
+             if scan.precursor_information.neutral_mass < self.maximum_mass],
+            self.tandem_scoring_model, database, self.make_decoy_database(),
+            peak_loader.convert_scan_id_to_retention_time,
+            minimum_oxonium_ratio=self.minimum_oxonium_ratio,
+            scan_transformer=self.scan_transformer,
+            n_processes=self.n_processes,
+            adducts=self.adducts,
+            use_peptide_mass_filter=self.use_peptide_mass_filter)
+        return searcher
+
+    def make_decoy_database(self):
+        database = GlycopeptideDiskBackedStructureDatabase(
+            self.decoy_database_connection, self.hypothesis_id)
+        return database
+
+    def estimate_fdr(self, searcher, target_hits, decoy_hits):
+        searcher.target_decoy(target_hits, decoy_hits, decoy_correction=1)

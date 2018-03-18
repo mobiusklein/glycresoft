@@ -233,7 +233,10 @@ class Peptide(PeptideBase, Base):
         return ("DBPeptideSequence({self.modified_peptide_sequence}, {self.n_glycosylation_sites},"
                 " {self.start_position}, {self.end_position})").format(self=self)
 
-    __table_args__ = (Index("ix_Peptide_mass_search_index", "calculated_mass", "hypothesis_id"),)
+    __table_args__ = (
+        Index("ix_Peptide_mass_search_index", "calculated_mass", "hypothesis_id"),
+        Index("ix_Peptide_coordinate_index", "id", "calculated_mass",
+              "start_position", "end_position"),)
 
 
 class Glycopeptide(PeptideBase, Base):

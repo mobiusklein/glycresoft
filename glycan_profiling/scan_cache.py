@@ -307,7 +307,8 @@ class MzMLScanCacheHandler(ScanCacheHandlerBase):
                 if source.msn_deconvolution_args.get("scorer"):
                     inst.register_parameter(
                         "parameter: msn-scorer", repr(source.msn_deconvolution_args.get("scorer")))
-
+            data_processing = inst.writer.build_processing_method()
+            inst.writer.add_data_processing(data_processing)
         else:
             n_spectra = 2e5
             inst = cls(path, sample_name, n_spectra=n_spectra)

@@ -12,7 +12,7 @@ from glycan_profiling.structure import SpectrumGraph
 from glycan_profiling.database.disk_backed_database import PPMQueryInterval
 from glycan_profiling.chromatogram_tree import Unmodified
 
-logger = logging.getLogger("glycresoft.tandem.core_search")
+logger = logging.getLogger("glycresoft.tandem")
 
 
 hexnac = FrozenMonosaccharideResidue.from_iupac_lite("HexNAc")
@@ -202,9 +202,7 @@ class CoreMotifFinder(object):
 
     def estimate_peptide_mass(self, scan, topn=100, mass_shift=Unmodified):
         graph = self._find_edges(scan, mass_shift=mass_shift)
-        logger.debug("%s -> %s" % (scan.id, graph))
         paths = self._init_paths(graph)
-        logger.debug("%d paths" % (len(paths),))
         groups = self._aggregate_paths(paths)
 
         n_linked_paths = self.find_n_linked_core(groups)
@@ -260,7 +258,8 @@ class GlycanCombinationRecord(object):
     def from_hypothesis(cls, session, hypothesis_id):
         query = session.query(GlycanCombination).filter(
             GlycanCombination.hypothesis_id == hypothesis_id).group_by(
-            GlycanCombination.composition, GlycanCombination.count)
+            GlycanCombination.composition, GlycanCombination.count).order_by(
+            GlycanCombination.dehydrated_mass())
         candidates = query.all()
         out = []
         for candidate in candidates:

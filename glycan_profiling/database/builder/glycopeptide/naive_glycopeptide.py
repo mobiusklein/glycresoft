@@ -191,7 +191,7 @@ class ReversingMultipleProcessFastaGlycopeptideHypothesisSerializer(_MPFGHS):
     def extract_proteins(self):
             i = 0
             for protein in ProteinFastaFileParser(self.fasta_file):
-                protein.protein_sequence = str(reverse_preserve_sequon(protein.protein_sequence))
+                protein.protein_sequence = str(reverse_preserve_sequon(protein.protein_sequence, suffix_len=0))
                 protein.hypothesis_id = self.hypothesis_id
                 self.session.add(protein)
                 i += 1

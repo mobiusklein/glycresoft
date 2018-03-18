@@ -14,6 +14,7 @@ from glycan_profiling.serialize import (
 
 from glycan_profiling.profiler import (
     MzMLGlycopeptideLCMSMSAnalyzer,
+    MzMLComparisonGlycopeptideLCMSMSAnalyzer,
     MzMLGlycanChromatogramAnalyzer,
     LaplacianRegularizedChromatogramProcessor,
     ProcessedMzMLDeserializer)
@@ -114,12 +115,14 @@ def sample_path(fn):
 @click.option("--save-intermediate-results", default=None, type=click.Path(), required=False,
               help='Save intermediate spectrum matches to a file', cls=HiddenOption)
 @click.option("--maximum-mass", default=float('inf'), type=float, cls=HiddenOption)
+@click.option("-D", "--decoy-database-connection", default=None, cls=HiddenOption)
 def search_glycopeptide(context, database_connection, sample_path, hypothesis_identifier,
                         analysis_name, output_path=None, grouping_error_tolerance=1.5e-5, mass_error_tolerance=1e-5,
                         msn_mass_error_tolerance=2e-5, psm_fdr_threshold=0.05, peak_shape_scoring_model=None,
                         tandem_scoring_model=None, oxonium_threshold=0.15, save_intermediate_results=None,
                         processes=4, workload_size=500, adducts=None, export=None,
-                        use_peptide_mass_filter=False, maximum_mass=float('inf')):
+                        use_peptide_mass_filter=False, maximum_mass=float('inf'),
+                        decoy_database_connection=None):
     """Identify glycopeptide sequences from processed LC-MS/MS data
     """
     if output_path is None:
@@ -159,24 +162,45 @@ def search_glycopeptide(context, database_connection, sample_path, hypothesis_id
     click.secho("Preparing analysis of %s by %s" % (
         sample_run.name, hypothesis.name), fg='cyan')
 
-    analyzer = MzMLGlycopeptideLCMSMSAnalyzer(
-        database_connection._original_connection,
-        sample_path=sample_path,
-        hypothesis_id=hypothesis.id,
-        analysis_name=analysis_name,
-        output_path=output_path,
-        grouping_error_tolerance=grouping_error_tolerance,
-        mass_error_tolerance=mass_error_tolerance,
-        msn_mass_error_tolerance=msn_mass_error_tolerance,
-        psm_fdr_threshold=psm_fdr_threshold,
-        peak_shape_scoring_model=peak_shape_scoring_model,
-        tandem_scoring_model=tandem_scoring_model,
-        oxonium_threshold=oxonium_threshold,
-        n_processes=processes,
-        spectra_chunk_size=workload_size,
-        adducts=adducts,
-        use_peptide_mass_filter=use_peptide_mass_filter,
-        maximum_mass=maximum_mass)
+    if decoy_database_connection is None:
+        analyzer = MzMLGlycopeptideLCMSMSAnalyzer(
+            database_connection._original_connection,
+            sample_path=sample_path,
+            hypothesis_id=hypothesis.id,
+            analysis_name=analysis_name,
+            output_path=output_path,
+            grouping_error_tolerance=grouping_error_tolerance,
+            mass_error_tolerance=mass_error_tolerance,
+            msn_mass_error_tolerance=msn_mass_error_tolerance,
+            psm_fdr_threshold=psm_fdr_threshold,
+            peak_shape_scoring_model=peak_shape_scoring_model,
+            tandem_scoring_model=tandem_scoring_model,
+            oxonium_threshold=oxonium_threshold,
+            n_processes=processes,
+            spectra_chunk_size=workload_size,
+            adducts=adducts,
+            use_peptide_mass_filter=use_peptide_mass_filter,
+            maximum_mass=maximum_mass)
+    else:
+        analyzer = MzMLComparisonGlycopeptideLCMSMSAnalyzer(
+            database_connection._original_connection,
+            decoy_database_connection,
+            sample_path=sample_path,
+            hypothesis_id=hypothesis.id,
+            analysis_name=analysis_name,
+            output_path=output_path,
+            grouping_error_tolerance=grouping_error_tolerance,
+            mass_error_tolerance=mass_error_tolerance,
+            msn_mass_error_tolerance=msn_mass_error_tolerance,
+            psm_fdr_threshold=psm_fdr_threshold,
+            peak_shape_scoring_model=peak_shape_scoring_model,
+            tandem_scoring_model=tandem_scoring_model,
+            oxonium_threshold=oxonium_threshold,
+            n_processes=processes,
+            spectra_chunk_size=workload_size,
+            adducts=adducts,
+            use_peptide_mass_filter=use_peptide_mass_filter,
+            maximum_mass=maximum_mass)
     analyzer.display_header()
     gps, unassigned, target_hits, decoy_hits = analyzer.start()
     if save_intermediate_results is not None:

@@ -2,6 +2,7 @@ from glypy.utils import uid
 
 from csv import reader, writer
 import os
+import glob
 import tempfile
 import shutil
 
@@ -38,6 +39,9 @@ class TempFileManager(object):
 
     def clear(self):
         shutil.rmtree(self.base_directory)
+
+    def dir(self, pattern='*'):
+        return glob.glob(os.path.join(self.base_directory, pattern))
 
     def __repr__(self):
         return "TempFileManager(%r)" % self.base_directory

@@ -296,16 +296,20 @@ class ComparisonGlycopeptideMatcher(TargetDecoyInterleavingGlycopeptideMatcher):
                  minimum_oxonium_ratio=0.05, n_processes=5, ipc_manager=None,
                  probing_range_for_missing_precursors=3, mass_shifts=None,
                  batch_size=DEFAULT_BATCH_SIZE, peptide_mass_filter=None):
-        super(TargetDecoyInterleavingGlycopeptideMatcher, self).__init__(
+        super(ComparisonGlycopeptideMatcher, self).__init__(
             tandem_cluster, scorer_type, target_structure_database,
-            verbose=False, n_processes=n_processes, ipc_manager=ipc_manager,
+            n_processes=n_processes, ipc_manager=ipc_manager,
             probing_range_for_missing_precursors=probing_range_for_missing_precursors,
             mass_shifts=mass_shifts, batch_size=batch_size, peptide_mass_filter=peptide_mass_filter)
+
         self.tandem_cluster = tandem_cluster
         self.scorer_type = scorer_type
+
         self.target_structure_database = target_structure_database
         self.decoy_structure_database = decoy_structure_database
+
         self.minimum_oxonium_ratio = minimum_oxonium_ratio
+
         self.target_evaluator = GlycopeptideMatcher(
             [], self.scorer_type, self.target_structure_database,
             n_processes=n_processes, ipc_manager=ipc_manager,
@@ -326,6 +330,7 @@ class ComparisonGlycopeptideMatcher(TargetDecoyInterleavingGlycopeptideMatcher):
         workload_graph = workload.compute_workloads()
         total_work = workload.total_work_required(workload_graph)
         running_total_work = 0
+        self.log("... Querying Targets")
         for i, batch in enumerate(workload.batches(self.batch_size)):
             running_total_work += batch.batch_size
             self.log("... Batch %d (%d/%d) %0.2f%%" % (
@@ -354,6 +359,7 @@ class ComparisonGlycopeptideMatcher(TargetDecoyInterleavingGlycopeptideMatcher):
         workload_graph = workload.compute_workloads()
         total_work = workload.total_work_required(workload_graph)
         running_total_work = 0
+        self.log("... Querying Decoys")
         for i, batch in enumerate(workload.batches(self.batch_size)):
             running_total_work += batch.batch_size
             self.log("... Batch %d (%d/%d) %0.2f%%" % (
@@ -530,8 +536,6 @@ class GlycopeptideDatabaseSearchIdentifier(TaskBase):
         return peptide_filter
 
     def search(self, precursor_error_tolerance=1e-5, simplify=True, chunk_size=500, limit=None, *args, **kwargs):
-        # target_hits = []
-        # decoy_hits = []
         target_hits = self.spectrum_match_store.writer("targets")
         decoy_hits = self.spectrum_match_store.writer("decoys")
 
@@ -540,6 +544,7 @@ class GlycopeptideDatabaseSearchIdentifier(TaskBase):
 
         if limit is None:
             limit = float('inf')
+
         if self.use_peptide_mass_filter:
             self._peptide_mass_filter = self._make_peptide_mass_filter(
                 kwargs.get("error_tolerance", 1e-5))
@@ -570,30 +575,35 @@ class GlycopeptideDatabaseSearchIdentifier(TaskBase):
             # next iteration
             t = []
             d = []
-        self.log('Search Done')
 
+        self.log('Search Done')
         target_hits.close()
         decoy_hits.close()
-        self.structure_database.clear_cache()
+        self._clear_database_cache()
 
         self.log("Reloading Spectrum Matches")
+        target_hits, decoy_hits = self._load_stored_matches(len(target_hits), len(decoy_hits))
+        # self.spectrum_match_store.clear()
+        return target_hits, decoy_hits
+
+    def _clear_database_cache(self):
+        self.structure_database.clear_cache()
+
+    def _load_stored_matches(self, target_count, decoy_count):
         target_resolver = GlycopeptideResolver(self.structure_database, CachingGlycopeptideParser(int(1e6)))
         decoy_resolver = GlycopeptideResolver(self.structure_database, DecoyMakingCachingGlycopeptideParser(int(1e6)))
 
-        target_count = len(target_hits)
-        decoy_count = len(decoy_hits)
-        target_hits = []
+        loaded_target_hits = []
         for i, solset in enumerate(self.spectrum_match_store.reader("targets", target_resolver)):
             if i % 5000 == 0:
                 self.log("Loaded %d/%d Targets (%0.3g%%)" % (i, target_count, (100. * i / target_count)))
-            target_hits.append(solset)
-        decoy_hits = []
+            loaded_target_hits.append(solset)
+        loaded_decoy_hits = []
         for i, solset in enumerate(self.spectrum_match_store.reader("decoys", decoy_resolver)):
             if i % 5000 == 0:
                 self.log("Loaded %d/%d Decoys (%0.3g%%)" % (i, decoy_count, (100. * i / decoy_count)))
-            decoy_hits.append(solset)
-        # self.spectrum_match_store.clear()
-        return target_hits, decoy_hits
+            loaded_decoy_hits.append(solset)
+        return loaded_target_hits, loaded_decoy_hits
 
     def target_decoy(self, target_hits, decoy_hits, with_pit=False, *args, **kwargs):
         self.log("Running Target Decoy Analysis with %d targets and %d decoys" % (
@@ -640,22 +650,42 @@ class GlycopeptideDatabaseSearchIdentifier(TaskBase):
 
 class GlycopeptideDatabaseSearchComparer(GlycopeptideDatabaseSearchIdentifier):
     def __init__(self, tandem_scans, scorer_type, target_database, decoy_database, scan_id_to_rt=lambda x: x,
-                 minimum_oxonium_ratio=0.05):
-        self.tandem_scans = sorted(
-            tandem_scans, key=lambda x: x.precursor_information.extracted_neutral_mass, reverse=True)
-        self.scorer_type = scorer_type
+                 minimum_oxonium_ratio=0.05, scan_transformer=lambda x: x, adducts=None,
+                 n_processes=5, file_manager=None, use_peptide_mass_filter=True):
         self.target_database = target_database
         self.decoy_database = decoy_database
-        self.scan_id_to_rt = scan_id_to_rt
-        self.minimum_oxonium_ratio = minimum_oxonium_ratio
+        super(GlycopeptideDatabaseSearchComparer, self).__init__(
+            tandem_scans, scorer_type, self.target_database, scan_id_to_rt,
+            minimum_oxonium_ratio, scan_transformer, adducts, n_processes,
+            file_manager, use_peptide_mass_filter)
 
     def _make_evaluator(self, bunch):
         evaluator = ComparisonGlycopeptideMatcher(
             bunch, self.scorer_type,
             target_structure_database=self.target_database,
             decoy_structure_database=self.decoy_database,
-            minimum_oxonium_ratio=self.minimum_oxonium_ratio)
+            minimum_oxonium_ratio=self.minimum_oxonium_ratio,
+            n_processes=self.n_processes,
+            ipc_manager=self.ipc_manager,
+            mass_shifts=self.adducts,
+            peptide_mass_filter=self._peptide_mass_filter)
         return evaluator
+
+    def _load_stored_matches(self, target_count, decoy_count):
+        target_resolver = GlycopeptideResolver(self.target_database, CachingGlycopeptideParser(int(1e6)))
+        decoy_resolver = GlycopeptideResolver(self.decoy_database, CachingGlycopeptideParser(int(1e6)))
+
+        loaded_target_hits = []
+        for i, solset in enumerate(self.spectrum_match_store.reader("targets", target_resolver)):
+            if i % 5000 == 0:
+                self.log("Loaded %d/%d Targets (%0.3g%%)" % (i, target_count, (100. * i / target_count)))
+            loaded_target_hits.append(solset)
+        loaded_decoy_hits = []
+        for i, solset in enumerate(self.spectrum_match_store.reader("decoys", decoy_resolver)):
+            if i % 5000 == 0:
+                self.log("Loaded %d/%d Decoys (%0.3g%%)" % (i, decoy_count, (100. * i / decoy_count)))
+            loaded_decoy_hits.append(solset)
+        return loaded_target_hits, loaded_decoy_hits
 
 
 class ConcatenatedGlycopeptideDatabaseSearchComparer(GlycopeptideDatabaseSearchIdentifier):
