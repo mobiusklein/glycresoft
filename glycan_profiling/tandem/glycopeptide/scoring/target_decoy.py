@@ -1,8 +1,11 @@
+# -*- coding: utf-8 -*-
 import logging
 try:
     logger = logging.getLogger("target_decoy")
 except Exception:
     pass
+import math
+
 from collections import defaultdict, namedtuple
 
 import numpy as np
@@ -137,12 +140,101 @@ class ScoreThresholdCounter(object):
         return NearestValueLookUp(complement)
 
 
+_precalc_fact = np.log([math.factorial(n) for n in range(20)])
+
+
+def log_factorial(x):
+    x = np.array(x)
+    _precalc_fact
+    m = (x >= _precalc_fact.size)
+    out = np.empty(x.shape)
+    out[~m] = _precalc_fact[x[~m].astype(int)]
+    x = x[m]
+    out[m] = x * np.log(x) - x + 0.5 * np.log(2 * np.pi * x)
+    return out
+
+
+def _log_pi_r(d, k, p=0.5):
+    return k * math.log(p) + log_factorial(k + d) - log_factorial(k) - log_factorial(d)
+
+
+def _log_pi(d, k, p=0.5):
+    return _log_pi_r(d, k, p) + (d + 1) * math.log(1 - p)
+
+
+def _expectation(d, t, p=0.5):
+    """The conditional tail probability for the negative binomial
+    random variable for the number of incorrect target matches
+
+    Parameters
+    ----------
+    d : int
+        The number of decoys retained
+    t : int
+        The number of targets retained
+    p : float, optional
+        The parameter :math:`p` of the negative binomial,
+        :math:`1 / 1 + (ratio of the target database to the decoy database)`
+
+    Returns
+    -------
+    float
+        The theoretical number of incorrect target matches
+
+    References
+    ----------
+    Levitsky, L. I., Ivanov, M. V., Lobas, A. A., & Gorshkov, M. V. (2017).
+    Unbiased False Discovery Rate Estimation for Shotgun Proteomics Based
+    on the Target-Decoy Approach. Journal of Proteome Research, 16(2), 393–397.
+    https://doi.org/10.1021/acs.jproteome.6b00144
+    """
+    if t is None:
+        return d + 1
+    t = int(t)
+    m = np.arange(t + 1, dtype=int)
+    pi = np.exp(_log_pi(d, m, p))
+    return ((m * pi).cumsum() / pi.cumsum())[t]
+
+
+def expectation_correction(targets, decoys, ratio):
+    """Estimate a correction for the number of decoys at a given
+    score threshold for small data size.
+
+    Parameters
+    ----------
+    targets : int
+        The number of targets retained
+    decoys : int
+        The number of decoys retained
+    ratio : float
+        The ratio of target database to decoy database
+
+    Returns
+    -------
+    float
+        The number of decoys to add for the correction
+
+    References
+    ----------
+    Levitsky, L. I., Ivanov, M. V., Lobas, A. A., & Gorshkov, M. V. (2017).
+    Unbiased False Discovery Rate Estimation for Shotgun Proteomics Based
+    on the Target-Decoy Approach. Journal of Proteome Research, 16(2), 393–397.
+    https://doi.org/10.1021/acs.jproteome.6b00144
+    """
+    p = 1. / (1. + ratio)
+    tfalse = _expectation(decoys, targets, p)
+    return tfalse
+
+
 class TargetDecoyAnalyzer(object):
-    def __init__(self, target_series, decoy_series, with_pit=False, decoy_correction=0):
+    def __init__(self, target_series, decoy_series, with_pit=False, decoy_correction=0, database_ratio=1.0,
+                 database_weight=1.0):
         self.targets = target_series
         self.decoys = decoy_series
         self.target_count = len(target_series)
         self.decoy_count = len(decoy_series)
+        self.database_ratio = database_ratio
+        self.database_weight = database_weight
         self.with_pit = with_pit
         self.decoy_correction = decoy_correction
         self.calculate_thresholds()
@@ -181,14 +273,24 @@ class TargetDecoyAnalyzer(object):
             else:
                 raise
 
+    def expectation_correction(self, t, d):
+        return expectation_correction(t, d, self.database_ratio)
+
     def target_decoy_ratio(self, cutoff):
 
         decoys_at = self.n_decoys_above_threshold(cutoff)
         targets_at = self.n_targets_above_threshold(cutoff)
+        decoy_correction = 0
+        if self.decoy_correction:
+            try:
+                decoy_correction = self.expectation_correction(targets_at, decoys_at)
+            except Exception as ex:
+                print(ex)
         try:
-            ratio = decoys_at / float(targets_at)
+            ratio = (decoys_at + decoy_correction) / float(
+                targets_at * self.database_ratio * self.database_weight)
         except ZeroDivisionError:
-            ratio = decoys_at
+            ratio = (decoys_at + decoy_correction)
         return ratio, targets_at, decoys_at
 
     def estimate_percent_incorrect_targets(self, cutoff):
@@ -237,7 +339,8 @@ class TargetDecoyAnalyzer(object):
 
 
 class GroupwiseTargetDecoyAnalyzer(object):
-    def __init__(self, target_series, decoy_series, with_pit=False, grouping_functions=None, decoy_correction=0):
+    def __init__(self, target_series, decoy_series, with_pit=False, grouping_functions=None, decoy_correction=0,
+                 database_ratio=1.0, database_weight=1.0):
         if grouping_functions is None:
             grouping_functions = [lambda x: True]
         self.target_series = target_series
@@ -247,6 +350,8 @@ class GroupwiseTargetDecoyAnalyzer(object):
         self.groups = []
         self.group_fits = []
         self.decoy_correction = decoy_correction
+        self.database_ratio = database_ratio
+        self.database_weight = database_weight
 
         for fn in grouping_functions:
             self.add_group(fn)
@@ -263,7 +368,9 @@ class GroupwiseTargetDecoyAnalyzer(object):
         for group in self.groups:
             fit = TargetDecoyAnalyzer(
                 *group, with_pit=self.with_pit,
-                decoy_correction=self.decoy_correction)
+                decoy_correction=self.decoy_correction,
+                database_ratio=self.database_ratio,
+                database_weight=self.database_weight)
             self.group_fits.append(fit)
 
     def add_group(self, fn):
