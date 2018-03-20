@@ -375,3 +375,28 @@ class SpectrumSolutionSet(ScanWrapperBase):
         if self._is_top_only:
             self._is_top_only = False
             self.select_top()
+
+
+class ModelTreeNode(object):
+    def __init__(self, model, children=None):
+        if children is None:
+            children = {}
+        self.children = children
+        self.model = model
+
+    def get_model_node_for(self, scan, target, *args, **kwargs):
+        for decider, model_node in self.children.items():
+            if decider(scan, target, *args, **kwargs):
+                return model_node.get_model_node_for(scan, target, *args, **kwargs)
+        return self
+
+    def evaluate(self, scan, target, *args, **kwargs):
+        node = self.get_model_node_for(scan, target, *args, **kwargs)
+        return node.model.evaluate(scan, target, *args, **kwargs)
+
+    def __call__(self, scan, target, *args, **kwargs):
+        node = self.get_model_node_for(scan, target, *args, **kwargs)
+        return node.model(scan, target, *args, **kwargs)
+
+    def load_peaks(self, scan):
+        return self.model.load_peaks(scan)
