@@ -1,3 +1,5 @@
+# -*- coding: utf-8 -*-
+
 import logging
 
 from collections import Sequence, defaultdict
@@ -5,7 +7,7 @@ from collections import Sequence, defaultdict
 import numpy as np
 
 from glypy.structure.glycan_composition import FrozenMonosaccharideResidue
-from glycopeptidepy.structure.fragmentation_strategy import StubGlycopeptideStrategy
+from glycopeptidepy.structure.fragmentation_strategy import StubGlycopeptideStrategy, _AccumulatorBag
 
 from glycan_profiling.serialize import GlycanCombination
 from glycan_profiling.structure import SpectrumGraph
@@ -20,6 +22,24 @@ hexose = FrozenMonosaccharideResidue.from_iupac_lite("Hex")
 xylose = FrozenMonosaccharideResidue.from_iupac_lite("Xyl")
 fucose = FrozenMonosaccharideResidue.from_iupac_lite("Fuc")
 # neuac = FrozenMonosaccharideResidue.from_iupac_lite("NeuAc")
+
+
+class MassWrapper(object):
+    def __init__(self, obj):
+        self.obj = obj
+        self._mass = obj.mass()
+
+    def __repr__(self):
+        return "{self.__class__.__name__}({self.obj})".format(self=self)
+
+    def __eq__(self, other):
+        return self.obj == other
+
+    def __hash__(self):
+        return hash(self.obj)
+
+    def mass(self, *a, **kw):
+        return self._mass
 
 
 default_components = (hexnac, hexose, xylose, fucose,)
@@ -83,7 +103,7 @@ class CoreMotifFinder(object):
     def __init__(self, components=None, product_error_tolerance=1e-5):
         if components is None:
             components = default_components
-        self.components = components
+        self.components = list(map(MassWrapper, components))
         self.product_error_tolerance = product_error_tolerance
 
     def _find_edges(self, scan, mass_shift=Unmodified):
@@ -93,12 +113,12 @@ class CoreMotifFinder(object):
             for component in self.components:
                 for other_peak in scan.deconvoluted_peak_set.all_peaks_for(
                         peak.neutral_mass + component.mass(), self.product_error_tolerance):
-                    graph.add(peak, other_peak, component)
+                    graph.add(peak, other_peak, component.obj)
                 if has_tandem_shift:
                     for other_peak in scan.deconvoluted_peak_set.all_peaks_for(
                             peak.neutral_mass + component.mass() + mass_shift.tandem_mass,
                             self.product_error_tolerance):
-                        graph.add(peak, other_peak, component)
+                        graph.add(peak, other_peak, component.obj)
         return graph
 
     def _init_paths(self, graph, limit=1000):
@@ -210,14 +230,22 @@ class CoreMotifFinder(object):
         gag_linker_paths = self.find_gag_linker_core(groups)
         peptide_masses = []
 
+        has_tandem_shift = abs(mass_shift.tandem_mass) > 0
+
         # TODO: split the different motif masses up according to core type efficiently
         # but for now just lump them all together
         for path in n_linked_paths:
             peptide_masses.append(path.start_mass)
+            if has_tandem_shift:
+                peptide_masses.append(path.start_mass - mass_shift.tandem_mass)
         for path in o_linked_paths:
             peptide_masses.append(path.start_mass)
+            if has_tandem_shift:
+                peptide_masses.append(path.start_mass - mass_shift.tandem_mass)
         for path in gag_linker_paths:
             peptide_masses.append(path.start_mass)
+            if has_tandem_shift:
+                peptide_masses.append(path.start_mass - mass_shift.tandem_mass)
         peptide_masses.sort()
         return peptide_masses
 
@@ -237,6 +265,24 @@ class CoreMotifFinder(object):
                 last = interval
         out.append(last)
         return IntervalFilter(out)
+
+
+class CoarseStubGlycopeptideFragment(object):
+    __slots__ = ['key', 'is_core', 'mass']
+
+    def __init__(self, key, mass, is_core):
+        self.key = key
+        self.mass = mass
+        self.is_core = is_core
+
+    def __reduce__(self):
+        return self.__class__, (self.key, self.mass, self.is_core)
+
+    def __repr__(self):
+        return "%s(%s, %f, %r)" % (
+            self.__class__.__name__,
+            self.key, self.mass, self.is_core
+        )
 
 
 class GlycanCombinationRecord(object):
@@ -279,6 +325,25 @@ class GlycanCombinationRecord(object):
     def __repr__(self):
         return "GlycanCombinationRecord(%s, %d)" % (self.composition, self.count)
 
+    def get_n_glycan_fragments(self):
+        if self._fragment_cache is None:
+            strategy = StubGlycopeptideStrategy(None, extended=True)
+            shifts = strategy.n_glycan_composition_fragments(self.composition, 1, 0)
+            fragment_structs = []
+            for shift in shifts:
+                shift['key'] = _AccumulatorBag(shift['key'])
+                if shift["key"]['HexNAc'] <= 2 and shift["key"]["Hex"] <= 3:
+                    shift['is_core'] = True
+                else:
+                    shift['is_core'] = False
+                fragment_structs.append(
+                    CoarseStubGlycopeptideFragment(
+                        shift['key'], shift['mass'], shift['is_core']))
+            self._fragment_cache = fragment_structs
+            return self._fragment_cache
+        else:
+            return self._fragment_cache
+
 
 class GlycanFilteringPeptideMassEstimator(object):
     def __init__(self, glycan_combination_db, product_error_tolerance=1e-5,
@@ -288,49 +353,56 @@ class GlycanFilteringPeptideMassEstimator(object):
                                      for gc in glycan_combination_db]
         self.motif_finder = CoreMotifFinder(components, product_error_tolerance)
         self.product_error_tolerance = product_error_tolerance
-        self.glycan_combination_db = glycan_combination_db
-        self.fragment_generator = StubGlycopeptideStrategy(None, extended=True)
+        self.glycan_combination_db = sorted(glycan_combination_db, key=lambda x: x.dehydrated_mass)
         self.alpha = alpha
         self.beta = beta
 
-    def _n_glycan_match_stubs(self, scan, peptide_mass, glycan_combination, mass_shift=Unmodified):
-        glycan_composition = glycan_combination.composition
-        if glycan_combination._fragment_cache is None:
-            shifts = self.fragment_generator.n_glycan_composition_fragments(glycan_composition, 1, 0)
-            glycan_combination._fragment_cache = shifts
-        else:
-            shifts = glycan_combination._fragment_cache
+    def _n_glycan_match_stubs(self, scan, peptide_mass, glycan_combination, mass_shift_tandem_mass=0.0):
+        shifts = glycan_combination.get_n_glycan_fragments()
         fragment_matches = []
         core_matched = 0.0
         core_theoretical = 0.0
-        has_tandem_shift = abs(mass_shift.tandem_mass) > 0
+        has_tandem_shift = abs(mass_shift_tandem_mass) > 0
         for shift in shifts:
-            if shift["key"].get('HexNAc', 0) <= 2 and shift["key"].get("Hex", 0) <= 3:
+            if shift.is_core:
                 is_core = True
                 core_theoretical += 1
-            target_mass = shift['mass'] + peptide_mass
+            target_mass = shift.mass + peptide_mass
             hits = scan.deconvoluted_peak_set.all_peaks_for(target_mass, self.product_error_tolerance)
             if hits:
                 if is_core:
                     core_matched += 1
-                fragment_matches.append((shift['key'], target_mass, hits))
+                fragment_matches.append((shift.key, target_mass, hits))
             if has_tandem_shift:
-                shifted_mass = target_mass + mass_shift.tandem_mass
+                shifted_mass = target_mass + mass_shift_tandem_mass
                 hits = scan.deconvoluted_peak_set.all_peaks_for(
                     shifted_mass, self.product_error_tolerance)
                 if hits:
                     if is_core:
                         core_matched += 1
-                    fragment_matches.append((shift['key'], shifted_mass, hits))
+                    fragment_matches.append((shift.key, shifted_mass, hits))
 
         return fragment_matches, float(len(fragment_matches)), float(len(shifts)), core_matched, core_theoretical
 
     def n_glycan_coarse_score(self, scan, glycan_combination, mass_shift=Unmodified):
-        peptide_mass = (scan.precursor_information.neutral_mass - glycan_combination.dehydrated_mass)
+        '''Calculates a ranking score from N-glycopeptide stub-glycopeptide fragments.
+
+        This method is derived from the technique used in pGlyco2 [1].
+
+        References
+        ----------
+        [1] Liu, M.-Q., Zeng, W.-F., Fang, P., Cao, W.-Q., Liu, C., Yan, G.-Q., … Yang, P.-Y. (2017).
+            pGlyco 2.0 enables precision N-glycoproteomics with comprehensive quality control and
+            one-step mass spectrometry for intact glycopeptide identification. Nature Communications,
+            8(1), 438. https://doi.org/10.1038/s41467-017-00535-2
+        '''
+        peptide_mass = (
+            scan.precursor_information.neutral_mass - glycan_combination.dehydrated_mass
+        ) - mass_shift.mass
         if peptide_mass < 0:
             return peptide_mass, -1e6
         matched_fragments, n_matched, n_theoretical, core_matched, core_theoretical = self._n_glycan_match_stubs(
-            scan, peptide_mass, glycan_combination, mass_shift=mass_shift)
+            scan, peptide_mass, glycan_combination, mass_shift_tandem_mass=mass_shift.tandem_mass)
         ratio_fragments = (n_matched / n_theoretical)
         ratio_core = core_matched / core_theoretical
         score = 0
@@ -343,7 +415,10 @@ class GlycanFilteringPeptideMassEstimator(object):
 
     def _estimate_peptide_mass(self, scan, mass_shift=Unmodified):
         output = []
+        intact_mass = scan.precursor_information.neutral_mass
         for glycan_combination in self.glycan_combination_db:
+            if (intact_mass + 1) < glycan_combination.dehydrated_mass:
+                break
             result = self.n_glycan_coarse_score(scan, glycan_combination, mass_shift=mass_shift)
             output.append(result)
         output.sort(key=lambda x: x[1], reverse=1)
