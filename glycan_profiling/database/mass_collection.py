@@ -56,6 +56,17 @@ class SearchableMassCollection(object):
         size = len(self)
         return "{self.__class__.__name__}({size})".format(self=self, size=size)
 
+    def mark_hit(self, match):
+        # no-op to be taken when a structure
+        # gets matched.
+        return match
+
+    def mark_batch(self):
+        # no-op to be taken when a batch of
+        # structures is to be searched. This hint
+        # helps finalize any intermediary operations.
+        pass
+
 
 class MassDatabase(SearchableMassCollection):
     """A quick-to-search database of :class:`HashableGlycanComposition` instances

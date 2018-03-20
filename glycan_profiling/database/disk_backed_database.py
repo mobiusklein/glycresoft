@@ -5,6 +5,8 @@ try:
 except ImportError:
     imap = map
 
+from collections import OrderedDict
+
 import logging
 
 from ms_deisotope.peak_dependency_network.intervals import SpanningMixin
@@ -18,7 +20,8 @@ from sqlalchemy import select, join
 from .mass_collection import SearchableMassCollection, NeutralMassDatabase
 from glycan_profiling.structure.lru import LRUCache
 from glycan_profiling.structure.structure_loader import (
-    CachingGlycanCompositionParser, CachingGlycopeptideParser)
+    CachingGlycanCompositionParser, CachingGlycopeptideParser,
+    GlycopeptideDatabaseRecord)
 from .composition_network import CompositionGraph, n_glycan_distance
 
 
@@ -174,7 +177,10 @@ class DiskBackedStructureDatabaseBase(SearchableMassCollection, DatabaseBoundOpe
         out = self.search_mass(mass, error)
         logger.debug("Retrieved %d records", len(out))
         self.on_memory_interval(mass, out)
-        return NeutralMassDatabase(out, operator.attrgetter("calculated_mass"))
+        return self._prepare_interval(out)
+
+    def _prepare_interval(self, query_results):
+        return NeutralMassDatabase(query_results, operator.attrgetter("calculated_mass"))
 
     @property
     def lowest_mass(self):
@@ -239,6 +245,92 @@ class _PeptideIndex(object):
             return self._get_by_id(key)
         else:
             return self._get_by_name(*key)
+
+
+class _GlycopeptideSequenceCache(object):
+    def __init__(self, session, cache_size=1e6):
+        self.session = session
+        self.cache_size = int(cache_size)
+        self.cache = dict()
+        self.lru = LRUCache()
+
+    def _fetch_sequence_by_id(self, id):
+        return self.session.query(Glycopeptide.glycopeptide_sequence
+            ).filter(Glycopeptide.id == id).scalar()
+
+    def _check_cache_valid(self):
+        lru = self.lru
+        while len(self.cache) > self.cache_size:
+            self.churn += 1
+            key = lru.get_least_recently_used()
+            lru.remove_node(key)
+            value = self.cache.pop(key)
+
+    def _populate_cache(self, id):
+        self._check_cache_valid()
+        value = self._fetch_sequence_by_id(id)
+        self.cache[id] = value
+        self.lru.add_node(id)
+        return value
+
+    def _get_sequence_by_id(self, id):
+        try:
+            return self.cache[id]
+        except KeyError:
+            return self._populate_cache(id)
+
+    def __getitem__(self, key):
+        return self._get_sequence_by_id(id)
+
+    def _fetch_batch(self, ids, chunk_size=500):
+        n = len(ids)
+        i = 0
+        acc = []
+        while i < n:
+            batch = ids[i:(i + chunk_size)]
+            i += chunk_size
+            seqs = self.session.query(Glycopeptide.glycopeptide_sequence
+                ).filter(Glycopeptide.id.in_(batch)).all()
+            acc.extend(s[0] for s in seqs)
+        return acc
+
+    def _process_batch(self, ids, chunk_size=500):
+        result = dict()
+        missing = []
+        for i in ids:
+            try:
+                result[i] = self.cache[i]
+            except KeyError:
+                missing.append(i)
+        fetched = self._fetch_batch(missing, chunk_size)
+        for i, v in zip(missing, fetched):
+            self.cache[i] = v
+            result[i] = v
+        return result
+
+    def batch(self, ids, chunk_size=500):
+        self._check_cache_valid()
+        return self._process_batch(ids, chunk_size)
+
+
+class _GlycopeptideBatchManager(object):
+    def __init__(self, cache):
+        self.cache = cache
+        self.batch = {}
+
+    def mark_hit(self, match):
+        # print("Marking ", match)
+        self.batch[match.id] = match
+        return match
+
+    def process_batch(self):
+        ids = [m for m, v in self.batch.items() if v.glycopeptide_sequence is None]
+        seqs = self.cache.batch(ids)
+        for k, v in seqs.items():
+            self.batch[k].glycopeptide_sequence = v
+
+    def clear(self):
+        self.batch.clear()
 
 
 class DeclarativeDiskBackedDatabase(DiskBackedStructureDatabaseBase):
@@ -355,6 +447,48 @@ class GlycopeptideDiskBackedStructureDatabase(DeclarativeDiskBackedDatabase):
 
     def _limit_to_hypothesis(self, selectable):
         return selectable.where(Glycopeptide.__table__.c.hypothesis_id == self.hypothesis_id)
+
+
+class LazyLoadingGlycopeptideDiskBackedStructureDatabase(GlycopeptideDiskBackedStructureDatabase):
+    fields = [
+        Glycopeptide.__table__.c.id,
+        Glycopeptide.__table__.c.calculated_mass,
+        # Glycopeptide.__table__.c.glycopeptide_sequence,
+        Glycopeptide.__table__.c.protein_id,
+        Peptide.__table__.c.start_position,
+        Peptide.__table__.c.end_position,
+        Peptide.__table__.c.calculated_mass.label("peptide_mass"),
+        Glycopeptide.__table__.c.hypothesis_id,
+    ]
+
+    def __init__(self, connection, hypothesis_id, cache_size=DEFAULT_CACHE_SIZE,
+                 loading_interval=DEFAULT_LOADING_INTERVAL,
+                 threshold_cache_total_count=DEFAULT_THRESHOLD_CACHE_TOTAL_COUNT):
+        super(LazyLoadingGlycopeptideDiskBackedStructureDatabase, self).__init__(
+            connection, hypothesis_id, cache_size, loading_interval,
+            threshold_cache_total_count)
+        self._batch_manager = _GlycopeptideBatchManager(
+            _GlycopeptideSequenceCache(self.session))
+
+    def _prepare_interval(self, query_results):
+        return NeutralMassDatabase(
+            [GlycopeptideDatabaseRecord(
+                q.id,
+                q.calculated_mass,
+                None,
+                q.protein_id,
+                q.start_position,
+                q.end_position,
+                q.peptide_mass,
+                q.hypothesis_id,) for q in query_results],
+            operator.attrgetter("calculated_mass"))
+
+    def mark_hit(self, match):
+        return self._batch_manager.mark_hit(match)
+
+    def mark_batch(self):
+        self._batch_manager.process_batch()
+        self._batch_manager.clear()
 
 
 class GlycopeptideOnlyDiskBackedStructureDatabase(DeclarativeDiskBackedDatabase):

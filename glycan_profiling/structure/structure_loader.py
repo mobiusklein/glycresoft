@@ -353,6 +353,10 @@ class GlycopeptideDatabaseRecord(object):
         self.peptide_mass = peptide_mass
         self.hypothesis_id = hypothesis_id
 
+    def __reduce__(self):
+        return self.__class__, (self.id, self.calculated_mass, self.glycopeptide_sequence, self.protein_id,
+                                self.start_position, self.end_position, self.peptide_mass, self.hypothesis_id)
+
     def __repr__(self):
         template = (
             "{self.__class__.__name__}(id={self.id}, calculated_mass={self.calculated_mass}, "

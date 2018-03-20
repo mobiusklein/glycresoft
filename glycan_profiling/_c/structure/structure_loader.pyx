@@ -21,3 +21,7 @@ cdef class GlycopeptideDatabaseRecord(object):
             "start_position={self.start_position}, end_position={self.end_position}, "
             "peptide_mass={self.peptide_mass}, hypothesis_id={self.hypothesis_id}, ")
         return template.format(self=self)
+
+    def __reduce__(self):
+        return self.__class__, (self.id, self.calculated_mass, self.glycopeptide_sequence, self.protein_id,
+                                self.start_position, self.end_position, self.peptide_mass, self.hypothesis_id)

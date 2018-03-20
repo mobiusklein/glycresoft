@@ -5,7 +5,8 @@ import glypy
 
 from glycan_profiling.database.disk_backed_database import (
     GlycanCompositionDiskBackedStructureDatabase,
-    GlycopeptideDiskBackedStructureDatabase)
+    GlycopeptideDiskBackedStructureDatabase,
+    LazyLoadingGlycopeptideDiskBackedStructureDatabase)
 
 from glycan_profiling.database.analysis import (
     GlycanCompositionChromatogramAnalysisSerializer,

@@ -61,6 +61,12 @@ class TandemClusterEvaluatorBase(TaskBase):
         self.batch_size = batch_size
         self.trust_precursor_fits = trust_precursor_fits
 
+    def _mark_hit(self, match):
+        return self.structure_database.mark_hit(match)
+
+    def _mark_batch(self):
+        return self.structure_database.mark_batch()
+
     def search_database_for_precursors(self, mass, precursor_error_tolerance=1e-5):
         return self.structure_database.search_mass_ppm(mass, precursor_error_tolerance)
 
@@ -72,7 +78,9 @@ class TandemClusterEvaluatorBase(TaskBase):
         intact_mass = scan.precursor_information.extracted_neutral_mass
         for i in range(probing_range + 1):
             query_mass = intact_mass - (i * self.neutron_offset) - mass_shift.mass
-            hits.extend(self.search_database_for_precursors(query_mass, error_tolerance))
+            hits.extend(
+                map(self._mark_hit,
+                    self.search_database_for_precursors(query_mass, error_tolerance)))
         return hits
 
     def score_one(self, scan, precursor_error_tolerance=1e-5, mass_shifts=None, **kwargs):
@@ -107,6 +115,7 @@ class TandemClusterEvaluatorBase(TaskBase):
             hits.extend(self.find_precursor_candidates(
                 scan, precursor_error_tolerance, probing_range=probe,
                 mass_shift=mass_shift))
+            self._mark_batch()
             for structure in hits:
                 result = self.evaluate(
                     scan, structure, mass_shift=mass_shift, **kwargs)
@@ -225,6 +234,7 @@ class TandemClusterEvaluatorBase(TaskBase):
                         workload.add_scan_hit(scan, hit, mass_shift.name)
                 if report:
                     self.log("... Mapping Segment Done. (%d spectrum-pairs)" % (j,))
+        self._mark_batch()
         return workload
 
     def _evaluate_hit_groups_single_process(self, workload, *args, **kwargs):
