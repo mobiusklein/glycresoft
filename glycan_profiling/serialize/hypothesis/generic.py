@@ -1,7 +1,8 @@
 from functools import total_ordering
 from sqlalchemy import (
     Column, Numeric, Integer, String, ForeignKey,
-    PickleType, Boolean, Table, ForeignKeyConstraint)
+    PickleType, Boolean, Table, ForeignKeyConstraint,
+    BLOB)
 
 from sqlalchemy.orm import relationship, backref
 from sqlalchemy.ext.declarative import declared_attr
@@ -140,3 +141,11 @@ class HasReferenceAccessionNumber(object):
 
 
 TemplateNumberStore = Table("TemplateNumberStore", Base.metadata, Column("value", Integer))
+
+
+class FileBlob(Base):
+    __tablename__ = 'FileBlob'
+
+    id = Column(Integer, primary_key=True)
+    name = Column(String(128), index=True)
+    data = Column(BLOB)
