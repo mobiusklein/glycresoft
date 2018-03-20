@@ -1,6 +1,6 @@
 import math
 
-from .base import ChemicalShift
+from .base import ChemicalShift, ModelTreeNode
 from .binomial_score import BinomialSpectrumMatcher
 from .simple_score import SimpleCoverageScorer
 from .precursor_mass_accuracy import MassAccuracyModel
@@ -105,13 +105,28 @@ class CoverageWeightedBinomialScorer(BinomialSpectrumMatcher, SimpleCoverageScor
         self._backbone_mass_series = backbone_mass_series
         return solution_map
 
-    def calculate_score(self, match_tolerance=2e-5, *args, **kwargs):
+    def calculate_score(self, error_tolerance=2e-5, backbone_weight=None, glycosylated_weight=None,
+                        stub_weight=None, *args, **kwargs):
         bin_score = BinomialSpectrumMatcher.calculate_score(
-            self, match_tolerance=match_tolerance)
-        coverage_score = SimpleCoverageScorer.calculate_score(self)
+            self, error_tolerance=error_tolerance)
+        coverage_score = SimpleCoverageScorer.calculate_score(
+            self, backbone_weight, glycosylated_weight, stub_weight)
         offset = self.determine_precursor_offset()
         mass_accuracy = -10 * math.log10(
             1 - accuracy_bias.score(self.precursor_mass_accuracy(offset)))
         signature_component = GlycanCompositionSignatureMatcher.calculate_score(self)
         self._score = bin_score * coverage_score + mass_accuracy + signature_component
         return self._score
+
+
+class ShortPeptideCoverageWeightedBinomialScorer(CoverageWeightedBinomialScorer):
+    stub_weight = 0.75
+
+
+def _short_peptide_test(scan, target, *args, **kwargs):
+    return len(target) < 10
+
+
+CoverageWeightedBinomialModelTree = ModelTreeNode(CoverageWeightedBinomialScorer, {
+    _short_peptide_test: ModelTreeNode(ShortPeptideCoverageWeightedBinomialScorer, {}),
+})

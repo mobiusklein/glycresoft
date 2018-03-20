@@ -7,6 +7,10 @@ from glycopeptidepy.structure.fragment import IonSeries
 
 
 class SimpleCoverageScorer(GlycopeptideSpectrumMatcherBase):
+    backbone_weight = 0.5
+    glycosylated_weight = 0.5
+    stub_weight = 0.2
+
     def __init__(self, scan, sequence, mass_shift=None):
         super(SimpleCoverageScorer, self).__init__(scan, sequence, mass_shift)
         self._score = None
@@ -88,12 +92,34 @@ class SimpleCoverageScorer(GlycopeptideSpectrumMatcherBase):
 
         return mean_coverage, glycosylated_coverage, stub_fraction
 
-    def calculate_score(self, backbone_weight=0.5, glycosylated_weight=0.5, stub_weight=0.2, **kwargs):
+    @classmethod
+    def get_params(self, backbone_weight=None, glycosylated_weight=None, stub_weight=None, **kwargs):
+        if backbone_weight is None:
+            backbone_weight = self.backbone_weight
+        if glycosylated_weight is None:
+            glycosylated_weight = self.glycosylated_weight
+        if stub_weight is None:
+            stub_weight = self.stub_weight
+        return backbone_weight, glycosylated_weight, stub_weight, kwargs
+
+    def calculate_score(self, backbone_weight=None, glycosylated_weight=None, stub_weight=None, **kwargs):
+        if backbone_weight is None:
+            backbone_weight = self.backbone_weight
+        if glycosylated_weight is None:
+            glycosylated_weight = self.glycosylated_weight
+        if stub_weight is None:
+            stub_weight = self.stub_weight
         score = self._coverage_score(backbone_weight, glycosylated_weight, stub_weight)
         self._score = score
         return score
 
-    def _coverage_score(self, backbone_weight=0.5, glycosylated_weight=0.5, stub_weight=0.2):
+    def _coverage_score(self, backbone_weight=None, glycosylated_weight=None, stub_weight=None):
+        if backbone_weight is None:
+            backbone_weight = self.backbone_weight
+        if glycosylated_weight is None:
+            glycosylated_weight = self.glycosylated_weight
+        if stub_weight is None:
+            stub_weight = self.stub_weight
         mean_coverage, glycosylated_coverage, stub_fraction = self.compute_coverage()
         score = (((mean_coverage * backbone_weight) + (glycosylated_coverage * glycosylated_weight)) * (
             1 - stub_weight)) + (stub_fraction * stub_weight)

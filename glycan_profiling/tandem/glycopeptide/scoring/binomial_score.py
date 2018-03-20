@@ -263,25 +263,25 @@ class BinomialSpectrumMatcher(GlycopeptideSpectrumMatcherBase):
                 san.add(pair)
         return san
 
-    def _compute_average_window_size(self, match_tolerance=2e-5):
+    def _compute_average_window_size(self, error_tolerance=2e-5):
         # window_sizes = [
-        #     match_tolerance * frag.mass * 2
+        #     error_tolerance * frag.mass * 2
         #     for frag in self._backbone_mass_series
         # ]
 
         # average_window_size = sum(window_sizes) / len(window_sizes)
         average_window_size = (
             (self.target.peptide_composition(
-            ).mass) / 3.) * match_tolerance * 2
+            ).mass) / 3.) * error_tolerance * 2
         return average_window_size
 
-    def _fragment_matched_binomial(self, match_tolerance=2e-5):
+    def _fragment_matched_binomial(self, error_tolerance=2e-5):
         precursor_mass = calculate_precursor_mass(self)
 
         fragment_match_component = binomial_fragments_matched(
             self.n_theoretical,
             len(self._sanitize_solution_map()),
-            self._compute_average_window_size(match_tolerance),
+            self._compute_average_window_size(error_tolerance),
             precursor_mass
         )
         return fragment_match_component
@@ -296,7 +296,7 @@ class BinomialSpectrumMatcher(GlycopeptideSpectrumMatcherBase):
             intensity_component = 1e-170
         return intensity_component
 
-    def _binomial_score(self, match_tolerance=2e-5, *args, **kwargs):
+    def _binomial_score(self, error_tolerance=2e-5, *args, **kwargs):
         precursor_mass = calculate_precursor_mass(self)
 
         solution_map = self._sanitize_solution_map()
@@ -307,7 +307,7 @@ class BinomialSpectrumMatcher(GlycopeptideSpectrumMatcherBase):
         fragment_match_component = binomial_fragments_matched(
             self.n_theoretical,
             len(solution_map),
-            self._compute_average_window_size(match_tolerance),
+            self._compute_average_window_size(error_tolerance),
             precursor_mass
         )
 
@@ -328,7 +328,7 @@ class BinomialSpectrumMatcher(GlycopeptideSpectrumMatcherBase):
 
         return score
 
-    def calculate_score(self, match_tolerance=2e-5, *args, **kwargs):
-        score = self._binomial_score(match_tolerance)
+    def calculate_score(self, error_tolerance=2e-5, *args, **kwargs):
+        score = self._binomial_score(error_tolerance)
         self._score = score
         return score
