@@ -4,6 +4,8 @@ import traceback
 
 from multiprocessing import freeze_support
 
+import click
+
 from glycan_profiling.cli import (
     base, build_db, tools, mzml, analyze, config,
     export)
@@ -28,9 +30,17 @@ sys.excepthook = info
 
 def main():
     freeze_support()
+    is_profiling = False
     if os.getenv("GLYCRESOFTDEBUG"):
         sys.excepthook = info
-    base.cli.main(standalone_mode=True)
+    if os.getenv("GLYCRESOFTPROFILING"):
+        import cProfile
+        click.secho("Running glycresoft with profiler", fg='yellow')
+        profiler = cProfile.Profile()
+        profiler.runcall(base.cli.main, standalone_mode=False)
+        profiler.dump_stats('glycresoft_performance.profile')
+    else:
+        base.cli.main(standalone_mode=True)
 
 
 if __name__ == '__main__':
