@@ -33,7 +33,8 @@ from glycan_profiling.models import GeneralScorer, get_feature
 
 from glycan_profiling.tandem import chromatogram_mapping
 from glycan_profiling.structure import ScanStub
-from glycan_profiling.tandem.glycopeptide.scoring import CoverageWeightedBinomialScorer
+from glycan_profiling.tandem.glycopeptide.scoring import (
+    CoverageWeightedBinomialScorer, CoverageWeightedBinomialModelTree)
 from glycan_profiling.tandem.glycopeptide.glycopeptide_matcher import (
     GlycopeptideDatabaseSearchIdentifier, GlycopeptideDatabaseSearchComparer)
 from glycan_profiling.tandem.glycopeptide import (
@@ -659,14 +660,9 @@ class GlycopeptideLCMSMSAnalyzer(TaskBase):
         self.save_solutions(gps, unassigned, extractor, database)
         return gps, unassigned, target_hits, decoy_hits
 
-    def save_solutions(self, identified_glycopeptides, unassigned_chromatograms,
-                       chromatogram_extractor, database):
-        if self.analysis_name is None:
-            return
-        analysis_saver = AnalysisSerializer(self.database_connection, self.sample_run_id, self.analysis_name)
-        analysis_saver.set_peak_lookup_table(chromatogram_extractor.peak_mapping)
-        analysis_saver.set_analysis_type(AnalysisTypeEnum.glycopeptide_lc_msms.name)
-        analysis_saver.set_parameters({
+    def _build_analysis_saved_parameters(self, identified_glycopeptides, unassigned_chromatograms,
+                                         chromatogram_extractor, database):
+        return {
             "hypothesis_id": self.hypothesis_id,
             "sample_run_id": self.sample_run_id,
             "mass_error_tolerance": self.mass_error_tolerance,
@@ -677,7 +673,19 @@ class GlycopeptideLCMSMSAnalyzer(TaskBase):
             "use_peptide_mass_filter": self.use_peptide_mass_filter,
             "adducts": self.adducts,
             "maximum_mass": self.maximum_mass
-        })
+        }
+
+    def save_solutions(self, identified_glycopeptides, unassigned_chromatograms,
+                       chromatogram_extractor, database):
+        if self.analysis_name is None:
+            return
+        analysis_saver = AnalysisSerializer(self.database_connection, self.sample_run_id, self.analysis_name)
+        analysis_saver.set_peak_lookup_table(chromatogram_extractor.peak_mapping)
+        analysis_saver.set_analysis_type(AnalysisTypeEnum.glycopeptide_lc_msms.name)
+        analysis_saver.set_parameters(
+            self._build_analysis_saved_parameters(
+                identified_glycopeptides, unassigned_chromatograms,
+                chromatogram_extractor, database))
 
         analysis_saver.save_glycopeptide_identification_set(identified_glycopeptides)
         if self.save_unidentified:
@@ -778,6 +786,7 @@ class MzMLComparisonGlycopeptideLCMSMSAnalyzer(MzMLGlycopeptideLCMSMSAnalyzer):
                  oxonium_threshold=0.05, scan_transformer=None, adducts=None,
                  n_processes=5, spectra_chunk_size=1000, use_peptide_mass_filter=False,
                  maximum_mass=float('inf')):
+        tandem_scoring_model = CoverageWeightedBinomialModelTree
         super(MzMLComparisonGlycopeptideLCMSMSAnalyzer, self).__init__(
             database_connection, hypothesis_id, sample_path, output_path,
             analysis_name, grouping_error_tolerance, mass_error_tolerance,
@@ -805,6 +814,25 @@ class MzMLComparisonGlycopeptideLCMSMSAnalyzer(MzMLGlycopeptideLCMSMSAnalyzer):
         database = GlycopeptideDiskBackedStructureDatabase(
             self.decoy_database_connection, self.hypothesis_id)
         return database
+
+    def _build_analysis_saved_parameters(self, identified_glycopeptides, unassigned_chromatograms,
+                                         chromatogram_extractor, database):
+        target_database = database
+        decoy_database = self.make_decoy_database()
+        return {
+            "hypothesis_id": self.hypothesis_id,
+            "sample_run_id": self.sample_run_id,
+            "mass_error_tolerance": self.mass_error_tolerance,
+            "fragment_error_tolerance": self.msn_mass_error_tolerance,
+            "grouping_error_tolerance": self.grouping_error_tolerance,
+            "psm_fdr_threshold": self.psm_fdr_threshold,
+            "minimum_mass": self.minimum_mass,
+            "use_peptide_mass_filter": self.use_peptide_mass_filter,
+            "adducts": self.adducts,
+            "maximum_mass": self.maximum_mass,
+            "target_database_size": len(target_database),
+            "decoy_database_size": len(decoy_database)
+        }
 
     def estimate_fdr(self, searcher, target_hits, decoy_hits):
         searcher.target_decoy(target_hits, decoy_hits, decoy_correction=1)
