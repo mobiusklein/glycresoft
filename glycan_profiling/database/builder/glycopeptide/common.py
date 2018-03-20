@@ -101,6 +101,10 @@ class GlycopeptideHypothesisSerializerBase(DatabaseBoundOperation, HypothesisSer
             func.count(Glycopeptide.id)).filter(
             Glycopeptide.hypothesis_id == self.hypothesis_id).scalar()
         self.log("Generated %d glycopeptides" % count)
+        self.set_parameters({
+            "database_size": count
+        })
+        return count
 
     def _sql_analyze_database(self):
         self.log("Analyzing Indices")

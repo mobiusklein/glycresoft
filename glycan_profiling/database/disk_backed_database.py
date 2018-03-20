@@ -312,10 +312,13 @@ class DeclarativeDiskBackedDatabase(DiskBackedStructureDatabaseBase):
         return self._convert(self.get_object_by_id(reference.id))
 
     def __len__(self):
-        stmt = select([func.count(self.identity_field)]).select_from(
-            self.selectable)
-        stmt = self._limit_to_hypothesis(stmt)
-        return self.session.execute(stmt).scalar()
+        try:
+            return self.hypothesis.parameters['database_size']
+        except KeyError:
+            stmt = select([func.count(self.identity_field)]).select_from(
+                self.selectable)
+            stmt = self._limit_to_hypothesis(stmt)
+            return self.session.execute(stmt).scalar()
 
 
 class GlycopeptideDiskBackedStructureDatabase(DeclarativeDiskBackedDatabase):
