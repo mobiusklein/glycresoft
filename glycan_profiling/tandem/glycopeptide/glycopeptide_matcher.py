@@ -11,7 +11,7 @@ from glycan_profiling.structure import (
 
 from glycan_profiling.database.disk_backed_database import PPMQueryInterval
 
-from .scoring import GroupwiseTargetDecoyAnalyzer
+from .scoring import (TargetDecoyAnalyzer, GroupwiseTargetDecoyAnalyzer)
 from .core_search import GlycanCombinationRecord, GlycanFilteringPeptideMassEstimator
 
 from ..spectrum_evaluation import TandemClusterEvaluatorBase, DEFAULT_BATCH_SIZE
@@ -670,6 +670,37 @@ class GlycopeptideDatabaseSearchComparer(GlycopeptideDatabaseSearchIdentifier):
             mass_shifts=self.adducts,
             peptide_mass_filter=self._peptide_mass_filter)
         return evaluator
+
+    def target_decoy(self, target_hits, decoy_hits, with_pit=False, *args, **kwargs):
+        self.log("Running Target Decoy Analysis with %d targets and %d decoys" % (
+            len(target_hits), len(decoy_hits)))
+
+        database_ratio = float(len(self.target_database)) / len(self.decoy_database)
+
+        def over_10_aa(x):
+            return len(x.target) >= 10
+
+        def under_10_aa(x):
+            return len(x.target) < 10
+
+        grouping_fns = [over_10_aa, under_10_aa]
+
+        tda = GroupwiseTargetDecoyAnalyzer(
+            [x.best_solution() for x in target_hits],
+            [x.best_solution() for x in decoy_hits], *args, with_pit=with_pit,
+            database_ratio=database_ratio, database_weight=1. / 2.,
+            grouping_functions=grouping_fns, **kwargs)
+
+        tda.q_values()
+        for sol in target_hits:
+            for hit in sol:
+                tda.score(hit)
+            sol.q_value = sol.best_solution().q_value
+        for sol in decoy_hits:
+            for hit in sol:
+                tda.score(hit)
+            sol.q_value = sol.best_solution().q_value
+        return tda
 
     def _load_stored_matches(self, target_count, decoy_count):
         target_resolver = GlycopeptideResolver(self.target_database, CachingGlycopeptideParser(int(1e6)))
