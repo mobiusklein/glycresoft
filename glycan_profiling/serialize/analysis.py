@@ -13,6 +13,8 @@ import dill
 from glycan_profiling.serialize.base import (
     Base, HasUniqueName, SampleRun)
 
+from glycan_profiling.serialize.hypothesis.generic import HasFiles
+
 from glypy.utils import Enum
 
 
@@ -28,7 +30,7 @@ AnalysisTypeEnum.glycopeptide_lc_msms.add_name("Glycopeptide LC-MS/MS")
 AnalysisTypeEnum.glycan_lc_ms.add_name("Glycan LC-MS")
 
 
-class Analysis(Base, HasUniqueName):
+class Analysis(Base, HasUniqueName, HasFiles):
     __tablename__ = "Analysis"
 
     id = Column(Integer, primary_key=True)
