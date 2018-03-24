@@ -14,7 +14,7 @@ from glycan_profiling.database.analysis import (
 
 from glycan_profiling.serialize import (
     DatabaseScanDeserializer, AnalysisSerializer,
-    AnalysisTypeEnum)
+    AnalysisTypeEnum, object_session)
 
 from glycan_profiling.piped_deconvolve import (
     ScanGenerator as PipedScanGenerator)
@@ -42,6 +42,7 @@ from glycan_profiling.tandem.glycopeptide import (
     identified_structure as identified_glycopeptide)
 from glycan_profiling.tandem.glycan.composition_matching import SignatureIonMapper
 from glycan_profiling.tandem.glycan.scoring.signature_ion_scoring import SignatureIonScorer
+from glycan_profiling.tandem.temp_store import TempFileManager
 
 
 from glycan_profiling.scan_cache import (
@@ -539,6 +540,7 @@ class GlycopeptideLCMSMSAnalyzer(TaskBase):
         self.spectra_chunk_size = spectra_chunk_size
         self.use_peptide_mass_filter = use_peptide_mass_filter
         self.maximum_mass = maximum_mass
+        self.file_manager = TempFileManager()
 
     def make_peak_loader(self):
         peak_loader = DatabaseScanDeserializer(
@@ -571,7 +573,8 @@ class GlycopeptideLCMSMSAnalyzer(TaskBase):
             scan_transformer=self.scan_transformer,
             n_processes=self.n_processes,
             adducts=self.adducts,
-            use_peptide_mass_filter=self.use_peptide_mass_filter)
+            use_peptide_mass_filter=self.use_peptide_mass_filter,
+            file_manager=self.file_manager)
         return searcher
 
     def do_search(self, searcher):
@@ -704,6 +707,10 @@ class GlycopeptideLCMSMSAnalyzer(TaskBase):
         analysis_saver.commit()
         self.analysis = analysis_saver.analysis
         self.analysis_id = analysis_saver.analysis_id
+        for path in self.file_manager.dir():
+            self.analysis.add_file(path, compress=True)
+        analysis_saver.session.add(self.analysis)
+        analysis_saver.commit()
 
 
 class MzMLGlycopeptideLCMSMSAnalyzer(GlycopeptideLCMSMSAnalyzer):
@@ -744,6 +751,24 @@ class MzMLGlycopeptideLCMSMSAnalyzer(GlycopeptideLCMSMSAnalyzer):
         msms_scans = [ScanStub(o, peak_loader) for o in prec_info]
         return msms_scans
 
+    def _build_analysis_saved_parameters(self, identified_glycopeptides, unassigned_chromatograms,
+                                         chromatogram_extractor, database):
+        return {
+            "hypothesis_id": self.hypothesis_id,
+            "sample_run_id": self.sample_run_id,
+            "sample_path": os.path.abspath(self.sample_path),
+            "sample_name": chromatogram_extractor.peak_loader.sample_run.name,
+            "sample_uuid": chromatogram_extractor.peak_loader.sample_run.uuid,
+            "mass_error_tolerance": self.mass_error_tolerance,
+            "fragment_error_tolerance": self.msn_mass_error_tolerance,
+            "grouping_error_tolerance": self.grouping_error_tolerance,
+            "psm_fdr_threshold": self.psm_fdr_threshold,
+            "minimum_mass": self.minimum_mass,
+            "adducts": self.adducts,
+            "use_peptide_mass_filter": self.use_peptide_mass_filter,
+            "database": str(self.database_connection)
+        }
+
     def save_solutions(self, identified_glycopeptides, unassigned_chromatograms,
                        chromatogram_extractor, database):
         if self.analysis_name is None:
@@ -759,23 +784,19 @@ class MzMLGlycopeptideLCMSMSAnalyzer(GlycopeptideLCMSMSAnalyzer):
 
         exporter.run()
 
-        exporter.set_parameters({
-            "hypothesis_id": self.hypothesis_id,
-            "sample_run_id": self.sample_run_id,
-            "sample_path": os.path.abspath(self.sample_path),
-            "sample_name": chromatogram_extractor.peak_loader.sample_run.name,
-            "sample_uuid": chromatogram_extractor.peak_loader.sample_run.uuid,
-            "mass_error_tolerance": self.mass_error_tolerance,
-            "fragment_error_tolerance": self.msn_mass_error_tolerance,
-            "grouping_error_tolerance": self.grouping_error_tolerance,
-            "psm_fdr_threshold": self.psm_fdr_threshold,
-            "minimum_mass": self.minimum_mass,
-            "adducts": self.adducts,
-            "use_peptide_mass_filter": self.use_peptide_mass_filter
-        })
+        exporter.set_parameters(
+            self._build_analysis_saved_parameters(
+                identified_glycopeptides, unassigned_chromatograms,
+                chromatogram_extractor, database))
 
         self.analysis = exporter.analysis
         self.analysis_id = exporter.analysis.id
+        for path in self.file_manager.dir():
+            self.analysis.add_file(path, compress=True)
+
+        session = object_session(self.analysis)
+        session.add(self.analysis)
+        session.commit()
 
 
 class MzMLComparisonGlycopeptideLCMSMSAnalyzer(MzMLGlycopeptideLCMSMSAnalyzer):
@@ -808,7 +829,8 @@ class MzMLComparisonGlycopeptideLCMSMSAnalyzer(MzMLGlycopeptideLCMSMSAnalyzer):
             scan_transformer=self.scan_transformer,
             n_processes=self.n_processes,
             adducts=self.adducts,
-            use_peptide_mass_filter=self.use_peptide_mass_filter)
+            use_peptide_mass_filter=self.use_peptide_mass_filter,
+            file_manager=self.file_manager)
         return searcher
 
     def make_decoy_database(self):
@@ -818,22 +840,18 @@ class MzMLComparisonGlycopeptideLCMSMSAnalyzer(MzMLGlycopeptideLCMSMSAnalyzer):
 
     def _build_analysis_saved_parameters(self, identified_glycopeptides, unassigned_chromatograms,
                                          chromatogram_extractor, database):
+        result = super(MzMLComparisonGlycopeptideLCMSMSAnalyzer, self)._build_analysis_saved_parameters(
+            identified_glycopeptides, unassigned_chromatograms,
+            chromatogram_extractor, database)
         target_database = database
         decoy_database = self.make_decoy_database()
-        return {
-            "hypothesis_id": self.hypothesis_id,
-            "sample_run_id": self.sample_run_id,
-            "mass_error_tolerance": self.mass_error_tolerance,
-            "fragment_error_tolerance": self.msn_mass_error_tolerance,
-            "grouping_error_tolerance": self.grouping_error_tolerance,
-            "psm_fdr_threshold": self.psm_fdr_threshold,
-            "minimum_mass": self.minimum_mass,
-            "use_peptide_mass_filter": self.use_peptide_mass_filter,
-            "adducts": self.adducts,
-            "maximum_mass": self.maximum_mass,
+        result.update({
+            "target_database": str(self.database_connection),
             "target_database_size": len(target_database),
-            "decoy_database_size": len(decoy_database)
-        }
+            "decoy_database_size": len(decoy_database),
+            "decoy_database": str(self.decoy_database_connection),
+        })
+        return result
 
     def estimate_fdr(self, searcher, target_hits, decoy_hits):
         searcher.target_decoy(target_hits, decoy_hits, decoy_correction=1)
