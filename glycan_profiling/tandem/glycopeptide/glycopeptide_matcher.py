@@ -78,7 +78,7 @@ class PeptideMassFilteringDatabaseSearchMixin(object):
             unfiltered_matches = self.search_database_for_precursors(query_mass, error_tolerance)
             if self.peptide_mass_filter:
                 hits.extend(map(self._mark_hit, [match for match in unfiltered_matches if peptide_filter(
-                             match.peptide_mass - (i * self.neutron_offset))]))
+                            match.peptide_mass - (i * self.neutron_offset))]))
             else:
                 hits.extend(map(self._mark_hit, unfiltered_matches))
         return hits
