@@ -121,7 +121,7 @@ class CoreMotifFinder(object):
                         graph.add(peak, other_peak, component.obj)
         return graph
 
-    def _init_paths(self, graph, limit=1000):
+    def _init_paths(self, graph, limit=200):
         paths = []
         min_start_mass = max(c.mass() for c in self.components) + 1
         for path in graph.longest_paths(limit=limit):
