@@ -62,12 +62,21 @@ class FileWrapperBase(object):
 
 
 class SpectrumSolutionSetWriter(FileWrapperBase):
-    def __init__(self, path, manager):
-        self.path = path
-        self.handle = open(path, 'wb')
-        self.writer = writer(self.handle)
+    def __init__(self, sink, manager):
         self.manager = manager
         self.counter = 0
+        self.sink = sink
+        self._init_writer()
+
+    def _init_writer(self):
+        try:
+            self.handle = open(self.sink, 'rb')
+        except Exception:
+            if hasattr(self.sink, 'write'):
+                self.handle = self.sink
+            else:
+                raise
+        self.writer = writer(self.handle)
 
     def write(self, solution_set):
         values = [solution_set.scan.id]
@@ -98,12 +107,21 @@ class SpectrumSolutionSetWriter(FileWrapperBase):
 
 
 class SpectrumSolutionSetReader(FileWrapperBase):
-    def __init__(self, path, manager, target_resolver=None):
-        self.path = path
+    def __init__(self, source, manager, target_resolver=None):
         self.manager = manager
-        self.handle = open(path, 'rb')
-        self.reader = reader(self.handle)
+        self.source = source
         self.target_resolver = target_resolver
+        self._init_reader()
+
+    def _init_reader(self):
+        try:
+            self.handle = open(self.source, 'rb')
+        except Exception:
+            if hasattr(self.source, 'read'):
+                self.handle = self.source
+            else:
+                raise
+        self.reader = reader(self.handle)
 
     def resolve_scan(self, scan_id):
         return self.manager.get_scan(scan_id)
