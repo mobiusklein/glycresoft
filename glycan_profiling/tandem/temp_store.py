@@ -70,7 +70,7 @@ class SpectrumSolutionSetWriter(FileWrapperBase):
 
     def _init_writer(self):
         try:
-            self.handle = open(self.sink, 'rb')
+            self.handle = open(self.sink, 'wb')
         except Exception:
             if hasattr(self.sink, 'write'):
                 self.handle = self.sink
