@@ -47,6 +47,8 @@ class ScanWrapperBase(object):
     def precursor_ion_mass(self):
         self.requires_scan()
         neutral_mass = self.scan.precursor_information.extracted_neutral_mass
+        if neutral_mass == 0:
+            neutral_mass = self.scan.precursor_information.neutral_mass
         return neutral_mass
 
     @property
