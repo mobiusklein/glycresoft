@@ -23,6 +23,9 @@ _water = Composition("H2O")
 class GlycanCompositionSignatureMatcher(GlycopeptideSpectrumMatcherBase):
     def __init__(self, scan, target, mass_shift=None):
         super(GlycanCompositionSignatureMatcher, self).__init__(scan, target, mass_shift)
+        self._init_signature_matcher()
+
+    def _init_signature_matcher(self):
         self.glycan_composition = self._copy_glycan_composition()
         self.expected_matches = dict()
         self.unexpected_matches = dict()

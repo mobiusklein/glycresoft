@@ -20,10 +20,7 @@ class CoverageWeightedBinomialScorer(BinomialSpectrumMatcher, SimpleCoverageScor
         self.glycosylated_b_ion_count = 0
         self.glycosylated_y_ion_count = 0
 
-        self.glycan_composition = self._copy_glycan_composition()
-        self.expected_matches = dict()
-        self.unexpected_matches = dict()
-        self.maximum_intensity = float('inf')
+        self._init_signature_matcher()
 
     def match(self, error_tolerance=2e-5, *args, **kwargs):
         GlycanCompositionSignatureMatcher.match(self, error_tolerance=error_tolerance)
