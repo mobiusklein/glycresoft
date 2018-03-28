@@ -65,6 +65,36 @@ class ScanWrapperBase(object):
         if self.scan is None:
             raise ValueError("%s is detatched from Scan" % (self.__class__.__name__))
 
+    @property
+    def ms_level(self):
+        self.requires_scan()
+        return self.scan.ms_level
+
+    @property
+    def index(self):
+        self.requires_scan()
+        return self.scan.index
+
+    @property
+    def activation(self):
+        self.requires_scan()
+        return self.scan.activation
+
+    @property
+    def deconvoluted_peak_set(self):
+        self.requires_scan()
+        return self.scan.deconvoluted_peak_set
+
+    @property
+    def peak_set(self):
+        self.requires_scan()
+        return self.scan.peak_set
+
+    @property
+    def arrays(self):
+        self.requires_scan()
+        return self.scan.arrays
+
 
 class ScanInformation(Base):
     def __init__(self, scan_id, index, scan_time, ms_level, precursor_information):
