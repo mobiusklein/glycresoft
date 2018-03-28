@@ -636,6 +636,9 @@ class GlycopeptideLCMSMSAnalyzer(TaskBase):
         searcher = self.make_search_engine(msms_scans, database, peak_loader)
         target_hits, decoy_hits = self.do_search(searcher)
 
+        self.target_hit_count = len(target_hits)
+        self.decoy_hit_count = len(decoy_hits)
+
         if len(target_hits) == 0:
             self.log("No target matches were found.")
             return [], [], [], []
@@ -807,8 +810,11 @@ class MzMLComparisonGlycopeptideLCMSMSAnalyzer(MzMLGlycopeptideLCMSMSAnalyzer):
                  tandem_scoring_model=None, minimum_mass=1000., save_unidentified=False,
                  oxonium_threshold=0.05, scan_transformer=None, adducts=None,
                  n_processes=5, spectra_chunk_size=1000, use_peptide_mass_filter=False,
-                 maximum_mass=float('inf')):
-        tandem_scoring_model = CoverageWeightedBinomialModelTree
+                 maximum_mass=float('inf'), use_decoy_correction_threshold=None):
+        if use_decoy_correction_threshold is None:
+            use_decoy_correction_threshold = 0.33
+        if tandem_scoring_model == CoverageWeightedBinomialScorer:
+            tandem_scoring_model = CoverageWeightedBinomialModelTree
         super(MzMLComparisonGlycopeptideLCMSMSAnalyzer, self).__init__(
             database_connection, hypothesis_id, sample_path, output_path,
             analysis_name, grouping_error_tolerance, mass_error_tolerance,
@@ -818,6 +824,7 @@ class MzMLComparisonGlycopeptideLCMSMSAnalyzer(MzMLGlycopeptideLCMSMSAnalyzer):
             n_processes, spectra_chunk_size, use_peptide_mass_filter,
             maximum_mass)
         self.decoy_database_connection = decoy_database_connection
+        self.use_decoy_correction_threshold = use_decoy_correction_threshold
 
     def make_search_engine(self, msms_scans, database, peak_loader):
         searcher = GlycopeptideDatabaseSearchComparer(
@@ -850,8 +857,18 @@ class MzMLComparisonGlycopeptideLCMSMSAnalyzer(MzMLGlycopeptideLCMSMSAnalyzer):
             "target_database_size": len(target_database),
             "decoy_database_size": len(decoy_database),
             "decoy_database": str(self.decoy_database_connection),
+            "decoy_correction_threshold": self.use_decoy_correction_threshold,
+
         })
         return result
 
     def estimate_fdr(self, searcher, target_hits, decoy_hits):
-        searcher.target_decoy(target_hits, decoy_hits, decoy_correction=1)
+        if len(decoy_hits) / float(len(target_hits)) < self.use_decoy_correction_threshold:
+            targets_per_decoy = 0.5
+            decoy_correction = 1
+        else:
+            targets_per_decoy = 1.0
+            decoy_correction = 0
+        searcher.target_decoy(
+            target_hits, decoy_hits, decoy_correction=decoy_correction,
+            database_weight=targets_per_decoy)

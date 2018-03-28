@@ -418,3 +418,31 @@ class DatabaseConnectionParam(click.types.StringParamType):
                     raise self.fail(
                         "Database file {} does not exist.".format(value), param, ctx)
             return value
+
+
+class GlycopeptideFDRParam(click.ParamType):
+    name = '0-1.0/on/off/auto'
+
+    error_message_template = (
+        "%s is not a valid option for FDR strategy selection. "
+        "If numerical, it must be between 0 and 1.0, otherwise it must "
+        "be one of auto, on, or off."
+    )
+
+    def convert(self, value, param, ctx):
+        value = value.lower()
+        try:
+            threshold = float(value)
+            if threshold > 1 or threshold < 0:
+                self.fail(self.error_message_template % value, param, ctx)
+        except ValueError:
+            value = value.strip()
+            if value == 'auto':
+                threshold = 0.5
+            elif value == 'off':
+                threshold = 0.0
+            elif value == 'on':
+                threshold = 1.0
+            else:
+                self.fail(self.error_message_template % value, param, ctx)
+            return threshold

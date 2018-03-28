@@ -34,7 +34,8 @@ from .validators import (
     validate_ms1_feature_name,
     ms1_model_features,
     RelativeMassErrorParam,
-    DatabaseConnectionParam)
+    DatabaseConnectionParam,
+    GlycopeptideFDRParam)
 
 
 def make_analysis_output_path(prefix):
@@ -116,13 +117,16 @@ def sample_path(fn):
               help='Save intermediate spectrum matches to a file', cls=HiddenOption)
 @click.option("--maximum-mass", default=float('inf'), type=float, cls=HiddenOption)
 @click.option("-D", "--decoy-database-connection", default=None, cls=HiddenOption)
+@click.option("--fdr-correction", default='auto', type=GlycopeptideFDRParam(),
+              help=("Whether to attempt to correct for small sample size for target-decoy analysis."),
+              cls=HiddenOption)
 def search_glycopeptide(context, database_connection, sample_path, hypothesis_identifier,
                         analysis_name, output_path=None, grouping_error_tolerance=1.5e-5, mass_error_tolerance=1e-5,
                         msn_mass_error_tolerance=2e-5, psm_fdr_threshold=0.05, peak_shape_scoring_model=None,
                         tandem_scoring_model=None, oxonium_threshold=0.15, save_intermediate_results=None,
                         processes=4, workload_size=500, adducts=None, export=None,
                         use_peptide_mass_filter=False, maximum_mass=float('inf'),
-                        decoy_database_connection=None):
+                        decoy_database_connection=None, fdr_correction='auto'):
     """Identify glycopeptide sequences from processed LC-MS/MS data
     """
     if output_path is None:
@@ -200,7 +204,8 @@ def search_glycopeptide(context, database_connection, sample_path, hypothesis_id
             spectra_chunk_size=workload_size,
             adducts=adducts,
             use_peptide_mass_filter=use_peptide_mass_filter,
-            maximum_mass=maximum_mass)
+            maximum_mass=maximum_mass,
+            use_decoy_correction_threshold=fdr_correction)
     analyzer.display_header()
     gps, unassigned, target_hits, decoy_hits = analyzer.start()
     if save_intermediate_results is not None:
