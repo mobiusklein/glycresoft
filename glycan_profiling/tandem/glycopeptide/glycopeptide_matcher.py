@@ -323,6 +323,7 @@ class ComparisonGlycopeptideMatcher(TargetDecoyInterleavingGlycopeptideMatcher):
 
     def score_bunch(self, scans, precursor_error_tolerance=1e-5, simplify=True, *args, **kwargs):
         # Map scans to target database
+        self.log("... Querying Targets")
         workload = self.target_evaluator._map_scans_to_hits(
             scans, precursor_error_tolerance)
         # Evaluate mapped target hits
@@ -330,7 +331,6 @@ class ComparisonGlycopeptideMatcher(TargetDecoyInterleavingGlycopeptideMatcher):
         workload_graph = workload.compute_workloads()
         total_work = workload.total_work_required(workload_graph)
         running_total_work = 0
-        self.log("... Querying Targets")
         for i, batch in enumerate(workload.batches(self.batch_size)):
             running_total_work += batch.batch_size
             self.log("... Batch %d (%d/%d) %0.2f%%" % (
@@ -352,6 +352,7 @@ class ComparisonGlycopeptideMatcher(TargetDecoyInterleavingGlycopeptideMatcher):
                         raise
             target_solutions += temp
 
+        self.log("... Querying Decoys")
         workload = self.decoy_evaluator._map_scans_to_hits(
             scans, precursor_error_tolerance)
         # Evaluate mapped target hits
@@ -359,7 +360,6 @@ class ComparisonGlycopeptideMatcher(TargetDecoyInterleavingGlycopeptideMatcher):
         workload_graph = workload.compute_workloads()
         total_work = workload.total_work_required(workload_graph)
         running_total_work = 0
-        self.log("... Querying Decoys")
         for i, batch in enumerate(workload.batches(self.batch_size)):
             running_total_work += batch.batch_size
             self.log("... Batch %d (%d/%d) %0.2f%%" % (
@@ -688,8 +688,7 @@ class GlycopeptideDatabaseSearchComparer(GlycopeptideDatabaseSearchIdentifier):
         tda = GroupwiseTargetDecoyAnalyzer(
             [x.best_solution() for x in target_hits],
             [x.best_solution() for x in decoy_hits], *args, with_pit=with_pit,
-            database_ratio=database_ratio, database_weight=1. / 2.,
-            grouping_functions=grouping_fns, **kwargs)
+            database_ratio=database_ratio, grouping_functions=grouping_fns, **kwargs)
 
         tda.q_values()
         for sol in target_hits:
