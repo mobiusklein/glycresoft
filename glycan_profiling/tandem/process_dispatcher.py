@@ -67,6 +67,10 @@ class IdentificationProcessDispatcher(TaskBase):
     workers : list
         Container for created workers.
     """
+
+    post_search_trailing_timeout = 2e2
+    child_failure_timeout = 2.5e2
+
     def __init__(self, worker_type, scorer_type, evaluation_args=None, init_args=None,
                  mass_shift_map=None, n_processes=3, ipc_manager=None):
         if ipc_manager is None:
@@ -433,7 +437,7 @@ class IdentificationProcessDispatcher(TaskBase):
                             self.log(
                                 "...... %d cycles without output (%d/%d, %0.2f%% Done)" % (
                                     strikes, len(seen), n, len(seen) * 100. / n))
-                        if strikes > 5e2:
+                        if strikes > self.post_search_trailing_timeout:
                             self.log(
                                 "...... Too much time has elapsed with"
                                 " missing items. Evaluating serially.")
@@ -456,7 +460,7 @@ class IdentificationProcessDispatcher(TaskBase):
                         is_feeder_done = self.done_event.is_set()
                         self.log("...... Input Queue Status: %r. Is Feeder Done? %r" % (
                             input_queue_size, is_feeder_done))
-                    if strikes > 1e3:
+                    if strikes > self.child_failure_timeout:
                         self.log(
                             ("...... Too much time has elapsed with"
                              " missing items (%d children still alive). Evaluating serially.") % (
