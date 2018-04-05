@@ -40,14 +40,15 @@ cv.configure_obo_store(os.path.join(CONFIG_DIR, "cv"))
 HAS_CONFIG = os.path.exists(USER_CONFIG_PATH)
 
 DEFAULT_CONFIG = {
-    "version": 0.3,
+    "version": 0.4,
     "peptide_modifications": {},
     "glycan_modifications": {},
     "substituent_rules": {},
     "environment": {
         "log_file_name": "glycresoft-log",
         "log_file_mode": "a"
-    }
+    },
+    "xml_huge_tree": False
 }
 
 _CURRENT_CONFIG = None

@@ -20,6 +20,8 @@ from glycan_profiling.task import (
     log_handle,
     CallInterval)
 
+from glycan_profiling.config import get_configuration
+
 
 from multiprocessing import Process, Queue
 try:
@@ -34,6 +36,10 @@ logger = logging.getLogger("glycan_profiler.preprocessor")
 DONE = b"--NO-MORE--"
 SCAN_STATUS_GOOD = b"good"
 SCAN_STATUS_SKIP = b"skip"
+
+
+user_config = get_configuration()
+huge_tree = user_config.get("xml_huge_tree", False)
 
 savgol = ms_peak_picker.scan_filter.SavitskyGolayFilter()
 denoise = ms_peak_picker.scan_filter.FTICRBaselineRemoval(window_length=2.)
@@ -74,7 +80,7 @@ class ScanIDYieldingProcess(Process):
         return batch, scan_ids
 
     def run(self):
-        self.loader = MSFileLoader(self.mzml_path)
+        self.loader = MSFileLoader(self.mzml_path, huge_tree=huge_tree)
 
         if self.start_scan is not None:
             self.loader.start_from_scan(self.start_scan)
@@ -268,7 +274,7 @@ class ScanTransformingProcess(Process, ScanTransformMixin):
         return transformer
 
     def run(self):
-        loader = MSFileLoader(self.mzml_path)
+        loader = MSFileLoader(self.mzml_path, huge_tree=huge_tree)
         queued_loader = ScanBunchLoader(loader)
 
         has_input = True
@@ -719,7 +725,7 @@ class ScanGenerator(TaskBase, ScanGeneratorBase):
                 helper.terminate()
 
     def _preindex_file(self):
-        reader = MSFileLoader(self.ms_file, use_index=False)
+        reader = MSFileLoader(self.ms_file, use_index=False, huge_tree=huge_tree)
         try:
             reader.prebuild_byte_offset_file(self.ms_file)
         except AttributeError:
@@ -733,7 +739,7 @@ class ScanGenerator(TaskBase, ScanGeneratorBase):
             self.error("An error occurred while pre-indexing.", e)
 
     def _make_interval_tree(self, start_scan, end_scan):
-        reader = MSFileLoader(self.ms_file)
+        reader = MSFileLoader(self.ms_file, huge_tree=huge_tree)
         start_ix = reader.get_scan_by_id(start_scan).index
         end_ix = reader.get_scan_by_id(end_scan).index
         reader.reset()

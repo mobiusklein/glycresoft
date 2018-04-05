@@ -28,6 +28,8 @@ from glycan_profiling.trace import (
     LogitSumChromatogramProcessor,
     LaplacianRegularizedChromatogramProcessor)
 
+from glycan_profiling import config
+
 from glycan_profiling.chromatogram_tree import ChromatogramFilter
 
 from glycan_profiling.models import GeneralScorer, get_feature
