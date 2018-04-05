@@ -116,10 +116,16 @@ def preprocess(ms_file, outfile_path, averagine=None, start_time=None, end_time=
 
     loader = MSFileLoader(ms_file)
 
-    start_scan_id = loader._locate_ms1_scan(
-        loader.get_scan_by_time(start_time)).id
-    end_scan_id = loader._locate_ms1_scan(
-        loader.get_scan_by_time(end_time)).id
+    start_scan = loader._locate_ms1_scan(
+        loader.get_scan_by_time(start_time))
+    end_scan = loader._locate_ms1_scan(
+        loader.get_scan_by_time(end_time))
+
+    start_scan_id = start_scan.id
+    end_scan_id = end_scan.id
+
+    start_scan_time = start_scan.scan_time
+    end_scan_time = end_scan.scan_time
 
     loader.reset()
     loader.start_from_scan(start_scan_id)
@@ -138,7 +144,7 @@ def preprocess(ms_file, outfile_path, averagine=None, start_time=None, end_time=
 
     click.secho("Initializing %s" % name, fg='green')
     click.echo("from %s (%0.2f) to %s (%0.2f)" % (
-        start_scan_id, start_time, end_scan_id, end_time))
+        start_scan_id, start_scan_time, end_scan_id, end_scan_time))
     if deconvolute:
         click.echo("charge range: %s" % (charge_range,))
 
