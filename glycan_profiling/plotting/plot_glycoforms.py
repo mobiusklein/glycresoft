@@ -72,7 +72,7 @@ class GlycoformLayout(object):
         self.layers = layers
         self.id_mapper = IDMapper()
         self.ax = ax
-        self.row_width = row_width
+        self.row_width = min(row_width, len(protein))
         self.options = kwargs
         self.layer_height = 0.56 * scale_factor
         self.y_step = (self.layer_height + 0.15) * -scale_factor
@@ -123,7 +123,7 @@ class GlycoformLayout(object):
             (self.protein_pad + i, self.layer_height + .2 + self.cur_y),
             str(current_position + 1), size=self.sequence_font_size / 7.5,
             prop=font_options)
-        patch = mpatches.PathPatch(text_path, facecolor='grey', lw=0.04)
+        patch = mpatches.PathPatch(text_path, facecolor='grey', edgecolor='grey', lw=0.04)
         self.ax.add_patch(patch)
 
         i = self.row_width
@@ -131,7 +131,7 @@ class GlycoformLayout(object):
             (self.protein_pad + i, self.layer_height + .2 + self.cur_y),
             str(next_row), size=self.sequence_font_size / 7.5,
             prop=font_options)
-        patch = mpatches.PathPatch(text_path, facecolor='grey', lw=0.04)
+        patch = mpatches.PathPatch(text_path, facecolor='grey', edgecolor='grey', lw=0.04)
         self.ax.add_patch(patch)
 
         for i, aa in enumerate(self.protein.protein_sequence[current_position:next_row]):
@@ -143,7 +143,7 @@ class GlycoformLayout(object):
                  ((i + current_position - 1) in self.glycosites),
                  ((i + current_position - 2) in self.glycosites))
             ) else 'black'
-            patch = mpatches.PathPatch(text_path, facecolor=color, lw=0.04)
+            patch = mpatches.PathPatch(text_path, facecolor=color, edgecolor=color, lw=0.04)
             self.ax.add_patch(patch)
 
     def next_row(self):
@@ -247,11 +247,15 @@ class GlycoformLayout(object):
                         "parent": gpm.id
                     })
                 self.ax.add_patch(mod_patch)
+                modification_string = str(modification)
+                modification_symbol = modification_string[0]
+                if modification_symbol == '@':
+                    modification_symbol = modification_string[1]
                 text_path = TextPath(
                     (gpm.start_position - current_position + i -
                      self.mod_text_x_offset + 0.3 + start_index,
                      self.cur_y + self.mod_text_y_offset),
-                    str(modification)[0], size=self.mod_font_size / 4.5, prop=font_options)
+                    modification_symbol, size=self.mod_font_size / 4.5, prop=font_options)
                 patch = mpatches.PathPatch(
                     text_path, facecolor='black', lw=0.04)
                 self.ax.add_patch(patch)
