@@ -1,4 +1,4 @@
-from collections import defaultdict
+from collections import defaultdict, namedtuple
 from ms_deisotope import isotopic_shift
 
 from glycan_profiling.task import TaskBase
@@ -9,6 +9,9 @@ from .workload import WorkloadManager
 from .spectrum_match import (
     SpectrumSolutionSet,
     SpectrumMatch)
+
+
+ScanQuery = namedtuple("ScanQuery", ("scan", "mass_shift", "isotopic_shift", "query_mass", "meta"))
 
 
 def group_by_precursor_mass(scans, window_size=1.5e-5):
@@ -60,6 +63,23 @@ class TandemClusterEvaluatorBase(TaskBase):
         }
         self.batch_size = batch_size
         self.trust_precursor_fits = trust_precursor_fits
+
+    def _multiplex_scan_queries(self, scans):
+        queries = []
+        for scan in scans:
+            for mass_shift in self.mass_shifts:
+                if (not scan.precursor_information.defaulted and self.trust_precursor_fits):
+                    probe = 0
+                else:
+                    probe = self.probing_range_for_missing_precursors
+                intact_mass = scan.precursor_information.extracted_neutral_mass
+                for i in range(probe + 1):
+                    query_mass = intact_mass - (i * self.neutron_offset) - mass_shift.mass
+                    query = ScanQuery(
+                        scan=scan, mass_shift=mass_shift, isotopic_shift=i,
+                        query_mass=query_mass)
+                    queries.append(query)
+        return queries
 
     def _mark_hit(self, match):
         return self.structure_database.mark_hit(match)
