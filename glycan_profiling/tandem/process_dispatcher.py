@@ -68,7 +68,7 @@ class IdentificationProcessDispatcher(TaskBase):
         Container for created workers.
     """
 
-    post_search_trailing_timeout = 2e2
+    post_search_trailing_timeout = 5e1
     child_failure_timeout = 2.5e2
 
     def __init__(self, worker_type, scorer_type, evaluation_args=None, init_args=None,
@@ -444,6 +444,10 @@ class IdentificationProcessDispatcher(TaskBase):
                             i += self._reconstruct_missing_work_items(
                                 seen, hit_map, hit_to_scan, scan_hit_type_map)
                             has_work = False
+                            self.debug("...... Processes")
+                            for worker in self.workers:
+                                self.debug("......... %r" % (worker,))
+                            self.debug("...... IPC Manager: %r" % (self.ipc_manager,))
                 else:
                     strikes += 1
                     if strikes % 50 == 0:
