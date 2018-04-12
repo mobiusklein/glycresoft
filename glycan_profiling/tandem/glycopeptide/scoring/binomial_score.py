@@ -207,9 +207,12 @@ class BinomialSpectrumMatcher(GlycopeptideSpectrumMatcherBase):
 
     def __init__(self, scan, target, mass_shift=None):
         super(BinomialSpectrumMatcher, self).__init__(scan, target, mass_shift)
-        self._sanitized_spectrum = set(self.spectrum)
-        self._score = None
         self.solution_map = FragmentMatchMap()
+        self._score = None
+        self._init_binomial()
+
+    def _init_binomial(self):
+        self._sanitized_spectrum = set(self.spectrum)
         self.n_theoretical = 0
         self._backbone_mass_series = []
 
@@ -284,6 +287,8 @@ class BinomialSpectrumMatcher(GlycopeptideSpectrumMatcherBase):
             self._compute_average_window_size(error_tolerance),
             precursor_mass
         )
+        if fragment_match_component < 1e-170:
+            fragment_match_component = 1e-170
         return fragment_match_component
 
     def _intensity_component_binomial(self):
@@ -292,7 +297,7 @@ class BinomialSpectrumMatcher(GlycopeptideSpectrumMatcherBase):
             self._sanitize_solution_map(),
             self.n_theoretical)
 
-        if intensity_component == 0:
+        if intensity_component < 1e-170:
             intensity_component = 1e-170
         return intensity_component
 

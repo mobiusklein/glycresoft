@@ -145,7 +145,6 @@ _precalc_fact = np.log([math.factorial(n) for n in range(20)])
 
 def log_factorial(x):
     x = np.array(x)
-    _precalc_fact
     m = (x >= _precalc_fact.size)
     out = np.empty(x.shape)
     out[~m] = _precalc_fact[x[~m].astype(int)]
