@@ -129,7 +129,7 @@ class SpectrumMatcherBase(SpectrumMatchBase):
             return scan
 
     def __repr__(self):
-        return "{self.__class__.__name__}({self.spectrum}, {self.target}, {self.score})".format(
+        return "{self.__class__.__name__}({self.scan_id}, {self.spectrum}, {self.target}, {self.score})".format(
             self=self)
 
     def plot(self, ax=None, **kwargs):
