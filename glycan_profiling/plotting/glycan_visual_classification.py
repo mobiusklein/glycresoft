@@ -1,5 +1,7 @@
 from collections import OrderedDict
 
+from six import string_types as basestring
+
 from matplotlib import patches as mpatches
 
 from glypy.structure.glycan_composition import FrozenGlycanComposition, FrozenMonosaccharideResidue

@@ -1,5 +1,7 @@
 from collections import namedtuple, OrderedDict
 
+from six import string_types as basestring
+
 import numpy as np
 from scipy import linalg
 
