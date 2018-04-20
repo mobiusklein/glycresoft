@@ -287,7 +287,7 @@ class RegularizationParameterType(click.ParamType):
                     " specified weight or \"grid\" to grid search "))
 @click.option("-w", "--regularization-model-path", type=click.Path(exists=True),
               default=None,
-              help="Path to a file containing neighborhood model for regularization")
+              help="Path to a file containing a neighborhood model for regularization")
 @click.option("-k", "--network-path", type=click.Path(exists=True), default=None,
               help=("Path to a file containing the glycan composition network"
                     " and neighborhood rules"))

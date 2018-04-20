@@ -718,5 +718,41 @@ class GlycopeptideDatabaseSearchComparer(GlycopeptideDatabaseSearchIdentifier):
         return loaded_target_hits, loaded_decoy_hits
 
 
-class ConcatenatedGlycopeptideDatabaseSearchComparer(GlycopeptideDatabaseSearchIdentifier):
-    pass
+class ExclusiveGlycopeptideDatabaseSearchComparer(GlycopeptideDatabaseSearchComparer):
+    def target_decoy(self, target_hits, decoy_hits, with_pit=False, *args, **kwargs):
+        accepted_targets, accepted_decoys = self._find_best_match_for_each_scan(target_hits, decoy_hits)
+        tda = super(ExclusiveGlycopeptideDatabaseSearchComparer, self).target_decoy(
+            accepted_targets, accepted_decoys, with_pit=with_pit, *args, **kwargs)
+        for sol in target_hits:
+            for hit in sol:
+                tda.score(hit)
+            sol.q_value = sol.best_solution().q_value
+        for sol in decoy_hits:
+            for hit in sol:
+                tda.score(hit)
+            sol.q_value = sol.best_solution().q_value
+        return tda
+
+    def _find_best_match_for_each_scan(self, target_hits, decoy_hits):
+        winning_targets = []
+        winning_decoys = []
+
+        target_map = {t.scan.id: t for t in target_hits}
+        decoy_map = {t.scan.id: t for t in decoy_hits}
+        scan_ids = set(target_map) | set(decoy_map)
+        for scan_id in scan_ids:
+            target_sol = target_map.get(scan_id)
+            decoy_sol = decoy_map.get(scan_id)
+            if target_sol is None:
+                winning_decoys.append(decoy_sol)
+            elif decoy_sol is None:
+                winning_targets.append(target_sol)
+            else:
+                if target_sol.score == decoy_sol.score:
+                    winning_targets.append(target_sol)
+                    winning_decoys.append(decoy_sol)
+                elif target_sol.score > decoy_sol.score:
+                    winning_targets.append(target_sol)
+                else:
+                    winning_decoys.append(decoy_sol)
+        return winning_targets, winning_decoys

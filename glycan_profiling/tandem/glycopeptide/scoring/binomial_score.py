@@ -217,6 +217,7 @@ class BinomialSpectrumMatcher(GlycopeptideSpectrumMatcherBase):
         self._backbone_mass_series = []
 
     def match(self, error_tolerance=2e-5, *args, **kwargs):
+        # this does not include stub glycopeptides
         n_theoretical = 0
         solution_map = FragmentMatchMap()
         spectrum = self.spectrum

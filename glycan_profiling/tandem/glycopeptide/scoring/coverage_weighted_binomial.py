@@ -26,6 +26,7 @@ class CoverageWeightedBinomialScorer(BinomialSpectrumMatcher, SimpleCoverageScor
         GlycanCompositionSignatureMatcher.match(self, error_tolerance=error_tolerance)
         solution_map = FragmentMatchMap()
         spectrum = self.spectrum
+        # this does not include stub glycopeptides
         n_theoretical = 0
         backbone_mass_series = []
         neutral_losses = tuple(kwargs.pop("neutral_losses", []))

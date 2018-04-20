@@ -207,8 +207,8 @@ class IdentificationProcessDispatcher(TaskBase):
             except Exception as e:
                 self.log("An exception occurred while feeding %r and %d scan ids: %r" % (hit_id, len(scan_ids), e))
         self.log("...... Finished dealing %d work items" % (i,))
-        self.input_queue.close()
-        self.input_queue.join_thread()
+        # self.input_queue.close()
+        # self.input_queue.join_thread()
         self.done_event.set()
         return
 
@@ -472,6 +472,10 @@ class IdentificationProcessDispatcher(TaskBase):
                         i += self._reconstruct_missing_work_items(
                             seen, hit_map, hit_to_scan, scan_hit_type_map)
                         has_work = False
+                        self.debug("...... Processes")
+                        for worker in self.workers:
+                            self.debug("......... %r" % (worker,))
+                        self.debug("...... IPC Manager: %r" % (self.ipc_manager,))
                 continue
             self.store_result(target_id, score_map, scan_map)
         i_spectrum_matches = sum(map(len, self.scan_solution_map.values()))
