@@ -191,6 +191,9 @@ class IdentificationProcessDispatcher(TaskBase):
             if hit.id in seen:
                 self.log("Hit %r already dealt under hit_id %r, now again at %r" % (
                     hit, seen[hit.id], hit_id))
+                raise ValueError(
+                    "Hit %r already dealt under hit_id %r, now again at %r" % (
+                        hit, seen[hit.id], hit_id))
             seen[hit.id] = hit_id
 
             try:
@@ -409,17 +412,17 @@ class IdentificationProcessDispatcher(TaskBase):
         self.log("... Searching Matches (%d)" % (n_spectrum_matches,))
         while has_work:
             try:
-                target_id, score_map, token = self.output_queue.get(True, 1)
-                if target_id in seen:
+                target, score_map, token = self.output_queue.get(True, 1)
+                if target.id in seen:
                     self.debug(
                         "...... Duplicate Results For %s. First seen at %r, now again at %r" % (
-                            target_id, seen[target_id], (i, token)))
+                            target, seen[target.id], (i, token)))
                 else:
-                    seen[target_id] = (i, token)
+                    seen[target.id] = (i, token)
                 if (i > n) and ((i - n) % 10 == 0):
                     self.debug(
                         "...... Warning: %d additional output received. %s and %d matches." % (
-                            i - n, target_id, len(score_map)))
+                            i - n, target, len(score_map)))
 
                 i += 1
                 strikes = 0
@@ -477,7 +480,7 @@ class IdentificationProcessDispatcher(TaskBase):
                             self.debug("......... %r" % (worker,))
                         self.debug("...... IPC Manager: %r" % (self.ipc_manager,))
                 continue
-            self.store_result(target_id, score_map, scan_map)
+            self.store_result(target, score_map, scan_map)
         i_spectrum_matches = sum(map(len, self.scan_solution_map.values()))
         self.log("... Finished Processing Matches (%d)" % (i_spectrum_matches,))
         self.clear_pool()
@@ -571,8 +574,8 @@ class SpectrumIdentificationWorkerBase(Process):
                     continue
             items_handled += 1
             self.handle_item(structure, scan_ids)
-        self.output_queue.close()
-        self.output_queue.join_thread()
+        # self.output_queue.close()
+        # self.output_queue.join_thread()
         self._work_complete.set()
 
     def run(self):
