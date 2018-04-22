@@ -68,7 +68,7 @@ class IdentificationProcessDispatcher(TaskBase):
         Container for created workers.
     """
 
-    post_search_trailing_timeout = 5e1
+    post_search_trailing_timeout = 1.5e2
     child_failure_timeout = 2.5e2
 
     def __init__(self, worker_type, scorer_type, evaluation_args=None, init_args=None,
