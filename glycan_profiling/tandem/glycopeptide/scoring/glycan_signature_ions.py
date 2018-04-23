@@ -21,6 +21,8 @@ _water = Composition("H2O")
 
 
 class GlycanCompositionSignatureMatcher(GlycopeptideSpectrumMatcherBase):
+    minimum_intensity_ratio_threshold = 0.01
+
     def __init__(self, scan, target, mass_shift=None):
         super(GlycanCompositionSignatureMatcher, self).__init__(scan, target, mass_shift)
         self._init_signature_matcher()
@@ -96,7 +98,7 @@ class GlycanCompositionSignatureMatcher(GlycopeptideSpectrumMatcherBase):
         penalty = 0
         for key, peak in self.unexpected_matches.items():
             ratio = peak.intensity / self.maximum_intensity
-            if ratio < 0.01:
+            if ratio < self.minimum_intensity_ratio_threshold:
                 continue
             x = 1 - ratio
             if x <= 0:
@@ -107,7 +109,12 @@ class GlycanCompositionSignatureMatcher(GlycopeptideSpectrumMatcherBase):
                     component = 20
             penalty += component
         for key, peak in self.expected_matches.items():
-            if peak is None:
+            matched = peak is not None
+            if matched:
+                ratio = peak.intensity / self.maximum_intensity
+                if ratio < self.minimum_intensity_ratio_threshold:
+                    matched = False
+            if not matched:
                 importance = self.estimate_missing_ion_importance(key)
                 x = 1 - importance
                 if x <= 0:
