@@ -116,8 +116,13 @@ def preprocess(ms_file, outfile_path, averagine=None, start_time=None, end_time=
 
     loader = MSFileLoader(ms_file)
 
+    last_scan = loader[len(loader) - 1]
+    last_time = last_scan.scan_time
+
     start_scan = loader._locate_ms1_scan(
         loader.get_scan_by_time(start_time))
+    if end_time > last_time:
+        end_time = last_time
     end_scan = loader._locate_ms1_scan(
         loader.get_scan_by_time(end_time))
 
