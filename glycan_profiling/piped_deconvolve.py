@@ -438,13 +438,8 @@ class ScanCollator(TaskBase):
         item : str or ProcessedScan
             Either a stub indicating why this work item
             is not
-        index : TYPE
-            Description
-
-        Returns
-        -------
-        TYPE
-            Description
+        index : int
+            Scan index to store
         """
         if self._log_received_scans:
             self.log("-- received %d: %s" % (index, item))
