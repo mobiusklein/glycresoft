@@ -735,8 +735,14 @@ class ScanGenerator(TaskBase, ScanGeneratorBase):
 
     def _make_interval_tree(self, start_scan, end_scan):
         reader = MSFileLoader(self.ms_file, huge_tree=huge_tree)
-        start_ix = reader.get_scan_by_id(start_scan).index
-        end_ix = reader.get_scan_by_id(end_scan).index
+        if start_scan is not None:
+            start_ix = reader.get_scan_by_id(start_scan).index
+        else:
+            start_ix = 0
+        if end_scan is not None:
+            end_ix = reader.get_scan_by_id(end_scan).index
+        else:
+            end_ix = len(reader)
         reader.reset()
         index, interval_tree = build_scan_index(
             reader, self.number_of_helpers + 1, (start_ix, end_ix))
