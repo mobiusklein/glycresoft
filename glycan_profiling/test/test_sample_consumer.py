@@ -7,6 +7,7 @@ import ms_peak_picker
 import ms_deisotope
 from ms_deisotope.output.mzml import ProcessedMzMLDeserializer
 
+import numpy as np
 
 from glycan_profiling.test import fixtures
 from glycan_profiling.profiler import SampleConsumer
@@ -88,7 +89,10 @@ class MSMSSampleConsumerTest(unittest.TestCase, SampleConsumerBase):
         reference = ProcessedMzMLDeserializer(agp_glycproteomics_mzml_reference)
 
         for a_bunch, b_bunch in zip(reader, reference):
-            assert a_bunch.products == b_bunch.products
+            for a_product, b_product in zip(a_bunch.products, b_bunch.products):
+                assert np.isclose(a_product.precursor_information.neutral_mass,
+                                  b_product.precursor_information.neutral_mass)
+                assert len(a_product.deconvoluted_peak_set) == len(b_product.deconvoluted_peak_set)
 
         reader.close()
         reference.close()
