@@ -17,3 +17,5 @@ jinja2
 rdflib
 requests
 SPARQLWrapper
+
+python-idzip>=0.3.2
