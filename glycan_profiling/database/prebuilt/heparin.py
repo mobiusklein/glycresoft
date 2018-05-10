@@ -10,6 +10,8 @@ enHexA  0   1
 
 @acetyl <=  HexN
 @sulfate <= ((HexN * 3 - @acetyl) + (HexA * 2) + (enHexA * 2))
+HexA <= HexN + 1
+HexN <= HexA + 1
 '''
 
 hypothesis_metadata = {
