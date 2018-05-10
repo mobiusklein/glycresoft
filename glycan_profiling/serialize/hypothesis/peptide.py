@@ -4,6 +4,7 @@ from collections import OrderedDict
 from sqlalchemy.ext.baked import bakery
 from sqlalchemy.ext.declarative import declared_attr
 from sqlalchemy.orm import relationship, backref, make_transient, Query, validates
+from sqlalchemy.ext.hybrid import hybrid_property
 from sqlalchemy import (
     Column, Numeric, Integer, String, ForeignKey, PickleType,
     Boolean, Table, Text, Index)
@@ -20,7 +21,7 @@ from glycopeptidepy.structure import sequence, residue, PeptideSequenceBase
 from glycan_profiling.structure.structure_loader import PeptideProteinRelation, FragmentCachingGlycopeptide
 
 
-class PeptideSequenceWrapperBase(PeptideSequenceBase):
+class AminoAcidSequenceWrapperBase(PeptideSequenceBase):
     _sequence_obj = None
 
     def _get_sequence_str(self):
@@ -45,7 +46,7 @@ class PeptideSequenceWrapperBase(PeptideSequenceBase):
         return str(self._get_sequence())
 
 
-class Protein(Base, PeptideSequenceWrapperBase):
+class Protein(Base, AminoAcidSequenceWrapperBase):
     __tablename__ = "Protein"
 
     id = Column(Integer, primary_key=True, autoincrement=True)
@@ -136,7 +137,7 @@ def _convert_class_name_to_collection_name(name):
     return '_'.join(parts) + 's'
 
 
-class PeptideBase(PeptideSequenceWrapperBase):
+class PeptideBase(AminoAcidSequenceWrapperBase):
     @declared_attr
     def protein_id(self):
         return Column(Integer, ForeignKey(
