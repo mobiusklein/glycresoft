@@ -25,12 +25,8 @@ def info(type, value, tb):
         ipdb.post_mortem(tb)
 
 
-sys.excepthook = info
-
-
 def main():
     freeze_support()
-    is_profiling = False
     if os.getenv("GLYCRESOFTDEBUG"):
         sys.excepthook = info
     if os.getenv("GLYCRESOFTPROFILING"):
