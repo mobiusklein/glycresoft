@@ -5,6 +5,8 @@ subtraction, multiplication, and division, and conditional operators greater
 than, less than equality, as well as compound & and | relationships.
 '''
 import re
+import ast
+import operator as op
 from numbers import Number
 
 from six import string_types as basestring, PY3
@@ -362,8 +364,59 @@ def parse_expression(string):
         expression_stack.append(current_symbol)
 
     if len(resolver_stack) > 0:
-        raise SyntaxError("Unpaired parenthesis")
+        raise ValueError("Unpaired parenthesis")
     return collapse_expression_sequence(expression_stack)
+
+
+def parse_ast(string):
+    return eval_(ast.parse(string, mode='eval').body)
+
+
+# supported operators
+operators = {ast.Add: op.add, ast.Sub: op.sub, ast.Mult: op.mul,
+             ast.Div: op.truediv, ast.Pow: op.pow, ast.BitXor: op.xor,
+             ast.USub: op.neg, ast.Gt: op.gt,
+             ast.GtE: op.ge, ast.Lt: op.lt, ast.LtE: op.le, ast.Eq: op.eq,
+             ast.NotEq: op.ne}
+
+
+def eval_(node):
+    if isinstance(node, ast.Num):  # <number>
+        return ValueNode(node.n)
+    elif isinstance(node, ast.Name):
+        return SymbolNode(node.id)
+    elif isinstance(node, ast.Compare):
+        if len(node.comparators) > 1:
+            raise ValueError("Chained comparators unsupported")
+        comparator = node.comparators[0]
+        op = node.ops[0]
+        return operators[type(op)](eval_(node.left), eval_(comparator))
+    elif isinstance(node, ast.Call):
+        return FunctionCallNode(
+            node.func.name, Operator.get("call"), [eval_(a) for a in node.args])
+    elif isinstance(node, ast.BinOp):  # <left> <operator> <right>
+        return operators[type(node.op)](eval_(node.left), eval_(node.right))
+    elif isinstance(node, ast.UnaryOp):  # <operator> <operand> e.g., -1
+        return operators[type(node.op)](eval_(node.operand))
+    else:
+        raise TypeError(node)
+
+
+def break_at_operator(character, current_symbol, string, i):
+    # we have a new character which may correspond to an operator
+    if character in operator_map:
+        # we are extending an existing symbol which will form an operator
+        if current_symbol + character in operator_map:
+            return False
+        else:
+            # break the current symbol
+            return True
+    else:
+        return False
+
+
+def is_operator(symbol):
+    return symbol in operator_map
 
 
 def collapse_expression_sequence(expression_sequence):
@@ -386,8 +439,8 @@ def collapse_expression_sequence(expression_sequence):
             stack = [node]
         i += 1
     if len(stack) != 1:
-        raise SyntaxError("Incomplete Expression: %s" %
-                          ' '.join(expression_sequence))
+        raise ValueError("Incomplete Expression: %s" %
+                         ' '.join(expression_sequence))
     return stack[0]
 
 
