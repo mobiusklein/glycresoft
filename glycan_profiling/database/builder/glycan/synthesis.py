@@ -1,7 +1,5 @@
-# import glypy
 import json
-from collections import defaultdict, deque
-
+from collections import defaultdict, deque, namedtuple
 
 from glypy.io import iupac, glycoct
 from glypy.structure.glycan_composition import HashableGlycanComposition
@@ -11,10 +9,33 @@ from glypy.enzyme import (
 
 from glycan_profiling.task import TaskBase, log_handle
 
+from glycan_profiling.database.builder.glycan.glycan_source import GlycanHypothesisSerializerBase
+
+
+def make_enzyme_index():
+    enzyme_index = dict()
+    glycosylases, glycosyltransferases, _ = make_n_glycan_pathway()
+    enzyme_index.update(glycosylases)
+    enzyme_index.update(glycosyltransferases)
+
+    enzyme_index.pop('siat2_3')
+    child = iupac.loads("a-D-Neup5Gc")
+    parent = iupac.loads("b-D-Galp-(1-4)-b-D-Glcp2NAc")
+    siagct2_6 = Glycosyltransferase(6, 2, parent, child, parent_node_id=3)
+    enzyme_index['siagct2_6'] = siagct2_6
+
+    return enzyme_index
+
+
+enzyme_index = make_enzyme_index()
+
 
 class MultiprocessingGlycomeTask(MultiprocessingGlycome, TaskBase):
-    def log(self, i, chunks, current_generation):
-        log_handle.log(".... Task %d/%d finished (%d items generated)" % (
+    def _log(self, message):
+        log_handle.log(message)
+
+    def log_generation_chunk(self, i, chunks, current_generation):
+        self._log(".... Task %d/%d finished (%d items generated)" % (
             i, len(chunks), len(current_generation)))
 
 
@@ -96,9 +117,15 @@ class GlycanSynthesis(TaskBase):
         return solutions, glycome.enzyme_graph
 
     def run(self):
+        logger = self.ipc_logger()
         glycome = self.build_glycome()
+        old_logger = glycome._log
+        glycome._log = logger.handler
         for i, gen in enumerate(glycome.run()):
             self.log(".... Generation %d: %d Structures" % (i, len(gen)))
+        self.glycome = glycome
+        logger.stop()
+        glycome._log = old_logger
         if self.convert_to_composition:
             compositions, composition_enzyme_graph = self.convert_enzyme_graph_composition(glycome)
             return compositions, composition_enzyme_graph
@@ -171,6 +198,9 @@ class StructureConverter(object):
         return "%s(%d)" % (self.__class__.__name__, len(self.cache))
 
 
+EnzymeEdge = namedtuple("EnzymeEdge", ("parent", "child", "enzyme"))
+
+
 class EnzymeGraph(object):
     def __init__(self, graph, seeds=None):
         self.graph = graph
@@ -185,6 +215,21 @@ class EnzymeGraph(object):
             for inner_key, inner_value in outer_value.items():
                 graph[outer_key][inner_key] = inner_value.copy()
         return self.__class__(graph, self.seeds.copy())
+
+    def nodes(self):
+        acc = set()
+        acc.update(self.graph)
+        for i, v in enumerate(self.graph.values()):
+            acc.update(v)
+        return acc
+
+    def edges(self):
+        edges = set()
+        for outer_key, outer_value in self.graph.items():
+            for inner_key, inner_value in outer_value.items():
+                for val in inner_value:
+                    edges.add(EnzymeEdge(outer_key, inner_key, val))
+        return edges
 
     def node_count(self):
         acc = set()
@@ -221,9 +266,11 @@ class EnzymeGraph(object):
                     outer_value.pop(inner_key)
                 if not outer_value:
                     self.graph.pop(outer_key)
-        # nodes_to_remove = self.parentless() - self.seeds
-        # for node in nodes_to_remove:
-        #     self.remove(node)
+        nodes_to_remove = self.parentless() - self.seeds
+        while nodes_to_remove:
+            for node in nodes_to_remove:
+                self.remove(node)
+            nodes_to_remove = self.parentless() - self.seeds
         return edges_removed
 
     def parents(self, target):
@@ -251,11 +298,10 @@ class EnzymeGraph(object):
         i = 0
         while items:
             node = items.popleft()
-            print("Removing %s" % (node,))
             if node in self.graph:
                 i += 1
                 children = self.graph.pop(node)
-                items.extend(children)
+                # items.extend(children)
         return i
 
     def _dump(self):
@@ -315,8 +361,8 @@ class EnzymeGraph(object):
 
 
 # This may be too memory intensive to use on large graphs because
-# a single :class:`Glycan` instance uses many times the memory that
-# a :class:`GlycanComposition` does.
+# a single :class:`~.Glycan` instance uses many times the memory that
+# a :class:`~.GlycanComposition` does.
 class GlycanStructureEnzymeGraph(EnzymeGraph):
 
     @classmethod
@@ -353,3 +399,25 @@ class AdaptExistingGlycanGraph(TaskBase):
         self.remove_enzymes()
         self.log("After Adaption, Graph has %d nodes and %d edges" % (
             self.graph.node_count(), self.graph.edge_count()))
+
+
+class ExistingGraphGlycanHypothesisSerializer(GlycanHypothesisSerializerBase):
+    def __init__(self, enzyme_graph, database_connection, enzymes_to_use, reduction=None,
+                 derivatization=None, hypothesis_name=None):
+        if enzymes_to_use is None:
+            enzymes_to_use = set()
+
+        GlycanHypothesisSerializerBase.__init__(self, database_connection, hypothesis_name)
+
+        self.enzyme_graph = enzyme_graph
+        self.enzymes_to_use = set(enzymes_to_use)
+
+        self.reduction = reduction
+        self.derivatization = derivatization
+
+        self.loader = None
+        self.transformer = None
+
+    def build_glycan_compositions(self):
+        adapter = AdaptExistingGlycanGraph(self.enzyme_graph, self.enzymes_to_use)
+        adapter.start()
