@@ -202,7 +202,7 @@ class SequenceGlyph(object):
             try:
                 color = cnames.get(color, color)
                 rgb = hex2color(color)
-            except:
+            except Exception:
                 rgb = color
             kwargs_with_greater_height['color'] = darken(rgb)
 
@@ -286,6 +286,8 @@ def draw_proteoform(proteoform, width=60):
     y = 1
     x = 1
     rows = []
+    if width > n:
+        width = n + 1
     # partion the protein sequence into chunks of width positions
     while i < n:
         rows.append(glycopeptidepy.PeptideSequence.from_iterable(proteoform[i:i + width]))
