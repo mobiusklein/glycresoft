@@ -1,7 +1,9 @@
 import hjson
 import os
 import platform
+import shutil
 import click
+
 
 from .peptide_modification import (load_modification_rule, save_modification_rule)
 from .substituent import (load_substituent_rule, save_substituent_rule)
@@ -10,9 +12,16 @@ from psims.controlled_vocabulary import controlled_vocabulary as cv
 
 
 CONFIG_DIR = click.get_app_dir("glycresoft")
-if not os.path.exists(CONFIG_DIR):
+
+if platform.system().lower() != 'windows':
+    os.environ["NOWAL"] = "1"
+
+_mpl_cache_dir = os.path.join(CONFIG_DIR, 'mpl')
+cv_store = os.path.join(CONFIG_DIR, 'cv')
+
+
+def populate_config_dir():
     os.makedirs(CONFIG_DIR)
-    cv_store = os.path.join(CONFIG_DIR, 'cv')
 
     # Pre-populate OBO Cache to avoid needing to look these up
     # by URL later
@@ -22,10 +31,15 @@ if not os.path.exists(CONFIG_DIR):
     with open(os.path.join(cv_store, 'unit.obo'), 'wb') as fh:
         fh.write(cv._use_vendored_unit_obo().read())
 
-if platform.system().lower() != 'windows':
-    os.environ["NOWAL"] = "1"
+    os.makedirs(_mpl_cache_dir)
 
-_mpl_cache_dir = os.path.join(CONFIG_DIR, 'mpl')
+
+def delete_config_dir():
+    shutil.rmtree(CONFIG_DIR, ignore_errors=True)
+
+
+if not os.path.exists(CONFIG_DIR):
+    populate_config_dir()
 
 if not os.path.exists(_mpl_cache_dir):
     os.makedirs(_mpl_cache_dir)
