@@ -151,7 +151,7 @@ class GlycopeptideDatabaseSearchReportCreator(ReportCreatorBase):
                 ax = figax()
                 AggregatedAbundanceArtist(
                     bundle, ax=ax, colorizer=glycan_colorizer_type_map[glyco_type]).draw()
-                ax.set_title("%s Glycans\nat Site %d" % (glyco_type.name, site,), fontsize=18)
+                ax.set_title("%s Glycans\nat Site %d" % (glyco_type.name, site + 1,), fontsize=18)
                 axes[site, glyco_type] = svguri_plot(ax, bbox_inches='tight')
         return axes
 
