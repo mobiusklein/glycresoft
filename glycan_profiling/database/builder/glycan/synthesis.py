@@ -4,8 +4,9 @@ from collections import defaultdict, deque, namedtuple
 from glypy.io import iupac, glycoct
 from glypy.structure.glycan_composition import HashableGlycanComposition
 from glypy.enzyme import (
-    make_n_glycan_pathway, MultiprocessingGlycome,
-    Glycosylase, Glycosyltransferase, _enzyme_graph_inner)
+    make_n_glycan_pathway, make_mucin_type_o_glycan_pathway,
+    MultiprocessingGlycome, Glycosylase, Glycosyltransferase,
+    _enzyme_graph_inner)
 
 from glycan_profiling.task import TaskBase, log_handle
 
@@ -175,6 +176,26 @@ class HumanNGlycanSynthesis(NGlycanSynthesis):
         return glycosidases, glycosyltransferases, seeds
 
 
+class MucinOGlycanSynthesis(GlycanSynthesis):
+    def _get_initial_components(self):
+        glycosidases, glycosyltransferases, seeds = make_mucin_type_o_glycan_pathway()
+        child = iupac.loads("a-D-Neup5Gc")
+        parent = iupac.loads("b-D-Galp-(1-4)-b-D-Glcp2NAc")
+        siagct2_6 = Glycosyltransferase(6, 2, parent, child, parent_node_id=3)
+
+        glycosyltransferases['siagct2_6'] = siagct2_6
+        return glycosidases, glycosyltransferases, seeds
+
+    def __init__(self, glycosylases=None, glycosyltransferases=None, seeds=None, limits=None,
+                 convert_to_composition=True, n_processes=5):
+        sylases, transferases, more_seeds = self._get_initial_components()
+        sylases.update(glycosylases or {})
+        transferases.update(glycosyltransferases or {})
+        more_seeds.extend(seeds or [])
+        super(MucinOGlycanSynthesis, self).__init__(sylases, transferases, more_seeds,
+                                                    limits, convert_to_composition, n_processes)
+
+
 class StructureConverter(object):
     def __init__(self):
         self.cache = dict()
@@ -300,8 +321,7 @@ class EnzymeGraph(object):
             node = items.popleft()
             if node in self.graph:
                 i += 1
-                children = self.graph.pop(node)
-                # items.extend(children)
+                self.graph.pop(node)
         return i
 
     def _dump(self):
