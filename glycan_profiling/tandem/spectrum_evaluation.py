@@ -214,7 +214,7 @@ class TandemClusterEvaluatorBase(TaskBase):
 
         i = 0
         n = len(scans)
-        report_interval = 0.1 * n
+        report_interval = 0.25 * n
         last_report = report_interval
         self.log("... Begin Collecting Hits")
         for mass_shift in sorted(self.mass_shifts, key=lambda x: x.mass):
