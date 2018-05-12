@@ -193,3 +193,41 @@ class LazyFile(object):
             return current_name
         else:
             return "%s.%s" % (basename, uuid.uuid4().hex)
+
+
+if hasattr(sys, '_getframe'):
+    def currentframe():
+        return sys._getframe(3)
+else:
+    def currentframe():
+        """Return the frame object for the caller's stack frame."""
+        try:
+            raise Exception
+        except Exception:
+            return sys.exc_info()[2].tb_frame.f_back
+
+
+_srcfile = os.path.normcase(currentframe.__code__.co_filename)
+
+
+def find_caller(self):
+    f = currentframe()
+    # On some versions of IronPython, currentframe() returns None if
+    # IronPython isn't run with -X:Frames.
+    if f is not None:
+        f = f.f_back
+        if f is not None:
+            f = f.f_back
+    rv = "(unknown file)", 0, "(unknown function)"
+    while hasattr(f, "f_code"):
+        co = f.f_code
+        filename = os.path.normcase(co.co_filename)
+        if filename == _srcfile:
+            f = f.f_back
+            continue
+        rv = (co.co_filename, f.f_lineno, co.co_name)
+        break
+    return rv
+
+
+logging.Logger.findCaller = find_caller
