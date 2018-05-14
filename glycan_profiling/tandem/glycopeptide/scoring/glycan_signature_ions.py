@@ -94,7 +94,7 @@ class GlycanCompositionSignatureMatcher(GlycopeptideSpectrumMatcherBase):
         weight = self.signatures[key]
         return min(weight * count, 0.99)
 
-    def calculate_score(self, match_tolerance=2e-5, *args, **kwargs):
+    def _signature_ion_score(self, match_tolerance=2e-5):
         penalty = 0
         for key, peak in self.unexpected_matches.items():
             ratio = peak.intensity / self.maximum_intensity
@@ -124,5 +124,8 @@ class GlycanCompositionSignatureMatcher(GlycopeptideSpectrumMatcherBase):
                     if np.isnan(component):
                         component = 20
                 penalty += component
-        self._score = -penalty
+        return -penalty
+
+    def calculate_score(self, match_tolerance=2e-5, *args, **kwargs):
+        self._score = self._signature_ion_score(match_tolerance)
         return self._score
