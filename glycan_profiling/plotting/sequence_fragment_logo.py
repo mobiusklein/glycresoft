@@ -7,6 +7,8 @@ from glypy.plot import plot as draw_tree
 
 from .colors import darken, cnames, hex2color
 
+import numpy as np
+
 from matplotlib import pyplot as plt, patches as mpatches, textpath, font_manager
 
 
@@ -44,6 +46,15 @@ class SequencePositionGlyph(object):
 
     def set_transform(self, transform):
         self._patch.set_transform(transform)
+
+    def centroid(self):
+        path = self._patch.get_path()
+        point = np.zeros_like(path.vertices[0])
+        c = 0.
+        for p in path.vertices:
+            point += p
+            c += 1
+        return point / c
 
 
 class SequenceGlyph(object):
@@ -94,6 +105,12 @@ class SequenceGlyph(object):
             x += size * self.step_coefficient
             i += 1
         return ax
+
+    def __getitem__(self, i):
+        return self.sequence_position_glyphs[i]
+
+    def __len__(self):
+        return len(self.sequence_position_glyphs)
 
     def next_between(self, index):
         for i, position in enumerate(self.sequence_position_glyphs, 1):
