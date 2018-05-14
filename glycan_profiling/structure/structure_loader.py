@@ -1,6 +1,8 @@
 from collections import namedtuple
 from functools import partial
 
+import numpy as np
+
 from ms_deisotope.peak_dependency_network.intervals import SpanningMixin
 
 from glycopeptidepy.structure.sequence import PeptideSequence
@@ -294,10 +296,19 @@ class DecoyFragmentCachingGlycopeptide(FragmentCachingGlycopeptide):
         try:
             return self.fragment_caches[key]
         except KeyError:
-            if (len(self) > self.stub_length_threshold) or self.use_legacy_stub_method:
-                result = list(super(FragmentCachingGlycopeptide, self).stub_fragments(*args, **kwargs))
-            else:
-                result = list(DecoyShiftingStubGlycopeptideStrategy(self, *args, **kwargs))
+            result = list(super(FragmentCachingGlycopeptide, self).stub_fragments(*args, **kwargs))
+            if not self.use_legacy_stub_method:
+                random_state = np.random.RandomState(
+                    int(round(self.glycan_composition.mass())))
+                random_low = kwargs.get('random_low', 1.0)
+                random_high = kwargs.get("random_high", 30.0)
+                for frag in result:
+                    delta = random_state.uniform(random_low, random_high)
+                    frag.mass += delta
+            # if (len(self) > self.stub_length_threshold) or self.use_legacy_stub_method:
+            #     result = list(super(FragmentCachingGlycopeptide, self).stub_fragments(*args, **kwargs))
+            # else:
+            #     result = list(DecoyShiftingStubGlycopeptideStrategy(self, *args, **kwargs))
             self.fragment_caches[key] = result
             return result
 
@@ -326,6 +337,8 @@ class DecoyMonosaccharideResidue(FrozenMonosaccharideResidue):
 
 
 class DecoyShiftingStubGlycopeptideStrategy(StubGlycopeptideStrategy):
+    def __init__(self, peptide, extended=True):
+        super(DecoyShiftingStubGlycopeptideStrategy, self).__init__(peptide, extended=extended)
 
     def _prepare_monosaccharide(self, name):
         return DecoyMonosaccharideResidue.from_iupac_lite(name)
