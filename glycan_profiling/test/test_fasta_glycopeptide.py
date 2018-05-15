@@ -5,7 +5,8 @@ from glycan_profiling.serialize.hypothesis.peptide import Peptide, Protein, Glyc
 from glycan_profiling.database.builder.glycopeptide import naive_glycopeptide
 from glycan_profiling.database.builder.glycopeptide.proteomics import fasta
 from glycan_profiling.database.builder.glycan import (
-    TextFileGlycanHypothesisSerializer, CombinatorialGlycanHypothesisSerializer)
+    TextFileGlycanHypothesisSerializer,
+    CombinatorialGlycanHypothesisSerializer)
 from glycan_profiling import serialize
 from glycan_profiling.test import fixtures
 
@@ -218,6 +219,20 @@ class FastaGlycopeptideTests(unittest.TestCase):
         self.clear_file(db_file)
         self.clear_file(fasta_file)
         self.clear_file(glycan_file)
+
+    def test_extract_forward_backward(self):
+        fasta_file = fixtures.get_test_data("yeast_glycoproteins.fa")
+        forward_db = self.setup_tempfile("")
+        reverse_db = self.setup_tempfile("")
+
+        builder = naive_glycopeptide.MultipleProcessFastaGlycopeptideHypothesisSerializer(
+            fasta_file, forward_db, 1)
+        builder.extract_proteins()
+
+        rev_builder = naive_glycopeptide.ReversingMultipleProcessFastaGlycopeptideHypothesisSerializer(
+            fasta_file, reverse_db, 1)
+        rev_builder.extract_proteins()
+
 
 
 if __name__ == '__main__':

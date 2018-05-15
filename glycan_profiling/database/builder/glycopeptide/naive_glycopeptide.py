@@ -51,10 +51,14 @@ class FastaGlycopeptideHypothesisSerializer(GlycopeptideHypothesisSerializerBase
             self.session.add(protein)
             i += 1
             if i % 10000 == 0:
-                self.log("%d Proteins Extracted" % (i,))
+                self.log("... %d Proteins Extracted" % (i,))
                 self.session.commit()
 
         self.session.commit()
+        self.log("%d Proteins Extracted" % (i,))
+        cnt = self.session.query(func.count(Protein.id)).filter(
+            Protein.hypothesis_id == self.hypothesis_id).scalar()
+        assert cnt == i
 
     def protein_ids(self):
         return [i[0] for i in self.query(Protein.id).filter(Protein.hypothesis_id == self.hypothesis_id).all()]
@@ -189,17 +193,21 @@ _MPFGHS = MultipleProcessFastaGlycopeptideHypothesisSerializer
 
 class ReversingMultipleProcessFastaGlycopeptideHypothesisSerializer(_MPFGHS):
     def extract_proteins(self):
-            i = 0
-            for protein in ProteinFastaFileParser(self.fasta_file):
-                protein.protein_sequence = str(reverse_preserve_sequon(protein.protein_sequence, suffix_len=0))
-                protein.hypothesis_id = self.hypothesis_id
-                self.session.add(protein)
-                i += 1
-                if i % 10000 == 0:
-                    self.log("%d Proteins Extracted" % (i,))
-                    self.session.commit()
+        i = 0
+        for protein in ProteinFastaFileParser(self.fasta_file):
+            protein.protein_sequence = str(reverse_preserve_sequon(protein.protein_sequence, suffix_len=0))
+            protein.hypothesis_id = self.hypothesis_id
+            self.session.add(protein)
+            i += 1
+            if i % 10000 == 0:
+                self.log("... %d Proteins Extracted" % (i,))
+                self.session.commit()
 
-            self.session.commit()
+        self.session.commit()
+        self.log("%d Proteins Extracted" % (i,))
+        cnt = self.session.query(func.count(Protein.id)).filter(
+            Protein.hypothesis_id == self.hypothesis_id).scalar()
+        assert cnt == i
 
 
 class NonSavingMultipleProcessFastaGlycopeptideHypothesisSerializer(_MPFGHS):
