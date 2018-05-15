@@ -94,7 +94,6 @@ class PeptideSharer(DatabaseBoundOperation):
 
         i = 0
         j = 0
-        # logger.info("Enriching %r", target_protein)
         target_protein_sequence = target_protein.protein_sequence
         keepers = []
         for peptide in self.stream_distinct_peptides(target_protein):

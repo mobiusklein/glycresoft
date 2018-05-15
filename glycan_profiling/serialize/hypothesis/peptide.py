@@ -65,9 +65,15 @@ class Protein(Base, AminoAcidSequenceWrapperBase):
     @property
     def n_glycan_sequon_sites(self):
         if self._n_glycan_sequon_sites is None:
-            try:
-                self._n_glycan_sequon_sites = sequence.find_n_glycosylation_sequons(self.protein_sequence)
-            except residue.UnknownAminoAcidException:
+            sites = self.sites.filter(ProteinSite.name == ProteinSite.N_GLYCOSYLATION).all()
+            if sites:
+                self._n_glycan_sequon_sites = [int(i) for i in sites]
+            elif self.sites.count() == 0:
+                try:
+                    self._n_glycan_sequon_sites = sequence.find_n_glycosylation_sequons(self.protein_sequence)
+                except residue.UnknownAminoAcidException:
+                    return []
+            else:
                 return []
         return self._n_glycan_sequon_sites
 
@@ -76,9 +82,15 @@ class Protein(Base, AminoAcidSequenceWrapperBase):
     @property
     def o_glycan_sequon_sites(self):
         if self._o_glycan_sequon_sites is None:
-            try:
-                self._o_glycan_sequon_sites = sequence.find_o_glycosylation_sequons(self.protein_sequence)
-            except residue.UnknownAminoAcidException:
+            sites = self.sites.filter(ProteinSite.name == ProteinSite.O_GLYCOSYLATION).all()
+            if sites:
+                self._o_glycan_sequon_sites = [int(i) for i in sites]
+            elif self.sites.count() == 0:
+                try:
+                    self._o_glycan_sequon_sites = sequence.find_o_glycosylation_sequons(self.protein_sequence)
+                except residue.UnknownAminoAcidException:
+                    return []
+            else:
                 return []
         return self._o_glycan_sequon_sites
 
@@ -87,9 +99,16 @@ class Protein(Base, AminoAcidSequenceWrapperBase):
     @property
     def glycosaminoglycan_sequon_sites(self):
         if self._glycosaminoglycan_sequon_sites is None:
-            try:
-                self._glycosaminoglycan_sequon_sites = sequence.find_glycosaminoglycan_sequons(self.protein_sequence)
-            except residue.UnknownAminoAcidException:
+            sites = self.sites.filter(ProteinSite.name == ProteinSite.GAGYLATION).all()
+            if sites:
+                self._glycosaminoglycan_sequon_sites = [int(i) for i in sites]
+            elif self.sites.count() == 0:
+                try:
+                    self._glycosaminoglycan_sequon_sites = sequence.find_glycosaminoglycan_sequons(
+                        self.protein_sequence)
+                except residue.UnknownAminoAcidException:
+                    return []
+            else:
                 return []
         return self._glycosaminoglycan_sequon_sites
 
@@ -99,6 +118,31 @@ class Protein(Base, AminoAcidSequenceWrapperBase):
             return self.n_glycan_sequon_sites  # + self.o_glycan_sequon_sites
         except residue.UnknownAminoAcidException:
             return []
+
+    def _init_sites(self):
+        try:
+            n_glycosites = sequence.find_n_glycosylation_sequons(self.protein_sequence)
+            for n_glycosite in n_glycosites:
+                self.sites.append(
+                    ProteinSite(name=ProteinSite.N_GLYCOSYLATION, location=n_glycosite))
+        except residue.UnknownAminoAcidException:
+            pass
+
+        try:
+            o_glycosites = sequence.find_o_glycosylation_sequons(self.protein_sequence)
+            for o_glycosite in o_glycosites:
+                self.sites.append(
+                    ProteinSite(name=ProteinSite.O_GLYCOSYLATION, location=o_glycosite))
+        except residue.UnknownAminoAcidException:
+            pass
+
+        try:
+            gag_sites = sequence.find_glycosaminoglycan_sequons(self.protein_sequence)
+            for gag_site in gag_sites:
+                self.sites.append(
+                    ProteinSite(name=ProteinSite.GAGYLATION, location=gag_site))
+        except residue.UnknownAminoAcidException:
+            pass
 
     def __repr__(self):
         return "DBProtein({0}, {1}, {2}, {3}...)".format(
@@ -130,6 +174,34 @@ class ProteinSite(Base):
     location = Column(Integer, index=True)
     protein_id = Column(Integer, ForeignKey(Protein.id, ondelete="CASCADE"), index=True)
     protein = relationship(Protein, backref=backref("sites", lazy='dynamic'))
+
+    N_GLYCOSYLATION = "N-Glycosylation"
+    O_GLYCOSYLATION = "O-Glycosylation"
+    GAGYLATION = "Glycosaminoglycosylation"
+
+    def __repr__(self):
+        return ("{self.__class__.__name__}(location={self.location}, "
+                "name={self.name})").format(self=self)
+
+    def __index__(self):
+        return self.location
+
+    def __int__(self):
+        return self.location
+
+    def __add__(self, other):
+        return int(self) + int(other)
+
+    def __radd__(self, other):
+        return int(self) + int(other)
+
+    def __eq__(self, other):
+        if isinstance(other, ProteinSite):
+            return self.location == other.location and self.name == other.name
+        return int(self) == int(other)
+
+    def __ne__(self, other):
+        return not (self == other)
 
 
 def _convert_class_name_to_collection_name(name):

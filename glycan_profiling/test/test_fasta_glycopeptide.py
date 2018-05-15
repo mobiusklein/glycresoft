@@ -244,6 +244,12 @@ class FastaGlycopeptideTests(unittest.TestCase):
             fasta_file, reverse_db, 1)
         cnt = rev_builder.extract_proteins()
         assert cnt == 251
+        fwd_prots = builder.query(serialize.Protein).all()
+        rev_prots = rev_builder.query(serialize.Protein).all()
+
+        for fx, rx in zip(fwd_prots, rev_prots):
+            assert fx.name == rx.name
+            assert len(fx.glycosylation_sites) == len(rx.glycosylation_sites)
 
 
 if __name__ == '__main__':

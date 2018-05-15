@@ -24,23 +24,33 @@ chain_iterable = itertools.chain.from_iterable
 SequenceLocation = modification.SequenceLocation
 
 
-def parent_sequence_aware_n_glycan_sequon_sites(peptide, protein):
-    sites = set(sequence.find_n_glycosylation_sequons(
-        peptide.modified_peptide_sequence))
-    sites |= set(site - peptide.start_position for site in protein.glycosylation_sites
+def n_glycan_sequon_sites(peptide, protein, use_local_sequence=False):
+    sites = set()
+    sites |= set(site - peptide.start_position for site in protein.n_glycan_sequon_sites
                  if peptide.start_position <= site < peptide.end_position)
+    if use_local_sequence:
+        sites |= set(sequence.find_n_glycosylation_sequons(
+            peptide.modified_peptide_sequence))
     return list(sites)
 
 
-def o_glycan_sequon_sites(peptide, protein=None):
-    sites = sequence.find_o_glycosylation_sequons(
-        peptide.modified_peptide_sequence)
+def o_glycan_sequon_sites(peptide, protein=None, use_local_sequence=False):
+    sites = set()
+    sites |= set(site - peptide.start_position for site in protein.o_glycan_sequon_sites
+                 if peptide.start_position <= site < peptide.end_position)
+    if use_local_sequence:
+        sites |= set(sequence.find_o_glycosylation_sequons(
+            peptide.modified_peptide_sequence))
     return sites
 
 
-def gag_sequon_sites(peptide, protein=None):
-    sites = sequence.find_glycosaminoglycan_sequons(
-        peptide.modified_peptide_sequence)
+def gag_sequon_sites(peptide, protein=None, use_local_sequence=False):
+    sites = set()
+    sites |= set(site - peptide.start_position for site in protein.glycosaminoglycan_sequon_sites
+                 if peptide.start_position <= site < peptide.end_position)
+    if use_local_sequence:
+        sites = sequence.find_glycosaminoglycan_sequons(
+            peptide.modified_peptide_sequence)
     return sites
 
 
@@ -303,7 +313,7 @@ class ProteinDigestor(TaskBase):
             peptide.hypothesis_id = hypothesis_id
             peptide.peptide_score = 0
             peptide.peptide_score_type = 'null_score'
-            n_glycosites = parent_sequence_aware_n_glycan_sequon_sites(
+            n_glycosites = n_glycan_sequon_sites(
                 peptide, protein_obj)
             o_glycosites = o_glycan_sequon_sites(peptide, protein_obj)
             gag_glycosites = gag_sequon_sites(peptide, protein_obj)
@@ -534,7 +544,7 @@ class ProteinSplitter(TaskBase):
                             inst.hypothesis_id = protein_obj.hypothesis_id
                             inst.peptide_score = 0
                             inst.peptide_score_type = 'null_score'
-                            n_glycosites = parent_sequence_aware_n_glycan_sequon_sites(
+                            n_glycosites = n_glycan_sequon_sites(
                                 inst, protein_obj)
                             o_glycosites = o_glycan_sequon_sites(inst, protein_obj)
                             gag_glycosites = gag_sequon_sites(inst, protein_obj)

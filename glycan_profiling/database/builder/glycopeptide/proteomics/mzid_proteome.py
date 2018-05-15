@@ -15,7 +15,9 @@ from glycan_profiling.serialize import (
 from glycan_profiling.task import TaskBase
 
 from .mzid_parser import Parser
-from .peptide_permutation import ProteinDigestor, ProteinSplitter
+from .peptide_permutation import (
+    ProteinDigestor, ProteinSplitter, n_glycan_sequon_sites,
+    o_glycan_sequon_sites, gag_sequon_sites)
 from .remove_duplicate_peptides import DeduplicatePeptides
 from .share_peptides import PeptideSharer
 from .fasta import FastaProteinSequenceResolver
@@ -103,24 +105,6 @@ def protein_names(mzid_path, pattern=r'.*'):
         name = protein['accession']
         if pattern.match(name):
             yield name
-
-
-def parent_sequence_aware_n_glycan_sequon_sites(peptide, protein):
-    sites = set(sequence.find_n_glycosylation_sequons(
-        peptide.modified_peptide_sequence, WHITELIST_GLYCOSITE_PTMS))
-    sites |= set(site - peptide.start_position for site in protein.n_glycan_sequon_sites
-                 if peptide.start_position <= site < peptide.end_position)
-    return list(sites)
-
-
-def o_glycan_sequon_sites(peptide, protein=None):
-    sites = sequence.find_o_glycosylation_sequons(peptide.modified_peptide_sequence)
-    return sites
-
-
-def gag_sequon_sites(peptide, protein=None):
-    sites = sequence.find_glycosaminoglycan_sequons(peptide.modified_peptide_sequence)
-    return sites
 
 
 def remove_peptide_sequence_alterations(base_sequence, insert_sites, delete_sites):
@@ -426,15 +410,21 @@ class PeptideIdentification(MzIdentMLPeptide):
 
 
 class ProteinStub(object):
-    def __init__(self, name, id, sequence, n_glycan_sequon_sites):
+    def __init__(self, name, id, sequence, n_glycan_sequon_sites, o_glycan_sequon_sites,
+                 glycosaminoglycan_sequon_sites):
         self.name = name
         self.id = id
         self.protein_sequence = sequence
         self.n_glycan_sequon_sites = n_glycan_sequon_sites
+        self.o_glycan_sequon_sites = o_glycan_sequon_sites
+        self.glycosaminoglycan_sequon_sites = glycosaminoglycan_sequon_sites
 
     @classmethod
     def from_protein(cls, protein):
-        return cls(protein.name, protein.id, protein.protein_sequence, protein.n_glycan_sequon_sites)
+        return cls(
+            protein.name, protein.id, protein.protein_sequence,
+            protein.n_glycan_sequon_sites, protein.o_glycan_sequon_sites,
+            protein.glycosaminoglycan_sequon_sites)
 
 
 class ProteinStubLoader(object):
@@ -512,7 +502,7 @@ class PeptideConverter(object):
             sequence_length=end - start,
             protein_id=parent_protein.id,
             hypothesis_id=self.hypothesis_id)
-        n_glycosites = parent_sequence_aware_n_glycan_sequon_sites(
+        n_glycosites = n_glycan_sequon_sites(
             match, parent_protein)
         o_glycosites = o_glycan_sequon_sites(match, parent_protein)
         gag_glycosites = gag_sequon_sites(match, parent_protein)
@@ -818,6 +808,7 @@ class Proteome(DatabaseBoundOperation, MzIdentMLProteomeExtraction):
                     protein_sequence=seq,
                     other=protein,
                     hypothesis_id=self.hypothesis_id)
+                p._init_sites()
                 session.add(p)
                 session.flush()
                 protein_map[name] = p
