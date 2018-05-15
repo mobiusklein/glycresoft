@@ -48,6 +48,7 @@ class FastaGlycopeptideHypothesisSerializer(GlycopeptideHypothesisSerializerBase
         i = 0
         for protein in ProteinFastaFileParser(self.fasta_file):
             protein.hypothesis_id = self.hypothesis_id
+            protein
             self.session.add(protein)
             i += 1
             if i % 10000 == 0:
@@ -56,9 +57,7 @@ class FastaGlycopeptideHypothesisSerializer(GlycopeptideHypothesisSerializerBase
 
         self.session.commit()
         self.log("%d Proteins Extracted" % (i,))
-        cnt = self.session.query(func.count(Protein.id)).filter(
-            Protein.hypothesis_id == self.hypothesis_id).scalar()
-        assert cnt == i
+        return i
 
     def protein_ids(self):
         return [i[0] for i in self.query(Protein.id).filter(Protein.hypothesis_id == self.hypothesis_id).all()]
@@ -205,9 +204,7 @@ class ReversingMultipleProcessFastaGlycopeptideHypothesisSerializer(_MPFGHS):
 
         self.session.commit()
         self.log("%d Proteins Extracted" % (i,))
-        cnt = self.session.query(func.count(Protein.id)).filter(
-            Protein.hypothesis_id == self.hypothesis_id).scalar()
-        assert cnt == i
+        return i
 
 
 class NonSavingMultipleProcessFastaGlycopeptideHypothesisSerializer(_MPFGHS):

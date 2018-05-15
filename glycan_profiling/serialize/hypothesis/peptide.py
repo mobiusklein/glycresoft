@@ -129,6 +129,7 @@ class ProteinSite(Base):
     name = Column(String(32), index=True)
     location = Column(Integer, index=True)
     protein_id = Column(Integer, ForeignKey(Protein.id, ondelete="CASCADE"), index=True)
+    protein = relationship(Protein, backref=backref("sites", lazy='dynamic'))
 
 
 def _convert_class_name_to_collection_name(name):

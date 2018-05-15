@@ -274,15 +274,11 @@ class PeptideGlycosylator(object):
 
     def _load_glycan_records(self):
         if self.glycan_offset is None:
-            # log_handle.log("... Building Glycan Combination Records Without Offset")
             glycan_combinations = self.session.query(
                 GlycanCombination).filter(
                 GlycanCombination.hypothesis_id == self.hypothesis_id).all()
             glycan_combinations = [GlycanCombinationRecord(gc) for gc in glycan_combinations]
         else:
-            # log_handle.log(
-            #     "... Building Glycan Combination Records With Offset %r Limit %r" % (
-            #         self.glycan_offset, self.glycan_limit))
             glycan_combinations = self.session.query(
                 GlycanCombination).filter(
                 GlycanCombination.hypothesis_id == self.hypothesis_id).offset(
