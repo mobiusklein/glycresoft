@@ -226,14 +226,45 @@ def expectation_correction(targets, decoys, ratio):
 
 
 class TargetDecoyAnalyzer(object):
+    """Estimate the False Discovery Rate using the Target-Decoy method.
+
+    Attributes
+    ----------
+    database_ratio : float
+        The ratio of the size of the target database to the decoy database
+    target_weight : float
+        A weight (less than 1.0) to put on target matches to make them weaker
+        than decoys in situations where there is little data.
+    decoy_correction : Number
+        A quantity to use to correct for correcting for decoys, and if non-zero,
+        will indicate that the negative binomial correction for decoys should be
+        used.
+    decoy_count : TYPE
+        Description
+    decoys : TYPE
+        Description
+    n_decoys_at : dict
+        Description
+    n_targets_at : dict
+        Description
+    target_count : TYPE
+        Description
+    targets : TYPE
+        Description
+    thresholds : TYPE
+        Description
+    with_pit : TYPE
+        Description
+    """
+
     def __init__(self, target_series, decoy_series, with_pit=False, decoy_correction=0, database_ratio=1.0,
-                 database_weight=1.0):
+                 target_weight=1.0):
         self.targets = target_series
         self.decoys = decoy_series
         self.target_count = len(target_series)
         self.decoy_count = len(decoy_series)
         self.database_ratio = database_ratio
-        self.database_weight = database_weight
+        self.target_weight = target_weight
         self.with_pit = with_pit
         self.decoy_correction = decoy_correction
         self.calculate_thresholds()
@@ -287,7 +318,7 @@ class TargetDecoyAnalyzer(object):
                 print(ex)
         try:
             ratio = (decoys_at + decoy_correction) / float(
-                targets_at * self.database_ratio * self.database_weight)
+                targets_at * self.database_ratio * self.target_weight)
         except ZeroDivisionError:
             ratio = (decoys_at + decoy_correction)
         return ratio, targets_at, decoys_at
@@ -339,7 +370,7 @@ class TargetDecoyAnalyzer(object):
 
 class GroupwiseTargetDecoyAnalyzer(object):
     def __init__(self, target_series, decoy_series, with_pit=False, grouping_functions=None, decoy_correction=0,
-                 database_ratio=1.0, database_weight=1.0):
+                 database_ratio=1.0, target_weight=1.0):
         if grouping_functions is None:
             grouping_functions = [lambda x: True]
         self.target_series = target_series
@@ -350,7 +381,7 @@ class GroupwiseTargetDecoyAnalyzer(object):
         self.group_fits = []
         self.decoy_correction = decoy_correction
         self.database_ratio = database_ratio
-        self.database_weight = database_weight
+        self.target_weight = target_weight
 
         for fn in grouping_functions:
             self.add_group(fn)
@@ -369,7 +400,7 @@ class GroupwiseTargetDecoyAnalyzer(object):
                 *group, with_pit=self.with_pit,
                 decoy_correction=self.decoy_correction,
                 database_ratio=self.database_ratio,
-                database_weight=self.database_weight)
+                target_weight=self.target_weight)
             self.group_fits.append(fit)
 
     def add_group(self, fn):

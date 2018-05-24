@@ -75,7 +75,8 @@ class ChromatogramProcessor(TaskBase):
 
     def run(self):
         matches = self.match_compositions()
-        self.evaluate_chromatograms(matches)
+        result = self.evaluate_chromatograms(matches)
+        return result
 
     def __iter__(self):
         if self.accepted_solutions is None:

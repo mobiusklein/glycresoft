@@ -1,7 +1,7 @@
 from collections import defaultdict
 from threading import Thread
 import multiprocessing
-from multiprocessing import Process, Queue, Event, Manager
+from multiprocessing import Process, Queue, Event, Manager, JoinableQueue
 
 try:
     from Queue import Empty as QueueEmptyException
@@ -105,7 +105,7 @@ class IdentificationProcessDispatcher(TaskBase):
         return Queue(int(1e5))
 
     def _make_output_queue(self):
-        return Queue(int(1e7))
+        return JoinableQueue(int(1e7))
 
     def clear_pool(self):
         """Tear down spawned worker processes and clear
@@ -413,6 +413,7 @@ class IdentificationProcessDispatcher(TaskBase):
         while has_work:
             try:
                 target, score_map, token = self.output_queue.get(True, 1)
+                self.output_queue.task_done()
                 if target.id in seen:
                     self.debug(
                         "...... Duplicate Results For %s. First seen at %r, now again at %r" % (
@@ -576,6 +577,7 @@ class SpectrumIdentificationWorkerBase(Process):
             self.handle_item(structure, scan_ids)
         # self.output_queue.close()
         # self.output_queue.join_thread()
+        self.output_queue.join()
         self._work_complete.set()
 
     def run(self):

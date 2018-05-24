@@ -29,7 +29,8 @@ from glycan_profiling.output import (
     MzIdentMLSerializer,
     GlycanChromatogramReportCreator,
     GlycopeptideDatabaseSearchReportCreator,
-    TrainingMGFExporter)
+    TrainingMGFExporter,
+    SpectrumAnnotatorExport)
 
 from glycan_profiling.cli.utils import ctxstream
 
@@ -374,3 +375,28 @@ def export_identified_glycans_from_glycopeptides(database_connection, analysis_i
     with output_stream:
         job = ImportableGlycanHypothesisCSVSerializer(output_stream, glycans)
         job.run()
+
+
+@export.command("annotate-matched-spectra",
+                short_help="Exports individual MS/MS assignments of glycopeptides to PDF")
+@database_connection
+@analysis_identifier("glycopeptide")
+@click.option("-o", "--output-path", type=click.Path(), default=None, help='Path to write to instead of stdout')
+@click.option("-m", '--mzml-path', type=click.Path(exists=True), default=None,
+              help="Alternative path to find the source mzML file")
+def annotate_matched_spectra(database_connection, analysis_identifier, output_path, mzml_path=None):
+    database_connection = DatabaseBoundOperation(database_connection)
+    session = database_connection.session()
+    analysis = get_by_name_or_id(session, Analysis, analysis_identifier)
+    if not analysis.analysis_type == AnalysisTypeEnum.glycopeptide_lc_msms:
+        click.secho("Analysis %r is of type %r." % (
+            str(analysis.name), str(analysis.analysis_type)), fg='red', err=True)
+        raise click.Abort()
+    if output_path is None:
+        output_path = os.path.dirname(database_connection._original_connection)
+
+    task = SpectrumAnnotatorExport(
+        database_connection._original_connection, analysis.id, output_path,
+        mzml_path)
+    task.display_header()
+    task.start()

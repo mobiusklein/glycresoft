@@ -201,6 +201,9 @@ class TextFileGlycanHypothesisSerializer(GlycanHypothesisSerializerBase):
         self.loader = None
         self.transformer = None
 
+    def _make_name(self):
+        return "TextFileGlycanHypothesis-" + self.uuid
+
     def make_pipeline(self):
         self.loader = TextFileGlycanCompositionLoader(open(self.glycan_file))
         self.transformer = GlycanTransformer(self.loader, self.reduction, self.derivatization)

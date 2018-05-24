@@ -3,3 +3,4 @@ recursive-include glycan_profiling/models/data *.json
 recursive-include glycan_profiling/output *.templ
 recursive-include glycan_profiling/output *.js
 recursive-include glycan_profiling/output *.css
+recursive-include glycan_profiling/database/prebuilt/data *

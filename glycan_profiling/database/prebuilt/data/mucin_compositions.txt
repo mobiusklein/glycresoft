@@ -1,0 +1,154 @@
+{HexNAc:1}	O-glycan
+{Hex:1; HexNAc:1}	O-glycan
+{HexNAc:2}	O-glycan
+{HexNAc:1; Neu5Ac:1}	O-glycan
+{Hex:1; HexNAc:2}	O-glycan
+{HexNAc:3}	O-glycan
+{Hex:1; HexNAc:1; Neu5Ac:1}	O-glycan
+{HexNAc:2; Neu5Ac:1}	O-glycan
+{Fuc:1; Hex:1; HexNAc:2}	O-glycan
+{Hex:2; HexNAc:2}	O-glycan
+{Hex:1; HexNAc:3}	O-glycan
+{Hex:1; HexNAc:2; Neu5Ac:1}	O-glycan
+{Fuc:2; Hex:1; HexNAc:2}	O-glycan
+{Fuc:1; Hex:2; HexNAc:2}	O-glycan
+{Fuc:1; Hex:1; HexNAc:3}	O-glycan
+{Hex:2; HexNAc:3}	O-glycan
+{Hex:1; HexNAc:1; Neu5Ac:2}	O-glycan
+{Hex:1; HexNAc:4}	O-glycan
+{Fuc:1; Hex:1; HexNAc:2; Neu5Ac:1}	O-glycan
+{Hex:2; HexNAc:2; Neu5Ac:1}	O-glycan
+{Fuc:2; Hex:2; HexNAc:2}	O-glycan
+{Hex:1; HexNAc:3; Neu5Ac:1}	O-glycan
+{Fuc:2; Hex:1; HexNAc:3}	O-glycan
+{Fuc:1; Hex:2; HexNAc:3}	O-glycan
+{Hex:3; HexNAc:3}	O-glycan
+{Fuc:1; Hex:1; HexNAc:4}	O-glycan
+{Hex:2; HexNAc:4}	O-glycan
+{Hex:1; HexNAc:2; Neu5Ac:2}	O-glycan
+{Fuc:2; Hex:1; HexNAc:2; Neu5Ac:1}	O-glycan
+{Fuc:1; Hex:2; HexNAc:2; Neu5Ac:1}	O-glycan
+{Fuc:1; Hex:1; HexNAc:3; Neu5Ac:1}	O-glycan
+{Hex:2; HexNAc:3; Neu5Ac:1}	O-glycan
+{Fuc:2; Hex:2; HexNAc:3}	O-glycan
+{Fuc:1; Hex:3; HexNAc:3}	O-glycan
+{Fuc:2; Hex:1; HexNAc:4}	O-glycan
+{Fuc:1; Hex:2; HexNAc:4}	O-glycan
+{Fuc:1; Hex:1; HexNAc:2; Neu5Ac:2}	O-glycan
+{Hex:3; HexNAc:4}	O-glycan
+{Hex:2; HexNAc:2; Neu5Ac:2}	O-glycan
+{Fuc:2; Hex:2; HexNAc:2; Neu5Ac:1}	O-glycan
+{Hex:2; HexNAc:5}	O-glycan
+{Fuc:2; Hex:1; HexNAc:3; Neu5Ac:1}	O-glycan
+{Fuc:1; Hex:2; HexNAc:3; Neu5Ac:1}	O-glycan
+{Fuc:3; Hex:2; HexNAc:3}	O-glycan
+{Hex:3; HexNAc:3; Neu5Ac:1}	O-glycan
+{Fuc:2; Hex:3; HexNAc:3}	O-glycan
+{Hex:2; HexNAc:4; Neu5Ac:1}	O-glycan
+{Fuc:2; Hex:2; HexNAc:4}	O-glycan
+{Fuc:2; Hex:1; HexNAc:2; Neu5Ac:2}	O-glycan
+{Fuc:1; Hex:3; HexNAc:4}	O-glycan
+{Fuc:1; Hex:2; HexNAc:2; Neu5Ac:2}	O-glycan
+{Hex:4; HexNAc:4}	O-glycan
+{Fuc:1; Hex:2; HexNAc:5}	O-glycan
+{Hex:3; HexNAc:5}	O-glycan
+{Hex:2; HexNAc:3; Neu5Ac:2}	O-glycan
+{Fuc:2; Hex:2; HexNAc:3; Neu5Ac:1}	O-glycan
+{Fuc:4; Hex:2; HexNAc:3}	O-glycan
+{Fuc:1; Hex:3; HexNAc:3; Neu5Ac:1}	O-glycan
+{Fuc:3; Hex:3; HexNAc:3}	O-glycan
+{Hex:2; HexNAc:6}	O-glycan
+{Fuc:1; Hex:2; HexNAc:4; Neu5Ac:1}	O-glycan
+{Fuc:3; Hex:2; HexNAc:4}	O-glycan
+{Hex:3; HexNAc:4; Neu5Ac:1}	O-glycan
+{Fuc:2; Hex:3; HexNAc:4}	O-glycan
+{Hex:2; HexNAc:2; Neu5Ac:3}	O-glycan
+{Fuc:2; Hex:2; HexNAc:2; Neu5Ac:2}	O-glycan
+{Fuc:1; Hex:4; HexNAc:4}	O-glycan
+{Hex:2; HexNAc:5; Neu5Ac:1}	O-glycan
+{Fuc:2; Hex:2; HexNAc:5}	O-glycan
+{Fuc:1; Hex:3; HexNAc:5}	O-glycan
+{Fuc:1; Hex:2; HexNAc:3; Neu5Ac:2}	O-glycan
+{Fuc:3; Hex:2; HexNAc:3; Neu5Ac:1}	O-glycan
+{Hex:4; HexNAc:5}	O-glycan
+{Hex:3; HexNAc:3; Neu5Ac:2}	O-glycan
+{Fuc:2; Hex:3; HexNAc:3; Neu5Ac:1}	O-glycan
+{Fuc:4; Hex:3; HexNAc:3}	O-glycan
+{Fuc:1; Hex:2; HexNAc:6}	O-glycan
+{Hex:3; HexNAc:6}	O-glycan
+{Hex:2; HexNAc:4; Neu5Ac:2}	O-glycan
+{Fuc:2; Hex:2; HexNAc:4; Neu5Ac:1}	O-glycan
+{Fuc:4; Hex:2; HexNAc:4}	O-glycan
+{Fuc:1; Hex:3; HexNAc:4; Neu5Ac:1}	O-glycan
+{Fuc:3; Hex:3; HexNAc:4}	O-glycan
+{Fuc:1; Hex:2; HexNAc:2; Neu5Ac:3}	O-glycan
+{Hex:4; HexNAc:4; Neu5Ac:1}	O-glycan
+{Fuc:2; Hex:4; HexNAc:4}	O-glycan
+{Fuc:1; Hex:2; HexNAc:5; Neu5Ac:1}	O-glycan
+{Fuc:3; Hex:2; HexNAc:5}	O-glycan
+{Hex:3; HexNAc:5; Neu5Ac:1}	O-glycan
+{Fuc:2; Hex:3; HexNAc:5}	O-glycan
+{Fuc:2; Hex:2; HexNAc:3; Neu5Ac:2}	O-glycan
+{Fuc:4; Hex:2; HexNAc:3; Neu5Ac:1}	O-glycan
+{Fuc:1; Hex:4; HexNAc:5}	O-glycan
+{Fuc:1; Hex:3; HexNAc:3; Neu5Ac:2}	O-glycan
+{Fuc:3; Hex:3; HexNAc:3; Neu5Ac:1}	O-glycan
+{Hex:5; HexNAc:5}	O-glycan
+{Fuc:2; Hex:2; HexNAc:6}	O-glycan
+{Fuc:1; Hex:3; HexNAc:6}	O-glycan
+{Fuc:1; Hex:2; HexNAc:4; Neu5Ac:2}	O-glycan
+{Fuc:3; Hex:2; HexNAc:4; Neu5Ac:1}	O-glycan
+{Hex:4; HexNAc:6}	O-glycan
+{Hex:3; HexNAc:4; Neu5Ac:2}	O-glycan
+{Fuc:2; Hex:3; HexNAc:4; Neu5Ac:1}	O-glycan
+{Fuc:4; Hex:3; HexNAc:4}	O-glycan
+{Fuc:2; Hex:2; HexNAc:2; Neu5Ac:3}	O-glycan
+{Fuc:1; Hex:4; HexNAc:4; Neu5Ac:1}	O-glycan
+{Fuc:3; Hex:4; HexNAc:4}	O-glycan
+{Hex:3; HexNAc:7}	O-glycan
+{Fuc:2; Hex:2; HexNAc:5; Neu5Ac:1}	O-glycan
+{Fuc:4; Hex:2; HexNAc:5}	O-glycan
+{Fuc:1; Hex:3; HexNAc:5; Neu5Ac:1}	O-glycan
+{Fuc:3; Hex:3; HexNAc:5}	O-glycan
+{Fuc:3; Hex:2; HexNAc:3; Neu5Ac:2}	O-glycan
+{Hex:4; HexNAc:5; Neu5Ac:1}	O-glycan
+{Fuc:2; Hex:4; HexNAc:5}	O-glycan
+{Hex:3; HexNAc:3; Neu5Ac:3}	O-glycan
+{Fuc:2; Hex:3; HexNAc:3; Neu5Ac:2}	O-glycan
+{Fuc:4; Hex:3; HexNAc:3; Neu5Ac:1}	O-glycan
+{Fuc:1; Hex:5; HexNAc:5}	O-glycan
+{Fuc:3; Hex:2; HexNAc:6}	O-glycan
+{Hex:3; HexNAc:6; Neu5Ac:1}	O-glycan
+{Fuc:2; Hex:3; HexNAc:6}	O-glycan
+{Fuc:2; Hex:2; HexNAc:4; Neu5Ac:2}	O-glycan
+{Fuc:4; Hex:2; HexNAc:4; Neu5Ac:1}	O-glycan
+{Fuc:1; Hex:4; HexNAc:6}	O-glycan
+{Fuc:1; Hex:3; HexNAc:4; Neu5Ac:2}	O-glycan
+{Fuc:3; Hex:3; HexNAc:4; Neu5Ac:1}	O-glycan
+{Hex:5; HexNAc:6}	O-glycan
+{Hex:4; HexNAc:4; Neu5Ac:2}	O-glycan
+{Fuc:2; Hex:4; HexNAc:4; Neu5Ac:1}	O-glycan
+{Fuc:1; Hex:3; HexNAc:7}	O-glycan
+{Fuc:3; Hex:2; HexNAc:5; Neu5Ac:1}	O-glycan
+{Hex:4; HexNAc:7}	O-glycan
+{Hex:3; HexNAc:5; Neu5Ac:2}	O-glycan
+{Fuc:2; Hex:3; HexNAc:5; Neu5Ac:1}	O-glycan
+{Fuc:4; Hex:2; HexNAc:3; Neu5Ac:2}	O-glycan
+{Fuc:1; Hex:4; HexNAc:5; Neu5Ac:1}	O-glycan
+{Hex:3; HexNAc:8}	O-glycan
+{Fuc:1; Hex:3; HexNAc:3; Neu5Ac:3}	O-glycan
+{Fuc:3; Hex:3; HexNAc:3; Neu5Ac:2}	O-glycan
+{Hex:5; HexNAc:5; Neu5Ac:1}	O-glycan
+{Fuc:1; Hex:3; HexNAc:6; Neu5Ac:1}	O-glycan
+{Fuc:3; Hex:2; HexNAc:4; Neu5Ac:2}	O-glycan
+{Hex:4; HexNAc:6; Neu5Ac:1}	O-glycan
+{Hex:3; HexNAc:4; Neu5Ac:3}	O-glycan
+{Fuc:2; Hex:3; HexNAc:4; Neu5Ac:2}	O-glycan
+{Fuc:1; Hex:4; HexNAc:4; Neu5Ac:2}	O-glycan
+{Hex:3; HexNAc:7; Neu5Ac:1}	O-glycan
+{Fuc:1; Hex:3; HexNAc:5; Neu5Ac:2}	O-glycan
+{Hex:4; HexNAc:5; Neu5Ac:2}	O-glycan
+{Fuc:2; Hex:3; HexNAc:3; Neu5Ac:3}	O-glycan
+{Hex:3; HexNAc:6; Neu5Ac:2}	O-glycan
+{Fuc:1; Hex:3; HexNAc:4; Neu5Ac:3}	O-glycan
+{Hex:4; HexNAc:4; Neu5Ac:3}	O-glycan

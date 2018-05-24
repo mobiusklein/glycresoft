@@ -67,7 +67,7 @@ def configure_logging(level=None, log_file_name=None, log_file_mode=None):
     if log_file_mode is None:
         log_file_mode = LOG_FILE_MODE
     file_fmter = logging.Formatter(
-        "%(asctime)s - %(name)s:%(filename)s:%(lineno)d - %(levelname)s - %(message)s",
+        "%(asctime)s - %(name)s:%(filename)s:%(lineno)-4d - %(levelname)s - %(message)s",
         "%H:%M:%S")
     if log_file_mode not in ("w", "a"):
         warnings.warn("File Logger configured with mode %r not applicable, using \"w\" instead" % (
@@ -95,7 +95,7 @@ def configure_logging(level=None, log_file_name=None, log_file_mode=None):
 
     if current_process().name == "MainProcess":
         fmt = logging.Formatter(
-            "%(asctime)s - %(name)s:%(filename)s:%(lineno)d - %(levelname)s - %(message)s", "%H:%M:%S")
+            "%(asctime)s - %(name)s:%(filename)s:%(lineno)-4d - %(levelname)s - %(message)s", "%H:%M:%S")
         handler = logging.StreamHandler()
         handler.setFormatter(fmt)
         handler.setLevel(level)
@@ -225,7 +225,8 @@ def find_caller(self):
         if filename == _srcfile:
             f = f.f_back
             continue
-        rv = (os.path.splitext(os.path.basename(co.co_filename))[0], f.f_lineno, co.co_name.ljust(5)[:5])
+        rv = (os.path.splitext(os.path.basename(co.co_filename))[0].ljust(13)[:13],
+              f.f_lineno, co.co_name.ljust(5)[:5])
         break
     return rv
 

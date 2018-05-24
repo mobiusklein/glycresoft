@@ -1,34 +1,27 @@
-import json
-from collections import defaultdict, deque, namedtuple
+from collections import defaultdict
 
 from glypy.io import iupac, glycoct
 from glypy.structure.glycan_composition import HashableGlycanComposition
 from glypy.enzyme import (
     make_n_glycan_pathway, make_mucin_type_o_glycan_pathway,
     MultiprocessingGlycome, Glycosylase, Glycosyltransferase,
-    _enzyme_graph_inner)
+    EnzymeGraph, GlycanCompositionEnzymeGraph, _enzyme_graph_inner)
 
 from glycan_profiling.task import TaskBase, log_handle
 
-from glycan_profiling.database.builder.glycan.glycan_source import GlycanHypothesisSerializerBase
+from glycan_profiling.database.builder.glycan.glycan_source import (
+    GlycanHypothesisSerializerBase, GlycanTransformer,
+    DBGlycanComposition, formula, GlycanCompositionToClass,
+    GlycanTypes)
+
+from glycan_profiling.structure import KeyTransformingDecoratorDict
 
 
-def make_enzyme_index():
-    enzyme_index = dict()
-    glycosylases, glycosyltransferases, _ = make_n_glycan_pathway()
-    enzyme_index.update(glycosylases)
-    enzyme_index.update(glycosyltransferases)
-
-    enzyme_index.pop('siat2_3')
-    child = iupac.loads("a-D-Neup5Gc")
-    parent = iupac.loads("b-D-Galp-(1-4)-b-D-Glcp2NAc")
-    siagct2_6 = Glycosyltransferase(6, 2, parent, child, parent_node_id=3)
-    enzyme_index['siagct2_6'] = siagct2_6
-
-    return enzyme_index
+def key_transform(name):
+    return str(name).lower().replace(" ", '-')
 
 
-enzyme_index = make_enzyme_index()
+synthesis_register = KeyTransformingDecoratorDict(key_transform)
 
 
 class MultiprocessingGlycomeTask(MultiprocessingGlycome, TaskBase):
@@ -41,6 +34,8 @@ class MultiprocessingGlycomeTask(MultiprocessingGlycome, TaskBase):
 
 
 class GlycanSynthesis(TaskBase):
+    glycan_classification = None
+
     def __init__(self, glycosylases=None, glycosyltransferases=None, seeds=None, limits=None,
                  convert_to_composition=True, n_processes=5):
         self.glycosylases = glycosylases or {}
@@ -144,7 +139,15 @@ class Limiter(object):
         return len(x) < self.max_nodes and x.mass() < self.max_mass
 
 
+GlycanSynthesis.size_limiter_type = Limiter
+
+
+@synthesis_register("n-glycan")
+@synthesis_register("mammalian-n-glycan")
 class NGlycanSynthesis(GlycanSynthesis):
+
+    glycan_classification = GlycanTypes.n_glycan
+
     def _get_initial_components(self):
         glycosidases, glycosyltransferases, seeds = make_n_glycan_pathway()
         glycosyltransferases.pop('siat2_3')
@@ -166,6 +169,7 @@ class NGlycanSynthesis(GlycanSynthesis):
                                                limits, convert_to_composition, n_processes)
 
 
+@synthesis_register("human-n-glycan")
 class HumanNGlycanSynthesis(NGlycanSynthesis):
     def _get_initial_components(self):
         glycosidases, glycosyltransferases, seeds = super(
@@ -176,14 +180,28 @@ class HumanNGlycanSynthesis(NGlycanSynthesis):
         return glycosidases, glycosyltransferases, seeds
 
 
+@synthesis_register("mucin-o-glycan")
+@synthesis_register("mammalian-mucin-o-glycan")
 class MucinOGlycanSynthesis(GlycanSynthesis):
+
+    glycan_classification = GlycanTypes.o_glycan
+
     def _get_initial_components(self):
         glycosidases, glycosyltransferases, seeds = make_mucin_type_o_glycan_pathway()
+        parent = iupac.loads("a-D-Galp2NAc")
         child = iupac.loads("a-D-Neup5Gc")
-        parent = iupac.loads("b-D-Galp-(1-4)-b-D-Glcp2NAc")
-        siagct2_6 = Glycosyltransferase(6, 2, parent, child, parent_node_id=3)
+        sgt6gal1 = Glycosyltransferase(6, 2, parent, child, terminal=False)
+        glycosyltransferases['sgt6gal1'] = sgt6gal1
 
-        glycosyltransferases['siagct2_6'] = siagct2_6
+        parent = iupac.loads("b-D-Galp-(1-3)-a-D-Galp2NAc")
+        child = iupac.loads("a-D-Neup5Gc")
+        sgt3gal2 = Glycosyltransferase(3, 2, parent, child, parent_node_id=3)
+        glycosyltransferases['sgt3gal2'] = sgt3gal2
+
+        parent = iupac.loads("b-D-Galp-(1-3)-a-D-Galp2NAc")
+        child = iupac.loads("a-D-Neup5Gc")
+        sgt6gal2 = Glycosyltransferase(6, 2, parent, child, parent_node_id=3)
+        glycosyltransferases['sgt6gal2'] = sgt6gal2
         return glycosidases, glycosyltransferases, seeds
 
     def __init__(self, glycosylases=None, glycosyltransferases=None, seeds=None, limits=None,
@@ -194,6 +212,16 @@ class MucinOGlycanSynthesis(GlycanSynthesis):
         more_seeds.extend(seeds or [])
         super(MucinOGlycanSynthesis, self).__init__(sylases, transferases, more_seeds,
                                                     limits, convert_to_composition, n_processes)
+
+
+@synthesis_register("human-mucin-o-glycan")
+class HumanMucinOGlycanSynthesis(MucinOGlycanSynthesis):
+    def _get_initial_components(self):
+        glycosidases, glycosyltransferases, seeds = super(HumanMucinOGlycanSynthesis)._get_initial_components()
+        glycosyltransferases.pop("sgt6gal1")
+        glycosyltransferases.pop("sgt3gal2")
+        glycosyltransferases.pop("sgt6gal2")
+        return glycosidases, glycosyltransferases, seeds
 
 
 class StructureConverter(object):
@@ -219,195 +247,18 @@ class StructureConverter(object):
         return "%s(%d)" % (self.__class__.__name__, len(self.cache))
 
 
-EnzymeEdge = namedtuple("EnzymeEdge", ("parent", "child", "enzyme"))
-
-
-class EnzymeGraph(object):
-    def __init__(self, graph, seeds=None):
-        self.graph = graph
-        self.seeds = set()
-        if seeds is None:
-            seeds = self.parentless()
-        self.seeds.update(seeds)
-
-    def clone(self):
-        graph = defaultdict(_enzyme_graph_inner)
-        for outer_key, outer_value in self.graph.items():
-            for inner_key, inner_value in outer_value.items():
-                graph[outer_key][inner_key] = inner_value.copy()
-        return self.__class__(graph, self.seeds.copy())
-
-    def nodes(self):
-        acc = set()
-        acc.update(self.graph)
-        for i, v in enumerate(self.graph.values()):
-            acc.update(v)
-        return acc
-
-    def edges(self):
-        edges = set()
-        for outer_key, outer_value in self.graph.items():
-            for inner_key, inner_value in outer_value.items():
-                for val in inner_value:
-                    edges.add(EnzymeEdge(outer_key, inner_key, val))
-        return edges
-
-    def node_count(self):
-        acc = set()
-        acc.update(self.graph)
-        for i, v in enumerate(self.graph.values()):
-            acc.update(v)
-        return len(acc)
-
-    def edge_count(self):
-        edges = 0
-        for outer_key, outer_value in self.graph.items():
-            for inner_key, inner_value in outer_value.items():
-                edges += len(inner_value)
-        return edges
-
-    def __repr__(self):
-        return "{}({:d})".format(self.__class__.__name__, self.node_count())
-
-    def enzymes(self):
-        enzyme_set = set()
-        for outer_key, outer_value in self.graph.items():
-            for inner_key, inner_value in outer_value.items():
-                enzyme_set.update(inner_value)
-        return enzyme_set
-
-    def remove_enzyme(self, enzyme):
-        edges_removed = list()
-        for outer_key, outer_value in list(self.graph.items()):
-            for inner_key, inner_value in list(outer_value.items()):
-                if enzyme in inner_value:
-                    inner_value.remove(enzyme)
-                    edges_removed.append((outer_key, inner_key))
-                if not inner_value:
-                    outer_value.pop(inner_key)
-                if not outer_value:
-                    self.graph.pop(outer_key)
-        nodes_to_remove = self.parentless() - self.seeds
-        while nodes_to_remove:
-            for node in nodes_to_remove:
-                self.remove(node)
-            nodes_to_remove = self.parentless() - self.seeds
-        return edges_removed
-
-    def parents(self, target):
-        parents = []
-        for outer_key, outer_value in self.graph.items():
-            for inner_key, inner_value in outer_value.items():
-                if inner_key == target:
-                    parents.append(outer_key)
-        return parents
-
-    def parentless(self):
-        is_parent = set(self.graph)
-        is_parented = set()
-        for i, v in enumerate(self.graph.values()):
-            is_parented.update(v)
-        return is_parent - is_parented
-
-    def children(self, target):
-        children = []
-        children.extend(self.graph[target])
-        return children
-
-    def remove(self, prune):
-        items = deque([prune])
-        i = 0
-        while items:
-            node = items.popleft()
-            if node in self.graph:
-                i += 1
-                self.graph.pop(node)
-        return i
-
-    def _dump(self):
-        data_structure = {
-            "seeds": [str(sd) for sd in self.seeds],
-            "enzymes": list(self.enzymes()),
-            "graph": {}
-        }
-        outgraph = {}
-        for outer_key, outer_value in self.graph.items():
-            outgraph_inner = dict()
-            for inner_key, inner_value in outer_value.items():
-                outgraph_inner[str(inner_key)] = list(inner_value)
-            outgraph[str(outer_key)] = outgraph_inner
-        data_structure['graph'] = outgraph
-        return data_structure
-
-    def dump(self, fh):
-        d = self._dump()
-        json.dump(d, fh, sort_keys=True, indent=2)
-
-    def dumps(self):
-        d = self._dump()
-        return json.dumps(d, sort_keys=True, indent=2)
-
-    @classmethod
-    def _load_entity(self, entity):
-        return entity
-
-    @classmethod
-    def _load(cls, data_structure):
-        seeds = {cls._load_entity(sd) for sd in data_structure["seeds"]}
-        graph = dict()
-        for outer_key, outer_value in data_structure["graph"].items():
-            outgraph_inner = dict()
-            for inner_key, inner_value in outer_value.items():
-                outgraph_inner[cls._load_entity(inner_key)] = set(inner_value)
-            graph[cls._load_entity(outer_key)] = outgraph_inner
-        inst = cls(graph, seeds)
-        return inst
-
-    @classmethod
-    def loads(cls, text):
-        data = json.loads(text)
-        return cls._load(data)
-
-    @classmethod
-    def load(cls, fd):
-        data = json.load(fd)
-        return cls._load(data)
-
-    def __eq__(self, other):
-        return self.graph == other.graph
-
-    def __ne__(self, other):
-        return self.graph != other.graph
-
-
-# This may be too memory intensive to use on large graphs because
-# a single :class:`~.Glycan` instance uses many times the memory that
-# a :class:`~.GlycanComposition` does.
-class GlycanStructureEnzymeGraph(EnzymeGraph):
-
-    @classmethod
-    def _load_entity(self, entity):
-        return glycoct.loads(entity)
-
-
-class GlycanCompositionEnzymeGraph(EnzymeGraph):
-
-    @classmethod
-    def _load_entity(self, entity):
-        return HashableGlycanComposition.parse(entity)
-
-
 class AdaptExistingGlycanGraph(TaskBase):
-    def __init__(self, graph, enzymes_to_use):
+    def __init__(self, graph, enzymes_to_remove):
         self.graph = graph
-        self.enzymes_to_use = set(enzymes_to_use)
+        self.enzymes_to_remove = set(enzymes_to_remove)
         self.enzymes_available = set(self.graph.enzymes())
-        if (self.enzymes_to_use - self.enzymes_available):
+        if (self.enzymes_to_remove - self.enzymes_available):
             raise ValueError("Required enzymes %r not found" % (
-                self.enzymes_to_use - self.enzymes_available,))
+                self.enzymes_to_remove - self.enzymes_available,))
 
     def remove_enzymes(self):
-        for enz in self.enzymes_to_use:
+        enz_to_remove = self.enzymes_to_remove
+        for enz in enz_to_remove:
             self.log(".... Removing Enzyme %s" % (enz,))
             self.graph.remove_enzyme(enz)
             for entity in (self.graph.parentless() - self.graph.seeds):
@@ -422,15 +273,16 @@ class AdaptExistingGlycanGraph(TaskBase):
 
 
 class ExistingGraphGlycanHypothesisSerializer(GlycanHypothesisSerializerBase):
-    def __init__(self, enzyme_graph, database_connection, enzymes_to_use, reduction=None,
-                 derivatization=None, hypothesis_name=None):
-        if enzymes_to_use is None:
-            enzymes_to_use = set()
+    def __init__(self, enzyme_graph, database_connection, enzymes_to_remove=None, reduction=None,
+                 derivatization=None, hypothesis_name=None, glycan_classification=None):
+        if enzymes_to_remove is None:
+            enzymes_to_remove = set()
 
         GlycanHypothesisSerializerBase.__init__(self, database_connection, hypothesis_name)
 
         self.enzyme_graph = enzyme_graph
-        self.enzymes_to_use = set(enzymes_to_use)
+        self.enzymes_to_remove = set(enzymes_to_remove)
+        self.glycan_classification = glycan_classification
 
         self.reduction = reduction
         self.derivatization = derivatization
@@ -439,5 +291,99 @@ class ExistingGraphGlycanHypothesisSerializer(GlycanHypothesisSerializerBase):
         self.transformer = None
 
     def build_glycan_compositions(self):
-        adapter = AdaptExistingGlycanGraph(self.enzyme_graph, self.enzymes_to_use)
+        adapter = AdaptExistingGlycanGraph(self.enzyme_graph, self.enzymes_to_remove)
         adapter.start()
+        components = adapter.graph.nodes()
+        for component in components:
+            yield component, [self.glycan_classification]
+
+    def make_pipeline(self):
+        self.loader = self.build_glycan_compositions()
+        self.transformer = GlycanTransformer(self.loader, self.reduction, self.derivatization)
+
+    def run(self):
+        self.make_pipeline()
+        structure_class_lookup = self.structure_class_loader
+
+        acc = []
+        counter = 0
+        for composition, structure_classes in self.transformer:
+            mass = composition.mass()
+            composition_string = composition.serialize()
+            formula_string = formula(composition.total_composition())
+            inst = DBGlycanComposition(
+                calculated_mass=mass, formula=formula_string,
+                composition=composition_string,
+                hypothesis_id=self.hypothesis_id)
+            self.session.add(inst)
+            self.session.flush()
+            counter += 1
+            for structure_class in structure_classes:
+                structure_class = structure_class_lookup[structure_class]
+                acc.append(dict(glycan_id=inst.id, class_id=structure_class.id))
+                if len(acc) % 100 == 0:
+                    self.session.execute(GlycanCompositionToClass.insert(), acc)
+                    acc = []
+        if acc:
+            self.session.execute(GlycanCompositionToClass.insert(), acc)
+            acc = []
+        self.session.commit()
+        self.log("Generated %d glycan compositions" % counter)
+
+
+class SynthesisGlycanHypothesisSerializer(GlycanHypothesisSerializerBase):
+    def __init__(self, glycome, database_connection, reduction=None,
+                 derivatization=None, hypothesis_name=None, glycan_classification=None):
+        if glycan_classification is None:
+            glycan_classification = glycome.glycan_classification
+
+        GlycanHypothesisSerializerBase.__init__(self, database_connection, hypothesis_name)
+
+        self.glycome = glycome
+        self.glycan_classification = glycan_classification
+
+        self.reduction = reduction
+        self.derivatization = derivatization
+
+        self.loader = None
+        self.transformer = None
+
+    def build_glycan_compositions(self):
+        components, enzyme_graph = self.glycome.start()
+        for component in components:
+            yield component, [self.glycan_classification]
+
+    def make_pipeline(self):
+        self.loader = self.build_glycan_compositions()
+        self.transformer = GlycanTransformer(self.loader, self.reduction, self.derivatization)
+
+    def run(self):
+        self.make_pipeline()
+        structure_class_lookup = self.structure_class_loader
+
+        acc = []
+        counter = 0
+        for composition, structure_classes in self.transformer:
+            mass = composition.mass()
+            composition_string = composition.serialize()
+            formula_string = formula(composition.total_composition())
+            inst = DBGlycanComposition(
+                calculated_mass=mass, formula=formula_string,
+                composition=composition_string,
+                hypothesis_id=self.hypothesis_id)
+            if (counter + 1) % 100 == 0:
+                self.log("Stored %d glycan compositions" % counter)
+            self.session.add(inst)
+            self.session.flush()
+            counter += 1
+            for structure_class in structure_classes:
+                structure_class = structure_class_lookup[structure_class]
+                acc.append(dict(glycan_id=inst.id, class_id=structure_class.id))
+                if len(acc) % 100 == 0:
+                    self.session.execute(GlycanCompositionToClass.insert(), acc)
+                    acc = []
+        if acc:
+            self.session.execute(GlycanCompositionToClass.insert(), acc)
+            acc = []
+        self.session.commit()
+        self.log("Stored %d glycan compositions" % counter)

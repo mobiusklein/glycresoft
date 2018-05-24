@@ -194,12 +194,13 @@ def tryopen(obj):
 
 def parse_rules_from_file(path):
     """
-    Summary
+    Parse monosaccharide bounds and constraints from text file-like
+    object
 
     Parameters
     ----------
-    path : TYPE
-        Description
+    path : file-like or str
+        The file to be parsed
 
     Raises
     ------
@@ -208,8 +209,10 @@ def parse_rules_from_file(path):
 
     Returns
     -------
-    name : TYPE
-        Description
+    rules_table: dict
+        A dict mapping Residue Name to (Lower Bound, Upper Bound)
+    constraints: list
+        A list of :class:`~.ConstraintExpression` objects
     """
     ranges = []
     constraints = []

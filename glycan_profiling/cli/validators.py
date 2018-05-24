@@ -20,6 +20,7 @@ from glycan_profiling.database.builder.glycan import (
     GlycanCompositionHypothesisMerger,
     named_reductions, named_derivatizations)
 
+from glycan_profiling.database.builder.glycan.synthesis import synthesis_register
 from glycan_profiling.database.builder.glycopeptide.proteomics import mzid_proteome
 from glycan_profiling.chromatogram_tree import (
     MassShift, Formate, Ammonium,

@@ -23,7 +23,7 @@ from .plot_glycoforms import GlycoformLayout
 from . import sequence_fragment_logo
 from .sequence_fragment_logo import glycopeptide_match_logo
 
-from .utils import figax
+from .utils import figax, figure
 
 
 __all__ = [
@@ -38,5 +38,5 @@ __all__ = [
     "NGlycanCompositionColorizer", "NGlycanCompositionOrderer",
     "GlycanLabelTransformer", "GlycoformLayout",
     "sequence_fragment_logo", "glycopeptide_match_logo",
-    "figax"
+    "figax", "figure",
 ]

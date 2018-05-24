@@ -11,3 +11,4 @@ glycan_profiling/_c/**/*.html
 /htmlcov
 /.cache
 /*.coverage.*
+*__pycache__*

@@ -17,7 +17,8 @@ from glycan_profiling.cli.validators import (
     validate_mzid_proteins,
     GlycanHypothesisCopier,
     DatabaseConnectionParam,
-    SubstituentParamType)
+    SubstituentParamType,
+    synthesis_register)
 
 from glycan_profiling.cli.utils import ctxstream
 
@@ -43,7 +44,8 @@ from glycan_profiling.database.builder.glycan import (
     OGlycanGlyspaceHypothesisSerializer,
     TaxonomyFilter,
     GlycanAnalysisHypothesisSerializer,
-    GlycopeptideAnalysisGlycanCompositionExtractionHypothesisSerializer)
+    GlycopeptideAnalysisGlycanCompositionExtractionHypothesisSerializer,
+    SynthesisGlycanHypothesisSerializer)
 
 from glycan_profiling.database.prebuilt import hypothesis_register as prebuilt_hypothesis_register
 
@@ -482,6 +484,40 @@ def prebuilt_glycan(context, database_connection, recipe_name, name, reduction, 
            derivatization=derivatization)
 
 
+@build_hypothesis.command(
+    "glycan-synthesis",
+    short_help='Construct a glycan hypothesis from a set of biosynthetic pathways')
+@click.pass_context
+@database_connection
+@click.option("-n", "--name", default=None, help="The name for the hypothesis to be created")
+@click.option("-r", "--reduction", default=None, help='Reducing end modification')
+@click.option("-d", "--derivatization", default=None, help='Chemical derivatization to apply')
+@click.option("-w", "--pathway-type", default='human-n-glycan', type=click.Choice([
+    'mammalian-n-glycan', 'human-n-glycan',
+    'human-o-glycan', 'mammalian-o-glycan']), help=(
+    'The default pathway template to use, and the glycan class annotation type.'))
+@click.option('-m', '--maximum-size', default=26, type=int,
+              help='The maximum number of residues to allow in a single glycan')
+@click.option('-e', "--remove-enzyme", "removed_enzymes", multiple=True)
+@click.option('-a', "--add-enzyme", "added_enzymes", multiple=True)
+@click.option("-p", "--processes", 'processes', type=click.IntRange(1, multiprocessing.cpu_count()),
+              default=min(multiprocessing.cpu_count(), 4),
+              help=('Number of worker processes to use. Defaults to 4 '
+                    'or the number of CPUs, whichever is lower'))
+def glycan_synthesis(context, database_connection, name, pathway_type, removed_enzymes, added_enzymes,
+                     maximum_size, reduction, derivatization, processes):
+    pathway = synthesis_register[pathway_type](n_processes=processes)
+    pathway.add_limit(pathway.size_limiter_type(maximum_size))
+    for enzyme_to_remove in removed_enzymes:
+        pathway.remove_enzyme(enzyme_to_remove)
+    for enzyme_to_add in added_enzymes:
+        click.echo("Adding enzymes is unsupported at this time")
+    task = SynthesisGlycanHypothesisSerializer(
+        pathway, database_connection,
+        hypothesis_name=name, reduction=reduction, derivatization=derivatization)
+    task.start()
+
+
 @build_hypothesis.group("glycan-network", short_help='Build and manipulate glycan network definitions')
 def glycan_network_tools():
     pass
@@ -562,8 +598,7 @@ def add_prebuild_neighborhoods_to_network(context, input_path, output_path, name
 @click.option("-a", "--ratio-rule", nargs=4, multiple=True, help=(
     "Format: <numerator-expr:str> <denominator-expr:str> <threshold:float> <required:bool>"
 ))
-def add_neighborhood_to_network(context, input_path, output_path, name, range_rule, expression_rule,
-                                ratio_rule):
+def add_neighborhood_to_network(context, input_path, output_path, name, range_rule, expression_rule, ratio_rule):
     if input_path is None:
         input_stream = ctxstream(sys.stdin)
     else:

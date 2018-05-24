@@ -4,7 +4,7 @@ from collections import OrderedDict
 from sqlalchemy.ext.baked import bakery
 from sqlalchemy.ext.declarative import declared_attr
 from sqlalchemy.orm import relationship, backref, make_transient, Query, validates
-from sqlalchemy.ext.hybrid import hybrid_property
+from sqlalchemy.ext.hybrid import hybrid_property, hybrid_method
 from sqlalchemy import (
     Column, Numeric, Integer, String, ForeignKey, PickleType,
     Boolean, Table, Text, Index)
@@ -311,6 +311,14 @@ class Peptide(PeptideBase, Base):
         Index("ix_Peptide_mass_search_index", "calculated_mass", "hypothesis_id"),
         Index("ix_Peptide_coordinate_index", "id", "calculated_mass",
               "start_position", "end_position"),)
+
+    @hybrid_method
+    def spans(self, position):
+        return position in self.protein_relation
+
+    @spans.expression
+    def spans(self, position):
+        return (self.start_position <= position) & (position <= self.end_position)
 
 
 class Glycopeptide(PeptideBase, Base):

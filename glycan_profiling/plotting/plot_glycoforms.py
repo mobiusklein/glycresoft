@@ -635,7 +635,7 @@ def plot_glycoforms_svg(protein, identifications, scale=1.5, ax=None,
         element.attrib.update({("data-" + k): str(v)
                                for k, v in attributes.items()})
         element.attrib['class'] = id.rsplit('-')[0]
-    min_x, min_y, max_x, max_y = map(int, root.attrib["viewBox"].split(" "))
+    min_x, min_y, max_x, max_y = map(float, root.attrib["viewBox"].split(" "))
     min_x += margin_left
     min_y += margin_top
     max_x += 200

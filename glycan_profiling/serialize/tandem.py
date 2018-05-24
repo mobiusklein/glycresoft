@@ -23,7 +23,7 @@ from .base import (
 def convert_scan_to_record(scan):
     return ScanInformation(
         scan.scan_id, scan.index, scan.scan_time,
-        scan.ms_level, scan.precursor_information)
+        scan.ms_level, scan.precursor_information.convert())
 
 
 class SpectrumMatchBase(BoundToAnalysis):

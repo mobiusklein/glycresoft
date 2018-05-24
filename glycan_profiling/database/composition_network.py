@@ -190,7 +190,7 @@ class CompositionSpace(object):
 class CompositionGraphNode(object):
     _temp_score = 0.0
 
-    def __init__(self, composition, index, score=0., **kwargs):
+    def __init__(self, composition, index, score=0., marked=False, **kwargs):
         self.composition = composition
         self.index = index
         self.edges = EdgeSet()
@@ -198,6 +198,7 @@ class CompositionGraphNode(object):
         self._hash = hash(str(self._str))
         self._score = score
         self.internal_score = 0.0
+        self.marked = marked
 
     @property
     def glycan_composition(self):
@@ -423,7 +424,14 @@ class CompositionGraph(object):
                     e = CompositionGraphEdge(node, related_node, diff, weight)
                     self.edges.add(e)
 
-    def remove_node(self, node, bridge=True, limit=5):
+    def add_edge(self, node1, node2):
+        if node1.index > node2.index:
+            node1, node2 = node2, node1
+        diff, weight = self.distance_fn(node1.composition, node2.composition)
+        e = CompositionGraphEdge(node1, node2, diff, weight)
+        self.edges.add(e)
+
+    def remove_node(self, node, bridge=True, limit=5, ignore_marked=True):
         """Removes the Glycan Composition given by `node` from the graph
         and all edges connecting to it. This will reindex the graph.
 
@@ -465,6 +473,8 @@ class CompositionGraph(object):
                         continue
                     node1 = edge._traverse(node)
                     node2 = other_edge._traverse(node)
+                    if ignore_marked and (node1.marked or node2.marked):
+                        continue
                     key = frozenset((node1.index, node2.index))
                     if key in seen:
                         continue

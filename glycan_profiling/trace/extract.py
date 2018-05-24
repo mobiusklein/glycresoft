@@ -52,7 +52,7 @@ class ChromatogramExtractor(TaskBase):
         forest = ChromatogramForest([], self.grouping_tolerance, self.scan_id_to_rt)
         forest.aggregate_peaks(self.annotated_peaks, self.minimum_mass, self.minimum_intensity)
         chroma = list(forest)
-        self.log("%d Chromatograms Extracted." % (len(chroma),))
+        self.log("... %d Chromatograms Extracted." % (len(chroma),))
         self.chromatograms = ChromatogramFilter.process(
             chroma, min_points=self.min_points, delta_rt=self.delta_rt)
 

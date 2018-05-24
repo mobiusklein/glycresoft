@@ -146,6 +146,10 @@ def run_setup(include_cext=True):
         },
         package_data={
             "glycan_profiling.models": ["glycan_profiling/models/data/*"],
+            "glycan_profiling.database.prebuilt": ["glycan_profiling/database/prebuilt/data/*"],
+            "glycan_profiling.output.report.glycan_lcms": ["glycan_profiling/output/report/glycan_lcms/*"],
+            "glycan_profiling.output.report.glycopeptide_lcmsms": [
+                "glycan_profiling/output/report/glycopeptide_lcmsms/*"]
         },
         ext_modules=make_extensions() if include_cext else None,
         cmdclass=cmdclass,

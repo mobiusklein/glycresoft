@@ -597,6 +597,7 @@ class GlycopeptideLCMSMSAnalyzer(TaskBase):
         chroma_with_sols, orphans = searcher.map_to_chromatograms(
             tuple(extractor), target_hits, self.mass_error_tolerance,
             threshold_fn=threshold_fn)
+        self.log("Aggregating Assigned Entities")
         merged = chromatogram_mapping.aggregate_by_assigned_entity(
             chroma_with_sols, threshold_fn=threshold_fn)
         return merged, orphans
@@ -873,4 +874,4 @@ class MzMLComparisonGlycopeptideLCMSMSAnalyzer(MzMLGlycopeptideLCMSMSAnalyzer):
             decoy_correction = 0
         searcher.target_decoy(
             target_hits, decoy_hits, decoy_correction=decoy_correction,
-            database_weight=targets_per_decoy)
+            target_weight=targets_per_decoy)
