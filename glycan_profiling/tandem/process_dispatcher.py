@@ -120,7 +120,7 @@ class IdentificationProcessDispatcher(TaskBase):
         self._has_received_token = set()
 
     def _make_input_queue(self):
-        return Queue(int(1e5))
+        return JoinableQueue(int(1e5))
 
     def _make_output_queue(self):
         return JoinableQueue(int(1e7))
@@ -216,7 +216,8 @@ class IdentificationProcessDispatcher(TaskBase):
                     "Hit %r already dealt under hit_id %r, now again at %r" % (
                         hit, seen[hit.id], hit_id))
             seen[hit.id] = hit_id
-
+            if i % 1000 == 0:
+                self.input_queue.join()
             try:
                 work_order = self.build_work_order(
                     hit_id, hit_map, scan_hit_type_map, hit_to_scan)
@@ -508,6 +509,7 @@ class IdentificationProcessDispatcher(TaskBase):
                         self.debug("...... IPC Manager: %r" % (self.ipc_manager,))
                 continue
             self.store_result(target, score_map, scan_map)
+        self.log("... Consumer Done.")
         self.consumer_done_event.set()
         i_spectrum_matches = sum(map(len, self.scan_solution_map.values()))
         self.log("... Finished Processing Matches (%d)" % (i_spectrum_matches,))
@@ -611,6 +613,7 @@ class SpectrumIdentificationWorkerBase(Process):
         while has_work:
             try:
                 structure, scan_ids = self.input_queue.get(True, 5)
+                self.input_queue.task_done()
                 strikes = 0
             except QueueEmptyException:
                 if self.producer_done_event.is_set():
@@ -628,9 +631,6 @@ class SpectrumIdentificationWorkerBase(Process):
                 message = "An error occurred while processing %r on %r:\n%s" % (
                     structure, self, traceback.format_exc())
                 self.log(message)
-
-        self.debug("... Process %r Finished Available Work. Handled %d structures. Blocking Until Queue Joins" % (
-            self.name, items_handled))
         self.cleanup()
 
     def run(self):
