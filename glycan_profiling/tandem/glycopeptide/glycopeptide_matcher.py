@@ -22,11 +22,13 @@ from ..chromatogram_mapping import ChromatogramMSMSMapper
 
 
 class GlycopeptideIdentificationWorker(SpectrumIdentificationWorkerBase):
-    def __init__(self, input_queue, output_queue, done_event, scorer_type, evaluation_args,
-                 spectrum_map, mass_shift_map, log_handler, parser_type):
+    def __init__(self, input_queue, output_queue, producer_done_event, consumer_done_event,
+                 scorer_type, evaluation_args, spectrum_map, mass_shift_map, log_handler,
+                 parser_type):
         SpectrumIdentificationWorkerBase.__init__(
-            self, input_queue, output_queue, done_event, scorer_type, evaluation_args,
-            spectrum_map, mass_shift_map, log_handler=log_handler)
+            self, input_queue, output_queue, producer_done_event, consumer_done_event,
+            scorer_type, evaluation_args, spectrum_map, mass_shift_map,
+            log_handler=log_handler)
         self.parser = parser_type()
 
     def evaluate(self, scan, structure, *args, **kwargs):

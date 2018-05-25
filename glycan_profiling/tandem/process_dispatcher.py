@@ -87,7 +87,8 @@ class IdentificationProcessDispatcher(TaskBase):
         self.worker_type = worker_type
         self.scorer_type = scorer_type
         self.n_processes = n_processes
-        self.done_event = Event()
+        self.producer_thread_done_event = Event()
+        self.consumer_done_event = Event()
         self.input_queue = self._make_input_queue()
         self.output_queue = self._make_output_queue()
         self.scan_solution_map = defaultdict(list)
@@ -144,7 +145,8 @@ class IdentificationProcessDispatcher(TaskBase):
             worker = self.worker_type(
                 input_queue=self.input_queue,
                 output_queue=self.output_queue,
-                done_event=self.done_event,
+                producer_done_event=self.producer_thread_done_event,
+                consumer_done_event=self.consumer_done_event,
                 scorer_type=self.scorer_type,
                 evaluation_args=self.evaluation_args,
                 spectrum_map=self.scan_load_map,
@@ -213,7 +215,7 @@ class IdentificationProcessDispatcher(TaskBase):
         self.log("...... Finished dealing %d work items" % (i,))
         # self.input_queue.close()
         # self.input_queue.join_thread()
-        self.done_event.set()
+        self.producer_thread_done_event.set()
         return
 
     def build_work_order(self, hit_id, hit_map, scan_hit_type_map, hit_to_scan):
@@ -466,7 +468,7 @@ class IdentificationProcessDispatcher(TaskBase):
                             input_queue_size = self.input_queue.qsize()
                         except Exception:
                             input_queue_size = -1
-                        is_feeder_done = self.done_event.is_set()
+                        is_feeder_done = self.producer_thread_done_event.is_set()
                         self.log("...... Input Queue Status: %r. Is Feeder Done? %r" % (
                             input_queue_size, is_feeder_done))
                     if strikes > self.child_failure_timeout:
@@ -483,6 +485,7 @@ class IdentificationProcessDispatcher(TaskBase):
                         self.debug("...... IPC Manager: %r" % (self.ipc_manager,))
                 continue
             self.store_result(target, score_map, scan_map)
+        self.consumer_done_event.set()
         i_spectrum_matches = sum(map(len, self.scan_solution_map.values()))
         self.log("... Finished Processing Matches (%d)" % (i_spectrum_matches,))
         self.clear_pool()
@@ -494,13 +497,14 @@ class IdentificationProcessDispatcher(TaskBase):
 class SpectrumIdentificationWorkerBase(Process):
     verbose = True
 
-    def __init__(self, input_queue, output_queue, done_event, scorer_type, evaluation_args,
-                 spectrum_map, mass_shift_map, log_handler):
+    def __init__(self, input_queue, output_queue, producer_done_event, consumer_done_event,
+                 scorer_type, evaluation_args, spectrum_map, mass_shift_map, log_handler):
         Process.__init__(self)
         self.daemon = True
         self.input_queue = input_queue
         self.output_queue = output_queue
-        self.done_event = done_event
+        self.producer_done_event = producer_done_event
+        self.consumer_done_event = consumer_done_event
         self.scorer_type = scorer_type
         self.evaluation_args = evaluation_args
 
@@ -568,10 +572,13 @@ class SpectrumIdentificationWorkerBase(Process):
         self.pack_output(solution_target)
 
     def cleanup(self):
-        self.debug("Process %r Joining Queue" % (self,))
+        repr(self)
+        self.debug("... Process %s Joining Queue" % (self.name,))
         self.output_queue.join()
-        self.debug("Process %r Queue Joined, Setting Work Complete Flag" % (self,))
+        self.debug("... Process %s Queue Joined, Setting Work Complete Flag" % (self.name,))
         self._work_complete.set()
+        self.consumer_done_event.wait()
+        self.debug("... Process %s Finished" % (self.name,))
 
     def task(self):
         has_work = True
@@ -582,13 +589,13 @@ class SpectrumIdentificationWorkerBase(Process):
                 structure, scan_ids = self.input_queue.get(True, 5)
                 strikes = 0
             except QueueEmptyException:
-                if self.done_event.is_set():
+                if self.producer_done_event.is_set():
                     has_work = False
                     break
                 else:
                     strikes += 1
                     if strikes % 1000 == 0:
-                        self.log("%d iterations without work for %r" % (strikes, self))
+                        self.log("... %d iterations without work for %r" % (strikes, self))
                     continue
             items_handled += 1
             try:
@@ -598,7 +605,7 @@ class SpectrumIdentificationWorkerBase(Process):
                     structure, self, traceback.format_exc())
                 self.log(message)
 
-        self.log("Process %r Finished Available Work. Handled %d structures. Blocking Until Queue Joins" % (
+        self.log("... Process %r Finished Available Work. Handled %d structures. Blocking Until Queue Joins" % (
             self, items_handled))
         self.cleanup()
 
