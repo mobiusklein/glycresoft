@@ -216,7 +216,7 @@ class IdentificationProcessDispatcher(TaskBase):
                     "Hit %r already dealt under hit_id %r, now again at %r" % (
                         hit, seen[hit.id], hit_id))
             seen[hit.id] = hit_id
-            if i % 1000 == 0:
+            if i % 10000 == 0:
                 self.input_queue.join()
             try:
                 work_order = self.build_work_order(
@@ -232,8 +232,7 @@ class IdentificationProcessDispatcher(TaskBase):
             except Exception as e:
                 self.log("An exception occurred while feeding %r and %d scan ids: %r" % (hit_id, len(scan_ids), e))
         self.log("...... Finished dealing %d work items" % (i,))
-        # self.input_queue.close()
-        # self.input_queue.join_thread()
+        self.input_queue.join()
         self.producer_thread_done_event.set()
         return
 
@@ -544,6 +543,7 @@ class SpectrumIdentificationWorkerBase(Process):
         self._work_complete = Event()
         self.log_handler = log_handler
         self.token = uid()
+        self.items_handled = 0
 
     def log(self, message):
         if self.log_handler is not None:
@@ -597,7 +597,8 @@ class SpectrumIdentificationWorkerBase(Process):
         self.pack_output(solution_target)
 
     def cleanup(self):
-        self.debug("... Process %s Setting Work Complete Flag" % (self.name,))
+        self.debug("... Process %s Setting Work Complete Flag. Processed %d structures" % (
+            self.name, self.items_handled))
         self._work_complete.set()
         self.output_queue.put(SentinelToken(self.token))
         self.consumer_done_event.wait()
@@ -608,7 +609,7 @@ class SpectrumIdentificationWorkerBase(Process):
 
     def task(self):
         has_work = True
-        items_handled = 0
+        self.items_handled = 0
         strikes = 0
         while has_work:
             try:
@@ -624,7 +625,7 @@ class SpectrumIdentificationWorkerBase(Process):
                     if strikes % 1000 == 0:
                         self.log("... %d iterations without work for %r" % (strikes, self))
                     continue
-            items_handled += 1
+            self.items_handled += 1
             try:
                 self.handle_item(structure, scan_ids)
             except Exception:
