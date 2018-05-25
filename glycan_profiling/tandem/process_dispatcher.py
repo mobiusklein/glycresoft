@@ -17,6 +17,20 @@ from glycan_profiling.chromatogram_tree import Unmodified
 from .spectrum_match import SpectrumMatch
 
 
+class SentinelToken(object):
+    def __init__(self, token):
+        self.token = token
+
+    def __hash__(self):
+        return hash(self.token)
+
+    def __eq__(self, other):
+        return self.token == other.token
+
+    def __repr__(self):
+        return "{self.__class__.__name__}({self.token})".format(self=self)
+
+
 class IdentificationProcessDispatcher(TaskBase):
     """Orchestrates distributing the spectrum match evaluation
     task across several processes.
@@ -84,11 +98,12 @@ class IdentificationProcessDispatcher(TaskBase):
                 Unmodified.name: Unmodified
             }
 
+        self.ipc_manager = ipc_manager
         self.worker_type = worker_type
         self.scorer_type = scorer_type
         self.n_processes = n_processes
-        self.producer_thread_done_event = Event()
-        self.consumer_done_event = Event()
+        self.producer_thread_done_event = self.ipc_manager.Event()
+        self.consumer_done_event = self.ipc_manager.Event()
         self.input_queue = self._make_input_queue()
         self.output_queue = self._make_output_queue()
         self.scan_solution_map = defaultdict(list)
@@ -96,12 +111,13 @@ class IdentificationProcessDispatcher(TaskBase):
         self.init_args = init_args
         self.workers = []
         self.log_controller = self.ipc_logger()
-        self.ipc_manager = ipc_manager
         self.local_scan_map = dict()
         self.scan_load_map = self.ipc_manager.dict()
         self.local_mass_shift_map = mass_shift_map
         self.mass_shift_load_map = self.ipc_manager.dict(mass_shift_map)
         self.structure_map = dict()
+        self._token_to_worker = {}
+        self._has_received_token = set()
 
     def _make_input_queue(self):
         return Queue(int(1e5))
@@ -152,7 +168,9 @@ class IdentificationProcessDispatcher(TaskBase):
                 spectrum_map=self.scan_load_map,
                 mass_shift_map=self.mass_shift_load_map,
                 log_handler=self.log_controller.sender(), **self.init_args)
+            worker._work_complete = self.ipc_manager.Event()
             worker.start()
+            self._token_to_worker[worker.token] = worker
             self.workers.append(worker)
 
     def all_workers_finished(self):
@@ -415,8 +433,13 @@ class IdentificationProcessDispatcher(TaskBase):
         self.log("... Searching Matches (%d)" % (n_spectrum_matches,))
         while has_work:
             try:
-                target, score_map, token = self.output_queue.get(True, 1)
+                payload = self.output_queue.get(True, 1)
                 self.output_queue.task_done()
+                if isinstance(payload, SentinelToken):
+                    self.log("Received sentinel from %s" % (self._token_to_worker[payload.token].name))
+                    self._has_received_token.add(payload)
+                    continue
+                (target, score_map, token) = payload
                 if target.id in seen:
                     self.debug(
                         "...... Duplicate Results For %s. First seen at %r, now again at %r" % (
@@ -574,6 +597,7 @@ class SpectrumIdentificationWorkerBase(Process):
     def cleanup(self):
         self.debug("... Process %s Setting Work Complete Flag" % (self.name,))
         self._work_complete.set()
+        self.output_queue.put(SentinelToken(self.token))
         self.consumer_done_event.wait()
         # joining the queue may not be necessary if we depend upon consumer_event_done
         self.debug("... Process %s Queue Joining" % (self.name,))
@@ -605,8 +629,8 @@ class SpectrumIdentificationWorkerBase(Process):
                     structure, self, traceback.format_exc())
                 self.log(message)
 
-        self.log("... Process %r Finished Available Work. Handled %d structures. Blocking Until Queue Joins" % (
-            self, items_handled))
+        self.debug("... Process %r Finished Available Work. Handled %d structures. Blocking Until Queue Joins" % (
+            self.name, items_handled))
         self.cleanup()
 
     def run(self):
