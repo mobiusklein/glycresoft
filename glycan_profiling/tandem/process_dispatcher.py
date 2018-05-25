@@ -1,3 +1,4 @@
+import traceback
 from collections import defaultdict
 from threading import Thread
 import multiprocessing
@@ -491,6 +492,8 @@ class IdentificationProcessDispatcher(TaskBase):
 
 
 class SpectrumIdentificationWorkerBase(Process):
+    verbose = True
+
     def __init__(self, input_queue, output_queue, done_event, scorer_type, evaluation_args,
                  spectrum_map, mass_shift_map, log_handler):
         Process.__init__(self)
@@ -512,6 +515,14 @@ class SpectrumIdentificationWorkerBase(Process):
         self._work_complete = Event()
         self.log_handler = log_handler
         self.token = uid()
+
+    def log(self, message):
+        if self.log_handler is not None:
+            self.log_handler(message)
+
+    def debug(self, message):
+        if self.verbose:
+            self.log_handler("DEBUG::%s" % message)
 
     def fetch_scan(self, key):
         try:
@@ -556,6 +567,12 @@ class SpectrumIdentificationWorkerBase(Process):
                 pass
         self.pack_output(solution_target)
 
+    def cleanup(self):
+        self.debug("Process %r Joining Queue" % (self,))
+        self.output_queue.join()
+        self.debug("Process %r Queue Joined, Setting Work Complete Flag" % (self,))
+        self._work_complete.set()
+
     def task(self):
         has_work = True
         items_handled = 0
@@ -571,25 +588,24 @@ class SpectrumIdentificationWorkerBase(Process):
                 else:
                     strikes += 1
                     if strikes % 1000 == 0:
-                        self.log_handler("%d iterations without work for %r" % (strikes, self))
+                        self.log("%d iterations without work for %r" % (strikes, self))
                     continue
             items_handled += 1
-            self.handle_item(structure, scan_ids)
-        # self.output_queue.close()
-        # self.output_queue.join_thread()
-        self.output_queue.join()
-        self._work_complete.set()
+            try:
+                self.handle_item(structure, scan_ids)
+            except Exception:
+                message = "An error occurred while processing %r on %r:\n%s" % (
+                    structure, self, traceback.format_exc())
+                self.log(message)
+
+        self.log("Process %r Finished Available Work. Handled %d structures. Blocking Until Queue Joins" % (
+            self, items_handled))
+        self.cleanup()
 
     def run(self):
         try:
             self.task()
-        except Exception as ex:
-            print("Something went wrong")
-            print(ex)
-            print(multiprocessing.current_process())
-            import traceback
-            print(traceback.format_exc())
-            self.log_handler("An exception occurred while executing %r.\n%s" % (
+        except Exception:
+            self.log("An exception occurred while executing %r.\n%s" % (
                 self, traceback.format_exc()))
-
-            raise
+            self.cleanup()
