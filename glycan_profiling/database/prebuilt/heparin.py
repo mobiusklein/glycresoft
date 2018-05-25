@@ -32,3 +32,4 @@ class LowMolecularWeightHeparansBuilder(BuildBase):
             StringIO(combinatorial_source), database_connection,
             **kwargs)
         task.start()
+        return task

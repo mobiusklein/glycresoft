@@ -30,3 +30,4 @@ class CombinatorialMammalianNGlycansBuilder(BuildBase):
             StringIO(combinatorial_source), database_connection,
             **kwargs)
         task.start()
+        return task

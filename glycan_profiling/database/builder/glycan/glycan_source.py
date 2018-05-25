@@ -13,6 +13,7 @@ from glycan_profiling.database.builder.base import HypothesisSerializerBase
 
 from glypy.composition import composition_transform, formula
 from glypy.structure import glycan_composition
+from glypy.utils import opener
 from glypy import ReducedEnd
 
 
@@ -205,7 +206,7 @@ class TextFileGlycanHypothesisSerializer(GlycanHypothesisSerializerBase):
         return "TextFileGlycanHypothesis-" + self.uuid
 
     def make_pipeline(self):
-        self.loader = TextFileGlycanCompositionLoader(open(self.glycan_file))
+        self.loader = TextFileGlycanCompositionLoader(opener(self.glycan_file, 'r'))
         self.transformer = GlycanTransformer(self.loader, self.reduction, self.derivatization)
 
     def run(self):

@@ -29,3 +29,4 @@ class GlycosaminoglycanLinkersBuilder(BuildBase):
             self.prepare_buffer(), database_connection,
             **kwargs)
         task.start()
+        return task

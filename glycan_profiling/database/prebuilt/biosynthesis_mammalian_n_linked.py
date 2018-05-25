@@ -30,8 +30,8 @@ class BiosynthesisMammalianNGlycansBuilder(BuildBase):
     def build(self, database_connection, **kwargs):
         if kwargs.get('hypothesis_name') is None:
             kwargs['hypothesis_name'] = (self.hypothesis_metadata['name'])
-        print(kwargs)
         task = ExistingGraphGlycanHypothesisSerializer(
             load_graph(), database_connection, glycan_classification=GlycanTypes.n_glycan,
             **kwargs)
         task.start()
+        return task

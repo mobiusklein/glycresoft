@@ -30,8 +30,8 @@ class BiosynthesisHumanMucinOGlycansBuilder(BuildBase):
     def build(self, database_connection, **kwargs):
         if kwargs.get('hypothesis_name') is None:
             kwargs['hypothesis_name'] = (self.hypothesis_metadata['name'])
-        print(kwargs)
         task = TextFileGlycanHypothesisSerializer(
             load_text(), database_connection,
             **kwargs)
         task.start()
+        return task
