@@ -572,12 +572,12 @@ class SpectrumIdentificationWorkerBase(Process):
         self.pack_output(solution_target)
 
     def cleanup(self):
-        repr(self)
-        self.debug("... Process %s Joining Queue" % (self.name,))
-        self.output_queue.join()
-        self.debug("... Process %s Queue Joined, Setting Work Complete Flag" % (self.name,))
+        self.debug("... Process %s Setting Work Complete Flag" % (self.name,))
         self._work_complete.set()
         self.consumer_done_event.wait()
+        # joining the queue may not be necessary if we depend upon consumer_event_done
+        self.debug("... Process %s Queue Joining" % (self.name,))
+        self.output_queue.join()
         self.debug("... Process %s Finished" % (self.name,))
 
     def task(self):
