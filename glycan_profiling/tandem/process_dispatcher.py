@@ -435,11 +435,15 @@ class IdentificationProcessDispatcher(TaskBase):
             try:
                 payload = self.output_queue.get(True, 1)
                 self.output_queue.task_done()
-                if isinstance(payload, SentinelToken):
-                    self.log("Received sentinel from %s" % (self._token_to_worker[payload.token].name))
-                    self._has_received_token.add(payload)
-                    continue
-                (target, score_map, token) = payload
+                try:
+                    (target, score_map, token) = payload
+                except (TypeError, ValueError):
+                    if isinstance(payload, SentinelToken):
+                        self.debug("...... Received sentinel from %s" % (self._token_to_worker[payload.token].name))
+                        self._has_received_token.add(payload)
+                        continue
+                    else:
+                        raise
                 if target.id in seen:
                     self.debug(
                         "...... Duplicate Results For %s. First seen at %r, now again at %r" % (
@@ -508,7 +512,7 @@ class IdentificationProcessDispatcher(TaskBase):
                         self.debug("...... IPC Manager: %r" % (self.ipc_manager,))
                 continue
             self.store_result(target, score_map, scan_map)
-        self.log("... Consumer Done.")
+        self.debug("... Consumer Done.")
         self.consumer_done_event.set()
         i_spectrum_matches = sum(map(len, self.scan_solution_map.values()))
         self.log("... Finished Processing Matches (%d)" % (i_spectrum_matches,))
@@ -519,7 +523,7 @@ class IdentificationProcessDispatcher(TaskBase):
 
 
 class SpectrumIdentificationWorkerBase(Process):
-    verbose = True
+    verbose = False
 
     def __init__(self, input_queue, output_queue, producer_done_event, consumer_done_event,
                  scorer_type, evaluation_args, spectrum_map, mass_shift_map, log_handler):

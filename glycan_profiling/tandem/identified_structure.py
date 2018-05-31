@@ -21,6 +21,10 @@ class IdentifiedStructure(object):
         self.shared_with = shared_with
 
     @property
+    def neutral_mass(self):
+        return self.observed_neutral_mass
+
+    @property
     def observed_neutral_mass(self):
         try:
             return self.chromatogram.neutral_mass
