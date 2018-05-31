@@ -1027,6 +1027,8 @@ class EntityChromatogram(Chromatogram):
 
     @property
     def entity(self):
+        if self._entity is None and self.composition is not None:
+            self.entity = self.composition
         return self._entity
 
     @entity.setter
@@ -1068,7 +1070,9 @@ class GlycopeptideChromatogram(EntityChromatogram):
 
     @property
     def glycan_composition(self):
-        return self._entity.glycan_composition
+        if self.entity is None and self.composition is not None:
+            self.entity = self.composition
+        return self.entity.glycan_composition
 
 
 def get_chromatogram(instance):
