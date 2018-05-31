@@ -632,11 +632,11 @@ class Chromatogram(Base, BoundToAnalysis):
             ChromatogramToChromatogramTreeNode,
             ChromatogramToChromatogramTreeNode.c.node_id == bnode.c.id)
 
-        branch_intensities = select([apeak.c.intensity, apeak.c.neutral_mass]).where(
+        branch_intensities = select([apeak.c.intensity, apeak.c.neutral_mass, anode.c.node_type_id]).where(
             ChromatogramToChromatogramTreeNode.c.chromatogram_id == self.id
         ).select_from(branch_peaks_join)
 
-        root_intensities = select([apeak.c.intensity, apeak.c.neutral_mass]).where(
+        root_intensities = select([apeak.c.intensity, apeak.c.neutral_mass, anode.c.node_type_id]).where(
             ChromatogramToChromatogramTreeNode.c.chromatogram_id == self.id
         ).select_from(root_peaks_join)
 
@@ -645,8 +645,13 @@ class Chromatogram(Base, BoundToAnalysis):
         all_intensity_mass = session.execute(all_intensity_mass_q).fetchall()
 
         arr = np.array(all_intensity_mass)
-        intensity = arr[:, 0]
         mass = arr[:, 1]
+        shift_ids = arr[:, 2].astype(int)
+        distinct_shifts = set(shift_ids)
+        for i in distinct_shifts:
+            shift = session.query(CompoundMassShift).get(i)
+            mass[shift_ids == i] -= shift.convert().mass
+        intensity = arr[:, 0]
         return mass.dot(intensity) / intensity.sum()
 
     def _as_array_query(self, session):
