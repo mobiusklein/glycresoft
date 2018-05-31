@@ -18,7 +18,7 @@ hypothesis_metadata = {
 }
 
 
-@hypothesis_register(hypothesis_metadata['name'])
+# @hypothesis_register(hypothesis_metadata['name'])
 class CombinatorialMammalianNGlycansBuilder(BuildBase):
 
     def get_hypothesis_metadata(self):

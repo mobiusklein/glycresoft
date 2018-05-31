@@ -17,7 +17,9 @@ def load_graph():
 
 hypothesis_metadata = {
     "name": 'Biosynthesis Mammalian N-Glycans',
-    "hypothesis_type": 'glycan_composition'
+    "hypothesis_type": 'glycan_composition',
+    "description": "A collection of biosynthetically feasible *N*-glycans using enzymes commonly found in mammals"
+    " and limited to at most 26 monosaccharides. `GnTE` is explicitly omitted to make the space tractable."
 }
 
 

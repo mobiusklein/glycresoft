@@ -17,7 +17,9 @@ def load_text():
 
 hypothesis_metadata = {
     "name": 'Biosynthesis Human Mucin O-Glycans',
-    "hypothesis_type": 'glycan_composition'
+    "hypothesis_type": 'glycan_composition',
+    "description": "A collection of biosynthetically feasible mucin *O*-glycans using enzymes commonly found in humans"
+    " and limited to at most 11 monosaccharides. Includes the standard cores 1-6."
 }
 
 

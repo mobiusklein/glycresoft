@@ -16,7 +16,9 @@ HexN <= HexA + 1
 
 hypothesis_metadata = {
     "name": 'Low Molecular Weight Heparins',
-    "hypothesis_type": 'glycan_composition'
+    "hypothesis_type": 'glycan_composition',
+    "description": 'A database of heparin and heparan sulfate chains covering'
+    ' the combinatorial space of possible saccharides of up to 18 monosaccharides.'
 }
 
 

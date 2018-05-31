@@ -24,18 +24,18 @@ def gag_linkers():
         5: "sulfate"
     }}, {
         "monosaccharides": {
-            1: "Fuc"
+            2: "Fuc"
         }
     }, {
         "monosaccharides": {
-            1: "Fuc"
+            2: "Fuc"
         },
         "substituents": {
             5: "sulfate"
         }
     }, {
         "monosaccharides": {
-            1: "Fuc"
+            2: "Fuc"
         },
         "substituents": {
             5: "sulfate",
