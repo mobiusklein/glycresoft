@@ -152,6 +152,26 @@ def prediction_interval(solution, x0, y0, alpha=0.05):
     return np.stack([y0 - width, y0 + width])
 
 
+class ChromatogramProxy(object):
+    def __init__(self, weighted_neutral_mass, apex_time, total_signal, glycan_composition, obj=None):
+        self.weighted_neutral_mass = weighted_neutral_mass
+        self.apex_time = apex_time
+        self.total_signal = total_signal
+        self.glycan_composition = glycan_composition
+        self.obj = obj
+
+    def __repr__(self):
+        return "ChromatogramProxy(%f, %f, %f, %s)" % (
+            self.weighted_neutral_mass, self.apex_time, self.total_signal, self.glycan_composition)
+
+    @classmethod
+    def from_obj(cls, obj):
+        inst = cls(
+            obj.weighted_neutral_mass, obj.apex_time, obj.total_signal,
+            obj.glycan_composition, obj)
+        return inst
+
+
 class ElutionTimeFitter(ScoringFeatureBase):
     feature_type = 'elution_time'
 
@@ -174,9 +194,12 @@ class ElutionTimeFitter(ScoringFeatureBase):
         self.scale = scale
 
     def _get_apex_time(self, chromatogram):
-        x, y = chromatogram.as_arrays()
-        y = gaussian_filter1d(y, 1)
-        return x[np.argmax(y)]
+        try:
+            x, y = chromatogram.as_arrays()
+            y = gaussian_filter1d(y, 1)
+            return x[np.argmax(y)]
+        except AttributeError:
+            return chromatogram.apex_time
 
     def build_weight_matrix(self):
         return np.eye(len(self.chromatograms))
@@ -210,9 +233,18 @@ class ElutionTimeFitter(ScoringFeatureBase):
         self.residuals = solution.residuals
         self.parameters = solution.parameters
         self.projection_matrix = solution.projection_matrix
-        self.rss = solution.rss
         self.solution = solution
         return self
+
+    @property
+    def rss(self):
+        x = self.data
+        y = self.apex_time_array
+        w = self.weight_matrix
+        yhat = x.dot(self.parameters)
+        residuals = (y - yhat)
+        rss = (np.diag(w) * residuals * residuals).sum()
+        return rss
 
     def R2(self):
         x = self.data
@@ -283,7 +315,7 @@ class ScoreWeightedElutionTimeFitter(ElutionTimeFitter):
 class AbundanceWeightedElutionTimeFitter(ElutionTimeFitter):
     def build_weight_matrix(self):
         W = np.eye(len(self.chromatograms)) * [
-            x.total_signal for x in self.chromatograms
+            np.log10(x.total_signal) for x in self.chromatograms
         ]
         W /= W.max()
         return W
@@ -297,14 +329,15 @@ class FactorElutionTimeFitter(ElutionTimeFitter):
     def _prepare_data_matrix(self, mass_array):
         return np.vstack((
             np.ones(len(mass_array)),
-            np.array(mass_array),) + tuple(
+        ) + tuple(
             np.array([c.glycan_composition[f] for c in self.chromatograms])
             for f in self.factors)
         ).T
 
     def _prepare_data_vector(self, chromatogram):
         return np.array(
-            [1, chromatogram.neutral_mass] + [
+            [1,
+             ] + [
                 chromatogram.glycan_composition[f] for f in self.factors])
 
     def plot(self, ax=None, include_intervals=True):
@@ -313,13 +346,13 @@ class FactorElutionTimeFitter(ElutionTimeFitter):
             fig, ax = plt.subplots(1)
         colorer = ColorMapper()
         factors = self.factors
-        column_offset = 2
+        column_offset = 1
         distinct_combinations = set()
         partitions = defaultdict(list)
         for i, row in enumerate(self.data):
             key = tuple(row[column_offset:])
             distinct_combinations.add(key)
-            partitions[key].append(((row[1]), self.apex_time_array[i]))
+            partitions[key].append((self.neutral_mass_array[i], self.apex_time_array[i]))
 
         theoretical_mass = np.linspace(
             max(self.neutral_mass_array.min() - 200, 0),
@@ -335,7 +368,7 @@ class FactorElutionTimeFitter(ElutionTimeFitter):
             ax.scatter(ox, oy, label=label_part, color=color)
             X = np.vstack([
                 np.ones_like(theoretical_mass),
-                theoretical_mass,
+                # theoretical_mass,
             ] + factor_partition).T
             Y = X.dot(self.parameters)
             ax.plot(
@@ -347,6 +380,18 @@ class FactorElutionTimeFitter(ElutionTimeFitter):
                     alpha=0.4, color=color)
 
         return ax
+
+    def clone(self):
+        return self.__class__(self.chromatograms, factors=self.factors, scale=self.scale)
+
+
+class AbundanceWeightedFactorElutionTimeFitter(FactorElutionTimeFitter):
+    def build_weight_matrix(self):
+        W = np.eye(len(self.chromatograms)) * [
+            (x.total_signal) for x in self.chromatograms
+        ]
+        W /= W.max()
+        return W
 
 
 def is_high_mannose(composition):
@@ -472,3 +517,160 @@ class ElutionTimeModel(ScoringFeatureBase):
             return self.fit.score(chromatogram)
         else:
             return 0.5
+
+
+CalibrationPoint = namedtuple("CalibrationPoint", (
+    "reference_index", "reference_point_rt", "reference_point_rt_pred",
+    "rrt", "prrt", "residuals", 'weight'))
+
+
+class RecalibratingPredictor(object):
+    def __init__(self, training_examples, testing_examples, model, scale=1.0, dilation=1.0, weighted=True):
+        if training_examples is None:
+            training_examples = []
+        self.training_examples = np.array(training_examples)
+        self.testing_examples = np.array(testing_examples)
+        self.model = model
+        self.scale = scale
+        self.dilation = dilation
+        self.configurations = dict()
+        self._fit()
+        self.apex_time_array = np.array([self.model._get_apex_time(c) for c in testing_examples])
+        if weighted:
+            self.weight_array = np.array([np.log10(c.total_signal) for c in testing_examples])
+            self.weight_array /= self.weight_array.max()
+        else:
+            self.weight_array = np.ones_like(self.apex_time_array)
+        self.weighted = weighted
+        self.weight_array /= self.weight_array.max()
+        self.predicted_apex_time_array = self._predict()
+        self.score_array = self._score()
+
+    def _adapt_dilate_fit(self, reference_point, dilation):
+        parameters = np.hstack([self.model.parameters[0], dilation * self.model.parameters[1:]])
+        predicted_reference_point_rt = self.model._prepare_data_vector(reference_point).dot(parameters)
+        reference_point_rt = self.model._get_apex_time(reference_point)
+        resid = []
+        relative_retention_time = []
+        predicted_relative_retention_time = []
+        for ex in self.testing_examples:
+            rrt = self.model._get_apex_time(ex) - reference_point_rt
+            prrt = self.model._prepare_data_vector(ex).dot(parameters) - predicted_reference_point_rt
+            relative_retention_time.append(rrt)
+            predicted_relative_retention_time.append(prrt)
+            resid.append(prrt - rrt)
+        return (reference_point_rt, predicted_reference_point_rt,
+                relative_retention_time, predicted_relative_retention_time, resid)
+
+    def _predict_delta_single(self, test_point, reference_point, dilation=None):
+        if dilation is None:
+            dilation = self.dilation
+        parameters = np.hstack([self.model.parameters[0], dilation * self.model.parameters[1:]])
+        predicted_reference_point_rt = self.model._prepare_data_vector(reference_point).dot(parameters)
+        reference_point_rt = self.model._get_apex_time(reference_point)
+        rrt = self.model._get_apex_time(test_point) - reference_point_rt
+        prrt = self.model._prepare_data_vector(test_point).dot(parameters) - predicted_reference_point_rt
+        return prrt - rrt
+
+    def predict_delta_single(self, test_point, dilation=None):
+        if dilation is None:
+            dilation = self.dilation
+        delta = []
+        weight = []
+        for i, reference_point in enumerate(self.testing_examples):
+            delta.append(self._predict_delta_single(test_point, reference_point, dilation))
+            weight.append(np.log10(reference_point.total_signal))
+        return np.dot(delta, weight) / np.sum(weight)
+
+    def score_single(self, test_point):
+        delta = abs(self.predict_delta_single(test_point))
+        score = stats.t.sf(
+            delta,
+            df=max(len(self.configurations) - len(self.model.parameters), 1) * self.scale) * 2
+        score -= 1e-3
+        if score < 1e-3:
+            score = 1e-3
+        return score
+
+    def _fit(self):
+        for i, training_reference_point in enumerate(self.training_examples):
+            reference_point = [
+                c for c in self.testing_examples
+                if (c.glycan_composition == training_reference_point.glycan_composition)]
+            if not reference_point:
+                continue
+            reference_point = max(reference_point, key=lambda x: x.total_signal)
+            dilation = self.dilation
+            (reference_point_rt, predicted_reference_point_rt,
+             relative_retention_time,
+             predicted_relative_retention_time, resid) = self._adapt_dilate_fit(reference_point, dilation)
+            self.configurations[i] = CalibrationPoint(
+                i, reference_point_rt, predicted_reference_point_rt,
+                np.array(relative_retention_time), np.array(predicted_relative_retention_time),
+                np.array(resid), np.log10(reference_point.total_signal)
+            )
+        if not self.configurations:
+            for i, reference_point in enumerate(self.testing_examples):
+                dilation = self.dilation
+                (reference_point_rt, predicted_reference_point_rt,
+                 relative_retention_time,
+                 predicted_relative_retention_time, resid) = self._adapt_dilate_fit(reference_point, dilation)
+                self.configurations[-i] = CalibrationPoint(
+                    i, reference_point_rt, predicted_reference_point_rt,
+                    np.array(relative_retention_time), np.array(predicted_relative_retention_time),
+                    np.array(resid), np.log10(reference_point.total_signal)
+                )
+
+    def _predict(self):
+        configs = self.configurations
+        predicted_apex_time_array = []
+        weight = []
+        for key, calibration_point in configs.items():
+            predicted_apex_time_array.append(
+                (calibration_point.prrt + calibration_point.reference_point_rt) * calibration_point.weight)
+            weight.append(calibration_point.weight)
+        return np.sum(predicted_apex_time_array, axis=0) / np.sum(weight)
+
+    def _score(self):
+        score = stats.t.sf(
+            abs(self.predicted_apex_time_array - self.apex_time_array),
+            df=max(len(self.configurations) - len(self.model.parameters), 1) * self.scale) * 2
+        score -= 1e-3
+        score[score < 1e-3] = 1e-3
+        return score
+
+    def R2(self):
+        y = self.apex_time_array
+        w = self.weight_array
+        yhat = self.predicted_apex_time_array
+        residuals = (y - yhat)
+        rss = (w * residuals * residuals).sum()
+        tss = (y - y.mean())
+        tss = (w * tss * tss).sum()
+        R2 = (1 - (rss / tss))
+        return R2
+
+    @classmethod
+    def predict(cls, training_examples, testing_examples, model, dilation=1.0):
+        inst = cls(training_examples, testing_examples, model, dilation)
+        return inst.predicted_apex_time_array
+
+    @classmethod
+    def score(cls, training_examples, testing_examples, model, dilation=1.0):
+        inst = cls(training_examples, testing_examples, model, dilation)
+        return inst.score_array
+
+    def plot(self, ax=None):
+        if ax is None:
+            fig, ax = plt.subplots(1)
+        X = self.apex_time_array
+        Y = self.predicted_apex_time_array
+        S = np.array([c.total_signal for c in self.testing_examples])
+        S /= S.max()
+        S *= 100
+        ax.scatter(X, Y, s=S, marker='o')
+        ax.plot((X.min(), X.max()), (X.min(), X.max()), color='black', linestyle='--', lw=0.75)
+        ax.set_xlabel('Experimental Apex Time', fontsize=18)
+        ax.set_ylabel('Predicted Apex Time', fontsize=18)
+        ax.figure.text(0.8, 0.15, "$R^2=%0.4f$" % self.R2(), ha='center')
+        return ax
