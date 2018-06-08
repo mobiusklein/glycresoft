@@ -334,9 +334,12 @@ def oxonium_signature(ms_file, g_score_threshold=0.05):
 @click.option("-e", "--end-time", type=float, default=float('inf'), help='Scan time to stop processing at')
 @click.option("-n", "--name", default=None,
               help="Name for the sample run to be stored. Defaults to the base name of the input mzML file")
+@click.option("-g", "--ms1-averaging", default=0, type=int, help=(
+    "The number of MS1 scans before and after the current MS1 "
+    "scan to average when picking peaks."))
 @click.pass_context
 def peak_picker(ctx, ms_file, outfile_path, start_time=None, end_time=None,
                 name=None, background_reduction=5., msn_background_reduction=0.,
                 transform=None, msn_transform=None, processes=4, extract_only_tandem_envelopes=False,
-                mzml=True, profile=False,):
+                mzml=True, profile=False, ms1_averaging=0):
     ctx.forward(preprocess, deconvolute=False)
