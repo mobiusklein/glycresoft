@@ -269,14 +269,18 @@ cdef class SpectrumGraph(object):
         return sorted(keep, key=len, reverse=True)
 
     def longest_paths(self, int limit=-1):
+        cdef:
+            list paths, segment
         # get all distinct paths
         paths = []
-        for ix in np.nonzero(self.path_lengths())[0]:
-            paths.extend(self.paths_ending_at(ix))
+        for ix in np.argsort(self.path_lengths())[::-1]:
+            segment = self.paths_ending_at(ix)
+            paths.extend(segment)
+            if PyList_Size(segment) == 0:
+                break
             # remove redundant paths
             paths = self.transitive_closure(paths)
             if limit > 0:
-                if len(paths) > limit:
+                if PyList_Size(paths) > limit:
                     break
-        # paths = self.transitive_closure(paths)
         return paths

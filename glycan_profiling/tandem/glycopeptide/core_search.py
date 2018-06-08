@@ -2,17 +2,23 @@
 
 import logging
 
-from collections import Sequence, defaultdict
+from collections import defaultdict
+
+try:
+    from collections import Sequence
+except ImportError:
+    from collections.abc import Sequence
 
 import numpy as np
 
 from glypy.structure.glycan_composition import FrozenMonosaccharideResidue
 from glycopeptidepy.structure.fragmentation_strategy import StubGlycopeptideStrategy, _AccumulatorBag
+from glycopeptidepy.structure.glycan import GlycosylationType
 
 from glycan_profiling.serialize import GlycanCombination
-from glycan_profiling.structure import SpectrumGraph
 from glycan_profiling.database.disk_backed_database import PPMQueryInterval
 from glycan_profiling.chromatogram_tree import Unmodified
+from glycan_profiling.structure.denovo import MassWrapper, PathSet, PathFinder
 
 logger = logging.getLogger("glycresoft.tandem")
 
@@ -24,119 +30,15 @@ fucose = FrozenMonosaccharideResidue.from_iupac_lite("Fuc")
 # neuac = FrozenMonosaccharideResidue.from_iupac_lite("NeuAc")
 
 
-class MassWrapper(object):
-    def __init__(self, obj):
-        self.obj = obj
-        self._mass = obj.mass()
-
-    def __repr__(self):
-        return "{self.__class__.__name__}({self.obj})".format(self=self)
-
-    def __eq__(self, other):
-        return self.obj == other
-
-    def __hash__(self):
-        return hash(self.obj)
-
-    def mass(self, *a, **kw):
-        return self._mass
-
-
 default_components = (hexnac, hexose, xylose, fucose,)
 
 
-class Path(object):
-    def __init__(self, edge_list):
-        self.transitions = edge_list
-        self.total_signal = self._total_signal()
-        self.start_mass = self[0].start.neutral_mass
-        self.end_mass = self[-1].end.neutral_mass
-
-    def __iter__(self):
-        return iter(self.transitions)
-
-    def __getitem__(self, i):
-        return self.transitions[i]
-
-    def __len__(self):
-        return len(self.transitions)
-
-    def _total_signal(self):
-        total = 0
-        for edge in self:
-            total += edge.end.intensity
-        total += self[0].start.intensity
-        return total
-
-    def __repr__(self):
-        return "%s(%s, %0.4e, %f, %f)" % (
-            self.__class__.__name__,
-            '->'.join(str(e.annotation) for e in self),
-            self.total_signal, self.start_mass, self.end_mass
-        )
-
-
-class PathSet(Sequence):
-    def __init__(self, paths, ordered=False):
-        self.paths = (sorted(paths, key=lambda x: x.start_mass)
-                      if not ordered else paths)
-
-    def __getitem__(self, i):
-        return self.paths[i]
-
-    def __len__(self):
-        return len(self.paths)
-
-    def __repr__(self):
-        return "%s(%s)" % (self.__class__.__name__, str(self.paths)[1:-1])
-
-    def _repr_pretty_(self, p, cycle):
-        with p.group(9, "%s([" % self.__class__.__name__, "])"):
-            for i, path in enumerate(self):
-                if i:
-                    p.text(",")
-                    p.breakable()
-                p.pretty(path)
-
-
-class CoreMotifFinder(object):
+class CoreMotifFinder(PathFinder):
     def __init__(self, components=None, product_error_tolerance=1e-5):
         if components is None:
             components = default_components
         self.components = list(map(MassWrapper, components))
         self.product_error_tolerance = product_error_tolerance
-
-    def _find_edges(self, scan, mass_shift=Unmodified):
-        graph = SpectrumGraph()
-        has_tandem_shift = abs(mass_shift.tandem_mass) > 0
-        for peak in scan.deconvoluted_peak_set:
-            for component in self.components:
-                for other_peak in scan.deconvoluted_peak_set.all_peaks_for(
-                        peak.neutral_mass + component.mass(), self.product_error_tolerance):
-                    graph.add(peak, other_peak, component.obj)
-                if has_tandem_shift:
-                    for other_peak in scan.deconvoluted_peak_set.all_peaks_for(
-                            peak.neutral_mass + component.mass() + mass_shift.tandem_mass,
-                            self.product_error_tolerance):
-                        graph.add(peak, other_peak, component.obj)
-        return graph
-
-    def _init_paths(self, graph, limit=200):
-        paths = []
-        min_start_mass = max(c.mass() for c in self.components) + 1
-        for path in graph.longest_paths(limit=limit):
-            path = Path(path)
-            if path.start_mass < min_start_mass:
-                continue
-            paths.append(path)
-        return paths
-
-    def _aggregate_paths(self, paths):
-        groups = defaultdict(list)
-        for path in paths:
-            label = tuple(p.annotation for p in path)
-            groups[label].append(path)
-        return groups
 
     def find_n_linked_core(self, groups, min_size=1):
         sequence = [hexnac, hexnac, hexose, hexose, hexose]
@@ -317,7 +219,7 @@ class GlycanCombinationRecord(object):
         self.composition = composition
         self.count = count
         self.glycan_types = glycan_types
-        self._fragment_cache = None
+        self._fragment_cache = dict()
 
     def __reduce__(self):
         return GlycanCombinationRecord, (self.dehydrated_mass, self.composition, self.count, self.glycan_types)
@@ -326,7 +228,7 @@ class GlycanCombinationRecord(object):
         return "GlycanCombinationRecord(%s, %d)" % (self.composition, self.count)
 
     def get_n_glycan_fragments(self):
-        if self._fragment_cache is None:
+        if GlycosylationType.n_linked not in self._fragment_cache:
             strategy = StubGlycopeptideStrategy(None, extended=True)
             shifts = strategy.n_glycan_composition_fragments(self.composition, 1, 0)
             fragment_structs = []
@@ -339,10 +241,40 @@ class GlycanCombinationRecord(object):
                 fragment_structs.append(
                     CoarseStubGlycopeptideFragment(
                         shift['key'], shift['mass'], shift['is_core']))
-            self._fragment_cache = fragment_structs
-            return self._fragment_cache
+            self._fragment_cache[GlycosylationType.n_linked] = fragment_structs
+            return fragment_structs
         else:
-            return self._fragment_cache
+            return self._fragment_cache[GlycosylationType.n_linked]
+
+    def get_o_glycan_fragments(self):
+        if GlycosylationType.o_linked not in self._fragment_cache:
+            strategy = StubGlycopeptideStrategy(None, extended=True)
+            shifts = strategy.o_glycan_composition_fragments(self.composition, 1, 0)
+            fragment_structs = []
+            for shift in shifts:
+                shift['key'] = _AccumulatorBag(shift['key'])
+                fragment_structs.append(
+                    CoarseStubGlycopeptideFragment(
+                        shift['key'], shift['mass'], shift['is_core']))
+            self._fragment_cache[GlycosylationType.o_linked] = fragment_structs
+            return fragment_structs
+        else:
+            return self._fragment_cache[GlycosylationType.o_linked]
+
+    def get_gag_linker_glycan_fragments(self):
+        if GlycosylationType.glycosaminoglycan not in self._fragment_cache:
+            strategy = StubGlycopeptideStrategy(None, extended=True)
+            shifts = strategy.gag_linker_composition_fragments(self.composition, 1, 0)
+            fragment_structs = []
+            for shift in shifts:
+                shift['key'] = _AccumulatorBag(shift['key'])
+                fragment_structs.append(
+                    CoarseStubGlycopeptideFragment(
+                        shift['key'], shift['mass'], shift['is_core']))
+            self._fragment_cache[GlycosylationType.glycosaminoglycan] = fragment_structs
+            return fragment_structs
+        else:
+            return self._fragment_cache[GlycosylationType.glycosaminoglycan]
 
 
 class GlycanFilteringPeptideMassEstimator(object):
