@@ -31,25 +31,6 @@ class NodeBase(object):
         return False
 
 
-class PeakNode(NodeBase):
-    def __init__(self, peak):
-        self.peak = peak
-        NodeBase.__init__(self, peak.index.neutral_mass)
-        self._hash = hash(peak)
-        self.mass = self.peak.neutral_mass
-        self.charge = self.peak.charge
-
-    @property
-    def intensity(self):
-        return self.peak.intensity
-
-    def __eq__(self, other):
-        return self.peak == other.peak
-
-    def __repr__(self):
-        return "PeakNode({}, {}, {})".format(self.mass, self.charge, self.index)
-
-
 class EdgeSet(object):
 
     def __init__(self, store=None):
@@ -170,28 +151,6 @@ class GraphEdgeBase(object):
             pass
 
 
-class PeakGraphEdge(GraphEdgeBase):
-    __slots__ = ["annotation", "weight"]
-
-    def __init__(self, node1, node2, annotation, weight=1.0):
-        self.annotation = annotation
-        self.weight = weight
-
-        GraphEdgeBase.__init__(self, node1, node2)
-
-    def _make_hash(self):
-        return hash((self.node1, self.node2, self.annotation))
-
-    def _make_str(self):
-        return "PeakGraphEdge(%s)" % ', '.join(map(str, (self.node1, self.node2, self.annotation)))
-
-    def __reduce__(self):
-        return self.__class__, (self.node1, self.node2, self.annotation, self.weight)
-
-    def copy_for(self, node1, node2):
-        return self.__class__(node1, node2, self.annotation, self.weight)
-
-
 class GraphBase(object):
     def __init__(self, edges=None):
         if edges is None:
@@ -285,26 +244,6 @@ class GraphBase(object):
                         pool.remove(edge.node2)
             components.append(list(visited))
         return components
-
-
-class PeakGraph(GraphBase):
-    def __init__(self, peak_set):
-        GraphBase.__init__(self)
-        self.peak_set = peak_set.clone()
-        self.peak_set.reindex()
-        self.nodes = [PeakNode(p) for p in self.peak_set]
-
-    def add_edges(self, blocks, error_tolerance=1e-5):
-        for peak in self.peak_set:
-            start_node = self.nodes[peak.index.neutral_mass]
-            for block in blocks:
-                delta = peak.neutral_mass + block.mass
-                matched_peaks = self.peak_set.all_peaks_for(delta, error_tolerance)
-                if matched_peaks:
-                    for end_peak in matched_peaks:
-                        end_node = self.nodes[end_peak.index.neutral_mass]
-                        edge = PeakGraphEdge(start_node, end_node, block)
-                        self.edges.add(edge)
 
 
 class ScanNode(NodeBase):
