@@ -3,7 +3,9 @@ from collections import OrderedDict
 
 from sqlalchemy.ext.baked import bakery
 from sqlalchemy.ext.declarative import declared_attr
-from sqlalchemy.orm import relationship, backref, make_transient, Query, validates
+from sqlalchemy.orm import (
+    relationship, backref, make_transient, Query, validates,
+    deferred)
 from sqlalchemy.ext.hybrid import hybrid_property, hybrid_method
 from sqlalchemy import (
     Column, Numeric, Integer, String, ForeignKey, PickleType,
@@ -16,6 +18,7 @@ from glycan_profiling.serialize.base import (
 
 from .hypothesis import GlycopeptideHypothesis
 from .glycan import GlycanCombination
+from .generic import JSONType
 
 from glycopeptidepy.structure import sequence, residue, PeptideSequenceBase
 from glycan_profiling.structure.structure_loader import PeptideProteinRelation, FragmentCachingGlycopeptide
@@ -281,6 +284,7 @@ class Peptide(PeptideBase, Base):
     end_position = Column(Integer)
 
     peptide_score = Column(Numeric(12, 6, asdecimal=False))
+    _scores = deferred(Column("scores", JSONType))
     peptide_score_type = Column(String(56))
 
     base_peptide_sequence = Column(String(512))
@@ -319,6 +323,19 @@ class Peptide(PeptideBase, Base):
     @spans.expression
     def spans(self, position):
         return (self.start_position <= position) & (position <= self.end_position)
+
+    @hybrid_property
+    def scores(self):
+        try:
+            if self._scores is None:
+                self.scores = []
+            return self._scores
+        except Exception:
+            return []
+
+    @scores.setter
+    def scores(self, value):
+        self._scores = value
 
 
 class Glycopeptide(PeptideBase, Base):

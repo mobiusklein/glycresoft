@@ -146,8 +146,22 @@ def remove_peptide_sequence_alterations(base_sequence, insert_sites, delete_site
 
 
 class PeptideGroup(object):
+    """Maps Protein ID to :class:`Peptide`, keeping track of the top scoring example
+    for each :class:`Peptide` instance observed from the set of target Proteins
+
+    Attributes
+    ----------
+    has_target_match: bool
+        Description
+    members: dict
+        Mapping from Protein ID to :class:`Peptide`
+    scores: defaultdict(list)
+        Mapping from Protein ID to score
+    """
+
     def __init__(self):
         self.members = dict()
+        self.scores = defaultdict(list)
         self.has_target_match = False
         self._first = None
         self._last = None
@@ -183,15 +197,30 @@ class PeptideGroup(object):
             for key in list(self.members):
                 if key not in protein_set:
                     self.members.pop(key)
+                    self.scores.pop(key)
         else:
             if self._last.protein_id not in protein_set:
                 try:
                     self.members.pop(self._last.protein_id)
+                    self.scores.pop(self._last.protein_id)
                 except KeyError:
                     pass
 
+    def keys(self):
+        return self.members.keys()
+
     def values(self):
         return self.members.values()
+
+    def items(self):
+        return self.members.items()
+
+    def bind_scores(self):
+        acc = []
+        for key, peptide in self.members.items():
+            peptide.scores = self.scores[key]
+            acc.extend(self.scores[key])
+        return acc
 
     def first(self):
         return self._first
@@ -211,26 +240,38 @@ class PeptideGroup(object):
     def __len__(self):
         return len(self.members)
 
+    def add(self, peptide):
+        comparator = score_comparator(peptide.peptide_score_type)
+        if self:
+            first = self.first()
+            if comparator(peptide.peptide_score, first.peptide_score):
+                self.clear()
+                self[peptide.protein_id] = peptide
+            elif first.peptide_score == peptide.peptide_score:
+                self[peptide.protein_id] = peptide
+        else:
+            self[peptide.protein_id] = peptide
+        self.scores[peptide.protein_id].append(peptide.peptide_score)
+
 
 class PeptideCollection(object):
     def __init__(self, protein_set):
         self.store = defaultdict(PeptideGroup)
         self.protein_set = protein_set
+        self.scores = []
+
+    def bind_scores(self):
+        acc = []
+        for key, value in self.store.items():
+            acc.extend(value.bind_scores())
+        self.scores = acc
+        return acc
 
     def add(self, peptide):
-        comparator = score_comparator(peptide.peptide_score_type)
         group = self.store[peptide.modified_peptide_sequence]
-        if group:
-            first = group.first()
-            if comparator(peptide.peptide_score, first.peptide_score):
-                group.clear()
-                group[peptide.protein_id] = peptide
-                self.store[peptide.modified_peptide_sequence] = group
-            elif first.peptide_score == peptide.peptide_score:
-                group[peptide.protein_id] = peptide
-        else:
-            group[peptide.protein_id] = peptide
+        group.add(peptide)
         group.update_state(self.protein_set)
+        self.store[peptide.modified_peptide_sequence] = group
 
     def items(self):
         for key, mapping in self.store.items():
@@ -471,9 +512,6 @@ class PeptideConverter(object):
         self.modification_translation_table = modification_translation_table or {}
 
         self.peptide_grouper = PeptideCollection(protein_filter)
-
-        self.accumulator = []
-        self.chunk_size = 500
         self.counter = 0
 
     def get_protein(self, evidence):
@@ -590,28 +628,24 @@ class PeptideConverter(object):
             if found != start:
                 start = found
                 end = start + len(peptide_ident.base_sequence)
-            match = self.pack_peptide(peptide_ident, start, end, score, score_type, parent_protein)
-            self.add_to_save_queue(match)
+            match = self.pack_peptide(
+                peptide_ident, start, end, score, score_type, parent_protein)
+            self.add_to_group(match)
             if self.has_occupied_glycosites(match):
                 cleared = self.clear_sites(match)
-                self.add_to_save_queue(cleared)
+                self.add_to_group(cleared)
 
-    def add_to_save_queue(self, match):
+    def add_to_group(self, match):
         self.counter += 1
         self.peptide_grouper.add(match)
-        # assert abs(match.calculated_mass - match.convert().mass) < 0.01, abs(
-        #     match.calculated_mass - match.convert().mass)
-        if len(self.accumulator) > self.chunk_size:
-            self.save_accumulation()
 
     def save_accumulation(self):
         acc = []
+        self.peptide_grouper.bind_scores()
         for key, group in self.peptide_grouper.items():
             acc.extend(group)
-        self.accumulator.extend(acc)
-        self.session.bulk_save_objects(self.accumulator)
+        self.session.bulk_save_objects(acc)
         self.session.commit()
-        self.accumulator = []
 
 
 class MzIdentMLProteomeExtraction(TaskBase):

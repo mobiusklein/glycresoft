@@ -1,16 +1,21 @@
 import os
 import gzip
+import json
 
 from io import BytesIO
 from functools import total_ordering
 
 from six import string_types as basestring
 
+import numpy as np
+
+import sqlalchemy
 from sqlalchemy import (
     Column, Numeric, Integer, String, ForeignKey,
     PickleType, Boolean, Table, ForeignKeyConstraint,
     BLOB)
 
+from sqlalchemy.types import TypeDecorator
 from sqlalchemy.orm import relationship, backref, object_session, deferred
 from sqlalchemy.ext.declarative import declared_attr
 from sqlalchemy.ext.mutable import MutableDict
@@ -207,3 +212,19 @@ class HasFiles(object):
         else:
             f = FileBlob.from_file(file_obj, compress)
         self.files.append(f)
+
+
+class JSONType(TypeDecorator):
+
+    impl = sqlalchemy.Text()
+
+    def process_bind_param(self, value, dialect):
+        if value is not None:
+            value = json.dumps(value)
+
+        return value
+
+    def process_result_value(self, value, dialect):
+        if value is not None:
+            value = json.loads(value)
+        return value
