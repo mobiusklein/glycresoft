@@ -171,6 +171,9 @@ class ChromatogramProxy(object):
             obj.glycan_composition, obj)
         return inst
 
+    def get_chromatogram(self):
+        return self.obj.get_chromatogram()
+
 
 class ElutionTimeFitter(ScoringFeatureBase):
     feature_type = 'elution_time'
