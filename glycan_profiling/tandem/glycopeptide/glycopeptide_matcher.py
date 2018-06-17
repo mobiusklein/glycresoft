@@ -449,10 +449,18 @@ def format_identification_batch(group, n):
 def format_work_batch(bunch, count, total):
     ratio = "%d/%d (%0.3f%%)" % (count, total, (count * 100. / total))
     info = bunch[0].precursor_information
-    if hasattr(info.precursor, "scan_id"):
-        name = info.precursor.scan_id
-    else:
-        name = info.precursor.id
+    try:
+        precursor = info.precursor
+        if hasattr(precursor, "scan_id"):
+            name = precursor.scan_id
+        else:
+            name = precursor.id
+    except KeyError:
+        if hasattr(bunch[0], "scan_id"):
+            name = bunch[0].scan_id
+        else:
+            name = bunch[0].id
+
     if isinstance(info.charge, (int, float)):
         batch_header = "%s: %f (%s%r)" % (
             name, info.neutral_mass, "+" if info.charge > 0 else "-", abs(
