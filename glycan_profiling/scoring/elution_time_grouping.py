@@ -325,7 +325,7 @@ class AbundanceWeightedElutionTimeFitter(ElutionTimeFitter):
 
 
 class FactorElutionTimeFitter(ElutionTimeFitter):
-    def __init__(self, chromatograms, factors=['Fuc', 'Neu5Ac'], scale=2):
+    def __init__(self, chromatograms, factors=['Hex', 'HexNAc', 'Fuc', 'Neu5Ac'], scale=2):
         self.factors = factors
         super(FactorElutionTimeFitter, self).__init__(chromatograms, scale=scale)
 
@@ -524,6 +524,7 @@ class ElutionTimeModel(ScoringFeatureBase):
 
 CalibrationPoint = namedtuple("CalibrationPoint", (
     "reference_index", "reference_point_rt", "reference_point_rt_pred",
+    # rrt = Relative Retention Time, prrt = Predicted Relative Retention Time
     "rrt", "prrt", "residuals", 'weight'))
 
 
@@ -677,3 +678,13 @@ class RecalibratingPredictor(object):
         ax.set_ylabel('Predicted Apex Time', fontsize=18)
         ax.figure.text(0.8, 0.15, "$R^2=%0.4f$" % self.R2(), ha='center')
         return ax
+
+    def filter(self, threshold):
+        filtered = self.__class__(
+            self.training_examples,
+            self.testing_examples[self.score_array > threshold],
+            self.model,
+            self.scale,
+            self.dilation,
+            self.weighted)
+        return filtered
