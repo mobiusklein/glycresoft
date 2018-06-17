@@ -190,7 +190,7 @@ class ScanTransformingProcess(Process, ScanTransformMixin):
 
     Attributes
     ----------
-    input_queue : multiprocessing.Queue
+    input_queue : multiprocessing.JoinableQueue
         A shared input queue which contains payloads of bunches of
         scan ids
     ms1_deconvolution_args : dict
@@ -208,7 +208,7 @@ class ScanTransformingProcess(Process, ScanTransformMixin):
         queue has run out of items to add, indicating that any QueueEmptyException
         should be treated as a signal to finish rather than to wait for
         new input
-    output_queue : multiprocessing.Queue
+    output_queue : multiprocessing.JoinableQueue
         A shared output queue which this object will put
         :class:`ms_deisotope.data_source.common.ProcessedScan` bunches onto.
     """
