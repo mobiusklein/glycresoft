@@ -23,7 +23,7 @@ from glycan_profiling.task import (
 from glycan_profiling.config import get_configuration
 
 
-from multiprocessing import Process, Queue
+from multiprocessing import Process, Queue, JoinableQueue
 try:
     from Queue import Empty as QueueEmpty
 except ImportError:
@@ -86,6 +86,7 @@ class ScanIDYieldingProcess(Process):
             self.loader.start_from_scan(self.start_scan)
 
         count = 0
+        last = 0
         if self.max_scans is None:
             max_scans = float('inf')
         else:
@@ -98,6 +99,9 @@ class ScanIDYieldingProcess(Process):
                 if len(batch) > 0:
                     self.queue.put(batch)
                 count += len(ids)
+                if (count - last) > 1000:
+                    last = count
+                    self.queue.join()
                 if end_scan in ids or len(ids) == 0:
                     break
             except StopIteration:
@@ -292,9 +296,11 @@ class ScanTransformingProcess(Process, ScanTransformMixin):
             # logger_to_silence.addHandler(logging.StreamHandler())
 
         i = 0
+        last = 0
         while has_input:
             try:
                 scan_id, product_scan_ids, process_msn = self.get_work(True, 10)
+                self.input_queue.task_done()
             except QueueEmpty:
                 if self.no_more_event is not None and self.no_more_event.is_set():
                     has_input = False
@@ -349,6 +355,9 @@ class ScanTransformingProcess(Process, ScanTransformMixin):
                     self.skip_scan(product_scan)
                     self.log_error(e, product_scan.id,
                                    product_scan, (product_scan_ids))
+            if (i - last) > 1000:
+                last = i
+                self.output_queue.join()
 
         self.log_message("Done (%d scans)" % i)
 
@@ -466,9 +475,11 @@ class ScanCollator(TaskBase):
         blocking = timeout != 0
         try:
             item, index, ms_level = self.queue.get(blocking, timeout)
+            self.queue.task_done()
             # DONE message may be sent many times.
             while item == DONE:
                 item, index, ms_level = self.queue.get(blocking, timeout)
+                self.queue.task_done()
             self.store_item(item, index)
             return True
         except QueueEmpty:
@@ -771,12 +782,12 @@ class ScanGenerator(TaskBase, ScanGeneratorBase):
 
     def make_iterator(self, start_scan=None, end_scan=None, max_scans=None):
         try:
-            self._input_queue = Queue(int(1e6))
-            self._output_queue = Queue(5000)
+            self._input_queue = JoinableQueue(int(1e6))
+            self._output_queue = JoinableQueue(5000)
         except OSError:
             # Not all platforms permit limiting the size of queues
-            self._input_queue = Queue()
-            self._output_queue = Queue()
+            self._input_queue = JoinableQueue()
+            self._output_queue = JoinableQueue()
 
         self._preindex_file()
 
