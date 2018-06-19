@@ -103,14 +103,20 @@ class LaplacianRegularizedChromatogramProcessor(LogitSumChromatogramProcessor):
             delta_rt, peak_loader)
         if grid_smoothing_max is None:
             grid_smoothing_max = 1.0
-        if self.GRID_SEARCH == smoothing_factor:
-            smoothing_factor = None
         if network is None:
             network = database.glycan_composition_network
         self.network = network
-        self.smoothing_factor = smoothing_factor
+        self.smoothing_factor = self.prepare_regularization_parameters(smoothing_factor)
         self.grid_smoothing_max = grid_smoothing_max
         self.regularization_model = regularization_model
+
+    def prepare_regularization_parameters(self, smoothing_factor):
+        if isinstance(smoothing_factor, tuple):
+            if smoothing_factor[0] == self.GRID_SEARCH:
+                smoothing_factor = (None, smoothing_factor[1])
+        elif self.GRID_SEARCH == smoothing_factor:
+            smoothing_factor = None
+        return smoothing_factor
 
     def make_evaluator(self):
         evaluator = LaplacianRegularizedChromatogramEvaluator(

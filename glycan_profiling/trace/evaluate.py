@@ -159,16 +159,30 @@ class LaplacianRegularizedChromatogramEvaluator(LogitSumChromatogramEvaluator):
         self.grid_smoothing_max = grid_smoothing_max
         self.regularization_model = regularization_model
 
+    def network_smoothing(self, solutions):
+        is_bipartite = False
+        if isinstance(self.smoothing_factor, tuple):
+            smoothing_factor = self.smoothing_factor[0]
+            is_bipartite = True
+        updated_network, search, params = smooth_network(
+            self.network, solutions, lmbda=smoothing_factor,
+            lambda_max=self.grid_smoothing_max,
+            model_state=self.regularization_model)
+        if is_bipartite:
+            regularization_model = params
+            updated_network, search, params = smooth_network(
+                self.network, solutions, lmbda=self.smoothing_factor[1],
+                lambda_max=self.grid_smoothing_max,
+                model_state=regularization_model)
+        return updated_network, search, params
+
     def evaluate(self, chromatograms, delta_rt=0.25, min_points=3, smooth_overlap_rt=True,
                  *args, **kwargs):
         solutions = super(LaplacianRegularizedChromatogramEvaluator, self).evaluate(
             chromatograms, delta_rt=delta_rt, min_points=min_points,
             smooth_overlap_rt=smooth_overlap_rt, *args, **kwargs)
         self.log("... Applying Network Smoothing Regularization")
-        updated_network, search, params = smooth_network(
-            self.network, solutions, lmbda=self.smoothing_factor,
-            lambda_max=self.grid_smoothing_max,
-            model_state=self.regularization_model)
+        updated_network, search, params = self.network_smoothing(solutions)
         solutions = sorted(solutions, key=lambda x: x.score, reverse=True)
         # TODO - Use aggregation across multiple observations for the same glycan composition
         # instead of discarding all but the top scoring feature?
