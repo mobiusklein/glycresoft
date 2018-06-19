@@ -237,9 +237,22 @@ def search_glycopeptide(context, database_connection, sample_path, hypothesis_id
 
 
 class RegularizationParameterType(click.ParamType):
-    name = "\"grid\" or NUMBER > 0"
+    name = "\"grid\" or NUMBER > 0 or [grid|NUMBER]/NUMBER"
+    seperator = '/'
 
     def convert(self, value, param, ctx):
+        sep_count = value.count(self.seperator)
+        if sep_count > 1:
+            self.fail("regularization parameter split \"%s\" cannot be "
+                      "used more than once" % self.seperator)
+        elif sep_count == 1:
+            parts = value.split(self.seperator)
+            parts = (self.convert(parts[0], param, ctx),
+                     self.convert(parts[1], param, ctx))
+            if parts[1] == 'grid':
+                self.fail("The second regularization parameter cannot be \"grid\"")
+            return parts
+
         value = value.strip().lower()
         if value == 'grid':
             return LaplacianRegularizedChromatogramProcessor.GRID_SEARCH

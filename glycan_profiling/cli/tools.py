@@ -476,7 +476,12 @@ def version_check():
 
 
 @tools.command("interactive-shell")
-def interactive_shell():
+@click.option("-s", "--script", default=None)
+def interactive_shell(script):
+    if script:
+        with open(script, 'rt') as fh:
+            script = fh.read()
+        exec(script)
     code.interact()
 
 
