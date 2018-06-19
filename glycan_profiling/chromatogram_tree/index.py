@@ -130,7 +130,7 @@ class ChromatogramFilter(object):
             return None
 
     def find_mass(self, mass, ppm_error_tolerance=1e-5):
-        index, flag = self._binary_search(self.chromatograms, mass, ppm_error_tolerance)
+        index, flag = self._binary_search(mass, ppm_error_tolerance)
         if flag:
             return self[index]
         else:
@@ -221,11 +221,11 @@ class ChromatogramFilter(object):
         n = len(self)
         if n == 0:
             return ChromatogramFilter([])
-        low_index, flag = self._binary_search(self.chromatograms, low, 1e-5)
+        low_index, flag = self._binary_search(low, 1e-5)
         low_index = max(0, min(low_index, n - 1))
         if self[low_index].neutral_mass < low:
             low_index += 1
-        high_index, flag = self._binary_search(self.chromatograms, high, 1e-5)
+        high_index, flag = self._binary_search(high, 1e-5)
         high_index += 2
         # high_index = min(n - 1, high_index)
         if (high_index < n) and (self[high_index].neutral_mass > high):
