@@ -7,6 +7,8 @@ from glypy import GlycanComposition
 from glycan_profiling.database.composition_network import (
     CompositionGraphNode, NeighborhoodWalker)
 
+from glycan_profiling.task import log_handle
+
 from .constants import (
     DEFAULT_LAPLACIAN_REGULARIZATION,
     NORMALIZATION,
@@ -189,6 +191,7 @@ class GlycomeModel(LaplacianSmoothingModel):
         self.A0 = self.normalized_belongingness_matrix[self.obs_ix, :]
 
     def build_belongingness_matrix(self):
+        log_handle.log("build_belongingness_matrix")
         neighborhood_count = len(self.neighborhood_walker.neighborhoods)
         belongingness_matrix = np.zeros(
             (len(self.network), neighborhood_count))
@@ -257,11 +260,13 @@ class GlycomeModel(LaplacianSmoothingModel):
     def find_threshold_and_lambda(self, rho, lambda_max=1., lambda_step=0.01, threshold_start=0.,
                                   threshold_step=0.2, fit_tau=True, drop_missing=True,
                                   renormalize_belongingness=NORMALIZATION):
+        log_handle.log("find_threshold_and_lambda")
         solutions = NetworkReduction()
         limit = max(self.S0)
         start = max(min(self.S0), threshold_start)
         current_network = self.network.clone()
         for threshold in np.arange(start, limit, threshold_step):
+            log_handle.log("... threshold = %r" % threshold)
             obs = []
             missed = []
             network = current_network.clone()
@@ -288,6 +293,7 @@ class GlycomeModel(LaplacianSmoothingModel):
             updates = []
             taus = []
             for lambd in lambda_values:
+                log_handle.log("...... lambd = %r" % lambd)
                 if fit_tau:
                     tau = lum.estimate_tau_from_S0(rho, lambd)
                 else:
