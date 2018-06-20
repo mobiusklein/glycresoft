@@ -256,7 +256,7 @@ class GlycomeModel(LaplacianSmoothingModel):
             press.append(press_value)
         return lambda_values, np.array(press)
 
-    def find_threshold_and_lambda(self, rho, lambda_max=1., lambda_step=0.01, threshold_start=0.,
+    def find_threshold_and_lambda(self, rho, lambda_max=1., lambda_step=0.02, threshold_start=0.,
                                   threshold_step=0.2, fit_tau=True, drop_missing=True,
                                   renormalize_belongingness=NORMALIZATION):
         solutions = NetworkReduction()
@@ -326,7 +326,7 @@ class GlycomeModel(LaplacianSmoothingModel):
                 updates.append(T)
                 taus.append(tau)
             current_solution = NetworkTrimmingSearchSolution(
-                threshold, lambda_values, np.array(press), (network), np.array(obs),
+                threshold, lambda_values, np.array(press), network, np.array(obs),
                 updates, taus, lum)
 
             solutions[threshold] = current_solution
@@ -377,6 +377,7 @@ def smooth_network(network, observed_compositions, threshold_step=0.5, apex_thre
     model = GlycomeModel(
         observed_compositions, network,
         belongingness_matrix=belongingness_matrix)
+    log_handle.log("... Begin Model Fitting")
     if model_state is None:
         reduction = model.find_threshold_and_lambda(
             rho=rho, threshold_step=threshold_step,
@@ -389,6 +390,7 @@ def smooth_network(network, observed_compositions, threshold_step=0.5, apex_thre
         params = model_state
         if lmbda is not None:
             params.lmbda = lmbda
+    log_handle.log("... Projecting Solution Onto Network")
     network = search.annotate_network(params, include_missing=include_missing)
 
     return network, search, params
