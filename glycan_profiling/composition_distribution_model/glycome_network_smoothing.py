@@ -256,7 +256,7 @@ class GlycomeModel(LaplacianSmoothingModel):
             press.append(press_value)
         return lambda_values, np.array(press)
 
-    def find_threshold_and_lambda(self, rho, lambda_max=1., lambda_step=0.02, threshold_start=0.,
+    def find_threshold_and_lambda(self, rho, lambda_max=1., lambda_step=0.01, threshold_start=0.,
                                   threshold_step=0.2, fit_tau=True, drop_missing=True,
                                   renormalize_belongingness=NORMALIZATION):
         solutions = NetworkReduction()
