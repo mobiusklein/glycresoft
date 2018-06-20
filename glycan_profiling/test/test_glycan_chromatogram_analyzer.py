@@ -11,10 +11,12 @@ from glycan_profiling.database.builder.glycan import CombinatorialGlycanHypothes
 from glycan_profiling.serialize import AnalysisDeserializer
 
 
-agp_glycomics_mzml = fixtures.get_test_data("AGP_Glycomics_20150930_06.deconvoluted.mzML")
+agp_glycomics_mzml = fixtures.get_test_data(
+    "AGP_Glycomics_20150930_06.deconvoluted.mzML")
 
 
 class GlycanProfilerConsumerTest(unittest.TestCase):
+
     def setup_tempfile(self, content):
         file_name = tempfile.mktemp()
         open(file_name, 'w').write(content)
@@ -25,7 +27,8 @@ class GlycanProfilerConsumerTest(unittest.TestCase):
 
     def _make_hypothesis(self):
         file_name = self.setup_tempfile(FILE_SOURCE)
-        builder = CombinatorialGlycanHypothesisSerializer(file_name, file_name + '.db')
+        builder = CombinatorialGlycanHypothesisSerializer(
+            file_name, file_name + '.db')
         builder.run()
         self.clear_file(file_name)
         return file_name + '.db'
@@ -66,6 +69,50 @@ class GlycanProfilerConsumerTest(unittest.TestCase):
 
         ads.close()
         self.clear_file(output_file)
+
+    def test_smoothing_profiler(self):
+        db_file = self._make_hypothesis()
+        output_file = self.setup_tempfile("")
+        task = MzMLGlycanChromatogramAnalyzer(
+            db_file, 1, agp_glycomics_mzml, output_file,
+            regularize="grid",
+            analysis_name="test-analysis",
+            scoring_model=GeneralScorer)
+        task.start()
+        self.assertTrue(os.path.exists(output_file))
+        ads = AnalysisDeserializer(output_file, analysis_id=1)
+        gcs = ads.load_glycan_composition_chromatograms()
+
+        self.confirm_score(gcs, "{Fuc:1; Hex:7; HexNAc:6; Neu5Ac:4}", 16.0369)
+        self.confirm_score(gcs, "{Hex:8; HexNAc:7; Neu5Ac:3}", 8.7602)
+        self.confirm_score(gcs, "{Hex:7; HexNAc:6; Neu5Ac:4}", 16.5597)
+        network_params = ads.analysis.parameters['network_parameters']
+        tau = [0., 12.16828219, 16.1444486, 0.,
+               21.88819506, 0., 13.73780464, 0.,
+               9.20588749, 0., 0., 0., 0., 0.]
+        for a, b in zip(tau, network_params.tau):
+            self.assertAlmostEqual(a, b, 3)
+        ads.close()
+        self.clear_file(output_file)
+        task = MzMLGlycanChromatogramAnalyzer(
+            db_file, 1, agp_glycomics_mzml, output_file,
+            regularize=0.2,
+            regularization_model=network_params,
+            analysis_name="test-analysis",
+            scoring_model=GeneralScorer)
+        task.start()
+        ads = AnalysisDeserializer(output_file, analysis_id=1)
+        gcs = ads.load_glycan_composition_chromatograms()
+        self.confirm_score(gcs, "{Fuc:1; Hex:7; HexNAc:6; Neu5Ac:4}", 16.7203)
+        self.confirm_score(gcs, "{Hex:8; HexNAc:7; Neu5Ac:3}", 10.6206)
+        self.confirm_score(gcs, "{Hex:7; HexNAc:6; Neu5Ac:4}", 18.2530)
+        self.confirm_score(gcs, "{Fuc:2; Hex:6; HexNAc:5; Neu5Ac:3}", 15.8706)
+        network_params = ads.analysis.parameters['network_parameters']
+        for a, b in zip(tau, network_params.tau):
+            self.assertAlmostEqual(a, b, 3)
+        ads.close()
+        self.clear_file(output_file)
+        self.clear_file(db_file)
 
 
 if __name__ == '__main__':

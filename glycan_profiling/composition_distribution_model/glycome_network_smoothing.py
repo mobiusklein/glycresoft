@@ -227,6 +227,7 @@ class GlycomeModel(LaplacianSmoothingModel):
         for node in network:
             if node.score < threshold:
                 missed.append(node)
+                node.marked = True
             else:
                 obs.append(node.score)
         lambda_values = np.arange(0.01, lambda_max, step)
@@ -267,6 +268,7 @@ class GlycomeModel(LaplacianSmoothingModel):
             for i, node in enumerate(network):
                 if node.score < threshold:
                     missed.append(node)
+                    node.marked = True
                 else:
                     obs.append(node.score)
             if len(obs) == 0:
