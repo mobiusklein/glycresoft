@@ -164,6 +164,8 @@ class LaplacianRegularizedChromatogramEvaluator(LogitSumChromatogramEvaluator):
         if isinstance(self.smoothing_factor, tuple):
             smoothing_factor = self.smoothing_factor[0]
             is_bipartite = True
+        else:
+            smoothing_factor = self.smoothing_factor
         updated_network, search, params = smooth_network(
             self.network, solutions, lmbda=smoothing_factor,
             lambda_max=self.grid_smoothing_max,
