@@ -6,6 +6,8 @@ from matplotlib import pyplot as plt
 
 from ms_deisotope.feature_map.profile_transform import peak_indices
 
+from glycan_profiling.task import log_handle
+
 from .constants import DEFAULT_RHO
 
 
@@ -128,6 +130,18 @@ class NetworkTrimmingSearchSolution(object):
         opt_lambda = self.optimal_lambda
         return "NetworkTrimmingSearchSolution(%f, %d, %0.3f -> %0.3e)" % (
             self.threshold, self.n_kept, opt_lambda, min_press)
+
+    def copy(self):
+        dup = self.__class__(
+            self.threshold,
+            self.lambda_values.copy(),
+            self.press_residuals.copy(),
+            self.network.clone(),
+            self.observed.copy(),
+            list(self.updated),
+            list(self.taus),
+            self.model)
+        return dup
 
     def plot(self, ax=None, **kwargs):
         if ax is None:
@@ -278,6 +292,7 @@ class ThresholdSelectionGridSearch(object):
         if self.network_reduction is None:
             self.network_reduction = self.model.find_threshold_and_lambda(
                 rho=DEFAULT_RHO, threshold_step=0.1, fit_tau=True)
+        log_handle.log("... Exploring Grid Landscape")
         stack = []
         tau_magnitude = []
         xaxis = []
@@ -302,6 +317,7 @@ class ThresholdSelectionGridSearch(object):
         apex = apex[(tau_magnitude[apex] > (tau_magnitude[apex].max() * self.apex_threshold))]
         target_thresholds = [t for t in xaxis[apex]]
         solution = GridSearchSolution(stack, tau_magnitude, xaxis, apex, target_thresholds)
+        log_handle.log("... %d Candidate Solutions" % (len(target_thresholds),))
         return solution
 
     def _get_solution_states(self):

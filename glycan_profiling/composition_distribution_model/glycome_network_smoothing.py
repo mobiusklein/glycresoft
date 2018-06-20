@@ -191,7 +191,6 @@ class GlycomeModel(LaplacianSmoothingModel):
         self.A0 = self.normalized_belongingness_matrix[self.obs_ix, :]
 
     def build_belongingness_matrix(self):
-        log_handle.log("build_belongingness_matrix")
         neighborhood_count = len(self.neighborhood_walker.neighborhoods)
         belongingness_matrix = np.zeros(
             (len(self.network), neighborhood_count))
@@ -257,16 +256,19 @@ class GlycomeModel(LaplacianSmoothingModel):
             press.append(press_value)
         return lambda_values, np.array(press)
 
-    def find_threshold_and_lambda(self, rho, lambda_max=1., lambda_step=0.01, threshold_start=0.,
+    def find_threshold_and_lambda(self, rho, lambda_max=1., lambda_step=0.02, threshold_start=0.,
                                   threshold_step=0.2, fit_tau=True, drop_missing=True,
                                   renormalize_belongingness=NORMALIZATION):
-        log_handle.log("find_threshold_and_lambda")
         solutions = NetworkReduction()
         limit = max(self.S0)
         start = max(min(self.S0), threshold_start)
         current_network = self.network.clone()
-        for threshold in np.arange(start, limit, threshold_step):
-            log_handle.log("... threshold = %r" % threshold)
+        thresholds = np.arange(start, limit, threshold_step)
+        last_solution = None
+        for i_threshold, threshold in enumerate(thresholds):
+            if i_threshold % 10 == 0:
+                log_handle.log("... Threshold = %r (%0.2f%%)" % (
+                    threshold, (100.0 * i_threshold / len(thresholds))))
             obs = []
             missed = []
             network = current_network.clone()
@@ -284,6 +286,18 @@ class GlycomeModel(LaplacianSmoothingModel):
             if drop_missing:
                 for node in missed:
                     network.remove_node(node, limit=5)
+
+            if last_solution is not None:
+                # If after pruning the network, no new nodes have been removed,
+                # the optimal solution won't have changed from previous iteration
+                # so just reuse the solution
+                if last_solution.network == network:
+                    current_solution = last_solution.copy()
+                    current_network.threshold = threshold
+                    solutions[threshold] = current_solution
+                    last_solution = current_solution
+                    current_network = network
+                    continue
             wpl = weighted_laplacian_matrix(network)
             ident = np.eye(wpl.shape[0])
             lum = LaplacianSmoothingModel(
@@ -293,7 +307,6 @@ class GlycomeModel(LaplacianSmoothingModel):
             updates = []
             taus = []
             for lambd in lambda_values:
-                log_handle.log("...... lambd = %r" % lambd)
                 if fit_tau:
                     tau = lum.estimate_tau_from_S0(rho, lambd)
                 else:
@@ -312,9 +325,12 @@ class GlycomeModel(LaplacianSmoothingModel):
                 press.append(press_value)
                 updates.append(T)
                 taus.append(tau)
-            solutions[threshold] = NetworkTrimmingSearchSolution(
+            current_solution = NetworkTrimmingSearchSolution(
                 threshold, lambda_values, np.array(press), (network), np.array(obs),
                 updates, taus, lum)
+
+            solutions[threshold] = current_solution
+            last_solution = current_solution
             current_network = network
         return solutions
 
