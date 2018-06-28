@@ -39,9 +39,12 @@ class SpectrumMatchBase(ScanWrapperBase):
         deconvoluted_peak_set._reindex()
         return deconvoluted_peak_set
 
+    def _theoretical_mass(self):
+        return self.target.total_composition().mass
+
     def precursor_mass_accuracy(self, offset=0):
         observed = self.precursor_ion_mass
-        theoretical = self.target.total_composition().mass + (
+        theoretical = self._theoretical_mass() + (
             offset * neutron_offset) + self.mass_shift.mass
         return (observed - theoretical) / theoretical
 

@@ -4,3 +4,6 @@ recursive-include glycan_profiling/output *.templ
 recursive-include glycan_profiling/output *.js
 recursive-include glycan_profiling/output *.css
 recursive-include glycan_profiling/database/prebuilt/data *
+recursive-include glycan_profiling/_c *.pxd
+recursive-include glycan_profiling/_c *.pyx
+recursive-include glycan_profiling/_c *.c

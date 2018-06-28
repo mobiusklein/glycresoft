@@ -37,13 +37,6 @@ class GlycopeptideIdentificationWorker(SpectrumIdentificationWorkerBase):
         return matcher
 
 
-_target_decoy_cell = namedtuple("_target_decoy_cell", ["target", "decoy"])
-
-
-def make_target_decoy_cell():
-    return _target_decoy_cell(target=None, decoy=None)
-
-
 class GlycopeptideResolver(object):
     def __init__(self, database, parser):
         self.database = database
@@ -385,38 +378,6 @@ class ComparisonGlycopeptideMatcher(TargetDecoyInterleavingGlycopeptideMatcher):
         return target_solutions, decoy_solutions
 
 
-class ConcatenatedGlycopeptideMatcher(ComparisonGlycopeptideMatcher):
-    def score_bunch(self, scans, precursor_information=1e-5, *args, **kwargs):
-        target_solutions, decoy_solutions = super(ConcatenatedGlycopeptideMatcher, self).score_bunch(
-            scans, precursor_information, *args, **kwargs)
-        aggregator = defaultdict(make_target_decoy_cell)
-
-        for solution in target_solutions:
-            aggregator[solution.scan.id].target = solution
-        for solution in decoy_solutions:
-            aggregator[solution.scan.id].decoy = solution
-
-        target_solutions = []
-        decoy_solutions = []
-
-        for scan_id, cell in aggregator.items():
-            if cell.target is not None:
-                target_score = cell.target.score
-            else:
-                target_score = 0.0
-            if cell.decoy is not None:
-                decoy_score = cell.decoy.score
-            else:
-                decoy_score = 0.0
-
-            if target_score > decoy_score:
-                target_solutions.append(cell.target)
-            else:
-                decoy_solutions.append(cell.decoy)
-
-        return target_solutions, decoy_solutions
-
-
 def chunkiter(collection, size=200):
     i = 0
     while collection[i:(i + size)]:
@@ -444,31 +405,6 @@ def format_identification_batch(group, n):
     to_represent = sorted(
         representers.values(), key=lambda x: x.score, reverse=True)
     return '\n'.join(map(format_identification, to_represent[:n]))
-
-
-def format_work_batch(bunch, count, total):
-    ratio = "%d/%d (%0.3f%%)" % (count, total, (count * 100. / total))
-    info = bunch[0].precursor_information
-    try:
-        precursor = info.precursor
-        if hasattr(precursor, "scan_id"):
-            name = precursor.scan_id
-        else:
-            name = precursor.id
-    except KeyError:
-        if hasattr(bunch[0], "scan_id"):
-            name = bunch[0].scan_id
-        else:
-            name = bunch[0].id
-
-    if isinstance(info.charge, (int, float)):
-        batch_header = "%s: %f (%s%r)" % (
-            name, info.neutral_mass, "+" if info.charge > 0 else "-", abs(
-                info.charge))
-    else:
-        batch_header = "%s: %f (%s)" % (
-            name, info.neutral_mass, "?")
-    return "Begin Batch", batch_header, ratio
 
 
 class GlycopeptideDatabaseSearchIdentifier(TaskBase):
@@ -545,6 +481,33 @@ class GlycopeptideDatabaseSearchIdentifier(TaskBase):
             glycan_combination_list, product_error_tolerance=error_tolerance)
         return peptide_filter
 
+    def format_work_batch(self, bunch, count, total):
+        ratio = "%d/%d (%0.3f%%)" % (count, total, (count * 100. / total))
+        info = bunch[0].precursor_information
+        try:
+            try:
+                precursor = info.precursor
+                if hasattr(precursor, "scan_id"):
+                    name = precursor.scan_id
+                else:
+                    name = precursor.id
+            except (KeyError, AttributeError):
+                if hasattr(bunch[0], "scan_id"):
+                    name = bunch[0].scan_id
+                else:
+                    name = bunch[0].id
+        except Exception:
+            name = ""
+
+        if isinstance(info.charge, (int, float)):
+            batch_header = "%s: %f (%s%r)" % (
+                name, info.neutral_mass, "+" if info.charge > 0 else "-", abs(
+                    info.charge))
+        else:
+            batch_header = "%s: %f (%s)" % (
+                name, info.neutral_mass, "?")
+        return "Begin Batch", batch_header, ratio
+
     def search(self, precursor_error_tolerance=1e-5, simplify=True, chunk_size=500, limit=None, *args, **kwargs):
         target_hits = self.spectrum_match_store.writer("targets")
         decoy_hits = self.spectrum_match_store.writer("decoys")
@@ -562,7 +525,7 @@ class GlycopeptideDatabaseSearchIdentifier(TaskBase):
         self.log("Writing Matches To %r" % (self.file_manager,))
         for scan_collection in chunkiter(self.tandem_scans, chunk_size):
             count += len(scan_collection)
-            for item in format_work_batch(scan_collection, count, total):
+            for item in self.format_work_batch(scan_collection, count, total):
                 self.log("... %s" % item)
             scan_collection, unconfirmed_precursors = self.prepare_scan_set(scan_collection)
             self.log("... %d Unconfirmed Precursor Spectra" % (len(unconfirmed_precursors,)))
@@ -593,7 +556,6 @@ class GlycopeptideDatabaseSearchIdentifier(TaskBase):
 
         self.log("Reloading Spectrum Matches")
         target_hits, decoy_hits = self._load_stored_matches(len(target_hits), len(decoy_hits))
-        # self.spectrum_match_store.clear()
         return target_hits, decoy_hits
 
     def _clear_database_cache(self):

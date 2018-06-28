@@ -612,7 +612,9 @@ class GlycopeptideLCMSMSAnalyzer(TaskBase):
             if i % 500 == 0:
                 self.log("%0.2f%% chromatograms evaluated (%d/%d) %r" % (i * 100. / n, i, n, c))
             try:
-                scored_merged.append(ChromatogramSolution(c, scorer=chroma_scoring_model))
+                chrom_score = chroma_scoring_model.logitscore(c)
+                scored_merged.append(ChromatogramSolution(
+                    c, scorer=chroma_scoring_model, score=chrom_score))
             except (IndexError, ValueError) as e:
                 self.log("Could not score chromatogram %r due to %s" % (c, e))
                 scored_merged.append(ChromatogramSolution(c, score=0.0))

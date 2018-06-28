@@ -254,8 +254,11 @@ class ChromatogramMSMSMapper(TaskBase):
         return ChromatogramFilter([interv[0] for interv in self.rt_tree.contains_point(time)])
 
     def find_chromatogram_for(self, solution):
-        precursor_scan_time = self.scan_id_to_rt(
-            solution.precursor_information.precursor_scan_id)
+        try:
+            precursor_scan_time = self.scan_id_to_rt(
+                solution.precursor_information.precursor_scan_id)
+        except Exception:
+            precursor_scan_time = solution.scan_time
         overlapping_chroma = self.find_chromatogram_spanning(precursor_scan_time)
         chroma = overlapping_chroma.find_mass(
             solution.precursor_information.neutral_mass, self.error_tolerance)

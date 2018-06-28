@@ -213,8 +213,8 @@ def validate_reduction(context, reduction_string):
     if reduction_string is None:
         return None
     try:
-        if reduction_string in named_reductions:
-            return named_reductions[reduction_string]
+        if str(reduction_string).lower() in named_reductions:
+            return named_reductions[str(reduction_string).lower()]
         else:
             if len(Composition(str(reduction_string))) > 0:
                 return str(reduction_string)
