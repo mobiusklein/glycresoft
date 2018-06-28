@@ -16,7 +16,7 @@ else:
     # why importing ipdb which imported IPython which called this fixed
     # the problem)
     import win_unicode_console
-    win_unicode_console.enable()
+    # win_unicode_console.enable()
 app_dir = click.get_app_dir("glycresoft")
 _mpl_cache_dir = os.path.join(app_dir, 'mpl')
 

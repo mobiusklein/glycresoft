@@ -261,7 +261,7 @@ class RegularizationParameterType(click.ParamType):
                 value = float(value)
                 if value < 0:
                     self.fail("regularization parameter must be either \"grid\" or"
-                              " a non-negative number")
+                              " a non-negative number between 0 and 1")
                 return value
             except ValueError:
                 self.fail("regularization parameter must be either \"grid\" or"
@@ -297,7 +297,9 @@ class RegularizationParameterType(click.ParamType):
               help="Additional features to include in evaluating chromatograms")
 @click.option("-r", "--regularize", type=RegularizationParameterType(),
               help=("Apply Laplacian regularization with either a"
-                    " specified weight or \"grid\" to grid search "))
+                    " specified weight or \"grid\" to grid search, or a pair of values"
+                    " separated by a / to specify a weight or grid search "
+                    " for model fitting and a separate weight for scoring"))
 @click.option("-w", "--regularization-model-path", type=click.Path(exists=True),
               default=None,
               help="Path to a file containing a neighborhood model for regularization")
