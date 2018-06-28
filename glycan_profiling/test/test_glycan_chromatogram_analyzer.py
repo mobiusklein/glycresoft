@@ -93,6 +93,7 @@ class GlycanProfilerConsumerTest(unittest.TestCase):
         for a, b in zip(tau, network_params.tau):
             self.assertAlmostEqual(a, b, 3)
         ads.close()
+
         self.clear_file(output_file)
         task = MzMLGlycanChromatogramAnalyzer(
             db_file, 1, agp_glycomics_mzml, output_file,

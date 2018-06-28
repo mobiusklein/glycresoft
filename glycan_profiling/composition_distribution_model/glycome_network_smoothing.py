@@ -7,6 +7,8 @@ from glypy import GlycanComposition
 from glycan_profiling.database.composition_network import (
     CompositionGraphNode, NeighborhoodWalker)
 
+from glycan_profiling.task import log_handle
+
 from .constants import (
     DEFAULT_LAPLACIAN_REGULARIZATION,
     NORMALIZATION,
@@ -254,14 +256,19 @@ class GlycomeModel(LaplacianSmoothingModel):
             press.append(press_value)
         return lambda_values, np.array(press)
 
-    def find_threshold_and_lambda(self, rho, lambda_max=1., lambda_step=0.01, threshold_start=0.,
+    def find_threshold_and_lambda(self, rho, lambda_max=1., lambda_step=0.02, threshold_start=0.,
                                   threshold_step=0.2, fit_tau=True, drop_missing=True,
                                   renormalize_belongingness=NORMALIZATION):
         solutions = NetworkReduction()
         limit = max(self.S0)
         start = max(min(self.S0), threshold_start)
         current_network = self.network.clone()
-        for threshold in np.arange(start, limit, threshold_step):
+        thresholds = np.arange(start, limit, threshold_step)
+        last_solution = None
+        for i_threshold, threshold in enumerate(thresholds):
+            if i_threshold % 10 == 0:
+                log_handle.log("... Threshold = %r (%0.2f%%)" % (
+                    threshold, (100.0 * i_threshold / len(thresholds))))
             obs = []
             missed = []
             network = current_network.clone()
@@ -279,6 +286,18 @@ class GlycomeModel(LaplacianSmoothingModel):
             if drop_missing:
                 for node in missed:
                     network.remove_node(node, limit=5)
+
+            if last_solution is not None:
+                # If after pruning the network, no new nodes have been removed,
+                # the optimal solution won't have changed from previous iteration
+                # so just reuse the solution
+                if last_solution.network == network:
+                    current_solution = last_solution.copy()
+                    current_network.threshold = threshold
+                    solutions[threshold] = current_solution
+                    last_solution = current_solution
+                    current_network = network
+                    continue
             wpl = weighted_laplacian_matrix(network)
             ident = np.eye(wpl.shape[0])
             lum = LaplacianSmoothingModel(
@@ -306,9 +325,12 @@ class GlycomeModel(LaplacianSmoothingModel):
                 press.append(press_value)
                 updates.append(T)
                 taus.append(tau)
-            solutions[threshold] = NetworkTrimmingSearchSolution(
-                threshold, lambda_values, np.array(press), (network), np.array(obs),
+            current_solution = NetworkTrimmingSearchSolution(
+                threshold, lambda_values, np.array(press), network, np.array(obs),
                 updates, taus, lum)
+
+            solutions[threshold] = current_solution
+            last_solution = current_solution
             current_network = network
         return solutions
 
@@ -355,6 +377,7 @@ def smooth_network(network, observed_compositions, threshold_step=0.5, apex_thre
     model = GlycomeModel(
         observed_compositions, network,
         belongingness_matrix=belongingness_matrix)
+    log_handle.log("... Begin Model Fitting")
     if model_state is None:
         reduction = model.find_threshold_and_lambda(
             rho=rho, threshold_step=threshold_step,
@@ -367,6 +390,7 @@ def smooth_network(network, observed_compositions, threshold_step=0.5, apex_thre
         params = model_state
         if lmbda is not None:
             params.lmbda = lmbda
+    log_handle.log("... Projecting Solution Onto Network")
     network = search.annotate_network(params, include_missing=include_missing)
 
     return network, search, params
