@@ -14,24 +14,6 @@ import numpy as np
 ScoreCell = namedtuple('ScoreCell', ['score', 'value'])
 
 
-def binsearch(array, value):
-    lo = 0
-    hi = len(array) - 1
-
-    while hi - lo:
-        i = (hi + lo) / 2
-        x = array[i]
-        if x == value:
-            return i
-        elif hi - lo == 1:
-            return i
-        elif x < value:
-            lo = i
-        elif x > value:
-            hi = i
-    return i
-
-
 class NearestValueLookUp(object):
     def __init__(self, items):
         if isinstance(items, dict):
@@ -44,6 +26,9 @@ class NearestValueLookUp(object):
         hi = len(array) - 1
 
         if lo == hi:
+            return lo
+
+        if np.isnan(value):
             return lo
 
         while hi - lo:
