@@ -70,6 +70,22 @@ class SimpleCoverageScorer(GlycopeptideSpectrumMatcherBase):
                 stub_count += 1
         return b_ions, y_ions, stub_count, glycosylated_b_ions, glycosylated_y_ions
 
+    def _compute_glycosylated_coverage(self, glycosylated_b_ions, glycosylated_y_ions):
+        ladders = 0.
+        numer = 0.0
+        denom = 0.0
+        if self.glycosylated_b_ion_count > 0:
+            numer += glycosylated_b_ions
+            denom += self.glycosylated_b_ion_count
+            ladders += 1.
+        if self.glycosylated_y_ion_count > 0:
+            numer += glycosylated_y_ions
+            denom += self.glycosylated_y_ion_count
+            ladders += 1.
+        if denom == 0.0:
+            return 0.0
+        return numer / denom
+
     def compute_coverage(self):
         (b_ions, y_ions, stub_count,
          glycosylated_b_ions,
@@ -77,16 +93,9 @@ class SimpleCoverageScorer(GlycopeptideSpectrumMatcherBase):
 
         mean_coverage = np.mean(np.log2(b_ions + y_ions[::-1] + 1) / np.log2(3))
 
-        glycosylated_coverage = 0.
-        ladders = 0.
-        if self.glycosylated_b_ion_count > 0:
-            glycosylated_coverage += (glycosylated_b_ions / float(self.glycosylated_b_ion_count))
-            ladders += 1.
-        if self.glycosylated_y_ion_count > 0:
-            glycosylated_coverage += (glycosylated_y_ions / float(self.glycosylated_y_ion_count))
-            ladders += 1.
-        if ladders > 0:
-            glycosylated_coverage /= ladders
+        glycosylated_coverage = self._compute_glycosylated_coverage(
+            glycosylated_b_ions,
+            glycosylated_y_ions)
 
         stub_fraction = min(stub_count, 3) / 3.
 
