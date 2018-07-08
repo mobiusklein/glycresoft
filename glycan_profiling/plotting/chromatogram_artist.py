@@ -124,7 +124,7 @@ class ChromatogramArtist(ArtistBase):
     default_label_function = staticmethod(default_label_extractor)
     include_points = True
 
-    def __init__(self, chromatograms, ax=None, colorizer=None, label_peaks=True):
+    def __init__(self, chromatograms, ax=None, colorizer=None, label_peaks=True, clip_labels=True):
         if colorizer is None:
             colorizer = ColorCycler()
         if ax is None:
@@ -143,6 +143,7 @@ class ChromatogramArtist(ArtistBase):
         self.default_colorizer = colorizer
         self.legend = None
         self.label_peaks = label_peaks
+        self.clip_labels = clip_labels
 
     def __iter__(self):
         return iter(self.chromatograms)
@@ -188,7 +189,7 @@ class ChromatogramArtist(ArtistBase):
         rt_apex = rt[apex_ind]
 
         if label is not None:
-            self.ax.text(rt_apex, apex + 1200, label, ha='center', fontsize=label_font_size, clip_on=True)
+            self.ax.text(rt_apex, apex + 1200, label, ha='center', fontsize=label_font_size, clip_on=self.clip_labels)
 
     def draw_group(self, label, rt, heights, color, label_peak=True, chromatogram=None, label_font_size=10):
         if chromatogram is not None:
@@ -224,7 +225,7 @@ class ChromatogramArtist(ArtistBase):
         if label is not None and label_peak:
             self.ax.text(
                 rt_apex, min(apex * 1.1, apex + 1200), label, ha='center', fontsize=label_font_size,
-                clip_on=True)
+                clip_on=self.clip_labels)
 
     def transform_group(self, rt, heights):
         return rt, heights
@@ -325,9 +326,10 @@ class ChromatogramArtist(ArtistBase):
 
 
 class SmoothingChromatogramArtist(ChromatogramArtist):
-    def __init__(self, chromatograms, ax=None, colorizer=None, smoothing_factor=1.0, label_peaks=True):
+    def __init__(self, chromatograms, ax=None, colorizer=None, smoothing_factor=1.0,
+                 label_peaks=True, clip_labels=True):
         super(SmoothingChromatogramArtist, self).__init__(
-            chromatograms, ax=ax, colorizer=colorizer, label_peaks=label_peaks)
+            chromatograms, ax=ax, colorizer=colorizer, label_peaks=label_peaks, clip_labels=clip_labels)
         self.smoothing_factor = smoothing_factor
 
     def transform_group(self, rt, heights):
@@ -361,7 +363,7 @@ class SmoothingChromatogramArtist(ChromatogramArtist):
 
         if label is not None:
             self.ax.text(rt_apex, apex + 1200, label, ha='center', fontsize=label_font_size,
-                         clip_on=True)
+                         clip_on=self.clip_labels)
 
 
 class ChargeSeparatingChromatogramArtist(ChromatogramArtist):
@@ -381,7 +383,7 @@ class ChargeSeparatingSmoothingChromatogramArtist(
     pass
 
 
-def adduct_separating_chromatogram(chroma, ax=None):
+def adduct_separating_chromatogram(chroma, ax=None, **kwargs):
     adducts = list(chroma.adducts)
     labels = {}
     for adduct in adducts:
@@ -391,7 +393,8 @@ def adduct_separating_chromatogram(chroma, ax=None):
         labels.values(),
         colorizer=lambda *a, **k: 'green', ax=ax).draw(
         label_function=lambda *a, **k: tuple(a[0].adducts)[0].name,
-        legend=False)
+        legend=False,
+        **kwargs)
     rt, intens = chroma.as_arrays()
     adduct_plot.draw_generic_chromatogram(
         "Total", rt, intens, color='steelblue')
