@@ -54,6 +54,9 @@ cdef class PeakFragmentPair(object):
         yield self.peak
         yield self.fragment
 
+    cpdef double mass_accuracy(self):
+        return (self.peak.neutral_mass - self.fragment.mass) / self.fragment.mass
+
 
 @cython.freelist(1000000)
 cdef class PeakPairTransition(object):

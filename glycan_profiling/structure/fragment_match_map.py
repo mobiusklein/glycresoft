@@ -31,6 +31,9 @@ class PeakFragmentPair(object):
         yield self.peak
         yield self.fragment
 
+    def mass_accuracy(self):
+        return (self.peak.neutral_mass - self.fragment.mass) / self.fragment.mass
+
 
 class FragmentMatchMap(object):
     def __init__(self):
