@@ -295,10 +295,10 @@ class ThresholdSelectionGridSearch(object):
         log_handle.log("... Exploring Grid Landscape")
         stack = []
         tau_magnitude = []
-        xaxis = []
+        thresholds = []
 
         for level in self.network_reduction:
-            xaxis.append(level.threshold)
+            thresholds.append(level.threshold)
 
         # Pull the distribution slightly to the right
         bias_shift = 1 - (1 / self.threshold_bias)
@@ -312,11 +312,20 @@ class ThresholdSelectionGridSearch(object):
                     (level.threshold / bias_scale) + bias_shift)
             )
         tau_magnitude = np.array(tau_magnitude)
-        apex = peak_indices(tau_magnitude)
-        xaxis = np.array(xaxis)
+        if len(tau_magnitude) == 0:
+            # No solutions, so these will be empty
+            return GridSearchSolution(stack, tau_magnitude, thresholds, np.array([]), thresholds)
+        elif len(tau_magnitude) <= 2:
+            apex = np.argmax(tau_magnitude)
+        elif len(tau_magnitude) > 2:
+            apex = peak_indices(tau_magnitude)
+            if len(apex) == 0:
+                apex = np.array([np.argmax(tau_magnitude)])
+
+        thresholds = np.array(thresholds)
         apex = apex[(tau_magnitude[apex] > (tau_magnitude[apex].max() * self.apex_threshold))]
-        target_thresholds = [t for t in xaxis[apex]]
-        solution = GridSearchSolution(stack, tau_magnitude, xaxis, apex, target_thresholds)
+        target_thresholds = [t for t in thresholds[apex]]
+        solution = GridSearchSolution(stack, tau_magnitude, thresholds, apex, target_thresholds)
         log_handle.log("... %d Candidate Solutions" % (len(target_thresholds),))
         return solution
 
@@ -337,10 +346,10 @@ class ThresholdSelectionGridSearch(object):
         # Removes rows from A0
         self.model.set_threshold(state.threshold)
 
-        # tau = self.model.estimate_tau_from_S0(rho, lmbda)
         tau = self.model.estimate_tau_from_S0(rho, lmbda)
         A = self.model.normalized_belongingness_matrix.copy()
 
+        # Restore removed rows from A0
         self.model.remove_belongingness_patch()
 
         return GridPointSolution(state.threshold, lmbda, tau, A,
@@ -409,7 +418,7 @@ class ThresholdSelectionGridSearch(object):
                 observed_scores=observed_scores)
 
         network = self.model.network.clone()
-
+        network.neighborhoods = self.model.neighborhood_walker.neighborhoods.clone()
         for i, ix in enumerate(self.model.obs_ix):
             network[ix].score = observed_scores[i]
 
