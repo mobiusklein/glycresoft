@@ -418,7 +418,9 @@ class Chromatogram(_TimeIntervalMethods):
         self.nodes.insert(retention_time, scan_id, [peak])
         self._invalidate()
 
-    def merge(self, other, node_type=Unmodified):
+    def merge(self, other, node_type=Unmodified, skip_duplicate_nodes=False):
+        if skip_duplicate_nodes:
+            return self._merge_missing_only(other, node_type=node_type)
         new = self.clone()
         for node in other.nodes.unspool_strip_children():
             node = node.clone()
@@ -447,7 +449,7 @@ class Chromatogram(_TimeIntervalMethods):
                 new_node = node.clone()
                 new_node.node_type = node.node_type + node_type
                 new.insert_node(new_node)
-        new.created_at = "_merge_common_only"
+        new.created_at = "_merge_missing_only"
         return new
 
     @classmethod
