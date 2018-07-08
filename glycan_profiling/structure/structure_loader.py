@@ -303,8 +303,9 @@ class DecoyFragmentCachingGlycopeptide(FragmentCachingGlycopeptide):
                 random_low = kwargs.get('random_low', 1.0)
                 random_high = kwargs.get("random_high", 30.0)
                 for frag in result:
-                    delta = random_state.uniform(random_low, random_high)
-                    frag.mass += delta
+                    if frag.glycosylation_size > 1:
+                        delta = random_state.uniform(random_low, random_high)
+                        frag.mass += delta
             # if (len(self) > self.stub_length_threshold) or self.use_legacy_stub_method:
             #     result = list(super(FragmentCachingGlycopeptide, self).stub_fragments(*args, **kwargs))
             # else:
