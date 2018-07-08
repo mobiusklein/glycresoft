@@ -181,7 +181,7 @@ class ChromatogramMatcher(TaskBase):
                     if match and span_overlap(add, match):
                         try:
                             match.used_as_adduct.append((add.key, adduct))
-                            add = add.merge(match, node_type=adduct)
+                            add = add.merge(match, node_type=adduct, skip_duplicate_nodes=True)
                             add.created_at = "join_mass_shifted"
                             add.adducts.append(adduct)
                         except DuplicateNodeError as e:

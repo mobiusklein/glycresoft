@@ -141,7 +141,7 @@ class LogitSumChromatogramEvaluator(ChromatogramEvaluator):
             reference = members[0]
             base = reference.clone()
             for other in members[1:]:
-                base = base.merge(other)
+                base = base.merge(other, skip_duplicate_nodes=True)
             merged = reference.__class__(
                 base, reference.score, scorer=reference.scorer,
                 score_set=reference.score_set)
