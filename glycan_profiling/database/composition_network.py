@@ -998,6 +998,11 @@ class NeighborhoodCollection(object):
     def clear(self):
         self.neighborhoods.clear()
 
+    def copy(self):
+        return self.__class__(self.neighborhoods)
+
+    clone = copy
+
     def __iter__(self):
         return iter(self.neighborhoods.values())
 
