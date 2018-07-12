@@ -261,7 +261,7 @@ class ScanNode(NodeBase):
         return self.scan.precursor_information
 
     def __repr__(self):
-        return "ScanNode(%s)" % self.scan.id
+        return "ScanNode(%s)" % (self.scan.id,)
 
 
 class ScanGraphEdge(GraphEdgeBase):
