@@ -100,6 +100,7 @@ class MSMSSampleConsumerTest(unittest.TestCase, SampleConsumerBase):
         self.cleanup(outdir)
 
 
+@unittest.skip("This test is subsumed by MSMSSampleConsumerTest")
 class SampleConsumerTest(unittest.TestCase, SampleConsumerBase):
     def build_args(self):
         ms1_peak_picking_args = {
