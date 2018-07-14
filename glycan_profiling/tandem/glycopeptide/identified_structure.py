@@ -159,11 +159,23 @@ class SiteMap(object):
     def sites(self):
         return sorted(self.store.keys())
 
+    def get(self, key, default=None):
+        return self.store.get(key, default)
+
     def __iter__(self):
         return iter(self.store.items())
 
     def items(self):
         return self.store.items()
+
+    def keys(self):
+        return sorted(self.store.keys())
+
+    def values(self):
+        return self.store.values()
+
+    def __contains__(self, i):
+        return i in self.store
 
     def __len__(self):
         return len(self.store)
