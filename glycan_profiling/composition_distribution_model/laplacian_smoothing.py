@@ -16,7 +16,7 @@ from .graph import network_indices, BlockLaplacian
 class LaplacianSmoothingModel(object):
     def __init__(self, network, belongingness_matrix, threshold,
                  regularize=DEFAULT_LAPLACIAN_REGULARIZATION, neighborhood_walker=None,
-                 belongingness_normalization=NORMALIZATION):
+                 belongingness_normalization=NORMALIZATION, variance_matrix=None):
         self.network = network
 
         if neighborhood_walker is None:
@@ -31,13 +31,15 @@ class LaplacianSmoothingModel(object):
         self.block_L = BlockLaplacian(
             self.network, threshold, regularize=regularize)
 
-        self.S0 = [node.score for node in self.network[self.obs_ix]]
+        self.S0 = np.array([node.score for node in self.network[self.obs_ix]])
         self.A0 = belongingness_matrix[self.obs_ix, :]
         self.Am = belongingness_matrix[self.miss_ix, :]
         self.C0 = [node for node in self.network[self.obs_ix]]
 
         self._belongingness_normalization = belongingness_normalization
-        self.variance_matrix = np.eye(len(self.S0))
+        if variance_matrix is None:
+            variance_matrix = np.eye(len(self.S0))
+        self.variance_matrix = variance_matrix
 
     def __reduce__(self):
         return self.__class__, (

@@ -40,7 +40,7 @@ def _has_glycan_composition(x):
 
 
 class GlycanCompositionSolutionRecord(object):
-    def __init__(self, glycan_composition, score, total_signal):
+    def __init__(self, glycan_composition, score, total_signal=1.0):
         self.glycan_composition = glycan_composition
         self.score = score
         self.internal_score = self.score
@@ -57,14 +57,16 @@ class GlycanCompositionSolutionRecord(object):
 
 
 class VariableObservationAggregation(object):
-    def __init__(self, observations):
+    def __init__(self, network):
         self.aggregation = defaultdict(list)
-        self.observations = observations
-        self.collect()
+        self.network = network
 
-    def collect(self):
-        for obs in self.observations:
+    def collect(self, observations):
+        for obs in observations:
             self.aggregation[obs.glycan_composition].append(obs)
+
+    def reset(self):
+        self.aggregation = defaultdict(list)
 
     def estimate_summaries(self):
         means = OrderedDict()
@@ -74,39 +76,51 @@ class VariableObservationAggregation(object):
             variances[key] = 1. / len(values)
         return means, variances
 
-    def update(self, network):
+    def update(self):
         means, variances = self.estimate_summaries()
-        n = len(network)
+        n = len(self.network)
         observed_scores = np.zeros(n)
         variance_matrix = np.eye(n)
         nodes = []
-        for key, value in observed_scores.items():
-            node = network[key]
+        for key, value in means.items():
+            node = self.network[key]
             observed_scores[node.index] = value
-            node.score = value
             nodes.append(node)
             variance_matrix[node.index, node.index] = variances[key]
-        observed_scores = observed_scores[observed_scores > 0]
         nodes.sort(key=lambda x: x.index)
         return observed_scores, variance_matrix, nodes
 
-    @classmethod
-    def extract(cls, observations, network):
-        inst = cls(observations)
-        return inst.update(network)
+    def build_records(self):
+        scores, variance_matrix, nodes = self.update()
+        records = []
+        indices = []
+        for node in nodes:
+            rec = GlycanCompositionSolutionRecord(
+                node.glycan_composition, scores[node.index],
+                sum([rec.total_signal for rec in self.aggregation[node.glycan_composition]]))
+            records.append(rec)
+            indices.append(node.index)
+        return records, np.diag(variance_matrix[indices, indices])
 
-    @classmethod
-    def from_model(cls, model):
-        observations = model.observations
-        network = model.network
-        return cls.extract(observations, network)
+
+class AbundanceWeightedObservationAggregation(VariableObservationAggregation):
+    def estimate_summaries(self):
+        means = OrderedDict()
+        variances = OrderedDict()
+        for key, values in self.aggregation.items():
+            weights = np.log10([v.total_signal for v in values])
+            means[key] = np.average([v.score for v in values], weights=weights)
+            variances[key] = 1. / weights.sum()
+        return means, variances
 
 
 class GlycomeModel(LaplacianSmoothingModel):
 
     def __init__(self, observed_compositions, network, belongingness_matrix=None,
                  regularize=DEFAULT_LAPLACIAN_REGULARIZATION,
-                 belongingness_normalization=NORMALIZATION):
+                 belongingness_normalization=NORMALIZATION,
+                 observation_aggregator=VariableObservationAggregation):
+        self.observation_aggregator = observation_aggregator
         observed_compositions = [
             o for o in observed_compositions if _has_glycan_composition(o)]
         self._observed_compositions = observed_compositions
@@ -122,7 +136,7 @@ class GlycomeModel(LaplacianSmoothingModel):
         self.normalized_belongingness_matrix = None
         self.A0 = None
         self._belongingness_normalization = None
-        self.S0 = []
+        self.S0 = np.array([])
         self.C0 = []
         self.variance_matrix = None
 
@@ -134,7 +148,7 @@ class GlycomeModel(LaplacianSmoothingModel):
 
         # Normalize and populate
         self.normalize_belongingness(belongingness_normalization)
-        self._populate()
+        self._populate(self._observed_compositions)
 
     def _configure_with_network(self, network):
         self._network = network
@@ -152,37 +166,30 @@ class GlycomeModel(LaplacianSmoothingModel):
             self._observed_compositions, self._network, self.belongingness_matrix,
             self.block_L.regularize, self._belongingness_normalization)
 
-    def _populate(self):
+    def _populate(self, observations):
+        var_agg = self.observation_aggregator(self._network)
+        var_agg.collect(observations)
+        aggregated_observations, variance_matrix = var_agg.build_records()
+        self.network = assign_network(self._network.clone(), aggregated_observations)
+        self.obs_ix, self.miss_ix = network_indices(self.network)
+
         self.A0 = self.normalized_belongingness_matrix[self.obs_ix, :]
         self.Am = self.normalized_belongingness_matrix[self.miss_ix, :]
         self.S0 = np.array([g.score for g in self.network[self.obs_ix]])
         self.C0 = ([g for g in self.network[self.obs_ix]])
-        self.variance_matrix = np.eye(len(self.S0))
+        self.variance_matrix = variance_matrix
 
     def set_threshold(self, threshold):
         accepted = [
             g for g in self._observed_compositions if g.score > threshold]
         if len(accepted) == 0:
             raise ValueError("Threshold %f produces an empty observed set" % (threshold,))
-        self.network = assign_network(self._network.clone(), accepted)
-
-        self.obs_ix, self.miss_ix = network_indices(self.network)
-        self._populate()
-
+        self._populate(accepted)
         self.block_L = BlockLaplacian(self.network, threshold=threshold, regularize=self.block_L.regularize)
         self.threshold = self.block_L.threshold
 
     def reset(self):
         self.set_threshold(RESET_THRESHOLD_VALUE)
-
-    def _isolate(self, network=None, threshold=None):
-        if network is None:
-            network = self.network
-        if threshold is None:
-            threshold = self._threshold
-        return LaplacianSmoothingModel(
-            network, self.normalized_belongingness_matrix, threshold,
-            neighborhood_walker=self.neighborhood_walker)
 
     def normalize_belongingness(self, method=NORMALIZATION):
         self.normalized_belongingness_matrix = ProportionMatrixNormalization.normalize(
@@ -259,9 +266,42 @@ class GlycomeModel(LaplacianSmoothingModel):
     def find_threshold_and_lambda(self, rho, lambda_max=1., lambda_step=0.02, threshold_start=0.,
                                   threshold_step=0.2, fit_tau=True, drop_missing=True,
                                   renormalize_belongingness=NORMALIZATION):
+        r'''Iterate over score thresholds and smoothing factors (lambda), sampling points
+        from the parameter grid and computing the PRESS residual at each point.
+
+        This produces a :class:`NetworkReduction` data structure recording the results for
+        later local maximum detection.
+
+        Parameters
+        ----------
+        rho: float
+            The scale of the variance of the observed score
+        lambda_max: float
+            The maximum value of lambda to consider on the grid
+        lambda_step: float
+            The size of the change in lambda at each iteration
+        threshold_start: float
+            The minimum observed score threshold to start the grid search at
+        threshold_step: float
+            The size of the change in the observed score threshold at each iteration
+        fit_tau: bool
+            Whether or not to estimate :math:`\tau` for each iteration when computing
+            the PRESS
+        drop_missing: bool
+            Whether or not to remove nodes from the graph which are not observed above
+            the threshold, restructuring the graph, which in turn changes the Laplacian.
+        renormalize_belongingness: str
+            A string constant which names the belongingness normalization technique to
+            use.
+
+        Returns
+        -------
+        :class:`NetworkReduction`:
+            The recorded grid of sampled points and snapshots of the model at each point
+        '''
         solutions = NetworkReduction()
         limit = max(self.S0)
-        start = max(min(self.S0), threshold_start)
+        start = max(min(self.S0) - 1e-3, threshold_start)
         current_network = self.network.clone()
         thresholds = np.arange(start, limit, threshold_step)
         last_solution = None
@@ -269,9 +309,24 @@ class GlycomeModel(LaplacianSmoothingModel):
             if i_threshold % 10 == 0:
                 log_handle.log("... Threshold = %r (%0.2f%%)" % (
                     threshold, (100.0 * i_threshold / len(thresholds))))
+            # Aggregate the raw observations into averaged, variance reduced records
+            # and annotate the network with these new scores
+            raw_observations = [c for c in self._observed_compositions if c.score > threshold]
+            agg = self.observation_aggregator(self.network)
+            agg.collect(raw_observations)
+            observations, variance_matrix = agg.build_records()
+
+            # clear the scores from the network
+            current_network = current_network.clone()
+            for i, node in enumerate(current_network):
+                node.score = 0
+            # assign aggregated scores to the network
+            network = assign_network(current_network, observations)
+
+            # Filter the network, marking nodes for removal and recording observed
+            # nodes for future use.
             obs = []
             missed = []
-            network = current_network.clone()
             for i, node in enumerate(network):
                 if node.score < threshold:
                     missed.append(node)
@@ -281,9 +336,10 @@ class GlycomeModel(LaplacianSmoothingModel):
             if len(obs) == 0:
                 break
             obs = np.array(obs)
-            lambda_values = np.arange(0.01, lambda_max, lambda_step)
             press = []
+
             if drop_missing:
+                # drop nodes whose score does not exceed the threshold
                 for node in missed:
                     network.remove_node(node, limit=5)
 
@@ -293,7 +349,7 @@ class GlycomeModel(LaplacianSmoothingModel):
                 # so just reuse the solution
                 if last_solution.network == network:
                     current_solution = last_solution.copy()
-                    current_network.threshold = threshold
+                    current_solution.threshold = threshold
                     solutions[threshold] = current_solution
                     last_solution = current_solution
                     current_network = network
@@ -303,9 +359,11 @@ class GlycomeModel(LaplacianSmoothingModel):
             lum = LaplacianSmoothingModel(
                 network, self.normalized_belongingness_matrix, threshold,
                 neighborhood_walker=self.neighborhood_walker,
-                belongingness_normalization=renormalize_belongingness)
+                belongingness_normalization=renormalize_belongingness,
+                variance_matrix=variance_matrix)
             updates = []
             taus = []
+            lambda_values = np.arange(0.01, lambda_max, lambda_step)
             for lambd in lambda_values:
                 if fit_tau:
                     tau = lum.estimate_tau_from_S0(rho, lambd)
@@ -370,18 +428,23 @@ class NeighborhoodPrior(object):
 
 def smooth_network(network, observed_compositions, threshold_step=0.5, apex_threshold=0.95,
                    belongingness_matrix=None, rho=DEFAULT_RHO, lambda_max=1,
-                   include_missing=False, lmbda=None, model_state=None):
+                   include_missing=False, lmbda=None, model_state=None,
+                   observation_aggregator=VariableObservationAggregation):
     convert = GlycanCompositionSolutionRecord.from_glycan_composition_chromatogram
     observed_compositions = [
         convert(o) for o in observed_compositions if _has_glycan_composition(o)]
     model = GlycomeModel(
         observed_compositions, network,
-        belongingness_matrix=belongingness_matrix)
+        belongingness_matrix=belongingness_matrix,
+        observation_aggregator=observation_aggregator)
     log_handle.log("... Begin Model Fitting")
     if model_state is None:
         reduction = model.find_threshold_and_lambda(
             rho=rho, threshold_step=threshold_step,
             lambda_max=lambda_max)
+        if len(reduction) == 0:
+            log_handle.log("... No Network Reduction Found")
+            return None, None, None
         search = ThresholdSelectionGridSearch(model, reduction, apex_threshold)
         params = search.average_solution(lmbda=lmbda)
     else:

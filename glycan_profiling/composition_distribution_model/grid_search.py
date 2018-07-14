@@ -43,16 +43,20 @@ class NetworkReduction(object):
     def __iter__(self):
         return iter(self.store.values())
 
+    def __len__(self):
+        return len(self.store)
+
     @staticmethod
     def binsearch(array, value):
         lo = 0
-        hi = len(array) - 1
-        while hi - lo:
-            i = (hi + lo) / 2
+        hi = len(array)
+        i = 0
+        while (hi - lo) != 0:
+            i = (hi + lo) // 2
             x = array[i]
-            if x == value:
+            if abs(x - value) < 1e-3:
                 return i
-            elif hi - lo == 1:
+            elif (hi - lo) == 1:
                 return i
             elif x < value:
                 lo = i
@@ -345,6 +349,7 @@ class ThresholdSelectionGridSearch(object):
 
         # Removes rows from A0
         self.model.set_threshold(state.threshold)
+        self.model.variance_matrix
 
         tau = self.model.estimate_tau_from_S0(rho, lmbda)
         A = self.model.normalized_belongingness_matrix.copy()
