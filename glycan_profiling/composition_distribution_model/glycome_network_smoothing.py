@@ -47,7 +47,7 @@ class GlycanCompositionSolutionRecord(object):
         self.total_signal = total_signal
 
     @classmethod
-    def from_glycan_composition_chromatogram(cls, solution):
+    def from_chromatogram(cls, solution):
         return cls(solution.glycan_composition, solution.score,
                    solution.total_signal)
 
@@ -430,7 +430,7 @@ def smooth_network(network, observed_compositions, threshold_step=0.5, apex_thre
                    belongingness_matrix=None, rho=DEFAULT_RHO, lambda_max=1,
                    include_missing=False, lmbda=None, model_state=None,
                    observation_aggregator=VariableObservationAggregation):
-    convert = GlycanCompositionSolutionRecord.from_glycan_composition_chromatogram
+    convert = GlycanCompositionSolutionRecord.from_chromatogram
     observed_compositions = [
         convert(o) for o in observed_compositions if _has_glycan_composition(o)]
     model = GlycomeModel(
