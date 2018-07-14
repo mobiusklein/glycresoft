@@ -185,6 +185,8 @@ class LaplacianRegularizedChromatogramEvaluator(LogitSumChromatogramEvaluator):
             smooth_overlap_rt=smooth_overlap_rt, *args, **kwargs)
         self.log("... Applying Network Smoothing Regularization")
         updated_network, search, params = self.network_smoothing(solutions)
+        if updated_network is search is params is None:
+            return solutions
         solutions = sorted(solutions, key=lambda x: x.score, reverse=True)
         # TODO - Use aggregation across multiple observations for the same glycan composition
         # instead of discarding all but the top scoring feature?
