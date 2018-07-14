@@ -38,6 +38,13 @@ class WorkloadManager(object):
         self.scan_hit_type_map = defaultdict(lambda: Unmodified.name)
         self._scan_graph = None
 
+    def clear(self):
+        self.scan_map.clear()
+        self.hit_map.clear()
+        self.hit_to_scan_map.clear()
+        self.scan_hit_type_map.clear()
+        self._scan_graph = None
+
     def add_scan(self, scan):
         """Register a Scan-like object for tracking
 
@@ -239,4 +246,9 @@ _WorkloadBatch = namedtuple("WorkloadBatch", [
 
 
 class WorkloadBatch(_WorkloadBatch):
-    pass
+
+    def clear(self):
+        self.scan_map.clear()
+        self.hit_map.clear()
+        self.hit_to_scan_map.clear()
+        self.scan_hit_type_map.clear()
