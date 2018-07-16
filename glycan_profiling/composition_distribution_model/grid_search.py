@@ -430,6 +430,7 @@ class ThresholdSelectionGridSearch(object):
         if include_missing:
             for i, ix in enumerate(self.model.miss_ix):
                 network[ix].score = missing_scores[i]
+                network[ix].marked = True
 
         return network
 

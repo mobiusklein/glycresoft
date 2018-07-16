@@ -429,14 +429,16 @@ class NeighborhoodPrior(object):
 def smooth_network(network, observed_compositions, threshold_step=0.5, apex_threshold=0.95,
                    belongingness_matrix=None, rho=DEFAULT_RHO, lambda_max=1,
                    include_missing=False, lmbda=None, model_state=None,
-                   observation_aggregator=VariableObservationAggregation):
+                   observation_aggregator=VariableObservationAggregation,
+                   belongingness_normalization=NORMALIZATION):
     convert = GlycanCompositionSolutionRecord.from_chromatogram
     observed_compositions = [
         convert(o) for o in observed_compositions if _has_glycan_composition(o)]
     model = GlycomeModel(
         observed_compositions, network,
         belongingness_matrix=belongingness_matrix,
-        observation_aggregator=observation_aggregator)
+        observation_aggregator=observation_aggregator,
+        belongingness_normalization=belongingness_normalization)
     log_handle.log("... Begin Model Fitting")
     if model_state is None:
         reduction = model.find_threshold_and_lambda(

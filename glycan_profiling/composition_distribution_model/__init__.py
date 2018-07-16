@@ -36,6 +36,7 @@ from glycan_profiling.composition_distribution_model.glycome_network_smoothing i
     GlycomeModel,
     GlycanCompositionSolutionRecord,
     VariableObservationAggregation,
+    AbundanceWeightedObservationAggregation,
     NeighborhoodPrior,
     smooth_network,
     display_table)
@@ -71,6 +72,7 @@ __all__ = [
     "GlycomeModel",
     "GlycanCompositionSolutionRecord",
     "VariableObservationAggregation",
+    "AbundanceWeightedObservationAggregation",
     "NeighborhoodPrior",
     "smooth_network",
     "display_table"

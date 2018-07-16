@@ -127,7 +127,7 @@ class ProportionMatrixNormalization(object):
             self.normalize_rows()
         elif method == 'colrow':
             self.normalize_columns_and_rows()
-        elif method.startswith("col") and method[3:4].isdigit():
+        elif method is not None and method.startswith("col") and method[3:4].isdigit():
             scale = float(method[3:])
             self.normalize_columns_scaled(scale)
         elif method == 'none' or method is None:
