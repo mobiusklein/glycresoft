@@ -513,7 +513,7 @@ class GlycopeptideLCMSMSAnalyzer(TaskBase):
         if tandem_scoring_model is None:
             tandem_scoring_model = CoverageWeightedBinomialScorer
         if peak_shape_scoring_model is None:
-            peak_shape_scoring_model = GeneralScorer
+            peak_shape_scoring_model = GeneralScorer.clone()
             peak_shape_scoring_model.add_feature(get_feature("null_charge"))
         if scan_transformer is None:
             def scan_transformer(x):
@@ -691,6 +691,7 @@ class GlycopeptideLCMSMSAnalyzer(TaskBase):
                        chromatogram_extractor, database):
         if self.analysis_name is None:
             return
+        self.log("Saving Results To \"%s\"" % (self.database_connection,))
         analysis_saver = AnalysisSerializer(self.database_connection, self.sample_run_id, self.analysis_name)
         analysis_saver.set_peak_lookup_table(chromatogram_extractor.peak_mapping)
         analysis_saver.set_analysis_type(AnalysisTypeEnum.glycopeptide_lc_msms.name)
@@ -781,6 +782,7 @@ class MzMLGlycopeptideLCMSMSAnalyzer(GlycopeptideLCMSMSAnalyzer):
                        chromatogram_extractor, database):
         if self.analysis_name is None:
             return
+        self.log("Saving Results To \"%s\"" % (self.output_path,))
         exporter = GlycopeptideMSMSAnalysisSerializer(
             self.output_path,
             self.analysis_name,
