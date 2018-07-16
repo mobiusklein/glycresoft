@@ -797,6 +797,10 @@ class CompositionExpressionRule(CompositionRuleBase):
         required = tokens[i + 1].lower() in ('true', 'yes', '1')
         return cls(expr, required)
 
+    def __repr__(self):
+        template = "{self.__class__.__name__}(expression={self.expression}, required={self.required})"
+        return template.format(self=self)
+
 
 class CompositionRangeRule(CompositionRuleBase):
 
@@ -805,6 +809,12 @@ class CompositionRangeRule(CompositionRuleBase):
         self.low = low
         self.high = high
         self.required = required
+
+    def __repr__(self):
+        template = \
+            ("{self.__class__.__name__}(expression={self.expression}, "
+             "low={self.low}, high={self.high}, required={self.required})")
+        return template.format(self=self)
 
     def get_symbols(self):
         return self.expression.get_symbols()
@@ -851,6 +861,13 @@ class CompositionRatioRule(CompositionRuleBase):
         self.denominator = denominator
         self.ratio_threshold = ratio_threshold
         self.required = required
+
+    def __repr__(self):
+        template = \
+            ("{self.__class__.__name__}(numerator={self.numerator}, "
+             "denominator={self.denominator}, ratio_threshold={self.ratio_threshold}, "
+             "required={self.required})")
+        return template.format(self=self)
 
     def _test(self, x):
         if isinstance(self.ratio_threshold, (tuple, list)):
