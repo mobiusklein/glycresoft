@@ -175,7 +175,7 @@ class GlycopeptideLCMSMSAnalysisCSVSerializer(CSVSerializerBase):
         try:
             charge_states = obj.charge_states
         except Exception:
-            charge_states = (obj.tandem_solutions[0].scan.precursor_information.charge)
+            charge_states = (obj.tandem_solutions[0].scan.precursor_information.charge,)
         attribs = [
             str(obj.structure),
             weighted_neutral_mass,
