@@ -207,7 +207,7 @@ class GlycopeptideSpectrumMatchAnalysisCSVSerializer(CSVSerializerBase):
             "glycopeptide",
             "neutral_mass",
             "mass_accuracy",
-            "mass_shift_name"
+            "mass_shift_name",
             "scan_id",
             "scan_time",
             "charge",
