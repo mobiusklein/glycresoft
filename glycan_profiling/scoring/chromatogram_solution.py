@@ -11,27 +11,10 @@ from .shape_fitter import ChromatogramShapeModel
 from .spacing_fitter import ChromatogramSpacingModel
 from .charge_state import UniformChargeStateScoringModel
 from .isotopic_fit import IsotopicPatternConsistencyModel
-from .base import symbolic_composition
+from .base import symbolic_composition, epsilon
+from .utils import logitsum, prod
 
 from glycan_profiling.chromatogram_tree import ChromatogramInterface
-
-
-epsilon = 1e-6
-
-
-def logit(x):
-    return np.log(x) - np.log(1 - x)
-
-
-def logitsum(xs):
-    total = 0
-    for x in xs:
-        total += logit(x)
-    return total
-
-
-def prod(*x):
-    return reduce(mul, x, 1)
 
 
 class ScorerBase(object):
