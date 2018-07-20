@@ -83,12 +83,9 @@ class SpectrumSolutionSetWriter(FileWrapperBase):
         self.manager.put_scan(solution_set.scan)
         for spectrum_match in solution_set:
             self.manager.put_mass_shift(spectrum_match.mass_shift)
-            values.append(spectrum_match.target.id)
-            values.append(spectrum_match.score)
-            values.append(int(spectrum_match.best_match))
-            values.append(spectrum_match.mass_shift.name)
+            values.extend(spectrum_match.pack())
 
-        self.writer.writerow(list(map(str, values)))
+        self.writer.writerow(list(map(bytes, values)))
         self.counter += 1
 
     def write_all(self, iterable):
@@ -132,6 +129,10 @@ class SpectrumSolutionSetReader(FileWrapperBase):
         else:
             return self.target_resolver(target_id)
 
+    def resolve_mass_shift(self, mass_shift_name):
+        mass_shift = self.manager.get_mass_shift(mass_shift_name)
+        return mass_shift
+
     def handle_line(self):
         row = next(self.reader)
         scan_id = str(row[0])
@@ -140,20 +141,7 @@ class SpectrumSolutionSetReader(FileWrapperBase):
         n = len(row)
         members = []
         while i < n:
-            target_id = int(row[i])
-            score = float(row[i + 1])
-            try:
-                best_match = bool(int(row[i + 2]))
-            except ValueError:
-                best_match = bool(row[i + 2])
-            mass_shift_name = row[i + 3]
-            mass_shift = self.manager.get_mass_shift(mass_shift_name)
-            match = SpectrumMatch(
-                spectrum_reference,
-                self.resolve_target(target_id),
-                score,
-                best_match,
-                mass_shift=mass_shift)
+            match, i = SpectrumMatch.unpack(row, spectrum_reference, self, i)
             members.append(match)
             i += 4
         result = SpectrumSolutionSet(spectrum_reference, members)
@@ -168,17 +156,13 @@ class SpectrumSolutionSetReader(FileWrapperBase):
         return self
 
 
-class SpectrumMatchStore(object):
-    def __init__(self, tempfile_manager=None):
-        if tempfile_manager is None:
-            tempfile_manager = TempFileManager()
-        self.temp_manager = tempfile_manager
+class SpectrumSolutionResolver(object):
+    def __init__(self):
         self.mass_shift_by_name = dict()
         self.target_cache = dict()
         self.scan_cache = dict()
 
     def clear(self):
-        self.temp_manager.clear()
         self.scan_cache.clear()
         self.target_cache.clear()
 
@@ -205,11 +189,26 @@ class SpectrumMatchStore(object):
             self.target_cache[id] = ref
             return ref
 
+
+class SpectrumMatchStore(SpectrumSolutionResolver):
+    _reader_type = SpectrumSolutionSetReader
+    _writer_type = SpectrumSolutionSetWriter
+
+    def __init__(self, tempfile_manager=None):
+        if tempfile_manager is None:
+            tempfile_manager = TempFileManager()
+        self.temp_manager = tempfile_manager
+        super(SpectrumMatchStore, self).__init__()
+
+    def clear(self):
+        self.temp_manager.clear()
+        super(SpectrumMatchStore, self).clear()
+
     def writer(self, key):
-        return SpectrumSolutionSetWriter(self.temp_manager.get(key), self)
+        return self._writer_type(self.temp_manager.get(key), self)
 
     def reader(self, key, target_resolver=None):
-        return SpectrumSolutionSetReader(self.temp_manager.get(key), self, target_resolver=target_resolver)
+        return self._reader_type(self.temp_manager.get(key), self, target_resolver=target_resolver)
 
 
 class FileBackedSpectrumMatchCollection(object):
