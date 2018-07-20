@@ -3,7 +3,7 @@ import os
 from glycan_profiling import serialize
 from glycan_profiling.plotting import summaries, figax, SmoothingChromatogramArtist
 from glycan_profiling.plotting.chromatogram_artist import ChargeSeparatingSmoothingChromatogramArtist
-from glycan_profiling.scoring.chromatogram_solution import logit
+from glycan_profiling.scoring.utils import logit
 from glycan_profiling.chromatogram_tree import ChromatogramFilter
 
 from jinja2 import Markup, Template
