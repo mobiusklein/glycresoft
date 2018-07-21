@@ -750,6 +750,13 @@ try:
 except ImportError:
     has_c = False
 
+try:
+    _plocate_extrema = ProfileSplittingMultimodalChromatogramShapeFitter.locate_extrema
+    from glycan_profiling._c.scoring.shape_fitter import locate_extrema as _clocate_extrema
+    ProfileSplittingMultimodalChromatogramShapeFitter.locate_extrema = _clocate_extrema
+except ImportError:
+    pass
+
 
 class ChromatogramShapeModel(ScoringFeatureBase):
     feature_type = "line_score"
