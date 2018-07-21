@@ -3,7 +3,7 @@ from uuid import uuid4
 from glycan_profiling.serialize import (
     DatabaseBoundOperation, GlycopeptideHypothesis,
     Protein, Peptide, Glycopeptide, GlycanCombination,
-    GlycanCombinationGlycanComposition)
+    GlycanCombinationGlycanComposition, ProteinSite)
 
 from glycan_profiling.serialize.utils import get_uri_for_instance
 
@@ -73,7 +73,12 @@ class GlycopeptideHypothesisMigrator(DatabaseBoundOperation, TaskBase):
             protein_sequence=protein.protein_sequence,
             other=dict(protein.other or dict()),
             hypothesis_id=self.hypothesis_id)
-        self.protein_id_map[protein.id] = self._migrate(new_inst)
+        new_id = self._migrate(new_inst)
+        self.protein_id_map[protein.id] = new_id
+        for position in protein.sites.all():
+            self.session.add(
+                ProteinSite(location=position.location, name=position.name, protein_id=new_id))
+        self.session.flush()
 
     def create_glycan_hypothesis_migrator(self, glycan_hypothesis):
         self._glycan_hypothesis_migrator = GlycanHypothesisMigrator(self._original_connection)
