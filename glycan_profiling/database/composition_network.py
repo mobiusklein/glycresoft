@@ -567,6 +567,7 @@ class CompositionGraph(object):
         string_buffer.seek(0)
         net, neighborhoods = load(string_buffer)
         self.nodes = net.nodes
+        self.neighborhoods = NeighborhoodCollection(neighborhoods)
         self.node_map = net.node_map
         self.edges = net.edges
         self.distance_fn = distance_fn
