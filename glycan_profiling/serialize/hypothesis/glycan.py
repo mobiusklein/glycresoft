@@ -194,6 +194,9 @@ class _namespace(object):
     def __repr__(self):
         return "(%r)" % self.__dict__
 
+    def __contains__(self, key):
+        return key in self.__dict__
+
 
 GlycanTypes = _namespace()
 GlycanTypes.n_glycan = "N-Glycan"

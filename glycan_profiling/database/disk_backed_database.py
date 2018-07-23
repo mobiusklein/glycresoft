@@ -13,7 +13,8 @@ from ms_deisotope.peak_dependency_network.intervals import SpanningMixin
 from glycan_profiling.serialize import (
     GlycanComposition, Glycopeptide, Peptide,
     func, Protein, GlycopeptideHypothesis, GlycanHypothesis,
-    DatabaseBoundOperation)
+    DatabaseBoundOperation, GlycanClass, GlycanTypes,
+    GlycanCompositionToClass)
 
 from sqlalchemy import select, join
 
@@ -255,8 +256,8 @@ class _GlycopeptideSequenceCache(object):
         self.lru = LRUCache()
 
     def _fetch_sequence_by_id(self, id):
-        return self.session.query(Glycopeptide.glycopeptide_sequence
-            ).filter(Glycopeptide.id == id).scalar()
+        return self.session.query(Glycopeptide.glycopeptide_sequence).filter(
+            Glycopeptide.id == id).scalar()
 
     def _check_cache_valid(self):
         lru = self.lru
@@ -264,7 +265,7 @@ class _GlycopeptideSequenceCache(object):
             self.churn += 1
             key = lru.get_least_recently_used()
             lru.remove_node(key)
-            value = self.cache.pop(key)
+            self.cache.pop(key)
 
     def _populate_cache(self, id):
         self._check_cache_valid()
@@ -289,8 +290,8 @@ class _GlycopeptideSequenceCache(object):
         while i < n:
             batch = ids[i:(i + chunk_size)]
             i += chunk_size
-            seqs = self.session.query(Glycopeptide.glycopeptide_sequence
-                ).filter(Glycopeptide.id.in_(batch)).all()
+            seqs = self.session.query(Glycopeptide.glycopeptide_sequence).filter(
+                Glycopeptide.id.in_(batch)).all()
             acc.extend(s[0] for s in seqs)
         return acc
 
@@ -545,6 +546,28 @@ class GlycanCompositionDiskBackedStructureDatabase(DeclarativeDiskBackedDatabase
     @property
     def hypothesis(self):
         return self.session.query(GlycanHypothesis).get(self.hypothesis_id)
+
+    def glycan_compositions_of_type(self, glycan_type):
+        try:
+            glycan_type = glycan_type.name
+        except AttributeError:
+            glycan_type = str(glycan_type)
+        if glycan_type in GlycanTypes:
+            glycan_type = GlycanTypes[glycan_type]
+        stmt = self._limit_to_hypothesis(
+            select(self._get_record_properties()).select_from(
+                self.selectable.join(GlycanCompositionToClass).join(GlycanClass)).where(
+                GlycanClass.__table__.c.name == glycan_type)).order_by(
+            self.mass_field)
+        return imap(self._convert, self.session.execute(stmt))
+
+    def glycan_composition_network_from(self, query=None):
+        if query is None:
+            query = self.structures
+        compositions = tuple(query)
+        graph = CompositionGraph(compositions)
+        graph.create_edges(1)
+        return graph
 
     def _limit_to_hypothesis(self, selectable):
         return selectable.where(GlycanComposition.__table__.c.hypothesis_id == self.hypothesis_id)
