@@ -104,10 +104,11 @@ class SpectrumSolutionSetWriter(FileWrapperBase):
 
 
 class SpectrumSolutionSetReader(FileWrapperBase):
-    def __init__(self, source, manager, target_resolver=None):
+    def __init__(self, source, manager, target_resolver=None, spectrum_match_type=SpectrumMatch):
         self.manager = manager
         self.source = source
         self.target_resolver = target_resolver
+        self.spectrum_match_type = spectrum_match_type or SpectrumMatch
         self._init_reader()
 
     def _init_reader(self):
@@ -141,9 +142,8 @@ class SpectrumSolutionSetReader(FileWrapperBase):
         n = len(row)
         members = []
         while i < n:
-            match, i = SpectrumMatch.unpack(row, spectrum_reference, self, i)
+            match, i = self.spectrum_match_type.unpack(row, spectrum_reference, self, i)
             members.append(match)
-            i += 4
         result = SpectrumSolutionSet(spectrum_reference, members)
         return result
 

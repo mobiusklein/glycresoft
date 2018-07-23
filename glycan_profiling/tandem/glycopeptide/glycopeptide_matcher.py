@@ -1,4 +1,4 @@
-from collections import defaultdict, namedtuple, OrderedDict
+from collections import OrderedDict
 from multiprocessing import Manager as IPCManager
 
 from glycan_profiling.chromatogram_tree.chromatogram import GlycopeptideChromatogram
@@ -9,9 +9,8 @@ from glycan_profiling.structure import (
     CachingGlycopeptideParser,
     DecoyMakingCachingGlycopeptideParser)
 
-from glycan_profiling.database.disk_backed_database import PPMQueryInterval
 
-from .scoring import (TargetDecoyAnalyzer, GroupwiseTargetDecoyAnalyzer)
+from .scoring import GroupwiseTargetDecoyAnalyzer
 from .core_search import GlycanCombinationRecord, GlycanFilteringPeptideMassEstimator
 
 from ..spectrum_evaluation import TandemClusterEvaluatorBase, DEFAULT_BATCH_SIZE

@@ -239,10 +239,13 @@ class CompositionGraphNode(object):
             self._str, len(self.edges),
             self.score if self.score != 0 else self._temp_score)
 
-    def clone(self):
+    def copy(self):
         dup = CompositionGraphNode(self.composition, self.index, self.score)
         dup.internal_score = self.internal_score
         return dup
+
+    def clone(self):
+        return self.copy()
 
 
 class EdgeSet(object):
@@ -569,7 +572,7 @@ class CompositionGraph(object):
         self.distance_fn = distance_fn
         self._composition_normalizer = CompositionNormalizer()
 
-    def clone(self):
+    def copy(self):
         graph = CompositionGraph([], self.distance_fn)
         for node in self.nodes:
             graph.add_node(node.clone())
@@ -578,7 +581,11 @@ class CompositionGraph(object):
             n2 = graph.nodes[edge.node2.index]
             e = edge.copy_for(n1, n2)
             graph.edges.add(e)
+        graph.neighborhoods.update(self.neighborhoods.copy())
         return graph
+
+    def clone(self):
+        return self.copy()
 
     def __eq__(self, other):
         try:
@@ -588,6 +595,41 @@ class CompositionGraph(object):
 
     def __ne__(self, other):
         return not (self == other)
+
+    def assign(self, observed, inplace=False):
+        if not inplace:
+            network = self.clone()
+        else:
+            network = self
+        solution_map = {}
+        for case in observed:
+            if case.glycan_composition is None:
+                continue
+            s = solution_map.get(case.glycan_composition)
+            if s is None or s.score < case.score:
+                solution_map[case.glycan_composition] = case
+
+        for node in network.nodes:
+            node.internal_score = 0
+            node._temp_score = 0
+
+        for composition, solution in solution_map.items():
+            try:
+                node = network[composition]
+                node._temp_score = node.internal_score = solution.internal_score
+            except KeyError:
+                # Not all exact compositions have nodes
+                continue
+        return network
+
+    def unassign(self, inplace=False):
+        if not inplace:
+            network = self.clone()
+        else:
+            network = self
+        for node in network:
+            node.score = node._internal_score = node._temp_score = 0
+        return network
 
 
 class GraphWriter(object):

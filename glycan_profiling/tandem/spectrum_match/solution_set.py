@@ -159,7 +159,7 @@ class TopScoringSolutionsRetentionStrategy(SpectrumMatchRetentionStrategyBase):
         best_score = solution_set[0].score
         retain = []
         for solution in solution_set:
-            if solution.score - best_score < self.threshold:
+            if (best_score - solution.score) < self.threshold:
                 retain.append(solution)
         return retain
 
