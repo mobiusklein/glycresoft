@@ -18,17 +18,17 @@ class NearestValueLookUp(object):
     def __init__(self, items):
         if isinstance(items, dict):
             items = items.items()
-        self.items = sorted([ScoreCell(*x) for x in items], key=lambda x: x[0])
+        self.items = sorted([ScoreCell(*x) for x in items if not np.isnan(x[0])], key=lambda x: x[0])
 
     def _find_closest_item(self, value):
         array = self.items
         lo = 0
         hi = len(array) - 1
 
-        if lo == hi:
+        if np.isnan(value):
             return lo
 
-        if np.isnan(value):
+        if lo == hi:
             return lo
 
         while hi - lo:
