@@ -105,7 +105,7 @@ class FastaGlycopeptideHypothesisSerializer(GlycopeptideHypothesisSerializerBase
         j = 0
         protein_ids = self.protein_ids()
         n = len(protein_ids)
-        interval = int(min(n / 10., 100))
+        interval = int(min((n * 0.1) + 1, 100))
         acc = []
         for protein_id in protein_ids:
             i += 1
