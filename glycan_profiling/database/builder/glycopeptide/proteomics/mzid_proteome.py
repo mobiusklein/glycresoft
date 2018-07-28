@@ -996,7 +996,7 @@ class Proteome(DatabaseBoundOperation, MzIdentMLProteomeExtraction):
         j = 0
         protein_ids = self.retrieve_target_protein_ids()
         n = len(protein_ids)
-        interval = min(n / 10., 100000)
+        interval = int(min(n / 10., 100))
         acc = []
         for protein_id in protein_ids:
             i += 1
@@ -1008,6 +1008,7 @@ class Proteome(DatabaseBoundOperation, MzIdentMLProteomeExtraction):
                 acc.append(peptide)
                 j += 1
                 if len(acc) > 100000:
+                    self.log("%0.3f%% Complete (%d/%d). %d Peptides Produced." % (i * 100. / n, i, n, j))
                     self.session.bulk_save_objects(acc)
                     self.session.commit()
                     acc = []
