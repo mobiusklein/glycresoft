@@ -534,7 +534,6 @@ class ProteinSplitter(TaskBase):
             hi = spanned_intervals.end
             # Get the set of all sites spanned by any peptide which spans the current query site
             spanned_sites = [s for s in sites if lo <= s <= hi]
-            print site, spanned_sites
             for i in range(1, len(spanned_sites) + 1):
                 for split_sites in itertools.combinations(spanned_sites, i):
                     site_key = frozenset(split_sites)
