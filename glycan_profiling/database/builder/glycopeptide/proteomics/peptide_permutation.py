@@ -4,6 +4,8 @@ from multiprocessing import Process, Queue, Event
 
 from lxml.etree import XMLSyntaxError
 
+from ms_deisotope.peak_dependency_network.intervals import Interval, IntervalTreeNode
+
 from glycopeptidepy import enzyme
 from .utils import slurp
 from .uniprot import uniprot, get_uniprot_accession
@@ -452,6 +454,12 @@ class MultipleProcessProteinDigestor(TaskBase):
         logger.stop()
 
 
+class PeptideInterval(Interval):
+    def __init__(self, peptide):
+        Interval.__init__(self, peptide.start_position, peptide.end_position, [peptide])
+        self.data['peptide'] = str(peptide)
+
+
 class ProteinSplitter(TaskBase):
     def __init__(self, constant_modifications=None, variable_modifications=None, min_length=6):
         if constant_modifications is None:
@@ -509,47 +517,122 @@ class ProteinSplitter(TaskBase):
     def split_protein(self, protein_obj, sites=None):
         if sites is None:
             sites = []
-        n = len(sites)
+        if not sites:
+            return
         seen = set()
-        for i in range(1, n + 1):
-            for split_sites in itertools.combinations(sites, i):
-                spanning_peptides = protein_obj.peptides.filter(*self._make_split_expression(
-                    split_sites)).all()
-                for peptide in spanning_peptides:
-                    adjusted_sites = [0] + [s - peptide.start_position for s in split_sites] + [
-                        peptide.sequence_length]
-                    for j in range(len(adjusted_sites) - 1):
-                        begin, end = adjusted_sites[j], adjusted_sites[j + 1]
-                        if end - begin < self.min_length:
-                            continue
-                        start_position = begin + peptide.start_position
-                        end_position = end + peptide.start_position
-                        if (start_position, end_position) in seen:
-                            continue
-                        else:
-                            seen.add((start_position, end_position))
-                        for modified_peptide, n_variable_modifications in self._permuted_peptides(
-                                peptide.base_peptide_sequence[begin:end]):
-                            inst = Peptide(
-                                base_peptide_sequence=str(peptide.base_peptide_sequence[begin:end]),
-                                modified_peptide_sequence=str(modified_peptide),
-                                count_missed_cleavages=peptide.count_missed_cleavages,
-                                count_variable_modifications=n_variable_modifications,
-                                sequence_length=len(modified_peptide),
-                                start_position=start_position,
-                                end_position=end_position,
-                                calculated_mass=modified_peptide.mass,
-                                formula=formula(modified_peptide.total_composition()),
-                                protein_id=protein_obj.id)
-                            inst.hypothesis_id = protein_obj.hypothesis_id
-                            inst.peptide_score = 0
-                            inst.peptide_score_type = 'null_score'
-                            n_glycosites = n_glycan_sequon_sites(
-                                inst, protein_obj)
-                            o_glycosites = o_glycan_sequon_sites(inst, protein_obj)
-                            gag_glycosites = gag_sequon_sites(inst, protein_obj)
-                            inst.count_glycosylation_sites = len(n_glycosites)
-                            inst.n_glycosylation_sites = sorted(n_glycosites)
-                            inst.o_glycosylation_sites = sorted(o_glycosites)
-                            inst.gagylation_sites = sorted(gag_glycosites)
-                            yield inst
+        sites_seen = set()
+        peptides = protein_obj.peptides.all()
+        peptide_intervals = IntervalTreeNode.build(map(PeptideInterval, peptides))
+        for site in sites:
+            overlap_region = peptide_intervals.contains_point(site - 1)
+            spanned_intervals = IntervalTreeNode.build(overlap_region)
+            # No spanned peptides. May be caused by regions of protein which digest to peptides
+            # of unacceptable size.
+            if spanned_intervals is None:
+                continue
+            lo = spanned_intervals.start
+            hi = spanned_intervals.end
+            # Get the set of all sites spanned by any peptide which spans the current query site
+            spanned_sites = [s for s in sites if lo <= s <= hi]
+            print site, spanned_sites
+            for i in range(1, len(spanned_sites) + 1):
+                for split_sites in itertools.combinations(spanned_sites, i):
+                    site_key = frozenset(split_sites)
+                    if site_key in sites_seen:
+                        continue
+                    sites_seen.add(site_key)
+                    spanning_peptides_query = spanned_intervals.contains_point(split_sites[0])
+                    for site_j in split_sites[1:]:
+                        spanning_peptides_query = [
+                            sp for sp in spanning_peptides_query if site_j in sp
+                        ]
+                    spanning_peptides = []
+                    for sp in spanning_peptides_query:
+                        spanning_peptides.extend(sp)
+                    for peptide in spanning_peptides:
+                        adjusted_sites = [0] + [s - peptide.start_position for s in split_sites] + [
+                            peptide.sequence_length]
+                        for j in range(len(adjusted_sites) - 1):
+                            begin, end = adjusted_sites[j], adjusted_sites[j + 1]
+                            if end - begin < self.min_length:
+                                continue
+                            start_position = begin + peptide.start_position
+                            end_position = end + peptide.start_position
+                            if (start_position, end_position) in seen:
+                                continue
+                            else:
+                                seen.add((start_position, end_position))
+                            for modified_peptide, n_variable_modifications in self._permuted_peptides(
+                                    peptide.base_peptide_sequence[begin:end]):
+
+                                inst = Peptide(
+                                    base_peptide_sequence=str(peptide.base_peptide_sequence[begin:end]),
+                                    modified_peptide_sequence=str(modified_peptide),
+                                    count_missed_cleavages=peptide.count_missed_cleavages,
+                                    count_variable_modifications=n_variable_modifications,
+                                    sequence_length=len(modified_peptide),
+                                    start_position=start_position,
+                                    end_position=end_position,
+                                    calculated_mass=modified_peptide.mass,
+                                    formula=formula(modified_peptide.total_composition()),
+                                    protein_id=protein_obj.id)
+                                inst.hypothesis_id = protein_obj.hypothesis_id
+                                inst.peptide_score = 0
+                                inst.peptide_score_type = 'null_score'
+                                n_glycosites = n_glycan_sequon_sites(
+                                    inst, protein_obj)
+                                o_glycosites = o_glycan_sequon_sites(inst, protein_obj)
+                                gag_glycosites = gag_sequon_sites(inst, protein_obj)
+                                inst.count_glycosylation_sites = len(n_glycosites)
+                                inst.n_glycosylation_sites = sorted(n_glycosites)
+                                inst.o_glycosylation_sites = sorted(o_glycosites)
+                                inst.gagylation_sites = sorted(gag_glycosites)
+                                yield inst
+
+    # def split_protein(self, protein_obj, sites=None):
+    #     if sites is None:
+    #         sites = []
+    #     n = len(sites)
+    #     seen = set()
+    #     for i in range(1, n + 1):
+    #         for split_sites in itertools.combinations(sites, i):
+    #             spanning_peptides = protein_obj.peptides.filter(*self._make_split_expression(
+    #                 split_sites)).all()
+    #             for peptide in spanning_peptides:
+    #                 adjusted_sites = [0] + [s - peptide.start_position for s in split_sites] + [
+    #                     peptide.sequence_length]
+    #                 for j in range(len(adjusted_sites) - 1):
+    #                     begin, end = adjusted_sites[j], adjusted_sites[j + 1]
+    #                     if end - begin < self.min_length:
+    #                         continue
+    #                     start_position = begin + peptide.start_position
+    #                     end_position = end + peptide.start_position
+    #                     if (start_position, end_position) in seen:
+    #                         continue
+    #                     else:
+    #                         seen.add((start_position, end_position))
+    #                     for modified_peptide, n_variable_modifications in self._permuted_peptides(
+    #                             peptide.base_peptide_sequence[begin:end]):
+    #                         inst = Peptide(
+    #                             base_peptide_sequence=str(peptide.base_peptide_sequence[begin:end]),
+    #                             modified_peptide_sequence=str(modified_peptide),
+    #                             count_missed_cleavages=peptide.count_missed_cleavages,
+    #                             count_variable_modifications=n_variable_modifications,
+    #                             sequence_length=len(modified_peptide),
+    #                             start_position=start_position,
+    #                             end_position=end_position,
+    #                             calculated_mass=modified_peptide.mass,
+    #                             formula=formula(modified_peptide.total_composition()),
+    #                             protein_id=protein_obj.id)
+    #                         inst.hypothesis_id = protein_obj.hypothesis_id
+    #                         inst.peptide_score = 0
+    #                         inst.peptide_score_type = 'null_score'
+    #                         n_glycosites = n_glycan_sequon_sites(
+    #                             inst, protein_obj)
+    #                         o_glycosites = o_glycan_sequon_sites(inst, protein_obj)
+    #                         gag_glycosites = gag_sequon_sites(inst, protein_obj)
+    #                         inst.count_glycosylation_sites = len(n_glycosites)
+    #                         inst.n_glycosylation_sites = sorted(n_glycosites)
+    #                         inst.o_glycosylation_sites = sorted(o_glycosites)
+    #                         inst.gagylation_sites = sorted(gag_glycosites)
+    #                         yield inst
