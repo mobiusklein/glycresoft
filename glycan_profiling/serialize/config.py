@@ -1,3 +1,4 @@
+import logging
 try:
     import psycopg2
     DEC2FLOAT = psycopg2.extensions.new_type(
@@ -7,3 +8,5 @@ try:
     psycopg2.extensions.register_type(DEC2FLOAT)
 except ImportError:
     pass
+logger = logging.getLogger("sqlalchemy.pool.NullPool")
+logger.propagate = False
