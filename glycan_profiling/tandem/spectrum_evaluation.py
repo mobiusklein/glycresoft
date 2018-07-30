@@ -229,7 +229,7 @@ class TandemClusterEvaluatorBase(TaskBase):
                 if i > last_report:
                     report = True
                     self.log(
-                        "... Mapping %0.2f%% of spectra (%d/%d) %0.4f" % (
+                        "...... Mapping %0.2f%% of spectra (%d/%d) %0.4f" % (
                             i * 100. / n, i, n,
                             group[0].precursor_information.extracted_neutral_mass))
                     while last_report < i and report_interval != 0:
@@ -253,7 +253,7 @@ class TandemClusterEvaluatorBase(TaskBase):
                         j += 1
                         workload.add_scan_hit(scan, hit, mass_shift.name)
                 if report:
-                    self.log("... Mapping Segment Done. (%d spectrum-pairs)" % (j,))
+                    self.log("...... Mapping Segment Done. (%d spectrum-pairs)" % (j,))
         self._mark_batch()
         return workload
 
