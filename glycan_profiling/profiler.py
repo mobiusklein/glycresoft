@@ -39,7 +39,7 @@ from glycan_profiling.structure import ScanStub
 from glycan_profiling.tandem.glycopeptide.scoring import (
     CoverageWeightedBinomialScorer, CoverageWeightedBinomialModelTree)
 from glycan_profiling.tandem.glycopeptide.glycopeptide_matcher import (
-    GlycopeptideDatabaseSearchIdentifier, GlycopeptideDatabaseSearchComparer)
+    GlycopeptideDatabaseSearchIdentifier, ExclusiveGlycopeptideDatabaseSearchComparer)
 from glycan_profiling.tandem.glycopeptide import (
     identified_structure as identified_glycopeptide)
 from glycan_profiling.tandem.glycan.composition_matching import SignatureIonMapper
@@ -834,7 +834,7 @@ class MzMLComparisonGlycopeptideLCMSMSAnalyzer(MzMLGlycopeptideLCMSMSAnalyzer):
         self.use_decoy_correction_threshold = use_decoy_correction_threshold
 
     def make_search_engine(self, msms_scans, database, peak_loader):
-        searcher = GlycopeptideDatabaseSearchComparer(
+        searcher = ExclusiveGlycopeptideDatabaseSearchComparer(
             [scan for scan in msms_scans
              if scan.precursor_information.neutral_mass < self.maximum_mass],
             self.tandem_scoring_model, database, self.make_decoy_database(),

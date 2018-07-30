@@ -73,6 +73,7 @@ class ChromatogramExtractor(TaskBase):
     def run(self):
         self.log("... Begin Extracting Chromatograms")
         self.load_peaks()
+        self.log("...... Aggregating Chromatograms")
         self.aggregate_chromatograms()
         self.summary_chromatograms()
         if self.truncate:
