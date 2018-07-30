@@ -1,6 +1,12 @@
 from collections import OrderedDict
 from multiprocessing import Manager as IPCManager
 
+import threading
+try:
+    from Queue import Queue as ThreadQueue, Empty as EmptyQueueException
+except ImportError:
+    from queue import Queue as ThreadQueue, Empty as EmptyQueueException
+
 from glycan_profiling.chromatogram_tree.chromatogram import GlycopeptideChromatogram
 from glycan_profiling.chromatogram_tree import Unmodified
 from glycan_profiling.task import TaskBase
@@ -318,13 +324,26 @@ class ComparisonGlycopeptideMatcher(TargetDecoyInterleavingGlycopeptideMatcher):
     def score_bunch(self, scans, precursor_error_tolerance=1e-5, simplify=True, *args, **kwargs):
         # Map scans to target database
         self.log("... Querying Targets")
+        waiting_task_results = ThreadQueue()
+
+        def decoy_query_task():
+            self.log("... Querying Decoys")
+            workload = self.decoy_evaluator._map_scans_to_hits(
+                scans, precursor_error_tolerance)
+            waiting_task_results.put(workload)
+
         workload = self.target_evaluator._map_scans_to_hits(
             scans, precursor_error_tolerance)
+
+        decoy_query_thread = threading.Thread(target=decoy_query_task)
+        decoy_query_thread.start()
+
         # Evaluate mapped target hits
         target_solutions = []
         workload_graph = workload.compute_workloads()
         total_work = workload.total_work_required(workload_graph)
         running_total_work = 0
+
         for i, batch in enumerate(workload.batches(self.batch_size)):
             running_total_work += batch.batch_size
             self.log("... Batch %d (%d/%d) %0.2f%%" % (
@@ -344,11 +363,13 @@ class ComparisonGlycopeptideMatcher(TargetDecoyInterleavingGlycopeptideMatcher):
                     except IndexError:
                         self.log("Failed to simplify %r" % (case.scan.id,))
                         raise
-            target_solutions += temp
+            target_solutions.extend(temp)
 
-        self.log("... Querying Decoys")
-        workload = self.decoy_evaluator._map_scans_to_hits(
-            scans, precursor_error_tolerance)
+        # self.log("... Querying Decoys")
+        decoy_query_thread.join()
+        # workload = self.decoy_evaluator._map_scans_to_hits(
+        #     scans, precursor_error_tolerance)
+        workload = waiting_task_results.get()
         # Evaluate mapped target hits
         decoy_solutions = []
         workload_graph = workload.compute_workloads()
@@ -373,7 +394,7 @@ class ComparisonGlycopeptideMatcher(TargetDecoyInterleavingGlycopeptideMatcher):
                     except IndexError:
                         self.log("Failed to simplify %r" % (case.scan.id,))
                         raise
-            decoy_solutions += temp
+            decoy_solutions.extend(temp)
         return target_solutions, decoy_solutions
 
 
