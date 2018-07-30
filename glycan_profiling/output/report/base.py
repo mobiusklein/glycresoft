@@ -142,14 +142,14 @@ def glycopeptide_string(sequence, long=False, include_glycan=True):
         name = escape(mod.name)
         parts.append(template % (rgbpack(color), name, name, letter))
 
-    if sequence.n_term != "H":
-        render(sequence.n_term, n_term_template)
+    if sequence.n_term.modification is not None:
+        render(sequence.n_term.modification, n_term_template)
     for res, mods in sequence:
         parts.append(res.symbol)
         for mod in mods:
             render(mod)
-    if sequence.c_term != "OH":
-        render(sequence.c_term, c_term_template)
+    if sequence.c_term.modification is not None:
+        render(sequence.c_term.modification, c_term_template)
     parts.append((
         ' ' + glycan_composition_string(str(sequence.glycan)) if sequence.glycan is not None else "")
         if include_glycan else "")
