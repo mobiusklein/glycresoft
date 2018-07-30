@@ -268,16 +268,21 @@ class ChromatogramMSMSMapper(TaskBase):
             chroma.tandem_solutions.append(solution)
 
     def assign_solutions_to_chromatograms(self, solutions):
-        for solution in solutions:
+        n = len(solutions)
+        for i, solution in enumerate(solutions):
+            if i % 1000 == 0:
+                self.log("... %d/%d Solutions Handled (%0.2f%%)" % (i, n, (i * 100.0 / n)))
             self.find_chromatogram_for(solution)
 
     def distribute_orphans(self, threshold_fn=lambda x: x.q_value < 0.05):
         lost = []
-        for orphan in self.orphans:
+        n = len(self.orphans)
+        for j, orphan in enumerate(self.orphans):
             mass = orphan.solution.precursor_ion_mass
-            window = self.error_tolerance * mass
-            candidates = self.chromatograms.mass_between(mass - window, mass + window)
             time = orphan.scan_time
+            if j % 100 == 0:
+                self.log("... %r %d/%d Orphans Handled (%0.2f%%)" % (orphan, j, n, (j * 100.0 / n)))
+            candidates = self.chromatograms.find_all_by_mass(mass, self.error_tolerance)
             if len(candidates) > 0:
                 best_index = 0
                 best_distance = float('inf')
