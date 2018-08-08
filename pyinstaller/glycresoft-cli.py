@@ -30,7 +30,7 @@ try:
 except Exception:
     pass
 
-from rdflib.plugins import stores
+from rdflib.plugins import stores, memory
 from rdflib.plugins.stores import sparqlstore
 
 from glycan_profiling.cli.__main__ import main
