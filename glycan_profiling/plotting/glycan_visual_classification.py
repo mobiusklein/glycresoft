@@ -161,7 +161,7 @@ NGlycanCompositionColorizer = GlycanCompositionClassifierColorizer(OrderedDict([
     (CompositionRuleClassifier("High Sulfate GAG", [CompositionRatioRule("HexN", "@sulfate", (2, 4))]), "#88faaa")
 ]), default="slateblue")
 
-NGlycanCompositionOrderer = GlycanCompositionOrderer(["HexNAc", "Hex", "Fucose", "NeuAc"])
+NGlycanCompositionOrderer = GlycanCompositionOrderer(["HexNAc", "Hex", "Fuc", "NeuAc"])
 
 _null_color_chooser = GlycanCompositionClassifierColorizer({}, default='blue')
 
