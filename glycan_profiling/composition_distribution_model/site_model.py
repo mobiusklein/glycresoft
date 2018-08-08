@@ -62,13 +62,15 @@ class GlycosylationSiteModel(object):
 class GlycosylationSiteModelBuilder(TaskBase):
 
     def __init__(self, glycan_graph, chromatogram_scorer=None, belongingness_matrix=None,
-                 require_multiple_observations=True):
+                 unobserved_penalty_scale=0.25, lambda_limit=0.2, require_multiple_observations=True):
         if chromatogram_scorer is None:
             chromatogram_scorer = _default_chromatogram_scorer
         self.network = glycan_graph
         self.chromatogram_scorer = chromatogram_scorer
         self.belongingness_matrix = belongingness_matrix
         self.require_multiple_observations = require_multiple_observations
+        self.unobserved_penalty_scale = unobserved_penalty_scale
+        self.lambda_limit = lambda_limit
         if self.belongingness_matrix is None:
             self.belongingness_matrix = self.build_belongingness_matrix()
         self.target_site_models = []
@@ -91,7 +93,7 @@ class GlycosylationSiteModelBuilder(TaskBase):
                         node, neighborhood.name)
         return belongingness_matrix
 
-    def handle_glycoprotein(self, glycoprotein):
+    def add_glycoprotein(self, glycoprotein):
         self.log("Building Model for \"%s\"" % (glycoprotein.name, ))
         for i, site in enumerate(glycoprotein.site_map['N-Linked'].sites):
             gps_for_site = glycoprotein.site_map[
@@ -139,11 +141,11 @@ class GlycosylationSiteModelBuilder(TaskBase):
             display_table([x.name for x in self.network.neighborhoods],
                           np.array(params.tau).reshape((-1, 1)))
             updated_params = params.clone()
-            updated_params.lmbda = min(0.2, params.lmbda)
+            updated_params.lmbda = min(self.lambda_limit, params.lmbda)
             fitted_network = search_result.annotate_network(updated_params)
             for node in fitted_network:
                 if node.marked:
-                    node.score *= 0.25
+                    node.score *= self.unobserved_penalty_scale
             self.target_site_models.append(
                 GlycosylationSiteModel(glycoprotein.name, len(glycoprotein) - site - 1,
                                        dict(zip([x.name for x in self.network.neighborhoods],
@@ -152,13 +154,13 @@ class GlycosylationSiteModelBuilder(TaskBase):
                     for node in fitted_network}))
             updated_params_decoy = params.clone()
             updated_params_decoy.tau[:] = updated_params_decoy.tau.mean()
-            updated_params_decoy.lmbda = min(0.2, params.lmbda)
+            updated_params_decoy.lmbda = min(self.lambda_limit, params.lmbda)
             fitted_network_decoy = search_result.annotate_network(
                 updated_params_decoy)
             for node in fitted_network_decoy:
                 # no decoy glycans are truly identified a priori, though the identified glycan compositions
                 # will still carry a higher score from the estimation procedure
-                node.score *= 0.25
+                node.score *= self.unobserved_penalty_scale
             self.decoy_site_models.append(
                 GlycosylationSiteModel(glycoprotein.name, len(glycoprotein) - site - 1,
                                        dict(zip([x.name for x in self.network.neighborhoods],
