@@ -4,11 +4,11 @@ from .spectrum_match import SpectrumMatch, SpectrumReference, ScanWrapperBase
 class SpectrumSolutionSet(ScanWrapperBase):
     spectrum_match_type = SpectrumMatch
 
-    def __init__(self, scan, solutions):
+    def __init__(self, scan, solutions=None):
+        if solutions is None:
+            solutions = []
         self.scan = scan
         self.solutions = solutions
-        self.mean = self._score_mean()
-        self.variance = self._score_variance()
         self._is_simplified = False
         self._is_top_only = False
         self._target_map = None
@@ -36,28 +36,6 @@ class SpectrumSolutionSet(ScanWrapperBase):
     def best_solution(self):
         return self.solutions[0]
 
-    def _score_mean(self):
-        i = 0
-        total = 0
-        for match in self:
-            total += match.score
-            i += 1.
-        if i > 0:
-            return total / i
-        else:
-            return 0
-
-    def _score_variance(self):
-        total = 0.
-        i = 0.
-        mean = self.mean
-        for match in self:
-            total += (match.score - mean) ** 2
-            i += 1.
-        if i < 3:
-            return 0
-        return total / (i - 2.)
-
     def __repr__(self):
         if len(self) == 0:
             return "SpectrumSolutionSet(%s, [])" % (self.scan,)
@@ -72,16 +50,6 @@ class SpectrumSolutionSet(ScanWrapperBase):
 
     def __len__(self):
         return len(self.solutions)
-
-    def threshold(self):
-        if len(self) == 0:
-            return self
-        thresh = min(self.mean / 2., self.score / 2.)
-        self.solutions = [
-            x for x in self if x.score >= thresh
-        ]
-        self._invalidate()
-        return self
 
     def simplify(self):
         if self._is_simplified:
@@ -116,12 +84,24 @@ class SpectrumSolutionSet(ScanWrapperBase):
         self._is_top_only = True
         self._invalidate()
 
-    def merge(self, other):
-        self.solutions.extend(other)
+    def sort(self):
         self.solutions.sort(key=lambda x: x.score, reverse=True)
+
+    def merge(self, other):
+        self._invalidate()
+        self.solutions.extend(other)
+        self.sort()
         if self._is_top_only:
             self._is_top_only = False
             self.select_top()
+
+    def clone(self):
+        dup = self.__class__(self.scan, [
+            s.clone() for s in self.solutions
+        ])
+        dup._is_simplified = self._is_simplified
+        dup._is_top_only = self._is_top_only
+        return dup
 
 
 class SpectrumMatchRetentionStrategyBase(object):

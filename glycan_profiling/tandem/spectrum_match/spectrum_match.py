@@ -220,6 +220,11 @@ class SpectrumMatch(SpectrumMatchBase):
     def from_match_solution(cls, match):
         return cls(match.scan, match.target, match.score, mass_shift=match.mass_shift)
 
+    def clone(self):
+        return self.__class__(
+            self.scan, self.target, self.score, self.best_match, self.data_bundle,
+            self.q_value, self.id, self.mass_shift)
+
 
 class ModelTreeNode(object):
     def __init__(self, model, children=None):
