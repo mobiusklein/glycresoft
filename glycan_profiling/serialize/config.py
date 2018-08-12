@@ -10,3 +10,4 @@ except ImportError:
     pass
 logger = logging.getLogger("sqlalchemy.pool.NullPool")
 logger.propagate = False
+logger.addHandler(logging.NullHandler())
