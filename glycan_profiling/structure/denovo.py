@@ -162,6 +162,9 @@ class PathSet(Sequence):
                 return False
         return True
 
+    def threshold(self, topn=100):
+        return self.__class__(sorted(self, key=lambda x: x.total_signal, reverse=True)[:topn])
+
 
 class PathFinder(object):
     def __init__(self, components=None, product_error_tolerance=1e-5):
