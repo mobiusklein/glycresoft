@@ -243,6 +243,20 @@ class IdentifiedGlycoprotein(object):
         return len(self.protein_sequence)
 
     @property
+    def id(self):
+        try:
+            return self.structure.id
+        except AttributeError:
+            return self.structure.name
+
+    @property
+    def name(self):
+        try:
+            return self.structure.name
+        except AttributeError:
+            return self.structure.id
+
+    @property
     def glycosylation_sites(self):
         return self.n_glycan_sequon_sites
 
