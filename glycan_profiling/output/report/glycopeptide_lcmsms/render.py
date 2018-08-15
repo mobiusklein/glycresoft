@@ -132,7 +132,6 @@ class GlycopeptideDatabaseSearchReportCreator(ReportCreatorBase):
                 IdentifiedGlycopeptide.ms2_score > self.threshold,
                 Protein.id == protein.id).all()
             glycoprotein = IdentifiedGlycoprotein(protein, glycopeptides)
-            glycoprotein.id = protein.id
             self.status_update(
                 "Processing %s (%d/%d) %0.2f%%" % (
                     protein.name, i, n, (i / n * 100)))
