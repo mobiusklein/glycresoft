@@ -64,6 +64,11 @@ class TandemClusterEvaluatorBase(TaskBase):
         self.batch_size = batch_size
         self.trust_precursor_fits = trust_precursor_fits
 
+    def _make_scan_query(self, scan, mass_shift, isotopic_shift, query_mass, meta=None):
+        return ScanQuery(
+            scan=scan, mass_shift=mass_shift, isotopic_shift=isotopic_shift,
+            query_mass=query_mass, meta=meta)
+
     def _multiplex_scan_queries(self, scans):
         queries = []
         for scan in scans:
@@ -75,7 +80,7 @@ class TandemClusterEvaluatorBase(TaskBase):
                 intact_mass = scan.precursor_information.extracted_neutral_mass
                 for i in range(probe + 1):
                     query_mass = intact_mass - (i * self.neutron_offset) - mass_shift.mass
-                    query = ScanQuery(
+                    query = self._make_scan_query(
                         scan=scan, mass_shift=mass_shift, isotopic_shift=i,
                         query_mass=query_mass)
                     queries.append(query)
@@ -294,7 +299,8 @@ class TandemClusterEvaluatorBase(TaskBase):
                 continue
             scan = scan_map[scan_id]
             out = SpectrumSolutionSet(scan, sorted(
-                solutions, key=lambda x: x.score, reverse=True)).threshold()
+                solutions, key=lambda x: x.score, reverse=True))
+            out.select_top()
             if len(out) == 0:
                 continue
             result_set.append(out)
