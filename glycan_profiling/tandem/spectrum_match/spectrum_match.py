@@ -214,7 +214,9 @@ class SpectrumMatch(SpectrumMatchBase):
         return scorer_type.evaluate(self.scan, self.target, *args, **kwargs)
 
     def __repr__(self):
-        return "SpectrumMatch(%s, %s, %0.4f)" % (self.scan, self.target, self.score)
+        return "%s(%s, %s, %0.4f, %r)" % (
+            self.__class__.__name__,
+            self.scan, self.target, self.score, self.mass_shift)
 
     @classmethod
     def from_match_solution(cls, match):
