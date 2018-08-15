@@ -1,4 +1,4 @@
-from collections import namedtuple
+from collections import namedtuple, defaultdict
 
 import numpy as np
 
@@ -7,8 +7,13 @@ from glypy.structure.glycan_composition import HashableGlycanComposition
 from glycan_profiling import serialize
 from glycan_profiling.task import TaskBase
 from glycan_profiling.database import GlycanCompositionDiskBackedStructureDatabase
-from glycan_profiling.database.composition_network import NeighborhoodWalker, make_n_glycan_neighborhoods
+
+from glycan_profiling.database.builder.glycopeptide.proteomics.fasta import DeflineSuffix
+from glycan_profiling.database.builder.glycopeptide.proteomics.sequence_tree import SuffixTree
+
 from glycan_profiling.tandem.glycopeptide.identified_structure import IdentifiedGlycoprotein
+
+from glycan_profiling.database.composition_network import NeighborhoodWalker, make_n_glycan_neighborhoods
 from glycan_profiling.composition_distribution_model import (
     smooth_network, display_table, VariableObservationAggregation,
     GlycanCompositionSolutionRecord,
@@ -49,7 +54,10 @@ class GlycosylationSiteModel(object):
         name = d['protein_name']
         position = d['position']
         lmbda = d['lmbda']
-        site_distribution = d['site_distribution']
+        try:
+            site_distribution = d['site_distribution']
+        except KeyError:
+            site_distribution = d['tau']
         glycan_map = d['glycan_map']
         glycan_map = {
             HashableGlycanComposition.parse(k): GlycanPriorRecord(v[0], v[1])
@@ -57,6 +65,92 @@ class GlycosylationSiteModel(object):
         }
         inst = cls(name, position, site_distribution, lmbda, glycan_map)
         return inst
+
+    def __repr__(self):
+        template = ('{self.__class__.__name__}({self.protein_name!r}, {self.position}, '
+                    '{site_distribution}, {self.lmbda}, <{glycan_map_size} Glycans>)')
+        glycan_map_size = len(self.glycan_map)
+        site_distribution = {k: v for k, v in self.site_distribution.items() if v > 0.0}
+        return template.format(self=self, glycan_map_size=glycan_map_size, site_distribution=site_distribution)
+
+
+class GlycoproteinGlycosylationModel(object):
+    def __init__(self, protein, glycosylation_sites=None):
+        self.protein = protein
+        self.glycosylation_sites = sorted(glycosylation_sites or [], key=lambda x: x.position)
+
+    def __getitem__(self, i):
+        return self.glycosylation_sites[i]
+
+    def __len__(self):
+        return len(self.glycosylation_sites)
+
+    @property
+    def id(self):
+        return self.protein.id
+
+    @property
+    def name(self):
+        return self.protein.name
+
+    def find_sites_in(self, start, end):
+        spans = []
+        for site in self.glycosylation_sites:
+            if start <= site.position <= end:
+                spans.append(site)
+            elif end < site.position:
+                break
+        return spans
+
+    def score(self, glycopeptide):
+        pr = glycopeptide.protein_relation
+        sites = self.find_sites_in(pr.start_position, pr.end_position)
+        if len(sites) > 1:
+            raise NotImplementedError("Not compatible with multiple spanning glycosites (yet)")
+        try:
+            site = sites[0]
+            rec = site.glycan_map[glycopeptide.glycan_composition]
+            return rec.score
+        except IndexError:
+            return 0
+
+    @classmethod
+    def bind_to_hypothesis(cls, session, site_models, hypothesis_id=1):
+        by_protein_name = defaultdict(list)
+        for site in site_models:
+            by_protein_name[site.protein_name].append(site)
+        protein_models = {}
+        tree = SuffixTree()
+        proteins = session.query(serialize.Protein).filter(
+            serialize.Protein.hypothesis_id == hypothesis_id).all()
+        protein_name_map = {prot.name: prot for prot in proteins}
+        for prot in proteins:
+            tree.add_ngram(DeflineSuffix(prot.name, prot.name))
+
+        for protein_name, sites in by_protein_name.items():
+            labels = list(tree.subsequences_of(protein_name))
+            protein = protein_name_map[labels[0].original]
+            model = cls(protein, sites)
+            protein_models[model.id] = model
+        return protein_models
+
+    def __repr__(self):
+        template = "{self.__class__.__name__}({self.name}, {self.glycosylation_sites})"
+        return template.format(self=self)
+
+
+class GlycoproteinSiteSpecificGlycomeModel(object):
+    def __init__(self, glycoprotein_models):
+        self.glycoprotein_models = {
+            ggm.id: ggm for ggm in glycoprotein_models
+        }
+
+    def score(self, spectrum_match):
+        glycopeptide = spectrum_match.target
+        protein_id = glycopeptide.protein_relation.protein_id
+        glycoprotein_model = self.glycoprotein_models[protein_id]
+        score = glycoprotein_model.score(glycopeptide)
+        return min(spectrum_match.score, score)
 
 
 class GlycosylationSiteModelBuilder(TaskBase):
@@ -66,6 +160,8 @@ class GlycosylationSiteModelBuilder(TaskBase):
         if chromatogram_scorer is None:
             chromatogram_scorer = _default_chromatogram_scorer
         self.network = glycan_graph
+        if not self.network.neighborhoods:
+            self.network.neighborhoods = make_n_glycan_neighborhoods()
         self.chromatogram_scorer = chromatogram_scorer
         self.belongingness_matrix = belongingness_matrix
         self.require_multiple_observations = require_multiple_observations
@@ -93,7 +189,7 @@ class GlycosylationSiteModelBuilder(TaskBase):
                         node, neighborhood.name)
         return belongingness_matrix
 
-    def add_glycoprotein(self, glycoprotein):
+    def add_glycoprotein(self, glycoprotein, evaluate_chromatograms=False):
         self.log("Building Model for \"%s\"" % (glycoprotein.name, ))
         for i, site in enumerate(glycoprotein.site_map['N-Linked'].sites):
             gps_for_site = glycoprotein.site_map[
@@ -108,7 +204,10 @@ class GlycosylationSiteModelBuilder(TaskBase):
                 gp for gp in gps_for_site if gp.chromatogram is not None]
             records = []
             for gp in glycopeptides:
-                ms1_score = gp.ms1_score
+                if evaluate_chromatograms:
+                    ms1_score = self.chromatogram_scorer.logitscore(gp.chromatogram)
+                else:
+                    ms1_score = gp.ms1_score
                 records.append(GlycanCompositionSolutionRecord(
                     gp.glycan_composition, ms1_score, gp.total_signal))
 
@@ -147,11 +246,11 @@ class GlycosylationSiteModelBuilder(TaskBase):
                 if node.marked:
                     node.score *= self.unobserved_penalty_scale
             self.target_site_models.append(
-                GlycosylationSiteModel(glycoprotein.name, len(glycoprotein) - site - 1,
+                GlycosylationSiteModel(glycoprotein.name, site,
                                        dict(zip([x.name for x in self.network.neighborhoods],
                                                 updated_params.tau.tolist())), updated_params.lmbda, {
-                    str(node.glycan_composition): (node.score, not node.marked)
-                    for node in fitted_network}))
+                                                    str(node.glycan_composition): (node.score, not node.marked)
+                                                    for node in fitted_network}))
             updated_params_decoy = params.clone()
             updated_params_decoy.tau[:] = updated_params_decoy.tau.mean()
             updated_params_decoy.lmbda = min(self.lambda_limit, params.lmbda)
