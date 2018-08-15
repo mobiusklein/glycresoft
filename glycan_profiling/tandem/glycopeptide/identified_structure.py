@@ -225,6 +225,10 @@ class IdentifiedGlycoprotein(object):
 
     def __init__(self, protein, identified_glycopeptides):
         self.name = protein.name
+        try:
+            self.id = protein.id
+        except AttributeError:
+            self.id = self.name
         self.protein_sequence = protein.protein_sequence
         self.n_glycan_sequon_sites = protein.n_glycan_sequon_sites
         self.o_glycan_sequon_sites = protein.o_glycan_sequon_sites
@@ -241,20 +245,6 @@ class IdentifiedGlycoprotein(object):
 
     def __len__(self):
         return len(self.protein_sequence)
-
-    @property
-    def id(self):
-        try:
-            return self.structure.id
-        except AttributeError:
-            return self.structure.name
-
-    @property
-    def name(self):
-        try:
-            return self.structure.name
-        except AttributeError:
-            return self.structure.id
 
     @property
     def glycosylation_sites(self):
