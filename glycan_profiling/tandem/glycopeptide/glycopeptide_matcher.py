@@ -497,6 +497,9 @@ class GlycopeptideDatabaseSearchIdentifier(TaskBase):
         hypothesis_id = self.structure_database.hypothesis_id
         glycan_combination_list = GlycanCombinationRecord.from_hypothesis(
             self.structure_database.session, hypothesis_id)
+        if len(glycan_combination_list) == 0:
+            self.log("No glycan combinations were found")
+            raise ValueError("No glycan combinations were found")
         peptide_filter = GlycanFilteringPeptideMassEstimator(
             glycan_combination_list, product_error_tolerance=error_tolerance)
         return peptide_filter
