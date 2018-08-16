@@ -11,7 +11,20 @@ from .spectrum_match import (
     SpectrumMatch)
 
 
-ScanQuery = namedtuple("ScanQuery", ("scan", "mass_shift", "isotopic_shift", "query_mass", "meta"))
+_ScanQuery = namedtuple("ScanQuery", ("scan", "mass_shift", "isotopic_shift", "query_mass", "meta"))
+
+
+class ScanQuery(_ScanQuery):
+    neutron_offset = isotopic_shift()
+
+    @property
+    def intact_mass(self):
+        return self.scan.precursor_information.extracted_neutral_mass
+
+    @property
+    def query_mass(self):
+        query_mass = self.intact_mass - (self.isotopic_shift * self.neutron_offset) - self.mass_shift.mass
+        return query_mass
 
 
 def group_by_precursor_mass(scans, window_size=1.5e-5):

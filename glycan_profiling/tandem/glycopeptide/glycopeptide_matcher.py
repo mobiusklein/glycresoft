@@ -19,7 +19,7 @@ from glycan_profiling.structure import (
 from .scoring import GroupwiseTargetDecoyAnalyzer
 from .core_search import GlycanCombinationRecord, GlycanFilteringPeptideMassEstimator
 
-from ..spectrum_evaluation import TandemClusterEvaluatorBase, DEFAULT_BATCH_SIZE
+from ..spectrum_evaluation import TandemClusterEvaluatorBase, DEFAULT_BATCH_SIZE, ScanQuery
 from ..process_dispatcher import SpectrumIdentificationWorkerBase
 from ..temp_store import TempFileManager, SpectrumMatchStore
 from ..oxonium_ions import gscore_scanner
@@ -61,7 +61,54 @@ class GlycopeptideResolver(object):
         return self.resolve(id)
 
 
+class PeptideMassFilterScanQuery(ScanQuery):
+    def _get_filter_map(self):
+        filter_map = self.scan.annotations.get("peptide_mass_filter_map")
+        if filter_map is None:
+            filter_map = self.scan.annotations['peptide_mass_filter_map'] = {}
+        return filter_map
+
+    def has_filter(self):
+        filter_map = self._get_filter_map()
+        return self.mass_shift in filter_map
+
+    def get_filter(self):
+        filter_map = self._get_filter_map()
+        return filter_map[self.mass_shift]
+
+    def build_peptide_mass_filter(self, filter_builder, error_tolerance):
+        if not self.has_filter():
+            peptide_filter = filter_builder.build_peptide_filter(
+                self.scan, error_tolerance, mass_shift=self.mass_shift)
+            filter_map = self._get_filter_map()
+            filter_map[self.mass_shift] = peptide_filter
+        else:
+            filter_map = self._get_filter_map()
+        return filter_map[self.mass_shift]
+
+
 class PeptideMassFilteringDatabaseSearchMixin(object):
+
+    def _execute_scan_query(self, scan_query, error_tolerance=1e-5):
+        peptide_filter = None
+        hits = []
+        query_mass = scan_query.query_mass
+        if self.peptide_mass_filter:
+            peptide_filter = scan_query.build_peptide_mass_filter(self, error_tolerance)
+        unfiltered_matches = self.search_database_for_precursors(query_mass, error_tolerance)
+        if self.peptide_mass_filter:
+            hits.extend(map(self._mark_hit, [match for match in unfiltered_matches if peptide_filter(
+                        # Should the peptide mass be shifted? It is not obvious it should be, or if
+                        # the isotopic_shift > 1 if it has to match the isotopic_shift
+                        match.peptide_mass - (scan_query.isotopic_shift * self.neutron_offset))]))
+        else:
+            hits.extend(map(self._mark_hit, unfiltered_matches))
+        return hits
+
+    def _make_scan_query(self, scan, mass_shift, isotopic_shift, query_mass, meta=None):
+        return PeptideMassFilterScanQuery(
+            scan=scan, mass_shift=mass_shift, isotopic_shift=isotopic_shift,
+            query_mass=query_mass, meta=meta)
 
     def find_precursor_candidates(self, scan, error_tolerance=1e-5, probing_range=0,
                                   mass_shift=None):
