@@ -94,7 +94,7 @@ class PeptideMassFilteringDatabaseSearchMixin(object):
         hits = []
         query_mass = scan_query.query_mass
         if self.peptide_mass_filter:
-            peptide_filter = scan_query.build_peptide_mass_filter(self, error_tolerance)
+            peptide_filter = scan_query.build_peptide_mass_filter(self.peptide_mass_filter, error_tolerance)
         unfiltered_matches = self.search_database_for_precursors(query_mass, error_tolerance)
         if self.peptide_mass_filter:
             hits.extend(map(self._mark_hit, [match for match in unfiltered_matches if peptide_filter(
