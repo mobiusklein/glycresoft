@@ -110,7 +110,7 @@ class CompoundMassShift(MassShiftBase):
 
     def composed_with(self, other):
         if isinstance(other, MassShift):
-            return self.counts.get(other, 0) == 1
+            return self.counts.get(other, 0) >= 1
         elif isinstance(other, CompoundMassShift):
             for key, count in other.counts.items():
                 if self.counts.get(key, 0) != count:
