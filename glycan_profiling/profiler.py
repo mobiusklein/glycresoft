@@ -594,8 +594,10 @@ class GlycopeptideLCMSMSAnalyzer(TaskBase):
         def threshold_fn(x):
             return x.q_value < self.psm_fdr_threshold
 
+        chromatograms = tuple(extractor)
+
         chroma_with_sols, orphans = searcher.map_to_chromatograms(
-            tuple(extractor), target_hits, self.mass_error_tolerance,
+            chromatograms, target_hits, self.mass_error_tolerance,
             threshold_fn=threshold_fn)
         self.log("Aggregating Assigned Entities")
         merged = chromatogram_mapping.aggregate_by_assigned_entity(
