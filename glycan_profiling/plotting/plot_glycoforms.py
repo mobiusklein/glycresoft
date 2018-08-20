@@ -318,7 +318,8 @@ class GlycoformLayout(object):
         ax.patch.set_visible(False)
         buff = BytesIO()
         fig.savefig(buff, format='svg')
-        root, ids = ET.XMLID(buff.getvalue())
+        parser = ET.XMLParser(huge_tree=True)
+        root, ids = ET.XMLID(buff.getvalue(), parser=parser)
         root.attrib['class'] = 'plot-glycoforms-svg'
         for id, attributes in self.id_mapper.items():
             element = ids[id]
