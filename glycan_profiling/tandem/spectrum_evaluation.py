@@ -21,8 +21,7 @@ class ScanQuery(_ScanQuery):
     def intact_mass(self):
         return self.scan.precursor_information.extracted_neutral_mass
 
-    @property
-    def query_mass(self):
+    def _infer_query_mass(self):
         query_mass = self.intact_mass - (self.isotopic_shift * self.neutron_offset) - self.mass_shift.mass
         return query_mass
 
@@ -97,6 +96,7 @@ class TandemClusterEvaluatorBase(TaskBase):
                         scan=scan, mass_shift=mass_shift, isotopic_shift=i,
                         query_mass=query_mass)
                     queries.append(query)
+        queries.sort(key=lambda x: x.query_mass, reverse=True)
         return queries
 
     def _mark_hit(self, match):
