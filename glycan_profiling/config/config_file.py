@@ -62,7 +62,7 @@ DEFAULT_CONFIG = {
         "log_file_name": "glycresoft-log",
         "log_file_mode": "a"
     },
-    "xml_huge_tree": False
+    "xml_huge_tree": True
 }
 
 _CURRENT_CONFIG = None

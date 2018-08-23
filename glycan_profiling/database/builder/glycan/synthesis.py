@@ -1,7 +1,7 @@
 from collections import defaultdict
 
 from glypy.io import iupac, glycoct
-from glypy.structure.glycan_composition import HashableGlycanComposition
+from glypy.structure.glycan_composition import HashableGlycanComposition, FrozenGlycanComposition
 from glypy.enzyme import (
     make_n_glycan_pathway, make_mucin_type_o_glycan_pathway,
     MultiprocessingGlycome, Glycosylase, Glycosyltransferase,
@@ -295,6 +295,8 @@ class ExistingGraphGlycanHypothesisSerializer(GlycanHypothesisSerializerBase):
         adapter.start()
         components = adapter.graph.nodes()
         for component in components:
+            if isinstance(component, FrozenGlycanComposition):
+                component = component.thaw()
             yield component, [self.glycan_classification]
 
     def make_pipeline(self):

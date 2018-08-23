@@ -178,4 +178,3 @@ cdef class CompoundMassShift(MassShiftBase):
 
 
 cdef MassShiftBase Unmodified = MassShift("Unmodified", CComposition())
-cdef MassShiftBase Ammonium = MassShift("Ammonium", CComposition("NH3"), CComposition())

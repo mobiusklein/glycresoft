@@ -26,6 +26,9 @@ _default_chromatogram_scorer = GeneralScorer.clone()
 _default_chromatogram_scorer.add_feature(get_feature("null_charge"))
 
 
+MINIMUM = 1e-4
+
+
 class GlycosylationSiteModel(object):
 
     def __init__(self, protein_name, position, site_distribution, lmbda, glycan_map):
@@ -37,6 +40,12 @@ class GlycosylationSiteModel(object):
 
     def __getitem__(self, key):
         return self.glycan_map[key][0]
+
+    def get_record(self, key):
+        try:
+            return self.glycan_map[key]
+        except KeyError:
+            return GlycanPriorRecord(MINIMUM, False)
 
     def to_dict(self):
         d = {}
@@ -65,6 +74,13 @@ class GlycosylationSiteModel(object):
         }
         inst = cls(name, position, site_distribution, lmbda, glycan_map)
         return inst
+
+    def _pack(self):
+        new_map = {}
+        for key, value in self.glycan_map.items():
+            if value.score > MINIMUM:
+                new_map[key] = value
+        self.glycan_map = new_map
 
     def __repr__(self):
         template = ('{self.__class__.__name__}({self.protein_name!r}, {self.position}, '
@@ -109,10 +125,13 @@ class GlycoproteinGlycosylationModel(object):
             raise NotImplementedError("Not compatible with multiple spanning glycosites (yet)")
         try:
             site = sites[0]
-            rec = site.glycan_map[glycopeptide.glycan_composition]
+            try:
+                rec = site.glycan_map[glycopeptide.glycan_composition]
+            except KeyError:
+                return MINIMUM
             return rec.score
         except IndexError:
-            return 0
+            return MINIMUM
 
     @classmethod
     def bind_to_hypothesis(cls, session, site_models, hypothesis_id=1):
