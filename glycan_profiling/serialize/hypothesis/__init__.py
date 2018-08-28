@@ -10,4 +10,4 @@ from .peptide import (
 
 from .generic import (
     TemplateNumberStore as TemplateNumberStore,
-    ReferenceDatabase, ReferenceAccessionNumber)
+    ReferenceDatabase, ReferenceAccessionNumber, FileBlob)

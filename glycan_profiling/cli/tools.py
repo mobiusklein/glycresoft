@@ -21,7 +21,7 @@ from .validators import RelativeMassErrorParam, get_by_name_or_id
 
 from glycan_profiling.serialize import (
     DatabaseBoundOperation, GlycanHypothesis, GlycopeptideHypothesis,
-    SampleRun, Analysis, Protein, Glycopeptide, func)
+    SampleRun, Analysis, Protein, Glycopeptide, func, FileBlob)
 from glycan_profiling.database import (
     GlycopeptideDiskBackedStructureDatabase,
     GlycanCompositionDiskBackedStructureDatabase)
@@ -76,6 +76,10 @@ def list_contents(context, database_connection):
     click.echo("\nAnalysis")
     for analysis in database_connection.query(Analysis):
         click.echo("\t%d\t%s\t%s" % (analysis.id, analysis.name, analysis.sample_run.name))
+
+    click.echo("\nFile Blobs")
+    for blob in database_connection.query(FileBlob):
+        click.echo("\t%d\t%s" % (blob.id, blob.name))
 
 
 @tools.command('mzid-proteins', short_help='Extract proteins from mzIdentML files')
@@ -514,3 +518,20 @@ def summarize_glycopeptide_hypothesis(database_connection, hypothesis_identifier
         click.echo("%s: %d" % (protein.name, count))
         total += count
     click.echo("Total: %d" % (total,))
+
+
+@tools.command("extract-blob")
+@database_connection
+@click.argument("blob-identifier")
+@click.option("-o", "--output-path", type=click.File(mode='w'))
+def extract_file_blob(database_connection, blob_identifier, output_path=None):
+    if output_path is None:
+        output_path = click.get_binary_stream('stdout')
+    session = database_connection.session
+    blob = get_by_name_or_id(session, FileBlob, blob_identifier)
+    with blob.open() as fh:
+        chunk_size = 2 ** 16
+        chunk = fh.read(chunk_size)
+        while chunk:
+            output_path.write(chunk)
+            chunk = fh.read(chunk_size)
