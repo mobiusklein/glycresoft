@@ -114,6 +114,7 @@ class Parser(MzIdentML):
             unit_name = attribs.get("unitName", unit_accesssion)
             unit_info = unit_name
         accession = attribs.get("accession")
+        # value = attribs.get("value", "")
         if 'value' in attribs and attribs['value'] != '':
             try:
                 if attribs.get('type') in types:

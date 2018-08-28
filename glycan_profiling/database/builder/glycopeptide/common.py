@@ -95,6 +95,8 @@ class GlycopeptideHypothesisSerializerBase(DatabaseBoundOperation, HypothesisSer
             self.hypothesis_id, n)
         combinator.run()
         self.total_glycan_combination_count = combinator.total_count
+        if not (self.total_glycan_combination_count > 0):
+            raise ValueError("No glycan combinations were generated. No glycopeptides can be produced!")
 
     def _count_produced_glycopeptides(self):
         count = self.query(
