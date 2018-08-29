@@ -211,6 +211,25 @@ class GlycoproteinGlycosylationModel(object):
         return inst
 
 
+class _SubstringProteinMapper(object):
+    def __init__(self, models):
+        self.models = models
+        self.sequence_to_model = {
+            str(model.protein): model for model in models.values()
+        }
+
+    def get_models(self, glycopeptide):
+        out = []
+        seq = strip_modifications(glycopeptide)
+        for case in self.sequence_to_model:
+            if seq in case:
+                out.append(self.sequence_to_model[case])
+        return out
+
+    def __call__(self, glycopeptide):
+        return self.get_models(glycopeptide)
+
+
 class GlycosylationSiteModelBuilder(TaskBase):
 
     def __init__(self, glycan_graph, chromatogram_scorer=None, belongingness_matrix=None,
