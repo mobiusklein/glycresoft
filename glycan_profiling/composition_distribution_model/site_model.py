@@ -182,10 +182,12 @@ class GlycoproteinGlycosylationModel(object):
 
 class GlycoproteinSiteSpecificGlycomeModel(object):
     def __init__(self, glycoprotein_models):
-        if isinstance(glycoprotein_models, )
-        self.glycoprotein_models = {
-            ggm.id: ggm for ggm in glycoprotein_models
-        }
+        if isinstance(glycoprotein_models, Mapping):
+            self.glycoprotein_models = glycoprotein_models
+        else:
+            self.glycoprotein_models = {
+                ggm.id: ggm for ggm in glycoprotein_models
+            }
 
     def find_model(self, glycopeptide):
         protein_id = glycopeptide.protein_relation.protein_id
