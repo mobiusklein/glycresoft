@@ -190,6 +190,8 @@ class GlycoproteinGlycosylationModel(object):
             }
 
     def find_model(self, glycopeptide):
+        if glycopeptide.protein_relation is None:
+            return None
         protein_id = glycopeptide.protein_relation.protein_id
         glycoprotein_model = self.glycoprotein_models[protein_id]
         return glycoprotein_model
