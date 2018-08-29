@@ -3,9 +3,12 @@ from collections import namedtuple, defaultdict
 import numpy as np
 
 from glypy.structure.glycan_composition import HashableGlycanComposition
+from glycopeptidepy.structure.parser import strip_modifications
 
 from glycan_profiling import serialize
 from glycan_profiling.task import TaskBase
+from glycan_profiling.structure import PeptideProteinRelation
+
 from glycan_profiling.database import GlycanCompositionDiskBackedStructureDatabase
 
 from glycan_profiling.database.builder.glycopeptide.proteomics.fasta import DeflineSuffix
@@ -117,6 +120,16 @@ class GlycoproteinGlycosylationModel(object):
             elif end < site.position:
                 break
         return spans
+
+    def _guess_sites_from_sequence(self, sequence):
+        prot_seq = str(self.protein)
+        query_seq = strip_modifications(sequence)
+        try:
+            start = prot_seq.index(query_seq)
+            end = start + len(query_seq)
+            return PeptideProteinRelation(start, end, self.protein.id, self.protein.hypothesis_id)
+        except ValueError:
+            return None
 
     def score(self, glycopeptide):
         pr = glycopeptide.protein_relation
