@@ -193,6 +193,7 @@ class GlycoproteinSiteSpecificGlycomeModel(object):
         score = glycoprotein_model.score(glycopeptide)
         return min(spectrum_match.score, score)
 
+    @classmethod
     def bind_to_hypothesis(cls, session, site_models, hypothesis_id=1, fuzzy=True):
         inst = cls(
             GlycoproteinGlycosylationModel.bind_to_hypothesis(
