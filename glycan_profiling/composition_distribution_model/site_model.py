@@ -1,4 +1,8 @@
 from collections import namedtuple, defaultdict
+try:
+    from collections.abc import Mapping, Sequence
+except ImportError:
+    from collections import Mapping, Sequence
 
 import numpy as np
 
@@ -178,6 +182,7 @@ class GlycoproteinGlycosylationModel(object):
 
 class GlycoproteinSiteSpecificGlycomeModel(object):
     def __init__(self, glycoprotein_models):
+        if isinstance(glycoprotein_models, )
         self.glycoprotein_models = {
             ggm.id: ggm for ggm in glycoprotein_models
         }
