@@ -97,7 +97,7 @@ class GlycosylationSiteModel(object):
         return template.format(self=self, glycan_map_size=glycan_map_size, site_distribution=site_distribution)
 
 
-class GlycoproteinGlycosylationModel(object):
+class GlycoproteinSiteSpecificGlycomeModel(object):
     def __init__(self, protein, glycosylation_sites=None):
         self.protein = protein
         self.glycosylation_sites = sorted(glycosylation_sites or [], key=lambda x: x.position)
@@ -180,10 +180,10 @@ class GlycoproteinGlycosylationModel(object):
         return template.format(self=self)
 
 
-class GlycoproteinSiteSpecificGlycomeModel(object):
+class GlycoproteinGlycosylationModel(object):
     def __init__(self, glycoprotein_models):
         if isinstance(glycoprotein_models, Mapping):
-            self.glycoprotein_models = glycoprotein_models
+            self.glycoprotein_models = dict(glycoprotein_models)
         else:
             self.glycoprotein_models = {
                 ggm.id: ggm for ggm in glycoprotein_models
@@ -197,13 +197,16 @@ class GlycoproteinSiteSpecificGlycomeModel(object):
     def score(self, spectrum_match):
         glycopeptide = spectrum_match.target
         glycoprotein_model = self.find_model(glycopeptide)
-        score = glycoprotein_model.score(glycopeptide)
+        if glycoprotein_model is None:
+            score = MINIMUM
+        else:
+            score = glycoprotein_model.score(glycopeptide)
         return min(spectrum_match.score, score)
 
     @classmethod
     def bind_to_hypothesis(cls, session, site_models, hypothesis_id=1, fuzzy=True):
         inst = cls(
-            GlycoproteinGlycosylationModel.bind_to_hypothesis(
+            GlycoproteinSiteSpecificGlycomeModel.bind_to_hypothesis(
                 session, site_models, hypothesis_id, fuzzy))
         return inst
 
