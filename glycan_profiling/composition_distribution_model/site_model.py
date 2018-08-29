@@ -203,7 +203,7 @@ class GlycoproteinGlycosylationModel(object):
             score = MINIMUM
         else:
             score = glycoprotein_model.score(glycopeptide)
-        return min(spectrum_match.score, score)
+        return max(min(spectrum_match.score, score), 0)
 
     @classmethod
     def bind_to_hypothesis(cls, session, site_models, hypothesis_id=1, fuzzy=True):
