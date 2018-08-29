@@ -147,21 +147,26 @@ class GlycoproteinGlycosylationModel(object):
             return MINIMUM
 
     @classmethod
-    def bind_to_hypothesis(cls, session, site_models, hypothesis_id=1):
+    def bind_to_hypothesis(cls, session, site_models, hypothesis_id=1, fuzzy=True):
         by_protein_name = defaultdict(list)
         for site in site_models:
             by_protein_name[site.protein_name].append(site)
         protein_models = {}
-        tree = SuffixTree()
         proteins = session.query(serialize.Protein).filter(
             serialize.Protein.hypothesis_id == hypothesis_id).all()
         protein_name_map = {prot.name: prot for prot in proteins}
-        for prot in proteins:
-            tree.add_ngram(DeflineSuffix(prot.name, prot.name))
+        if fuzzy:
+            tree = SuffixTree()
+            for prot in proteins:
+                tree.add_ngram(DeflineSuffix(prot.name, prot.name))
 
         for protein_name, sites in by_protein_name.items():
-            labels = list(tree.subsequences_of(protein_name))
-            protein = protein_name_map[labels[0].original]
+            if fuzzy:
+                labels = list(tree.subsequences_of(protein_name))
+                protein = protein_name_map[labels[0].original]
+            else:
+                protein = protein_name_map[protein_name]
+
             model = cls(protein, sites)
             protein_models[model.id] = model
         return protein_models
@@ -177,12 +182,22 @@ class GlycoproteinSiteSpecificGlycomeModel(object):
             ggm.id: ggm for ggm in glycoprotein_models
         }
 
-    def score(self, spectrum_match):
-        glycopeptide = spectrum_match.target
+    def find_model(self, glycopeptide):
         protein_id = glycopeptide.protein_relation.protein_id
         glycoprotein_model = self.glycoprotein_models[protein_id]
+        return glycoprotein_model
+
+    def score(self, spectrum_match):
+        glycopeptide = spectrum_match.target
+        glycoprotein_model = self.find_model(glycopeptide)
         score = glycoprotein_model.score(glycopeptide)
         return min(spectrum_match.score, score)
+
+    def bind_to_hypothesis(cls, session, site_models, hypothesis_id=1, fuzzy=True):
+        inst = cls(
+            GlycoproteinGlycosylationModel.bind_to_hypothesis(
+                session, site_models, hypothesis_id, fuzzy))
+        return inst
 
 
 class GlycosylationSiteModelBuilder(TaskBase):
