@@ -14,6 +14,19 @@ from .graph import network_indices, BlockLaplacian
 
 
 class LaplacianSmoothingModel(object):
+    r'''A model that uses a graphical representation of a set of related entities
+    to estimate a connectedness-aware version of a quality score :math:`s`.
+
+    The `Graph Laplacian <https://en.wikipedia.org/wiki/Laplacian_matrix>`_ is used
+    to summarize the connectedness of nodes in the graph.
+
+    Related subgraphs are further organized into neighborhoods, as defined by
+    :attr:`neighborhood_walker`'s rules. These groups are expected to trend together,
+    sharing a parameter :math:`\tau`. A single vertex in the graph can belong to multiple
+    neighborhoods to different extents, having a belongingness weight for each neighborhood
+    encoded in a belongingness matrix :math:`\mathbf{A}`.
+    '''
+
     def __init__(self, network, belongingness_matrix, threshold,
                  regularize=DEFAULT_LAPLACIAN_REGULARIZATION, neighborhood_walker=None,
                  belongingness_normalization=NORMALIZATION, variance_matrix=None):
@@ -45,7 +58,7 @@ class LaplacianSmoothingModel(object):
         return self.__class__, (
             self.network, self.belongingness_matrix, self.threshold,
             self.block_L.regularize, self.neighborhood_walker,
-            self._belongingness_normalization)
+            self._belongingness_normalization, self.variance_matrix)
 
     @property
     def L_mm_inv(self):

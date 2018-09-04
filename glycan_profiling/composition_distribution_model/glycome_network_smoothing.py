@@ -164,7 +164,8 @@ class GlycomeModel(LaplacianSmoothingModel):
     def __reduce__(self):
         return self.__class__, (
             self._observed_compositions, self._network, self.belongingness_matrix,
-            self.block_L.regularize, self._belongingness_normalization)
+            self.block_L.regularize, self._belongingness_normalization,
+            self.observation_aggregator)
 
     def _populate(self, observations):
         var_agg = self.observation_aggregator(self._network)
