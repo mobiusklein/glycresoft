@@ -521,7 +521,7 @@ class IdentificationProcessDispatcher(TaskBase):
                         is_feeder_done = self.producer_thread_done_event.is_set()
                         self.log("...... Input Queue Status: %r. Is Feeder Done? %r" % (
                             input_queue_size, is_feeder_done))
-                    if strikes > (self.child_failure_timeout * (1 + (self.n_processes % 4))):
+                    if strikes > (self.child_failure_timeout * (1 + (self.n_processes / 4))):
                         self.state = ProcessDispatcherState.running_local_workers_live
                         self.log(
                             ("...... Too much time has elapsed with"
@@ -541,8 +541,11 @@ class IdentificationProcessDispatcher(TaskBase):
         i_spectrum_matches = sum(map(len, self.scan_solution_map.values()))
         self.log("... Finished Processing Matches (%d)" % (i_spectrum_matches,))
         self.clear_pool()
+        self.log("... Shutting Down Message Queue")
         self.log_controller.stop()
+        self.log("... Joining Feeder Thread (Done: %r)" % (self.producer_thread_done_event.is_set(), ))
         feeder_thread.join()
+        self.log("... Dispatcher Finished")
         return self.scan_solution_map
 
 
