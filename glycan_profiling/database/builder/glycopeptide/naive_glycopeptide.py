@@ -111,12 +111,12 @@ class FastaGlycopeptideHypothesisSerializer(GlycopeptideHypothesisSerializerBase
             i += 1
             protein = self.query(Protein).get(protein_id)
             if i % interval == 0:
-                self.log("%0.3f%% Complete (%d/%d). %d Peptides Produced." % (i * 100. / n, i, n, j))
+                self.log("... %0.3f%% Complete (%d/%d). %d Peptides Produced." % (i * 100. / n, i, n, j))
             for peptide in splitter.handle_protein(protein):
                 acc.append(peptide)
                 j += 1
                 if len(acc) > 100000:
-                    self.log("%0.3f%% Complete (%d/%d). %d Peptides Produced." % (i * 100. / n, i, n, j))
+                    self.log("... %0.3f%% Complete (%d/%d). %d Peptides Produced." % (i * 100. / n, i, n, j))
                     self.session.bulk_save_objects(acc)
                     self.session.commit()
                     acc = []

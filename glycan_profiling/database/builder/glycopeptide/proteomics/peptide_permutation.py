@@ -383,7 +383,7 @@ class ProteinDigestingProcess(Process):
             for protein in proteins:
                 size = len(protein.protein_sequence)
                 if size > threshold_size:
-                    self.message_handler("Started digesting %s (%d)" % (protein.name, size))
+                    self.message_handler("...... Started digesting %s (%d)" % (protein.name, size))
                 i = 0
                 for peptide in digestor.process_protein(protein):
                     acc.append(peptide)
@@ -394,10 +394,10 @@ class ProteinDigestingProcess(Process):
                         acc = []
                     if i % 10000 == 0:
                         self.message_handler(
-                            "Digested %d peptides from %r (%d)" % (
+                            "...... Digested %d peptides from %r (%d)" % (
                                 i, protein.name, size))
                 if size > threshold_size:
-                    self.message_handler("Finished digesting %s (%d)" % (protein.name, size))
+                    self.message_handler("...... Finished digesting %s (%d)" % (protein.name, size))
             session.bulk_save_objects(acc)
             session.commit()
             acc = []
