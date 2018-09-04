@@ -32,13 +32,13 @@ def make_extensions():
     except ImportError:
         print("Installation requires `numpy`")
         raise
+    macros = []
     try:
         from Cython.Build import cythonize
         cython_directives = {
             'embedsignature': True,
             "profile": include_diagnostics
         }
-        macros = []
         if include_diagnostics:
             macros.append(("CYTHON_TRACE_NOGIL", "1"))
         if is_ci and include_diagnostics:

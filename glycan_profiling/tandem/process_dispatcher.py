@@ -2,14 +2,14 @@ import traceback
 from collections import defaultdict
 from threading import Thread
 import multiprocessing
-from multiprocessing import Process, Queue, Event, Manager, JoinableQueue
+from multiprocessing import Process, Event, Manager, JoinableQueue
 
 try:
     from Queue import Empty as QueueEmptyException
 except ImportError:
     from queue import Empty as QueueEmptyException
 
-from glypy.utils import uid
+from glypy.utils import uid, Enum
 
 from glycan_profiling.task import TaskBase
 from glycan_profiling.chromatogram_tree import Unmodified
@@ -29,6 +29,17 @@ class SentinelToken(object):
 
     def __repr__(self):
         return "{self.__class__.__name__}({self.token})".format(self=self)
+
+
+class ProcessDispatcherState(Enum):
+    start = 1
+    spawning = 2
+    running = 3
+    running_local_workers_live = 4
+    running_local_workers_dead = 5
+    terminating = 6
+    terminating_workers_live = 7
+    done = 8
 
 
 class IdentificationProcessDispatcher(TaskBase):
@@ -98,6 +109,7 @@ class IdentificationProcessDispatcher(TaskBase):
                 Unmodified.name: Unmodified
             }
 
+        self.state = ProcessDispatcherState.start
         self.ipc_manager = ipc_manager
         self.worker_type = worker_type
         self.scorer_type = scorer_type
@@ -131,11 +143,19 @@ class IdentificationProcessDispatcher(TaskBase):
         """
         self.scan_load_map.clear()
         self.local_scan_map.clear()
+        if self.state in (ProcessDispatcherState.running, ProcessDispatcherState.running_local_workers_dead):
+            self.state = ProcessDispatcherState.terminating
+        elif self.state == ProcessDispatcherState.running_local_workers_live:
+            self.state = ProcessDispatcherState.terminating_workers_live
+        else:
+            self.state = ProcessDispatcherState.terminating
         for i, worker in enumerate(self.workers):
             if worker.exitcode != 0 and worker.exitcode is not None:
-                self.log("Worker Process %r had exitcode %r" % (worker, worker.exitcode))
+                self.log("... Worker Process %r had exitcode %r" % (worker, worker.exitcode))
+            elif worker.is_alive():
+                self.log("... Worker Process %r is still alive %r" % (worker, ))
             try:
-                worker.join(15)
+                worker.join(5)
             except AttributeError:
                 pass
 
@@ -149,6 +169,7 @@ class IdentificationProcessDispatcher(TaskBase):
         scan_map : dict
             Map scan id to :class:`.ProcessedScan` object
         """
+        self.state = ProcessDispatcherState.spawning
         self.scan_load_map.clear()
         self.scan_load_map.update(scan_map)
         self.local_scan_map.clear()
@@ -430,6 +451,7 @@ class IdentificationProcessDispatcher(TaskBase):
         # Keep a running tally of the number of iterations when there are pending
         # structure matches to process, but all workers claim to be done.
         strikes = 0
+        self.state = ProcessDispatcherState.running
         self.log("... Searching Matches (%d)" % (n_spectrum_matches,))
         while has_work:
             try:
@@ -472,6 +494,7 @@ class IdentificationProcessDispatcher(TaskBase):
                                 "...... %d cycles without output (%d/%d, %0.2f%% Done)" % (
                                     strikes, len(seen), n, len(seen) * 100. / n))
                         if strikes > self.post_search_trailing_timeout:
+                            self.state = ProcessDispatcherState.running_local_workers_dead
                             self.log(
                                 "...... Too much time has elapsed with"
                                 " missing items. Evaluating serially.")
@@ -498,7 +521,8 @@ class IdentificationProcessDispatcher(TaskBase):
                         is_feeder_done = self.producer_thread_done_event.is_set()
                         self.log("...... Input Queue Status: %r. Is Feeder Done? %r" % (
                             input_queue_size, is_feeder_done))
-                    if strikes > self.child_failure_timeout:
+                    if strikes > (self.child_failure_timeout * (1 + (self.n_processes % 4))):
+                        self.state = ProcessDispatcherState.running_local_workers_live
                         self.log(
                             ("...... Too much time has elapsed with"
                              " missing items (%d children still alive). Evaluating serially.") % (

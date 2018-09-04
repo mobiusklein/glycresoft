@@ -83,9 +83,11 @@ class SpectrumSolutionSet(ScanWrapperBase):
             self.solutions = [best_solution]
         self._is_top_only = True
         self._invalidate()
+        return self
 
     def sort(self):
         self.solutions.sort(key=lambda x: x.score, reverse=True)
+        return self
 
     def merge(self, other):
         self._invalidate()
@@ -94,6 +96,10 @@ class SpectrumSolutionSet(ScanWrapperBase):
         if self._is_top_only:
             self._is_top_only = False
             self.select_top()
+        return self
+
+    def threshold(self, method=None):
+        return self.select_top(method)
 
     def clone(self):
         dup = self.__class__(self.scan, [
