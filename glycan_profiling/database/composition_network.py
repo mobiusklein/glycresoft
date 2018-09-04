@@ -373,7 +373,7 @@ class CompositionGraph(object):
         i = 0
         compositions = map(self.normalize_composition, compositions)
 
-        for c in sorted(set(compositions), key=lambda x: x.mass()):
+        for c in sorted(set(compositions), key=lambda x: (len(x), x.mass())):
             n = CompositionGraphNode(c, i)
             self.add_node(n)
             i += 1
