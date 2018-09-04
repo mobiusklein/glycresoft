@@ -153,7 +153,7 @@ class IdentificationProcessDispatcher(TaskBase):
             if worker.exitcode != 0 and worker.exitcode is not None:
                 self.log("... Worker Process %r had exitcode %r" % (worker, worker.exitcode))
             elif worker.is_alive():
-                self.log("... Worker Process %r is still alive %r" % (worker, ))
+                self.log("... Worker Process %r is still alive" % (worker, ))
             try:
                 worker.join(5)
             except AttributeError:
