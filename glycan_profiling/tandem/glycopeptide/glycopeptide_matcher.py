@@ -412,7 +412,7 @@ class ComparisonGlycopeptideMatcher(TargetDecoyInterleavingGlycopeptideMatcher):
                         raise
             target_solutions.extend(temp)
 
-        # self.log("... Querying Decoys")
+        self.debug("... Waiting For Decoy Mapping")
         decoy_query_thread.join()
         # workload = self.decoy_evaluator._map_scans_to_hits(
         #     scans, precursor_error_tolerance)

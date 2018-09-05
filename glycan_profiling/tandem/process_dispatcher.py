@@ -154,6 +154,8 @@ class IdentificationProcessDispatcher(TaskBase):
                 self.log("... Worker Process %r had exitcode %r" % (worker, worker.exitcode))
             elif worker.is_alive():
                 self.log("... Worker Process %r is still alive" % (worker, ))
+                if worker.token in self._has_received_token:
+                    self.log("...... and Worker had sent token")
             try:
                 worker.join(5)
             except AttributeError:
@@ -439,6 +441,7 @@ class IdentificationProcessDispatcher(TaskBase):
             hit_map, hit_to_scan, scan_hit_type_map)
         has_work = True
         i = 0
+        scan_count = len(scan_map)
         n = len(hit_to_scan)
         if n != len(hit_map):
             self.log("There is a mismatch between hit_map (%d) and hit_to_scan (%d)" % (
@@ -462,7 +465,7 @@ class IdentificationProcessDispatcher(TaskBase):
                 except (TypeError, ValueError):
                     if isinstance(payload, SentinelToken):
                         self.debug("...... Received sentinel from %s" % (self._token_to_worker[payload.token].name))
-                        self._has_received_token.add(payload)
+                        self._has_received_token.add(payload.token)
                         continue
                     else:
                         raise
@@ -521,7 +524,7 @@ class IdentificationProcessDispatcher(TaskBase):
                         is_feeder_done = self.producer_thread_done_event.is_set()
                         self.log("...... Input Queue Status: %r. Is Feeder Done? %r" % (
                             input_queue_size, is_feeder_done))
-                    if strikes > (self.child_failure_timeout * (1 + (self.n_processes / 4))):
+                    if strikes > (self.child_failure_timeout * (1 + (scan_count / 500.0))):
                         self.state = ProcessDispatcherState.running_local_workers_live
                         self.log(
                             ("...... Too much time has elapsed with"

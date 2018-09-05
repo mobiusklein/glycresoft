@@ -70,8 +70,11 @@ class LaplacianSmoothingModel(object):
 
     def optimize_observed_scores(self, lmda, t0=0):
         blocks = self.block_L
-        L = lmda * (blocks["oo"] - blocks["om"].dot(self.L_mm_inv).dot(blocks["mo"]))
-        B = np.eye(len(self.S0)) + L
+        # variance_matrix = self.variance_matrix
+        # V_inv = np.linalg.inv(variance_matrix)
+        V_inv = np.identity(len(self.S0))
+        L = lmda * V_inv.dot(blocks["oo"] - blocks["om"].dot(self.L_mm_inv).dot(blocks["mo"]))
+        B = np.identity(len(self.S0)) + L
         return np.linalg.inv(B).dot(self.S0 - t0) + t0
 
     def compute_missing_scores(self, observed_scores, t0=0., tm=0.):
