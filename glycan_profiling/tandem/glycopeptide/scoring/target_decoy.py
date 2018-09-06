@@ -125,6 +125,7 @@ class ScoreThresholdCounter(object):
         return NearestValueLookUp(complement)
 
 
+# implementation derived from pyteomics
 _precalc_fact = np.log([math.factorial(n) for n in range(20)])
 
 
@@ -351,6 +352,10 @@ class TargetDecoyAnalyzer(object):
     def score(self, spectrum_match):
         spectrum_match.q_value = self._q_value_map[spectrum_match.score]
         return spectrum_match
+
+    @property
+    def q_value_map(self):
+        return self._q_value_map
 
 
 class GroupwiseTargetDecoyAnalyzer(object):
