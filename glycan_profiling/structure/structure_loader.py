@@ -286,6 +286,19 @@ class CachingGlycopeptideParser(object):
         return self.parse(value)
 
 
+class CachingPeptideParser(CachingGlycopeptideParser):
+    def _make_new_value(self, struct):
+        value = FragmentCachingGlycopeptide(struct.modified_peptide_sequence)
+        value.id = struct.id
+        value.protein_relation = PeptideProteinRelation(
+            struct.start_position, struct.end_position,
+            struct.protein_id, struct.hypothesis_id)
+        return value
+
+    def _extract_key(self, struct):
+        return KeyTuple(struct.id, struct.modified_peptide_sequence)
+
+
 class DecoyFragmentCachingGlycopeptide(FragmentCachingGlycopeptide):
 
     stub_length_threshold = 10

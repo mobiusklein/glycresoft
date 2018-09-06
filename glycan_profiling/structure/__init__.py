@@ -8,7 +8,8 @@ from .structure_loader import (
     DecoyMonosaccharideResidue,
     DecoyMakingCachingGlycopeptideParser,
     DecoyShiftingStubGlycopeptideStrategy,
-    GlycopeptideCache)
+    GlycopeptideCache,
+    CachingPeptideParser,)
 from .scan import (
     ScanStub,
     ScanWrapperBase,
@@ -22,6 +23,7 @@ __all__ = [
     "LRUCache",
     "CachingGlycanCompositionParser",
     "CachingGlycopeptideParser",
+    "CachingPeptideParser",
     "FragmentCachingGlycopeptide",
     "PeptideProteinRelation",
     "DecoyFragmentCachingGlycopeptide",
