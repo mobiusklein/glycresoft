@@ -704,6 +704,10 @@ class GlycopeptideDatabaseSearchComparer(GlycopeptideDatabaseSearchIdentifier):
             minimum_oxonium_ratio, scan_transformer, adducts, n_processes,
             file_manager, use_peptide_mass_filter)
 
+    def _clear_database_cache(self):
+        self.target_database.clear_cache()
+        self.decoy_database.clear_cache()
+
     def _make_evaluator(self, bunch):
         evaluator = ComparisonGlycopeptideMatcher(
             bunch, self.scorer_type,
