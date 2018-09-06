@@ -60,7 +60,7 @@ DEFAULT_LOADING_INTERVAL = 1.
 
 class DiskBackedStructureDatabaseBase(SearchableMassCollection, DatabaseBoundOperation):
 
-    def __init__(self, connection, hypothesis_id, cache_size=DEFAULT_CACHE_SIZE,
+    def __init__(self, connection, hypothesis_id=1, cache_size=DEFAULT_CACHE_SIZE,
                  loading_interval=DEFAULT_LOADING_INTERVAL,
                  threshold_cache_total_count=DEFAULT_THRESHOLD_CACHE_TOTAL_COUNT,
                  model_type=Glycopeptide):
@@ -103,13 +103,12 @@ class DiskBackedStructureDatabaseBase(SearchableMassCollection, DatabaseBoundOpe
         return is_ignored is not None and is_ignored.contains_interval(interval)
 
     def insert_interval(self, mass):
-        tree = self.make_memory_interval(mass)
-        # We won't insert this node.
-        if len(tree) == 0:
+        node = self.make_memory_interval(mass)
+        # We won't insert this node if it is empty.
+        if len(node.group) == 0:
             # Ignore seems to be not-working.
             # self.ignore_interval(FixedQueryInterval(mass))
-            return tree
-        node = MassIntervalNode(tree)
+            return node.group
         nearest_interval = self._intervals.find_interval(node)
         # Should an insert be performed if the query just didn't overlap well
         # with the database?
@@ -124,6 +123,7 @@ class DiskBackedStructureDatabaseBase(SearchableMassCollection, DatabaseBoundOpe
         else:
             # Situation unclear.
             # Not worth inserting, so just return the group
+            logger.info("Unknown Condition Overlap %r / %r" % (node, nearest_interval))
             return nearest_interval.group
 
     def clear_cache(self):
@@ -178,7 +178,12 @@ class DiskBackedStructureDatabaseBase(SearchableMassCollection, DatabaseBoundOpe
         out = self.search_mass(mass, error)
         logger.debug("Retrieved %d records", len(out))
         self.on_memory_interval(mass, out)
-        return self._prepare_interval(out)
+        mass_db = self._prepare_interval(out)
+        # bind the bounds of the returned dataset to the bounds of the query
+        node = MassIntervalNode(mass_db)
+        node.start = mass - error
+        node.end = mass + error
+        return node
 
     def _prepare_interval(self, query_results):
         return NeutralMassDatabase(query_results, operator.attrgetter("calculated_mass"))
@@ -335,7 +340,7 @@ class _GlycopeptideBatchManager(object):
 
 
 class DeclarativeDiskBackedDatabase(DiskBackedStructureDatabaseBase):
-    def __init__(self, connection, hypothesis_id, cache_size=DEFAULT_CACHE_SIZE,
+    def __init__(self, connection, hypothesis_id=1, cache_size=DEFAULT_CACHE_SIZE,
                  loading_interval=DEFAULT_LOADING_INTERVAL,
                  threshold_cache_total_count=DEFAULT_THRESHOLD_CACHE_TOTAL_COUNT):
         super(DeclarativeDiskBackedDatabase, self).__init__(
@@ -429,7 +434,7 @@ class GlycopeptideDiskBackedStructureDatabase(DeclarativeDiskBackedDatabase):
     mass_field = Glycopeptide.__table__.c.calculated_mass
     identity_field = Glycopeptide.__table__.c.id
 
-    def __init__(self, connection, hypothesis_id, cache_size=DEFAULT_CACHE_SIZE,
+    def __init__(self, connection, hypothesis_id=1, cache_size=DEFAULT_CACHE_SIZE,
                  loading_interval=DEFAULT_LOADING_INTERVAL,
                  threshold_cache_total_count=DEFAULT_THRESHOLD_CACHE_TOTAL_COUNT):
         super(GlycopeptideDiskBackedStructureDatabase, self).__init__(
@@ -462,7 +467,7 @@ class LazyLoadingGlycopeptideDiskBackedStructureDatabase(GlycopeptideDiskBackedS
         Glycopeptide.__table__.c.hypothesis_id,
     ]
 
-    def __init__(self, connection, hypothesis_id, cache_size=DEFAULT_CACHE_SIZE,
+    def __init__(self, connection, hypothesis_id=1, cache_size=DEFAULT_CACHE_SIZE,
                  loading_interval=DEFAULT_LOADING_INTERVAL,
                  threshold_cache_total_count=DEFAULT_THRESHOLD_CACHE_TOTAL_COUNT):
         super(LazyLoadingGlycopeptideDiskBackedStructureDatabase, self).__init__(
@@ -523,7 +528,7 @@ class GlycanCompositionDiskBackedStructureDatabase(DeclarativeDiskBackedDatabase
     mass_field = GlycanComposition.__table__.c.calculated_mass
     identity_field = GlycanComposition.__table__.c.id
 
-    def __init__(self, connection, hypothesis_id, cache_size=DEFAULT_CACHE_SIZE,
+    def __init__(self, connection, hypothesis_id=1, cache_size=DEFAULT_CACHE_SIZE,
                  loading_interval=DEFAULT_LOADING_INTERVAL,
                  threshold_cache_total_count=DEFAULT_THRESHOLD_CACHE_TOTAL_COUNT):
         super(GlycanCompositionDiskBackedStructureDatabase, self).__init__(
@@ -629,8 +634,12 @@ class MassIntervalNode(SpanningMixin):
             The new collection to wrap.
         """
         self.group = interval
-        self.start = interval.lowest_mass
-        self.end = interval.highest_mass
+        try:
+            self.start = interval.lowest_mass
+            self.end = interval.highest_mass
+        except IndexError:
+            self.start = 0
+            self.end = 0
         self.center = (self.start + self.end) / 2.
         self.size = len(self.group)
 
@@ -646,10 +655,37 @@ class MassIntervalNode(SpanningMixin):
         new_data : NeutralMassDatabase
             Iterable of massable objects
         """
+        start = self.start
+        end = self.end
+
         new = {x.id: x for x in (self.group)}
         new.update({x.id: x for x in (new_data)})
         self.wrap(NeutralMassDatabase(list(new.values()), self.group.mass_getter))
         self.growth += 1
+
+        # max will deal with 0s correctly
+        self.end = max(end, self.end)
+        # min will prefer 0 and not behave as expected
+        if start != 0 and self.start != 0:
+            self.start = min(start, self.start)
+        elif start != 0:
+            # self.start is 0
+            self.start = start
+        # otherwise they're both 0 and we are out of luck
+
+    def __iter__(self):
+        return iter(self.group)
+
+    def __getitem__(self, i):
+        return self.group[i]
+
+    def __len__(self):
+        return len(self.group)
+
+    def search_mass(self, *args, **kwargs):
+        """A proxy for :meth:`NeutralMassDatabase.search_mass`
+        """
+        return self.group.search_mass(*args, **kwargs)
 
 
 class QueryIntervalBase(SpanningMixin):
@@ -813,6 +849,23 @@ class IntervalSet(object):
 
     def clear(self):
         self.intervals = []
+
+    def consolidate(self):
+        intervals = list(self)
+        self.clear()
+        if len(intervals) == 0:
+            return
+        result = []
+        last = intervals[0]
+        for current in intervals[1:]:
+            if last.overlaps(current):
+                last.extend(current)
+            else:
+                result.append(last)
+                last = current
+        result.append(last)
+        for r in result:
+            self.insert_interval(r)
 
 
 class LRUIntervalSet(IntervalSet):
