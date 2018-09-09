@@ -1,3 +1,4 @@
+import time
 import traceback
 from collections import defaultdict
 from threading import Thread
@@ -152,10 +153,8 @@ class IdentificationProcessDispatcher(TaskBase):
         for i, worker in enumerate(self.workers):
             if worker.exitcode != 0 and worker.exitcode is not None:
                 self.log("... Worker Process %r had exitcode %r" % (worker, worker.exitcode))
-            elif worker.is_alive():
-                self.log("... Worker Process %r is still alive" % (worker, ))
-                if worker.token in self._has_received_token:
-                    self.log("...... and Worker had sent token")
+            elif worker.is_alive() and worker.token not in self._has_received_token:
+                self.log("... Worker Process %r is still alive and incomplete" % (worker, ))
             try:
                 worker.join(5)
             except AttributeError:
@@ -456,6 +455,7 @@ class IdentificationProcessDispatcher(TaskBase):
         strikes = 0
         self.state = ProcessDispatcherState.running
         self.log("... Searching Matches (%d)" % (n_spectrum_matches,))
+        start_time = time.time()
         while has_work:
             try:
                 payload = self.output_queue.get(True, 1)
@@ -539,7 +539,8 @@ class IdentificationProcessDispatcher(TaskBase):
                         self.debug("...... IPC Manager: %r" % (self.ipc_manager,))
                 continue
             self.store_result(target, score_map, scan_map)
-        self.debug("... Consumer Done.")
+        consumer_end = time.time()
+        self.debug("... Consumer Done (%0.3g sec.)" % (consumer_end - start_time))
         self.consumer_done_event.set()
         i_spectrum_matches = sum(map(len, self.scan_solution_map.values()))
         self.log("... Finished Processing Matches (%d)" % (i_spectrum_matches,))
@@ -548,7 +549,8 @@ class IdentificationProcessDispatcher(TaskBase):
         self.log_controller.stop()
         self.log("... Joining Feeder Thread (Done: %r)" % (self.producer_thread_done_event.is_set(), ))
         feeder_thread.join()
-        self.log("... Dispatcher Finished")
+        dispatcher_end = time.time()
+        self.log("... Dispatcher Finished (%0.3g sec.)" % (dispatcher_end - start_time))
         return self.scan_solution_map
 
 
