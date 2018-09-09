@@ -24,6 +24,7 @@ from ..process_dispatcher import SpectrumIdentificationWorkerBase
 from ..temp_store import TempFileManager, SpectrumMatchStore
 from ..oxonium_ions import gscore_scanner
 from ..chromatogram_mapping import ChromatogramMSMSMapper
+from ..workflow import (format_identification, format_identification_batch, chunkiter)
 
 
 class GlycopeptideIdentificationWorker(SpectrumIdentificationWorkerBase):
@@ -443,35 +444,6 @@ class ComparisonGlycopeptideMatcher(TargetDecoyInterleavingGlycopeptideMatcher):
                         raise
             decoy_solutions.extend(temp)
         return target_solutions, decoy_solutions
-
-
-def chunkiter(collection, size=200):
-    i = 0
-    while collection[i:(i + size)]:
-        yield collection[i:(i + size)]
-        i += size
-
-
-def format_identification(spectrum_solution):
-    return "%s:%0.3f:(%0.3f) ->\n%s" % (
-        spectrum_solution.scan.id,
-        spectrum_solution.scan.precursor_information.neutral_mass,
-        spectrum_solution.best_solution().score,
-        spectrum_solution.best_solution().target)
-
-
-def format_identification_batch(group, n):
-    representers = dict()
-    group = sorted(group, key=lambda x: x.score, reverse=True)
-    for ident in group:
-        key = str(ident.best_solution().target)
-        if key in representers:
-            continue
-        else:
-            representers[key] = ident
-    to_represent = sorted(
-        representers.values(), key=lambda x: x.score, reverse=True)
-    return '\n'.join(map(format_identification, to_represent[:n]))
 
 
 class GlycopeptideDatabaseSearchIdentifier(TaskBase):
