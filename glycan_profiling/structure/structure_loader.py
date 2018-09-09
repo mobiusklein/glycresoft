@@ -189,19 +189,6 @@ class FragmentCachingGlycopeptide(PeptideSequence):
         new.fragment_caches = self.fragment_caches
         return new
 
-    # def __getstate__(self):
-    #     state = []
-    #     try:
-    #         state.append(self.id)
-    #     except AttributeError:
-    #         state.append(None)
-    #     state.append(self.protein_relation)
-    #     return tuple(state)
-
-    # def __setstate__(self, state):
-    #     self.id, self.protein_relation = state
-    #     self.fragment_caches = {}
-
     def __repr__(self):
         return str(self)
 
