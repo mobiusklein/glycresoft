@@ -41,4 +41,4 @@ class PeptideIdentificationWorker(SpectrumIdentificationWorkerBase):
 class ExclusivePeptideDatabaseSearchComparer(ExclusiveDatabaseSearchComparerBase):
 
     def _make_evaluator(self, batch):
-        pass
+        raise NotImplementedError()
