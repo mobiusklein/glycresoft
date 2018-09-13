@@ -108,7 +108,7 @@ def sample_path(fn):
     "from the precursor mass and stub glycopeptide signature ions"))
 @processes_option
 @click.option("--export", type=click.Choice(
-              ['csv', 'html']), multiple=True,
+              ['csv', 'html', 'psm-csv']), multiple=True,
               help="export command to after search is complete")
 @click.option("-o", "--output-path", default=None, type=click.Path(writable=True), help=(
               "Path to write resulting analysis to."))
