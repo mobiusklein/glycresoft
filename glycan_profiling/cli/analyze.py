@@ -222,6 +222,15 @@ def search_glycopeptide(context, database_connection, sample_path, hypothesis_id
                     database_connection=output_path,
                     analysis_identifier=analyzer.analysis_id,
                     output_path=export_path)
+            elif export_type == 'psm-csv':
+                from glycan_profiling.cli.export import glycopeptide_spectrum_matches
+                base = os.path.splitext(output_path)[0]
+                export_path = "%s-glycopeptide-spectrum-matches.csv" % (base,)
+                context.invoke(
+                    glycopeptide_spectrum_matches,
+                    database_connection=output_path,
+                    analysis_identifier=analyzer.analysis_id,
+                    output_path=export_path)
             elif export_type == 'html':
                 from glycan_profiling.cli.export import glycopeptide_identification
                 base = os.path.splitext(output_path)[0]
