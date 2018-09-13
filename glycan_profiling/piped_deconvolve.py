@@ -331,6 +331,7 @@ class ScanTransformingProcess(Process, ScanTransformMixin):
             except NoIsotopicClustersError as e:
                 self.log_message("No isotopic clusters were extracted from scan %s (%r)" % (
                     e.scan_id, len(scan.peak_set)))
+                self.skip_scan(scan)
             except EmptyScanError as e:
                 self.skip_scan(scan)
             except Exception as e:
@@ -349,8 +350,9 @@ class ScanTransformingProcess(Process, ScanTransformMixin):
                 except NoIsotopicClustersError as e:
                     self.log_message("No isotopic clusters were extracted from scan %s (%r)" % (
                         e.scan_id, len(product_scan.peak_set)))
+                    self.skip_scan(product_scan)
                 except EmptyScanError as e:
-                    self.skip_scan(scan)
+                    self.skip_scan(product_scan)
                 except Exception as e:
                     self.skip_scan(product_scan)
                     self.log_error(e, product_scan.id,
@@ -547,6 +549,11 @@ class ScanCollator(TaskBase):
         except NotImplementedError:
             # Some platforms do not support qsize
             pass
+        for worker in ([self.primary_worker] + list(self.helper_producers)):
+            code = worker.exitcode()
+            if code is not None and code != 0:
+                self.log("%r has exit code %r" % (worker, code))
+                worker.join(5)
 
     def __iter__(self):
         has_more = True
