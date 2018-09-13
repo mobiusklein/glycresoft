@@ -79,6 +79,11 @@ class GlycanProfilerConsumerTest(unittest.TestCase):
             analysis_name="test-analysis",
             scoring_model=GeneralScorer)
         task.start()
+        # import cProfile
+        # prof = cProfile.Profile()
+        # prof.runcall(task.start)
+        # prof.print_stats()
+        # prof.dump_stats('smooth_profile.pstats')
         self.assertTrue(os.path.exists(output_file))
         ads = AnalysisDeserializer(output_file, analysis_id=1)
         gcs = ads.load_glycan_composition_chromatograms()

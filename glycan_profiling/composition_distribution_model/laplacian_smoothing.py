@@ -29,7 +29,8 @@ class LaplacianSmoothingModel(object):
 
     def __init__(self, network, belongingness_matrix, threshold,
                  regularize=DEFAULT_LAPLACIAN_REGULARIZATION, neighborhood_walker=None,
-                 belongingness_normalization=NORMALIZATION, variance_matrix=None):
+                 belongingness_normalization=NORMALIZATION, variance_matrix=None,
+                 inverse_variance_matrix=None):
         self.network = network
 
         if neighborhood_walker is None:
@@ -53,12 +54,16 @@ class LaplacianSmoothingModel(object):
         if variance_matrix is None:
             variance_matrix = np.eye(len(self.S0))
         self.variance_matrix = variance_matrix
+        if inverse_variance_matrix is None:
+            inverse_variance_matrix = np.eye(len(self.S0))
+        self.inverse_variance_matrix = inverse_variance_matrix
 
     def __reduce__(self):
         return self.__class__, (
             self.network, self.belongingness_matrix, self.threshold,
             self.block_L.regularize, self.neighborhood_walker,
-            self._belongingness_normalization, self.variance_matrix)
+            self._belongingness_normalization, self.variance_matrix,
+            self.inverse_variance_matrix)
 
     @property
     def L_mm_inv(self):
@@ -70,9 +75,7 @@ class LaplacianSmoothingModel(object):
 
     def optimize_observed_scores(self, lmda, t0=0):
         blocks = self.block_L
-        # variance_matrix = self.variance_matrix
-        # V_inv = np.linalg.inv(variance_matrix)
-        V_inv = np.identity(len(self.S0))
+        V_inv = self.inverse_variance_matrix
         L = lmda * V_inv.dot(blocks["oo"] - blocks["om"].dot(self.L_mm_inv).dot(blocks["mo"]))
         B = np.identity(len(self.S0)) + L
         return np.linalg.inv(B).dot(self.S0 - t0) + t0

@@ -162,13 +162,17 @@ GridSearchSolution = namedtuple("GridSearchSolution", (
 
 
 class GridPointSolution(object):
-    def __init__(self, threshold, lmbda, tau, belongingness_matrix, neighborhood_names, node_names):
+    def __init__(self, threshold, lmbda, tau, belongingness_matrix, neighborhood_names, node_names,
+                 variance_matrix=None):
+        if variance_matrix is None:
+            variance_matrix = np.identity(len(node_names))
         self.threshold = threshold
         self.lmbda = lmbda
         self.tau = tau
         self.belongingness_matrix = belongingness_matrix
         self.neighborhood_names = np.array(neighborhood_names)
         self.node_names = np.array(node_names)
+        self.variance_matrix = variance_matrix
 
     def __repr__(self):
         return "GridPointSolution(threshold=%0.3f, lmbda=%0.3f, tau=%r)" % (
@@ -181,7 +185,8 @@ class GridPointSolution(object):
             self.tau.copy(),
             self.belongingness_matrix.copy(),
             self.neighborhood_names.copy(),
-            self.node_names.copy())
+            self.node_names.copy(),
+            self.variance_matrix.copy())
 
     def reindex(self, model):
         node_indices, node_names = self._build_node_index_map(model)
@@ -228,6 +233,14 @@ class GridPointSolution(object):
                     fp.write(",")
                 fp.write("%f" % (a_ij,))
             fp.write("\n")
+        fp.write("variance:\n")
+        for ri, row in enumerate(self.variance_matrix):
+            fp.write("\t")
+            for cj, v in enumerate(row):
+                if cj != 0:
+                    fp.write(",")
+                fp.write("%f" % (v, ))
+            fp.write("\n")
         return fp
 
     @classmethod
@@ -237,6 +250,7 @@ class GridPointSolution(object):
         lmbda = 0
         tau = []
         belongingness_matrix = []
+        variance_matrix = []
         neighborhood_names = []
         node_names = []
         for line_number, line in enumerate(fp):
@@ -255,6 +269,8 @@ class GridPointSolution(object):
                 state = "TAU"
             elif line.startswith("belongingness:"):
                 state = "BELONG"
+            elif line.startswith("variance:"):
+                state = "VARIANCE"
             elif line.startswith("\t") or line.startswith("  "):
                 if state == "TAU":
                     try:
@@ -272,12 +288,25 @@ class GridPointSolution(object):
                         raise e
                     belongingness_matrix.append([float(t) for t in values.split(",")])
                     node_names.append(name)
+                elif state == 'VARIANCE':
+                    try:
+                        _, values = re.split(r"\t|\s{2,}", line)
+                        values = list(map(float, values.split(",")))
+                        variance_matrix.append(values)
+                    except ValueError as e:
+                        print(line_number, line)
+                        raise e
                 else:
                     state = "BETWEEN"
+        if variance_matrix:
+            variance_matrix = np.array(variance_matrix, dtype=np.float64)
+        else:
+            variance_matrix = None
+
         return cls(threshold, lmbda, np.array(tau, dtype=np.float64),
                    np.array(belongingness_matrix, dtype=np.float64),
                    neighborhood_names=neighborhood_names,
-                   node_names=node_names)
+                   node_names=node_names, variance_matrix=variance_matrix)
 
 
 class ThresholdSelectionGridSearch(object):

@@ -1,6 +1,7 @@
 from collections import OrderedDict, defaultdict
 
 import numpy as np
+from scipy import linalg
 
 from glypy import GlycanComposition
 
@@ -56,6 +57,27 @@ class GlycanCompositionSolutionRecord(object):
                 "{self.score}, {self.total_signal})").format(self=self)
 
 
+class ObservationWeightState(object):
+    def __init__(self, raw_scores, weight_matrix):
+        self.raw_scores = raw_scores
+        self.weight_matrix = weight_matrix
+        self.variance_matrix = None
+        self.left_inverse_weight_matrix = None
+        self.inverse_variance_matrix = None
+        self.weighted_scores = None
+        self.transform()
+
+    def transform(self):
+        self.variance_matrix = self.weight_matrix.T.dot(self.weight_matrix)
+        # This is necessary when the weight matrix is not a square matrix (e.g. the identity matrix)
+        # and it is *very slow*. Consider fast-pathing the identity matrix case.
+        self.left_inverse_weight_matrix = linalg.pinv(
+            self.weight_matrix.T.dot(self.weight_matrix)).dot(self.weight_matrix.T)
+        self.inverse_variance_matrix = self.left_inverse_weight_matrix.dot(self.left_inverse_weight_matrix.T)
+        self.weighted_scores = self.left_inverse_weight_matrix.dot(self.raw_scores)
+        self.weighted_scores = self.weighted_scores[np.nonzero(self.weighted_scores)]
+
+
 class VariableObservationAggregation(object):
     def __init__(self, network):
         self.aggregation = defaultdict(list)
@@ -68,39 +90,52 @@ class VariableObservationAggregation(object):
     def reset(self):
         self.aggregation = defaultdict(list)
 
-    def estimate_summaries(self):
-        means = OrderedDict()
-        variances = OrderedDict()
+    @property
+    def total_observations(self):
+        q = 0
         for key, values in self.aggregation.items():
-            means[key] = np.mean([v.score for v in values])
-            variances[key] = 1. / len(values)
-        return means, variances
+            q += len(values)
+        return q
 
-    def update(self):
-        means, variances = self.estimate_summaries()
-        n = len(self.network)
-        observed_scores = np.zeros(n)
-        variance_matrix = np.eye(n)
-        nodes = []
-        for key, value in means.items():
-            node = self.network[key]
-            observed_scores[node.index] = value
-            nodes.append(node)
-            variance_matrix[node.index, node.index] = variances[key]
-        nodes.sort(key=lambda x: x.index)
-        return observed_scores, variance_matrix, nodes
+    def iterobservations(self):
+        for key, values in sorted(self.aggregation.items(), key=lambda x: self.network[x[0]].index):
+            for val in values:
+                yield val
+
+    def observed_indices(self):
+        indices = {self.network[obs.glycan_composition].index for obs in self.iterobservations()}
+        return sorted(indices)
+
+    def calculate_weight(self, observation):
+        return 1
+
+    def build_weight_matrix(self):
+        q = self.total_observations
+        p = len(self.network)
+        weights = np.zeros((q, p))
+        for i, obs in enumerate(self.iterobservations()):
+            weights[i, self.network[obs.glycan_composition].index] = self.calculate_weight(obs)
+        return weights
+
+    def estimate_summaries(self):
+        E = self.build_weight_matrix()
+        scores = [r.score for r in self.iterobservations()]
+        return ObservationWeightState(scores, E)
 
     def build_records(self):
-        scores, variance_matrix, nodes = self.update()
+        observation_weights = self.estimate_summaries()
+        indices = self.observed_indices()
+        nodes = self.network[indices]
         records = []
         indices = []
-        for node in nodes:
+        for i, node in enumerate(nodes):
             rec = GlycanCompositionSolutionRecord(
-                node.glycan_composition, scores[node.index],
-                sum([rec.total_signal for rec in self.aggregation[node.glycan_composition]]))
+                node.glycan_composition, observation_weights.weighted_scores[i],
+                sum([rec.total_signal for rec in self.aggregation[node.glycan_composition]]),
+            )
             records.append(rec)
             indices.append(node.index)
-        return records, np.diag(variance_matrix[indices, indices])
+        return records, observation_weights
 
 
 class AbundanceWeightedObservationAggregation(VariableObservationAggregation):
@@ -122,7 +157,7 @@ class GlycomeModel(LaplacianSmoothingModel):
                  observation_aggregator=VariableObservationAggregation):
         self.observation_aggregator = observation_aggregator
         observed_compositions = [
-            o for o in observed_compositions if _has_glycan_composition(o)]
+            o for o in observed_compositions if _has_glycan_composition(o) and o.score > 0]
         self._observed_compositions = observed_compositions
         self._configure_with_network(network)
         if len(self.miss_ix) == 0:
@@ -139,6 +174,7 @@ class GlycomeModel(LaplacianSmoothingModel):
         self.S0 = np.array([])
         self.C0 = []
         self.variance_matrix = None
+        self.inverse_variance_matrix = None
 
         # Expensive Step
         if belongingness_matrix is None:
@@ -170,7 +206,7 @@ class GlycomeModel(LaplacianSmoothingModel):
     def _populate(self, observations):
         var_agg = self.observation_aggregator(self._network)
         var_agg.collect(observations)
-        aggregated_observations, variance_matrix = var_agg.build_records()
+        aggregated_observations, summarized_state = var_agg.build_records()
         self.network = assign_network(self._network.clone(), aggregated_observations)
         self.obs_ix, self.miss_ix = network_indices(self.network)
 
@@ -178,7 +214,9 @@ class GlycomeModel(LaplacianSmoothingModel):
         self.Am = self.normalized_belongingness_matrix[self.miss_ix, :]
         self.S0 = np.array([g.score for g in self.network[self.obs_ix]])
         self.C0 = ([g for g in self.network[self.obs_ix]])
-        self.variance_matrix = variance_matrix
+        self.summarized_state = summarized_state
+        self.variance_matrix = np.diag(summarized_state.variance_matrix[self.obs_ix, self.obs_ix])
+        self.inverse_variance_matrix = np.diag(summarized_state.inverse_variance_matrix[self.obs_ix, self.obs_ix])
 
     def set_threshold(self, threshold):
         accepted = [
@@ -249,7 +287,8 @@ class GlycomeModel(LaplacianSmoothingModel):
         lum = LaplacianSmoothingModel(
             network, self.normalized_belongingness_matrix, threshold,
             neighborhood_walker=self.neighborhood_walker,
-            belongingness_normalization=renormalize_belongingness)
+            belongingness_normalization=renormalize_belongingness,
+            variance_matrix=self.variance_matrix)
         ident = np.eye(wpl.shape[0])
         for lambd in lambda_values:
             if fit_tau:
@@ -315,7 +354,13 @@ class GlycomeModel(LaplacianSmoothingModel):
             raw_observations = [c for c in self._observed_compositions if c.score > threshold]
             agg = self.observation_aggregator(self.network)
             agg.collect(raw_observations)
-            observations, variance_matrix = agg.build_records()
+
+            observations, summarized_state = agg.build_records()
+            variance_matrix = summarized_state.variance_matrix
+            inverse_variance_matrix = summarized_state.inverse_variance_matrix
+            obs_ix = agg.observed_indices()
+            variance_matrix = np.diag(variance_matrix[obs_ix, obs_ix])
+            inverse_variance_matrix = np.diag(inverse_variance_matrix[obs_ix, obs_ix])
 
             # clear the scores from the network
             current_network = current_network.clone()
@@ -361,7 +406,8 @@ class GlycomeModel(LaplacianSmoothingModel):
                 network, self.normalized_belongingness_matrix, threshold,
                 neighborhood_walker=self.neighborhood_walker,
                 belongingness_normalization=renormalize_belongingness,
-                variance_matrix=variance_matrix)
+                variance_matrix=variance_matrix,
+                inverse_variance_matrix=inverse_variance_matrix)
             updates = []
             taus = []
             lambda_values = np.arange(0.01, lambda_max, lambda_step)
