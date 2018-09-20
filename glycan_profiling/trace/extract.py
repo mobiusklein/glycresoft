@@ -46,7 +46,8 @@ class ChromatogramExtractor(TaskBase):
         self.accumulated = self.peak_loader.ms1_peaks_above(min(500, self.minimum_mass), self.minimum_intensity)
         self.annotated_peaks = [x[:2] for x in self.accumulated]
         self.peak_mapping = {x[:2]: x[2] for x in self.accumulated}
-        self.minimum_intensity = np.percentile([p[1].intensity for p in self.accumulated], 5)
+        if len(self.accumulated) > 0:
+            self.minimum_intensity = np.percentile([p[1].intensity for p in self.accumulated], 5)
 
     def aggregate_chromatograms(self):
         forest = ChromatogramForest([], self.grouping_tolerance, self.scan_id_to_rt)
