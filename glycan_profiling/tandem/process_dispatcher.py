@@ -151,8 +151,9 @@ class IdentificationProcessDispatcher(TaskBase):
         else:
             self.state = ProcessDispatcherState.terminating
         for i, worker in enumerate(self.workers):
-            if worker.exitcode != 0 and worker.exitcode is not None:
-                self.log("... Worker Process %r had exitcode %r" % (worker, worker.exitcode))
+            exitcode = worker.exitcode
+            if exitcode != 0 and worker.exitcode is not None:
+                self.log("... Worker Process %r had exitcode %r" % (worker, exitcode))
             elif worker.is_alive() and worker.token not in self._has_received_token:
                 self.log("... Worker Process %r is still alive and incomplete" % (worker, ))
             try:
