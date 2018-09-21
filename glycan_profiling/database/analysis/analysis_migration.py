@@ -432,7 +432,8 @@ class GlycopeptideMSMSAnalysisSerializer(AnalysisMigrationBase):
                         msms.scan.id).precursor_information.precursor_scan_id)
         scans = []
         for scan_id in scan_ids:
-            scans.append(self.chromatogram_extractor.get_scan_header_by_id(scan_id))
+            if scan_id is not None:
+                scans.append(self.chromatogram_extractor.get_scan_header_by_id(scan_id))
         return sorted(scans, key=lambda x: (x.ms_level, x.index))
 
     def fetch_glycan_compositions(self, glycopeptide_ids):
