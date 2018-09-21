@@ -550,7 +550,7 @@ class ScanCollator(TaskBase):
             # Some platforms do not support qsize
             pass
         for worker in ([self.primary_worker] + list(self.helper_producers)):
-            code = worker.exitcode()
+            code = worker.exitcode
             if code is not None and code != 0:
                 self.log("%r has exit code %r" % (worker, code))
                 worker.join(5)
