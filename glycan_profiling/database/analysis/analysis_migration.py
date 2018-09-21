@@ -132,7 +132,8 @@ class SampleMigrator(DatabaseBoundOperation, TaskBase):
         prod_id = self.scan_id(prec_info.product)
         new_info = PrecursorInformation(
             sample_run_id=self.sample_run_id,
-            precursor_id=self.ms_scan_id_map[prec_id],
+            # precursor may be missing
+            precursor_id=self.ms_scan_id_map.get(prec_id),
             product_id=self.ms_scan_id_map[prod_id],
             neutral_mass=prec_info.neutral_mass,
             charge=prec_info.charge,
