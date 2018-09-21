@@ -258,7 +258,7 @@ class ChromatogramMSMSMapper(TaskBase):
             precursor_scan_time = self.scan_id_to_rt(
                 solution.precursor_information.precursor_scan_id)
         except Exception:
-            precursor_scan_time = solution.scan_time
+            precursor_scan_time = self.scan_id_to_rt(solution.scan_id)
         overlapping_chroma = self.find_chromatogram_spanning(precursor_scan_time)
         chroma = overlapping_chroma.find_mass(
             solution.precursor_information.neutral_mass, self.error_tolerance)
