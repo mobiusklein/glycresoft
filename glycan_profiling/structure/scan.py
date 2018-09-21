@@ -11,12 +11,12 @@ class ScanStub(object):
     ----------
     id : str
         The scan ID for the proxied scan
-    precursor_information : PrecursorInformation
+    precursor_information : :class:`~.PrecursorInformation`
         The information describing the relevant
         metadata for scheduling when and where this
         scan should be processed, where actual loading
         will occur.
-    bind : MzMLLoader
+    bind : :class:`~.RandomAccessScanSource`
         A resource to use to load scans with by scan id.
     """
     def __init__(self, precursor_information, bind):
