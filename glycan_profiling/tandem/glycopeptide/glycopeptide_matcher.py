@@ -651,9 +651,9 @@ class GlycopeptideDatabaseSearchIdentifier(TaskBase):
                              entity_chromatogram_type=GlycopeptideChromatogram):
         self.log("Mapping MS/MS Identifications onto Chromatograms")
         self.log("%d Chromatograms" % len(chromatograms))
-        if len(chromatograms) == 0:
-            self.log("No Chromatograms Extracted!")
-            return chromatograms
+        # if len(chromatograms) == 0:
+        #     self.log("No Chromatograms Extracted!")
+        #     return chromatograms, tandem_identifications
         mapper = ChromatogramMSMSMapper(
             chromatograms, precursor_error_tolerance, self.scan_id_to_rt)
         self.log("Assigning Solutions")
