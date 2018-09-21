@@ -111,6 +111,8 @@ class SampleMigrator(DatabaseBoundOperation, TaskBase):
         self.sample_run_id = new_id
 
     def scan_id(self, ms_scan):
+        if ms_scan is None:
+            return None
         try:
             scan_id = ms_scan.scan_id
         except AttributeError:
@@ -138,6 +140,8 @@ class SampleMigrator(DatabaseBoundOperation, TaskBase):
         return self._migrate(new_info)
 
     def migrate_ms_scan(self, ms_scan):
+        if ms_scan is None:
+            return
         scan_id = self.scan_id(ms_scan)
         new_scan = MSScan._serialize_scan(ms_scan, self.sample_run_id)
         try:
