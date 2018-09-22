@@ -183,12 +183,13 @@ class TargetDecoyInterleavingGlycopeptideMatcher(PeptideMassFilteringDatabaseSea
     '''
     def __init__(self, tandem_cluster, scorer_type, structure_database, minimum_oxonium_ratio=0.05,
                  n_processes=5, ipc_manager=None, probing_range_for_missing_precursors=3,
-                 mass_shifts=None, batch_size=DEFAULT_BATCH_SIZE, peptide_mass_filter=None):
+                 mass_shifts=None, batch_size=DEFAULT_BATCH_SIZE, peptide_mass_filter=None,
+                 trust_precursor_fits=True):
         super(TargetDecoyInterleavingGlycopeptideMatcher, self).__init__(
             tandem_cluster, scorer_type, structure_database, verbose=False,
             n_processes=n_processes, ipc_manager=ipc_manager,
             probing_range_for_missing_precursors=probing_range_for_missing_precursors,
-            mass_shifts=mass_shifts, batch_size=batch_size)
+            mass_shifts=mass_shifts, batch_size=batch_size, trust_precursor_fits=trust_precursor_fits)
         self.tandem_cluster = tandem_cluster
         self.scorer_type = scorer_type
         self.structure_database = structure_database
@@ -198,12 +199,14 @@ class TargetDecoyInterleavingGlycopeptideMatcher(PeptideMassFilteringDatabaseSea
             [], self.scorer_type, self.structure_database, n_processes=n_processes,
             ipc_manager=ipc_manager,
             probing_range_for_missing_precursors=probing_range_for_missing_precursors,
-            mass_shifts=mass_shifts, peptide_mass_filter=peptide_mass_filter)
+            mass_shifts=mass_shifts, peptide_mass_filter=peptide_mass_filter,
+            trust_precursor_fits=trust_precursor_fits)
         self.decoy_evaluator = DecoyGlycopeptideMatcher(
             [], self.scorer_type, self.structure_database, n_processes=n_processes,
             ipc_manager=ipc_manager,
             probing_range_for_missing_precursors=probing_range_for_missing_precursors,
-            mass_shifts=mass_shifts, peptide_mass_filter=peptide_mass_filter)
+            mass_shifts=mass_shifts, peptide_mass_filter=peptide_mass_filter,
+            trust_precursor_fits=trust_precursor_fits)
 
     def filter_for_oxonium_ions(self, error_tolerance=1e-5):
         keep = []
