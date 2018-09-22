@@ -24,7 +24,7 @@ from ..process_dispatcher import SpectrumIdentificationWorkerBase
 from ..temp_store import TempFileManager, SpectrumMatchStore
 from ..oxonium_ions import gscore_scanner
 from ..chromatogram_mapping import ChromatogramMSMSMapper
-from ..workflow import (format_identification, format_identification_batch, chunkiter)
+from ..workflow import (format_identification_batch, chunkiter)
 
 
 class GlycopeptideIdentificationWorker(SpectrumIdentificationWorkerBase):
@@ -135,15 +135,15 @@ class PeptideMassFilteringDatabaseSearchMixin(object):
 class GlycopeptideMatcher(PeptideMassFilteringDatabaseSearchMixin, TandemClusterEvaluatorBase):
     def __init__(self, tandem_cluster, scorer_type, structure_database, parser_type=None,
                  n_processes=5, ipc_manager=None, probing_range_for_missing_precursors=3,
-                 mass_shifts=None, batch_size=DEFAULT_BATCH_SIZE, peptide_mass_filter=None):
+                 mass_shifts=None, batch_size=DEFAULT_BATCH_SIZE, peptide_mass_filter=None,
+                 trust_precursor_fits=True):
         if parser_type is None:
             parser_type = self._default_parser_type()
         super(GlycopeptideMatcher, self).__init__(
             tandem_cluster, scorer_type, structure_database, verbose=False, n_processes=n_processes,
             ipc_manager=ipc_manager,
             probing_range_for_missing_precursors=probing_range_for_missing_precursors,
-            mass_shifts=mass_shifts,
-            batch_size=batch_size)
+            mass_shifts=mass_shifts, batch_size=batch_size, trust_precursor_fits=trust_precursor_fits)
         self.peptide_mass_filter = peptide_mass_filter
         self.parser_type = parser_type
         self.parser = parser_type()
@@ -346,12 +346,14 @@ class ComparisonGlycopeptideMatcher(TargetDecoyInterleavingGlycopeptideMatcher):
     def __init__(self, tandem_cluster, scorer_type, target_structure_database, decoy_structure_database,
                  minimum_oxonium_ratio=0.05, n_processes=5, ipc_manager=None,
                  probing_range_for_missing_precursors=3, mass_shifts=None,
-                 batch_size=DEFAULT_BATCH_SIZE, peptide_mass_filter=None):
+                 batch_size=DEFAULT_BATCH_SIZE, peptide_mass_filter=None,
+                 trust_precursor_fits=True):
         super(ComparisonGlycopeptideMatcher, self).__init__(
             tandem_cluster, scorer_type, target_structure_database,
             n_processes=n_processes, ipc_manager=ipc_manager,
             probing_range_for_missing_precursors=probing_range_for_missing_precursors,
-            mass_shifts=mass_shifts, batch_size=batch_size, peptide_mass_filter=peptide_mass_filter)
+            mass_shifts=mass_shifts, batch_size=batch_size, peptide_mass_filter=peptide_mass_filter,
+            trust_precursor_fits=trust_precursor_fits)
 
         self.tandem_cluster = tandem_cluster
         self.scorer_type = scorer_type
@@ -365,12 +367,14 @@ class ComparisonGlycopeptideMatcher(TargetDecoyInterleavingGlycopeptideMatcher):
             [], self.scorer_type, self.target_structure_database,
             n_processes=n_processes, ipc_manager=ipc_manager,
             probing_range_for_missing_precursors=probing_range_for_missing_precursors,
-            mass_shifts=mass_shifts, peptide_mass_filter=peptide_mass_filter)
+            mass_shifts=mass_shifts, peptide_mass_filter=peptide_mass_filter,
+            trust_precursor_fits=trust_precursor_fits)
         self.decoy_evaluator = GlycopeptideMatcher(
             [], self.scorer_type, self.decoy_structure_database,
             n_processes=n_processes, ipc_manager=ipc_manager,
             probing_range_for_missing_precursors=probing_range_for_missing_precursors,
-            mass_shifts=mass_shifts, peptide_mass_filter=peptide_mass_filter)
+            mass_shifts=mass_shifts, peptide_mass_filter=peptide_mass_filter,
+            trust_precursor_fits=trust_precursor_fits)
 
     def score_bunch(self, scans, precursor_error_tolerance=1e-5, simplify=True, *args, **kwargs):
         # Map scans to target database
