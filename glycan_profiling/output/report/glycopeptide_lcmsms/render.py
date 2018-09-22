@@ -223,7 +223,7 @@ class GlycopeptideDatabaseSearchReportCreator(ReportCreatorBase):
         if len(scan_title) > 60:
             scan_title = '\n'.join(textwrap.wrap(scan_title, 60))
 
-        annotated_match_ax.set_title("%s\n" % (scan.id,), fontsize=18)
+        annotated_match_ax.set_title(scan_title, fontsize=18)
         annotated_match_ax.set_ylabel(annotated_match_ax.get_ylabel(), fontsize=16)
         annotated_match_ax.set_xlabel(annotated_match_ax.get_xlabel(), fontsize=16)
 

@@ -26,7 +26,7 @@ def printer(obj, message):
 
 
 def debug_printer(obj, message):
-    if obj._debug_enabled:
+    if obj.in_debug_mode():
         print("DEBUG:" + fmt_msg(message))
 
 
@@ -149,8 +149,9 @@ def humanize_class_name(name):
 class TaskBase(object):
     status = "new"
 
-    _debug_enabled = False
+    _debug_enabled = None
 
+    logger_state = None
     print_fn = printer
     debug_print_fn = debug_printer
     error_print_fn = printer
@@ -167,9 +168,17 @@ class TaskBase(object):
 
     @classmethod
     def log_with_logger(cls, logger):
+        cls.logger_state = logger
         cls.print_fn = logger.info
         cls.debug_print_fn = logger.debug
         cls.error_print_fn = logger.error
+
+    def in_debug_mode(self):
+        if self._debug_enabled is None:
+            logger_state = self.logger_state
+            if logger_state is not None:
+                self._debug_enabled = logger_state.isEnabledFor("DEBUG")
+        return bool(self._debug_enabled)
 
     def _format_fields(self):
         if self.display_fields:

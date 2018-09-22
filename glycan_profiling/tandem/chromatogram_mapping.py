@@ -277,6 +277,7 @@ class ChromatogramMSMSMapper(TaskBase):
     def distribute_orphans(self, threshold_fn=lambda x: x.q_value < 0.05):
         lost = []
         n = len(self.orphans)
+        n_chromatograms = len(self.chromatograms)
         for j, orphan in enumerate(self.orphans):
             mass = orphan.solution.precursor_ion_mass
             time = orphan.scan_time
@@ -295,8 +296,9 @@ class ChromatogramMSMSMapper(TaskBase):
                     new_owner.add_displaced_solution(orphan.solution)
             else:
                 if threshold_fn(orphan.solution):
-                    self.log("No chromatogram found for %r, q-value %0.4f (mass: %0.4f, time: %0.4f)" % (
-                        orphan, orphan.solution.q_value, mass, time))
+                    if n_chromatograms > 0:
+                        self.log("No chromatogram found for %r, q-value %0.4f (mass: %0.4f, time: %0.4f)" % (
+                            orphan, orphan.solution.q_value, mass, time))
                     lost.append(orphan.solution)
         self.orphans = TandemSolutionsWithoutChromatogram.aggregate(lost)
 

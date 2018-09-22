@@ -42,6 +42,8 @@ class ChromatogramEvaluator(TaskBase):
         for case in filtered:
             start = time.time()
             i += 1
+            if self.in_debug_mode():
+                self.debug("... Evaluating %r" % (case, ))
             if i % 1000 == 0:
                 self.log("%0.2f%% chromatograms evaluated (%d/%d)" % (i * 100. / n, i, n))
             try:

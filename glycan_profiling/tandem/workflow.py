@@ -12,13 +12,14 @@ from .spectrum_evaluation import TandemClusterEvaluatorBase, DEFAULT_BATCH_SIZE
 class TandemDatabaseMatcherBase(TandemClusterEvaluatorBase):
     def __init__(self, tandem_cluster, scorer_type, structure_database, parser_type=None,
                  n_processes=5, ipc_manager=None, probing_range_for_missing_precursors=3,
-                 mass_shifts=None, batch_size=DEFAULT_BATCH_SIZE):
+                 trust_precursor_fits=True, mass_shifts=None, batch_size=DEFAULT_BATCH_SIZE):
         if parser_type is None:
             parser_type = self._default_parser_type()
         super(TandemDatabaseMatcherBase, self).__init__(
             tandem_cluster, scorer_type, structure_database, verbose=False, n_processes=n_processes,
             ipc_manager=ipc_manager,
             probing_range_for_missing_precursors=probing_range_for_missing_precursors,
+            trust_precursor_fits=trust_precursor_fits,
             mass_shifts=mass_shifts,
             batch_size=batch_size)
         self.parser_type = parser_type
@@ -71,7 +72,8 @@ def format_identification_batch(group, n):
 
 class DatabaseSearchIdentifierBase(TaskBase):
     def __init__(self, tandem_scans, scorer_type, structure_database, scan_id_to_rt=lambda x: x,
-                 scan_transformer=lambda x: x, adducts=None, n_processes=5, file_manager=None):
+                 scan_transformer=lambda x: x, adducts=None, n_processes=5, file_manager=None,
+                 probing_range_for_missing_precursors=3, trust_precursor_fits=True):
         if file_manager is None:
             file_manager = TempFileManager()
         if adducts is None:
@@ -85,6 +87,9 @@ class DatabaseSearchIdentifierBase(TaskBase):
         self.scan_id_to_rt = scan_id_to_rt
         self.adducts = adducts
         self.scan_transformer = scan_transformer
+
+        self.probing_range_for_missing_precursors = probing_range_for_missing_precursors
+        self.trust_precursor_fits = trust_precursor_fits
 
         self.n_processes = n_processes
         self.ipc_manager = IPCManager()
@@ -214,12 +219,14 @@ class DatabaseSearchIdentifierBase(TaskBase):
 
 class DatabaseSearchComparerBase(DatabaseSearchIdentifierBase):
     def __init__(self, tandem_scans, scorer_type, target_database, decoy_database, scan_id_to_rt=lambda x: x,
-                 scan_transformer=lambda x: x, adducts=None, n_processes=5, file_manager=None):
+                 scan_transformer=lambda x: x, adducts=None, n_processes=5, file_manager=None,
+                 probing_range_for_missing_precursors=3, trust_precursor_fits=True):
         self.target_database = target_database
         self.decoy_database = decoy_database
         super(DatabaseSearchComparerBase, self).__init__(
             tandem_scans, scorer_type, self.target_database, scan_id_to_rt,
-            scan_transformer, adducts, n_processes, file_manager)
+            scan_transformer, adducts, n_processes, file_manager, probing_range_for_missing_precursors,
+            trust_precursor_fits)
 
     def _clear_database_cache(self):
         self.target_database.clear_cache()
