@@ -1,4 +1,6 @@
 import os
+import textwrap
+
 from collections import OrderedDict
 
 from glycopeptidepy.structure.glycan import GlycosylationType
@@ -216,6 +218,10 @@ class GlycopeptideDatabaseSearchReportCreator(ReportCreatorBase):
         specmatch_artist = TidySpectrumMatchAnnotator(match, ax=figax())
         specmatch_artist.draw(fontsize=10, pretty=True)
         annotated_match_ax = specmatch_artist.ax
+
+        scan_title = scan.id
+        if len(scan_title) > 60:
+            scan_title = '\n'.join(textwrap.wrap(scan_title, 60))
 
         annotated_match_ax.set_title("%s\n" % (scan.id,), fontsize=18)
         annotated_match_ax.set_ylabel(annotated_match_ax.get_ylabel(), fontsize=16)
