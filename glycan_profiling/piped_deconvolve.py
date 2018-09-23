@@ -12,7 +12,7 @@ from ms_deisotope.processor import (
 
 from ms_deisotope.feature_map.quick_index import index as build_scan_index
 
-from ms_deisotope.data_source.common import ProcessedScan
+from ms_deisotope.data_source.common import ProcessedScan, ScanBunch, ScanBase
 
 import logging
 from glycan_profiling.task import (
@@ -47,11 +47,11 @@ denoise = ms_peak_picker.scan_filter.FTICRBaselineRemoval(window_length=2.)
 
 class ScanIDYieldingProcess(Process):
 
-    def __init__(self, mzml_path, queue, start_scan=None, max_scans=None, end_scan=None,
+    def __init__(self, ms_file_path, queue, start_scan=None, max_scans=None, end_scan=None,
                  no_more_event=None, ignore_tandem_scans=False, batch_size=1):
         Process.__init__(self)
         self.daemon = True
-        self.mzml_path = mzml_path
+        self.ms_file_path = ms_file_path
         self.queue = queue
         self.loader = None
 
@@ -68,22 +68,40 @@ class ScanIDYieldingProcess(Process):
         scan_ids = []
         for i in range(self.batch_size):
             try:
-                scan, products = next(self.loader)
-            except Exception:
+                bunch = next(self.loader)
+                scan, products = bunch
+                if scan is not None:
+                    scan_id = scan.id
+                else:
+                    scan_id = None
+                product_scan_ids = [p.id for p in products]
+            except Exception as e:
+                log_handle.error("An error occurred in _make_scan_batch", e)
                 break
-            scan_id = scan.id
             if not self.ignore_tandem_scans:
-                batch.append((scan_id, [p.id for p in products], True))
+                batch.append((scan_id, product_scan_ids, True))
             else:
-                batch.append((scan_id, [p.id for p in products], False))
+                batch.append((scan_id, product_scan_ids, False))
             scan_ids.append(scan_id)
         return batch, scan_ids
 
     def run(self):
-        self.loader = MSFileLoader(self.mzml_path, huge_tree=huge_tree)
+        self.loader = MSFileLoader(self.ms_file_path, huge_tree=huge_tree)
 
         if self.start_scan is not None:
-            self.loader.start_from_scan(self.start_scan)
+            try:
+                self.loader.start_from_scan(
+                    self.start_scan, require_ms1=self.loader.has_ms1_scans(), grouped=True)
+            except IndexError as e:
+                log_handle.error("An error occurred while locating start scan", e)
+                self.loader.reset()
+                self.loader.make_iterator(grouped=True)
+            except AttributeError:
+                log_handle.error("The reader does not support random access, start time will be ignored", e)
+                self.loader.reset()
+                self.loader.make_iterator(grouped=True)
+        else:
+            self.loader.make_iterator(grouped=True)
 
         count = 0
         last = 0
@@ -102,7 +120,7 @@ class ScanIDYieldingProcess(Process):
                 if (count - last) > 1000:
                     last = count
                     self.queue.join()
-                if end_scan in ids or len(ids) == 0:
+                if (end_scan in ids and end_scan is not None) or len(ids) == 0:
                     break
             except StopIteration:
                 break
@@ -128,10 +146,14 @@ class ScanBunchLoader(object):
 
     def get(self):
         scan_id, product_scan_ids = self.queue.popleft()
-        precursor = self.loader.get_scan_by_id(scan_id)
+        if scan_id is not None:
+            precursor = self.loader.get_scan_by_id(scan_id)
+        else:
+            precursor = None
         products = [self.loader.get_scan_by_id(
-            pid) for pid in product_scan_ids]
-        precursor.product_scans = products
+            pid) for pid in product_scan_ids if pid is not None]
+        if precursor:
+            precursor.product_scans = products
         return (precursor, products)
 
 
@@ -318,27 +340,36 @@ class ScanTransformingProcess(Process, ScanTransformMixin):
                 self.log_message("Something went wrong when loading bunch (%s): %r.\nRecovery is not possible." % (
                     (scan_id, product_scan_ids), e))
 
-            if len(scan.arrays[0]) == 0:
-                self.skip_scan(scan)
-                continue
+            # handle the MS1 scan if it is present
+            if scan is not None:
+                if len(scan.arrays[0]) == 0:
+                    self.skip_scan(scan)
+                    continue
 
-            try:
-                scan, priorities, product_scans = transformer.process_scan_group(
-                    scan, product_scans)
-                if self.deconvolute:
-                    transformer.deconvolute_precursor_scan(scan, priorities)
-                self.send_scan(scan)
-            except NoIsotopicClustersError as e:
-                self.log_message("No isotopic clusters were extracted from scan %s (%r)" % (
-                    e.scan_id, len(scan.peak_set)))
-                self.skip_scan(scan)
-            except EmptyScanError as e:
-                self.skip_scan(scan)
-            except Exception as e:
-                self.skip_scan(scan)
-                self.log_error(e, scan_id, scan, (product_scan_ids))
+                try:
+                    scan, priorities, product_scans = transformer.process_scan_group(
+                        scan, product_scans)
+                    if scan is None:
+                        # no way to report skip
+                        pass
+                    else:
+                        if self.deconvolute:
+                            transformer.deconvolute_precursor_scan(scan, priorities)
+                        self.send_scan(scan)
+                except NoIsotopicClustersError as e:
+                    self.log_message("No isotopic clusters were extracted from scan %s (%r)" % (
+                        e.scan_id, len(scan.peak_set)))
+                    self.skip_scan(scan)
+                except EmptyScanError as e:
+                    self.skip_scan(scan)
+                except Exception as e:
+                    self.skip_scan(scan)
+                    self.log_error(e, scan_id, scan, (product_scan_ids))
 
             for product_scan in product_scans:
+                # no way to report skip
+                if product_scan is None:
+                    continue
                 if len(product_scan.arrays[0]) == 0 or (not process_msn):
                     self.skip_scan(product_scan)
                     continue
@@ -346,6 +377,8 @@ class ScanTransformingProcess(Process, ScanTransformMixin):
                     transformer.pick_product_scan_peaks(product_scan)
                     if self.deconvolute:
                         transformer.deconvolute_product_scan(product_scan)
+                        if scan is None:
+                            product_scan.precursor_information.default(orphan=True)
                     self.send_scan(product_scan)
                 except NoIsotopicClustersError as e:
                     self.log_message("No isotopic clusters were extracted from scan %s (%r)" % (
@@ -752,7 +785,7 @@ class ScanGenerator(TaskBase, ScanGeneratorBase):
             self.error("An error occurred while pre-indexing.", e)
 
     def _make_interval_tree(self, start_scan, end_scan):
-        reader = MSFileLoader(self.ms_file, huge_tree=huge_tree)
+        reader = MSFileLoader(self.ms_file)
         if start_scan is not None:
             start_ix = reader.get_scan_by_id(start_scan).index
         else:

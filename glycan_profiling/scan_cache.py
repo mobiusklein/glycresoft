@@ -12,7 +12,7 @@ except ImportError:
 
 from ms_deisotope.data_source import MSFileLoader
 from ms_deisotope.data_source.metadata.file_information import (
-    SourceFile as MetadataSourceFile)
+    SourceFile as MetadataSourceFile, FileInformation)
 
 from ms_deisotope.output.mzml import MzMLScanSerializer
 
@@ -264,7 +264,10 @@ class MzMLScanCacheHandler(ScanCacheHandlerBase):
             n_spectra = len(reader.index)
             deconvoluting = source.deconvoluting
             inst = cls(path, sample_name, n_spectra=n_spectra, deconvoluted=deconvoluting)
-            description = reader.file_description()
+            try:
+                description = reader.file_description()
+            except AttributeError:
+                description = FileInformation()
             source_file_metadata = MetadataSourceFile.from_path(source.scan_source)
             inst.serializer.add_file_information(description)
             try:
