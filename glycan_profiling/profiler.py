@@ -509,7 +509,8 @@ class GlycopeptideLCMSMSAnalyzer(TaskBase):
                  msn_mass_error_tolerance=2e-5, psm_fdr_threshold=0.05, peak_shape_scoring_model=None,
                  tandem_scoring_model=None, minimum_mass=1000., save_unidentified=False,
                  oxonium_threshold=0.05, scan_transformer=None, adducts=None, n_processes=5,
-                 spectra_chunk_size=1000, use_peptide_mass_filter=False, maximum_mass=float('inf')):
+                 spectra_chunk_size=1000, use_peptide_mass_filter=False, maximum_mass=float('inf'),
+                 probing_range_for_missing_precursors=3, trust_precursor_fits=True):
         if tandem_scoring_model is None:
             tandem_scoring_model = CoverageWeightedBinomialScorer
         if peak_shape_scoring_model is None:
@@ -542,6 +543,8 @@ class GlycopeptideLCMSMSAnalyzer(TaskBase):
         self.spectra_chunk_size = spectra_chunk_size
         self.use_peptide_mass_filter = use_peptide_mass_filter
         self.maximum_mass = maximum_mass
+        self.probing_range_for_missing_precursors = probing_range_for_missing_precursors
+        self.trust_precursor_fits = trust_precursor_fits
         self.file_manager = TempFileManager()
 
     def make_peak_loader(self):
@@ -576,7 +579,9 @@ class GlycopeptideLCMSMSAnalyzer(TaskBase):
             n_processes=self.n_processes,
             adducts=self.adducts,
             use_peptide_mass_filter=self.use_peptide_mass_filter,
-            file_manager=self.file_manager)
+            file_manager=self.file_manager,
+            probing_range_for_missing_precursors=self.probing_range_for_missing_precursors,
+            trust_precursor_fits=self.trust_precursor_fits)
         return searcher
 
     def do_search(self, searcher):
@@ -731,7 +736,8 @@ class MzMLGlycopeptideLCMSMSAnalyzer(GlycopeptideLCMSMSAnalyzer):
                  tandem_scoring_model=None, minimum_mass=1000., save_unidentified=False,
                  oxonium_threshold=0.05, scan_transformer=None, adducts=None,
                  n_processes=5, spectra_chunk_size=1000, use_peptide_mass_filter=False,
-                 maximum_mass=float('inf')):
+                 maximum_mass=float('inf'), probing_range_for_missing_precursors=3,
+                 trust_precursor_fits=True):
         super(MzMLGlycopeptideLCMSMSAnalyzer, self).__init__(
             database_connection,
             hypothesis_id, -1,
@@ -741,7 +747,9 @@ class MzMLGlycopeptideLCMSMSAnalyzer(GlycopeptideLCMSMSAnalyzer):
             tandem_scoring_model, minimum_mass,
             save_unidentified, oxonium_threshold,
             scan_transformer, adducts, n_processes, spectra_chunk_size,
-            use_peptide_mass_filter, maximum_mass)
+            use_peptide_mass_filter, maximum_mass,
+            probing_range_for_missing_precursors=probing_range_for_missing_precursors,
+            trust_precursor_fits=trust_precursor_fits)
         self.sample_path = sample_path
         self.output_path = output_path
 
@@ -819,7 +827,8 @@ class MzMLComparisonGlycopeptideLCMSMSAnalyzer(MzMLGlycopeptideLCMSMSAnalyzer):
                  tandem_scoring_model=None, minimum_mass=1000., save_unidentified=False,
                  oxonium_threshold=0.05, scan_transformer=None, adducts=None,
                  n_processes=5, spectra_chunk_size=1000, use_peptide_mass_filter=False,
-                 maximum_mass=float('inf'), use_decoy_correction_threshold=None):
+                 maximum_mass=float('inf'), use_decoy_correction_threshold=None,
+                 probing_range_for_missing_precursors=3, trust_precursor_fits=True):
         if use_decoy_correction_threshold is None:
             use_decoy_correction_threshold = 0.33
         if tandem_scoring_model == CoverageWeightedBinomialScorer:
@@ -831,7 +840,7 @@ class MzMLComparisonGlycopeptideLCMSMSAnalyzer(MzMLGlycopeptideLCMSMSAnalyzer):
             tandem_scoring_model, minimum_mass, save_unidentified,
             oxonium_threshold, scan_transformer, adducts,
             n_processes, spectra_chunk_size, use_peptide_mass_filter,
-            maximum_mass)
+            maximum_mass, probing_range_for_missing_precursors, trust_precursor_fits)
         self.decoy_database_connection = decoy_database_connection
         self.use_decoy_correction_threshold = use_decoy_correction_threshold
 
@@ -846,7 +855,9 @@ class MzMLComparisonGlycopeptideLCMSMSAnalyzer(MzMLGlycopeptideLCMSMSAnalyzer):
             n_processes=self.n_processes,
             adducts=self.adducts,
             use_peptide_mass_filter=self.use_peptide_mass_filter,
-            file_manager=self.file_manager)
+            file_manager=self.file_manager,
+            probing_range_for_missing_precursors=self.probing_range_for_missing_precursors,
+            trust_precursor_fits=self.trust_precursor_fits)
         return searcher
 
     def make_decoy_database(self):
