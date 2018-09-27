@@ -121,6 +121,7 @@ class ScanIDYieldingProcess(Process):
                     last = count
                     self.queue.join()
                 if (end_scan in ids and end_scan is not None) or len(ids) == 0:
+                    log_handle.log("End Scan Found")
                     break
             except StopIteration:
                 break
