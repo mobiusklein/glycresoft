@@ -27,9 +27,12 @@ from .graph import (
 from .grid_search import (
     NetworkReduction,
     NetworkTrimmingSearchSolution,
-    GridPointSolution,
-    GridSearchSolution,
     ThresholdSelectionGridSearch)
+
+from .observation import (
+    GlycanCompositionSolutionRecord,
+    VariableObservationAggregation,
+    ObservationWeightState)
 
 
 def _has_glycan_composition(x):
@@ -38,115 +41,6 @@ def _has_glycan_composition(x):
         return gc is not None
     except AttributeError:
         return False
-
-
-class GlycanCompositionSolutionRecord(object):
-    def __init__(self, glycan_composition, score, total_signal=1.0):
-        self.glycan_composition = glycan_composition
-        self.score = score
-        self.internal_score = self.score
-        self.total_signal = total_signal
-
-    @classmethod
-    def from_chromatogram(cls, solution):
-        return cls(solution.glycan_composition, solution.score,
-                   solution.total_signal)
-
-    def __repr__(self):
-        return ("{self.__class__.__name__}({self.glycan_composition}, "
-                "{self.score}, {self.total_signal})").format(self=self)
-
-
-class ObservationWeightState(object):
-    def __init__(self, raw_scores, weight_matrix):
-        self.raw_scores = raw_scores
-        self.weight_matrix = weight_matrix
-        self.variance_matrix = None
-        self.left_inverse_weight_matrix = None
-        self.inverse_variance_matrix = None
-        self.weighted_scores = None
-        self.transform()
-
-    def transform(self):
-        self.variance_matrix = self.weight_matrix.T.dot(self.weight_matrix)
-        # This is necessary when the weight matrix is not a square matrix (e.g. the identity matrix)
-        # and it is *very slow*. Consider fast-pathing the identity matrix case.
-        self.left_inverse_weight_matrix = linalg.pinv(
-            self.weight_matrix.T.dot(self.weight_matrix)).dot(self.weight_matrix.T)
-        self.inverse_variance_matrix = self.left_inverse_weight_matrix.dot(self.left_inverse_weight_matrix.T)
-        self.weighted_scores = self.left_inverse_weight_matrix.dot(self.raw_scores)
-        self.weighted_scores = self.weighted_scores[np.nonzero(self.weighted_scores)]
-
-
-class VariableObservationAggregation(object):
-    def __init__(self, network):
-        self.aggregation = defaultdict(list)
-        self.network = network
-
-    def collect(self, observations):
-        for obs in observations:
-            self.aggregation[obs.glycan_composition].append(obs)
-
-    def reset(self):
-        self.aggregation = defaultdict(list)
-
-    @property
-    def total_observations(self):
-        q = 0
-        for key, values in self.aggregation.items():
-            q += len(values)
-        return q
-
-    def iterobservations(self):
-        for key, values in sorted(self.aggregation.items(), key=lambda x: self.network[x[0]].index):
-            for val in values:
-                yield val
-
-    def observed_indices(self):
-        indices = {self.network[obs.glycan_composition].index for obs in self.iterobservations()}
-        return sorted(indices)
-
-    def calculate_weight(self, observation):
-        return 1
-
-    def build_weight_matrix(self):
-        q = self.total_observations
-        p = len(self.network)
-        weights = np.zeros((q, p))
-        for i, obs in enumerate(self.iterobservations()):
-            weights[i, self.network[obs.glycan_composition].index] = self.calculate_weight(obs)
-        return weights
-
-    def estimate_summaries(self):
-        E = self.build_weight_matrix()
-        scores = [r.score for r in self.iterobservations()]
-        return ObservationWeightState(scores, E)
-
-    def build_records(self):
-        observation_weights = self.estimate_summaries()
-        indices = self.observed_indices()
-        nodes = self.network[indices]
-        records = []
-        indices = []
-        for i, node in enumerate(nodes):
-            rec = GlycanCompositionSolutionRecord(
-                node.glycan_composition, observation_weights.weighted_scores[i],
-                sum([rec.total_signal for rec in self.aggregation[node.glycan_composition]]),
-            )
-            records.append(rec)
-            indices.append(node.index)
-        return records, observation_weights
-
-
-class AbundanceWeightedObservationAggregation(VariableObservationAggregation):
-    def estimate_summaries(self):
-        means = OrderedDict()
-        variances = OrderedDict()
-        for key, values in self.aggregation.items():
-            weights = np.log10([v.total_signal for v in values])
-            means[key] = np.average([v.score for v in values], weights=weights)
-            variances[key] = 1. / weights.sum()
-        return means, variances
 
 
 class GlycomeModel(LaplacianSmoothingModel):
@@ -506,15 +400,3 @@ def smooth_network(network, observed_compositions, threshold_step=0.5, apex_thre
     network = search.annotate_network(params, include_missing=include_missing)
 
     return network, search, params
-
-
-def display_table(names, values, sigfig=3, filter_empty=1, print_fn=None):
-    values = np.array(values)
-    maxlen = len(max(names, key=len)) + 2
-    fstring = ("%%0.%df" % sigfig)
-    for i in range(len(values)):
-        if values[i, :].sum() or not filter_empty:
-            if print_fn is None:
-                print(names[i].ljust(maxlen) + ('|'.join([fstring % f for f in values[i, :]])))
-            else:
-                print_fn(names[i].ljust(maxlen) + ('|'.join([fstring % f for f in values[i, :]])))

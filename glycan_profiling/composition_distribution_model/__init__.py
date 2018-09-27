@@ -32,14 +32,21 @@ from glycan_profiling.composition_distribution_model.grid_search import (
     GridPointSolution,
     ThresholdSelectionGridSearch)
 
-from glycan_profiling.composition_distribution_model.glycome_network_smoothing import (
-    GlycomeModel,
+
+from glycan_profiling.composition_distribution_model.observation import (
     GlycanCompositionSolutionRecord,
     VariableObservationAggregation,
     AbundanceWeightedObservationAggregation,
+    ObservationWeightState)
+
+
+from glycan_profiling.composition_distribution_model.glycome_network_smoothing import (
+    GlycomeModel,
     NeighborhoodPrior,
-    smooth_network,
-    display_table)
+    smooth_network)
+
+
+from glycan_profiling.composition_distribution_model.utils import display_table
 
 
 __all__ = [
@@ -75,5 +82,6 @@ __all__ = [
     "AbundanceWeightedObservationAggregation",
     "NeighborhoodPrior",
     "smooth_network",
-    "display_table"
+    "display_table",
+    "ObservationWeightState"
 ]

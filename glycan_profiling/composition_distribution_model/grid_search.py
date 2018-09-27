@@ -378,7 +378,7 @@ class ThresholdSelectionGridSearch(object):
 
         # Removes rows from A0
         self.model.set_threshold(state.threshold)
-        self.model.variance_matrix
+        variance_matrix = self.model.variance_matrix
 
         tau = self.model.estimate_tau_from_S0(rho, lmbda)
         A = self.model.normalized_belongingness_matrix.copy()
@@ -388,7 +388,8 @@ class ThresholdSelectionGridSearch(object):
 
         return GridPointSolution(state.threshold, lmbda, tau, A,
                                  self.model.neighborhood_names,
-                                 self.model.node_names)
+                                 self.model.node_names,
+                                 variance_matrix=variance_matrix)
 
     def get_solutions(self, rho=DEFAULT_RHO, lmbda=None):
         states = self._get_solution_states()
@@ -402,6 +403,7 @@ class ThresholdSelectionGridSearch(object):
         tau_acc = np.zeros_like(solutions[0].tau)
         lmbda_acc = 0
         thresh_acc = 0
+        # variance_matrix = np.zeros_like()
         A = np.zeros_like(solutions[0].belongingness_matrix)
         for sol in solutions:
             thresh_acc += sol.threshold
@@ -475,7 +477,7 @@ class ThresholdSelectionGridSearch(object):
         ax.set_ylabel("Criterion", fontsize=18)
         ax.set_title("Locate Ideal Threshold\nBy Maximizing ${\\bar \\tau_j}$", fontsize=28)
         ax.set_xticks([x_ for i, x_ in enumerate(solution.thresholds) if i % 5 == 0])
-        ax.set_xticklabels(["%0.2f" % x_ for i, x_ in enumerate(solution.thresholds) if i % 5 == 0])
+        ax.set_xticklabels(["%0.2f" % x_ for i, x_ in enumerate(solution.thresholds) if i % 5 == 0], rotation=90)
         return ax
 
     def plot_thresholds(self, ax=None):
