@@ -56,6 +56,9 @@ def make_extensions():
             Extension(name='glycan_profiling._c.chromatogram_tree.mass_shift',
                       sources=["glycan_profiling/_c/chromatogram_tree/mass_shift.pyx"],
                       include_dirs=[numpy.get_include()]),
+            Extension(name='glycan_profiling._c.chromatogram_tree.index',
+                      sources=["glycan_profiling/_c/chromatogram_tree/index.pyx"],
+                      include_dirs=[numpy.get_include()])
         ], compiler_directives=cython_directives, force=force_cythonize)
     except ImportError:
         extensions = ([
@@ -68,6 +71,12 @@ def make_extensions():
             Extension(name='glycan_profiling._c.scoring.shape_fitter',
                       sources=["glycan_profiling/_c/scoring/shape_fitter.c"],
                       include_dirs=[numpy.get_include()]),
+            Extension(name='glycan_profiling._c.chromatogram_tree.mass_shift',
+                      sources=["glycan_profiling/_c/chromatogram_tree/mass_shift.c"],
+                      include_dirs=[numpy.get_include()]),
+            Extension(name='glycan_profiling._c.chromatogram_tree.index',
+                      sources=["glycan_profiling/_c/chromatogram_tree/index.c"],
+                      include_dirs=[numpy.get_include()])
         ])
     return extensions
 
