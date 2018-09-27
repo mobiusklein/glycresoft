@@ -114,6 +114,7 @@ class ChromatogramEvaluator(TaskBase):
 class LogitSumChromatogramEvaluator(ChromatogramEvaluator):
     acceptance_threshold = 4
     ignore_below = 2
+    update_score_on_merge = True
 
     def __init__(self, scoring_model):
         super(LogitSumChromatogramEvaluator, self).__init__(scoring_model)
@@ -147,6 +148,11 @@ class LogitSumChromatogramEvaluator(ChromatogramEvaluator):
             merged = reference.__class__(
                 base, reference.score, scorer=reference.scorer,
                 score_set=reference.score_set)
+            if self.update_score_on_merge:
+                aggregated = self.evaluate_chromatogram(merged)
+                if aggregated.score > reference.score:
+                    merged.score_set = aggregated.score_set
+                    merged.score = aggregated.score
             solutions.append(merged)
         return ChromatogramFilter(solutions)
 
