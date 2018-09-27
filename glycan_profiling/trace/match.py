@@ -279,7 +279,7 @@ class ChromatogramMatcher(TaskBase):
         n = len(chromatograms)
         for chro in chromatograms:
             i += 1
-            if i % 1000 == 0:
+            if i % 1000 == 0 and i > 0:
                 self.log("... %0.2f%% chromatograms searched (%d/%d)" % (i * 100. / n, i, n))
             matches.extend(self.search(chro, mass_error_tolerance))
         matches = ChromatogramFilter(matches)

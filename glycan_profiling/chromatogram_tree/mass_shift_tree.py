@@ -1,8 +1,10 @@
+from glycan_profiling.task import TaskBase
+
 from .chromatogram import (get_chromatogram, mask_subsequence)
 from .index import ChromatogramFilter
 
 
-class AdductTreePruner(object):
+class AdductTreePruner(TaskBase):
     def __init__(self, solutions, score_margin=2.5, ratio_threshold=1.5, trivial_abundance_delta_ratio=0.01):
         self.solutions = solutions
         self.score_margin = score_margin
@@ -58,7 +60,10 @@ class AdductTreePruner(object):
             case.chromatogram.used_as_adduct = keepers
 
     def prune_branches(self):
-        for case in self.solutions:
+        n = len(self.solutions)
+        for i, case in enumerate(self.solutions):
+            if i % 1000 == 0 and i > 0:
+                self.log("... %d chromatograms reduced (%0.2f%%" % (i, i / float(n) * 100.0))
             self.handle_chromatogram(case)
         out = [s.chromatogram for k in (set(self.key_map) - self.updated) for s in self.key_map[k]]
         out.extend(s for k in self.updated for s in self.key_map[k])

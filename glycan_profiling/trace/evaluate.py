@@ -88,6 +88,7 @@ class ChromatogramEvaluator(TaskBase):
             chromatograms, delta_rt, min_points, smooth_overlap_rt, *args, **kwargs)
 
         if adducts:
+            self.log("Pruning adduct branches")
             hold = self.prune_adducts(solutions)
             self.log("Re-evaluating after adduct pruning")
             solutions = self.evaluate(hold, delta_rt, min_points, smooth_overlap_rt,
