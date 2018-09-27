@@ -221,63 +221,54 @@ class ChromatogramMatcher(TaskBase):
         return ChromatogramFilter(out)
 
     def find_related_profiles(self, chromatograms, adducts, mass_error_tolerance=1e-5):
+        self.log("Building Connected Components")
         graph = ChromatogramGraph(chromatograms)
         graph.find_shared_peaks()
         components = graph.connected_components()
 
-        for component in components:
-            component = [node.chromatogram for node in component]
+        self.log("Validating Components")
+        n_components = len(components)
+        for i_components, component in enumerate(components):
+            if i_components % 1000 == 0:
+                self.log("... %d Components Validated (%0.2f%%)" % (
+                    i_components,
+                    i_components / float(n_components) * 100.))
             if len(component) == 1:
                 continue
-            problem_pairs = set()
-            for a, b in permutations(component, 2):
-                best_err = float('inf')
-                best_match = None
-                mass_shift = a.weighted_neutral_mass - b.weighted_neutral_mass
-                if mass_shift != 0:
-                    for adduct in adducts:
-                        err = abs((adduct.mass - mass_shift) / mass_shift)
-                        if err < mass_error_tolerance and err < best_err:
-                            best_err = err
-                            best_match = adduct
-                else:
-                    # self.log("%r and %r have a 0 mass shift." % (a, b))
-                    problem_pairs.add(frozenset((a, b)))
-                if best_match is None:
-                    # these two chromatograms may be adducts already.
-                    used_as_adduct = False
-                    for key, shift_type in a.used_as_adduct:
-                        if key == b.key:
-                            used_as_adduct = True
-                    if used_as_adduct:
-                        continue
-                    for key, shift_type in b.used_as_adduct:
-                        if key == a.key:
-                            used_as_adduct = True
-                    if used_as_adduct:
-                        continue
-                    mass_diff_ppm = abs((a.theoretical_mass - b.theoretical_mass) /
-                                        b.theoretical_mass)
-                    if mass_diff_ppm < mass_error_tolerance:
-                        # self.log(
-                        #     ("There is a peak-sharing relationship between %r and %r"
-                        #      " which may indicating these two entities should be"
-                        #      " merged.") % (a, b))
-                        pass
-                    else:
-                        # really ambiguous. needs more attention.
-                        if frozenset((a, b)) in problem_pairs:
-                            continue
+            component = ChromatogramFilter([node.chromatogram for node in component])
 
-                        # self.log(
-                        #     ("There is a peak-sharing relationship between %r"
-                        #      " and %r (%g) but no experimental mass shift could be"
-                        #      " found to explain it") % (
-                        #         a, b, mass_diff_ppm * b.theoretical_mass))
-                        problem_pairs.add(frozenset((a, b)))
-                else:
+            for a in component:
+                pairs = []
+                for adduct in adducts:
+                    bs = component.find_all_by_mass(
+                        a.weighted_neutral_mass - adduct.mass, mass_error_tolerance)
+                    for b in bs:
+                        if b != a:
+                            pairs.append((adduct, b))
+                if not pairs:
+                    continue
+                grouped_pairs = []
+                pairs.sort(key=lambda x: (x[1].start_time, x[1].weighted_neutral_mass))
+                last = [pairs[0]]
+                for current in pairs[1:]:
+                    if current[1] is last[0][1]:
+                        last.append(current)
+                    else:
+                        grouped_pairs.append(last)
+                        last = [current]
+                grouped_pairs.append(last)
+                unique_pairs = []
+
+                def minimizer(args):
+                    adduct, b = args
+                    return abs(a.weighted_neutral_mass - (b.weighted_neutral_mass + adduct.mass))
+
+                for pair_group in grouped_pairs:
+                    unique_pairs.append(min(pair_group, key=minimizer))
+
+                for adduct, b in unique_pairs:
                     used_set = set(b.used_as_adduct)
-                    used_set.add((a.key, best_match))
+                    used_set.add((a.key, adduct))
                     b.used_as_adduct = list(used_set)
 
     def search_all(self, chromatograms, mass_error_tolerance=1e-5):
