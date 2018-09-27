@@ -116,7 +116,6 @@ def preprocess(ms_file, outfile_path, averagine=None, start_time=None, end_time=
     charge_range = (minimum_charge, maximum_charge)
 
     loader = MSFileLoader(ms_file)
-
     if isinstance(loader, RandomAccessScanSource):
         last_scan = loader[len(loader) - 1]
         last_time = last_scan.scan_time

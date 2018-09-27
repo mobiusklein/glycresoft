@@ -295,7 +295,7 @@ def glycopeptide_spectrum_matches(database_connection, analysis_identifier, outp
         job.run()
 
 
-@export.command("mzid", short_help="Export a Glycopeptide Analysis as MzIdentML")
+# @export.command("mzid", short_help="Export a Glycopeptide Analysis as MzIdentML")
 @database_connection
 @analysis_identifier("glycopeptide")
 @click.argument("output-path")
