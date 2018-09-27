@@ -121,9 +121,13 @@ class SimplifiedGaussianModel(GaussianModel):
 def skewed_gaussian_shape(xs, center, amplitude, sigma, gamma):
     if sigma == 0:
         sigma = SIGMA_EPSILON
-    norm = (amplitude) / (sigma * sqrt(2 * pi)) * \
-        exp(-((xs - center) ** 2) / (2 * sigma ** 2))
-    skew = (1 + erf((gamma * (xs - center)) / (sigma * sqrt(2))))
+    amp_over_sigma_sqrt2pi = (amplitude) / (sigma * sqrt(2 * pi))
+    sigma_squared_2 = 2 * sigma ** 2
+    sigma_sqrt2 = (sigma * sqrt(2))
+
+    norm = amp_over_sigma_sqrt2pi * \
+        exp(-((xs - center) ** 2) / sigma_squared_2)
+    skew = (1 + erf((gamma * (xs - center)) / sigma_sqrt2))
     return norm * skew
 
 
@@ -178,9 +182,9 @@ def bigaussian_shape(xs, center, amplitude, sigma_left, sigma_right):
         sigma_right = SIGMA_EPSILON
     ys = np.zeros_like(xs, dtype=np.float32)
     left_mask = xs < center
-    ys[left_mask] = amplitude * np.exp(-(xs[left_mask] - center) ** 2 / (2 * sigma_left ** 2)) * sqrt(2 * pi)
-    right_mask = xs > center
-    ys[right_mask] = amplitude * np.exp(-(xs[right_mask] - center) ** 2 / (2 * sigma_right ** 2)) * sqrt(2 * pi)
+    ys[left_mask] = amplitude / sqrt(2 * pi) * np.exp(-(xs[left_mask] - center) ** 2 / (2 * sigma_left ** 2))
+    right_mask = xs >= center
+    ys[right_mask] = amplitude / sqrt(2 * pi) * np.exp(-(xs[right_mask] - center) ** 2 / (2 * sigma_right ** 2))
     return ys
 
 
@@ -743,7 +747,7 @@ try:
     _skewed_gaussian_shape = skewed_gaussian_shape
     _gaussian_shape = gaussian_shape
 
-    from ms_deisotope._c.feature_map.profile_transform import (
+    from ms_deisotope._c.feature_map.shape_fitter import (
         bigaussian_shape, skewed_gaussian_shape, gaussian_shape)
 
     has_c = True

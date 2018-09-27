@@ -61,11 +61,11 @@ class GlycanProfilerConsumerTest(unittest.TestCase):
         # 'line_score': 0.99562733579066764, 'charge_count': 0.7368321292716115
         self.confirm_score(gcs, "{Hex:8; HexNAc:7; Neu5Ac:3}", 13.5279)
         # 'spacing_fit': 0.94565181061625481, 'isotopic_fit': 0.99074210231338733,
-        # 'line_score': 0.98863881600507719, 'charge_count': 0.999773289306269
-        self.confirm_score(gcs, "{Hex:7; HexNAc:6; Neu5Ac:4}", 20.3872)
+        # 'line_score': 0.98925755528448378, 'charge_count': 0.999773289306269
+        self.confirm_score(gcs, "{Hex:7; HexNAc:6; Neu5Ac:4}", 20.4438)
         # 'spacing_fit': 0.95567017048597336, 'isotopic_fit': 0.98274665306540443,
-        # 'line_score': 0.99640424549974071, 'charge_count': 0.7604540961453831
-        self.confirm_score(gcs, "{Fuc:2; Hex:6; HexNAc:5; Neu5Ac:3}", 13.8927)
+        # 'line_score': 0.99706887771172914, 'charge_count': 0.7604540961453831
+        self.confirm_score(gcs, "{Fuc:2; Hex:6; HexNAc:5; Neu5Ac:3}", 14.0977)
 
         ads.close()
         self.clear_file(output_file)
@@ -88,13 +88,14 @@ class GlycanProfilerConsumerTest(unittest.TestCase):
         ads = AnalysisDeserializer(output_file, analysis_id=1)
         gcs = ads.load_glycan_composition_chromatograms()
 
-        self.confirm_score(gcs, "{Fuc:1; Hex:7; HexNAc:6; Neu5Ac:4}", 16.0369)
-        self.confirm_score(gcs, "{Hex:8; HexNAc:7; Neu5Ac:3}", 8.7602)
-        self.confirm_score(gcs, "{Hex:7; HexNAc:6; Neu5Ac:4}", 16.5597)
+        self.confirm_score(gcs, "{Fuc:1; Hex:7; HexNAc:6; Neu5Ac:4}", 16.1425)
+        self.confirm_score(gcs, "{Hex:8; HexNAc:7; Neu5Ac:3}", 8.8510)
+        self.confirm_score(gcs, "{Hex:7; HexNAc:6; Neu5Ac:4}", 16.6722)
         network_params = ads.analysis.parameters['network_parameters']
-        tau = [0., 12.16828219, 16.1444486, 0.,
-               21.88819506, 0., 13.73780464, 0.,
-               9.20588749, 0., 0., 0., 0., 0.]
+        tau = [0., 11.77485721, 15.99541137, 0.,
+               21.96431573, 0., 13.94378948, 0.,
+               9.32841618, 0., 0., 0.,
+               0., 0.]
         for a, b in zip(tau, network_params.tau):
             self.assertAlmostEqual(a, b, 3)
         ads.close()
@@ -109,10 +110,10 @@ class GlycanProfilerConsumerTest(unittest.TestCase):
         task.start()
         ads = AnalysisDeserializer(output_file, analysis_id=1)
         gcs = ads.load_glycan_composition_chromatograms()
-        self.confirm_score(gcs, "{Fuc:1; Hex:7; HexNAc:6; Neu5Ac:4}", 16.7203)
-        self.confirm_score(gcs, "{Hex:8; HexNAc:7; Neu5Ac:3}", 10.6206)
-        self.confirm_score(gcs, "{Hex:7; HexNAc:6; Neu5Ac:4}", 18.2530)
-        self.confirm_score(gcs, "{Fuc:2; Hex:6; HexNAc:5; Neu5Ac:3}", 15.8706)
+        self.confirm_score(gcs, "{Fuc:1; Hex:7; HexNAc:6; Neu5Ac:4}", 16.7795)
+        self.confirm_score(gcs, "{Hex:8; HexNAc:7; Neu5Ac:3}", 10.6734)
+        self.confirm_score(gcs, "{Hex:7; HexNAc:6; Neu5Ac:4}", 18.3360)
+        self.confirm_score(gcs, "{Fuc:2; Hex:6; HexNAc:5; Neu5Ac:3}", 15.9628)
         network_params = ads.analysis.parameters['network_parameters']
         for a, b in zip(tau, network_params.tau):
             self.assertAlmostEqual(a, b, 3)

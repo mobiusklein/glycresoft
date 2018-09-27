@@ -4,6 +4,8 @@ cimport numpy as np
 
 np.import_array()
 
+
+@cython.freelist(100000)
 cdef class SplittingPoint(object):
     cdef:
         public double first_maximum
