@@ -322,5 +322,11 @@ class ChromatogramSolution(object):
     def __dir__(self):
         return list(set(('compute_score', 'score_components')) | set(dir(self.chromatogram)))
 
+    def __eq__(self, other):
+        return self.get_chromatogram() == other.get_chromatogram()
+
+    def __ne__(self, other):
+        return self.get_chromatogram() != other.get_chromatogram()
+
 
 ChromatogramInterface.register(ChromatogramSolution)
