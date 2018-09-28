@@ -45,19 +45,19 @@ class ChromatogramEvaluator(TaskBase):
             if self.in_debug_mode():
                 self.debug("... Evaluating %r" % (case, ))
             if i % 1000 == 0:
-                self.log("%0.2f%% chromatograms evaluated (%d/%d)" % (i * 100. / n, i, n))
+                self.log("... %0.2f%% chromatograms evaluated (%d/%d)" % (i * 100. / n, i, n))
             try:
                 sol = self.evaluate_chromatogram(case)
                 if self.scoring_model.accept(sol):
                     solutions.append(sol)
                 else:
                     if sol.glycan_composition:
-                        self.debug("Rejecting %s with score %s %s" % (
+                        self.debug("... Rejecting %s with score %s %s" % (
                             sol, sol.score, sol.score_components()))
                 end = time.time()
                 # Report on anything that took more than 30 seconds to evaluate
                 if end - start > 30.0:
-                    self.log("%r took a long time to evaluated (%0.2fs)" % (case, end - start))
+                    self.log("... %r took a long time to evaluated (%0.2fs)" % (case, end - start))
             except (IndexError, ValueError):
                 continue
         solutions = ChromatogramFilter(solutions)
@@ -135,12 +135,16 @@ class LogitSumChromatogramEvaluator(ChromatogramEvaluator):
         solutions = super(LogitSumChromatogramEvaluator, self).evaluate(
             chromatograms, delta_rt=delta_rt, min_points=min_points,
             smooth_overlap_rt=smooth_overlap_rt, *args, **kwargs)
-
+        self.log("Collapsing Duplicates")
         accumulator = defaultdict(list)
         for case in solutions:
             accumulator[case.key].append(case)
         solutions = []
+        n = len(accumulator)
+        i = 0.0
         for group, members in accumulator.items():
+            if i % 1000 == 0 and i > 0:
+                self.log("... %d groups collapsed (%0.02f%%)" % (i, i / n * 100.0))
             members = sorted(members, key=lambda x: x.score, reverse=True)
             reference = members[0]
             base = reference.clone()
@@ -155,6 +159,7 @@ class LogitSumChromatogramEvaluator(ChromatogramEvaluator):
                     merged.score_set = aggregated.score_set
                     merged.score = aggregated.score
             solutions.append(merged)
+            i += 1.0
         return ChromatogramFilter(solutions)
 
 
