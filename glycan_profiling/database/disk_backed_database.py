@@ -403,6 +403,12 @@ class DeclarativeDiskBackedDatabase(DiskBackedStructureDatabaseBase):
             self.identity_field == id)).first()
         return record
 
+    def get_all_records(self):
+        records = self.session.execute(
+            select(
+                self._get_record_properties()).select_from(self.selectable))
+        return list(records)
+
     def get_object_by_id(self, id):
         return self._convert(self._get_record(id))
 
