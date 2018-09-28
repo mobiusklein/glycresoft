@@ -1,5 +1,7 @@
-from itertools import permutations
+import operator
 from collections import defaultdict
+
+from glycan_profiling.database.mass_collection import NeutralMassDatabase
 
 from glycan_profiling.chromatogram_tree import (
     Chromatogram,
@@ -51,6 +53,7 @@ class CompositionGroup(object):
 
 
 class ChromatogramMatcher(TaskBase):
+    memory_load_threshold = 1e5
 
     def __init__(self, database, chromatogram_type=None):
         if chromatogram_type is None:
@@ -58,6 +61,12 @@ class ChromatogramMatcher(TaskBase):
         self.database = database
         self._group_bundle = dict()
         self.chromatogram_type = chromatogram_type
+        if len(database) < self.memory_load_threshold:
+            self.database = NeutralMassDatabase(list(database.get_all_records()))
+            self._convert = database._convert
+
+    def _convert(self, record):
+        return self.database._convert(record)
 
     def _match(self, neutral_mass, mass_error_tolerance=1e-5):
         return self.database.search_mass_ppm(neutral_mass, mass_error_tolerance)
@@ -71,7 +80,7 @@ class ChromatogramMatcher(TaskBase):
             return bundle
         except KeyError:
             bundle = CompositionGroup(key, [
-                self.database._convert(m)
+                self._convert(m)
                 for m in sorted(matches, key=lambda x: getattr(x, "calculated_mass", 0))])
             self._group_bundle[ids] = bundle
             return bundle
@@ -226,10 +235,10 @@ class ChromatogramMatcher(TaskBase):
         graph.find_shared_peaks()
         components = graph.connected_components()
 
-        self.log("Validating Components")
         n_components = len(components)
+        self.log("Validating %d Components" % (n_components, ))
         for i_components, component in enumerate(components):
-            if i_components % 1000 == 0:
+            if i_components % 1000 == 0 and i_components > 0:
                 self.log("... %d Components Validated (%0.2f%%)" % (
                     i_components,
                     i_components / float(n_components) * 100.))
