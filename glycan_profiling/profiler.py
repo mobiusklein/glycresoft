@@ -286,8 +286,9 @@ class GlycanChromatogramAnalyzer(TaskBase):
         return msms_scans
 
     def make_database(self):
+        combn_size = len(self.adducts)
         database = GlycanCompositionDiskBackedStructureDatabase(
-            self.database_connection, self.hypothesis_id)
+            self.database_connection, self.hypothesis_id, cache_size=combn_size)
         return database
 
     def make_chromatogram_extractor(self, peak_loader):
