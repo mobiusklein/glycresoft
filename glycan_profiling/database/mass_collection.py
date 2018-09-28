@@ -106,6 +106,10 @@ class MassDatabase(SearchableMassCollection):
     def highest_mass(self):
         return self.structures[-1].mass()
 
+    @property
+    def glycan_composition_network(self):
+        return self.network
+
     def search_binary(self, mass, error_tolerance=1e-6):
         """Search within :attr:`structures` for the index of a structure
         with a mass nearest to `mass`, within `error_tolerance`
