@@ -91,6 +91,8 @@ mask_subsequence = SubsequenceMasker.mask_subsequence
 
 
 class _TimeIntervalMethods(object):
+    __slots__ = []
+
     def overlaps_in_time(self, interval):
         cond = ((self.start_time <= interval.start_time and self.end_time >= interval.end_time) or (
             self.start_time >= interval.start_time and self.end_time <= interval.end_time) or (
@@ -693,6 +695,10 @@ class ChromatogramTreeList(object):
 
 
 class ChromatogramTreeNode(object):
+    __slots__ = ['retention_time', 'scan_id', 'children', 'members', 'node_type',
+                 '_most_abundant_member', '_neutral_mass', '_charge_states', '_has_msms',
+                 'node_id', ]
+
     def __init__(self, retention_time=None, scan_id=None, children=None, members=None,
                  node_type=Unmodified):
         if children is None:
@@ -717,6 +723,19 @@ class ChromatogramTreeNode(object):
             list(self.members), node_type=self.node_type)
         node.node_id = self.node_id
         return node
+
+    def __reduce__(self):
+        return self.__class__, (
+            self.retention_time, self.scan_id, [c for c in self.children],
+            list(self.members), self.node_type), self.__getstate__()
+
+    def __getstate__(self):
+        return {
+            "node_id": self.node_id
+        }
+
+    def __setstate__(self, state):
+        self.node_id = state['node_id']
 
     def _unspool_strip_children(self):
         node = ChromatogramTreeNode(
@@ -821,7 +840,7 @@ class ChromatogramTreeNode(object):
         return not (self == other)
 
     def __hash__(self):
-        return hash(self.uid)
+        return hash(self.node_id)
 
     def _has_any_peaks_with_msms(self):
         for peak in self.members:

@@ -63,7 +63,7 @@ class AdductTreePruner(TaskBase):
         n = len(self.solutions)
         for i, case in enumerate(self.solutions):
             if i % 1000 == 0 and i > 0:
-                self.log("... %d chromatograms reduced (%0.2f%%" % (i, i / float(n) * 100.0))
+                self.log("... %d chromatograms reduced (%0.2f%%)" % (i, i / float(n) * 100.0))
             self.handle_chromatogram(case)
         out = [s.chromatogram for k in (set(self.key_map) - self.updated) for s in self.key_map[k]]
         out.extend(s for k in self.updated for s in self.key_map[k])
