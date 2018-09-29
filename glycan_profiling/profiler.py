@@ -436,7 +436,7 @@ class GlycanChromatogramAnalyzer(TaskBase):
         peak_loader = self.make_peak_loader()
         database = self.make_database()
         smallest_database_mass = database.lowest_mass
-        minimum_mass_shift = min([m.mass for m in self.adducts])
+        minimum_mass_shift = min([m.mass for m in self.adducts]) if self.adducts else 0
         if minimum_mass_shift < 0:
             smallest_database_mass = smallest_database_mass + minimum_mass_shift
         if smallest_database_mass > self.minimum_mass:
