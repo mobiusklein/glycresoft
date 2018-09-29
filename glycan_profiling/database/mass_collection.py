@@ -21,11 +21,11 @@ class SearchableMassCollection(object):
     def _convert(self, bundle):
         return bundle
 
-    @property
+    @abstractproperty
     def lowest_mass(self):
         raise NotImplementedError()
 
-    @property
+    @abstractproperty
     def highest_mass(self):
         raise NotImplementedError()
 
