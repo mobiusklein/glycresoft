@@ -299,6 +299,8 @@ class RegularizationParameterType(click.ParamType):
 @click.option("-a", "--adduct", 'adducts', multiple=True, nargs=2,
               help=("Adducts to consider. Specify name or formula, and a"
                     " multiplicity."))
+@click.option("--adduct-combination-limit", type=int, default=8, help=(
+    "Maximum number of adduct combinations to consider"))
 @click.option("-d", "--minimum-mass", default=500., type=float,
               help="The minimum mass to consider signal at.")
 @click.option("-o", "--output-path", default=None, help=(
@@ -335,6 +337,7 @@ def search_glycan(context, database_connection, sample_path,
                   output_path=None, scoring_model_features=None,
                   delta_rt=0.5, export=None, interact=False,
                   require_msms_signature=0.0, msn_mass_error_tolerance=2e-5,
+                  adduct_combination_limit=None,
                   processes=4):
     """Identify glycan compositions from preprocessed LC-MS data, stored in mzML
     format.
@@ -343,6 +346,9 @@ def search_glycan(context, database_connection, sample_path,
         output_path = make_analysis_output_path("glycan")
     if scoring_model is None:
         scoring_model = GeneralScorer
+
+    if adduct_combination_limit is None:
+        adduct_combination_limit = 8
 
     if scoring_model_features:
         for feature in scoring_model_features:
@@ -381,7 +387,7 @@ def search_glycan(context, database_connection, sample_path,
     adducts = [validate_adduct(adduct, multiplicity)
                for adduct, multiplicity in adducts]
     expanded = []
-    expanded = MzMLGlycanChromatogramAnalyzer.expand_adducts(dict(adducts))
+    expanded = MzMLGlycanChromatogramAnalyzer.expand_adducts(dict(adducts), limit=adduct_combination_limit)
     adducts = expanded
 
     click.secho("Preparing analysis of %s by %s" %

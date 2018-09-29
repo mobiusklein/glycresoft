@@ -182,12 +182,16 @@ class SampleConsumer(TaskBase):
 class GlycanChromatogramAnalyzer(TaskBase):
 
     @staticmethod
-    def expand_adducts(adduct_counts, crossproduct=True):
+    def expand_adducts(adduct_counts, crossproduct=True, limit=None):
+        if limit is None:
+            limit = float('inf')
         combinations = []
         if crossproduct:
             counts = descending_combination_counter(adduct_counts)
             for combo in counts:
                 scaled = []
+                if sum(combo.values()) > limit:
+                    continue
                 for k, v in combo.items():
                     if v == 0:
                         continue
@@ -431,6 +435,15 @@ class GlycanChromatogramAnalyzer(TaskBase):
     def run(self):
         peak_loader = self.make_peak_loader()
         database = self.make_database()
+        smallest_database_mass = database.lowest_mass
+        minimum_mass_shift = min([m.mass for m in self.adducts])
+        if minimum_mass_shift < 0:
+            smallest_database_mass = smallest_database_mass + minimum_mass_shift
+        if smallest_database_mass > self.minimum_mass:
+            self.log("The smallest possible database mass is %f, raising the minimum mass to extract." % (
+                smallest_database_mass))
+            self.minimum_mass = smallest_database_mass
+
         extractor = self.make_chromatogram_extractor(peak_loader)
         proc = self.make_chromatogram_processor(extractor, database)
         self.processor = proc
