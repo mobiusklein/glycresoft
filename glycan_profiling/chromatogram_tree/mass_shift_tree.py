@@ -62,7 +62,9 @@ class AdductTreePruner(TaskBase):
     def prune_branches(self):
         n = len(self.solutions)
         for i, case in enumerate(self.solutions):
-            if i % 1000 == 0 and i > 0:
+            if len(case.used_as_adduct) > 2 ** 6:
+                self.log("Pruning %r with %d adduct branches" % (case, len(case.used_as_adduct)))
+            if i % 100 == 0 and i > 0:
                 self.log("... %d chromatograms reduced (%0.2f%%)" % (i, i / float(n) * 100.0))
             self.handle_chromatogram(case)
         out = [s.chromatogram for k in (set(self.key_map) - self.updated) for s in self.key_map[k]]
