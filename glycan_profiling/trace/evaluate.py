@@ -153,7 +153,7 @@ class LogitSumChromatogramEvaluator(ChromatogramEvaluator):
             merged = reference.__class__(
                 base, reference.score, scorer=reference.scorer,
                 score_set=reference.score_set)
-            if self.update_score_on_merge:
+            if self.update_score_on_merge and len(members) > 1:
                 aggregated = self.evaluate_chromatogram(merged)
                 if aggregated.score > reference.score:
                     merged.score_set = aggregated.score_set
