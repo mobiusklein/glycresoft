@@ -834,6 +834,8 @@ class ChromatogramTreeNode(object):
         return self._total_intensity_children() + self._total_intensity_members()
 
     def __eq__(self, other):
+        if self.scan_id != other.scan_id:
+            return False
         return self.members == other.members
 
     def __ne__(self, other):
