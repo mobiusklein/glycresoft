@@ -374,7 +374,6 @@ class MzIdentMLPeptide(object):
                             _name = mod["name"]
                             accession = getattr(_name, "accession", None)
                             if accession is not None:
-                                print(accession, _name)
                                 try:
                                     modification = Modification(accession)
                                 except ModificationNameResolutionError:
