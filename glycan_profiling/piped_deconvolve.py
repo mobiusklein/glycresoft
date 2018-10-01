@@ -75,6 +75,8 @@ class ScanIDYieldingProcess(Process):
                 else:
                     scan_id = None
                 product_scan_ids = [p.id for p in products]
+            except StopIteration:
+                break
             except Exception as e:
                 log_handle.error("An error occurred in _make_scan_batch", e)
                 break
