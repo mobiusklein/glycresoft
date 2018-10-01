@@ -41,7 +41,7 @@ PROTEOMICS_SCORE = {
     "MS-GF:EValue": LT,
     "Byonic:Score": GT,
     "percolator:Q value": LT,
-    "X\!Tandem:expect": GT,
+    r"X\!Tandem:expect": GT,
     "Morpheus:Morpheus score": GT,
     "MetaMorpheus:score": GT,
 }
@@ -358,22 +358,32 @@ class MzIdentMLPeptide(object):
             mods = self.peptide_dict["Modification"]
             for mod in mods:
                 pos = mod["location"] - 1
+                accession = None
                 try:
-                    try:
-                        _name = mod["name"]
-                        modification = Modification(_name)
-                    except KeyError as e:
-                        if "unknown modification" in mod:
-                            try:
-                                _name = mod['unknown modification']
-                                if _name in self.modification_translation_table:
-                                    modification = self.modification_translation_table[_name]()
-                                else:
+                    if "unknown modification" in mod:
+                        try:
+                            _name = mod['unknown modification']
+                            if _name in self.modification_translation_table:
+                                modification = self.modification_translation_table[_name]()
+                            else:
+                                modification = Modification(_name)
+                        except ModificationNameResolutionError:
+                            raise KeyError("Cannot find key in %r" % (mod,))
+                    else:
+                        try:
+                            _name = mod["name"]
+                            accession = getattr(_name, "accession", None)
+                            if accession is not None:
+                                print(accession, _name)
+                                try:
+                                    modification = Modification(accession)
+                                except ModificationNameResolutionError:
                                     modification = Modification(_name)
-                            except ModificationNameResolutionError:
+                            else:
+                                modification = Modification(_name)
+
+                        except (KeyError, ModificationNameResolutionError) as e:
                                 raise KeyError("Cannot find key %s in %r" % (e, mod))
-                        else:
-                            raise KeyError("Cannot find key %s in %r" % (e, mod))
 
                     try:
                         rule_text = "%s (%s)" % (_name, mod["residues"][0])
