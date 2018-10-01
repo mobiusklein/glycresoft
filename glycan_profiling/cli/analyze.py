@@ -129,7 +129,7 @@ def search_glycopeptide(context, database_connection, sample_path, hypothesis_id
                         processes=4, workload_size=500, adducts=None, export=None,
                         use_peptide_mass_filter=False, maximum_mass=float('inf'),
                         decoy_database_connection=None, fdr_correction='auto',
-                        isotopic_probing_range=3):
+                        isotope_probing_range=3):
     """Identify glycopeptide sequences from processed LC-MS/MS data
     """
     if output_path is None:
@@ -186,7 +186,7 @@ def search_glycopeptide(context, database_connection, sample_path, hypothesis_id
             adducts=adducts,
             use_peptide_mass_filter=use_peptide_mass_filter,
             maximum_mass=maximum_mass,
-            probing_range_for_missing_precursors=isotopic_probing_range)
+            probing_range_for_missing_precursors=isotope_probing_range)
     else:
         analyzer = MzMLComparisonGlycopeptideLCMSMSAnalyzer(
             database_connection._original_connection,
@@ -208,7 +208,7 @@ def search_glycopeptide(context, database_connection, sample_path, hypothesis_id
             use_peptide_mass_filter=use_peptide_mass_filter,
             maximum_mass=maximum_mass,
             use_decoy_correction_threshold=fdr_correction,
-            probing_range_for_missing_precursors=isotopic_probing_range)
+            probing_range_for_missing_precursors=isotope_probing_range)
     analyzer.display_header()
     gps, unassigned, target_hits, decoy_hits = analyzer.start()
     if save_intermediate_results is not None:
