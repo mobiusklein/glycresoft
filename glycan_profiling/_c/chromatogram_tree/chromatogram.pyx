@@ -32,6 +32,19 @@ cdef class ChromatogramTreeNode(object):
         self._has_msms = None
         self.node_id = uid()
 
+    def __reduce__(self):
+        return self.__class__, (
+            self.retention_time, self.scan_id, [c for c in self.children],
+            list(self.members), self.node_type), self.__getstate__()
+
+    def __getstate__(self):
+        return {
+            "node_id": self.node_id
+        }
+
+    def __setstate__(self, state):
+        self.node_id = state['node_id']
+
     cpdef ChromatogramTreeNode clone(self):
         node = ChromatogramTreeNode(
             self.retention_time, self.scan_id, [c.clone() for c in self.children],

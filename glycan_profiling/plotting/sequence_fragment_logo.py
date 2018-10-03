@@ -294,6 +294,16 @@ def glycopeptide_match_logo(glycopeptide_match, ax=None, color='red', glycosylat
     return inst.ax
 
 
+class ProteoformDisplay(object):
+    def __init__(self, proteoform, ax=None, width=60):
+        self.proteoform = proteoform
+        self.glyph_rows = []
+        self.peptide_rows = []
+        self.width = width
+        self.x = 1
+        self.y = 1
+
+
 def draw_proteoform(proteoform, width=60):
     '''Draw a sequence logo for a proteoform
     '''
@@ -337,6 +347,6 @@ def draw_proteoform(proteoform, width=60):
             tree_height = 0
         ymax = tree_height + 1
         y += ymax
-    ax.set_xlim(0, width + 10)
+    ax.set_xlim(0, width + 1)
     ax.set_ylim(-1, y + 1)
     return ax

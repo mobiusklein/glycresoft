@@ -1,6 +1,7 @@
 import os
 import logging
 import string
+import platform
 
 from glycan_profiling import serialize
 from glycan_profiling.serialize import (
@@ -20,7 +21,7 @@ from glycan_profiling.plotting.spectral_annotation import TidySpectrumMatchAnnot
 
 from ms_deisotope.output.mzml import ProcessedMzMLDeserializer
 
-from matplotlib import pyplot as plt
+from matplotlib import pyplot as plt, style
 from matplotlib import rcParams as mpl_params
 
 
@@ -46,6 +47,13 @@ class SpectrumAnnotatorExport(TaskBase, DatabaseBoundOperation):
         self.output_path = output_path
         self.analysis = self.session.query(serialize.Analysis).get(self.analysis_id)
         self.scan_loader = None
+        self._mpl_style = {
+            'figure.facecolor': 'white',
+            'figure.edgecolor': 'white',
+            'font.size': 10,
+            'savefig.dpi': 72,
+            'figure.subplot.bottom': .125
+        }
 
     def _make_scan_loader(self):
         if self.mzml_path is not None:
@@ -71,12 +79,6 @@ class SpectrumAnnotatorExport(TaskBase, DatabaseBoundOperation):
         return query.all()
 
     def run(self):
-        mpl_params.update({
-            'figure.facecolor': 'white',
-            'figure.edgecolor': 'white',
-            'font.size': 10,
-            'savefig.dpi': 72,
-            'figure.subplot.bottom': .125})
         scan_loader = self._make_scan_loader()
         gpsms = self._load_spectrum_matches()
         if not os.path.exists(self.output_path):
@@ -88,19 +90,23 @@ class SpectrumAnnotatorExport(TaskBase, DatabaseBoundOperation):
             gpep = gpsm.structure.convert()
             if i % 10 == 0:
                 self.log("... %0.2f%%: %s @ %s" % (((i + 1) / float(n) * 100.0), gpep, scan.id))
-            fig = figure()
-            grid = plt.GridSpec(nrows=5, ncols=1)
-            ax1 = fig.add_subplot(grid[1, 0])
-            ax2 = fig.add_subplot(grid[2:, 0])
-            ax3 = fig.add_subplot(grid[0, 0])
-            match = CoverageWeightedBinomialModelTree.evaluate(scan, gpep)
-            ax3.text(0, 0.5, (
-                str(match.target) + '\n' + scan.id +
-                '\nscore=%0.3f    q value=%0.3g' % (gpsm.score, gpsm.q_value)), va='center')
-            ax3.axis('off')
-            match.plot(ax=ax2)
-            glycopeptide_match_logo(match, ax=ax1)
-            fname = format_filename("%s_%s.pdf" % (scan.id, gpep))
-            path = os.path.join(self.output_path, fname)
-            fig.savefig(path, bbox_inches='tight')
-            plt.close(fig)
+            with style.context(self._mpl_style):
+                fig = figure()
+                grid = plt.GridSpec(nrows=5, ncols=1)
+                ax1 = fig.add_subplot(grid[1, 0])
+                ax2 = fig.add_subplot(grid[2:, 0])
+                ax3 = fig.add_subplot(grid[0, 0])
+                match = CoverageWeightedBinomialModelTree.evaluate(scan, gpep)
+                ax3.text(0, 0.5, (
+                    str(match.target) + '\n' + scan.id +
+                    '\nscore=%0.3f    q value=%0.3g' % (gpsm.score, gpsm.q_value)), va='center')
+                ax3.axis('off')
+                match.plot(ax=ax2)
+                glycopeptide_match_logo(match, ax=ax1)
+                fname = format_filename("%s_%s.pdf" % (scan.id, gpep))
+                path = os.path.join(self.output_path, fname)
+                abspath = os.path.abspath(path)
+                if len(abspath) > 259 and platform.system().lower() == 'windows':
+                    abspath = '\\\\?\\' + abspath
+                fig.savefig(abspath, bbox_inches='tight')
+                plt.close(fig)
