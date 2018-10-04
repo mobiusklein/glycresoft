@@ -34,11 +34,12 @@ default_components = (hexnac, hexose, xylose, fucose,)
 
 
 class CoreMotifFinder(PathFinder):
-    def __init__(self, components=None, product_error_tolerance=1e-5):
+    def __init__(self, components=None, product_error_tolerance=1e-5, minimum_peptide_mass=350.):
         if components is None:
             components = default_components
         self.components = list(map(MassWrapper, components))
         self.product_error_tolerance = product_error_tolerance
+        self.minimum_peptide_mass = minimum_peptide_mass
 
     def find_n_linked_core(self, groups, min_size=1):
         sequence = [hexnac, hexnac, hexose, hexose, hexose]
@@ -137,14 +138,20 @@ class CoreMotifFinder(PathFinder):
         # TODO: split the different motif masses up according to core type efficiently
         # but for now just lump them all together
         for path in n_linked_paths:
+            if path.start_mass < self.minimum_peptide_mass:
+                continue
             peptide_masses.append(path.start_mass)
             if has_tandem_shift:
                 peptide_masses.append(path.start_mass - mass_shift.tandem_mass)
         for path in o_linked_paths:
+            if path.start_mass < self.minimum_peptide_mass:
+                continue
             peptide_masses.append(path.start_mass)
             if has_tandem_shift:
                 peptide_masses.append(path.start_mass - mass_shift.tandem_mass)
         for path in gag_linker_paths:
+            if path.start_mass < self.minimum_peptide_mass:
+                continue
             peptide_masses.append(path.start_mass)
             if has_tandem_shift:
                 peptide_masses.append(path.start_mass - mass_shift.tandem_mass)
