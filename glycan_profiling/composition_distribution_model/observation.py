@@ -43,12 +43,14 @@ class ObservationWeightState(object):
         self.weighted_scores = np.array([])
 
     def transform(self):
-        self.variance_matrix = self.weight_matrix.T.dot(self.weight_matrix)
+        variance_matrix = np.identity(len(self.raw_scores))
         # This is necessary when the weight matrix is not a square matrix (e.g. the identity matrix)
         # and it is *very slow*. Consider fast-pathing the identity matrix case.
         self.left_inverse_weight_matrix = linalg.pinv(
             self.weight_matrix.T.dot(self.weight_matrix)).dot(self.weight_matrix.T)
-        self.inverse_variance_matrix = self.left_inverse_weight_matrix.dot(self.left_inverse_weight_matrix.T)
+        self.variance_matrix = self.left_inverse_weight_matrix.dot(variance_matrix).dot(
+            self.left_inverse_weight_matrix.T)
+        self.inverse_variance_matrix = np.linalg.pinv(self.variance_matrix)
         self.weighted_scores = self.left_inverse_weight_matrix.dot(self.raw_scores)
         self.weighted_scores = self.weighted_scores[np.nonzero(self.weighted_scores)]
 
@@ -84,7 +86,7 @@ class VariableObservationAggregation(object):
 
     def observed_indices(self):
         indices = {self.network[obs.glycan_composition].index for obs in self.iterobservations()}
-        return sorted(indices)
+        return np.array(sorted(indices))
 
     def calculate_weight(self, observation):
         return 1
