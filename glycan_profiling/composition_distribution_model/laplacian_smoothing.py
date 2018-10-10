@@ -75,7 +75,8 @@ class LaplacianSmoothingModel(object):
 
     def optimize_observed_scores(self, lmda, t0=0):
         blocks = self.block_L
-        V_inv = self.inverse_variance_matrix
+        # Here, V_inv is the inverse of V, which is the inverse of the variance matrix
+        V_inv = self.variance_matrix
         L = lmda * V_inv.dot(blocks["oo"] - blocks["om"].dot(self.L_mm_inv).dot(blocks["mo"]))
         B = np.identity(len(self.S0)) + L
         return np.linalg.inv(B).dot(self.S0 - t0) + t0
