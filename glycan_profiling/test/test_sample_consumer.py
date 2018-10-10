@@ -89,7 +89,10 @@ class MSMSSampleConsumerTest(unittest.TestCase, SampleConsumerBase):
         reference = ProcessedMzMLDeserializer(agp_glycproteomics_mzml_reference)
 
         for a_bunch, b_bunch in zip(reader, reference):
+            assert a_bunch.precursor.id == b_bunch.precursor.id
+            assert len(a_bunch.products) == len(b_bunch.products)
             for a_product, b_product in zip(a_bunch.products, b_bunch.products):
+                assert a_product.precursor_information.defaulted == b_product.precursor_information.defaulted
                 assert np.isclose(a_product.precursor_information.neutral_mass,
                                   b_product.precursor_information.neutral_mass)
                 assert len(a_product.deconvoluted_peak_set) == len(b_product.deconvoluted_peak_set)
