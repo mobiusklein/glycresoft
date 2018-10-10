@@ -1,9 +1,12 @@
 import time
 import traceback
 from collections import defaultdict
+
 from threading import Thread
+
 import multiprocessing
 from multiprocessing import Process, Event, Manager, JoinableQueue
+from multiprocessing.managers import RemoteError
 
 try:
     from Queue import Empty as QueueEmptyException
@@ -152,7 +155,7 @@ class IdentificationProcessDispatcher(TaskBase):
             self.state = ProcessDispatcherState.terminating
         for i, worker in enumerate(self.workers):
             exitcode = worker.exitcode
-            if exitcode != 0 and worker.exitcode is not None:
+            if exitcode != 0 and exitcode is not None:
                 self.log("... Worker Process %r had exitcode %r" % (worker, exitcode))
             elif worker.is_alive() and worker.token not in self._has_received_token:
                 self.log("... Worker Process %r is still alive and incomplete" % (worker, ))
@@ -197,7 +200,17 @@ class IdentificationProcessDispatcher(TaskBase):
             self.workers.append(worker)
 
     def all_workers_finished(self):
-        return all([worker.all_work_done() for worker in self.workers])
+        worker_still_busy = False
+        for worker in self.workers:
+            try:
+                is_done = worker.all_work_done()
+                if not is_done:
+                    worker_still_busy = True
+                    return worker_still_busy
+            except (RemoteError, KeyError):
+                worker_still_busy = True
+                return worker_still_busy
+        return worker_still_busy
 
     def feeder(self, hit_map, hit_to_scan, scan_hit_type_map):
         """Push tasks onto the input queue feeding the worker
