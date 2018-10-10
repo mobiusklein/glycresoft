@@ -88,7 +88,7 @@ def rt_to_id(ms_file, rt):
               "Force profile scan configuration."), cls=HiddenOption)
 @click.option("-i", "--isotopic-strictness", default=2.0, type=float, cls=HiddenOption)
 @click.option("-in", "--msn-isotopic-strictness", default=0.0, type=float, cls=HiddenOption)
-@click.option("-n", "--signal-to-noise-threshold", default=1.0, type=float, help=(
+@click.option("-snr", "--signal-to-noise-threshold", default=1.0, type=float, help=(
     "Signal-to-noise ratio threshold to apply when filtering peaks"))
 @click.option("-mo", "--mass-offset", default=0.0, type=float, help=("Shift peak masses by the given amount"))
 def preprocess(ms_file, outfile_path, averagine=None, start_time=None, end_time=None, maximum_charge=None,
@@ -119,7 +119,6 @@ def preprocess(ms_file, outfile_path, averagine=None, start_time=None, end_time=
     if isinstance(loader, RandomAccessScanSource):
         last_scan = loader[len(loader) - 1]
         last_time = last_scan.scan_time
-
         start_scan = loader._locate_ms1_scan(
             loader.get_scan_by_time(start_time))
         if end_time > last_time:
@@ -154,7 +153,7 @@ def preprocess(ms_file, outfile_path, averagine=None, start_time=None, end_time=
     if is_profile:
         click.secho("Spectra are profile")
     else:
-        click.secho("Spectra are centroided")
+        click.secho("Spectra are centroided", fg='yellow')
 
     if name is None:
         name = os.path.splitext(os.path.basename(ms_file))[0]
