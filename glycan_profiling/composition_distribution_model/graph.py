@@ -78,7 +78,7 @@ def network_indices(network, threshold=0.0001):
             missing.append(node.index)
         else:
             observed.append(node.index)
-    return np.array(observed), np.array(missing)
+    return np.array(observed, dtype=int), np.array(missing, dtype=int)
 
 
 def make_blocks(network, observed, threshold=0.0001, regularize=DEFAULT_LAPLACIAN_REGULARIZATION):
