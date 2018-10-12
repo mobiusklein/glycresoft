@@ -14,10 +14,10 @@ source_text = u'''{Xyl:1; a,enHex:1; Hex:2; aHex:1; HexNAc:1}      GAG-linker
 {Xyl:1; Fuc:1; a,enHex:1; Hex:2; aHex:1; HexNAc:1}       GAG-linker
 {Xyl:1; Fuc:1; a,enHex:1; Hex:1; aHex:1; HexS:1; HexNAc(S):1}    GAG-linker
 {Xyl:1; Fuc:1; a,enHex:1; Hex:2; aHex:1; HexNAc(S):1}    GAG-linker
-{Fuc:1; a,enHex:1; Hex:2; aHex:1; HexNAc:1; XylPhosphate:1}      GAG-linker
-{a,enHex:1; Hex:2; aHex:1; HexNAc:1; XylPhosphate:1}     GAG-linker
-{a,enHex:1; Hex:2; aHex:1; XylPhosphate:1; HexNAc(S):1}  GAG-linker
-{a,enHex:1; Hex:1; aHex:1; XylPhosphate:1; HexS:1; HexNAc(S):1}  GAG-linker
+{Fuc:1; a,enHex:1; Hex:2; aHex:1; HexNAc:1; XylP:1}      GAG-linker
+{a,enHex:1; Hex:2; aHex:1; HexNAc:1; XylP:1}     GAG-linker
+{a,enHex:1; Hex:2; aHex:1; XylP:1; HexNAc(S):1}  GAG-linker
+{a,enHex:1; Hex:1; aHex:1; XylP:1; HexS:1; HexNAc(S):1}  GAG-linker
 {Xyl:1; a,enHex:1; Hex:2; aHex:1; HexNAc(S):1}   GAG-linker
 {Xyl:1; a,enHex:1; Hex:1; aHex:1; HexS:1; HexNAc(S):1}   GAG-linker
 {Xyl:1; a,enHex:1; aHex:1; HexS:2; HexNAc(S):1}  GAG-linker
@@ -26,17 +26,17 @@ source_text = u'''{Xyl:1; a,enHex:1; Hex:2; aHex:1; HexNAc:1}      GAG-linker
 {Xyl:1; a,enHex:1; Hex:1; aHex:1; HexS:1; HexNAc(S):1; Neu5Ac:1}         GAG-linker
 {Xyl:1; a,enHex:1; Hex:2; aHex:1; HexNAc:1; Neu5Ac:1}    GAG-linker
 {Xyl:1; a,enHex:1; Hex:2; aHex:1; HexNAc(S):1; Neu5Ac:1}         GAG-linker
-{a,enHex:1; Hex:2; aHex:1; XylPhosphate:1; HexNAc(S):1; Neu5Ac:1}        GAG-linker
+{a,enHex:1; Hex:2; aHex:1; XylP:1; HexNAc(S):1; Neu5Ac:1}        GAG-linker
 {Xyl:1; a,enHex:1; Hex:1; aHex:1; HexS:1; HexNAc(S):1; Neu5Ac:1}         GAG-linker
-{a,enHex:1; Hex:1; aHex:1; XylPhosphate:1; HexS:1; HexNAc(S):1; Neu5Ac:1}        GAG-linker
+{a,enHex:1; Hex:1; aHex:1; XylP:1; HexS:1; HexNAc(S):1; Neu5Ac:1}        GAG-linker
 {Xyl:1; a,enHex:1; Hex:2; aHex:1; HexNAc:1; Neu5Gc:1}    GAG-linker
 {Xyl:1; a,enHex:1; Hex:2; aHex:1; HexNAc(S):1; Neu5Gc:1}         GAG-linker
 {Xyl:1; a,enHex:1; Hex:1; aHex:1; HexS:1; HexNAc(S):1; Neu5Gc:1}         GAG-linker
 {Xyl:1; a,enHex:1; Hex:2; aHex:1; HexNAc:1; Neu5Gc:1}    GAG-linker
 {Xyl:1; a,enHex:1; Hex:2; aHex:1; HexNAc(S):1; Neu5Gc:1}         GAG-linker
-{a,enHex:1; Hex:2; aHex:1; XylPhosphate:1; HexNAc(S):1; Neu5Gc:1}        GAG-linker
+{a,enHex:1; Hex:2; aHex:1; XylP:1; HexNAc(S):1; Neu5Gc:1}        GAG-linker
 {Xyl:1; a,enHex:1; Hex:1; aHex:1; HexS:1; HexNAc(S):1; Neu5Gc:1}         GAG-linker
-{a,enHex:1; Hex:1; aHex:1; XylPhosphate:1; HexS:1; HexNAc(S):1; Neu5Gc:1}        GAG-linker'''
+{a,enHex:1; Hex:1; aHex:1; XylP:1; HexS:1; HexNAc(S):1; Neu5Gc:1}        GAG-linker'''
 
 
 @hypothesis_register(hypothesis_metadata['name'])
