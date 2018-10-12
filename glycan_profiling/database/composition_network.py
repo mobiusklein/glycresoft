@@ -398,6 +398,7 @@ class CompositionGraph(object):
 
         if reindex:
             self._reindex()
+        return self
 
     def create_edges(self, distance=1, distance_fn=composition_distance):
         """Traverse composition-space to find nodes similar to each other
@@ -426,6 +427,7 @@ class CompositionGraph(object):
                     diff, weight = distance_fn(node.composition, related)
                     e = CompositionGraphEdge(node, related_node, diff, weight)
                     self.edges.add(e)
+        return self
 
     def add_edge(self, node1, node2):
         if node1.index > node2.index:
@@ -631,6 +633,16 @@ class CompositionGraph(object):
         for node in network:
             node.score = node._internal_score = node._temp_score = 0
         return network
+
+    def augment_with_decoys(self):
+        compositions = []
+        for node in self:
+            t = node.glycan_composition.copy()
+            d = node.glycan_composition.copy()
+            d['#decoy#'] = 1
+            compositions.append(t)
+            compositions.append(d)
+        return self.__class__(compositions, self.distance_fn, self.neighborhoods)
 
 
 class GraphWriter(object):
