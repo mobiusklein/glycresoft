@@ -1,9 +1,12 @@
+# -*- coding: utf-8 -*-
+
 from collections import namedtuple, OrderedDict
 
 from six import string_types as basestring
 
 import numpy as np
 from scipy import linalg
+from matplotlib import pyplot as plt
 
 from glycan_profiling.database.composition_network import (
     NeighborhoodWalker, CompositionGraphNode,
@@ -101,6 +104,65 @@ class LaplacianSmoothingModel(object):
         X = np.linalg.pinv(X)
         return self.A0.T.dot(X).dot(self.S0)
 
+    def estimate_phi_given_S_parameters(self, lmbda, tau):
+        r"""Estimate the parameters of the conditional distribution :math:`\phi|s`
+        according to [1]_.
+
+        Notes
+        -----
+        According to [1]_, given
+        .. math::
+
+                y | \theta_1 \sim & \mathcal{N}\left(\mathbf{A_1}\theta_1, \mathbf{C_1}\right) \\
+
+                \theta_1 \sim & \mathcal{N}\left(\mathbf{A_2}\theta_2, \mathbf{C_2}\right) \\
+
+                \theta_1 | y \sim & \mathcal{N}\left(\mathbf{B}b, \mathbf{B}\right) \\
+
+                \mathbf{B^{-1}} = & \mathbf{C_2}^{-1} + \mathbf{A_1}^t\mathbf{C_1}^{-1}\mathbf{A_1} \\
+                b = & \mathbf{A_1}^t\mathbf{C_1}^{-1}y + \mathbf{C_2}^{-1}\mathbf{A_2}\theta_2
+
+        In terms of the network smoothing model, this translates to
+
+        .. math::
+
+                \mathbf{B^{-1}} = & \lambda\mathbf{L} + \tilde{A}^t\Sigma^{-1}\tilde{A}\\
+                                = & \lambda \mathbf{L} + \begin{bmatrix} \Sigma_{oo}^{-1} & 0 \\ 0 & 0 \end{bmatrix} \\
+
+                b = & \tilde{A}^t\Sigma^{-1}s + \lambda\mathbf{L}\mathbf{A}\tau \\
+                  = & \begin{bmatrix}\Sigma_{oo}^{-1}s \\ 0\end{bmatrix} + \lambda\begin{bmatrix}L_{oo}A\tau_o +
+                      L_{om}A\tau_m \\L_{mo}A\tau_o + L_{mm}A\tau_m\end{bmatrix}\\\\
+
+        Parameters
+        ----------
+        lmbda : float
+            The smoothing factor
+        tau : np.ndarray
+            The mean of :math:`\phi`, :math:`\mathbf{A}\tau`
+
+        Returns
+        -------
+        Bb: np.ndarray
+            The mean vector of :math:`\phi|s`
+        B: np.ndarray:
+            The variance matrix of :math:`\phi|s`
+
+        References
+        ----------
+        .. [1] Lindley, D. V., & Smith, A. F. M. (1972). Bayes Estimates for the Linear Model.
+               Royal Statistical Society, 34(1), 1–41.
+        """
+        B_inv = lmbda * self.block_L.matrix
+        B_inv[self.obs_ix, self.obs_ix] += np.diag(self.inverse_variance_matrix)
+        B = linalg.inv(B_inv)
+
+        Alts = np.zeros(len(self.network))
+        Alts[self.obs_ix] = self.S0.dot(self.inverse_variance_matrix)
+        lambda_Lw_Atau = lmbda * self.block_L.matrix.dot(self.normalized_belongingness_matrix.dot(tau))
+        b = Alts + lambda_Lw_Atau
+        phi_given_s = np.dot(B, b)
+        return phi_given_s, B
+
     def get_belongingness_patch(self):
         updated_belongingness = BelongingnessMatrixPatcher.patch(self)
         updated_belongingness = ProportionMatrixNormalization.normalize(
@@ -111,6 +173,64 @@ class LaplacianSmoothingModel(object):
         updated_belongingness = self.get_belongingness_patch()
         self.belongingness_matrix = updated_belongingness
         self.A0 = self.belongingness_matrix[self.obs_ix, :]
+
+
+class SmoothedScoreSample(object):
+    def __init__(self, model, lmbda, tau, size=10000, random_state=None):
+        if random_state is None:
+            random_state = np.random.RandomState()
+        self.model = model
+        self.lmbda = lmbda
+        self.tau = tau
+        self.size = size
+        self.Bb, self.B = self.model.estimate_phi_given_S_parameters(lmbda, tau)
+        self.B_inv = np.linalg.pinv(self.B)
+        self.random_state = random_state
+        self.samples = np.array([])
+        self.resample()
+
+    def resample(self):
+        self.samples = np.random.multivariate_normal(self.Bb, self.B, size=self.size)
+        # alternatively, sample unit variance scaled by the cholesky decomposition of the covariance
+        # matrix to get the sample variance
+        # C = linalg.cholesky(self.B)
+        # self.samples = np.array(
+        #                   [self.Bb + C.T.dot(self.random_state.normal(size=C.shape[0])) for i in range(self.size)])
+        return self
+
+    def _get_index(self, glycan_composition):
+        node = self.model.network[glycan_composition]
+        index = node.index
+        return index
+
+    def _score_index(self, index):
+        tv_inv = self.B_inv[index, :].dot(self.B_inv[:, index])
+        tv = self.B[index, :].dot(self.B[:, index])
+        t = np.exp(-0.5 * (self.samples[:, index] - self.Bb[index]) * (
+            tv_inv) * (self.samples[:, index] - self.Bb[index])) / np.sqrt(2 * np.pi * tv)
+        average_density = t.dot(self.samples[:, index]) / t.size
+        return average_density
+
+    def _gaussian_pdf(self, x, mu, sigma, sigma_inv):
+        d = (x - mu)
+        e = np.exp((-0.5 * (d) * sigma_inv * d))
+        return e / np.sqrt(2 * np.pi * sigma)
+
+    def score(self, glycan_composition):
+        index = self._get_index(glycan_composition)
+        return self._score_index(index)
+
+    def plot_distribution(self, glycan_composition, ax=None):
+        if ax is None:
+            fig, ax = plt.subplots(1)
+        index = self._get_index(glycan_composition)
+        node = self.model.network[index]
+        s = self.samples[:, index]
+        bins = np.arange(0, self.Bb[index] * 2, .1)
+        ax.hist(s, bins=bins, alpha=0.5, density=True, label="%s (%f)" % (node, self.score(glycan_composition)))
+        ax.set_xlabel(r"Resampled $\phi$", fontsize=24)
+        ax.set_ylabel("Density", fontsize=24)
+        return ax
 
 
 class ProportionMatrixNormalization(object):
