@@ -12,27 +12,79 @@ from .constants import DEFAULT_RHO
 
 
 class NetworkReduction(object):
+    r"""A mapping-like ordered data structure that maps score thresholds to
+    :class:`NetworkTrimmingSolution` instances produced at that score. Used
+    for selecting the optimal smoothing factor :math:`\lambda` and during the
+    grid search for finding the optimal score threshold.
+
+    Attributes
+    ----------
+    store : :class:`~.OrderedDict`
+        The storage mapping score to solution
+    """
 
     def __init__(self, store=None):
         if store is None:
             store = OrderedDict()
         self.store = store
+        self._invalidated = True
+        self._resort()
 
     def getkey(self, key):
+        """Get the solution whose score threshold matches ``key``
+
+        Parameters
+        ----------
+        key : float
+            The score threshold
+
+        Returns
+        -------
+        :class:`NetworkTrimmingSolution`
+        """
         return self.store[key]
 
     def getindex(self, ix):
+        """Get the ``ix``th solution, regardless of threshold value
+
+        Parameters
+        ----------
+        ix : int
+            The index to return
+
+        Returns
+        -------
+        :class:`NetworkTrimmingSolution`
+        """
         return self.getkey(list(self.store.keys())[ix])
 
     def searchkey(self, value):
+        """Search for the solution whose score threshold
+        is closest to ``value``
+
+        Parameters
+        ----------
+        value : float
+            The threshold to search for
+
+        Returns
+        -------
+        :class:`NetworkTrimmingSolution`
+        """
+        if self._invalidated:
+            self._resort()
         array = list(self.store.keys())
         ix = self.binsearch(array, value)
         key = array[ix]
-        assert abs(value - key) < 1e-3
         return self.getkey(key)
 
     def put(self, key, value):
         self.store[key] = value
+        self._invalidated = True
+
+    def _resort(self):
+        self.store = OrderedDict((key, self[key]) for key in sorted(self.store.keys()))
+        self._invalidated = False
 
     def __getitem__(self, key):
         return self.getkey(key)
@@ -75,8 +127,8 @@ class NetworkReduction(object):
         ax.scatter(x, y)
         ax.set_xlim(*xbound)
         ax.set_ylim(*ybound)
-        ax.set_xlabel("$S_o$ Threshold", fontsize=18)
-        ax.set_ylabel("Optimal $\lambda$", fontsize=18)
+        ax.set_xlabel(r"$S_o$ Threshold", fontsize=18)
+        ax.set_ylabel(r"Optimal $\lambda$", fontsize=18)
         return ax
 
     def minimum_threshold_for_lambda(self, lmbda_target):
@@ -101,6 +153,34 @@ class NetworkReduction(object):
 
 
 class NetworkTrimmingSearchSolution(object):
+    r"""Hold all the information for the grid search over the smoothing factor
+    :math:`\lambda` at score threshold :attr:`threshold`.
+
+    Attributes
+    ----------
+    lambda_values : :class:`np.ndarray`
+        The :math:`\lambda` searched over
+    minimum_residuals : float
+        The smallest PRESS residuals
+    model : :class:`~.LaplacianSmoothingModel`
+        The smoothing model used for producing these estimates
+    network : :class:`~.CompositionGraph`
+        The network structure retained at :attr:`threshold`
+    observed : list
+        The graph nodes considered observed at this threshold
+    optimal_lambda : float
+        The best :math:`\lambda` value selected by minimizing the PRESS
+    optimal_tau : :class:`np.ndarray`
+        The value of :math:`\tau` for the best value of :math:`\lambda`
+    press_residuals : :class:`np.ndarray`
+        The PRESS at each value of :math:`\lambda`
+    taus : list
+        The :class:`np.ndarray` for each value of :math:`\lambda`
+    threshold : float
+        The score threshold used to produce this trimmed network
+    updated : bool
+        Whether or not this model has changed since the last threshold
+    """
 
     def __init__(self, threshold, lambda_values, press_residuals, network, observed=None,
                  updated=None, taus=None, model=None):
@@ -151,8 +231,8 @@ class NetworkTrimmingSearchSolution(object):
         if ax is None:
             fig, ax = plt.subplots(1)
         ax.plot(self.lambda_values, self.press_residuals, **kwargs)
-        ax.set_xlabel("$\lambda$")
-        ax.set_ylabel("Summed $PRESS$ Residual")
+        ax.set_xlabel(r"$\lambda$")
+        ax.set_ylabel(r"Summed $PRESS$ Residual")
         return ax
 
 
