@@ -32,10 +32,10 @@ def composition_distance(c1, c2):
     '''N-Dimensional Manhattan Distance or L1 Norm
     '''
     keys = set(c1) | set(c2)
-    distance = 0
+    distance = 0.0
     for k in keys:
         distance += abs(c1[k] - c2[k])
-    return distance, 1.0
+    return distance, 1 / distance if distance > 0 else 1
 
 
 def n_glycan_distance(c1, c2):
@@ -177,7 +177,14 @@ class CompositionSpace(object):
             out.update(case)
         return out
 
-    def find_related(self, composition, window=1):
+    def l1_distance(self, c1, c2):
+        keys = set(c1) | set(c2)
+        distance = 0
+        for k in keys:
+            distance += abs(c1[k] - c2[k])
+        return distance
+
+    def find_related_broad(self, composition, window=1):
         m = self.monosaccharides[0]
         q = self.filter.query(
             m, composition[m] - window, composition[m] + window)
@@ -185,6 +192,16 @@ class CompositionSpace(object):
             center = composition[m]
             q.add(m, center - window, center + window)
         return q.all()
+
+    def find_related(self, composition, window=1):
+        if window == 1:
+            return self.find_narrowly_related(composition, window)
+        candidates = self.find_related_broad(composition, window)
+        out = []
+        for case in candidates:
+            if self.l1_distance(composition, case) <= window:
+                out.append(case)
+        return out
 
 
 class CompositionGraphNode(object):
@@ -222,6 +239,10 @@ class CompositionGraphNode(object):
     def edge_to(self, node):
         return self.edges.edge_to(self, node)
 
+    def neighbors(self):
+        result = [edge._traverse(self) for edge in self.edges]
+        return result
+
     def __eq__(self, other):
         try:
             return (self)._str == str(other)
@@ -236,7 +257,7 @@ class CompositionGraphNode(object):
 
     def __repr__(self):
         return "CompositionGraphNode(%s, %d, %0.2f)" % (
-            self._str, len(self.edges),
+            self._str, int(self.index) if self.index is not None else -1,
             self.score if self.score != 0 else self._temp_score)
 
     def copy(self):
@@ -420,7 +441,7 @@ class CompositionGraph(object):
         for node in self:
             if node is None:
                 continue
-            for related in space.find_narrowly_related(node.composition, distance):
+            for related in space.find_related(node.composition, distance):
                 related_node = self.node_map[str(related)]
                 # Ensures no duplicates assuming symmetric search window
                 if node.index < related_node.index:
@@ -1287,9 +1308,7 @@ class NeighborhoodWalker(object):
         total_weight = 0
         for member in self.neighborhood_maps[neighborhood]:
             distance, weight = distance_fn(node.glycan_composition, member.glycan_composition)
-            if distance > 0:
-                weight *= (1. / distance)
-            else:
+            if distance == 0:
                 weight = 1.0
             total_weight += weight
             count += 1

@@ -20,8 +20,8 @@ def weighted_adjacency_matrix(network):
     A[:] = 1. / float('inf')
     for edge in network.edges:
         i, j = edge.node1.index, edge.node2.index
-        A[i, j] = 1. / edge.order
-        A[j, i] = 1. / edge.order
+        A[i, j] = edge.weight
+        A[j, i] = edge.weight
     for i in range(A.shape[0]):
         A[i, i] = 0
     return A
@@ -33,7 +33,7 @@ def degree_matrix(network):
 
 
 def weighted_degree_matrix(network):
-    degrees = [sum(1. / e.order for e in n.edges) for n in network]
+    degrees = [sum(e.weight for e in n.edges) for n in network]
     return np.diag(degrees)
 
 
