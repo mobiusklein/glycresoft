@@ -9,7 +9,10 @@ import math
 from collections import defaultdict, namedtuple
 
 import numpy as np
-
+try:
+    from matplotlib import pyplot as plt
+except (ImportError, RuntimeError):
+    plt = None
 
 ScoreCell = namedtuple('ScoreCell', ['score', 'value'])
 
@@ -253,10 +256,11 @@ class TargetDecoyAnalyzer(object):
         self.target_weight = target_weight
         self.with_pit = with_pit
         self.decoy_correction = decoy_correction
-        self.calculate_thresholds()
-        self._q_value_map = self._calculate_q_values()
 
-    def calculate_thresholds(self):
+        self._calculate_thresholds()
+        self._q_value_map = self.calculate_q_values()
+
+    def _calculate_thresholds(self):
         self.n_targets_at = {}
         self.n_decoys_at = {}
 
@@ -316,21 +320,21 @@ class TargetDecoyAnalyzer(object):
 
         return percent_incorrect_targets
 
-    def fdr_with_percent_incorrect_targets(self, cutoff):
+    def estimate_fdr(self, cutoff):
         if self.with_pit:
             percent_incorrect_targets = self.estimate_percent_incorrect_targets(cutoff)
         else:
             percent_incorrect_targets = 1.0
         return percent_incorrect_targets * self.target_decoy_ratio(cutoff)[0]
 
-    def _calculate_q_values(self):
+    def calculate_q_values(self):
         thresholds = sorted(self.thresholds, reverse=False)
         mapping = {}
         last_score = float('inf')
         last_q_value = 0
         for threshold in thresholds:
             try:
-                q_value = self.fdr_with_percent_incorrect_targets(threshold)
+                q_value = self.estimate_fdr(threshold)
                 # If a worse score has a lower q-value than a better score, use that q-value
                 # instead.
                 if last_q_value < q_value and last_score < threshold:
@@ -341,6 +345,25 @@ class TargetDecoyAnalyzer(object):
             except ZeroDivisionError:
                 mapping[threshold] = 1.
         return NearestValueLookUp(mapping)
+
+    def plot(self, ax=None):
+        if ax is None:
+            fig, ax = plt.subplots(1)
+        thresholds = sorted(self.thresholds, reverse=False)
+        target_counts = np.array([self.n_targets_above_threshold(i) for i in thresholds])
+        decoy_counts = np.array([self.n_decoys_above_threshold(i) for i in thresholds])
+        fdr = np.array([self.q_value_map[i] for i in thresholds])
+        at_5_percent = np.where(fdr < 0.05)[0][0]
+        at_1_percent = np.where(fdr < 0.01)[0][0]
+        ax.plot(thresholds, target_counts, label='Target', color='blue')
+        ax.plot(thresholds, decoy_counts, label='Decoy', color='orange')
+        ax.vlines(thresholds[at_5_percent], 0, np.max(target_counts), linestyle='--', color='blue', lw=0.75)
+        ax.vlines(thresholds[at_1_percent], 0, np.max(target_counts), linestyle='--', color='blue', lw=0.75)
+        ax.legend()
+        ax2 = ax.twinx()
+        ax2.plot(thresholds, fdr, label='FDR', color='grey', linestyle='--')
+        ax2.legend()
+        return ax
 
     def q_values(self):
         q_map = self._q_value_map
