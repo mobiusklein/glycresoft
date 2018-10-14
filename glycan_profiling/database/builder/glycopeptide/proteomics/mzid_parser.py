@@ -71,7 +71,7 @@ class MissingPeptideEvidenceHandler(object):
 
 class Parser(MzIdentML):
 
-    _index_tags = MzIdentML._index_tags - {'SearchDatabase', }
+    _index_tags = MzIdentML._indexed_tags - {'SearchDatabase', }
 
     def _handle_ref(self, info, key, value):
         try:
