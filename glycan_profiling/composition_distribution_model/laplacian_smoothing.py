@@ -203,12 +203,17 @@ class SmoothedScoreSample(object):
         index = node.index
         return index
 
-    def _score_index(self, index):
-        tv_inv = self.B_inv[index, :].dot(self.B_inv[:, index])
-        tv = self.B[index, :].dot(self.B[:, index])
+    def _marginal_density(self, index):
+        tv = self.B[index, index]
+        tv_inv = self.B_inv[index, index]
         t = np.exp(-0.5 * (self.samples[:, index] - self.Bb[index]) * (
             tv_inv) * (self.samples[:, index] - self.Bb[index])) / np.sqrt(2 * np.pi * tv)
-        average_density = t.dot(self.samples[:, index]) / t.size
+        average_density = t.sum() / self.size
+        return average_density
+
+    def _score_index(self, index):
+        average_density = self._marginal_density(index)
+        average_density *= self.samples[:, index].mean()
         return average_density
 
     def _gaussian_pdf(self, x, mu, sigma, sigma_inv):
