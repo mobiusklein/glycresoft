@@ -35,7 +35,7 @@ def composition_distance(c1, c2):
     distance = 0.0
     for k in keys:
         distance += abs(c1[k] - c2[k])
-    return distance, 1 / distance if distance > 0 else 1
+    return int(distance), 1 / distance if distance > 0 else 1
 
 
 def n_glycan_distance(c1, c2):
