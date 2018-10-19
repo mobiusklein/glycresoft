@@ -134,6 +134,7 @@ class IdentificationProcessDispatcher(TaskBase):
         self.structure_map = dict()
         self._token_to_worker = {}
         self._has_received_token = set()
+        self._has_remote_error = False
 
     def _make_input_queue(self):
         return JoinableQueue(int(1e5))
@@ -157,12 +158,12 @@ class IdentificationProcessDispatcher(TaskBase):
             exitcode = worker.exitcode
             if exitcode != 0 and exitcode is not None:
                 self.log("... Worker Process %r had exitcode %r" % (worker, exitcode))
-            elif worker.is_alive() and worker.token not in self._has_received_token:
-                self.log("... Worker Process %r is still alive and incomplete" % (worker, ))
             try:
                 worker.join(5)
             except AttributeError:
                 pass
+            if worker.is_alive() and worker.token not in self._has_received_token:
+                self.log("... Worker Process %r is still alive and incomplete" % (worker, ))
 
     def create_pool(self, scan_map):
         """Spawn a pool of workers and a supporting process
@@ -209,6 +210,7 @@ class IdentificationProcessDispatcher(TaskBase):
                     return worker_still_busy
             except (RemoteError, KeyError):
                 worker_still_busy = True
+                self._has_remote_error = True
                 return worker_still_busy
         return worker_still_busy
 
@@ -538,7 +540,8 @@ class IdentificationProcessDispatcher(TaskBase):
                         is_feeder_done = self.producer_thread_done_event.is_set()
                         self.log("...... Input Queue Status: %r. Is Feeder Done? %r" % (
                             input_queue_size, is_feeder_done))
-                    if strikes > (self.child_failure_timeout * (1 + (scan_count / 500.0))):
+                    if strikes > (self.child_failure_timeout * (1 + (scan_count / 500.0) * (
+                            not self._has_remote_error))):
                         self.state = ProcessDispatcherState.running_local_workers_live
                         self.log(
                             ("...... Too much time has elapsed with"
@@ -649,7 +652,10 @@ class SpectrumIdentificationWorkerBase(Process):
     def cleanup(self):
         self.debug("... Process %s Setting Work Complete Flag. Processed %d structures" % (
             self.name, self.items_handled))
-        self._work_complete.set()
+        try:
+            self._work_complete.set()
+        except (RemoteError, KeyError):
+            self.log("An error occurred while cleaning up worker %r" % (self, ))
         self.output_queue.put(SentinelToken(self.token))
         self.consumer_done_event.wait()
         # joining the queue may not be necessary if we depend upon consumer_event_done
@@ -682,6 +688,7 @@ class SpectrumIdentificationWorkerBase(Process):
                 message = "An error occurred while processing %r on %r:\n%s" % (
                     structure, self, traceback.format_exc())
                 self.log(message)
+                break
         self.cleanup()
 
     def run(self):
