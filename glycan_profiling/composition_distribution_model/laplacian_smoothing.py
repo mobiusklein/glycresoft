@@ -190,7 +190,7 @@ class SmoothedScoreSample(object):
         self.resample()
 
     def resample(self):
-        self.samples = np.random.multivariate_normal(self.Bb, self.B, size=self.size)
+        self.samples = self.random_state.multivariate_normal(self.Bb, self.B, size=self.size)
         # alternatively, sample unit variance scaled by the cholesky decomposition of the covariance
         # matrix to get the sample variance
         # C = linalg.cholesky(self.B)
@@ -205,9 +205,8 @@ class SmoothedScoreSample(object):
 
     def _marginal_density(self, index):
         tv = self.B[index, index]
-        tv_inv = self.B_inv[index, index]
         t = np.exp(-0.5 * (self.samples[:, index] - self.Bb[index]) * (
-            tv_inv) * (self.samples[:, index] - self.Bb[index])) / np.sqrt(2 * np.pi * tv)
+            (1 / tv)) * (self.samples[:, index] - self.Bb[index])) / np.sqrt(2 * np.pi * tv)
         average_density = t.sum() / self.size
         return average_density
 

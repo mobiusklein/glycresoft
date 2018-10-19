@@ -245,14 +245,28 @@ class GridPointSolution(object):
     def __init__(self, threshold, lmbda, tau, belongingness_matrix, neighborhood_names, node_names,
                  variance_matrix=None):
         if variance_matrix is None:
-            variance_matrix = np.identity(len(node_names))
+            variance_matrix = np.identity(len(node_names), dtype=np.float64)
         self.threshold = threshold
         self.lmbda = lmbda
-        self.tau = tau
-        self.belongingness_matrix = belongingness_matrix
+        self.tau = np.array(tau, dtype=np.float64)
+        self.belongingness_matrix = np.array(belongingness_matrix, dtype=np.float64)
         self.neighborhood_names = np.array(neighborhood_names)
         self.node_names = np.array(node_names)
-        self.variance_matrix = variance_matrix
+        self.variance_matrix = np.array(variance_matrix, dtype=np.float64)
+
+    def __eq__(self, other):
+        ac = np.allclose
+        match = ac(self.threshold, other.threshold) and ac(self.lmbda, other.lmbda) and ac(
+            self.tau, other.tau) and ac(self.belongingness_matrix, other.belongingness_matrix) and ac(
+            self.variance_matrix, other.variance_matrix)
+        if not match:
+            return match
+        match = np.all(self.node_names == other.node_names) and np.all(
+            self.neighborhood_names == other.neighborhood_names)
+        return match
+
+    def __ne__(self, other):
+        return not (self == other)
 
     def __repr__(self):
         return "GridPointSolution(threshold=%0.3f, lmbda=%0.3f, tau=%r)" % (
@@ -274,6 +288,7 @@ class GridPointSolution(object):
 
         self.belongingness_matrix = self.belongingness_matrix[node_indices, :][:, tau_indices]
         self.tau = self.tau[tau_indices]
+        self.variance_matrix = self.variance_matrix[node_indices, node_indices]
 
         self.neighborhood_names = model.neighborhood_names
         self.node_names = node_names
@@ -319,7 +334,7 @@ class GridPointSolution(object):
             for cj, v in enumerate(row):
                 if cj != 0:
                     fp.write(",")
-                fp.write("%f" % (v, ))
+                fp.write("%f" % (v, ) if v != 0 else "0")
             fp.write("\n")
         return fp
 
@@ -458,13 +473,15 @@ class ThresholdSelectionGridSearch(object):
 
         # Removes rows from A0
         self.model.set_threshold(state.threshold)
-        variance_matrix = self.model.variance_matrix
 
         tau = self.model.estimate_tau_from_S0(rho, lmbda)
         A = self.model.normalized_belongingness_matrix.copy()
 
         # Restore removed rows from A0
         self.model.remove_belongingness_patch()
+
+        variance_matrix = np.identity(len(self.model.network)) * 0
+        variance_matrix[self.model.obs_ix, self.model.obs_ix] = np.diag(self.model.variance_matrix)
 
         return GridPointSolution(state.threshold, lmbda, tau, A,
                                  self.model.neighborhood_names,
@@ -496,9 +513,12 @@ class ThresholdSelectionGridSearch(object):
         lmbda_acc /= n
         A /= n
         # A = ProportionMatrixNormalization.normalize(A, self.model._belongingness_normalization)
+        variance_matrix = np.identity(len(self.model.network)) * 0
+        variance_matrix[self.model.obs_ix, self.model.obs_ix] = np.diag(self.model.variance_matrix)
         average_solution = GridPointSolution(
             thresh_acc, lmbda_acc, tau_acc, A,
-            self.model.neighborhood_names, self.model.node_names)
+            self.model.neighborhood_names, self.model.node_names,
+            variance_matrix=variance_matrix)
         return average_solution
 
     def estimate_phi_observed(self, solution=None, remove_threshold=True, rho=DEFAULT_RHO):
