@@ -164,6 +164,7 @@ class IdentificationProcessDispatcher(TaskBase):
                 pass
             if worker.is_alive() and worker.token not in self._has_received_token:
                 self.log("... Worker Process %r is still alive and incomplete" % (worker, ))
+                worker.terminate()
 
     def create_pool(self, scan_map):
         """Spawn a pool of workers and a supporting process
