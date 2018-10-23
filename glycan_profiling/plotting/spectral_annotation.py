@@ -2,12 +2,14 @@ import numpy as np
 
 from matplotlib import pyplot as plt, font_manager, transforms as mtransforms
 from ms_peak_picker.utils import draw_peaklist
-from .sequence_fragment_logo import SequenceGlyph
+from .sequence_fragment_logo import glycopeptide_match_logo
 
 
 default_ion_series_to_color = {
     "y": 'red',
+    'z': 'maroon',
     "b": 'blue',
+    'c': 'navy',
     'B': 'blue',
     'Y': 'red',
     'oxonium_ion': 'green',
@@ -19,11 +21,12 @@ font_options = font_manager.FontProperties(family='sans serif')
 
 
 class SpectrumMatchAnnotator(object):
-    def __init__(self, spectrum_match, ax=None):
+    def __init__(self, spectrum_match, ax=None, clip_labels=True):
         if ax is None:
             fig, ax = plt.subplots(1)
         self.spectrum_match = spectrum_match
         self.ax = ax
+        self.clip_labels = clip_labels
         self.upper = max(
             spectrum_match.spectrum, key=lambda x: x.intensity
         ).intensity * 1.35
@@ -46,10 +49,13 @@ class SpectrumMatchAnnotator(object):
         y = peak.intensity
         y = min(y + 100, self.upper * 0.95)
 
+        kw.setdefault("clip_on", self.clip_labels)
+        clip_on = kw['clip_on']
+
         return self.ax.text(
             peak.mz, y, label, rotation=rotation, va='bottom',
             ha='center', fontsize=fontsize, fontproperties=font_options,
-            clip_on=True)
+            clip_on=clip_on)
 
     def format_axes(self):
         draw_peaklist([], self.ax, pretty=True)
@@ -84,6 +90,8 @@ class SpectrumMatchAnnotator(object):
         p1, p2 = pair
         self.ax.plot((p1.mz, p2.mz), (p1.intensity, p2.intensity),
                      color=color, alpha=alpha, **kwargs)
+        kwargs.setdefault("clip_on", self.clip_labels)
+        clip_on = kwargs['clip_on']
         draw_peaklist(pair, ax=self.ax, alpha=0.4, color='orange')
         if label:
             midx = (p1.mz + p2.mz) / 2
@@ -94,7 +102,7 @@ class SpectrumMatchAnnotator(object):
             else:
                 label = str(label)
             self.ax.text(midx, midy, label, fontsize=fontsize,
-                         ha='center', va='bottom', rotation=rotation, clip_on=True)
+                         ha='center', va='bottom', rotation=rotation, clip_on=clip_on)
 
     def draw(self, **kwargs):
         fontsize = kwargs.pop('fontsize', 9)
@@ -108,21 +116,31 @@ class SpectrumMatchAnnotator(object):
         self.format_axes()
         return self
 
-    def add_logo_plot(self, xrel=0.1, yrel=0.85, yrelscale=0.05):
-        ax = self.ax
-        xlim = ax.get_xlim()
-        ylim = ax.get_ylim()
-
-        xwidth = xlim[1] - xlim[0]
-        ywidth = ylim[1] - ylim[0]
-
-        aspect_ratio = xwidth / ywidth
-        logo_height = ywidth * yrelscale
-        trans = mtransforms.Affine2D()
-        trans.scale(logo_height * aspect_ratio, logo_height).translate(xlim[1] * xrel, ylim[1] * yrel)
-        logo = SequenceGlyph.from_spectrum_match(self.spectrum_match, set_layout=False, ax=ax)
-        logo.transform(trans)
+    def add_logo_plot(self, xrel=0.15, yrel=0.8, width=0.67, height=0.13):
+        figure = self.ax.figure
+        iax = figure.add_axes([xrel, yrel, width, height])
+        logo = glycopeptide_match_logo(self.spectrum_match, ax=iax)
         return logo
+
+    def _draw_mass_accuracy_plot(self, ax, error_tolerance=2e-5):
+        match = self.spectrum_match
+        ax.scatter(*zip(*[(pp.peak.mz, pp.mass_accuracy()) for pp in match.solution_map]),
+                   alpha=0.5, edgecolor='black', color=[
+                   default_ion_series_to_color[pp.fragment.series] for pp in match.solution_map])
+        limits = error_tolerance
+        ax.set_ylim(-limits, limits)
+        xlim = 0, max(match.deconvoluted_peak_set, key=lambda x: x.mz).mz + 100
+        ax.hlines(0, *xlim, linestyle='--')
+        ax.hlines(0, *xlim, linestyle='--')
+        ax.hlines(limits / 2, *xlim, linestyle='--', lw=0.5)
+        ax.hlines(-limits / 2, *xlim, linestyle='--', lw=0.5)
+        ax.set_xlim(*xlim)
+        labels = ax.get_yticks()
+        labels = ['%s ppm' % (label * 1e6) for label in labels]
+        ax.set_yticklabels(labels)
+        ax.set_xlabel("m/z", fontsize=16)
+        ax.set_ylabel("Mass Accuracy", fontsize=16)
+        return ax
 
     def __repr__(self):
         return "{self.__class__.__name__}({self.spectrum_match})".format(

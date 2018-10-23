@@ -1,4 +1,5 @@
 from ms_deisotope import DeconvolutedPeakSet, isotopic_shift
+from ms_deisotope.data_source.metadata import activation
 
 from glycan_profiling.structure import (
     ScanWrapperBase)
@@ -82,6 +83,14 @@ class SpectrumMatchBase(ScanWrapperBase):
         except AttributeError:
             target_id = None
         return hash((self.scan.id, self.target, target_id))
+
+    def is_hcd(self):
+        return self.scan.activation.has_dissociation_type(activation.HCD) or\
+            self.scan.activation.has_dissociation_type(activation.CID)
+
+    def is_exd(self):
+        return self.scan.activation.has_dissociation_type(activation.ETD) or\
+            self.scan.activation.has_dissociation_type(activation.ECD)
 
 
 class SpectrumMatcherBase(SpectrumMatchBase):

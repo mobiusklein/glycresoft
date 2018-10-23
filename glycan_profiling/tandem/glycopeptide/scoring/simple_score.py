@@ -1,9 +1,10 @@
 import numpy as np
 
-from .base import GlycopeptideSpectrumMatcherBase
 from glycan_profiling.structure import FragmentMatchMap
 
-from glycopeptidepy.structure.fragment import IonSeries
+from .base import (
+    GlycopeptideSpectrumMatcherBase, ChemicalShift, EXDFragmentationStrategy,
+    HCDFragmentationStrategy, IonSeries)
 
 
 class SimpleCoverageScorer(GlycopeptideSpectrumMatcherBase):
@@ -15,87 +16,122 @@ class SimpleCoverageScorer(GlycopeptideSpectrumMatcherBase):
         super(SimpleCoverageScorer, self).__init__(scan, sequence, mass_shift)
         self._score = None
         self.solution_map = FragmentMatchMap()
-        self.glycosylated_b_ion_count = 0
-        self.glycosylated_y_ion_count = 0
+        self.glycosylated_n_term_ion_count = 0
+        self.glycosylated_c_term_ion_count = 0
 
-    def match(self, error_tolerance=2e-5):
-        solution_map = FragmentMatchMap()
-        spectrum = self.spectrum
+    @property
+    def glycosylated_b_ion_count(self):
+        return self.glycosylated_n_term_ion_count
 
-        n_glycosylated_b_ions = 0
-        for frags in self.target.get_fragments('b'):
+    @glycosylated_b_ion_count.setter
+    def glycosylated_b_ion_count(self, value):
+        self.glycosylated_n_term_ion_count = value
+
+    @property
+    def glycosylated_y_ion_count(self):
+        return self.glycosylated_c_term_ion_count
+
+    @glycosylated_y_ion_count.setter
+    def glycosylated_y_ion_count(self, value):
+        self.glycosylated_c_term_ion_count = value
+
+    def _match_backbone_series(self, series, error_tolerance=2e-5, masked_peaks=None, strategy=None):
+        if strategy is None:
+            strategy = HCDFragmentationStrategy
+        for frags in self.target.get_fragments(series, strategy=strategy):
             glycosylated_position = False
             for frag in frags:
                 glycosylated_position |= frag.is_glycosylated
-                for peak in spectrum.all_peaks_for(frag.mass, error_tolerance):
-                    solution_map.add(peak, frag)
+                for peak in self.spectrum.all_peaks_for(frag.mass, error_tolerance):
+                    if peak.index.neutral_mass in masked_peaks:
+                        continue
+                    self.solution_map.add(peak, frag)
             if glycosylated_position:
-                n_glycosylated_b_ions += 1
+                if series.direction > 0:
+                    self.glycosylated_n_term_ion_count += 1
+                else:
+                    self.glycosylated_c_term_ion_count += 1
 
-        n_glycosylated_y_ions = 0
-        for frags in self.target.get_fragments('y'):
-            glycosylated_position = False
-            for frag in frags:
-                glycosylated_position |= frag.is_glycosylated
-                for peak in spectrum.all_peaks_for(frag.mass, error_tolerance):
-                    solution_map.add(peak, frag)
-            if glycosylated_position:
-                n_glycosylated_y_ions += 1
-        for frag in self.target.stub_fragments(extended=True):
-            for peak in spectrum.all_peaks_for(frag.mass, error_tolerance):
-                solution_map.add(peak, frag)
+    def match(self, error_tolerance=2e-5, *args, **kwargs):
 
-        self.glycosylated_b_ion_count = n_glycosylated_b_ions
-        self.glycosylated_y_ion_count = n_glycosylated_y_ions
-        self.solution_map = solution_map
-        return solution_map
+        masked_peaks = set()
+
+        if self.mass_shift.tandem_mass != 0:
+            chemical_shift = ChemicalShift(
+                self.mass_shift.name, self.mass_shift.tandem_composition)
+        else:
+            chemical_shift = None
+
+        is_hcd = self.is_hcd()
+        is_exd = self.is_exd()
+
+        # handle glycan fragments from collisional dissociation
+        if is_hcd:
+            self._match_oxonium_ions(error_tolerance, masked_peaks=masked_peaks)
+            self._match_stub_glycopeptides(error_tolerance, masked_peaks=masked_peaks, chemical_shift=chemical_shift)
+
+        # handle N-term
+        if is_hcd and not is_exd:
+            self._match_backbone_series(IonSeries.b, error_tolerance, masked_peaks, HCDFragmentationStrategy)
+        elif is_exd:
+            self._match_backbone_series(IonSeries.b, error_tolerance, masked_peaks, EXDFragmentationStrategy)
+            self._match_backbone_series(IonSeries.c, error_tolerance, masked_peaks, EXDFragmentationStrategy)
+
+        # handle C-term
+        if is_hcd and not is_exd:
+            self._match_backbone_series(IonSeries.y, error_tolerance, masked_peaks, HCDFragmentationStrategy)
+        elif is_exd:
+            self._match_backbone_series(IonSeries.y, error_tolerance, masked_peaks, EXDFragmentationStrategy)
+            self._match_backbone_series(IonSeries.z, error_tolerance, masked_peaks, EXDFragmentationStrategy)
+
+        return self
 
     def _compute_coverage_vectors(self):
-        b_ions = np.zeros(len(self.target))
-        y_ions = np.zeros(len(self.target))
+        n_term_ions = np.zeros(len(self.target))
+        c_term_ions = np.zeros(len(self.target))
         stub_count = 0
-        glycosylated_b_ions = 0
-        glycosylated_y_ions = 0
+        glycosylated_n_term_ions = set()
+        glycosylated_c_term_ions = set()
 
         for frag in self.solution_map.fragments():
-            if frag.series == IonSeries.b:
-                b_ions[frag.position] = 1
+            if frag.series in (IonSeries.b, IonSeries.c):
+                n_term_ions[frag.position] = 1
                 if frag.is_glycosylated:
-                    glycosylated_b_ions += 1
-            elif frag.series == IonSeries.y:
-                y_ions[frag.position] = 1
+                    glycosylated_n_term_ions.add((frag.series, frag.position))
+            elif frag.series in (IonSeries.y, IonSeries.z):
+                c_term_ions[frag.position] = 1
                 if frag.is_glycosylated:
-                    glycosylated_y_ions += 1
+                    glycosylated_c_term_ions.add((frag.series, frag.position))
             elif frag.series == IonSeries.stub_glycopeptide:
                 stub_count += 1
-        return b_ions, y_ions, stub_count, glycosylated_b_ions, glycosylated_y_ions
+        return n_term_ions, c_term_ions, stub_count, len(glycosylated_n_term_ions), len(glycosylated_c_term_ions)
 
-    def _compute_glycosylated_coverage(self, glycosylated_b_ions, glycosylated_y_ions):
+    def _compute_glycosylated_coverage(self, glycosylated_n_term_ions, glycosylated_c_term_ions):
         ladders = 0.
         numer = 0.0
         denom = 0.0
-        if self.glycosylated_b_ion_count > 0:
-            numer += glycosylated_b_ions
-            denom += self.glycosylated_b_ion_count
+        if self.glycosylated_n_term_ion_count > 0:
+            numer += glycosylated_n_term_ions
+            denom += self.glycosylated_n_term_ion_count
             ladders += 1.
-        if self.glycosylated_y_ion_count > 0:
-            numer += glycosylated_y_ions
-            denom += self.glycosylated_y_ion_count
+        if self.glycosylated_c_term_ion_count > 0:
+            numer += glycosylated_c_term_ions
+            denom += self.glycosylated_c_term_ion_count
             ladders += 1.
         if denom == 0.0:
             return 0.0
         return numer / denom
 
     def compute_coverage(self):
-        (b_ions, y_ions, stub_count,
-         glycosylated_b_ions,
-         glycosylated_y_ions) = self._compute_coverage_vectors()
+        (n_term_ions, c_term_ions, stub_count,
+         glycosylated_n_term_ions,
+         glycosylated_c_term_ions) = self._compute_coverage_vectors()
 
-        mean_coverage = np.mean(np.log2(b_ions + y_ions[::-1] + 1) / np.log2(3))
+        mean_coverage = np.mean(np.log2(n_term_ions + c_term_ions[::-1] + 1) / np.log2(3))
 
         glycosylated_coverage = self._compute_glycosylated_coverage(
-            glycosylated_b_ions,
-            glycosylated_y_ions)
+            glycosylated_n_term_ions,
+            glycosylated_c_term_ions)
 
         stub_fraction = min(stub_count, 3) / 3.
 

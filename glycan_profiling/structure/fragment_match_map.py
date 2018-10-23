@@ -119,6 +119,11 @@ class FragmentMatchMap(object):
         return "FragmentMatchMap(%s)" % (', '.join(
             f.name for f in self.fragments()),)
 
+    def clear(self):
+        self.members.clear()
+        self.by_fragment.clear()
+        self.by_peak.clear()
+
 
 class PeakPairTransition(object):
     def __init__(self, start, end, annotation):

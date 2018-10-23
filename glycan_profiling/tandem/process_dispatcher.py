@@ -159,11 +159,11 @@ class IdentificationProcessDispatcher(TaskBase):
             if exitcode != 0 and exitcode is not None:
                 self.log("... Worker Process %r had exitcode %r" % (worker, exitcode))
             try:
-                worker.join(5)
+                worker.join(1)
             except AttributeError:
                 pass
             if worker.is_alive() and worker.token not in self._has_received_token:
-                self.log("... Worker Process %r is still alive and incomplete" % (worker, ))
+                self.debug("... Worker Process %r is still alive and incomplete" % (worker, ))
                 worker.terminate()
 
     def create_pool(self, scan_map):

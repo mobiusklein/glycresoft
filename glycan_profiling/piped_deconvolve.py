@@ -286,6 +286,8 @@ class ScanTransformingProcess(Process, ScanTransformMixin):
         self.ms1_averaging = ms1_averaging
         self.deconvolute = deconvolute
 
+        self.transformer = None
+
         self.no_more_event = no_more_event
         self._work_complete = multiprocessing.Event()
         self.log_handler = log_handler
@@ -302,12 +304,66 @@ class ScanTransformingProcess(Process, ScanTransformMixin):
             ms1_averaging=self.ms1_averaging)
         return transformer
 
+    def handle_scan_bunch(self, scan, product_scans, scan_id, product_scan_ids, process_msn=True):
+        transformer = self.transformer
+        # handle the MS1 scan if it is present
+        if scan is not None:
+            if len(scan.arrays[0]) == 0:
+                self.skip_scan(scan)
+                return
+
+            try:
+                scan, priorities, product_scans = transformer.process_scan_group(
+                    scan, product_scans)
+                if scan is None:
+                    # no way to report skip
+                    pass
+                else:
+                    if self.deconvolute:
+                        transformer.deconvolute_precursor_scan(scan, priorities)
+                    self.send_scan(scan)
+            except NoIsotopicClustersError as e:
+                self.log_message("No isotopic clusters were extracted from scan %s (%r)" % (
+                    e.scan_id, len(scan.peak_set)))
+                self.skip_scan(scan)
+            except EmptyScanError as e:
+                self.skip_scan(scan)
+            except Exception as e:
+                self.skip_scan(scan)
+                self.log_error(e, scan_id, scan, (product_scan_ids))
+
+        for product_scan in product_scans:
+            # no way to report skip
+            if product_scan is None:
+                continue
+            if len(product_scan.arrays[0]) == 0 or (not process_msn):
+                self.skip_scan(product_scan)
+                continue
+            try:
+                transformer.pick_product_scan_peaks(product_scan)
+                if self.deconvolute:
+                    transformer.deconvolute_product_scan(product_scan)
+                    if scan is None:
+                        product_scan.precursor_information.default(orphan=True)
+                self.send_scan(product_scan)
+            except NoIsotopicClustersError as e:
+                self.log_message("No isotopic clusters were extracted from scan %s (%r)" % (
+                    e.scan_id, len(product_scan.peak_set)))
+                self.skip_scan(product_scan)
+            except EmptyScanError as e:
+                self.skip_scan(product_scan)
+            except Exception as e:
+                self.skip_scan(product_scan)
+                self.log_error(e, product_scan.id,
+                               product_scan, (product_scan_ids))
+
     def run(self):
         loader = MSFileLoader(self.mzml_path, huge_tree=huge_tree)
         queued_loader = ScanBunchLoader(loader)
 
         has_input = True
         transformer = self.make_scan_transformer(loader)
+        self.transformer = transformer
 
         nologs = ["deconvolution_scan_processor"]
         if not self.deconvolute:
@@ -343,56 +399,7 @@ class ScanTransformingProcess(Process, ScanTransformMixin):
                 self.log_message("Something went wrong when loading bunch (%s): %r.\nRecovery is not possible." % (
                     (scan_id, product_scan_ids), e))
 
-            # handle the MS1 scan if it is present
-            if scan is not None:
-                if len(scan.arrays[0]) == 0:
-                    self.skip_scan(scan)
-                    continue
-
-                try:
-                    scan, priorities, product_scans = transformer.process_scan_group(
-                        scan, product_scans)
-                    if scan is None:
-                        # no way to report skip
-                        pass
-                    else:
-                        if self.deconvolute:
-                            transformer.deconvolute_precursor_scan(scan, priorities)
-                        self.send_scan(scan)
-                except NoIsotopicClustersError as e:
-                    self.log_message("No isotopic clusters were extracted from scan %s (%r)" % (
-                        e.scan_id, len(scan.peak_set)))
-                    self.skip_scan(scan)
-                except EmptyScanError as e:
-                    self.skip_scan(scan)
-                except Exception as e:
-                    self.skip_scan(scan)
-                    self.log_error(e, scan_id, scan, (product_scan_ids))
-
-            for product_scan in product_scans:
-                # no way to report skip
-                if product_scan is None:
-                    continue
-                if len(product_scan.arrays[0]) == 0 or (not process_msn):
-                    self.skip_scan(product_scan)
-                    continue
-                try:
-                    transformer.pick_product_scan_peaks(product_scan)
-                    if self.deconvolute:
-                        transformer.deconvolute_product_scan(product_scan)
-                        if scan is None:
-                            product_scan.precursor_information.default(orphan=True)
-                    self.send_scan(product_scan)
-                except NoIsotopicClustersError as e:
-                    self.log_message("No isotopic clusters were extracted from scan %s (%r)" % (
-                        e.scan_id, len(product_scan.peak_set)))
-                    self.skip_scan(product_scan)
-                except EmptyScanError as e:
-                    self.skip_scan(product_scan)
-                except Exception as e:
-                    self.skip_scan(product_scan)
-                    self.log_error(e, product_scan.id,
-                                   product_scan, (product_scan_ids))
+            self.handle_scan_bunch(scan, product_scans, scan_id, product_scan_ids, process_msn)
             if (i - last) > 1000:
                 last = i
                 self.output_queue.join()
