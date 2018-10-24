@@ -93,8 +93,19 @@ class MSMSSampleConsumerTest(unittest.TestCase, SampleConsumerBase):
             assert len(a_bunch.products) == len(b_bunch.products)
             for a_product, b_product in zip(a_bunch.products, b_bunch.products):
                 assert a_product.precursor_information.defaulted == b_product.precursor_information.defaulted
-                assert np.isclose(a_product.precursor_information.neutral_mass,
-                                  b_product.precursor_information.neutral_mass)
+                matched = np.isclose(a_product.precursor_information.neutral_mass,
+                                     b_product.precursor_information.neutral_mass)
+                message = ["%0.3f not close to %0.3f for %s of %s" % (
+                    a_product.precursor_information.neutral_mass,
+                    b_product.precursor_information.neutral_mass,
+                    a_product.id, a_product.precursor_information.precursor_scan_id)]
+                message.append("Found precursor score %r, expected %r" % (
+                    a_product.precursor_information.precursor.deconvoluted_peak_set.has_peak(
+                        a_product.precursor_information.neutral_mass).score,
+                    b_product.precursor_information.precursor.deconvoluted_peak_set.has_peak(
+                        b_product.precursor_information.neutral_mass).score
+                ))
+                assert matched, '\n'.join(message)
                 assert len(a_product.deconvoluted_peak_set) == len(b_product.deconvoluted_peak_set)
 
         reader.close()

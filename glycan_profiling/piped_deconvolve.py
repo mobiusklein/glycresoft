@@ -243,7 +243,7 @@ class ScanTransformingProcess(Process, ScanTransformMixin):
                  msn_peak_picking_args=None,
                  ms1_deconvolution_args=None, msn_deconvolution_args=None,
                  envelope_selector=None, ms1_averaging=0, log_handler=None,
-                 deconvolute=True):
+                 deconvolute=True, verbose=False):
         if log_handler is None:
             def print_message(msg):
                 print(msg)
@@ -272,6 +272,7 @@ class ScanTransformingProcess(Process, ScanTransformMixin):
             }
 
         Process.__init__(self)
+        self.verbose = verbose
         self._init_batch_store()
         self.daemon = True
         self.mzml_path = mzml_path
@@ -319,6 +320,8 @@ class ScanTransformingProcess(Process, ScanTransformMixin):
                     # no way to report skip
                     pass
                 else:
+                    if self.verbose:
+                        self.log_message("Handling Precursor Scan %r with %d peaks" % (scan.id, len(scan.peak_set)))
                     if self.deconvolute:
                         transformer.deconvolute_precursor_scan(scan, priorities)
                     self.send_scan(scan)
@@ -341,6 +344,11 @@ class ScanTransformingProcess(Process, ScanTransformMixin):
                 continue
             try:
                 transformer.pick_product_scan_peaks(product_scan)
+                if self.verbose:
+                    self.log_message("Handling Product Scan %r with %d peaks (%0.3f/%0.3f, %r)" % (
+                        product_scan.id, len(product_scan.peak_set), product_scan.precursor_information.mz,
+                        product_scan.precursor_information.extracted_mz,
+                        product_scan.precursor_information.defaulted))
                 if self.deconvolute:
                     transformer.deconvolute_product_scan(product_scan)
                     if scan is None:
@@ -830,7 +838,7 @@ class ScanGenerator(TaskBase, ScanGeneratorBase):
             self._deconv_process, input_queue=self._input_queue,
             include_fitted=not self.deconvoluting)
 
-    def make_iterator(self, start_scan=None, end_scan=None, max_scans=None):
+    def _initialize_workers(self, start_scan=None, end_scan=None, max_scans=None):
         try:
             self._input_queue = JoinableQueue(int(1e6))
             self._output_queue = JoinableQueue(5000)
@@ -861,6 +869,9 @@ class ScanGenerator(TaskBase, ScanGeneratorBase):
         self._deconv_process.start()
 
         self._order_manager = self._make_collator()
+
+    def make_iterator(self, start_scan=None, end_scan=None, max_scans=None):
+        self._initialize_workers(start_scan, end_scan, max_scans)
 
         for scan in self._order_manager:
             self.time_cache[scan.id] = scan.scan_time
