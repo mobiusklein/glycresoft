@@ -71,7 +71,11 @@ class LogIntensityScorer(SimpleCoverageScorer, GlycanCompositionSignatureMatcher
 
     def _intensity_score(self, error_tolerance=2e-5, *args, **kwargs):
         total = 0
+        seen = set()
         for peak, fragment in self.solution_map:
+            if peak.index.neutral_mass in seen:
+                continue
+            seen.add(peak.index.neutral_mass)
             total += np.log10(peak.intensity)
         return total
 

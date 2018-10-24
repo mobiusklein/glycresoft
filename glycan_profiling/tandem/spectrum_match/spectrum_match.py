@@ -1,3 +1,5 @@
+import warnings
+
 from ms_deisotope import DeconvolutedPeakSet, isotopic_shift
 from ms_deisotope.data_source.metadata import activation
 
@@ -85,12 +87,28 @@ class SpectrumMatchBase(ScanWrapperBase):
         return hash((self.scan.id, self.target, target_id))
 
     def is_hcd(self):
-        return self.scan.activation.has_dissociation_type(activation.HCD) or\
-            self.scan.activation.has_dissociation_type(activation.CID)
+        activation_info = self.scan.activation
+        if activation_info is None:
+            if self.scan.ms_level == 1:
+                return False
+            else:
+                warnings.warn("Activation information is missing. Assuming HCD")
+                return True
+        matched = activation_info.has_dissociation_type(activation.HCD) or\
+            activation_info.has_dissociation_type(activation.CID)
+        return matched
 
     def is_exd(self):
-        return self.scan.activation.has_dissociation_type(activation.ETD) or\
-            self.scan.activation.has_dissociation_type(activation.ECD)
+        activation_info = self.scan.activation
+        if activation_info is None:
+            if self.scan.ms_level == 1:
+                return False
+            else:
+                warnings.warn("Activation information is missing. Assuming not ExD")
+                return False
+        matched = activation_info.has_dissociation_type(activation.ETD) or\
+            activation_info.has_dissociation_type(activation.ECD)
+        return matched
 
 
 class SpectrumMatcherBase(SpectrumMatchBase):

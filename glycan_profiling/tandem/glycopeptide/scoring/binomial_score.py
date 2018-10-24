@@ -328,7 +328,7 @@ class BinomialSpectrumMatcher(GlycopeptideSpectrumMatcherBase):
             solution_map,
             self.n_theoretical)
 
-        if intensity_component == 0:
+        if intensity_component < 1e-170:
             intensity_component = 1e-170
         score = -np.log10(intensity_component) + -np.log10(fragment_match_component)
 
