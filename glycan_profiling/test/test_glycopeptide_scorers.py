@@ -67,12 +67,12 @@ class TestGlycopeptideScorers(unittest.TestCase):
         scan, scan2 = self.load_spectra()
         gp, gp2 = self.build_structures()
 
-        match = coverage_weighted_binomial.CoverageWeightedBinomialScorer.evaluate(scan, gp)
+        match = intensity_scorer.LogIntensityScorer.evaluate(scan, gp)
         self.assertAlmostEqual(match.score, 129.8531117, 3)
-        match = coverage_weighted_binomial.CoverageWeightedBinomialScorer.evaluate(scan, gp2)
+        match = intensity_scorer.LogIntensityScorer.evaluate(scan, gp2)
         self.assertAlmostEqual(match.score, 129.8531117, 3)
 
-        match = coverage_weighted_binomial.CoverageWeightedBinomialScorer.evaluate(scan2, gp)
+        match = intensity_scorer.LogIntensityScorer.evaluate(scan2, gp)
         self.assertAlmostEqual(match.score, 94.1181520719, 3)
-        match = coverage_weighted_binomial.CoverageWeightedBinomialScorer.evaluate(scan2, gp2)
+        match = intensity_scorer.LogIntensityScorer.evaluate(scan2, gp2)
         self.assertAlmostEqual(match.score, 262.759675688, 3)
