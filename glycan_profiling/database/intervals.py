@@ -5,7 +5,7 @@ from ms_deisotope.peak_dependency_network.intervals import SpanningMixin
 from glycan_profiling.structure.lru import LRUCache
 
 
-logger = logging.getLogger("glycresoft.database")
+logger = logging.getLogger("glycresoft.database.intervals")
 
 
 class QueryIntervalBase(SpanningMixin):
@@ -165,19 +165,23 @@ class IntervalSet(object):
         center = interval.center
         # if interval in self.intervals:
         #     raise ValueError("Duplicate Insertion")
-        if len(self) != 0:
+        n = len(self)
+        if n != 0:
             index, matched = self.find_insertion_point(center)
             index += 1
             if matched and self[index - 1].overlaps(interval):
-                print(self[index - 1], interval, self[index - 1].overlaps(interval))
-                self.extend_interval(self[index - 1], interval)
-                return
+                new_group = self.extend_interval(self[index - 1], interval)
+                return new_group
+            if index < n and interval.overlaps(self[index]):
+                new_group = self.extend_interval(self[index], interval)
+                return new_group
             if index == 1:
                 if self[index - 1].center > center:
                     index -= 1
         else:
             index = 0
         self._insert_interval(index, interval)
+        return interval
 
     def _insert_interval(self, index, interval):
         self._invalidate()
@@ -185,7 +189,7 @@ class IntervalSet(object):
 
     def find_interval(self, query):
         lo = 0
-        hi = len(self)
+        n = hi = len(self)
         while hi != lo:
             mid = (hi + lo) / 2
             x = self[mid]
@@ -193,7 +197,19 @@ class IntervalSet(object):
             if err == 0 or x.contains_interval(query):
                 return x
             elif (hi - 1) == lo:
-                return x
+                best_err = abs(err)
+                best_i = mid
+                if mid < (n - 1):
+                    err = abs(self[mid + 1].center - query.center)
+                    if err < best_err:
+                        best_err = err
+                        best_i = mid + 1
+                if mid > -1:
+                    err = abs(self[mid - 1].center - query.center)
+                    if err < best_err:
+                        best_err = err
+                        best_i = mid - 1
+                return self[best_i]
             elif err > 0:
                 hi = mid
             else:
