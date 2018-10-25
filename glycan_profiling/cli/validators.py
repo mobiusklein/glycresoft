@@ -27,7 +27,8 @@ from glycan_profiling.chromatogram_tree import (
     Sodium, Potassium)
 
 from glycan_profiling.tandem.glycopeptide.scoring import (
-    binomial_score, simple_score, coverage_weighted_binomial, SpectrumMatcherBase)
+    binomial_score, simple_score, coverage_weighted_binomial, intensity_scorer,
+    SpectrumMatcherBase)
 
 from glycan_profiling.models import ms1_model_features
 
@@ -323,7 +324,8 @@ def validate_adduct(adduct_string, multiplicity=1):
 glycopeptide_tandem_scoring_functions = {
     "binomial": binomial_score.BinomialSpectrumMatcher,
     "simple": simple_score.SimpleCoverageScorer,
-    "coverage_weighted_binomial": coverage_weighted_binomial.CoverageWeightedBinomialScorer
+    "coverage_weighted_binomial": coverage_weighted_binomial.CoverageWeightedBinomialScorer,
+    "dot_product": intensity_scorer.LogIntensityScorer
 }
 
 
