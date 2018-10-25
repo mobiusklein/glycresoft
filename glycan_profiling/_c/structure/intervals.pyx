@@ -10,6 +10,11 @@ cdef class QueryIntervalBase(SpanningMixin):
         public double center
         public size_t size
 
+    def __init__(self, center, start, end):
+        self.center = center
+        self.start = start
+        self.end = end
+
     def __hash__(self):
         return hash((self.start, self.center, self.end))
 
@@ -19,10 +24,46 @@ cdef class QueryIntervalBase(SpanningMixin):
     def __repr__(self):
         return "QueryInterval(%0.4f, %0.4f)" % (self.start, self.end)
 
-    def extend(self, other):
+    cpdef QueryIntervalBase extend(self, QueryIntervalBase other):
         self.start = min(self.start, other.start)
         self.end = max(self.end, other.end)
         self.center = (self.start + self.end) / 2.
+        return self
+
+    @staticmethod
+    cdef QueryIntervalBase _create(double center, double start, double end):
+        cdef QueryIntervalBase new = QueryIntervalBase.__new__(QueryIntervalBase)
+        new.center = center
+        new.start = start
+        new.end = end
+        return new
+
+    cpdef QueryIntervalBase scale(self, double x):
+        new = QueryIntervalBase._create(
+            self.center,
+            self.center - ((self.center - self.start) * x),
+            self.center + ((self.end - self.center) * x))
+        return new
+
+    cpdef QueryIntervalBase copy(self):
+        return QueryIntervalBase._create(self.center, self.start, self.end)
+
+    cpdef QueryIntervalBase difference(self, SpanningMixin other):
+        if self.contains_interval(other):
+            return self.copy()
+        elif self.is_contained_in_interval(other):
+            return QueryIntervalBase._create(self.center, self.center, self.center)
+        if self.start < other.start:
+            if self.end < other.start:
+                return self.copy()
+            else:
+                return QueryIntervalBase._create(self.center, self.start, other.start)
+        elif self.start > other.end:
+            return self.copy()
+        elif self.start <= other.end:
+            return QueryIntervalBase._create(self.center, other.end, self.end)
+        else:
+            return self.copy()
 
 
 cdef class PPMQueryInterval(QueryIntervalBase):

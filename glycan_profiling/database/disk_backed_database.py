@@ -5,8 +5,6 @@ try:
 except ImportError:
     imap = map
 
-from collections import OrderedDict
-
 import logging
 
 from ms_deisotope.peak_dependency_network.intervals import SpanningMixin
@@ -19,6 +17,9 @@ from glycan_profiling.serialize import (
 from sqlalchemy import select, join
 
 from .mass_collection import SearchableMassCollection, NeutralMassDatabase
+from .intervals import (
+    PPMQueryInterval, FixedQueryInterval, LRUIntervalSet,
+    IntervalSet)
 from glycan_profiling.structure.lru import LRUCache
 from glycan_profiling.structure.structure_loader import (
     CachingGlycanCompositionParser, CachingGlycopeptideParser,
@@ -103,7 +104,9 @@ class DiskBackedStructureDatabaseBase(SearchableMassCollection, DatabaseBoundOpe
         return is_ignored is not None and is_ignored.contains_interval(interval)
 
     def insert_interval(self, mass):
+        logger.debug("Calling insert_interval with mass %f", mass)
         node = self.make_memory_interval(mass)
+        logger.debug("New Node: %r", node)
         # We won't insert this node if it is empty.
         if len(node.group) == 0:
             # Ignore seems to be not-working.
@@ -114,9 +117,15 @@ class DiskBackedStructureDatabaseBase(SearchableMassCollection, DatabaseBoundOpe
         # with the database?
         if nearest_interval is None:
             # No nearby interval, so we should insert
+            logger.debug("No nearby interval for %r", node)
             self._intervals.insert_interval(node)
             return node.group
+        elif nearest_interval.overlaps(node):
+            logger.debug("Nearest interval %r overlaps this %r", nearest_interval, node)
+            nearest_interval = self._intervals.extend_interval(nearest_interval, node)
+            return nearest_interval.group
         elif not nearest_interval.contains_interval(node):
+            logger.debug("Nearest interval %r didn't contain this %r", nearest_interval, node)
             # Nearby interval didn't contain this interval
             self._intervals.insert_interval(node)
             return node.group
@@ -133,23 +142,33 @@ class DiskBackedStructureDatabaseBase(SearchableMassCollection, DatabaseBoundOpe
         q = PPMQueryInterval(mass, ppm_error_tolerance)
         match = self._intervals.find_interval(q)
         if match is not None:
+            q2 = FixedQueryInterval(mass, self.loading_interval)
+            logger.debug("Nearest interval %r", match)
             # We are completely contained in an existing interval, so just
             # use that one.
             if match.contains_interval(q):
+                logger.debug("Query interval %r was completely contained in %r", q, match)
                 return match.group
             # We overlap with an extending interval, so we should populate
             # the new one and merge them.
-            elif match.overlaps(q):
-                self._intervals.extend_interval(
-                    match, self.make_memory_interval(mass))
+            elif match.overlaps(q2):
+                q3 = q2.difference(match).scale(1.05)
+                logger.debug("Query interval partially overlapped, creating disjoint interval %r", q3)
+                match = self._intervals.extend_interval(
+                    match,
+                    # self.make_memory_interval(mass),
+                    self.make_memory_interval_from_mass_interval(q3.start, q3.end)
+                )
                 return match.group
             # We might need to insert a new interval
             else:
+                logger.debug("Query interval %r did not overlap with %r", q, match)
                 if self.is_interval_ignored(q):
                     return match.group
                 else:
                     return self.insert_interval(mass)
         else:
+            logger.debug("No existing interval contained %r", q)
             is_ignored = self._ignored_intervals.find_interval(q)
             if is_ignored is not None and is_ignored.contains_interval(q):
                 return _empty_interval
@@ -161,11 +180,14 @@ class DiskBackedStructureDatabaseBase(SearchableMassCollection, DatabaseBoundOpe
         return self.has_interval(mass, error_tolerance).search_mass_ppm(mass, error_tolerance)
 
     def search_mass(self, mass, error_tolerance):
+        return self._search_mass_interval(mass - error_tolerance, mass + error_tolerance)
+
+    def _search_mass_interval(self, start, end):
         model = self.model_type
         return self.session.query(self.model_type).filter(
             model.hypothesis_id == self.hypothesis_id,
             model.calculated_mass.between(
-                mass - error_tolerance, mass + error_tolerance)).all()
+                start, end)).all()
 
     def on_memory_interval(self, mass, interval):
         if len(interval) > self.threshold_cache_total_count:
@@ -174,15 +196,19 @@ class DiskBackedStructureDatabaseBase(SearchableMassCollection, DatabaseBoundOpe
     def make_memory_interval(self, mass, error=None):
         if error is None:
             error = self.loading_interval
-        logger.debug("Querying the database for mass %f with error %r", mass, error)
-        out = self.search_mass(mass, error)
+        node = self.make_memory_interval_from_mass_interval(mass - error, mass + error)
+        return node
+
+    def make_memory_interval_from_mass_interval(self, start, end):
+        logger.debug("Querying the database for masses between %f and %f", start, end)
+        out = self._search_mass_interval(start, end)
         logger.debug("Retrieved %d records", len(out))
-        self.on_memory_interval(mass, out)
+        self.on_memory_interval((start + end) / 2.0, out)
         mass_db = self._prepare_interval(out)
         # bind the bounds of the returned dataset to the bounds of the query
         node = MassIntervalNode(mass_db)
-        node.start = mass - error
-        node.end = mass + error
+        node.start = start
+        node.end = end
         return node
 
     def _prepare_interval(self, query_results):
@@ -390,11 +416,14 @@ class DeclarativeDiskBackedDatabase(DiskBackedStructureDatabaseBase):
         return self._convert(self.session.execute(stmt).fetchone())
 
     def search_mass(self, mass, error_tolerance):
+        return self._search_mass_interval(mass - error_tolerance, mass + error_tolerance)
+
+    def _search_mass_interval(self, start, end):
         conn = self.session.connection()
         stmt = self._limit_to_hypothesis(
             select(self._get_record_properties()).select_from(self.selectable)).where(
             self.mass_field.between(
-                mass - error_tolerance, mass + error_tolerance))
+                start, end))
         return conn.execute(stmt).fetchall()
 
     def get_record(self, id):
@@ -650,7 +679,8 @@ class MassIntervalNode(SpanningMixin):
         self.size = len(self.group)
 
     def __repr__(self):
-        return "MassIntervalNode(%0.4f, %0.4f)" % (self.start, self.end)
+        return "MassIntervalNode(%0.4f, %0.4f, %r)" % (
+            self.start, self.end, len(self.group) if self.group is not None else 0)
 
     def extend(self, new_data):
         """Add the components of `new_data` to `group` and update
@@ -693,231 +723,5 @@ class MassIntervalNode(SpanningMixin):
         """
         return self.group.search_mass(*args, **kwargs)
 
-
-class QueryIntervalBase(SpanningMixin):
-
-    def __hash__(self):
-        return hash((self.start, self.center, self.end))
-
-    def __eq__(self, other):
-        return (self.start, self.center, self.end) == (other.start, other.center, other.end)
-
-    def __repr__(self):
-        return "QueryInterval(%0.4f, %0.4f)" % (self.start, self.end)
-
-    def extend(self, other):
-        self.start = min(self.start, other.start)
-        self.end = max(self.end, other.end)
-        self.center = (self.start + self.end) / 2.
-
-
-try:
-    has_c = True
-    _QueryIntervalBase = QueryIntervalBase
-
-    from glycan_profiling._c.structure.intervals import QueryIntervalBase
-except ImportError:
-    has_c = False
-
-
-class PPMQueryInterval(QueryIntervalBase):
-
-    def __init__(self, mass, error_tolerance=2e-5):
-        self.center = mass
-        self.start = mass - (mass * error_tolerance)
-        self.end = mass + (mass * error_tolerance)
-
-
-class FixedQueryInterval(QueryIntervalBase):
-
-    def __init__(self, mass, width=3):
-        self.center = mass
-        self.start = mass - width
-        self.end = mass + width
-
-
-try:
-    has_c = True
-    _PPMQueryInterval = PPMQueryInterval
-    _FixedQueryInterval = FixedQueryInterval
-
-    from glycan_profiling._c.structure.intervals import PPMQueryInterval, FixedQueryInterval
-except ImportError:
-    has_c = False
-
-
-class IntervalSet(object):
-
-    def __init__(self, intervals=None):
-        if intervals is None:
-            intervals = list()
-        self.intervals = sorted(intervals, key=lambda x: x.center)
-        self._total_count = None
-        self.compute_total_count()
-
-    def _invalidate(self):
-        self._total_count = None
-
-    @property
-    def total_count(self):
-        if self._total_count is None:
-            self.compute_total_count()
-        return self._total_count
-
-    def compute_total_count(self):
-        self._total_count = 0
-        for interval in self:
-            self._total_count += interval.size
-        return self._total_count
-
-    def __iter__(self):
-        return iter(self.intervals)
-
-    def __len__(self):
-        return len(self.intervals)
-
-    def __getitem__(self, i):
-        return self.intervals[i]
-
-    def __repr__(self):
-        return "%s(%r)" % (self.__class__.__name__, self.intervals)
-
-    def _repr_pretty_(self, p, cycle):
-        return p.pretty(self.intervals)
-
-    def find_insertion_point(self, mass):
-        lo = 0
-        hi = len(self)
-        if hi == 0:
-            return 0, False
-        while hi != lo:
-            mid = (hi + lo) / 2
-            x = self[mid]
-            err = x.center - mass
-            if abs(err) <= 1e-9:
-                return mid, True
-            elif (hi - lo) == 1:
-                return mid, False
-            elif err > 0:
-                hi = mid
-            else:
-                lo = mid
-        raise ValueError((hi, lo, err, len(self)))
-
-    def extend_interval(self, target, expansion):
-        self._invalidate()
-        target.extend(expansion)
-
-    def insert_interval(self, interval):
-        center = interval.center
-        # if interval in self.intervals:
-        #     raise ValueError("Duplicate Insertion")
-        if len(self) != 0:
-            index, matched = self.find_insertion_point(center)
-            index += 1
-            if matched and self[index - 1].overlaps(interval):
-                self.extend_interval(self[index - 1], interval)
-                return
-            if index == 1:
-                if self[index - 1].center > center:
-                    index -= 1
-        else:
-            index = 0
-        self._insert_interval(index, interval)
-
-    def _insert_interval(self, index, interval):
-        self._invalidate()
-        self.intervals.insert(index, interval)
-
-    def find_interval(self, query):
-        lo = 0
-        hi = len(self)
-        while hi != lo:
-            mid = (hi + lo) / 2
-            x = self[mid]
-            err = x.center - query.center
-            if err == 0 or x.contains_interval(query):
-                return x
-            elif (hi - 1) == lo:
-                return x
-            elif err > 0:
-                hi = mid
-            else:
-                lo = mid
-
-    def find(self, mass, ppm_error_tolerance):
-        return self.find_interval(PPMQueryInterval(mass, ppm_error_tolerance))
-
-    def remove_interval(self, center):
-        self._invalidate()
-        ix, match = self.find_insertion_point(center)
-        self.intervals.pop(ix)
-
-    def clear(self):
-        self.intervals = []
-
-    def consolidate(self):
-        intervals = list(self)
-        self.clear()
-        if len(intervals) == 0:
-            return
-        result = []
-        last = intervals[0]
-        for current in intervals[1:]:
-            if last.overlaps(current):
-                last.extend(current)
-            else:
-                result.append(last)
-                last = current
-        result.append(last)
-        for r in result:
-            self.insert_interval(r)
-
-
-class LRUIntervalSet(IntervalSet):
-
-    def __init__(self, intervals=None, max_size=1000):
-        super(LRUIntervalSet, self).__init__(intervals)
-        self.max_size = max_size
-        self.current_size = len(self)
-        self.lru = LRUCache()
-        for item in self:
-            self.lru.add_node(item)
-
-    def insert_interval(self, interval):
-        if self.current_size == self.max_size:
-            self.remove_lru_interval()
-        super(LRUIntervalSet, self).insert_interval(interval)
-
-    def _insert_interval(self, index, interval):
-        super(LRUIntervalSet, self)._insert_interval(index, interval)
-        self.lru.add_node(interval)
-        self.current_size += 1
-
-    def extend_interval(self, target, expansion):
-        self.lru.remove_node(target)
-        try:
-            super(LRUIntervalSet, self).extend_interval(target, expansion)
-            self.lru.add_node(target)
-        except Exception:
-            self.lru.add_node(target)
-            raise
-
-    def find_interval(self, query):
-        match = super(LRUIntervalSet, self).find_interval(query)
-        if match is not None:
-            try:
-                self.lru.hit_node(match)
-            except KeyError:
-                self.lru.add_node(match)
-        return match
-
-    def remove_lru_interval(self):
-        lru_interval = self.lru.get_least_recently_used()
-        self.lru.remove_node(lru_interval)
-        self.remove_interval(lru_interval.center)
-        self.current_size -= 1
-
-    def clear(self):
-        super(LRUIntervalSet, self).clear()
-        self.lru = LRUCache()
+    def search_mass_ppm(self, *args, **kwargs):
+        return self.group.search_mass_ppm(*args, **kwargs)
