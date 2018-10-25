@@ -88,7 +88,7 @@ class CoverageWeightedBinomialScorer(BinomialSpectrumMatcher, SimpleCoverageScor
 
 
 class ShortPeptideCoverageWeightedBinomialScorer(CoverageWeightedBinomialScorer):
-    stub_weight = 0.75
+    stub_weight = 0.65
 
 
 def _short_peptide_test(scan, target, *args, **kwargs):
