@@ -3,6 +3,7 @@ import logging
 from ms_deisotope.peak_dependency_network.intervals import SpanningMixin
 
 from glycan_profiling.structure.lru import LRUCache
+from glycan_profiling.database.mass_collection import NeutralMassDatabase
 
 
 logger = logging.getLogger("glycresoft.database.intervals")
@@ -298,3 +299,100 @@ class LRUIntervalSet(IntervalSet):
     def consolidate(self):
         super(LRUIntervalSet, self).consolidate()
         self.current_size = len(self)
+
+
+class MassIntervalNode(SpanningMixin):
+    """Contains a NeutralMassDatabase object and provides an interval-like
+    API. Intended for use with IntervalSet.
+
+    Attributes
+    ----------
+    center : float
+        The central point of mass for the interval
+    end : float
+        The upper-most mass in the wrapped collection
+    group : NeutralMassDatabase
+        The collection of massable objects wrapped
+    growth : int
+        The number of times the interval had been expanded
+    size : int
+        The number of items in :attr:`group`
+    start : float
+        The lower-most mass in the wrapped collection
+    """
+    def __init__(self, interval):
+        self.wrap(interval)
+        self.growth = 0
+
+    def __hash__(self):
+        return hash((self.start, self.center, self.end))
+
+    def __eq__(self, other):
+        return (self.start, self.center, self.end) == (other.start, other.center, other.end)
+
+    def wrap(self, interval):
+        """Updates the internal state of the interval to wrap
+
+        Parameters
+        ----------
+        interval : NeutralMassDatabase
+            The new collection to wrap.
+        """
+        self.group = interval
+        try:
+            self.start = interval.lowest_mass
+            self.end = interval.highest_mass
+        except IndexError:
+            self.start = 0
+            self.end = 0
+        self.center = (self.start + self.end) / 2.
+        self.size = len(self.group)
+
+    def __repr__(self):
+        return "%s(%0.4f, %0.4f, %r)" % (
+            self.__class__.__name__,
+            self.start, self.end, len(self.group) if self.group is not None else 0)
+
+    def extend(self, new_data):
+        """Add the components of `new_data` to `group` and update
+        the interval's internal state
+
+        Parameters
+        ----------
+        new_data : NeutralMassDatabase
+            Iterable of massable objects
+        """
+        start = self.start
+        end = self.end
+
+        new = {x.id: x for x in (self.group)}
+        new.update({x.id: x for x in (new_data)})
+        self.wrap(NeutralMassDatabase(list(new.values()), self.group.mass_getter))
+        self.growth += 1
+
+        # max will deal with 0s correctly
+        self.end = max(end, self.end)
+        # min will prefer 0 and not behave as expected
+        if start != 0 and self.start != 0:
+            self.start = min(start, self.start)
+        elif start != 0:
+            # self.start is 0
+            self.start = start
+        # otherwise they're both 0 and we are out of luck
+
+    def __iter__(self):
+        return iter(self.group)
+
+    def __getitem__(self, i):
+        return self.group[i]
+
+    def __len__(self):
+        return len(self.group)
+
+    def search_mass(self, *args, **kwargs):
+        """A proxy for :meth:`NeutralMassDatabase.search_mass`
+        """
+        return self.group.search_mass(*args, **kwargs)
+
+    def search_mass_ppm(self, *args, **kwargs):
+        return self.group.search_mass_ppm(*args, **kwargs)
