@@ -184,6 +184,24 @@ class CoarseStubGlycopeptideFragment(object):
         self.mass = mass
         self.is_core = is_core
 
+    def __eq__(self, other):
+        try:
+            return self.key == other.key and self.is_core == other.is_core
+        except AttributeError:
+            return self.key == other
+
+    def __ne__(self, other):
+        return not (self == other)
+
+    def __hash__(self):
+        return hash(int(self.mass))
+
+    def __lt__(self, other):
+        return self.mass < other.mass
+
+    def __gt__(self, other):
+        return self.mass > other.mass
+
     def __reduce__(self):
         return self.__class__, (self.key, self.mass, self.is_core)
 
@@ -203,9 +221,9 @@ class GlycanCombinationRecord(object):
             dehydrated_mass=combination.dehydrated_mass(),
             composition=combination.convert(),
             count=combination.count,
-            # TODO: make this meaningful downstream
-            # glycan_types=combination.component_classes
-            glycan_types=[],
+            glycan_types=tuple(set([
+                c.name for component_classes in combination.component_classes
+                for c in component_classes])),
         )
         return inst
 
@@ -248,8 +266,8 @@ class GlycanCombinationRecord(object):
                 fragment_structs.append(
                     CoarseStubGlycopeptideFragment(
                         shift['key'], shift['mass'], shift['is_core']))
-            self._fragment_cache[GlycosylationType.n_linked] = fragment_structs
-            return fragment_structs
+            self._fragment_cache[GlycosylationType.n_linked] = sorted(set(fragment_structs))
+            return self._fragment_cache[GlycosylationType.n_linked]
         else:
             return self._fragment_cache[GlycosylationType.n_linked]
 
@@ -262,9 +280,9 @@ class GlycanCombinationRecord(object):
                 shift['key'] = _AccumulatorBag(shift['key'])
                 fragment_structs.append(
                     CoarseStubGlycopeptideFragment(
-                        shift['key'], shift['mass'], shift['is_core']))
-            self._fragment_cache[GlycosylationType.o_linked] = fragment_structs
-            return fragment_structs
+                        shift['key'], shift['mass'], True))
+            self._fragment_cache[GlycosylationType.o_linked] = sorted(set(fragment_structs))
+            return self._fragment_cache[GlycosylationType.o_linked]
         else:
             return self._fragment_cache[GlycosylationType.o_linked]
 
@@ -277,24 +295,24 @@ class GlycanCombinationRecord(object):
                 shift['key'] = _AccumulatorBag(shift['key'])
                 fragment_structs.append(
                     CoarseStubGlycopeptideFragment(
-                        shift['key'], shift['mass'], shift['is_core']))
-            self._fragment_cache[GlycosylationType.glycosaminoglycan] = fragment_structs
-            return fragment_structs
+                        shift['key'], shift['mass'], True))
+            self._fragment_cache[GlycosylationType.glycosaminoglycan] = sorted(set(fragment_structs))
+            return self._fragment_cache[GlycosylationType.glycosaminoglycan]
         else:
             return self._fragment_cache[GlycosylationType.glycosaminoglycan]
 
 
 class GlycanFilteringPeptideMassEstimator(object):
     def __init__(self, glycan_combination_db, product_error_tolerance=1e-5,
-                 alpha=0.56, beta=0.42, components=None):
+                 fragment_weight=0.56, core_weight=0.42, components=None):
         if not isinstance(glycan_combination_db[0], GlycanCombinationRecord):
             glycan_combination_db = [GlycanCombinationRecord.from_combination(gc)
                                      for gc in glycan_combination_db]
         self.motif_finder = CoreMotifFinder(components, product_error_tolerance)
         self.product_error_tolerance = product_error_tolerance
         self.glycan_combination_db = sorted(glycan_combination_db, key=lambda x: x.dehydrated_mass)
-        self.alpha = alpha
-        self.beta = beta
+        self.fragment_weight = fragment_weight
+        self.core_weight = core_weight
 
     def _n_glycan_match_stubs(self, scan, peptide_mass, glycan_combination, mass_shift_tandem_mass=0.0):
         shifts = glycan_combination.get_n_glycan_fragments()
@@ -349,7 +367,7 @@ class GlycanFilteringPeptideMassEstimator(object):
             for peak in matches:
                 score += np.log(peak.intensity) * (
                     1 - (np.abs(peak.neutral_mass - mass) / mass) ** 4) * (
-                    ratio_fragments ** self.alpha) * (ratio_core ** self.beta)
+                    ratio_fragments ** self.fragment_weight) * (ratio_core ** self.core_weight)
         return peptide_mass, score
 
     def _estimate_peptide_mass(self, scan, mass_shift=Unmodified):
