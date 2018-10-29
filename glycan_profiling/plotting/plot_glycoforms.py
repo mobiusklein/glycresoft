@@ -12,7 +12,7 @@ import numpy as np
 from .svg_utils import ET, BytesIO, IDMapper
 from .colors import lighten, darken, get_color
 
-from glycopeptidepy import PeptideSequence
+from glycopeptidepy import PeptideSequence, enzyme
 
 
 font_options = font_manager.FontProperties(family='monospace')
@@ -133,15 +133,17 @@ class GlycoformLayout(object):
             prop=font_options)
         patch = mpatches.PathPatch(text_path, facecolor='grey', edgecolor='grey', lw=0.04)
         self.ax.add_patch(patch)
+        self._draw_main_sequence(current_position, next_row)
 
-        for i, aa in enumerate(self.protein.protein_sequence[current_position:next_row]):
+    def _draw_main_sequence(self, start, end):
+        for i, aa in enumerate(self.protein.protein_sequence[start:end]):
             text_path = TextPath(
                 (self.protein_pad + i, self.layer_height + .2 + self.cur_y),
                 aa, size=self.sequence_font_size / 7.5, prop=font_options)
             color = 'red' if any(
-                (((i + current_position) in self.glycosites),
-                 ((i + current_position - 1) in self.glycosites),
-                 ((i + current_position - 2) in self.glycosites))
+                (((i + start) in self.glycosites),
+                 ((i + start - 1) in self.glycosites),
+                 ((i + start - 2) in self.glycosites))
             ) else 'black'
             patch = mpatches.PathPatch(text_path, facecolor=color, edgecolor=color, lw=0.04)
             self.ax.add_patch(patch)
@@ -438,6 +440,31 @@ class CompressedPileupLayout(GlycoformLayout):
         self.ax.set_xlim(1., self.row_width + 2)
 
 
+class DigestLayout(GlycoformLayout):
+    def __init__(self, *args, **kwargs):
+        super(DigestLayout, self).__init__(*args, **kwargs)
+        protease = enzyme.Protease(kwargs.get("enzyme", "trypsin"))
+        self.cleavage_sites = set(i for c in protease.cleave(str(self.protein)) for i in c[1:3] if i != 0)
+
+    def _draw_main_sequence(self, start, end):
+        for i, aa in enumerate(self.protein.protein_sequence[start:end]):
+            text_path = TextPath(
+                (self.protein_pad + i, self.layer_height + .2 + self.cur_y),
+                aa, size=self.sequence_font_size / 7.5, prop=font_options)
+            color = 'red' if any(
+                (((i + start) in self.glycosites),
+                 ((i + start - 1) in self.glycosites),
+                 ((i + start - 2) in self.glycosites))
+            ) else 'black'
+            patch = mpatches.PathPatch(text_path, facecolor=color, edgecolor=color, lw=0.04)
+            self.ax.add_patch(patch)
+            if i + start in self.cleavage_sites:
+                rect = mpatches.Rectangle(
+                    (self.protein_pad + i - 0.33,
+                     self.layer_height + self.cur_y - 0.25), 0.15, 1.5, fc='black')
+                self.ax.add_patch(rect)
+
+
 def draw_layers(layers, protein, scale_factor=1.0, ax=None, row_width=50, **kwargs):
     '''
     Render fixed-width stacked peptide identifications across
@@ -594,9 +621,9 @@ def draw_layers(layers, protein, scale_factor=1.0, ax=None, row_width=50, **kwar
 
 
 def plot_glycoforms(protein, identifications, **kwargs):
-    layers = layout_layers(identifications)
-    ax, id_mapper = draw_layers(layers, protein, **kwargs)
-    return ax, id_mapper
+    layout = GlycoformLayout(protein, identifications, **kwargs)
+    layout.draw()
+    return layout.ax, layout.id_mapper
 
 
 def plot_glycoforms_svg(protein, identifications, scale=1.5, ax=None,
@@ -606,6 +633,8 @@ def plot_glycoforms_svg(protein, identifications, scale=1.5, ax=None,
     A specialization of :func:`plot_glycoforms` which adds additional features to SVG images, such as
     adding shape metadata to XML tags and properly configuring the viewport and canvas for the figure's
     dimensions.
+
+    TODO: replace uses of this function with :meth:`GlycoformLayout.to_svg`
     '''
     ax, id_mapper = plot_glycoforms(protein, identifications, ax=ax, **kwargs)
     xlim = ax.get_xlim()
