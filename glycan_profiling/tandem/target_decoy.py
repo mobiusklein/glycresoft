@@ -228,22 +228,22 @@ class TargetDecoyAnalyzer(object):
         A quantity to use to correct for correcting for decoys, and if non-zero,
         will indicate that the negative binomial correction for decoys should be
         used.
-    decoy_count : TYPE
-        Description
-    decoys : TYPE
-        Description
+    decoy_count : int
+        The total number of decoys
+    decoys : list
+        The decoy matches to consider
     n_decoys_at : dict
-        Description
+        The number of decoy matches above each threshold
     n_targets_at : dict
-        Description
+        The number of target matches above each threshold
     target_count : TYPE
-        Description
-    targets : TYPE
-        Description
-    thresholds : TYPE
-        Description
-    with_pit : TYPE
-        Description
+        The total number of targets
+    targets : list
+        The target matches to consider
+    thresholds : list
+        The distinct score thresholds
+    with_pit : bool
+        Whether or not to use the "percent incorrect target" adjustment
     """
 
     def __init__(self, target_series, decoy_series, with_pit=False, decoy_correction=0, database_ratio=1.0,
