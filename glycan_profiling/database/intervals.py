@@ -6,7 +6,7 @@ from glycan_profiling.structure.lru import LRUCache
 from glycan_profiling.database.mass_collection import NeutralMassDatabase
 
 
-logger = logging.getLogger("glycresoft.database.intervals")
+logger = logging.getLogger("glycresoft.database")
 
 
 class QueryIntervalBase(SpanningMixin):
@@ -359,11 +359,11 @@ class MassIntervalNode(SpanningMixin):
 
         Parameters
         ----------
-        new_data : NeutralMassDatabase
+        new_data : MassIntervalNode
             Iterable of massable objects
         """
-        start = self.start
-        end = self.end
+        start = min(self.start, new_data.start)
+        end = max(self.end, new_data.end)
 
         new = {x.id: x for x in (self.group)}
         new.update({x.id: x for x in (new_data)})

@@ -117,6 +117,13 @@ class DiskBackedStructureDatabaseBase(SearchableMassCollection, DatabaseBoundOpe
             self.loading_interval, self.threshold_cache_total_count,
             self.model_type)
 
+    def _make_loading_interval(self, mass, error_tolerance=1e-5):
+        width = mass * error_tolerance
+        if width > self.loading_interval:
+            return FixedQueryInterval(mass, width * 2)
+        else:
+            return FixedQueryInterval(mass, self.loading_interval)
+
     def _upkeep_memory_intervals(self):
         """Perform routine maintainence of the interval cache, ensuring its size does not
         exceed the upper limit
@@ -142,9 +149,9 @@ class DiskBackedStructureDatabaseBase(SearchableMassCollection, DatabaseBoundOpe
         is_ignored = self._ignored_intervals.find_interval(interval)
         return is_ignored is not None and is_ignored.contains_interval(interval)
 
-    def insert_interval(self, mass):
+    def insert_interval(self, mass, ppm_error_tolerance=1e-5):
         logger.debug("Calling insert_interval with mass %f", mass)
-        node = self.make_memory_interval(mass)
+        node = self.make_memory_interval(mass, ppm_error_tolerance)
         logger.debug("New Node: %r", node)
         # We won't insert this node if it is empty.
         if len(node.group) == 0:
@@ -181,7 +188,7 @@ class DiskBackedStructureDatabaseBase(SearchableMassCollection, DatabaseBoundOpe
         q = PPMQueryInterval(mass, ppm_error_tolerance)
         match = self._intervals.find_interval(q)
         if match is not None:
-            q2 = FixedQueryInterval(mass, self.loading_interval)
+            q2 = self._make_loading_interval(mass, ppm_error_tolerance)
             logger.debug("Nearest interval %r", match)
             # We are completely contained in an existing interval, so just
             # use that one.
@@ -195,7 +202,6 @@ class DiskBackedStructureDatabaseBase(SearchableMassCollection, DatabaseBoundOpe
                 logger.debug("Query interval partially overlapped, creating disjoint interval %r", q3)
                 match = self._intervals.extend_interval(
                     match,
-                    # self.make_memory_interval(mass),
                     self.make_memory_interval_from_mass_interval(q3.start, q3.end)
                 )
                 return match.group
@@ -205,14 +211,14 @@ class DiskBackedStructureDatabaseBase(SearchableMassCollection, DatabaseBoundOpe
                 if self.is_interval_ignored(q):
                     return match.group
                 else:
-                    return self.insert_interval(mass)
+                    return self.insert_interval(mass, ppm_error_tolerance)
         else:
             logger.debug("No existing interval contained %r", q)
             is_ignored = self._ignored_intervals.find_interval(q)
             if is_ignored is not None and is_ignored.contains_interval(q):
                 return _empty_interval
             else:
-                return self.insert_interval(mass)
+                return self.insert_interval(mass, ppm_error_tolerance)
 
     def search_mass_ppm(self, mass, error_tolerance):
         self._upkeep_memory_intervals()
@@ -232,10 +238,9 @@ class DiskBackedStructureDatabaseBase(SearchableMassCollection, DatabaseBoundOpe
         if len(interval) > self.threshold_cache_total_count:
             logger.info("Interval Length %d for %f", len(interval), mass)
 
-    def make_memory_interval(self, mass, error=None):
-        if error is None:
-            error = self.loading_interval
-        node = self.make_memory_interval_from_mass_interval(mass - error, mass + error)
+    def make_memory_interval(self, mass, error_tolerance=None):
+        interval = self._make_loading_interval(mass, error_tolerance)
+        node = self.make_memory_interval_from_mass_interval(interval.start, interval.end)
         return node
 
     def make_memory_interval_from_mass_interval(self, start, end):
@@ -361,7 +366,7 @@ class DeclarativeDiskBackedDatabase(DiskBackedStructureDatabaseBase):
         return list(records)
 
     def get_object_by_id(self, id):
-        return self._convert(self._get_record(id))
+        return self._convert(self.get_record(id))
 
     def get_object_by_reference(self, reference):
         return self._convert(self.get_object_by_id(reference.id))
