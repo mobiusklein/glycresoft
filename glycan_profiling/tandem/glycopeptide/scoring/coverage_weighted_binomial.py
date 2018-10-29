@@ -4,7 +4,7 @@ from .base import (
     ChemicalShift, ModelTreeNode, EXDFragmentationStrategy,
     HCDFragmentationStrategy, IonSeries)
 from .binomial_score import BinomialSpectrumMatcher
-from .simple_score import SimpleCoverageScorer
+from .simple_score import SimpleCoverageScorer, SignatureAwareCoverageScorer
 from .precursor_mass_accuracy import MassAccuracyModel
 from .glycan_signature_ions import GlycanCompositionSignatureMatcher
 from glycan_profiling.structure import FragmentMatchMap
@@ -14,7 +14,7 @@ from glycan_profiling.structure import FragmentMatchMap
 accuracy_bias = MassAccuracyModel(-2.673807e-07, 5.022458e-06)
 
 
-class CoverageWeightedBinomialScorer(BinomialSpectrumMatcher, SimpleCoverageScorer, GlycanCompositionSignatureMatcher):
+class CoverageWeightedBinomialScorer(BinomialSpectrumMatcher, SignatureAwareCoverageScorer):
     accuracy_bias = accuracy_bias
 
     def __init__(self, scan, sequence, mass_shift=None):
@@ -37,41 +37,6 @@ class CoverageWeightedBinomialScorer(BinomialSpectrumMatcher, SimpleCoverageScor
                     self.glycosylated_n_term_ion_count += 1
                 else:
                     self.glycosylated_c_term_ion_count += 1
-
-    def match(self, error_tolerance=2e-5, *args, **kwargs):
-        GlycanCompositionSignatureMatcher.match(self, error_tolerance=error_tolerance)
-        masked_peaks = set()
-
-        if self.mass_shift.tandem_mass != 0:
-            chemical_shift = ChemicalShift(
-                self.mass_shift.name, self.mass_shift.tandem_composition)
-        else:
-            chemical_shift = None
-
-        is_hcd = self.is_hcd()
-        is_exd = self.is_exd()
-
-        # handle glycan fragments from collisional dissociation
-        if is_hcd:
-            self._match_oxonium_ions(error_tolerance, masked_peaks=masked_peaks)
-            self._sanitized_spectrum -= {self.spectrum[i] for i in masked_peaks}
-            self._match_stub_glycopeptides(error_tolerance, masked_peaks=masked_peaks, chemical_shift=chemical_shift)
-
-        # handle N-term
-        if is_hcd and not is_exd:
-            self._match_backbone_series(IonSeries.b, error_tolerance, masked_peaks, HCDFragmentationStrategy)
-        elif is_exd:
-            self._match_backbone_series(IonSeries.b, error_tolerance, masked_peaks, EXDFragmentationStrategy)
-            self._match_backbone_series(IonSeries.c, error_tolerance, masked_peaks, EXDFragmentationStrategy)
-
-        # handle C-term
-        if is_hcd and not is_exd:
-            self._match_backbone_series(IonSeries.y, error_tolerance, masked_peaks, HCDFragmentationStrategy)
-        elif is_exd:
-            self._match_backbone_series(IonSeries.y, error_tolerance, masked_peaks, EXDFragmentationStrategy)
-            self._match_backbone_series(IonSeries.z, error_tolerance, masked_peaks, EXDFragmentationStrategy)
-
-        return self
 
     def calculate_score(self, error_tolerance=2e-5, backbone_weight=None, glycosylated_weight=None,
                         stub_weight=None, *args, **kwargs):

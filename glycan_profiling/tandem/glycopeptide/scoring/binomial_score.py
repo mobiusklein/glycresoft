@@ -216,6 +216,14 @@ class BinomialSpectrumMatcher(GlycopeptideSpectrumMatcherBase):
         self._sanitized_spectrum = set(self.spectrum)
         self.n_theoretical = 0
 
+    def _match_oxonium_ions(self, error_tolerance=2e-5, masked_peaks=None):
+        if masked_peaks is None:
+            masked_peaks = set()
+        val = super(BinomialSpectrumMatcher, self)._match_oxonium_ions(
+            error_tolerance=error_tolerance, masked_peaks=masked_peaks)
+        self._sanitized_spectrum -= {self.spectrum[i] for i in masked_peaks}
+        return val
+
     def _match_backbone_series(self, series, error_tolerance=2e-5, masked_peaks=None, strategy=None):
         if strategy is None:
             strategy = HCDFragmentationStrategy
@@ -234,8 +242,6 @@ class BinomialSpectrumMatcher(GlycopeptideSpectrumMatcherBase):
                     self.solution_map.add(peak, frag)
 
     def match(self, error_tolerance=2e-5, *args, **kwargs):
-        # this does not include stub glycopeptides
-        spectrum = self.spectrum
         masked_peaks = set()
 
         if self.mass_shift.tandem_mass != 0:
@@ -250,7 +256,6 @@ class BinomialSpectrumMatcher(GlycopeptideSpectrumMatcherBase):
         # handle glycan fragments from collisional dissociation
         if is_hcd:
             self._match_oxonium_ions(error_tolerance, masked_peaks=masked_peaks)
-            self._sanitized_spectrum -= {self.spectrum[i] for i in masked_peaks}
             self._match_stub_glycopeptides(error_tolerance, masked_peaks=masked_peaks, chemical_shift=chemical_shift)
 
         # handle N-term

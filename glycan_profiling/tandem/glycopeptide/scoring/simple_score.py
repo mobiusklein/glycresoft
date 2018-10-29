@@ -54,40 +54,6 @@ class SimpleCoverageScorer(GlycopeptideSpectrumMatcherBase):
                 else:
                     self.glycosylated_c_term_ion_count += 1
 
-    def match(self, error_tolerance=2e-5, *args, **kwargs):
-
-        masked_peaks = set()
-
-        if self.mass_shift.tandem_mass != 0:
-            chemical_shift = ChemicalShift(
-                self.mass_shift.name, self.mass_shift.tandem_composition)
-        else:
-            chemical_shift = None
-
-        is_hcd = self.is_hcd()
-        is_exd = self.is_exd()
-
-        # handle glycan fragments from collisional dissociation
-        if is_hcd:
-            self._match_oxonium_ions(error_tolerance, masked_peaks=masked_peaks)
-            self._match_stub_glycopeptides(error_tolerance, masked_peaks=masked_peaks, chemical_shift=chemical_shift)
-
-        # handle N-term
-        if is_hcd and not is_exd:
-            self._match_backbone_series(IonSeries.b, error_tolerance, masked_peaks, HCDFragmentationStrategy)
-        elif is_exd:
-            self._match_backbone_series(IonSeries.b, error_tolerance, masked_peaks, EXDFragmentationStrategy)
-            self._match_backbone_series(IonSeries.c, error_tolerance, masked_peaks, EXDFragmentationStrategy)
-
-        # handle C-term
-        if is_hcd and not is_exd:
-            self._match_backbone_series(IonSeries.y, error_tolerance, masked_peaks, HCDFragmentationStrategy)
-        elif is_exd:
-            self._match_backbone_series(IonSeries.y, error_tolerance, masked_peaks, EXDFragmentationStrategy)
-            self._match_backbone_series(IonSeries.z, error_tolerance, masked_peaks, EXDFragmentationStrategy)
-
-        return self
-
     def _compute_coverage_vectors(self):
         n_term_ions = np.zeros(len(self.target))
         c_term_ions = np.zeros(len(self.target))
