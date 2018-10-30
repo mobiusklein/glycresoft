@@ -355,14 +355,13 @@ class TargetDecoyAnalyzer(object):
         fdr = np.array([self.q_value_map[i] for i in thresholds])
         at_5_percent = np.where(fdr < 0.05)[0][0]
         at_1_percent = np.where(fdr < 0.01)[0][0]
-        ax.plot(thresholds, target_counts, label='Target', color='blue')
-        ax.plot(thresholds, decoy_counts, label='Decoy', color='orange')
+        line1 = ax.plot(thresholds, target_counts, label='Target', color='blue')
+        line2 = ax.plot(thresholds, decoy_counts, label='Decoy', color='orange')
         ax.vlines(thresholds[at_5_percent], 0, np.max(target_counts), linestyle='--', color='blue', lw=0.75)
         ax.vlines(thresholds[at_1_percent], 0, np.max(target_counts), linestyle='--', color='blue', lw=0.75)
-        ax.legend()
         ax2 = ax.twinx()
-        ax2.plot(thresholds, fdr, label='FDR', color='grey', linestyle='--')
-        ax2.legend()
+        line3 = ax2.plot(thresholds, fdr, label='FDR', color='grey', linestyle='--')
+        ax.legend([line1[0], line2[0], line3[0]], ['Target', 'Decoy', 'FDR'])
         return ax
 
     def q_values(self):
