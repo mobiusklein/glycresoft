@@ -404,14 +404,69 @@ class GridPointSolution(object):
                    node_names=node_names, variance_matrix=variance_matrix)
 
 
-class ThresholdSelectionGridSearch(object):
-    def __init__(self, model, network_reduction=None, apex_threshold=0.95, threshold_bias=4.0):
+class NetworkSmoothingModelSolutionBase(object):
+    def __init__(self, model):
         self.model = model
+
+    def _get_default_solution(self, *args, **kwargs):
+        raise NotImplementedError()
+
+    def estimate_phi_observed(self, solution=None, remove_threshold=True, rho=DEFAULT_RHO):
+        if solution is None:
+            solution = self._get_default_solution(rho=rho)
+        if remove_threshold:
+            self.model.reset()
+        return self.model.optimize_observed_scores(
+            solution.lmbda, solution.belongingness_matrix[self.model.obs_ix, :].dot(solution.tau))
+
+    def estimate_phi_missing(self, solution=None, remove_threshold=True, observed_scores=None):
+        if solution is None:
+            solution = self._get_default_solution()
+        if remove_threshold:
+            self.model.reset()
+        if observed_scores is None:
+            observed_scores = self.estimate_phi_observed(
+                solution=solution, remove_threshold=False)
+        t0 = self.model.A0.dot(solution.tau)
+        tm = self.model.Am.dot(solution.tau)
+        return self.model.compute_missing_scores(observed_scores, t0, tm)
+
+    def annotate_network(self, solution=None, remove_threshold=True, include_missing=True):
+        if solution is None:
+            solution = self._get_default_solution()
+        if remove_threshold:
+            self.model.reset()
+        observed_scores = self.estimate_phi_observed(solution, remove_threshold=False)
+
+        if include_missing:
+            missing_scores = self.estimate_phi_missing(
+                solution, remove_threshold=False,
+                observed_scores=observed_scores)
+
+        network = self.model.network.clone()
+        network.neighborhoods = self.model.neighborhood_walker.neighborhoods.clone()
+        for i, ix in enumerate(self.model.obs_ix):
+            network[ix].score = observed_scores[i]
+
+        if include_missing:
+            for i, ix in enumerate(self.model.miss_ix):
+                network[ix].score = missing_scores[i]
+                network[ix].marked = True
+
+        return network
+
+
+class ThresholdSelectionGridSearch(NetworkSmoothingModelSolutionBase):
+    def __init__(self, model, network_reduction=None, apex_threshold=0.95, threshold_bias=4.0):
+        super(ThresholdSelectionGridSearch, self).__init__(model)
         self.network_reduction = network_reduction
         self.apex_threshold = apex_threshold
         self.threshold_bias = float(threshold_bias)
         if self.threshold_bias < 1:
             raise ValueError("Threshold Bias must be 1 or greater")
+
+    def _get_default_solution(self, *args, **kwargs):
+        return self.average_solution(*args, **kwargs)
 
     def has_reduction(self):
         return self.network_reduction is not None and bool(self.network_reduction)
@@ -521,50 +576,6 @@ class ThresholdSelectionGridSearch(object):
             variance_matrix=variance_matrix)
         return average_solution
 
-    def estimate_phi_observed(self, solution=None, remove_threshold=True, rho=DEFAULT_RHO):
-        if solution is None:
-            solution = self.average_solution(rho=rho)
-        if remove_threshold:
-            self.model.reset()
-        return self.model.optimize_observed_scores(
-            solution.lmbda, solution.belongingness_matrix[self.model.obs_ix, :].dot(solution.tau))
-
-    def estimate_phi_missing(self, solution=None, remove_threshold=True, observed_scores=None):
-        if solution is None:
-            solution = self.average_solution()
-        if remove_threshold:
-            self.model.reset()
-        if observed_scores is None:
-            observed_scores = self.estimate_phi_observed(
-                solution=solution, remove_threshold=False)
-        t0 = self.model.A0.dot(solution.tau)
-        tm = self.model.Am.dot(solution.tau)
-        return self.model.compute_missing_scores(observed_scores, t0, tm)
-
-    def annotate_network(self, solution=None, remove_threshold=True, include_missing=True):
-        if solution is None:
-            solution = self.average_solution()
-        if remove_threshold:
-            self.model.reset()
-        observed_scores = self.estimate_phi_observed(solution, remove_threshold=False)
-
-        if include_missing:
-            missing_scores = self.estimate_phi_missing(
-                solution, remove_threshold=False,
-                observed_scores=observed_scores)
-
-        network = self.model.network.clone()
-        network.neighborhoods = self.model.neighborhood_walker.neighborhoods.clone()
-        for i, ix in enumerate(self.model.obs_ix):
-            network[ix].score = observed_scores[i]
-
-        if include_missing:
-            for i, ix in enumerate(self.model.miss_ix):
-                network[ix].score = missing_scores[i]
-                network[ix].marked = True
-
-        return network
-
     def plot(self, ax=None):
         if ax is None:
             fig, ax = plt.subplots(1)
@@ -588,3 +599,19 @@ class ThresholdSelectionGridSearch(object):
         ax.vlines(solution.thresholds[solution.apexes], 0, 1, color='red')
         ax.set_title("Selected Estimation Points for ${\\bar \\tau}$", fontsize=28)
         return ax
+
+    def fit(self, rho=DEFAULT_RHO, lmbda=None):
+        solution = self.average_solution(rho=rho, lmbda=lmbda)
+        return NetworkSmoothingModelFit(self.model, solution)
+
+
+class NetworkSmoothingModelFit(NetworkSmoothingModelSolutionBase):
+    def __init__(self, model, solution):
+        super(NetworkSmoothingModelFit, self).__init__(model)
+        self.solution = solution
+
+    def _get_default_solution(self, *args, **kwargs):
+        return self.solution
+
+    def __repr__(self):
+        return "{self.__class__.__name__}({self.model}, {self.solution})".format(self=self)
