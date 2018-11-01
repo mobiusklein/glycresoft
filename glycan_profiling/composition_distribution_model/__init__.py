@@ -42,7 +42,6 @@ from glycan_profiling.composition_distribution_model.observation import (
 
 from glycan_profiling.composition_distribution_model.glycome_network_smoothing import (
     GlycomeModel,
-    NeighborhoodPrior,
     smooth_network)
 
 

@@ -11,7 +11,7 @@ from .neighborhood import (
 from .graph import (
     CompositionNormalizer, CompositionGraph, CompositionGraphNode,
     CompositionGraphEdge, EdgeSet, DijkstraPathFinder,
-    GraphReader, GraphWriter, dump, load)
+    GraphReader, GraphWriter, dump, load, normalize_composition)
 
 __all__ = [
     "n_glycan_distance", "composition_distance", "CompositionSpace",
@@ -25,5 +25,5 @@ __all__ = [
     "CompositionNormalizer", "CompositionGraph", "CompositionGraphNode",
     "CompositionGraphEdge", "EdgeSet", "DijkstraPathFinder",
     "GraphReader", "GraphWriter", "dump",
-    "load"
+    "load", "normalize_composition",
 ]

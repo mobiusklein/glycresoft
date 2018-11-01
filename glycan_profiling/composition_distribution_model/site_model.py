@@ -235,9 +235,11 @@ class _SubstringProteinMapper(object):
 class GlycosylationSiteModelBuilder(TaskBase):
 
     def __init__(self, glycan_graph, chromatogram_scorer=None, belongingness_matrix=None,
-                 unobserved_penalty_scale=0.25, lambda_limit=0.2, require_multiple_observations=True):
+                 unobserved_penalty_scale=None, lambda_limit=0.2, require_multiple_observations=True):
         if chromatogram_scorer is None:
             chromatogram_scorer = _default_chromatogram_scorer
+        if unobserved_penalty_scale is None:
+            unobserved_penalty_scale = 1.0
         self.network = glycan_graph
         if not self.network.neighborhoods:
             self.network.neighborhoods = make_n_glycan_neighborhoods()
