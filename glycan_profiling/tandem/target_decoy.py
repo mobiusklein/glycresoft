@@ -346,6 +346,12 @@ class TargetDecoyAnalyzer(object):
                 mapping[threshold] = 1.
         return NearestValueLookUp(mapping)
 
+    def score_for_fdr(self, fdr_estimate):
+        for score, fdr in self.q_value_map.items:
+            if fdr_estimate <= fdr:
+                return score
+        return float('inf')
+
     def plot(self, ax=None):
         if ax is None:
             fig, ax = plt.subplots(1)
