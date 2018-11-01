@@ -1,4 +1,4 @@
-from collections import defaultdict, deque, OrderedDict
+from collections import defaultdict, deque
 import numbers as abc_numbers
 import numpy as np
 
@@ -17,35 +17,16 @@ from glypy.structure.glycan_composition import FrozenMonosaccharideResidue, Glyc
 
 from glycopeptidepy import HashableGlycanComposition
 from glycopeptidepy.structure.glycan import GlycanCompositionProxy
-from glycopeptidepy.utils import simple_repr
 
+from ... import symbolic_expression
 
-from .glycan_composition_filter import GlycanCompositionFilter
-from .. import symbolic_expression
+from .space import (n_glycan_distance, composition_distance, CompositionSpace)
+from .neighborhood import NeighborhoodCollection
+from .rule import CompositionRuleClassifier
 
 
 _hexose = FrozenMonosaccharideResidue.from_iupac_lite("Hex")
 _hexnac = FrozenMonosaccharideResidue.from_iupac_lite("HexNAc")
-
-
-def composition_distance(c1, c2):
-    '''N-Dimensional Manhattan Distance or L1 Norm
-    '''
-    keys = set(c1) | set(c2)
-    distance = 0.0
-    for k in keys:
-        distance += abs(c1[k] - c2[k])
-    return int(distance), 1 / distance if distance > 0 else 1
-
-
-def n_glycan_distance(c1, c2):
-    distance, weight = composition_distance(c1, c2)
-    # if abs(c1[_hexose] - c2[_hexose]) == 1 and abs(c1[_hexnac] - c2[_hexnac]) == 1:
-    #     distance -= 1
-    # else:
-    #     if c1[_hexose] == c1[_hexnac] or c2[_hexose] == c2[_hexnac]:
-    #         weight /= 2.
-    return distance, weight
 
 
 class CompositionNormalizer(object):
@@ -142,66 +123,6 @@ class DijkstraPathFinder(object):
     def search(self):
         self.find_path()
         return self.distance[self.end._str]
-
-
-class CompositionSpace(object):
-
-    def __init__(self, members):
-        self.filter = GlycanCompositionFilter(members)
-
-    @property
-    def monosaccharides(self):
-        return self.filter.monosaccharides
-
-    def find_narrowly_related(self, composition, window=1):
-        partitions = []
-        for i in range(len(self.monosaccharides)):
-            j = 0
-            m = self.monosaccharides[j]
-            if i == j:
-                q = self.filter.query(
-                    m, composition[m] - window, composition[m] + window)
-            else:
-                q = self.filter.query(
-                    m, composition[m], composition[m])
-            for m in self.monosaccharides[1:]:
-                j += 1
-                center = composition[m]
-                if j == i:
-                    q.add(m, center - window, center + window)
-                else:
-                    q.add(m, center, center)
-            partitions.append(q)
-        out = set()
-        for case in partitions:
-            out.update(case)
-        return out
-
-    def l1_distance(self, c1, c2):
-        keys = set(c1) | set(c2)
-        distance = 0
-        for k in keys:
-            distance += abs(c1[k] - c2[k])
-        return distance
-
-    def find_related_broad(self, composition, window=1):
-        m = self.monosaccharides[0]
-        q = self.filter.query(
-            m, composition[m] - window, composition[m] + window)
-        for m in self.monosaccharides[1:]:
-            center = composition[m]
-            q.add(m, center - window, center + window)
-        return q.all()
-
-    def find_related(self, composition, window=1):
-        if window == 1:
-            return self.find_narrowly_related(composition, window)
-        candidates = self.find_related_broad(composition, window)
-        out = []
-        for case in candidates:
-            if self.l1_distance(composition, case) <= window:
-                out.append(case)
-        return out
 
 
 class CompositionGraphNode(object):
@@ -596,6 +517,10 @@ class CompositionGraph(object):
         self.distance_fn = distance_fn
         self._composition_normalizer = CompositionNormalizer()
 
+    def __repr__(self):
+        return "{self.__class__.__name__}({node_count} nodes, {edge_count} edges)".format(
+            self=self, node_count=len(self), edge_count=len(self.edges))
+
     def copy(self):
         graph = CompositionGraph([], self.distance_fn)
         for node in self.nodes:
@@ -655,15 +580,26 @@ class CompositionGraph(object):
             node.score = node._internal_score = node._temp_score = 0
         return network
 
-    def augment_with_decoys(self):
+    def augment_with_decoys(self, pseudodistance=2):
         compositions = []
+        if pseudodistance == 0:
+            raise ValueError("Cannot use decoys with pseudodistance of size 0")
         for node in self:
             t = node.glycan_composition.copy()
             d = node.glycan_composition.copy()
-            d['#decoy#'] = 1
+            d['#decoy#'] = pseudodistance
             compositions.append(t)
             compositions.append(d)
         return self.__class__(compositions, self.distance_fn, self.neighborhoods)
+
+    def merge(self, other):
+        edges = other.edges
+        for node in other:
+            self.add_node(node)
+        self._reindex()
+        for edge in edges:
+            self.add_edge(self[edge.node1], self[edge.node2])
+        return self
 
 
 class GraphWriter(object):
@@ -789,529 +725,3 @@ class GraphReader(object):
 
 dump = GraphWriter
 load = GraphReader.read
-
-
-class CompositionRuleBase(object):
-
-    __repr__ = simple_repr
-
-    def get_composition(self, obj):
-        try:
-            composition = obj.glycan_composition
-        except AttributeError:
-            composition = HashableGlycanComposition.parse(obj)
-        composition = symbolic_expression.GlycanSymbolContext(composition)
-        return composition
-
-    def __and__(self, other):
-        if isinstance(other, CompositionRuleClassifier):
-            other = other.copy()
-            other.rules.append(self)
-            return other
-        else:
-            return CompositionRuleClassifier(None, [self, other])
-
-    def get_symbols(self):
-        raise NotImplementedError()
-
-    @property
-    def symbols(self):
-        return self.get_symbols()
-
-    def is_univariate(self):
-        return len(self.get_symbols()) == 1
-
-    def serialize(self):
-        raise NotImplementedError()
-
-    @classmethod
-    def parse(cls, line, handle=None):
-        raise NotImplementedError()
-
-
-def int_or_none(x):
-    try:
-        return int(x)
-    except ValueError:
-        return None
-
-
-class CompositionExpressionRule(CompositionRuleBase):
-    def __init__(self, expression, required=True):
-        self.expression = symbolic_expression.ExpressionNode.parse(str(expression))
-        self.required = required
-
-    def get_symbols(self):
-        return self.expression.get_symbols()
-
-    def __call__(self, obj):
-        composition = self.get_composition(obj)
-        if composition.partially_defined(self.expression):
-            return composition[self.expression]
-        else:
-            if self.required:
-                return False
-            else:
-                return True
-
-    def serialize(self):
-        tokens = ["CompositionExpressionRule", str(self.expression),
-                  str(self.required)]
-        return '\t'.join(tokens)
-
-    @classmethod
-    def parse(cls, line, handle=None):
-        tokens = line.strip().split("\t")
-        n = len(tokens)
-        i = 0
-        while tokens[i] != "CompositionExpressionRule" and i < n:
-            i += 1
-        i += 1
-        if i >= n:
-            raise ValueError("Coult not parse %r with %s" % (line, cls))
-        expr = symbolic_expression.parse_expression(tokens[i])
-        required = tokens[i + 1].lower() in ('true', 'yes', '1')
-        return cls(expr, required)
-
-    def __repr__(self):
-        template = "{self.__class__.__name__}(expression={self.expression}, required={self.required})"
-        return template.format(self=self)
-
-
-class CompositionRangeRule(CompositionRuleBase):
-
-    def __init__(self, expression, low=None, high=None, required=True):
-        self.expression = symbolic_expression.ExpressionNode.parse(str(expression))
-        self.low = low
-        self.high = high
-        self.required = required
-
-    def __repr__(self):
-        template = \
-            ("{self.__class__.__name__}(expression={self.expression}, "
-             "low={self.low}, high={self.high}, required={self.required})")
-        return template.format(self=self)
-
-    def get_symbols(self):
-        return self.expression.get_symbols()
-
-    def __call__(self, obj):
-        composition = self.get_composition(obj)
-        if composition.partially_defined(self.expression):
-            if self.low is None:
-                return composition[self.expression] <= self.high
-            elif self.high is None:
-                return self.low <= composition[self.expression]
-            return self.low <= composition[self.expression] <= self.high
-        else:
-            if self.required and self.low > 0:
-                return False
-            else:
-                return True
-
-    def serialize(self):
-        tokens = ["CompositionRangeRule", str(self.expression), str(self.low),
-                  str(self.high), str(self.required)]
-        return '\t'.join(tokens)
-
-    @classmethod
-    def parse(cls, line, handle=None):
-        tokens = line.strip().split("\t")
-        n = len(tokens)
-        i = 0
-        while tokens[i] != "CompositionRangeRule" and i < n:
-            i += 1
-        i += 1
-        if i >= n:
-            raise ValueError("Coult not parse %r with %s" % (line, cls))
-        expr = symbolic_expression.parse_expression(tokens[i])
-        low = int_or_none(tokens[i + 1])
-        high = int_or_none(tokens[i + 2])
-        required = tokens[i + 3].lower() in ('true', 'yes', '1')
-        return cls(expr, low, high, required)
-
-
-class CompositionRatioRule(CompositionRuleBase):
-    def __init__(self, numerator, denominator, ratio_threshold, required=True):
-        self.numerator = numerator
-        self.denominator = denominator
-        self.ratio_threshold = ratio_threshold
-        self.required = required
-
-    def __repr__(self):
-        template = \
-            ("{self.__class__.__name__}(numerator={self.numerator}, "
-             "denominator={self.denominator}, ratio_threshold={self.ratio_threshold}, "
-             "required={self.required})")
-        return template.format(self=self)
-
-    def _test(self, x):
-        if isinstance(self.ratio_threshold, (tuple, list)):
-            return self.ratio_threshold[0] <= x < self.ratio_threshold[1]
-        else:
-            return x >= self.ratio_threshold
-
-    def get_symbols(self):
-        return (self.numerator, self.denominator)
-
-    def __call__(self, obj):
-        composition = self.get_composition(obj)
-        val = composition[self.numerator]
-        ref = composition[self.denominator]
-
-        if ref == 0 and self.required:
-            return False
-        else:
-            ratio = val / float(ref)
-            return self._test(ratio)
-
-    def serialize(self):
-        tokens = ["CompositionRatioRule", str(self.numerator), str(self.denominator),
-                  str(self.ratio_threshold), str(self.required)]
-        return '\t'.join(tokens)
-
-    @classmethod
-    def parse(cls, line, handle=None):
-        tokens = line.strip().split("\t")
-        n = len(tokens)
-        i = 0
-        while tokens[i] != "CompositionRatioRule" and i < n:
-            i += 1
-        i += 1
-        numerator = symbolic_expression.parse_expression(tokens[i])
-        denominator = symbolic_expression.parse_expression(tokens[i + 1])
-        ratio_threshold = float(tokens[i + 2])
-        required = tokens[i + 3].lower() in ('true', 'yes', '1')
-        return cls(numerator, denominator, ratio_threshold, required)
-
-
-class CompositionRuleClassifier(object):
-
-    def __init__(self, name, rules):
-        self.name = name
-        self.rules = rules
-
-    def __iter__(self):
-        return iter(self.rules)
-
-    def __call__(self, obj):
-        for rule in self:
-            if not rule(obj):
-                return False
-        return True
-
-    def __eq__(self, other):
-        try:
-            return self.name == other.name
-        except AttributeError:
-            return self.name == other
-
-    def __ne__(self, other):
-        return not self == other
-
-    def __hash__(self):
-        return hash(self.name)
-
-    __repr__ = simple_repr
-
-    def copy(self):
-        return CompositionRuleClassifier(self.name, list(self.rules))
-
-    def __and__(self, other):
-        if isinstance(other, CompositionRuleClassifier):
-            other = other.copy()
-            other.rules.extend(self.rules)
-            return other
-        else:
-            self = self.copy()
-            self.rules.append(other)
-            return self
-
-    def get_symbols(self):
-        symbols = set()
-        for rule in self:
-            symbols.update(rule.symbols)
-        return symbols
-
-    @property
-    def symbols(self):
-        return self.get_symbols()
-
-    def serialize(self):
-        text_buffer = StringIO()
-        text_buffer.write("CompositionRuleClassifier\t%s\n" % (self.name,))
-        for rule in self:
-            text = rule.serialize()
-            text_buffer.write("\t%s\n" % (text,))
-        text_buffer.seek(0)
-        return text_buffer.read()
-
-    @classmethod
-    def parse(cls, lines):
-        line = lines[0]
-        name = line.strip().split("\t")[1]
-        rules = []
-        for line in lines[1:]:
-            if line == "":
-                continue
-            rule_type = line.split("\t")[0]
-            if rule_type == "CompositionRangeRule":
-                rule = CompositionRangeRule.parse(line)
-            elif rule_type == "CompositionRatioRule":
-                rule = CompositionRatioRule.parse(line)
-            elif rule_type == "CompositionExpressionRule":
-                rule = CompositionExpressionRule.parse(line)
-            else:
-                raise ValueError("Unrecognized Rule Type: %r" % (line,))
-            rules.append(rule)
-        return cls(name, rules)
-
-
-class NeighborhoodCollection(object):
-    def __init__(self, neighborhoods=None):
-        if neighborhoods is None:
-            neighborhoods = OrderedDict()
-        self.neighborhoods = OrderedDict()
-        if isinstance(neighborhoods, (dict)):
-            self.neighborhoods = OrderedDict(neighborhoods)
-        else:
-            for item in neighborhoods:
-                self.add(item)
-
-    def add(self, classifier):
-        self.neighborhoods[classifier.name] = classifier
-
-    def remove(self, key):
-        return self.neighborhoods.pop(key)
-
-    def update(self, iterable):
-        for case in iterable:
-            self.add(case)
-
-    def clear(self):
-        self.neighborhoods.clear()
-
-    def copy(self):
-        return self.__class__(self.neighborhoods)
-
-    clone = copy
-
-    def __iter__(self):
-        return iter(self.neighborhoods.values())
-
-    def __repr__(self):
-        return "NeighborhoodCollection(%s)" % (', '.join(self.neighborhoods.keys()))
-
-    def __eq__(self, other):
-        return list(self) == list(other)
-
-    def __ne__(self, other):
-        return not (self == other)
-
-    def get_neighborhood(self, key):
-        return self.neighborhoods[key]
-
-    def __getitem__(self, key):
-        try:
-            return self.get_neighborhood(key)
-        except KeyError:
-            if isinstance(key, abc_numbers.Number):
-                return self.neighborhoods.values()[key]
-            else:
-                raise
-
-    def __len__(self):
-        return len(self.neighborhoods)
-
-
-def make_n_glycan_neighborhoods():
-    """Create broad N-glycan neighborhoods
-
-    Returns
-    -------
-    NeighborhoodCollection
-    """
-    neighborhoods = NeighborhoodCollection()
-
-    _neuraminic = "(%s)" % ' + '.join(map(str, (
-        FrozenMonosaccharideResidue.from_iupac_lite("NeuAc"),
-        FrozenMonosaccharideResidue.from_iupac_lite("NeuGc")
-    )))
-    _hexose = "(%s)" % ' + '.join(
-        map(str, map(FrozenMonosaccharideResidue.from_iupac_lite, ['Hex', ])))
-    _hexnac = "(%s)" % ' + '.join(
-        map(str, map(FrozenMonosaccharideResidue.from_iupac_lite, ['HexNAc', ])))
-
-    high_mannose = CompositionRangeRule(
-        _hexose, 3, 12) & CompositionRangeRule(
-        _hexnac, 2, 2) & CompositionRangeRule(
-        _neuraminic, 0, 0)
-    high_mannose.name = "high-mannose"
-    neighborhoods.add(high_mannose)
-
-    base_hexnac = 3
-    base_neuac = 2
-    for i, spec in enumerate(['hybrid', 'bi', 'tri', 'tetra', 'penta', "hexa", "hepta"]):
-        if i == 0:
-            rule = CompositionRangeRule(
-                _hexnac, base_hexnac - 1, base_hexnac + 1
-            ) & CompositionRangeRule(
-                _neuraminic, 0, base_neuac) & CompositionRangeRule(
-                _hexose, base_hexnac + i - 1,
-                base_hexnac + i + 3)
-            rule.name = spec
-            neighborhoods.add(rule)
-        else:
-            sialo = CompositionRangeRule(
-                _hexnac, base_hexnac + i - 1, base_hexnac + i + 1
-            ) & CompositionRangeRule(
-                _neuraminic, 1, base_neuac + i
-            ) & CompositionRangeRule(
-                _hexose, base_hexnac + i - 1,
-                base_hexnac + i + 2)
-
-            sialo.name = "%s-antennary" % spec
-            asialo = CompositionRangeRule(
-                _hexnac, base_hexnac + i - 1, base_hexnac + i + 1
-            ) & CompositionRangeRule(
-                _neuraminic, 0, 1 if i < 2 else 0
-            ) & CompositionRangeRule(
-                _hexose, base_hexnac + i - 1,
-                base_hexnac + i + 2)
-
-            asialo.name = "asialo-%s-antennary" % spec
-            neighborhoods.add(sialo)
-            neighborhoods.add(asialo)
-    return neighborhoods
-
-
-def make_adjacency_neighborhoods(network):
-    space = CompositionSpace([node.composition for node in network])
-
-    rules = []
-    for node in network:
-        terms = []
-        for monosaccharide in space.monosaccharides:
-            terms.append(("abs({} - {})".format(
-                monosaccharide, node.composition[monosaccharide])))
-        expr = '(%s) < 2' % (' + '.join(terms),)
-        expr_rule = CompositionExpressionRule(expr)
-        rule = CompositionRuleClassifier(str(node.composition), [expr_rule])
-        rules.append(rule)
-    return rules
-
-
-_n_glycan_neighborhoods = make_n_glycan_neighborhoods()
-
-
-class NeighborhoodWalker(object):
-
-    def __init__(self, network, neighborhoods=None, assign=True):
-        if neighborhoods is None:
-            neighborhoods = NeighborhoodCollection(_n_glycan_neighborhoods)
-        self.network = network
-        self.neighborhood_assignments = defaultdict(set)
-        self.neighborhoods = neighborhoods
-        self.filter_space = GlycanCompositionFilter(
-            [self.normalize_composition(node.composition) for node in self.network])
-
-        self.symbols = symbolic_expression.SymbolSpace(self.filter_space.monosaccharides)
-
-        self.neighborhood_maps = defaultdict(list)
-
-        if assign:
-            self.assign()
-
-    def normalize_composition(self, composition):
-        return self.network.normalize_composition(composition)
-
-    def _pack_maps(self):
-        key_neighborhood_assignments = defaultdict(set)
-        key_neighborhood_maps = defaultdict(list)
-
-        for key, value in self.neighborhood_assignments.items():
-            key_neighborhood_assignments[key.glycan_composition] = value
-        for key, value in self.neighborhood_maps.items():
-            key_neighborhood_maps[key.glycan_composition] = value
-        return key_neighborhood_assignments, key_neighborhood_maps
-
-    def _unpack_maps(self, packed_maps):
-        (key_neighborhood_assignments, key_neighborhood_maps) = packed_maps
-
-        for key, value in key_neighborhood_assignments.items():
-            self.neighborhood_assignments[self.network[key.glycan_composition]] = value
-
-        for key, value in key_neighborhood_maps.items():
-            self.neighborhood_maps[self.network[key.glycan_composition]] = value
-
-    def __getstate__(self):
-        return self._pack_maps()
-
-    def __setstate__(self, state):
-        self._unpack_maps(state)
-
-    def __reduce__(self):
-        return self.__class__, (self.network, self.neighborhoods, False)
-
-    def neighborhood_names(self):
-        return [n.name for n in self.neighborhoods]
-
-    def __getitem__(self, key):
-        return self.neighborhood_assignments[key]
-
-    def query_neighborhood(self, neighborhood):
-        query = None
-        filters = []
-        for rule in neighborhood.rules:
-            if not self.symbols.partially_defined(rule.symbols):
-                continue
-
-            filters.append(rule)
-            try:
-                low = rule.low
-                high = rule.high
-            except AttributeError:
-                continue
-            if low is None:
-                low = 0
-            if high is None:
-                # No glycan will have more than 100 of a single residue
-                # in practice.
-                high = 100
-            name = rule.symbols[0]
-            if query is None:
-                query = self.filter_space.query(name, low, high)
-            else:
-                query.add(name, low, high)
-        if filters:
-            query = filter(lambda x: all([f(x) for f in filters]), query)
-        else:
-            query = query.all()
-        return query
-
-    def assign(self):
-        for neighborhood in self.neighborhoods:
-            query = self.query_neighborhood(neighborhood)
-            if query is None:
-                raise ValueError("Query cannot be None! %r" % neighborhood)
-            for composition in query:
-                composition = self.normalize_composition(composition)
-                if neighborhood(composition):
-                    self.neighborhood_assignments[
-                        self.network[composition]].add(neighborhood.name)
-        for node in self.network:
-            for neighborhood in self[node]:
-                self.neighborhood_maps[neighborhood].append(node)
-
-    def compute_belongingness(self, node, neighborhood, distance_fn=n_glycan_distance):
-        count = 0
-        total_weight = 0
-        for member in self.neighborhood_maps[neighborhood]:
-            distance, weight = distance_fn(node.glycan_composition, member.glycan_composition)
-            if distance == 0:
-                weight = 1.0
-            total_weight += weight
-            count += 1
-        if count == 0:
-            return 0
-        return total_weight / count

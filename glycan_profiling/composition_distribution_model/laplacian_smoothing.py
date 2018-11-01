@@ -8,9 +8,11 @@ import numpy as np
 from scipy import linalg
 from matplotlib import pyplot as plt
 
+from glypy import GlycanComposition
+from glycopeptidepy.structure.glycan import GlycanCompositionProxy
+
 from glycan_profiling.database.composition_network import (
-    NeighborhoodWalker, CompositionGraphNode,
-    GlycanComposition, GlycanCompositionProxy)
+    NeighborhoodWalker, CompositionGraphNode)
 
 from .constants import DEFAULT_LAPLACIAN_REGULARIZATION, NORMALIZATION
 from .graph import network_indices, BlockLaplacian
@@ -203,17 +205,8 @@ class SmoothedScoreSample(object):
         index = node.index
         return index
 
-    def _marginal_density(self, index):
-        tv = self.B[index, index]
-        t = np.exp(-0.5 * (self.samples[:, index] - self.Bb[index]) * (
-            (1 / tv)) * (self.samples[:, index] - self.Bb[index])) / np.sqrt(2 * np.pi * tv)
-        average_density = t.sum() / self.size
-        return average_density
-
     def _score_index(self, index):
-        average_density = self._marginal_density(index)
-        average_density *= self.samples[:, index].mean()
-        return average_density
+        return self.Bb[index]
 
     def _gaussian_pdf(self, x, mu, sigma, sigma_inv):
         d = (x - mu)
