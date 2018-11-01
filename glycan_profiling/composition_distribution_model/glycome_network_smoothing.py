@@ -334,39 +334,6 @@ class GlycomeModel(LaplacianSmoothingModel):
         return solutions
 
 
-class NeighborhoodPrior(object):
-    def __init__(self, tau, neighborhood_names):
-        self.tau = tau
-        self.neighborhood_names = neighborhood_names
-        self.prior = OrderedDict(zip(neighborhood_names, tau))
-
-    def __iter__(self):
-        return iter(self.tau)
-
-    def items(self):
-        return self.prior.items()
-
-    def keys(self):
-        return self.prior.keys()
-
-    def __len__(self):
-        return len(self.tau)
-
-    def __getitem__(self, i):
-        return self.tau[i]
-
-    def getname(self, name):
-        return self.prior[name]
-
-    def __repr__(self):
-        return "NeighborhoodPrior(%s)" % ', '.join([
-            "%s: %0.3f" % (n, t) for n, t in self.prior.items()
-        ])
-
-    def __array__(self):
-        return np.array(self.tau)
-
-
 def smooth_network(network, observed_compositions, threshold_step=0.5, apex_threshold=0.95,
                    belongingness_matrix=None, rho=DEFAULT_RHO, lambda_max=1,
                    include_missing=False, lmbda=None, model_state=None,
