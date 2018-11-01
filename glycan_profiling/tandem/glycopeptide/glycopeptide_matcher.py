@@ -44,7 +44,9 @@ class GlycopeptideIdentificationWorker(SpectrumIdentificationWorkerBase):
 
 
 class GlycopeptideResolver(object):
-    def __init__(self, database, parser):
+    def __init__(self, database, parser=None):
+        if parser is None:
+            parser = CachingGlycopeptideParser()
         self.database = database
         self.parser = parser
         self.cache = dict()
