@@ -112,9 +112,12 @@ class HyperscoreScorer(SignatureAwareCoverageScorer):
             elif fragment.series in (IonSeries.y, IonSeries.z):
                 c_term += 1
                 c_term_intensity += peak.intensity
-        hyper = np.log(
-            [math.factorial(n_term), math.factorial(c_term), math.factorial(stub_count),
-             stub_intensity, n_term_intensity, c_term_intensity]).sum()
+        hyper = 0
+        factors = [math.factorial(n_term), math.factorial(c_term), math.factorial(stub_count),
+                   stub_intensity, n_term_intensity, c_term_intensity]
+        for f in factors:
+            hyper += math.log(f)
+
         return hyper
 
     def calculate_score(self, error_tolerance=2e-5, *args, **kwargs):

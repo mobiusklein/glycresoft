@@ -3,13 +3,13 @@ from operator import attrgetter
 import numpy as np
 
 
-from glycan_profiling.structure import FragmentMatchMap, SpectrumGraph
+from glycan_profiling.structure import SpectrumGraph
 
 from .base import GlycopeptideSpectrumMatcherBase
 
 from glypy.structure.glycan_composition import (
     FrozenGlycanComposition, FrozenMonosaccharideResidue,
-    MonosaccharideResidue, Composition)
+    Composition)
 
 
 signatures = {

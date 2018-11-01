@@ -38,6 +38,9 @@ class CoverageWeightedBinomialScorer(BinomialSpectrumMatcher, SignatureAwareCove
                 else:
                     self.glycosylated_c_term_ion_count += 1
 
+    def match(self, error_tolerance=2e-5, *args, **kwargs):
+        return SignatureAwareCoverageScorer.match(self, error_tolerance=error_tolerance, *args, **kwargs)
+
     def calculate_score(self, error_tolerance=2e-5, backbone_weight=None, glycosylated_weight=None,
                         stub_weight=None, *args, **kwargs):
         bin_score = BinomialSpectrumMatcher.calculate_score(
