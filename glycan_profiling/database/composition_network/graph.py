@@ -18,7 +18,7 @@ from glypy.structure.glycan_composition import FrozenMonosaccharideResidue, Glyc
 from glycopeptidepy import HashableGlycanComposition
 from glycopeptidepy.structure.glycan import GlycanCompositionProxy
 
-from ... import symbolic_expression
+from glycan_profiling import symbolic_expression
 
 from .space import (n_glycan_distance, composition_distance, CompositionSpace)
 from .neighborhood import NeighborhoodCollection

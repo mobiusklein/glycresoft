@@ -1,6 +1,6 @@
 from glypy.structure.glycan_composition import FrozenMonosaccharideResidue
 
-from ..glycan_composition_filter import GlycanCompositionFilter
+from glycan_profiling.database.glycan_composition_filter import GlycanCompositionFilter
 
 _hexose = FrozenMonosaccharideResidue.from_iupac_lite("Hex")
 _hexnac = FrozenMonosaccharideResidue.from_iupac_lite("HexNAc")

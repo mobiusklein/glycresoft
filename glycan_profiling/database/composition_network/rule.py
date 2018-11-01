@@ -11,7 +11,7 @@ except NameError:
 from glycopeptidepy import HashableGlycanComposition
 from glycopeptidepy.utils import simple_repr
 
-from ... import symbolic_expression
+from glycan_profiling import symbolic_expression
 
 
 class CompositionRuleBase(object):
