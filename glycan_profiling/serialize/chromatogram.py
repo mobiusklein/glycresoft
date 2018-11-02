@@ -31,7 +31,7 @@ from glycan_profiling.models import GeneralScorer
 from .analysis import BoundToAnalysis
 from .hypothesis import GlycanComposition
 
-from .base import (
+from .spectrum import (
     Base, DeconvolutedPeak, MSScan, Mass, make_memory_deconvoluted_peak)
 
 from glypy.composition.base import formula

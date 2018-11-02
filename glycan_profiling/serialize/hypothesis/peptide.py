@@ -10,10 +10,10 @@ from sqlalchemy.ext.hybrid import hybrid_property, hybrid_method
 from sqlalchemy import (
     Column, Numeric, Integer, String, ForeignKey, PickleType,
     Boolean, Table, Text, Index)
-from sqlalchemy.ext.mutable import MutableDict
+from sqlalchemy.ext.mutable import MutableDict, MutableList
 
 from glycan_profiling.serialize.base import (
-    Base, MutableList)
+    Base)
 
 
 from .hypothesis import GlycopeptideHypothesis

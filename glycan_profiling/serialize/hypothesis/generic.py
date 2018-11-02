@@ -7,8 +7,6 @@ from functools import total_ordering
 
 from six import string_types as basestring
 
-import numpy as np
-
 import sqlalchemy
 from sqlalchemy import (
     Column, Numeric, Integer, String, ForeignKey,
@@ -21,7 +19,7 @@ from sqlalchemy.ext.declarative import declared_attr
 from sqlalchemy.ext.mutable import MutableDict
 
 
-from ms_deisotope.output.db import (
+from ..base import (
     Base)
 
 from ..utils import get_or_create

@@ -16,7 +16,7 @@ from glycan_profiling.structure import ScanInformation
 from .analysis import BoundToAnalysis
 from .hypothesis import Glycopeptide, GlycanComposition
 from .chromatogram import CompoundMassShift
-from .base import (
+from .spectrum import (
     Base, MSScan)
 
 

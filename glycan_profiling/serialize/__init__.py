@@ -1,8 +1,9 @@
 from sqlalchemy import exc, func
 from sqlalchemy.orm.session import object_session
 
-from glycan_profiling.serialize.base import (
-    Base,
+from glycan_profiling.serialize.base import Base
+
+from glycan_profiling.serialize.spectrum import (
     SampleRun,
     MSScan,
     PrecursorInformation,

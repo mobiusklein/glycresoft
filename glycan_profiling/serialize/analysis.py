@@ -11,7 +11,9 @@ from sqlalchemy.ext.mutable import MutableDict
 import dill
 
 from glycan_profiling.serialize.base import (
-    Base, HasUniqueName, SampleRun)
+    Base, HasUniqueName)
+
+from glycan_profiling.serialize.spectrum import SampleRun
 
 from glycan_profiling.serialize.hypothesis.generic import HasFiles
 

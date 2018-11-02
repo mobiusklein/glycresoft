@@ -20,7 +20,7 @@ from glycan_profiling.serialize import (
 
 from glycan_profiling.serialize.serializer import AnalysisSerializer
 
-from ms_deisotope.output.db import (
+from glycan_profiling.serialize.spectrum import (
     SampleRun,
     MSScan,
     DeconvolutedPeak,
