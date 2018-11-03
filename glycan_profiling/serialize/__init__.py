@@ -53,3 +53,8 @@ from glycan_profiling.serialize.hypothesis import *
 #     GlycopeptideMSMSAnalysisSerializer)
 
 from glycan_profiling.serialize import config
+
+import sys
+from glycan_profiling.serialize import spectrum
+
+sys.modules['ms_deisotope.output.db'] = spectrum
