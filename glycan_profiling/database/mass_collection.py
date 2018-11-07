@@ -168,8 +168,8 @@ class MassDatabase(SearchableMassCollection):
 
 
 class NeutralMassDatabase(SearchableMassCollection):
-    def __init__(self, structures, mass_getter=operator.attrgetter("calculated_mass")):
-        self.structures = sorted(structures, key=mass_getter)
+    def __init__(self, structures, mass_getter=operator.attrgetter("calculated_mass"), sort=True):
+        self.structures = sorted(structures, key=mass_getter) if sort else list(structures)
         self.mass_getter = mass_getter
 
     @property
@@ -235,6 +235,13 @@ class NeutralMassDatabase(SearchableMassCollection):
         lo = self.search_binary(lo_mass)
         hi = self.search_binary(hi_mass) + 1
         return [structure for structure in self[lo:hi] if lo_mass <= self.mass_getter(structure) <= hi_mass]
+
+    def search_between(self, lower, higher):
+        lo = self.search_binary(lower)
+        hi = self.search_binary(higher) + 1
+        return self.__class__(
+            [structure for structure in self[lo:hi] if lower <= self.mass_getter(structure) <= higher],
+            self.mass_getter, sort=False)
 
 
 class ConcatenatedDatabase(SearchableMassCollection):
