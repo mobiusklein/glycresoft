@@ -1,6 +1,4 @@
-import numpy as np
-
-from matplotlib import pyplot as plt, font_manager, transforms as mtransforms
+from matplotlib import pyplot as plt, font_manager
 from ms_peak_picker.utils import draw_peaklist
 from .sequence_fragment_logo import glycopeptide_match_logo
 
@@ -107,6 +105,8 @@ class SpectrumMatchAnnotator(object):
     def draw(self, **kwargs):
         fontsize = kwargs.pop('fontsize', 9)
         rotation = kwargs.pop("rotation", 90)
+        clip_labels = kwargs.pop("clip_labels", self.clip_labels)
+        self.clip_labels = clip_labels
         ion_series_to_color = kwargs.pop("ion_series_to_color", default_ion_series_to_color)
         self.draw_all_peaks(**kwargs)
         self.draw_matched_peaks(
@@ -122,11 +122,12 @@ class SpectrumMatchAnnotator(object):
         logo = glycopeptide_match_logo(self.spectrum_match, ax=iax)
         return logo
 
-    def _draw_mass_accuracy_plot(self, ax, error_tolerance=2e-5):
+    def _draw_mass_accuracy_plot(self, ax, error_tolerance=2e-5, **kwargs):
+        ion_series_to_color = kwargs.pop("ion_series_to_color", default_ion_series_to_color)
         match = self.spectrum_match
         ax.scatter(*zip(*[(pp.peak.mz, pp.mass_accuracy()) for pp in match.solution_map]),
                    alpha=0.5, edgecolor='black', color=[
-                   default_ion_series_to_color[pp.fragment.series] for pp in match.solution_map])
+                   ion_series_to_color[pp.fragment.series] for pp in match.solution_map])
         limits = error_tolerance
         ax.set_ylim(-limits, limits)
         xlim = 0, max(match.deconvoluted_peak_set, key=lambda x: x.mz).mz + 100
