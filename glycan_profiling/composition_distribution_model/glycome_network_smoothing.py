@@ -1,7 +1,4 @@
-from collections import OrderedDict, defaultdict
-
 import numpy as np
-from scipy import linalg
 
 from glypy import GlycanComposition
 
@@ -31,8 +28,7 @@ from .grid_search import (
 
 from .observation import (
     GlycanCompositionSolutionRecord,
-    VariableObservationAggregation,
-    ObservationWeightState)
+    VariableObservationAggregation)
 
 
 def _has_glycan_composition(x):
