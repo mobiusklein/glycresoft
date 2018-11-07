@@ -54,25 +54,25 @@ class TestGlycopeptideScorers(unittest.TestCase):
         gp, gp2 = self.build_structures()
 
         match = coverage_weighted_binomial.CoverageWeightedBinomialScorer.evaluate(scan, gp)
-        self.assertAlmostEqual(match.score, 103.248862672, 3)
+        self.assertAlmostEqual(match.score, 103.24070700636717, 3)
         match = coverage_weighted_binomial.CoverageWeightedBinomialScorer.evaluate(scan, gp2)
-        self.assertAlmostEqual(match.score, 103.248862672, 3)
+        self.assertAlmostEqual(match.score, 103.24070700636717, 3)
 
         match = coverage_weighted_binomial.CoverageWeightedBinomialScorer.evaluate(scan2, gp)
-        self.assertAlmostEqual(match.score, 55.4180047361, 3)
+        self.assertAlmostEqual(match.score, 55.409849070607173, 3)
         match = coverage_weighted_binomial.CoverageWeightedBinomialScorer.evaluate(scan2, gp2)
-        self.assertAlmostEqual(match.score, 162.686553646, 3)
+        self.assertAlmostEqual(match.score, 162.67839798093911, 3)
 
     def test_log_intensity(self):
         scan, scan2 = self.load_spectra()
         gp, gp2 = self.build_structures()
 
         match = intensity_scorer.LogIntensityScorer.evaluate(scan, gp)
-        self.assertAlmostEqual(match.score, 129.8531117, 3)
+        self.assertAlmostEqual(match.score, 129.84495603097918, 3)
         match = intensity_scorer.LogIntensityScorer.evaluate(scan, gp2)
-        self.assertAlmostEqual(match.score, 129.8531117, 3)
+        self.assertAlmostEqual(match.score, 129.84495603097918, 3)
 
         match = intensity_scorer.LogIntensityScorer.evaluate(scan2, gp)
-        self.assertAlmostEqual(match.score, 94.1181520719, 3)
+        self.assertAlmostEqual(match.score, 94.109996415521309, 3)
         match = intensity_scorer.LogIntensityScorer.evaluate(scan2, gp2)
-        self.assertAlmostEqual(match.score, 262.759675688, 3)
+        self.assertAlmostEqual(match.score, 262.75151996462961, 3)

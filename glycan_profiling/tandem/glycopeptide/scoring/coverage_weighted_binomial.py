@@ -9,10 +9,6 @@ from .precursor_mass_accuracy import MassAccuracyMixin
 from .glycan_signature_ions import GlycanCompositionSignatureMatcher
 
 
-# This probably shouldn't be global
-accuracy_bias = MassAccuracyModel(-2.673807e-07, 5.022458e-06)
-
-
 class CoverageWeightedBinomialScorer(BinomialSpectrumMatcher, SignatureAwareCoverageScorer, MassAccuracyMixin):
 
     def __init__(self, scan, sequence, mass_shift=None):
