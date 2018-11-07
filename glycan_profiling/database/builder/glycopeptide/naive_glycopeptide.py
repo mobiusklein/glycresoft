@@ -1,6 +1,7 @@
 
 from glycan_profiling.serialize import func
 from glycan_profiling.serialize.hypothesis.peptide import Peptide, Protein, ProteinSite
+from glycan_profiling.serialize.utils import toggle_indices
 
 from glycopeptidepy.algorithm import reverse_sequence
 from glycopeptidepy.structure.sequence import (
@@ -28,7 +29,8 @@ from .common import (
 class FastaGlycopeptideHypothesisSerializer(GlycopeptideHypothesisSerializerBase):
     def __init__(self, fasta_file, connection, glycan_hypothesis_id, hypothesis_name=None,
                  protease='trypsin', constant_modifications=None, variable_modifications=None,
-                 max_missed_cleavages=2, max_glycosylation_events=1, semispecific=False):
+                 max_missed_cleavages=2, max_glycosylation_events=1, semispecific=False,
+                 max_variable_modifications=None):
         GlycopeptideHypothesisSerializerBase.__init__(self, connection, hypothesis_name, glycan_hypothesis_id)
         self.fasta_file = fasta_file
         self.protease = protease
@@ -37,6 +39,7 @@ class FastaGlycopeptideHypothesisSerializer(GlycopeptideHypothesisSerializerBase
         self.max_missed_cleavages = max_missed_cleavages
         self.max_glycosylation_events = max_glycosylation_events
         self.semispecific = semispecific
+        self.max_variable_modifications = max_variable_modifications
 
         params = {
             "fasta_file": fasta_file,
@@ -45,7 +48,8 @@ class FastaGlycopeptideHypothesisSerializer(GlycopeptideHypothesisSerializerBase
             "variable_modifications": variable_modifications,
             "max_missed_cleavages": max_missed_cleavages,
             "max_glycosylation_events": max_glycosylation_events,
-            "semispecific": semispecific
+            "semispecific": semispecific,
+            "max_variable_modifications": max_variable_modifications
         }
         self.set_parameters(params)
 
@@ -85,7 +89,7 @@ class FastaGlycopeptideHypothesisSerializer(GlycopeptideHypothesisSerializerBase
             i += 1
             protein = self.query(Protein).get(protein_id)
             if i % interval == 0:
-                self.log("%0.3f%% Complete (%d/%d). %d Peptides Produced." % (i * 100. / n, i, n, j))
+                self.log("... %0.3f%% Complete (%d/%d). %d Peptides Produced." % (i * 100. / n, i, n, j))
             for peptide in digestor.process_protein(protein):
                 acc.append(peptide)
                 j += 1
@@ -145,8 +149,11 @@ class FastaGlycopeptideHypothesisSerializer(GlycopeptideHypothesisSerializerBase
         self.log("Extracting Proteins")
         self.extract_proteins()
         self.log("Digesting Proteins")
+        index_toggler = toggle_indices(self.session, Peptide)
+        index_toggler.drop()
         self.digest_proteins()
         self.split_proteins()
+        index_toggler.create()
         self.log("Combinating Glycans")
         self.combinate_glycans(self.max_glycosylation_events)
         self.log("Building Glycopeptides")
@@ -160,11 +167,12 @@ class MultipleProcessFastaGlycopeptideHypothesisSerializer(FastaGlycopeptideHypo
     def __init__(self, fasta_file, connection, glycan_hypothesis_id, hypothesis_name=None,
                  protease='trypsin', constant_modifications=None, variable_modifications=None,
                  max_missed_cleavages=2, max_glycosylation_events=1, semispecific=False,
+                 max_variable_modifications=None,
                  n_processes=4):
         super(MultipleProcessFastaGlycopeptideHypothesisSerializer, self).__init__(
             fasta_file, connection, glycan_hypothesis_id, hypothesis_name,
             protease, constant_modifications, variable_modifications,
-            max_missed_cleavages, max_glycosylation_events, semispecific)
+            max_missed_cleavages, max_glycosylation_events, semispecific, max_variable_modifications)
         self.n_processes = n_processes
 
     def digest_proteins(self):
