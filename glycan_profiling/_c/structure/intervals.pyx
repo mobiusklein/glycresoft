@@ -8,7 +8,6 @@ cdef class QueryIntervalBase(SpanningMixin):
 
     cdef:
         public double center
-        public size_t size
 
     def __init__(self, center, start, end):
         self.center = center
@@ -23,6 +22,9 @@ cdef class QueryIntervalBase(SpanningMixin):
 
     def __repr__(self):
         return "QueryInterval(%0.4f, %0.4f)" % (self.start, self.end)
+
+    def __reduce__(self):
+        return QueryIntervalBase, (self.center, self.start, self.end)
 
     cpdef QueryIntervalBase extend(self, QueryIntervalBase other):
         self.start = min(self.start, other.start)
@@ -114,4 +116,23 @@ cdef class IntervalFilter(object):
     def __call__(self, mass):
         return self.test(mass)
 
+    cpdef IntervalFilter compress(self):
+        cdef:
+            size_t i, n
+            list out
+            QueryIntervalBase last, interval
+        n = PyList_Size(self.intervals)
+        out = []
+        if n == 0:
+            return self
+        last = <QueryIntervalBase>PyList_GET_ITEM(self.intervals, 0)
+        for i in range(1, n):
+            interval = <QueryIntervalBase>PyList_GET_ITEM(self.intervals, i)
+            if interval.overlaps(last):
+                last.extend(interval)
+            else:
+                out.append(last)
+                last = interval
+        out.append(last)
+        return self
 

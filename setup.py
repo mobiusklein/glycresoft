@@ -58,7 +58,10 @@ def make_extensions():
                       include_dirs=[numpy.get_include()]),
             Extension(name='glycan_profiling._c.chromatogram_tree.index',
                       sources=["glycan_profiling/_c/chromatogram_tree/index.pyx"],
-                      include_dirs=[numpy.get_include()])
+                      include_dirs=[numpy.get_include()]),
+            Extension(name='glycan_profiling._c.tandem.core_search',
+                      sources=["glycan_profiling/_c/tandem/core_search.pyx"],
+                      include_dirs=[numpy.get_include()]),
         ], compiler_directives=cython_directives, force=force_cythonize)
     except ImportError:
         extensions = ([
@@ -76,7 +79,10 @@ def make_extensions():
                       include_dirs=[numpy.get_include()]),
             Extension(name='glycan_profiling._c.chromatogram_tree.index',
                       sources=["glycan_profiling/_c/chromatogram_tree/index.c"],
-                      include_dirs=[numpy.get_include()])
+                      include_dirs=[numpy.get_include()]),
+            Extension(name='glycan_profiling._c.tandem.core_search',
+                      sources=["glycan_profiling/_c/tandem/core_search.c"],
+                      include_dirs=[numpy.get_include()]),
         ])
     return extensions
 

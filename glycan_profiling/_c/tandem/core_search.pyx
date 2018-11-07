@@ -2,7 +2,9 @@
 from collections import defaultdict
 
 cimport cython
-from cpython cimport PyList_Append, PyList_Size, PyList_GetItem
+from cpython cimport PyList_Append, PyList_Size, PyList_GetItem, PyFloat_AsDouble, PyTuple_Size, PyTuple_GetItem
+
+from libc cimport math
 
 import numpy as np
 cimport numpy as np
@@ -34,6 +36,7 @@ cdef class CoarseStubGlycopeptideFragment(object):
 
 
 @cython.freelist(100000)
+@cython.final
 cdef class CoarseStubGlycopeptideMatch(object):
     cdef:
         public object key
@@ -64,19 +67,63 @@ cdef class CoarseStubGlycopeptideMatch(object):
         )
 
 
-@cython.binding
-def _n_glycan_match_stubs(object self, object scan, double peptide_mass, object glycan_combination, double mass_shift_tandem_mass=0.0):
+@cython.freelist(100000)
+@cython.final
+cdef class CoarseGlycanMatch(object):
+    cdef:
+        public list fragment_matches
+        public double n_matched
+        public double n_theoretical
+        public double core_matched
+        public double core_theoretical
+
+    @staticmethod
+    cdef CoarseGlycanMatch _create(list fragment_matches, double n_matched, double n_theoretical, double core_matched, double core_theoretical):
+        cdef CoarseGlycanMatch inst = CoarseGlycanMatch.__new__(CoarseGlycanMatch)
+        inst.fragment_matches = fragment_matches
+        inst.n_matched = n_matched
+        inst.n_theoretical = n_theoretical
+        inst.core_matched = core_matched
+        inst.core_theoretical = core_theoretical
+        return inst
+
+    def __init__(self, fragment_matches, n_matched, n_theoretical, core_matched, core_theoretical):
+        self.fragment_matches = list(fragment_matches)
+        self.n_matched = n_matched
+        self.n_theoretical = n_theoretical
+        self.core_matched = core_matched
+        self.core_theoretical = core_theoretical
+
+    def __iter__(self):
+        yield self.fragment_matches
+        yield self.n_matched
+        yield self.n_theoretical
+        yield self.core_matched
+        yield self.core_theoretical
+
+
+cdef class GlycanCoarseScorerBase(object):
+    cdef:
+        public double product_error_tolerance
+        public double fragment_weight
+        public double core_weight
+
+    def __init__(self, product_error_tolerance=1e-5, fragment_weight=0.56, core_weight=0.42):
+        self.product_error_tolerance = product_error_tolerance
+        self.fragment_weight = fragment_weight
+        self.core_weight = core_weight
+
+    cpdef CoarseGlycanMatch _match_fragments(self, object scan, double peptide_mass, list shifts, double mass_shift_tandem_mass=0.0):
         cdef:
-            list shifts, fragment_matches
+            list fragment_matches
             double core_matched, core_theoretical, product_error_tolerance
             DeconvolutedPeakSet peak_set
-            size_t i, j, k, n, m
+            size_t i, n
             bint has_tandem_shift
             tuple hits
             CoarseStubGlycopeptideFragment shift
 
-        product_error_tolerance = self.product_error_tolerance
-        shifts = glycan_combination.get_n_glycan_fragments()
+        product_error_tolerance = (self.product_error_tolerance)
         fragment_matches = []
 
         core_matched = 0.0
@@ -106,4 +153,28 @@ def _n_glycan_match_stubs(object self, object scan, double peptide_mass, object 
                         core_matched += 1
                     fragment_matches.append(CoarseStubGlycopeptideMatch._create(shift.key, shifted_mass, hits))
 
-        return fragment_matches, float(len(fragment_matches)), float(len(shifts)), core_matched, core_theoretical
+        return CoarseGlycanMatch._create(
+            fragment_matches, float(len(fragment_matches)), float(len(shifts)), core_matched, core_theoretical)
+
+
+    cpdef double _calculate_score(self, list matched_fragments, double n_matched, double n_theoretical,
+                                  double core_matched, double core_theoretical):
+        cdef:
+            size_t i, j, n, m
+            CoarseStubGlycopeptideMatch matched_fragment
+            double score, ratio_fragments, ratio_core, coverage
+            DeconvolutedPeak peak
+            tuple matches
+        ratio_fragments = (n_matched / n_theoretical)
+        ratio_core = core_matched / core_theoretical
+        coverage = (ratio_fragments ** (self.fragment_weight)) * (ratio_core ** (self.core_weight))
+        score = 0
+        n = PyList_Size(matched_fragments)
+        for i in range(n):
+            matched_fragment = <CoarseStubGlycopeptideMatch>PyList_GetItem(matched_fragments, i)
+            m = PyTuple_Size(matched_fragment.peaks_matched)
+            for j in range(m):
+                peak = <DeconvolutedPeak>PyTuple_GetItem(matched_fragment.peaks_matched, j)
+                score += math.log(peak.intensity) * (1 - (
+                    math.fabs(peak.neutral_mass - matched_fragment.mass) / matched_fragment.mass) ** 4) * coverage
+        return score
