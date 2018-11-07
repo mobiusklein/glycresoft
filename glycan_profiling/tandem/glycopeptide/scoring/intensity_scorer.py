@@ -4,12 +4,11 @@ import math
 from glycopeptidepy.structure.fragment import IonSeries
 
 from .base import ModelTreeNode
-from .precursor_mass_accuracy import MassAccuracyModel
+from .precursor_mass_accuracy import MassAccuracyMixin
 from .simple_score import SignatureAwareCoverageScorer
 
 
-class LogIntensityScorer(SignatureAwareCoverageScorer):
-    accuracy_bias = MassAccuracyModel(-2.673807e-07, 5.022458e-06)
+class LogIntensityScorer(SignatureAwareCoverageScorer, MassAccuracyMixin):
 
     def __init__(self, scan, sequence, mass_shift=None, *args, **kwargs):
         super(LogIntensityScorer, self).__init__(scan, sequence, mass_shift, *args, **kwargs)
@@ -27,9 +26,7 @@ class LogIntensityScorer(SignatureAwareCoverageScorer):
     def calculate_score(self, error_tolerance=2e-5, *args, **kwargs):
         coverage_score = self._coverage_score(*args, **kwargs)
         intensity_score = self._intensity_score(error_tolerance, *args, **kwargs)
-        offset = self.determine_precursor_offset()
-        mass_accuracy = -10 * math.log10(
-            1 - self.accuracy_bias.score(self.precursor_mass_accuracy(offset)))
+        mass_accuracy = self._precursor_mass_accuracy_score()
         signature_component = self._signature_ion_score(error_tolerance)
         self._score = intensity_score * coverage_score + mass_accuracy + signature_component
 
@@ -44,7 +41,7 @@ class LogIntensityScorer(SignatureAwareCoverageScorer):
                 seen.add(peak.index.neutral_mass)
                 intensity += np.log10(peak.intensity)
         n_term, c_term = self._compute_coverage_vectors()[:2]
-        coverage_score = ((n_term + c_term[::-1])).sum() / float(self.n_theoretical)
+        coverage_score = ((n_term + c_term[::-1])).sum() / float((2 * len(self.target) - 1))
         return intensity * coverage_score
 
     def glycan_score(self, error_tolerance=2e-5, *args, **kwargs):
@@ -74,7 +71,7 @@ class LogIntensityScorer(SignatureAwareCoverageScorer):
         # superset of the possible fragments of glycan structures because of recurring patterns
         # not reflected in the glycan composition.
         coverage = core_coverage * extended_coverage
-        return intensity * coverage + signature
+        return intensity + coverage + signature
 
 
 class ShortPeptideLogIntensityScorer(LogIntensityScorer):
@@ -90,8 +87,7 @@ LogIntensityModelTree = ModelTreeNode(LogIntensityScorer, {
 })
 
 
-class HyperscoreScorer(SignatureAwareCoverageScorer):
-    accuracy_bias = MassAccuracyModel(-2.673807e-07, 5.022458e-06)
+class HyperscoreScorer(SignatureAwareCoverageScorer, MassAccuracyMixin):
 
     def _calculate_hyperscore(self, *args, **kwargs):
         n_term_intensity = 0
@@ -122,9 +118,7 @@ class HyperscoreScorer(SignatureAwareCoverageScorer):
 
     def calculate_score(self, error_tolerance=2e-5, *args, **kwargs):
         hyperscore = self._calculate_hyperscore(error_tolerance, *args, **kwargs)
-        offset = self.determine_precursor_offset()
-        mass_accuracy = -10 * math.log10(
-            1 - self.accuracy_bias.score(self.precursor_mass_accuracy(offset)))
+        mass_accuracy = self._precursor_mass_accuracy_score()
         signature_component = self._signature_ion_score(error_tolerance)
         self._score = hyperscore + mass_accuracy + signature_component
 

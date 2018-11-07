@@ -5,17 +5,15 @@ from .base import (
     HCDFragmentationStrategy, IonSeries)
 from .binomial_score import BinomialSpectrumMatcher
 from .simple_score import SimpleCoverageScorer, SignatureAwareCoverageScorer
-from .precursor_mass_accuracy import MassAccuracyModel
+from .precursor_mass_accuracy import MassAccuracyMixin
 from .glycan_signature_ions import GlycanCompositionSignatureMatcher
-from glycan_profiling.structure import FragmentMatchMap
 
 
 # This probably shouldn't be global
 accuracy_bias = MassAccuracyModel(-2.673807e-07, 5.022458e-06)
 
 
-class CoverageWeightedBinomialScorer(BinomialSpectrumMatcher, SignatureAwareCoverageScorer):
-    accuracy_bias = accuracy_bias
+class CoverageWeightedBinomialScorer(BinomialSpectrumMatcher, SignatureAwareCoverageScorer, MassAccuracyMixin):
 
     def __init__(self, scan, sequence, mass_shift=None):
         super(CoverageWeightedBinomialScorer, self).__init__(scan, sequence, mass_shift)
@@ -48,8 +46,7 @@ class CoverageWeightedBinomialScorer(BinomialSpectrumMatcher, SignatureAwareCove
         coverage_score = SimpleCoverageScorer.calculate_score(
             self, backbone_weight, glycosylated_weight, stub_weight)
         offset = self.determine_precursor_offset()
-        mass_accuracy = -10 * math.log10(
-            1 - self.accuracy_bias.score(self.precursor_mass_accuracy(offset)))
+        mass_accuracy = self._precursor_mass_accuracy_score()
         signature_component = GlycanCompositionSignatureMatcher.calculate_score(self)
         self._score = bin_score * coverage_score + mass_accuracy + signature_component
         return self._score

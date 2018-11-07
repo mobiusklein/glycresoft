@@ -31,25 +31,18 @@ class MassAccuracyModel(object):
     def score(self, error):
         return gauss(self.scale * error, self.mu, self.sigma)
 
+    def __call__(self, error):
+        return self.score(error)
+
     def __repr__(self):
         return "MassAccuracyModel(%e, %e)" % (self.mu / self.scale, self.sigma / self.scale)
 
 
-class MassAccuracyScorer(object):
-    def __init__(self, target_model, decoy_model):
-        self.target_model = target_model
-        self.decoy_model = decoy_model
+class MassAccuracyMixin(object):
+    accuracy_bias = MassAccuracyModel(0, 5e-6)
 
-    def score(self, error):
-        target = self.target_model.score(error)
-        decoy = self.decoy_model.score(error)
-        return target / (target + decoy)
-
-    def __repr__(self):
-        return "MassAccuracyScorer(%r, %r)" % (self.target_model, self.decoy_model)
-
-    @classmethod
-    def fit(cls, target_matches, decoy_matches):
-        return cls(
-            MassAccuracyModel.fit(target_matches),
-            MassAccuracyModel.fit(decoy_matches))
+    def _precursor_mass_accuracy_score(self):
+        offset = self.determine_precursor_offset()
+        mass_accuracy = -10 * math.log10(
+            1 - self.accuracy_bias(self.precursor_mass_accuracy(offset)))
+        return mass_accuracy
