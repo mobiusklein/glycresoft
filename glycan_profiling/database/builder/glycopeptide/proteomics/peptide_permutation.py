@@ -56,48 +56,6 @@ def gag_sequon_sites(peptide, protein=None, use_local_sequence=False):
     return sites
 
 
-def split_terminal_modifications(modifications):
-    """Group modification rules into three classes, N-terminal,
-    C-terminal, and Internal modifications.
-
-    A modification rule can be assigned to multiple groups if it
-    is valid at multiple sites.
-
-    Parameters
-    ----------
-    modifications : Iterable of ModificationRule
-        The modification rules
-
-    Returns
-    -------
-    n_terminal: list
-        list of N-terminal modification rules
-    c_terminal: list
-        list of C-terminal modification rules
-    internal: list
-        list of Internal modification rules
-    """
-    n_terminal = []
-    c_terminal = []
-    internal = []
-
-    for mod in modifications:
-        n_term = mod.n_term_targets
-        if n_term and all([t.amino_acid_targets is None for t in n_term]):
-            n_term_rule = mod.clone(n_term)
-            mod = mod - n_term_rule
-            n_terminal.append(n_term_rule)
-        c_term = mod.c_term_targets
-        if c_term and all([t.amino_acid_targets is None for t in c_term]):
-            c_term_rule = mod.clone(c_term)
-            mod = mod - c_term_rule
-            c_terminal.append(c_term_rule)
-        if (mod.targets):
-            internal.append(mod)
-
-    return n_terminal, c_terminal, internal
-
-
 def get_base_peptide(peptide_obj):
     if isinstance(peptide_obj, Peptide):
         return PeptideSequence(peptide_obj.base_peptide_sequence)
@@ -105,51 +63,95 @@ def get_base_peptide(peptide_obj):
         return PeptideSequence(str(peptide_obj))
 
 
-def modification_series(variable_sites):
-    """Given a dictionary mapping between modification names and
-    an iterable of valid sites, create a dictionary mapping between
-    modification names and a list of valid sites plus the constant `None`
+class ModificationSiteAssignmentCombinator(object):
+    def __init__(self, variable_site_map):
+        self.modification_to_site = variable_site_map
+        self.site_to_modification = self.transpose_sites()
 
-    Parameters
-    ----------
-    variable_sites : dict
-        Description
+    def transpose_sites(self):
+        """Given a dictionary mapping between modification names and
+        an iterable of valid sites, create a dictionary mapping between
+        modification names and a list of valid sites plus the constant `None`
 
-    Returns
-    -------
-    dict
-        Description
-    """
-    sites = defaultdict(list)
-    for mod, varsites in variable_sites.items():
-        for site in varsites:
-            sites[site].append(mod)
-    for site in list(sites):
-        sites[site].append(None)
-    return sites
+        Returns
+        -------
+        dict
+        """
+        sites = defaultdict(list)
+        for mod, varsites in self.modification_to_site.items():
+            for site in varsites:
+                sites[site].append(mod)
+        for site in list(sites):
+            sites[site].append(None)
+        return sites
 
+    def _remove_empty_sites(self, site_mod_pairs):
+        return [sm for sm in site_mod_pairs if sm[1] is not None]
 
-def remove_empty_sites(site_mod_pairs):
-    return [sm for sm in site_mod_pairs if sm[1] is not None]
+    def assign(self):
+        sites = list(self.site_to_modification.keys())
+        choices = list(self.site_to_modification.values())
+        for selected in itertools.product(*choices):
+            site_mod_pairs = zip(sites, selected)
+            yield self._remove_empty_sites(site_mod_pairs)
 
-
-def site_modification_assigner(modification_sites_dict):
-    sites = modification_sites_dict.keys()
-    choices = modification_sites_dict.values()
-    for selected in itertools.product(*choices):
-        site_mod_pairs = zip(sites, selected)
-        yield remove_empty_sites(site_mod_pairs)
+    def __iter__(self):
+        return self.assign()
 
 
 class PeptidePermuter(object):
-    def __init__(self, constant_modifications, variable_modifications, maximum_variable_modifications=4):
+    def __init__(self, constant_modifications, variable_modifications, max_variable_modifications=None):
+        if max_variable_modifications is None:
+            max_variable_modifications = 4
         self.constant_modifications = list(constant_modifications)
         self.variable_modifications = list(variable_modifications)
-        self.maximum_variable_modifications = maximum_variable_modifications
+        self.max_variable_modifications = max_variable_modifications
 
         (self.n_term_modifications,
          self.c_term_modifications,
-         self.variable_modifications) = split_terminal_modifications(self.variable_modifications)
+         self.variable_modifications) = self.split_terminal_modifications(self.variable_modifications)
+
+    @staticmethod
+    def split_terminal_modifications(modifications):
+        """Group modification rules into three classes, N-terminal,
+        C-terminal, and Internal modifications.
+
+        A modification rule can be assigned to multiple groups if it
+        is valid at multiple sites.
+
+        Parameters
+        ----------
+        modifications : Iterable of ModificationRule
+            The modification rules
+
+        Returns
+        -------
+        n_terminal: list
+            list of N-terminal modification rules
+        c_terminal: list
+            list of C-terminal modification rules
+        internal: list
+            list of Internal modification rules
+        """
+        n_terminal = []
+        c_terminal = []
+        internal = []
+
+        for mod in modifications:
+            n_term = mod.n_term_targets
+            if n_term and all([t.amino_acid_targets is None for t in n_term]):
+                n_term_rule = mod.clone(n_term)
+                mod = mod - n_term_rule
+                n_terminal.append(n_term_rule)
+            c_term = mod.c_term_targets
+            if c_term and all([t.amino_acid_targets is None for t in c_term]):
+                c_term_rule = mod.clone(c_term)
+                mod = mod - c_term_rule
+                c_terminal.append(c_term_rule)
+            if (mod.targets):
+                internal.append(mod)
+
+        return n_terminal, c_terminal, internal
 
     def prepare_peptide(self, sequence):
         return get_base_peptide(sequence)
@@ -182,7 +184,7 @@ class PeptidePermuter(object):
         variable_sites = {
             mod.name: set(
                 mod.find_valid_sites(sequence)) for mod in self.variable_modifications}
-        modification_sites = modification_series(variable_sites)
+        modification_sites = ModificationSiteAssignmentCombinator(variable_sites)
         return modification_sites
 
     def apply_variable_modifications(self, sequence, assignments, n_term, c_term):
@@ -219,8 +221,8 @@ class PeptidePermuter(object):
         modification_sites = self.modification_sites(sequence)
 
         for n_term, c_term in itertools.product(n_term_modifications, c_term_modifications):
-            for assignments in site_modification_assigner(modification_sites):
-                if len(assignments) > self.maximum_variable_modifications:
+            for assignments in modification_sites:
+                if len(assignments) > self.max_variable_modifications:
                     continue
                 yield self.apply_variable_modifications(
                     sequence, assignments, n_term, c_term)
@@ -230,9 +232,9 @@ class PeptidePermuter(object):
 
     @classmethod
     def peptide_permutations(cls, sequence, constant_modifications, variable_modifications,
-                             maximum_variable_modifications=4):
+                             max_variable_modifications=4):
         inst = cls(constant_modifications, variable_modifications,
-                   maximum_variable_modifications)
+                   max_variable_modifications)
         return inst.permute_peptide(sequence)
 
 
@@ -251,7 +253,8 @@ def cleave_sequence(sequence, protease, missed_cleavages=2, min_length=6, max_le
 class ProteinDigestor(TaskBase):
 
     def __init__(self, protease, constant_modifications=None, variable_modifications=None,
-                 max_missed_cleavages=2, min_length=6, max_length=60, semispecific=False):
+                 max_missed_cleavages=2, min_length=6, max_length=60, semispecific=False,
+                 max_variable_modifications=None):
         if constant_modifications is None:
             constant_modifications = []
         if variable_modifications is None:
@@ -261,11 +264,13 @@ class ProteinDigestor(TaskBase):
         self.variable_modifications = variable_modifications
         self.peptide_permuter = PeptidePermuter(
             self.constant_modifications,
-            self.variable_modifications)
+            self.variable_modifications,
+            max_variable_modifications=max_variable_modifications)
         self.max_missed_cleavages = max_missed_cleavages
         self.min_length = min_length
         self.max_length = max_length
         self.semispecific = semispecific
+        self.max_variable_modifications = max_variable_modifications
 
     def _prepare_protease(self, protease):
         if isinstance(protease, enzyme.Protease):
