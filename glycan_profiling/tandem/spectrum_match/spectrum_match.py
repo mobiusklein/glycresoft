@@ -95,7 +95,8 @@ class SpectrumMatchBase(ScanWrapperBase):
                 warnings.warn("Activation information is missing. Assuming HCD")
                 return True
         matched = activation_info.has_dissociation_type(activation.HCD) or\
-            activation_info.has_dissociation_type(activation.CID)
+            activation_info.has_dissociation_type(activation.CID) or\
+            activation_info.has_dissociation_type(activation.UnknownDissociation)
         return matched
 
     def is_exd(self):
