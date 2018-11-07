@@ -12,9 +12,9 @@ class MassShiftBase(object):
         except AttributeError:
             return False
 
-    @property
-    def tandem_mass(self):
-        return self.tandem_composition.mass
+    # @property
+    # def tandem_mass(self):
+    #     return self.tandem_composition.mass
 
     def __ne__(self, other):
         return not self == other
@@ -38,6 +38,7 @@ class MassShift(MassShiftBase):
         if tandem_composition is None:
             tandem_composition = self.composition.copy()
         self.tandem_composition = tandem_composition
+        self.tandem_mass = self.tandem_composition.mass
         self._register_name()
 
     def __repr__(self):
@@ -98,6 +99,7 @@ class CompoundMassShift(MassShiftBase):
         self.composition = composition
         self.mass = composition.mass
         self.tandem_composition = tandem_composition
+        self.tandem_mass = tandem_composition.mass
 
     def _compute_name(self):
         parts = []
