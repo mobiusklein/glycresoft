@@ -3,7 +3,7 @@ from glycan_profiling.serialize import (
     Peptide, Protein, DatabaseBoundOperation,
     TemplateNumberStore)
 
-from glycan_profiling.task import log_handle, TaskBase
+from glycan_profiling.task import TaskBase
 
 
 class DeduplicatePeptides(DatabaseBoundOperation, TaskBase):
