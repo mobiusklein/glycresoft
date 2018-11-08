@@ -11,6 +11,24 @@ class GlycanCompositionSolutionRecord(object):
         self.internal_score = self.score
         self.total_signal = total_signal
 
+    def __eq__(self, other):
+        if other is None:
+            return False
+        match = self.glycan_composition == other.glycan_composition
+        if not match:
+            return match
+        match = np.isclose(self.score, other.score)
+        if not match:
+            return match
+        match = np.isclose(self.total_signal, other.total_signal)
+        return match
+
+    def __ne__(self, other):
+        return not (self == other)
+
+    def __hash__(self):
+        return hash(self.glycan_composition)
+
     @classmethod
     def from_chromatogram(cls, solution):
         return cls(solution.glycan_composition, solution.score,

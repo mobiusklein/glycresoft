@@ -235,6 +235,8 @@ class GlycomeModel(LaplacianSmoothingModel):
         current_network = self.network.clone()
         thresholds = np.arange(start, limit, threshold_step)
         last_solution = None
+        last_raw_observations = None
+        last_aggregate = None
         for i_threshold, threshold in enumerate(thresholds):
             if i_threshold % 10 == 0:
                 log_handle.log("... Threshold = %r (%0.2f%%)" % (
@@ -242,13 +244,24 @@ class GlycomeModel(LaplacianSmoothingModel):
             # Aggregate the raw observations into averaged, variance reduced records
             # and annotate the network with these new scores
             raw_observations = [c for c in self._observed_compositions if c.score > threshold]
-            agg = self.observation_aggregator(self.network)
-            agg.collect(raw_observations)
 
-            observations, summarized_state = agg.build_records()
+            # cache on the explicit raw observations used because the step size may be smaller than
+            # the next highest difference, and aggregating observations can be expensive. There is
+            # no solution to the general problem as it calls for inverting a potentially large matrix
+            # to only be used in this loop.
+            if raw_observations == last_raw_observations:
+                observations, summarized_state, obs_ix = last_aggregate
+            else:
+                agg = self.observation_aggregator(self.network)
+                agg.collect(raw_observations)
+
+                observations, summarized_state = agg.build_records()
+                obs_ix = agg.observed_indices()
+                last_aggregate = (observations, summarized_state, obs_ix)
+                last_raw_observations = raw_observations
+
             variance_matrix = summarized_state.variance_matrix
             inverse_variance_matrix = summarized_state.inverse_variance_matrix
-            obs_ix = agg.observed_indices()
             variance_matrix = np.diag(variance_matrix[obs_ix, obs_ix])
             inverse_variance_matrix = np.diag(inverse_variance_matrix[obs_ix, obs_ix])
 
