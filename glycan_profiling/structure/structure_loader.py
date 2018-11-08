@@ -148,7 +148,7 @@ class FragmentCachingGlycopeptide(PeptideSequence):
     def __eq__(self, other):
         try:
             return (self.protein_relation == other.protein_relation) and (
-                self.sequence == other.sequence)
+                super(FragmentCachingGlycopeptide, self).__eq__(other))
         except AttributeError:
             return super(FragmentCachingGlycopeptide, self).__eq__(other)
 
