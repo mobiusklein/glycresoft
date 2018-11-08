@@ -39,6 +39,12 @@ class GlycanCompositionSolutionRecord(object):
                 "{self.score}, {self.total_signal})").format(self=self)
 
 
+def is_diagonal(m):
+    if m.shape[0] != m.shape[1]:
+        return False
+    return np.count_nonzero(m - np.diag(np.diag(m))) == 0
+
+
 class ObservationWeightState(object):
     def __init__(self, raw_scores, weight_matrix, observed_indices, size):
         self.raw_scores = np.array(raw_scores)
@@ -63,8 +69,12 @@ class ObservationWeightState(object):
     def transform(self):
         # This is necessary when the weight matrix is not a square matrix (e.g. the identity matrix)
         # and it is *very slow*. Consider fast-pathing the identity matrix case.
-        self.left_inverse_weight_matrix = linalg.pinv(
-            self.weight_matrix.T.dot(self.weight_matrix)).dot(self.weight_matrix.T)
+        w = self.weight_matrix.T.dot(self.weight_matrix)
+        if is_diagonal(w):
+            winv = np.diag([1 / i if i != 0 else i for i in np.diag(w)])
+        else:
+            winv = linalg.pinv(w)
+        self.left_inverse_weight_matrix = winv.dot(self.weight_matrix.T)
         self.variance_matrix = self.left_inverse_weight_matrix.dot(
             self.left_inverse_weight_matrix.T)
         self.inverse_variance_matrix = self.weight_matrix.T.dot(self.weight_matrix)
