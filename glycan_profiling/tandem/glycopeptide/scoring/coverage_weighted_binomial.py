@@ -6,7 +6,6 @@ from .base import (
 from .binomial_score import BinomialSpectrumMatcher
 from .simple_score import SimpleCoverageScorer, SignatureAwareCoverageScorer
 from .precursor_mass_accuracy import MassAccuracyMixin
-from .glycan_signature_ions import GlycanCompositionSignatureMatcher
 
 
 class CoverageWeightedBinomialScorer(BinomialSpectrumMatcher, SignatureAwareCoverageScorer, MassAccuracyMixin):
@@ -41,9 +40,8 @@ class CoverageWeightedBinomialScorer(BinomialSpectrumMatcher, SignatureAwareCove
             self, error_tolerance=error_tolerance)
         coverage_score = SimpleCoverageScorer.calculate_score(
             self, backbone_weight, glycosylated_weight, stub_weight)
-        offset = self.determine_precursor_offset()
         mass_accuracy = self._precursor_mass_accuracy_score()
-        signature_component = GlycanCompositionSignatureMatcher.calculate_score(self)
+        signature_component = self._signature_ion_score()
         self._score = bin_score * coverage_score + mass_accuracy + signature_component
         return self._score
 
