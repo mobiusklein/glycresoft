@@ -165,6 +165,10 @@ class LaplacianSmoothingModel(object):
         phi_given_s = np.dot(B, b)
         return phi_given_s, B
 
+    def build_belongingness_matrix(self):
+        belongingness_matrix = self.neighborhood_walker.build_belongingness_matrix()
+        return belongingness_matrix
+
     def get_belongingness_patch(self):
         updated_belongingness = BelongingnessMatrixPatcher.patch(self)
         updated_belongingness = ProportionMatrixNormalization.normalize(

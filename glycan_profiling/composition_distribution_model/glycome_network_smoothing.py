@@ -126,19 +126,6 @@ class GlycomeModel(LaplacianSmoothingModel):
         self._belongingness_normalization = method
         self.A0 = self.normalized_belongingness_matrix[self.obs_ix, :]
 
-    def build_belongingness_matrix(self):
-        neighborhood_count = len(self.neighborhood_walker.neighborhoods)
-        belongingness_matrix = np.zeros(
-            (len(self.network), neighborhood_count))
-
-        for node in self.network:
-            was_in = self.neighborhood_walker.neighborhood_assignments[node]
-            for i, neighborhood in enumerate(self.neighborhood_walker.neighborhoods):
-                if neighborhood.name in was_in:
-                    belongingness_matrix[node.index, i] = self.neighborhood_walker.compute_belongingness(
-                        node, neighborhood.name)
-        return belongingness_matrix
-
     def apply_belongingness_patch(self):
         updated_belongingness = self.get_belongingness_patch()
         self.normalized_belongingness_matrix = updated_belongingness
