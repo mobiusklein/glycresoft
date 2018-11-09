@@ -1,10 +1,8 @@
 from collections import defaultdict, OrderedDict
 import numbers as abc_numbers
 
-try:
-    basestring
-except NameError:
-    basestring = (str, bytes)
+import numpy as np
+from six import string_types as basestring
 
 from glypy.structure.glycan_composition import FrozenMonosaccharideResidue
 
@@ -154,12 +152,13 @@ _n_glycan_neighborhoods = make_n_glycan_neighborhoods()
 
 class NeighborhoodWalker(object):
 
-    def __init__(self, network, neighborhoods=None, assign=True):
+    def __init__(self, network, neighborhoods=None, assign=True, distance_fn=n_glycan_distance):
         if neighborhoods is None:
             neighborhoods = NeighborhoodCollection(_n_glycan_neighborhoods)
         self.network = network
         self.neighborhood_assignments = defaultdict(set)
         self.neighborhoods = neighborhoods
+        self.distance_fn = distance_fn
         self.filter_space = GlycanCompositionFilter(
             [self.normalize_composition(node.composition) for node in self.network])
 
@@ -251,11 +250,22 @@ class NeighborhoodWalker(object):
             for neighborhood in self[node]:
                 self.neighborhood_maps[neighborhood].append(node)
 
-    def compute_belongingness(self, node, neighborhood, distance_fn=n_glycan_distance):
+    def compute_belongingness(self, node, neighborhood, distance_cache=None):
         count = 0
         total_weight = 0
+        distance_fn = self.distance_fn
         for member in self.neighborhood_maps[neighborhood]:
-            distance, weight = distance_fn(node.glycan_composition, member.glycan_composition)
+            if distance_cache is None:
+                distance, weight = distance_fn(node.glycan_composition, member.glycan_composition)
+            else:
+                # assumes that distance is symmetric
+                key = (node.index, member.index) if node.index < member.index else (member.index, node.index)
+                try:
+                    distance, weight = distance_cache[key]
+                except KeyError:
+                    distance, weight = distance_fn(node.glycan_composition, member.glycan_composition)
+                    distance_cache[key] = distance, weight
+
             if distance == 0:
                 weight = 1.0
             total_weight += weight
@@ -263,3 +273,18 @@ class NeighborhoodWalker(object):
         if count == 0:
             return 0
         return total_weight / count
+
+    def build_belongingness_matrix(self):
+        neighborhood_count = len(self.neighborhoods)
+        belongingness_matrix = np.zeros(
+            (len(self.network), neighborhood_count))
+
+        distance_cache = dict()
+
+        for node in self.network:
+            was_in = self.neighborhood_assignments[node]
+            for i, neighborhood in enumerate(self.neighborhoods):
+                if neighborhood.name in was_in:
+                    belongingness_matrix[node.index, i] = self.compute_belongingness(
+                        node, neighborhood.name, distance_cache=distance_cache)
+        return belongingness_matrix
