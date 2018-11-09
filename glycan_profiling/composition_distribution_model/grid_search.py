@@ -2,6 +2,9 @@ from collections import OrderedDict, namedtuple
 import re
 
 import numpy as np
+
+from scipy import sparse
+
 from matplotlib import pyplot as plt
 
 from ms_deisotope.feature_map.profile_transform import peak_indices
@@ -241,6 +244,111 @@ GridSearchSolution = namedtuple("GridSearchSolution", (
     "target_thresholds"))
 
 
+
+class GridPointTextCodec(object):
+    version_code = 1
+
+    def __init__(self, cls_type=None):
+        if cls_type is None:
+            cls_type = GridPointSolution
+        self.cls_type = cls_type
+
+    def load(self, fp):
+        state = "BETWEEN"
+        threshold = 0
+        lmbda = 0
+        tau = []
+        belongingness_matrix = []
+        variance_matrix_tags = {}
+        neighborhood_names = []
+        node_names = []
+        version_code = self.version_code
+
+        for line_number, line in enumerate(fp):
+            line = line.strip("\n\r")
+            if line.startswith(";version="):
+                version_code = int(line.split("=", 1)[1])
+            if line.startswith(";"):
+                continue
+            if line.startswith("threshold:"):
+                threshold = float(line.split(":")[1])
+                if state in ("TAU", "BELONG"):
+                    state = "BETWEEN"
+            elif line.startswith("lambda:"):
+                lmbda = float(line.split(":")[1])
+                if state in ("TAU", "BELONG"):
+                    state = "BETWEEN"
+            elif line.startswith("tau:"):
+                state = "TAU"
+            elif line.startswith("belongingness:"):
+                state = "BELONG"
+            elif line.startswith("variance:"):
+                state = "VARIANCE"
+            elif line.startswith("\t") or line.startswith("  "):
+                if state == "TAU":
+                    try:
+                        _, name, value = re.split(r"\t|\s{2,}", line)
+                    except ValueError as e:
+                        print(line_number, line)
+                        raise e
+                    tau.append(float(value))
+                    neighborhood_names.append(name)
+                elif state == "BELONG":
+                    try:
+                        _, name, values = re.split(r"\t|\s{2,}", line)
+                    except ValueError as e:
+                        print(line_number, line)
+                        raise e
+                    belongingness_matrix.append([float(t) for t in values.split(",")])
+                    node_names.append(name)
+                elif state == 'VARIANCE':
+                    try:
+                        _, tag, values = re.split(r"\t|\s{2,}", line)
+                        values = list(map(float, values.split(",")))
+                        variance_matrix_tags[tag] = values
+                    except ValueError as e:
+                        print(line_number, line)
+                        raise e
+                else:
+                    state = "BETWEEN"
+        if variance_matrix_tags:
+            vmat_shape = [int(p) for p in variance_matrix_tags['shape']]
+            variance_matrix = np.zeros(vmat_shape)
+            row_ix = np.array(variance_matrix_tags['rows'], dtype=int)
+            col_ix = np.array(variance_matrix_tags['cols'], dtype=int)
+            variance_matrix[row_ix, col_ix] = variance_matrix_tags['data']
+        else:
+            variance_matrix = None
+
+        return self.cls_type(threshold, lmbda, np.array(tau, dtype=np.float64),
+                   np.array(belongingness_matrix, dtype=np.float64),
+                   neighborhood_names=neighborhood_names,
+                   node_names=node_names, variance_matrix=variance_matrix)
+
+    def dump(self, obj, fp):
+        fp.write(";version=%s\n" % self.version_code)
+        fp.write("threshold: %f\n" % (obj.threshold,))
+        fp.write("lambda: %f\n" % (obj.lmbda,))
+        fp.write("tau:\n")
+        for i, t in enumerate(obj.tau):
+            fp.write("\t%s\t%f\n" % (obj.neighborhood_names[i], t,))
+        fp.write("belongingness:\n")
+        for g, row in enumerate(obj.belongingness_matrix):
+            fp.write("\t%s\t" % (obj.node_names[g]))
+            for i, a_ij in enumerate(row):
+                if i != 0:
+                    fp.write(",")
+                fp.write("%f" % (a_ij,))
+            fp.write("\n")
+        fp.write("variance:\n")
+        var_coords = sparse.coo_matrix(obj.variance_matrix)
+        fp.write('\tshape\t%s\n' % (','.join(map(str, var_coords.shape))))
+        fp.write("\trow\t%s\n" % (','.join(map(str, var_coords.row))))
+        fp.write("\tcol\t%s\n" % (','.join(map(str, var_coords.col))))
+        fp.write("\tdata\t%s\n" % (','.join(map(str, var_coords.data))))
+        return fp
+
+
 class GridPointSolution(object):
     def __init__(self, threshold, lmbda, tau, belongingness_matrix, neighborhood_names, node_names,
                  variance_matrix=None):
@@ -314,94 +422,18 @@ class GridPointSolution(object):
         tau_indices = [model.neighborhood_names.index(name) for name in self.neighborhood_names]
         return tau_indices
 
-    def dump(self, fp):
-        fp.write("threshold: %f\n" % (self.threshold,))
-        fp.write("lambda: %f\n" % (self.lmbda,))
-        fp.write("tau:\n")
-        for i, t in enumerate(self.tau):
-            fp.write("\t%s\t%f\n" % (self.neighborhood_names[i], t,))
-        fp.write("belongingness:\n")
-        for g, row in enumerate(self.belongingness_matrix):
-            fp.write("\t%s\t" % (self.node_names[g]))
-            for i, a_ij in enumerate(row):
-                if i != 0:
-                    fp.write(",")
-                fp.write("%f" % (a_ij,))
-            fp.write("\n")
-        fp.write("variance:\n")
-        for ri, row in enumerate(self.variance_matrix):
-            fp.write("\t")
-            for cj, v in enumerate(row):
-                if cj != 0:
-                    fp.write(",")
-                fp.write("%f" % (v, ) if v != 0 else "0")
-            fp.write("\n")
+    def dump(self, fp, codec=None):
+        if codec is None:
+            codec = GridPointTextCodec()
+        codec.dump(self, fp)
         return fp
 
     @classmethod
-    def load(cls, fp):
-        state = "BETWEEN"
-        threshold = 0
-        lmbda = 0
-        tau = []
-        belongingness_matrix = []
-        variance_matrix = []
-        neighborhood_names = []
-        node_names = []
-        for line_number, line in enumerate(fp):
-            line = line.strip("\n\r")
-            if line.startswith(";"):
-                continue
-            if line.startswith("threshold:"):
-                threshold = float(line.split(":")[1])
-                if state in ("TAU", "BELONG"):
-                    state = "BETWEEN"
-            elif line.startswith("lambda:"):
-                lmbda = float(line.split(":")[1])
-                if state in ("TAU", "BELONG"):
-                    state = "BETWEEN"
-            elif line.startswith("tau:"):
-                state = "TAU"
-            elif line.startswith("belongingness:"):
-                state = "BELONG"
-            elif line.startswith("variance:"):
-                state = "VARIANCE"
-            elif line.startswith("\t") or line.startswith("  "):
-                if state == "TAU":
-                    try:
-                        _, name, value = re.split(r"\t|\s{2,}", line)
-                    except ValueError as e:
-                        print(line_number, line)
-                        raise e
-                    tau.append(float(value))
-                    neighborhood_names.append(name)
-                elif state == "BELONG":
-                    try:
-                        _, name, values = re.split(r"\t|\s{2,}", line)
-                    except ValueError as e:
-                        print(line_number, line)
-                        raise e
-                    belongingness_matrix.append([float(t) for t in values.split(",")])
-                    node_names.append(name)
-                elif state == 'VARIANCE':
-                    try:
-                        _, values = re.split(r"\t|\s{2,}", line)
-                        values = list(map(float, values.split(",")))
-                        variance_matrix.append(values)
-                    except ValueError as e:
-                        print(line_number, line)
-                        raise e
-                else:
-                    state = "BETWEEN"
-        if variance_matrix:
-            variance_matrix = np.array(variance_matrix, dtype=np.float64)
-        else:
-            variance_matrix = None
-
-        return cls(threshold, lmbda, np.array(tau, dtype=np.float64),
-                   np.array(belongingness_matrix, dtype=np.float64),
-                   neighborhood_names=neighborhood_names,
-                   node_names=node_names, variance_matrix=variance_matrix)
+    def load(cls, fp, codec=None):
+        if codec is None:
+            codec = GridPointTextCodec(cls)
+        inst = codec.load(fp)
+        return inst
 
 
 class NetworkSmoothingModelSolutionBase(object):
