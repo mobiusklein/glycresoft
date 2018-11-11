@@ -347,9 +347,23 @@ class TargetDecoyAnalyzer(object):
         return NearestValueLookUp(mapping)
 
     def score_for_fdr(self, fdr_estimate):
+        i = -1
         for score, fdr in self.q_value_map.items:
-            if fdr_estimate <= fdr:
-                return score
+            i += 1
+            if fdr_estimate >= fdr:
+                cella = self.q_value_map.items[i]
+                cellb = self.q_value_map.items[i - 1]
+                cellc = self.q_value_map.items[i + 1]
+                distance_a = abs(fdr_estimate - cella.value)
+                distance_b = abs(fdr_estimate - cellb.value)
+                distance_c = abs(fdr_estimate - cellc.value)
+                min_distance = min(distance_a, distance_b, distance_c)
+                if min_distance == distance_a:
+                    return cella.score
+                elif min_distance == distance_b:
+                    return cellb.score
+                else:
+                    return cellc.score
         return float('inf')
 
     def plot(self, ax=None):
