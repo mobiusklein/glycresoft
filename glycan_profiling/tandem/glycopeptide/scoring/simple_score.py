@@ -90,6 +90,15 @@ class SimpleCoverageScorer(GlycopeptideSpectrumMatcherBase):
             return 0.0
         return numer / denom
 
+    def _get_internal_size(self, glycan_composition):
+        terminal_groups = glycan_composition['NeuAc'] + glycan_composition['NeuGc']
+        side_groups = glycan_composition['Fuc']
+        n = sum(glycan_composition.values())
+        n -= terminal_groups
+        if side_groups > 1:
+            n -= side_groups - (side_groups - 1)
+        return n
+
     def compute_coverage(self):
         (n_term_ions, c_term_ions, stub_count,
          glycosylated_n_term_ions,

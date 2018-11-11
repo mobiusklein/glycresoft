@@ -23,55 +23,64 @@ class LogIntensityScorer(SignatureAwareCoverageScorer, MassAccuracyMixin):
             total += np.log10(peak.intensity)
         return total
 
-    def calculate_score(self, error_tolerance=2e-5, *args, **kwargs):
-        coverage_score = self._coverage_score(*args, **kwargs)
-        intensity_score = self._intensity_score(error_tolerance, *args, **kwargs)
+    def calculate_score(self, error_tolerance=2e-5, peptide_weight=0.7, *args, **kwargs):
+        glycan_weight = 1 - peptide_weight
+        combo_score = self.peptide_score(error_tolerance
+            ) * peptide_weight + self.glycan_score(error_tolerance) * glycan_weight
         mass_accuracy = self._precursor_mass_accuracy_score()
         signature_component = self._signature_ion_score(error_tolerance)
-        self._score = intensity_score * coverage_score + mass_accuracy + signature_component
-
+        self._score = combo_score + mass_accuracy + signature_component
         return self._score
 
-    def peptide_score(self, *args, **kwargs):
-        intensity = 0
+    def peptide_score(self, error_tolerance=2e-5, coverage_weight=1.0):
+        total = 0
+        series_set = (IonSeries.b, IonSeries.y)
         seen = set()
-        series_set = (IonSeries.b, IonSeries.y, IonSeries.c, IonSeries.z)
-        for peak, fragment in self.solution_map:
-            if fragment.series in series_set and peak.index.neutral_mass not in seen:
+        for peak_pair in self.solution_map:
+            peak = peak_pair.peak
+            if peak_pair.fragment.series in series_set and peak.index.neutral_mass not in seen:
                 seen.add(peak.index.neutral_mass)
-                intensity += np.log10(peak.intensity)
+                total += np.log10(peak.intensity) * (1 - (abs(peak_pair.mass_accuracy()) / error_tolerance) ** 4)
         n_term, c_term = self._compute_coverage_vectors()[:2]
         coverage_score = ((n_term + c_term[::-1])).sum() / float((2 * len(self.target) - 1))
-        return intensity * coverage_score
+        score = total * coverage_score ** coverage_weight
+        if np.isnan(score):
+            return 0
+        return score
 
-    def glycan_score(self, error_tolerance=2e-5, *args, **kwargs):
+    def glycan_score(self, error_tolerance=2e-5, core_weight=0.4, coverage_weight=0.6, *args, **kwargs):
+        seen = set()
+        series = IonSeries.stub_glycopeptide
         theoretical_set = list(self.target.stub_fragments(extended=True))
         core_fragments = set()
         for frag in theoretical_set:
             if not frag.is_extended:
                 core_fragments.add(frag.name)
-        core_matches = []
-        extended_matches = []
-        intensity = 0
-        for peak, fragment in self.solution_map:
-            if fragment.series == 'stub_glycopeptide':
-                if fragment.name in core_fragments:
-                    core_matches.append(1.0)
-                else:
-                    extended_matches.append(1.0)
-            intensity += np.log10(peak.intensity)
-        core_coverage = (sum(core_matches) ** 2) / len(core_fragments)
-        extended_coverage = (
-            sum(extended_matches) + sum(core_matches)) / (
-                sum(self.target.glycan_composition.values()))
-        signature = self._signature_ion_score(error_tolerance)
-        # Unlike peptide coverage, the glycan composition coverage operates as a bias towards
-        # selecting matches which contain more reliable glycan Y ions, but not to act as a scaling
-        # factor because the set of all possible fragments for the glycan composition is a much larger
-        # superset of the possible fragments of glycan structures because of recurring patterns
-        # not reflected in the glycan composition.
-        coverage = core_coverage * extended_coverage
-        return intensity + coverage + signature
+
+        total = 0
+        core_matches = set()
+        extended_matches = set()
+
+        for peak_pair in self.solution_map:
+            if peak_pair.fragment.series != series:
+                continue
+            elif peak_pair.fragment_name in core_fragments:
+                core_matches.add(peak_pair.fragment_name)
+            else:
+                extended_matches.add(peak_pair.fragment_name)
+            peak = peak_pair.peak
+            if peak.index.neutral_mass not in seen:
+                seen.add(peak.index.neutral_mass)
+                total += np.log10(peak.intensity) * (1 - (abs(peak_pair.mass_accuracy()) / error_tolerance) ** 4)
+        n = self._get_internal_size(self.target.glycan_composition)
+        k = 2.0
+        core_coverage = (len(core_matches) * 1.0) / len(core_fragments) ** core_weight
+        extended_coverage = min(float(len(core_matches) + len(extended_matches)
+            ) / (n * np.log(n) / k), 1.0) ** coverage_weight
+        score = total * core_coverage * extended_coverage + 0.5 * self._signature_ion_score(error_tolerance)
+        if np.isnan(score):
+            return 0
+        return score
 
 
 class ShortPeptideLogIntensityScorer(LogIntensityScorer):
