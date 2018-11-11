@@ -235,7 +235,11 @@ class _SubstringProteinMapper(object):
 class GlycosylationSiteModelBuilder(TaskBase):
 
     def __init__(self, glycan_graph, chromatogram_scorer=None, belongingness_matrix=None,
-                 unobserved_penalty_scale=None, lambda_limit=0.2, require_multiple_observations=True):
+                 unobserved_penalty_scale=None, lambda_limit=0.2,
+                 require_multiple_observations=True,
+                 observation_aggregator=None):
+        if observation_aggregator is None:
+            observation_aggregator = VariableObservationAggregation
         if chromatogram_scorer is None:
             chromatogram_scorer = _default_chromatogram_scorer
         if unobserved_penalty_scale is None:
@@ -245,29 +249,19 @@ class GlycosylationSiteModelBuilder(TaskBase):
             self.network.neighborhoods = make_n_glycan_neighborhoods()
         self.chromatogram_scorer = chromatogram_scorer
         self.belongingness_matrix = belongingness_matrix
+        self.observation_aggregator = observation_aggregator
         self.require_multiple_observations = require_multiple_observations
         self.unobserved_penalty_scale = unobserved_penalty_scale
         self.lambda_limit = lambda_limit
         if self.belongingness_matrix is None:
             self.belongingness_matrix = self.build_belongingness_matrix()
-        self.target_site_models = []
-        self.decoy_site_models = []
+        self.site_models = []
 
     def build_belongingness_matrix(self):
         network = self.network
         neighborhood_walker = NeighborhoodWalker(
             network, network.neighborhoods)
-
-        neighborhood_count = len(neighborhood_walker.neighborhoods)
-        belongingness_matrix = np.zeros(
-            (len(network), neighborhood_count))
-
-        for node in network:
-            was_in = neighborhood_walker.neighborhood_assignments[node]
-            for i, neighborhood in enumerate(neighborhood_walker.neighborhoods):
-                if neighborhood.name in was_in:
-                    belongingness_matrix[node.index, i] = neighborhood_walker.compute_belongingness(
-                        node, neighborhood.name)
+        belongingness_matrix = neighborhood_walker.build_belongingness_matrix()
         return belongingness_matrix
 
     def add_glycoprotein(self, glycoprotein, evaluate_chromatograms=False):
@@ -292,7 +286,10 @@ class GlycosylationSiteModelBuilder(TaskBase):
                 records.append(GlycanCompositionSolutionRecord(
                     gp.glycan_composition, ms1_score, gp.total_signal))
 
-            learnable_cases = [rec for rec in records if rec.score > 0]
+            self.fit_site_model(records)
+
+        def _get_learnable_cases(self, observations):
+            learnable_cases = [rec for rec in observations if rec.score > 0]
 
             if self.require_multiple_observations:
                 agg = VariableObservationAggregation(self.network)
@@ -311,12 +308,22 @@ class GlycosylationSiteModelBuilder(TaskBase):
             else:
                 stable_cases = {
                     case.glycan_composition for case in learnable_cases}
+            learnable_cases = [
+                rec for rec in learnable_cases
+                if rec.score > 0 and rec.glycan_composition in stable_cases
+            ]
+            return learnable_cases
+
+        def fit_site_model(self, observations, site, protein):
+            learnable_cases = self._get_learnable_cases(observations)
+
+            if not learnable_cases:
+                return None
+
             fitted_network, search_result, params = smooth_network(
-                self.network, [
-                    gp for gp in learnable_cases
-                    if gp.score > 0 and gp.glycan_composition in stable_cases],
+                self.network, learnable_cases,
                 belongingness_matrix=self.belongingness_matrix,
-                observation_aggregator=AbundanceWeightedObservationAggregation)
+                observation_aggregator=VariableObservationAggregation)
             self.log("Lambda: %f" % (params.lmbda,))
             display_table([x.name for x in self.network.neighborhoods],
                           np.array(params.tau).reshape((-1, 1)))
@@ -326,24 +333,18 @@ class GlycosylationSiteModelBuilder(TaskBase):
             for node in fitted_network:
                 if node.marked:
                     node.score *= self.unobserved_penalty_scale
-            self.target_site_models.append(
-                GlycosylationSiteModel(glycoprotein.name, site,
-                                       dict(zip([x.name for x in self.network.neighborhoods],
-                                                updated_params.tau.tolist())), updated_params.lmbda, {
-                                                    str(node.glycan_composition): (node.score, not node.marked)
-                                                    for node in fitted_network}))
-            updated_params_decoy = params.clone()
-            updated_params_decoy.tau[:] = updated_params_decoy.tau.mean()
-            updated_params_decoy.lmbda = min(self.lambda_limit, params.lmbda)
-            fitted_network_decoy = search_result.annotate_network(
-                updated_params_decoy)
-            for node in fitted_network_decoy:
-                # no decoy glycans are truly identified a priori, though the identified glycan compositions
-                # will still carry a higher score from the estimation procedure
-                node.score *= self.unobserved_penalty_scale
-            self.decoy_site_models.append(
-                GlycosylationSiteModel(glycoprotein.name, len(glycoprotein) - site - 1,
-                                       dict(zip([x.name for x in self.network.neighborhoods],
-                                                updated_params_decoy.tau.tolist())), updated_params_decoy.lmbda, {
-                    str(node.glycan_composition): (node.score, not node.marked)
-                    for node in fitted_network_decoy}))
+
+            site_distribution = dict(zip([x.name for x in self.network.neighborhoods],
+                     updated_params.tau.tolist()))
+            glycan_map = {
+                str(node.glycan_composition): GlycanPriorRecord(node.score, not node.marked)
+                for node in fitted_network
+            }
+            site_model = GlycosylationSiteModel(
+                protein.name,
+                site,
+                site_distribution,
+                updated_params.lmbda,
+                glycan_map)
+            self.site_models.append(site_model)
+            return site_model
