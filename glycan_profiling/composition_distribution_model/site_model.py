@@ -304,7 +304,7 @@ class GlycosylationSiteModelBuilder(TaskBase):
                     self.log("... No Stable Cases Found. Using %d Glycan Compositions" % (
                         len(stable_cases), ))
                 if len(stable_cases) == 0:
-                    continue
+                    return []
             else:
                 stable_cases = {
                     case.glycan_composition for case in learnable_cases}
