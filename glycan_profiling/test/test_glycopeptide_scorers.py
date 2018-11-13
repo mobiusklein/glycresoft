@@ -68,11 +68,11 @@ class TestGlycopeptideScorers(unittest.TestCase):
         gp, gp2 = self.build_structures()
 
         match = intensity_scorer.LogIntensityScorer.evaluate(scan, gp)
-        self.assertAlmostEqual(match.score, 53.378519788, 3)
+        self.assertAlmostEqual(match.score, 55.395460297979383, 3)
         match = intensity_scorer.LogIntensityScorer.evaluate(scan, gp2)
-        self.assertAlmostEqual(match.score, 53.378519788, 3)
+        self.assertAlmostEqual(match.score, 55.395460297979383, 3)
 
         match = intensity_scorer.LogIntensityScorer.evaluate(scan2, gp)
         self.assertAlmostEqual(match.score, 54.035379993, 3)
         match = intensity_scorer.LogIntensityScorer.evaluate(scan2, gp2)
-        self.assertAlmostEqual(match.score, 143.807787073, 3)
+        self.assertAlmostEqual(match.score, 157.927581635, 3)

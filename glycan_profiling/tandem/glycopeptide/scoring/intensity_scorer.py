@@ -39,7 +39,7 @@ class LogIntensityScorer(SignatureAwareCoverageScorer, MassAccuracyMixin):
         seen = set()
         for peak_pair in self.solution_map:
             peak = peak_pair.peak
-            if peak_pair.fragment.series in series_set and peak.index.neutral_mass not in seen:
+            if peak_pair.fragment.series in series_set:
                 seen.add(peak.index.neutral_mass)
                 total += np.log10(peak.intensity) * (1 - (abs(peak_pair.mass_accuracy()) / error_tolerance) ** 4)
         n_term, c_term = self._compute_coverage_vectors()[:2]
