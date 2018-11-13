@@ -23,18 +23,19 @@ class LogIntensityScorer(SignatureAwareCoverageScorer, MassAccuracyMixin):
             total += np.log10(peak.intensity)
         return total
 
-    def calculate_score(self, error_tolerance=2e-5, peptide_weight=0.7, *args, **kwargs):
+    def calculate_score(self, error_tolerance=2e-5, peptide_weight=0.65, *args, **kwargs):
         glycan_weight = 1 - peptide_weight
-        combo_score = self.peptide_score(error_tolerance
-            ) * peptide_weight + self.glycan_score(error_tolerance) * glycan_weight
+        combo_score = self.peptide_score(error_tolerance, *args, **kwargs
+            ) * peptide_weight + self.glycan_score(
+            error_tolerance, *args, **kwargs) * glycan_weight
         mass_accuracy = self._precursor_mass_accuracy_score()
         signature_component = self._signature_ion_score(error_tolerance)
         self._score = combo_score + mass_accuracy + signature_component
         return self._score
 
-    def peptide_score(self, error_tolerance=2e-5, coverage_weight=1.0):
+    def peptide_score(self, error_tolerance=2e-5, coverage_weight=1.0, *args, **kwargs):
         total = 0
-        series_set = (IonSeries.b, IonSeries.y)
+        series_set = (IonSeries.b, IonSeries.y, IonSeries.c, IonSeries.z)
         seen = set()
         for peak_pair in self.solution_map:
             peak = peak_pair.peak
@@ -48,7 +49,7 @@ class LogIntensityScorer(SignatureAwareCoverageScorer, MassAccuracyMixin):
             return 0
         return score
 
-    def glycan_score(self, error_tolerance=2e-5, core_weight=0.4, coverage_weight=0.6, *args, **kwargs):
+    def glycan_score(self, error_tolerance=2e-5, core_weight=0.4, coverage_weight=0.5, *args, **kwargs):
         seen = set()
         series = IonSeries.stub_glycopeptide
         theoretical_set = list(self.target.stub_fragments(extended=True))
@@ -74,10 +75,11 @@ class LogIntensityScorer(SignatureAwareCoverageScorer, MassAccuracyMixin):
                 total += np.log10(peak.intensity) * (1 - (abs(peak_pair.mass_accuracy()) / error_tolerance) ** 4)
         n = self._get_internal_size(self.target.glycan_composition)
         k = 2.0
-        core_coverage = (len(core_matches) * 1.0) / len(core_fragments) ** core_weight
+        d = max(n * np.log(n) / k, n)
+        core_coverage = ((len(core_matches) * 1.0) / len(core_fragments)) ** core_weight
         extended_coverage = min(float(len(core_matches) + len(extended_matches)
-            ) / (n * np.log(n) / k), 1.0) ** coverage_weight
-        score = total * core_coverage * extended_coverage + 0.5 * self._signature_ion_score(error_tolerance)
+            ) / d, 1.0) ** coverage_weight
+        score = total * core_coverage * extended_coverage
         if np.isnan(score):
             return 0
         return score
