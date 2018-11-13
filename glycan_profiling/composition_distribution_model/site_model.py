@@ -1,3 +1,6 @@
+import re
+import warnings
+
 from collections import namedtuple, defaultdict
 try:
     from collections.abc import Mapping, Sequence
@@ -33,6 +36,10 @@ _default_chromatogram_scorer = GeneralScorer.clone()
 _default_chromatogram_scorer.add_feature(get_feature("null_charge"))
 
 
+MINIMUM = 1e-4
+
+
+from glycan_profiling.composition_distribution_model.site_model import *
 MINIMUM = 1e-4
 
 
@@ -96,11 +103,31 @@ class GlycosylationSiteModel(object):
         site_distribution = {k: v for k, v in self.site_distribution.items() if v > 0.0}
         return template.format(self=self, glycan_map_size=glycan_map_size, site_distribution=site_distribution)
 
+    def copy(self, deep=False):
+        dup = self.__class__(
+            self.protein_name, self.position, self.site_distribution, self.lmbda, self.glycan_map)
+        if deep:
+            dup.site_distribution = dup.site_distribution.copy()
+            dup.glycan_map = dup.glycan_map.copy()
+        return dup
+
+    def clone(self, *args, **kwargs):
+        return self.copy(*args, **kwargs)
+
 
 class GlycoproteinSiteSpecificGlycomeModel(object):
     def __init__(self, protein, glycosylation_sites=None):
         self.protein = protein
-        self.glycosylation_sites = sorted(glycosylation_sites or [], key=lambda x: x.position)
+        self._glycosylation_sites = []
+        self.glycosylation_sites = glycosylation_sites
+
+    @property
+    def glycosylation_sites(self):
+        return self._glycosylation_sites
+
+    @glycosylation_sites.setter
+    def glycosylation_sites(self, glycosylation_sites):
+        self._glycosylation_sites = sorted(glycosylation_sites or [], key=lambda x: x.position)
 
     def __getitem__(self, i):
         return self.glycosylation_sites[i]
@@ -180,7 +207,23 @@ class GlycoproteinSiteSpecificGlycomeModel(object):
         return template.format(self=self)
 
 
-class GlycoproteinGlycosylationModel(object):
+class ReversedProteinSiteReflectionGlycoproteinSiteSpecificGlycomeModel(GlycoproteinSiteSpecificGlycomeModel):
+    @property
+    def glycosylation_sites(self):
+        return self._glycosylation_sites
+
+    @glycosylation_sites.setter
+    def glycosylation_sites(self, glycosylation_sites):
+        temp = []
+        n = len(str(self.protein))
+        for site in glycosylation_sites:
+            site = site.copy()
+            site.position = n - site.position - 1
+            temp.append(site)
+        self._glycosylation_sites = sorted(temp or [], key=lambda x: x.position)
+
+
+class GlycoproteomeModel(object):
     def __init__(self, glycoprotein_models):
         if isinstance(glycoprotein_models, Mapping):
             self.glycoprotein_models = dict(glycoprotein_models)
@@ -213,7 +256,7 @@ class GlycoproteinGlycosylationModel(object):
         return inst
 
 
-class _SubstringProteinMapper(object):
+class SubstringGlycoproteomeModel(object):
     def __init__(self, models):
         self.models = models
         self.sequence_to_model = {
@@ -223,10 +266,47 @@ class _SubstringProteinMapper(object):
     def get_models(self, glycopeptide):
         out = []
         seq = strip_modifications(glycopeptide)
+        pattern = re.compile(seq)
+        for case in self.sequence_to_model:
+            if seq in case:
+                bounds = pattern.finditer(case)
+                for match in bounds:
+                    protein_model = self.sequence_to_model[case]
+                    site_models = protein_model.find_sites_in(match.start(), match.end())
+                    out.append(site_models)
+        return out
+
+    def find_proteins(self, glycopeptide):
+        out = []
+        seq = strip_modifications(glycopeptide)
+        pattern = re.compile(seq)
         for case in self.sequence_to_model:
             if seq in case:
                 out.append(self.sequence_to_model[case])
         return out
+
+    def score(self, glycopeptide):
+        models = self.get_models(glycopeptide)
+        if len(models) == 0:
+            return MINIMUM
+        if len(models) > 1:
+            warnings.warn("Multiple proteins for {}".format(glycopeptide))
+        sites = models[0]
+        if len(sites) == 0:
+            return MINIMUM
+        if len(sites) > 1:
+            warnings.warn("Multiple sites for {}".format(glycopeptide))
+        try:
+            acc = []
+            for site in sites:
+                try:
+                    rec = site.glycan_map[glycopeptide.glycan_composition]
+                    acc.append(rec.score)
+                except KeyError:
+                    pass
+            return max(sum(acc) / len(acc), MINIMUM) if acc else MINIMUM
+        except IndexError:
+            return MINIMUM
 
     def __call__(self, glycopeptide):
         return self.get_models(glycopeptide)
