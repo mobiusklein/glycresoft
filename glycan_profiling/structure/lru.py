@@ -99,3 +99,66 @@ class LRUCache(object):
         self._mapping.pop(data)
         # assert node not in self.unspool()[1:]
         # print("Removed")
+
+
+class LRUMapping(object):
+    def __init__(self, max_size=512):
+        self.max_size = max_size
+        self.store = dict()
+        self.lru = LRUCache()
+
+    def __getitem__(self, key):
+        value = self.store[key]
+        self.lru.hit_node(key)
+        return value
+
+    def __setitem__(self, key, value):
+        self.lru.add_node(key)
+        self.store[key] = value
+        self._check_size()
+
+    def __delitem__(self, key):
+        del self.store[key]
+        self.lru.remove_node(key)
+
+    def _check_size(self):
+        n = len(self.store)
+        while n > self.max_size:
+            key = self.lru.get_least_recently_used()
+            self.store.pop(key)
+            self.lru.remove_node(key)
+            n -= 1
+
+    def __contains__(self, key):
+        contained = key in self.store
+        return contained
+
+    def __iter__(self):
+        return iter(self.store)
+
+    def __len__(self):
+        return len(self.store)
+
+    def keys(self):
+        return self.store.keys()
+
+    def values(self):
+        return self.store.values()
+
+    def items(self):
+        return self.store.items()
+
+    def get(self, key, default=None):
+        try:
+            value = self[key]
+            return value
+        except KeyError:
+            return default
+
+    def pop(self, key, default=None):
+        try:
+            value = self[key]
+            del self[key]
+            return value
+        except KeyError:
+            return default

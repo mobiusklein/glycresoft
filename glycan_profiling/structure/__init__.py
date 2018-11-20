@@ -1,4 +1,4 @@
-from .lru import LRUCache, LRUNode
+from .lru import LRUCache, LRUNode, LRUMapping
 from .structure_loader import (
     CachingGlycanCompositionParser,
     CachingGlycopeptideParser,
@@ -21,6 +21,7 @@ from .utils import KeyTransformingDecoratorDict
 __all__ = [
     "LRUNode",
     "LRUCache",
+    "LRUMapping",
     "CachingGlycanCompositionParser",
     "CachingGlycopeptideParser",
     "CachingPeptideParser",

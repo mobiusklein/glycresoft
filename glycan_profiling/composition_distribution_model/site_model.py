@@ -14,7 +14,7 @@ from glycopeptidepy.structure.parser import strip_modifications
 
 from glycan_profiling import serialize
 from glycan_profiling.task import TaskBase
-from glycan_profiling.structure import PeptideProteinRelation
+from glycan_profiling.structure import PeptideProteinRelation, LRUMapping
 
 from glycan_profiling.database import GlycanCompositionDiskBackedStructureDatabase
 
@@ -35,11 +35,6 @@ GlycanPriorRecord = namedtuple("GlycanPriorRecord", ("score", "matched"))
 _default_chromatogram_scorer = GeneralScorer.clone()
 _default_chromatogram_scorer.add_feature(get_feature("null_charge"))
 
-
-MINIMUM = 1e-4
-
-
-from glycan_profiling.composition_distribution_model.site_model import *
 MINIMUM = 1e-4
 
 
@@ -113,6 +108,9 @@ class GlycosylationSiteModel(object):
 
     def clone(self, *args, **kwargs):
         return self.copy(*args, **kwargs)
+
+    def observed_glycans(self):
+        return {k: v.score for k, v in self.glycan_map.items() if v.matched}
 
 
 class GlycoproteinSiteSpecificGlycomeModel(object):
@@ -257,15 +255,18 @@ class GlycoproteomeModel(object):
 
 
 class SubstringGlycoproteomeModel(object):
-    def __init__(self, models):
+    def __init__(self, models, cache_size=2**15):
         self.models = models
         self.sequence_to_model = {
             str(model.protein): model for model in models.values()
         }
+        self.peptide_to_protein = LRUMapping(cache_size)
 
     def get_models(self, glycopeptide):
         out = []
         seq = strip_modifications(glycopeptide)
+        if seq in self.peptide_to_protein:
+            return list(self.peptide_to_protein[seq])
         pattern = re.compile(seq)
         for case in self.sequence_to_model:
             if seq in case:
@@ -274,12 +275,12 @@ class SubstringGlycoproteomeModel(object):
                     protein_model = self.sequence_to_model[case]
                     site_models = protein_model.find_sites_in(match.start(), match.end())
                     out.append(site_models)
+        self.peptide_to_protein[seq] = tuple(out)
         return out
 
     def find_proteins(self, glycopeptide):
         out = []
         seq = strip_modifications(glycopeptide)
-        pattern = re.compile(seq)
         for case in self.sequence_to_model:
             if seq in case:
                 out.append(self.sequence_to_model[case])
@@ -289,13 +290,13 @@ class SubstringGlycoproteomeModel(object):
         models = self.get_models(glycopeptide)
         if len(models) == 0:
             return MINIMUM
-        if len(models) > 1:
-            warnings.warn("Multiple proteins for {}".format(glycopeptide))
+        # if len(models) > 1:
+        #     warnings.warn("Multiple proteins for {}".format(glycopeptide))
         sites = models[0]
         if len(sites) == 0:
             return MINIMUM
-        if len(sites) > 1:
-            warnings.warn("Multiple sites for {}".format(glycopeptide))
+        # if len(sites) > 1:
+        #     warnings.warn("Multiple sites for {}".format(glycopeptide))
         try:
             acc = []
             for site in sites:
