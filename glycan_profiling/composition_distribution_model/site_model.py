@@ -109,8 +109,8 @@ class GlycosylationSiteModel(object):
     def clone(self, *args, **kwargs):
         return self.copy(*args, **kwargs)
 
-    def observed_glycans(self):
-        return {k: v.score for k, v in self.glycan_map.items() if v.matched}
+    def observed_glycans(self, threshold=0):
+        return {k: v.score for k, v in self.glycan_map.items() if v.matched and v.score > threshold}
 
 
 class GlycoproteinSiteSpecificGlycomeModel(object):
