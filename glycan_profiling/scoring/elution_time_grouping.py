@@ -5,6 +5,9 @@ import numpy as np
 from scipy import stats
 from scipy.ndimage import gaussian_filter1d
 
+from glycopeptidepy import PeptideSequence
+from glypy.utils import make_counter
+
 try:
     from matplotlib import pyplot as plt
 except ImportError:
@@ -161,7 +164,8 @@ class ChromatogramProxy(object):
         self.obj = obj
 
     def __repr__(self):
-        return "ChromatogramProxy(%f, %f, %f, %s)" % (
+        return "%s(%f, %f, %f, %s)" % (
+            self.__class__.__name__,
             self.weighted_neutral_mass, self.apex_time, self.total_signal, self.glycan_composition)
 
     @classmethod
@@ -175,10 +179,17 @@ class ChromatogramProxy(object):
         return self.obj.get_chromatogram()
 
 
+class GlycopeptideChromatogramProxy(ChromatogramProxy):
+    @property
+    def structure(self):
+        gp = PeptideSequence(str(self.obj.structure))
+        return gp
+
+
 class ElutionTimeFitter(ScoringFeatureBase):
     feature_type = 'elution_time'
 
-    def __init__(self, chromatograms, scale=2):
+    def __init__(self, chromatograms, scale=1):
         self.chromatograms = chromatograms
         self.neutral_mass_array = np.array([
             x.weighted_neutral_mass for x in chromatograms
@@ -283,7 +294,7 @@ class ElutionTimeFitter(ScoringFeatureBase):
         # range of values to be (0, 1)
         score = stats.t.sf(
             abs(apex - self._get_apex_time(chromatogram)),
-            1, scale=self.scale) * 2
+            df=max(len(self.chromatograms) - len(self.parameters), 1), scale=self.scale) * 2
         return max((score - 1e-3), 1e-3)
 
     def plot(self, ax=None):
@@ -325,7 +336,7 @@ class AbundanceWeightedElutionTimeFitter(ElutionTimeFitter):
 
 
 class FactorElutionTimeFitter(ElutionTimeFitter):
-    def __init__(self, chromatograms, factors=['Hex', 'HexNAc', 'Fuc', 'Neu5Ac'], scale=2):
+    def __init__(self, chromatograms, factors=['Hex', 'HexNAc', 'Fuc', 'Neu5Ac'], scale=1):
         self.factors = factors
         super(FactorElutionTimeFitter, self).__init__(chromatograms, scale=scale)
 
@@ -397,6 +408,48 @@ class AbundanceWeightedFactorElutionTimeFitter(FactorElutionTimeFitter):
         return W
 
 
+class PeptideFactorElutionTimeFitter(FactorElutionTimeFitter):
+    def __init__(self, chromatograms, factors=['Hex', 'HexNAc', 'Fuc', 'Neu5Ac'], scale=1):
+        self._peptide_to_indicator = defaultdict(make_counter(0))
+        for obs in chromatograms:
+            self._peptide_to_indicator[self._get_peptide_key(obs)]
+        super(PeptideFactorElutionTimeFitter, self).__init__(chromatograms, factors, scale)
+
+    def _get_peptide_key(self, chromatogram):
+        return PeptideSequence(str(chromatogram.structure)).deglycosylate()
+
+    def _prepare_data_matrix(self, mass_array):
+        p = len(self._peptide_to_indicator)
+        n = len(self.chromatograms)
+        peptides = np.zeros((p, n))
+        indicator = dict(self._peptide_to_indicator)
+        for i, c in enumerate(self.chromatograms):
+            try:
+                j = indicator[self._get_peptide_key(c)]
+                peptides[j, i] = 1
+            except KeyError:
+                pass
+        return np.vstack((
+            np.ones(len(mass_array)), peptides,
+        ) + tuple(
+            np.array([c.glycan_composition[f] for c in self.chromatograms])
+            for f in self.factors)
+        ).T
+
+    def _prepare_data_vector(self, chromatogram):
+        p = len(self._peptide_to_indicator)
+        peptides = [0 for i in range(p)]
+        indicator = dict(self._peptide_to_indicator)
+        try:
+            peptides[indicator[self._get_peptide_key(chromatogram)]] = 1
+        except KeyError:
+            pass
+        return np.array(
+            [1,
+             ] + peptides + [
+                chromatogram.glycan_composition[f] for f in self.factors])
+
+
 def is_high_mannose(composition):
     return (composition['HexNAc'] == 2 and composition['Hex'] > 3 and
             not is_sialylated(composition))
@@ -404,7 +457,7 @@ def is_high_mannose(composition):
 
 class PartitioningElutionTimeFitter(ElutionTimeFitter):
 
-    def __init__(self, chromatograms, scale=2, fitter_cls=ElutionTimeFitter):
+    def __init__(self, chromatograms, scale=1, fitter_cls=ElutionTimeFitter):
         self.fitter_cls = fitter_cls
         self.subfits = dict()
         self.chromatograms = chromatograms
@@ -584,13 +637,14 @@ class RecalibratingPredictor(object):
         for i, reference_point in enumerate(self.testing_examples):
             delta.append(self._predict_delta_single(test_point, reference_point, dilation))
             weight.append(np.log10(reference_point.total_signal))
-        return np.dot(delta, weight) / np.sum(weight)
+        return np.dot(delta, weight) / np.sum(weight), np.std(delta)
 
     def score_single(self, test_point):
-        delta = abs(self.predict_delta_single(test_point))
+        delta, sd = (self.predict_delta_single(test_point))
+        delta = abs(delta)
         score = stats.t.sf(
             delta,
-            df=max(len(self.configurations) - len(self.model.parameters), 1) * self.scale) * 2
+            df=self._df(), scale=self.scale) * 2
         score -= 1e-3
         if score < 1e-3:
             score = 1e-3
@@ -635,10 +689,13 @@ class RecalibratingPredictor(object):
             weight.append(calibration_point.weight)
         return np.sum(predicted_apex_time_array, axis=0) / np.sum(weight)
 
+    def _df(self):
+        return max(len(self.configurations) - len(self.model.parameters), 1)
+
     def _score(self):
         score = stats.t.sf(
             abs(self.predicted_apex_time_array - self.apex_time_array),
-            df=max(len(self.configurations) - len(self.model.parameters), 1) * self.scale) * 2
+            df=self._df(), scale=self.scale) * 2
         score -= 1e-3
         score[score < 1e-3] = 1e-3
         return score
