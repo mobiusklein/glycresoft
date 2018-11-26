@@ -253,11 +253,12 @@ class GlycanCombinationRecord(object):
         The types of glycans combined to make this entity
     """
 
-    __slots__ = ['dehydrated_mass', 'composition', 'count', 'glycan_types', "_fragment_cache"]
+    __slots__ = ['id', 'dehydrated_mass', 'composition', 'count', 'glycan_types', "_fragment_cache"]
 
     @classmethod
     def from_combination(cls, combination):
         inst = cls(
+            id=combination.id,
             dehydrated_mass=combination.dehydrated_mass(),
             composition=combination.convert(),
             count=combination.count,
@@ -279,7 +280,8 @@ class GlycanCombinationRecord(object):
             out.append(cls.from_combination(candidate))
         return out
 
-    def __init__(self, dehydrated_mass, composition, count, glycan_types):
+    def __init__(self, id, dehydrated_mass, composition, count, glycan_types):
+        self.id = id
         self.dehydrated_mass = dehydrated_mass
         self.composition = composition
         self.count = count
@@ -306,7 +308,7 @@ class GlycanCombinationRecord(object):
         return GlycanTypes.gag_linker in self.glycan_types
 
     def __reduce__(self):
-        return GlycanCombinationRecord, (self.dehydrated_mass, self.composition, self.count, self.glycan_types)
+        return GlycanCombinationRecord, (self.id, self.dehydrated_mass, self.composition, self.count, self.glycan_types)
 
     def __repr__(self):
         return "GlycanCombinationRecord(%s, %d)" % (self.composition, self.count)

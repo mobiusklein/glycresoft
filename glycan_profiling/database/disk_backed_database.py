@@ -22,6 +22,7 @@ from .intervals import (
 from .index import (ProteinIndex, PeptideIndex, GlycopeptideBatchManager, GlycopeptideSequenceCache)
 from glycan_profiling.structure.structure_loader import (
     CachingGlycanCompositionParser, CachingGlycopeptideParser,
+    CachingPeptideParser,
     GlycopeptideDatabaseRecord)
 from .composition_network import CompositionGraph, n_glycan_distance
 
@@ -276,6 +277,9 @@ class DiskBackedStructureDatabaseBase(SearchableMassCollection, DatabaseBoundOpe
 
     def get_object_by_reference(self, reference):
         return self.session.query(self.model_type).get(reference.id)
+
+    def search_between(self, lower, upper):
+        return self.make_memory_interval_from_mass_interval(lower, upper)
 
 
 class DeclarativeDiskBackedDatabase(DiskBackedStructureDatabaseBase):
@@ -549,9 +553,30 @@ class PeptideDiskBackedStructureDatabase(DeclarativeDiskBackedDatabase):
         Peptide.__table__.c.start_position,
         Peptide.__table__.c.end_position,
         Peptide.__table__.c.hypothesis_id,
+        Peptide.__table__.c.n_glycosylation_sites,
+        Peptide.__table__.c.o_glycosylation_sites,
+        Peptide.__table__.c.gagylation_sites,
     ]
     mass_field = Peptide.__table__.c.calculated_mass
     identity_field = Peptide.__table__.c.id
 
+    def __init__(self, connection, hypothesis_id=1, cache_size=DEFAULT_CACHE_SIZE,
+                 loading_interval=DEFAULT_LOADING_INTERVAL,
+                 threshold_cache_total_count=DEFAULT_THRESHOLD_CACHE_TOTAL_COUNT):
+        super(PeptideDiskBackedStructureDatabase, self).__init__(
+            connection, hypothesis_id, cache_size, loading_interval,
+            threshold_cache_total_count)
+        self._convert_cache = CachingPeptideParser()
+
+    # This should exist, but it conflicts with other conversion mechanisms
+    # def _convert(self, bundle):
+    #     inst = self._convert_cache.parse(bundle)
+    #     inst.hypothesis_id = self.hypothesis_id
+    #     return inst
+
     def _limit_to_hypothesis(self, selectable):
         return selectable.where(Peptide.__table__.c.hypothesis_id == self.hypothesis_id)
+
+    @property
+    def hypothesis(self):
+        return self.session.query(GlycopeptideHypothesis).get(self.hypothesis_id)

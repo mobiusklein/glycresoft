@@ -1,6 +1,8 @@
 from abc import ABCMeta, abstractmethod, abstractproperty
 from six import add_metaclass
+
 import operator
+import itertools
 
 from glycopeptidepy import HashableGlycanComposition
 
@@ -80,12 +82,13 @@ class MassDatabase(SearchableMassCollection):
         A list of :class:`HashableGlycanComposition` instances, sorted by mass
     """
     def __init__(self, structures, network=None, distance_fn=n_glycan_distance,
-                 glycan_composition_type=HashableGlycanComposition):
+                 glycan_composition_type=HashableGlycanComposition, sort=True):
         self.glycan_composition_type = glycan_composition_type
         if not isinstance(structures[0], glycan_composition_type):
             structures = list(map(glycan_composition_type, structures))
         self.structures = structures
-        self.structures.sort(key=lambda x: x.mass())
+        if sort:
+            self.structures.sort(key=lambda x: x.mass())
         if network is None:
             self.network = CompositionGraph(self.structures)
             if distance_fn is not None:
@@ -165,6 +168,14 @@ class MassDatabase(SearchableMassCollection):
         lo = self.search_binary(lo_mass)
         hi = self.search_binary(hi_mass) + 1
         return [structure for structure in self[lo:hi] if lo_mass <= structure.mass() <= hi_mass]
+
+    def search_between(self, lower, higher):
+        if len(self) == 0:
+            return []
+        lo = self.search_binary(lower)
+        hi = self.search_binary(higher) + 1
+        return self.__class__(
+            [structure for structure in self[lo:hi] if lower <= structure.mass() <= higher], sort=False)
 
 
 class NeutralMassDatabase(SearchableMassCollection):
@@ -276,3 +287,38 @@ class ConcatenatedDatabase(SearchableMassCollection):
         for database in self.databases:
             hits += database.search_mass(mass, error_tolerance)
         return hits
+
+
+class TransformingMassCollectionAdapter(SearchableMassCollection):
+    def __init__(self, searchable_mass_collection, transformer):
+        self.searchable_mass_collection = searchable_mass_collection
+        self.transformer = transformer
+
+    def search_mass_ppm(self, mass, error_tolerance=1e-5):
+        result = self.searchable_mass_collection.search_mass_ppm(mass, error_tolerance)
+        return [self.transformer(r) for r in result]
+
+    @property
+    def highest_mass(self):
+        return self.searchable_mass_collection.highest_mass
+
+    @property
+    def lowest_mass(self):
+        return self.searchable_mass_collection.lowest_mass
+
+    def search_mass(self, mass, error_tolerance):
+        result = self.searchable_mass_collection.search_mass(mass, error_tolerance)
+        return [self.transformer(r) for r in result]
+
+    def __len__(self):
+        return len(self.searchable_mass_collection)
+
+    def __getitem__(self, i):
+        return self.transformer(self.searchable_mass_collection[i])
+
+    def __iter__(self):
+        return itertools.imap(self.transformer, self.searchable_mass_collection)
+
+    def search_between(self, lower, higher):
+        return self.__class__(
+            self.searchable_mass_collection.search_between(lower, higher), self.transformer)

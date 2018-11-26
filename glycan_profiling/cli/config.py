@@ -5,10 +5,10 @@ from glycan_profiling.config.config_file import (
     add_user_modification_rule as add_user_peptide_modification_rule,
     add_user_substituent_rule, delete_config_dir)
 
-from glypy.composition import formula
+from glypy.composition import formula, Composition
 
 from glycopeptidepy.structure.modification import (
-    extract_targets_from_string, ModificationRule, Composition,
+    extract_targets_from_string, ModificationRule,
     Modification)
 
 

@@ -6,6 +6,9 @@ from ...spectrum_match import SpectrumMatcherBase, ModelTreeNode
 
 class GlycopeptideSpectrumMatcherBase(SpectrumMatcherBase):
 
+    _glycan_score = None
+    _peptide_score = None
+
     def _match_oxonium_ions(self, error_tolerance=2e-5, masked_peaks=None):
         if masked_peaks is None:
             masked_peaks = set()
@@ -89,3 +92,19 @@ class GlycopeptideSpectrumMatcherBase(SpectrumMatcherBase):
             self._match_backbone_series(IonSeries.z, error_tolerance, masked_peaks, EXDFragmentationStrategy)
 
         return self
+
+    def peptide_score(self, *args, **kwargs):
+        if self._peptide_score is None:
+            self._peptide_score = self.calculate_peptide_score(*args, **kwargs)
+        return self._peptide_score
+
+    def calculate_peptide_score(self, *args, **kwargs):
+        return 0
+
+    def glycan_score(self, *args, **kwargs):
+        if self._glycan_score is None:
+            self._glycan_score = self.calculate_glycan_score(*args, **kwargs)
+        return self._glycan_score
+
+    def calculate_glycan_score(self, *args, **kwargs):
+        return 0

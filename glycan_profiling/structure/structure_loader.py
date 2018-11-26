@@ -180,9 +180,13 @@ class FragmentCachingGlycopeptide(PeptideSequence):
         self.fragment_caches.clear()
 
     def clone(self, *args, **kwargs):
-        new = FragmentCachingGlycopeptide(str(self))
+        new = super(FragmentCachingGlycopeptide, self).clone(*args, **kwargs)
         try:
             new.id = self.id
+        except AttributeError:
+            pass
+        try:
+            new.protein_relation = self.protein_relation
         except AttributeError:
             pass
         # Intentionally share caches with offspring
@@ -378,3 +382,68 @@ class GlycopeptideDatabaseRecord(object):
             "start_position={self.start_position}, end_position={self.end_position}, "
             "peptide_mass={self.peptide_mass}, hypothesis_id={self.hypothesis_id}, ")
         return template.format(self=self)
+
+
+class PeptideDatabaseRecord(object):
+    __slots__ = ['id', "calculated_mass", "modified_peptide_sequence", "protein_id", "start_position", "end_position",
+                 "hypothesis_id", "n_glycosylation_sites", "o_glycosylation_sites", "gagylation_sites"]
+
+    def __init__(self, id, calculated_mass, modified_peptide_sequence, protein_id, start_position, end_position,
+                 hypothesis_id, n_glycosylation_sites, o_glycosylation_sites, gagylation_sites):
+        self.id = id
+        self.calculated_mass = calculated_mass
+        self.modified_peptide_sequence = modified_peptide_sequence
+        self.protein_id = protein_id
+        self.start_position = start_position
+        self.end_position = end_position
+        self.hypothesis_id = hypothesis_id
+        self.n_glycosylation_sites = n_glycosylation_sites
+        self.o_glycosylation_sites = o_glycosylation_sites
+        self.gagylation_sites = gagylation_sites
+
+    def convert(self):
+        peptide = FragmentCachingGlycopeptide(self.modified_peptide_sequence)
+        peptide.id = self.id
+        rel = PeptideProteinRelation(self.start_position, self.end_position, self.protein_id, self.hypothesis_id)
+        peptide.protein_relation = rel
+        return peptide
+
+    def __hash__(self):
+        return hash(self.modified_peptide_sequence)
+
+    def __eq__(self, other):
+        if other is None:
+            return False
+        if self.id != other.id:
+            return False
+        if self.protein_id != other.protein_id:
+            return False
+        if abs(self.calculated_mass - other.calculated_mass) > 1e-3:
+            return False
+        if self.start_position != other.start_position:
+            return False
+        if self.end_position != other.end_position:
+            return False
+        if self.hypothesis_id != other.hypothesis_id:
+            return False
+        if self.n_glycosylation_sites != other.n_glycosylation_sites:
+            return False
+        if self.o_glycosylation_sites != other.o_glycosylation_sites:
+            return False
+        if self.gagylation_sites != other.gagylation_sites:
+            return False
+        return True
+
+    def __ne__(self, other):
+        return not (self == other)
+
+    def has_glycosylation_sites(self):
+        return (len(self.n_glycosylation_sites) + len(self.o_glycosylation_sites) + len(self.gagylation_sites)) > 0
+
+    def __repr__(self):
+        fields = ', '.join(["%s=%r" % (n, getattr(self, n)) for n in self.__slots__])
+        return "{self.__class__.__name__}({fields})".format(self=self, fields=fields)
+
+    @classmethod
+    def from_record(cls, record):
+        return cls(**record)
