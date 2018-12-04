@@ -34,6 +34,9 @@ class ScanStub(object):
         except AttributeError:
             raise KeyError(self.id)
 
+    def __repr__(self):
+        return "{self.__class__.__name__}({self.precursor_information})".format(self=self)
+
 
 class ScanWrapperBase(object):
     __slots__ = []
