@@ -5,6 +5,7 @@ import numpy as np
 
 from ms_deisotope.peak_dependency_network.intervals import SpanningMixin
 
+from glycopeptidepy.structure.composition import Composition
 from glycopeptidepy.structure.sequence import PeptideSequence
 from glycopeptidepy.structure.parser import sequence_tokenizer
 from glycopeptidepy.algorithm import reverse_preserve_sequon
@@ -144,6 +145,7 @@ class FragmentCachingGlycopeptide(PeptideSequence):
         super(FragmentCachingGlycopeptide, self).__init__(*args, **kwargs)
         self.fragment_caches = {}
         self.protein_relation = None
+        self.id = None
 
     def __eq__(self, other):
         try:
@@ -180,17 +182,13 @@ class FragmentCachingGlycopeptide(PeptideSequence):
         self.fragment_caches.clear()
 
     def clone(self, *args, **kwargs):
+        share_cache = kwargs.pop("share_cache", True)
         new = super(FragmentCachingGlycopeptide, self).clone(*args, **kwargs)
-        try:
-            new.id = self.id
-        except AttributeError:
-            pass
-        try:
-            new.protein_relation = self.protein_relation
-        except AttributeError:
-            pass
+        new.id = self.id
+        new.protein_relation = self.protein_relation
         # Intentionally share caches with offspring
-        new.fragment_caches = self.fragment_caches
+        if share_cache:
+            new.fragment_caches = self.fragment_caches
         return new
 
     def __repr__(self):
@@ -316,6 +314,24 @@ class DecoyFragmentCachingGlycopeptide(FragmentCachingGlycopeptide):
             #     result = list(DecoyShiftingStubGlycopeptideStrategy(self, *args, **kwargs))
             self.fragment_caches[key] = result
             return result
+
+    @classmethod
+    def from_target(cls, target):
+        inst = cls()
+        if target._glycosylation_manager.aggregate is not None:
+            glycan = target._glycosylation_manager.aggregate.clone()
+            glycan.composition_offset = Composition("H2O")
+        else:
+            glycan = None
+        inst._init_from_components(
+            target.sequence, glycan,
+            target.n_term.modification,
+            target.c_term.modification)
+        inst.id = target.id + (-1, )
+        inst.protein_relation = target.protein_relation
+        # Intentionally share caches with offspring
+        inst.fragment_caches = {k: v for k, v in target.fragment_caches.items() if 'stub_fragments' not in k}
+        return inst
 
 
 class DecoyMakingCachingGlycopeptideParser(CachingGlycopeptideParser):
