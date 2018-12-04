@@ -220,9 +220,11 @@ def glycopeptide_hypothesis_common_options(cmd):
     "Apply a semispecific enzyme digest permitting one peptide terminal to be non-specific"))
 @click.option("--reverse", default=False, is_flag=True, help='Reverse protein sequences', cls=HiddenOption)
 @click.option("--dry-run", default=False, is_flag=True, help="Do not save glycopeptides", cls=HiddenOption)
+@click.option("-F", "--not-full-crossproduct", is_flag=True, help="Do not produce full crossproduct", cls=HiddenOption)
 def glycopeptide_fa(context, fasta_file, database_connection, enzyme, missed_cleavages, occupied_glycosites, name,
                     constant_modification, variable_modification, processes, glycan_source, glycan_source_type,
-                    glycan_source_identifier=None, semispecific_digest=False, reverse=False, dry_run=False):
+                    glycan_source_identifier=None, semispecific_digest=False, reverse=False, dry_run=False,
+                    not_full_crossproduct=False):
     '''Constructs a glycopeptide hypothesis from a FASTA file of proteins and a
     collection of glycans.
     '''
@@ -265,7 +267,8 @@ def glycopeptide_fa(context, fasta_file, database_connection, enzyme, missed_cle
         max_glycosylation_events=occupied_glycosites,
         hypothesis_name=name,
         semispecific=semispecific_digest,
-        n_processes=processes)
+        n_processes=processes,
+        full_cross_product=not not_full_crossproduct)
     builder.display_header()
     builder.start()
     return builder.hypothesis_id
