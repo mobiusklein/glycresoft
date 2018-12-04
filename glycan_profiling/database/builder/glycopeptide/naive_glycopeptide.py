@@ -30,8 +30,9 @@ class FastaGlycopeptideHypothesisSerializer(GlycopeptideHypothesisSerializerBase
     def __init__(self, fasta_file, connection, glycan_hypothesis_id, hypothesis_name=None,
                  protease='trypsin', constant_modifications=None, variable_modifications=None,
                  max_missed_cleavages=2, max_glycosylation_events=1, semispecific=False,
-                 max_variable_modifications=None):
-        GlycopeptideHypothesisSerializerBase.__init__(self, connection, hypothesis_name, glycan_hypothesis_id)
+                 max_variable_modifications=None, full_cross_product=True):
+        GlycopeptideHypothesisSerializerBase.__init__(
+            self, connection, hypothesis_name, glycan_hypothesis_id, full_cross_product)
         self.fasta_file = fasta_file
         self.protease = protease
         self.constant_modifications = constant_modifications
@@ -49,7 +50,8 @@ class FastaGlycopeptideHypothesisSerializer(GlycopeptideHypothesisSerializerBase
             "max_missed_cleavages": max_missed_cleavages,
             "max_glycosylation_events": max_glycosylation_events,
             "semispecific": semispecific,
-            "max_variable_modifications": max_variable_modifications
+            "max_variable_modifications": max_variable_modifications,
+            "full_cross_product": self.full_cross_product
         }
         self.set_parameters(params)
 
@@ -156,10 +158,12 @@ class FastaGlycopeptideHypothesisSerializer(GlycopeptideHypothesisSerializerBase
         index_toggler.create()
         self.log("Combinating Glycans")
         self.combinate_glycans(self.max_glycosylation_events)
-        self.log("Building Glycopeptides")
-        self.glycosylate_peptides()
+        if self.full_cross_product:
+            self.log("Building Glycopeptides")
+            self.glycosylate_peptides()
         self._sql_analyze_database()
-        self._count_produced_glycopeptides()
+        if self.full_cross_product:
+            self._count_produced_glycopeptides()
         self.log("Done")
 
 
@@ -167,12 +171,13 @@ class MultipleProcessFastaGlycopeptideHypothesisSerializer(FastaGlycopeptideHypo
     def __init__(self, fasta_file, connection, glycan_hypothesis_id, hypothesis_name=None,
                  protease='trypsin', constant_modifications=None, variable_modifications=None,
                  max_missed_cleavages=2, max_glycosylation_events=1, semispecific=False,
-                 max_variable_modifications=None,
+                 max_variable_modifications=None, full_cross_product=True,
                  n_processes=4):
         super(MultipleProcessFastaGlycopeptideHypothesisSerializer, self).__init__(
             fasta_file, connection, glycan_hypothesis_id, hypothesis_name,
             protease, constant_modifications, variable_modifications,
-            max_missed_cleavages, max_glycosylation_events, semispecific, max_variable_modifications)
+            max_missed_cleavages, max_glycosylation_events, semispecific,
+            max_variable_modifications, full_cross_product)
         self.n_processes = n_processes
 
     def digest_proteins(self):

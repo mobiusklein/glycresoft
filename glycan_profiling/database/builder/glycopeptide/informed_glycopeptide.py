@@ -15,10 +15,12 @@ class MzIdentMLGlycopeptideHypothesisSerializer(GlycopeptideHypothesisSerializer
     _display_name = "MzIdentML Glycopeptide Hypothesis Serializer"
 
     def __init__(self, mzid_path, connection, glycan_hypothesis_id, hypothesis_name=None,
-                 target_proteins=None, max_glycosylation_events=1, reference_fasta=None):
+                 target_proteins=None, max_glycosylation_events=1, reference_fasta=None,
+                 full_cross_product=True):
         if target_proteins is None:
             target_proteins = []
-        GlycopeptideHypothesisSerializerBase.__init__(self, connection, hypothesis_name, glycan_hypothesis_id)
+        GlycopeptideHypothesisSerializerBase.__init__(
+            self, connection, hypothesis_name, glycan_hypothesis_id, full_cross_product)
         self.mzid_path = mzid_path
         self.reference_fasta = reference_fasta
         self.proteome = mzid_proteome.Proteome(
@@ -33,6 +35,7 @@ class MzIdentMLGlycopeptideHypothesisSerializer(GlycopeptideHypothesisSerializer
                 reference_fasta) if reference_fasta is not None else None,
             "target_proteins": target_proteins,
             "max_glycosylation_events": max_glycosylation_events,
+            "full_cross_product": self.full_cross_product
         })
 
     def retrieve_target_protein_ids(self):
@@ -90,10 +93,12 @@ class MzIdentMLGlycopeptideHypothesisSerializer(GlycopeptideHypothesisSerializer
         })
         self.log("Combinating Glycans")
         self.combinate_glycans(self.max_glycosylation_events)
-        self.log("Building Glycopeptides")
-        self.glycosylate_peptides()
+        if self.full_cross_product:
+            self.log("Building Glycopeptides")
+            self.glycosylate_peptides()
         self._sql_analyze_database()
-        self._count_produced_glycopeptides()
+        if self.full_cross_product:
+            self._count_produced_glycopeptides()
         self.log("Done")
 
 
@@ -102,10 +107,10 @@ class MultipleProcessMzIdentMLGlycopeptideHypothesisSerializer(MzIdentMLGlycopep
 
     def __init__(self, mzid_path, connection, glycan_hypothesis_id, hypothesis_name=None,
                  target_proteins=None, max_glycosylation_events=1, reference_fasta=None,
-                 n_processes=4):
+                 full_cross_product=True, n_processes=4):
         super(MultipleProcessMzIdentMLGlycopeptideHypothesisSerializer, self).__init__(
             mzid_path, connection, glycan_hypothesis_id, hypothesis_name, target_proteins,
-            max_glycosylation_events, reference_fasta)
+            max_glycosylation_events, reference_fasta, full_cross_product)
         self.n_processes = n_processes
 
     def glycosylate_peptides(self):
@@ -118,7 +123,8 @@ class MultipleProcessMzIdentMLGlycopeptideHypothesisSerializer(MzIdentMLGlycopep
 
 class MzIdentMLPeptideHypothesisSerializer(GlycopeptideHypothesisSerializerBase):
     def __init__(self, mzid_path, connection, hypothesis_name=None,
-                 target_proteins=None, reference_fasta=None, include_baseline_peptides=False):
+                 target_proteins=None, reference_fasta=None,
+                 include_baseline_peptides=False):
         if target_proteins is None:
             target_proteins = []
         GlycopeptideHypothesisSerializerBase.__init__(self, connection, hypothesis_name, 0)

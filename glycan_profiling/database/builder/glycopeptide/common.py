@@ -55,7 +55,7 @@ class GlycopeptideHypothesisSerializerBase(DatabaseBoundOperation, HypothesisSer
     uuid : str
         The uuid of the hypothesis to be constructed
     """
-    def __init__(self, database_connection, hypothesis_name=None, glycan_hypothesis_id=None):
+    def __init__(self, database_connection, hypothesis_name=None, glycan_hypothesis_id=None, full_cross_product=True):
         DatabaseBoundOperation.__init__(self, database_connection)
         self._hypothesis_name = hypothesis_name
         self._hypothesis_id = None
@@ -63,6 +63,7 @@ class GlycopeptideHypothesisSerializerBase(DatabaseBoundOperation, HypothesisSer
         self._glycan_hypothesis_id = glycan_hypothesis_id
         self.uuid = str(uuid4().hex)
         self.total_glycan_combination_count = -1
+        self.full_cross_product = full_cross_product
 
     def _construct_hypothesis(self):
         if self._hypothesis_name is None or self._hypothesis_name.strip() == "":
