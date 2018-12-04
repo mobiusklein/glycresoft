@@ -17,17 +17,17 @@ def display_version(print_fn):
     print_fn(msg)
 
 
-def fmt_msg(message):
-    return "%s %s" % (datetime.now().isoformat(' '), str(message))
+def fmt_msg(*message):
+    return "%s %s" % (datetime.now().isoformat(' '), ', '.join(map(str, message)))
 
 
-def printer(obj, message):
-    print(fmt_msg(message))
+def printer(obj, *message):
+    print(fmt_msg(*message))
 
 
-def debug_printer(obj, message):
+def debug_printer(obj, *message):
     if obj.in_debug_mode():
-        print("DEBUG:" + fmt_msg(message))
+        print("DEBUG:" + fmt_msg(*message))
 
 
 class CallInterval(object):
@@ -98,7 +98,7 @@ class MessageSpooler(object):
         while not self.halting:
             try:
                 message = self.message_queue.get(True, 2)
-                self.handler(message)
+                self.handler(*message)
             except Exception:
                 continue
 
@@ -122,10 +122,10 @@ class MessageSender(object):
     def __init__(self, queue):
         self.queue = queue
 
-    def __call__(self, message):
-        self.send(message)
+    def __call__(self, *message):
+        self.send(*message)
 
-    def send(self, message):
+    def send(self, *message):
         self.queue.put(message)
 
 
@@ -188,11 +188,11 @@ class TaskBase(object):
         else:
             return ''
 
-    def log(self, message):
-        self.print_fn(str(message))
+    def log(self, *message):
+        self.print_fn(*message)
 
-    def debug(self, message):
-        self.debug_print_fn(message)
+    def debug(self, *message):
+        self.debug_print_fn(*message)
 
     def error(self, message, exception=None):
         self.error_print_fn(str(message))
