@@ -189,13 +189,13 @@ class TaskBase(object):
             return ''
 
     def log(self, *message):
-        self.print_fn(*message)
+        self.print_fn(', '.join(map(str, message)))
 
     def debug(self, *message):
-        self.debug_print_fn(*message)
+        self.debug_print_fn(', '.join(map(str, message)))
 
     def error(self, message, exception=None):
-        self.error_print_fn(str(message))
+        self.error_print_fn(', '.join(map(str, message)))
         if exception is not None:
             self.error_print_fn(traceback.format_exc(exception))
 
