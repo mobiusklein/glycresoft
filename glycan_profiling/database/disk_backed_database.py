@@ -112,6 +112,9 @@ class DiskBackedStructureDatabaseBase(SearchableMassCollection, DatabaseBoundOpe
     def intervals(self):
         return self._intervals
 
+    def reset(self, **kwargs):
+        self.intervals.clear()
+
     def __reduce__(self):
         return self.__class__, (
             self._original_connection, self.hypothesis_id, self.cache_size,
@@ -562,7 +565,7 @@ class PeptideDiskBackedStructureDatabase(DeclarativeDiskBackedDatabase):
 
     def __init__(self, connection, hypothesis_id=1, cache_size=DEFAULT_CACHE_SIZE,
                  loading_interval=DEFAULT_LOADING_INTERVAL,
-                 threshold_cache_total_count=DEFAULT_THRESHOLD_CACHE_TOTAL_COUNT):
+                 threshold_cache_total_count=int(DEFAULT_THRESHOLD_CACHE_TOTAL_COUNT / 5)):
         super(PeptideDiskBackedStructureDatabase, self).__init__(
             connection, hypothesis_id, cache_size, loading_interval,
             threshold_cache_total_count)
