@@ -100,6 +100,12 @@ class LRUCache(object):
         # assert node not in self.unspool()[1:]
         # print("Removed")
 
+    def clear(self):
+        self.head = LRUNode(None, None, None)
+        self.head.forward = self.head
+        self.head.backward = self.head
+        self._mapping.clear()
+
 
 class LRUMapping(object):
     def __init__(self, max_size=512):
@@ -162,3 +168,7 @@ class LRUMapping(object):
             return value
         except KeyError:
             return default
+
+    def clear(self):
+        self.store.clear()
+        self.lru.clear()
