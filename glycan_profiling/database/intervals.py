@@ -1,12 +1,13 @@
 import logging
+import operator
 
 from ms_deisotope.peak_dependency_network.intervals import SpanningMixin
 
 from glycan_profiling.structure.lru import LRUCache
-from glycan_profiling.database.mass_collection import NeutralMassDatabase
+from glycan_profiling.database.mass_collection import ConcatenatedDatabase
 
 
-logger = logging.getLogger("glycresoft.database")
+logger = logging.getLogger("glycresoft.intervals")
 
 
 class QueryIntervalBase(SpanningMixin):
@@ -164,8 +165,6 @@ class IntervalSet(object):
 
     def insert_interval(self, interval):
         center = interval.center
-        # if interval in self.intervals:
-        #     raise ValueError("Duplicate Insertion")
         n = len(self)
         if n != 0:
             index, matched = self.find_insertion_point(center)
@@ -353,6 +352,9 @@ class MassIntervalNode(SpanningMixin):
             self.__class__.__name__,
             self.start, self.end, len(self.group) if self.group is not None else 0)
 
+    def _combine_databases(self, current_group, new_group):
+        return current_group.merge(new_group, operator.attrgetter('id'))
+
     def extend(self, new_data):
         """Add the components of `new_data` to `group` and update
         the interval's internal state
@@ -365,9 +367,7 @@ class MassIntervalNode(SpanningMixin):
         start = min(self.start, new_data.start)
         end = max(self.end, new_data.end)
 
-        new = {x.id: x for x in (self.group)}
-        new.update({x.id: x for x in (new_data)})
-        self.wrap(NeutralMassDatabase(list(new.values()), self.group.mass_getter))
+        self.wrap(self._combine_databases(self.group, new_data.group))
         self.growth += 1
 
         # max will deal with 0s correctly
@@ -396,3 +396,20 @@ class MassIntervalNode(SpanningMixin):
 
     def search_mass_ppm(self, *args, **kwargs):
         return self.group.search_mass_ppm(*args, **kwargs)
+
+    def constrain(self, lower, higher):
+        subset = self.group.search_between(lower, higher)
+        start = max(lower, self.start)
+        end = min(higher, self.end)
+        self.wrap(subset)
+        self.end = end
+        self.start = start
+        return self
+
+
+class ConcatenateMassIntervalNode(MassIntervalNode):
+
+    def _combine_databases(self, current_group, new_group):
+        if isinstance(current_group, ConcatenatedDatabase):
+            return current_group.add(new_group)
+        return ConcatenatedDatabase([current_group, new_group])

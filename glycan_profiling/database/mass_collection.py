@@ -27,6 +27,9 @@ class SearchableMassCollection(object):
     def lowest_mass(self):
         raise NotImplementedError()
 
+    def reset(self, **kwargs):
+        pass
+
     @abstractproperty
     def highest_mass(self):
         raise NotImplementedError()
@@ -178,18 +181,65 @@ class MassDatabase(SearchableMassCollection):
             [structure for structure in self[lo:hi] if lower <= structure.mass() <= higher], sort=False)
 
 
+class MassObject(object):
+    __slots__ = ('obj', 'mass')
+
+    def __init__(self, obj, mass):
+        self.obj = obj
+        self.mass = mass
+
+    def __getattr__(self, attr):
+        return getattr(self.obj, attr)
+
+    def __reduce__(self):
+        return self.__class__, (self.obj, self.mass)
+
+    def __repr__(self):
+        return "MassObject(%r, %r)" % (self.obj, self.mass)
+
+    def __lt__(self, other):
+        return self.mass < other.mass
+
+    def __gt__(self, other):
+        return self.mass > other.mass
+
+    def __eq__(self, other):
+        return abs(self.mass - other.mass) < 1e-3
+
+    def __ne__(self, other):
+        return abs(self.mass - other.mass) >= 1e-3
+
+
 class NeutralMassDatabase(SearchableMassCollection):
     def __init__(self, structures, mass_getter=operator.attrgetter("calculated_mass"), sort=True):
-        self.structures = sorted(structures, key=mass_getter) if sort else list(structures)
         self.mass_getter = mass_getter
+        self.structures = self._pack(structures, sort)
+
+    def _pack(self, structures, sort=True):
+        temp = []
+        for obj in structures:
+            mass = self.mass_getter(obj)
+            temp.append(MassObject(obj, mass))
+        if sort:
+            temp.sort()
+        return temp
+
+    def __iter__(self):
+        for obj in self.structures:
+            yield obj.obj
+
+    def __getitem__(self, i):
+        if isinstance(i, slice):
+            return [mo.obj for mo in self.structures[i]]
+        return self.structures[i].obj
 
     @property
     def lowest_mass(self):
-        return self.mass_getter(self.structures[0])
+        return self.structures[0].mass
 
     @property
     def highest_mass(self):
-        return self.mass_getter(self.structures[-1])
+        return self.structures[-1].mass
 
     def search_binary(self, mass, error_tolerance=1e-6):
         """Search within :attr:`structures` for the index of a structure
@@ -208,14 +258,35 @@ class NeutralMassDatabase(SearchableMassCollection):
             The index of the structure with the nearest mass
         """
         lo = 0
-        hi = len(self)
-
+        n = hi = len(self.structures)
         while hi != lo:
             mid = (hi + lo) / 2
-            x = self[mid]
-            err = self.mass_getter(x) - mass
+            x = self.structures[mid]
+            err = x.mass - mass
             if abs(err) <= error_tolerance:
-                return mid
+                best_index = mid
+                best_error = err
+                i = mid - 1
+                while i >= 0:
+                    x = self.structures[i]
+                    err = abs((x.mass - mass) / mass)
+                    if err < best_error:
+                        best_error = err
+                        best_index = i
+                    elif err > error_tolerance:
+                        break
+                    i -= 1
+                i = mid + 1
+                while i < n:
+                    x = self.structures[i]
+                    err = abs((x.mass - mass) / mass)
+                    if err < best_error:
+                        best_error = err
+                        best_index = i
+                    elif err > error_tolerance:
+                        break
+                    i += 1
+                return best_index
             elif (hi - lo) == 1:
                 return mid
             elif err > 0:
@@ -245,19 +316,43 @@ class NeutralMassDatabase(SearchableMassCollection):
         hi_mass = mass + error_tolerance
         lo = self.search_binary(lo_mass)
         hi = self.search_binary(hi_mass) + 1
-        return [structure for structure in self[lo:hi] if lo_mass <= self.mass_getter(structure) <= hi_mass]
+        return [structure.obj for structure in self.structures[lo:hi] if lo_mass <= structure.mass <= hi_mass]
 
     def search_between(self, lower, higher):
         lo = self.search_binary(lower)
         hi = self.search_binary(higher) + 1
         return self.__class__(
-            [structure for structure in self[lo:hi] if lower <= self.mass_getter(structure) <= higher],
+            [structure.obj for structure in self.structures[lo:hi] if lower <= structure.mass <= higher],
             self.mass_getter, sort=False)
+
+    def _merge_neutral_mass_database(self, other, id_fn=id):
+        new = {id_fn(x): x for x in self.structures}
+        new.update({id_fn(x): x for x in other.structures})
+        structures = list(new.values())
+        structures.sort()
+        self.structures = structures
+        return self
+
+    def _merge_other(self, other, id_fn=id):
+        new = {id_fn(x): x for x in self}
+        new.update({id_fn(x): x for x in other})
+        structures = list(new.values())
+        self.structures = self._pack(structures, True)
+        return self
+
+    def merge(self, other, id_fn=id):
+        if isinstance(other, NeutralMassDatabase):
+            return self._merge_neutral_mass_database(other, id_fn)
+        else:
+            return self._merge_other(other, id_fn)
 
 
 class ConcatenatedDatabase(SearchableMassCollection):
     def __init__(self, databases):
         self.databases = list(databases)
+
+    def reset(self, **kwargs):
+        return [d.reset(**kwargs) for d in self.databases]
 
     @property
     def lowest_mass(self):
@@ -288,11 +383,29 @@ class ConcatenatedDatabase(SearchableMassCollection):
             hits += database.search_mass(mass, error_tolerance)
         return hits
 
+    def search_between(self, lower, higher):
+        result = []
+        for database in self.databases:
+            subset = database.search_between(lower, higher)
+            if len(subset) > 0:
+                result.append(subset)
+        return self.__class__(result)
+
+    def add(self, database):
+        self.databases.append(database)
+        return self
+
+    def __len__(self):
+        return sum(map(len, self.databases))
+
 
 class TransformingMassCollectionAdapter(SearchableMassCollection):
     def __init__(self, searchable_mass_collection, transformer):
         self.searchable_mass_collection = searchable_mass_collection
         self.transformer = transformer
+
+    def reset(self, **kwargs):
+        return self.searchable_mass_collection.reset(**kwargs)
 
     def search_mass_ppm(self, mass, error_tolerance=1e-5):
         result = self.searchable_mass_collection.search_mass_ppm(mass, error_tolerance)
