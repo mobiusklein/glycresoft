@@ -40,10 +40,10 @@ class ChromatogramAssignmentRecord(GlycanCompositionProxy):
 
 class GlycanCompositionIdentificationWorker(SpectrumIdentificationWorkerBase):
     def __init__(self, input_queue, output_queue, done_event, scorer_type, evaluation_args,
-                 spectrum_map, mass_shift_map, log_handler):
+                 spectrum_map, mass_shift_map, log_handler, solution_packer):
         SpectrumIdentificationWorkerBase.__init__(
             self, input_queue, output_queue, done_event, scorer_type, evaluation_args,
-            spectrum_map, mass_shift_map, log_handler=log_handler)
+            spectrum_map, mass_shift_map, log_handler=log_handler, solution_packer=solution_packer)
 
     def evaluate(self, scan, structure, *args, **kwargs):
         target = structure
