@@ -42,7 +42,16 @@ class WorkloadManager(object):
         self.scan_map.clear()
         self.hit_map.clear()
         self.hit_to_scan_map.clear()
+        self.scan_to_hit_map.clear()
         self.scan_hit_type_map.clear()
+        self._scan_graph = None
+
+    def update(self, other):
+        self.scan_map.update(other.scan_map)
+        self.hit_map.update(other.hit_map)
+        self.hit_to_scan_map.update(other.hit_to_scan_map)
+        self.scan_to_hit_map.update(other.scan_to_hit_map)
+        self.scan_hit_type_map.update(other.scan_hit_type_map)
         self._scan_graph = None
 
     def add_scan(self, scan):
@@ -238,6 +247,13 @@ class WorkloadManager(object):
                 current_hit_map, current_hit_to_scan_map,
                 current_scan_hit_type_map)
             yield batch
+
+    @classmethod
+    def merge(cls, workloads):
+        total = cls()
+        for inst in workloads:
+            total.update(inst)
+        return total
 
 
 _WorkloadBatch = namedtuple("WorkloadBatch", [
