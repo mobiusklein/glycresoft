@@ -1,12 +1,17 @@
 import numpy as np
 
 from glycan_profiling.structure import FragmentMatchMap
+from glypy.structure.glycan_composition import FrozenMonosaccharideResidue
 
 from .base import (
     GlycopeptideSpectrumMatcherBase, ChemicalShift, EXDFragmentationStrategy,
     HCDFragmentationStrategy, IonSeries)
 
 from .glycan_signature_ions import GlycanCompositionSignatureMatcher
+
+neuac = FrozenMonosaccharideResidue.from_iupac_lite("NeuAc")
+neugc = FrozenMonosaccharideResidue.from_iupac_lite("NeuGc")
+fuc = FrozenMonosaccharideResidue.from_iupac_lite("Fuc")
 
 
 class SimpleCoverageScorer(GlycopeptideSpectrumMatcherBase):
@@ -40,10 +45,15 @@ class SimpleCoverageScorer(GlycopeptideSpectrumMatcherBase):
     def _match_backbone_series(self, series, error_tolerance=2e-5, masked_peaks=None, strategy=None):
         if strategy is None:
             strategy = HCDFragmentationStrategy
+        # Assumes that fragmentation proceeds from the start of the ladder (series position 1)
+        # which means that if the last fragment could be glycosylated then the next one will be
+        # but if the last fragment wasn't the next one might be.
+        previous_position_glycosylated = False
         for frags in self.target.get_fragments(series, strategy=strategy):
-            glycosylated_position = False
+            glycosylated_position = previous_position_glycosylated
             for frag in frags:
-                glycosylated_position |= frag.is_glycosylated
+                if not glycosylated_position:
+                    glycosylated_position |= frag.is_glycosylated
                 for peak in self.spectrum.all_peaks_for(frag.mass, error_tolerance):
                     if peak.index.neutral_mass in masked_peaks:
                         continue
@@ -53,6 +63,7 @@ class SimpleCoverageScorer(GlycopeptideSpectrumMatcherBase):
                     self.glycosylated_n_term_ion_count += 1
                 else:
                     self.glycosylated_c_term_ion_count += 1
+            previous_position_glycosylated = glycosylated_position
 
     def _compute_coverage_vectors(self):
         n_term_ions = np.zeros(len(self.target))
@@ -91,8 +102,8 @@ class SimpleCoverageScorer(GlycopeptideSpectrumMatcherBase):
         return numer / denom
 
     def _get_internal_size(self, glycan_composition):
-        terminal_groups = glycan_composition['NeuAc'] + glycan_composition['NeuGc']
-        side_groups = glycan_composition['Fuc']
+        terminal_groups = glycan_composition[neuac] + glycan_composition[neugc]
+        side_groups = glycan_composition[fuc]
         n = sum(glycan_composition.values())
         n -= terminal_groups
         if side_groups > 1:
