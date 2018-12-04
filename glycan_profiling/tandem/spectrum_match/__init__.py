@@ -3,12 +3,12 @@ from .spectrum_match import (
     SpectrumMatch, DeconvolutingSpectrumMatcherBase,
     ModelTreeNode,
     Unmodified, TargetReference, SpectrumReference,
-    neutron_offset, )
+    neutron_offset, MultiScoreSpectrumMatch, ScoreSet)
 
 from .solution_set import (
     SpectrumSolutionSet, SpectrumMatchRetentionStrategyBase, MinimumScoreRetentionStrategy,
     MaximumSolutionCountRetentionStrategy, TopScoringSolutionsRetentionStrategy,
-    SpectrumMatchRetentionMethod, default_selection_method)
+    SpectrumMatchRetentionMethod, default_selection_method, MultiScoreSpectrumSolutionSet)
 
 
 __all__ = [
@@ -29,4 +29,7 @@ __all__ = [
     "TopScoringSolutionsRetentionStrategy",
     "SpectrumMatchRetentionMethod",
     "default_selection_method",
+    'ScoreSet',
+    'MultiScoreSpectrumMatch',
+    'MultiScoreSpectrumSolutionSet',
 ]

@@ -1,4 +1,4 @@
-from .spectrum_match import SpectrumMatch, SpectrumReference, ScanWrapperBase
+from .spectrum_match import SpectrumMatch, SpectrumReference, ScanWrapperBase, MultiScoreSpectrumMatch
 
 
 class SpectrumSolutionSet(ScanWrapperBase):
@@ -57,14 +57,15 @@ class SpectrumSolutionSet(ScanWrapperBase):
         self.scan = SpectrumReference(
             self.scan.id, self.scan.precursor_information)
         solutions = []
-        best_score = self.best_solution().score
-        for sol in self.solutions:
-            sm = self.spectrum_match_type.from_match_solution(sol)
-            if abs(sm.score - best_score) < 1e-6:
-                sm.best_match = True
-            sm.scan = self.scan
-            solutions.append(sm)
-        self.solutions = solutions
+        if len(self) > 0:
+            best_score = self.best_solution().score
+            for sol in self.solutions:
+                sm = self.spectrum_match_type.from_match_solution(sol)
+                if abs(sm.score - best_score) < 1e-6:
+                    sm.best_match = True
+                sm.scan = self.scan
+                solutions.append(sm)
+            self.solutions = solutions
         self._is_simplified = True
         self._invalidate()
 
@@ -77,10 +78,11 @@ class SpectrumSolutionSet(ScanWrapperBase):
             method = default_selection_method
         if self._is_top_only:
             return
-        best_solution = self.best_solution()
-        self.solutions = method(self)
-        if len(self) == 0:
-            self.solutions = [best_solution]
+        if len(self) > 0:
+            best_solution = self.best_solution()
+            self.solutions = method(self)
+            if len(self) == 0:
+                self.solutions = [best_solution]
         self._is_top_only = True
         self._invalidate()
         return self
@@ -108,6 +110,10 @@ class SpectrumSolutionSet(ScanWrapperBase):
         dup._is_simplified = self._is_simplified
         dup._is_top_only = self._is_top_only
         return dup
+
+
+class MultiScoreSpectrumSolutionSet(SpectrumSolutionSet):
+    spectrum_match_type = MultiScoreSpectrumMatch
 
 
 class SpectrumMatchRetentionStrategyBase(object):
