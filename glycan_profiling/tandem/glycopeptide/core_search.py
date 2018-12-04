@@ -2,6 +2,8 @@
 
 import logging
 
+from collections import namedtuple
+
 try:
     from collections import Sequence
 except ImportError:
@@ -253,7 +255,7 @@ class GlycanCombinationRecord(object):
         The types of glycans combined to make this entity
     """
 
-    __slots__ = ['id', 'dehydrated_mass', 'composition', 'count', 'glycan_types', "_fragment_cache"]
+    __slots__ = ['id', 'dehydrated_mass', 'composition', 'count', 'glycan_types', 'size', "_fragment_cache"]
 
     @classmethod
     def from_combination(cls, combination):
@@ -284,6 +286,7 @@ class GlycanCombinationRecord(object):
         self.id = id
         self.dehydrated_mass = dehydrated_mass
         self.composition = composition
+        self.size = sum(composition.values())
         self.count = count
         self.glycan_types = glycan_types
         self._fragment_cache = dict()
@@ -433,6 +436,9 @@ except ImportError:
     pass
 
 
+GlycanMatchResult = namedtuple('GlycanMatchResult', ('peptide_mass', 'score', 'fragment_count', 'glycan_size'))
+
+
 class GlycanFilteringPeptideMassEstimator(GlycanCoarseScorerBase):
     def __init__(self, glycan_combination_db, product_error_tolerance=1e-5,
                  fragment_weight=0.56, core_weight=0.42, minimum_peptide_mass=500.0,
@@ -480,7 +486,7 @@ class GlycanFilteringPeptideMassEstimator(GlycanCoarseScorerBase):
         matched_fragments, n_matched, n_theoretical, core_matched, core_theoretical = self._n_glycan_match_stubs(
             scan, peptide_mass, glycan_combination, mass_shift_tandem_mass=mass_shift.tandem_mass)
         score = self._calculate_score(matched_fragments, n_matched, n_theoretical, core_matched, core_theoretical)
-        return score
+        return score, len(matched_fragments)
 
     def o_glycan_coarse_score(self, scan, glycan_combination, mass_shift=Unmodified, peptide_mass=None):
         '''Calculates a ranking score from O-glycopeptide stub-glycopeptide fragments.
@@ -503,7 +509,7 @@ class GlycanFilteringPeptideMassEstimator(GlycanCoarseScorerBase):
         matched_fragments, n_matched, n_theoretical, core_matched, core_theoretical = self._o_glycan_match_stubs(
             scan, peptide_mass, glycan_combination, mass_shift_tandem_mass=mass_shift.tandem_mass)
         score = self._calculate_score(matched_fragments, n_matched, n_theoretical, core_matched, core_theoretical)
-        return score
+        return score, len(matched_fragments)
 
     def gag_coarse_score(self, scan, glycan_combination, mass_shift=Unmodified, peptide_mass=None):
         '''Calculates a ranking score from GAG linker glycopeptide stub-glycopeptide fragments.
@@ -526,12 +532,13 @@ class GlycanFilteringPeptideMassEstimator(GlycanCoarseScorerBase):
         matched_fragments, n_matched, n_theoretical, core_matched, core_theoretical = self._gag_match_stubs(
             scan, peptide_mass, glycan_combination, mass_shift_tandem_mass=mass_shift.tandem_mass)
         score = self._calculate_score(matched_fragments, n_matched, n_theoretical, core_matched, core_theoretical)
-        return score
+        return score, len(matched_fragments)
 
-    def _estimate_peptide_mass(self, scan, mass_shift=Unmodified):
+    def match(self, scan, mass_shift=Unmodified):
         output = []
         intact_mass = scan.precursor_information.neutral_mass
         threshold_mass = (intact_mass + 1) - self.minimum_peptide_mass
+        last_peptide_mass = 0
         for glycan_combination in self.glycan_combination_db:
             # Stop searching when the peptide mass would be below the minimum peptide
             # mass.
@@ -540,29 +547,36 @@ class GlycanFilteringPeptideMassEstimator(GlycanCoarseScorerBase):
             peptide_mass = (
                 intact_mass - glycan_combination.dehydrated_mass
             ) - mass_shift.mass
+            if abs(last_peptide_mass - peptide_mass) < 1e-3:
+                continue
+            last_peptide_mass = peptide_mass
             best_score = 0
+            best_n_frags = 0
             if glycan_combination.is_n_glycan():
-                score = self.n_glycan_coarse_score(
+                score, n_frags = self.n_glycan_coarse_score(
                     scan, glycan_combination, mass_shift=mass_shift, peptide_mass=peptide_mass)
                 if score > best_score:
                     best_score = score
+                    best_n_frags = n_frags
             if glycan_combination.is_o_glycan():
-                score = self.o_glycan_coarse_score(
+                score, n_frags = self.o_glycan_coarse_score(
                     scan, glycan_combination, mass_shift=mass_shift, peptide_mass=peptide_mass)
                 if score > best_score:
                     best_score = score
+                    best_n_frags = n_frags
             if glycan_combination.is_gag_linker():
-                score = self.gag_coarse_score(
+                score, n_frags = self.gag_coarse_score(
                     scan, glycan_combination, mass_shift=mass_shift, peptide_mass=peptide_mass)
                 if score > best_score:
                     best_score = score
-            output.append((peptide_mass, best_score))
+                    best_n_frags = n_frags
+            output.append(GlycanMatchResult(peptide_mass, best_score, best_n_frags, glycan_combination.size))
         output = sorted(output, key=lambda x: x[1], reverse=1)
         return output
 
-    def estimate_peptide_mass(self, scan, topn=150, mass_shift=Unmodified):
-        out = self._estimate_peptide_mass(scan, mass_shift=mass_shift)
-        out = out[:topn]
+    def estimate_peptide_mass(self, scan, topn=150, threshold=-1, min_fragments=0, mass_shift=Unmodified):
+        out = self.match(scan, mass_shift=mass_shift)
+        out = [x for x in out if x[1] > threshold and x[2] >= min_fragments][:topn]
         return [x[0] for x in out]
 
     def glycan_for_peptide_mass(self, scan, peptide_mass):
