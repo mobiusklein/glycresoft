@@ -18,7 +18,7 @@ from glypy.utils import uid, Enum
 from glycan_profiling.task import TaskBase
 from glycan_profiling.chromatogram_tree import Unmodified
 
-from .spectrum_match import SpectrumMatch
+from .spectrum_match import SpectrumMatch, MultiScoreSpectrumMatch, ScoreSet
 
 
 class SentinelToken(object):
@@ -44,6 +44,237 @@ class ProcessDispatcherState(Enum):
     terminating = 6
     terminating_workers_live = 7
     done = 8
+
+
+class TaskQueueFeeder(TaskBase):
+    def __init__(self, input_queue, done_event):
+        self.input_queue = input_queue
+        self.done_event = done_event
+
+    def build_work_order(self, hit_id, hit_map, scan_hit_type_map, hit_to_scan):
+        """Packs several task-defining data structures into a simple to unpack payload for
+        sending over IPC to worker processes.
+
+        Parameters
+        ----------
+        hit_id : int
+            The id number of a hit structure
+        hit_map : dict
+            Maps hit_id to hit structure
+        hit_to_scan : dict
+            Maps hit id to list of scan ids
+        scan_hit_type_map : dict
+            Maps (hit id, scan id) to the type of mass shift
+            applied for this match
+
+        Returns
+        -------
+        tuple
+            Packaged message payload
+        """
+        return (hit_map[hit_id],
+                [(s, scan_hit_type_map[s, hit_id])
+                 for s in hit_to_scan[hit_id]])
+
+    def feed(self, hit_map, hit_to_scan, scan_hit_type_map):
+        """Push tasks onto the input queue feeding the worker
+        processes.
+
+        Parameters
+        ----------
+        hit_map : dict
+            Maps hit id to structure
+        hit_to_scan : dict
+            Maps hit id to list of scan ids
+        scan_hit_type_map : dict
+            Maps (hit id, scan id) to the type of mass shift
+            applied for this match
+        """
+        i = 0
+        n = len(hit_to_scan)
+        seen = dict()
+        for hit_id, scan_ids in hit_to_scan.items():
+            i += 1
+            hit = hit_map[hit_id]
+            # This sanity checking is likely unnecessary, and is a hold-over from
+            # debugging redundancy in the result queue. For the moment, it is retained
+            # to catch "new" bugs.
+            # If a hit structure's id doesn't match the id it was looked up with, something
+            # may be wrong with the upstream process. Log this event.
+            if hit.id != hit_id:
+                self.log("Hit %r doesn't match its id %r" % (hit, hit_id))
+                if hit_to_scan[hit.id] != scan_ids:
+                    self.log("Mismatch leads to different scans! (%d, %d)" % (
+                        len(scan_ids), len(hit_to_scan[hit.id])))
+            # If a hit structure has been seen multiple times independent of whether or
+            # not the expected hit id matches, something may be wrong in the upstream process.
+            # Log this event.
+            if hit.id in seen:
+                self.log("Hit %r already dealt under hit_id %r, now again at %r" % (
+                    hit, seen[hit.id], hit_id))
+                raise ValueError(
+                    "Hit %r already dealt under hit_id %r, now again at %r" % (
+                        hit, seen[hit.id], hit_id))
+            seen[hit.id] = hit_id
+            if i % 10000 == 0:
+                self.input_queue.join()
+            try:
+                work_order = self.build_work_order(hit_id, hit_map, scan_hit_type_map, hit_to_scan)
+                self.input_queue.put(work_order)
+                # Set a long progress update interval because the feeding step is less
+                # important than the processing step. Additionally, as the two threads
+                # run concurrently, the feeding thread can log a short interval before
+                # the entire process has formally logged that it has started.
+                if i % 10000 == 0:
+                    self.log("...... Dealt %d work items (%0.2f%% Complete)" % (i,
+                             i * 100.0 / n))
+            except Exception as e:
+                self.log("An exception occurred while feeding %r and %d scan ids: %r" % (hit_id, len(scan_ids), e))
+        self.log("...... Finished dealing %d work items" % (i,))
+        self.input_queue.join()
+        self.done_event.set()
+        return
+
+    def __call__(self, hit_map, hit_to_scan, scan_hit_type_map):
+        return self.feed(hit_map, hit_to_scan, scan_hit_type_map)
+
+
+class SpectrumEvaluatorBase(object):
+
+    def fetch_scan(self, key):
+        return self.scan_map[key]
+
+    def fetch_mass_shift(self, key):
+        return self.mass_shift_map[key]
+
+    def evaluate(self, scan, structure, *args, **kwargs):
+        """Evaluate the match between ``structure`` and ``scan``
+
+        Parameters
+        ----------
+        scan : ms_deisotope.ProcessedScan
+            MSn scan to match against
+        structure : object
+            Structure to match against ``scan``
+        *args
+            Propagated to scoring function
+        **kwargs
+            Propagated to scoring function
+
+        Returns
+        -------
+        SpectrumMatcherBase
+        """
+        raise NotImplementedError()
+
+    def handle_instance(self, structure, scan, mass_shift):
+        solution = self.evaluate(scan, structure, mass_shift=mass_shift,
+                                 **self.evaluation_args)
+        self.solution_map[scan.id, mass_shift.name] = self.solution_packer(solution)
+        return solution
+
+    def handle_item(self, structure, scan_specification):
+        scan_specification = [(self.fetch_scan(i), self.fetch_mass_shift(j)) for i, j in scan_specification]
+        solution_target = None
+        solution = None
+        for scan, mass_shift in scan_specification:
+            solution = self.handle_instance(structure, scan, mass_shift)
+            solution_target = solution.target
+        if solution is not None:
+            try:
+                solution.target.clear_caches()
+            except AttributeError:
+                pass
+        return self.pack_output(solution_target)
+
+    def pack_output(self, target):
+        raise NotImplementedError()
+
+
+class LocalSpectrumEvaluator(SpectrumEvaluatorBase, TaskBase):
+    def __init__(self, evaluator, scan_map, mass_shift_map, solution_packer):
+        self.evaluator = evaluator
+        self.scan_map = scan_map
+        self.mass_shift_map = mass_shift_map
+        self.solution_packer = solution_packer
+        self.solution_map = dict()
+
+    def evaluate(self, scan, structure, *args, **kwargs):
+        return self.evaluator.evaluate(scan, structure, *args, **kwargs)
+
+    def pack_output(self, target):
+        package = (target, self.solution_map)
+        self.solution_map = dict()
+        return package
+
+
+class SolutionHandler(TaskBase):
+    def __init__(self, scan_solution_map, scan_map, mass_shift_map, packer=None):
+        if packer is None:
+            packer = SolutionPacker()
+        self.scan_solution_map = defaultdict(list, (scan_solution_map or {}))
+        self.scan_map = scan_map
+        self.mass_shift_map = mass_shift_map
+        self.packer = packer
+
+    def _make_spectrum_match(self, scan_id, target, score, shift_type):
+        return SpectrumMatch(
+            self.scan_map[scan_id], target, score,
+            mass_shift=self.mass_shift_map[shift_type])
+
+    def store_result(self, target, score_map):
+        """Save the spectrum match scores for ``target`` against the
+        set of matched scans
+
+        Parameters
+        ----------
+        target : object
+            The structure that was matched
+        score_map : dict
+            Maps (scan id, mass shift name) to score
+        """
+
+        j = 0
+        for hit_spec, result_pack in score_map.items():
+            scan_id, shift_type = hit_spec
+            score = self.packer.unpack(result_pack)
+            j += 1
+            if j % 1000 == 0:
+                self.log("...... Mapping match %d for %s on %s with score %r" % (j, target, scan_id, score))
+            self.scan_solution_map[scan_id].append(
+                self._make_spectrum_match(scan_id, target, score, shift_type))
+
+    def __call__(self, target, score_map):
+        return self.store_result(target, score_map)
+
+
+class SolutionPacker(object):
+    def __call__(self, spectrum_match):
+        return spectrum_match.score
+
+    def unpack(self, package):
+        return package
+
+
+class MultiScoreSolutionHandler(SolutionHandler):
+    def __init__(self, scan_solution_map, scan_map, mass_shift_map, packer=None):
+        if packer is None:
+            packer = MultiScoreSolutionPacker()
+        super(MultiScoreSolutionHandler, self).__init__(
+            scan_solution_map, scan_map, mass_shift_map, packer)
+
+    def _make_spectrum_match(self, scan_id, target, score, shift_type):
+        return MultiScoreSpectrumMatch(
+            self.scan_map[scan_id], target, score,
+            mass_shift=self.mass_shift_map[shift_type])
+
+
+class MultiScoreSolutionPacker(object):
+    def __call__(self, spectrum_match):
+        return ScoreSet.from_spectrum_matcher(spectrum_match).pack()
+
+    def unpack(self, package):
+        return ScoreSet.unpack(package)
 
 
 class IdentificationProcessDispatcher(TaskBase):
@@ -102,7 +333,9 @@ class IdentificationProcessDispatcher(TaskBase):
     child_failure_timeout = 2.5e2
 
     def __init__(self, worker_type, scorer_type, evaluation_args=None, init_args=None,
-                 mass_shift_map=None, n_processes=3, ipc_manager=None):
+                 mass_shift_map=None, n_processes=3, ipc_manager=None, solution_handler_type=None):
+        if solution_handler_type is None:
+            solution_handler_type = SolutionHandler
         if ipc_manager is None:
             self.log("Creating IPC Manager. Prefer to pass a reusable IPC Manager instead.")
             ipc_manager = Manager()
@@ -118,11 +351,17 @@ class IdentificationProcessDispatcher(TaskBase):
         self.worker_type = worker_type
         self.scorer_type = scorer_type
         self.n_processes = n_processes
+
         self.producer_thread_done_event = self.ipc_manager.Event()
         self.consumer_done_event = self.ipc_manager.Event()
+
         self.input_queue = self._make_input_queue()
         self.output_queue = self._make_output_queue()
-        self.scan_solution_map = defaultdict(list)
+
+        self.feeder = TaskQueueFeeder(self.input_queue, self.producer_thread_done_event)
+
+        self.solution_handler = solution_handler_type({}, {}, mass_shift_map)
+
         self.evaluation_args = evaluation_args
         self.init_args = init_args
         self.workers = []
@@ -135,6 +374,10 @@ class IdentificationProcessDispatcher(TaskBase):
         self._token_to_worker = {}
         self._has_received_token = set()
         self._has_remote_error = False
+
+    @property
+    def scan_solution_map(self):
+        return self.solution_handler.scan_solution_map
 
     def _make_input_queue(self):
         return JoinableQueue(int(1e5))
@@ -184,6 +427,7 @@ class IdentificationProcessDispatcher(TaskBase):
 
         self.input_queue = self._make_input_queue()
         self.output_queue = self._make_output_queue()
+        self.feeder = TaskQueueFeeder(self.input_queue, self.producer_thread_done_event)
 
         for i in range(self.n_processes):
             worker = self.worker_type(
@@ -195,7 +439,9 @@ class IdentificationProcessDispatcher(TaskBase):
                 evaluation_args=self.evaluation_args,
                 spectrum_map=self.scan_load_map,
                 mass_shift_map=self.mass_shift_load_map,
-                log_handler=self.log_controller.sender(), **self.init_args)
+                log_handler=self.log_controller.sender(),
+                solution_packer=self.solution_handler.packer,
+                **self.init_args)
             worker._work_complete = self.ipc_manager.Event()
             worker.start()
             self._token_to_worker[worker.token] = worker
@@ -214,66 +460,6 @@ class IdentificationProcessDispatcher(TaskBase):
                 self._has_remote_error = True
                 return worker_still_busy
         return worker_still_busy
-
-    def feeder(self, hit_map, hit_to_scan, scan_hit_type_map):
-        """Push tasks onto the input queue feeding the worker
-        processes.
-
-        Parameters
-        ----------
-        hit_map : dict
-            Maps hit id to structure
-        hit_to_scan : dict
-            Maps hit id to list of scan ids
-        scan_hit_type_map : dict
-            Maps (hit id, scan id) to the type of mass shift
-            applied for this match
-        """
-        i = 0
-        n = len(hit_to_scan)
-        seen = dict()
-        for hit_id, scan_ids in hit_to_scan.items():
-            i += 1
-            hit = hit_map[hit_id]
-            # This sanity checking is likely unnecessary, and is a hold-over from
-            # debugging redundancy in the result queue. For the moment, it is retained
-            # to catch "new" bugs.
-            # If a hit structure's id doesn't match the id it was looked up with, something
-            # may be wrong with the upstream process. Log this event.
-            if hit.id != hit_id:
-                self.log("Hit %r doesn't match its id %r" % (hit, hit_id))
-                if hit_to_scan[hit.id] != scan_ids:
-                    self.log("Mismatch leads to different scans! (%d, %d)" % (
-                        len(scan_ids), len(hit_to_scan[hit.id])))
-            # If a hit structure has been seen multiple times independent of whether or
-            # not the expected hit id matches, something may be wrong in the upstream process.
-            # Log this event.
-            if hit.id in seen:
-                self.log("Hit %r already dealt under hit_id %r, now again at %r" % (
-                    hit, seen[hit.id], hit_id))
-                raise ValueError(
-                    "Hit %r already dealt under hit_id %r, now again at %r" % (
-                        hit, seen[hit.id], hit_id))
-            seen[hit.id] = hit_id
-            if i % 10000 == 0:
-                self.input_queue.join()
-            try:
-                work_order = self.build_work_order(
-                    hit_id, hit_map, scan_hit_type_map, hit_to_scan)
-                self.input_queue.put(work_order)
-                # Set a long progress update interval because the feeding step is less
-                # important than the processing step. Additionally, as the two threads
-                # run concurrently, the feeding thread can log a short interval before
-                # the entire process has formally logged that it has started.
-                if i % 10000 == 0:
-                    self.log("...... Dealt %d work items (%0.2f%% Complete)" % (i,
-                             i * 100.0 / n))
-            except Exception as e:
-                self.log("An exception occurred while feeding %r and %d scan ids: %r" % (hit_id, len(scan_ids), e))
-        self.log("...... Finished dealing %d work items" % (i,))
-        self.input_queue.join()
-        self.producer_thread_done_event.set()
-        return
 
     def build_work_order(self, hit_id, hit_map, scan_hit_type_map, hit_to_scan):
         """Packs several task-defining data structures into a simple to unpack payload for
@@ -296,9 +482,7 @@ class IdentificationProcessDispatcher(TaskBase):
         tuple
             Packaged message payload
         """
-        return (hit_map[hit_id],
-                [(s, scan_hit_type_map[s, hit_id])
-                 for s in hit_to_scan[hit_id]])
+        return self.feeder.build_work_order(hit_id, hit_map, scan_hit_type_map, hit_to_scan)
 
     def spawn_queue_feeder(self, hit_map, hit_to_scan, scan_hit_type_map):
         """Create a thread to run :meth:`feeder` with the provided arguments
@@ -318,11 +502,26 @@ class IdentificationProcessDispatcher(TaskBase):
         -------
         Thread
         """
-        feeder_thread = Thread(target=self.feeder, args=(hit_map, hit_to_scan,
-                                                         scan_hit_type_map))
+        feeder_thread = Thread(
+            target=self.feeder, args=(hit_map, hit_to_scan, scan_hit_type_map))
         feeder_thread.daemon = True
         feeder_thread.start()
         return feeder_thread
+
+    def store_result(self, target, score_map):
+        """Save the spectrum match scores for ``target`` against the
+        set of matched scans
+
+        Parameters
+        ----------
+        target : object
+            The structure that was matched
+        score_map : dict
+            Maps (scan id, mass shift name) to score
+        scan_map : dict
+            Maps scan id to :class:`.ProcessedScan`
+        """
+        self.solution_handler(target, score_map)
 
     def _reconstruct_missing_work_items(self, seen, hit_map, hit_to_scan, scan_hit_type_map):
         """Handle task items that are pending after it is believed that the workers
@@ -343,46 +542,18 @@ class IdentificationProcessDispatcher(TaskBase):
         missing = set(hit_to_scan) - set(seen)
         i = 0
         n = len(missing)
+        evaluator = LocalSpectrumEvaluator(
+            self.workers[0], self.local_scan_map, self.local_mass_shift_map,
+            self.solution_handler.packer)
         for missing_id in missing:
-            target, scan_spec = self.build_work_order(
-                missing_id, hit_map, scan_hit_type_map, hit_to_scan)
-            target, score_map = self.evalute_work_order_local(target, scan_spec)
+            target, scan_spec = self.build_work_order(missing_id, hit_map, scan_hit_type_map, hit_to_scan)
+            target, score_map = evaluator.handle_item(target, scan_spec)
             seen[target.id] = (-1, 0)
-            self.store_result(target, score_map, self.local_scan_map)
+            self.store_result(target, score_map)
             i += 1
             if i % 1000 == 0:
                 self.log("...... Processed %d local matches (%0.2f%%)" % (i, i * 100. / n))
         return i
-
-    def store_result(self, target, score_map, scan_map):
-        """Save the spectrum match scores for ``target`` against the
-        set of matched scans
-
-        Parameters
-        ----------
-        target : object
-            The structure that was matched
-        score_map : dict
-            Maps (scan id, mass shift name) to score
-        scan_map : dict
-            Maps scan id to :class:`.ProcessedScan`
-        """
-
-        j = 0
-        for hit_spec, score in score_map.items():
-            scan_id, shift_type = hit_spec
-            j += 1
-            if j % 1000 == 0:
-                self.log("...... Mapping match %d for %s on %s with score %r" % (j, target, scan_id, score))
-            self.scan_solution_map[scan_id].append(
-                SpectrumMatch(scan_map[scan_id], target, score,
-                              mass_shift=self.local_mass_shift_map[shift_type]))
-
-    def fetch_scan(self, key):
-        return self.local_scan_map[key]
-
-    def fetch_mass_shift(self, key):
-        return self.local_mass_shift_map[key]
 
     def evalute_work_order_local(self, structure, scan_specification):
         """Mimic one iteration of the main loop of :class:`SpectrumIdentificationWorkerBase`
@@ -407,9 +578,7 @@ class IdentificationProcessDispatcher(TaskBase):
         solution = None
         solution_map = dict()
         for scan, mass_shift in scan_specification:
-            solution = self.evaluate(scan, structure, mass_shift=mass_shift,
-                                     **self.evaluation_args)
-            solution_map[scan.id, mass_shift.name] = solution.score
+            solution = self.handle_instance(structure, scan, mass_shift, solution_map)
             solution_target = solution.target
         if solution is not None:
             try:
@@ -418,40 +587,9 @@ class IdentificationProcessDispatcher(TaskBase):
                 pass
         return solution_target, solution_map
 
-    def evaluate(self, scan, structure, *args, **kwargs):
-        """Evaluate the match between ``structure`` and ``scan``
-        using the scoring method provided by a worker process
-        locally.
-
-        Parameters
-        ----------
-        scan : ms_deisotope.ProcessedScan
-            MSn scan to match against
-        structure : object
-            Structure to match against ``scan``
-        *args
-            Propagated to scoring function
-        **kwargs
-            Propagated to scoring function
-
-        Returns
-        -------
-        SpectrumMatcherBase
-
-        Raises
-        ------
-        ValueError
-            If no workers have been created, then we cannot use their
-            evaluate method.
-        """
-        if not self.workers:
-            raise ValueError(
-                "Cannot evaluate a spectrum match without an instantiated worker pool.")
-        worker = self.workers[0]
-        return worker.evaluate(scan, structure, *args, **kwargs)
-
     def process(self, scan_map, hit_map, hit_to_scan, scan_hit_type_map):
         self.structure_map = hit_map
+        self.solution_handler.scan_map = scan_map
         self.create_pool(scan_map)
         feeder_thread = self.spawn_queue_feeder(
             hit_map, hit_to_scan, scan_hit_type_map)
@@ -556,7 +694,7 @@ class IdentificationProcessDispatcher(TaskBase):
                             self.debug("......... %r" % (worker,))
                         self.debug("...... IPC Manager: %r" % (self.ipc_manager,))
                 continue
-            self.store_result(target, score_map, scan_map)
+            self.store_result(target, score_map)
         consumer_end = time.time()
         self.debug("... Consumer Done (%0.3g sec.)" % (consumer_end - start_time))
         self.consumer_done_event.set()
@@ -572,11 +710,12 @@ class IdentificationProcessDispatcher(TaskBase):
         return self.scan_solution_map
 
 
-class SpectrumIdentificationWorkerBase(Process):
+class SpectrumIdentificationWorkerBase(Process, SpectrumEvaluatorBase):
     verbose = False
 
     def __init__(self, input_queue, output_queue, producer_done_event, consumer_done_event,
-                 scorer_type, evaluation_args, spectrum_map, mass_shift_map, log_handler):
+                 scorer_type, evaluation_args, spectrum_map, mass_shift_map, log_handler,
+                 solution_packer):
         Process.__init__(self)
         self.daemon = True
         self.input_queue = input_queue
@@ -585,6 +724,8 @@ class SpectrumIdentificationWorkerBase(Process):
         self.consumer_done_event = consumer_done_event
         self.scorer_type = scorer_type
         self.evaluation_args = evaluation_args
+
+        self.solution_packer = solution_packer
 
         self.spectrum_map = spectrum_map
         self.mass_shift_map = mass_shift_map
@@ -633,22 +774,6 @@ class SpectrumIdentificationWorkerBase(Process):
 
     def evaluate(self, scan, structure, *args, **kwargs):
         raise NotImplementedError()
-
-    def handle_item(self, structure, scan_specification):
-        scan_specification = [(self.fetch_scan(i), self.fetch_mass_shift(j)) for i, j in scan_specification]
-        solution_target = None
-        solution = None
-        for scan, mass_shift in scan_specification:
-            solution = self.evaluate(scan, structure, mass_shift=mass_shift,
-                                     **self.evaluation_args)
-            self.solution_map[scan.id, mass_shift.name] = solution.score
-            solution_target = solution.target
-        if solution is not None:
-            try:
-                solution.target.clear_caches()
-            except AttributeError:
-                pass
-        self.pack_output(solution_target)
 
     def cleanup(self):
         self.debug("... Process %s Setting Work Complete Flag. Processed %d structures" % (

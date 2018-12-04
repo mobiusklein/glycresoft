@@ -4,11 +4,13 @@ from ms_deisotope import isotopic_shift
 from glycan_profiling.task import TaskBase
 from glycan_profiling.chromatogram_tree import Unmodified
 
-from .process_dispatcher import IdentificationProcessDispatcher
+from .process_dispatcher import IdentificationProcessDispatcher, SolutionHandler, MultiScoreSolutionHandler
 from .workload import WorkloadManager
 from .spectrum_match import (
+    MultiScoreSpectrumSolutionSet,
     SpectrumSolutionSet,
-    SpectrumMatch)
+    SpectrumMatch,
+    )
 
 
 _ScanQuery = namedtuple("ScanQuery", ("scan", "mass_shift", "isotopic_shift", "query_mass", "meta"))
@@ -56,6 +58,7 @@ DEFAULT_BATCH_SIZE = 25e4
 class TandemClusterEvaluatorBase(TaskBase):
 
     neutron_offset = isotopic_shift()
+    solution_set_type = SpectrumSolutionSet
 
     def __init__(self, tandem_cluster, scorer_type, structure_database, verbose=False,
                  n_processes=1, ipc_manager=None, probing_range_for_missing_precursors=3,
@@ -158,7 +161,7 @@ class TandemClusterEvaluatorBase(TaskBase):
                 result = self.evaluate(
                     scan, structure, mass_shift=mass_shift, **kwargs)
                 solutions.append(result)
-        out = SpectrumSolutionSet(
+        out = self.solution_set_type(
             scan, sorted(
                 solutions, key=lambda x: x.score, reverse=True)).threshold()
         return out
@@ -294,7 +297,7 @@ class TandemClusterEvaluatorBase(TaskBase):
             for scan_id in scan_list:
                 scan = scan_map[scan_id]
                 mass_shift = self.mass_shift_map[scan_hit_type_map[scan_id, hit_id]]
-                match = SpectrumMatch.from_match_solution(
+                match = self.solution_set_type.spectrum_match_type.from_match_solution(
                     self.evaluate(scan, hit, mass_shift=mass_shift,
                                   *args, **kwargs))
                 scan_solution_map[scan.id].append(match)
@@ -311,7 +314,7 @@ class TandemClusterEvaluatorBase(TaskBase):
             if len(solutions) == 0:
                 continue
             scan = scan_map[scan_id]
-            out = SpectrumSolutionSet(scan, sorted(
+            out = self.solution_set_type(scan, sorted(
                 solutions, key=lambda x: x.score, reverse=True))
             out.select_top()
             if len(out) == 0:
@@ -326,14 +329,18 @@ class TandemClusterEvaluatorBase(TaskBase):
     def _evaluate_hit_groups_multiple_processes(self, workload, **kwargs):
         batch_size, scan_map, hit_map, hit_to_scan, scan_hit_type_map = workload
         worker_type, init_args = self._worker_specification
+        if issubclass(self.solution_set_type, MultiScoreSpectrumSolutionSet):
+            handler_tp = MultiScoreSolutionHandler
+        else:
+            handler_tp = SolutionHandler
         dispatcher = IdentificationProcessDispatcher(
             worker_type, self.scorer_type, evaluation_args=kwargs, init_args=init_args,
             n_processes=self.n_processes, ipc_manager=self.ipc_manager,
-            mass_shift_map=self.mass_shift_map)
+            mass_shift_map=self.mass_shift_map, solution_handler_type=handler_tp)
         return dispatcher.process(scan_map, hit_map, hit_to_scan, scan_hit_type_map)
 
     def _evaluate_hit_groups(self, batch, **kwargs):
-        if self.n_processes == 1 or len(batch.hit_map) < 500:
+        if self.n_processes == 1 or len(batch.hit_map) < 1000:
             return self._evaluate_hit_groups_single_process(
                 batch, **kwargs)
         else:
