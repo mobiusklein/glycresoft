@@ -16,6 +16,7 @@ from .proteomics.peptide_permutation import (
     ProteinDigestor,
     MultipleProcessProteinDigestor,
     ProteinSplitter)
+from .proteomics.uniprot import UniprotProteinDownloader, Empty
 from .proteomics.remove_duplicate_peptides import DeduplicatePeptides
 
 from .proteomics.fasta import ProteinFastaFileParser
@@ -105,15 +106,45 @@ class FastaGlycopeptideHypothesisSerializer(GlycopeptideHypothesisSerializerBase
 
     def split_proteins(self):
         self.log("Begin Applying Protein Annotations")
-        splitter = ProteinSplitter(
-            self.constant_modifications, self.variable_modifications)
+        splitter = ProteinSplitter(self.constant_modifications, self.variable_modifications)
         i = 0
         j = 0
         protein_ids = self.protein_ids()
+        protein_names = [self.query(Protein.name).filter(
+            Protein.id == protein_id).first()[0] for protein_id in protein_ids]
+        name_to_id = {n: i for n, i in zip(protein_names, protein_ids)}
+        uniprot_queue = UniprotProteinDownloader(protein_names)
+        uniprot_queue.start()
         n = len(protein_ids)
         interval = int(min((n * 0.1) + 1, 100))
         acc = []
-        for protein_id in protein_ids:
+        seen = set()
+        while True:
+            try:
+                protein_name, record = uniprot_queue.get()
+                protein_id = name_to_id[protein_name]
+                seen.add(protein_id)
+                i += 1
+                if isinstance(record, Exception):
+                    continue
+                protein = self.query(Protein).get(protein_id)
+                if i % interval == 0:
+                    self.log("... %0.3f%% Complete (%d/%d). %d Peptides Produced." % (i * 100. / n, i, n, j))
+                sites = splitter.get_split_sites_from_features(record)
+                for peptide in splitter.handle_protein(protein, sites):
+                    acc.append(peptide)
+                    j += 1
+                    if len(acc) > 100000:
+                        self.log("... %0.3f%% Complete (%d/%d). %d Peptides Produced." % (i * 100. / n, i, n, j))
+                        self.session.bulk_save_objects(acc)
+                        self.session.commit()
+                        acc = []
+            except Empty:
+                uniprot_queue.join()
+                if uniprot_queue.done_event.is_set():
+                    break
+
+        for protein_id in set(protein_ids) - seen:
             i += 1
             protein = self.query(Protein).get(protein_id)
             if i % interval == 0:

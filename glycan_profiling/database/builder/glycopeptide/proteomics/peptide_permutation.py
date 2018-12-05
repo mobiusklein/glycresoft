@@ -8,10 +8,11 @@ from ms_deisotope.peak_dependency_network.intervals import Interval, IntervalTre
 
 from glycopeptidepy import enzyme
 from .utils import slurp
-from .uniprot import uniprot, get_uniprot_accession
+from .uniprot import (uniprot, get_uniprot_accession, UniprotProteinDownloader)
 
 from glypy.composition import formula
 from glycopeptidepy.structure import sequence, modification, residue
+from glycopeptidepy.algorithm import ModificationSiteAssignmentCombinator
 from glycopeptidepy import PeptideSequence
 
 from glycan_profiling.task import TaskBase
@@ -61,42 +62,6 @@ def get_base_peptide(peptide_obj):
         return PeptideSequence(peptide_obj.base_peptide_sequence)
     else:
         return PeptideSequence(str(peptide_obj))
-
-
-class ModificationSiteAssignmentCombinator(object):
-    def __init__(self, variable_site_map):
-        self.modification_to_site = variable_site_map
-        self.site_to_modification = self.transpose_sites()
-
-    def transpose_sites(self):
-        """Given a dictionary mapping between modification names and
-        an iterable of valid sites, create a dictionary mapping between
-        modification names and a list of valid sites plus the constant `None`
-
-        Returns
-        -------
-        dict
-        """
-        sites = defaultdict(list)
-        for mod, varsites in self.modification_to_site.items():
-            for site in varsites:
-                sites[site].append(mod)
-        for site in list(sites):
-            sites[site].append(None)
-        return sites
-
-    def _remove_empty_sites(self, site_mod_pairs):
-        return [sm for sm in site_mod_pairs if sm[1] is not None]
-
-    def assign(self):
-        sites = list(self.site_to_modification.keys())
-        choices = list(self.site_to_modification.values())
-        for selected in itertools.product(*choices):
-            site_mod_pairs = zip(sites, selected)
-            yield self._remove_empty_sites(site_mod_pairs)
-
-    def __iter__(self):
-        return self.assign()
 
 
 class PeptidePermuter(object):
@@ -478,27 +443,32 @@ class ProteinSplitter(TaskBase):
         self.peptide_permuter = PeptidePermuter(
             self.constant_modifications, self.variable_modifications)
 
-    def handle_protein(self, protein_obj):
-        try:
-            accession = get_uniprot_accession(protein_obj.name)
-            if accession:
-                try:
-                    sites = self.get_split_sites(accession)
-                    return self.split_protein(protein_obj, sites)
-                except IOError:
+    def handle_protein(self, protein_obj, sites=None):
+        if sites is None or not sites:
+            try:
+                accession = get_uniprot_accession(protein_obj.name)
+                if accession:
+                    try:
+                        sites = self.get_split_sites(accession)
+                        return self.split_protein(protein_obj, sites)
+                    except IOError:
+                        return []
+                else:
                     return []
-            else:
+            except XMLSyntaxError:
                 return []
-        except XMLSyntaxError:
-            return []
-        except Exception as e:
-            self.error(
-                ("An unhandled error occurred while retrieving"
-                 " non-proteolytic cleavage sites"), e)
-            return []
+            except Exception as e:
+                self.error(
+                    ("An unhandled error occurred while retrieving"
+                     " non-proteolytic cleavage sites"), e)
+                return []
+        else:
+            try:
+                return self.split_protein(protein_obj, sites)
+            except IOError:
+                return []
 
-    def get_split_sites(self, accession):
-        record = uniprot.get(accession)
+    def get_split_sites_from_features(self, record):
         splittable_features = ("signal peptide", "propeptide", "initiator methionine",
                                "peptide", "transit peptide")
         split_sites = set()
@@ -511,6 +481,10 @@ class ProteinSplitter(TaskBase):
         except KeyError:
             pass
         return sorted(split_sites)
+
+    def get_split_sites(self, accession):
+        record = uniprot.get(accession)
+        return self.get_split_sites_from_features(record)
 
     def _make_split_expression(self, sites):
         return [

@@ -19,7 +19,7 @@ def get_uniprot_accession(name):
         return None
 
 
-class UniprotProteinDownloader(object):
+class UniprotProteinDownloader(TaskBase):
     def __init__(self, accession_list, n_threads=4):
         self.accession_list = accession_list
         self.n_threads = n_threads
@@ -29,12 +29,22 @@ class UniprotProteinDownloader(object):
         self.done_event = threading.Event()
         self.workers = []
 
+    def task_handler(self, accession_number):
+        accession = get_uniprot_accession(accession_number)
+        if accession is None:
+            accession = accession_number
+        protein_data = uniprot.get(accession)
+        self.output_queue.put((accession_number, protein_data))
+        return protein_data
+
     def fetch(self, accession_number):
         try:
-            protein_data = uniprot.get(accession_number)
-            self.output_queue.put((accession_number, protein_data))
+            self.task_handler(accession_number)
         except Exception as e:
-            self.output_queue.put((accession_number, e))
+            self.error_handler(accession_number, e)
+
+    def error_handler(self, accession_number, error):
+        self.output_queue.put((accession_number, error))
 
     def fetcher_task(self):
         has_work = True
@@ -66,8 +76,12 @@ class UniprotProteinDownloader(object):
 
     def join(self):
         for worker in self.workers:
-            worker.join()
-        self.done_event.set()
+            if worker.is_alive():
+                break
+        else:
+            self.done_event.set()
+            return True
+        return False
 
     def start(self):
         self.run()
