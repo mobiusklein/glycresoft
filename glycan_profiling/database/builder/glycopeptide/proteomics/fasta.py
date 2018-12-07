@@ -11,9 +11,8 @@ from .sequence_tree import SuffixTree
 
 
 class ProteinFastaFileParser(FastaFileParser):
-
-    def __init__(self, path):
-        super(ProteinFastaFileParser, self).__init__(path)
+    def __init__(self, *args, **kwargs):
+        super(ProteinFastaFileParser, self).__init__(*args, **kwargs)
 
     def process_result(self, d):
         p = Protein(name=str(d['name']), protein_sequence=d['sequence'])
