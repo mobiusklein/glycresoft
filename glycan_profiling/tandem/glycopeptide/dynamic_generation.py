@@ -4,15 +4,17 @@ import struct
 
 from collections import namedtuple
 
+from glypy.utils import Enum
 from glycopeptidepy import GlycosylationType
 from glycopeptidepy.structure.sequence import (
     _n_glycosylation, _o_glycosylation, _gag_linker_glycosylation)
 
+from ms_deisotope import isotopic_shift
 
 from glycan_profiling.chromatogram_tree import Unmodified
 
 from glycan_profiling.structure.lru import LRUMapping
-from glycan_profiling.structure import FragmentCachingGlycopeptide
+from glycan_profiling.structure import (FragmentCachingGlycopeptide, DecoyFragmentCachingGlycopeptide)
 
 from glycan_profiling.database import intervals
 from glycan_profiling.database.mass_collection import NeutralMassDatabase, SearchableMassCollection
@@ -28,7 +30,17 @@ logger = logging.Logger("glycresoft.dynamic_generation")
 
 _glycopeptide_key_t = namedtuple(
     'glycopeptide_key', ('start_position', 'end_position', 'peptide_id', 'protein_id',
-                         'hypothesis_id', 'glycan_combination_id', 'flag'))
+                         'hypothesis_id', 'glycan_combination_id', 'structure_type'))
+
+
+class StructureClassification(Enum):
+    target_peptide_target_glycan = 0
+    target_peptide_decoy_glycan = 1
+    decoy_peptide_target_glycan = 2
+    decoy_peptide_decoy_glycan = decoy_peptide_target_glycan | target_peptide_decoy_glycan
+
+
+TT = StructureClassification.target_peptide_target_glycan
 
 
 class glycopeptide_key_t(_glycopeptide_key_t):
@@ -43,6 +55,19 @@ class glycopeptide_key_t(_glycopeptide_key_t):
     def parse(cls, binary):
         return cls(*cls.struct_spec.unpack(binary))
 
+    def copy(self, structure_type=None):
+        if structure_type is None:
+            structure_type = self.structure_type
+        return self._replace(structure_type=structure_type)
+
+    def to_decoy_glycan(self):
+        structure_type = self.structure_type
+        if structure_type == StructureClassification.target_peptide_target_glycan:
+            structure_type = StructureClassification.target_peptide_decoy_glycan
+        elif structure_type == StructureClassification.decoy_peptide_target_glycan:
+            structure_type = StructureClassification.decoy_peptide_decoy_glycan
+        return self.copy(structure_type)
+
 
 class GlycoformGeneratorBase(object):
     @classmethod
@@ -55,7 +80,7 @@ class GlycoformGeneratorBase(object):
             glycan_combinations = NeutralMassDatabase(
                 list(glycan_combinations), operator.attrgetter("dehydrated_mass"))
         if cache_size is None:
-            cache_size = 2 ** 14
+            cache_size = 2 ** 15
         else:
             cache_size = int(cache_size)
         self.glycan_combinations = glycan_combinations
@@ -88,7 +113,7 @@ class GlycoformGeneratorBase(object):
         self._peptide_cache[key] = result_set
         return result_set
 
-    def _make_key(self, peptide_record, glycan_combination, flag=0):
+    def _make_key(self, peptide_record, glycan_combination, structure_type=TT):
         key = glycopeptide_key_t(
             peptide_record.start_position,
             peptide_record.end_position,
@@ -96,7 +121,7 @@ class GlycoformGeneratorBase(object):
             peptide_record.protein_id,
             peptide_record.hypothesis_id,
             glycan_combination.id,
-            flag)
+            structure_type)
         return key
 
     def handle_n_glycan(self, peptide_obj, peptide_record, glycan_combination):
@@ -113,10 +138,6 @@ class GlycoformGeneratorBase(object):
         return self.handle_glycan_combination(
             peptide_obj, peptide_record, glycan_combination, peptide_record.gagylation_sites,
             _gag_linker_glycosylation)
-
-    def update_boundary(self, lower, upper):
-        self.glycan_combinations = self.glycan_combinations.search_between(lower - 1, upper + 1)
-        return self
 
     def reset(self, **kwargs):
         self._cache_hit = 0
@@ -181,7 +202,18 @@ class PeptideGlycosylator(GlycoformGeneratorBase):
         self.peptides.reset(**kwargs)
 
 
-class PredictiveGlycopeptideSearch(object):
+class DynamicGlycopeptideSearchBase(object):
+    neutron_shift = isotopic_shift()
+
+    def handle_scan_group(self, group, precursor_error_tolerance=1e-5, mass_shifts=None):
+        raise NotImplementedError()
+
+    def reset(self):
+        self.peptide_glycosylator.reset()
+
+
+class PredictiveGlycopeptideSearch(DynamicGlycopeptideSearchBase):
+
     def __init__(self, peptide_glycosylator, product_error_tolerance=2e-5, coarse_threshold=0.1,
                  min_fragments=2, peptide_masses_per_scan=100,
                  probing_range_for_missing_precursors=3, trust_precursor_fits=True,
@@ -210,23 +242,31 @@ class PredictiveGlycopeptideSearch(object):
         peptide_masses_per_scan = self.peptide_masses_per_scan
         for scan in group:
             workload.add_scan(scan)
-            for mass_shift in mass_shifts:
-                seen = set()
-                intact_mass = scan.precursor_information.neutral_mass - mass_shift.mass
-                for peptide_mass in estimate_peptide_mass(scan, topn=peptide_masses_per_scan, mass_shift=mass_shift,
-                                                          threshold=coarse_threshold, min_fragments=min_fragments):
-                    for candidate in handle_peptide_mass(peptide_mass, intact_mass):
-                        if candidate.id in seen:
-                            continue
-                        seen.add(candidate.id)
-                        workload.add_scan_hit(scan, candidate, mass_shift.name)
+            if (not scan.precursor_information.defaulted and self.trust_precursor_fits):
+                probe = 0
+            else:
+                probe = self.probing_range_for_missing_precursors
+            for i in range(probe + 1):
+                neutron_shift = self.neutron_shift * i
+                for mass_shift in mass_shifts:
+                    seen = set()
+                    mass_shift_name = mass_shift.name
+                    intact_mass = scan.precursor_information.neutral_mass - mass_shift.mass - neutron_shift
+                    for peptide_mass in estimate_peptide_mass(scan, topn=peptide_masses_per_scan, mass_shift=mass_shift,
+                                                              threshold=coarse_threshold, min_fragments=min_fragments):
+                        for candidate in handle_peptide_mass(peptide_mass, intact_mass):
+                            key = (candidate.id, mass_shift_name)
+                            if key in seen:
+                                continue
+                            seen.add(key)
+                            workload.add_scan_hit(scan, candidate, mass_shift_name)
         return workload
 
 
 DEFAULT_THRESHOLD_CACHE_TOTAL_COUNT = 1e5
 
 
-class IterativeGlycopeptideSearch(object):
+class IterativeGlycopeptideSearch(DynamicGlycopeptideSearchBase):
     total_mass_getter = operator.attrgetter('total_mass')
 
     def __init__(self, peptide_glycosylator, product_error_tolerance=2e-5, cache_size=2,
@@ -373,14 +413,44 @@ class Record(object):
     def __setstate__(self, state):
         self.glycopeptide, self.id, self.total_mass = state
 
+    def __eq__(self, other):
+        if other is None:
+            return False
+        return (self.glycopeptide == other.glycopeptide) and (self.id == other.id)
+
+    def __ne__(self, other):
+        return not (self == other)
+
+    def __hash__(self):
+        return hash(self.id)
+
     def convert(self):
-        struct = FragmentCachingGlycopeptide(self.glycopeptide)
+        if self.id.structure_type & StructureClassification.target_peptide_decoy_glycan.value:
+            struct = DecoyFragmentCachingGlycopeptide(self.glycopeptide)
+        else:
+            struct = FragmentCachingGlycopeptide(self.glycopeptide)
         struct.id = self.id
         return struct
 
     @classmethod
     def build(cls, glycopeptides):
         return [cls(p) for p in glycopeptides]
+
+    def copy(self, structure_type=None):
+        if structure_type is None:
+            structure_type = self.id.structure_type
+        inst = self.__class__()
+        inst.id = self.id.copy(structure_type)
+        inst.glycopeptide = self.glycopeptide
+        inst.total_mass = self.total_mass
+        return inst
+
+    def to_decoy_glycan(self):
+        inst = self.__class__()
+        inst.id = self.id.to_decoy_glycan()
+        inst.glycopeptide = self.glycopeptide
+        inst.total_mass = self.total_mass
+        return inst
 
 
 class Parser(object):
