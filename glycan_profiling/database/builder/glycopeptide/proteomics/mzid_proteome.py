@@ -5,6 +5,7 @@ import logging
 from collections import defaultdict
 from six import string_types as basestring
 
+from glycopeptidepy.io import fasta as glycopeptidepy_fasta
 from glycopeptidepy.structure import sequence, modification, residue
 from glycopeptidepy.enzyme import Protease
 from glypy.composition import formula
@@ -16,7 +17,7 @@ from glycan_profiling.task import TaskBase
 
 from .mzid_parser import Parser
 from .peptide_permutation import (
-    ProteinDigestor, ProteinSplitter, n_glycan_sequon_sites,
+    ProteinDigestor, n_glycan_sequon_sites,
     o_glycan_sequon_sites, gag_sequon_sites, UniprotProteinAnnotator)
 from .remove_duplicate_peptides import DeduplicatePeptides
 from .share_peptides import PeptideSharer
@@ -472,49 +473,82 @@ class ProteinStub(object):
     @classmethod
     def from_protein(cls, protein):
         return cls(
-            protein.name, protein.id, protein.protein_sequence,
-            protein.n_glycan_sequon_sites, protein.o_glycan_sequon_sites,
+            str(protein.name),
+            getattr(protein, 'id', None),
+            str(protein),
+            protein.n_glycan_sequon_sites,
+            protein.o_glycan_sequon_sites,
             protein.glycosaminoglycan_sequon_sites)
 
+    def __repr__(self):
+        trailer = self.protein_sequence[:10] + '...'
+        return "{self.__class__.__name__}({self.name!r}, {self.id}, {trailer!r})".format(self=self, trailer=trailer)
 
-class ProteinStubLoader(object):
-    def __init__(self, session, hypothesis_id):
-        self.session = session
-        self.hypothesis_id = hypothesis_id
-        self.store = dict()
 
-    def _get_protein_from_db(self, protein_name):
-        protein = self.session.query(Protein).filter(
-            Protein.name == protein_name,
-            Protein.hypothesis_id == self.hypothesis_id).first()
-        return protein
+class ProteinStubLoaderBase(object):
+    def __init__(self, store=None):
+        if store is None:
+            store = dict()
+        self.store = store
+
+    def __getitem__(self, key):
+        return self.get_protein_by_name(key)
+
+    def __contains__(self, key):
+        return key in self.store
+
+    def _load_protein(self, protein_name):
+        raise NotImplementedError()
 
     def get_protein_by_name(self, protein_name):
         try:
             return self.store[protein_name]
         except KeyError:
-            db_prot = self._get_protein_from_db(protein_name)
+            protein = self._load_protein(protein_name)
             try:
-                stub = ProteinStub.from_protein(db_prot)
+                stub = ProteinStub.from_protein(protein)
             except AttributeError:
                 logger.error("Failed to load stub for %s" % (protein_name,))
                 raise
             self.store[protein_name] = stub
             return stub
 
+
+class MemoryProteinStubLoader(ProteinStubLoaderBase):
+    def _load_protein(self, protein_name):
+        raise KeyError(protein_name)
+
+
+class DatabaseProteinStubLoader(ProteinStubLoaderBase):
+    def __init__(self, session, hypothesis_id, store=None):
+        self.session = session
+        self.hypothesis_id = hypothesis_id
+        super(DatabaseProteinStubLoader, self).__init__(store)
+
+    def _load_protein(self, protein_name):
+        protein = self.session.query(Protein).filter(
+            Protein.name == protein_name,
+            Protein.hypothesis_id == self.hypothesis_id).first()
+        return protein
+
     def __getitem__(self, key):
         return self.get_protein_by_name(key)
 
 
-class PeptideConverter(object):
-    def __init__(self, session, hypothesis_id, enzyme=None, constant_modifications=None,
-                 modification_translation_table=None, protein_filter=None):
+class FastaProteinStubLoader(ProteinStubLoaderBase):
+    def __init__(self, fasta_path, store=None):
+        super(FastaProteinStubLoader, self).__init__(store)
+        self.parser = glycopeptidepy_fasta.ProteinFastaFileParser(fasta_path, index=True)
+
+    def _load_protein(self, protein_name):
+        return self.parser[protein_name]
+
+
+class PeptideMapperBase(object):
+    def __init__(self, enzyme=None, constant_modifications=None, modification_translation_table=None,
+                 protein_filter=None):
         if protein_filter is None:
             protein_filter = allset()
-        self.session = session
-        self.hypothesis_id = hypothesis_id
-
-        self.protein_loader = ProteinStubLoader(self.session, self.hypothesis_id)
 
         self.enzyme = enzyme
         self.constant_modifications = constant_modifications or []
@@ -523,15 +557,25 @@ class PeptideConverter(object):
         self.peptide_grouper = PeptideCollection(protein_filter)
         self.counter = 0
 
+        self.protein_loader = self._make_protein_loader()
+
+    def _make_protein_loader(self):
+        raise NotImplementedError()
+
+
+class PeptideConverter(PeptideMapperBase):
+    def __init__(self, session, hypothesis_id, enzyme=None, constant_modifications=None,
+                 modification_translation_table=None, protein_filter=None):
+        self.session = session
+        self.hypothesis_id = hypothesis_id
+        super(PeptideConverter, self).__init__(
+            enzyme, constant_modifications, modification_translation_table, protein_filter)
+
+    def _make_protein_loader(self):
+        return DatabaseProteinStubLoader(self.session, self.hypothesis_id)
+
     def get_protein(self, evidence):
         return self.protein_loader[evidence['accession']]
-
-    def sequence_starts_at(self, sequence, parent_protein):
-        found = parent_protein.protein_sequence.find(sequence)
-        if found == -1:
-            print(len(parent_protein.protein_sequence))
-            raise ValueError("Peptide not found in Protein\n%s\n%r\n\n" % (parent_protein.name, sequence))
-        return found
 
     def pack_peptide(self, peptide_ident, start, end, score, score_type, parent_protein):
         match = Peptide(
@@ -609,6 +653,12 @@ class PeptideConverter(object):
         copy.modified_peptide_sequence = str(peptide_obj)
         copy.count_variable_modifications -= len(occupied_sites)
         return copy
+
+    def sequence_starts_at(self, sequence, parent_protein):
+        found = parent_protein.protein_sequence.find(sequence)
+        if found == -1:
+            raise ValueError("Peptide not found in Protein\n%s\n%r\n\n" % (parent_protein.name, sequence))
+        return found
 
     def handle_peptide_dict(self, peptide_dict):
         peptide_ident = PeptideIdentification(
@@ -801,6 +851,52 @@ class MzIdentMLProteomeExtraction(TaskBase):
                 self.log("Loaded Peptide %r" % (mzid_peptide,))
             yield mzid_peptide
 
+    def _map_peptide_to_proteins(self):
+        self.parser.reset()
+        i = 0
+        peptide_to_proteins = defaultdict(set)
+        for evidence in self.parser.iterfind('PeptideEvidence', iterative=True):
+            i += 1
+            peptide_to_proteins[evidence['peptide_ref']].add(
+                evidence['dBSequence_ref'])
+        return peptide_to_proteins
+
+    def _handle_protein(self, name, sequence, data):
+        raise NotImplementedError()
+
+    def load_proteins(self):
+        self.parser.reset()
+        self._find_used_database()
+        protein_map = {}
+        self.parser.reset()
+        for protein in self.parser.iterfind("DBSequence", recursive=True, iterative=True):
+            seq = protein.pop('Seq', None)
+            name = protein.pop('accession')
+            if seq is None:
+                try:
+                    prot = self.resolve_protein(name)
+                    seq = prot.protein_sequence
+                except KeyError:
+                    if self._can_ignore_protein(name):
+                        continue
+                    else:
+                        self.log("Could not resolve protein %r" % (name,))
+            if name in protein_map:
+                if seq != protein_map[name].protein_sequence:
+                    self.log("Multiple proteins with the name %r" % name)
+                continue
+            try:
+                p = self._handle_protein(name, seq, protein)
+                protein_map[name] = p
+            except residue.UnknownAminoAcidException:
+                self.log("Unknown Amino Acid in %r" % (name,))
+                continue
+            except Exception as e:
+                self.log("%r skipped: %r" % (name, e))
+                continue
+        self._clear_protein_resolver()
+        return protein_map
+
 
 class Proteome(DatabaseBoundOperation, MzIdentMLProteomeExtraction):
     def __init__(self, mzid_path, connection, hypothesis_id, include_baseline_peptides=True,
@@ -827,10 +923,8 @@ class Proteome(DatabaseBoundOperation, MzIdentMLProteomeExtraction):
         self.parser.reset()
         for protein in self.parser.iterfind(
                 "DBSequence", retrieve_refs=True, recursive=True, iterative=True):
-            # check = protein.copy()
             seq = protein.pop('Seq', None)
             name = protein.pop('accession')
-            # name += protein.pop("protein description", "")
             if seq is None:
                 try:
                     prot = self.resolve_protein(name)

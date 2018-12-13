@@ -20,7 +20,7 @@ def get_uniprot_accession(name):
 
 
 class UniprotProteinDownloader(TaskBase):
-    def __init__(self, accession_list, n_threads=4):
+    def __init__(self, accession_list, n_threads=10):
         self.accession_list = accession_list
         self.n_threads = n_threads
         self.input_queue = Queue()

@@ -619,8 +619,13 @@ class UniprotProteinAnnotator(TaskBase):
                         acc = []
             except Empty:
                 uniprot_queue.join()
+                self.log("Threaded Queue Closed")
                 if uniprot_queue.done_event.is_set():
                     break
+
+        leftover_ids = set(protein_ids) - seen
+        if leftover_ids:
+            self.log("%d IDs not covered by queue" % (len(leftover_ids), ))
 
         for protein_id in set(protein_ids) - seen:
             i += 1
