@@ -35,7 +35,8 @@ class ScanStub(object):
             raise KeyError(self.id)
 
     def __repr__(self):
-        return "{self.__class__.__name__}({self.precursor_information})".format(self=self)
+        template = "{self.__class__.__name__}({self.precursor_information.neutral_mass}, {self.precursor_information})"
+        return template.format(self=self)
 
 
 class ScanWrapperBase(object):
