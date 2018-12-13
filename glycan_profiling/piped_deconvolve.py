@@ -12,7 +12,7 @@ from ms_deisotope.processor import (
 
 from ms_deisotope.feature_map.quick_index import index as build_scan_index
 
-from ms_deisotope.data_source.common import ProcessedScan, ScanBunch, ScanBase
+from ms_deisotope.data_source.common import ProcessedScan, ScanBunch
 
 import logging
 from glycan_profiling.task import (
@@ -23,7 +23,7 @@ from glycan_profiling.task import (
 from glycan_profiling.config import get_configuration
 
 
-from multiprocessing import Process, Queue, JoinableQueue
+from multiprocessing import Process, JoinableQueue
 try:
     from Queue import Empty as QueueEmpty
 except ImportError:

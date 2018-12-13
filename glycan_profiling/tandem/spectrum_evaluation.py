@@ -1,16 +1,18 @@
-from collections import defaultdict, namedtuple
+from collections import namedtuple
 from ms_deisotope import isotopic_shift
 
 from glycan_profiling.task import TaskBase
 from glycan_profiling.chromatogram_tree import Unmodified
 
-from .process_dispatcher import IdentificationProcessDispatcher, SolutionHandler, MultiScoreSolutionHandler
+from .process_dispatcher import (
+    IdentificationProcessDispatcher,
+    SolutionHandler,
+    MultiScoreSolutionHandler,
+    SequentialIdentificationProcessor)
 from .workload import WorkloadManager
 from .spectrum_match import (
     MultiScoreSpectrumSolutionSet,
-    SpectrumSolutionSet,
-    SpectrumMatch,
-    )
+    SpectrumSolutionSet)
 
 
 _ScanQuery = namedtuple("ScanQuery", ("scan", "mass_shift", "isotopic_shift", "query_mass", "meta"))
@@ -111,8 +113,7 @@ class TandemClusterEvaluatorBase(TaskBase):
     def search_database_for_precursors(self, mass, precursor_error_tolerance=1e-5):
         return self.structure_database.search_mass_ppm(mass, precursor_error_tolerance)
 
-    def find_precursor_candidates(self, scan, error_tolerance=1e-5, probing_range=0,
-                                  mass_shift=None):
+    def find_precursor_candidates(self, scan, error_tolerance=1e-5, probing_range=0, mass_shift=None):
         if mass_shift is None:
             mass_shift = Unmodified
         hits = []
@@ -278,35 +279,23 @@ class TandemClusterEvaluatorBase(TaskBase):
         self._mark_batch()
         return workload
 
-    def _evaluate_hit_groups_single_process(self, workload, *args, **kwargs):
-        batch_size, scan_map, hit_map, hit_to_scan, scan_hit_type_map = workload
-        scan_solution_map = defaultdict(list)
-        self.log("... Searching Hits (%d:%d)" % (
-            len(hit_to_scan),
-            sum(map(len, hit_to_scan.values())))
-        )
-        i = 0
-        n = len(hit_to_scan)
-        for hit_id, scan_list in hit_to_scan.items():
-            i += 1
-            if i % 1000 == 0:
-                self.log("... %0.2f%% of Hits Searched (%d/%d)" %
-                         (i * 100. / n, i, n))
-            hit = hit_map[hit_id]
-            solutions = []
-            for scan_id in scan_list:
-                scan = scan_map[scan_id]
-                mass_shift = self.mass_shift_map[scan_hit_type_map[scan_id, hit_id]]
-                match = self.solution_set_type.spectrum_match_type.from_match_solution(
-                    self.evaluate(scan, hit, mass_shift=mass_shift,
-                                  *args, **kwargs))
-                scan_solution_map[scan.id].append(match)
-                solutions.append(match)
-            # Assumes all matches to the same target structure share a cache
-            match.clear_caches()
-            self.reset_parser()
+    def _get_solution_handler(self):
+        if issubclass(self.solution_set_type, MultiScoreSpectrumSolutionSet):
+            handler_tp = MultiScoreSolutionHandler
+        else:
+            handler_tp = SolutionHandler
+        return handler_tp
 
-        return scan_solution_map
+    def _evaluate_hit_groups_single_process(self, workload, *args, **kwargs):
+        batch_size, scan_map, hit_map, hit_to_scan_map, scan_hit_type_map = workload
+        handler_tp = self._get_solution_handler()
+        processor = SequentialIdentificationProcessor(
+            self,
+            self.mass_shift_map,
+            evaluation_args=kwargs,
+            solution_handler_type=handler_tp)
+        processor.process(scan_map, hit_map, hit_to_scan_map, scan_hit_type_map)
+        return processor.scan_solution_map
 
     def _collect_scan_solutions(self, scan_solution_map, scan_map):
         result_set = []
@@ -329,10 +318,7 @@ class TandemClusterEvaluatorBase(TaskBase):
     def _evaluate_hit_groups_multiple_processes(self, workload, **kwargs):
         batch_size, scan_map, hit_map, hit_to_scan, scan_hit_type_map = workload
         worker_type, init_args = self._worker_specification
-        if issubclass(self.solution_set_type, MultiScoreSpectrumSolutionSet):
-            handler_tp = MultiScoreSolutionHandler
-        else:
-            handler_tp = SolutionHandler
+        handler_tp = self._get_solution_handler()
         dispatcher = IdentificationProcessDispatcher(
             worker_type, self.scorer_type, evaluation_args=kwargs, init_args=init_args,
             n_processes=self.n_processes, ipc_manager=self.ipc_manager,
@@ -340,7 +326,7 @@ class TandemClusterEvaluatorBase(TaskBase):
         return dispatcher.process(scan_map, hit_map, hit_to_scan, scan_hit_type_map)
 
     def _evaluate_hit_groups(self, batch, **kwargs):
-        if self.n_processes == 1 or len(batch.hit_map) < 1000:
+        if self.n_processes == 1 or len(batch.hit_map) < 2500:
             return self._evaluate_hit_groups_single_process(
                 batch, **kwargs)
         else:
