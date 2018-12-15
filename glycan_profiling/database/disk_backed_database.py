@@ -308,6 +308,11 @@ class DeclarativeDiskBackedDatabase(DiskBackedStructureDatabaseBase):
             threshold_cache_total_count, None)
         self._glycan_composition_network = None
 
+    def __reduce__(self):
+        return self.__class__, (
+            self._original_connection, self.hypothesis_id, self.cache_size,
+            self.loading_interval, self.threshold_cache_total_count)
+
     @property
     def glycan_composition_network(self):
         return self._glycan_composition_network

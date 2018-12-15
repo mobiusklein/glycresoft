@@ -4,6 +4,8 @@ from six import add_metaclass
 import operator
 import itertools
 
+import dill
+
 from glycopeptidepy import HashableGlycanComposition
 
 from .composition_network import CompositionGraph, n_glycan_distance
@@ -210,6 +212,10 @@ class MassObject(object):
         return abs(self.mass - other.mass) >= 1e-3
 
 
+def identity(x):
+    return x
+
+
 class NeutralMassDatabase(SearchableMassCollection):
     def __init__(self, structures, mass_getter=operator.attrgetter("calculated_mass"), sort=True):
         self.mass_getter = mass_getter
@@ -223,6 +229,19 @@ class NeutralMassDatabase(SearchableMassCollection):
         if sort:
             temp.sort()
         return temp
+
+    def __reduce__(self):
+        return self.__class__, ([], identity, False), self.__getstate__()
+
+    def __getstate__(self):
+        return {
+            'mass_getter': dill.dumps(self.mass_getter),
+            'structures': self.structures
+        }
+
+    def __setstate__(self, state):
+        self.mass_getter = dill.loads(state['mass_getter'])
+        self.structures = state['structures']
 
     def __iter__(self):
         for obj in self.structures:
@@ -414,6 +433,17 @@ class TransformingMassCollectionAdapter(SearchableMassCollection):
     @property
     def highest_mass(self):
         return self.searchable_mass_collection.highest_mass
+
+    def __reduce__(self):
+        return self.__class__, (self.searchable_mass_collection, None), self.__getstate__()
+
+    def __getstate__(self):
+        return {
+            "transformer": dill.dumps(self.transformer)
+        }
+
+    def __setstate__(self, state):
+        self.transformer = dill.loads(state['transformer'])
 
     @property
     def lowest_mass(self):
