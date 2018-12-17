@@ -3,9 +3,9 @@ from multiprocessing import Manager as IPCManager
 
 import threading
 try:
-    from Queue import Queue as ThreadQueue, Empty as EmptyQueueException
+    from Queue import Queue as ThreadQueue, Empty
 except ImportError:
-    from queue import Queue as ThreadQueue, Empty as EmptyQueueException
+    from queue import Queue as ThreadQueue, Empty
 
 from glycan_profiling.chromatogram_tree.chromatogram import GlycopeptideChromatogram
 from glycan_profiling.chromatogram_tree import Unmodified

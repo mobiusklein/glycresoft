@@ -1,7 +1,12 @@
 import warnings
+
+from io import BytesIO
 from collections import defaultdict, namedtuple
 
+from lxml import etree
+
 from glycan_profiling.chromatogram_tree import Unmodified
+
 
 from .spectrum_graph import ScanGraph
 
@@ -45,6 +50,12 @@ class WorkloadManager(object):
         self.scan_to_hit_map.clear()
         self.scan_hit_type_map.clear()
         self._scan_graph = None
+
+    def pack(self):
+        unmatched_scans = set(self.scan_map) - set(self.scan_to_hit_map)
+        for k in unmatched_scans:
+            self.scan_map.pop(k, None)
+        return self
 
     def update(self, other):
         self.scan_map.update(other.scan_map)
@@ -254,6 +265,17 @@ class WorkloadManager(object):
         for inst in workloads:
             total.update(inst)
         return total
+
+    def mass_range(self):
+        lo = float('inf')
+        hi = 0
+        for scan in self.scan_map.values():
+            mass = scan.precursor_information.neutral_mass
+            if mass < lo:
+                lo = mass
+            elif mass > hi:
+                hi = mass
+        return (lo, hi)
 
 
 _WorkloadBatch = namedtuple("WorkloadBatch", [

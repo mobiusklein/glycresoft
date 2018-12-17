@@ -16,13 +16,23 @@ class ScanStub(object):
         metadata for scheduling when and where this
         scan should be processed, where actual loading
         will occur.
-    bind : :class:`~.RandomAccessScanSource`
+    source : :class:`~.RandomAccessScanSource`
         A resource to use to load scans with by scan id.
     """
-    def __init__(self, precursor_information, bind):
+    def __init__(self, precursor_information, source):
         self.id = precursor_information.product_scan_id
         self.precursor_information = precursor_information
-        self.bind = bind
+        self.source = source
+
+    def detatch(self):
+        self.source = None
+        self.precursor_information.source = None
+        return self
+
+    def bind(self, source):
+        self.source = source
+        self.precursor_information.source = source
+        return self
 
     @property
     def scan_id(self):
@@ -30,7 +40,7 @@ class ScanStub(object):
 
     def convert(self, *args, **kwargs):
         try:
-            return self.bind.get_scan_by_id(self.id)
+            return self.source.get_scan_by_id(self.id)
         except AttributeError:
             raise KeyError(self.id)
 

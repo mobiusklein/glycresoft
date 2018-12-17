@@ -17,6 +17,7 @@ from glypy.utils import uid, Enum
 
 from glycan_profiling.task import TaskBase
 from glycan_profiling.chromatogram_tree import Unmodified
+from glycan_profiling.structure import LRUMapping
 
 from .spectrum_match import SpectrumMatch, MultiScoreSpectrumMatch, ScoreSet
 
@@ -81,6 +82,8 @@ class TaskSourceBase(StructureSpectrumSpecificationBuilder, TaskBase):
     :class:`StructureSpectrumSpecificationBuilder`.
     """
 
+    batch_size = 10000
+
     def add(self, item):
         """Add ``item`` to the work stream
 
@@ -136,7 +139,7 @@ class TaskSourceBase(StructureSpectrumSpecificationBuilder, TaskBase):
                     "Hit %r already dealt under hit_id %r, now again at %r" % (
                         hit, seen[hit.id], hit_id))
             seen[hit.id] = hit_id
-            if i % 10000 == 0:
+            if i % self.batch_size == 0:
                 self.join()
             try:
                 work_order = self.build_work_order(hit_id, hit_map, scan_hit_type_map, hit_to_scan)
@@ -873,7 +876,7 @@ class SpectrumIdentificationWorkerBase(Process, SpectrumEvaluatorBase):
         self.spectrum_map = spectrum_map
         self.mass_shift_map = mass_shift_map
 
-        self.local_scan_map = dict()
+        self.local_scan_map = LRUMapping(50)
         self.local_mass_shift_map = dict({
             Unmodified.name: Unmodified
         })

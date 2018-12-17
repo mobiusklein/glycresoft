@@ -4,6 +4,8 @@ import struct
 
 from collections import namedtuple
 
+from lxml import etree
+
 from glypy.utils import Enum
 from glycopeptidepy import GlycosylationType
 from glycopeptidepy.structure.sequence import (
@@ -20,9 +22,8 @@ from glycan_profiling.database import intervals
 from glycan_profiling.database.mass_collection import NeutralMassDatabase, SearchableMassCollection
 from glycan_profiling.database.builder.glycopeptide.common import limiting_combinations
 
-from .core_search import GlycanCombinationRecord, GlycanFilteringPeptideMassEstimator
-from .scoring import CoverageWeightedBinomialScorer
-from ..workload import WorkloadManager
+from ...workload import WorkloadManager
+from ..core_search import GlycanCombinationRecord, GlycanFilteringPeptideMassEstimator
 
 
 logger = logging.Logger("glycresoft.dynamic_generation")
@@ -62,11 +63,9 @@ class glycopeptide_key_t(_glycopeptide_key_t):
 
     def to_decoy_glycan(self):
         structure_type = self.structure_type
-        if structure_type == StructureClassification.target_peptide_target_glycan:
-            structure_type = StructureClassification.target_peptide_decoy_glycan
-        elif structure_type == StructureClassification.decoy_peptide_target_glycan:
-            structure_type = StructureClassification.decoy_peptide_decoy_glycan
-        return self.copy(structure_type)
+        new_tp = StructureClassification[
+            structure_type | StructureClassification.target_peptide_decoy_glycan]
+        return self.copy(new_tp)
 
 
 class GlycoformGeneratorBase(object):
@@ -75,7 +74,7 @@ class GlycoformGeneratorBase(object):
         glycan_combinations = GlycanCombinationRecord.from_hypothesis(session, hypothesis_id)
         return cls(glycan_combinations)
 
-    def __init__(self, glycan_combinations, cache_size=None, *args, **kwargs):
+    def __init__(self, glycan_combinations, cache_size=None, default_structure_type=TT, *args, **kwargs):
         if not isinstance(glycan_combinations, SearchableMassCollection):
             glycan_combinations = NeutralMassDatabase(
                 list(glycan_combinations), operator.attrgetter("dehydrated_mass"))
@@ -87,6 +86,7 @@ class GlycoformGeneratorBase(object):
         self._peptide_cache = LRUMapping(cache_size)
         self._cache_hit = 0
         self._cache_miss = 0
+        self.default_structure_type = default_structure_type
         super(GlycoformGeneratorBase, self).__init__(*args, **kwargs)
 
     def handle_glycan_combination(self, peptide_obj, peptide_record, glycan_combination,
@@ -113,7 +113,9 @@ class GlycoformGeneratorBase(object):
         self._peptide_cache[key] = result_set
         return result_set
 
-    def _make_key(self, peptide_record, glycan_combination, structure_type=TT):
+    def _make_key(self, peptide_record, glycan_combination, structure_type=None):
+        if structure_type is None:
+            structure_type = self.default_structure_type
         key = glycopeptide_key_t(
             peptide_record.start_position,
             peptide_record.end_position,
@@ -146,8 +148,10 @@ class GlycoformGeneratorBase(object):
 
 
 class PeptideGlycosylator(GlycoformGeneratorBase):
-    def __init__(self, peptide_records, glycan_combinations, cache_size=2**16, *args, **kwargs):
-        super(PeptideGlycosylator, self).__init__(glycan_combinations, *args, **kwargs)
+    def __init__(self, peptide_records, glycan_combinations, cache_size=2**16, default_structure_type=TT,
+                 *args, **kwargs):
+        super(PeptideGlycosylator, self).__init__(
+            glycan_combinations, default_structure_type=default_structure_type, *args, **kwargs)
         if not isinstance(peptide_records, SearchableMassCollection):
             peptide_records = NeutralMassDatabase(peptide_records)
         self.peptides = peptide_records
@@ -216,8 +220,7 @@ class PredictiveGlycopeptideSearch(DynamicGlycopeptideSearchBase):
 
     def __init__(self, peptide_glycosylator, product_error_tolerance=2e-5, coarse_threshold=0.1,
                  min_fragments=2, peptide_masses_per_scan=100,
-                 probing_range_for_missing_precursors=3, trust_precursor_fits=True,
-                 scorer_type=CoverageWeightedBinomialScorer):
+                 probing_range_for_missing_precursors=3, trust_precursor_fits=True):
         self.peptide_glycosylator = peptide_glycosylator
         self.product_error_tolerance = product_error_tolerance
         self.coarse_threshold = coarse_threshold
@@ -228,7 +231,6 @@ class PredictiveGlycopeptideSearch(DynamicGlycopeptideSearchBase):
         self.peptide_masses_per_scan = peptide_masses_per_scan
         self.probing_range_for_missing_precursors = probing_range_for_missing_precursors
         self.trust_precursor_fits = trust_precursor_fits
-        self.scorer_type = scorer_type
 
     def handle_scan_group(self, group, precursor_error_tolerance=1e-5, mass_shifts=None):
         if mass_shifts is None:
@@ -270,11 +272,9 @@ class IterativeGlycopeptideSearch(DynamicGlycopeptideSearchBase):
     total_mass_getter = operator.attrgetter('total_mass')
 
     def __init__(self, peptide_glycosylator, product_error_tolerance=2e-5, cache_size=2,
-                 scorer_type=CoverageWeightedBinomialScorer,
                  threshold_cache_total_count=DEFAULT_THRESHOLD_CACHE_TOTAL_COUNT):
         self.peptide_glycosylator = peptide_glycosylator
         self.product_error_tolerance = product_error_tolerance
-        self.scorer_type = scorer_type
         self.interval_cache = intervals.LRUIntervalSet(max_size=cache_size)
         self.threshold_cache_total_count = threshold_cache_total_count
 
@@ -425,12 +425,31 @@ class Record(object):
         return hash(self.id)
 
     def convert(self):
-        if self.id.structure_type & StructureClassification.target_peptide_decoy_glycan.value:
+        if self.id.structure_type.value & StructureClassification.target_peptide_decoy_glycan.value:
             struct = DecoyFragmentCachingGlycopeptide(self.glycopeptide)
         else:
             struct = FragmentCachingGlycopeptide(self.glycopeptide)
         struct.id = self.id
         return struct
+
+    def serialize(self):
+        id_bytes = self.id.serialize()
+        mass_bytes = struct.pack("!d", self.total_mass)
+        seq = (self.glycopeptide).encode('utf8')
+        encoded = id_bytes + mass_bytes + seq
+        return encoded
+
+    @classmethod
+    def parse(cls, bytestring):
+        offset = glycopeptide_key_t.struct_spec.size
+        rec_id = glycopeptide_key_t.parse(bytestring[:offset])
+        mass = struct.unpack("!d", bytestring[offset:offset + 8])
+        seq = bytestring[offset + 8:].decode("utf8")
+        inst = cls()
+        inst.id = rec_id
+        inst.total_mass = mass
+        inst.glycopeptide = seq
+        return inst
 
     @classmethod
     def build(cls, glycopeptides):
@@ -457,3 +476,42 @@ class Parser(object):
     def __call__(self, record):
         struct = record.convert()
         return struct
+
+
+def serialize_workload(workload_manager, pretty_print=True):
+    wl = etree.Element('workload')
+    for key, scans in workload_manager.hit_to_scan_map.items():
+        sm = etree.SubElement(wl, 'scan_mapping')
+        rec = workload_manager.hit_map[key]
+        el = etree.SubElement(sm, 'structure')
+        el.attrib.update({k: str(v) for k, v in rec.id._asdict().items()})
+        el.attrib['total_mass'] = str(rec.total_mass)
+        el.text = rec.glycopeptide
+        for scan in scans:
+            etree.SubElement(
+                sm, 'hit', {
+                    'scan_id': scan.id,
+                    'hit_type': workload_manager.scan_hit_type_map[scan.id, key]
+                })
+    return (etree.tostring(wl, pretty_print=pretty_print))
+
+
+def deserialize_workload(buff, scan_loader):
+    wm = WorkloadManager()
+    tree = etree.fromstring(buff)
+    for scan_mapping in tree:
+        glycopeptide_record_tag = scan_mapping[0]
+        attrib = glycopeptide_record_tag.attrib
+        mass = float(attrib.pop("total_mass", 0))
+        rec = Record()
+        rec.glycopeptide = glycopeptide_record_tag.text
+        rec.total_mass = mass
+        rec.id = glycopeptide_key_t(
+            **{k: int(v) if k != 'structure_type' else StructureClassification[v] for k, v in attrib.items()})
+        for scan_hit in scan_mapping[1:]:
+            attrib = scan_hit.attrib
+            scan_id = attrib['scan_id']
+            scan = scan_loader.get_scan_by_id(scan_id)
+            wm.add_scan(scan)
+            wm.add_scan_hit(scan, rec, attrib['hit_type'])
+    return wm

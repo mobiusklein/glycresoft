@@ -6,6 +6,11 @@ import multiprocessing
 import threading
 from datetime import datetime
 
+try:
+    from Queue import Queue, Empty
+except ImportError:
+    from queue import Queue, Empty
+
 from glycan_profiling.version import version
 
 
@@ -276,3 +281,105 @@ class TaskBase(object):
 
 
 log_handle = TaskBase()
+
+
+class MultiEvent(object):
+    def __init__(self, events):
+        self.events = list(events)
+
+    def set(self):
+        for event in self.events:
+            event.set()
+
+    def is_set(self):
+        for event in self.events:
+            result = event.is_set()
+            if not result:
+                return result
+        return True
+
+    def clear(self):
+        for event in self.events:
+            event.clear()
+
+
+class TaskExecutionSequence(TaskBase):
+    _thread = None
+
+    def __call__(self):
+        result = self.process()
+        self.log("%r Done\n" % self)
+        return result
+
+    def process(self):
+        raise NotImplementedError()
+
+    def _get_repr_details(self):
+        return ''
+
+    def __repr__(self):
+        template = "{self.__class__.__name__}({details})"
+        return template.format(self=self, details=self._get_repr_details())
+
+    def _make_event(self, provider=None):
+        if provider is None:
+            provider = threading
+        return provider.Event()
+
+    def start(self, process=False):
+        if self._thread is not None:
+            return self._thread
+        if process:
+            t = multiprocessing.Process(target=self, name=("%s-%r" % (self.__class__.__name__, id(self))))
+        else:
+            t = threading.Thread(target=self, name=("%s-%r" % (self.__class__.__name__, id(self))))
+        t.start()
+        self._thread = t
+        return t
+
+    def join(self, timeout=None):
+        return self._thread.join(timeout)
+
+
+class Pipeline(TaskExecutionSequence):
+    def __init__(self, tasks):
+        self.tasks = tasks
+
+    def start(self):
+        for task in self.tasks:
+            task.start()
+
+    def join(self, timeout=None):
+        for task in self.tasks:
+            task.join(timeout)
+
+    def __iter__(self):
+        return iter(self.tasks)
+
+    def __len__(self):
+        return len(self.tasks)
+
+    def __getitem__(self, i):
+        return self.tasks[i]
+
+    def add(self, task):
+        self.tasks.append(task)
+        return self
+
+
+class SinkTask(TaskExecutionSequence):
+    def __init__(self, in_queue, in_done_event):
+        self.in_queue = in_queue
+        self.in_done_event = in_done_event
+        self.done_event = self._make_event()
+
+    def process(self):
+        has_work = True
+        while has_work:
+            try:
+                self.in_queue.get(True, 10)
+            except Empty:
+                if self.in_done_event.is_set():
+                    has_work = False
+                    break
+        self.done_event.set()
