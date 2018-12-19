@@ -85,7 +85,8 @@ class BatchMapper(TaskExecutionSequence):
         for label, predictive_search in self.predictive_searchers:
             task = StructureMapper(
                 chunk, group_i_prev, group_n, predictive_search,
-                self.precursor_error_tolerance, self.mass_shifts)
+                precursor_error_tolerance=self.precursor_error_tolerance,
+                mass_shifts=self.mass_shifts)
             task.label = label
             self.out_queue.put(task)
 
@@ -123,6 +124,9 @@ class StructureMapper(TaskExecutionSequence):
         if total > 0:
             self.log("Cache Performance: %d / %d (%0.2f%%)" % (hits, total, hits / float(total) * 100.0))
 
+    def _prepare_scan(self, scan):
+        return scan.convert()
+
     def map_structures(self):
         counter = 0
         workload = WorkloadManager()
@@ -134,7 +138,7 @@ class StructureMapper(TaskExecutionSequence):
             hi = 0
             temp = []
             for g in group:
-                g = g.convert()
+                g = self._prepare_scan(g)
                 if g.id in self.seen:
                     raise ValueError("Repeated Scan %r" % g.id)
                 self.seen.add(g.id)
@@ -258,7 +262,7 @@ class SpectrumMatcher(TaskExecutionSequence):
             self.log("... Batch %d (%d/%d) %0.2f%%" % (
                 i + 1, running_total_work + batch.batch_size, total_work,
                 ((running_total_work + batch.batch_size) * 100.) / float(total_work)))
-
+            running_total_work += batch.batch_size
             target_scan_solution_map = matcher._evaluate_hit_groups(
                 batch, **self.evaluation_kwargs)
             temp = matcher._collect_scan_solutions(

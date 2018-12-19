@@ -627,7 +627,7 @@ class UniprotProteinAnnotator(TaskBase):
         if leftover_ids:
             self.log("%d IDs not covered by queue" % (len(leftover_ids), ))
 
-        for protein_id in set(protein_ids) - seen:
+        for protein_id in leftover_ids:
             i += 1
             protein = self.query(Protein).get(protein_id)
             if i % interval == 0:

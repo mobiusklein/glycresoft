@@ -876,7 +876,7 @@ class SpectrumIdentificationWorkerBase(Process, SpectrumEvaluatorBase):
         self.spectrum_map = spectrum_map
         self.mass_shift_map = mass_shift_map
 
-        self.local_scan_map = LRUMapping(250)
+        self.local_scan_map = LRUMapping(500)
         self.local_mass_shift_map = dict({
             Unmodified.name: Unmodified
         })

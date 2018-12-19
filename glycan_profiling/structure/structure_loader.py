@@ -147,6 +147,19 @@ class FragmentCachingGlycopeptide(PeptideSequence):
         self.protein_relation = None
         self.id = None
 
+    def __reduce__(self):
+        return self.__class__, (str(self), ), self.__getstate__()
+
+    def __getstate__(self):
+        state = {}
+        state['protein_relation'] = self.protein_relation
+        state['id'] = self.id
+        return state
+
+    def __setstate__(self, state):
+        self.protein_relation = state['protein_relation']
+        self.id = state['id']
+
     def __eq__(self, other):
         try:
             return (self.protein_relation == other.protein_relation) and (
@@ -405,9 +418,9 @@ class PeptideDatabaseRecord(object):
         self.start_position = start_position
         self.end_position = end_position
         self.hypothesis_id = hypothesis_id
-        self.n_glycosylation_sites = n_glycosylation_sites
-        self.o_glycosylation_sites = o_glycosylation_sites
-        self.gagylation_sites = gagylation_sites
+        self.n_glycosylation_sites = list(n_glycosylation_sites)
+        self.o_glycosylation_sites = list(o_glycosylation_sites)
+        self.gagylation_sites = list(gagylation_sites)
 
     def convert(self):
         peptide = FragmentCachingGlycopeptide(self.modified_peptide_sequence)

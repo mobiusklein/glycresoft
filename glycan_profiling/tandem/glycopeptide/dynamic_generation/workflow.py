@@ -29,6 +29,43 @@ from .searcher import (
     BatchMapper, WorkloadUnpackingMatcherExecutor)
 
 
+def make_memory_database_proxy_resolver(path, n_glycan=True, o_glycan=True):
+    proxy = mass_collection.MassCollectionProxy(
+        PeptideDatabaseProxyLoader(path, n_glycan, o_glycan))
+    return proxy
+
+
+class PeptideDatabaseProxyLoader(object):
+    def __init__(self, path, n_glycan=True, o_glycan=True):
+        self.path = path
+        self.n_glycan = n_glycan
+        self.o_glycan = o_glycan
+
+    def __call__(self):
+        db = disk_backed_database.PeptideDiskBackedStructureDatabase(self.path)
+        peptides = map(
+            PeptideDatabaseRecord.from_record,
+            db)
+        if self.n_glycan and self.o_glycan:
+            peptides = [
+                rec for rec in peptides
+                if rec.has_glycosylation_sites()
+            ]
+        elif self.n_glycan:
+            peptides = [
+                rec for rec in peptides
+                if rec.n_glycosylation_sites
+            ]
+        elif self.o_glycan:
+            peptides = [
+                rec for rec in peptides
+                if bool(rec.o_glycosylation_sites) or bool(rec.gagylation_sites)
+            ]
+        mem_db = mass_collection.NeutralMassDatabase(peptides)
+        mem_db.session = db.session
+        return mem_db
+
+
 class MultipartGlycopeptideIdentification(TaskBase):
     def __init__(self, target_peptide_db, decoy_peptide_db, scan_loader, precursor_error_tolerance=5e-6,
                  product_error_tolerance=2e-5, batch_size=1000, scorer_type=None, mass_shifts=None, n_processes=6,
@@ -48,8 +85,12 @@ class MultipartGlycopeptideIdentification(TaskBase):
         if isinstance(target_peptide_db, str):
             target_peptide_db = disk_backed_database.PeptideDiskBackedStructureDatabase(
                 target_peptide_db, cache_size=100)
+            target_peptide_db = mass_collection.TransformingMassCollectionAdapter(
+                target_peptide_db, PeptideDatabaseRecord.from_record)
             decoy_peptide_db = disk_backed_database.PeptideDiskBackedStructureDatabase(
                 decoy_peptide_db, cache_size=100)
+            decoy_peptide_db = mass_collection.TransformingMassCollectionAdapter(
+                decoy_peptide_db, PeptideDatabaseRecord.from_record)
 
         self.scorer_type = scorer_type
         self.scan_loader = scan_loader
@@ -84,18 +125,14 @@ class MultipartGlycopeptideIdentification(TaskBase):
             self.target_peptide_db.session, self.target_peptide_db.hypothesis_id)
 
         generator = PeptideGlycosylator(
-            mass_collection.TransformingMassCollectionAdapter(
-                self.target_peptide_db, PeptideDatabaseRecord.from_record),
-            glycan_combinations,
+            self.target_peptide_db, glycan_combinations,
             default_structure_type=StructureClassification.target_peptide_target_glycan)
         target_predictive_search = PredictiveGlycopeptideSearch(
             generator, product_error_tolerance=self.product_error_tolerance,
             coarse_threshold=1)
 
         generator = PeptideGlycosylator(
-            mass_collection.TransformingMassCollectionAdapter(
-                self.decoy_peptide_db, PeptideDatabaseRecord.from_record),
-            glycan_combinations,
+            self.decoy_peptide_db, glycan_combinations,
             default_structure_type=StructureClassification.decoy_peptide_target_glycan)
         decoy_predictive_search = PredictiveGlycopeptideSearch(
             generator, product_error_tolerance=self.product_error_tolerance,
@@ -112,6 +149,8 @@ class MultipartGlycopeptideIdentification(TaskBase):
             max_scans_per_workload=self.batch_size)
 
         mapping_batcher = BatchMapper(
+            # map labels to be loaded in the mapper executor to avoid repeatedly
+            # serializing the databases.
             [
                 ('target', 'target'),
                 ('decoy', 'decoy')
@@ -137,6 +176,7 @@ class MultipartGlycopeptideIdentification(TaskBase):
         matching_executor = WorkloadUnpackingMatcherExecutor(
             self.scan_loader,
             mapping_executor.out_queue,
+            # multiprocessing.Queue(10),
             Queue(50),
             mapping_executor.done_event,
             scorer_type=self.scorer_type,
@@ -145,13 +185,15 @@ class MultipartGlycopeptideIdentification(TaskBase):
             evaluation_kwargs=self.evaluation_kwargs,
             error_tolerance=self.product_error_tolerance,
         )
+        # matching_executor.done_event = multiprocessing.Event()
 
         journal_consumer = JournalingConsumer(
             self.journal_file,
             matching_executor.out_queue,
             matching_executor.done_event)
 
-        mapping_executor.start(process=True)
+        # mapping_executor.start(process=True)
+        matching_executor.start(process=True)
 
         pipeline = Pipeline([
             spectrum_batcher,
