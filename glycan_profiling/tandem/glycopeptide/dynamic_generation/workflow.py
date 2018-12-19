@@ -29,7 +29,7 @@ from .searcher import (
     BatchMapper, WorkloadUnpackingMatcherExecutor)
 
 
-def make_memory_database_proxy_resolver(path, n_glycan=True, o_glycan=True):
+def make_memory_database_proxy_resolver(path, n_glycan=True, o_glycan=False):
     proxy = mass_collection.MassCollectionProxy(
         PeptideDatabaseProxyLoader(path, n_glycan, o_glycan))
     return proxy
@@ -193,8 +193,8 @@ class MultipartGlycopeptideIdentification(TaskBase):
             matching_executor.out_queue,
             matching_executor.done_event)
 
-        # mapping_executor.start(process=True)
-        matching_executor.start(process=True)
+        mapping_executor.start(process=True)
+        # matching_executor.start(process=True)
 
         pipeline = Pipeline([
             spectrum_batcher,

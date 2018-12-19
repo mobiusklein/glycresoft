@@ -418,21 +418,39 @@ class ConcatenatedDatabase(SearchableMassCollection):
         return sum(map(len, self.databases))
 
 
-class TransformingMassCollectionAdapter(SearchableMassCollection):
-    def __init__(self, searchable_mass_collection, transformer):
-        self.searchable_mass_collection = searchable_mass_collection
-        self.transformer = transformer
-
-    def reset(self, **kwargs):
-        return self.searchable_mass_collection.reset(**kwargs)
-
-    def search_mass_ppm(self, mass, error_tolerance=1e-5):
-        result = self.searchable_mass_collection.search_mass_ppm(mass, error_tolerance)
-        return [self.transformer(r) for r in result]
+class SearchableMassCollectionWrapper(SearchableMassCollection):
 
     @property
     def highest_mass(self):
         return self.searchable_mass_collection.highest_mass
+
+    @property
+    def lowest_mass(self):
+        return self.searchable_mass_collection.lowest_mass
+
+    def reset(self, **kwargs):
+        return self.searchable_mass_collection.reset(**kwargs)
+
+    @property
+    def session(self):
+        return self.searchable_mass_collection.session
+
+    @property
+    def hypothesis_id(self):
+        return self.searchable_mass_collection.hypothesis_id
+
+    def __len__(self):
+        return len(self.searchable_mass_collection)
+
+
+class TransformingMassCollectionAdapter(SearchableMassCollectionWrapper):
+    def __init__(self, searchable_mass_collection, transformer):
+        self.searchable_mass_collection = searchable_mass_collection
+        self.transformer = transformer
+
+    def search_mass_ppm(self, mass, error_tolerance=1e-5):
+        result = self.searchable_mass_collection.search_mass_ppm(mass, error_tolerance)
+        return [self.transformer(r) for r in result]
 
     def __reduce__(self):
         return self.__class__, (self.searchable_mass_collection, None), self.__getstate__()
@@ -445,16 +463,9 @@ class TransformingMassCollectionAdapter(SearchableMassCollection):
     def __setstate__(self, state):
         self.transformer = dill.loads(state['transformer'])
 
-    @property
-    def lowest_mass(self):
-        return self.searchable_mass_collection.lowest_mass
-
     def search_mass(self, mass, error_tolerance):
         result = self.searchable_mass_collection.search_mass(mass, error_tolerance)
         return [self.transformer(r) for r in result]
-
-    def __len__(self):
-        return len(self.searchable_mass_collection)
 
     def __getitem__(self, i):
         return self.transformer(self.searchable_mass_collection[i])
@@ -467,7 +478,7 @@ class TransformingMassCollectionAdapter(SearchableMassCollection):
             self.searchable_mass_collection.search_between(lower, higher), self.transformer)
 
 
-class MassCollectionProxy(SearchableMassCollection):
+class MassCollectionProxy(SearchableMassCollectionWrapper):
     def __init__(self, resolver):
         self._searchable_mass_collection = None
         self.resolver = resolver
@@ -478,16 +489,9 @@ class MassCollectionProxy(SearchableMassCollection):
             self._searchable_mass_collection = self.resolver()
         return self._searchable_mass_collection
 
-    def reset(self, **kwargs):
-        return self.searchable_mass_collection.reset(**kwargs)
-
     def search_mass_ppm(self, mass, error_tolerance=1e-5):
         result = self.searchable_mass_collection.search_mass_ppm(mass, error_tolerance)
         return result
-
-    @property
-    def highest_mass(self):
-        return self.searchable_mass_collection.highest_mass
 
     def __reduce__(self):
         return self.__class__, (None,), self.__getstate__()
@@ -500,24 +504,9 @@ class MassCollectionProxy(SearchableMassCollection):
     def __setstate__(self, state):
         self.resolver = dill.loads(state['resolver'])
 
-    @property
-    def session(self):
-        return self.searchable_mass_collection.session
-
-    @property
-    def hypothesis_id(self):
-        return self.searchable_mass_collection.hypothesis_id
-
-    @property
-    def lowest_mass(self):
-        return self.searchable_mass_collection.lowest_mass
-
     def search_mass(self, mass, error_tolerance):
         result = self.searchable_mass_collection.search_mass(mass, error_tolerance)
         return result
-
-    def __len__(self):
-        return len(self.searchable_mass_collection)
 
     def __getitem__(self, i):
         return self.searchable_mass_collection[i]
