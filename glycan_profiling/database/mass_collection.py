@@ -505,6 +505,10 @@ class MassCollectionProxy(SearchableMassCollection):
         return self.searchable_mass_collection.session
 
     @property
+    def hypothesis_id(self):
+        return self.searchable_mass_collection.hypothesis_id
+
+    @property
     def lowest_mass(self):
         return self.searchable_mass_collection.lowest_mass
 

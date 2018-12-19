@@ -63,6 +63,7 @@ class PeptideDatabaseProxyLoader(object):
             ]
         mem_db = mass_collection.NeutralMassDatabase(peptides)
         mem_db.session = db.session
+        mem_db.hypothesis_id = db.hypothesis_id
         return mem_db
 
 
