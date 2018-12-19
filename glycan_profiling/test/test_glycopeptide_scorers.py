@@ -31,7 +31,7 @@ class TestGlycopeptideScorers(unittest.TestCase):
         self.assertAlmostEqual(match.score, 0.574639463036, 3)
 
         match = simple_score.SimpleCoverageScorer.evaluate(scan2, gp)
-        self.assertAlmostEqual(match.score, 0.461839015565, 3)
+        self.assertAlmostEqual(match.score, 0.57850568223215082, 3)
         match = simple_score.SimpleCoverageScorer.evaluate(scan2, gp2)
         self.assertAlmostEqual(match.score, 0.848213154345, 3)
 
@@ -45,7 +45,7 @@ class TestGlycopeptideScorers(unittest.TestCase):
         self.assertAlmostEqual(match.score, 179.12869707912699, 3)
 
         match = binomial_score.BinomialSpectrumMatcher.evaluate(scan2, gp)
-        self.assertAlmostEqual(match.score, 119.31335056352407, 3)
+        self.assertAlmostEqual(match.score, 139.70250652970935, 3)
         match = binomial_score.BinomialSpectrumMatcher.evaluate(scan2, gp2)
         self.assertAlmostEqual(match.score, 191.42842627069271, 3)
 
@@ -59,7 +59,7 @@ class TestGlycopeptideScorers(unittest.TestCase):
         self.assertAlmostEqual(match.score, 103.24070700636717, 3)
 
         match = coverage_weighted_binomial.CoverageWeightedBinomialScorer.evaluate(scan2, gp)
-        self.assertAlmostEqual(match.score, 55.409849070607173, 3)
+        self.assertAlmostEqual(match.score, 81.124982552040748, 3)
         match = coverage_weighted_binomial.CoverageWeightedBinomialScorer.evaluate(scan2, gp2)
         self.assertAlmostEqual(match.score, 162.67839798093911, 3)
 
@@ -73,6 +73,6 @@ class TestGlycopeptideScorers(unittest.TestCase):
         self.assertAlmostEqual(match.score, 55.395460297979383, 3)
 
         match = intensity_scorer.LogIntensityScorer.evaluate(scan2, gp)
-        self.assertAlmostEqual(match.score, 54.035379993, 3)
+        self.assertAlmostEqual(match.score, 72.705430134149736, 3)
         match = intensity_scorer.LogIntensityScorer.evaluate(scan2, gp2)
         self.assertAlmostEqual(match.score, 157.927581635, 3)
