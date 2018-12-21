@@ -219,9 +219,9 @@ def identity(x):
 class NeutralMassDatabase(SearchableMassCollection):
     def __init__(self, structures, mass_getter=operator.attrgetter("calculated_mass"), sort=True):
         self.mass_getter = mass_getter
-        self.structures = self._pack(structures, sort)
+        self.structures = self._prepare(structures, sort)
 
-    def _pack(self, structures, sort=True):
+    def _prepare(self, structures, sort=True):
         temp = []
         for obj in structures:
             mass = self.mass_getter(obj)
@@ -366,6 +366,17 @@ class NeutralMassDatabase(SearchableMassCollection):
             return self._merge_other(other, id_fn)
 
 
+try:
+    from glycan_profiling._c.database.mass_collection import (
+        MassObject, NeutralMassDatabaseImpl as _NeutralMassDatabaseImpl)
+    _NeutralMassDatabase = NeutralMassDatabase
+
+    class NeutralMassDatabase(_NeutralMassDatabaseImpl, _NeutralMassDatabase):
+        pass
+except ImportError:
+    pass
+
+
 class ConcatenatedDatabase(SearchableMassCollection):
     def __init__(self, databases):
         self.databases = list(databases)
@@ -501,6 +512,16 @@ class MassCollectionProxy(SearchableMassCollectionWrapper):
             "resolver": dill.dumps(self.resolver)
         }
 
+    def _has_resolved(self):
+        return self._searchable_mass_collection is not None
+
+    def __repr__(self):
+        if self._has_resolved():
+            size = len(self)
+        else:
+            size = "?"
+        return "{self.__class__.__name__}({size})".format(self=self, size=size)
+
     def __setstate__(self, state):
         self.resolver = dill.loads(state['resolver'])
 
@@ -512,7 +533,7 @@ class MassCollectionProxy(SearchableMassCollectionWrapper):
         return self.searchable_mass_collection[i]
 
     def __iter__(self):
-        return self.searchable_mass_collection
+        return iter(self.searchable_mass_collection)
 
     def search_between(self, lower, higher):
         return self.searchable_mass_collection.search_between(lower, higher)
