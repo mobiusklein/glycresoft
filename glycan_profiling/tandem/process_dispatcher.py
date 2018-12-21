@@ -965,6 +965,12 @@ class SpectrumIdentificationWorkerBase(Process, SpectrumEvaluatorBase):
 
     def run(self):
         try:
+            new_name = getattr(self, 'process_name', None)
+            import setproctitle
+            setproctitle.setproctitle(new_name)
+        except (ImportError, AttributeError):
+            pass
+        try:
             self.task()
         except Exception:
             self.log("An exception occurred while executing %r.\n%s" % (

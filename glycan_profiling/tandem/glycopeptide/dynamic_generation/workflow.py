@@ -5,11 +5,14 @@ try:
 except ImportError:
     from queue import Queue, Empty
 
+from glycan_profiling import serialize
+
 from glycan_profiling.task import TaskBase
 from glycan_profiling.chromatogram_tree import Unmodified
 
-from glycan_profiling.database import disk_backed_database, mass_collection
 from glycan_profiling.structure import ScanStub
+
+from glycan_profiling.database import disk_backed_database, mass_collection
 from glycan_profiling.structure.structure_loader import PeptideDatabaseRecord
 
 from ...temp_store import TempFileManager
@@ -29,20 +32,42 @@ from .searcher import (
     BatchMapper, WorkloadUnpackingMatcherExecutor)
 
 
-def make_memory_database_proxy_resolver(path, n_glycan=True, o_glycan=False):
+def _determine_database_contents(path, hypothesis_id=1):
+    db = disk_backed_database.PeptideDiskBackedStructureDatabase(path, hypothesis_id=hypothesis_id)
+    glycan_classes = db.query(
+        serialize.GlycanCombination,
+        serialize.GlycanClass.name).join(
+        serialize.GlycanCombination.components).join(
+        serialize.GlycanComposition.structure_classes).group_by(
+        serialize.GlycanClass.name).all()
+    glycan_classes = {
+        pair[1] for pair in glycan_classes
+    }
+    n_glycan = serialize.GlycanTypes.n_glycan in glycan_classes
+    o_glycan = (serialize.GlycanTypes.o_glycan in glycan_classes or
+                serialize.GlycanTypes.gag_linker in glycan_classes)
+    return {
+        'n_glycan': n_glycan,
+        'o_glycan': o_glycan
+    }
+
+
+def make_memory_database_proxy_resolver(path, n_glycan=True, o_glycan=False, hypothesis_id=1):
     proxy = mass_collection.MassCollectionProxy(
-        PeptideDatabaseProxyLoader(path, n_glycan, o_glycan))
+        PeptideDatabaseProxyLoader(path, n_glycan, o_glycan, hypothesis_id))
     return proxy
 
 
 class PeptideDatabaseProxyLoader(object):
-    def __init__(self, path, n_glycan=True, o_glycan=True):
+    def __init__(self, path, n_glycan=True, o_glycan=True, hypothesis_id=1):
         self.path = path
         self.n_glycan = n_glycan
         self.o_glycan = o_glycan
+        self.hypothesis_id = hypothesis_id
 
     def __call__(self):
-        db = disk_backed_database.PeptideDiskBackedStructureDatabase(self.path)
+        db = disk_backed_database.PeptideDiskBackedStructureDatabase(
+            self.path, hypothesis_id=self.hypothesis_id)
         peptides = map(
             PeptideDatabaseRecord.from_record,
             db)
