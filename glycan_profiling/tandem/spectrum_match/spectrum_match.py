@@ -3,7 +3,7 @@ import struct
 
 from collections import namedtuple
 
-from glypy.utils import Enum
+from glypy.utils import Enum, make_struct
 
 from ms_deisotope import DeconvolutedPeakSet, isotopic_shift
 from ms_deisotope.data_source.metadata import activation
@@ -293,7 +293,7 @@ class SpectrumMatchClassification(Enum):
     decoy_peptide_decoy_glycan = 3
 
 
-_ScoreSet = namedtuple("ScoreSet", ['glycopeptide_score', 'peptide_score', 'glycan_score'])
+_ScoreSet = make_struct("ScoreSet", ['glycopeptide_score', 'peptide_score', 'glycan_score'])
 
 
 class ScoreSet(_ScoreSet):
@@ -312,19 +312,50 @@ class ScoreSet(_ScoreSet):
         return cls(*cls.packer.unpack(binary))
 
 
+class FDRSet(make_struct("FDRSet", ['total_q_value', 'peptide_q_value', 'glycan_q_value', 'glycopeptide_q_value'])):
+    __slots__ = ()
+    packer = struct.Struct("!ffff")
+
+    def pack(self):
+        return self.packer.pack(*self)
+
+    @classmethod
+    def unpack(cls, binary):
+        return cls(*cls.packer.unpack(binary))
+
+    @classmethod
+    def default(cls):
+        return cls(1.0, 1.0, 1.0, 1.0)
+
+
 class MultiScoreSpectrumMatch(SpectrumMatch):
     __slots__ = ('score_set', 'match_type')
 
     def __init__(self, scan, target, score_set, best_match=False, data_bundle=None,
-                 q_value=None, id=None, mass_shift=None, match_type=None):
+                 q_value_set=None, id=None, mass_shift=None, match_type=None):
+        if q_value_set is None:
+            q_value_set = FDRSet.default()
+        else:
+            q_value_set = FDRSet(*q_value_set)
         super(MultiScoreSpectrumMatch, self).__init__(
-            scan, target, score_set[0], best_match, data_bundle, q_value, id, mass_shift)
+            scan, target, score_set[0], best_match, data_bundle, q_value_set[0],
+            id, mass_shift)
         self.score_set = ScoreSet(*score_set)
+        self.q_value_set = q_value_set
         self.match_type = SpectrumMatchClassification[match_type]
+
+    @property
+    def q_value_set(self):
+        return self._q_value_set
+
+    @q_value_set.setter
+    def q_value_set(self, value):
+        self._q_value_set = value
+        self.q_value = self._q_value_set.total_q_value
 
     def __reduce__(self):
         return self.__class__, (self.scan, self.target, self.score_set, self.best_match,
-                                self.data_bundle, self.q_value, self.id, self.mass_shift,
+                                self.data_bundle, self.q_value_set, self.id, self.mass_shift,
                                 self.match_type.value)
 
     def pack(self):
