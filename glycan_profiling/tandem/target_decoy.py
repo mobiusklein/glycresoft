@@ -57,6 +57,15 @@ class NearestValueLookUp(object):
             s=self, size=len(self))
 
     def __getitem__(self, key):
+        return self._get_one(key)
+
+    def _get_sequence(self, key):
+        value = [self._get_one(k) for k in key]
+        if isinstance(key, np.ndarray):
+            value = np.array(value, dtype=float)
+        return value
+
+    def _get_one(self, key):
         ix = self._find_closest_item(key)
         ix += 1
         if ix >= len(self):
