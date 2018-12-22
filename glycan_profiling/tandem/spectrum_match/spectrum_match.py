@@ -329,7 +329,7 @@ class FDRSet(make_struct("FDRSet", ['total_q_value', 'peptide_q_value', 'glycan_
 
 
 class MultiScoreSpectrumMatch(SpectrumMatch):
-    __slots__ = ('score_set', 'match_type')
+    __slots__ = ('score_set', 'match_type', '_q_value_set')
 
     def __init__(self, scan, target, score_set, best_match=False, data_bundle=None,
                  q_value_set=None, id=None, mass_shift=None, match_type=None):
@@ -337,6 +337,7 @@ class MultiScoreSpectrumMatch(SpectrumMatch):
             q_value_set = FDRSet.default()
         else:
             q_value_set = FDRSet(*q_value_set)
+        self._q_value_set = None
         super(MultiScoreSpectrumMatch, self).__init__(
             scan, target, score_set[0], best_match, data_bundle, q_value_set[0],
             id, mass_shift)
