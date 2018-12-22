@@ -1,12 +1,33 @@
 import csv
 
+from collections import defaultdict
+from operator import attrgetter
+
+import numpy as np
+
+from glycopeptidepy.utils import collectiontools
+
 from glycan_profiling.task import TaskBase, TaskExecutionSequence, Empty
+
+from glycan_profiling.structure.structure_loader import FragmentCachingGlycopeptide, PeptideProteinRelation
+from glycan_profiling.structure.lru import LRUMapping
+from glycan_profiling.chromatogram_tree import MassShift, Unmodified
+
+from glycan_profiling.tandem.ref import SpectrumReference
+from glycan_profiling.tandem.spectrum_match import (
+    MultiScoreSpectrumMatch, MultiScoreSpectrumSolutionSet, ScoreSet)
+
+from .search_space import glycopeptide_key_t, StructureClassification
 
 
 class JournalFileWriter(TaskBase):
     def __init__(self, path):
         self.path = path
-        self.handle = open(self.path, 'wb')
+        self.path = path
+        if not hasattr(path, 'write'):
+            self.handle = open(path, 'wb')
+        else:
+            self.handle = self.path
         self.writer = csv.writer(self.handle, delimiter='\t')
         self.write_header()
         self.spectrum_counter = 0
@@ -30,18 +51,21 @@ class JournalFileWriter(TaskBase):
             'glycan_score',
         ])
 
-    def write(self, psm):
+    def _prepare_fields(self, psm):
         error = (psm.target.total_mass - psm.precursor_information.neutral_mass
                  ) / psm.precursor_information.neutral_mass
+        fields = map(str, [psm.scan_id, error, ] + list(psm.target.id) + [
+            psm.target,
+            psm.mass_shift.name,
+            psm.score,
+            psm.score_set.peptide_score,
+            psm.score_set.glycan_score
+        ])
+        return fields
+
+    def write(self, psm):
         self.solution_counter += 1
-        self.writer.writerow(
-            map(str, [psm.scan_id, error, ] + list(psm.target.id) + [
-                psm.target,
-                psm.mass_shift.name,
-                psm.score,
-                psm.score_set.peptide_score,
-                psm.score_set.glycan_score
-            ]))
+        self.writer.writerow(self._prepare_fields(psm))
 
     def writeall(self, solution_sets):
         for solution_set in solution_sets:
@@ -75,3 +99,91 @@ class JournalingConsumer(TaskExecutionSequence):
                     has_work = False
                     break
         self.done_event.set()
+
+
+class JournalFileReader(TaskBase):
+    def __init__(self, path, cache_size=2 ** 12, mass_shift_map=None):
+        if mass_shift_map is None:
+            mass_shift_map = {Unmodified.name: Unmodified}
+        self.path = path
+        if not hasattr(path, 'read'):
+            self.handle = open(path, 'rb')
+        else:
+            self.handle = self.path
+        self.reader = csv.DictReader(self.handle, delimiter='\t')
+        self.glycopeptide_cache = LRUMapping(cache_size or 2 ** 12)
+        self.mass_shift_map = mass_shift_map
+
+    def glycopeptide_from_row(self, row):
+        glycopeptide_id_key = glycopeptide_key_t(
+            int(row['peptide_start']), int(row['peptide_end']), int(row['peptide_id']), int(row['protein_id']),
+            int(row['hypothesis_id']), int(row['glycan_combination_id']), StructureClassification[row['match_type']])
+        if glycopeptide_id_key in self.glycopeptide_cache:
+            return self.glycopeptide_cache[glycopeptide_id_key]
+        glycopeptide = FragmentCachingGlycopeptide(row['glycopeptide_sequence'])
+        glycopeptide.id = glycopeptide_id_key
+        glycopeptide.protein_relation = PeptideProteinRelation(
+            glycopeptide_id_key.start_position, glycopeptide_id_key.end_position,
+            glycopeptide_id_key.protein_id, glycopeptide_id_key.hypothesis_id)
+        self.glycopeptide_cache[glycopeptide_id_key] = glycopeptide
+        return glycopeptide
+
+    def spectrum_match_from_row(self, row):
+        glycopeptide = self.glycopeptide_from_row(row)
+        scan = SpectrumReference(row['scan_id'])
+        score_set = ScoreSet(
+            float(row['total_score']), float(row['peptide_score']),
+            float(row['glycan_score']))
+        mass_shift = MassShift(row['mass_shift'], MassShift.get(row['mass_shift']))
+        match = MultiScoreSpectrumMatch(
+            scan, glycopeptide, score_set, mass_shift=mass_shift,
+            match_type=str(glycopeptide.id.structure_type))
+        return match
+
+    def __iter__(self):
+        return self
+
+    def __next__(self):
+        return self.spectrum_match_from_row(next(self.reader))
+
+    def next(self):
+        return self.__next__()
+
+
+class SolutionSetGrouper(TaskBase):
+    def __init__(self, spectrum_matches):
+        self.spectrum_matches = spectrum_matches
+        self.spectrum_ids = set()
+        self.match_type_groups = self._collect()
+        self.exclusive_match_groups = self._exclusive()
+
+    def _collect(self):
+        match_type_getter = attrgetter('match_type')
+        groups = collectiontools.groupby(
+            self.spectrum_matches, match_type_getter)
+        by_scan_groups = {}
+        for group, members in groups.items():
+            acc = []
+            for by_scan in collectiontools.groupby(members, lambda x: x.scan.id).values():
+                scan = by_scan[0].scan
+                self.spectrum_ids.add(scan.scan_id)
+                ss = MultiScoreSpectrumSolutionSet(scan, by_scan)
+                ss.sort()
+                acc.append(ss)
+            by_scan_groups[group] = acc
+        return by_scan_groups
+
+    def _exclusive(self):
+        groups = collectiontools.groupby(
+            self.spectrum_matches, lambda x: x.scan.id)
+        score_getter = attrgetter('score')
+        by_match_type = defaultdict(list)
+        for scan_id, members in groups.items():
+            top_match = max(members, key=score_getter)
+            top_score = top_match.score
+            seen = set()
+            for match in members:
+                if np.isclose(top_score, match.score) and match.score > 0 and match.match_type not in seen:
+                    seen.add(match.match_type)
+                    by_match_type[match.match_type].append(match)
+        return by_match_type
