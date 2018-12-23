@@ -29,6 +29,8 @@ class NearestValueLookUp(object):
         hi = len(array)
         n = hi
 
+        error_tolerance = 1e-3
+
         if np.isnan(value):
             return lo
 
@@ -39,33 +41,56 @@ class NearestValueLookUp(object):
             i = (hi + lo) // 2
             x = array[i][key_index]
             err = x - value
-            if abs(err) < 1e-3:
+            if abs(err) < error_tolerance:
                 mid = i
                 best_index = mid
-                best_error = err
+                best_error = abs(err)
                 i = mid - 1
                 while i >= 0:
                     x = array[i][key_index]
-                    err = abs((x - value) / value)
+                    err = abs(x - value)
                     if err < best_error:
                         best_error = err
                         best_index = i
-                    elif err > 1e-3:
+                    elif err > error_tolerance:
                         break
                     i -= 1
                 i = mid + 1
                 while i < n:
                     x = array[i][key_index]
-                    err = abs((x - value) / value)
+                    err = abs(x - value)
                     if err < best_error:
                         best_error = err
                         best_index = i
-                    elif err > 1e-3:
+                    elif err > error_tolerance:
                         break
                     i += 1
                 return best_index
             elif (hi - lo) == 1:
-                return i
+                mid = i
+                best_index = mid
+                best_error = abs(err)
+                i = mid - 1
+                while i >= 0:
+                    x = array[i][key_index]
+                    err = abs(x - value)
+                    if err < best_error:
+                        best_error = err
+                        best_index = i
+                    elif err > error_tolerance:
+                        break
+                    i -= 1
+                i = mid + 1
+                while i < n:
+                    x = array[i][key_index]
+                    err = abs(x - value)
+                    if err < best_error:
+                        best_error = err
+                        best_index = i
+                    elif err > error_tolerance:
+                        break
+                    i += 1
+                return best_index
             elif x < value:
                 lo = i
             elif x > value:
@@ -92,7 +117,6 @@ class NearestValueLookUp(object):
 
     def _get_one(self, key):
         ix = self._find_closest_item(key)
-        ix += 1
         if ix >= len(self):
             ix = len(self) - 1
         try:
@@ -101,8 +125,6 @@ class NearestValueLookUp(object):
             print("IndexError in %r with index %r and query %r" % (self, ix, key))
             print(self.items)
             raise
-        if pair[0] < key:
-            return 0
         return pair[1]
 
 
