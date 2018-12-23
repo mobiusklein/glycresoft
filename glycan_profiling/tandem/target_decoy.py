@@ -455,6 +455,10 @@ class TargetDecoyAnalyzer(object):
     def q_value_map(self):
         return self._q_value_map
 
+    @property
+    def fdr_map(self):
+        return self._q_value_map
+
 
 class GroupwiseTargetDecoyAnalyzer(object):
     def __init__(self, target_series, decoy_series, with_pit=False, grouping_functions=None, decoy_correction=0,
