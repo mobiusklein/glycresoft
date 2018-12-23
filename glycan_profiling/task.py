@@ -152,6 +152,29 @@ def humanize_class_name(name):
 
 
 class TaskBase(object):
+    """A base class for a discrete, named step in a pipeline that
+    executes in sequence.
+
+    Attributes
+    ----------
+    debug_print_fn : Callable
+        The function called to print debug messages
+    display_fields : bool
+        Whether to display fields at the start of execution
+    end_time : datetime.datetime
+        The time when the task ended
+    error_print_fn : Callable
+        The function called to print error messages
+    logger_state : TYPE
+        Description
+    print_fn : Callable
+        The function called to print status messages
+    start_time : datetime.datetime
+        The time when the task began
+    status : str
+        The state of the executing task
+    """
+
     status = "new"
 
     _debug_enabled = None
@@ -304,6 +327,9 @@ class MultiEvent(object):
 
 
 class TaskExecutionSequence(TaskBase):
+    """A task unit that executes in a separate thread or process.
+    """
+
     _thread = None
 
     def __call__(self):
