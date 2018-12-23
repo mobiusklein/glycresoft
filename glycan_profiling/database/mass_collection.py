@@ -135,14 +135,36 @@ class MassDatabase(SearchableMassCollection):
             The index of the structure with the nearest mass
         """
         lo = 0
-        hi = len(self)
+        n = hi = len(self)
 
         while hi != lo:
-            mid = (hi + lo) / 2
+            mid = (hi + lo) // 2
             x = self[mid]
             err = x.mass() - mass
             if abs(err) <= error_tolerance:
-                return mid
+                best_index = mid
+                best_error = err
+                i = mid - 1
+                while i >= 0:
+                    x = self.structures[i]
+                    err = abs((x.mass() - mass) / mass)
+                    if err < best_error:
+                        best_error = err
+                        best_index = i
+                    elif err > error_tolerance:
+                        break
+                    i -= 1
+                i = mid + 1
+                while i < n:
+                    x = self.structures[i]
+                    err = abs((x.mass() - mass) / mass)
+                    if err < best_error:
+                        best_error = err
+                        best_index = i
+                    elif err > error_tolerance:
+                        break
+                    i += 1
+                return best_index
             elif (hi - lo) == 1:
                 return mid
             elif err > 0:
@@ -279,7 +301,7 @@ class NeutralMassDatabase(SearchableMassCollection):
         lo = 0
         n = hi = len(self.structures)
         while hi != lo:
-            mid = (hi + lo) / 2
+            mid = (hi + lo) // 2
             x = self.structures[mid]
             err = x.mass - mass
             if abs(err) <= error_tolerance:

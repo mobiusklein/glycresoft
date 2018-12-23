@@ -23,10 +23,11 @@ class NearestValueLookUp(object):
             items = items.items()
         self.items = sorted([ScoreCell(*x) for x in items if not np.isnan(x[0])], key=lambda x: x[0])
 
-    def _find_closest_item(self, value):
+    def _find_closest_item(self, value, key_index=0):
         array = self.items
         lo = 0
-        hi = len(array) - 1
+        hi = len(array)
+        n = hi
 
         if np.isnan(value):
             return lo
@@ -35,10 +36,34 @@ class NearestValueLookUp(object):
             return lo
 
         while hi - lo:
-            i = (hi + lo) / 2
-            x = array[i][0]
-            if x == value:
-                return i
+            i = (hi + lo) // 2
+            x = array[i][key_index]
+            err = x - value
+            if abs(err) < 1e-3:
+                mid = i
+                best_index = mid
+                best_error = err
+                i = mid - 1
+                while i >= 0:
+                    x = array[i][key_index]
+                    err = abs((x - value) / value)
+                    if err < best_error:
+                        best_error = err
+                        best_index = i
+                    elif err > 1e-3:
+                        break
+                    i -= 1
+                i = mid + 1
+                while i < n:
+                    x = array[i][key_index]
+                    err = abs((x - value) / value)
+                    if err < best_error:
+                        best_error = err
+                        best_index = i
+                    elif err > 1e-3:
+                        break
+                    i += 1
+                return best_index
             elif (hi - lo) == 1:
                 return i
             elif x < value:
@@ -46,8 +71,8 @@ class NearestValueLookUp(object):
             elif x > value:
                 hi = i
 
-    def get_pair(self, key):
-        return self.items[self._find_closest_item(key) + 1]
+    def get_pair(self, key, key_index=0):
+        return self.items[self._find_closest_item(key, key_index) + 1]
 
     def __len__(self):
         return len(self.items)
