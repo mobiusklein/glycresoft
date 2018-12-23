@@ -114,7 +114,30 @@ cdef class NeutralMassDatabaseImpl(object):
                     i += 1
                 return best_index
             elif (hi - lo) == 1:
-                return mid
+                best_index = mid
+                best_error = err
+                i = mid - 1
+                while i >= 0:
+                    x = <MassObject>PyList_GetItem(array, i)
+                    err = abs((x.mass - mass) / mass)
+                    if err < best_error:
+                        best_error = err
+                        best_index = i
+                    elif err > error_tolerance:
+                        break
+                    i -= 1
+
+                i = mid + 1
+                while i < n:
+                    x = <MassObject>PyList_GetItem(array, i)
+                    err = abs((x.mass - mass) / mass)
+                    if err < best_error:
+                        best_error = err
+                        best_index = i
+                    elif err > error_tolerance:
+                        break
+                    i += 1
+                return best_index
             elif err > 0:
                 hi = mid
             elif err < 0:
