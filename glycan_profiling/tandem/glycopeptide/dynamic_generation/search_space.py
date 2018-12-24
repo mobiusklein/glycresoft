@@ -6,7 +6,6 @@ from collections import namedtuple
 
 from lxml import etree
 
-from glypy.utils import Enum
 from glycopeptidepy import GlycosylationType
 from glycopeptidepy.structure.sequence import (
     _n_glycosylation, _o_glycosylation, _gag_linker_glycosylation)
@@ -22,6 +21,7 @@ from glycan_profiling.database import intervals
 from glycan_profiling.database.mass_collection import NeutralMassDatabase, SearchableMassCollection
 from glycan_profiling.database.builder.glycopeptide.common import limiting_combinations
 
+from ...spectrum_match import SpectrumMatchClassification as StructureClassification
 from ...workload import WorkloadManager
 from ..core_search import GlycanCombinationRecord, GlycanFilteringPeptideMassEstimator
 
@@ -32,13 +32,6 @@ logger = logging.Logger("glycresoft.dynamic_generation")
 _glycopeptide_key_t = namedtuple(
     'glycopeptide_key', ('start_position', 'end_position', 'peptide_id', 'protein_id',
                          'hypothesis_id', 'glycan_combination_id', 'structure_type'))
-
-
-class StructureClassification(Enum):
-    target_peptide_target_glycan = 0
-    target_peptide_decoy_glycan = 1
-    decoy_peptide_target_glycan = 2
-    decoy_peptide_decoy_glycan = decoy_peptide_target_glycan | target_peptide_decoy_glycan
 
 
 TT = StructureClassification.target_peptide_target_glycan
@@ -218,12 +211,12 @@ class DynamicGlycopeptideSearchBase(object):
 
 class PredictiveGlycopeptideSearch(DynamicGlycopeptideSearchBase):
 
-    def __init__(self, peptide_glycosylator, product_error_tolerance=2e-5, coarse_threshold=0.1,
+    def __init__(self, peptide_glycosylator, product_error_tolerance=2e-5, glycan_score_threshold=0.1,
                  min_fragments=2, peptide_masses_per_scan=100,
                  probing_range_for_missing_precursors=3, trust_precursor_fits=True):
         self.peptide_glycosylator = peptide_glycosylator
         self.product_error_tolerance = product_error_tolerance
-        self.coarse_threshold = coarse_threshold
+        self.glycan_score_threshold = glycan_score_threshold
         self.min_fragments = min_fragments
         self.peptide_mass_predictor = GlycanFilteringPeptideMassEstimator(
             self.peptide_glycosylator.glycan_combinations,
@@ -232,12 +225,13 @@ class PredictiveGlycopeptideSearch(DynamicGlycopeptideSearchBase):
         self.probing_range_for_missing_precursors = probing_range_for_missing_precursors
         self.trust_precursor_fits = trust_precursor_fits
 
-    def handle_scan_group(self, group, precursor_error_tolerance=1e-5, mass_shifts=None):
+    def handle_scan_group(self, group, precursor_error_tolerance=1e-5, mass_shifts=None, workload=None):
         if mass_shifts is None:
             mass_shifts = [Unmodified]
-        workload = WorkloadManager()
+        if workload is None:
+            workload = WorkloadManager()
 
-        coarse_threshold = self.coarse_threshold
+        glycan_score_threshold = self.glycan_score_threshold
         min_fragments = self.min_fragments
         estimate_peptide_mass = self.peptide_mass_predictor.estimate_peptide_mass
         handle_peptide_mass = self.peptide_glycosylator.handle_peptide_mass
@@ -255,7 +249,8 @@ class PredictiveGlycopeptideSearch(DynamicGlycopeptideSearchBase):
                     mass_shift_name = mass_shift.name
                     intact_mass = scan.precursor_information.neutral_mass - mass_shift.mass - neutron_shift
                     for peptide_mass in estimate_peptide_mass(scan, topn=peptide_masses_per_scan, mass_shift=mass_shift,
-                                                              threshold=coarse_threshold, min_fragments=min_fragments):
+                                                              threshold=glycan_score_threshold,
+                                                              min_fragments=min_fragments):
                         for candidate in handle_peptide_mass(peptide_mass, intact_mass):
                             key = (candidate.id, mass_shift_name)
                             if key in seen:
@@ -358,9 +353,11 @@ class IterativeGlycopeptideSearch(DynamicGlycopeptideSearchBase):
             logger.info("Unknown Condition Overlap %r / %r" % (node, nearest_interval))
             return nearest_interval.group
 
-    def handle_scan_group(self, group, precursor_error_tolerance=1e-5, mass_shifts=None):
+    def handle_scan_group(self, group, precursor_error_tolerance=1e-5, mass_shifts=None, workload=None):
         if mass_shifts is None:
             mass_shifts = [Unmodified]
+        if workload is None:
+            workload = WorkloadManager()
 
         group = NeutralMassDatabase(group, lambda x: x.precursor_information.neutral_mass)
         lo_mass = group.lowest_mass
@@ -376,7 +373,6 @@ class IterativeGlycopeptideSearch(DynamicGlycopeptideSearchBase):
         upper_bound = hi_mass + hi_shift
         upper_bound = upper_bound + (upper_bound * precursor_error_tolerance)
 
-        workload = WorkloadManager()
         id_to_scan = {}
         for scan in group:
             id_to_scan[scan.id] = scan
@@ -388,6 +384,25 @@ class IterativeGlycopeptideSearch(DynamicGlycopeptideSearchBase):
                 intact_mass = scan.precursor_information.neutral_mass - mass_shift.mass
                 for candidate in candidates.search_mass_ppm(intact_mass, precursor_error_tolerance):
                     workload.add_scan_hit(scan, candidate, mass_shift.name)
+        return workload
+
+
+class CompoundGlycopeptideSearch(object):
+    def __init__(self, glycopeptide_searchers=None):
+        if glycopeptide_searchers is None:
+            glycopeptide_searchers = []
+        self.glycopeptide_searchers = list(glycopeptide_searchers)
+
+    def add(self, glycopeptide_searcher):
+        self.glycopeptide_searchers.append(glycopeptide_searcher)
+
+    def handle_scan_group(self, group, precursor_error_tolerance=1e-5, mass_shifts=None, workload=None):
+        if mass_shifts is None:
+            mass_shifts = [Unmodified]
+        if workload is None:
+            workload = WorkloadManager()
+        for searcher in self.glycopeptide_searchers:
+            searcher.handle_scan_group(group, precursor_error_tolerance, mass_shifts, workload=workload)
         return workload
 
 

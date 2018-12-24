@@ -162,7 +162,7 @@ class DatabaseSearchIdentifierBase(TaskBase):
     def _clear_database_cache(self):
         self.structure_database.clear_cache()
 
-    def search(self, precursor_error_tolerance=1e-5, simplify=True, chunk_size=500, limit=None, *args, **kwargs):
+    def search(self, precursor_error_tolerance=1e-5, simplify=True, batch_size=500, limit=None, *args, **kwargs):
         target_hits = self.spectrum_match_store.writer("targets")
         decoy_hits = self.spectrum_match_store.writer("decoys")
 
@@ -175,7 +175,7 @@ class DatabaseSearchIdentifierBase(TaskBase):
         self._before_search(*args, **kwargs)
 
         self.log("Writing Matches To %r" % (self.file_manager,))
-        for scan_collection in chunkiter(self.tandem_scans, chunk_size):
+        for scan_collection in chunkiter(self.tandem_scans, batch_size):
             count += len(scan_collection)
             for item in self.format_work_batch(scan_collection, count, total):
                 self.log("... %s" % item)

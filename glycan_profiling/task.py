@@ -165,8 +165,8 @@ class TaskBase(object):
         The time when the task ended
     error_print_fn : Callable
         The function called to print error messages
-    logger_state : TYPE
-        Description
+    logger_state : logging.Logger
+        The Logger bound to this task
     print_fn : Callable
         The function called to print status messages
     start_time : datetime.datetime
@@ -333,11 +333,11 @@ class TaskExecutionSequence(TaskBase):
     _thread = None
 
     def __call__(self):
-        result = self.process()
+        result = self.run()
         self.log("%r Done\n" % self)
         return result
 
-    def process(self):
+    def run(self):
         raise NotImplementedError()
 
     def _get_repr_details(self):

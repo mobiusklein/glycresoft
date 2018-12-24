@@ -26,7 +26,6 @@ from glycan_profiling.task import TaskBase
 from glycan_profiling.tandem.target_decoy import NearestValueLookUp, TargetDecoyAnalyzer
 from glycan_profiling.tandem.spectrum_matcher_base import SpectrumMatch
 
-from .journal import SolutionSetGrouper
 from .mixture import GammaMixture, GaussianMixtureWithPriorComponent
 
 
@@ -180,21 +179,13 @@ class GlycanSizeCalculator(object):
 
 
 class GlycopeptideFDREstimator(TaskBase):
-    def __init__(self, spectrum_matches):
-        self.spectrum_matches = spectrum_matches
-        self._grouper = None
+    display_fields = False
+
+    def __init__(self, groups):
+        self.grouper = groups
         self.glycan_fdr = None
         self.peptide_fdr = None
         self.glycopeptide_fdr = None
-
-    @property
-    def grouper(self):
-        if self._grouper is None:
-            self.build_groups()
-        return self._grouper
-
-    def build_groups(self):
-        self._grouper = SolutionSetGrouper(self.spectrum_matches)
 
     def fit_glycan_fdr(self):
         tt_gpsms = self.grouper.exclusive_match_groups['target_peptide_target_glycan']
@@ -267,8 +258,8 @@ class GlycopeptideFDREstimator(TaskBase):
         self.glycopeptide_fdr = glycopeptide_fdr
         return self.glycopeptide_fdr
 
-    def fit_total_fdr(self):
-        for ts in self.grouper.match_type_groups['target_peptide_target_glycan']:
+    def _assign_total_fdr(self, solution_sets):
+        for ts in solution_sets:
             for t in ts:
                 t.q_value_set.peptide_q_value = self.peptide_fdr.q_value_map[t.score_set.peptide_score]
                 t.q_value_set.glycan_q_value = self.glycan_fdr.fdr_map[t.score_set.glycan_score]
@@ -277,6 +268,11 @@ class GlycopeptideFDREstimator(TaskBase):
                          t.q_value_set.glycopeptide_q_value)
                 total = max(t.q_value_set.peptide_q_value, t.q_value_set.glycan_q_value, total)
                 t.q_value = t.q_value_set.total_q_value = total
+            ts.q_value = ts.best_solution().q_value
+        return solution_sets
+
+    def fit_total_fdr(self):
+        self._assign_total_fdr(self.grouper.match_type_groups['target_peptide_target_glycan'])
         return self.grouper
 
     def run(self):

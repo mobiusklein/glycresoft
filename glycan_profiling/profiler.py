@@ -322,7 +322,7 @@ class GlycanChromatogramAnalyzer(TaskBase):
                     scorer_type=SignatureIonScorer):
         mapper = SignatureIonMapper(
             msms_scans, chromatograms, peak_loader.convert_scan_id_to_retention_time,
-            self.adducts, self.minimum_mass, chunk_size=1000,
+            self.adducts, self.minimum_mass, batch_size=1000,
             default_glycan_composition=default_glycan_composition,
             scorer_type=scorer_type, n_processes=self.n_processes)
         return mapper
@@ -523,7 +523,7 @@ class GlycopeptideLCMSMSAnalyzer(TaskBase):
                  msn_mass_error_tolerance=2e-5, psm_fdr_threshold=0.05, peak_shape_scoring_model=None,
                  tandem_scoring_model=None, minimum_mass=1000., save_unidentified=False,
                  oxonium_threshold=0.05, scan_transformer=None, adducts=None, n_processes=5,
-                 spectra_chunk_size=1000, use_peptide_mass_filter=False, maximum_mass=float('inf'),
+                 spectrum_batch_size=1000, use_peptide_mass_filter=False, maximum_mass=float('inf'),
                  probing_range_for_missing_precursors=3, trust_precursor_fits=True):
         if tandem_scoring_model is None:
             tandem_scoring_model = CoverageWeightedBinomialScorer
@@ -554,7 +554,7 @@ class GlycopeptideLCMSMSAnalyzer(TaskBase):
         self.minimum_oxonium_ratio = oxonium_threshold
         self.scan_transformer = scan_transformer
         self.n_processes = n_processes
-        self.spectra_chunk_size = spectra_chunk_size
+        self.spectrum_batch_size = spectrum_batch_size
         self.use_peptide_mass_filter = use_peptide_mass_filter
         self.maximum_mass = maximum_mass
         self.probing_range_for_missing_precursors = probing_range_for_missing_precursors
@@ -599,14 +599,14 @@ class GlycopeptideLCMSMSAnalyzer(TaskBase):
         return searcher
 
     def do_search(self, searcher):
-        target_hits, decoy_hits = searcher.search(
+        assigned_spectra = searcher.search(
             precursor_error_tolerance=self.mass_error_tolerance,
             error_tolerance=self.msn_mass_error_tolerance,
-            chunk_size=self.spectra_chunk_size)
-        return target_hits, decoy_hits
+            batch_size=self.spectrum_batch_size)
+        return assigned_spectra
 
     def estimate_fdr(self, searcher, target_hits, decoy_hits):
-        searcher.target_decoy(target_hits, decoy_hits)
+        searcher.estimate_fdr(target_hits, decoy_hits)
 
     def map_chromatograms(self, searcher, extractor, target_hits):
 
@@ -749,7 +749,7 @@ class MzMLGlycopeptideLCMSMSAnalyzer(GlycopeptideLCMSMSAnalyzer):
                  msn_mass_error_tolerance=2e-5, psm_fdr_threshold=0.05, peak_shape_scoring_model=None,
                  tandem_scoring_model=None, minimum_mass=1000., save_unidentified=False,
                  oxonium_threshold=0.05, scan_transformer=None, adducts=None,
-                 n_processes=5, spectra_chunk_size=1000, use_peptide_mass_filter=False,
+                 n_processes=5, spectrum_batch_size=1000, use_peptide_mass_filter=False,
                  maximum_mass=float('inf'), probing_range_for_missing_precursors=3,
                  trust_precursor_fits=True):
         super(MzMLGlycopeptideLCMSMSAnalyzer, self).__init__(
@@ -760,7 +760,7 @@ class MzMLGlycopeptideLCMSMSAnalyzer(GlycopeptideLCMSMSAnalyzer):
             psm_fdr_threshold, peak_shape_scoring_model,
             tandem_scoring_model, minimum_mass,
             save_unidentified, oxonium_threshold,
-            scan_transformer, adducts, n_processes, spectra_chunk_size,
+            scan_transformer, adducts, n_processes, spectrum_batch_size,
             use_peptide_mass_filter, maximum_mass,
             probing_range_for_missing_precursors=probing_range_for_missing_precursors,
             trust_precursor_fits=trust_precursor_fits)
@@ -840,7 +840,7 @@ class MzMLComparisonGlycopeptideLCMSMSAnalyzer(MzMLGlycopeptideLCMSMSAnalyzer):
                  msn_mass_error_tolerance=2e-5, psm_fdr_threshold=0.05, peak_shape_scoring_model=None,
                  tandem_scoring_model=None, minimum_mass=1000., save_unidentified=False,
                  oxonium_threshold=0.05, scan_transformer=None, adducts=None,
-                 n_processes=5, spectra_chunk_size=1000, use_peptide_mass_filter=False,
+                 n_processes=5, spectrum_batch_size=1000, use_peptide_mass_filter=False,
                  maximum_mass=float('inf'), use_decoy_correction_threshold=None,
                  probing_range_for_missing_precursors=3, trust_precursor_fits=True):
         if use_decoy_correction_threshold is None:
@@ -853,7 +853,7 @@ class MzMLComparisonGlycopeptideLCMSMSAnalyzer(MzMLGlycopeptideLCMSMSAnalyzer):
             msn_mass_error_tolerance, psm_fdr_threshold, peak_shape_scoring_model,
             tandem_scoring_model, minimum_mass, save_unidentified,
             oxonium_threshold, scan_transformer, adducts,
-            n_processes, spectra_chunk_size, use_peptide_mass_filter,
+            n_processes, spectrum_batch_size, use_peptide_mass_filter,
             maximum_mass, probing_range_for_missing_precursors, trust_precursor_fits)
         self.decoy_database_connection = decoy_database_connection
         self.use_decoy_correction_threshold = use_decoy_correction_threshold
@@ -903,6 +903,6 @@ class MzMLComparisonGlycopeptideLCMSMSAnalyzer(MzMLGlycopeptideLCMSMSAnalyzer):
         else:
             targets_per_decoy = 1.0
             decoy_correction = 0
-        searcher.target_decoy(
+        searcher.estimate_fdr(
             target_hits, decoy_hits, decoy_correction=decoy_correction,
             target_weight=targets_per_decoy)

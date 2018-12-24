@@ -1,14 +1,15 @@
 import time
-import threading
-import multiprocessing
-from Queue import Queue, Empty
+try:
+    from Queue import Empty
+except ImportError:
+    from queue import Empty
 
-from glycan_profiling.task import TaskBase, TaskExecutionSequence, Pipeline
+from glycan_profiling.task import TaskExecutionSequence
 from glycan_profiling.chromatogram_tree import Unmodified
 
 from .search_space import (
-    Record, Parser, PredictiveGlycopeptideSearch,
-    StructureClassification, serialize_workload,
+    Parser,
+    serialize_workload,
     deserialize_workload)
 
 from ...workload import WorkloadManager
@@ -16,15 +17,6 @@ from ...spectrum_match import MultiScoreSpectrumSolutionSet
 
 from ..scoring import LogIntensityScorer
 from ..glycopeptide_matcher import GlycopeptideMatcher
-
-
-def memory_summary():
-    # Only import Pympler when we need it. We don't want it to
-    # affect our process if we never call memory_summary.
-    from pympler import summary, muppy
-    mem_summary = summary.summarize(muppy.get_objects())
-    rows = summary.format_(mem_summary)
-    return '\n'.join(rows)
 
 
 class MultiScoreGlycopeptideMatcher(GlycopeptideMatcher):
@@ -61,7 +53,7 @@ class SpectrumBatcher(TaskExecutionSequence):
             chunk, group_i = workload_grouping(groups, max_scans_per_workload, group_i)
             yield chunk, group_i_prev, group_n
 
-    def process(self):
+    def run(self):
         for batch in self.generate():
             self.out_queue.put(batch)
         self.done_event.set()
@@ -90,7 +82,7 @@ class BatchMapper(TaskExecutionSequence):
             task.label = label
             self.out_queue.put(task)
 
-    def process(self):
+    def run(self):
         has_work = True
         while has_work:
             try:
@@ -172,7 +164,7 @@ class StructureMapper(TaskExecutionSequence):
                 workload.add_scan_hit(scan, record, hit_type)
         return workload
 
-    def process(self):
+    def run(self):
         workload = self.map_structures()
         self.add_decoy_glycans(workload)
         return workload
@@ -191,7 +183,7 @@ class MapperExecutor(TaskExecutionSequence):
             workload, mapper_task.group_i, mapper_task.group_n)
         return matcher_task
 
-    def process(self):
+    def run(self):
         has_work = True
         while has_work:
             try:
@@ -222,7 +214,6 @@ class SerializingMapperExecutor(MapperExecutor):
         workload = serialize_workload(workload)
         matcher_task = SpectrumMatcher(
             workload, mapper_task.group_i, mapper_task.group_n)
-        # self.log(memory_summary())
         return matcher_task
 
 
@@ -275,7 +266,7 @@ class SpectrumMatcher(TaskExecutionSequence):
             batch.clear()
         return target_solutions
 
-    def process(self):
+    def run(self):
         solution_sets = self.score_spectra()
         return solution_sets
 
@@ -308,7 +299,7 @@ class MatcherExecutor(TaskExecutionSequence):
         solutions = matcher_task()
         return solutions
 
-    def process(self):
+    def run(self):
         has_work = True
         while has_work:
             try:

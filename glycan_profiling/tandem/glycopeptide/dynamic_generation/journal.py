@@ -87,7 +87,7 @@ class JournalingConsumer(TaskExecutionSequence):
         self.in_done_event = in_done_event
         self.done_event = self._make_event()
 
-    def process(self):
+    def run(self):
         has_work = True
         while has_work:
             try:
@@ -102,9 +102,11 @@ class JournalingConsumer(TaskExecutionSequence):
 
 
 class JournalFileReader(TaskBase):
-    def __init__(self, path, cache_size=2 ** 12, mass_shift_map=None):
+    def __init__(self, path, cache_size=2 ** 12, mass_shift_map=None, precursor_information_map=None):
         if mass_shift_map is None:
             mass_shift_map = {Unmodified.name: Unmodified}
+        if precursor_information_map is None:
+            precursor_information_map = {}
         self.path = path
         if not hasattr(path, 'read'):
             self.handle = open(path, 'rb')
@@ -113,6 +115,7 @@ class JournalFileReader(TaskBase):
         self.reader = csv.DictReader(self.handle, delimiter='\t')
         self.glycopeptide_cache = LRUMapping(cache_size or 2 ** 12)
         self.mass_shift_map = mass_shift_map
+        self.precursor_information_map = precursor_information_map
 
     def glycopeptide_from_row(self, row):
         glycopeptide_id_key = glycopeptide_key_t(
@@ -130,7 +133,9 @@ class JournalFileReader(TaskBase):
 
     def spectrum_match_from_row(self, row):
         glycopeptide = self.glycopeptide_from_row(row)
-        scan = SpectrumReference(row['scan_id'])
+        scan = SpectrumReference(
+            row['scan_id'],
+            self.precursor_information_map.get(row['scan_id']))
         score_set = ScoreSet(
             float(row['total_score']), float(row['peptide_score']),
             float(row['glycan_score']))
@@ -149,13 +154,26 @@ class JournalFileReader(TaskBase):
     def next(self):
         return self.__next__()
 
+    def close(self):
+        self.handle.close()
+
+
+def isclose(a, b, rtol=1e-05, atol=1e-08):
+    return abs(a - b), atol + rtol * abs(b)
+
 
 class SolutionSetGrouper(TaskBase):
     def __init__(self, spectrum_matches):
-        self.spectrum_matches = spectrum_matches
+        self.spectrum_matches = list(spectrum_matches)
         self.spectrum_ids = set()
         self.match_type_groups = self._collect()
         self.exclusive_match_groups = self._exclusive()
+
+    def __getitem__(self, key):
+        return self.exclusive_match_groups[key]
+
+    def __iter__(self):
+        return iter(self.exclusive_match_groups.items())
 
     def _collect(self):
         match_type_getter = attrgetter('match_type')
@@ -183,7 +201,7 @@ class SolutionSetGrouper(TaskBase):
             top_score = top_match.score
             seen = set()
             for match in members:
-                if np.isclose(top_score, match.score) and match.score > 0 and match.match_type not in seen:
+                if isclose(top_score, match.score) and match.score > 0 and match.match_type not in seen:
                     seen.add(match.match_type)
                     by_match_type[match.match_type].append(match)
         return by_match_type

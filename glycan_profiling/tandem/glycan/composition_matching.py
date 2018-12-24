@@ -57,7 +57,7 @@ class SignatureIonMapper(TaskBase):
     minimum_score = 0.05
 
     def __init__(self, tandem_scans, chromatograms, scan_id_to_rt=lambda x: x,
-                 adducts=None, minimum_mass=500, chunk_size=1000,
+                 adducts=None, minimum_mass=500, batch_size=1000,
                  default_glycan_composition=None, scorer_type=None,
                  n_processes=4):
         if scorer_type is None:
@@ -142,13 +142,13 @@ class SignatureIonMapper(TaskBase):
             hit_to_scan[record.id] = scans
         return scan_map, hit_map, hit_to_scan
 
-    def _chunk_chromatograms(self, chromatograms, chunk_size=3500):
+    def _chunk_chromatograms(self, chromatograms, batch_size=3500):
         chunk = []
         k = 0
         for chroma in chromatograms:
             chunk.append(chroma)
             k += len(chroma.tandem_solutions)
-            if k >= chunk_size:
+            if k >= batch_size:
                 yield chunk
                 chunk = []
                 k = 0

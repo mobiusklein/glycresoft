@@ -289,6 +289,8 @@ def msfile_info(ms_file):
     click.echo("Last MSn Scan: %0.2f Minutes" % (last_msn,))
 
     for charge, count in sorted(charges.items()):
+        if not isinstance(charge, int):
+            continue
         click.echo("Precursors with Charge State %d: %d" % (charge, count))
 
     click.echo("Defaulted MSn Scans: %d" % (n_defaulted,))
