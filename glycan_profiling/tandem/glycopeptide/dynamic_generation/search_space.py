@@ -113,7 +113,7 @@ class GlycoformGeneratorBase(object):
         result_set = [None for i in site_combinations]
         for i, site_set in enumerate(site_combinations):
             glycoform = peptide_obj.clone(share_cache=False)
-            glycoform.id = key._replace(permutation=i)
+            glycoform.id = key._replace(site_combination_index=i)
             glycoform.glycan = glycan_combination.composition.clone()
             for site in site_set:
                 glycoform.add_modification(site, core_type.name)
