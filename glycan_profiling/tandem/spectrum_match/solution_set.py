@@ -156,7 +156,7 @@ class SpectrumSolutionSet(ScanWrapperBase):
         return self
 
     def sort(self):
-        self.solutions.sort(key=lambda x: x.score, reverse=True)
+        self.solutions.sort(key=lambda x: (x.score, x.target.id), reverse=True)
         return self
 
     def merge(self, other):
