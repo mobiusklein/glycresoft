@@ -184,6 +184,14 @@ class ScoreThresholdCounter(object):
         return NearestValueLookUp(complement)
 
 
+class TargetDecoySet(namedtuple("TargetDecoySet", ['target_matches', 'decoy_matches'])):
+    def target_count(self):
+        return len(self.target_matches)
+
+    def decoy_count(self):
+        return len(self.decoy_matches)
+
+
 # implementation derived from pyteomics
 _precalc_fact = np.log([math.factorial(n) for n in range(20)])
 
