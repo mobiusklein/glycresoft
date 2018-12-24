@@ -37,6 +37,7 @@ from glycan_profiling.models import GeneralScorer, get_feature
 from glycan_profiling.tandem import chromatogram_mapping
 from glycan_profiling.structure import ScanStub
 from glycan_profiling.tandem.glycopeptide.scoring import (
+    LogIntensityScorer,
     CoverageWeightedBinomialScorer, CoverageWeightedBinomialModelTree)
 from glycan_profiling.tandem.glycopeptide.glycopeptide_matcher import (
     GlycopeptideDatabaseSearchIdentifier, ExclusiveGlycopeptideDatabaseSearchComparer)
@@ -605,8 +606,8 @@ class GlycopeptideLCMSMSAnalyzer(TaskBase):
             batch_size=self.spectrum_batch_size)
         return assigned_spectra
 
-    def estimate_fdr(self, searcher, target_hits, decoy_hits):
-        searcher.estimate_fdr(target_hits, decoy_hits)
+    def estimate_fdr(self, searcher, target_decoy_set):
+        searcher.estimate_fdr(*target_decoy_set)
 
     def map_chromatograms(self, searcher, extractor, target_hits):
 
@@ -660,16 +661,17 @@ class GlycopeptideLCMSMSAnalyzer(TaskBase):
 
         # Traditional LC-MS/MS Database Search
         searcher = self.make_search_engine(msms_scans, database, peak_loader)
-        target_hits, decoy_hits = self.do_search(searcher)
+        target_decoy_set = self.do_search(searcher)
 
-        self.target_hit_count = len(target_hits)
-        self.decoy_hit_count = len(decoy_hits)
+        self.target_hit_count = target_decoy_set.target_count()
+        self.decoy_hit_count = target_decoy_set.decoy_count()
 
-        if len(target_hits) == 0:
+        if target_decoy_set.target_count() == 0:
             self.log("No target matches were found.")
             return [], [], [], []
 
-        self.estimate_fdr(searcher, target_hits, decoy_hits)
+        self.estimate_fdr(searcher, target_decoy_set)
+        target_hits = target_decoy_set.target_matches
         n_below = 0
         for target in target_hits:
             if target.q_value <= self.psm_fdr_threshold:
@@ -691,7 +693,7 @@ class GlycopeptideLCMSMSAnalyzer(TaskBase):
 
         self.log("Saving solutions (%d identified glycopeptides)" % (len(gps),))
         self.save_solutions(gps, unassigned, extractor, database)
-        return gps, unassigned, target_hits, decoy_hits
+        return gps, unassigned, target_decoy_set
 
     def _build_analysis_saved_parameters(self, identified_glycopeptides, unassigned_chromatograms,
                                          chromatogram_extractor, database):
@@ -896,13 +898,40 @@ class MzMLComparisonGlycopeptideLCMSMSAnalyzer(MzMLGlycopeptideLCMSMSAnalyzer):
         })
         return result
 
-    def estimate_fdr(self, searcher, target_hits, decoy_hits):
-        if len(decoy_hits) / float(len(target_hits)) < self.use_decoy_correction_threshold:
+    def estimate_fdr(self, searcher, target_decoy_set):
+        if target_decoy_set.decoy_count() / float(
+                target_decoy_set.target_count()) < self.use_decoy_correction_threshold:
             targets_per_decoy = 0.5
             decoy_correction = 1
         else:
             targets_per_decoy = 1.0
             decoy_correction = 0
         searcher.estimate_fdr(
-            target_hits, decoy_hits, decoy_correction=decoy_correction,
+            *target_decoy_set, decoy_correction=decoy_correction,
             target_weight=targets_per_decoy)
+
+
+class MultipartGlycopeptideLCMSMSAnalyzer(MzMLGlycopeptideLCMSMSAnalyzer):
+    def __init__(self, database_connection, decoy_database_connection, hypothesis_id,
+                 sample_path, output_path,
+                 analysis_name=None, grouping_error_tolerance=1.5e-5, mass_error_tolerance=1e-5,
+                 msn_mass_error_tolerance=2e-5, psm_fdr_threshold=0.05, peak_shape_scoring_model=None,
+                 tandem_scoring_model=LogIntensityScorer, minimum_mass=1000., save_unidentified=False,
+                 oxonium_threshold=0.05, scan_transformer=None, adducts=None,
+                 n_processes=5, spectrum_batch_size=1000, use_peptide_mass_filter=False,
+                 maximum_mass=float('inf'), use_decoy_correction_threshold=None,
+                 probing_range_for_missing_precursors=3, trust_precursor_fits=True):
+        if use_decoy_correction_threshold is None:
+            use_decoy_correction_threshold = 0.33
+        if tandem_scoring_model == CoverageWeightedBinomialScorer:
+            tandem_scoring_model = CoverageWeightedBinomialModelTree
+        super(MultipartGlycopeptideLCMSMSAnalyzer, self).__init__(
+            database_connection, hypothesis_id, sample_path, output_path,
+            analysis_name, grouping_error_tolerance, mass_error_tolerance,
+            msn_mass_error_tolerance, psm_fdr_threshold, peak_shape_scoring_model,
+            tandem_scoring_model, minimum_mass, save_unidentified,
+            oxonium_threshold, scan_transformer, adducts,
+            n_processes, spectrum_batch_size, use_peptide_mass_filter,
+            maximum_mass, probing_range_for_missing_precursors, trust_precursor_fits)
+        self.decoy_database_connection = decoy_database_connection
+        self.use_decoy_correction_threshold = use_decoy_correction_threshold

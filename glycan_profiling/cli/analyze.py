@@ -210,11 +210,11 @@ def search_glycopeptide(context, database_connection, sample_path, hypothesis_id
             use_decoy_correction_threshold=fdr_correction,
             probing_range_for_missing_precursors=isotope_probing_range)
     analyzer.display_header()
-    gps, unassigned, target_hits, decoy_hits = analyzer.start()
+    gps, unassigned, target_decoy_set = analyzer.start()
     if save_intermediate_results is not None:
         analyzer.log("Saving Intermediate Results")
         with open(save_intermediate_results, 'wb') as handle:
-            pickle.dump((target_hits, decoy_hits, gps), handle)
+            pickle.dump((target_decoy_set, gps), handle)
     if export:
         for export_type in set(export):
             click.echo(fmt_msg("Handling Export: %s" % (export_type,)))
