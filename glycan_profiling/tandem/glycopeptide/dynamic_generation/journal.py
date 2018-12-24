@@ -72,6 +72,7 @@ class JournalFileWriter(TaskBase):
             self.spectrum_counter += 1
             for solution in solution_set:
                 self.write(solution)
+        self.flush()
 
     def flush(self):
         self.handle.flush()

@@ -273,10 +273,13 @@ class MultipartGlycopeptideIdentifier(TaskBase):
         self.precursor_error_tolerance = precursor_error_tolerance
         self.batch_size = batch_size
 
+        self.log("Building Scan Groups...")
         scan_groups = self.build_scan_groups()
         self.run_identification_pipeline(
             scan_groups)
+        self.log("Loading Spectrum Matches From Journal...")
         reader = JournalFileReader(self.journal_path)
+        self.log("Partitioning Spectrum Matches...")
         groups = SolutionSetGrouper(reader)
         return groups
 
