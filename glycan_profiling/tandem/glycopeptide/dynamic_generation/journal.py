@@ -160,7 +160,7 @@ class JournalFileReader(TaskBase):
 
 
 def isclose(a, b, rtol=1e-05, atol=1e-08):
-    return abs(a - b), atol + rtol * abs(b)
+    return abs(a - b) <= atol + rtol * abs(b)
 
 
 class SolutionSetGrouper(TaskBase):
@@ -206,3 +206,17 @@ class SolutionSetGrouper(TaskBase):
                     seen.add(match.match_type)
                     by_match_type[match.match_type].append(match)
         return by_match_type
+
+    @property
+    def target_matches(self):
+        return self.match_type_groups[StructureClassification.target_peptide_target_glycan]
+
+    @property
+    def decoy_matches(self):
+        return self.match_type_groups[StructureClassification.decoy_peptide_target_glycan]
+
+    def target_count(self):
+        return len(self.target_matches)
+
+    def decoy_count(self):
+        return len(self.decoy_matches)
