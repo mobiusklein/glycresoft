@@ -9,7 +9,7 @@ from glycan_profiling.structure import (
     DecoyMakingCachingGlycopeptideParser)
 
 
-from .scoring import GroupwiseTargetDecoyAnalyzer
+from ..target_decoy import GroupwiseTargetDecoyAnalyzer, TargetDecoySet
 from .core_search import GlycanCombinationRecord, GlycanFilteringPeptideMassEstimator
 
 from ..temp_store import TempFileManager, SpectrumMatchStore
@@ -200,7 +200,7 @@ class GlycopeptideDatabaseSearchIdentifier(TaskBase):
 
         self.log("Reloading Spectrum Matches")
         target_hits, decoy_hits = self._load_stored_matches(len(target_hits), len(decoy_hits))
-        return target_hits, decoy_hits
+        return TargetDecoySet(target_hits, decoy_hits)
 
     def _clear_database_cache(self):
         self.structure_database.clear_cache()
@@ -219,7 +219,7 @@ class GlycopeptideDatabaseSearchIdentifier(TaskBase):
             if i % 5000 == 0:
                 self.log("Loaded %d/%d Decoys (%0.3g%%)" % (i, decoy_count, (100. * i / decoy_count)))
             loaded_decoy_hits.append(solset)
-        return loaded_target_hits, loaded_decoy_hits
+        return TargetDecoySet(loaded_target_hits, loaded_decoy_hits)
 
     def estimate_fdr(self, target_hits, decoy_hits, with_pit=False, *args, **kwargs):
         self.log("Running Target Decoy Analysis with %d targets and %d decoys" % (
@@ -343,7 +343,7 @@ class GlycopeptideDatabaseSearchComparer(GlycopeptideDatabaseSearchIdentifier):
             if i % 5000 == 0:
                 self.log("Loaded %d/%d Decoys (%0.3g%%)" % (i, decoy_count, (100. * i / decoy_count)))
             loaded_decoy_hits.append(solset)
-        return loaded_target_hits, loaded_decoy_hits
+        return TargetDecoySet(loaded_target_hits, loaded_decoy_hits)
 
 
 class ExclusiveGlycopeptideDatabaseSearchComparer(GlycopeptideDatabaseSearchComparer):
