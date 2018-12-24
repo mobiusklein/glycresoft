@@ -275,9 +275,7 @@ class MultipartGlycopeptideIdentifier(TaskBase):
 
         scan_groups = self.build_scan_groups()
         self.run_identification_pipeline(
-            scan_groups,
-            self.precursor_error_tolerance,
-            self.product_error_tolerance)
+            scan_groups)
         reader = JournalFileReader(self.journal_path)
         groups = SolutionSetGrouper(reader)
         return groups
