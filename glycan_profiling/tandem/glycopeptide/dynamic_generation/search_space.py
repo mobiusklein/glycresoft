@@ -1,6 +1,7 @@
 import operator
 import logging
 import struct
+import ctypes
 
 from collections import namedtuple
 
@@ -31,8 +32,20 @@ logger = logging.Logger("glycresoft.dynamic_generation")
 
 _glycopeptide_key_t = namedtuple(
     'glycopeptide_key', ('start_position', 'end_position', 'peptide_id', 'protein_id',
-                         'hypothesis_id', 'glycan_combination_id', 'structure_type'))
+                         'hypothesis_id', 'glycan_combination_id', 'structure_type',
+                         'site_combination_index'))
 
+# The site_combination_index slot is necessary to distinguish alternative arrangements of
+# the same combination of glycans on the same amino acid sequence. The placeholder value
+# used for unassigned glycosite combination permutations, the maximum value that fits in
+# an unsigned 4 byte integer (L signifier in struct spec). This means defines the upper
+# limit on the number of distinct combinations that can be uniquely addressed is
+# 2 ** 32 - 1 (4294967295).
+#
+# Note that the glycoform generators all use (circa 2018) :func:`~.limiting_combinations`,
+# which only produces the first 100 iterations to avoid producing too many permutations of
+# O-glycans.
+placeholder_permutation = ctypes.c_uint32(-1).value
 
 TT = StructureClassification.target_peptide_target_glycan
 
@@ -40,7 +53,7 @@ TT = StructureClassification.target_peptide_target_glycan
 class glycopeptide_key_t(_glycopeptide_key_t):
     __slots__ = ()
 
-    struct_spec = struct.Struct('!LLLLLLL')
+    struct_spec = struct.Struct('!LLLLLLLL')
 
     def serialize(self):
         return self.struct_spec.pack(*self)
@@ -59,6 +72,9 @@ class glycopeptide_key_t(_glycopeptide_key_t):
         new_tp = StructureClassification[
             structure_type | StructureClassification.target_peptide_decoy_glycan]
         return self.copy(new_tp)
+
+    def is_decoy(self):
+        return self.structure_type != 0
 
 
 class GlycoformGeneratorBase(object):
@@ -97,7 +113,7 @@ class GlycoformGeneratorBase(object):
         result_set = [None for i in site_combinations]
         for i, site_set in enumerate(site_combinations):
             glycoform = peptide_obj.clone(share_cache=False)
-            glycoform.id = key
+            glycoform.id = key._replace(permutation=i)
             glycoform.glycan = glycan_combination.composition.clone()
             for site in site_set:
                 glycoform.add_modification(site, core_type.name)
@@ -116,7 +132,8 @@ class GlycoformGeneratorBase(object):
             peptide_record.protein_id,
             peptide_record.hypothesis_id,
             glycan_combination.id,
-            structure_type)
+            structure_type,
+            placeholder_permutation)
         return key
 
     def handle_n_glycan(self, peptide_obj, peptide_record, glycan_combination):
@@ -214,10 +231,12 @@ class PredictiveGlycopeptideSearch(DynamicGlycopeptideSearchBase):
     def __init__(self, peptide_glycosylator, product_error_tolerance=2e-5, glycan_score_threshold=0.1,
                  min_fragments=2, peptide_masses_per_scan=100,
                  probing_range_for_missing_precursors=3, trust_precursor_fits=True):
+        if min_fragments is None:
+            min_fragments = 2
         self.peptide_glycosylator = peptide_glycosylator
         self.product_error_tolerance = product_error_tolerance
         self.glycan_score_threshold = glycan_score_threshold
-        self.min_fragments = min_fragments
+        self.min_fragments = int(min_fragments)
         self.peptide_mass_predictor = GlycanFilteringPeptideMassEstimator(
             self.peptide_glycosylator.glycan_combinations,
             product_error_tolerance)

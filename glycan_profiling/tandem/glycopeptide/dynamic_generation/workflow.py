@@ -169,12 +169,17 @@ class MultipartGlycopeptideIdentifier(TaskBase):
         glycan_combinations = GlycanCombinationRecord.from_hypothesis(
             self.target_peptide_db.session, self.target_peptide_db.hypothesis_id)
 
+        if self.glycan_score_threshold > 0:
+            min_fragments = 2
+        else:
+            min_fragments = 0
+
         generator = PeptideGlycosylator(
             self.target_peptide_db, glycan_combinations,
             default_structure_type=StructureClassification.target_peptide_target_glycan)
         target_predictive_search = PredictiveGlycopeptideSearch(
             generator, product_error_tolerance=self.product_error_tolerance,
-            glycan_score_threshold=self.glycan_score_threshold,
+            glycan_score_threshold=self.glycan_score_threshold, min_fragments=min_fragments,
             probing_range_for_missing_precursors=self.probing_range_for_missing_precursors,
             trust_precursor_fits=self.trust_precursor_fits)
 
@@ -183,7 +188,7 @@ class MultipartGlycopeptideIdentifier(TaskBase):
             default_structure_type=StructureClassification.decoy_peptide_target_glycan)
         decoy_predictive_search = PredictiveGlycopeptideSearch(
             generator, product_error_tolerance=self.product_error_tolerance,
-            glycan_score_threshold=self.glycan_score_threshold,
+            glycan_score_threshold=self.glycan_score_threshold, min_fragments=min_fragments,
             probing_range_for_missing_precursors=self.probing_range_for_missing_precursors,
             trust_precursor_fits=self.trust_precursor_fits)
         return target_predictive_search, decoy_predictive_search
@@ -275,6 +280,7 @@ class MultipartGlycopeptideIdentifier(TaskBase):
 
         self.log("Building Scan Groups...")
         scan_groups = self.build_scan_groups()
+        self.log("Running Identification Pipeline...")
         self.run_identification_pipeline(
             scan_groups)
         self.log("Loading Spectrum Matches From Journal...")

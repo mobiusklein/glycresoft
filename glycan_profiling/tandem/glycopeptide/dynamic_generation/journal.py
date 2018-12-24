@@ -44,6 +44,7 @@ class JournalFileWriter(TaskBase):
             'hypothesis_id',
             'glycan_combination_id',
             'match_type',
+            'site_combination_index',
             'glycopeptide_sequence',
             'mass_shift',
             'total_score',
@@ -121,7 +122,9 @@ class JournalFileReader(TaskBase):
     def glycopeptide_from_row(self, row):
         glycopeptide_id_key = glycopeptide_key_t(
             int(row['peptide_start']), int(row['peptide_end']), int(row['peptide_id']), int(row['protein_id']),
-            int(row['hypothesis_id']), int(row['glycan_combination_id']), StructureClassification[row['match_type']])
+            int(row['hypothesis_id']), int(row['glycan_combination_id']),
+            StructureClassification[row['match_type']],
+            int(row['site_combination_index']))
         if glycopeptide_id_key in self.glycopeptide_cache:
             return self.glycopeptide_cache[glycopeptide_id_key]
         glycopeptide = FragmentCachingGlycopeptide(row['glycopeptide_sequence'])
