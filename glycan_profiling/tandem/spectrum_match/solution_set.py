@@ -77,12 +77,14 @@ class SpectrumSolutionSet(ScanWrapperBase):
             solutions = []
         self.scan = scan
         self.solutions = solutions
+        self._is_sorted = False
         self._is_simplified = False
         self._is_top_only = False
         self._target_map = None
 
     def _invalidate(self):
         self._target_map = None
+        self._is_sorted = False
 
     @property
     def score(self):
@@ -102,6 +104,8 @@ class SpectrumSolutionSet(ScanWrapperBase):
         return self.best_solution().precursor_mass_accuracy()
 
     def best_solution(self):
+        if not self._is_sorted:
+            self.sort()
         return self.solutions[0]
 
     def __repr__(self):
@@ -155,8 +159,14 @@ class SpectrumSolutionSet(ScanWrapperBase):
         self._invalidate()
         return self
 
-    def sort(self):
-        self.solutions.sort(key=lambda x: (x.score, x.target.id), reverse=True)
+    def sort(self, maximize=True):
+        self.solutions.sort(key=lambda x: (x.score, x.target.id), reverse=maximize)
+        self._is_sorted = True
+        return self
+
+    def sort_by(self, sort_fn=None, maximize=True):
+        self.solutions.sort(key=lambda x: (sort_fn(x), x.target.id), reverse=maximize)
+        self._is_sorted = True
         return self
 
     def merge(self, other):
@@ -177,9 +187,14 @@ class SpectrumSolutionSet(ScanWrapperBase):
         ])
         dup._is_simplified = self._is_simplified
         dup._is_top_only = self._is_top_only
+        dup._is_sorted = self._is_sorted
         return dup
 
 
 class MultiScoreSpectrumSolutionSet(SpectrumSolutionSet):
     spectrum_match_type = MultiScoreSpectrumMatch
     default_selection_method = default_multiscore_selection_method
+
+    # note: Sorting by total score is not guaranteed to sort by total
+    # FDR, so a post-FDR estimation re-ranking of spectrum matches will
+    # be necessary.

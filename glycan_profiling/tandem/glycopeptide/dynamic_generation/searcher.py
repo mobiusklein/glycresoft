@@ -198,6 +198,8 @@ class MapperExecutor(TaskExecutionSequence):
 
 
 class SerializingMapperExecutor(MapperExecutor):
+    process_name = 'glycopeptide-db-map'
+
     def __init__(self, predictive_searchers, scan_loader, in_queue, out_queue,
                  in_done_event):
         super(SerializingMapperExecutor, self).__init__(
@@ -215,6 +217,10 @@ class SerializingMapperExecutor(MapperExecutor):
         matcher_task = SpectrumMatcher(
             workload, mapper_task.group_i, mapper_task.group_n)
         return matcher_task
+
+    def run(self):
+        self.try_set_process_name()
+        return super(SerializingMapperExecutor, self).run()
 
 
 class SpectrumMatcher(TaskExecutionSequence):

@@ -15,9 +15,6 @@ from glycan_profiling.serialize.tandem import (
 
 from glycan_profiling.serialize.hypothesis import Glycopeptide
 
-from glycan_profiling.tandem.glycopeptide.identified_structure import (
-    IdentifiedGlycopeptide as MemoryIdentifiedGlycopeptide)
-
 from glycan_profiling.tandem.chromatogram_mapping import TandemAnnotatedChromatogram
 from glycan_profiling.chromatogram_tree import GlycopeptideChromatogram
 from glycan_profiling.chromatogram_tree.utils import ArithmeticMapping
@@ -176,6 +173,10 @@ class IdentifiedGlycopeptide(Base, IdentifiedStructure):
         return chromatogram
 
     def convert(self, expand_shared_with=True, *args, **kwargs):
+        # bind this name late to avoid circular import error
+        from glycan_profiling.tandem.glycopeptide.identified_structure import (
+            IdentifiedGlycopeptide as MemoryIdentifiedGlycopeptide)
+
         if expand_shared_with and self.shared_with:
             stored = list(self.shared_with)
             converted = [x.convert(expand_shared_with=False, *args, **kwargs) for x in stored]

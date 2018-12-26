@@ -62,10 +62,24 @@ def _determine_database_contents(path, hypothesis_id=1):
     }
 
 
-def make_memory_database_proxy_resolver(path, n_glycan=True, o_glycan=False, hypothesis_id=1):
+def make_memory_database_proxy_resolver(path, n_glycan=None, o_glycan=None, hypothesis_id=1):
+    if n_glycan is None or o_glycan is None:
+        config = _determine_database_contents(path, hypothesis_id)
+        if o_glycan is None:
+            o_glycan = config['o_glycan']
+        if n_glycan is None:
+            n_glycan = config['n_glycan']
     proxy = mass_collection.MassCollectionProxy(
         PeptideDatabaseProxyLoader(path, n_glycan, o_glycan, hypothesis_id))
     return proxy
+
+
+def make_disk_backed_peptide_database(path, hypothesis_id=1, **kwargs):
+    peptide_db = disk_backed_database.PeptideDiskBackedStructureDatabase(
+        path, cache_size=100, hypothesis_id=hypothesis_id)
+    peptide_db = mass_collection.TransformingMassCollectionAdapter(
+        peptide_db, PeptideDatabaseRecord.from_record)
+    return peptide_db
 
 
 class PeptideDatabaseProxyLoader(object):
@@ -151,11 +165,14 @@ class MultipartGlycopeptideIdentifier(TaskBase):
         self.file_manager = file_manager
         self.journal_path = self.file_manager.get('glycopeptide-match-journal')
 
-    def _build_default_disk_backed_db_wrapper(self, path):
-        peptide_db = disk_backed_database.PeptideDiskBackedStructureDatabase(
-            path, cache_size=100)
-        peptide_db = mass_collection.TransformingMassCollectionAdapter(
-            peptide_db, PeptideDatabaseRecord.from_record)
+    @classmethod
+    def _build_default_disk_backed_db_wrapper(cls, path, **kwargs):
+        peptide_db = make_disk_backed_peptide_database(path, **kwargs)
+        return peptide_db
+
+    @classmethod
+    def _build_default_memory_backed_db_wrapper(cls, path, **kwargs):
+        peptide_db = make_memory_database_proxy_resolver(path, **kwargs)
         return peptide_db
 
     def build_scan_groups(self):
@@ -284,7 +301,7 @@ class MultipartGlycopeptideIdentifier(TaskBase):
         self.run_identification_pipeline(
             scan_groups)
         self.log("Loading Spectrum Matches From Journal...")
-        reader = JournalFileReader(self.journal_path)
+        reader = list(JournalFileReader(self.journal_path))
         self.log("Partitioning Spectrum Matches...")
         groups = SolutionSetGrouper(reader)
         return groups

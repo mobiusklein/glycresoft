@@ -564,6 +564,9 @@ class SpectrumIdentificationWorkerBase(Process, SpectrumEvaluatorBase):
         self.cleanup()
 
     def run(self):
+        new_name = getattr(self, 'process_name', None)
+        if new_name is not None:
+            TaskBase().try_set_process_name(new_name)
         try:
             self.task()
         except Exception:

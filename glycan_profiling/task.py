@@ -230,6 +230,29 @@ class TaskBase(object):
     def display_header(self):
         display_version(self.log)
 
+    def try_set_process_name(self, name=None):
+        """This helper method may be used to try to change a process's name
+        in order to make discriminating which role a particular process is
+        fulfilling. This uses a third-party utility library that may not behave
+        the same way on all platforms, and therefore this is done for convenience
+        only.
+
+        Parameters
+        ----------
+        name : str, optional
+            A name to set. If not provided, will check the attribute ``process_name``
+            for a non-null value, or else have no effect.
+        """
+        if name is None:
+            name = getattr(self, 'process_name', None)
+        if name is None:
+            return
+        try:
+            import setproctitle
+            setproctitle.setproctitle(name)
+        except (ImportError, AttributeError):
+            pass
+
     def _begin(self, verbose=True, *args, **kwargs):
         self.on_begin()
         self.start_time = datetime.now()
@@ -331,6 +354,7 @@ class TaskExecutionSequence(TaskBase):
     """
 
     _thread = None
+    _running_in_process = False
 
     def __call__(self):
         result = self.run()
@@ -356,6 +380,7 @@ class TaskExecutionSequence(TaskBase):
         if self._thread is not None:
             return self._thread
         if process:
+            self._running_in_process = True
             t = multiprocessing.Process(target=self, name=("%s-%r" % (self.__class__.__name__, id(self))))
         else:
             t = threading.Thread(target=self, name=("%s-%r" % (self.__class__.__name__, id(self))))

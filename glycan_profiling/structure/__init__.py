@@ -9,7 +9,9 @@ from .structure_loader import (
     DecoyMakingCachingGlycopeptideParser,
     DecoyShiftingStubGlycopeptideStrategy,
     GlycopeptideCache,
-    CachingPeptideParser,)
+    CachingPeptideParser,
+    PeptideDatabaseRecord,)
+
 from .scan import (
     ScanStub,
     ScanWrapperBase,
@@ -37,5 +39,6 @@ __all__ = [
     "ScanInformation",
     "FragmentMatchMap",
     "SpectrumGraph",
-    "KeyTransformingDecoratorDict"
+    "KeyTransformingDecoratorDict",
+    "PeptideDatabaseRecord",
 ]

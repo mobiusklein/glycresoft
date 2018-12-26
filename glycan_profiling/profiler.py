@@ -6,7 +6,9 @@ import glypy
 from glycan_profiling.database.disk_backed_database import (
     GlycanCompositionDiskBackedStructureDatabase,
     GlycopeptideDiskBackedStructureDatabase,
-    LazyLoadingGlycopeptideDiskBackedStructureDatabase)
+    PeptideDiskBackedStructureDatabase)
+
+from glycan_profiling.database.mass_collection import TransformingMassCollectionAdapter
 
 from glycan_profiling.database.analysis import (
     GlycanCompositionChromatogramAnalysisSerializer,
@@ -35,12 +37,15 @@ from glycan_profiling.chromatogram_tree import ChromatogramFilter
 from glycan_profiling.models import GeneralScorer, get_feature
 
 from glycan_profiling.tandem import chromatogram_mapping
-from glycan_profiling.structure import ScanStub
+from glycan_profiling.structure import ScanStub, PeptideDatabaseRecord
 from glycan_profiling.tandem.glycopeptide.scoring import (
     LogIntensityScorer,
-    CoverageWeightedBinomialScorer, CoverageWeightedBinomialModelTree)
+    CoverageWeightedBinomialScorer,
+    CoverageWeightedBinomialModelTree)
 from glycan_profiling.tandem.glycopeptide.glycopeptide_matcher import (
     GlycopeptideDatabaseSearchIdentifier, ExclusiveGlycopeptideDatabaseSearchComparer)
+from glycan_profiling.tandem.glycopeptide.dynamic_generation import MultipartGlycopeptideIdentifier
+
 from glycan_profiling.tandem.glycopeptide import (
     identified_structure as identified_glycopeptide)
 from glycan_profiling.tandem.glycan.composition_matching import SignatureIonMapper
@@ -913,16 +918,14 @@ class MzMLComparisonGlycopeptideLCMSMSAnalyzer(MzMLGlycopeptideLCMSMSAnalyzer):
 
 class MultipartGlycopeptideLCMSMSAnalyzer(MzMLGlycopeptideLCMSMSAnalyzer):
     def __init__(self, database_connection, decoy_database_connection, hypothesis_id,
-                 sample_path, output_path,
-                 analysis_name=None, grouping_error_tolerance=1.5e-5, mass_error_tolerance=1e-5,
-                 msn_mass_error_tolerance=2e-5, psm_fdr_threshold=0.05, peak_shape_scoring_model=None,
-                 tandem_scoring_model=LogIntensityScorer, minimum_mass=1000., save_unidentified=False,
-                 oxonium_threshold=0.05, scan_transformer=None, adducts=None,
-                 n_processes=5, spectrum_batch_size=1000, use_peptide_mass_filter=False,
-                 maximum_mass=float('inf'), use_decoy_correction_threshold=None,
-                 probing_range_for_missing_precursors=3, trust_precursor_fits=True):
-        if use_decoy_correction_threshold is None:
-            use_decoy_correction_threshold = 0.33
+                 sample_path, output_path, analysis_name=None, grouping_error_tolerance=1.5e-5,
+                 mass_error_tolerance=1e-5, msn_mass_error_tolerance=2e-5, psm_fdr_threshold=0.05,
+                 peak_shape_scoring_model=None, tandem_scoring_model=LogIntensityScorer,
+                 minimum_mass=1000., save_unidentified=False,
+                 glycan_score_threshold=1, adducts=None,
+                 n_processes=5, spectrum_batch_size=1000,
+                 maximum_mass=float('inf'), probing_range_for_missing_precursors=3,
+                 trust_precursor_fits=True, use_memory_database=True):
         if tandem_scoring_model == CoverageWeightedBinomialScorer:
             tandem_scoring_model = CoverageWeightedBinomialModelTree
         super(MultipartGlycopeptideLCMSMSAnalyzer, self).__init__(
@@ -930,8 +933,44 @@ class MultipartGlycopeptideLCMSMSAnalyzer(MzMLGlycopeptideLCMSMSAnalyzer):
             analysis_name, grouping_error_tolerance, mass_error_tolerance,
             msn_mass_error_tolerance, psm_fdr_threshold, peak_shape_scoring_model,
             tandem_scoring_model, minimum_mass, save_unidentified,
-            oxonium_threshold, scan_transformer, adducts,
-            n_processes, spectrum_batch_size, use_peptide_mass_filter,
+            0, None, adducts,
+            n_processes, spectrum_batch_size, True,
             maximum_mass, probing_range_for_missing_precursors, trust_precursor_fits)
+        self.glycan_score_threshold = glycan_score_threshold
         self.decoy_database_connection = decoy_database_connection
-        self.use_decoy_correction_threshold = use_decoy_correction_threshold
+        self.use_memory_database = use_memory_database
+
+    def make_database(self):
+        if self.use_memory_database:
+            database = MultipartGlycopeptideIdentifier._build_default_memory_backed_db_wrapper(
+                self.database_connection, hypothesis_id=self.hypothesis_id)
+        else:
+            database = MultipartGlycopeptideIdentifier._build_default_disk_backed_db_wrapper(
+                self.database_connection, hypothesis_id=self.hypothesis_id)
+        return database
+
+    def make_decoy_database(self):
+        if self.use_memory_database:
+            database = MultipartGlycopeptideIdentifier._build_default_memory_backed_db_wrapper(
+                self.decoy_database_connection)
+        else:
+            database = MultipartGlycopeptideIdentifier._build_default_disk_backed_db_wrapper(
+                self.decoy_database_connection)
+        return database
+
+    def make_search_engine(self, msms_scans, database, peak_loader):
+        searcher = MultipartGlycopeptideIdentifier(
+            [scan for scan in msms_scans
+             if scan.precursor_information.neutral_mass < self.maximum_mass],
+            self.tandem_scoring_model, database, self.make_decoy_database(),
+            peak_loader,
+            mass_shifts=self.adducts,
+            glycan_score_threshold=self.glycan_score_threshold,
+            n_processes=self.n_processes,
+            file_manager=self.file_manager,
+            probing_range_for_missing_precursors=self.probing_range_for_missing_precursors,
+            trust_precursor_fits=self.trust_precursor_fits)
+        return searcher
+
+    def estimate_fdr(self, searcher, target_decoy_set):
+        searcher.estimate_fdr(target_decoy_set)

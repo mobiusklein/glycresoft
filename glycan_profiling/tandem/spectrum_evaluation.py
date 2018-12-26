@@ -163,8 +163,7 @@ class TandemClusterEvaluatorBase(TaskBase):
                     scan, structure, mass_shift=mass_shift, **kwargs)
                 solutions.append(result)
         out = self.solution_set_type(
-            scan, sorted(
-                solutions, key=lambda x: x.score, reverse=True)).threshold()
+            scan, solutions).sort().threshold()
         return out
 
     def score_all(self, precursor_error_tolerance=1e-5, simplify=False, **kwargs):
@@ -303,9 +302,8 @@ class TandemClusterEvaluatorBase(TaskBase):
             if len(solutions) == 0:
                 continue
             scan = scan_map[scan_id]
-            out = self.solution_set_type(scan, sorted(
-                solutions, key=lambda x: x.score, reverse=True))
-            out.select_top()
+            out = self.solution_set_type(scan, solutions).sort()
+            out.threshold()
             if len(out) == 0:
                 continue
             result_set.append(out)
