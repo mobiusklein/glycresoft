@@ -247,9 +247,10 @@ class MultipartGlycopeptideIdentifier(TaskBase):
             mapping_batcher.done_event)
         mapping_executor.done_event = multiprocessing.Event()
 
-        workload_saver = WorkloadUnpackingMatcherExecutor(
+        workload_saver = MappingSerializer(
             self.file_manager.base_directory,
             mapping_executor.out_queue,
+            mapping_executor.done_event
         )
 
         mapping_executor.start(process=True)
