@@ -1,3 +1,4 @@
+import os
 import time
 try:
     from Queue import Empty
@@ -216,6 +217,10 @@ class SerializingMapperExecutor(MapperExecutor):
         workload = serialize_workload(workload)
         matcher_task = SpectrumMatcher(
             workload, mapper_task.group_i, mapper_task.group_n)
+
+        matcher_task.label = label
+        matcher_task.group_i = mapper_task.group_i
+        matcher_task.group_n = mapper_task.group_n
         return matcher_task
 
     def run(self):
@@ -333,3 +338,29 @@ class WorkloadUnpackingMatcherExecutor(MatcherExecutor):
             workload,
             self.scan_loader)
         return super(WorkloadUnpackingMatcherExecutor, self).execute_task(matcher_task)
+
+
+class MappingSerializer(TaskExecutionSequence):
+    def __init__(self, storage_directory, in_queue, in_done_event):
+        self.storage_directory = storage_directory
+        self.in_queue = in_queue
+        self.in_done_event = in_done_event
+        self.done_event = self._make_event()
+
+    def run(self):
+        if not os.path.exists(self.storage_directory):
+            os.makedirs(self.storage_directory)
+        has_work = True
+        while has_work:
+            try:
+                package = self.in_queue.get(True, 5)
+                data = package.workload
+                label = package.label
+                name = '%s_%s.xml.gz' % (label, package.group_i)
+                with open(os.path.join(self.storage_directory, name), 'wb') as fh:
+                    fh.write(data)
+            except Empty:
+                if self.in_done_event.is_set():
+                    has_work = False
+                    break
+        self.done_event.set()
