@@ -16,7 +16,7 @@ from glycan_profiling.database.builder.glycopeptide.migrate import (
 
 from glycan_profiling.serialize import (
     AnalysisTypeEnum,
-    ChromatogramSolutionAdductedToChromatogramSolution)
+    ChromatogramSolutionMassShiftedToChromatogramSolution)
 
 from glycan_profiling.serialize.serializer import AnalysisSerializer
 
@@ -271,15 +271,15 @@ class GlycanCompositionChromatogramAnalysisSerializer(AnalysisMigrationBase):
                 glycan_composition)
         self._glycan_hypothesis_migrator.commit()
 
-    def locate_adduct_reference_solution(self, chromatogram):
-        if chromatogram.used_as_adduct:
-            for key, adduct in chromatogram.used_as_adduct:
+    def locate_mass_shift_reference_solution(self, chromatogram):
+        if chromatogram.used_as_mass_shift:
+            for key, mass_shift in chromatogram.used_as_mass_shift:
                 disjoint_set_for_key = self.chromatogram_set.key_map[key]
                 if not isinstance(disjoint_set_for_key, DisjointChromatogramSet):
                     disjoint_set_for_key = DisjointChromatogramSet(disjoint_set_for_key)
                 hit = disjoint_set_for_key.find_overlap(chromatogram)
                 if hit is not None:
-                    yield hit, adduct
+                    yield hit, mass_shift
 
     def _get_solution_db_id_by_reference(self, ref_id):
         return self._analysis_serializer._chromatogram_solution_id_map[ref_id]
@@ -287,13 +287,13 @@ class GlycanCompositionChromatogramAnalysisSerializer(AnalysisMigrationBase):
     def _get_mass_shift_id(self, mass_shift):
         return self._analysis_serializer._mass_shift_cache.serialize(mass_shift).id
 
-    def express_adduct_relation(self, chromatogram):
+    def express_mass_shift_relation(self, chromatogram):
         try:
             source_id = self._get_solution_db_id_by_reference(chromatogram.id)
         except KeyError as e:
             print(e, "Not Registered", chromatogram)
         seen = set()
-        for related_solution, adduct in self.locate_adduct_reference_solution(
+        for related_solution, mass_shift in self.locate_mass_shift_reference_solution(
                 chromatogram):
             if related_solution.id in seen:
                 continue
@@ -301,16 +301,16 @@ class GlycanCompositionChromatogramAnalysisSerializer(AnalysisMigrationBase):
                 seen.add(related_solution.id)
             try:
                 referenced_id = self._get_solution_db_id_by_reference(related_solution.id)
-                mass_shift_id = self._get_mass_shift_id(adduct)
+                mass_shift_id = self._get_mass_shift_id(mass_shift)
                 self._analysis_serializer.session.execute(
-                    ChromatogramSolutionAdductedToChromatogramSolution.__table__.insert(),
+                    ChromatogramSolutionMassShiftedToChromatogramSolution.__table__.insert(),
                     {
-                        "adducted_solution_id": source_id,
+                        "mass_shifted_solution_id": source_id,
                         "owning_solution_id": referenced_id,
                         "mass_shift_id": mass_shift_id
                     })
             except KeyError as e:
-                print(e, adduct, chromatogram)
+                print(e, mass_shift, chromatogram)
                 continue
 
     def create_analysis(self):
@@ -343,14 +343,14 @@ class GlycanCompositionChromatogramAnalysisSerializer(AnalysisMigrationBase):
                     chroma)
 
         for chroma in self.chromatogram_set:
-            if chroma.chromatogram.used_as_adduct:
-                # print("%r %d is used as an adduct (%r)" % (
-                #     chroma, chroma.id, chroma.chromatogram.used_as_adduct))
-                self.express_adduct_relation(chroma)
-            # elif chroma.adducts and not (len(
-            #         chroma.adducts) == 1 and chroma.adducts[0].name == "Unmodified"):
-            #     print("%r %d has adducts (%r)" % (
-            #         chroma, chroma.id, chroma.adducts))
+            if chroma.chromatogram.used_as_mass_shift:
+                # print("%r %d is used as an mass_shift (%r)" % (
+                #     chroma, chroma.id, chroma.chromatogram.used_as_mass_shift))
+                self.express_mass_shift_relation(chroma)
+            # elif chroma.mass_shifts and not (len(
+            #         chroma.mass_shifts) == 1 and chroma.mass_shifts[0].name == "Unmodified"):
+            #     print("%r %d has mass_shifts (%r)" % (
+            #         chroma, chroma.id, chroma.mass_shifts))
 
         self._analysis_serializer.commit()
 

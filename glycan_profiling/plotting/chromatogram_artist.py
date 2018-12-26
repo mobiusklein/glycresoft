@@ -383,23 +383,23 @@ class ChargeSeparatingSmoothingChromatogramArtist(
     pass
 
 
-def adduct_separating_chromatogram(chroma, ax=None, **kwargs):
-    adducts = list(chroma.adducts)
+def mass_shift_separating_chromatogram(chroma, ax=None, **kwargs):
+    mass_shifts = list(chroma.mass_shifts)
     labels = {}
-    for adduct in adducts:
-        with_adduct, _ = chroma.bisect_adduct(adduct)
-        labels[adduct] = with_adduct
-    adduct_plot = SmoothingChromatogramArtist(
+    for mass_shift in mass_shifts:
+        with_mass_shift, _ = chroma.bisect_mass_shift(mass_shift)
+        labels[mass_shift] = with_mass_shift
+    mass_shift_plot = SmoothingChromatogramArtist(
         labels.values(),
         colorizer=lambda *a, **k: 'green', ax=ax).draw(
-        label_function=lambda *a, **k: tuple(a[0].adducts)[0].name,
+        label_function=lambda *a, **k: tuple(a[0].mass_shifts)[0].name,
         legend=False,
         **kwargs)
     rt, intens = chroma.as_arrays()
-    adduct_plot.draw_generic_chromatogram(
+    mass_shift_plot.draw_generic_chromatogram(
         "Total", rt, intens, color='steelblue')
-    ymin = adduct_plot.ax.get_ylim()[0]
-    adduct_plot.ax.set_ylim(ymin, intens.max() * 1.01)
-    adduct_plot.ax.set_title(
-        "Adduct-Separated\nExtracted Ion Chromatogram", fontsize=24)
-    return adduct_plot.ax
+    ymin = mass_shift_plot.ax.get_ylim()[0]
+    mass_shift_plot.ax.set_ylim(ymin, intens.max() * 1.01)
+    mass_shift_plot.ax.set_title(
+        "Mass Shift-Separated\nExtracted Ion Chromatogram", fontsize=24)
+    return mass_shift_plot.ax

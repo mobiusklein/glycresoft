@@ -188,12 +188,12 @@ class SampleConsumer(TaskBase):
 class GlycanChromatogramAnalyzer(TaskBase):
 
     @staticmethod
-    def expand_adducts(adduct_counts, crossproduct=True, limit=None):
+    def expand_mass_shifts(mass_shift_counts, crossproduct=True, limit=None):
         if limit is None:
             limit = float('inf')
         combinations = []
         if crossproduct:
-            counts = descending_combination_counter(adduct_counts)
+            counts = descending_combination_counter(mass_shift_counts)
             for combo in counts:
                 scaled = []
                 if sum(combo.values()) > limit:
@@ -208,20 +208,20 @@ class GlycanChromatogramAnalyzer(TaskBase):
                         base += ad
                     combinations.append(base)
         else:
-            for k, total in adduct_counts.items():
+            for k, total in mass_shift_counts.items():
                 for t in range(1, total + 1):
                     combinations.append(k * t)
         return combinations
 
-    def __init__(self, database_connection, hypothesis_id, sample_run_id, adducts=None,
+    def __init__(self, database_connection, hypothesis_id, sample_run_id, mass_shifts=None,
                  mass_error_tolerance=1e-5, grouping_error_tolerance=1.5e-5,
                  scoring_model=GeneralScorer, minimum_mass=500., regularize=None,
                  regularization_model=None, network=None, analysis_name=None,
                  delta_rt=0.5, require_msms_signature=0, msn_mass_error_tolerance=2e-5,
                  n_processes=4):
 
-        if adducts is None:
-            adducts = []
+        if mass_shifts is None:
+            mass_shifts = []
 
         self.database_connection = database_connection
         self.hypothesis_id = hypothesis_id
@@ -239,7 +239,7 @@ class GlycanChromatogramAnalyzer(TaskBase):
 
         self.minimum_mass = minimum_mass
         self.delta_rt = delta_rt
-        self.adducts = adducts
+        self.mass_shifts = mass_shifts
 
         self.require_msms_signature = require_msms_signature
 
@@ -261,7 +261,7 @@ class GlycanChromatogramAnalyzer(TaskBase):
             "sample_run_id": self.sample_run_id,
             "mass_error_tolerance": self.mass_error_tolerance,
             "grouping_error_tolerance": self.grouping_error_tolerance,
-            "adducts": [adduct.name for adduct in self.adducts],
+            "mass_shifts": [mass_shift.name for mass_shift in self.mass_shifts],
             "minimum_mass": self.minimum_mass,
             "require_msms_signature": self.require_msms_signature,
             "msn_mass_error_tolerance": self.msn_mass_error_tolerance
@@ -296,7 +296,7 @@ class GlycanChromatogramAnalyzer(TaskBase):
         return msms_scans
 
     def make_database(self):
-        combn_size = len(self.adducts)
+        combn_size = len(self.mass_shifts)
         database = GlycanCompositionDiskBackedStructureDatabase(
             self.database_connection, self.hypothesis_id, cache_size=combn_size)
         return database
@@ -312,14 +312,14 @@ class GlycanChromatogramAnalyzer(TaskBase):
             proc = LaplacianRegularizedChromatogramProcessor(
                 extractor, database, network=self.network,
                 mass_error_tolerance=self.mass_error_tolerance,
-                adducts=self.adducts, scoring_model=self.scoring_model,
+                mass_shifts=self.mass_shifts, scoring_model=self.scoring_model,
                 delta_rt=self.delta_rt, smoothing_factor=self.regularize,
                 regularization_model=self.regularization_model,
                 peak_loader=extractor.peak_loader)
         else:
             proc = LogitSumChromatogramProcessor(
                 extractor, database, mass_error_tolerance=self.mass_error_tolerance,
-                adducts=self.adducts, scoring_model=self.scoring_model,
+                mass_shifts=self.mass_shifts, scoring_model=self.scoring_model,
                 delta_rt=self.delta_rt,
                 peak_loader=extractor.peak_loader)
         return proc
@@ -328,7 +328,7 @@ class GlycanChromatogramAnalyzer(TaskBase):
                     scorer_type=SignatureIonScorer):
         mapper = SignatureIonMapper(
             msms_scans, chromatograms, peak_loader.convert_scan_id_to_retention_time,
-            self.adducts, self.minimum_mass, batch_size=1000,
+            self.mass_shifts, self.minimum_mass, batch_size=1000,
             default_glycan_composition=default_glycan_composition,
             scorer_type=scorer_type, n_processes=self.n_processes)
         return mapper
@@ -442,7 +442,7 @@ class GlycanChromatogramAnalyzer(TaskBase):
         peak_loader = self.make_peak_loader()
         database = self.make_database()
         smallest_database_mass = database.lowest_mass
-        minimum_mass_shift = min([m.mass for m in self.adducts]) if self.adducts else 0
+        minimum_mass_shift = min([m.mass for m in self.mass_shifts]) if self.mass_shifts else 0
         if minimum_mass_shift < 0:
             smallest_database_mass = smallest_database_mass + minimum_mass_shift
         if smallest_database_mass > self.minimum_mass:
@@ -460,13 +460,13 @@ class GlycanChromatogramAnalyzer(TaskBase):
 
 class MzMLGlycanChromatogramAnalyzer(GlycanChromatogramAnalyzer):
     def __init__(self, database_connection, hypothesis_id, sample_path, output_path,
-                 adducts=None, mass_error_tolerance=1e-5, grouping_error_tolerance=1.5e-5,
+                 mass_shifts=None, mass_error_tolerance=1e-5, grouping_error_tolerance=1.5e-5,
                  scoring_model=None, minimum_mass=500., regularize=None,
                  regularization_model=None, network=None, analysis_name=None, delta_rt=0.5,
                  require_msms_signature=0, msn_mass_error_tolerance=2e-5,
                  n_processes=4):
         super(MzMLGlycanChromatogramAnalyzer, self).__init__(
-            database_connection, hypothesis_id, -1, adducts,
+            database_connection, hypothesis_id, -1, mass_shifts,
             mass_error_tolerance, grouping_error_tolerance,
             scoring_model, minimum_mass, regularize, regularization_model, network,
             analysis_name, delta_rt, require_msms_signature, msn_mass_error_tolerance,
@@ -509,7 +509,7 @@ class MzMLGlycanChromatogramAnalyzer(GlycanChromatogramAnalyzer):
             "sample_uuid": extractor.peak_loader.sample_run.uuid,
             "mass_error_tolerance": self.mass_error_tolerance,
             "grouping_error_tolerance": self.grouping_error_tolerance,
-            "adducts": [adduct.name for adduct in self.adducts],
+            "mass_shifts": [mass_shift.name for mass_shift in self.mass_shifts],
             "minimum_mass": self.minimum_mass,
             "require_msms_signature": self.require_msms_signature,
             "msn_mass_error_tolerance": self.msn_mass_error_tolerance
@@ -528,7 +528,7 @@ class GlycopeptideLCMSMSAnalyzer(TaskBase):
                  analysis_name=None, grouping_error_tolerance=1.5e-5, mass_error_tolerance=1e-5,
                  msn_mass_error_tolerance=2e-5, psm_fdr_threshold=0.05, peak_shape_scoring_model=None,
                  tandem_scoring_model=None, minimum_mass=1000., save_unidentified=False,
-                 oxonium_threshold=0.05, scan_transformer=None, adducts=None, n_processes=5,
+                 oxonium_threshold=0.05, scan_transformer=None, mass_shifts=None, n_processes=5,
                  spectrum_batch_size=1000, use_peptide_mass_filter=False, maximum_mass=float('inf'),
                  probing_range_for_missing_precursors=3, trust_precursor_fits=True):
         if tandem_scoring_model is None:
@@ -539,8 +539,8 @@ class GlycopeptideLCMSMSAnalyzer(TaskBase):
         if scan_transformer is None:
             def scan_transformer(x):
                 return x
-        if adducts is None:
-            adducts = []
+        if mass_shifts is None:
+            mass_shifts = []
 
         self.database_connection = database_connection
         self.hypothesis_id = hypothesis_id
@@ -552,7 +552,7 @@ class GlycopeptideLCMSMSAnalyzer(TaskBase):
         self.psm_fdr_threshold = psm_fdr_threshold
         self.peak_shape_scoring_model = peak_shape_scoring_model
         self.tandem_scoring_model = tandem_scoring_model
-        self.adducts = adducts
+        self.mass_shifts = mass_shifts
         self.analysis = None
         self.analysis_id = None
         self.minimum_mass = minimum_mass
@@ -597,7 +597,7 @@ class GlycopeptideLCMSMSAnalyzer(TaskBase):
             minimum_oxonium_ratio=self.minimum_oxonium_ratio,
             scan_transformer=self.scan_transformer,
             n_processes=self.n_processes,
-            adducts=self.adducts,
+            mass_shifts=self.mass_shifts,
             use_peptide_mass_filter=self.use_peptide_mass_filter,
             file_manager=self.file_manager,
             probing_range_for_missing_precursors=self.probing_range_for_missing_precursors,
@@ -711,7 +711,7 @@ class GlycopeptideLCMSMSAnalyzer(TaskBase):
             "psm_fdr_threshold": self.psm_fdr_threshold,
             "minimum_mass": self.minimum_mass,
             "use_peptide_mass_filter": self.use_peptide_mass_filter,
-            "adducts": self.adducts,
+            "mass_shifts": self.mass_shifts,
             "maximum_mass": self.maximum_mass
         }
 
@@ -755,7 +755,7 @@ class MzMLGlycopeptideLCMSMSAnalyzer(GlycopeptideLCMSMSAnalyzer):
                  analysis_name=None, grouping_error_tolerance=1.5e-5, mass_error_tolerance=1e-5,
                  msn_mass_error_tolerance=2e-5, psm_fdr_threshold=0.05, peak_shape_scoring_model=None,
                  tandem_scoring_model=None, minimum_mass=1000., save_unidentified=False,
-                 oxonium_threshold=0.05, scan_transformer=None, adducts=None,
+                 oxonium_threshold=0.05, scan_transformer=None, mass_shifts=None,
                  n_processes=5, spectrum_batch_size=1000, use_peptide_mass_filter=False,
                  maximum_mass=float('inf'), probing_range_for_missing_precursors=3,
                  trust_precursor_fits=True):
@@ -767,7 +767,7 @@ class MzMLGlycopeptideLCMSMSAnalyzer(GlycopeptideLCMSMSAnalyzer):
             psm_fdr_threshold, peak_shape_scoring_model,
             tandem_scoring_model, minimum_mass,
             save_unidentified, oxonium_threshold,
-            scan_transformer, adducts, n_processes, spectrum_batch_size,
+            scan_transformer, mass_shifts, n_processes, spectrum_batch_size,
             use_peptide_mass_filter, maximum_mass,
             probing_range_for_missing_precursors=probing_range_for_missing_precursors,
             trust_precursor_fits=trust_precursor_fits)
@@ -804,9 +804,10 @@ class MzMLGlycopeptideLCMSMSAnalyzer(GlycopeptideLCMSMSAnalyzer):
             "grouping_error_tolerance": self.grouping_error_tolerance,
             "psm_fdr_threshold": self.psm_fdr_threshold,
             "minimum_mass": self.minimum_mass,
-            "adducts": self.adducts,
+            "mass_shifts": self.mass_shifts,
             "use_peptide_mass_filter": self.use_peptide_mass_filter,
-            "database": str(self.database_connection)
+            "database": str(self.database_connection),
+            "search_strategy": 'target-internal-decoy-competition',
         }
 
     def save_solutions(self, identified_glycopeptides, unassigned_chromatograms,
@@ -846,7 +847,7 @@ class MzMLComparisonGlycopeptideLCMSMSAnalyzer(MzMLGlycopeptideLCMSMSAnalyzer):
                  analysis_name=None, grouping_error_tolerance=1.5e-5, mass_error_tolerance=1e-5,
                  msn_mass_error_tolerance=2e-5, psm_fdr_threshold=0.05, peak_shape_scoring_model=None,
                  tandem_scoring_model=None, minimum_mass=1000., save_unidentified=False,
-                 oxonium_threshold=0.05, scan_transformer=None, adducts=None,
+                 oxonium_threshold=0.05, scan_transformer=None, mass_shifts=None,
                  n_processes=5, spectrum_batch_size=1000, use_peptide_mass_filter=False,
                  maximum_mass=float('inf'), use_decoy_correction_threshold=None,
                  probing_range_for_missing_precursors=3, trust_precursor_fits=True):
@@ -859,7 +860,7 @@ class MzMLComparisonGlycopeptideLCMSMSAnalyzer(MzMLGlycopeptideLCMSMSAnalyzer):
             analysis_name, grouping_error_tolerance, mass_error_tolerance,
             msn_mass_error_tolerance, psm_fdr_threshold, peak_shape_scoring_model,
             tandem_scoring_model, minimum_mass, save_unidentified,
-            oxonium_threshold, scan_transformer, adducts,
+            oxonium_threshold, scan_transformer, mass_shifts,
             n_processes, spectrum_batch_size, use_peptide_mass_filter,
             maximum_mass, probing_range_for_missing_precursors, trust_precursor_fits)
         self.decoy_database_connection = decoy_database_connection
@@ -874,7 +875,7 @@ class MzMLComparisonGlycopeptideLCMSMSAnalyzer(MzMLGlycopeptideLCMSMSAnalyzer):
             minimum_oxonium_ratio=self.minimum_oxonium_ratio,
             scan_transformer=self.scan_transformer,
             n_processes=self.n_processes,
-            adducts=self.adducts,
+            mass_shifts=self.mass_shifts,
             use_peptide_mass_filter=self.use_peptide_mass_filter,
             file_manager=self.file_manager,
             probing_range_for_missing_precursors=self.probing_range_for_missing_precursors,
@@ -899,6 +900,7 @@ class MzMLComparisonGlycopeptideLCMSMSAnalyzer(MzMLGlycopeptideLCMSMSAnalyzer):
             "decoy_database_size": len(decoy_database),
             "decoy_database": str(self.decoy_database_connection),
             "decoy_correction_threshold": self.use_decoy_correction_threshold,
+            "search_strategy": 'target-decoy-competition',
 
         })
         return result
@@ -922,7 +924,7 @@ class MultipartGlycopeptideLCMSMSAnalyzer(MzMLGlycopeptideLCMSMSAnalyzer):
                  mass_error_tolerance=1e-5, msn_mass_error_tolerance=2e-5, psm_fdr_threshold=0.05,
                  peak_shape_scoring_model=None, tandem_scoring_model=LogIntensityScorer,
                  minimum_mass=1000., save_unidentified=False,
-                 glycan_score_threshold=1, adducts=None,
+                 glycan_score_threshold=1, mass_shifts=None,
                  n_processes=5, spectrum_batch_size=1000,
                  maximum_mass=float('inf'), probing_range_for_missing_precursors=3,
                  trust_precursor_fits=True, use_memory_database=True):
@@ -933,7 +935,7 @@ class MultipartGlycopeptideLCMSMSAnalyzer(MzMLGlycopeptideLCMSMSAnalyzer):
             analysis_name, grouping_error_tolerance, mass_error_tolerance,
             msn_mass_error_tolerance, psm_fdr_threshold, peak_shape_scoring_model,
             tandem_scoring_model, minimum_mass, save_unidentified,
-            0, None, adducts,
+            0, None, mass_shifts,
             n_processes, spectrum_batch_size, True,
             maximum_mass, probing_range_for_missing_precursors, trust_precursor_fits)
         self.glycan_score_threshold = glycan_score_threshold
@@ -964,7 +966,7 @@ class MultipartGlycopeptideLCMSMSAnalyzer(MzMLGlycopeptideLCMSMSAnalyzer):
              if scan.precursor_information.neutral_mass < self.maximum_mass],
             self.tandem_scoring_model, database, self.make_decoy_database(),
             peak_loader,
-            mass_shifts=self.adducts,
+            mass_shifts=self.mass_shifts,
             glycan_score_threshold=self.glycan_score_threshold,
             n_processes=self.n_processes,
             file_manager=self.file_manager,
@@ -974,3 +976,15 @@ class MultipartGlycopeptideLCMSMSAnalyzer(MzMLGlycopeptideLCMSMSAnalyzer):
 
     def estimate_fdr(self, searcher, target_decoy_set):
         searcher.estimate_fdr(target_decoy_set)
+
+    def _build_analysis_saved_parameters(self, identified_glycopeptides, unassigned_chromatograms,
+                                         chromatogram_extractor, database):
+        result = super(MzMLComparisonGlycopeptideLCMSMSAnalyzer, self)._build_analysis_saved_parameters(
+            identified_glycopeptides, unassigned_chromatograms,
+            chromatogram_extractor, database)
+        result.update({
+            "target_database": str(self.database_connection),
+            "decoy_database": str(self.decoy_database_connection),
+            "search_strategy": 'multipart-target-decoy-competition',
+        })
+        return result

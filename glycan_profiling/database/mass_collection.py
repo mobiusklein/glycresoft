@@ -411,8 +411,8 @@ class NeutralMassDatabase(SearchableMassCollection):
             self.mass_getter, sort=False)
 
     def _merge_neutral_mass_database(self, other, id_fn=id):
-        new = {id_fn(x): x for x in self.structures}
-        new.update({id_fn(x): x for x in other.structures})
+        new = {id_fn(x.obj): x for x in self.structures}
+        new.update({id_fn(x.obj): x for x in other.structures})
         structures = list(new.values())
         structures.sort()
         self.structures = structures

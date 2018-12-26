@@ -109,13 +109,13 @@ class GlycanLCMSAnalysisCSVSerializer(CSVSerializerBase):
             "end_time",
             "apex_time",
             "charge_states",
-            "adducts",
+            "mass_shifts",
             "line_score",
             "isotopic_fit",
             "spacing_fit",
             "charge_count",
             "ambiguous_with",
-            "used_as_adduct"
+            "used_as_mass_shift"
         ]
 
     def convert_object(self, obj):
@@ -132,13 +132,13 @@ class GlycanLCMSAnalysisCSVSerializer(CSVSerializerBase):
             obj.end_time,
             obj.apex_time,
             ';'.join(map(str, obj.charge_states)),
-            ';'.join([a.name for a in obj.adducts]),
+            ';'.join([a.name for a in obj.mass_shifts]),
             scores.line_score,
             scores.isotopic_fit,
             scores.spacing_fit,
             scores.charge_count,
             ';'.join("%s:%s" % (p[0], p[1].name) for p in obj.ambiguous_with),
-            ';'.join("%s:%s" % (p[0], p[1].name) for p in obj.used_as_adduct)
+            ';'.join("%s:%s" % (p[0], p[1].name) for p in obj.used_as_mass_shift)
         ]
         return map(str, attribs)
 

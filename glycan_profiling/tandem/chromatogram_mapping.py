@@ -53,14 +53,14 @@ class TandemAnnotatedChromatogram(ChromatogramWrapper, SpectrumMatchSolutionColl
                 new_no_charge.add_solution(hit)
         return new_charge, new_no_charge
 
-    def bisect_adduct(self, adduct):
-        new_adduct, new_no_adduct = map(self.__class__, self.chromatogram.bisect_adduct(adduct))
+    def bisect_mass_shift(self, mass_shift):
+        new_mass_shift, new_no_mass_shift = map(self.__class__, self.chromatogram.bisect_mass_shift(mass_shift))
         for hit in self.tandem_solutions:
-            if hit.best_solution().mass_shift == adduct:
-                new_adduct.add_solution(hit)
+            if hit.best_solution().mass_shift == mass_shift:
+                new_mass_shift.add_solution(hit)
             else:
-                new_no_adduct.add_solution(hit)
-        return new_adduct, new_no_adduct
+                new_no_mass_shift.add_solution(hit)
+        return new_mass_shift, new_no_mass_shift
 
     def add_solution(self, item):
         case_mass = item.precursor_information.neutral_mass
@@ -86,15 +86,15 @@ class TandemAnnotatedChromatogram(ChromatogramWrapper, SpectrumMatchSolutionColl
     def merge_in_place(self, other):
         new = self.chromatogram.merge(other.chromatogram)
         self.chromatogram = new
-        self.chromatogram.adducts += other.adducts
+        self.chromatogram.mass_shifts += other.mass_shifts
         self.tandem_solutions = self.tandem_solutions + other.tandem_solutions
         self.time_displaced_assignments = self.time_displaced_assignments + other.time_displaced_assignments
 
     def assign_entity(self, solution_entry, entity_chromatogram_type=GlycopeptideChromatogram):
         entity_chroma = entity_chromatogram_type(
             None,
-            self.chromatogram.nodes, self.chromatogram.adducts,
-            self.chromatogram.used_as_adduct)
+            self.chromatogram.nodes, self.chromatogram.mass_shifts,
+            self.chromatogram.used_as_mass_shift)
         entity_chroma.entity = solution_entry.solution
         if solution_entry.match.mass_shift != Unmodified:
             identified_shift = solution_entry.match.mass_shift
@@ -185,7 +185,7 @@ def aggregate_by_assigned_entity(annotated_chromatograms, delta_rt=0.25, require
         out = []
         for chromatogram in finished:
             # the structure's best match has not been identified in an unmodified state
-            if Unmodified not in chromatogram.adducts:
+            if Unmodified not in chromatogram.mass_shifts:
                 solutions = chromatogram.most_representative_solutions(
                     threshold_fn, reject_shifted=True)
                 # if there is a reasonable solution in an unmodified state
@@ -194,10 +194,10 @@ def aggregate_by_assigned_entity(annotated_chromatograms, delta_rt=0.25, require
                     solutions = sorted(solutions, key=lambda x: x.score, reverse=True)
 
                     # remove the invalidated mass shifts
-                    current_shifts = chromatogram.chromatogram.adducts
+                    current_shifts = chromatogram.chromatogram.mass_shifts
                     partitions = []
                     for shift in current_shifts:
-                        partition, _ = chromatogram.chromatogram.bisect_adduct(shift)
+                        partition, _ = chromatogram.chromatogram.bisect_mass_shift(shift)
                         partitions.append(partition.deduct_node_type(shift))
                     accumulated_chromatogram = partitions[0]
                     for partition in partitions[1:]:
@@ -345,7 +345,7 @@ class ChromatogramMSMSMapper(TaskBase):
             out = []
             for chromatogram in finished:
                 # the structure's best match has not been identified in an unmodified state
-                if Unmodified not in chromatogram.adducts:
+                if Unmodified not in chromatogram.mass_shifts:
                     solutions = chromatogram.most_representative_solutions(
                         threshold_fn, reject_shifted=True)
                     # if there is a reasonable solution in an unmodified state
@@ -354,10 +354,10 @@ class ChromatogramMSMSMapper(TaskBase):
                         solutions = sorted(solutions, key=lambda x: x.score, reverse=True)
 
                         # remove the invalidated mass shifts
-                        current_shifts = chromatogram.chromatogram.adducts
+                        current_shifts = chromatogram.chromatogram.mass_shifts
                         partitions = []
                         for shift in current_shifts:
-                            partition, _ = chromatogram.chromatogram.bisect_adduct(shift)
+                            partition, _ = chromatogram.chromatogram.bisect_mass_shift(shift)
                             partitions.append(partition.deduct_node_type(shift))
                         accumulated_chromatogram = partitions[0]
                         for partition in partitions[1:]:

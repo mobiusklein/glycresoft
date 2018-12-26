@@ -9,7 +9,7 @@ from glycan_profiling.chromatogram_tree import (
     Unmodified,
     ChromatogramFilter,
     ChromatogramOverlapSmoother,
-    prune_bad_adduct_branches)
+    prune_bad_mass_shift_branches)
 
 from glycan_profiling.scoring import (
     ChromatogramSolution,
@@ -75,37 +75,37 @@ class ChromatogramEvaluator(TaskBase):
         for sol in solutions:
             if sol.score <= self.ignore_below:
                 continue
-            elif (sol.composition is None) and (Unmodified not in sol.adducts):
+            elif (sol.composition is None) and (Unmodified not in sol.mass_shifts):
                 continue
             out.append(sol)
         solutions = ChromatogramFilter(out)
         return solutions
 
     def score(self, chromatograms, delta_rt=0.25, min_points=3, smooth_overlap_rt=True,
-              adducts=None, *args, **kwargs):
+              mass_shifts=None, *args, **kwargs):
 
         solutions = self.evaluate(
             chromatograms, delta_rt, min_points, smooth_overlap_rt, *args, **kwargs)
 
-        if adducts:
-            self.log("Pruning adduct branches")
-            hold = self.prune_adducts(solutions)
-            self.log("Re-evaluating after adduct pruning")
+        if mass_shifts:
+            self.log("Pruning mass shift branches")
+            hold = self.prune_mass_shifts(solutions)
+            self.log("Re-evaluating after mass shift pruning")
             solutions = self.evaluate(hold, delta_rt, min_points, smooth_overlap_rt,
                                       *args, **kwargs)
 
         solutions = self.finalize_matches(solutions)
         return solutions
 
-    def prune_adducts(self, solutions):
-        return prune_bad_adduct_branches(ChromatogramFilter(solutions))
+    def prune_mass_shifts(self, solutions):
+        return prune_bad_mass_shift_branches(ChromatogramFilter(solutions))
 
     def acceptance_filter(self, solutions, threshold=None):
         if threshold is None:
             threshold = self.acceptance_threshold
         return ChromatogramFilter([
             sol for sol in solutions
-            if sol.score >= threshold and not sol.used_as_adduct
+            if sol.score >= threshold and not sol.used_as_mass_shift
         ])
 
     def update_parameters(self, param_dict):
@@ -120,8 +120,8 @@ class LogitSumChromatogramEvaluator(ChromatogramEvaluator):
     def __init__(self, scoring_model):
         super(LogitSumChromatogramEvaluator, self).__init__(scoring_model)
 
-    def prune_adducts(self, solutions):
-        return prune_bad_adduct_branches(ChromatogramFilter(solutions), score_margin=2.5)
+    def prune_mass_shifts(self, solutions):
+        return prune_bad_mass_shift_branches(ChromatogramFilter(solutions), score_margin=2.5)
 
     def evaluate_chromatogram(self, chromatogram):
         score_set = self.scoring_model.compute_scores(chromatogram)

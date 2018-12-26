@@ -57,19 +57,19 @@ class SignatureIonMapper(TaskBase):
     minimum_score = 0.05
 
     def __init__(self, tandem_scans, chromatograms, scan_id_to_rt=lambda x: x,
-                 adducts=None, minimum_mass=500, batch_size=1000,
+                 mass_shifts=None, minimum_mass=500, batch_size=1000,
                  default_glycan_composition=None, scorer_type=None,
                  n_processes=4):
         if scorer_type is None:
             scorer_type = SignatureIonScorer
-        if adducts is None:
-            adducts = []
+        if mass_shifts is None:
+            mass_shifts = []
         self.chromatograms = chromatograms
         self.tandem_scans = sorted(
             tandem_scans, key=lambda x: x.precursor_information.extracted_neutral_mass,
             reverse=True)
         self.scan_id_to_rt = scan_id_to_rt
-        self.adducts = adducts
+        self.mass_shifts = mass_shifts
         self.minimum_mass = minimum_mass
         self.default_glycan_composition = default_glycan_composition
         self.default_glycan_composition.id = -1
@@ -113,9 +113,9 @@ class SignatureIonMapper(TaskBase):
             if match:
                 for m in match:
                     m.add_solution(scan)
-            for adduct in self.adducts:
+            for mass_shift in self.mass_shifts:
                 match = hits.find_all_by_mass(
-                    scan.precursor_information.neutral_mass - adduct.mass,
+                    scan.precursor_information.neutral_mass - mass_shift.mass,
                     precursor_error_tolerance)
                 if match:
                     for m in match:

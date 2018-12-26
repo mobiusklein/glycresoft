@@ -2,6 +2,8 @@ import operator
 import logging
 import struct
 import ctypes
+import gzip
+import io
 
 from collections import namedtuple
 
@@ -512,6 +514,18 @@ class Parser(object):
         return struct
 
 
+def _compress(data):
+    buff = io.BytesIO()
+    gzip.GzipFile(fileobj=buff, mode='wb').write(data)
+    data = buff.getvalue()
+    return data
+
+
+def _decompress(data):
+    data = gzip.GzipFile(fileobj=io.BytesIO(data), mode='rb').read()
+    return data
+
+
 def serialize_workload(workload_manager, pretty_print=True):
     wl = etree.Element('workload')
     for key, scans in workload_manager.hit_to_scan_map.items():
@@ -527,11 +541,14 @@ def serialize_workload(workload_manager, pretty_print=True):
                     'scan_id': scan.id,
                     'hit_type': workload_manager.scan_hit_type_map[scan.id, key]
                 })
-    return (etree.tostring(wl, pretty_print=pretty_print))
+    xml = (etree.tostring(wl, pretty_print=pretty_print))
+    data = _compress(xml)
+    return data
 
 
 def deserialize_workload(buff, scan_loader):
     wm = WorkloadManager()
+    buff = _decompress(buff)
     tree = etree.fromstring(buff)
     for scan_mapping in tree:
         glycopeptide_record_tag = scan_mapping[0]

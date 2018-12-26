@@ -54,15 +54,15 @@ class IdentifiedStructure(BoundToAnalysis, ChromatogramWrapper):
     def entity(self):
         raise NotImplementedError()
 
-    def bisect_adduct(self, adduct):
+    def bisect_mass_shift(self, mass_shift):
         chromatogram = self._get_chromatogram()
-        new_adduct, new_no_adduct = chromatogram.bisect_adduct(adduct)
+        new_mass_shift, new_no_mass_shift = chromatogram.bisect_mass_shift(mass_shift)
 
-        for chrom in (new_adduct, new_no_adduct):
+        for chrom in (new_mass_shift, new_no_mass_shift):
             chrom.entity = self.entity
             chrom.composition = self.entity
             chrom.glycan_composition = self.glycan_composition
-        return new_adduct, new_no_adduct
+        return new_mass_shift, new_no_mass_shift
 
 
 class AmbiguousGlycopeptideGroup(Base, BoundToAnalysis):
@@ -159,7 +159,7 @@ class IdentifiedGlycopeptide(Base, IdentifiedStructure):
     def tandem_solutions(self):
         return self.spectrum_cluster.spectrum_solutions
 
-    def adduct_tandem_solutions(self):
+    def mass_shift_tandem_solutions(self):
         mapping = ArithmeticMapping()
         for sm in self.tandem_solutions:
             mapping[sm.best_solution().mass_shift] += 1

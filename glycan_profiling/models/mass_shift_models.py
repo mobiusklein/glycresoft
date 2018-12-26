@@ -1,6 +1,6 @@
 from glycan_profiling.scoring import (
     DummyFeature,
-    MassScalingAdductScoringModel)
+    MassScalingMassShiftScoringModel)
 
 from glycan_profiling.scoring.base import (
     degree_of_sialylation,
@@ -10,21 +10,21 @@ from .utils import make_model_loader
 from .features import register_feature
 
 
-load_model = make_model_loader(MassScalingAdductScoringModel)
+load_model = make_model_loader(MassScalingMassShiftScoringModel)
 
-AmmoniumAdductFeature = load_model("ammonium_adduct_model")
+AmmoniumMassShiftFeature = load_model("ammonium_adduct_model")
 MethylLossFeature = load_model("methyl_loss_adduct_model")
 
 
-register_feature("permethylated_ammonium_adducts", AmmoniumAdductFeature)
+register_feature("permethylated_ammonium_adducts", AmmoniumMassShiftFeature)
 register_feature("methyl_loss", MethylLossFeature)
 
 
 class PermethylatedAmmoniumAndMethylLossModel(DummyFeature):
     def __init__(self, boosting=True):
         DummyFeature.__init__(
-            self, name=self.__class__.__name__, feature_type="adduct_score")
-        self.ammonium = AmmoniumAdductFeature
+            self, name=self.__class__.__name__, feature_type="mass_shift_score")
+        self.ammonium = AmmoniumMassShiftFeature
         self.methyl_loss = MethylLossFeature
         self.boosting = boosting
 
@@ -60,26 +60,26 @@ register_feature(
     PermethylatedAmmoniumAndMethylLossFeature)
 
 
-AsialoFormateAdductFeature = load_model("asialo_formate_adduct_model")
-MonosialoFormateAdductFeature = load_model("monosialo_formate_adduct_model")
-DisialoFormateAdductFeature = load_model("disialo_formate_adduct_model")
-TrisialoFormateAdductFeature = load_model("trisialo_formate_adduct_model")
-TetrasialoFormateAdductFeature = load_model("tetrasialo_formate_adduct_model")
+AsialoFormateMassShiftFeature = load_model("asialo_formate_adduct_model")
+MonosialoFormateMassShiftFeature = load_model("monosialo_formate_adduct_model")
+DisialoFormateMassShiftFeature = load_model("disialo_formate_adduct_model")
+TrisialoFormateMassShiftFeature = load_model("trisialo_formate_adduct_model")
+TetrasialoFormateMassShiftFeature = load_model("tetrasialo_formate_adduct_model")
 
-_GeneralizedFormateAdductModelTable = CompositionDispatchingModel({
-    lambda x: degree_of_sialylation(x) == 0: AsialoFormateAdductFeature,
-    lambda x: degree_of_sialylation(x) == 1: MonosialoFormateAdductFeature,
-    lambda x: degree_of_sialylation(x) == 2: DisialoFormateAdductFeature,
-    lambda x: degree_of_sialylation(x) == 3: TrisialoFormateAdductFeature,
-    lambda x: degree_of_sialylation(x) > 3: TetrasialoFormateAdductFeature
-}, AsialoFormateAdductFeature)
+_GeneralizedFormateMassShiftModelTable = CompositionDispatchingModel({
+    lambda x: degree_of_sialylation(x) == 0: AsialoFormateMassShiftFeature,
+    lambda x: degree_of_sialylation(x) == 1: MonosialoFormateMassShiftFeature,
+    lambda x: degree_of_sialylation(x) == 2: DisialoFormateMassShiftFeature,
+    lambda x: degree_of_sialylation(x) == 3: TrisialoFormateMassShiftFeature,
+    lambda x: degree_of_sialylation(x) > 3: TetrasialoFormateMassShiftFeature
+}, AsialoFormateMassShiftFeature)
 
 
-class GeneralizedFormateAdductModel(DummyFeature):
+class GeneralizedFormateMassShiftModel(DummyFeature):
     def __init__(self):
         DummyFeature.__init__(
-            self, name=self.__class__.__name__, feature_type="adduct_score")
-        self.table = _GeneralizedFormateAdductModelTable
+            self, name=self.__class__.__name__, feature_type="mass_shift_score")
+        self.table = _GeneralizedFormateMassShiftModelTable
 
     def score(self, chromatogram, *args, **kwargs):
         score = self.table.score(chromatogram, *args, **kwargs)
@@ -91,7 +91,10 @@ class GeneralizedFormateAdductModel(DummyFeature):
         return min(score, 0.7)
 
 
-GeneralizedFormateAdductFeature = GeneralizedFormateAdductModel()
+# pickle loading alias
+GeneralizedFormateAdductModel = GeneralizedFormateMassShiftModel
+
+GeneralizedFormateMassShiftFeature = GeneralizedFormateMassShiftModel()
 
 
-register_feature("formate_adduct_model", GeneralizedFormateAdductFeature)
+register_feature("formate_adduct_model", GeneralizedFormateMassShiftFeature)

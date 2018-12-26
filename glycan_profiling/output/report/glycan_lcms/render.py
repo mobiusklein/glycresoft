@@ -22,23 +22,23 @@ def chromatogram_figures(chroma):
     chroma_svg = svguri_plot(
         plot, bbox_inches='tight', height=5, width=9, svg_width="100%")
     figures.append(chroma_svg)
-    if len(chroma.adducts) > 1:
-        adducts = list(chroma.adducts)
+    if len(chroma.mass_shifts) > 1:
+        mass_shifts = list(chroma.mass_shifts)
         labels = {}
         rest = chroma
-        for adduct in adducts:
-            with_adduct, rest = rest.bisect_adduct(adduct)
-            labels[adduct] = with_adduct
-        adduct_plot = SmoothingChromatogramArtist(
+        for mass_shift in mass_shifts:
+            with_mass_shift, rest = rest.bisect_mass_shift(mass_shift)
+            labels[mass_shift] = with_mass_shift
+        mass_shift_plot = SmoothingChromatogramArtist(
             labels.values(),
             colorizer=lambda *a, **k: 'green', ax=figax()).draw(
-            label_function=lambda *a, **k: tuple(a[0].adducts)[0].name,
+            label_function=lambda *a, **k: tuple(a[0].mass_shifts)[0].name,
             legend=False).ax
-        adduct_plot.set_title(
-            "Adduct-Separated\nExtracted Ion Chromatogram", fontsize=24)
-        adduct_separation = svguri_plot(
-            adduct_plot, bbox_inches='tight', height=5, width=9, svg_width="100%")
-        figures.append(adduct_separation)
+        mass_shift_plot.set_title(
+            "mass_shift-Separated\nExtracted Ion Chromatogram", fontsize=24)
+        mass_shift_separation = svguri_plot(
+            mass_shift_plot, bbox_inches='tight', height=5, width=9, svg_width="100%")
+        figures.append(mass_shift_separation)
     if len(chroma.charge_states) > 1:
         charge_separating_plot = ChargeSeparatingSmoothingChromatogramArtist(
             [chroma], ax=figax()).draw(

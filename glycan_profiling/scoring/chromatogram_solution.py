@@ -173,14 +173,14 @@ class ChromatogramScorer(ScorerBase):
                  isotopic_fitter_model=IsotopicPatternConsistencyModel,
                  charge_scoring_model=UniformChargeStateScoringModel,
                  spacing_fitter_model=ChromatogramSpacingModel,
-                 adduct_scoring_model=None, *models):
+                 mass_shift_scoring_model=None, *models):
         super(ChromatogramScorer, self).__init__()
         self.add_feature(shape_fitter_model())
         self.add_feature(isotopic_fitter_model())
         self.add_feature(spacing_fitter_model())
         self.add_feature(charge_scoring_model())
-        if adduct_scoring_model is not None:
-            self.add_feature(adduct_scoring_model())
+        if mass_shift_scoring_model is not None:
+            self.add_feature(mass_shift_scoring_model())
         for model in models:
             if model is not None:
                 self.add_feature(model())

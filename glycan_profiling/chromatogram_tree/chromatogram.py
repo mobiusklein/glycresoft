@@ -71,7 +71,7 @@ class SubsequenceMasker(object):
 
         new = self.target.clone()
         new.clear()
-        new.used_as_adduct = []
+        new.used_as_mass_shift = []
         new.created_at = "mask_subsequence"
         for node in unmasked_nodes:
             new.insert_node(node)
@@ -110,18 +110,18 @@ class Chromatogram(_TimeIntervalMethods):
     created_at = "new"
     glycan_composition = None
 
-    def __init__(self, composition, nodes=None, adducts=None, used_as_adduct=None):
+    def __init__(self, composition, nodes=None, mass_shifts=None, used_as_mass_shift=None):
         if nodes is None:
             nodes = ChromatogramTreeList()
-        if adducts is None:
-            adducts = []
-        if used_as_adduct is None:
-            used_as_adduct = []
+        if mass_shifts is None:
+            mass_shifts = []
+        if used_as_mass_shift is None:
+            used_as_mass_shift = []
 
         self.nodes = nodes
-        self._adducts = adducts
-        self.used_as_adduct = used_as_adduct
-        self._infer_adducts()
+        self._mass_shifts = mass_shifts
+        self.used_as_mass_shift = used_as_mass_shift
+        self._infer_mass_shifts()
         self._has_msms = None
 
         self.composition = composition
@@ -146,7 +146,7 @@ class Chromatogram(_TimeIntervalMethods):
         self._retention_times = None
         self._peaks = None
         self._scan_ids = None
-        self._adducts = None
+        self._mass_shifts = None
         self._has_msms = None
         self._start_time = None
         self._end_time = None
@@ -172,13 +172,13 @@ class Chromatogram(_TimeIntervalMethods):
             self._most_abundant_member = max(node.max_intensity() for node in self.nodes)
         return self._most_abundant_member
 
-    def _infer_adducts(self):
-        adducts = set()
+    def _infer_mass_shifts(self):
+        mass_shifts = set()
         for node in self.nodes:
-            adducts.update(node.node_types())
-        if not adducts:
-            adducts = [Unmodified]
-        self._adducts = list(adducts)
+            mass_shifts.update(node.node_types())
+        if not mass_shifts:
+            mass_shifts = [Unmodified]
+        self._mass_shifts = list(mass_shifts)
 
     def __getitem__(self, i):
         return self.nodes[i]
@@ -194,9 +194,9 @@ class Chromatogram(_TimeIntervalMethods):
                 total += node._total_intensity_members()
         return total
 
-    def adduct_signal_fractions(self):
+    def mass_shift_signal_fractions(self):
         return ArithmeticMapping({
-            k: self.total_signal_for(k) for k in self.adducts
+            k: self.total_signal_for(k) for k in self.mass_shifts
         })
 
     @property
@@ -211,10 +211,10 @@ class Chromatogram(_TimeIntervalMethods):
         return integrated
 
     @property
-    def adducts(self):
-        if self._adducts is None:
-            self._infer_adducts()
-        return self._adducts
+    def mass_shifts(self):
+        if self._mass_shifts is None:
+            self._infer_mass_shifts()
+        return self._mass_shifts
 
     @property
     def total_signal(self):
@@ -231,7 +231,7 @@ class Chromatogram(_TimeIntervalMethods):
             try:
                 self._infer_neutral_mass()
             except KeyError:
-                self._infer_neutral_mass(self.adducts[0])
+                self._infer_neutral_mass(self.mass_shifts[0])
         return self._weighted_neutral_mass
 
     @property
@@ -290,7 +290,7 @@ class Chromatogram(_TimeIntervalMethods):
             try:
                 self._infer_neutral_mass()
             except KeyError:
-                self._infer_neutral_mass(self.adducts[0])
+                self._infer_neutral_mass(self.mass_shifts[0])
         return self._neutral_mass
 
     @property
@@ -367,7 +367,7 @@ class Chromatogram(_TimeIntervalMethods):
         for node in self.nodes:
             if (node.retention_time - last_rt) > delta_rt:
                 x = self.__class__(self.composition, ChromatogramTreeList(current_chunk))
-                x.used_as_adduct = list(self.used_as_adduct)
+                x.used_as_mass_shift = list(self.used_as_mass_shift)
 
                 chunks.append(x)
                 current_chunk = []
@@ -376,7 +376,7 @@ class Chromatogram(_TimeIntervalMethods):
             current_chunk.append(node)
 
         x = self.__class__(self.composition, ChromatogramTreeList(current_chunk))
-        x.used_as_adduct = list(self.used_as_adduct)
+        x.used_as_mass_shift = list(self.used_as_mass_shift)
 
         chunks.append(x)
         for chunk in chunks:
@@ -408,7 +408,7 @@ class Chromatogram(_TimeIntervalMethods):
         if cls is None:
             cls = self.__class__
         c = cls(
-            self.composition, self.nodes.clone(), list(self.adducts), list(self.used_as_adduct))
+            self.composition, self.nodes.clone(), list(self.mass_shifts), list(self.used_as_mass_shift))
         c.created_at = self.created_at
         return c
 
@@ -466,19 +466,19 @@ class Chromatogram(_TimeIntervalMethods):
         new = self.__class__(
             self.composition,
             ChromatogramTreeList(node.clone() for node in self.nodes[i:j + 1]),
-            used_as_adduct=list(self.used_as_adduct))
+            used_as_mass_shift=list(self.used_as_mass_shift))
         return new
 
-    def bisect_adduct(self, adduct):
-        new_adduct = self.__class__(self.composition)
-        new_no_adduct = self.__class__(self.composition)
+    def bisect_mass_shift(self, mass_shift):
+        new_mass_shift = self.__class__(self.composition)
+        new_no_mass_shift = self.__class__(self.composition)
         for node in self:
             for new_node in node._unspool_strip_children():
-                if new_node.node_type == adduct:
-                    new_adduct.insert_node(new_node)
+                if new_node.node_type == mass_shift:
+                    new_mass_shift.insert_node(new_node)
                 else:
-                    new_no_adduct.insert_node(new_node)
-        return new_adduct, new_no_adduct
+                    new_no_mass_shift.insert_node(new_node)
+        return new_mass_shift, new_no_mass_shift
 
     def bisect_charge(self, charge):
         new_charge = self.__class__(self.composition)
@@ -534,22 +534,22 @@ class Chromatogram(_TimeIntervalMethods):
         return rt[np.argmax(intensity)]
 
     def extract_components(self):
-        adducts = list(self.adducts)
+        mass_shifts = list(self.mass_shifts)
         labels = {}
         rest = self
-        for adduct in adducts:
-            with_adduct, rest = rest.bisect_adduct(adduct)
-            labels[adduct] = with_adduct
+        for mass_shift in mass_shifts:
+            with_mass_shift, rest = rest.bisect_mass_shift(mass_shift)
+            labels[mass_shift] = with_mass_shift
 
         labels[Unmodified] = rest
-        adduct_charge_table = defaultdict(dict)
-        for adduct, component in labels.items():
+        mass_shift_charge_table = defaultdict(dict)
+        for mass_shift, component in labels.items():
             charges = list(component.charge_states)
             rest = component
             for charge in charges:
                 selected, rest = rest.bisect_charge(charge)
-                adduct_charge_table[adduct][charge] = selected
-        return adduct_charge_table
+                mass_shift_charge_table[mass_shift][charge] = selected
+        return mass_shift_charge_table
 
     def clear(self):
         self.nodes.clear()
@@ -927,8 +927,8 @@ class ChromatogramWrapper(_TimeIntervalMethods):
         return self.chromatogram.charge_states
 
     @property
-    def adducts(self):
-        return self.chromatogram.adducts
+    def mass_shifts(self):
+        return self.chromatogram.mass_shifts
 
     @property
     def total_signal(self):
@@ -1018,8 +1018,8 @@ class ChromatogramWrapper(_TimeIntervalMethods):
     def is_distinct(self, other):
         return self.chromatogram.is_distinct(get_chromatogram(other))
 
-    def adduct_signal_fractions(self):
-        return self.chromatogram.adduct_signal_fractions()
+    def mass_shift_signal_fractions(self):
+        return self.chromatogram.mass_shift_signal_fractions()
 
 
 ChromatogramInterface.register(ChromatogramWrapper)

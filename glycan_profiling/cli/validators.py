@@ -297,7 +297,7 @@ class SubstituentParamType(click.types.StringParamType):
         return t
 
 
-adducts = {
+mass_shifts = {
     "ammonium": Ammonium,
     "formate": Formate,
     "sodium": Sodium,
@@ -305,20 +305,20 @@ adducts = {
 }
 
 
-def validate_adduct(adduct_string, multiplicity=1):
+def validate_mass_shift(mass_shift_string, multiplicity=1):
     multiplicity = int(multiplicity)
-    if adduct_string.lower() in adducts:
-        return (adducts[adduct_string.lower()], multiplicity)
+    if mass_shift_string.lower() in mass_shifts:
+        return (mass_shifts[mass_shift_string.lower()], multiplicity)
     else:
         try:
-            adduct_string = str(adduct_string)
-            composition = Composition(adduct_string)
-            shift = MassShift(adduct_string, composition)
+            mass_shift_string = str(mass_shift_string)
+            composition = Composition(mass_shift_string)
+            shift = MassShift(mass_shift_string, composition)
             return (shift, multiplicity)
         except Exception as e:
             click.secho("%r" % (e,))
-            click.secho("Could not validate adduct %r" % (adduct_string,), fg='yellow')
-            raise click.Abort("Could not validate adduct %r" % (adduct_string,))
+            click.secho("Could not validate mass_shift %r" % (mass_shift_string,), fg='yellow')
+            raise click.Abort("Could not validate mass_shift %r" % (mass_shift_string,))
 
 
 glycopeptide_tandem_scoring_functions = {

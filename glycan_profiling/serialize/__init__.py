@@ -23,7 +23,7 @@ from glycan_profiling.serialize.chromatogram import (
     CompoundMassShift,
     UnidentifiedChromatogram,
     GlycanCompositionChromatogram,
-    ChromatogramSolutionAdductedToChromatogramSolution)
+    ChromatogramSolutionMassShiftedToChromatogramSolution)
 
 from glycan_profiling.serialize.tandem import (
     GlycopeptideSpectrumCluster,

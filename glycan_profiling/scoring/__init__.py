@@ -23,8 +23,8 @@ from .chromatogram_solution import (
     CompositionDispatchScorer, DummyScorer, ChromatogramScoreSet,
     ScorerBase)
 
-from .adduct_scoring import (
-    MassScalingAdductScoringModel)
+from .mass_shift_scoring import (
+    MassScalingMassShiftScoringModel)
 
 from .utils import logit, logitsum
 
@@ -47,7 +47,7 @@ __all__ = [
     "CompositionDispatchScorer", "DummyScorer", "ChromatogramScoreSet",
     "ScorerBase",
 
-    "MassScalingAdductScoringModel",
+    "MassScalingMassShiftScoringModel",
 
     'logit', 'logitsum',
 ]

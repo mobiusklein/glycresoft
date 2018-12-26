@@ -66,15 +66,15 @@ class IdentifiedStructure(object):
             return np.array([]), np.array([])
 
     @property
-    def adducts(self):
+    def mass_shifts(self):
         try:
-            return self.chromatogram.adducts
+            return self.chromatogram.mass_shifts
         except AttributeError:
             return []
 
-    def adduct_signal_fractions(self):
+    def mass_shift_signal_fractions(self):
         try:
-            return self.chromatogram.adduct_signal_fractions()
+            return self.chromatogram.mass_shift_signal_fractions()
         except AttributeError:
             return ArithmeticMapping()
 
@@ -92,7 +92,7 @@ class IdentifiedStructure(object):
     def tandem_solutions(self):
         return self.spectrum_matches
 
-    def adduct_tandem_solutions(self):
+    def mass_shift_tandem_solutions(self):
         mapping = ArithmeticMapping()
         for sm in self.tandem_solutions:
             mapping[sm.best_solution().mass_shift] += 1

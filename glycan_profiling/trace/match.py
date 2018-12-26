@@ -106,7 +106,7 @@ class ChromatogramMatcher(TaskBase):
         return self.assign(chromatogram, self.match(
             chromatogram.weighted_neutral_mass, mass_error_tolerance))
 
-    def reverse_adduct_search(self, chromatograms, adducts, mass_error_tolerance=1e-5):
+    def reverse_mass_shift_search(self, chromatograms, mass_shifts, mass_error_tolerance=1e-5):
         exclude_compositions = defaultdict(list)
         candidate_chromatograms = []
 
@@ -128,8 +128,8 @@ class ChromatogramMatcher(TaskBase):
             candidate_mass = chroma.weighted_neutral_mass
             matched = False
             exclude = False
-            for adduct in adducts:
-                matches = self.match(candidate_mass - adduct.mass, mass_error_tolerance)
+            for mass_shift in mass_shifts:
+                matches = self.match(candidate_mass - mass_shift.mass, mass_error_tolerance)
                 if matches is None:
                     continue
                 for match in matches:
@@ -148,10 +148,10 @@ class ChromatogramMatcher(TaskBase):
                                 chroma_to_update = new_members[name]
                             else:
                                 chroma_to_update = self.chromatogram_type(match)
-                                chroma_to_update.created_at = "reverse_adduction_search"
-                            chroma, _ = chroma.bisect_adduct(Unmodified)
-                            chroma_to_update = chroma_to_update.merge(chroma, adduct)
-                            chroma_to_update.created_at = "reverse_adduction_search"
+                                chroma_to_update.created_at = "reverse_mass_shiftion_search"
+                            chroma, _ = chroma.bisect_mass_shift(Unmodified)
+                            chroma_to_update = chroma_to_update.merge(chroma, mass_shift)
+                            chroma_to_update.created_at = "reverse_mass_shiftion_search"
                             new_members[name] = chroma_to_update
                             matched = True
                     else:
@@ -159,10 +159,10 @@ class ChromatogramMatcher(TaskBase):
                             chroma_to_update = new_members[name]
                         else:
                             chroma_to_update = self.chromatogram_type(match)
-                            chroma_to_update.created_at = "reverse_adduction_search"
-                        chroma, _ = chroma.bisect_adduct(Unmodified)
-                        chroma_to_update = chroma_to_update.merge(chroma, adduct)
-                        chroma_to_update.created_at = "reverse_adduction_search"
+                            chroma_to_update.created_at = "reverse_mass_shiftion_search"
+                        chroma, _ = chroma.bisect_mass_shift(Unmodified)
+                        chroma_to_update = chroma_to_update.merge(chroma, mass_shift)
+                        chroma_to_update.created_at = "reverse_mass_shiftion_search"
                         new_members[name] = chroma_to_update
                         matched = True
             if not matched and not exclude:
@@ -173,7 +173,7 @@ class ChromatogramMatcher(TaskBase):
         out.extend(unmatched)
         return ChromatogramFilter(out)
 
-    def join_mass_shifted(self, chromatograms, adducts, mass_error_tolerance=1e-5):
+    def join_mass_shifted(self, chromatograms, mass_shifts, mass_error_tolerance=1e-5):
         out = []
         i = 0
         n = len(chromatograms)
@@ -183,21 +183,21 @@ class ChromatogramMatcher(TaskBase):
             if i % 1000 == 0:
                 self.log("... %0.2f%% chromatograms searched (%d/%d)" % (i * 100. / n, i, n))
             add = chroma
-            for adduct in adducts:
-                query_mass = chroma.weighted_neutral_mass + adduct.mass
+            for mass_shift in mass_shifts:
+                query_mass = chroma.weighted_neutral_mass + mass_shift.mass
                 matches = chromatograms.find_all_by_mass(query_mass, mass_error_tolerance)
                 for match in matches:
                     if match and span_overlap(add, match):
                         try:
-                            match.used_as_adduct.append((add.key, adduct))
-                            add = add.merge(match, node_type=adduct, skip_duplicate_nodes=True)
+                            match.used_as_mass_shift.append((add.key, mass_shift))
+                            add = add.merge(match, node_type=mass_shift, skip_duplicate_nodes=True)
                             add.created_at = "join_mass_shifted"
-                            add.adducts.append(adduct)
+                            add.mass_shifts.append(mass_shift)
                         except DuplicateNodeError as e:
                             e.original = chroma
                             e.to_add = match
                             e.accumulated = add
-                            e.adduct = adduct
+                            e.mass_shift = mass_shift
                             raise e
             out.append(add)
         return ChromatogramFilter(out)
@@ -216,10 +216,10 @@ class ChromatogramMatcher(TaskBase):
             for case in disjoint_set[1:]:
                 if last.overlaps_in_time(case) or ((case.start_time - last.end_time) < delta_rt):
                     merged = last._merge_missing_only(case)
-                    merged.used_as_adduct = list(last.used_as_adduct)
-                    for ua in case.used_as_adduct:
-                        if ua not in merged.used_as_adduct:
-                            merged.used_as_adduct.append(ua)
+                    merged.used_as_mass_shift = list(last.used_as_mass_shift)
+                    for ua in case.used_as_mass_shift:
+                        if ua not in merged.used_as_mass_shift:
+                            merged.used_as_mass_shift.append(ua)
                     last = merged
                     last.created_at = "join_common_identities"
                 else:
@@ -229,7 +229,7 @@ class ChromatogramMatcher(TaskBase):
             out.extend(accumulated)
         return ChromatogramFilter(out)
 
-    def find_related_profiles(self, chromatograms, adducts, mass_error_tolerance=1e-5):
+    def find_related_profiles(self, chromatograms, mass_shifts, mass_error_tolerance=1e-5):
         self.log("Building Connected Components")
         graph = ChromatogramGraph(chromatograms)
         graph.find_shared_peaks()
@@ -248,12 +248,12 @@ class ChromatogramMatcher(TaskBase):
 
             for a in component:
                 pairs = []
-                for adduct in adducts:
+                for mass_shift in mass_shifts:
                     bs = component.find_all_by_mass(
-                        a.weighted_neutral_mass - adduct.mass, mass_error_tolerance)
+                        a.weighted_neutral_mass - mass_shift.mass, mass_error_tolerance)
                     for b in bs:
                         if b != a:
-                            pairs.append((adduct, b))
+                            pairs.append((mass_shift, b))
                 if not pairs:
                     continue
                 grouped_pairs = []
@@ -269,16 +269,16 @@ class ChromatogramMatcher(TaskBase):
                 unique_pairs = []
 
                 def minimizer(args):
-                    adduct, b = args
-                    return abs(a.weighted_neutral_mass - (b.weighted_neutral_mass + adduct.mass))
+                    mass_shift, b = args
+                    return abs(a.weighted_neutral_mass - (b.weighted_neutral_mass + mass_shift.mass))
 
                 for pair_group in grouped_pairs:
                     unique_pairs.append(min(pair_group, key=minimizer))
 
-                for adduct, b in unique_pairs:
-                    used_set = set(b.used_as_adduct)
-                    used_set.add((a.key, adduct))
-                    b.used_as_adduct = list(used_set)
+                for mass_shift, b in unique_pairs:
+                    used_set = set(b.used_as_mass_shift)
+                    used_set.add((a.key, mass_shift))
+                    b.used_as_mass_shift = list(used_set)
 
     def search_all(self, chromatograms, mass_error_tolerance=1e-5):
         matches = []
@@ -294,19 +294,19 @@ class ChromatogramMatcher(TaskBase):
         matches = ChromatogramFilter(matches)
         return matches
 
-    def process(self, chromatograms, adducts=None, mass_error_tolerance=1e-5, delta_rt=0):
-        if adducts is None:
-            adducts = []
+    def process(self, chromatograms, mass_shifts=None, mass_error_tolerance=1e-5, delta_rt=0):
+        if mass_shifts is None:
+            mass_shifts = []
         matches = []
         chromatograms = ChromatogramFilter(chromatograms)
         matches = self.search_all(chromatograms, mass_error_tolerance)
         matches = self.join_common_identities(matches, delta_rt)
-        if adducts:
-            self.log("Handling Adducts")
-            matches = self.join_mass_shifted(matches, adducts, mass_error_tolerance)
-            matches = self.reverse_adduct_search(matches, adducts, mass_error_tolerance)
+        if mass_shifts:
+            self.log("Handling mass_shifts")
+            matches = self.join_mass_shifted(matches, mass_shifts, mass_error_tolerance)
+            matches = self.reverse_mass_shift_search(matches, mass_shifts, mass_error_tolerance)
         matches = self.join_common_identities(matches, delta_rt)
-        self.find_related_profiles(matches, adducts, mass_error_tolerance)
+        self.find_related_profiles(matches, mass_shifts, mass_error_tolerance)
         return matches
 
 

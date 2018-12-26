@@ -384,11 +384,11 @@ class Chromatogram(Base, BoundToAnalysis):
     nodes = relationship(ChromatogramTreeNode, secondary=lambda: ChromatogramToChromatogramTreeNode)
 
     @property
-    def adducts(self):
+    def mass_shifts(self):
         session = object_session(self)
-        return self._adducts_query(session)
+        return self._mass_shifts_query(session)
 
-    def _adducts_query_inner(self, session):
+    def _mass_shifts_query_inner(self, session):
         anode = alias(ChromatogramTreeNode.__table__)
         bnode = alias(ChromatogramTreeNode.__table__)
         apeak = alias(DeconvolutedPeak.__table__)
@@ -413,9 +413,9 @@ class Chromatogram(Base, BoundToAnalysis):
             ChromatogramToChromatogramTreeNode.c.node_id == bnode.c.id)
         return root_peaks_join, branch_peaks_join, anode, bnode, apeak
 
-    def _adducts_query(self, session):
+    def _mass_shifts_query(self, session):
         (root_peaks_join, branch_peaks_join,
-         anode, bnode, apeak) = self._adducts_query_inner(session)
+         anode, bnode, apeak) = self._mass_shifts_query_inner(session)
 
         branch_node_info = select([anode.c.node_type_id, anode.c.retention_time]).where(
             ChromatogramToChromatogramTreeNode.c.chromatogram_id == self.id
@@ -439,15 +439,15 @@ class Chromatogram(Base, BoundToAnalysis):
             node_types.append(session.query(CompoundMassShift).get(ntid).convert())
         return node_types
 
-    def adduct_signal_fractions(self):
+    def mass_shift_signal_fractions(self):
         session = object_session(self)
-        return self._adduct_signal_fraction_query(session)
+        return self._mass_shift_signal_fraction_query(session)
 
-    def bisect_adduct(self, adduct):
+    def bisect_mass_shift(self, mass_shift):
         session = object_session(self)
 
         (root_peaks_join, branch_peaks_join,
-         anode, bnode, apeak) = self._adducts_query_inner(session)
+         anode, bnode, apeak) = self._mass_shifts_query_inner(session)
         root_node_info = select(
             [anode.c.node_type_id, anode.c.retention_time, apeak.c.intensity]).where(
             ChromatogramToChromatogramTreeNode.c.chromatogram_id == self.id
@@ -459,26 +459,26 @@ class Chromatogram(Base, BoundToAnalysis):
         ).select_from(branch_peaks_join)
 
         all_node_info_q = root_node_info.union_all(branch_node_info).order_by(anode.c.retention_time)
-        adduct_id = session.query(CompoundMassShift.id).filter(CompoundMassShift.name == adduct.name).scalar()
+        mass_shift_id = session.query(CompoundMassShift.id).filter(CompoundMassShift.name == mass_shift.name).scalar()
 
-        new_adduct = SimpleEntityChromatogram()
-        new_no_adduct = SimpleEntityChromatogram()
+        new_mass_shift = SimpleEntityChromatogram()
+        new_no_mass_shift = SimpleEntityChromatogram()
 
         for r in sorted(session.execute(all_node_info_q), key=lambda x: x.retention_time):
-            if r.node_type_id == adduct_id:
-                new_adduct.setdefault(r.retention_time, 0)
-                new_adduct[r.retention_time] += r.intensity
+            if r.node_type_id == mass_shift_id:
+                new_mass_shift.setdefault(r.retention_time, 0)
+                new_mass_shift[r.retention_time] += r.intensity
             else:
-                new_no_adduct.setdefault(r.retention_time, 0)
-                new_no_adduct[r.retention_time] += r.intensity
-        new_adduct.adducts = {adduct}
-        new_no_adduct.adducts = set(self.adducts) - {adduct}
+                new_no_mass_shift.setdefault(r.retention_time, 0)
+                new_no_mass_shift[r.retention_time] += r.intensity
+        new_mass_shift.mass_shifts = {mass_shift}
+        new_no_mass_shift.mass_shifts = set(self.mass_shifts) - {mass_shift}
 
-        return new_adduct, new_no_adduct
+        return new_mass_shift, new_no_mass_shift
 
-    def _adduct_signal_fraction_query(self, session):
+    def _mass_shift_signal_fraction_query(self, session):
         (root_peaks_join, branch_peaks_join,
-         anode, bnode, apeak) = self._adducts_query_inner(session)
+         anode, bnode, apeak) = self._mass_shifts_query_inner(session)
         root_node_info = select([anode.c.node_type_id, anode.c.retention_time, apeak.c.intensity]).where(
             ChromatogramToChromatogramTreeNode.c.chromatogram_id == self.id
         ).select_from(root_peaks_join)
@@ -765,15 +765,15 @@ class ChromatogramWrapper(object):
         return self._peak_hash.isdisjoint(other._peak_hash)
 
     @property
-    def adducts(self):
+    def mass_shifts(self):
         try:
-            return self._get_chromatogram().adducts
+            return self._get_chromatogram().mass_shifts
         except MissingChromatogramError:
             return []
 
-    def adduct_signal_fractions(self):
+    def mass_shift_signal_fractions(self):
         try:
-            return self._get_chromatogram().adduct_signal_fractions()
+            return self._get_chromatogram().mass_shift_signal_fractions()
         except MissingChromatogramError:
             return ArithmeticMapping()
 
@@ -811,8 +811,8 @@ class ChromatogramWrapper(object):
     def charge_states(self):
         return self._get_chromatogram().charge_states
 
-    def bisect_adduct(self, adduct):
-        return self._get_chromatogram().bisect_adduct(adduct)
+    def bisect_mass_shift(self, mass_shift):
+        return self._get_chromatogram().bisect_mass_shift(mass_shift)
 
 
 ChromatogramInterface.register(ChromatogramWrapper)
@@ -899,10 +899,10 @@ class ChromatogramSolution(Base, BoundToAnalysis, ScoredChromatogram, Chromatogr
         chromatogram.composition = composition
         sol = MemoryChromatogramSolution(
             chromatogram, self.score, chromatogram_scoring_model, self.internal_score)
-        used_as_adduct = []
-        for pair in self.used_as_adduct:
-            used_as_adduct.append((pair[0], pair[1].convert()))
-        sol.used_as_adduct = used_as_adduct
+        used_as_mass_shift = []
+        for pair in self.used_as_mass_shift:
+            used_as_mass_shift.append((pair[0], pair[1].convert()))
+        sol.used_as_mass_shift = used_as_mass_shift
 
         ambiguous_with = []
         for pair in self.ambiguous_with:
@@ -911,17 +911,17 @@ class ChromatogramSolution(Base, BoundToAnalysis, ScoredChromatogram, Chromatogr
         return sol
 
     @property
-    def used_as_adduct(self):
+    def used_as_mass_shift(self):
         pairs = []
-        for rel in self._adducted_relationships_adduct:
+        for rel in self._mass_shifted_relationships_mass_shift:
             pairs.append((rel.owner.key, rel.mass_shift))
         return pairs
 
     @property
     def ambiguous_with(self):
         pairs = []
-        for rel in self._adduct_relationships_owned:
-            pairs.append((rel.adducted.key, rel.mass_shift))
+        for rel in self._mass_shift_relationships_owned:
+            pairs.append((rel.mass_shifted.key, rel.mass_shift))
         return pairs
 
     @classmethod
@@ -957,22 +957,22 @@ class ChromatogramSolutionWrapper(ChromatogramWrapper):
         return self.solution
 
     @property
-    def used_as_adduct(self):
-        return self._get_chromatogram().used_as_adduct
+    def used_as_mass_shift(self):
+        return self._get_chromatogram().used_as_mass_shift
 
     @property
     def ambiguous_with(self):
         return self._get_chromatogram().ambiguous_with
 
-    def bisect_adduct(self, adduct):
+    def bisect_mass_shift(self, mass_shift):
         chromatogram = self._get_chromatogram()
-        new_adduct, new_no_adduct = chromatogram.bisect_adduct(adduct)
+        new_mass_shift, new_no_mass_shift = chromatogram.bisect_mass_shift(mass_shift)
 
-        for chrom in (new_adduct, new_no_adduct):
+        for chrom in (new_mass_shift, new_no_mass_shift):
             chrom.entity = self.entity
             chrom.composition = self.entity
             chrom.glycan_composition = self.glycan_composition
-        return new_adduct, new_no_adduct
+        return new_mass_shift, new_no_mass_shift
 
 
 class GlycanCompositionChromatogram(Base, BoundToAnalysis, ScoredChromatogram, ChromatogramSolutionWrapper):
@@ -1093,10 +1093,10 @@ class UnidentifiedChromatogram(Base, BoundToAnalysis, ScoredChromatogram, Chroma
         return None
 
 
-class ChromatogramSolutionAdductedToChromatogramSolution(Base):
-    __tablename__ = "ChromatogramSolutionAdductedToChromatogramSolution"
+class ChromatogramSolutionMassShiftedToChromatogramSolution(Base):
+    __tablename__ = "ChromatogramSolutionAdductToChromatogramSolution"
 
-    adducted_solution_id = Column(Integer, ForeignKey(
+    mass_shifted_solution_id = Column(Integer, ForeignKey(
         ChromatogramSolution.id, ondelete="CASCADE"), primary_key=True)
     mass_shift_id = Column(Integer, ForeignKey(
         CompoundMassShift.id, ondelete='CASCADE'), primary_key=True)
@@ -1104,13 +1104,13 @@ class ChromatogramSolutionAdductedToChromatogramSolution(Base):
         ChromatogramSolution.id, ondelete="CASCADE"), primary_key=True)
 
     owner = relationship(ChromatogramSolution, backref=backref(
-        "_adduct_relationships_owned"),
+        "_mass_shift_relationships_owned"),
         foreign_keys=[owning_solution_id])
-    adducted = relationship(ChromatogramSolution, backref=backref(
-        "_adducted_relationships_adduct"),
-        foreign_keys=[adducted_solution_id])
+    mass_shifted = relationship(ChromatogramSolution, backref=backref(
+        "_mass_shifted_relationships_mass_shift"),
+        foreign_keys=[mass_shifted_solution_id])
     mass_shift = relationship(CompoundMassShift)
 
     def __repr__(self):
-        template = "{self.__class__.__name__}({self.adducted.key} -{self.mass_shift.name}-> {self.owner.key})"
+        template = "{self.__class__.__name__}({self.mass_shifted.key} -{self.mass_shift.name}-> {self.owner.key})"
         return template.format(self=self)

@@ -28,7 +28,7 @@ from glycan_profiling.task import fmt_msg
 
 from .validators import (
     validate_analysis_name,
-    validate_adduct, validate_glycopeptide_tandem_scoring_function,
+    validate_mass_shift, validate_glycopeptide_tandem_scoring_function,
     glycopeptide_tandem_scoring_functions,
     get_by_name_or_id,
     validate_ms1_feature_name,
@@ -100,7 +100,7 @@ def sample_path(fn):
 @click.option("-x", "--oxonium-threshold", default=0.05, type=float,
               help=('Minimum HexNAc-derived oxonium ion abundance '
                     'ratio to filter MS/MS scans. Defaults to 0.05.'))
-@click.option("-a", "--adduct", 'adducts', multiple=True, nargs=2,
+@click.option("-a", "--adduct", 'mass_shifts', multiple=True, nargs=2,
               help=("Adducts to consider. Specify name or formula, and a"
                     " multiplicity."))
 @click.option("-f", "--use-peptide-mass-filter", is_flag=True, help=(
@@ -126,7 +126,7 @@ def search_glycopeptide(context, database_connection, sample_path, hypothesis_id
                         analysis_name, output_path=None, grouping_error_tolerance=1.5e-5, mass_error_tolerance=1e-5,
                         msn_mass_error_tolerance=2e-5, psm_fdr_threshold=0.05, peak_shape_scoring_model=None,
                         tandem_scoring_model=None, oxonium_threshold=0.15, save_intermediate_results=None,
-                        processes=4, workload_size=500, adducts=None, export=None,
+                        processes=4, workload_size=500, mass_shifts=None, export=None,
                         use_peptide_mass_filter=False, maximum_mass=float('inf'),
                         decoy_database_connection=None, fdr_correction='auto',
                         isotope_probing_range=3):
@@ -151,12 +151,12 @@ def search_glycopeptide(context, database_connection, sample_path, hypothesis_id
     tandem_scoring_model = validate_glycopeptide_tandem_scoring_function(
         context, tandem_scoring_model)
 
-    adducts = [validate_adduct(adduct, multiplicity)
-               for adduct, multiplicity in adducts]
+    mass_shifts = [validate_mass_shift(mass_shift, multiplicity)
+                   for mass_shift, multiplicity in mass_shifts]
     expanded = []
-    expanded = MzMLGlycanChromatogramAnalyzer.expand_adducts(
-        dict(adducts), crossproduct=False)
-    adducts = expanded
+    expanded = MzMLGlycanChromatogramAnalyzer.expand_mass_shifts(
+        dict(mass_shifts), crossproduct=False)
+    mass_shifts = expanded
 
     if analysis_name is None:
         analysis_name = "%s @ %s" % (sample_run.name, hypothesis.name)
@@ -183,7 +183,7 @@ def search_glycopeptide(context, database_connection, sample_path, hypothesis_id
             oxonium_threshold=oxonium_threshold,
             n_processes=processes,
             spectra_batch_size=workload_size,
-            adducts=adducts,
+            mass_shifts=mass_shifts,
             use_peptide_mass_filter=use_peptide_mass_filter,
             maximum_mass=maximum_mass,
             probing_range_for_missing_precursors=isotope_probing_range)
@@ -204,7 +204,7 @@ def search_glycopeptide(context, database_connection, sample_path, hypothesis_id
             oxonium_threshold=oxonium_threshold,
             n_processes=processes,
             spectra_batch_size=workload_size,
-            adducts=adducts,
+            mass_shifts=mass_shifts,
             use_peptide_mass_filter=use_peptide_mass_filter,
             maximum_mass=maximum_mass,
             use_decoy_correction_threshold=fdr_correction,
@@ -296,11 +296,11 @@ class RegularizationParameterType(click.ParamType):
                     " grouping chromatograms."))
 @click.option("-n", "--analysis-name", default=None,
               help='Name for analysis to be performed.')
-@click.option("-a", "--adduct", 'adducts', multiple=True, nargs=2,
+@click.option("-a", "--mass_shift", 'mass_shifts', multiple=True, nargs=2,
               help=("Adducts to consider. Specify name or formula, and a"
                     " multiplicity."))
-@click.option("--adduct-combination-limit", type=int, default=8, help=(
-    "Maximum number of adduct combinations to consider"))
+@click.option("--mass_shift-combination-limit", type=int, default=8, help=(
+    "Maximum number of mass_shift combinations to consider"))
 @click.option("-d", "--minimum-mass", default=500., type=float,
               help="The minimum mass to consider signal at.")
 @click.option("-o", "--output-path", default=None, help=(
@@ -330,14 +330,14 @@ class RegularizationParameterType(click.ParamType):
 @processes_option
 def search_glycan(context, database_connection, sample_path,
                   hypothesis_identifier,
-                  analysis_name, adducts, grouping_error_tolerance=1.5e-5,
+                  analysis_name, mass_shifts, grouping_error_tolerance=1.5e-5,
                   mass_error_tolerance=1e-5, minimum_mass=500.,
                   scoring_model=None, regularize=None, regularization_model_path=None,
                   network_path=None,
                   output_path=None, scoring_model_features=None,
                   delta_rt=0.5, export=None, interact=False,
                   require_msms_signature=0.0, msn_mass_error_tolerance=2e-5,
-                  adduct_combination_limit=None,
+                  mass_shift_combination_limit=None,
                   processes=4):
     """Identify glycan compositions from preprocessed LC-MS data, stored in mzML
     format.
@@ -347,8 +347,8 @@ def search_glycan(context, database_connection, sample_path,
     if scoring_model is None:
         scoring_model = GeneralScorer
 
-    if adduct_combination_limit is None:
-        adduct_combination_limit = 8
+    if mass_shift_combination_limit is None:
+        mass_shift_combination_limit = 8
 
     if scoring_model_features:
         for feature in scoring_model_features:
@@ -384,18 +384,18 @@ def search_glycan(context, database_connection, sample_path,
     analysis_name = validate_analysis_name(
         context, database_connection.session, analysis_name)
 
-    adducts = [validate_adduct(adduct, multiplicity)
-               for adduct, multiplicity in adducts]
+    mass_shifts = [validate_mass_shift(mass_shift, multiplicity)
+                   for mass_shift, multiplicity in mass_shifts]
     expanded = []
-    expanded = MzMLGlycanChromatogramAnalyzer.expand_adducts(dict(adducts), limit=adduct_combination_limit)
-    adducts = expanded
+    expanded = MzMLGlycanChromatogramAnalyzer.expand_mass_shifts(dict(mass_shifts), limit=mass_shift_combination_limit)
+    mass_shifts = expanded
 
     click.secho("Preparing analysis of %s by %s" %
                 (sample_run.name, hypothesis.name), fg='cyan')
 
     analyzer = MzMLGlycanChromatogramAnalyzer(
         database_connection._original_connection, hypothesis.id,
-        sample_path=sample_path, output_path=output_path, adducts=adducts,
+        sample_path=sample_path, output_path=output_path, mass_shifts=mass_shifts,
         mass_error_tolerance=mass_error_tolerance,
         msn_mass_error_tolerance=msn_mass_error_tolerance,
         grouping_error_tolerance=grouping_error_tolerance,

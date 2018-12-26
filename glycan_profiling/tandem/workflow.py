@@ -72,20 +72,20 @@ def format_identification_batch(group, n):
 
 class DatabaseSearchIdentifierBase(TaskBase):
     def __init__(self, tandem_scans, scorer_type, structure_database, scan_id_to_rt=lambda x: x,
-                 scan_transformer=lambda x: x, adducts=None, n_processes=5, file_manager=None,
+                 scan_transformer=lambda x: x, mass_shifts=None, n_processes=5, file_manager=None,
                  probing_range_for_missing_precursors=3, trust_precursor_fits=True):
         if file_manager is None:
             file_manager = TempFileManager()
-        if adducts is None:
-            adducts = []
-        if Unmodified not in adducts:
-            adducts = [Unmodified] + adducts
+        if mass_shifts is None:
+            mass_shifts = []
+        if Unmodified not in mass_shifts:
+            mass_shifts = [Unmodified] + mass_shifts
         self.tandem_scans = sorted(
             tandem_scans, key=lambda x: x.precursor_information.extracted_neutral_mass, reverse=True)
         self.scorer_type = scorer_type
         self.structure_database = structure_database
         self.scan_id_to_rt = scan_id_to_rt
-        self.adducts = adducts
+        self.mass_shifts = mass_shifts
         self.scan_transformer = scan_transformer
 
         self.probing_range_for_missing_precursors = probing_range_for_missing_precursors
@@ -219,13 +219,13 @@ class DatabaseSearchIdentifierBase(TaskBase):
 
 class DatabaseSearchComparerBase(DatabaseSearchIdentifierBase):
     def __init__(self, tandem_scans, scorer_type, target_database, decoy_database, scan_id_to_rt=lambda x: x,
-                 scan_transformer=lambda x: x, adducts=None, n_processes=5, file_manager=None,
+                 scan_transformer=lambda x: x, mass_shifts=None, n_processes=5, file_manager=None,
                  probing_range_for_missing_precursors=3, trust_precursor_fits=True):
         self.target_database = target_database
         self.decoy_database = decoy_database
         super(DatabaseSearchComparerBase, self).__init__(
             tandem_scans, scorer_type, self.target_database, scan_id_to_rt,
-            scan_transformer, adducts, n_processes, file_manager, probing_range_for_missing_precursors,
+            scan_transformer, mass_shifts, n_processes, file_manager, probing_range_for_missing_precursors,
             trust_precursor_fits)
 
     def _clear_database_cache(self):
