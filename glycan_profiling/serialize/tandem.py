@@ -3,8 +3,8 @@ from weakref import WeakValueDictionary
 from sqlalchemy import (
     Column, Numeric, Integer, String, ForeignKey, PickleType,
     Boolean, Table)
-from sqlalchemy.orm import relationship, backref, object_session, deferred
 from sqlalchemy.ext.declarative import declared_attr
+from sqlalchemy.orm import relationship, backref, object_session, deferred, synonym
 from sqlalchemy.exc import OperationalError
 
 from glycan_profiling.tandem.spectrum_match import (
@@ -508,7 +508,7 @@ class GlycopeptideSpectrumMatchScoreSet(Base):
     id = Column(Integer, ForeignKey(GlycopeptideSpectrumMatch.id), primary_key=True)
     peptide_score = Column(Numeric(12, 6, asdecimal=False), index=False)
     glycan_score = Column(Numeric(12, 6, asdecimal=False), index=False)
-    total_score = Column(Numeric(12, 6, asdecimal=False), index=False)
+    glycopeptide_score = Column(Numeric(12, 6, asdecimal=False), index=False)
 
     total_q_value = Column(Numeric(8, 7, asdecimal=False), index=False)
     peptide_q_value = Column(Numeric(8, 7, asdecimal=False), index=False)
@@ -526,7 +526,7 @@ class GlycopeptideSpectrumMatchScoreSet(Base):
             id=db_id,
             peptide_score=scores.peptide_score,
             glycan_score=scores.glycan_score,
-            total_score=scores.total_score,
+            glycopeptide_score=scores.glycopeptide_score,
             total_q_value=qs.total_q_value,
             peptide_q_value=qs.peptide_q_value,
             glycan_q_value=qs.glycan_q_value,
@@ -540,7 +540,7 @@ class GlycopeptideSpectrumMatchScoreSet(Base):
         score_set = ScoreSet(
             peptide_score=self.peptide_score,
             glycan_score=self.glycan_score,
-            total_score=self.total_score,)
+            glycopeptide_score=self.glycopeptide_score,)
         fdr_set = FDRSet(
             total_q_value=self.total_q_value,
             peptide_q_value=self.peptide_q_value,
