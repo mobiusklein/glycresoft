@@ -104,11 +104,9 @@ class JournalingConsumer(TaskExecutionSequence):
 
 
 class JournalFileReader(TaskBase):
-    def __init__(self, path, cache_size=2 ** 12, mass_shift_map=None, precursor_information_map=None):
+    def __init__(self, path, cache_size=2 ** 12, mass_shift_map=None, scan_loader=None):
         if mass_shift_map is None:
             mass_shift_map = {Unmodified.name: Unmodified}
-        if precursor_information_map is None:
-            precursor_information_map = {}
         self.path = path
         if not hasattr(path, 'read'):
             self.handle = open(path, 'rb')
@@ -117,7 +115,7 @@ class JournalFileReader(TaskBase):
         self.reader = csv.DictReader(self.handle, delimiter='\t')
         self.glycopeptide_cache = LRUMapping(cache_size or 2 ** 12)
         self.mass_shift_map = mass_shift_map
-        self.precursor_information_map = precursor_information_map
+        self.scan_loader = scan_loader
 
     def glycopeptide_from_row(self, row):
         glycopeptide_id_key = glycopeptide_key_t(
@@ -137,9 +135,11 @@ class JournalFileReader(TaskBase):
 
     def spectrum_match_from_row(self, row):
         glycopeptide = self.glycopeptide_from_row(row)
-        scan = SpectrumReference(
-            row['scan_id'],
-            self.precursor_information_map.get(row['scan_id']))
+        if self.scan_loader is None:
+            scan = SpectrumReference(
+                row['scan_id'])
+        else:
+            scan = self.scan_loader.get_scan_by_id(row['scan_id'])
         score_set = ScoreSet(
             float(row['total_score']), float(row['peptide_score']),
             float(row['glycan_score']))

@@ -1,4 +1,5 @@
 from ms_deisotope.utils import Base
+from weakref import WeakValueDictionary
 
 
 class ScanStub(object):
@@ -127,3 +128,18 @@ class ScanInformation(Base):
         return cls(
             scan.scan_id, scan.index, scan.scan_time, scan.ms_level,
             scan.precursor_information)
+
+
+class ScanInformationLoader(object):
+    def __init__(self, scan_loader):
+        self.scan_loader = scan_loader
+        self.cache = WeakValueDictionary()
+
+    def get_scan_by_id(self, scan_id):
+        try:
+            return self.cache[scan_id]
+        except KeyError:
+            scan = self.scan_loader.get_scan_by_id(scan_id)
+            info = ScanInformation.from_scan(scan)
+            self.cache[scan_id] = info
+            return info
