@@ -516,6 +516,10 @@ class SearchableMassCollectionWrapper(SearchableMassCollection):
     def hypothesis_id(self):
         return self.searchable_mass_collection.hypothesis_id
 
+    @property
+    def hypothesis(self):
+        return self.searchable_mass_collection.hypothesis
+
     def __len__(self):
         return len(self.searchable_mass_collection)
 

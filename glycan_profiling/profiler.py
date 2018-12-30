@@ -12,6 +12,7 @@ from glycan_profiling.database.mass_collection import TransformingMassCollection
 
 from glycan_profiling.database.analysis import (
     GlycanCompositionChromatogramAnalysisSerializer,
+    DynamicGlycopeptideMSMSAnalysisSerializer,
     GlycopeptideMSMSAnalysisSerializer)
 
 from glycan_profiling.serialize import (
@@ -48,7 +49,8 @@ from glycan_profiling.tandem.glycopeptide.scoring import (
     CoverageWeightedBinomialModelTree)
 
 from glycan_profiling.tandem.glycopeptide.glycopeptide_matcher import (
-    GlycopeptideDatabaseSearchIdentifier, ExclusiveGlycopeptideDatabaseSearchComparer)
+    GlycopeptideDatabaseSearchIdentifier,
+    ExclusiveGlycopeptideDatabaseSearchComparer)
 
 from glycan_profiling.tandem.glycopeptide.dynamic_generation import MultipartGlycopeptideIdentifier
 
@@ -819,12 +821,18 @@ class MzMLGlycopeptideLCMSMSAnalyzer(GlycopeptideLCMSMSAnalyzer):
             "probing_range_for_missing_precursors": self.probing_range_for_missing_precursors,
         }
 
+    def make_analysis_serializer(self, output_path, analysis_name, sample_run, identified_glycopeptides,
+                                 unassigned_chromatograms, database, chromatogram_extractor):
+        return GlycopeptideMSMSAnalysisSerializer(
+            output_path, analysis_name, sample_run, identified_glycopeptides,
+            unassigned_chromatograms, database, chromatogram_extractor)
+
     def save_solutions(self, identified_glycopeptides, unassigned_chromatograms,
                        chromatogram_extractor, database):
         if self.analysis_name is None:
             return
         self.log("Saving Results To \"%s\"" % (self.output_path,))
-        exporter = GlycopeptideMSMSAnalysisSerializer(
+        exporter = self.make_analysis_serializer(
             self.output_path,
             self.analysis_name,
             chromatogram_extractor.peak_loader.sample_run,
@@ -986,8 +994,15 @@ class MultipartGlycopeptideLCMSMSAnalyzer(MzMLGlycopeptideLCMSMSAnalyzer):
     def estimate_fdr(self, searcher, target_decoy_set):
         searcher.estimate_fdr(target_decoy_set)
 
+    def make_analysis_serializer(self, output_path, analysis_name, sample_run, identified_glycopeptides,
+                                 unassigned_chromatograms, database, chromatogram_extractor):
+        return DynamicGlycopeptideMSMSAnalysisSerializer(
+            output_path, analysis_name, sample_run, identified_glycopeptides,
+            unassigned_chromatograms, database, chromatogram_extractor)
+
     def _build_analysis_saved_parameters(self, identified_glycopeptides, unassigned_chromatograms,
                                          chromatogram_extractor, database):
+        database = GlycopeptideDiskBackedStructureDatabase(self.database_connection)
         result = super(MzMLComparisonGlycopeptideLCMSMSAnalyzer, self)._build_analysis_saved_parameters(
             identified_glycopeptides, unassigned_chromatograms,
             chromatogram_extractor, database)

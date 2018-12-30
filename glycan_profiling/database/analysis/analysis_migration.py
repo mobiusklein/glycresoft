@@ -441,15 +441,19 @@ class GlycopeptideMSMSAnalysisSerializer(AnalysisMigrationBase):
                 scans.append(self.chromatogram_extractor.get_scan_header_by_id(scan_id))
         return sorted(scans, key=lambda x: (x.ms_level, x.index))
 
+    def _get_glycan_combination_for_glycopeptide(self, glycopeptide_id):
+        gc_comb_id = self.glycopeptide_db.query(
+            Glycopeptide.glycan_combination_id).filter(
+            Glycopeptide.id == glycopeptide_id)
+        return gc_comb_id[0]
+
     def fetch_glycan_compositions(self, glycopeptide_ids):
         glycan_compositions = dict()
         glycan_combinations = dict()
 
         glycan_combination_ids = set()
         for glycopeptide_id in glycopeptide_ids:
-            gc_comb_id = self.glycopeptide_db.query(
-                Glycopeptide.glycan_combination_id).filter(
-                Glycopeptide.id == glycopeptide_id)
+            gc_comb_id = self._get_glycan_combination_for_glycopeptide(glycopeptide_id)
             glycan_combination_ids.add(gc_comb_id[0])
 
         for i in glycan_combination_ids:
@@ -461,11 +465,15 @@ class GlycopeptideMSMSAnalysisSerializer(AnalysisMigrationBase):
 
         return glycan_compositions.values(), glycan_combinations.values()
 
+    def _get_peptide_id_for_glycopeptide(self, glycopeptide_id):
+        db_glycopeptide = self.glycopeptide_db.query(Glycopeptide).get(glycopeptide_id)
+        return db_glycopeptide.peptide_id
+
     def fetch_peptides(self, glycopeptide_ids):
         peptides = set()
         for glycopeptide_id in glycopeptide_ids:
-            db_glycopeptide = self.glycopeptide_db.query(Glycopeptide).get(glycopeptide_id)
-            peptides.add(db_glycopeptide.peptide_id)
+            peptide_id = self._get_peptide_id_for_glycopeptide(glycopeptide_id)
+            peptides.add(peptide_id)
         return [self.glycopeptide_db.query(Peptide).get(i) for i in peptides]
 
     def fetch_proteins(self, peptide_set):
@@ -504,3 +512,19 @@ class GlycopeptideMSMSAnalysisSerializer(AnalysisMigrationBase):
                 chroma)
 
         self._analysis_serializer.commit()
+
+
+class DynamicGlycopeptideMSMSAnalysisSerializer(GlycopeptideMSMSAnalysisSerializer):
+    def _get_glycan_combination_for_glycopeptide(self, glycopeptide_id):
+        return glycopeptide_id.glycan_combination_id
+
+    def _get_peptide_id_for_glycopeptide(self, glycopeptide_id):
+        return glycopeptide_id.peptide_id
+
+    def fetch_glycopeptides(self, glycopeptide_ids):
+        aggregate = dict()
+        for gp in self._identified_glycopeptide_set:
+            for solution_set in gp.spectrum_matches:
+                for match in solution_set:
+                    aggregate[match.target.id] = match.target
+        return list(aggregate.values())
