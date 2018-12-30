@@ -1003,7 +1003,7 @@ class MultipartGlycopeptideLCMSMSAnalyzer(MzMLGlycopeptideLCMSMSAnalyzer):
     def _build_analysis_saved_parameters(self, identified_glycopeptides, unassigned_chromatograms,
                                          chromatogram_extractor, database):
         database = GlycopeptideDiskBackedStructureDatabase(self.database_connection)
-        result = super(MzMLComparisonGlycopeptideLCMSMSAnalyzer, self)._build_analysis_saved_parameters(
+        result = super(MultipartGlycopeptideLCMSMSAnalyzer, self)._build_analysis_saved_parameters(
             identified_glycopeptides, unassigned_chromatograms,
             chromatogram_extractor, database)
         result.update({
