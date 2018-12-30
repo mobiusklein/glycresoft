@@ -454,7 +454,7 @@ class GlycopeptideMSMSAnalysisSerializer(AnalysisMigrationBase):
         glycan_combination_ids = set()
         for glycopeptide_id in glycopeptide_ids:
             gc_comb_id = self._get_glycan_combination_for_glycopeptide(glycopeptide_id)
-            glycan_combination_ids.add(gc_comb_id[0])
+            glycan_combination_ids.add(gc_comb_id)
 
         for i in glycan_combination_ids:
             gc_comb = self.glycopeptide_db.query(GlycanCombination).get(i)
