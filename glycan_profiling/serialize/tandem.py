@@ -7,9 +7,10 @@ from sqlalchemy.orm import relationship, backref, object_session, deferred
 from sqlalchemy.ext.declarative import declared_attr
 from sqlalchemy.exc import OperationalError
 
-from glycan_profiling.tandem.spectrum_matcher_base import (
+from glycan_profiling.tandem.spectrum_match import (
     SpectrumMatch as MemorySpectrumMatch,
-    SpectrumSolutionSet as MemorySpectrumSolutionSet)
+    SpectrumSolutionSet as MemorySpectrumSolutionSet,
+    ScoreSet, FDRSet, MultiScoreSpectrumMatch, MultiScoreSpectrumSolutionSet)
 
 from glycan_profiling.structure import ScanInformation
 
@@ -202,7 +203,9 @@ class GlycopeptideSpectrumMatch(Base, SpectrumMatchBase):
         Integer, ForeignKey(
             GlycopeptideSpectrumSolutionSet.id, ondelete='CASCADE'),
         index=True)
-    solution_set = relationship(GlycopeptideSpectrumSolutionSet, backref=backref("spectrum_matches", lazy='subquery'))
+    solution_set = relationship(
+        GlycopeptideSpectrumSolutionSet, backref=backref("spectrum_matches", lazy='subquery'))
+
     q_value = Column(Numeric(8, 7, asdecimal=False), index=True)
     is_decoy = Column(Boolean, index=True)
     is_best_match = Column(Boolean, index=True)
@@ -232,6 +235,9 @@ class GlycopeptideSpectrumMatch(Base, SpectrumMatchBase):
             mass_shift_id=mass_shift_cache[obj.mass_shift].id)
         session.add(inst)
         session.flush()
+        if hasattr(obj, 'score_set'):
+            assert inst.id is not None
+            GlycopeptideSpectrumMatchScoreSet.serialize_from_spectrum_match(obj, session, inst.id)
         return inst
 
     def convert(self, mass_shift_cache=None):
@@ -239,8 +245,14 @@ class GlycopeptideSpectrumMatch(Base, SpectrumMatchBase):
         scan = session.query(MSScan).get(self.scan_id).convert()
         target = session.query(Glycopeptide).get(self.structure_id).convert()
         mass_shift = self._resolve_mass_shift(session, mass_shift_cache)
-        inst = MemorySpectrumMatch(scan, target, self.score, self.is_best_match,
-                                   mass_shift=mass_shift)
+        if self.score_set is None:
+            inst = MemorySpectrumMatch(scan, target, self.score, self.is_best_match,
+                                       mass_shift=mass_shift)
+        else:
+            score_set, fdr_set = self.score_set.convert()
+            inst = MultiScoreSpectrumMatch(
+                scan, target, score_set, self.is_best_match,
+                mass_shift=mass_shift, q_value_set=fdr_set, match_type=0)
         inst.q_value = self.q_value
         inst.id = self.id
         return inst
@@ -488,3 +500,50 @@ UnidentifiedChromatogramToUnidentifiedSpectrumCluster = Table(
         "UnidentifiedChromatogram.id", ondelete="CASCADE"), primary_key=True),
     Column("cluster_id", Integer, ForeignKey(
         UnidentifiedSpectrumCluster.id, ondelete="CASCADE"), primary_key=True))
+
+
+class GlycopeptideSpectrumMatchScoreSet(Base):
+    __tablename__ = "GlycopeptideSpectrumMatchScoreSet"
+
+    id = Column(Integer, ForeignKey(GlycopeptideSpectrumMatch.id), primary_key=True)
+    peptide_score = Column(Numeric(12, 6, asdecimal=False), index=False)
+    glycan_score = Column(Numeric(12, 6, asdecimal=False), index=False)
+    total_score = Column(Numeric(12, 6, asdecimal=False), index=False)
+
+    total_q_value = Column(Numeric(8, 7, asdecimal=False), index=False)
+    peptide_q_value = Column(Numeric(8, 7, asdecimal=False), index=False)
+    glycan_q_value = Column(Numeric(8, 7, asdecimal=False), index=False)
+    glycopeptide_q_value = Column(Numeric(8, 7, asdecimal=False), index=False)
+
+    spectrum_match = relationship(
+        GlycopeptideSpectrumMatch, backref=backref("score_set", lazy='joined', uselist=False))
+
+    @classmethod
+    def serialize_from_spectrum_match(cls, obj, session, db_id):
+        scores = obj.score_set
+        qs = obj.q_value_set
+        inst = cls(
+            id=db_id,
+            peptide_score=scores.peptide_score,
+            glycan_score=scores.glycan_score,
+            total_score=scores.total_score,
+            total_q_value=qs.total_q_value,
+            peptide_q_value=qs.peptide_q_value,
+            glycan_q_value=qs.glycan_q_value,
+            glycopeptide_q_value=qs.glycopeptide_q_value
+        )
+        session.add(inst)
+        session.flush()
+        return inst
+
+    def convert(self):
+        score_set = ScoreSet(
+            peptide_score=self.peptide_score,
+            glycan_score=self.glycan_score,
+            total_score=self.total_score,)
+        fdr_set = FDRSet(
+            total_q_value=self.total_q_value,
+            peptide_q_value=self.peptide_q_value,
+            glycan_q_value=self.glycan_q_value,
+            glycopeptide_q_value=self.glycopeptide_q_value)
+        return score_set, fdr_set
