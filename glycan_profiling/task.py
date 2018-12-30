@@ -358,7 +358,7 @@ class TaskExecutionSequence(TaskBase):
 
     def __call__(self):
         result = self.run()
-        self.log("%r Done\n" % self)
+        self.log("%r Done" % self)
         return result
 
     def run(self):

@@ -36,21 +36,27 @@ from glycan_profiling.chromatogram_tree import ChromatogramFilter
 
 from glycan_profiling.models import GeneralScorer, get_feature
 
-from glycan_profiling.tandem import chromatogram_mapping
 from glycan_profiling.structure import ScanStub, PeptideDatabaseRecord
+
+from glycan_profiling.tandem import chromatogram_mapping
+from glycan_profiling.tandem.target_decoy import TargetDecoySet
+from glycan_profiling.tandem.temp_store import TempFileManager
+
 from glycan_profiling.tandem.glycopeptide.scoring import (
     LogIntensityScorer,
     CoverageWeightedBinomialScorer,
     CoverageWeightedBinomialModelTree)
+
 from glycan_profiling.tandem.glycopeptide.glycopeptide_matcher import (
     GlycopeptideDatabaseSearchIdentifier, ExclusiveGlycopeptideDatabaseSearchComparer)
+
 from glycan_profiling.tandem.glycopeptide.dynamic_generation import MultipartGlycopeptideIdentifier
 
 from glycan_profiling.tandem.glycopeptide import (
     identified_structure as identified_glycopeptide)
+
 from glycan_profiling.tandem.glycan.composition_matching import SignatureIonMapper
 from glycan_profiling.tandem.glycan.scoring.signature_ion_scoring import SignatureIonScorer
-from glycan_profiling.tandem.temp_store import TempFileManager
 
 
 from glycan_profiling.scan_cache import (
@@ -673,7 +679,7 @@ class GlycopeptideLCMSMSAnalyzer(TaskBase):
 
         if target_decoy_set.target_count() == 0:
             self.log("No target matches were found.")
-            return [], [], [], []
+            return [], [], TargetDecoySet([], [])
 
         self.estimate_fdr(searcher, target_decoy_set)
         target_hits = target_decoy_set.target_matches
@@ -804,10 +810,13 @@ class MzMLGlycopeptideLCMSMSAnalyzer(GlycopeptideLCMSMSAnalyzer):
             "grouping_error_tolerance": self.grouping_error_tolerance,
             "psm_fdr_threshold": self.psm_fdr_threshold,
             "minimum_mass": self.minimum_mass,
+            "maximum_mass": self.maximum_mass,
             "mass_shifts": self.mass_shifts,
             "use_peptide_mass_filter": self.use_peptide_mass_filter,
             "database": str(self.database_connection),
             "search_strategy": 'target-internal-decoy-competition',
+            "trust_precursor_fits": self.trust_precursor_fits,
+            "probing_range_for_missing_precursors": self.probing_range_for_missing_precursors,
         }
 
     def save_solutions(self, identified_glycopeptides, unassigned_chromatograms,
