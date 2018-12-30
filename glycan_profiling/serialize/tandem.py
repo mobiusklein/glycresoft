@@ -220,6 +220,10 @@ class GlycopeptideSpectrumMatch(Base, SpectrumMatchBase):
     def target(self):
         return self.structure
 
+    @property
+    def q_value_set(self):
+        return self.score_set
+
     @classmethod
     def serialize(cls, obj, session, scan_look_up_cache, mass_shift_cache, analysis_id,
                   solution_set_id, is_decoy=False, *args, **kwargs):
@@ -547,3 +551,6 @@ class GlycopeptideSpectrumMatchScoreSet(Base):
             glycan_q_value=self.glycan_q_value,
             glycopeptide_q_value=self.glycopeptide_q_value)
         return score_set, fdr_set
+
+    def __repr__(self):
+        return "DB" + repr(self.convert())

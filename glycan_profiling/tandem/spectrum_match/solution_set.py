@@ -24,6 +24,18 @@ class MinimumScoreRetentionStrategy(SpectrumMatchRetentionStrategyBase):
         return retain
 
 
+class MinimumMultiScoreRetentionStrategy(SpectrumMatchRetentionStrategyBase):
+    def filter_matches(self, solution_set):
+        retain = []
+        for match in solution_set:
+            for score_i, ref_i in zip(match.score_set, self.threshold):
+                if score_i < ref_i:
+                    break
+            else:
+                retain.append(match)
+        return retain
+
+
 class MaximumSolutionCountRetentionStrategy(SpectrumMatchRetentionStrategyBase):
     def filter_matches(self, solution_set):
         return solution_set[:self.threshold]
@@ -62,6 +74,7 @@ default_selection_method = SpectrumMatchRetentionMethod([
 
 
 default_multiscore_selection_method = SpectrumMatchRetentionMethod([
+    # MinimumMultiScoreRetentionStrategy((1., 1., 1.)),
     MinimumScoreRetentionStrategy(4.),
     TopScoringSolutionsRetentionStrategy(100.),
     MaximumSolutionCountRetentionStrategy(100)
