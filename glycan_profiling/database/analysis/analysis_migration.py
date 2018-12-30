@@ -1,5 +1,7 @@
 from collections import defaultdict
 
+from glypy.composition import formula
+
 from glycan_profiling.task import TaskBase
 from glycan_profiling.chromatogram_tree import ChromatogramFilter, DisjointChromatogramSet
 from glycan_profiling.serialize.hypothesis import GlycanComposition
@@ -527,4 +529,16 @@ class DynamicGlycopeptideMSMSAnalysisSerializer(GlycopeptideMSMSAnalysisSerializ
             for solution_set in gp.spectrum_matches:
                 for match in solution_set:
                     aggregate[match.target.id] = match.target
-        return list(aggregate.values())
+        out = []
+        for i, obj in enumerate(aggregate.values(), 1):
+            inst = Glycopeptide(
+                id=obj.id,
+                peptide_id=obj.id.peptide_id,
+                glycan_combination_id=obj.id.glycan_combination_id,
+                protein_id=obj.id.protein_id,
+                hypothesis_id=obj.id.hypothesis_id,
+                glycopeptide_sequence=obj.get_sequence(),
+                calculated_mass=obj.total_mass,
+                formula=formula(obj.total_composition()))
+            out.append(inst)
+        return out
