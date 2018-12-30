@@ -18,13 +18,11 @@ except ImportError:
     pass
 
 
-import glypy
-
-
 from glycan_profiling.task import TaskBase
 
 from glycan_profiling.tandem.target_decoy import NearestValueLookUp, TargetDecoyAnalyzer
-from glycan_profiling.tandem.spectrum_matcher_base import SpectrumMatch
+from glycan_profiling.tandem.spectrum_match import SpectrumMatch
+from glycan_profiling.tandem.glycopeptide.core_search import approximate_internal_size_of_glycan
 
 from .mixture import GammaMixture, GaussianMixtureWithPriorComponent
 
@@ -155,22 +153,13 @@ class FiniteMixtureModelFDREstimator(object):
 class GlycanSizeCalculator(object):
 
     def __init__(self):
-        self.neuac = glypy.glycan_composition.MonosaccharideResidue.from_iupac_lite("NeuAc")
-        self.neugc = glypy.glycan_composition.MonosaccharideResidue.from_iupac_lite("NeuGc")
-        self.fuc = glypy.glycan_composition.MonosaccharideResidue.from_iupac_lite("Fuc")
-
         self.glycan_size_cache = dict()
 
     def get_internal_size(self, glycan_composition):
         key = str(glycan_composition)
         if key in self.glycan_size_cache:
             return self.glycan_size_cache[key]
-        terminal_groups = glycan_composition[self.neuac] + glycan_composition[self.neugc]
-        side_groups = glycan_composition[self.fuc]
-        n = sum(glycan_composition.values())
-        n -= terminal_groups
-        if side_groups > 1:
-            n -= side_groups - (side_groups - 1)
+        n = approximate_internal_size_of_glycan(glycan_composition)
         self.glycan_size_cache[key] = n
         return n
 

@@ -122,7 +122,7 @@ class MultipartGlycopeptideIdentifier(TaskBase):
                  mass_shifts=None, n_processes=6,
                  evaluation_kwargs=None, ipc_manager=None, file_manager=None,
                  probing_range_for_missing_precursors=3, trust_precursor_fits=True,
-                 glycan_score_threshold=1.0, **kwargs):
+                 glycan_score_threshold=1.0, peptide_masses_per_scan=100, **kwargs):
         if scorer_type is None:
             scorer_type = LogIntensityScorer
         if evaluation_kwargs is None:
@@ -149,7 +149,9 @@ class MultipartGlycopeptideIdentifier(TaskBase):
 
         self.probing_range_for_missing_precursors = probing_range_for_missing_precursors
         self.trust_precursor_fits = trust_precursor_fits
+
         self.glycan_score_threshold = glycan_score_threshold
+        self.peptide_masses_per_scan = peptide_masses_per_scan
 
         self.precursor_error_tolerance = 5e-6
         self.product_error_tolerance = 2e-5
@@ -199,7 +201,8 @@ class MultipartGlycopeptideIdentifier(TaskBase):
             generator, product_error_tolerance=self.product_error_tolerance,
             glycan_score_threshold=self.glycan_score_threshold, min_fragments=min_fragments,
             probing_range_for_missing_precursors=self.probing_range_for_missing_precursors,
-            trust_precursor_fits=self.trust_precursor_fits)
+            trust_precursor_fits=self.trust_precursor_fits,
+            peptide_masses_per_scan=self.peptide_masses_per_scan)
 
         generator = PeptideGlycosylator(
             self.decoy_peptide_db, glycan_combinations,
@@ -208,7 +211,8 @@ class MultipartGlycopeptideIdentifier(TaskBase):
             generator, product_error_tolerance=self.product_error_tolerance,
             glycan_score_threshold=self.glycan_score_threshold, min_fragments=min_fragments,
             probing_range_for_missing_precursors=self.probing_range_for_missing_precursors,
-            trust_precursor_fits=self.trust_precursor_fits)
+            trust_precursor_fits=self.trust_precursor_fits,
+            peptide_masses_per_scan=self.peptide_masses_per_scan)
         return target_predictive_search, decoy_predictive_search
 
     def run_workload_mapping_pipeline(self, scan_groups):

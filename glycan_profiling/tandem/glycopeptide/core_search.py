@@ -26,35 +26,22 @@ hexnac = FrozenMonosaccharideResidue.from_iupac_lite("HexNAc")
 hexose = FrozenMonosaccharideResidue.from_iupac_lite("Hex")
 xylose = FrozenMonosaccharideResidue.from_iupac_lite("Xyl")
 fucose = FrozenMonosaccharideResidue.from_iupac_lite("Fuc")
-# neuac = FrozenMonosaccharideResidue.from_iupac_lite("NeuAc")
+neuac = FrozenMonosaccharideResidue.from_iupac_lite("NeuAc")
+neugc = FrozenMonosaccharideResidue.from_iupac_lite("NeuGc")
 
 
-class maxdict(dict):
-    '''A dictionary that only updates a key's value if it exceeds the
-    current value'''
-    def __init__(self, base=None, **kwargs):
-        dict.__init__(self, **kwargs)
-        if base is not None:
-            self.update(base)
+def approximate_internal_size_of_glycan(glycan_composition):
+    terminal_groups = glycan_composition[neuac] + glycan_composition[neugc]
+    side_groups = glycan_composition[fuc]
+    n = sum(glycan_composition.values())
+    n -= terminal_groups
+    if side_groups > 1:
+        n -= side_groups - (side_groups - 1)
+    return n
 
-    def __setitem__(self, key, value):
-        current_value = self[key]
-        if value < current_value:
-            return
-        super(maxdict, self).__setitem__(key, value)
 
-    def __missing__(self, key):
-        super(maxdict, self).__setitem__(key, 0)
-
-    def __repr__(self):
-        return "maxdict(%r)" % (dict(self), )
-
-    @classmethod
-    def fromsequence(cls, seq):
-        self = cls()
-        for k, v in seq:
-            self[k] = v
-        return self
+def isclose(a, b, rtol=1e-05, atol=1e-08):
+    return abs(a - b) <= atol + rtol * abs(b)
 
 
 default_components = (hexnac, hexose, xylose, fucose,)
@@ -287,6 +274,7 @@ class GlycanCombinationRecord(object):
         self.dehydrated_mass = dehydrated_mass
         self.composition = composition
         self.size = sum(composition.values())
+        self.internal_size_approximation = self._approximate_total_size()
         self.count = count
         self.glycan_types = glycan_types
         self._fragment_cache = dict()
@@ -300,6 +288,9 @@ class GlycanCombinationRecord(object):
 
     def __hash__(self):
         return hash(self.composition)
+
+    def _approximate_total_size(self):
+        return approximate_internal_size_of_glycan(self.composition)
 
     def is_n_glycan(self):
         return GlycanTypes.n_glycan in self.glycan_types
@@ -418,6 +409,7 @@ class GlycanCoarseScorerBase(object):
         return CoarseGlycanMatch(
             fragment_matches, float(len(fragment_matches)), float(len(shifts)), core_matched, core_theoretical)
 
+    # consider adding the internal size approximation to this method and it's Cython implementation.
     def _calculate_score(self, matched_fragments, n_matched, n_theoretical, core_matched, core_theoretical):
         ratio_fragments = (n_matched / n_theoretical)
         ratio_core = core_matched / core_theoretical
@@ -436,7 +428,8 @@ except ImportError:
     pass
 
 
-GlycanMatchResult = namedtuple('GlycanMatchResult', ('peptide_mass', 'score', 'fragment_count', 'glycan_size'))
+GlycanMatchResult = namedtuple('GlycanMatchResult', (
+    'peptide_mass', 'score', 'fragment_count', 'glycan_size', 'glycan_types'))
 
 
 class GlycanFilteringPeptideMassEstimator(GlycanCoarseScorerBase):
@@ -448,7 +441,7 @@ class GlycanFilteringPeptideMassEstimator(GlycanCoarseScorerBase):
                                      for gc in glycan_combination_db]
         self.use_denovo_motif = use_denovo_motif
         self.motif_finder = CoreMotifFinder(components, product_error_tolerance)
-        self.glycan_combination_db = sorted(glycan_combination_db, key=lambda x: x.dehydrated_mass)
+        self.glycan_combination_db = sorted(glycan_combination_db, key=lambda x: (x.dehydrated_mass, x.id))
         self.minimum_peptide_mass = minimum_peptide_mass
         super(GlycanFilteringPeptideMassEstimator, self).__init__(
             product_error_tolerance, fragment_weight, core_weight)
@@ -540,37 +533,41 @@ class GlycanFilteringPeptideMassEstimator(GlycanCoarseScorerBase):
         threshold_mass = (intact_mass + 1) - self.minimum_peptide_mass
         last_peptide_mass = 0
         for glycan_combination in self.glycan_combination_db:
-            # Stop searching when the peptide mass would be below the minimum peptide
-            # mass.
+            # Stop searching when the peptide mass would be below the minimum peptide mass
             if threshold_mass < glycan_combination.dehydrated_mass:
                 break
             peptide_mass = (
                 intact_mass - glycan_combination.dehydrated_mass
             ) - mass_shift.mass
-            if abs(last_peptide_mass - peptide_mass) < 1e-3:
+            if isclose(last_peptide_mass, peptide_mass):
                 continue
             last_peptide_mass = peptide_mass
             best_score = 0
             best_n_frags = 0
+            type_to_score = {}
             if glycan_combination.is_n_glycan():
                 score, n_frags = self.n_glycan_coarse_score(
                     scan, glycan_combination, mass_shift=mass_shift, peptide_mass=peptide_mass)
+                type_to_score[GlycanTypes.n_glycan] = (score, n_frags)
                 if score > best_score:
                     best_score = score
                     best_n_frags = n_frags
             if glycan_combination.is_o_glycan():
                 score, n_frags = self.o_glycan_coarse_score(
                     scan, glycan_combination, mass_shift=mass_shift, peptide_mass=peptide_mass)
+                type_to_score[GlycanTypes.o_glycan] = (score, n_frags)
                 if score > best_score:
                     best_score = score
                     best_n_frags = n_frags
             if glycan_combination.is_gag_linker():
                 score, n_frags = self.gag_coarse_score(
                     scan, glycan_combination, mass_shift=mass_shift, peptide_mass=peptide_mass)
+                type_to_score[GlycanTypes.gag_linker] = (score, n_frags)
                 if score > best_score:
                     best_score = score
                     best_n_frags = n_frags
-            output.append(GlycanMatchResult(peptide_mass, best_score, best_n_frags, glycan_combination.size))
+            output.append(GlycanMatchResult(
+                peptide_mass, best_score, best_n_frags, glycan_combination.size, type_to_score))
         output = sorted(output, key=lambda x: x[1], reverse=1)
         return output
 

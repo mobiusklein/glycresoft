@@ -3,15 +3,13 @@ import numpy as np
 from glycan_profiling.structure import FragmentMatchMap
 from glypy.structure.glycan_composition import FrozenMonosaccharideResidue
 
+from glycan_profiling.tandem.glycopeptide.core_search import approximate_internal_size_of_glycan
+
 from .base import (
     GlycopeptideSpectrumMatcherBase, ChemicalShift, EXDFragmentationStrategy,
     HCDFragmentationStrategy, IonSeries)
 
 from .glycan_signature_ions import GlycanCompositionSignatureMatcher
-
-neuac = FrozenMonosaccharideResidue.from_iupac_lite("NeuAc")
-neugc = FrozenMonosaccharideResidue.from_iupac_lite("NeuGc")
-fuc = FrozenMonosaccharideResidue.from_iupac_lite("Fuc")
 
 
 class SimpleCoverageScorer(GlycopeptideSpectrumMatcherBase):
@@ -102,13 +100,7 @@ class SimpleCoverageScorer(GlycopeptideSpectrumMatcherBase):
         return numer / denom
 
     def _get_internal_size(self, glycan_composition):
-        terminal_groups = glycan_composition[neuac] + glycan_composition[neugc]
-        side_groups = glycan_composition[fuc]
-        n = sum(glycan_composition.values())
-        n -= terminal_groups
-        if side_groups > 1:
-            n -= side_groups - (side_groups - 1)
-        return n
+        return approximate_internal_size_of_glycan(glycan_composition)
 
     def compute_coverage(self):
         (n_term_ions, c_term_ions, stub_count,
