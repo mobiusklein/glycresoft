@@ -12,7 +12,7 @@ from glycan_profiling.structure import (
     CachingGlycopeptideParser,
     DecoyMakingCachingGlycopeptideParser)
 
-from ..spectrum_evaluation import TandemClusterEvaluatorBase, DEFAULT_BATCH_SIZE, ScanQuery
+from ..spectrum_evaluation import TandemClusterEvaluatorBase, DEFAULT_BATCH_SIZE
 from ..process_dispatcher import SpectrumIdentificationWorkerBase
 from ..oxonium_ions import gscore_scanner
 
@@ -33,32 +33,6 @@ class GlycopeptideIdentificationWorker(SpectrumIdentificationWorkerBase):
         target = self.parser(structure)
         matcher = self.scorer_type.evaluate(scan, target, *args, **kwargs)
         return matcher
-
-
-class PeptideMassFilterScanQuery(ScanQuery):
-    def _get_filter_map(self):
-        filter_map = self.scan.annotations.get("peptide_mass_filter_map")
-        if filter_map is None:
-            filter_map = self.scan.annotations['peptide_mass_filter_map'] = {}
-        return filter_map
-
-    def has_filter(self):
-        filter_map = self._get_filter_map()
-        return self.mass_shift in filter_map
-
-    def get_filter(self):
-        filter_map = self._get_filter_map()
-        return filter_map[self.mass_shift]
-
-    def build_peptide_mass_filter(self, filter_builder, error_tolerance):
-        if not self.has_filter():
-            peptide_filter = filter_builder.build_peptide_filter(
-                self.scan, error_tolerance, mass_shift=self.mass_shift)
-            filter_map = self._get_filter_map()
-            filter_map[self.mass_shift] = peptide_filter
-        else:
-            filter_map = self._get_filter_map()
-        return filter_map[self.mass_shift]
 
 
 class PeptideMassFilteringDatabaseSearchMixin(object):

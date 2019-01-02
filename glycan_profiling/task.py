@@ -424,11 +424,15 @@ class SinkTask(TaskExecutionSequence):
         self.in_done_event = in_done_event
         self.done_event = self._make_event()
 
+    def handle_item(self, task):
+        pass
+
     def process(self):
         has_work = True
         while has_work:
             try:
-                self.in_queue.get(True, 10)
+                item = self.in_queue.get(True, 10)
+                self.handle_item(item)
             except Empty:
                 if self.in_done_event.is_set():
                     has_work = False
