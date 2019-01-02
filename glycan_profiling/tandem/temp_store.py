@@ -6,7 +6,7 @@ import glob
 import tempfile
 import shutil
 
-from .spectrum_matcher_base import SpectrumMatch, SpectrumSolutionSet
+from .spectrum_match import SpectrumMatch, SpectrumSolutionSet
 from .ref import SpectrumReference, TargetReference
 
 
