@@ -312,7 +312,7 @@ class Peptide(PeptideBase, Base):
                 " {self.start_position}, {self.end_position})").format(self=self)
 
     __table_args__ = (
-        Index("ix_Peptide_mass_search_index", "calculated_mass", "hypothesis_id"),
+        Index("ix_Peptide_mass_search_index", "hypothesis_id", "calculated_mass"),
         Index("ix_Peptide_coordinate_index", "id", "calculated_mass",
               "start_position", "end_position"),)
 
@@ -382,7 +382,7 @@ class Glycopeptide(PeptideBase, Base):
         return self.glycan_combination.convert()
 
     __table_args__ = (
-        Index("ix_Glycopeptide_mass_search_index", "calculated_mass", "hypothesis_id"),
+        Index("ix_Glycopeptide_mass_search_index", "hypothesis_id", "calculated_mass"),
         # Index("ix_Glycopeptide_mass_search_index_full", "calculated_mass", "hypothesis_id",
         #                                                 "peptide_id", "glycan_combination_id"),
     )

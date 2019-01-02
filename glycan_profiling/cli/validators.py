@@ -325,7 +325,7 @@ glycopeptide_tandem_scoring_functions = {
     "binomial": binomial_score.BinomialSpectrumMatcher,
     "simple": simple_score.SimpleCoverageScorer,
     "coverage_weighted_binomial": coverage_weighted_binomial.CoverageWeightedBinomialScorer,
-    "dot_product": intensity_scorer.LogIntensityScorer
+    "log_intensity": intensity_scorer.LogIntensityScorer,
 }
 
 

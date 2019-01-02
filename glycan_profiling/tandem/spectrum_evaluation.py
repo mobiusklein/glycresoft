@@ -1,4 +1,3 @@
-from collections import namedtuple
 from ms_deisotope import isotopic_shift
 
 from glycan_profiling.task import TaskBase
@@ -13,21 +12,6 @@ from .workload import WorkloadManager
 from .spectrum_match import (
     MultiScoreSpectrumSolutionSet,
     SpectrumSolutionSet)
-
-
-_ScanQuery = namedtuple("ScanQuery", ("scan", "mass_shift", "isotopic_shift", "query_mass", "meta"))
-
-
-class ScanQuery(_ScanQuery):
-    neutron_offset = isotopic_shift()
-
-    @property
-    def intact_mass(self):
-        return self.scan.precursor_information.extracted_neutral_mass
-
-    def _infer_query_mass(self):
-        query_mass = self.intact_mass - (self.isotopic_shift * self.neutron_offset) - self.mass_shift.mass
-        return query_mass
 
 
 def group_by_precursor_mass(scans, window_size=1.5e-5):
@@ -80,29 +64,6 @@ class TandemClusterEvaluatorBase(TaskBase):
         }
         self.batch_size = batch_size
         self.trust_precursor_fits = trust_precursor_fits
-
-    def _make_scan_query(self, scan, mass_shift, isotopic_shift, query_mass, meta=None):
-        return ScanQuery(
-            scan=scan, mass_shift=mass_shift, isotopic_shift=isotopic_shift,
-            query_mass=query_mass, meta=meta)
-
-    def _multiplex_scan_queries(self, scans):
-        queries = []
-        for scan in scans:
-            for mass_shift in self.mass_shifts:
-                if (not scan.precursor_information.defaulted and self.trust_precursor_fits):
-                    probe = 0
-                else:
-                    probe = self.probing_range_for_missing_precursors
-                intact_mass = scan.precursor_information.extracted_neutral_mass
-                for i in range(probe + 1):
-                    query_mass = intact_mass - (i * self.neutron_offset) - mass_shift.mass
-                    query = self._make_scan_query(
-                        scan=scan, mass_shift=mass_shift, isotopic_shift=i,
-                        query_mass=query_mass)
-                    queries.append(query)
-        queries.sort(key=lambda x: x.query_mass, reverse=True)
-        return queries
 
     def _mark_hit(self, match):
         return self.structure_database.mark_hit(match)

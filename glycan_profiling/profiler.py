@@ -936,9 +936,10 @@ class MzMLComparisonGlycopeptideLCMSMSAnalyzer(MzMLGlycopeptideLCMSMSAnalyzer):
 
 
 class MultipartGlycopeptideLCMSMSAnalyzer(MzMLGlycopeptideLCMSMSAnalyzer):
-    def __init__(self, database_connection, decoy_database_connection, hypothesis_id,
-                 sample_path, output_path, analysis_name=None, grouping_error_tolerance=1.5e-5,
-                 mass_error_tolerance=1e-5, msn_mass_error_tolerance=2e-5, psm_fdr_threshold=0.05,
+    def __init__(self, database_connection, decoy_database_connection, target_hypothesis_id,
+                 decoy_hypothesis_id, sample_path, output_path, analysis_name=None,
+                 grouping_error_tolerance=1.5e-5, mass_error_tolerance=1e-5,
+                 msn_mass_error_tolerance=2e-5, psm_fdr_threshold=0.05,
                  peak_shape_scoring_model=None, tandem_scoring_model=LogIntensityScorer,
                  minimum_mass=1000., save_unidentified=False,
                  glycan_score_threshold=1, mass_shifts=None,
@@ -948,7 +949,7 @@ class MultipartGlycopeptideLCMSMSAnalyzer(MzMLGlycopeptideLCMSMSAnalyzer):
         if tandem_scoring_model == CoverageWeightedBinomialScorer:
             tandem_scoring_model = CoverageWeightedBinomialModelTree
         super(MultipartGlycopeptideLCMSMSAnalyzer, self).__init__(
-            database_connection, hypothesis_id, sample_path, output_path,
+            database_connection, target_hypothesis_id, sample_path, output_path,
             analysis_name, grouping_error_tolerance, mass_error_tolerance,
             msn_mass_error_tolerance, psm_fdr_threshold, peak_shape_scoring_model,
             tandem_scoring_model, minimum_mass, save_unidentified,
@@ -958,23 +959,32 @@ class MultipartGlycopeptideLCMSMSAnalyzer(MzMLGlycopeptideLCMSMSAnalyzer):
         self.glycan_score_threshold = glycan_score_threshold
         self.decoy_database_connection = decoy_database_connection
         self.use_memory_database = use_memory_database
+        self.decoy_hypothesis_id = decoy_hypothesis_id
+
+    @property
+    def target_hypothesis_id(self):
+        return self.hypothesis_id
+
+    @target_hypothesis_id.setter
+    def target_hypothesis_id(self, value):
+        self.hypothesis_id = value
 
     def make_database(self):
         if self.use_memory_database:
             database = MultipartGlycopeptideIdentifier._build_default_memory_backed_db_wrapper(
-                self.database_connection, hypothesis_id=self.hypothesis_id)
+                self.database_connection, hypothesis_id=self.target_hypothesis_id)
         else:
             database = MultipartGlycopeptideIdentifier._build_default_disk_backed_db_wrapper(
-                self.database_connection, hypothesis_id=self.hypothesis_id)
+                self.database_connection, hypothesis_id=self.target_hypothesis_id)
         return database
 
     def make_decoy_database(self):
         if self.use_memory_database:
             database = MultipartGlycopeptideIdentifier._build_default_memory_backed_db_wrapper(
-                self.decoy_database_connection)
+                self.decoy_database_connection, hypothesis_id=self.decoy_hypothesis_id)
         else:
             database = MultipartGlycopeptideIdentifier._build_default_disk_backed_db_wrapper(
-                self.decoy_database_connection)
+                self.decoy_database_connection, hypothesis_id=self.decoy_hypothesis_id)
         return database
 
     def make_search_engine(self, msms_scans, database, peak_loader):

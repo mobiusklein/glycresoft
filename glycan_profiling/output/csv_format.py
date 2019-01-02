@@ -1,6 +1,10 @@
 import csv
+import logging
 
 from glycan_profiling.task import TaskBase
+
+
+status_logger = logging.getLogger("glycresoft.status")
 
 
 class CSVSerializerBase(TaskBase):
@@ -8,6 +12,9 @@ class CSVSerializerBase(TaskBase):
         self.outstream = outstream
         self.writer = csv.writer(self.outstream, delimiter=delimiter)
         self._entities_iterable = entities_iterable
+
+    def status_update(self, message):
+        status_logger.info(message)
 
     def writerows(self, iterable):
         self.writer.writerows(iterable)
@@ -26,7 +33,10 @@ class CSVSerializerBase(TaskBase):
         if self.header:
             self.writer.writerow(self.header)
         gen = (self.convert_object(entity) for entity in self._entities_iterable)
-        self.writerows(gen)
+        for i, row in enumerate(gen):
+            if i % 100 == 0 and i != 0:
+                self.status_update("Handled %d Entities" % i)
+            self.writer.writerow(row)
 
 
 class GlycanHypothesisCSVSerializer(CSVSerializerBase):

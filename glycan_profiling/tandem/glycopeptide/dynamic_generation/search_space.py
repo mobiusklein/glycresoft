@@ -272,7 +272,9 @@ class PredictiveGlycopeptideSearch(DynamicGlycopeptideSearchBase):
                     for peptide_mass in estimate_peptide_mass(scan, topn=peptide_masses_per_scan, mass_shift=mass_shift,
                                                               threshold=glycan_score_threshold,
                                                               min_fragments=min_fragments):
+                        j = 0
                         for candidate in handle_peptide_mass(peptide_mass, intact_mass):
+                            j += 1
                             key = (candidate.id, mass_shift_name)
                             if key in seen:
                                 continue

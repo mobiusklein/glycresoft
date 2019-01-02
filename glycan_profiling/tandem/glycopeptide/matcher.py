@@ -63,27 +63,6 @@ class PeptideMassFilterScanQuery(ScanQuery):
 
 class PeptideMassFilteringDatabaseSearchMixin(object):
 
-    def _execute_scan_query(self, scan_query, error_tolerance=1e-5):
-        peptide_filter = None
-        hits = []
-        query_mass = scan_query.query_mass
-        if self.peptide_mass_filter:
-            peptide_filter = scan_query.build_peptide_mass_filter(self.peptide_mass_filter, error_tolerance)
-        unfiltered_matches = self.search_database_for_precursors(query_mass, error_tolerance)
-        if self.peptide_mass_filter:
-            hits.extend(map(self._mark_hit, [match for match in unfiltered_matches if peptide_filter(
-                        # Should the peptide mass be shifted? It is not obvious it should be, or if
-                        # the isotopic_shift > 1 if it has to match the isotopic_shift
-                        match.peptide_mass - (scan_query.isotopic_shift * self.neutron_offset))]))
-        else:
-            hits.extend(map(self._mark_hit, unfiltered_matches))
-        return hits
-
-    def _make_scan_query(self, scan, mass_shift, isotopic_shift, query_mass, meta=None):
-        return PeptideMassFilterScanQuery(
-            scan=scan, mass_shift=mass_shift, isotopic_shift=isotopic_shift,
-            query_mass=query_mass, meta=meta)
-
     def find_precursor_candidates(self, scan, error_tolerance=1e-5, probing_range=0,
                                   mass_shift=None):
         if mass_shift is None:
@@ -93,7 +72,7 @@ class PeptideMassFilteringDatabaseSearchMixin(object):
         intact_mass = scan.precursor_information.extracted_neutral_mass
         if self.peptide_mass_filter:
             peptide_filter = self.peptide_mass_filter.build_peptide_filter(
-                scan, error_tolerance, mass_shift=mass_shift)
+                scan, self.peptide_mass_filter.product_error_tolerance, mass_shift=mass_shift)
         for i in range(probing_range + 1):
             query_mass = intact_mass - (i * self.neutron_offset) - mass_shift.mass
             unfiltered_matches = self.search_database_for_precursors(query_mass, error_tolerance)

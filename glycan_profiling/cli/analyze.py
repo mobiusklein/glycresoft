@@ -15,6 +15,7 @@ from glycan_profiling.serialize import (
 from glycan_profiling.profiler import (
     MzMLGlycopeptideLCMSMSAnalyzer,
     MzMLComparisonGlycopeptideLCMSMSAnalyzer,
+    MultipartGlycopeptideLCMSMSAnalyzer,
     MzMLGlycanChromatogramAnalyzer,
     LaplacianRegularizedChromatogramProcessor,
     ProcessedMzMLDeserializer)
@@ -54,19 +55,29 @@ def analyze():
     pass
 
 
-def database_connection(fn):
-    arg = click.argument(
-        "database-connection",
-        type=DatabaseConnectionParam(exists=True),
-        doc_help=(
-            "A connection URI for a database, or a path on the file system"))
-    return arg(fn)
+def database_connection(arg_name='database-connection'):
+    def database_connection_arg(fn):
+        arg = click.argument(
+            "database-connection",
+            type=DatabaseConnectionParam(exists=True),
+            doc_help=(
+                "A connection URI for a database, or a path on the file system"))
+        return arg(fn)
+    return database_connection_arg
 
 
-def hypothesis_identifier(hypothesis_type):
+def hypothesis_identifier(hypothesis_type, arg_name='hypothesis-identifier'):
     def wrapper(fn):
-        arg = click.argument("hypothesis-identifier", doc_help=(
+        arg = click.argument(arg_name, doc_help=(
             "The ID number or name of the %s hypothesis to use" % (hypothesis_type,)))
+        return arg(fn)
+    return wrapper
+
+
+def hypothesis_identifier_option(hypothesis_type, *args, **kwargs):
+    def wrapper(fn):
+        arg = click.option(*args, help=(
+            "The ID number or name of the %s hypothesis to use" % (hypothesis_type,)), **kwargs)
         return arg(fn)
     return wrapper
 
@@ -82,7 +93,7 @@ def sample_path(fn):
 
 @analyze.command("search-glycopeptide", short_help='Search preprocessed data for glycopeptide sequences')
 @click.pass_context
-@database_connection
+@database_connection()
 @sample_path
 @hypothesis_identifier("glycopeptide")
 @click.option("-m", "--mass-error-tolerance", type=RelativeMassErrorParam(), default=1e-5,
@@ -182,7 +193,7 @@ def search_glycopeptide(context, database_connection, sample_path, hypothesis_id
             tandem_scoring_model=tandem_scoring_model,
             oxonium_threshold=oxonium_threshold,
             n_processes=processes,
-            spectra_batch_size=workload_size,
+            spectrum_batch_size=workload_size,
             mass_shifts=mass_shifts,
             use_peptide_mass_filter=use_peptide_mass_filter,
             maximum_mass=maximum_mass,
@@ -203,12 +214,162 @@ def search_glycopeptide(context, database_connection, sample_path, hypothesis_id
             tandem_scoring_model=tandem_scoring_model,
             oxonium_threshold=oxonium_threshold,
             n_processes=processes,
-            spectra_batch_size=workload_size,
+            spectrum_batch_size=workload_size,
             mass_shifts=mass_shifts,
             use_peptide_mass_filter=use_peptide_mass_filter,
             maximum_mass=maximum_mass,
             use_decoy_correction_threshold=fdr_correction,
             probing_range_for_missing_precursors=isotope_probing_range)
+    analyzer.display_header()
+    gps, unassigned, target_decoy_set = analyzer.start()
+    if save_intermediate_results is not None:
+        analyzer.log("Saving Intermediate Results")
+        with open(save_intermediate_results, 'wb') as handle:
+            pickle.dump((target_decoy_set, gps), handle)
+    if export:
+        for export_type in set(export):
+            click.echo(fmt_msg("Handling Export: %s" % (export_type,)))
+            if export_type == 'csv':
+                from glycan_profiling.cli.export import glycopeptide_identification
+                base = os.path.splitext(output_path)[0]
+                export_path = "%s-glycopeptides.csv" % (base,)
+                context.invoke(
+                    glycopeptide_identification,
+                    database_connection=output_path,
+                    analysis_identifier=analyzer.analysis_id,
+                    output_path=export_path)
+            elif export_type == 'psm-csv':
+                from glycan_profiling.cli.export import glycopeptide_spectrum_matches
+                base = os.path.splitext(output_path)[0]
+                export_path = "%s-glycopeptide-spectrum-matches.csv" % (base,)
+                context.invoke(
+                    glycopeptide_spectrum_matches,
+                    database_connection=output_path,
+                    analysis_identifier=analyzer.analysis_id,
+                    output_path=export_path)
+            elif export_type == 'html':
+                from glycan_profiling.cli.export import glycopeptide_identification
+                base = os.path.splitext(output_path)[0]
+                export_path = "%s-report.html" % (base,)
+                context.invoke(
+                    glycopeptide_identification,
+                    database_connection=output_path,
+                    analysis_identifier=analyzer.analysis_id,
+                    output_path=export_path,
+                    report=True)
+
+
+@analyze.command("search-glycopeptide-multipart", short_help=(
+    'Search preprocessed data for glycopeptide sequences scored for both peptide and glycan components'))
+@click.pass_context
+@database_connection("database-connection")
+@database_connection("decoy-database-connection")
+@sample_path
+@hypothesis_identifier_option("glycopeptide", '-T', '--target-hypothesis-identifier', default=1)
+@hypothesis_identifier_option("glycopeptide", '-D', "--decoy-hypothesis-identifier", default=1)
+@click.option("-M", "--memory-database-index", is_flag=True,
+              help=("Whether to load the entire peptide database into memory during spectrum mapping. "
+                    "Uses more memory but substantially accelerates the process"), default=False)
+@click.option("-m", "--mass-error-tolerance", type=RelativeMassErrorParam(), default=1e-5,
+              help="Mass accuracy constraint, in parts-per-million error, for matching MS^1 ions.")
+@click.option("-mn", "--msn-mass-error-tolerance", type=RelativeMassErrorParam(), default=2e-5,
+              help="Mass accuracy constraint, in parts-per-million error, for matching MS^n ions.")
+@click.option("-g", "--grouping-error-tolerance", type=RelativeMassErrorParam(), default=1.5e-5,
+              help="Mass accuracy constraint, in parts-per-million error, for grouping chromatograms.")
+@click.option("-n", "--analysis-name", default=None, help='Name for analysis to be performed.')
+@click.option("-q", "--psm-fdr-threshold", default=0.05, type=float,
+              help='Minimum FDR Threshold to use for filtering GPSMs when selecting identified glycopeptides')
+@click.option("-s", "--tandem-scoring-model", default='log_intensity', type=click.Choice(
+    ["log_intensity", "simple"]),
+    help="Select a scoring function to use for evaluating glycopeptide-spectrum matches")
+@click.option("-y", "--glycan-score-threshold", default=1.0, type=float,
+              help="The minimum glycan score required to consider a peptide mass")
+@click.option("-a", "--adduct", 'mass_shifts', multiple=True, nargs=2,
+              help=("Adducts to consider. Specify name or formula, and a"
+                    " multiplicity."))
+@processes_option
+@click.option("--export", type=click.Choice(
+              ['csv', 'html', 'psm-csv']), multiple=True,
+              help="export command to after search is complete")
+@click.option("-o", "--output-path", default=None, type=click.Path(writable=True), help=(
+              "Path to write resulting analysis to."))
+@click.option("-w", "--workload-size", default=500, type=int, help="Number of spectra to process at once")
+@click.option("--save-intermediate-results", default=None, type=click.Path(), required=False,
+              help='Save intermediate spectrum matches to a file', cls=HiddenOption)
+@click.option("--maximum-mass", default=float('inf'), type=float, cls=HiddenOption)
+@click.option("--isotope-probing-range", type=int, default=3, help=(
+    "The maximum number of isotopic peak errors to allow when searching for untrusted precursor masses"))
+def search_glycopeptide_multipart(context, database_connection, decoy_database_connection, sample_path,
+                                  target_hypothesis_identifier=1, decoy_hypothesis_identifier=1,
+                                  analysis_name=None, output_path=None, grouping_error_tolerance=1.5e-5,
+                                  mass_error_tolerance=1e-5, msn_mass_error_tolerance=2e-5, psm_fdr_threshold=0.05,
+                                  peak_shape_scoring_model=None, tandem_scoring_model=None, glycan_score_threshold=1.0,
+                                  memory_database_index=False, save_intermediate_results=None, processes=4,
+                                  workload_size=500, mass_shifts=None, export=None, maximum_mass=float('inf'),
+                                  isotope_probing_range=3):
+    if output_path is None:
+        output_path = make_analysis_output_path("glycopeptide")
+    if tandem_scoring_model is None:
+        tandem_scoring_model = "log_intensity"
+    database_connection = DatabaseBoundOperation(database_connection)
+    decoy_database_connection = DatabaseBoundOperation(decoy_database_connection)
+    ms_data = ProcessedMzMLDeserializer(sample_path, use_index=False)
+    sample_run = ms_data.sample_run
+
+    try:
+        target_hypothesis = get_by_name_or_id(
+            database_connection, GlycopeptideHypothesis, target_hypothesis_identifier)
+    except Exception:
+        click.secho("Could not locate Target Glycopeptide Hypothesis with identifier %r" %
+                    hypothesis_identifier, fg='yellow')
+        raise click.Abort()
+
+    try:
+        decoy_hypothesis = get_by_name_or_id(
+            decoy_database_connection, GlycopeptideHypothesis, decoy_hypothesis_identifier)
+    except Exception:
+        click.secho("Could not locate Decoy Glycopeptide Hypothesis with identifier %r" %
+                    hypothesis_identifier, fg='yellow')
+        raise click.Abort()
+
+    tandem_scoring_model = validate_glycopeptide_tandem_scoring_function(
+        context, tandem_scoring_model)
+
+    mass_shifts = [validate_mass_shift(mass_shift, multiplicity)
+                   for mass_shift, multiplicity in mass_shifts]
+    expanded = []
+    expanded = MzMLGlycanChromatogramAnalyzer.expand_mass_shifts(
+        dict(mass_shifts), crossproduct=False)
+    mass_shifts = expanded
+
+    if analysis_name is None:
+        analysis_name = "%s @ %s" % (sample_run.name, target_hypothesis.name)
+
+    analysis_name = validate_analysis_name(
+        context, database_connection.session, analysis_name)
+
+    click.secho("Preparing analysis of %s by %s" % (
+        sample_run.name, target_hypothesis.name), fg='cyan')
+    analyzer = MultipartGlycopeptideLCMSMSAnalyzer(
+        database_connection._original_connection,
+        decoy_database_connection._original_connection,
+        target_hypothesis.id,
+        decoy_hypothesis.id,
+        sample_path,
+        output_path,
+        analysis_name=analysis_name,
+        grouping_error_tolerance=grouping_error_tolerance,
+        mass_error_tolerance=mass_error_tolerance,
+        msn_mass_error_tolerance=msn_mass_error_tolerance,
+        psm_fdr_threshold=psm_fdr_threshold,
+        tandem_scoring_model=tandem_scoring_model,
+        glycan_score_threshold=glycan_score_threshold,
+        mass_shifts=mass_shifts,
+        n_processes=5,
+        spectrum_batch_size=workload_size,
+        maximum_mass=maximum_mass,
+        probing_range_for_missing_precursors=isotope_probing_range,
+        use_memory_database=memory_database_index)
     analyzer.display_header()
     gps, unassigned, target_decoy_set = analyzer.start()
     if save_intermediate_results is not None:
@@ -283,7 +444,7 @@ class RegularizationParameterType(click.ParamType):
 @analyze.command("search-glycan", short_help=('Search processed data for'
                                               ' glycan compositions'))
 @click.pass_context
-@database_connection
+@database_connection()
 @sample_path
 @hypothesis_identifier("glycan")
 @click.option("-m", "--mass-error-tolerance", type=RelativeMassErrorParam(), default=1e-5,
