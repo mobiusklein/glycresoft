@@ -16,7 +16,7 @@ class MzIdentMLGlycopeptideHypothesisSerializer(GlycopeptideHypothesisSerializer
 
     def __init__(self, mzid_path, connection, glycan_hypothesis_id, hypothesis_name=None,
                  target_proteins=None, max_glycosylation_events=1, reference_fasta=None,
-                 full_cross_product=True):
+                 full_cross_product=True, peptide_length_range=(5, 60)):
         if target_proteins is None:
             target_proteins = []
         GlycopeptideHypothesisSerializerBase.__init__(
@@ -28,6 +28,8 @@ class MzIdentMLGlycopeptideHypothesisSerializer(GlycopeptideHypothesisSerializer
             target_proteins=target_proteins, reference_fasta=reference_fasta)
         self.target_proteins = target_proteins
         self.max_glycosylation_events = max_glycosylation_events
+        self.peptide_length_range = peptide_length_range or (5, 60)
+        assert len(self.peptide_length_range) == 2
 
         self.set_parameters({
             "mzid_file": os.path.abspath(mzid_path),
@@ -35,7 +37,8 @@ class MzIdentMLGlycopeptideHypothesisSerializer(GlycopeptideHypothesisSerializer
                 reference_fasta) if reference_fasta is not None else None,
             "target_proteins": target_proteins,
             "max_glycosylation_events": max_glycosylation_events,
-            "full_cross_product": self.full_cross_product
+            "full_cross_product": self.full_cross_product,
+            "peptide_length_range": self.peptide_length_range
         })
 
     def retrieve_target_protein_ids(self):
@@ -107,10 +110,11 @@ class MultipleProcessMzIdentMLGlycopeptideHypothesisSerializer(MzIdentMLGlycopep
 
     def __init__(self, mzid_path, connection, glycan_hypothesis_id, hypothesis_name=None,
                  target_proteins=None, max_glycosylation_events=1, reference_fasta=None,
-                 full_cross_product=True, n_processes=4):
+                 full_cross_product=True, n_processes=4, peptide_length_range=(5, 60)):
         super(MultipleProcessMzIdentMLGlycopeptideHypothesisSerializer, self).__init__(
             mzid_path, connection, glycan_hypothesis_id, hypothesis_name, target_proteins,
-            max_glycosylation_events, reference_fasta, full_cross_product)
+            max_glycosylation_events, reference_fasta, full_cross_product,
+            peptide_length_range)
         self.n_processes = n_processes
 
     def glycosylate_peptides(self):

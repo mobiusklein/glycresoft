@@ -195,6 +195,8 @@ def glycopeptide_hypothesis_common_options(cmd):
                      help="The type of glycan information source to use"),
         click.option("-g", "--glycan-source", required=True,
                      help="The path, identity, or other specifier for the glycan source"),
+        click.option("-z", "--peptide-length-range", type=(int, int), default=(5, 60),
+                     help="The minimum and maximum peptide length to consider")
     ]
     for opt in options:
         cmd = opt(cmd)
@@ -224,7 +226,7 @@ def glycopeptide_hypothesis_common_options(cmd):
 def glycopeptide_fa(context, fasta_file, database_connection, enzyme, missed_cleavages, occupied_glycosites, name,
                     constant_modification, variable_modification, processes, glycan_source, glycan_source_type,
                     glycan_source_identifier=None, semispecific_digest=False, reverse=False, dry_run=False,
-                    not_full_crossproduct=False):
+                    peptide_length_range=(5, 60), not_full_crossproduct=False):
     '''Constructs a glycopeptide hypothesis from a FASTA file of proteins and a
     collection of glycans.
     '''
@@ -290,7 +292,7 @@ def glycopeptide_fa(context, fasta_file, database_connection, enzyme, missed_cle
                     "the FASTA file used is not local."))
 def glycopeptide_mzid(context, mzid_file, database_connection, name, occupied_glycosites, target_protein,
                       target_protein_re, processes, glycan_source, glycan_source_type, glycan_source_identifier,
-                      reference_fasta):
+                      reference_fasta, peptide_length_range=(5, 60)):
     '''Constructs a glycopeptide hypothesis from a MzIdentML file of proteins and a
     collection of glycans.
     '''

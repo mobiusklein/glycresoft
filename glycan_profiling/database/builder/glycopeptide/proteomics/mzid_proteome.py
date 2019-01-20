@@ -546,7 +546,7 @@ class FastaProteinStubLoader(ProteinStubLoaderBase):
 
 class PeptideMapperBase(object):
     def __init__(self, enzyme=None, constant_modifications=None, modification_translation_table=None,
-                 protein_filter=None):
+                 protein_filter=None, peptide_length_range=(5, 60)):
         if protein_filter is None:
             protein_filter = allset()
 
@@ -558,6 +558,7 @@ class PeptideMapperBase(object):
         self.counter = 0
 
         self.protein_loader = self._make_protein_loader()
+        self.peptide_length_range = peptide_length_range
 
     def _make_protein_loader(self):
         raise NotImplementedError()
@@ -565,11 +566,13 @@ class PeptideMapperBase(object):
 
 class PeptideConverter(PeptideMapperBase):
     def __init__(self, session, hypothesis_id, enzyme=None, constant_modifications=None,
-                 modification_translation_table=None, protein_filter=None):
+                 modification_translation_table=None, protein_filter=None,
+                 peptide_length_range=(5, 60)):
         self.session = session
         self.hypothesis_id = hypothesis_id
         super(PeptideConverter, self).__init__(
-            enzyme, constant_modifications, modification_translation_table, protein_filter)
+            enzyme, constant_modifications, modification_translation_table,
+            protein_filter, peptide_length_range)
 
     def _make_protein_loader(self):
         return DatabaseProteinStubLoader(self.session, self.hypothesis_id)
@@ -680,13 +683,17 @@ class PeptideConverter(PeptideMapperBase):
 
             start = evidence["start"] - 1
             end = evidence["end"]
+            length = len(peptide_ident.base_sequence)
+            if not (self.peptide_length_range[0] <= length <= self.peptide_length_range[1]):
+                continue
 
             sequence_copy = peptide_ident.original_sequence()
             found = self.sequence_starts_at(sequence_copy, parent_protein)
 
             if found != start:
                 start = found
-                end = start + len(peptide_ident.base_sequence)
+                end = start + length
+
             match = self.pack_peptide(
                 peptide_ident, start, end, score, score_type, parent_protein)
             self.add_to_group(match)
@@ -708,7 +715,7 @@ class PeptideConverter(PeptideMapperBase):
 
 
 class MzIdentMLProteomeExtraction(TaskBase):
-    def __init__(self, mzid_path, reference_fasta=None):
+    def __init__(self, mzid_path, reference_fasta=None, peptide_length_range=(5, 60)):
         self.mzid_path = mzid_path
         self.reference_fasta = reference_fasta
         self.parser = Parser(mzid_path, retrieve_refs=True, iterative=True, use_index=True)
@@ -719,6 +726,8 @@ class MzIdentMLProteomeExtraction(TaskBase):
         self._protein_resolver = None
         self._ignore_protein_regex = None
         self._used_database_path = None
+
+        self.peptide_length_range = peptide_length_range or (5, 60)
 
     def load_enzyme(self):
         self.parser.reset()
@@ -900,12 +909,13 @@ class MzIdentMLProteomeExtraction(TaskBase):
 
 class Proteome(DatabaseBoundOperation, MzIdentMLProteomeExtraction):
     def __init__(self, mzid_path, connection, hypothesis_id, include_baseline_peptides=True,
-                 target_proteins=None, reference_fasta=None):
+                 target_proteins=None, reference_fasta=None, peptide_length_range=(5, 60)):
         DatabaseBoundOperation.__init__(self, connection)
         MzIdentMLProteomeExtraction.__init__(self, mzid_path, reference_fasta)
         self.hypothesis_id = hypothesis_id
         self.target_proteins = target_proteins
         self.include_baseline_peptides = include_baseline_peptides
+        self.peptide_length_range = peptide_length_range or (5, 60)
 
     def _can_ignore_protein(self, name):
         if name not in self.target_proteins:
@@ -1055,7 +1065,9 @@ class Proteome(DatabaseBoundOperation, MzIdentMLProteomeExtraction):
         const_modifications = [mod_table[c] for c in self.constant_modifications]
         digestor = ProteinDigestor(
             self.enzymes[0], const_modifications,
-            max_missed_cleavages=self.enzymes[0].used_missed_cleavages)
+            max_missed_cleavages=self.enzymes[0].used_missed_cleavages,
+            min_length=self.peptide_length_range[0],
+            max_length=self.peptide_length_range[1])
         accumulator = []
         i = 0
         for protein in self.get_target_proteins():

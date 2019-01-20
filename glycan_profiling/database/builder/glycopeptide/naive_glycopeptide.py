@@ -32,7 +32,7 @@ class FastaGlycopeptideHypothesisSerializer(GlycopeptideHypothesisSerializerBase
     def __init__(self, fasta_file, connection, glycan_hypothesis_id, hypothesis_name=None,
                  protease='trypsin', constant_modifications=None, variable_modifications=None,
                  max_missed_cleavages=2, max_glycosylation_events=1, semispecific=False,
-                 max_variable_modifications=None, full_cross_product=True):
+                 max_variable_modifications=None, full_cross_product=True, peptide_length_range=(5, 60)):
         GlycopeptideHypothesisSerializerBase.__init__(
             self, connection, hypothesis_name, glycan_hypothesis_id, full_cross_product)
         self.fasta_file = fasta_file
@@ -43,6 +43,8 @@ class FastaGlycopeptideHypothesisSerializer(GlycopeptideHypothesisSerializerBase
         self.max_glycosylation_events = max_glycosylation_events
         self.semispecific = semispecific
         self.max_variable_modifications = max_variable_modifications
+        self.peptide_length_range = peptide_length_range or (5, 60)
+        assert len(self.peptide_length_range) == 2
 
         params = {
             "fasta_file": fasta_file,
@@ -53,7 +55,8 @@ class FastaGlycopeptideHypothesisSerializer(GlycopeptideHypothesisSerializerBase
             "max_glycosylation_events": max_glycosylation_events,
             "semispecific": semispecific,
             "max_variable_modifications": max_variable_modifications,
-            "full_cross_product": self.full_cross_product
+            "full_cross_product": self.full_cross_product,
+            "peptide_length_range": self.peptide_length_range
         }
         self.set_parameters(params)
 
@@ -82,7 +85,8 @@ class FastaGlycopeptideHypothesisSerializer(GlycopeptideHypothesisSerializerBase
     def digest_proteins(self):
         digestor = ProteinDigestor(
             self.protease, self.constant_modifications, self.variable_modifications,
-            self.max_missed_cleavages, semispecific=self.semispecific)
+            self.max_missed_cleavages, min_length=self.peptide_length_range[0],
+            max_length=self.peptide_length_range[1], semispecific=self.semispecific)
         i = 0
         j = 0
         protein_ids = self.protein_ids()
@@ -151,13 +155,13 @@ class MultipleProcessFastaGlycopeptideHypothesisSerializer(FastaGlycopeptideHypo
     def __init__(self, fasta_file, connection, glycan_hypothesis_id, hypothesis_name=None,
                  protease='trypsin', constant_modifications=None, variable_modifications=None,
                  max_missed_cleavages=2, max_glycosylation_events=1, semispecific=False,
-                 max_variable_modifications=None, full_cross_product=True,
+                 max_variable_modifications=None, full_cross_product=True, peptide_length_range=(5, 60),
                  n_processes=4):
         super(MultipleProcessFastaGlycopeptideHypothesisSerializer, self).__init__(
             fasta_file, connection, glycan_hypothesis_id, hypothesis_name,
             protease, constant_modifications, variable_modifications,
             max_missed_cleavages, max_glycosylation_events, semispecific,
-            max_variable_modifications, full_cross_product)
+            max_variable_modifications, full_cross_product, peptide_length_range)
         self.n_processes = n_processes
 
     def digest_proteins(self):
