@@ -1,5 +1,7 @@
-from collections import deque
+import os
 import multiprocessing
+
+from collections import deque
 
 import ms_peak_picker
 import ms_deisotope
@@ -12,7 +14,7 @@ from ms_deisotope.processor import (
 
 from ms_deisotope.feature_map.quick_index import index as build_scan_index
 
-from ms_deisotope.data_source.common import ProcessedScan, ScanBunch
+from ms_deisotope.data_source.common import ProcessedScan
 
 import logging
 from glycan_profiling.task import (
@@ -377,12 +379,22 @@ class ScanTransformingProcess(Process, ScanTransformMixin):
         if not self.deconvolute:
             nologs.append("deconvolution")
 
+        debug_mode = os.getenv("GLYCRESOFTDEBUG")
+        if debug_mode:
+            handler = logging.FileHandler("piped-deconvolution-debug-%s.log" % (os.getpid()), 'w')
+            fmt = logging.Formatter(
+                "%(asctime)s - %(name)s:%(filename)s:%(lineno)-4d - %(levelname)s - %(message)s",
+                "%H:%M:%S")
+            handler.setFormatter(fmt)
         for logname in nologs:
-            logger_to_silence = logging.getLogger("deconvolution_scan_processor")
-            logger_to_silence.propagate = False
-            logger_to_silence.setLevel("CRITICAL")
-            logger_to_silence.addHandler(logging.NullHandler())
-            # logger_to_silence.addHandler(logging.StreamHandler())
+            logger_to_silence = logging.getLogger(logname)
+            if debug_mode:
+                logger_to_silence.setLevel("DEBUG")
+                logger_to_silence.addHandler(handler)
+            else:
+                logger_to_silence.propagate = False
+                logger_to_silence.setLevel("CRITICAL")
+                logger_to_silence.addHandler(logging.NullHandler())
 
         i = 0
         last = 0
