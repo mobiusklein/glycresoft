@@ -84,6 +84,9 @@ class SpectrumMatchBase(ScanWrapperBase):
         return (self.scan == other.scan) and (self.target == other.target) and (
             target_id == other_target_id)
 
+    def __ne__(self, other):
+        return not (self == other)
+
     def __hash__(self):
         try:
             target_id = self.target.id

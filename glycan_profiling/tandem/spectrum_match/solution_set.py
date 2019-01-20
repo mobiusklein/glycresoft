@@ -203,6 +203,14 @@ class SpectrumSolutionSet(ScanWrapperBase):
         dup._is_sorted = self._is_sorted
         return dup
 
+    def __eq__(self, other):
+        if self.scan.id != other.scan.id:
+            return False
+        return self.solutions == other.solutions
+
+    def __ne__(self, other):
+        return not (self == other)
+
 
 class MultiScoreSpectrumSolutionSet(SpectrumSolutionSet):
     spectrum_match_type = MultiScoreSpectrumMatch
