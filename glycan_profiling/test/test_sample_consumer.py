@@ -36,8 +36,8 @@ class SampleConsumerBase(object):
             pass
 
 
-# @unittest.skipIf("TRAVIS" in os.environ and os.environ["TRAVIS"] == "true",
-#                  "This test appears to be failing in a system-dependent manner on CI only")
+@unittest.skipIf("TRAVIS" in os.environ and os.environ["TRAVIS"] == "true",
+                 "This test appears to be failing in a system-dependent manner on CI only")
 class MSMSSampleConsumerTest(unittest.TestCase, SampleConsumerBase):
     def build_args(self):
         ms1_peak_picking_args = {
