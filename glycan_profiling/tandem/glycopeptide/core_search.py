@@ -484,7 +484,8 @@ except ImportError:
 
 
 _GlycanMatchResult = namedtuple('GlycanMatchResult', (
-    'peptide_mass', 'score', 'match', 'glycan_size', 'glycan_types'))
+    'peptide_mass', 'score', 'match', 'glycan_size', 'glycan_types',
+    'recalibrated_peptide_mass'))
 
 
 class GlycanMatchResult(_GlycanMatchResult):
@@ -501,7 +502,8 @@ class GlycanMatchResult(_GlycanMatchResult):
 class GlycanFilteringPeptideMassEstimator(GlycanCoarseScorerBase):
     def __init__(self, glycan_combination_db, product_error_tolerance=1e-5,
                  fragment_weight=0.56, core_weight=0.42, minimum_peptide_mass=500.0,
-                 use_denovo_motif=False, components=None):
+                 use_denovo_motif=False, components=None,
+                 use_recalibrated_peptide_mass=False):
         if not isinstance(glycan_combination_db[0], GlycanCombinationRecord):
             glycan_combination_db = [GlycanCombinationRecord.from_combination(gc)
                                      for gc in glycan_combination_db]
@@ -509,6 +511,7 @@ class GlycanFilteringPeptideMassEstimator(GlycanCoarseScorerBase):
         self.motif_finder = CoreMotifFinder(components, product_error_tolerance)
         self.glycan_combination_db = sorted(glycan_combination_db, key=lambda x: (x.dehydrated_mass, x.id))
         self.minimum_peptide_mass = minimum_peptide_mass
+        self.use_recalibrated_peptide_mass = use_recalibrated_peptide_mass
         super(GlycanFilteringPeptideMassEstimator, self).__init__(
             product_error_tolerance, fragment_weight, core_weight)
 
@@ -634,15 +637,16 @@ class GlycanFilteringPeptideMassEstimator(GlycanCoarseScorerBase):
                     best_match = match
 
             if best_match is not None:
-                reestimated_peptide_mass = best_match.estimate_peptide_mass()
-                if reestimated_peptide_mass > 0:
-                    if abs(reestimated_peptide_mass - peptide_mass) > 0.5:
+                recalibrated_peptide_mass = best_match.estimate_peptide_mass()
+                if recalibrated_peptide_mass > 0:
+                    if abs(recalibrated_peptide_mass - peptide_mass) > 0.5:
                         warnings.warn("Re-estimated peptide mass error is large: %f vs %f" % (
-                            peptide_mass, reestimated_peptide_mass))
-                    peptide_mass = reestimated_peptide_mass
+                            peptide_mass, recalibrated_peptide_mass))
+            else:
+                recalibrated_peptide_mass = 0
             output.append(GlycanMatchResult(
                 peptide_mass,
-                best_score, best_match, glycan_combination.size, type_to_score))
+                best_score, best_match, glycan_combination.size, type_to_score, recalibrated_peptide_mass))
         output = sorted(output, key=lambda x: x.score, reverse=1)
         return output
 

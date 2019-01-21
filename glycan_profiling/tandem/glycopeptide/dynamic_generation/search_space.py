@@ -279,7 +279,8 @@ class PredictiveGlycopeptideSearch(DynamicGlycopeptideSearchBase):
                             if key in seen:
                                 continue
                             seen.add(key)
-                            workload.add_scan_hit(scan, candidate, mass_shift_name)
+                            if (abs(intact_mass - candidate.total_mass) / intact_mass) <= precursor_error_tolerance:
+                                workload.add_scan_hit(scan, candidate, mass_shift_name)
         return workload
 
 
