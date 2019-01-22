@@ -15,9 +15,7 @@ from six import string_types as basestring
 from .proteomics.peptide_permutation import (
     ProteinDigestor,
     MultipleProcessProteinDigestor,
-    ProteinSplitter,
     UniprotProteinAnnotator)
-from .proteomics.uniprot import UniprotProteinDownloader, Empty
 from .proteomics.remove_duplicate_peptides import DeduplicatePeptides
 
 from .proteomics.fasta import ProteinFastaFileParser
