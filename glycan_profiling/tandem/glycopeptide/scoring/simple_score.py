@@ -40,7 +40,8 @@ class SimpleCoverageScorer(GlycopeptideSpectrumMatcherBase):
     def glycosylated_y_ion_count(self, value):
         self.glycosylated_c_term_ion_count = value
 
-    def _match_backbone_series(self, series, error_tolerance=2e-5, masked_peaks=None, strategy=None):
+    def _match_backbone_series(self, series, error_tolerance=2e-5, masked_peaks=None, strategy=None,
+                               track_ions=True, **kwargs):
         if strategy is None:
             strategy = HCDFragmentationStrategy
         # Assumes that fragmentation proceeds from the start of the ladder (series position 1)
@@ -56,11 +57,12 @@ class SimpleCoverageScorer(GlycopeptideSpectrumMatcherBase):
                     if peak.index.neutral_mass in masked_peaks:
                         continue
                     self.solution_map.add(peak, frag)
-            if glycosylated_position:
-                if series.direction > 0:
-                    self.glycosylated_n_term_ion_count += 1
-                else:
-                    self.glycosylated_c_term_ion_count += 1
+            if track_ions:
+                if glycosylated_position:
+                    if series.direction > 0:
+                        self.glycosylated_n_term_ion_count += 1
+                    else:
+                        self.glycosylated_c_term_ion_count += 1
             previous_position_glycosylated = glycosylated_position
 
     def _compute_coverage_vectors(self):
@@ -75,7 +77,7 @@ class SimpleCoverageScorer(GlycopeptideSpectrumMatcherBase):
                 n_term_ions[frag.position] = 1
                 if frag.is_glycosylated:
                     glycosylated_n_term_ions.add((frag.series, frag.position))
-            elif frag.series in (IonSeries.y, IonSeries.z):
+            elif frag.series in (IonSeries.y, IonSeries.z, IonSeries.zp):
                 c_term_ions[frag.position] = 1
                 if frag.is_glycosylated:
                     glycosylated_c_term_ions.add((frag.series, frag.position))
@@ -185,4 +187,6 @@ class SignatureAwareCoverageScorer(SimpleCoverageScorer, GlycanCompositionSignat
         elif is_exd:
             self._match_backbone_series(IonSeries.y, error_tolerance, masked_peaks, EXDFragmentationStrategy)
             self._match_backbone_series(IonSeries.z, error_tolerance, masked_peaks, EXDFragmentationStrategy)
+            self._match_backbone_series(IonSeries.zp, error_tolerance, masked_peaks, EXDFragmentationStrategy,
+                                        track_ions=False)
         return self

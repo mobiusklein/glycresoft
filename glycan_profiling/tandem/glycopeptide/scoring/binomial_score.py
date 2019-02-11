@@ -10,7 +10,7 @@ Much of this logic is derived from:
 
 
 import numpy as np
-from scipy.misc import comb
+from scipy.special import comb
 from decimal import Decimal
 import math
 
@@ -224,7 +224,8 @@ class BinomialSpectrumMatcher(GlycopeptideSpectrumMatcherBase):
         self._sanitized_spectrum -= {self.spectrum[i] for i in masked_peaks}
         return val
 
-    def _match_backbone_series(self, series, error_tolerance=2e-5, masked_peaks=None, strategy=None):
+    def _match_backbone_series(self, series, error_tolerance=2e-5, masked_peaks=None, strategy=None,
+                               track_ions=True, **kwargs):
         if strategy is None:
             strategy = HCDFragmentationStrategy
         for frags in self.target.get_fragments(series, strategy=strategy):
@@ -234,7 +235,8 @@ class BinomialSpectrumMatcher(GlycopeptideSpectrumMatcherBase):
             # of the geometric mass accuracy interpretation.
             #
             # Using the less severe case to be less pessimistic
-            self.n_theoretical += 1
+            if track_ions:
+                self.n_theoretical += 1
             for frag in frags:
                 for peak in self.spectrum.all_peaks_for(frag.mass, error_tolerance):
                     if peak.index.neutral_mass in masked_peaks:

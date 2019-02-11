@@ -9,7 +9,8 @@ class PeptideSpectrumMatcherBase(SpectrumMatcherBase):
         fragments = self.target.get_fragments(series, strategy=strategy)
         return fragments
 
-    def _match_backbone_series(self, series, error_tolerance=2e-5, masked_peaks=None, strategy=None):
+    def _match_backbone_series(self, series, error_tolerance=2e-5, masked_peaks=None, strategy=None,
+                               track_ions=True, **kwargs):
         if strategy is None:
             strategy = HCDFragmentationStrategy
         if masked_peaks is None:
@@ -40,4 +41,6 @@ class PeptideSpectrumMatcherBase(SpectrumMatcherBase):
         elif is_exd:
             self._match_backbone_series(IonSeries.y, error_tolerance, masked_peaks, EXDFragmentationStrategy)
             self._match_backbone_series(IonSeries.z, error_tolerance, masked_peaks, EXDFragmentationStrategy)
+            self._match_backbone_series(
+                IonSeries.zp, error_tolerance, masked_peaks, EXDFragmentationStrategy, track_ions=False)
         return self

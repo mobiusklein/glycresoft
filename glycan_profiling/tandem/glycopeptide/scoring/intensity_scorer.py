@@ -27,7 +27,7 @@ class LogIntensityScorer(SignatureAwareCoverageScorer, MassAccuracyMixin):
 
     def calculate_peptide_score(self, error_tolerance=2e-5, coverage_weight=1.0, *args, **kwargs):
         total = 0
-        series_set = (IonSeries.b, IonSeries.y, IonSeries.c, IonSeries.z)
+        series_set = (IonSeries.b, IonSeries.y, IonSeries.c, IonSeries.z, IonSeries.zp)
         seen = set()
         for peak_pair in self.solution_map:
             peak = peak_pair.peak

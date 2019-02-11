@@ -13,13 +13,15 @@ class CoverageWeightedBinomialScorer(BinomialSpectrumMatcher, SignatureAwareCove
     def __init__(self, scan, sequence, mass_shift=None):
         super(CoverageWeightedBinomialScorer, self).__init__(scan, sequence, mass_shift)
 
-    def _match_backbone_series(self, series, error_tolerance=2e-5, masked_peaks=None, strategy=None):
+    def _match_backbone_series(self, series, error_tolerance=2e-5, masked_peaks=None, strategy=None,
+                               track_ions=True, **kwargs):
         if strategy is None:
             strategy = HCDFragmentationStrategy
         previous_position_glycosylated = False
         for frags in self.target.get_fragments(series, strategy=strategy):
             glycosylated_position = previous_position_glycosylated
-            self.n_theoretical += 1
+            if track_ions:
+                self.n_theoretical += 1
             for frag in frags:
                 if not glycosylated_position:
                     glycosylated_position |= frag.is_glycosylated
@@ -27,7 +29,7 @@ class CoverageWeightedBinomialScorer(BinomialSpectrumMatcher, SignatureAwareCove
                     if peak.index.neutral_mass in masked_peaks:
                         continue
                     self.solution_map.add(peak, frag)
-            if glycosylated_position:
+            if glycosylated_position and track_ions:
                 if series.direction > 0:
                     self.glycosylated_n_term_ion_count += 1
                 else:
