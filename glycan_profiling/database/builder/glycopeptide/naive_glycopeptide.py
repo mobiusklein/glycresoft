@@ -6,7 +6,7 @@ from glycan_profiling.serialize.utils import toggle_indices
 from glycopeptidepy.algorithm import reverse_sequence
 from glycopeptidepy.structure.sequence import (
     find_n_glycosylation_sequons, find_o_glycosylation_sequons,
-    find_glycosaminoglycan_sequons)
+    find_glycosaminoglycan_sequons, PeptideSequence)
 
 from glycopeptidepy.structure.residue import UnknownAminoAcidException
 
@@ -201,6 +201,7 @@ class ReversingMultipleProcessFastaGlycopeptideHypothesisSerializer(_MPFGHS):
             protein.protein_sequence = str(reverse_sequence(protein.protein_sequence, suffix_len=0))
             protein.hypothesis_id = self.hypothesis_id
 
+            original_sequence = PeptideSequence(original_sequence)
             try:
                 n_glycosites = find_n_glycosylation_sequons(original_sequence)
                 for n_glycosite in n_glycosites:

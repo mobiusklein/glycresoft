@@ -73,7 +73,7 @@ class Protein(Base, AminoAcidSequenceWrapperBase):
                 self._n_glycan_sequon_sites = [int(i) for i in sites]
             elif self.sites.count() == 0:
                 try:
-                    self._n_glycan_sequon_sites = sequence.find_n_glycosylation_sequons(self.protein_sequence)
+                    self._n_glycan_sequon_sites = sequence.find_n_glycosylation_sequons(self._get_sequence())
                 except residue.UnknownAminoAcidException:
                     return []
             else:
@@ -90,7 +90,7 @@ class Protein(Base, AminoAcidSequenceWrapperBase):
                 self._o_glycan_sequon_sites = [int(i) for i in sites]
             elif self.sites.count() == 0:
                 try:
-                    self._o_glycan_sequon_sites = sequence.find_o_glycosylation_sequons(self.protein_sequence)
+                    self._o_glycan_sequon_sites = sequence.find_o_glycosylation_sequons(self._get_sequence())
                 except residue.UnknownAminoAcidException:
                     return []
             else:
@@ -108,7 +108,7 @@ class Protein(Base, AminoAcidSequenceWrapperBase):
             elif self.sites.count() == 0:
                 try:
                     self._glycosaminoglycan_sequon_sites = sequence.find_glycosaminoglycan_sequons(
-                        self.protein_sequence)
+                        self._get_sequence())
                 except residue.UnknownAminoAcidException:
                     return []
             else:
@@ -124,7 +124,7 @@ class Protein(Base, AminoAcidSequenceWrapperBase):
 
     def _init_sites(self):
         try:
-            n_glycosites = sequence.find_n_glycosylation_sequons(self.protein_sequence)
+            n_glycosites = sequence.find_n_glycosylation_sequons(self._get_sequence())
             for n_glycosite in n_glycosites:
                 self.sites.append(
                     ProteinSite(name=ProteinSite.N_GLYCOSYLATION, location=n_glycosite))
@@ -132,7 +132,7 @@ class Protein(Base, AminoAcidSequenceWrapperBase):
             pass
 
         try:
-            o_glycosites = sequence.find_o_glycosylation_sequons(self.protein_sequence)
+            o_glycosites = sequence.find_o_glycosylation_sequons(self._get_sequence())
             for o_glycosite in o_glycosites:
                 self.sites.append(
                     ProteinSite(name=ProteinSite.O_GLYCOSYLATION, location=o_glycosite))
@@ -140,7 +140,7 @@ class Protein(Base, AminoAcidSequenceWrapperBase):
             pass
 
         try:
-            gag_sites = sequence.find_glycosaminoglycan_sequons(self.protein_sequence)
+            gag_sites = sequence.find_glycosaminoglycan_sequons(self._get_sequence())
             for gag_site in gag_sites:
                 self.sites.append(
                     ProteinSite(name=ProteinSite.GAGYLATION, location=gag_site))

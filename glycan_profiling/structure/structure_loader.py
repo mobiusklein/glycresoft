@@ -66,8 +66,33 @@ class CachingGlycanCompositionParser(object):
         return self.parse(value)
 
 
+class TextHashableGlycanCompositionParser(object):
+    def __init__(self, size=int(2**16)):
+        # self.cache = LRUMapping(size)
+        self.cache = {}
+        self.size = size
+
+    def _parse(self, text):
+        return HashableGlycanComposition.parse(text)
+
+    def parse(self, text):
+        try:
+            return self.cache[text].clone()
+        except KeyError:
+            inst = self._parse(text)
+            self.cache[text] = inst
+            if len(self.cache) > self.size and self.size != -1:
+                self.cache.popitem()
+            return inst.clone()
+
+    def __call__(self, text):
+        return self.parse(text)
+
+
+_glycan_parser = TextHashableGlycanCompositionParser()
+
 hashable_glycan_glycopeptide_parser = partial(
-    sequence_tokenizer, glycan_parser_function=HashableGlycanComposition.parse)
+    sequence_tokenizer, glycan_parser_function=_glycan_parser)
 
 
 class GlycanFragmentCache(object):
