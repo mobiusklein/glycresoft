@@ -1,4 +1,4 @@
-from glycopeptidepy.structure.fragment import ChemicalShift, IonSeries
+from glycopeptidepy.structure.fragment import ChemicalShift, IonSeries, SimpleFragment, Composition
 from glycopeptidepy.structure.fragmentation_strategy import EXDFragmentationStrategy, HCDFragmentationStrategy
 
 from ...spectrum_match import SpectrumMatcherBase
@@ -26,11 +26,41 @@ class PeptideSpectrumMatcherBase(SpectrumMatcherBase):
     def _theoretical_mass(self):
         return self.target.total_mass
 
+    def _match_precursor(self, error_tolerance=2e-5, masked_peaks=None, include_neutral_losses=False):
+        if masked_peaks is None:
+            masked_peaks = set()
+        mass = self.target.total_mass
+        frag = SimpleFragment("M", mass, IonSeries.precursor, None)
+        for peak in self.spectrum.all_peaks_for(frag.mass, error_tolerance):
+            if peak.index.neutral_mass in masked_peaks:
+                continue
+            masked_peaks.add(peak)
+            self.solution_map.add(peak, frag)
+        if include_neutral_losses:
+            delta = Composition("-NH3")
+            for peak in self.spectrum.all_peaks_for(frag.mass + delta.mass, error_tolerance):
+                if peak.index.neutral_mass in masked_peaks:
+                    continue
+                masked_peaks.add(peak)
+                shifted_frag = frag.clone()
+                shifted_frag.set_chemical_shift(ChemicalShift("-NH3", delta))
+                self.solution_map.add(peak, shifted_frag)
+            delta = Composition("-H2O")
+            for peak in self.spectrum.all_peaks_for(frag.mass + delta.mass, error_tolerance):
+                if peak.index.neutral_mass in masked_peaks:
+                    continue
+                masked_peaks.add(peak)
+                shifted_frag = frag.clone()
+                shifted_frag.set_chemical_shift(ChemicalShift("-H2O", delta))
+                self.solution_map.add(peak, shifted_frag)
+
     def match(self, error_tolerance=2e-5, *args, **kwargs):
         masked_peaks = set()
         include_neutral_losses = kwargs.get("include_neutral_losses", False)
         is_hcd = self.is_hcd()
         is_exd = self.is_exd()
+
+        self._match_precursor(error_tolerance, masked_peaks, include_neutral_losses)
 
         # handle N-term
         if is_hcd and not is_exd:

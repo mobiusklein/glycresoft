@@ -15,7 +15,11 @@ class LogIntensityScorer(SimpleCoverageScorer):
 
     def _intensity_score(self, error_tolerance=2e-5, *args, **kwargs):
         total = 0
+        target_ion_series = {
+            IonSeries.b, IonSeries.y, IonSeries.c, IonSeries.z}
         for peak, fragment in self.solution_map:
+            if fragment.series not in target_ion_series:
+                continue
             total += np.log10(peak.intensity)
         return total
 

@@ -11,7 +11,8 @@ default_ion_series_to_color = {
     'B': 'blue',
     'Y': 'red',
     'oxonium_ion': 'green',
-    'stub_glycopeptide': 'goldenrod'
+    'stub_glycopeptide': 'goldenrod',
+    'precursor': 'orange',
 }
 
 
