@@ -5,16 +5,18 @@ from ...spectrum_match import SpectrumMatcherBase
 
 
 class PeptideSpectrumMatcherBase(SpectrumMatcherBase):
-    def get_fragments(self, series, strategy=None):
-        fragments = self.target.get_fragments(series, strategy=strategy)
+    def get_fragments(self, series, strategy=None, include_neutral_losses=False):
+        fragments = self.target.get_fragments(
+            series, strategy=strategy, include_neutral_losses=include_neutral_losses)
         return fragments
 
-    def _match_backbone_series(self, series, error_tolerance=2e-5, masked_peaks=None, strategy=None):
+    def _match_backbone_series(self, series, error_tolerance=2e-5, masked_peaks=None, strategy=None,
+                               include_neutral_losses=False):
         if strategy is None:
             strategy = HCDFragmentationStrategy
         if masked_peaks is None:
             masked_peaks = set()
-        for frags in self.target.get_fragments(series, strategy=strategy):
+        for frags in self.get_fragments(series, strategy=strategy, include_neutral_losses=include_neutral_losses):
             for frag in frags:
                 for peak in self.spectrum.all_peaks_for(frag.mass, error_tolerance):
                     if peak.index.neutral_mass in masked_peaks:
