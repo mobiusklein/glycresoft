@@ -10,7 +10,7 @@ Much of this logic is derived from:
 
 
 import numpy as np
-from scipy.misc import comb
+from scipy.special import comb
 from decimal import Decimal
 import math
 
@@ -224,10 +224,11 @@ class BinomialSpectrumMatcher(GlycopeptideSpectrumMatcherBase):
         self._sanitized_spectrum -= {self.spectrum[i] for i in masked_peaks}
         return val
 
-    def _match_backbone_series(self, series, error_tolerance=2e-5, masked_peaks=None, strategy=None):
+    def _match_backbone_series(self, series, error_tolerance=2e-5, masked_peaks=None, strategy=None,
+                               include_neutral_losses=False):
         if strategy is None:
             strategy = HCDFragmentationStrategy
-        for frags in self.target.get_fragments(series, strategy=strategy):
+        for frags in self.get_fragments(series, strategy=strategy, include_neutral_losses=include_neutral_losses):
             # Should this be on the level of position, or the level of the individual fragment ions?
             # At the level of position, this makes missing only glycosylated or unglycosylated ions
             # less punishing, while at the level of the fragment makes more sense by the definition

@@ -21,23 +21,38 @@ class PeptideSpectrumMatcherBase(SpectrumMatcherBase):
                         continue
                     self.solution_map.add(peak, frag)
 
+    def _theoretical_mass(self):
+        return self.target.total_mass
+
     def match(self, error_tolerance=2e-5, *args, **kwargs):
         masked_peaks = set()
-
+        include_neutral_losses = kwargs.get("include_neutral_losses", False)
         is_hcd = self.is_hcd()
         is_exd = self.is_exd()
 
         # handle N-term
         if is_hcd and not is_exd:
-            self._match_backbone_series(IonSeries.b, error_tolerance, masked_peaks, HCDFragmentationStrategy)
+            self._match_backbone_series(
+                IonSeries.b, error_tolerance, masked_peaks, HCDFragmentationStrategy,
+                include_neutral_losses)
         elif is_exd:
-            self._match_backbone_series(IonSeries.b, error_tolerance, masked_peaks, EXDFragmentationStrategy)
-            self._match_backbone_series(IonSeries.c, error_tolerance, masked_peaks, EXDFragmentationStrategy)
+            self._match_backbone_series(
+                IonSeries.b, error_tolerance, masked_peaks, EXDFragmentationStrategy,
+                include_neutral_losses)
+            self._match_backbone_series(
+                IonSeries.c, error_tolerance, masked_peaks, EXDFragmentationStrategy,
+                include_neutral_losses)
 
         # handle C-term
         if is_hcd and not is_exd:
-            self._match_backbone_series(IonSeries.y, error_tolerance, masked_peaks, HCDFragmentationStrategy)
+            self._match_backbone_series(
+                IonSeries.y, error_tolerance, masked_peaks, HCDFragmentationStrategy,
+                include_neutral_losses)
         elif is_exd:
-            self._match_backbone_series(IonSeries.y, error_tolerance, masked_peaks, EXDFragmentationStrategy)
-            self._match_backbone_series(IonSeries.z, error_tolerance, masked_peaks, EXDFragmentationStrategy)
+            self._match_backbone_series(
+                IonSeries.y, error_tolerance, masked_peaks, EXDFragmentationStrategy,
+                include_neutral_losses)
+            self._match_backbone_series(
+                IonSeries.z, error_tolerance, masked_peaks, EXDFragmentationStrategy,
+                include_neutral_losses)
         return self

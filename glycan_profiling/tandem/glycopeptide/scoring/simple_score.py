@@ -40,14 +40,15 @@ class SimpleCoverageScorer(GlycopeptideSpectrumMatcherBase):
     def glycosylated_y_ion_count(self, value):
         self.glycosylated_c_term_ion_count = value
 
-    def _match_backbone_series(self, series, error_tolerance=2e-5, masked_peaks=None, strategy=None):
+    def _match_backbone_series(self, series, error_tolerance=2e-5, masked_peaks=None, strategy=None,
+                               include_neutral_losses=False):
         if strategy is None:
             strategy = HCDFragmentationStrategy
         # Assumes that fragmentation proceeds from the start of the ladder (series position 1)
         # which means that if the last fragment could be glycosylated then the next one will be
         # but if the last fragment wasn't the next one might be.
         previous_position_glycosylated = False
-        for frags in self.target.get_fragments(series, strategy=strategy):
+        for frags in self.get_fragments(series, strategy=strategy, include_neutral_losses=include_neutral_losses):
             glycosylated_position = previous_position_glycosylated
             for frag in frags:
                 if not glycosylated_position:
@@ -158,6 +159,7 @@ class SignatureAwareCoverageScorer(SimpleCoverageScorer, GlycanCompositionSignat
     def match(self, error_tolerance=2e-5, *args, **kwargs):
         GlycanCompositionSignatureMatcher.match(self, error_tolerance=error_tolerance)
         masked_peaks = set()
+        include_neutral_losses = kwargs.get("include_neutral_losses", False)
 
         if self.mass_shift.tandem_mass != 0:
             chemical_shift = ChemicalShift(
@@ -174,15 +176,21 @@ class SignatureAwareCoverageScorer(SimpleCoverageScorer, GlycanCompositionSignat
             self._match_stub_glycopeptides(error_tolerance, masked_peaks=masked_peaks, chemical_shift=chemical_shift)
         # handle N-term
         if is_hcd and not is_exd:
-            self._match_backbone_series(IonSeries.b, error_tolerance, masked_peaks, HCDFragmentationStrategy)
+            self._match_backbone_series(
+                IonSeries.b, error_tolerance, masked_peaks, HCDFragmentationStrategy, include_neutral_losses)
         elif is_exd:
-            self._match_backbone_series(IonSeries.b, error_tolerance, masked_peaks, EXDFragmentationStrategy)
-            self._match_backbone_series(IonSeries.c, error_tolerance, masked_peaks, EXDFragmentationStrategy)
+            self._match_backbone_series(
+                IonSeries.b, error_tolerance, masked_peaks, EXDFragmentationStrategy, include_neutral_losses)
+            self._match_backbone_series(
+                IonSeries.c, error_tolerance, masked_peaks, EXDFragmentationStrategy, include_neutral_losses)
 
         # handle C-term
         if is_hcd and not is_exd:
-            self._match_backbone_series(IonSeries.y, error_tolerance, masked_peaks, HCDFragmentationStrategy)
+            self._match_backbone_series(
+                IonSeries.y, error_tolerance, masked_peaks, HCDFragmentationStrategy, include_neutral_losses)
         elif is_exd:
-            self._match_backbone_series(IonSeries.y, error_tolerance, masked_peaks, EXDFragmentationStrategy)
-            self._match_backbone_series(IonSeries.z, error_tolerance, masked_peaks, EXDFragmentationStrategy)
+            self._match_backbone_series(
+                IonSeries.y, error_tolerance, masked_peaks, EXDFragmentationStrategy, include_neutral_losses)
+            self._match_backbone_series(
+                IonSeries.z, error_tolerance, masked_peaks, EXDFragmentationStrategy, include_neutral_losses)
         return self
