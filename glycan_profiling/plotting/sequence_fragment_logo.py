@@ -2,6 +2,7 @@ from collections import defaultdict
 
 import glycopeptidepy
 from glycopeptidepy.structure import sequence, modification
+from glycopeptidepy.structure.fragment import IonSeries
 from glycopeptidepy.utils import simple_repr
 from glypy.plot import plot as draw_tree
 
@@ -63,6 +64,7 @@ class SequenceGlyph(object):
         if not isinstance(peptide, sequence.PeptideSequenceBase):
             peptide = sequence.PeptideSequence(peptide)
         self.sequence = peptide
+        self._fragment_index = None
         self.ax = ax
         self.size = size
         self.step_coefficient = step_coefficient
@@ -71,7 +73,8 @@ class SequenceGlyph(object):
         self.x = kwargs.get('x', 1)
         self.y = kwargs.get('y', 1)
         self.options = kwargs
-
+        self.next_at_height = dict(c_term=defaultdict(float), n_term=defaultdict(float))
+        self.multi_tier_annotation = False
         self.render()
 
     def transform(self, transform):
@@ -135,12 +138,18 @@ class SequenceGlyph(object):
         length *= self.step_coefficient
         label_x = x - length * 0.9
         label_y = y
+        if self.next_at_height['n_term'][index] != 0:
+            label_y = self.next_at_height['n_term'][index]
+            self.multi_tier_annotation = True
+        else:
+            label_y = y
         tpath = textpath.TextPath(
             (label_x, label_y), label, size=size, prop=font_options)
         tpatch = mpatches.PathPatch(
             tpath, color='black', lw=0.25)
         self.ax.add_patch(tpatch)
         self.annotations.append(tpatch)
+        self.next_at_height['n_term'][index] = tpath.vertices[:, 1].min()
 
     def draw_n_term_annotation(
             self, index, height=0.25, length=0.75, color='red', **kwargs):
@@ -159,13 +168,18 @@ class SequenceGlyph(object):
         y = (self.y * 2) + height
         length *= self.step_coefficient
         label_x = x + length / 10.
-        label_y = y + 0.2
+        if self.next_at_height['c_term'][index] != 0:
+            label_y = self.next_at_height['c_term'][index]
+            self.multi_tier_annotation = True
+        else:
+            label_y = y + 0.2
         tpath = textpath.TextPath(
             (label_x, label_y), label, size=size, prop=font_options)
         tpatch = mpatches.PathPatch(
             tpath, color='black', lw=0.25)
         self.ax.add_patch(tpatch)
         self.annotations.append(tpatch)
+        self.next_at_height['c_term'][index] = tpath.vertices[:, 1].max() + 0.1
 
     def draw_c_term_annotation(
             self, index, height=0., length=0.75, color='red', **kwargs):
@@ -184,19 +198,47 @@ class SequenceGlyph(object):
                     len(self.sequence) +
                     1)
         ax.set_ylim(self.y - 1, self.y + 2)
+        if self.multi_tier_annotation:
+            ax.set_ylim(self.y - 2, self.y + 3)
         ax.axis("off")
+
+    def break_at(self, idx):
+        if self._fragment_index is None:
+            self._build_fragment_index()
+        return self._fragment_index[idx]
+
+    def _build_fragment_index(self, types=tuple('bycz')):
+        self._fragment_index = [[] for i in range(len(self) + 1)]
+        for series in types:
+            series = IonSeries(series)
+            if series.direction > 0:
+                g = self.sequence.get_fragments(
+                    series)
+                for frags in g:
+                    position = self._fragment_index[frags[0].position]
+                    position.append(frags)
+            else:
+                g = self.sequence.get_fragments(
+                    series)
+                for frags in g:
+                    position = self._fragment_index[
+                        len(self) - frags[0].position]
+                    position.append(frags)
 
     def annotate_from_fragments(self, fragments, **kwargs):
         index = {}
         for i in range(1, len(self.sequence)):
-            for series in self.sequence.break_at(i):
+            for series in self.break_at(i):
                 for f in series:
                     index[f.name] = i
         n_annotations = []
         c_annotations = []
 
         for fragment in fragments:
-            key = fragment.name
+            if hasattr(fragment, 'base_name'):
+                key = fragment.base_name()
+            else:
+                key = fragment.name
             if key in index:
                 is_glycosylated = fragment.is_glycosylated
                 if key.startswith('b') or key.startswith('c'):
