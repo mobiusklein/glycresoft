@@ -139,7 +139,7 @@ class SequenceGlyph(object):
         label_x = x - length * 0.9
         label_y = y
         if self.next_at_height['n_term'][index] != 0:
-            label_y = self.next_at_height['n_term'][index]
+            label_y = self.next_at_height['n_term'][index] - 0.4
             self.multi_tier_annotation = True
         else:
             label_y = y
