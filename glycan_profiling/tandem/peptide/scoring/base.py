@@ -37,7 +37,7 @@ class PeptideSpectrumMatcherBase(SpectrumMatcherBase):
             masked_peaks.add(peak)
             self.solution_map.add(peak, frag)
         if include_neutral_losses:
-            delta = Composition("-NH3")
+            delta = -Composition("NH3")
             for peak in self.spectrum.all_peaks_for(frag.mass + delta.mass, error_tolerance):
                 if peak.index.neutral_mass in masked_peaks:
                     continue
@@ -45,7 +45,7 @@ class PeptideSpectrumMatcherBase(SpectrumMatcherBase):
                 shifted_frag = frag.clone()
                 shifted_frag.set_chemical_shift(ChemicalShift("-NH3", delta))
                 self.solution_map.add(peak, shifted_frag)
-            delta = Composition("-H2O")
+            delta = -Composition("H2O")
             for peak in self.spectrum.all_peaks_for(frag.mass + delta.mass, error_tolerance):
                 if peak.index.neutral_mass in masked_peaks:
                     continue
