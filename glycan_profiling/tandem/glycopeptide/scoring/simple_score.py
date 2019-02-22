@@ -72,15 +72,16 @@ class SimpleCoverageScorer(GlycopeptideSpectrumMatcherBase):
         glycosylated_c_term_ions = set()
 
         for frag in self.solution_map.fragments():
-            if frag.series in (IonSeries.b, IonSeries.c):
+            series = frag.get_series()
+            if series in (IonSeries.b, IonSeries.c):
                 n_term_ions[frag.position] = 1
                 if frag.is_glycosylated:
-                    glycosylated_n_term_ions.add((frag.series, frag.position))
-            elif frag.series in (IonSeries.y, IonSeries.z):
+                    glycosylated_n_term_ions.add((series, frag.position))
+            elif series in (IonSeries.y, IonSeries.z):
                 c_term_ions[frag.position] = 1
                 if frag.is_glycosylated:
-                    glycosylated_c_term_ions.add((frag.series, frag.position))
-            elif frag.series == IonSeries.stub_glycopeptide:
+                    glycosylated_c_term_ions.add((series, frag.position))
+            elif series == IonSeries.stub_glycopeptide:
                 stub_count += 1
         return n_term_ions, c_term_ions, stub_count, len(glycosylated_n_term_ions), len(glycosylated_c_term_ions)
 

@@ -27,11 +27,11 @@ class LogIntensityScorer(SignatureAwareCoverageScorer, MassAccuracyMixin):
 
     def calculate_peptide_score(self, error_tolerance=2e-5, coverage_weight=1.0, *args, **kwargs):
         total = 0
-        series_set = (IonSeries.b, IonSeries.y, IonSeries.c, IonSeries.z)
+        series_set = {IonSeries.b, IonSeries.y, IonSeries.c, IonSeries.z}
         seen = set()
         for peak_pair in self.solution_map:
             peak = peak_pair.peak
-            if peak_pair.fragment.series in series_set:
+            if peak_pair.fragment.get_series() in series_set:
                 seen.add(peak.index.neutral_mass)
                 total += np.log10(peak.intensity) * (1 - (abs(peak_pair.mass_accuracy()) / error_tolerance) ** 4)
         n_term, c_term = self._compute_coverage_vectors()[:2]
