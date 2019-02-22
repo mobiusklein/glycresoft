@@ -35,19 +35,76 @@ class PeakFragmentPair(object):
         return (self.peak.neutral_mass - self.fragment.mass) / self.fragment.mass
 
 
+class _FragmentIndexBase(object):
+    def __init__(self, fragment_set):
+        self.fragment_set = fragment_set
+        self._mapping = None
+
+    @property
+    def mapping(self):
+        if self._mapping is None:
+            self._create_mapping()
+        return self._mapping
+
+    def invalidate(self):
+        self._mapping = None
+
+    def __getitem__(self, key):
+        return self.mapping[key]
+
+    def __iter__(self):
+        return iter(self.mapping)
+
+    def items(self):
+        return self.mapping.items()
+
+    def keys(self):
+        return self.mapping.keys()
+
+    def values(self):
+        return self.mapping.values()
+
+    def __len__(self):
+        return len(self.mapping)
+
+    def __contains__(self, key):
+        return key in self.mapping
+
+    def __str__(self):
+        return str(self.mapping)
+
+
+class ByFragmentIndex(_FragmentIndexBase):
+
+    def _create_mapping(self):
+        self._mapping = defaultdict(list)
+        for peak_fragment_pair in self.fragment_set:
+            self._mapping[peak_fragment_pair.fragment].append(
+                peak_fragment_pair.peak)
+
+
+class ByPeakIndex(_FragmentIndexBase):
+
+    def _create_mapping(self):
+        self._mapping = defaultdict(list)
+        for peak_fragment_pair in self.fragment_set:
+            self._mapping[peak_fragment_pair.peak].append(
+                peak_fragment_pair.fragment)
+
+
 class FragmentMatchMap(object):
     def __init__(self):
         self.members = set()
-        self.by_fragment = defaultdict(list)
-        self.by_peak = defaultdict(list)
+        self.by_fragment = ByFragmentIndex(self)
+        self.by_peak = ByPeakIndex(self)
 
     def add(self, peak, fragment=None):
         if fragment is not None:
             peak = PeakFragmentPair(peak, fragment)
         if peak not in self.members:
             self.members.add(peak)
-            self.by_fragment[peak.fragment].append(peak.peak)
-            self.by_peak[peak.peak].append(peak.fragment)
+            self.by_peak.invalidate()
+            self.by_fragment.invalidate()
 
     def pairs_by_name(self, name):
         pairs = []
@@ -77,10 +134,10 @@ class FragmentMatchMap(object):
             yield pair.peak
 
     def fragments(self):
-        frags = set()
-        for peak, fragment in self:
-            frags.add(fragment)
-        return iter(frags)
+        fragments = set()
+        for peak_pair in self:
+            fragments.add(peak_pair.fragment)
+        return fragments
 
     def remove_fragment(self, fragment):
         peaks = self.peaks_for(fragment)
@@ -92,7 +149,7 @@ class FragmentMatchMap(object):
             else:
                 self.by_peak[peak] = kept
             self.members.remove(PeakFragmentPair(peak, fragment))
-        self.by_fragment.pop(fragment)
+        self.by_fragment.invalidate()
 
     def remove_peak(self, peak):
         fragments = self.fragments_for(peak)
@@ -104,7 +161,7 @@ class FragmentMatchMap(object):
             else:
                 self.by_fragment[fragment] = kept
             self.members.remove(PeakFragmentPair(peak, fragment))
-        self.by_peak.pop(peak)
+        self.by_peak.invalidate()
 
     def copy(self):
         inst = self.__class__()
@@ -121,8 +178,8 @@ class FragmentMatchMap(object):
 
     def clear(self):
         self.members.clear()
-        self.by_fragment.clear()
-        self.by_peak.clear()
+        self.by_fragment.invalidate()
+        self.by_peak.invalidate()
 
 
 class PeakPairTransition(object):

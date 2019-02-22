@@ -202,6 +202,7 @@ class FragmentCachingGlycopeptide(PeptideSequence):
             return result
 
     def stub_fragments(self, *args, **kwargs):
+        kwargs.setdefault("strategy", CachingStubGlycopeptideStrategy)
         key = ('stub_fragments', args, frozenset(kwargs.items()))
         try:
             return self.fragment_caches[key]
@@ -362,6 +363,20 @@ class DecoyFragmentCachingGlycopeptide(FragmentCachingGlycopeptide):
         # Intentionally share caches with offspring
         inst.fragment_caches = {k: v for k, v in target.fragment_caches.items() if 'stub_fragments' not in k}
         return inst
+
+
+class CachingStubGlycopeptideStrategy(StubGlycopeptideStrategy):
+    _cache = dict()
+
+    def n_glycan_composition_fragments(self, glycan, core_count=1, iteration_count=0):
+        try:
+            value = self._cache[glycan, core_count, iteration_count]
+            return value
+        except KeyError:
+            value = super(CachingStubGlycopeptideStrategy, self).n_glycan_composition_fragments(
+                glycan, core_count, iteration_count)
+            self._cache[glycan, core_count, iteration_count] = value
+            return value
 
 
 class DecoyMakingCachingGlycopeptideParser(CachingGlycopeptideParser):
