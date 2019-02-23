@@ -15,12 +15,6 @@ np.import_array()
 @cython.freelist(1000000)
 cdef class PeakFragmentPair(object):
 
-    cdef:
-        public DeconvolutedPeak peak
-        public object fragment
-        public str fragment_name
-        public long _hash
-
     @staticmethod
     cdef PeakFragmentPair _create(DeconvolutedPeak peak, object fragment):
         cdef PeakFragmentPair self = PeakFragmentPair.__new__(PeakFragmentPair)
@@ -63,6 +57,7 @@ cdef class PeakFragmentPair(object):
         yield self.peak
         yield self.fragment
 
+    @cython.cdivision(True)
     cpdef double mass_accuracy(self):
         return (self.peak.neutral_mass - self.fragment.mass) / self.fragment.mass
 
@@ -70,12 +65,6 @@ cdef class PeakFragmentPair(object):
 @cython.final
 @cython.freelist(1000000)
 cdef class PeakPairTransition(object):
-    cdef:
-        public DeconvolutedPeak start
-        public DeconvolutedPeak end
-        public object annotation
-        public tuple key
-        public long _hash
 
     def __init__(self, start, end, annotation):
         self.start = start
@@ -113,12 +102,6 @@ cdef class PeakPairTransition(object):
 
 
 cdef class SpectrumGraph(object):
-
-    cdef:
-        public set transitions
-        public object by_first
-        public object by_second
-
     def __init__(self):
         self.transitions = set()
         self.by_first = defaultdict(list)
@@ -299,24 +282,105 @@ cdef class SpectrumGraph(object):
         return paths
 
 
-cdef class FragmentMatchMap(object):
-    cdef:
-        public set members
-        public object by_fragment
-        public object by_peak
+@cython.freelist(10000)
+cdef class _FragmentIndexBase(object):
+    def __init__(self, fragment_set):
+        self.fragment_set = fragment_set
+        self._mapping = None
 
+    cpdef _create_mapping(self):
+        raise NotImplementedError()
+
+    @property
+    def mapping(self):
+        if self._mapping is None:
+            self._create_mapping()
+        return self._mapping
+
+    cpdef invalidate(self):
+        self._mapping = None
+
+    def __getitem__(self, key):
+        return self.mapping[key]
+
+    def __iter__(self):
+        return iter(self.mapping)
+
+    def items(self):
+        return self.mapping.items()
+
+    def keys(self):
+        return self.mapping.keys()
+
+    def values(self):
+        return self.mapping.values()
+
+    def __len__(self):
+        return len(self.mapping)
+
+    def __contains__(self, key):
+        return key in self.mapping
+
+    def __str__(self):
+        return str(self.mapping)
+
+
+cdef class ByFragmentIndex(_FragmentIndexBase):
+
+    @staticmethod
+    cdef ByFragmentIndex _create(FragmentMatchMap fragment_set):
+        cdef ByFragmentIndex self = ByFragmentIndex.__new__(ByFragmentIndex)
+        self.fragment_set = fragment_set
+        self._mapping = None
+        return self
+
+    cpdef _create_mapping(self):
+        cdef:
+            set frags
+            object obj
+            PeakFragmentPair pair
+        self._mapping = defaultdict(list)
+        for obj in self.fragment_set.members:
+            pair = <PeakFragmentPair>obj
+            (<list>(self._mapping[pair.fragment])).append(
+                pair.peak)
+
+
+cdef class ByPeakIndex(_FragmentIndexBase):
+
+    @staticmethod
+    cdef ByPeakIndex _create(FragmentMatchMap fragment_set):
+        cdef ByPeakIndex self = ByPeakIndex.__new__(ByPeakIndex)
+        self.fragment_set = fragment_set
+        self._mapping = None
+        return self
+
+    cpdef _create_mapping(self):
+        cdef:
+            set frags
+            object obj
+            PeakFragmentPair pair
+        self._mapping = defaultdict(list)
+        for obj in self.fragment_set.members:
+            pair = <PeakFragmentPair>obj
+            (<list>(self._mapping[pair.peak])).append(
+                pair.fragment)
+
+
+@cython.final
+@cython.freelist(1000000)
+cdef class FragmentMatchMap(object):
     def __init__(self):
         self.members = set()
-        self.by_fragment = defaultdict(list)
-        self.by_peak = defaultdict(list)
+        self.by_fragment = ByFragmentIndex._create(self)
+        self.by_peak = ByPeakIndex._create(self)
 
-    def add(self, peak, fragment=None):
+    cpdef add(self, peak, fragment=None):
         if fragment is not None:
-            peak = PeakFragmentPair._create(peak, fragment)
-        if peak not in self.members:
-            self.members.add(peak)
-            self.by_fragment[peak.fragment].append(peak.peak)
-            self.by_peak[peak.peak].append(peak.fragment)
+            peak = PeakFragmentPair._create(<DeconvolutedPeak>peak, fragment)
+        self.members.add(peak)
+        self.by_fragment.invalidate()
+        self.by_peak.invalidate()
 
     def pairs_by_name(self, name):
         pairs = []
@@ -345,50 +409,45 @@ cdef class FragmentMatchMap(object):
         for pair in self.members:
             yield pair.peak
 
-    def fragments(self):
+    cpdef set fragments(self):
+        cdef:
+            set frags
+            object obj
+            PeakFragmentPair pair
         frags = set()
-        for peak, fragment in self:
-            frags.add(fragment)
-        return iter(frags)
+        for obj in self.members:
+            pair = <PeakFragmentPair>obj
+            frags.add(pair.fragment)
+        return frags
 
     def remove_fragment(self, fragment):
         peaks = self.peaks_for(fragment)
         for peak in peaks:
-            fragments_from_peak = self.by_peak[peak]
-            kept = [f for f in fragments_from_peak if f != fragment]
-            if len(kept) == 0:
-                self.by_peak.pop(peak)
-            else:
-                self.by_peak[peak] = kept
             self.members.remove(PeakFragmentPair(peak, fragment))
-        self.by_fragment.pop(fragment)
+        self.by_fragment.invalidate()
+        self.by_peak.invalidate()
 
     def remove_peak(self, peak):
         fragments = self.fragments_for(peak)
         for fragment in fragments:
-            peaks_from_fragment = self.by_fragment[fragment]
-            kept = [p for p in peaks_from_fragment if p != peak]
-            if len(kept) == 0:
-                self.by_fragment.pop(fragment)
-            else:
-                self.by_fragment[fragment] = kept
             self.members.remove(PeakFragmentPair(peak, fragment))
-        self.by_peak.pop(peak)
+        self.by_peak.invalidate()
+        self.by_fragment.invalidate()
 
-    def copy(self):
-        inst = self.__class__()
+    cpdef FragmentMatchMap copy(self):
+        cdef FragmentMatchMap inst = self.__class__()
         for case in self.members:
             inst.add(case)
         return inst
 
-    def clone(self):
+    cpdef FragmentMatchMap clone(self):
         return self.copy()
 
     def __repr__(self):
         return "FragmentMatchMap(%s)" % (', '.join(
             f.name for f in self.fragments()),)
 
-    def clear(self):
+    cpdef clear(self):
         self.members.clear()
-        self.by_fragment.clear()
-        self.by_peak.clear()
+        self.by_fragment.invalidate()
+        self.by_peak.invalidate()

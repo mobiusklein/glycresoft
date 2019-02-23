@@ -142,26 +142,16 @@ class FragmentMatchMap(object):
     def remove_fragment(self, fragment):
         peaks = self.peaks_for(fragment)
         for peak in peaks:
-            fragments_from_peak = self.by_peak[peak]
-            kept = [f for f in fragments_from_peak if f != fragment]
-            if len(kept) == 0:
-                self.by_peak.pop(peak)
-            else:
-                self.by_peak[peak] = kept
             self.members.remove(PeakFragmentPair(peak, fragment))
         self.by_fragment.invalidate()
+        self.by_peak.invalidate()
 
     def remove_peak(self, peak):
         fragments = self.fragments_for(peak)
         for fragment in fragments:
-            peaks_from_fragment = self.by_fragment[fragment]
-            kept = [p for p in peaks_from_fragment if p != peak]
-            if len(kept) == 0:
-                self.by_fragment.pop(fragment)
-            else:
-                self.by_fragment[fragment] = kept
             self.members.remove(PeakFragmentPair(peak, fragment))
         self.by_peak.invalidate()
+        self.by_fragment.invalidate()
 
     def copy(self):
         inst = self.__class__()
@@ -382,8 +372,9 @@ try:
     _PeakFragmentPair = PeakFragmentPair
     _PeakPairTransition = PeakPairTransition
     _SpectrumGraph = SpectrumGraph
+    _FragmentMatchMap = FragmentMatchMap
 
     from glycan_profiling._c.structure.fragment_match_map import (
-        PeakFragmentPair, PeakPairTransition, SpectrumGraph)
+        PeakFragmentPair, PeakPairTransition, SpectrumGraph, FragmentMatchMap)
 except ImportError:
     has_c = False
