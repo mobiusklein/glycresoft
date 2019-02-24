@@ -13,6 +13,8 @@ class GlycopeptideSpectrumMatcherBase(SpectrumMatcherBase):
         return self.target.total_mass
 
     def _match_oxonium_ions(self, error_tolerance=2e-5, masked_peaks=None):
+        '''Note: This method is masked by a Cython implementation
+        '''
         if masked_peaks is None:
             masked_peaks = set()
         for frag in self.target.glycan_fragments(
@@ -123,3 +125,11 @@ class GlycopeptideSpectrumMatcherBase(SpectrumMatcherBase):
 
     def calculate_glycan_score(self, *args, **kwargs):
         return 0
+
+
+try:
+    from glycan_profiling._c.tandem.tandem_scoring_helpers import _match_oxonium_ions, _match_stub_glycopeptides
+    GlycopeptideSpectrumMatcherBase._match_oxonium_ions = _match_oxonium_ions
+    GlycopeptideSpectrumMatcherBase._match_stub_glycopeptides = _match_stub_glycopeptides
+except ImportError:
+    pass

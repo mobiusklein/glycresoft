@@ -56,7 +56,7 @@ class SpectrumMatchBase(ScanWrapperBase):
             offset * neutron_offset) + self.mass_shift.mass
         return (observed - theoretical) / theoretical
 
-    def determine_precursor_offset(self, probing_range=3):
+    def determine_precursor_offset(self, probing_range=3, include_error=False):
         best_offset = 0
         best_error = float('inf')
         theoretical_mass_base = self._theoretical_mass() + self.mass_shift.mass
@@ -67,6 +67,8 @@ class SpectrumMatchBase(ScanWrapperBase):
             if error < best_error:
                 best_error = error
                 best_offset = i
+        if include_error:
+            return best_offset, best_error
         return best_offset
 
     def __reduce__(self):
@@ -146,6 +148,12 @@ class SpectrumMatcherBase(SpectrumMatchBase):
     def calculate_score(self, *args, **kwargs):
         raise NotImplementedError()
 
+    def base_peak(self):
+        try:
+            return max([peak.intensity for peak in self.spectrum])
+        except ValueError:
+            return 0
+
     @classmethod
     def evaluate(cls, scan, target, *args, **kwargs):
         mass_shift = kwargs.pop("mass_shift", Unmodified)
@@ -179,6 +187,13 @@ class SpectrumMatcherBase(SpectrumMatchBase):
         art = spectral_annotation.TidySpectrumMatchAnnotator(self, ax=ax)
         art.draw(**kwargs)
         return art
+
+
+try:
+    from glycan_profiling._c.tandem.tandem_scoring_helpers import base_peak
+    SpectrumMatcherBase.base_peak = base_peak
+except ImportError:
+    pass
 
 
 class DeconvolutingSpectrumMatcherBase(SpectrumMatcherBase):
