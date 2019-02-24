@@ -59,8 +59,11 @@ class SpectrumMatchBase(ScanWrapperBase):
     def determine_precursor_offset(self, probing_range=3):
         best_offset = 0
         best_error = float('inf')
+        theoretical_mass_base = self._theoretical_mass() + self.mass_shift.mass
+        observed = self.precursor_ion_mass
         for i in range(probing_range + 1):
-            error = abs(self.precursor_mass_accuracy(i))
+            theoretical = theoretical_mass_base + i * neutron_offset
+            error = abs((observed - theoretical) / theoretical)
             if error < best_error:
                 best_error = error
                 best_offset = i
