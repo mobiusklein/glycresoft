@@ -88,3 +88,10 @@ class PeptideSpectrumMatcherBase(SpectrumMatcherBase):
                 IonSeries.z, error_tolerance, masked_peaks, EXDFragmentationStrategy,
                 include_neutral_losses)
         return self
+
+
+try:
+    from glycan_profiling._c.tandem.tandem_scoring_helpers import PeptideSpectrumMatcherBase_match_backbone_series
+    PeptideSpectrumMatcherBase._match_backbone_series = PeptideSpectrumMatcherBase_match_backbone_series
+except ImportError:
+    pass

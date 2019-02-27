@@ -32,6 +32,7 @@ cdef object zeros = np.zeros
 cdef object np_float64 = np.float64
 
 @cython.binding(True)
+@cython.boundscheck(False)
 cpdef _compute_coverage_vectors(self):
     cdef:
         np.ndarray[np.float64_t, ndim=1] n_term_ions, c_term_ions
@@ -413,3 +414,74 @@ cpdef scalar_or_array gauss(scalar_or_array x, double mu, double sigma):
         return np.exp(-((x - mu) ** 2) / (2 * sigma ** 2)) / (sigma * sqrt2pi)
     else:
         return exp(-((x - mu) ** 2) / (2 * sigma ** 2)) / (sigma * sqrt2pi)
+
+
+@cython.binding(True)
+@cython.cdivision(True)
+@cython.boundscheck(False)
+def PeptideSpectrumMatcherBase_match_backbone_series(self, IonSeriesBase series, double error_tolerance=2e-5,
+                                                     set masked_peaks=None, strategy=None, bint include_neutral_losses=False):
+    cdef:
+        list frags, fragments
+        tuple peaks
+        PeptideFragment frag
+        FragmentMatchMap solution_map
+        DeconvolutedPeak peak
+        DeconvolutedPeakSet spectrum
+        size_t i, n, j, m, i_peaks, n_peaks
+
+    if strategy is None:
+        strategy = HCDFragmentationStrategy
+
+    spectrum = self.spectrum
+    obj = self.get_fragments(series, strategy=strategy, include_neutral_losses=include_neutral_losses)
+    if not isinstance(obj, list):
+        fragments = list(obj)
+    else:
+        fragments = <list>obj
+
+    solution_map = <FragmentMatchMap>self.solution_map
+
+    n = PyList_GET_SIZE(fragments)
+    for i in range(n):
+        frags = <list>PyList_GET_ITEM(fragments, i)
+        m = PyList_GET_SIZE(frags)
+        for j in range(m):
+            frag = <PeptideFragment>PyList_GET_ITEM(frags, j)
+            peaks = <tuple>spectrum.all_peaks_for(frag.mass, error_tolerance)
+            for i_peaks in range(PyTuple_Size(peaks)):
+                peak = <DeconvolutedPeak>PyTuple_GetItem(peaks, i_peaks)
+                if peak._index.neutral_mass in masked_peaks:
+                    continue
+                solution_map.add(peak, frag)
+
+
+@cython.binding(True)
+@cython.boundscheck(False)
+cpdef _peptide_compute_coverage_vectors(self):
+    cdef:
+        np.ndarray[np.float64_t, ndim=1] n_term_ions, c_term_ions
+        long size
+        FragmentMatchMap solution_map
+        FragmentBase frag
+        PeptideFragment pep_frag
+        _PeptideSequenceCore target
+
+    target = <_PeptideSequenceCore>self.target
+    size = target.get_size()
+
+    n_term_ions = zeros(size, dtype=np_float64)
+    c_term_ions = zeros(size, dtype=np_float64)
+
+    solution_map = self.solution_map
+
+    for obj in solution_map.fragments():
+        frag = <FragmentBase>obj
+        series = frag.get_series()
+        if series in (IonSeries_b, IonSeries_c):
+            pep_frag = <PeptideFragment>frag
+            n_term_ions[pep_frag.position] = 1
+        elif series in (IonSeries_y, IonSeries_z):
+            pep_frag = <PeptideFragment>frag
+            c_term_ions[pep_frag.position] = 1
+    return n_term_ions, c_term_ions
