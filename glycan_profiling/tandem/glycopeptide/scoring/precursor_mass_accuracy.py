@@ -49,3 +49,9 @@ class MassAccuracyMixin(object):
         offset, error = self.determine_precursor_offset(include_error=True)
         mass_accuracy = -10 * math.log10(1 - self.accuracy_bias(error))
         return mass_accuracy
+
+
+try:
+    from glycan_profiling._c.tandem.tandem_scoring_helpers import gauss
+except ImportError:
+    pass

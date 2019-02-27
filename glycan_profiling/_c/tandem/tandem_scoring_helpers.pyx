@@ -1,14 +1,14 @@
 cimport cython
 from cpython cimport PyTuple_GetItem, PyTuple_Size, PyList_GET_ITEM, PyList_GET_SIZE
 
-from libc.math cimport log10, log
+from libc.math cimport log10, log, sqrt, exp
 
 import numpy as np
 cimport numpy as np
 np.import_array()
 from numpy.math cimport isnan 
 
-from ms_deisotope._c.peak_set cimport DeconvolutedPeak, DeconvolutedPeakSetIndexed
+from ms_deisotope._c.peak_set cimport DeconvolutedPeak, DeconvolutedPeakSet
 
 from glycan_profiling._c.structure.fragment_match_map cimport (
     FragmentMatchMap, PeakFragmentPair)
@@ -183,7 +183,7 @@ def SimpleCoverageScorer_match_backbone_series(self, IonSeriesBase series, doubl
         FragmentMatchMap solution_map
         long glycosylated_term_ions_count
         DeconvolutedPeak peak
-        DeconvolutedPeakSetIndexed spectrum
+        DeconvolutedPeakSet spectrum
         size_t i, n, j, m, i_peaks, n_peaks
 
     if strategy is None:
@@ -227,6 +227,71 @@ def SimpleCoverageScorer_match_backbone_series(self, IonSeriesBase series, doubl
         self.glycosylated_c_term_ion_count += glycosylated_term_ions_count
 
 
+
+@cython.binding(True)
+@cython.cdivision(True)
+@cython.boundscheck(False)
+def CoverageWeightedBinomialScorer_match_backbone_series(self, IonSeriesBase series, double error_tolerance=2e-5,
+                                                         set masked_peaks=None, strategy=None,
+                                                         bint include_neutral_losses=False):
+    cdef:
+        list frags, fragments
+        tuple peaks
+        bint glycosylated_position, previous_position_glycosylated
+        PeptideFragment frag
+        FragmentMatchMap solution_map
+        long glycosylated_term_ions_count
+        long n_theoretical
+        DeconvolutedPeak peak
+        DeconvolutedPeakSet spectrum
+        size_t i, n, j, m, i_peaks, n_peaks
+
+
+    if strategy is None:
+        strategy = HCDFragmentationStrategy
+
+    n_theoretical = 0
+    previous_position_glycosylated = False
+    glycosylated_term_ions_count = 0
+
+    spectrum = self.spectrum
+    obj = self.get_fragments(series, strategy=strategy, include_neutral_losses=include_neutral_losses)
+    if not isinstance(obj, list):
+        fragments = list(obj)
+    else:
+        fragments = <list>obj
+
+    solution_map = <FragmentMatchMap>self.solution_map
+
+    n = PyList_GET_SIZE(fragments)
+    for i in range(n):
+        frags = <list>PyList_GET_ITEM(fragments, i)
+
+        glycosylated_position = previous_position_glycosylated
+        n_theoretical += 1
+        m = PyList_GET_SIZE(frags)
+        for j in range(m):
+            frag = <PeptideFragment>PyList_GET_ITEM(frags, j)
+            if not glycosylated_position:
+                glycosylated_position |= frag._is_glycosylated()
+            peaks = spectrum.all_peaks_for(frag.mass, error_tolerance)
+            n_peaks = PyTuple_Size(peaks)
+            for i_peaks in range(n_peaks):
+                peak = <DeconvolutedPeak>PyTuple_GetItem(peaks, i_peaks)
+                if peak._index.neutral_mass in masked_peaks:
+                    continue
+                solution_map.add(peak, frag)
+        if glycosylated_position:
+            glycosylated_term_ions_count += 1
+        previous_position_glycosylated = glycosylated_position
+
+    self.n_theoretical += n_theoretical
+    if series.direction > 0:
+        self.glycosylated_n_term_ion_count += glycosylated_term_ions_count
+    else:
+        self.glycosylated_c_term_ion_count += glycosylated_term_ions_count
+
+
 @cython.binding(True)
 @cython.nonecheck(False)
 def _match_oxonium_ions(self, double error_tolerance=2e-5, set masked_peaks=None):
@@ -234,7 +299,7 @@ def _match_oxonium_ions(self, double error_tolerance=2e-5, set masked_peaks=None
         list fragments
         FragmentBase frag
         DeconvolutedPeak peak
-        DeconvolutedPeakSetIndexed spectrum
+        DeconvolutedPeakSet spectrum
         FragmentMatchMap solution_map
         object ix
 
@@ -246,7 +311,7 @@ def _match_oxonium_ions(self, double error_tolerance=2e-5, set masked_peaks=None
             include_large_glycan_fragments=False,
             maximum_fragment_size=4))
 
-    spectrum = <DeconvolutedPeakSetIndexed>self.spectrum
+    spectrum = <DeconvolutedPeakSet>self.spectrum
     solution_map = <FragmentMatchMap>self.solution_map
 
     for i in range(len(fragments)):
@@ -270,7 +335,7 @@ def _match_stub_glycopeptides(self, double error_tolerance=2e-5, set masked_peak
         tuple peaks, shifted_peaks
         DeconvolutedPeak peak
         size_t i, n, j, m, k
-        DeconvolutedPeakSetIndexed spectrum
+        DeconvolutedPeakSet spectrum
         FragmentMatchMap solution_map
 
 
@@ -283,7 +348,7 @@ def _match_stub_glycopeptides(self, double error_tolerance=2e-5, set masked_peak
     else:
         fragments = list(obj)
 
-    spectrum = <DeconvolutedPeakSetIndexed>self.spectrum
+    spectrum = <DeconvolutedPeakSet>self.spectrum
     solution_map = <FragmentMatchMap>self.solution_map
 
     for i in range(PyList_GET_SIZE(fragments)):
@@ -318,9 +383,9 @@ def _match_stub_glycopeptides(self, double error_tolerance=2e-5, set masked_peak
 cpdef base_peak(self):
     cdef:
         DeconvolutedPeak peak
-        DeconvolutedPeakSetIndexed spectrum
+        DeconvolutedPeakSet spectrum
         size_t i, n
-    spectrum = <DeconvolutedPeakSetIndexed>self.spectrum
+    spectrum = <DeconvolutedPeakSet>self.spectrum
     if spectrum is None:
         return 0
     n = spectrum.get_size()
@@ -332,3 +397,19 @@ cpdef base_peak(self):
             max_intensity = peak.intensity
             max_peak = peak
     return max_intensity
+
+
+cdef double sqrt2pi = sqrt(2 * np.pi)
+
+
+ctypedef fused scalar_or_array:
+    double
+    np.ndarray
+
+
+@cython.cdivision(True)
+cpdef scalar_or_array gauss(scalar_or_array x, double mu, double sigma):
+    if scalar_or_array is np.ndarray:
+        return np.exp(-((x - mu) ** 2) / (2 * sigma ** 2)) / (sigma * sqrt2pi)
+    else:
+        return exp(-((x - mu) ** 2) / (2 * sigma ** 2)) / (sigma * sqrt2pi)

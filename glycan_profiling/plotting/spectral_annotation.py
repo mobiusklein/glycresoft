@@ -29,6 +29,7 @@ class SpectrumMatchAnnotator(object):
         self.upper = max(
             spectrum_match.spectrum, key=lambda x: x.intensity
         ).intensity * 1.35
+        self.peak_labels = []
 
     def draw_all_peaks(self, color='black', alpha=0.5, **kwargs):
         draw_peaklist(
@@ -51,10 +52,12 @@ class SpectrumMatchAnnotator(object):
         kw.setdefault("clip_on", self.clip_labels)
         clip_on = kw['clip_on']
 
-        return self.ax.text(
+        text = self.ax.text(
             peak.mz, y, label, rotation=rotation, va='bottom',
             ha='center', fontsize=fontsize, fontproperties=font_options,
             clip_on=clip_on)
+        self.peak_labels.append(text)
+        return text
 
     def format_axes(self):
         draw_peaklist([], self.ax, pretty=True)

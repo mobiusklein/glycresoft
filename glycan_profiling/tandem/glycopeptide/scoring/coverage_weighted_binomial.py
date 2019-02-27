@@ -61,3 +61,10 @@ def _short_peptide_test(scan, target, *args, **kwargs):
 CoverageWeightedBinomialModelTree = ModelTreeNode(CoverageWeightedBinomialScorer, {
     _short_peptide_test: ModelTreeNode(ShortPeptideCoverageWeightedBinomialScorer, {}),
 })
+
+
+try:
+    from glycan_profiling._c.tandem.tandem_scoring_helpers import CoverageWeightedBinomialScorer_match_backbone_series
+    CoverageWeightedBinomialScorer._match_backbone_series = CoverageWeightedBinomialScorer_match_backbone_series
+except ImportError:
+    pass
