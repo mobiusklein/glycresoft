@@ -2,8 +2,11 @@ import math
 import numpy as np
 
 
+sqrt2pi = np.sqrt(2 * np.pi)
+
+
 def gauss(x, mu, sigma):
-    return np.exp(-((x - mu) ** 2) / (2 * sigma ** 2)) / (sigma * np.sqrt(2 * np.pi))
+    return np.exp(-((x - mu) ** 2) / (2 * sigma ** 2)) / (sigma * sqrt2pi)
 
 
 class MassAccuracyModel(object):
@@ -43,7 +46,12 @@ class MassAccuracyMixin(object):
     accuracy_bias = MassAccuracyModel(0, 5e-6)
 
     def _precursor_mass_accuracy_score(self):
-        offset = self.determine_precursor_offset()
-        mass_accuracy = -10 * math.log10(
-            1 - self.accuracy_bias(self.precursor_mass_accuracy(offset)))
+        offset, error = self.determine_precursor_offset(include_error=True)
+        mass_accuracy = -10 * math.log10(1 - self.accuracy_bias(error))
         return mass_accuracy
+
+
+try:
+    from glycan_profiling._c.tandem.tandem_scoring_helpers import gauss
+except ImportError:
+    pass

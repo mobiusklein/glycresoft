@@ -31,8 +31,9 @@ neugc = FrozenMonosaccharideResidue.from_iupac_lite("NeuGc")
 
 
 def approximate_internal_size_of_glycan(glycan_composition):
-    terminal_groups = glycan_composition[neuac] + glycan_composition[neugc]
-    side_groups = glycan_composition[fucose]
+    terminal_groups = glycan_composition._getitem_fast(neuac) +\
+        glycan_composition._getitem_fast(neugc)
+    side_groups = glycan_composition._getitem_fast(fucose)
     n = sum(glycan_composition.values())
     n -= terminal_groups
     if side_groups > 1:

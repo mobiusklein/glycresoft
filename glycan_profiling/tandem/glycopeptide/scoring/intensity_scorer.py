@@ -87,6 +87,14 @@ class LogIntensityScorer(SignatureAwareCoverageScorer, MassAccuracyMixin):
         return self._glycan_score
 
 
+try:
+    from glycan_profiling._c.tandem.tandem_scoring_helpers import calculate_peptide_score, calculate_glycan_score
+    LogIntensityScorer.calculate_peptide_score = calculate_peptide_score
+    LogIntensityScorer.calculate_glycan_score = calculate_glycan_score
+except ImportError:
+    pass
+
+
 class ShortPeptideLogIntensityScorer(LogIntensityScorer):
     stub_weight = 0.65
 

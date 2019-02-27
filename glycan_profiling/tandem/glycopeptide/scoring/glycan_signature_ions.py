@@ -34,21 +34,20 @@ class GlycanCompositionSignatureMatcher(GlycopeptideSpectrumMatcherBase):
         self.maximum_intensity = float('inf')
 
     def _copy_glycan_composition(self):
-        return FrozenGlycanComposition(self.target.glycan_composition)
+        return (self.target.glycan_composition).clone()
 
     signatures = signatures
 
     def match(self, error_tolerance=2e-5, *args, **kwargs):
-        try:
-            self.maximum_intensity = max([peak.intensity for peak in self.spectrum])
-        except ValueError:
+        if len(self.spectrum) == 0:
             return
+        self.maximum_intensity = self.base_peak()
         water = _water
         spectrum = self.spectrum
         keyfn = attrgetter("intensity")
 
         for monosaccharide in self.signatures:
-            is_expected = monosaccharide in self.glycan_composition
+            is_expected = self.glycan_composition._getitem_fast(monosaccharide) != 0
             peak = spectrum.all_peaks_for(monosaccharide.mass(), error_tolerance)
             peak += spectrum.all_peaks_for(monosaccharide.mass() - water.mass, error_tolerance)
             if peak:
@@ -64,6 +63,8 @@ class GlycanCompositionSignatureMatcher(GlycopeptideSpectrumMatcherBase):
 
     def _find_peak_pairs(self, error_tolerance=2e-5, include_compound=False, *args, **kwargs):
         peak_set = self.spectrum
+        if len(peak_set) == 0:
+            return []
         pairs = SpectrumGraph()
         minimum_intensity_threshold = 0.01
         blocks = [(part, part.mass()) for part in self.glycan_composition]
@@ -72,11 +73,9 @@ class GlycanCompositionSignatureMatcher(GlycopeptideSpectrumMatcherBase):
             compound_blocks = [(block, sum(part.mass() for part in block))
                                for block in compound_blocks]
             blocks.extend(compound_blocks)
-        try:
-            max_peak = max([p.intensity for p in peak_set])
-            threshold = max_peak * minimum_intensity_threshold
-        except ValueError:
-            return []
+
+        max_peak = self.maximum_intensity
+        threshold = max_peak * minimum_intensity_threshold
 
         for peak in peak_set:
             if peak.intensity < threshold or peak.neutral_mass < 150:

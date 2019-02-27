@@ -195,3 +195,12 @@ class SignatureAwareCoverageScorer(SimpleCoverageScorer, GlycanCompositionSignat
             self._match_backbone_series(
                 IonSeries.z, error_tolerance, masked_peaks, EXDFragmentationStrategy, include_neutral_losses)
         return self
+
+
+try:
+    from glycan_profiling._c.tandem.tandem_scoring_helpers import (
+        _compute_coverage_vectors, SimpleCoverageScorer_match_backbone_series)
+    SimpleCoverageScorer._compute_coverage_vectors = _compute_coverage_vectors
+    SimpleCoverageScorer._match_backbone_series = SimpleCoverageScorer_match_backbone_series
+except ImportError:
+    pass
