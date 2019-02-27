@@ -138,7 +138,7 @@ class SpectrumMatchAnnotator(object):
         ax.hlines(-limits / 2, *xlim, linestyle='--', lw=0.5)
         ax.set_xlim(*xlim)
         labels = ax.get_yticks()
-        labels = ['%s ppm' % (label * 1e6) for label in labels]
+        labels = ['%0.2f ppm' % (label * 1e6) for label in labels]
         ax.set_yticklabels(labels)
         ax.set_xlabel("m/z", fontsize=16)
         ax.set_ylabel("Mass Accuracy", fontsize=16)
