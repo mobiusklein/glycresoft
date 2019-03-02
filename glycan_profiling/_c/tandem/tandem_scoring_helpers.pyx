@@ -400,6 +400,24 @@ cpdef base_peak(self):
     return max_intensity
 
 
+@cython.boundscheck(False)
+cpdef DeconvolutedPeak base_peak_tuple(tuple peaks):
+    cdef:
+        size_t i, n
+        DeconvolutedPeak peak, best_peak
+    
+    n = PyTuple_Size(peaks)
+    if n == 0:
+        return None
+    else:
+        best_peak = <DeconvolutedPeak>PyTuple_GetItem(peaks, 0)
+    for i in range(1, n):
+        peak = <DeconvolutedPeak>PyTuple_GetItem(peaks, i)
+        if peak.intensity > best_peak.intensity:
+            best_peak = peak
+    return best_peak
+
+
 cdef double sqrt2pi = sqrt(2 * np.pi)
 
 

@@ -109,6 +109,11 @@ class ScanWrapperBase(object):
     def arrays(self):
         self.requires_scan()
         return self.scan.arrays
+    
+    @property
+    def annotations(self):
+        self.requires_scan()
+        return self.scan.annotations
 
 
 class ScanInformation(Base):

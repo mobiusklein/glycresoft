@@ -2,14 +2,15 @@ import itertools
 from operator import attrgetter
 import numpy as np
 
+from glypy.structure.glycan_composition import (
+    FrozenMonosaccharideResidue,
+    Composition)
+
+from glycopeptidepy.structure.glycan import GlycanCompositionProxy
 
 from glycan_profiling.structure import SpectrumGraph
 
 from .base import GlycopeptideSpectrumMatcherBase
-
-from glypy.structure.glycan_composition import (
-    FrozenGlycanComposition, FrozenMonosaccharideResidue,
-    Composition)
 
 
 signatures = {
@@ -18,6 +19,20 @@ signatures = {
 }
 
 _water = Composition("H2O")
+keyfn = attrgetter("intensity")
+
+
+def base_peak_tuple(peaks):
+    if peaks:
+        return max(peaks, key=keyfn)
+    else:
+        return None
+
+
+try:
+    from glycan_profiling._c.tandem.tandem_scoring_helpers import base_peak_tuple
+except ImportError:
+    pass
 
 
 class GlycanCompositionSignatureMatcher(GlycopeptideSpectrumMatcherBase):
@@ -34,7 +49,7 @@ class GlycanCompositionSignatureMatcher(GlycopeptideSpectrumMatcherBase):
         self.maximum_intensity = float('inf')
 
     def _copy_glycan_composition(self):
-        return (self.target.glycan_composition).clone()
+        return GlycanCompositionProxy(self.target.glycan_composition)
 
     signatures = signatures
 
@@ -44,14 +59,13 @@ class GlycanCompositionSignatureMatcher(GlycopeptideSpectrumMatcherBase):
         self.maximum_intensity = self.base_peak()
         water = _water
         spectrum = self.spectrum
-        keyfn = attrgetter("intensity")
 
         for monosaccharide in self.signatures:
             is_expected = self.glycan_composition._getitem_fast(monosaccharide) != 0
             peak = spectrum.all_peaks_for(monosaccharide.mass(), error_tolerance)
             peak += spectrum.all_peaks_for(monosaccharide.mass() - water.mass, error_tolerance)
             if peak:
-                peak = max(peak, key=keyfn)
+                peak = base_peak_tuple(peak)
             else:
                 if is_expected:
                     self.expected_matches[monosaccharide] = None
@@ -93,7 +107,7 @@ class GlycanCompositionSignatureMatcher(GlycopeptideSpectrumMatcherBase):
         weight = self.signatures[key]
         return min(weight * count, 0.99)
 
-    def _signature_ion_score(self, match_tolerance=2e-5):
+    def _signature_ion_score(self, error_tolerance=2e-5):
         penalty = 0
         for key, peak in self.unexpected_matches.items():
             ratio = peak.intensity / self.maximum_intensity
@@ -125,6 +139,6 @@ class GlycanCompositionSignatureMatcher(GlycopeptideSpectrumMatcherBase):
                 penalty += component
         return -penalty
 
-    def calculate_score(self, match_tolerance=2e-5, *args, **kwargs):
-        self._score = self._signature_ion_score(match_tolerance)
+    def calculate_score(self, error_tolerance=2e-5, *args, **kwargs):
+        self._score = self._signature_ion_score(error_tolerance)
         return self._score

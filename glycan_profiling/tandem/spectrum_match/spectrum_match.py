@@ -1,8 +1,6 @@
 import warnings
 import struct
 
-from collections import namedtuple
-
 from glypy.utils import Enum, make_struct
 
 from ms_deisotope import DeconvolutedPeakSet, isotopic_shift
@@ -100,29 +98,42 @@ class SpectrumMatchBase(ScanWrapperBase):
         return hash((self.scan.id, self.target, target_id))
 
     def is_hcd(self):
-        activation_info = self.scan.activation
-        if activation_info is None:
-            if self.scan.ms_level == 1:
-                return False
+        annotations = self.annotations
+        try:
+            result = annotations['is_hcd']
+        except KeyError:
+            activation_info = self.scan.activation
+            if activation_info is None:
+                if self.scan.ms_level == 1:
+                    result = False
+                else:
+                    warnings.warn("Activation information is missing. Assuming HCD")
+                    result = True
             else:
-                warnings.warn("Activation information is missing. Assuming HCD")
-                return True
-        matched = activation_info.has_dissociation_type(activation.HCD) or\
-            activation_info.has_dissociation_type(activation.CID) or\
-            activation_info.has_dissociation_type(activation.UnknownDissociation)
-        return matched
+                result = activation_info.has_dissociation_type(activation.HCD) or\
+                    activation_info.has_dissociation_type(activation.CID) or\
+                    activation_info.has_dissociation_type(activation.UnknownDissociation)
+            annotations['is_hcd'] = result
+        return result
 
     def is_exd(self):
-        activation_info = self.scan.activation
-        if activation_info is None:
-            if self.scan.ms_level == 1:
-                return False
+        annotations = self.annotations
+        try:
+            result = annotations['is_exd']
+        except KeyError:
+
+            activation_info = self.scan.activation
+            if activation_info is None:
+                if self.scan.ms_level == 1:
+                    result = False
+                else:
+                    warnings.warn("Activation information is missing. Assuming not ExD")
+                    result = False
             else:
-                warnings.warn("Activation information is missing. Assuming not ExD")
-                return False
-        matched = activation_info.has_dissociation_type(activation.ETD) or\
-            activation_info.has_dissociation_type(activation.ECD)
-        return matched
+                result = activation_info.has_dissociation_type(activation.ETD) or\
+                    activation_info.has_dissociation_type(activation.ECD)
+            annotations['is_exd'] = result
+        return result
 
 
 class SpectrumMatcherBase(SpectrumMatchBase):

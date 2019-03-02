@@ -233,7 +233,7 @@ class MultipartGlycopeptideIdentifier(TaskBase):
                 # ('combined', 'combined')
             ],
             spectrum_batcher.out_queue,
-            multiprocessing.Queue(1),
+            multiprocessing.Queue(3),
             spectrum_batcher.done_event,
             precursor_error_tolerance=self.precursor_error_tolerance,
             mass_shifts=self.mass_shifts)

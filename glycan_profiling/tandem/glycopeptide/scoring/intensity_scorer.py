@@ -1,5 +1,5 @@
-import numpy as np
 import math
+import numpy as np
 
 from glycopeptidepy.structure.fragment import IonSeries
 
