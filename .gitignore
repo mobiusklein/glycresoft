@@ -12,3 +12,5 @@ glycan_profiling/_c/**/*.html
 /.cache
 /*.coverage.*
 *__pycache__*
+.vscode/*
+.coverage
