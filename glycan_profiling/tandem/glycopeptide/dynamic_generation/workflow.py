@@ -48,9 +48,9 @@ def _determine_database_contents(path, hypothesis_id=1):
     glycan_classes = db.query(
         serialize.GlycanCombination,
         serialize.GlycanClass.name).join(
-        serialize.GlycanCombination.components).join(
-        serialize.GlycanComposition.structure_classes).group_by(
-        serialize.GlycanClass.name).all()
+            serialize.GlycanCombination.components).join(
+            serialize.GlycanComposition.structure_classes).group_by(
+            serialize.GlycanClass.name).all()
     glycan_classes = {
         pair[1] for pair in glycan_classes
     }
