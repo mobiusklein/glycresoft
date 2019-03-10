@@ -620,4 +620,4 @@ def search_glycan(context, database_connection, sample_path,
                     with open(export_path, 'w') as fp:
                         params.dump(fp)
             else:
-                click.secho("Unrecognized Export: %s" (export_type,), fg='yellow')
+                click.secho("Unrecognized Export: %s" % (export_type,), fg='yellow')

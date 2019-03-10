@@ -6,7 +6,7 @@ from libc.math cimport log10, log, sqrt, exp
 import numpy as np
 cimport numpy as np
 np.import_array()
-from numpy.math cimport isnan 
+from numpy.math cimport isnan
 
 from ms_deisotope._c.peak_set cimport DeconvolutedPeak, DeconvolutedPeakSet
 
@@ -357,7 +357,7 @@ def _match_stub_glycopeptides(self, double error_tolerance=2e-5, set masked_peak
 
         peaks = spectrum.all_peaks_for(frag.mass, error_tolerance)
         for j in range(PyTuple_Size(peaks)):
-            peak = <DeconvolutedPeak>PyTuple_GetItem(peaks, j)    
+            peak = <DeconvolutedPeak>PyTuple_GetItem(peaks, j)
             # should we be masking these? peptides which have amino acids which are
             # approximately the same mass as a monosaccharide unit at ther terminus
             # can produce cases where a stub ion and a backbone fragment match the
@@ -405,7 +405,7 @@ cpdef DeconvolutedPeak base_peak_tuple(tuple peaks):
     cdef:
         size_t i, n
         DeconvolutedPeak peak, best_peak
-    
+
     n = PyTuple_Size(peaks)
     if n == 0:
         return None
