@@ -45,6 +45,93 @@ class MassWrapper(object):
 default_components = (hexnac, hexose, xylose, fucose, neuac)
 
 
+class PeakGroup(object):
+    def __init__(self, peaks):
+        self.peaks = tuple(sorted(peaks, key=lambda x: (x.neutral_mass, x.charge)))
+        self.neutral_mass = 0.0
+        self.intensity = 0.0
+        self._hash = hash(self.peaks)
+        self._initialize()
+
+    def _initialize(self):
+        neutral_mass_acc = 0.0
+        intensity = 0.0
+        for peak in self.peaks:
+            neutral_mass_acc += peak.neutral_mass * peak.intensity
+            intensity += peak.intensity
+        self.intensity = intensity
+        self.neutral_mass = neutral_mass_acc / intensity
+
+    def __eq__(self, other):
+        return self.peaks == other.peaks
+
+    def __hash__(self):
+        return self._hash
+
+    def __getitem__(self, i):
+        return self.peaks[i]
+
+    def __len__(self):
+        return len(self.peaks)
+
+    def __repr__(self):
+        template = "{self.__class__.__name__}({self.neutral_mass}, {self.intensity}, {size})"
+        return template.format(self=self, size=len(self))
+
+
+class EdgeGroup(object):
+    def __init__(self, transitions):
+        self._transitions = transitions
+        self.start = None
+        self.end = None
+        self.annotation = self._transitions[0].annotation
+        self._initialize()
+
+    def __getitem__(self, i):
+        return self._transitions[i]
+
+    def __len__(self):
+        return len(self._transitions)
+
+    def _initialize(self):
+        starts = [edge.start for edge in self._transitions]
+        ends = [edge.end for edge in self._transitions]
+        self.start = PeakGroup(starts)
+        self.end = PeakGroup(ends)
+
+    @classmethod
+    def aggregate(cls, paths):
+        edges = []
+        n = len(paths)
+        if n == 0:
+            return []
+        m = len(paths[0])
+        for i in range(m):
+            group = []
+            for j in range(n):
+                group.append(paths[j][i])
+            edges.append(group)
+        return paths[0].__class__([cls(g) for g in edges])
+
+
+def collect_paths(paths, error_tolerance=1e-5):
+    groups = []
+    if not paths:
+        return []
+    paths = sorted(paths, key=lambda x: x.start_mass)
+    current_path = paths[0]
+    members = [current_path]
+    for path in paths[1:]:
+        if abs(current_path.start_mass - path.start_mass) / path.start_mass < error_tolerance:
+            members.append(path)
+        else:
+            groups.append(members)
+            current_path = path
+            members = [current_path]
+    groups.append(members)
+    return groups
+
+
 class Path(object):
     def __init__(self, edge_list):
         self.transitions = edge_list
@@ -190,7 +277,7 @@ class PathFinder(object):
 
     def _init_paths(self, graph, limit=200):
         paths = []
-        min_start_mass = max(c.mass() for c in self.components) + 1
+        min_start_mass = min(c.mass() for c in self.components) + 1
         for path in graph.longest_paths(limit=limit):
             path = Path(path)
             if path.start_mass < min_start_mass:

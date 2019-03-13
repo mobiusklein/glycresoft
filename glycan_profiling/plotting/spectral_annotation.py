@@ -22,7 +22,7 @@ font_options = font_manager.FontProperties(family='sans serif')
 class SpectrumMatchAnnotator(object):
     def __init__(self, spectrum_match, ax=None, clip_labels=True):
         if ax is None:
-            fig, ax = plt.subplots(1)
+            _, ax = plt.subplots(1)
         self.spectrum_match = spectrum_match
         self.ax = ax
         self.clip_labels = clip_labels
@@ -131,7 +131,7 @@ class SpectrumMatchAnnotator(object):
         match = self.spectrum_match
         ax.scatter(*zip(*[(pp.peak.mz, pp.mass_accuracy()) for pp in match.solution_map]),
                    alpha=0.5, edgecolor='black', color=[
-                   ion_series_to_color[pp.fragment.series] for pp in match.solution_map])
+                        ion_series_to_color[pp.fragment.series] for pp in match.solution_map])
         limits = error_tolerance
         ax.set_ylim(-limits, limits)
         xlim = 0, max(match.deconvoluted_peak_set, key=lambda x: x.mz).mz + 100

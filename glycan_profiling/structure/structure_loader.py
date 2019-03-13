@@ -334,7 +334,12 @@ class DecoyFragmentCachingGlycopeptide(FragmentCachingGlycopeptide):
         try:
             return self.fragment_caches[key]
         except KeyError:
-            result = list(super(FragmentCachingGlycopeptide, self).stub_fragments(*args, **kwargs))
+            result = list(
+                # Directly call the superclass method of FragmentCachingGlycopeptide as we
+                # do not need to go through a preliminary round of cache key construction and
+                # querying.
+                super(FragmentCachingGlycopeptide, self).stub_fragments( # pylint: disable=bad-super-call
+                    *args, **kwargs))
             random_state = np.random.RandomState(
                 int(round(self.glycan_composition.mass())))
             random_low = kwargs.get('random_low', 1.0)
@@ -395,8 +400,8 @@ class DecoyMonosaccharideResidue(FrozenMonosaccharideResidue):
     __cache = {}
 
     @classmethod
-    def get_cache(self):
-        return self.__cache
+    def get_cache(cls):
+        return cls.__cache
 
     def mass(self, *args, **kwargs):
         return super(DecoyMonosaccharideResidue, self).mass(*args, **kwargs) + self._delta
