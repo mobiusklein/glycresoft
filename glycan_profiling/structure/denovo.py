@@ -24,10 +24,10 @@ class MassWrapper(object):
         self.obj = obj
         try:
             # object's mass is a method
-            self._mass = obj.mass()
+            self.mass = obj.mass()
         except TypeError:
             # object's mass is a plain attribute
-            self._mass = obj.mass
+            self.mass = obj.mass
 
     def __repr__(self):
         return "{self.__class__.__name__}({self.obj})".format(self=self)
@@ -38,16 +38,13 @@ class MassWrapper(object):
     def __hash__(self):
         return hash(self.obj)
 
-    def mass(self, *a, **kw):
-        return self._mass
-
 
 default_components = (hexnac, hexose, xylose, fucose, neuac)
 
 
 class PeakGroup(object):
     def __init__(self, peaks):
-        self.peaks = tuple(sorted(peaks, key=lambda x: (x.neutral_mass, x.charge)))
+        self.peaks = tuple(sorted(set(peaks), key=lambda x: (x.neutral_mass, x.charge)))
         self.neutral_mass = 0.0
         self.intensity = 0.0
         self._hash = hash(self.peaks)
@@ -115,21 +112,26 @@ class EdgeGroup(object):
 
 
 def collect_paths(paths, error_tolerance=1e-5):
-    groups = []
+    groups = defaultdict(list)
     if not paths:
         return []
-    paths = sorted(paths, key=lambda x: x.start_mass)
-    current_path = paths[0]
-    members = [current_path]
-    for path in paths[1:]:
-        if abs(current_path.start_mass - path.start_mass) / path.start_mass < error_tolerance:
-            members.append(path)
-        else:
-            groups.append(members)
-            current_path = path
-            members = [current_path]
-    groups.append(members)
-    return groups
+    for path in paths:
+        key = tuple(e.annotation for e in path)
+        groups[key].append(path)
+    result = []
+    for key, block_members in groups.items():
+        block_members = sorted(block_members, key=lambda x: x.start_mass)
+        current_path = block_members[0]
+        members = [current_path]
+        for path in block_members[1:]:
+            if abs(current_path.start_mass - path.start_mass) / path.start_mass < error_tolerance:
+                members.append(path)
+            else:
+                result.append(members)
+                current_path = path
+                members = [current_path]
+        result.append(members)
+    return result
 
 
 class Path(object):
@@ -266,18 +268,18 @@ class PathFinder(object):
         for peak in scan.deconvoluted_peak_set:
             for component in self.components:
                 for other_peak in scan.deconvoluted_peak_set.all_peaks_for(
-                        peak.neutral_mass + component.mass(), self.product_error_tolerance):
+                        peak.neutral_mass + component.mass, self.product_error_tolerance):
                     graph.add(peak, other_peak, component.obj)
                 if has_tandem_shift:
                     for other_peak in scan.deconvoluted_peak_set.all_peaks_for(
-                            peak.neutral_mass + component.mass() + mass_shift.tandem_mass,
+                            peak.neutral_mass + component.mass + mass_shift.tandem_mass,
                             self.product_error_tolerance):
                         graph.add(peak, other_peak, component.obj)
         return graph
 
     def _init_paths(self, graph, limit=200):
         paths = []
-        min_start_mass = min(c.mass() for c in self.components) + 1
+        min_start_mass = min(c.mass for c in self.components) + 1
         for path in graph.longest_paths(limit=limit):
             path = Path(path)
             if path.start_mass < min_start_mass:
