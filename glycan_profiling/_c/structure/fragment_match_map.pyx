@@ -286,7 +286,7 @@ cdef class SpectrumGraph(object):
                     PyDict_SetItem(by_node, conv, index_list)
                 else:
                     index_list = <list>tmp
-                index_list.append(conv)
+                index_list.append(i)
             node_sets.append(node_set)
 
         keep = []
