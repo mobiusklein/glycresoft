@@ -1,3 +1,4 @@
+import numpy as np
 from matplotlib import pyplot as plt, font_manager
 from ms_peak_picker.utils import draw_peaklist
 from .sequence_fragment_logo import glycopeptide_match_logo
@@ -33,7 +34,7 @@ class SpectrumMatchAnnotator(object):
 
     def draw_all_peaks(self, color='black', alpha=0.5, **kwargs):
         draw_peaklist(
-            self.spectrum_match.spectrum,
+            self.spectrum_match.deconvoluted_peak_set,
             alpha=0.3, color='grey', ax=self.ax, **kwargs)
         try:
             draw_peaklist(
@@ -66,8 +67,11 @@ class SpectrumMatchAnnotator(object):
     def draw_matched_peaks(self, color='red', alpha=0.8, fontsize=12, ion_series_to_color=None, **kwargs):
         if ion_series_to_color is None:
             ion_series_to_color = {}
-
-        for peak, fragment in self.spectrum_match.solution_map:
+        try:
+            solution_map = self.spectrum_match.solution_map
+        except AttributeError:
+            return
+        for peak, fragment in solution_map:
             try:
                 peak_color = ion_series_to_color.get(fragment.series, color)
             except AttributeError:
@@ -99,6 +103,17 @@ class SpectrumMatchAnnotator(object):
             midx = (p1.mz + p2.mz) / 2
             # interpolate the midpoint's height
             midy = (p1.intensity * (p2.mz - midx) + p2.intensity * (midx - p1.mz)) / (p2.mz - p1.mz)
+
+            # find the angle of the line connecting the two peaks
+            xlo = min(pair.start.mz, pair.end.mz)
+            xhi = max(pair.start.mz, pair.end.mz)
+            adj = xhi - xlo
+            ylo = min(pair.start.intensity, pair.end.intensity)
+            yhi = max(pair.start.intensity, pair.end.intensity)
+            opp = yhi - ylo
+            hypot = np.hypot(adj, opp)
+            rotation = np.arccos(adj / hypot)
+
             if isinstance(label, (list, tuple)):
                 label = '-'.join(map(str, label))
             else:
@@ -131,7 +146,7 @@ class SpectrumMatchAnnotator(object):
         match = self.spectrum_match
         ax.scatter(*zip(*[(pp.peak.mz, pp.mass_accuracy()) for pp in match.solution_map]),
                    alpha=0.5, edgecolor='black', color=[
-                        ion_series_to_color[pp.fragment.series] for pp in match.solution_map])
+                       ion_series_to_color[pp.fragment.series] for pp in match.solution_map])
         limits = error_tolerance
         ax.set_ylim(-limits, limits)
         xlim = 0, max(match.deconvoluted_peak_set, key=lambda x: x.mz).mz + 100

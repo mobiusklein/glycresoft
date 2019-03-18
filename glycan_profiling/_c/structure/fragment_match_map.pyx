@@ -2,7 +2,11 @@
 from collections import defaultdict
 
 cimport cython
+from cpython cimport PyObject
 from cpython cimport PyList_Append, PyList_Size, PyList_GetItem
+from cpython cimport PySet_Add
+from cpython cimport PyDict_GetItem, PyDict_SetItem
+from cpython cimport PyInt_AsLong
 
 import numpy as np
 cimport numpy as np
@@ -66,6 +70,17 @@ cdef class PeakFragmentPair(object):
 @cython.freelist(1000000)
 cdef class PeakPairTransition(object):
 
+    @staticmethod
+    cdef PeakPairTransition _create(DeconvolutedPeak start, DeconvolutedPeak end, object annotation):
+        cdef PeakPairTransition self = PeakPairTransition.__new__(PeakPairTransition)
+        self.start = start
+        self.end = end
+        self.annotation = annotation
+        # The indices of the start peak and end peak
+        self.key = (self.start.index.neutral_mass, self.end.index.neutral_mass)
+        self._hash = hash(self.key)
+        return self
+
     def __init__(self, start, end, annotation):
         self.start = start
         self.end = end
@@ -78,13 +93,19 @@ cdef class PeakPairTransition(object):
         return self.__class__, (self.start, self.end, self.annotation)
 
     def __eq__(self, other):
-        if self.key != other.key:
+        cdef:
+            PeakPairTransition typed_other
+        if other is None:
             return False
-        elif self.start != other.start:
+        else:
+            typed_other = <PeakPairTransition?>other
+        # if self.key != typed_other.key:
+        #     return False
+        if not self.start._eq(typed_other.start):
             return False
-        elif self.end != other.end:
+        elif not self.end._eq(typed_other.end):
             return False
-        elif self.annotation != other.annotation:
+        elif self.annotation != typed_other.annotation:
             return False
         return True
 
@@ -112,8 +133,8 @@ cdef class SpectrumGraph(object):
             temp = p2
             p2 = p1
             p1 = temp
-        trans = PeakPairTransition(p1, p2, annotation)
-        self.transitions.add(trans)
+        trans = PeakPairTransition._create(p1, p2, annotation)
+        PySet_Add(self.transitions, trans)
         self.by_first[trans.key[0]].append(trans)
         self.by_second[trans.key[1]].append(trans)
 
@@ -183,7 +204,7 @@ cdef class SpectrumGraph(object):
                 distances[ix] = longest_path_so_far + 1
         return distances
 
-    cpdef list paths_starting_at(self, ix):
+    cpdef list paths_starting_at(self, ix, int limit=-1):
         paths = []
         for trans in self.by_first[ix]:
             paths.append([trans])
@@ -200,9 +221,9 @@ cdef class SpectrumGraph(object):
             paths = extended_paths
             if len(paths) == 0:
                 break
-        return self.transitive_closure(finished_paths)
+        return self.transitive_closure(finished_paths, limit)
 
-    cpdef list paths_ending_at(self, ix):
+    cpdef list paths_ending_at(self, ix, int limit=-1):
         paths = []
         for trans in self.by_second[ix]:
             paths.append([trans])
@@ -221,19 +242,23 @@ cdef class SpectrumGraph(object):
             paths = extended_paths
             if len(paths) == 0:
                 break
-        return self.transitive_closure(finished_paths)
+        return self.transitive_closure(finished_paths, limit)
 
-    cpdef list transitive_closure(self, list paths):
+    cpdef list transitive_closure(self, list paths, int limit=-1):
         cdef:
-            list path
+            list path, index_list
             list node_sets, keep, node_sets_items
             set node_set, other_node_set
+            dict by_node
+            PyObject* tmp
+            object conv
             PeakPairTransition node
-            size_t i, j
+            size_t i, j, n, m, k, q, v
             bint is_enclosed
-
+        paths = sorted(paths, key=len, reverse=True)
         # precompute node_sets for each path
         node_sets = []
+        by_node = {}
         for i in range(PyList_Size(paths)):
             path = <list>PyList_GetItem(paths, i)
             # track all nodes by index in this path in node_set
@@ -244,25 +269,53 @@ cdef class SpectrumGraph(object):
                 # set of nodes on this path
                 # node_set.update(node.key)
                 if j == 0:
-                    node_set.add(node.start._index.neutral_mass)
-                node_set.add(node.end._index.neutral_mass)
+                    conv = node.start._index.neutral_mass
+                    node_set.add(conv)
+                    tmp = PyDict_GetItem(by_node, conv)
+                    if tmp == NULL:
+                        index_list = []
+                        PyDict_SetItem(by_node, conv, index_list)
+                    else:
+                        index_list = <list>tmp
+                    index_list.append(conv)
+                conv = node.end._index.neutral_mass
+                node_set.add(conv)
+                tmp = PyDict_GetItem(by_node, conv)
+                if tmp == NULL:
+                    index_list = []
+                    PyDict_SetItem(by_node, conv, index_list)
+                else:
+                    index_list = <list>tmp
+                index_list.append(conv)
             node_sets.append(node_set)
 
         keep = []
+        k = 0
         for i in range(PyList_Size(paths)):
             path = <list>PyList_GetItem(paths, i)
             is_enclosed = False
             node_set = <set>PyList_GetItem(node_sets, i)
-            for j in range(PyList_Size(paths)):
+            n = len(node_set)
+            node = <PeakPairTransition>PyList_GetItem(path, 0)
+            conv = node.start._index.neutral_mass
+            index_list = <list>PyDict_GetItem(by_node, conv)
+            for q in range(PyList_Size(index_list)):
+                j = PyInt_AsLong(<object>PyList_GetItem(index_list, q))
                 if i == j:
                     continue
                 other_node_set = <set>PyList_GetItem(node_sets, j)
+                m = len(other_node_set)
+                if m < n:
+                    break
                 if node_set < other_node_set:
                     is_enclosed = True
                     break
             if not is_enclosed:
                 keep.append(path)
-        return sorted(keep, key=len, reverse=True)
+                k += 1
+            if limit > 0 and limit == k:
+                break
+        return keep
 
     def longest_paths(self, int limit=-1):
         cdef:
@@ -270,12 +323,12 @@ cdef class SpectrumGraph(object):
         # get all distinct paths
         paths = []
         for ix in np.argsort(self.path_lengths())[::-1]:
-            segment = self.paths_ending_at(ix)
+            segment = self.paths_ending_at(ix, limit)
             paths.extend(segment)
             if PyList_Size(segment) == 0:
                 break
             # remove redundant paths
-            paths = self.transitive_closure(paths)
+            paths = self.transitive_closure(paths, limit)
             if limit > 0:
                 if PyList_Size(paths) > limit:
                     break

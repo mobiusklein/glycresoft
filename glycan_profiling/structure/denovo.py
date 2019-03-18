@@ -20,6 +20,20 @@ neugc = FrozenMonosaccharideResidue.from_iupac_lite("NeuGc")
 
 
 class MassWrapper(object):
+    '''An adapter class to make types whose mass calculation is a method
+    (:mod:`glypy` dynamic graph components) compatible with code where the
+    mass calculation is an  attribute (:mod:`glycopeptidepy` objects and
+    most things here)
+
+    Hashes and compares as :attr:`obj`
+
+    Attributes
+    ----------
+    obj: object
+        The wrapped object
+    mass: float
+        The mass of :attr:`obj`
+    '''
     def __init__(self, obj):
         self.obj = obj
         try:
@@ -43,6 +57,19 @@ default_components = (hexnac, hexose, xylose, fucose, neuac)
 
 
 class PeakGroup(object):
+    '''An adapter for a collection of :class:`~.DeconvolutedPeak` objects which share
+    the same approximate neutral mass that looks like a single :class:`~.DeconvolutedPeak`
+    object for edge-like calculations with :class:`EdgeGroup`.
+
+    Attributes
+    ----------
+    peaks: tuple
+        A tuple of the *unique* peaks forming this group
+    neutral_mass: float
+        The intensity weighted average neutral mass of the peaks in this group
+    intensity: float
+        The sum of the intensities of the peaks in this group
+    '''
     def __init__(self, peaks):
         self.peaks = tuple(sorted(set(peaks), key=lambda x: (x.neutral_mass, x.charge)))
         self.neutral_mass = 0.0
@@ -77,6 +104,19 @@ class PeakGroup(object):
 
 
 class EdgeGroup(object):
+    '''An adapter for a collection of :class:`~.PeakPairTransition` objects which all belong to
+    different :class:`Path` objects that share the same annotation sequence and approximate start
+    and end mass.
+
+    Attributes
+    ----------
+    start: PeakGroup
+        The peaks that make up the starting mass for this edge group
+    end: PeakGroup
+        The peaks that make up the ending mass for this edge group
+    annotation: object
+        The common annotation for members of this group
+    '''
     def __init__(self, transitions):
         self._transitions = transitions
         self.start = None
@@ -112,6 +152,18 @@ class EdgeGroup(object):
 
 
 def collect_paths(paths, error_tolerance=1e-5):
+    '''Group together paths which share the same annotation sequence and approximate
+    start and end masses.
+
+    Parameters
+    ----------
+    paths: :class:`list`
+        A list of :class:`Path` objects to group
+
+    Returns
+    -------
+    :class:`list` of :class:`list` of :class:`Path` objects
+    '''
     groups = defaultdict(list)
     if not paths:
         return []
@@ -135,6 +187,20 @@ def collect_paths(paths, error_tolerance=1e-5):
 
 
 class Path(object):
+    '''Represent a single contiguous sequence of :class:`~.PeakPairTransition` objects
+    forming a sequence tag, or a path along the edges of a peak graph. 
+
+    Attributes
+    ----------
+    transitions: :class:`list` of :class:`~.PeakPairTransition`
+        The edges connecting pairs of peaks.
+    total_signal: float
+        The total signal captured by this path
+    start_mass: float
+        The lowest mass among all peaks in the path
+    end_mass: float
+        The highest mass among all peaks in the path
+    '''
     def __init__(self, edge_list):
         self.transitions = edge_list
         self.total_signal = self._total_signal()
@@ -175,8 +241,7 @@ class Path(object):
                 for e in edges:
                     if e == edge:
                         return True
-                else:
-                    return False
+                return False
             else:
                 for e in edges:
                     if e.key != edge.key:
@@ -186,8 +251,7 @@ class Path(object):
                     if e.end != edge.end:
                         continue
                     return True
-                else:
-                    return False
+                return False
 
     def has_peak(self, peak):
         if self._peaks_used is None:

@@ -27,6 +27,9 @@ cdef class PeakPairTransition(object):
         public object annotation
         public tuple key
         public Py_hash_t _hash
+    
+    @staticmethod
+    cdef PeakPairTransition _create(DeconvolutedPeak start, DeconvolutedPeak end, object annotation)
 
 
 cdef class SpectrumGraph(object):
@@ -38,10 +41,10 @@ cdef class SpectrumGraph(object):
     cpdef add(self, DeconvolutedPeak p1, DeconvolutedPeak p2, object annotation)
     cpdef list topological_sort(self, adjacency_matrix=*)
 
-    cpdef list paths_starting_at(self, ix)
-    cpdef list paths_ending_at(self, ix)
+    cpdef list paths_starting_at(self, ix, int limit=*)
+    cpdef list paths_ending_at(self, ix, int limit=*)
 
-    cpdef list transitive_closure(self, list paths)
+    cpdef list transitive_closure(self, list paths, int limit=*)
 
 
 # forward declaration
