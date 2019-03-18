@@ -277,7 +277,7 @@ cdef class SpectrumGraph(object):
                         PyDict_SetItem(by_node, conv, index_list)
                     else:
                         index_list = <list>tmp
-                    index_list.append(conv)
+                    index_list.append(i)
                 conv = node.end._index.neutral_mass
                 node_set.add(conv)
                 tmp = PyDict_GetItem(by_node, conv)
