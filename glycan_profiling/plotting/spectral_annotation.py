@@ -105,11 +105,11 @@ class SpectrumMatchAnnotator(object):
             midy = (p1.intensity * (p2.mz - midx) + p2.intensity * (midx - p1.mz)) / (p2.mz - p1.mz)
 
             # find the angle of the line connecting the two peaks
-            xlo = min(pair.start.mz, pair.end.mz)
-            xhi = max(pair.start.mz, pair.end.mz)
+            xlo = min(p1.mz, p2.mz)
+            xhi = max(p1.mz, p2.mz)
             adj = xhi - xlo
-            ylo = min(pair.start.intensity, pair.end.intensity)
-            yhi = max(pair.start.intensity, pair.end.intensity)
+            ylo = min(p1.intensity, p2.intensity)
+            yhi = max(p1.intensity, p2.intensity)
             opp = yhi - ylo
             hypot = np.hypot(adj, opp)
             rotation = np.arccos(adj / hypot)
