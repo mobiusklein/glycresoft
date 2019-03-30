@@ -463,6 +463,8 @@ class SpectrumIdentificationWorkerBase(Process, SpectrumEvaluatorBase):
                  scorer_type, evaluation_args, spectrum_map, mass_shift_map, log_handler,
                  solution_packer):
         Process.__init__(self)
+        if evaluation_args is None:
+            evaluation_args = dict()
         self.daemon = True
         self.input_queue = input_queue
         self.output_queue = output_queue

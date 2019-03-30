@@ -60,6 +60,8 @@ class SpectrumEvaluatorBase(object):
 
 class LocalSpectrumEvaluator(SpectrumEvaluatorBase, TaskBase):
     def __init__(self, evaluator, scan_map, mass_shift_map, solution_packer, evaluation_args=None):
+        if evaluation_args is None:
+            evaluation_args = dict()
         self.evaluator = evaluator
         self.scan_map = scan_map
         self.mass_shift_map = mass_shift_map

@@ -23,7 +23,6 @@ from .search_space import glycopeptide_key_t, StructureClassification
 class JournalFileWriter(TaskBase):
     def __init__(self, path):
         self.path = path
-        self.path = path
         if not hasattr(path, 'write'):
             self.handle = open(path, 'wb')
         else:
