@@ -21,7 +21,7 @@ from .search_space import glycopeptide_key_t, StructureClassification
 
 
 class JournalFileWriter(TaskBase):
-    def __init__(self, path):
+    def __init__(self, path, include_fdr=False):
         self.path = path
         if not hasattr(path, 'write'):
             self.handle = open(path, 'wb')
@@ -29,11 +29,12 @@ class JournalFileWriter(TaskBase):
             self.handle = self.path
         self.writer = csv.writer(self.handle, delimiter='\t')
         self.write_header()
+        self.include_fdr = include_fdr
         self.spectrum_counter = 0
         self.solution_counter = 0
 
-    def write_header(self):
-        self.writer.writerow([
+    def _get_headers(self):
+        names = [
             'scan_id',
             'precursor_mass_accuracy',
             'peptide_start',
@@ -49,18 +50,44 @@ class JournalFileWriter(TaskBase):
             'total_score',
             'peptide_score',
             'glycan_score',
-        ])
+        ]
+        if self.include_fdr:
+            names.extend([
+                "peptide_q_value",
+                "glycan_q_value",
+                "glycopeptide_q_value",
+                "total_q_value"
+            ])
+        return names
+
+    def write_header(self):
+        self.writer.writerow(self._get_headers())
 
     def _prepare_fields(self, psm):
         error = (psm.target.total_mass - psm.precursor_information.neutral_mass
                  ) / psm.precursor_information.neutral_mass
-        fields = map(str, [psm.scan_id, error, ] + list(psm.target.id) + [
+        fields = ([psm.scan_id, error, ] + list(psm.target.id) + [
             psm.target,
             psm.mass_shift.name,
             psm.score,
             psm.score_set.peptide_score,
             psm.score_set.glycan_score
         ])
+        if self.include_fdr:
+            q_value_set = psm.q_value_set
+            if q_value_set is None:
+                fdr_fields = [
+                    1, 1, 1, 1
+                ]
+            else:
+                fdr_fields = [
+                    q_value_set.peptide_q_value,
+                    q_value_set.glycan_q_value,
+                    q_value_set.glycopeptide_q_value,
+                    q_value_set.total_q_value
+                ]
+            fields.extend(fdr_fields)
+        fields = [str(f) for f in fields]
         return fields
 
     def write(self, psm):
@@ -106,6 +133,8 @@ class JournalFileReader(TaskBase):
     def __init__(self, path, cache_size=2 ** 12, mass_shift_map=None, scan_loader=None):
         if mass_shift_map is None:
             mass_shift_map = {Unmodified.name: Unmodified}
+        else:
+            mass_shift_map.setdefault(Unmodified.name, Unmodified)
         self.path = path
         if not hasattr(path, 'read'):
             self.handle = open(path, 'rb')
@@ -116,33 +145,52 @@ class JournalFileReader(TaskBase):
         self.mass_shift_map = mass_shift_map
         self.scan_loader = scan_loader
 
-    def glycopeptide_from_row(self, row):
+    def _build_key(self, row):
         glycopeptide_id_key = glycopeptide_key_t(
-            int(row['peptide_start']), int(row['peptide_end']), int(row['peptide_id']), int(row['protein_id']),
+            int(row['peptide_start']), int(row['peptide_end']), int(
+                row['peptide_id']), int(row['protein_id']),
             int(row['hypothesis_id']), int(row['glycan_combination_id']),
             StructureClassification[row['match_type']],
             int(row['site_combination_index']))
+        return glycopeptide_id_key
+
+    def _build_protein_relation(self, key):
+        return PeptideProteinRelation(
+            glycopeptide_id_key.start_position, glycopeptide_id_key.end_position,
+            glycopeptide_id_key.protein_id, glycopeptide_id_key.hypothesis_id)
+
+    def glycopeptide_from_row(self, row):
+        glycopeptide_id_key = self._build_key(row)
         if glycopeptide_id_key in self.glycopeptide_cache:
             return self.glycopeptide_cache[glycopeptide_id_key]
         glycopeptide = FragmentCachingGlycopeptide(row['glycopeptide_sequence'])
         glycopeptide.id = glycopeptide_id_key
-        glycopeptide.protein_relation = PeptideProteinRelation(
-            glycopeptide_id_key.start_position, glycopeptide_id_key.end_position,
-            glycopeptide_id_key.protein_id, glycopeptide_id_key.hypothesis_id)
+        glycopeptide.protein_relation = self._build_protein_relation(glycopeptide_id_key)
         self.glycopeptide_cache[glycopeptide_id_key] = glycopeptide
         return glycopeptide
 
-    def spectrum_match_from_row(self, row):
-        glycopeptide = self.glycopeptide_from_row(row)
-        if self.scan_loader is None:
-            scan = SpectrumReference(
-                row['scan_id'])
-        else:
-            scan = self.scan_loader.get_scan_by_id(row['scan_id'])
+    def _build_score_set(self, row):
         score_set = ScoreSet(
             float(row['total_score']), float(row['peptide_score']),
             float(row['glycan_score']))
+        return score_set
+
+    def _make_mass_shift(self, row):
         mass_shift = MassShift(row['mass_shift'], MassShift.get(row['mass_shift']))
+        return mass_shift
+
+    def _make_scan(self, row):
+        if self.scan_loader is None:
+            scan = SpectrumReference(row['scan_id'])
+        else:
+            scan = self.scan_loader.get_scan_by_id(row['scan_id'])
+        return scan
+
+    def spectrum_match_from_row(self, row):
+        glycopeptide = self.glycopeptide_from_row(row)
+        scan = self._make_scan(row)
+        score_set = self._build_score_set(row)
+        mass_shift = self._make_mass_shift(row)
         match = MultiScoreSpectrumMatch(
             scan, glycopeptide, score_set, mass_shift=mass_shift,
             match_type=str(glycopeptide.id.structure_type))
