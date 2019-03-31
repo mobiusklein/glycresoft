@@ -196,6 +196,8 @@ class IdentificationProcessDispatcher(TaskBase):
             self.workers.append(worker)
 
     def all_workers_finished(self):
+        """Check if all worker processes have finished.
+        """
         worker_still_busy = False
         for worker in self.workers:
             try:
@@ -336,6 +338,21 @@ class IdentificationProcessDispatcher(TaskBase):
         return solution_target, solution_map
 
     def process(self, scan_map, hit_map, hit_to_scan, scan_hit_type_map):
+        """Evaluate all spectrum matches, spreading work among the worker
+        process pool.
+
+        Parameters
+        ----------
+        scan_map : :class:`dict`
+            Mapping from :attr:`~.ScanBase.id` to :class:`~.ScanBase` instance
+        hit_map : :class:`dict`
+            Mapping from `structure.id` to the structure type to matche against
+        hit_to_scan : :class:`dict`
+            Mapping from `structure.id` to a list of :attr:`~.ScanBase.id` which
+            it has a precursor mass match.
+        scan_hit_type_map : :class:`dict`
+            Mapping from (:attr:`~.ScanBase.id`, `structure.id`) to :class:`MassShiftBase`
+        """
         self.structure_map = hit_map
         self.solution_handler.scan_map = scan_map
         self.create_pool(scan_map)
