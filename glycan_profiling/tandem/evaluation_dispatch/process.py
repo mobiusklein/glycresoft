@@ -167,7 +167,9 @@ class IdentificationProcessDispatcher(TaskBase):
         """
         self.state = ProcessDispatcherState.spawning
         self.scan_load_map.clear()
-        self.scan_load_map.update(scan_map)
+        # Do not copy the complete scan object into the IPC manager dict, as this will
+        # pickle the scan source, and then unpickle it several times on the recieving end.
+        self.scan_load_map.update({k: v.copy(deep=False).unbind() for k, v in scan_map.items()})
         self.local_scan_map.clear()
         self.local_scan_map.update(scan_map)
 
