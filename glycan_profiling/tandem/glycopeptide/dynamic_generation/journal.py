@@ -27,9 +27,9 @@ class JournalFileWriter(TaskBase):
             self.handle = open(path, 'wb')
         else:
             self.handle = self.path
+        self.include_fdr = include_fdr
         self.writer = csv.writer(self.handle, delimiter='\t')
         self.write_header()
-        self.include_fdr = include_fdr
         self.spectrum_counter = 0
         self.solution_counter = 0
 
