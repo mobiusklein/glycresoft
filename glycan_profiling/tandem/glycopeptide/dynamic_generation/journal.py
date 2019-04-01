@@ -154,7 +154,7 @@ class JournalFileReader(TaskBase):
             int(row['site_combination_index']))
         return glycopeptide_id_key
 
-    def _build_protein_relation(self, glycopeptide_key_t):
+    def _build_protein_relation(self, glycopeptide_id_key):
         return PeptideProteinRelation(
             glycopeptide_id_key.start_position, glycopeptide_id_key.end_position,
             glycopeptide_id_key.protein_id, glycopeptide_id_key.hypothesis_id)
