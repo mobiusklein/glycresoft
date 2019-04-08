@@ -178,8 +178,8 @@ class JournalFileReader(TaskBase):
 
     def _build_fdr_set(self, row):
         fdr_set = FDRSet(
-            row['total_q_value'], row['peptide_q_value'],
-            row['glycan_q_value'], row['glycopeptide_q_value'])
+            float(row['total_q_value']), float(row['peptide_q_value']),
+            float(row['glycan_q_value']), float(row['glycopeptide_q_value']))
         return fdr_set
 
     def _make_mass_shift(self, row):
