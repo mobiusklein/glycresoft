@@ -356,6 +356,8 @@ class MultipartGlycopeptideIdentifier(TaskBase):
 
         self.log("Building Scan Groups...")
         scan_groups = self.build_scan_groups()
+        self.log("{:d} Scans, {:d} Scan Groups".format(
+            len(self.tandem_scans), len(scan_groups)))
         self.log("Running Identification Pipeline...")
         self.run_identification_pipeline(
             scan_groups)

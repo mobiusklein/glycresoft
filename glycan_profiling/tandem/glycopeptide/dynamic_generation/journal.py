@@ -15,7 +15,7 @@ from glycan_profiling.chromatogram_tree import MassShift, Unmodified
 
 from glycan_profiling.tandem.ref import SpectrumReference
 from glycan_profiling.tandem.spectrum_match import (
-    MultiScoreSpectrumMatch, MultiScoreSpectrumSolutionSet, ScoreSet)
+    MultiScoreSpectrumMatch, MultiScoreSpectrumSolutionSet, ScoreSet, FDRSet)
 
 from .search_space import glycopeptide_key_t, StructureClassification
 
@@ -130,7 +130,7 @@ class JournalingConsumer(TaskExecutionSequence):
 
 
 class JournalFileReader(TaskBase):
-    def __init__(self, path, cache_size=2 ** 12, mass_shift_map=None, scan_loader=None):
+    def __init__(self, path, cache_size=2 ** 12, mass_shift_map=None, scan_loader=None, include_fdr=False):
         if mass_shift_map is None:
             mass_shift_map = {Unmodified.name: Unmodified}
         else:
@@ -144,6 +144,7 @@ class JournalFileReader(TaskBase):
         self.glycopeptide_cache = LRUMapping(cache_size or 2 ** 12)
         self.mass_shift_map = mass_shift_map
         self.scan_loader = scan_loader
+        self.include_fdr = include_fdr
 
     def _build_key(self, row):
         glycopeptide_id_key = glycopeptide_key_t(
@@ -175,6 +176,12 @@ class JournalFileReader(TaskBase):
             float(row['glycan_score']))
         return score_set
 
+    def _build_fdr_set(self, row):
+        fdr_set = FDRSet(
+            row['total_q_value'], row['peptide_q_value'],
+            row['glycan_q_value'], row['glycopeptide_q_value'])
+        return fdr_set
+
     def _make_mass_shift(self, row):
         mass_shift = MassShift(row['mass_shift'], MassShift.get(row['mass_shift']))
         return mass_shift
@@ -189,10 +196,14 @@ class JournalFileReader(TaskBase):
     def spectrum_match_from_row(self, row):
         glycopeptide = self.glycopeptide_from_row(row)
         scan = self._make_scan(row)
+        fdr_set = None
+        if self.include_fdr:
+            fdr_set = self._build_fdr_set(row)
         score_set = self._build_score_set(row)
         mass_shift = self._make_mass_shift(row)
         match = MultiScoreSpectrumMatch(
             scan, glycopeptide, score_set, mass_shift=mass_shift,
+            q_value_set=fdr_set,
             match_type=str(glycopeptide.id.structure_type))
         return match
 
