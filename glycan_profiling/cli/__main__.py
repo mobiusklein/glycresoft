@@ -26,6 +26,11 @@ def info(type, value, tb):
 
 
 def main():
+    try:
+        import faulthandler
+        faulthandler.enable()
+    except ImportError:
+        pass
     freeze_support()
     if os.getenv("GLYCRESOFTDEBUG"):
         sys.excepthook = info
