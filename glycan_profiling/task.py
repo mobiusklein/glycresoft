@@ -7,9 +7,9 @@ import threading
 from datetime import datetime
 
 try:
-    from Queue import Queue, Empty
+    from Queue import Empty
 except ImportError:
-    from queue import Queue, Empty
+    from queue import Empty
 
 from glycan_profiling.version import version
 
@@ -222,7 +222,8 @@ class TaskBase(object):
     def debug(self, *message):
         self.debug_print_fn(', '.join(map(str, message)))
 
-    def error(self, message, exception=None):
+    def error(self, *message, **kwargs):
+        exception = kwargs.get("exception")
         self.error_print_fn(', '.join(map(str, message)))
         if exception is not None:
             self.error_print_fn(traceback.format_exc(exception))
@@ -289,8 +290,10 @@ class TaskBase(object):
 
     def ipc_logger(self, handler=None):
         if handler is None:
-            def handler(message):
+
+            def default_closure_handler(message):
                 self.log(message)
+            handler = default_closure_handler
         return MessageSpooler(handler)
 
     def start(self, *args, **kwargs):
@@ -357,9 +360,13 @@ class TaskExecutionSequence(TaskBase):
     _running_in_process = False
 
     def __call__(self):
-        result = self.run()
-        self.log("%r Done" % self)
-        return result
+        try:
+            result = self.run()
+            self.debug("%r Done" % self)
+            return result
+        except Exception as err:
+            self.error("An error occurred while executing %s" % self, exception=err)
+            return None
 
     def run(self):
         raise NotImplementedError()
@@ -390,6 +397,10 @@ class TaskExecutionSequence(TaskBase):
 
     def join(self, timeout=None):
         return self._thread.join(timeout)
+
+    def stop(self):
+        if self._thread.is_alive():
+            pass
 
 
 class Pipeline(TaskExecutionSequence):
