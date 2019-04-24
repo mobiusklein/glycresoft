@@ -253,17 +253,18 @@ class SolutionSetGrouper(TaskBase):
             by_scan_groups[group] = acc
         return by_scan_groups
 
-    def _exclusive(self):
+    def _exclusive(self, score_getter=None, min_value=0):
+        if score_getter is None:
+            score_getter = attrgetter('score')
         groups = collectiontools.groupby(
             self.spectrum_matches, lambda x: x.scan.id)
-        score_getter = attrgetter('score')
         by_match_type = defaultdict(list)
         for scan_id, members in groups.items():
             top_match = max(members, key=score_getter)
             top_score = top_match.score
             seen = set()
             for match in members:
-                if isclose(top_score, match.score) and match.score > 0 and match.match_type not in seen:
+                if isclose(top_score, score_getter(match)) and score_getter(match) > 0 and match.match_type not in seen:
                     seen.add(match.match_type)
                     by_match_type[match.match_type].append(match)
         return by_match_type
