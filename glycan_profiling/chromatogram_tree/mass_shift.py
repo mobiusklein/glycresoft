@@ -27,10 +27,11 @@ class MassShiftBase(object):
 
 
 class MassShift(MassShiftBase):
-    def __init__(self, name, composition, tandem_composition=None):
+    def __init__(self, name, composition, tandem_composition=None, charge_carrier=0):
         self.name = name
         self.composition = composition
         self.mass = composition.mass
+        self.charge_carrier = charge_carrier
         if tandem_composition is None:
             tandem_composition = self.composition.copy()
         self.tandem_composition = tandem_composition
@@ -55,7 +56,9 @@ class MassShift(MassShiftBase):
             return self
         name = "(%s) + (%s)" % (self.name, other.name)
         composition = self.composition + other.composition
-        return self.__class__(name, composition)
+        tandem_composition = self.tandem_composition + other.tandem_composition
+        charge_carrier = self.charge_carrier + other.charge_carrier
+        return self.__class__(name, composition, tandem_composition, charge_carrier)
 
     def __sub__(self, other):
         if other.composition == {}:
@@ -64,10 +67,15 @@ class MassShift(MassShiftBase):
         if self.composition == {}:
             name = "-(%s)" % other.name
             composition = -other.composition
+            tandem_composition = -other.tandem_composition
+            charge_carrier = -other.charge_carrier
         else:
             name = "(%s) - (%s)" % (self.name, other.name)
             composition = self.composition - other.composition
-        return self.__class__(name, composition)
+            tandem_composition = self.tandem_composition - other.tandem_composition
+            charge_carrier = self.charge_carrier - other.charge_carrier
+
+        return self.__class__(name, composition, tandem_composition, charge_carrier)
 
     def composed_with(self, other):
         return self == other
@@ -83,7 +91,7 @@ class CompoundMassShift(MassShiftBase):
         self.name = None
         self.mass = None
         self.tandem_mass = None
-
+        self.charge_carrier = 0
         self._compute_composition()
         self._compute_name()
 
@@ -93,13 +101,16 @@ class CompoundMassShift(MassShiftBase):
     def _compute_composition(self):
         composition = Composition()
         tandem_composition = Composition()
+        charge_carrier = 0
         for k, v in self.counts.items():
             composition += k.composition * v
             tandem_composition += k.tandem_composition * v
+            charge_carrier += k.charge_carrier * v
         self.composition = composition
         self.mass = composition.mass
         self.tandem_composition = tandem_composition
         self.tandem_mass = tandem_composition.mass
+        self.charge_carrier = charge_carrier
 
     def _compute_name(self):
         parts = []
@@ -173,7 +184,7 @@ class CompoundMassShift(MassShiftBase):
 
 
 Unmodified = MassShift("Unmodified", Composition())
-Formate = MassShift("Formate", Composition('HCOOH'))
+Formate = MassShift("Formate", Composition('HCOOH'), charge_carrier=1)
 Ammonium = MassShift("Ammonium", Composition("NH3"), Composition())
-Sodium = MassShift("Sodium", Composition("Na"))
-Potassium = MassShift("Potassium", Composition("K"))
+Sodium = MassShift("Sodium", Composition("Na1H-1"), charge_carrier=1)
+Potassium = MassShift("Potassium", Composition("K1H-1"), charge_carrier=1)

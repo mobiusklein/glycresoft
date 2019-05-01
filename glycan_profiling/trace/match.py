@@ -1,4 +1,3 @@
-import operator
 from collections import defaultdict
 
 from glycan_profiling.database.mass_collection import NeutralMassDatabase
@@ -30,10 +29,10 @@ def span_overlap(reference, target):
     """
     cond = ((reference.start_time <= target.start_time and reference.end_time >= target.end_time) or (
         reference.start_time >= target.start_time and reference.end_time <= target.end_time) or (
-        reference.start_time >= target.start_time and reference.end_time >= target.end_time and
-        reference.start_time <= target.end_time) or (
-        reference.start_time <= target.start_time and reference.end_time >= target.start_time) or (
-        reference.start_time <= target.end_time and reference.end_time >= target.end_time))
+            reference.start_time >= target.start_time and reference.end_time >= target.end_time and
+            reference.start_time <= target.end_time) or (
+                reference.start_time <= target.start_time and reference.end_time >= target.start_time) or (
+                    reference.start_time <= target.end_time and reference.end_time >= target.end_time))
     return cond
 
 
@@ -55,18 +54,26 @@ class CompositionGroup(object):
 class ChromatogramMatcher(TaskBase):
     memory_load_threshold = 1e5
 
-    def __init__(self, database, chromatogram_type=None):
+    def __init__(self, database, chromatogram_type=None, require_unmodified=False, enforce_charges=False):
         if chromatogram_type is None:
             chromatogram_type = GlycanCompositionChromatogram
         self.database = database
+        self.require_unmodified = require_unmodified
+        self.enforce_charges = enforce_charges
         self._group_bundle = dict()
         self.chromatogram_type = chromatogram_type
         if len(database) < self.memory_load_threshold:
+            self._in_memory = True
             self.database = NeutralMassDatabase(list(database.get_all_records()))
-            self._convert = database._convert
+            self._original_convert = database._convert
+        else:
+            self._in_memory = False
 
     def _convert(self, record):
-        return self.database._convert(record)
+        if not self._in_memory:
+            return self.database._convert(record)
+        else:
+            return self._original_convert(record)
 
     def _match(self, neutral_mass, mass_error_tolerance=1e-5):
         return self.database.search_mass_ppm(neutral_mass, mass_error_tolerance)
@@ -206,7 +213,7 @@ class ChromatogramMatcher(TaskBase):
         chromatograms._build_key_map()
         key_map = chromatograms._key_map
         out = []
-        for key, disjoint_set in key_map.items():
+        for _, disjoint_set in key_map.items():
             if len(tuple(disjoint_set)) == 1:
                 out.extend(disjoint_set)
                 continue
@@ -294,6 +301,33 @@ class ChromatogramMatcher(TaskBase):
         matches = ChromatogramFilter(matches)
         return matches
 
+    def strip_only_modified(self, matches):
+        out = []
+        for match in matches:
+            adducts = match.adducts
+            if Unmodified in adducts:
+                out.append(match)
+        return out
+
+    def enforce_charge_counts(self, matches):
+        out = []
+        for match in matches:
+            changed = False
+            for adduct in match.adducts:
+                if adduct.charge_carrier != 0:
+                    charge_carrier = adduct.charge_carrier
+                    charges = match.charge_states
+                    has_sufficient_charge = [c for c in charges if c >= charge_carrier]
+                    has_insufficient_charge = [c for c in charges if c < charge_carrier]
+                    if has_insufficient_charge:
+                        # TODO: Bisect the chromatogram along the relevant charge states
+                        # and then extract out the disallowed adduction state, then re-combine
+                        # the chromatogram.
+                        pass
+            if not changed:
+                out.append(match)
+        return out
+
     def process(self, chromatograms, mass_shifts=None, mass_error_tolerance=1e-5, delta_rt=0):
         if mass_shifts is None:
             mass_shifts = []
@@ -302,11 +336,13 @@ class ChromatogramMatcher(TaskBase):
         matches = self.search_all(chromatograms, mass_error_tolerance)
         matches = self.join_common_identities(matches, delta_rt)
         if mass_shifts:
-            self.log("Handling mass_shifts")
+            self.log("Handling Mass Shifts")
             matches = self.join_mass_shifted(matches, mass_shifts, mass_error_tolerance)
             matches = self.reverse_mass_shift_search(matches, mass_shifts, mass_error_tolerance)
         matches = self.join_common_identities(matches, delta_rt)
         self.find_related_profiles(matches, mass_shifts, mass_error_tolerance)
+        if self.require_unmodified:
+            matches = self.strip_only_modified(matches)
         return matches
 
 
@@ -315,18 +351,21 @@ class GlycanChromatogramMatcher(ChromatogramMatcher):
 
 
 class GlycopeptideChromatogramMatcher(ChromatogramMatcher):
-    def __init__(self, database, chromatogram_type=None):
+    def __init__(self, database, chromatogram_type=None, require_unmodified=False, enforce_charges=False):
         if chromatogram_type is None:
             chromatogram_type = GlycopeptideChromatogram
-        super(GlycopeptideChromatogramMatcher, self).__init__(database, chromatogram_type)
+        super(GlycopeptideChromatogramMatcher, self).__init__(
+            database, chromatogram_type, require_unmodified=require_unmodified,
+            enforce_charges=enforce_charges)
 
 
 class NonSplittingChromatogramMatcher(ChromatogramMatcher):
-    def __init__(self, database, chromatogram_type=None):
+    def __init__(self, database, chromatogram_type=None, require_unmodified=False, enforce_charges=False):
         if chromatogram_type is None:
             chromatogram_type = Chromatogram
         super(NonSplittingChromatogramMatcher, self).__init__(
-            database, chromatogram_type)
+            database, chromatogram_type, require_unmodified=require_unmodified,
+            enforce_charges=enforce_charges)
 
     def assign(self, chromatogram, group):
         out = []
