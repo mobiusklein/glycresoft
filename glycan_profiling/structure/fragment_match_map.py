@@ -119,6 +119,12 @@ class FragmentMatchMap(object):
     def peaks_for(self, fragment):
         return self.by_fragment[fragment]
 
+    def __eq__(self, other):
+        return self.members == other.members
+
+    def __ne__(self, other):
+        return self.members != other.members
+
     def __iter__(self):
         return iter(self.members)
 
