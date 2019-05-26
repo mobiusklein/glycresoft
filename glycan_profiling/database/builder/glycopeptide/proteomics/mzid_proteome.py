@@ -383,7 +383,7 @@ class MzIdentMLPeptide(object):
                                 modification = Modification(_name)
 
                         except (KeyError, ModificationNameResolutionError) as e:
-                                raise KeyError("Cannot find key %s in %r" % (e, mod))
+                            raise KeyError("Cannot find key %s in %r" % (e, mod))
 
                     try:
                         rule_text = "%s (%s)" % (_name, mod["residues"][0])
@@ -778,7 +778,7 @@ class MzIdentMLProteomeExtraction(TaskBase):
                         Modification(name)
                     except ModificationNameResolutionError:
                         self.modification_translation_table[name] = modification.AnonymousModificationRule(
-                            name, mod['massDelta'])
+                            str(name), mod['massDelta'])
 
                 residues = mod['residues']
                 if mod.get('fixedMod', False):
