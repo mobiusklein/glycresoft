@@ -172,3 +172,17 @@ class AScoreEvaluator(object):
         solutions = [AScoreSolution(self.peptidoforms[i].peptide, score, self.peptidoforms[i].modifications) for score, i in ranked]
         return solutions
 
+    def site_determining_ions(self, solutions):
+        frag_sets = list(map(set, self._fragment_cache.values()))
+        common = set.intersection(*frag_sets)
+        n = len(solutions)
+        site_determining = []
+        for i, solution in enumerate(solutions):
+            cur_frags = frag_sets[i]
+            if i == n - 1:
+                diff = cur_frags - common
+                site_determining.append(diff)
+            else:
+                diff = (cur_frags - common) - frag_sets[i + 1]
+                site_determining.append(diff)
+        return site_determining
