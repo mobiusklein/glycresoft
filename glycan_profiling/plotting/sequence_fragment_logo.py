@@ -6,7 +6,7 @@ from glycopeptidepy.structure.fragment import IonSeries
 from glycopeptidepy.utils import simple_repr
 from glypy.plot import plot as draw_tree
 
-from .colors import darken, cnames, hex2color
+from .colors import darken, cnames, hex2color, get_color
 
 import numpy as np
 
@@ -36,11 +36,18 @@ class SequencePositionGlyph(object):
             self._ax = ax
 
         symbol = self.position[0].symbol
+
+        color = self.options.get("color", 'black')
+        if self.position.modifications:
+            color = darken(get_color(self.position.modifications[0]))
+            label = self.position.modifications[0].name
+        else:
+            label = None
+
         tpath = textpath.TextPath(
             (self.x, self.y), symbol, size=self.options.get('size'), prop=font_options)
         tpatch = mpatches.PathPatch(
-            tpath, color=self.options.get(
-                'color', 'black'), lw=0.25)
+            tpath, color=color, lw=0.25, label=label)
         self._patch = tpatch
         ax.add_patch(tpatch)
         return ax
