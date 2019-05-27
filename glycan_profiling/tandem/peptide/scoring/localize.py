@@ -1,15 +1,17 @@
-from collections import namedtuple, defaultdict
+# -*- coding: utf-8 -*-
 import itertools
+import math
+
+from collections import namedtuple, defaultdict
+from decimal import Decimal
 
 import numpy as np
 from scipy.special import comb
-from decimal import Decimal
-import math
 
 from glycopeptidepy.utils.memoize import memoize
-from ms_deisotope.utils import Base
-from ms_deisotope.peak_set import window_peak_set
 from glycopeptidepy.algorithm import PeptidoformGenerator
+
+from ms_deisotope.peak_set import window_peak_set
 
 
 @memoize(100000000000)
@@ -94,43 +96,11 @@ class AScoreSolution(AScoreCandidate):
         self.permutations = permutations
 
 
-class AScoreEvaluator(object):
-    '''
-    Calculate a localization statistic for given peptidoform and modification rule.
-
-    The original probabilistic model is described in [1]. Implementation based heavily
-    on the OpenMS implementation [2].
-
-    References
-    ----------
-    [1] Beausoleil, S. a, Villén, J., Gerber, S. a, Rush, J., & Gygi, S. P. (2006).
-        A probability-based approach for high-throughput protein phosphorylation analysis
-        and site localization. Nature Biotechnology, 24(10), 1285–1292. https://doi.org/10.1038/nbt1240
-    [2] Rost, H. L., Sachsenberg, T., Aiche, S., Bielow, C., Weisser, H., Aicheler, F., … Kohlbacher, O. (2016).
-        OpenMS: a flexible open-source software platform for mass spectrometry data analysis. Nat Meth, 13(9),
-        741–748. https://doi.org/10.1038/nmeth.3959
-    '''
-    def __init__(self, scan, peptide, modification_rule, n_positions=1):
-        self._scan = None
-        self.peak_windows = None
-        self.scan = scan
+class PeptidoformPermuter(object):
+    def __init__(self, peptide, modification_rule, modification_count=1):
         self.peptide = peptide
         self.modification_rule = modification_rule
-        self.n_positions = n_positions
-        self.peptidoforms = self.generate_peptidoforms(self.modification_rule)
-        self._fragment_cache = {}
-
-    @property
-    def scan(self):
-        return self._scan
-
-    @scan.setter
-    def scan(self, value):
-        self._scan = value
-        if value is None:
-            self.peak_windows = []
-        else:
-            self.peak_windows = map(PeakWindow, window_peak_set(value.deconvoluted_peak_set))
+        self.modification_count = modification_count
 
     def find_existing(self, modification_rule):
         '''Find existing modifications derived from this rule
@@ -163,19 +133,58 @@ class AScoreEvaluator(object):
 
     def generate_peptidoforms(self, modification_rule):
         base_peptides = self.generate_base_peptides(modification_rule)
-        pepgen = PeptidoformGenerator([], [modification_rule], self.n_positions)
+        pepgen = PeptidoformGenerator(
+            [], [modification_rule], self.modification_count)
         peptidoforms = defaultdict(set)
         for base_peptide in base_peptides:
             mod_combos = pepgen.modification_sites(base_peptide)
             for mod_combo in mod_combos:
-                if len(mod_combo) != self.n_positions:
+                if len(mod_combo) != self.modification_count:
                     continue
                 mod_combo = [ModificationAssignment(*mc) for mc in mod_combo]
-                peptidoform, n_mods = pepgen.apply_variable_modifications(
+                peptidoform, _n_mods = pepgen.apply_variable_modifications(
                     base_peptide, mod_combo, None, None)
                 peptidoforms[peptidoform].update(tuple(mod_combo))
         return [AScoreCandidate(peptide, sorted(mods), self._generate_fragments(peptide))
-                for peptide, mods in  peptidoforms.items()]
+                for peptide, mods in peptidoforms.items()]
+
+
+class AScoreEvaluator(PeptidoformPermuter):
+    '''
+    Calculate a localization statistic for given peptidoform and modification rule.
+
+    The original probabilistic model is described in [1]. Implementation based heavily
+    on the OpenMS implementation [2].
+
+    References
+    ----------
+    [1] Beausoleil, S. a, Villén, J., Gerber, S. a, Rush, J., & Gygi, S. P. (2006).
+        A probability-based approach for high-throughput protein phosphorylation analysis
+        and site localization. Nature Biotechnology, 24(10), 1285–1292. https://doi.org/10.1038/nbt1240
+    [2] Rost, H. L., Sachsenberg, T., Aiche, S., Bielow, C., Weisser, H., Aicheler, F., … Kohlbacher, O. (2016).
+        OpenMS: a flexible open-source software platform for mass spectrometry data analysis. Nat Meth, 13(9),
+        741–748. https://doi.org/10.1038/nmeth.3959
+    '''
+    def __init__(self, scan, peptide, modification_rule, modification_count=1):
+        self._scan = None
+        self.peak_windows = None
+
+        PeptidoformPermuter.__init__(self, peptide, modification_rule, modification_count)
+        self.scan = scan
+        self.peptidoforms = self.generate_peptidoforms(self.modification_rule)
+        self._fragment_cache = {}
+
+    @property
+    def scan(self):
+        return self._scan
+
+    @scan.setter
+    def scan(self, value):
+        self._scan = value
+        if value is None:
+            self.peak_windows = []
+        else:
+            self.peak_windows = map(PeakWindow, window_peak_set(value.deconvoluted_peak_set))
 
     def _generate_fragments(self, peptidoform):
         frags = itertools.chain.from_iterable(
@@ -210,7 +219,7 @@ class AScoreEvaluator(object):
         window_n = len(self.peak_windows)
         current_window = self.peak_windows[window_i]
         for frag in fragments:
-            while not current_window or (frag.mass >= (current_window.max_mass + 1)) :
+            while not current_window or (frag.mass >= (current_window.max_mass + 1)):
                 window_i += 1
                 if window_i == window_n:
                     return n
@@ -301,9 +310,7 @@ class AScoreEvaluator(object):
         return peptide
 
     def find_highest_scoring_permutations(self, solutions):
-        sites = []
         best_solution = solutions[0]
-        site_assignments_for_best_solution = best_solution.modifications
         permutation_pairs = []
         # for each modification under permutation, find the next best solution which
         # does not have this modification in its set of permuted modifications, and
@@ -321,7 +328,7 @@ class AScoreEvaluator(object):
         common = set.intersection(*frag_sets)
         n = len(solutions)
         site_determining = []
-        for i, solution in enumerate(solutions):
+        for i, _solution in enumerate(solutions):
             cur_frags = frag_sets[i]
             if i == n - 1:
                 diff = cur_frags - common
