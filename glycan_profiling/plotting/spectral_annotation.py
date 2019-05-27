@@ -135,10 +135,10 @@ class SpectrumMatchAnnotator(object):
         self.format_axes()
         return self
 
-    def add_logo_plot(self, xrel=0.15, yrel=0.8, width=0.67, height=0.13):
+    def add_logo_plot(self, xrel=0.15, yrel=0.8, width=0.67, height=0.13, **kwargs):
         figure = self.ax.figure
         iax = figure.add_axes([xrel, yrel, width, height])
-        logo = glycopeptide_match_logo(self.spectrum_match, ax=iax)
+        logo = glycopeptide_match_logo(self.spectrum_match, ax=iax, **kwargs)
         return logo
 
     def _draw_mass_accuracy_plot(self, ax, error_tolerance=2e-5, **kwargs):
