@@ -100,6 +100,7 @@ class SpectrumMatchAnnotator(object):
         clip_on = kwargs['clip_on']
         draw_peaklist(pair, ax=self.ax, alpha=0.4, color='orange')
         if label:
+            # pylint: disable=assignment-from-no-return
             midx = (p1.mz + p2.mz) / 2
             # interpolate the midpoint's height
             midy = (p1.intensity * (p2.mz - midx) + p2.intensity * (midx - p1.mz)) / (p2.mz - p1.mz)
