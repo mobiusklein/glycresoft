@@ -124,7 +124,7 @@ class PeptidoformPermuter(object):
     def generate_base_peptides(self, modification_rule):
         existing_indices = self.find_existing(modification_rule)
         base_peptides = []
-        for indices in itertools.combinations(existing_indices, self.n_positions):
+        for indices in itertools.combinations(existing_indices, self.modification_count):
             base_peptide = self.peptide.clone()
             for i in indices:
                 base_peptide.drop_modification(i, modification_rule)
