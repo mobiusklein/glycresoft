@@ -275,7 +275,12 @@ class AScoreEvaluator(PeptidoformPermuter):
         '''
         n = self.match_ions(fragments, i)
         p = i / 100.0
+        # If a fragment matches twice, this count can exceed the theoretical maximum.
+        if n > N:
+            n = N
         cumulative_score = binomial_pmf(N, n, p)
+        if cumulative_score == 0.0:
+            return 1e3
         return (abs(-10.0 * math.log10(cumulative_score)))
 
     def rank_permutations(self, permutation_scores):
