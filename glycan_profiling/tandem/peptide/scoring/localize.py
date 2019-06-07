@@ -9,7 +9,7 @@ import numpy as np
 from scipy.special import comb
 
 from glycopeptidepy.utils.memoize import memoize
-from glycopeptidepy.algorithm import PeptidoformGenerator
+from glycopeptidepy.algorithm import PeptidoformGenerator, ModificationSiteAssignmentCombinator
 
 from ms_deisotope.peak_set import window_peak_set
 
@@ -51,6 +51,16 @@ class PeakWindow(object):
     def __repr__(self):
         template = "{self.__class__.__name__}({self.max_mass}, {size})"
         return template.format(self=self, size=len(self))
+
+
+
+class BlindPeptidoformGenerator(PeptidoformGenerator):
+    def modification_sites(self, sequence):
+        variable_sites = {
+            mod.name: set(range(len(sequence))) for mod in self.variable_modifications}
+        modification_sites = ModificationSiteAssignmentCombinator(
+            variable_sites)
+        return modification_sites
 
 
 ProbableSitePair = namedtuple("ProbableSitePair", ['peptide1', 'peptide2', 'modifications', 'peak_depth'])
@@ -97,10 +107,11 @@ class AScoreSolution(AScoreCandidate):
 
 
 class PeptidoformPermuter(object):
-    def __init__(self, peptide, modification_rule, modification_count=1):
+    def __init__(self, peptide, modification_rule, modification_count=1, respect_specificity=True):
         self.peptide = peptide
         self.modification_rule = modification_rule
         self.modification_count = modification_count
+        self.respect_specificity = respect_specificity
 
     def find_existing(self, modification_rule):
         '''Find existing modifications derived from this rule
@@ -133,7 +144,11 @@ class PeptidoformPermuter(object):
 
     def generate_peptidoforms(self, modification_rule):
         base_peptides = self.generate_base_peptides(modification_rule)
-        pepgen = PeptidoformGenerator(
+        if self.respect_specificity:
+            PeptidoformGeneratorType = PeptidoformGenerator
+        else:
+            PeptidoformGeneratorType = BlindPeptidoformGenerator
+        pepgen = PeptidoformGeneratorType(
             [], [modification_rule], self.modification_count)
         peptidoforms = defaultdict(set)
         for base_peptide in base_peptides:
@@ -165,11 +180,12 @@ class AScoreEvaluator(PeptidoformPermuter):
         OpenMS: a flexible open-source software platform for mass spectrometry data analysis. Nat Meth, 13(9),
         741–748. https://doi.org/10.1038/nmeth.3959
     '''
-    def __init__(self, scan, peptide, modification_rule, modification_count=1):
+    def __init__(self, scan, peptide, modification_rule, modification_count=1, respect_specificity=True):
         self._scan = None
         self.peak_windows = None
 
-        PeptidoformPermuter.__init__(self, peptide, modification_rule, modification_count)
+        PeptidoformPermuter.__init__(
+            self, peptide, modification_rule, modification_count, respect_specificity)
         self.scan = scan
         self.peptidoforms = self.generate_peptidoforms(self.modification_rule)
         self._fragment_cache = {}
@@ -229,7 +245,7 @@ class AScoreEvaluator(PeptidoformPermuter):
                     n += 1
         return n
 
-    def permutation_score(self, peptidoform):
+    def permutation_score(self, peptidoform, error_tolerance=1e-5):
         '''Calculate the binomial statistic for this peptidoform
         using the top 1 to 10 peaks.
 
@@ -237,6 +253,8 @@ class AScoreEvaluator(PeptidoformPermuter):
         ----------
         peptidoform: :class:`~.PeptideSequence`
             The peptidoform to score
+        error_tolerance: float
+            The PPM error tolerance to use when matching peaks.
 
         Returns
         -------
@@ -252,10 +270,11 @@ class AScoreEvaluator(PeptidoformPermuter):
         N = len(fragments)
         site_scores = np.zeros(10)
         for i in range(1, 11):
-            site_scores[i - 1] = self._score_at_window_depth(fragments, N, i)
+            site_scores[i - 1] = self._score_at_window_depth(
+                fragments, N, i, error_tolerance)
         return site_scores
 
-    def _score_at_window_depth(self, fragments, N, i):
+    def _score_at_window_depth(self, fragments, N, i, error_tolerance=1e-5):
         '''Score a fragment collection at a given peak depth, and
         calculate the binomial score based upon the probability mass
         function.
@@ -268,12 +287,14 @@ class AScoreEvaluator(PeptidoformPermuter):
             The maximum number of theoretical fragments
         i: int
             The peak depth to search through
+        error_tolerance: float
+            The PPM error tolerance to use when matching peaks.
 
         Returns
         -------
         float
         '''
-        n = self.match_ions(fragments, i)
+        n = self.match_ions(fragments, i, error_tolerance=error_tolerance)
         p = i / 100.0
         # If a fragment matches twice, this count can exceed the theoretical maximum.
         if n > N:
@@ -300,7 +321,8 @@ class AScoreEvaluator(PeptidoformPermuter):
         return self._weight_vector.dot(scores) / 10.0
 
     def score(self, error_tolerance=1e-5):
-        scores = [self.permutation_score(candidate) for candidate in self.peptidoforms]
+        scores = [self.permutation_score(candidate, error_tolerance=error_tolerance)
+                  for candidate in self.peptidoforms]
         ranked = self.rank_permutations(scores)
         solutions = [self.peptidoforms[i].make_solution(score, scores[i])
                      for score, i in ranked]
