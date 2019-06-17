@@ -1,3 +1,6 @@
+'''A collection of odds-and-ends that are not heavily used or optimized.
+'''
+
 from collections import OrderedDict
 
 import numpy as np
@@ -5,6 +8,11 @@ from scipy.ndimage import gaussian_filter1d
 
 
 class ChromatogramDeltaNode(object):
+    '''Represent a sub-region of a chromatogram to determine whether to truncate
+    the chromatogram or not based upon whether or not they show large gaps in time
+    or significant change in intensity over time.
+    '''
+
     def __init__(self, retention_times, delta_intensity, start_time, end_time, is_below_threshold=True):
         self.retention_times = retention_times
         self.delta_intensity = delta_intensity
@@ -22,6 +30,7 @@ class ChromatogramDeltaNode(object):
         last_rt = rt[1]
         last_index = 1
         nodes = []
+        i = 0
         for i, rt_i in enumerate(rt[2:]):
             if (rt_i - last_rt) >= window_size:
                 nodes.append(
@@ -86,8 +95,12 @@ def find_truncation_points(rt, signal, sigma=3, pad=3):
 
 
 class SimpleChromatogram(OrderedDict):
-    def __init__(self):
-        super(SimpleChromatogram, self).__init__()
+    '''A simplified Chromatogram-like object which supports :meth:`as_arrays`
+    and :meth:`get_chromatogram`, but otherwise acts as a mapping from retention
+    time to intensity.
+    '''
+    def __init__(self, *args):
+        super(SimpleChromatogram, self).__init__(*args)
 
     composition = None
     glycan_composition = None

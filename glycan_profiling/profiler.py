@@ -3,6 +3,8 @@ from collections import defaultdict
 
 import glypy
 
+import numpy as np
+
 from glycan_profiling.database.disk_backed_database import (
     GlycanCompositionDiskBackedStructureDatabase,
     GlycopeptideDiskBackedStructureDatabase,
@@ -33,7 +35,7 @@ from glycan_profiling.trace import (
 
 from glycan_profiling import config
 
-from glycan_profiling.chromatogram_tree import ChromatogramFilter
+from glycan_profiling.chromatogram_tree import ChromatogramFilter, SimpleChromatogram
 
 from glycan_profiling.models import GeneralScorer, get_feature
 
@@ -191,6 +193,64 @@ class SampleConsumer(TaskBase):
         sink.complete()
         self.log("Completed Sample %s" % (self.sample_name,))
         sink.commit()
+
+
+class ChromatogramSummarizer(TaskBase):
+    def __init__(self, mzml_path, threshold_percentile=90, minimum_mass=300.0, extract_signatures=True):
+        self.mzml_path = mzml_path
+        self.threshold_percentile = threshold_percentile
+        self.minimum_mass = minimum_mass
+        self.extract_signatures = extract_signatures
+        self.intensity_threshold = 0.0
+
+    def make_scan_loader(self):
+        scan_loader = ProcessedMzMLDeserializer(self.mzml_path)
+        return scan_loader
+
+    def estimate_intensity_threshold(self, scan_loader):
+        acc = []
+        for scan_id in scan_loader.extended_index.ms1_ids:
+            header = scan_loader.get_scan_header_by_id(scan_id)
+            acc.extend(header.arrays.intensity)
+        self.intensity_threshold = np.percentile(acc, self.threshold_percentile)
+        return self.intensity_threshold
+
+    def extract_chromatograms(self, scan_loader):
+        extractor = ChromatogramExtractor(
+            scan_loader, minimum_intensity=self.intensity_threshold,
+            minimum_mass=self.minimum_mass)
+        chroma = extractor.run()
+        return chroma
+
+    def extract_signature_ion_traces(self, scan_loader):
+        from glycan_profiling.tandem.oxonium_ions import standard_oxonium_ions
+        window_width = 0.01
+        ox_time = []
+        ox_current = []
+        for scan_id in scan_loader.extended_index.msn_ids:
+            try:
+                scan = scan_loader.get_scan_header_by_id(scan_id)
+            except AttributeError:
+                self.log("Unable to resolve scan id %r" % scan_id)
+            total = 0
+            for ion in standard_oxonium_ions:
+                mid = ion.mass() + 1.007
+                lo = mid - window_width
+                hi = mid + window_width
+                sig_slice = scan.arrays.between_mz(lo, hi)
+                total += sig_slice.intensity.sum()
+            ox_time.append(scan.scan_time)
+            ox_current.append(total)
+        oxonium_ion_chromatogram = SimpleChromatogram(zip(ox_time, ox_current))
+        return oxonium_ion_chromatogram
+
+
+    def run(self):
+        scan_loader = self.make_scan_loader()
+        self.log("... Estimating Intensity Threshold")
+        self.estimate_intensity_threshold(scan_loader)
+        chroma = self.extract_chromatograms(scan_loader)
+        return chroma
 
 
 class GlycanChromatogramAnalyzer(TaskBase):
@@ -545,7 +605,7 @@ class GlycopeptideLCMSMSAnalyzer(TaskBase):
             peak_shape_scoring_model = GeneralScorer.clone()
             peak_shape_scoring_model.add_feature(get_feature("null_charge"))
         if scan_transformer is None:
-            def scan_transformer(x):
+            def scan_transformer(x): # pylint: disable=function-redefined
                 return x
         if mass_shifts is None:
             mass_shifts = []
