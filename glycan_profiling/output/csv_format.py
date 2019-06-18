@@ -103,6 +103,33 @@ class GlycopeptideHypothesisCSVSerializer(CSVSerializerBase):
         return map(str, attribs)
 
 
+class SimpelChromatogramCSVSerializer(CSVSerializerBase):
+    def __init__(self, outstream, entities_iterable, delimiter=','):
+        super(SimpelChromatogramCSVSerializer, self).__init__(
+            outstream, entities_iterable, delimiter)
+
+    def get_header(self):
+        return [
+            "neutral_mass",
+            "total_signal",
+            "charge_states",
+            "start_time",
+            "apex_time",
+            "end_time"
+        ]
+
+    def convert_object(self, obj):
+        attribs = [
+            obj.weighted_neutral_mass,
+            obj.total_signal,
+            ';'.join(map(str, obj.charge_states)),
+            obj.start_time,
+            obj.end_time,
+            obj.apex_time,
+        ]
+        return map(str, attribs)
+
+
 class GlycanLCMSAnalysisCSVSerializer(CSVSerializerBase):
     def __init__(self, outstream, entities_iterable, delimiter=','):
         super(GlycanLCMSAnalysisCSVSerializer, self).__init__(

@@ -18,7 +18,8 @@ from glycan_profiling.profiler import (
     MultipartGlycopeptideLCMSMSAnalyzer,
     MzMLGlycanChromatogramAnalyzer,
     LaplacianRegularizedChromatogramProcessor,
-    ProcessedMzMLDeserializer)
+    ProcessedMzMLDeserializer,
+    ChromatogramSummarizer)
 
 from glycan_profiling.tandem.glycopeptide.scoring import CoverageWeightedBinomialScorer
 from glycan_profiling.composition_distribution_model import GridPointSolution
@@ -621,3 +622,20 @@ def search_glycan(context, database_connection, sample_path,
                         params.dump(fp)
             else:
                 click.secho("Unrecognized Export: %s" % (export_type,), fg='yellow')
+
+
+@analyze.command("summarize-chromatograms", short_help="Simply summarize coherent chromatograms by mass and signal with time boundaries")
+@click.pass_context
+@sample_path
+@click.option("-o", "--output-path", default=None, type=click.Path(writable=True), help=(
+              "Path to write resulting analysis to as a CSV"))
+def summarize_chromatograms(context, sample_path, output_path):
+    task = ChromatogramSummarizer(sample_path)
+    chromatograms = task.start()
+    if output_path is None:
+        output_path = os.path.splitext(sample_path)[0] + '.chromatograms.csv'
+    from glycan_profiling.output.csv_format import SimpelChromatogramCSVSerializer
+    click.echo("Writing chromatogram summaries to %s" % (output_path, ))
+    with open(output_path, 'wb') as fh:
+        writer = SimpelChromatogramCSVSerializer(fh, chromatograms)
+        writer.run()
