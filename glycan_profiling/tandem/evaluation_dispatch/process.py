@@ -126,10 +126,16 @@ class IdentificationProcessDispatcher(TaskBase):
         return self.solution_handler.scan_solution_map
 
     def _make_input_queue(self):
-        return JoinableQueue(int(1e5))
+        try:
+            return JoinableQueue(int(1e5))
+        except (OSError, ValueError):
+            return JoinableQueue()
 
     def _make_output_queue(self):
-        return JoinableQueue(int(1e7))
+        try:
+            return JoinableQueue(int(1e7))
+        except (OSError, ValueError):
+            return JoinableQueue()
 
     def clear_pool(self):
         """Tear down spawned worker processes and clear

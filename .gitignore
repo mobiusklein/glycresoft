@@ -14,3 +14,4 @@ glycan_profiling/_c/**/*.html
 *__pycache__*
 .vscode/*
 .coverage
+Untitled*.ipynb
