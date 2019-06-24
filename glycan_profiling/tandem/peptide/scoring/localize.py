@@ -219,7 +219,7 @@ class AScoreEvaluator(PeptidoformPermuter):
     '''
     def __init__(self, scan, peptide, modification_rule, modification_count=1, respect_specificity=True):
         self._scan = None
-        self.peak_windows = None
+        self.peak_windows = []
 
         PeptidoformPermuter.__init__(
             self, peptide, modification_rule, modification_count, respect_specificity)
@@ -237,7 +237,7 @@ class AScoreEvaluator(PeptidoformPermuter):
         if value is None:
             self.peak_windows = []
         else:
-            self.peak_windows = map(PeakWindow, window_peak_set(value.deconvoluted_peak_set))
+            self.peak_windows = list(map(PeakWindow, window_peak_set(value.deconvoluted_peak_set)))
 
     def _generate_fragments(self, peptidoform):
         frags = itertools.chain.from_iterable(
@@ -343,9 +343,8 @@ class AScoreEvaluator(PeptidoformPermuter):
 
     def rank_permutations(self, permutation_scores):
         ranking = []
-        for i in range(len(permutation_scores)):
-            weighted_score = self._weighted_score(permutation_scores[i])
-            ranking.append((weighted_score, i))
+        for i, perm_scores in enumerate(permutation_scores):
+            ranking.append((self._weighted_score(perm_scores), i))
         ranking.sort(reverse=True)
         return ranking
 
@@ -415,14 +414,24 @@ class AScoreEvaluator(PeptidoformPermuter):
         peptide = self.score_localizations(solutions, error_tolerance)
         return peptide
 
-    def find_highest_scoring_permutations(self, solutions):
-        best_solution = solutions[0]
+    def find_highest_scoring_permutations(self, solutions, best_solution=None, offset=None):
+        if best_solution is None:
+            best_solution = solutions[0]
+            offset = 1
+        else:
+            if offset is None:
+                for i, sol in enumerate(solutions):
+                    if sol == solutions:
+                        offset = i + 1
+                        break
+                else:
+                    raise ValueError("Best solution %r not in solution set")
         permutation_pairs = []
         # for each modification under permutation, find the next best solution which
         # does not have this modification in its set of permuted modifications, and
         # package the pair into a :class:`ProbableSitePair`.
         for site in best_solution.modifications:
-            for alt_solution in solutions[1:]:
+            for alt_solution in solutions[offset:]:
                 if site not in alt_solution.modifications:
                     peak_depth = np.argmax(best_solution.permutations - alt_solution.permutations) + 1
                     permutation_pairs.append(ProbableSitePair(best_solution, alt_solution, site, peak_depth))
