@@ -58,6 +58,9 @@ class PeakWindow(object):
 
 
 class BlindPeptidoformGenerator(PeptidoformGenerator):
+    """A sub-class of the :class:`~.PeptidoformGenerator` type that ignores
+    site-specificities.
+    """
     def modification_sites(self, sequence):
         variable_sites = {
             mod.name: set(range(len(sequence))) for mod in self.variable_modifications}
@@ -342,6 +345,19 @@ class AScoreEvaluator(PeptidoformPermuter):
         return (abs(-10.0 * math.log10(cumulative_score)))
 
     def rank_permutations(self, permutation_scores):
+        """Rank generated peptidoforms by weighted sum of permutation scores
+
+        Parameters
+        ----------
+        permutation_scores : :class:`list` of :class:`list` of :class:`float`
+            The raw output of :meth:`permutation_score` for each peak depth for
+            each peptidoform.
+
+        Returns
+        -------
+        :class:`list`
+            A list of :class:`tuple` instances of (weighted score, peptidoform index)
+        """
         ranking = []
         for i, perm_scores in enumerate(permutation_scores):
             ranking.append((self._weighted_score(perm_scores), i))
@@ -354,6 +370,18 @@ class AScoreEvaluator(PeptidoformPermuter):
     ])
 
     def _weighted_score(self, scores):
+        """Calculate the weighted sum score over the peak-depth permuted
+        binomial score vector.
+
+        Parameters
+        ----------
+        scores : :class:`list`
+            The binomial score at each peak depth
+
+        Returns
+        -------
+        float
+        """
         return self._weight_vector.dot(scores) / 10.0
 
     def score_solutions(self, error_tolerance=1e-5, peptidoforms=None):
