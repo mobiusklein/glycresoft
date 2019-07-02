@@ -12,11 +12,13 @@ import numpy as np
 from glypy.structure.glycan_composition import HashableGlycanComposition
 from glycopeptidepy.structure.parser import strip_modifications
 
+from ms_deisotope.peak_dependency_network.intervals import SpanningMixin
+
 from glycan_profiling import serialize
 from glycan_profiling.task import TaskBase
 from glycan_profiling.structure import PeptideProteinRelation, LRUMapping
 
-from glycan_profiling.database import GlycanCompositionDiskBackedStructureDatabase
+from glycan_profiling.database import (GlycanCompositionDiskBackedStructureDatabase, GlycopeptideDiskBackedStructureDatabase)
 
 from glycan_profiling.database.builder.glycopeptide.proteomics.fasta import DeflineSuffix
 from glycan_profiling.database.builder.glycopeptide.proteomics.sequence_tree import SuffixTree
@@ -26,7 +28,7 @@ from glycan_profiling.tandem.glycopeptide.identified_structure import Identified
 from glycan_profiling.database.composition_network import NeighborhoodWalker, make_n_glycan_neighborhoods
 from glycan_profiling.composition_distribution_model import (
     smooth_network, display_table, VariableObservationAggregation,
-    GlycanCompositionSolutionRecord,
+    GlycanCompositionSolutionRecord, GlycomeModel,
     AbundanceWeightedObservationAggregation)
 from glycan_profiling.models import GeneralScorer, get_feature
 
@@ -429,3 +431,179 @@ class GlycosylationSiteModelBuilder(TaskBase):
                 glycan_map)
             self.site_models.append(site_model)
             return site_model
+
+
+class GlycoproteinSiteModelBuildingWorkflow(TaskBase):
+    def __init__(self, analyses, glycopeptide_database, glycan_database,
+                 unobserved_penalty_scale=None, lambda_limit=0.2,
+                 require_multiple_observations=True, observation_aggregator=None,
+                 output_path=None):
+        if observation_aggregator is None:
+            observation_aggregator = VariableObservationAggregation
+        if unobserved_penalty_scale is None:
+            unobserved_penalty_scale = 1.0
+
+        self.analyses = analyses
+        self.glycopeptide_database = glycopeptide_database
+        self.glycan_database = glycan_database
+
+        self.unobserved_penalty_scale = unobserved_penalty_scale
+        self.lambda_limit = lambda_limit
+
+        self.require_multiple_observations = require_multiple_observations
+        self.observation_aggregator = observation_aggregator
+
+        self.output_path = output_path
+
+    @classmethod
+    def from_paths(cls, analysis_paths_and_ids, glycopeptide_hypothesis_path, glycopeptide_hypothesis_id,
+                   glycan_hypothesis_path, glycan_hypothesis_id, unobserved_penalty_scale=None,
+                   lambda_limit=0.2, require_multiple_observations=True, observation_aggregator=None,
+                   output_path=None):
+        gp_db = GlycopeptideDiskBackedStructureDatabase(
+            glycopeptide_hypothesis_path, glycopeptide_hypothesis_id)
+        gc_db = GlycanCompositionDiskBackedStructureDatabase(
+            glycan_hypothesis_path, glycan_hypothesis_id)
+
+        analyses = [serialize.AnalysisDeserializer(conn, analysis_id=an_id)
+                    for conn, an_id in analysis_paths_and_ids]
+        inst = cls(
+            analyses, gp_db, gc_db, unobserved_penalty_scale=unobserved_penalty_scale,
+            lambda_limit=lambda_limit, require_multiple_observations=require_multiple_observations,
+            observation_aggregator=observation_aggregator, output_path=output_path
+        )
+        return inst
+
+    def make_glycan_network(self):
+        network = self.glycan_database.glycan_composition_network
+        network = network.augment_with_decoys()
+        network.create_edges()
+
+        model = GlycomeModel([], network)
+        belongingness_matrix = model.belongingness_matrix
+        network.neighborhoods = model.neighborhood_walker.neighborhoods
+        return network, belongingness_matrix
+
+    def load_identified_glycoproteins_from_analysis(self, analysis):
+        if not isinstance(analysis, serialize.Analysis):
+            analysis = analysis.analysis
+        idgps = analysis.aggregate_identified_glycoproteins()
+        return idgps
+
+    def build_reference_protein_map(self):
+        proteins = list(self.glycopeptide_database.proteins)
+        index = {p.name: p for p in proteins}
+        return index
+
+    def aggregate_identified_glycoproteins(self):
+        acc = defaultdict(list)
+        for analysis in self.analyses:
+            for idgp in self.load_identified_glycoproteins_from_analysis(analysis):
+                acc[idgp.name].append(idgp)
+        result = []
+        for _name, duplicates in acc.items():
+            agg = duplicates[0]
+            for case in duplicates[1:]:
+                agg = agg.merge(case)
+            result.append(agg)
+        return result
+
+    def run(self):
+        network, belongingness_matrix = self.make_glycan_network()
+
+        builder = GlycosylationSiteModelBuilder(
+            network, belongingness_matrix=belongingness_matrix,
+            unobserved_penalty_scale=self.unobserved_penalty_scale,
+            lambda_limit=self.lambda_limit,
+            require_multiple_observations=self.require_multiple_observations,
+            observation_aggregator=self.observation_aggregator)
+
+
+'''
+import sys
+import glob
+import json
+
+import glycan_profiling
+from glycan_profiling import database, composition_distribution_model
+from glycan_profiling.composition_distribution_model import site_model
+from glycan_profiling.database import composition_network
+
+import glypy
+import glycopeptidepy
+
+import pandas as pd
+import numpy as np
+from scipy import linalg
+
+rho = composition_distribution_model.DEFAULT_RHO
+
+db = database.GlycopeptideDiskBackedStructureDatabase("../database/mouse_glycoproteome/synthesis-n-glycopeptide.db")
+db2 = database.GlycanCompositionDiskBackedStructureDatabase("../database/mouse_glycoproteome/synthesis-n-glycopeptide.db")
+
+network = db2.glycan_composition_network
+
+print("Initializing Augmented Network")
+augmented_network = network.augment_with_decoys()
+augmented_network.create_edges()
+
+print("Building Belongingness Matrix")
+model = composition_distribution_model.glycome_network_smoothing.GlycomeModel([], augmented_network)
+
+belongingness_matrix = model.belongingness_matrix
+augmented_network.neighborhoods = model.neighborhood_walker.neighborhoods
+
+print("Loading Records")
+table = pd.concat(map(pd.read_table, glob.glob("./MouseBrain-Z-T-*/*-chromatograms.txt")))
+table['glycan'] = table.glycopeptide.apply(lambda x: str(glycopeptidepy.PeptideSequence(x).glycan_composition))
+
+
+protein_names = table.protein_name.unique()
+site_models = []
+n = len(protein_names)
+for prot_i, protein_name in enumerate(protein_names):
+    protein = db.proteins[protein_name]
+    rows_for_protein = table[table.protein_name == protein_name]
+    print('\t'.join(map(str, [
+        protein_name,
+        prot_i,
+        prot_i * 100.0 / n
+    ])))
+
+    for site in protein.n_glycan_sequon_sites:
+
+        selector_mask = ((rows_for_protein.start_position <= site) & (rows_for_protein.end_position >= site))
+        record_rows = rows_for_protein[selector_mask]
+        records = []
+        for i, row in record_rows.iterrows():
+            record = composition_distribution_model.GlycanCompositionSolutionRecord(row.glycan, row.ms1_score)
+            if record.score < 1:
+                continue
+
+        print site
+        print len(records)
+        print [str(r.glycan_composition) for r in records]
+        model = composition_distribution_model.GlycomeModel(records, augmented_network, belongingness_matrix)
+        reduction = model.find_threshold_and_lambda(rho)
+        grid_search = composition_distribution_model.ThresholdSelectionGridSearch(model, reduction)
+        params = grid_search.average_solution()
+        print params
+        composition_distribution_model.display_table(model.neighborhood_names, params.tau.reshape((-1, 1)))
+        dup = params.clone()
+        dup.lmbda = min(dup.lmbda, 0.2)
+        network = grid_search.annotate_network(dup)
+        glycan_map = {
+            str(node.glycan_composition): site_model.GlycanPriorRecord(node.score, not node.marked)
+            for node in network
+            if node.score > 1e-4
+        }
+        site_mod = site_model.GlycosylationSiteModel(
+            protein_name, site, dict(zip(model.neighborhood_names, params.tau)), dup.lmbda, glycan_map)
+        site_models.append(site_mod)
+
+print("Serializing Sites To Disk")
+with open("./glycosite_models.json", 'w') as fh:
+    sites = [s.to_dict() for s in site_models]
+    json.dump(sites, fh)
+
+'''

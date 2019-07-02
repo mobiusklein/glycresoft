@@ -1,3 +1,4 @@
+import re
 from functools import partial
 
 from sqlalchemy import (
@@ -93,6 +94,21 @@ class Analysis(Base, HasUniqueName, HasFiles):
 
     hypothesis = property(get_hypothesis)
 
+    def aggregate_identified_glycoproteins(self):
+        from glycan_profiling.tandem.glycopeptide.identified_structure import IdentifiedGlycoprotein
+        from . import Protein
+
+        glycopeptides = self.identified_glycopeptides.all()
+
+        protein_index = {}
+        session = object_session(self)
+        proteins = session.query(Protein).all()
+        for p in proteins:
+            protein_index[p.id] = p
+
+        glycoproteome = IdentifiedGlycoprotein.aggregate(glycopeptides, index=protein_index)
+        return glycoproteome
+
 
 class BoundToAnalysis(object):
 
@@ -102,4 +118,11 @@ class BoundToAnalysis(object):
 
     @declared_attr
     def analysis(self):
-        return relationship(Analysis)
+        return relationship(Analysis, backref=backref(self._collection_name(), lazy='dynamic'))
+
+    @classmethod
+    def _collection_name(cls):
+        name = cls.__name__
+        collection_name = re.sub(r"(.+?)([A-Z])", lambda match: match.group(1).lower() +
+               "_" + match.group(2).lower(), name, 0) + 's'
+        return collection_name

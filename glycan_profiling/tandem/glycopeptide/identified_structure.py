@@ -121,6 +121,9 @@ class GlycopeptideIndex(object):
     def append(self, member):
         self.members.append(member)
 
+    def extend(self, members):
+        self.members.extend(members)
+
     def __iter__(self):
         return iter(self.members)
 
@@ -186,6 +189,18 @@ class SiteMap(object):
     def _repr_pretty_(self, p, cycle):
         return p.pretty(self.store)
 
+    def copy(self):
+        dup = self.__class__()
+        for key, values in self.items():
+            dup[key].extend(values)
+        return dup
+
+    def merge(self, other):
+        dup = self.copy()
+        for key, values in other.items():
+            dup[key].extend(values)
+        return dup
+
 
 class HeterogeneityMap(object):
     def __init__(self):
@@ -215,6 +230,19 @@ class HeterogeneityMap(object):
     def pop(self, key):
         return self.store.pop(key)
 
+    def copy(self):
+        dup = self.__class__()
+        for key, value in self.items():
+            dup[key] = value.copy()
+        return dup
+
+    def merge(self, other):
+        dup = self.copy()
+        for site_key, values in other.items():
+            for gc_key, abund in values.items():
+                dup[site_key][gc_key] += abund
+        return dup
+
 
 class IdentifiedGlycoprotein(object):
     glycosylation_types = [
@@ -238,13 +266,33 @@ class IdentifiedGlycoprotein(object):
             a for a in AmbiguousGlycopeptideGroup.aggregate(identified_glycopeptides)
             if len(a) > 1
         ]
-        self._site_map = defaultdict(lambda: SiteMap())
+        self._site_map = defaultdict(SiteMap)
         self.microheterogeneity_map = HeterogeneityMap()
         for glycotype in self.glycosylation_types:
             self._map_glycopeptides_to_glycosites(glycotype)
 
     def __len__(self):
         return len(self.protein_sequence)
+
+    def __eq__(self, other):
+        if self.name != other.name:
+            return False
+        elif self.protein_sequence != other.protein_sequence:
+            return False
+        elif self.identified_glycopeptides != other.identified_glycopeptides:
+            return False
+        return True
+
+    def __ne__(self, other):
+        return not self == other
+
+    def copy(self):
+        dup = self.__class__(self, self.identified_glycopeptides[:])
+        return dup
+
+    def merge(self, other):
+        dup = self.__class__(self, self.identified_glycopeptides[:] + other.identified_glycopeptides[:])
+        return dup
 
     @property
     def glycosylation_sites(self):
@@ -310,7 +358,7 @@ class IdentifiedGlycoprotein(object):
         for key in site_list:
             prefix_map[key] = self.protein_sequence[key]
 
-        string_form = [":".join(map(lambda x: x.name, self._site_map.keys()))]
+        string_form = []
         for site, observed in sorted(site_list.items()):
             prefix = prefix_map[site]
             components = [observed[k] for k in self._site_map]
