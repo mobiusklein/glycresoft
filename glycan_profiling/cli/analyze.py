@@ -629,13 +629,19 @@ def search_glycan(context, database_connection, sample_path,
 @sample_path
 @click.option("-o", "--output-path", default=None, type=click.Path(writable=True), help=(
               "Path to write resulting analysis to as a CSV"))
-def summarize_chromatograms(context, sample_path, output_path):
-    task = ChromatogramSummarizer(sample_path)
-    chromatograms = task.start()
+@click.option("-e", "--evaluate", is_flag=True, help=(
+              "Should all chromatograms be evaluated. Can greatly increase runtime."))
+def summarize_chromatograms(context, sample_path, output_path, evaluate=False):
+    task = ChromatogramSummarizer(sample_path, evaluate=evaluate)
+    chromatograms, summary_chromatograms = task.start()
     if output_path is None:
         output_path = os.path.splitext(sample_path)[0] + '.chromatograms.csv'
-    from glycan_profiling.output.csv_format import SimpelChromatogramCSVSerializer
+    from glycan_profiling.output import (
+        SimpleChromatogramCSVSerializer, SimpleScoredChromatogramCSVSerializer)
     click.echo("Writing chromatogram summaries to %s" % (output_path, ))
     with open(output_path, 'wb') as fh:
-        writer = SimpelChromatogramCSVSerializer(fh, chromatograms)
+        if evaluate:
+            writer = SimpleScoredChromatogramCSVSerializer(fh, chromatograms)
+        else:
+            writer = SimpleChromatogramCSVSerializer(fh, chromatograms)
         writer.run()

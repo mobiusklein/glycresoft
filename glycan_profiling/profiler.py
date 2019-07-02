@@ -31,7 +31,8 @@ from glycan_profiling.trace import (
     ScanSink,
     ChromatogramExtractor,
     LogitSumChromatogramProcessor,
-    LaplacianRegularizedChromatogramProcessor)
+    LaplacianRegularizedChromatogramProcessor,
+    ChromatogramEvaluator)
 
 from glycan_profiling import config
 
@@ -196,12 +197,17 @@ class SampleConsumer(TaskBase):
 
 
 class ChromatogramSummarizer(TaskBase):
-    def __init__(self, mzml_path, threshold_percentile=90, minimum_mass=300.0, extract_signatures=True):
+    def __init__(self, mzml_path, threshold_percentile=90, minimum_mass=300.0, extract_signatures=True, evaluate=False,
+                 chromatogram_scoring_model=None):
+        if chromatogram_scoring_model is None:
+            chromatogram_scoring_model = GeneralScorer
         self.mzml_path = mzml_path
         self.threshold_percentile = threshold_percentile
         self.minimum_mass = minimum_mass
         self.extract_signatures = extract_signatures
         self.intensity_threshold = 0.0
+        self.chromatogram_scoring_model = chromatogram_scoring_model
+        self.should_evaluate = evaluate
 
     def make_scan_loader(self):
         scan_loader = ProcessedMzMLDeserializer(self.mzml_path)
@@ -220,7 +226,7 @@ class ChromatogramSummarizer(TaskBase):
             scan_loader, minimum_intensity=self.intensity_threshold,
             minimum_mass=self.minimum_mass)
         chroma = extractor.run()
-        return chroma
+        return chroma, extractor.total_ion_chromatogram, extractor.base_peak_chromatogram
 
     def extract_signature_ion_traces(self, scan_loader):
         from glycan_profiling.tandem.oxonium_ions import standard_oxonium_ions
@@ -244,13 +250,23 @@ class ChromatogramSummarizer(TaskBase):
         oxonium_ion_chromatogram = SimpleChromatogram(zip(ox_time, ox_current))
         return oxonium_ion_chromatogram
 
+    def evaluate_chromatograms(self, chromatograms):
+        evaluator = ChromatogramEvaluator(self.chromatogram_scoring_model)
+        solutions = evaluator.score(chromatograms)
+        return solutions
 
     def run(self):
         scan_loader = self.make_scan_loader()
         self.log("... Estimating Intensity Threshold")
         self.estimate_intensity_threshold(scan_loader)
-        chroma = self.extract_chromatograms(scan_loader)
-        return chroma
+        chroma, total_ion_chromatogram, base_peak_chromatogram = self.extract_chromatograms(
+            scan_loader)
+        oxonium_ion_chromatogram = None
+        if self.extract_signatures:
+            oxonium_ion_chromatogram = self.extract_signature_ion_traces(scan_loader)
+        if self.should_evaluate:
+            chroma = self.evaluate_chromatograms(chroma)
+        return chroma, (total_ion_chromatogram, base_peak_chromatogram, oxonium_ion_chromatogram)
 
 
 class GlycanChromatogramAnalyzer(TaskBase):

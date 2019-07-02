@@ -103,9 +103,9 @@ class GlycopeptideHypothesisCSVSerializer(CSVSerializerBase):
         return map(str, attribs)
 
 
-class SimpelChromatogramCSVSerializer(CSVSerializerBase):
+class SimpleChromatogramCSVSerializer(CSVSerializerBase):
     def __init__(self, outstream, entities_iterable, delimiter=','):
-        super(SimpelChromatogramCSVSerializer, self).__init__(
+        super(SimpleChromatogramCSVSerializer, self).__init__(
             outstream, entities_iterable, delimiter)
 
     def get_header(self):
@@ -128,6 +128,33 @@ class SimpelChromatogramCSVSerializer(CSVSerializerBase):
             obj.apex_time,
         ]
         return map(str, attribs)
+
+
+class SimpleScoredChromatogramCSVSerializer(SimpleChromatogramCSVSerializer):
+
+    def get_header(self):
+        headers = super(SimpleScoredChromatogramCSVSerializer, self).get_header()
+        headers += [
+            "score",
+            "line_score",
+            "isotopic_fit",
+            "spacing_fit",
+            "charge_count",
+        ]
+        return headers
+
+    def convert_object(self, obj):
+        attribs = super(SimpleScoredChromatogramCSVSerializer, self).convert_object(obj)
+        scores = obj.score_components()
+        more_attribs = [
+            obj.score,
+            scores.line_score,
+            scores.isotopic_fit,
+            scores.spacing_fit,
+            scores.charge_count,
+        ]
+        attribs = list(attribs) + list(map(str, more_attribs))
+        return attribs
 
 
 class GlycanLCMSAnalysisCSVSerializer(CSVSerializerBase):

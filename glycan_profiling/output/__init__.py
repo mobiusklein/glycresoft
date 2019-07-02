@@ -5,7 +5,9 @@ from .csv_format import (
     GlycopeptideHypothesisCSVSerializer,
     GlycanLCMSAnalysisCSVSerializer,
     GlycopeptideLCMSMSAnalysisCSVSerializer,
-    GlycopeptideSpectrumMatchAnalysisCSVSerializer)
+    GlycopeptideSpectrumMatchAnalysisCSVSerializer,
+    SimpleChromatogramCSVSerializer,
+    SimpleScoredChromatogramCSVSerializer)
 
 from .xml import (
     MzIdentMLSerializer)
