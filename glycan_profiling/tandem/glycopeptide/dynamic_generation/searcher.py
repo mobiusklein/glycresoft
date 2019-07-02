@@ -17,7 +17,7 @@ from ...workload import WorkloadManager
 from ...spectrum_match import MultiScoreSpectrumSolutionSet
 
 from ..scoring import LogIntensityScorer
-from ..glycopeptide_matcher import GlycopeptideMatcher
+from ..matcher import GlycopeptideMatcher
 
 
 class MultiScoreGlycopeptideMatcher(GlycopeptideMatcher):

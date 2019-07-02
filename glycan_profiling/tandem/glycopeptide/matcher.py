@@ -10,7 +10,7 @@ from glycan_profiling.chromatogram_tree import Unmodified
 
 from glycan_profiling.structure import (
     CachingGlycopeptideParser,
-    DecoyMakingCachingGlycopeptideParser)
+    SequenceReversingCachingGlycopeptideParser)
 
 from ..spectrum_evaluation import TandemClusterEvaluatorBase, DEFAULT_BATCH_SIZE
 from ..process_dispatcher import SpectrumIdentificationWorkerBase
@@ -92,7 +92,7 @@ class GlycopeptideMatcher(PeptideMassFilteringDatabaseSearchMixin, TandemCluster
 
 class DecoyGlycopeptideMatcher(GlycopeptideMatcher):
     def _default_parser_type(self):
-        return DecoyMakingCachingGlycopeptideParser
+        return SequenceReversingCachingGlycopeptideParser
 
 
 class TargetDecoyInterleavingGlycopeptideMatcher(PeptideMassFilteringDatabaseSearchMixin, TandemClusterEvaluatorBase):

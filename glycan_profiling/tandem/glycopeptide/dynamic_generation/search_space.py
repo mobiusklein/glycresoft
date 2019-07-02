@@ -465,11 +465,11 @@ class Record(object):
 
     def convert(self):
         if self.id.structure_type.value & StructureClassification.target_peptide_decoy_glycan.value:
-            struct = DecoyFragmentCachingGlycopeptide(self.glycopeptide)
+            structure = DecoyFragmentCachingGlycopeptide(self.glycopeptide)
         else:
-            struct = FragmentCachingGlycopeptide(self.glycopeptide)
-        struct.id = self.id
-        return struct
+            structure = FragmentCachingGlycopeptide(self.glycopeptide)
+        structure.id = self.id
+        return structure
 
     def serialize(self):
         id_bytes = self.id.serialize()

@@ -2,11 +2,13 @@ from .scoring import (
     BinomialSpectrumMatcher, TargetDecoyAnalyzer,
     CoverageWeightedBinomialScorer, LogIntensityScorer)
 
+from .matcher import GlycopeptideMatcher
+
 from .glycopeptide_matcher import (
     GlycopeptideDatabaseSearchIdentifier,
     ExclusiveGlycopeptideDatabaseSearchComparer,
     GlycopeptideDatabaseSearchComparer,
-    GlycopeptideMatcher, GlycopeptideIdentificationWorker)
+    GlycopeptideIdentificationWorker)
 
 
 from .dynamic_generation import (

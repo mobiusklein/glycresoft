@@ -384,10 +384,10 @@ class CachingStubGlycopeptideStrategy(StubGlycopeptideStrategy):
             return value
 
 
-class DecoyMakingCachingGlycopeptideParser(CachingGlycopeptideParser):
+class SequenceReversingCachingGlycopeptideParser(CachingGlycopeptideParser):
 
     def _make_new_value(self, struct):
-        value = DecoyFragmentCachingGlycopeptide(str(reverse_preserve_sequon(struct.glycopeptide_sequence)))
+        value = FragmentCachingGlycopeptide(str(reverse_preserve_sequon(struct.glycopeptide_sequence)))
         value.id = struct.id
         value.protein_relation = PeptideProteinRelation(
             struct.start_position, struct.end_position,

@@ -9,7 +9,9 @@ from glycopeptidepy.utils import collectiontools
 
 from glycan_profiling.task import TaskBase, TaskExecutionSequence, Empty
 
-from glycan_profiling.structure.structure_loader import FragmentCachingGlycopeptide, PeptideProteinRelation
+from glycan_profiling.structure.structure_loader import (
+    FragmentCachingGlycopeptide, DecoyFragmentCachingGlycopeptide,
+    PeptideProteinRelation)
 from glycan_profiling.structure.lru import LRUMapping
 from glycan_profiling.chromatogram_tree import MassShift, Unmodified
 
@@ -164,7 +166,10 @@ class JournalFileReader(TaskBase):
         glycopeptide_id_key = self._build_key(row)
         if glycopeptide_id_key in self.glycopeptide_cache:
             return self.glycopeptide_cache[glycopeptide_id_key]
-        glycopeptide = FragmentCachingGlycopeptide(row['glycopeptide_sequence'])
+        if glycopeptide_id_key.structure_type & StructureClassification.target_peptide_decoy_glycan.value:
+            glycopeptide = DecoyFragmentCachingGlycopeptide(row['glycopeptide_sequence'])
+        else:
+            glycopeptide = FragmentCachingGlycopeptide(row['glycopeptide_sequence'])
         glycopeptide.id = glycopeptide_id_key
         glycopeptide.protein_relation = self._build_protein_relation(glycopeptide_id_key)
         self.glycopeptide_cache[glycopeptide_id_key] = glycopeptide

@@ -6,7 +6,7 @@ from glycan_profiling.task import TaskBase
 
 from glycan_profiling.structure import (
     CachingGlycopeptideParser,
-    DecoyMakingCachingGlycopeptideParser)
+    SequenceReversingCachingGlycopeptideParser)
 
 
 from ..target_decoy import GroupwiseTargetDecoyAnalyzer, TargetDecoySet
@@ -207,7 +207,7 @@ class GlycopeptideDatabaseSearchIdentifier(TaskBase):
 
     def _load_stored_matches(self, target_count, decoy_count):
         target_resolver = GlycopeptideResolver(self.structure_database, CachingGlycopeptideParser(int(1e6)))
-        decoy_resolver = GlycopeptideResolver(self.structure_database, DecoyMakingCachingGlycopeptideParser(int(1e6)))
+        decoy_resolver = GlycopeptideResolver(self.structure_database, SequenceReversingCachingGlycopeptideParser(int(1e6)))
 
         loaded_target_hits = []
         for i, solset in enumerate(self.spectrum_match_store.reader("targets", target_resolver)):
