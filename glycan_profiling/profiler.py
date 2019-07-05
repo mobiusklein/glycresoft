@@ -696,9 +696,35 @@ class GlycopeptideLCMSMSAnalyzer(TaskBase):
         return assigned_spectra
 
     def estimate_fdr(self, searcher, target_decoy_set):
-        searcher.estimate_fdr(*target_decoy_set)
+        return searcher.estimate_fdr(*target_decoy_set)
 
     def map_chromatograms(self, searcher, extractor, target_hits):
+        """Map identified spectrum matches onto extracted chromatogram groups, selecting the
+        best overall structure for each chromatogram group and merging disjoint chromatograms
+        which are assigned the same structure.
+
+        The structure assigned to a chromatogram group is not necessarily the only structure that
+        is reasonable and there may be ambiguity. When the same exact structure with different source
+        information (duplicate peptide sequences, common subsequence between proteins) is assigned to
+        a chromatogram group, every alternative structure is included as well.
+
+        Parameters
+        ----------
+        searcher : object
+            The search algorithm implementation providing a `map_to_chromatograms` method
+        extractor : :class:`~.ChromatogramExtractor` or Iterable of :class:`Chromatogram`
+            The chromatograms to map to
+        target_hits : list
+            The list of target spectrum matches
+
+        Returns
+        -------
+        merged: :class:`~.ChromatogramFilter`
+            The chromatograms after all structure assignment, aggregation and merging
+            is complete.
+        orphans: list
+            The set of spectrum matches which were not assigned to a chromatogram.
+        """
 
         def threshold_fn(x):
             return x.q_value < self.psm_fdr_threshold
@@ -714,6 +740,18 @@ class GlycopeptideLCMSMSAnalyzer(TaskBase):
         return merged, orphans
 
     def score_chromatograms(self, merged):
+        """Calculate the MS1 score for each chromatogram.
+
+        Parameters
+        ----------
+        merged : Iterable of :class:`Chromatogram`
+            The chromatograms to score
+
+        Returns
+        -------
+        list:
+            The scored chromatograms
+        """
         chroma_scoring_model = self.peak_shape_scoring_model
         scored_merged = []
         n = len(merged)
@@ -739,6 +777,31 @@ class GlycopeptideLCMSMSAnalyzer(TaskBase):
             assigned_list, lambda x: x.q_value < self.psm_fdr_threshold)
         return gps, unassigned
 
+    def rank_target_hits(self, searcher, target_decoy_set):
+        '''Estimate the FDR using the searcher's method, and
+        count the number of acceptable target matches. Return
+        the full set of target matches for downstream use.
+
+        Parameters
+        ----------
+        searcher: object
+            The search algorithm implementation, providing an `estimate_fdr` method
+        target_decoy_set: TargetDecoySet
+
+        Returns
+        -------
+        Iterable of SpectrumMatch-like objects
+        '''
+        self.log("Estimating FDR")
+        self.estimate_fdr(searcher, target_decoy_set)
+        target_hits = target_decoy_set.target_matches
+        n_below = 0
+        for target in target_hits:
+            if target.q_value <= self.psm_fdr_threshold:
+                n_below += 1
+        self.log("%d spectrum matches accepted" % (n_below,))
+        return target_hits
+
     def run(self):
         peak_loader = self.make_peak_loader()
         database = self.make_database()
@@ -759,13 +822,7 @@ class GlycopeptideLCMSMSAnalyzer(TaskBase):
             self.log("No target matches were found.")
             return [], [], TargetDecoySet([], [])
 
-        self.estimate_fdr(searcher, target_decoy_set)
-        target_hits = target_decoy_set.target_matches
-        n_below = 0
-        for target in target_hits:
-            if target.q_value <= self.psm_fdr_threshold:
-                n_below += 1
-        self.log("%d spectrum matches accepted" % (n_below,))
+        target_hits = self.rank_target_hits(searcher, target_decoy_set)
 
         # Map MS/MS solutions to chromatograms.
         self.log("Building and Mapping Chromatograms")
@@ -1006,7 +1063,7 @@ class MzMLComparisonGlycopeptideLCMSMSAnalyzer(MzMLGlycopeptideLCMSMSAnalyzer):
         else:
             targets_per_decoy = 1.0
             decoy_correction = 0
-        searcher.estimate_fdr(
+        return searcher.estimate_fdr(
             *target_decoy_set, decoy_correction=decoy_correction,
             target_weight=targets_per_decoy)
 
@@ -1047,19 +1104,19 @@ class MultipartGlycopeptideLCMSMSAnalyzer(MzMLGlycopeptideLCMSMSAnalyzer):
 
     def make_database(self):
         if self.use_memory_database:
-            database = MultipartGlycopeptideIdentifier._build_default_memory_backed_db_wrapper(
+            database = MultipartGlycopeptideIdentifier.build_default_memory_backed_db_wrapper(
                 self.database_connection, hypothesis_id=self.target_hypothesis_id)
         else:
-            database = MultipartGlycopeptideIdentifier._build_default_disk_backed_db_wrapper(
+            database = MultipartGlycopeptideIdentifier.build_default_disk_backed_db_wrapper(
                 self.database_connection, hypothesis_id=self.target_hypothesis_id)
         return database
 
     def make_decoy_database(self):
         if self.use_memory_database:
-            database = MultipartGlycopeptideIdentifier._build_default_memory_backed_db_wrapper(
+            database = MultipartGlycopeptideIdentifier.build_default_memory_backed_db_wrapper(
                 self.decoy_database_connection, hypothesis_id=self.decoy_hypothesis_id)
         else:
-            database = MultipartGlycopeptideIdentifier._build_default_disk_backed_db_wrapper(
+            database = MultipartGlycopeptideIdentifier.build_default_disk_backed_db_wrapper(
                 self.decoy_database_connection, hypothesis_id=self.decoy_hypothesis_id)
         return database
 
@@ -1078,7 +1135,32 @@ class MultipartGlycopeptideLCMSMSAnalyzer(MzMLGlycopeptideLCMSMSAnalyzer):
         return searcher
 
     def estimate_fdr(self, searcher, target_decoy_set):
-        searcher.estimate_fdr(target_decoy_set)
+        return searcher.estimate_fdr(target_decoy_set)
+
+    def rank_target_hits(self, searcher, target_decoy_set):
+        '''Estimate the FDR using the searcher's method, and
+        count the number of acceptable target matches. Return
+        the full set of target matches for downstream use.
+
+        Parameters
+        ----------
+        searcher: object
+            The search algorithm implementation, providing an `estimate_fdr` method
+        target_decoy_set: TargetDecoySet
+
+        Returns
+        -------
+        Iterable of SpectrumMatch-like objects
+        '''
+        self.log("Estimating FDR")
+        self.estimate_fdr(searcher, target_decoy_set)
+        target_hits = target_decoy_set.target_matches
+        n_below = 0
+        for target in target_hits:
+            if target.q_value <= self.psm_fdr_threshold:
+                n_below += 1
+        self.log("%d spectrum matches accepted" % (n_below,))
+        return target_hits
 
     def make_analysis_serializer(self, output_path, analysis_name, sample_run, identified_glycopeptides,
                                  unassigned_chromatograms, database, chromatogram_extractor):

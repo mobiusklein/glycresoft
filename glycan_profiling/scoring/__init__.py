@@ -4,7 +4,7 @@ from .base import (
     epsilon)
 
 from .shape_fitter import (
-    ChromatogramShapeFitter, ChromatogramShapeModel)
+    ChromatogramShapeFitter, ChromatogramShapeModel, AdaptiveMultimodalChromatogramShapeFitter)
 
 from .spacing_fitter import (
     ChromatogramSpacingFitter, ChromatogramSpacingModel,

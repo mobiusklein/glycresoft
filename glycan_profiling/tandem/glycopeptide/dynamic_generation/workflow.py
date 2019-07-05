@@ -136,9 +136,9 @@ class MultipartGlycopeptideIdentifier(TaskBase):
         if ipc_manager is None:
             ipc_manager = multiprocessing.Manager()
         if isinstance(target_peptide_db, str):
-            target_peptide_db = self._build_default_disk_backed_db_wrapper(target_peptide_db)
+            target_peptide_db = self.build_default_disk_backed_db_wrapper(target_peptide_db)
         if isinstance(decoy_peptide_db, str):
-            decoy_peptide_db = self._build_default_disk_backed_db_wrapper(decoy_peptide_db)
+            decoy_peptide_db = self.build_default_disk_backed_db_wrapper(decoy_peptide_db)
 
         self.tandem_scans = tandem_scans
         self.scorer_type = scorer_type
@@ -169,12 +169,12 @@ class MultipartGlycopeptideIdentifier(TaskBase):
         self.journal_path = self.file_manager.get('glycopeptide-match-journal')
 
     @classmethod
-    def _build_default_disk_backed_db_wrapper(cls, path, **kwargs):
+    def build_default_disk_backed_db_wrapper(cls, path, **kwargs):
         peptide_db = make_disk_backed_peptide_database(path, **kwargs)
         return peptide_db
 
     @classmethod
-    def _build_default_memory_backed_db_wrapper(cls, path, **kwargs):
+    def build_default_memory_backed_db_wrapper(cls, path, **kwargs):
         peptide_db = make_memory_database_proxy_resolver(path, **kwargs)
         return peptide_db
 

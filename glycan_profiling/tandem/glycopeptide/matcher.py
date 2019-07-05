@@ -269,6 +269,10 @@ class CompetativeTargetDecoyInterleavingGlycopeptideMatcher(TargetDecoyInterleav
 
 
 class ComparisonGlycopeptideMatcher(TargetDecoyInterleavingGlycopeptideMatcher):
+    '''A variation of :class:`TargetDecoyInterleavingGlycopeptideMatcher` where
+    targets and decoys are drawn from separate hypotheses, and decoys are taken
+    verbatim from their database without be reversed.
+    '''
     def __init__(self, tandem_cluster, scorer_type, target_structure_database, decoy_structure_database,
                  minimum_oxonium_ratio=0.05, n_processes=5, ipc_manager=None,
                  probing_range_for_missing_precursors=3, mass_shifts=None,
@@ -316,6 +320,8 @@ class ComparisonGlycopeptideMatcher(TargetDecoyInterleavingGlycopeptideMatcher):
         workload = self.target_evaluator._map_scans_to_hits(
             scans, precursor_error_tolerance)
 
+        # Execute the potentially disk-heavy task in the background while
+        # evaluating the target spectrum matches.
         decoy_query_thread = threading.Thread(target=decoy_query_task)
         decoy_query_thread.start()
 
