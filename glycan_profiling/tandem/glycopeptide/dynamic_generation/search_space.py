@@ -247,7 +247,7 @@ class PredictiveGlycopeptideSearch(DynamicGlycopeptideSearchBase):
         self.trust_precursor_fits = trust_precursor_fits
 
     def handle_scan_group(self, group, precursor_error_tolerance=1e-5, mass_shifts=None, workload=None):
-        if mass_shifts is None:
+        if mass_shifts is None or not mass_shifts:
             mass_shifts = [Unmodified]
         if workload is None:
             workload = WorkloadManager()
@@ -378,7 +378,7 @@ class IterativeGlycopeptideSearch(DynamicGlycopeptideSearchBase):
             return nearest_interval.group
 
     def handle_scan_group(self, group, precursor_error_tolerance=1e-5, mass_shifts=None, workload=None):
-        if mass_shifts is None:
+        if mass_shifts is None or not mass_shifts:
             mass_shifts = [Unmodified]
         if workload is None:
             workload = WorkloadManager()

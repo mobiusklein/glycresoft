@@ -1,16 +1,25 @@
+'''High level analytical pipeline implementations.
+
+Each class is designed to encapsulate a single broad task, i.e.
+LC-MS/MS deconvolution or structure identification
+'''
 import os
 from collections import defaultdict
 
-import glypy
-
 import numpy as np
+
+import ms_peak_picker
+
+import ms_deisotope
+from ms_deisotope.output.mzml import ProcessedMzMLDeserializer
+
+import glypy
+from glycopeptidepy.utils.collectiontools import descending_combination_counter
+
 
 from glycan_profiling.database.disk_backed_database import (
     GlycanCompositionDiskBackedStructureDatabase,
-    GlycopeptideDiskBackedStructureDatabase,
-    PeptideDiskBackedStructureDatabase)
-
-from glycan_profiling.database.mass_collection import TransformingMassCollectionAdapter
+    GlycopeptideDiskBackedStructureDatabase)
 
 from glycan_profiling.database.analysis import (
     GlycanCompositionChromatogramAnalysisSerializer,
@@ -40,7 +49,7 @@ from glycan_profiling.chromatogram_tree import ChromatogramFilter, SimpleChromat
 
 from glycan_profiling.models import GeneralScorer, get_feature
 
-from glycan_profiling.structure import ScanStub, PeptideDatabaseRecord
+from glycan_profiling.structure import ScanStub
 
 from glycan_profiling.tandem import chromatogram_mapping
 from glycan_profiling.tandem.target_decoy import TargetDecoySet
@@ -69,14 +78,15 @@ from glycan_profiling.scan_cache import (
 
 from glycan_profiling.task import TaskBase
 
-import ms_deisotope
-import ms_peak_picker
-
-from ms_deisotope.output.mzml import ProcessedMzMLDeserializer
-from glycopeptidepy.utils.collectiontools import descending_combination_counter
-
 
 class SampleConsumer(TaskBase):
+    """Implements the LC-MS/MS sample deconvolution pipeline, taking an arbitrary
+    MS data file providing MS1 and MSn scans and produces a new mzML file with the
+    deisotoped and charge state deconvolved data from each spectrum in it.
+
+    Makes heavy use of :mod:`ms_deisotope` and :mod:`ms_peak_picker`
+    """
+
     MS1_ISOTOPIC_PATTERN_WIDTH = 0.95
     MS1_IGNORE_BELOW = 0.05
     MSN_ISOTOPIC_PATTERN_WIDTH = 0.80
@@ -136,6 +146,24 @@ class SampleConsumer(TaskBase):
 
     @staticmethod
     def default_processing_configuration(averagine=ms_deisotope.glycopeptide, msn_averagine=None):
+        """Create the default scan-level processing parameters for the pipeline if
+        not provided.
+
+        This function is mainly useful for testing and debugging as this information is usually
+        provided by the user.
+
+        Parameters
+        ----------
+        averagine : :class:`ms_deisotope.Averagine`, optional
+            The averagine model used for MS1 spectra (the default is ms_deisotope.glycopeptide)
+        msn_averagine : :class:`ms_deisotope.Averagine`, optional
+            The averagine model used for MSn spectra (the default is None, which will default to the same as the MS1 model)
+
+        Returns
+        -------
+        :class:`tuple` of 4 :class:`dict`
+        """
+
         if msn_averagine is None:
             msn_averagine = averagine
 
@@ -197,6 +225,13 @@ class SampleConsumer(TaskBase):
 
 
 class ChromatogramSummarizer(TaskBase):
+    """Implement the simple diagnostic chromatogram extraction pipeline which
+    given a deconvoluted mzML file produced by :class:`SampleConsumer` will build
+    aggregated extracted ion chromatograms for each distinct mass over time.
+
+    Unlike most of the pipelines here, this task does not currently save its own output,
+    instead returning it to the caller of it's :meth:`run` method.
+    """
     def __init__(self, mzml_path, threshold_percentile=90, minimum_mass=300.0, extract_signatures=True, evaluate=False,
                  chromatogram_scoring_model=None):
         if chromatogram_scoring_model is None:
@@ -210,10 +245,16 @@ class ChromatogramSummarizer(TaskBase):
         self.should_evaluate = evaluate
 
     def make_scan_loader(self):
+        '''Create a reader for the deconvoluted LC-MS data file
+        '''
         scan_loader = ProcessedMzMLDeserializer(self.mzml_path)
         return scan_loader
 
     def estimate_intensity_threshold(self, scan_loader):
+        '''Given a reader with an extended index, build the MS1 peak
+        intensity distribution to estimate the global intensity threshold
+        to use when extracting chromatograms.
+        '''
         acc = []
         for scan_id in scan_loader.extended_index.ms1_ids:
             header = scan_loader.get_scan_header_by_id(scan_id)
@@ -222,6 +263,8 @@ class ChromatogramSummarizer(TaskBase):
         return self.intensity_threshold
 
     def extract_chromatograms(self, scan_loader):
+        '''Perform the chromatogram extraction process.
+        '''
         extractor = ChromatogramExtractor(
             scan_loader, minimum_intensity=self.intensity_threshold,
             minimum_mass=self.minimum_mass)
@@ -229,6 +272,9 @@ class ChromatogramSummarizer(TaskBase):
         return chroma, extractor.total_ion_chromatogram, extractor.base_peak_chromatogram
 
     def extract_signature_ion_traces(self, scan_loader):
+        '''Skim the MSn spectra to look for oxonium ion signatures over
+        time.
+        '''
         from glycan_profiling.tandem.oxonium_ions import standard_oxonium_ions
         window_width = 0.01
         ox_time = []
@@ -270,6 +316,13 @@ class ChromatogramSummarizer(TaskBase):
 
 
 class GlycanChromatogramAnalyzer(TaskBase):
+    """Analyze glycan LC-MS profiling data, assigning glycan compositions
+    to extracted chromatograms.
+
+    The base implementation targets the legacy deconvoluted spectrum
+    database format. See :class:`MzMLGlycanChromatogramAnalyzer` for the
+    newer implementation targeting the mzML file produced by :class:`SampleConsumer`.
+    """
 
     @staticmethod
     def expand_mass_shifts(mass_shift_counts, crossproduct=True, limit=None):
