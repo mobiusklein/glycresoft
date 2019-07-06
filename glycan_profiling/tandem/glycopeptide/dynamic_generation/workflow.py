@@ -114,6 +114,7 @@ class PeptideDatabaseProxyLoader(object):
         mem_db = mass_collection.NeutralMassDatabase(peptides)
         mem_db.session = db.session
         mem_db.hypothesis_id = db.hypothesis_id
+        mem_db.hypothesis = db.hypothesis
         return mem_db
 
 
@@ -347,6 +348,7 @@ class MultipartGlycopeptideIdentifier(TaskBase):
         pipeline.start()
         pipeline.join()
         journal_writer.close()
+        return journal_writer.solution_counter
 
     def search(self, precursor_error_tolerance=1e-5, simplify=True, batch_size=500, **kwargs):
         self.evaluation_kwargs.update(kwargs)
@@ -359,14 +361,28 @@ class MultipartGlycopeptideIdentifier(TaskBase):
         self.log("{:d} Scans, {:d} Scan Groups".format(
             len(self.tandem_scans), len(scan_groups)))
         self.log("Running Identification Pipeline...")
-        self.run_identification_pipeline(
+        total_solutions_count = self.run_identification_pipeline(
             scan_groups)
         self.log("Loading Spectrum Matches From Journal...")
-        reader = list(JournalFileReader(self.journal_path, scan_loader=self.scan_loader, mass_shift_map={
+        reader = enumerate(JournalFileReader(self.journal_path, scan_loader=self.scan_loader, mass_shift_map={
             m.name: m for m in self.mass_shifts
         }))
+        solutions = []
+        last = 0.1
+        should_log = False
+        for i, sol in reader:
+            if i / total_solutions_count > last:
+                should_log = True
+                last += 0.1
+            elif i % 5000 == 0:
+                should_log = True
+            if should_log:
+                self.log("... %d/%d Solutions Loaded (%0.2f%%)" % (
+                    i, total_solutions_count, i * 100.0 / total_solutions_count))
+                should_log = False
+            solutions.append(sol)
         self.log("Partitioning Spectrum Matches...")
-        groups = SolutionSetGrouper(reader)
+        groups = SolutionSetGrouper(solutions)
         return groups
 
     def estimate_fdr(self, glycopeptide_spectrum_match_groups, *args, **kwargs):
