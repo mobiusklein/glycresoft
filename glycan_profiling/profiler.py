@@ -43,7 +43,7 @@ from glycan_profiling.trace import (
     LaplacianRegularizedChromatogramProcessor,
     ChromatogramEvaluator)
 
-from glycan_profiling import config
+from glycan_profiling import config # pylint: disable=unused-import
 
 from glycan_profiling.chromatogram_tree import ChromatogramFilter, SimpleChromatogram
 
@@ -157,7 +157,8 @@ class SampleConsumer(TaskBase):
         averagine : :class:`ms_deisotope.Averagine`, optional
             The averagine model used for MS1 spectra (the default is ms_deisotope.glycopeptide)
         msn_averagine : :class:`ms_deisotope.Averagine`, optional
-            The averagine model used for MSn spectra (the default is None, which will default to the same as the MS1 model)
+            The averagine model used for MSn spectra (the default is None, which will default to the
+            same as the MS1 model)
 
         Returns
         -------

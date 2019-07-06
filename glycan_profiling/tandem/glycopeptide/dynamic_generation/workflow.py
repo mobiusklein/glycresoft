@@ -362,7 +362,9 @@ class MultipartGlycopeptideIdentifier(TaskBase):
         self.run_identification_pipeline(
             scan_groups)
         self.log("Loading Spectrum Matches From Journal...")
-        reader = list(JournalFileReader(self.journal_path))
+        reader = list(JournalFileReader(self.journal_path, scan_loader=self.scan_loader, mass_shift_map={
+            m.name: m for m in self.mass_shifts
+        }))
         self.log("Partitioning Spectrum Matches...")
         groups = SolutionSetGrouper(reader)
         return groups

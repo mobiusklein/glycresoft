@@ -1,9 +1,10 @@
+'''Implementation for journal file reading and writing to serialize
+glycopeptide spectrum match information to disk during processing.
+'''
 import csv
 
 from collections import defaultdict
 from operator import attrgetter
-
-import numpy as np
 
 from glycopeptidepy.utils import collectiontools
 
@@ -23,6 +24,11 @@ from .search_space import glycopeptide_key_t, StructureClassification
 
 
 class JournalFileWriter(TaskBase):
+    """A task for writing glycopeptide spectrum matches to a CSV-formatted
+    journal file. This format is an intermediary result, and will contain many
+    random or non-useful matches.
+
+    """
     def __init__(self, path, include_fdr=False):
         self.path = path
         if not hasattr(path, 'write'):
@@ -67,7 +73,7 @@ class JournalFileWriter(TaskBase):
 
     def _prepare_fields(self, psm):
         error = (psm.target.total_mass - psm.precursor_information.neutral_mass
-                 ) / psm.precursor_information.neutral_mass
+                ) / psm.precursor_information.neutral_mass
         fields = ([psm.scan_id, error, ] + list(psm.target.id) + [
             psm.target,
             psm.mass_shift.name,
