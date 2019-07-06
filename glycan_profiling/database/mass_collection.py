@@ -435,7 +435,6 @@ class _NeutralMassDatabase(SearchableMassCollection):
 try:
     from glycan_profiling._c.database.mass_collection import (
         MassObject, NeutralMassDatabaseImpl as _NeutralMassDatabaseImpl)
-    _NeutralMassDatabase = NeutralMassDatabase
 
     class NeutralMassDatabase(_NeutralMassDatabaseImpl, _NeutralMassDatabase):
         pass
