@@ -260,7 +260,7 @@ def identity(x):
     return x
 
 
-class NeutralMassDatabase(SearchableMassCollection):
+class _NeutralMassDatabase(SearchableMassCollection):
     def __init__(self, structures, mass_getter=operator.attrgetter("calculated_mass"), sort=True):
         self.mass_getter = mass_getter
         self.structures = self._prepare(structures, sort)
@@ -440,7 +440,7 @@ try:
     class NeutralMassDatabase(_NeutralMassDatabaseImpl, _NeutralMassDatabase):
         pass
 except ImportError:
-    pass
+    NeutralMassDatabase = _NeutralMassDatabase
 
 
 class ConcatenatedDatabase(SearchableMassCollection):

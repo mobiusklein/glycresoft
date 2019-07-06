@@ -111,10 +111,7 @@ class PeptideDatabaseProxyLoader(object):
                 rec for rec in peptides
                 if bool(rec.o_glycosylation_sites) or bool(rec.gagylation_sites)
             ]
-        mem_db = mass_collection.NeutralMassDatabase(peptides)
-        mem_db.session = db.session
-        mem_db.hypothesis_id = db.hypothesis_id
-        mem_db.hypothesis = db.hypothesis
+        mem_db = disk_backed_database.InMemoryPeptideStructureDatabase(peptides, db)
         return mem_db
 
 
@@ -371,7 +368,7 @@ class MultipartGlycopeptideIdentifier(TaskBase):
         last = 0.1
         should_log = False
         for i, sol in reader:
-            if i / total_solutions_count > last:
+            if i * 1.0 / total_solutions_count > last:
                 should_log = True
                 last += 0.1
             elif i % 5000 == 0:

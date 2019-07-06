@@ -429,6 +429,27 @@ class GlycopeptideDiskBackedStructureDatabase(DeclarativeDiskBackedDatabase):
         return selectable.where(Glycopeptide.__table__.c.hypothesis_id == self.hypothesis_id)
 
 
+class InMemoryPeptideStructureDatabase(NeutralMassDatabase):
+    def __init__(self, records, source_database):
+        super(InMemoryPeptideStructureDatabase, self).__init__(records)
+        self.source_database = source_database
+
+    @property
+    def hypothesis(self):
+        return self.source_database.hypothesis
+
+    @property
+    def hypothesis_id(self):
+        return self.source_database.hypothesis_id
+
+    @property
+    def session(self):
+        return self.source_database.session
+
+    def query(self, *args, **kwargs):
+        return self.source_database.query(*args, **kwargs)
+
+
 class LazyLoadingGlycopeptideDiskBackedStructureDatabase(GlycopeptideDiskBackedStructureDatabase):
     fields = [
         Glycopeptide.__table__.c.id,
