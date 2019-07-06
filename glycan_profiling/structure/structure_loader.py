@@ -117,7 +117,7 @@ oxonium_ion_cache = GlycanFragmentCache()
 class PeptideProteinRelation(SpanningMixin):
     __slots__ = ["protein_id", "hypothesis_id"]
 
-    def __init__(self, start_position, end_position, protein_id, hypothesis_id):
+    def __init__(self, start_position, end_position, protein_id, hypothesis_id):  # pylint: disable=super-init-not-called
         self.start = start_position
         self.end = end_position
         self.protein_id = protein_id
@@ -192,7 +192,7 @@ class FragmentCachingGlycopeptide(PeptideSequence):
         except AttributeError:
             return super(FragmentCachingGlycopeptide, self).__eq__(other)
 
-    def get_fragments(self, *args, **kwargs):
+    def get_fragments(self, *args, **kwargs):  # pylint: disable=arguments-differ
         key = ("get_fragments", args, frozenset(kwargs.items()))
         try:
             return self.fragment_caches[key]
@@ -201,7 +201,7 @@ class FragmentCachingGlycopeptide(PeptideSequence):
             self.fragment_caches[key] = result
             return result
 
-    def stub_fragments(self, *args, **kwargs):
+    def stub_fragments(self, *args, **kwargs):  # pylint: disable=arguments-differ
         kwargs.setdefault("strategy", CachingStubGlycopeptideStrategy)
         key = ('stub_fragments', args, frozenset(kwargs.items()))
         try:
@@ -214,13 +214,13 @@ class FragmentCachingGlycopeptide(PeptideSequence):
     def _glycan_fragments(self):
         return list(super(FragmentCachingGlycopeptide, self).glycan_fragments(oxonium=True))
 
-    def glycan_fragments(self, *args, **kwargs):
+    def glycan_fragments(self, *args, **kwargs):  # pylint: disable=arguments-differ
         return oxonium_ion_cache(self)
 
     def clear_caches(self):
         self.fragment_caches.clear()
 
-    def clone(self, *args, **kwargs):
+    def clone(self, *args, **kwargs):  # pylint: disable=arguments-differ
         share_cache = kwargs.pop("share_cache", True)
         new = super(FragmentCachingGlycopeptide, self).clone(*args, **kwargs)
         new.id = self.id
@@ -403,7 +403,7 @@ class DecoyMonosaccharideResidue(FrozenMonosaccharideResidue):
     def get_cache(cls):
         return cls.__cache
 
-    def mass(self, *args, **kwargs):
+    def mass(self, *args, **kwargs):  # pylint: disable=arguments-differ
         return super(DecoyMonosaccharideResidue, self).mass(*args, **kwargs) + self._delta
 
 

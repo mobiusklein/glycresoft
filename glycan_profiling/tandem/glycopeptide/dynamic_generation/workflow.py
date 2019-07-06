@@ -32,8 +32,7 @@ from .search_space import (
     PeptideGlycosylator,
     PredictiveGlycopeptideSearch,
     GlycanCombinationRecord,
-    StructureClassification,
-    CompoundGlycopeptideSearch)
+    StructureClassification)
 
 from .searcher import (
     SpectrumBatcher, SerializingMapperExecutor,

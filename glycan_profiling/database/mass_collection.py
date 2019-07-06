@@ -1,10 +1,11 @@
 from abc import ABCMeta, abstractmethod, abstractproperty
-from six import add_metaclass
 
 import operator
 import itertools
 
 import dill
+
+from six import add_metaclass
 
 from glycopeptidepy import HashableGlycanComposition
 
@@ -543,7 +544,7 @@ class TransformingMassCollectionAdapter(SearchableMassCollectionWrapper):
     def __setstate__(self, state):
         self.transformer = dill.loads(state['transformer'])
 
-    def search_mass(self, mass, error_tolerance):
+    def search_mass(self, mass, error_tolerance):  # pylint: disable=signature-differs
         result = self.searchable_mass_collection.search_mass(mass, error_tolerance)
         return [self.transformer(r) for r in result]
 
@@ -594,7 +595,7 @@ class MassCollectionProxy(SearchableMassCollectionWrapper):
     def __setstate__(self, state):
         self.resolver = dill.loads(state['resolver'])
 
-    def search_mass(self, mass, error_tolerance):
+    def search_mass(self, mass, error_tolerance):  # pylint: disable=signature-differs
         result = self.searchable_mass_collection.search_mass(mass, error_tolerance)
         return result
 
@@ -606,6 +607,8 @@ class MassCollectionProxy(SearchableMassCollectionWrapper):
 
     def search_between(self, lower, higher):
         return self.searchable_mass_collection.search_between(lower, higher)
+
+    # Fake the disk-backed interface
 
     @property
     def hypothesis(self):

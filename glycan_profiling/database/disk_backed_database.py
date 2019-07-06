@@ -7,13 +7,14 @@ except ImportError:
 
 import logging
 
+
+from sqlalchemy import select, join
+
 from glycan_profiling.serialize import (
     GlycanComposition, Glycopeptide, Peptide,
     func, GlycopeptideHypothesis, GlycanHypothesis,
     DatabaseBoundOperation, GlycanClass, GlycanTypes,
     GlycanCompositionToClass)
-
-from sqlalchemy import select, join
 
 from .mass_collection import SearchableMassCollection, NeutralMassDatabase
 from .intervals import (
@@ -182,7 +183,7 @@ class DiskBackedStructureDatabaseBase(SearchableMassCollection, DatabaseBoundOpe
         else:
             # Situation unclear.
             # Not worth inserting, so just return the group
-            logger.info("Unknown Condition Overlap %r / %r" % (node, nearest_interval))
+            logger.info("Unknown Condition Overlap %r / %r", node, nearest_interval)
             return nearest_interval.group
 
     def clear_cache(self):
@@ -228,7 +229,7 @@ class DiskBackedStructureDatabaseBase(SearchableMassCollection, DatabaseBoundOpe
         self._upkeep_memory_intervals()
         return self.has_interval(mass, error_tolerance).search_mass_ppm(mass, error_tolerance)
 
-    def search_mass(self, mass, error_tolerance):
+    def search_mass(self, mass, error_tolerance):  # pylint: disable=signature-differs
         return self._search_mass_interval(mass - error_tolerance, mass + error_tolerance)
 
     def _search_mass_interval(self, start, end):
