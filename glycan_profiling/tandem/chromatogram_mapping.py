@@ -26,6 +26,7 @@ class SpectrumMatchSolutionCollectionBase(object):
         weights = [
             SolutionEntry(k, v, v / total, best_scores[k],
                           best_spectrum_match[k]) for k, v in scores.items()
+            if k in best_spectrum_match
         ]
         weights.sort(key=lambda x: x.percentile, reverse=True)
         return weights
