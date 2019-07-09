@@ -237,7 +237,7 @@ class GlycomeModel(LaplacianSmoothingModel):
             # no solution to the general problem as it calls for inverting a potentially large matrix
             # to only be used in this loop.
             if raw_observations == last_raw_observations:
-                observations, summarized_state, obs_ix = last_aggregate
+                observations, summarized_state, obs_ix = last_aggregate # pylint: disable=unpacking-non-sequence
             else:
                 agg = self.observation_aggregator(self.network)
                 agg.collect(raw_observations)
@@ -353,6 +353,9 @@ def smooth_network(network, observed_compositions, threshold_step=0.5, apex_thre
             return None, None, None
         search = ThresholdSelectionGridSearch(model, reduction, apex_threshold)
         params = search.average_solution(lmbda=lmbda)
+        if params is None:
+            log_handle.log("... No Acceptable Solution. Could not fit model.")
+            return None, None, None
     else:
         search = ThresholdSelectionGridSearch(model, None, apex_threshold)
         model_state.reindex(model)

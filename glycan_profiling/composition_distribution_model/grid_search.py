@@ -584,6 +584,8 @@ class ThresholdSelectionGridSearch(NetworkSmoothingModelSolutionBase):
 
     def average_solution(self, rho=DEFAULT_RHO, lmbda=None):
         solutions = self.get_solutions(rho=rho, lmbda=lmbda)
+        if len(solutions) == 0:
+            return None
         tau_acc = np.zeros_like(solutions[0].tau)
         lmbda_acc = 0
         thresh_acc = 0
@@ -634,6 +636,8 @@ class ThresholdSelectionGridSearch(NetworkSmoothingModelSolutionBase):
 
     def fit(self, rho=DEFAULT_RHO, lmbda=None):
         solution = self.average_solution(rho=rho, lmbda=lmbda)
+        if solution is None:
+            raise ValueError("Could not fit model. No acceptable solution found.")
         return NetworkSmoothingModelFit(self.model, solution)
 
 

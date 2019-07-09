@@ -413,6 +413,9 @@ class GlycosylationSiteModelBuilder(TaskBase):
             self.network, learnable_cases,
             belongingness_matrix=self.belongingness_matrix,
             observation_aggregator=VariableObservationAggregation)
+        if params is None:
+            self.log("Skipping Site")
+            return
         self.log("Lambda: %f" % (params.lmbda,))
         display_table([x.name for x in self.network.neighborhoods],
                       np.array(params.tau).reshape((-1, 1)))
