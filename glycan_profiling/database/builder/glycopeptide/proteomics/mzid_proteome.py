@@ -7,7 +7,7 @@ from six import string_types as basestring
 
 from glycopeptidepy.io import fasta as glycopeptidepy_fasta
 from glycopeptidepy.structure import sequence, modification, residue
-from glycopeptidepy.enzyme import Protease
+from glycopeptidepy.enzyme import Protease, enzyme_rules
 from glypy.composition import formula
 
 from glycan_profiling.serialize import (
@@ -674,7 +674,7 @@ class PeptideConverter(PeptideMapperBase):
         for evidence in evidence_list:
             if "skip" in evidence:
                 continue
-            if evidence["isDecoy"]:
+            if evidence.get("isDecoy", False):
                 continue
 
             parent_protein = self.get_protein(evidence)
@@ -740,26 +740,33 @@ class MzIdentMLProteomeExtraction(TaskBase):
             # It's a standard enzyme, so we can look it up by name
             if "EnzymeName" in enz:
                 try:
-                    enz_name = enz['EnzymeName']
+                    enz_name = enz.get('EnzymeName')
                     if isinstance(enz_name, dict):
                         if len(enz_name) == 1:
                             enz_name = list(enz_name)[0]
                         else:
-                            raise ValueError("Could not interpret Enzyme Name %r" % (enz,))
+                            self.log("Could not interpret Enzyme Name %r" % (enz,))
                     protease = ParameterizedProtease(enz_name.lower(), permitted_missed_cleavages)
                     processed_enzymes.append(protease)
                 except (KeyError, re.error) as e:
                     self.log("Could not resolve protease from name %r (%s)" % (enz['EnzymeName'].lower(), e))
-            else:
+            elif "SiteRegexp" in enz:
+                pattern = enz['SiteRegexp']
                 try:
-                    pattern = enz['SiteRegexp']
-                    try:
-                        protease = ParameterizedProtease(pattern, permitted_missed_cleavages)
-                        processed_enzymes.append(protease)
-                    except re.error as e:
-                        self.log("Could not resolve protease from name %r (%s)" % (enz['SiteRegexp'].lower(), e))
+                    protease = ParameterizedProtease(pattern, permitted_missed_cleavages)
+                    processed_enzymes.append(protease)
+                except re.error as e:
+                    self.log("Could not resolve protease from name %r (%s)" % (enz['SiteRegexp'].lower(), e))
                 except KeyError:
                     self.log("No protease information available: %r" % (enz,))
+            elif "name" in enz and enz['name'].lower() in enzyme_rules:
+                protease = ParameterizedProtease(enz["name"].lower(), permitted_missed_cleavages)
+                processed_enzymes.append(protease)
+            elif "id" in enz and enz['id'].lower() in enzyme_rules:
+                protease = ParameterizedProtease(enz["id"].lower(), permitted_missed_cleavages)
+                processed_enzymes.append(protease)
+            else:
+                self.log("No protease information available: %r" % (enz,))
         self.enzymes = processed_enzymes
 
     def load_modifications(self):
