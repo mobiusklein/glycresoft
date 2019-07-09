@@ -500,7 +500,9 @@ class GlycoproteinSiteModelBuildingWorkflow(TaskBase):
 
     def aggregate_identified_glycoproteins(self):
         acc = defaultdict(list)
-        for analysis in self.analyses:
+        n = len(self.analyses)
+        for i, analysis in enumerate(self.analyses, 1):
+            self.log("... Loading Glycopeptides for %s (%d/%d)" % (analysis.name, i, n))
             for idgp in self.load_identified_glycoproteins_from_analysis(analysis):
                 acc[idgp.name].append(idgp)
         result = []
@@ -524,6 +526,7 @@ class GlycoproteinSiteModelBuildingWorkflow(TaskBase):
         glycoproteins = self.aggregate_identified_glycoproteins()
         for gp in glycoproteins:
             builder.add_glycoprotein(gp)
+        self.log("Saving Models")
         if self.output_path is not None:
             builder.save_models(self.output_path)
 

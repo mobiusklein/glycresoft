@@ -33,6 +33,9 @@ def configure_connection(connection, create_tables=True):
 
 initialize = configure_connection
 
+def _noop_on_connect(connection, connection_record):
+    pass
+
 
 class ConnectionRecipe(object):
 
@@ -40,8 +43,7 @@ class ConnectionRecipe(object):
         if connect_args is None:
             connect_args = {}
         if on_connect is None:
-            def on_connect(connection, connection_record):
-                pass
+            on_connect = _noop_on_connect
 
         self.connection_url = connection_url
         self.connect_args = connect_args

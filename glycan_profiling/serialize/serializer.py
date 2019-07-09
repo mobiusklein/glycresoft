@@ -148,7 +148,7 @@ class AnalysisSerializer(DatabaseBoundOperation, TaskBase):
             node_peak_map=self._node_peak_map)
         if cluster_id is not None:
             self.session.execute(
-                GlycanCompositionChromatogramToGlycanCompositionSpectrumCluster.insert(), {
+                GlycanCompositionChromatogramToGlycanCompositionSpectrumCluster.insert(), { # pylint: disable=no-value-for-parameter
                     "chromatogram_id": result.id,
                     "cluster_id": cluster_id
                 })
@@ -177,7 +177,7 @@ class AnalysisSerializer(DatabaseBoundOperation, TaskBase):
             node_peak_map=self._node_peak_map)
         if cluster_id is not None:
             self.session.execute(
-                UnidentifiedChromatogramToUnidentifiedSpectrumCluster.insert(), {
+                UnidentifiedChromatogramToUnidentifiedSpectrumCluster.insert(), {  # pylint: disable=no-value-for-parameter
                     "chromatogram_id": result.id,
                     "cluster_id": cluster_id
                 })
@@ -270,6 +270,10 @@ class AnalysisDeserializer(DatabaseBoundOperation):
         self._analysis_name = analysis_name
 
     @property
+    def name(self):
+        return self.analysis_name
+
+    @property
     def chromatogram_scoring_model(self):
         try:
             return self.analysis.parameters["scoring_model"]
@@ -344,14 +348,18 @@ class AnalysisDeserializer(DatabaseBoundOperation):
 
     def load_glycans_from_identified_glycopeptides(self):
         q = self.query(GlycanComposition).join(
-            GlycanCombinationGlycanComposition).join(GlycanCombination).join(
-            Glycopeptide,
-            Glycopeptide.glycan_combination_id == GlycanCombination.id).join(
-            IdentifiedGlycopeptide,
-            IdentifiedGlycopeptide.structure_id == Glycopeptide.id).filter(
-            IdentifiedGlycopeptide.analysis_id == self.analysis_id)
+                GlycanCombinationGlycanComposition).join(GlycanCombination).join(
+                Glycopeptide,
+                Glycopeptide.glycan_combination_id == GlycanCombination.id).join(
+                IdentifiedGlycopeptide,
+                IdentifiedGlycopeptide.structure_id == Glycopeptide.id).filter(
+                IdentifiedGlycopeptide.analysis_id == self.analysis_id)
         gcs = [c for c in q]
         return gcs
+
+    def __repr__(self):
+        template = "{self.__class__.__name__}({self.engine!r}, {self.analysis_name!r})"
+        return template.format(self=self)
 
 
 class AnalysisDestroyer(DatabaseBoundOperation):
