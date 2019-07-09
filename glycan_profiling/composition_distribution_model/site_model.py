@@ -375,8 +375,17 @@ class GlycosylationSiteModelBuilder(TaskBase):
             agg = VariableObservationAggregation(self.network)
             agg.collect(learnable_cases)
             recs, var = agg.build_records()
-            stable_cases = set([gc[0].glycan_composition for gc in filter(
-                lambda x: x[1] != 1.0, zip(recs, np.diag(var)))])
+            # use VariableObservationAggregation algorithm to collect the glycan
+            # composition observations according to the network definition of multiple
+            # observations, and then extract the observed indices along the diagonal
+            # of the variance matrix.
+            #
+            # Those indices which are equal to 1.0 are those
+            # where the glycan composition was only observed once, according to the
+            # transformation VariableObservationAggregation carries out when estimating
+            # the variance of each glycan composition observed.
+            rec_variance = np.diag(var.variance_matrix)[var.observed_indices]
+            stable_cases = set([gc.glycan_composition for gc, v in zip(recs, rec_variance) if v != 1.0])
             self.log("... %d Stable Glycan Compositions" % (
                 len(stable_cases)))
             if len(stable_cases) == 0:
