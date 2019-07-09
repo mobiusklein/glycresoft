@@ -1,5 +1,6 @@
 import re
 import warnings
+import json
 
 from collections import namedtuple, defaultdict
 try:
@@ -12,24 +13,20 @@ import numpy as np
 from glypy.structure.glycan_composition import HashableGlycanComposition
 from glycopeptidepy.structure.parser import strip_modifications
 
-from ms_deisotope.peak_dependency_network.intervals import SpanningMixin
-
 from glycan_profiling import serialize
 from glycan_profiling.task import TaskBase
 from glycan_profiling.structure import PeptideProteinRelation, LRUMapping
 
-from glycan_profiling.database import (GlycanCompositionDiskBackedStructureDatabase, GlycopeptideDiskBackedStructureDatabase)
+from glycan_profiling.database import (
+    GlycanCompositionDiskBackedStructureDatabase, GlycopeptideDiskBackedStructureDatabase)
 
 from glycan_profiling.database.builder.glycopeptide.proteomics.fasta import DeflineSuffix
 from glycan_profiling.database.builder.glycopeptide.proteomics.sequence_tree import SuffixTree
 
-from glycan_profiling.tandem.glycopeptide.identified_structure import IdentifiedGlycoprotein
-
 from glycan_profiling.database.composition_network import NeighborhoodWalker, make_n_glycan_neighborhoods
 from glycan_profiling.composition_distribution_model import (
     smooth_network, display_table, VariableObservationAggregation,
-    GlycanCompositionSolutionRecord, GlycomeModel,
-    AbundanceWeightedObservationAggregation)
+    GlycanCompositionSolutionRecord, GlycomeModel)
 from glycan_profiling.models import GeneralScorer, get_feature
 
 
@@ -369,68 +366,74 @@ class GlycosylationSiteModelBuilder(TaskBase):
                 records.append(GlycanCompositionSolutionRecord(
                     gp.glycan_composition, ms1_score, gp.total_signal))
 
-            self.fit_site_model(records)
+            self.fit_site_model(records, site, glycoprotein)
 
-        def _get_learnable_cases(self, observations):
-            learnable_cases = [rec for rec in observations if rec.score > 0]
+    def _get_learnable_cases(self, observations):
+        learnable_cases = [rec for rec in observations if rec.score > 0]
 
-            if self.require_multiple_observations:
-                agg = VariableObservationAggregation(self.network)
-                agg.collect(learnable_cases)
-                recs, var = agg.build_records()
-                stable_cases = set([gc[0].glycan_composition for gc in filter(
-                    lambda x: x[1] != 1.0, zip(recs, np.diag(var)))])
-                self.log("... %d Stable Glycan Compositions" %
-                         (len(stable_cases)))
-                if len(stable_cases) == 0:
-                    stable_cases = set([gc.glycan_composition for gc in recs])
-                    self.log("... No Stable Cases Found. Using %d Glycan Compositions" % (
-                        len(stable_cases), ))
-                if len(stable_cases) == 0:
-                    return []
-            else:
-                stable_cases = {
-                    case.glycan_composition for case in learnable_cases}
-            learnable_cases = [
-                rec for rec in learnable_cases
-                if rec.score > 0 and rec.glycan_composition in stable_cases
-            ]
-            return learnable_cases
+        if self.require_multiple_observations:
+            agg = VariableObservationAggregation(self.network)
+            agg.collect(learnable_cases)
+            recs, var = agg.build_records()
+            stable_cases = set([gc[0].glycan_composition for gc in filter(
+                lambda x: x[1] != 1.0, zip(recs, np.diag(var)))])
+            self.log("... %d Stable Glycan Compositions" % (
+                len(stable_cases)))
+            if len(stable_cases) == 0:
+                stable_cases = set([gc.glycan_composition for gc in recs])
+                self.log("... No Stable Cases Found. Using %d Glycan Compositions" % (
+                    len(stable_cases), ))
+            if len(stable_cases) == 0:
+                return []
+        else:
+            stable_cases = {
+                case.glycan_composition for case in learnable_cases}
+        learnable_cases = [
+            rec for rec in learnable_cases
+            if rec.score > 0 and rec.glycan_composition in stable_cases
+        ]
+        return learnable_cases
 
-        def fit_site_model(self, observations, site, protein):
-            learnable_cases = self._get_learnable_cases(observations)
+    def fit_site_model(self, observations, site, protein):
+        learnable_cases = self._get_learnable_cases(observations)
 
-            if not learnable_cases:
-                return None
+        if not learnable_cases:
+            return None
 
-            fitted_network, search_result, params = smooth_network(
-                self.network, learnable_cases,
-                belongingness_matrix=self.belongingness_matrix,
-                observation_aggregator=VariableObservationAggregation)
-            self.log("Lambda: %f" % (params.lmbda,))
-            display_table([x.name for x in self.network.neighborhoods],
-                          np.array(params.tau).reshape((-1, 1)))
-            updated_params = params.clone()
-            updated_params.lmbda = min(self.lambda_limit, params.lmbda)
-            fitted_network = search_result.annotate_network(updated_params)
-            for node in fitted_network:
-                if node.marked:
-                    node.score *= self.unobserved_penalty_scale
+        fitted_network, search_result, params = smooth_network(
+            self.network, learnable_cases,
+            belongingness_matrix=self.belongingness_matrix,
+            observation_aggregator=VariableObservationAggregation)
+        self.log("Lambda: %f" % (params.lmbda,))
+        display_table([x.name for x in self.network.neighborhoods],
+                      np.array(params.tau).reshape((-1, 1)))
+        updated_params = params.clone()
+        updated_params.lmbda = min(self.lambda_limit, params.lmbda)
+        fitted_network = search_result.annotate_network(updated_params)
+        for node in fitted_network:
+            if node.marked:
+                node.score *= self.unobserved_penalty_scale
 
-            site_distribution = dict(zip([x.name for x in self.network.neighborhoods],
-                     updated_params.tau.tolist()))
-            glycan_map = {
-                str(node.glycan_composition): GlycanPriorRecord(node.score, not node.marked)
-                for node in fitted_network
-            }
-            site_model = GlycosylationSiteModel(
-                protein.name,
-                site,
-                site_distribution,
-                updated_params.lmbda,
-                glycan_map)
-            self.site_models.append(site_model)
-            return site_model
+        site_distribution = dict(zip([x.name for x in self.network.neighborhoods], updated_params.tau.tolist()))
+        glycan_map = {
+            str(node.glycan_composition): GlycanPriorRecord(node.score, not node.marked)
+            for node in fitted_network
+        }
+        site_model = GlycosylationSiteModel(
+            protein.name,
+            site,
+            site_distribution,
+            updated_params.lmbda,
+            glycan_map)
+        self.site_models.append(site_model)
+        return site_model
+
+    def save_models(self, path):
+        with open(path, 'wt') as fh:
+            prepared = []
+            for site in self.site_models:
+                prepared.append(site.to_dict())
+            json.dump(prepared, fh)
 
 
 class GlycoproteinSiteModelBuildingWorkflow(TaskBase):
@@ -503,12 +506,11 @@ class GlycoproteinSiteModelBuildingWorkflow(TaskBase):
         result = []
         for _name, duplicates in acc.items():
             agg = duplicates[0]
-            for case in duplicates[1:]:
-                agg = agg.merge(case)
-            result.append(agg)
+            result.append(agg.merge(*duplicates[1:]))
         return result
 
     def run(self):
+        self.log("Building Belongingness Matrix")
         network, belongingness_matrix = self.make_glycan_network()
 
         builder = GlycosylationSiteModelBuilder(
@@ -518,92 +520,99 @@ class GlycoproteinSiteModelBuildingWorkflow(TaskBase):
             require_multiple_observations=self.require_multiple_observations,
             observation_aggregator=self.observation_aggregator)
 
-
-'''
-import sys
-import glob
-import json
-
-import glycan_profiling
-from glycan_profiling import database, composition_distribution_model
-from glycan_profiling.composition_distribution_model import site_model
-from glycan_profiling.database import composition_network
-
-import glypy
-import glycopeptidepy
-
-import pandas as pd
-import numpy as np
-from scipy import linalg
-
-rho = composition_distribution_model.DEFAULT_RHO
-
-db = database.GlycopeptideDiskBackedStructureDatabase("../database/mouse_glycoproteome/synthesis-n-glycopeptide.db")
-db2 = database.GlycanCompositionDiskBackedStructureDatabase("../database/mouse_glycoproteome/synthesis-n-glycopeptide.db")
-
-network = db2.glycan_composition_network
-
-print("Initializing Augmented Network")
-augmented_network = network.augment_with_decoys()
-augmented_network.create_edges()
-
-print("Building Belongingness Matrix")
-model = composition_distribution_model.glycome_network_smoothing.GlycomeModel([], augmented_network)
-
-belongingness_matrix = model.belongingness_matrix
-augmented_network.neighborhoods = model.neighborhood_walker.neighborhoods
-
-print("Loading Records")
-table = pd.concat(map(pd.read_table, glob.glob("./MouseBrain-Z-T-*/*-chromatograms.txt")))
-table['glycan'] = table.glycopeptide.apply(lambda x: str(glycopeptidepy.PeptideSequence(x).glycan_composition))
+        self.log("Aggregating Glycoproteins")
+        glycoproteins = self.aggregate_identified_glycoproteins()
+        for gp in glycoproteins:
+            builder.add_glycoprotein(gp)
+        if self.output_path is not None:
+            builder.save_models(self.output_path)
 
 
-protein_names = table.protein_name.unique()
-site_models = []
-n = len(protein_names)
-for prot_i, protein_name in enumerate(protein_names):
-    protein = db.proteins[protein_name]
-    rows_for_protein = table[table.protein_name == protein_name]
-    print('\t'.join(map(str, [
-        protein_name,
-        prot_i,
-        prot_i * 100.0 / n
-    ])))
+# '''
+# import sys
+# import glob
+# import json
 
-    for site in protein.n_glycan_sequon_sites:
+# import glycan_profiling
+# from glycan_profiling import database, composition_distribution_model
+# from glycan_profiling.composition_distribution_model import site_model
+# from glycan_profiling.database import composition_network
 
-        selector_mask = ((rows_for_protein.start_position <= site) & (rows_for_protein.end_position >= site))
-        record_rows = rows_for_protein[selector_mask]
-        records = []
-        for i, row in record_rows.iterrows():
-            record = composition_distribution_model.GlycanCompositionSolutionRecord(row.glycan, row.ms1_score)
-            if record.score < 1:
-                continue
+# import glypy
+# import glycopeptidepy
 
-        print site
-        print len(records)
-        print [str(r.glycan_composition) for r in records]
-        model = composition_distribution_model.GlycomeModel(records, augmented_network, belongingness_matrix)
-        reduction = model.find_threshold_and_lambda(rho)
-        grid_search = composition_distribution_model.ThresholdSelectionGridSearch(model, reduction)
-        params = grid_search.average_solution()
-        print params
-        composition_distribution_model.display_table(model.neighborhood_names, params.tau.reshape((-1, 1)))
-        dup = params.clone()
-        dup.lmbda = min(dup.lmbda, 0.2)
-        network = grid_search.annotate_network(dup)
-        glycan_map = {
-            str(node.glycan_composition): site_model.GlycanPriorRecord(node.score, not node.marked)
-            for node in network
-            if node.score > 1e-4
-        }
-        site_mod = site_model.GlycosylationSiteModel(
-            protein_name, site, dict(zip(model.neighborhood_names, params.tau)), dup.lmbda, glycan_map)
-        site_models.append(site_mod)
+# import pandas as pd
+# import numpy as np
+# from scipy import linalg
 
-print("Serializing Sites To Disk")
-with open("./glycosite_models.json", 'w') as fh:
-    sites = [s.to_dict() for s in site_models]
-    json.dump(sites, fh)
+# rho = composition_distribution_model.DEFAULT_RHO
 
-'''
+# db = database.GlycopeptideDiskBackedStructureDatabase("../database/mouse_glycoproteome/synthesis-n-glycopeptide.db")
+# db2 = database.GlycanCompositionDiskBackedStructureDatabase("../database/mouse_glycoproteome/synthesis-n-glycopeptide.db")
+
+# network = db2.glycan_composition_network
+
+# print("Initializing Augmented Network")
+# augmented_network = network.augment_with_decoys()
+# augmented_network.create_edges()
+
+# print("Building Belongingness Matrix")
+# model = composition_distribution_model.glycome_network_smoothing.GlycomeModel([], augmented_network)
+
+# belongingness_matrix = model.belongingness_matrix
+# augmented_network.neighborhoods = model.neighborhood_walker.neighborhoods
+
+# print("Loading Records")
+# table = pd.concat(map(pd.read_table, glob.glob("./MouseBrain-Z-T-*/*-chromatograms.txt")))
+# table['glycan'] = table.glycopeptide.apply(lambda x: str(glycopeptidepy.PeptideSequence(x).glycan_composition))
+
+
+# protein_names = table.protein_name.unique()
+# site_models = []
+# n = len(protein_names)
+# for prot_i, protein_name in enumerate(protein_names):
+#     protein = db.proteins[protein_name]
+#     rows_for_protein = table[table.protein_name == protein_name]
+#     print('\t'.join(map(str, [
+#         protein_name,
+#         prot_i,
+#         prot_i * 100.0 / n
+#     ])))
+
+#     for site in protein.n_glycan_sequon_sites:
+
+#         selector_mask = ((rows_for_protein.start_position <= site) & (rows_for_protein.end_position >= site))
+#         record_rows = rows_for_protein[selector_mask]
+#         records = []
+#         for i, row in record_rows.iterrows():
+#             record = composition_distribution_model.GlycanCompositionSolutionRecord(row.glycan, row.ms1_score)
+#             if record.score < 1:
+#                 continue
+
+#         print site
+#         print len(records)
+#         print [str(r.glycan_composition) for r in records]
+#         model = composition_distribution_model.GlycomeModel(records, augmented_network, belongingness_matrix)
+#         reduction = model.find_threshold_and_lambda(rho)
+#         grid_search = composition_distribution_model.ThresholdSelectionGridSearch(model, reduction)
+#         params = grid_search.average_solution()
+#         print params
+#         composition_distribution_model.display_table(model.neighborhood_names, params.tau.reshape((-1, 1)))
+#         dup = params.clone()
+#         dup.lmbda = min(dup.lmbda, 0.2)
+#         network = grid_search.annotate_network(dup)
+#         glycan_map = {
+#             str(node.glycan_composition): site_model.GlycanPriorRecord(node.score, not node.marked)
+#             for node in network
+#             if node.score > 1e-4
+#         }
+#         site_mod = site_model.GlycosylationSiteModel(
+#             protein_name, site, dict(zip(model.neighborhood_names, params.tau)), dup.lmbda, glycan_map)
+#         site_models.append(site_mod)
+
+# print("Serializing Sites To Disk")
+# with open("./glycosite_models.json", 'w') as fh:
+#     sites = [s.to_dict() for s in site_models]
+#     json.dump(sites, fh)
+
+# '''

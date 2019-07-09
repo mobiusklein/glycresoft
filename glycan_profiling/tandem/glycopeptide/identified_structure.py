@@ -290,8 +290,11 @@ class IdentifiedGlycoprotein(object):
         dup = self.__class__(self, self.identified_glycopeptides[:])
         return dup
 
-    def merge(self, other):
-        dup = self.__class__(self, self.identified_glycopeptides[:] + other.identified_glycopeptides[:])
+    def merge(self, *other):
+        glycopeptides = list(self.identified_glycopeptides)
+        for o in other:
+            glycopeptides.extend(o.identified_glycopeptides)
+        dup = self.__class__(self, glycopeptides)
         return dup
 
     @property
