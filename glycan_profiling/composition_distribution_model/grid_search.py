@@ -538,7 +538,13 @@ class ThresholdSelectionGridSearch(NetworkSmoothingModelSolutionBase):
                 apex = np.array([np.argmax(tau_magnitude)])
 
         thresholds = np.array(thresholds)
-        apex = apex[(tau_magnitude[apex] > (tau_magnitude[apex].max() * self.apex_threshold))]
+        apex_threshold = tau_magnitude[apex].max() * self.apex_threshold
+        if apex_threshold != 0:
+            apex = apex[(tau_magnitude[apex] > apex_threshold)]
+        else:
+            # The tau threshold may be 0, in which case any point will do, but this
+            # solution carries no generalization.
+            apex = apex[(tau_magnitude[apex] >= apex_threshold)]
         target_thresholds = [t for t in thresholds[apex]]
         solution = GridSearchSolution(stack, tau_magnitude, thresholds, apex, target_thresholds)
         log_handle.log("... %d Candidate Solutions" % (len(target_thresholds),))
