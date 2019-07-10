@@ -369,7 +369,8 @@ class GlycosylationSiteModelBuilder(TaskBase):
 
     def _get_learnable_cases(self, observations):
         learnable_cases = [rec for rec in observations if rec.score > 0]
-
+        if not learnable_cases:
+            return []
         if self.require_multiple_observations:
             agg = VariableObservationAggregation(self.network)
             agg.collect(learnable_cases)
@@ -535,8 +536,10 @@ class GlycoproteinSiteModelBuildingWorkflow(TaskBase):
 
         self.log("Aggregating Glycoproteins")
         glycoproteins = self.aggregate_identified_glycoproteins()
-        glycoproteins = sorted(glycoproteins,
-            key=lambda x: len(x.identified_glycopeptides), reverse=True)
+        glycoproteins = sorted(
+            glycoproteins,
+            key=lambda x: len(x.identified_glycopeptides),
+            reverse=True)
         n = len(glycoproteins)
         for i, gp in enumerate(glycoproteins, 1):
             self.log("Building Model for \"%s\" %d/%d (%0.2f%%)" % (gp.name, i, n, i * 100.0 / n))
