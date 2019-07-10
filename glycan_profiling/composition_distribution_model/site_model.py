@@ -345,7 +345,6 @@ class GlycosylationSiteModelBuilder(TaskBase):
         return belongingness_matrix
 
     def add_glycoprotein(self, glycoprotein, evaluate_chromatograms=False):
-        self.log("Building Model for \"%s\"" % (glycoprotein.name, ))
         for i, site in enumerate(glycoprotein.site_map['N-Linked'].sites):
             gps_for_site = glycoprotein.site_map[
                 'N-Linked'][glycoprotein.site_map['N-Linked'].sites[i]]
@@ -536,7 +535,11 @@ class GlycoproteinSiteModelBuildingWorkflow(TaskBase):
 
         self.log("Aggregating Glycoproteins")
         glycoproteins = self.aggregate_identified_glycoproteins()
-        for gp in glycoproteins:
+        glycoproteins = sorted(glycoproteins,
+            key=lambda x: len(x.identified_glycopeptides), reverse=True)
+        n = len(glycoproteins)
+        for i, gp in enumerate(glycoproteins, 1):
+            self.log("Building Model for \"%s\" %d/%d (%0.2f%%)" % (gp.name, i, n, i * 100.0 / n))
             builder.add_glycoprotein(gp)
         self.log("Saving Models")
         if self.output_path is not None:
