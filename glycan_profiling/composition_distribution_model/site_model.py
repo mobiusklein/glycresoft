@@ -368,7 +368,7 @@ class GlycosylationSiteModelBuilder(TaskBase):
             self.fit_site_model(records, site, glycoprotein)
 
     def _get_learnable_cases(self, observations):
-        learnable_cases = [rec for rec in observations if rec.score > 0]
+        learnable_cases = [rec for rec in observations if rec.score > 1]
         if not learnable_cases:
             return []
         if self.require_multiple_observations:
@@ -399,7 +399,7 @@ class GlycosylationSiteModelBuilder(TaskBase):
                 case.glycan_composition for case in learnable_cases}
         learnable_cases = [
             rec for rec in learnable_cases
-            if rec.score > 0 and rec.glycan_composition in stable_cases
+            if rec.score > 1 and rec.glycan_composition in stable_cases
         ]
         return learnable_cases
 
@@ -408,6 +408,12 @@ class GlycosylationSiteModelBuilder(TaskBase):
 
         if not learnable_cases:
             return None
+
+        acc = defaultdict(list)
+        for case in learnable_cases:
+            acc[case.glycan_composition].append(case)
+        for key, value in sorted(acc.items(), key=lambda x: x[0].mass()):
+            self.log("... %s: %r" % (key.glycan_composition, sorted([r.score for r in value])))
 
         fitted_network, search_result, params = smooth_network(
             self.network, learnable_cases,
