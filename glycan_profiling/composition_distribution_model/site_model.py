@@ -413,7 +413,7 @@ class GlycosylationSiteModelBuilder(TaskBase):
         for case in learnable_cases:
             acc[case.glycan_composition].append(case)
         for key, value in sorted(acc.items(), key=lambda x: x[0].mass()):
-            self.log("... %s: %r" % (key.glycan_composition, sorted([r.score for r in value])))
+            self.log("... %s: %r" % (key, sorted([r.score for r in value])))
 
         fitted_network, search_result, params = smooth_network(
             self.network, learnable_cases,
