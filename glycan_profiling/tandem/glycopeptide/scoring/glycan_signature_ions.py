@@ -36,7 +36,7 @@ except ImportError:
 
 
 class GlycanCompositionSignatureMatcher(GlycopeptideSpectrumMatcherBase):
-    minimum_intensity_ratio_threshold = 0.01
+    minimum_intensity_ratio_threshold = 0.025
 
     def __init__(self, scan, target, mass_shift=None):
         super(GlycanCompositionSignatureMatcher, self).__init__(scan, target, mass_shift)
