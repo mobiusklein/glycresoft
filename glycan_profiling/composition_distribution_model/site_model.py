@@ -344,6 +344,14 @@ class GlycosylationSiteModelBuilder(TaskBase):
         belongingness_matrix = neighborhood_walker.build_belongingness_matrix()
         return belongingness_matrix
 
+    def _transform_glycopeptide(self, glycopeptide, evaluate_chromatograms=False):
+        gp = glycopeptide
+        if evaluate_chromatograms:
+            ms1_score = self.chromatogram_scorer.logitscore(gp.chromatogram)
+        else:
+            ms1_score = gp.ms1_score
+        return GlycanCompositionSolutionRecord(gp.glycan_composition, ms1_score, gp.total_signal)
+
     def add_glycoprotein(self, glycoprotein, evaluate_chromatograms=False):
         for i, site in enumerate(glycoprotein.site_map['N-Linked'].sites):
             gps_for_site = glycoprotein.site_map[
@@ -358,12 +366,7 @@ class GlycosylationSiteModelBuilder(TaskBase):
                 gp for gp in gps_for_site if gp.chromatogram is not None]
             records = []
             for gp in glycopeptides:
-                if evaluate_chromatograms:
-                    ms1_score = self.chromatogram_scorer.logitscore(gp.chromatogram)
-                else:
-                    ms1_score = gp.ms1_score
-                records.append(GlycanCompositionSolutionRecord(
-                    gp.glycan_composition, ms1_score, gp.total_signal))
+                records.append(self._transform_glycopeptide(gp, evaluate_chromatograms))
 
             self.fit_site_model(records, site, glycoprotein)
 
@@ -524,7 +527,20 @@ class GlycoproteinSiteModelBuildingWorkflow(TaskBase):
             for idgp in self.load_identified_glycoproteins_from_analysis(analysis):
                 acc[idgp.name].append(idgp)
         result = []
-        for _name, duplicates in acc.items():
+        self.log("Merging Glycoproteins Across Replicates")
+        n = float(len(acc))
+        i = 1.0
+        last = 0.1
+        should_log = False
+        for name, duplicates in acc.items():
+            if i / n > last:
+                should_log = True
+                last += 0.1
+            if i % 100 == 0:
+                should_log = True
+            if should_log:
+                self.log("... Merging %s (%d/%d, %0.2f%%)" % (name, i, n, i * 100.0 / n))
+                should_log = False
             agg = duplicates[0]
             result.append(agg.merge(*duplicates[1:]))
         return result

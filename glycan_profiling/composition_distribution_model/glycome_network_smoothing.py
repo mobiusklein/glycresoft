@@ -160,9 +160,13 @@ class GlycomeModel(LaplacianSmoothingModel):
         if drop_missing:
             for node in missed:
                 network.remove_node(node, limit=5)
+        # The network passed into LaplacianSmoothingModel will have its indices changed,
+        # and will not match the ordering of the belongingness matrix, so make sure the
+        # observed indices are aligned.
+        obs_ix, _miss_ix = network_indices(network)
         wpl = weighted_laplacian_matrix(network)
         lum = LaplacianSmoothingModel(
-            network, self.normalized_belongingness_matrix, threshold,
+            network, self.normalized_belongingness_matrix[obs_ix, :], threshold,
             neighborhood_walker=self.neighborhood_walker,
             belongingness_normalization=renormalize_belongingness,
             variance_matrix=self.variance_matrix)
@@ -247,6 +251,7 @@ class GlycomeModel(LaplacianSmoothingModel):
                 last_aggregate = (observations, summarized_state, obs_ix)
                 last_raw_observations = raw_observations
 
+            # Extract pre-calculated variance matrices
             variance_matrix = summarized_state.variance_matrix
             inverse_variance_matrix = summarized_state.inverse_variance_matrix
             variance_matrix = np.diag(variance_matrix[obs_ix, obs_ix])
@@ -254,8 +259,9 @@ class GlycomeModel(LaplacianSmoothingModel):
 
             # clear the scores from the network
             current_network = current_network.clone()
-            for i, node in enumerate(current_network):
+            for node in current_network:
                 node.score = 0
+
             # assign aggregated scores to the network
             network = assign_network(current_network, observations)
 
@@ -292,8 +298,12 @@ class GlycomeModel(LaplacianSmoothingModel):
                     continue
             wpl = weighted_laplacian_matrix(network)
             ident = np.eye(wpl.shape[0])
+
+            # The network passed into LaplacianSmoothingModel will have its indices changed,
+            # and will not match the ordering of the belongingness matrix, so make sure the
+            # observed indices are aligned.
             lum = LaplacianSmoothingModel(
-                network, self.normalized_belongingness_matrix, threshold,
+                network, self.normalized_belongingness_matrix[obs_ix, :], threshold,
                 neighborhood_walker=self.neighborhood_walker,
                 belongingness_normalization=renormalize_belongingness,
                 variance_matrix=variance_matrix,

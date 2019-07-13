@@ -92,10 +92,8 @@ class GlycanProfilerConsumerTest(unittest.TestCase):
         self.confirm_score(gcs, "{Hex:8; HexNAc:7; Neu5Ac:3}", 8.8510)
         self.confirm_score(gcs, "{Hex:7; HexNAc:6; Neu5Ac:4}", 16.6722)
         network_params = ads.analysis.parameters['network_parameters']
-        tau = [0., 11.77485721, 15.99541137, 0.,
-               21.96431573, 0., 13.94378948, 0.,
-               9.32841618, 0., 0., 0.,
-               0., 0.]
+        tau = [0.0, 12.173488161057854, 16.042106463675424, 0.0, 22.061954223206591,
+               0.0, 13.928596053020485, 0.0, 9.4348332520855713, 0.0, 0.0, 0.0, 0.0, 0.0]
         for a, b in zip(tau, network_params.tau):
             self.assertAlmostEqual(a, b, 3)
         ads.close()
