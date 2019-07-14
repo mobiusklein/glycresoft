@@ -242,7 +242,9 @@ class ProportionMatrixNormalization(object):
         self.matrix = self.matrix / self.matrix.sum(axis=0)
 
     def normalize_rows(self):
-        self.matrix = self.matrix / self.matrix.sum(axis=1).reshape((-1, 1))
+        normalizer = self.matrix.sum(axis=1).reshape((-1, 1))
+        normalizer[normalizer == 0] = 1e-6
+        self.matrix = self.matrix / normalizer
 
     def normalize_columns_and_rows(self):
         self.normalize_columns()
