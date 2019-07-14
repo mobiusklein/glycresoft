@@ -317,7 +317,7 @@ class ChromatogramTreeNode(Base, BoundToAnalysis):
                 member_ids.append(peak_id)
 
             if len(member_ids):
-                session.execute(ChromatogramTreeNodeToDeconvolutedPeak.insert(), [
+                session.execute(ChromatogramTreeNodeToDeconvolutedPeak.insert(), [  # pylint: disable=no-value-for-parameter
                     {'node_id': inst.id, 'peak_id': member_id} for member_id in member_ids])
             elif blocked == 0:
                 raise Exception("No Peaks Saved")
@@ -370,6 +370,8 @@ ChromatogramTreeNodeToDeconvolutedPeak = Table(
 
 class Chromatogram(Base, BoundToAnalysis):
     __tablename__ = "Chromatogram"
+
+    _total_signal_cache = None
 
     id = Column(Integer, primary_key=True, autoincrement=True)
     neutral_mass = Mass()
@@ -604,7 +606,7 @@ class Chromatogram(Base, BoundToAnalysis):
                 scan_lookup_table=scan_lookup_table,
                 node_peak_map=node_peak_map, *args, **kwargs)
             node_ids.append(db_node.id)
-        session.execute(ChromatogramToChromatogramTreeNode.insert(), [
+        session.execute(ChromatogramToChromatogramTreeNode.insert(), [  # pylint: disable=no-value-for-parameter
             {"chromatogram_id": inst.id, "node_id": node_id} for node_id in node_ids])
         return inst
 
@@ -719,8 +721,10 @@ class Chromatogram(Base, BoundToAnalysis):
 
     @property
     def total_signal(self):
-        session = object_session(self)
-        return self._as_array_query(session)[1].sum()
+        if self._total_signal_cache is None:
+            session = object_session(self)
+            self._total_signal_cache = self._as_array_query(session)[1].sum()
+        return self._total_signal_cache
 
     @property
     def apex_time(self):
