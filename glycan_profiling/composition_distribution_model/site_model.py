@@ -1,5 +1,4 @@
 import re
-import warnings
 import json
 
 from collections import namedtuple, defaultdict
@@ -416,7 +415,10 @@ class GlycosylationSiteModelBuilder(TaskBase):
         for case in learnable_cases:
             acc[case.glycan_composition].append(case)
         for key, value in sorted(acc.items(), key=lambda x: x[0].mass()):
-            self.log("... %s: %r" % (key, sorted([r.score for r in value])))
+            self.log("... %s: [%r]" % (
+                key,
+                ', '.join(["%0.2f" % f for f in sorted([r.score for r in value])])
+            ))
 
         fitted_network, search_result, params = smooth_network(
             self.network, learnable_cases,
@@ -543,6 +545,7 @@ class GlycoproteinSiteModelBuildingWorkflow(TaskBase):
                 should_log = False
             agg = duplicates[0]
             result.append(agg.merge(*duplicates[1:]))
+            i += 1
         return result
 
     def run(self):
