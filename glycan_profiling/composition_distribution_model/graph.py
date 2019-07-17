@@ -58,12 +58,11 @@ def assign_network(network, observed, copy=True):
 
     for node in network.nodes:
         node.internal_score = 0
-        node._temp_score = 0
 
     for composition, solution in solution_map.items():
         try:
             node = network[composition]
-            node._temp_score = node.internal_score = solution.internal_score
+            node.internal_score = solution.internal_score
         except KeyError:
             # Not all exact compositions have nodes
             continue

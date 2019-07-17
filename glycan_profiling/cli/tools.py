@@ -219,7 +219,8 @@ def validate_fasta(path):
             n_entries += 1
     if n_entries != n_deflines:
         click.secho("%d\">\" prefixed lines found, but %d entries parsed" % (n_deflines, n_entries))
-
+    else:
+        click.echo("%d Protein Sequences" % (n_entries, ))
     with open(path, 'r') as handle:
         invalid_sequences = []
         for entry in fasta.FastaFileParser(handle):

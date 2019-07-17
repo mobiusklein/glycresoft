@@ -42,7 +42,7 @@ class GlycanCompositionSolutionRecord(object):
 def is_diagonal(m):
     if m.shape[0] != m.shape[1]:
         return False
-    return np.count_nonzero(m - np.diag(np.diag(m))) == 0
+    return (np.count_nonzero(m) - np.count_nonzero(np.diag(m))) == 0
 
 
 class ObservationWeightState(object):

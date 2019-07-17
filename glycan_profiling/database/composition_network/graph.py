@@ -126,7 +126,9 @@ class DijkstraPathFinder(object):
 
 
 class CompositionGraphNode(object):
-    _temp_score = 0.0
+
+    __slots__ = (
+        "composition", "index", "_score", "marked", "edges", "_str", "_hash", "internal_score")
 
     def __init__(self, composition, index, score=0., marked=False, **kwargs):
         self.composition = composition
@@ -149,7 +151,7 @@ class CompositionGraphNode(object):
     @property
     def score(self):
         if self._score == 0:
-            return self._temp_score
+            return self.internal_score
         else:
             return self._score
 
@@ -179,7 +181,7 @@ class CompositionGraphNode(object):
     def __repr__(self):
         return "CompositionGraphNode(%s, %d, %0.2f)" % (
             self._str, int(self.index) if self.index is not None else -1,
-            self.score if self.score != 0 else self._temp_score)
+            self.score if self.score != 0 else self.internal_score)
 
     def copy(self):
         dup = CompositionGraphNode(self.composition, self.index, self.score)
@@ -560,12 +562,11 @@ class CompositionGraph(object):
 
         for node in network.nodes:
             node.internal_score = 0
-            node._temp_score = 0
 
         for composition, solution in solution_map.items():
             try:
                 node = network[composition]
-                node._temp_score = node.internal_score = solution.internal_score
+                node.internal_score = solution.internal_score
             except KeyError:
                 # Not all exact compositions have nodes
                 continue
@@ -577,7 +578,7 @@ class CompositionGraph(object):
         else:
             network = self
         for node in network:
-            node.score = node._internal_score = node._temp_score = 0
+            node.score = node.internal_score = 0
         return network
 
     def augment_with_decoys(self, pseudodistance=2):

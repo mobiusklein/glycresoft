@@ -430,7 +430,7 @@ def collapse_expression_sequence(expression_sequence):
         next_term = expression_sequence[i]
         stack.append(next_term)
         if len(stack) == 3:
-            node = ExpressionNode(*stack)
+            node = ExpressionNode(*stack) # pylint: disable=no-value-for-parameter
             if hasattr(node.left, 'op'):
                 if node.left.op.precedence < node.op.precedence:
                     node = ExpressionNode(
@@ -685,8 +685,7 @@ class GlycanSymbolContext(SymbolContext):
 
     def serialize(self):
         form = "{%s}" % '; '.join("{}:{}".format(str(k), v) for k, v in sorted(
-            self.items(), key=lambda x: (
-                _FMR.from_iupac_lite(str(x[0])).mass(), str(x[0]))) if v != 0)
+            self.items(), key=lambda x: _monosaccharide_symbol_orderer(x[0])) if v != 0)
         return form
 
     @staticmethod
@@ -694,6 +693,21 @@ class GlycanSymbolContext(SymbolContext):
         key_obj = composition.clone()
         key_obj = composition_transform.strip_derivatization(key_obj)
         return str(key_obj)
+
+
+class _monosaccharide_symbol_orderer_cache(dict):
+
+    def __missing__(self, key):
+        value = _FMR.from_iupac_lite(key)
+        self[key] = value
+        return value
+
+    def __call__(self, key):
+        key = str(key)
+        return self[key].mass(), key
+
+
+_monosaccharide_symbol_orderer = _monosaccharide_symbol_orderer_cache()
 
 
 Solution = SymbolContext
