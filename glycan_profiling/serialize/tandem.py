@@ -513,6 +513,7 @@ class GlycopeptideSpectrumMatchScoreSet(Base):
     peptide_score = Column(Numeric(12, 6, asdecimal=False), index=False)
     glycan_score = Column(Numeric(12, 6, asdecimal=False), index=False)
     glycopeptide_score = Column(Numeric(12, 6, asdecimal=False), index=False)
+    glycan_coverage = Column(Numeric(8, 7, asdecimal=False), index=False)
 
     total_q_value = Column(Numeric(8, 7, asdecimal=False), index=False)
     peptide_q_value = Column(Numeric(8, 7, asdecimal=False), index=False)
@@ -530,6 +531,7 @@ class GlycopeptideSpectrumMatchScoreSet(Base):
             id=db_id,
             peptide_score=scores.peptide_score,
             glycan_score=scores.glycan_score,
+            glycan_coverage=scores.glycan_coverage,
             glycopeptide_score=scores.glycopeptide_score,
             total_q_value=qs.total_q_value,
             peptide_q_value=qs.peptide_q_value,
@@ -544,7 +546,8 @@ class GlycopeptideSpectrumMatchScoreSet(Base):
         score_set = ScoreSet(
             peptide_score=self.peptide_score,
             glycan_score=self.glycan_score,
-            glycopeptide_score=self.glycopeptide_score,)
+            glycopeptide_score=self.glycopeptide_score,
+            glycan_coverage=self.glycan_coverage)
         fdr_set = FDRSet(
             total_q_value=self.total_q_value,
             peptide_q_value=self.peptide_q_value,

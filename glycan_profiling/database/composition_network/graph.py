@@ -12,6 +12,7 @@ try:
 except NameError:
     basestring = (str, bytes)
 
+from glypy.composition import composition_transform
 from glypy.structure.glycan_composition import FrozenMonosaccharideResidue, GlycanComposition
 
 
@@ -38,8 +39,14 @@ class CompositionNormalizer(object):
     def _normalize_key(self, key):
         if isinstance(key, basestring):
             key = HashableGlycanComposition.parse(key)
-        key = symbolic_expression.GlycanSymbolContext(key)
-        return HashableGlycanComposition.parse(key.serialize())
+        return HashableGlycanComposition(
+            {self._normalize_monosaccharide(k): v for k, v in key.items()})
+
+    def _normalize_monosaccharide(self, key):
+        is_derivatized = composition_transform.has_derivatization(key)
+        if is_derivatized:
+            key = key.copy_underivatized()
+        return key
 
     def _get_solution(self, key):
         if isinstance(key, (basestring, HashableGlycanComposition)):
@@ -288,6 +295,13 @@ class CompositionGraphEdge(object):
             self.node2.edges.remove(self)
         except KeyError:
             pass
+
+
+try:
+    _has_c = True
+    from glycan_profiling._c.composition_network.graph import (CompositionGraphEdge, CompositionGraphNode, EdgeSet)
+except ImportError:
+    _has_c = False
 
 
 class CompositionGraph(object):
@@ -601,6 +615,14 @@ class CompositionGraph(object):
         for edge in edges:
             self.add_edge(self[edge.node1], self[edge.node2])
         return self
+
+
+try:
+    _has_c = True
+    from glycan_profiling._c.composition_network.graph import reindex_graph as _reindex_graph
+    CompositionGraph._reindex = _reindex_graph
+except ImportError:
+    _has_c = False
 
 
 class GraphWriter(object):

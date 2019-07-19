@@ -3,7 +3,7 @@ cdef class CompositionGraphNode(object):
         public object composition
         public ssize_t index
         public str _str
-        public object edges
+        public EdgeSet edges
         public Py_hash_t _hash
         public double _score
         public double internal_score
@@ -24,3 +24,13 @@ cdef class CompositionGraphEdge(object):
         public double weight
         public Py_hash_t _hash
         public str _str
+
+
+    @staticmethod
+    cdef CompositionGraphEdge _create(CompositionGraphNode node1, CompositionGraphNode node2, long order, double weight)
+
+    cdef void _init(self)
+    cpdef copy_for(self, CompositionGraphNode node1, CompositionGraphNode node2)
+
+
+cpdef reindex_graph(self)

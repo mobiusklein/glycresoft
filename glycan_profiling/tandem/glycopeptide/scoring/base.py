@@ -1,3 +1,4 @@
+import math
 from glycopeptidepy.structure.fragment import ChemicalShift, IonSeries
 from glycopeptidepy.structure.fragmentation_strategy import EXDFragmentationStrategy, HCDFragmentationStrategy
 
@@ -8,6 +9,7 @@ class GlycopeptideSpectrumMatcherBase(SpectrumMatcherBase):
 
     _glycan_score = None
     _peptide_score = None
+    _glycan_coverage = None
 
     def _theoretical_mass(self):
         return self.target.total_mass
@@ -122,6 +124,46 @@ class GlycopeptideSpectrumMatcherBase(SpectrumMatcherBase):
         if self._glycan_score is None:
             self._glycan_score = self.calculate_glycan_score(*args, **kwargs)
         return self._glycan_score
+
+    def _calculate_glycan_coverage(self, error_tolerance=2e-5, core_weight=0.4, coverage_weight=0.5, *args, **kwargs):
+        seen = set()
+        series = IonSeries.stub_glycopeptide
+        theoretical_set = list(self.target.stub_fragments(extended=True))
+        core_fragments = set()
+        for frag in theoretical_set:
+            if not frag.is_extended:
+                core_fragments.add(frag.name)
+
+        core_matches = set()
+        extended_matches = set()
+
+        for peak_pair in self.solution_map:
+            if peak_pair.fragment.series != series:
+                continue
+            elif peak_pair.fragment_name in core_fragments:
+                core_matches.add(peak_pair.fragment_name)
+            else:
+                extended_matches.add(peak_pair.fragment_name)
+            peak = peak_pair.peak
+            if peak.index.neutral_mass not in seen:
+                seen.add(peak.index.neutral_mass)
+        n = self._get_internal_size(self.target.glycan_composition)
+        k = 2.0
+        d = max(n * math.log(n) / k, n)
+        core_coverage = ((len(core_matches) * 1.0) /
+                         len(core_fragments)) ** core_weight
+        extended_coverage = min(
+            float(len(core_matches) + len(extended_matches)) / d, 1.0) ** coverage_weight
+        coverage = core_coverage * extended_coverage
+        self._glycan_coverage = coverage
+        return coverage
+
+    def glycan_coverage(self, error_tolerance=2e-5, core_weight=0.4, coverage_weight=0.5, *args, **kwargs):
+        if self._glycan_coverage is not None:
+            return self._glycan_coverage
+        self._glycan_coverage = self._calculate_glycan_coverage(
+            error_tolerance, core_weight, coverage_weight, *args, **kwargs)
+        return self._glycan_coverage
 
     def calculate_glycan_score(self, *args, **kwargs):
         return 0

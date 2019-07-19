@@ -58,6 +58,7 @@ class JournalFileWriter(TaskBase):
             'total_score',
             'peptide_score',
             'glycan_score',
+            'glycan_coverage',
         ]
         if self.include_fdr:
             names.extend([
@@ -183,14 +184,18 @@ class JournalFileReader(TaskBase):
 
     def _build_score_set(self, row):
         score_set = ScoreSet(
-            float(row['total_score']), float(row['peptide_score']),
-            float(row['glycan_score']))
+            float(row['total_score']),
+            float(row['peptide_score']),
+            float(row['glycan_score']),
+            float(row['glycan_coverage']))
         return score_set
 
     def _build_fdr_set(self, row):
         fdr_set = FDRSet(
-            float(row['total_q_value']), float(row['peptide_q_value']),
-            float(row['glycan_q_value']), float(row['glycopeptide_q_value']))
+            float(row['total_q_value']),
+            float(row['peptide_q_value']),
+            float(row['glycan_q_value']),
+            float(row['glycopeptide_q_value']))
         return fdr_set
 
     def _make_mass_shift(self, row):

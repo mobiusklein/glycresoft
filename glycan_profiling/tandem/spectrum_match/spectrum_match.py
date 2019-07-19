@@ -325,16 +325,16 @@ class SpectrumMatchClassification(Enum):
     decoy_peptide_decoy_glycan = decoy_peptide_target_glycan | target_peptide_decoy_glycan
 
 
-_ScoreSet = make_struct("ScoreSet", ['glycopeptide_score', 'peptide_score', 'glycan_score'])
+_ScoreSet = make_struct("ScoreSet", ['glycopeptide_score', 'peptide_score', 'glycan_score', 'glycan_coverage'])
 
 
 class ScoreSet(_ScoreSet):
     __slots__ = ()
-    packer = struct.Struct("!fff")
+    packer = struct.Struct("!ffff")
 
     @classmethod
     def from_spectrum_matcher(cls, match):
-        return cls(match.score, match.peptide_score(), match.glycan_score())
+        return cls(match.score, match.peptide_score(), match.glycan_score(), match.glycan_coverage())
 
     def pack(self):
         return self.packer.pack(*self)

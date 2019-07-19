@@ -5,6 +5,7 @@ from cpython.list cimport PyList_Size, PyList_GetItem
 from cpython.dict cimport PyDict_GetItem, PyDict_SetItem
 
 
+@cython.freelist(5000)
 cdef class CompositionGraphNode(object):
 
     def __init__(self, composition, index, score=0., marked=False, **kwargs):
@@ -44,9 +45,15 @@ cdef class CompositionGraphNode(object):
         return result
 
     def __eq__(self, other):
-        try:
-            return (self)._str == str(other)
-        except AttributeError:
+        cdef:
+            CompositionGraphNode other_typed
+        if isinstance(self, CompositionGraphNode):
+            if isinstance(other, CompositionGraphNode):
+                other_typed = <CompositionGraphNode>other
+                return self._str == other_typed._str
+            else:
+                return self._str == str(other)
+        else:
             return str(self) == str(other)
 
     def __str__(self):
@@ -119,6 +126,7 @@ cdef class EdgeSet(object):
         return self.store == other.store
 
 
+@cython.freelist(15000)
 cdef class CompositionGraphEdge(object):
 
     def __init__(self, node1, node2, order, weight=1.0):
@@ -126,11 +134,29 @@ cdef class CompositionGraphEdge(object):
         self.node2 = node2
         self.order = order if order > 0 else 1
         self.weight = weight
-        self._hash = hash((node1, node2, order))
-        self._str = "(%s)" % ', '.join(map(str, (node1, node2, order)))
+        self._init()
 
-        node1.edges.add_if_shorter(self)
-        node2.edges.add_if_shorter(self)
+    @staticmethod
+    cdef CompositionGraphEdge _create(CompositionGraphNode node1, CompositionGraphNode node2, long order, double weight):
+        cdef:
+            CompositionGraphEdge self
+
+        self = CompositionGraphEdge.__new__(CompositionGraphEdge)
+        self.node1 = node1
+        self.node2 = node2
+        self.order = order
+        self.weight = weight
+        self._init()
+        return self
+
+    cdef void _init(self):
+        cdef:
+            tuple key
+        key = (self.node1, self.node2, self.order)
+        self._hash = hash(key)
+        self._str = "(%s, %s, %s)" % key
+        self.node1.edges.add_if_shorter(self)
+        self.node2.edges.add_if_shorter(self)
 
     def __getitem__(self, key):
         str_key = str(key)
@@ -159,8 +185,8 @@ cdef class CompositionGraphEdge(object):
     def __reduce__(self):
         return self.__class__, (self.node1, self.node2, self.order, self.weight)
 
-    def copy_for(self, node1, node2):
-        return self.__class__(node1, node2, self.order, self.weight)
+    cpdef copy_for(self, CompositionGraphNode node1, CompositionGraphNode node2):
+        return CompositionGraphEdge._create(node1, node2, self.order, self.weight)
 
     def remove(self):
         try:

@@ -68,7 +68,14 @@ def make_extensions():
             Extension(name='glycan_profiling._c.tandem.tandem_scoring_helpers',
                       sources=["glycan_profiling/_c/tandem/tandem_scoring_helpers.pyx"],
                       include_dirs=[numpy.get_include()]),
-
+            Extension(name='glycan_profiling._c.composition_network.graph',
+                      sources=[
+                          "glycan_profiling/_c/composition_network/graph.pyx"],
+                      include_dirs=[numpy.get_include()]),
+            Extension(name='glycan_profiling._c.composition_distribution_model.utils',
+                      sources=[
+                          "glycan_profiling/_c/composition_distribution_model/utils.pyx"],
+                      include_dirs=[numpy.get_include()]),
         ], compiler_directives=cython_directives, force=force_cythonize)
     except ImportError:
         extensions = ([
@@ -95,6 +102,14 @@ def make_extensions():
                       include_dirs=[numpy.get_include()]),
             Extension(name='glycan_profiling._c.tandem.tandem_scoring_helpers',
                       sources=["glycan_profiling/_c/tandem/tandem_scoring_helpers.c"],
+                      include_dirs=[numpy.get_include()]),
+            Extension(name='glycan_profiling._c.composition_network.graph',
+                      sources=[
+                          "glycan_profiling/_c/composition_network/graph.c"],
+                      include_dirs=[numpy.get_include()]),
+            Extension(name='glycan_profiling._c.composition_distribution_model.utils',
+                      sources=[
+                          "glycan_profiling/_c/composition_distribution_model/utils.c"],
                       include_dirs=[numpy.get_include()]),
         ])
     return extensions

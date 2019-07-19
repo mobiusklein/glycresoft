@@ -166,6 +166,7 @@ def calculate_glycan_score(self, double error_tolerance=2e-5, double core_weight
     core_coverage = ((len(core_matches) * 1.0) / len(core_fragments)) ** core_weight
     extended_coverage = min(float(len(core_matches) + len(extended_matches)) / d, 1.0) ** coverage_weight
     score = total * core_coverage * extended_coverage
+    self._glycan_coverage = core_coverage * extended_coverage
     if isnan(score):
         return 0
     return score
