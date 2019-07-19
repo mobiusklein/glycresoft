@@ -261,6 +261,7 @@ class GlycomeModel(LaplacianSmoothingModel):
             current_network = current_network.clone()
             for node in current_network:
                 node.score = 0
+                node.internal_score = 0
 
             # assign aggregated scores to the network
             network = assign_network(current_network, observations)

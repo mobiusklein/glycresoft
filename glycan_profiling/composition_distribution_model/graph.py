@@ -57,12 +57,12 @@ def assign_network(network, observed, copy=True):
             solution_map[case.glycan_composition] = case
 
     for node in network.nodes:
-        node.internal_score = 0
+        node.score = 0
 
     for composition, solution in solution_map.items():
         try:
             node = network[composition]
-            node.internal_score = solution.internal_score
+            node.score = solution.score
         except KeyError:
             # Not all exact compositions have nodes
             continue
@@ -73,7 +73,7 @@ def network_indices(network, threshold=0.0001):
     missing = []
     observed = []
     for node in network:
-        if node.internal_score < threshold:
+        if node.score < threshold:
             missing.append(node.index)
         else:
             observed.append(node.index)
