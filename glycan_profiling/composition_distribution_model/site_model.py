@@ -3,9 +3,9 @@ import json
 
 from collections import namedtuple, defaultdict
 try:
-    from collections.abc import Mapping, Sequence
+    from collections.abc import Mapping
 except ImportError:
-    from collections import Mapping, Sequence
+    from collections import Mapping
 
 import numpy as np
 
@@ -415,7 +415,7 @@ class GlycosylationSiteModelBuilder(TaskBase):
         for case in learnable_cases:
             acc[case.glycan_composition].append(case)
         for key, value in sorted(acc.items(), key=lambda x: x[0].mass()):
-            self.log("... %s: [%r]" % (
+            self.log("... %s: [%s]" % (
                 key,
                 ', '.join(["%0.2f" % f for f in sorted([r.score for r in value])])
             ))
