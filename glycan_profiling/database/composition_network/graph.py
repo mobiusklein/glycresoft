@@ -65,6 +65,9 @@ class CompositionNormalizer(object):
     def __call__(self, c):
         return self.normalize_composition(c)
 
+    def copy(self):
+        return self.__class__(self.cache.copy())
+
 
 normalize_composition = CompositionNormalizer()
 
@@ -539,6 +542,7 @@ class CompositionGraph(object):
 
     def copy(self):
         graph = CompositionGraph([], self.distance_fn)
+        graph._composition_normalizer = self._composition_normalizer.copy()
         for node in self.nodes:
             graph.add_node(node.clone())
         for edge in self.edges:
