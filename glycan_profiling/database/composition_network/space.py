@@ -11,8 +11,14 @@ def composition_distance(c1, c2):
     '''
     keys = set(c1) | set(c2)
     distance = 0.0
+    try:
+        c1_get = c1._getitem_fast
+        c2_get = c2._getitem_fast
+    except AttributeError:
+        c1_get = c1.__getitem__
+        c2_get = c2.__getitem__
     for k in keys:
-        distance += abs(c1[k] - c2[k])
+        distance += abs(c1_get(k) - c2_get(k))
     return int(distance), 1 / distance if distance > 0 else 1
 
 
