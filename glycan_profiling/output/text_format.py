@@ -87,6 +87,18 @@ class TrainingMGFExporterBase(TaskBase):
             scan.annotations['q_value'] = spectrum_match.q_value
         except AttributeError:
             pass
+        try:
+            score_set = spectrum_match.score_set
+            scan.annotations['ms2_peptide_score'] = score_set.peptide_score
+            scan.annotations['ms2_glycan_score'] = score_set.glycan_score
+            scan.annotations['ms2_glycan_coverage'] = score_set.glycan_coverage
+            q_value_set = spectrum_match.q_value_set
+            scan.annotations['q_value'] = q_value_set.q_value
+            scan.annotations['glycan_q_value'] = q_value_set.q_value_set.glycan_q_value
+            scan.annotations['peptide_q_value'] = q_value_set.q_value_set.peptide_q_value
+            scan.annotations['glycopeptide_q_value'] = q_value_set.q_value_set.glycopeptide_q_value
+        except AttributeError:
+            pass
         return scan
 
     def run(self):
