@@ -80,7 +80,8 @@ class JournalFileWriter(TaskBase):
             psm.mass_shift.name,
             psm.score,
             psm.score_set.peptide_score,
-            psm.score_set.glycan_score
+            psm.score_set.glycan_score,
+            psm.score_set.glycan_coverage
         ])
         if self.include_fdr:
             q_value_set = psm.q_value_set
