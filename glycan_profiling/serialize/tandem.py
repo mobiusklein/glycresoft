@@ -513,7 +513,7 @@ class GlycopeptideSpectrumMatchScoreSet(Base):
     peptide_score = Column(Numeric(12, 6, asdecimal=False), index=False)
     glycan_score = Column(Numeric(12, 6, asdecimal=False), index=False)
     glycopeptide_score = Column(Numeric(12, 6, asdecimal=False), index=False)
-    glycan_coverage = Column(Numeric(8, 7, asdecimal=False), index=False)
+    glycan_coverage = deferred(Column(Numeric(8, 7, asdecimal=False), index=False))
 
     total_q_value = Column(Numeric(8, 7, asdecimal=False), index=False)
     peptide_q_value = Column(Numeric(8, 7, asdecimal=False), index=False)
