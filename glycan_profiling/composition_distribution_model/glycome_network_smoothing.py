@@ -40,7 +40,53 @@ def _has_glycan_composition(x):
 
 
 class GlycomeModel(LaplacianSmoothingModel):
+    """An implementation of the Glycan Network Smoothing by Laplacian Regularization.
 
+    Attributes
+    ----------
+    block_L: :class:`~.BlockLaplacian`
+        The block-oriented version of the Weighted Laplacian matrix of :attr:`network`
+    network: :class:`~.CompositionGraph`
+        A graph of glycan compositions that has been annotated by their observation confidence.
+        This network may be pruned during the course of model fitting. The original network is
+        always available under :attr:`_network`.
+    observed_compositions: list of :class:`~.GlycanCompositionSolutionRecord`
+        The observed and scored glycan compositions. These may not be unique, and will be
+        summarized prior to being projected onto the network by :attr:`observation_aggregator`.
+        This list may be truncated during the course of model fitting. The original list is always
+        available under :attr:`_observed_compositions`.
+    threshold: float
+        The current threshold applied to the observed score. This value may change during model
+        fitting.
+    belongingness_matrix: np.ndarray[float, ndim=2]
+        A C by N matrix where C is the number of glycan compositions in the network and N is the
+        number of neighborhoods over the network, with the value at [i, j] corresponding to how much
+        C_i belongs to N_j. This value is not normalized, see :attr:`normalized_belongingness_matrix`.
+    normalized_belongingness_matrix: np.ndarray[float, ndim=2]
+        A normalized version of :attr:`belongingness_matrix`, which follows the normalization paradigm
+        given by :attr:`_belongingness_normalization`
+    A0: :class:`np.ndarray[float, ndim=2]`
+        The subset of :attr:`normalized_belongingness_matrix` corresponding to :attr:`observed_compositions`
+    Am: :class:`np.ndarray[float, ndim=2]`
+        The subset of :attr:`normalized_belongingness_matrix` corresponding to nodes in :attr:`network` that
+        are not in :attr:`observed_compositions`
+    S0:  :class:`np.ndarray[float]`
+        The summarized scores of the observed nodes in :attr:`network`
+    C0: list of :class:`CompositionGraphNode`
+        The observed nodes in :attr:`network`
+    obs_ix: :class:`np.ndarray[int]`
+        The indices into :attr:`network` that were observed
+    miss_ix: :class:`np.ndarray[int]`
+        The indices into :attr:`network` that were not observed
+    summarized_state: :class:`~.ObservationWeightState`
+        A helper intermediary which holds the transformation from :attr:`observed_compositions`
+        to :attr:`S0`, :attr:`variance_matrix` and :attr:`inverse_variance_matrix`
+    variance_matrix: :class:`np.ndarray[float, ndim=2]`
+        The variance of the observed scores, as estimated by :attr:`observation_aggregator`
+        from :attr:`observed_compositions`.
+    inverse_variance_matrix: :class:`np.ndarray[float, ndim=2]`
+        The inverse of :attr:`variance_matrix`, computed separately for efficiency.
+    """
     def __init__(self, observed_compositions, network, belongingness_matrix=None,
                  regularize=DEFAULT_LAPLACIAN_REGULARIZATION,
                  belongingness_normalization=NORMALIZATION,
@@ -345,7 +391,7 @@ def smooth_network(network, observed_compositions, threshold_step=0.5, apex_thre
                    belongingness_matrix=None, rho=DEFAULT_RHO, lambda_max=1,
                    include_missing=False, lmbda=None, model_state=None,
                    observation_aggregator=VariableObservationAggregation,
-                   belongingness_normalization=NORMALIZATION):
+                   belongingness_normalization=NORMALIZATION, annotate_network=True):
     convert = GlycanCompositionSolutionRecord.from_chromatogram
     observed_compositions = [
         convert(o) for o in observed_compositions if _has_glycan_composition(o)]
@@ -374,6 +420,9 @@ def smooth_network(network, observed_compositions, threshold_step=0.5, apex_thre
         if lmbda is not None:
             params.lmbda = lmbda
     log_handle.log("... Projecting Solution Onto Network")
-    network = search.annotate_network(params, include_missing=include_missing)
+    if annotate_network:
+        annotated_network = search.annotate_network(params, include_missing=include_missing)
+    else:
+        annotated_network = None
 
-    return network, search, params
+    return annotated_network, search, params

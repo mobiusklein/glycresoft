@@ -423,7 +423,8 @@ class GlycosylationSiteModelBuilder(TaskBase):
         fitted_network, search_result, params = smooth_network(
             self.network, learnable_cases,
             belongingness_matrix=self.belongingness_matrix,
-            observation_aggregator=VariableObservationAggregation)
+            observation_aggregator=VariableObservationAggregation,
+            annotate_network=False)
         if params is None:
             self.log("Skipping Site")
             return
@@ -566,8 +567,14 @@ class GlycoproteinSiteModelBuildingWorkflow(TaskBase):
             key=lambda x: len(x.identified_glycopeptides),
             reverse=True)
         n = len(glycoproteins)
+        n_sites = sum(len(gp.site_map['N-Linked']) for gp in glycoproteins)
+        k_sites_acc = 0
+        self.log("Analyzing %d glycoproteins with %d occupied N-glycosites" % (n, n_sites))
         for i, gp in enumerate(glycoproteins, 1):
-            self.log("Building Model for \"%s\" %d/%d (%0.2f%%)" % (gp.name, i, n, i * 100.0 / n))
+            k_sites = len(gp.site_map["N-Linked"])
+            k_sites_acc += k_sites
+            self.log("Building Model for \"%s\" with %d occupied N-glycosites %d/%d (%0.2f%%, %0.2f%% sites)" % (
+                gp.name, k_sites, i, n, i * 100.0 / n, k_sites_acc * 100.0 / n_sites))
             builder.add_glycoprotein(gp)
         self.log("Saving Models")
         if self.output_path is not None:
