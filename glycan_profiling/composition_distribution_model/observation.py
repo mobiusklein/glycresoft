@@ -75,9 +75,8 @@ class ObservationWeightState(object):
         else:
             winv = linalg.pinv(w)
         self.left_inverse_weight_matrix = winv.dot(self.weight_matrix.T)
-        self.variance_matrix = self.left_inverse_weight_matrix.dot(
-            self.left_inverse_weight_matrix.T)
-        self.inverse_variance_matrix = self.weight_matrix.T.dot(self.weight_matrix)
+        self.variance_matrix = self.left_inverse_weight_matrix.dot(self.left_inverse_weight_matrix.T)
+        self.inverse_variance_matrix = w
         self.weighted_scores = self.left_inverse_weight_matrix.dot(self.raw_scores)
         self.weighted_scores = self.weighted_scores[np.nonzero(self.weighted_scores)]
 

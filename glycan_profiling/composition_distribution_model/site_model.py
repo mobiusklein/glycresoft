@@ -7,6 +7,9 @@ try:
 except ImportError:
     from collections import Mapping
 
+from multiprocessing.pool import ThreadPool
+from threading import Lock
+
 import numpy as np
 
 from glypy.structure.glycan_composition import HashableGlycanComposition
@@ -316,7 +319,7 @@ class GlycosylationSiteModelBuilder(TaskBase):
     def __init__(self, glycan_graph, chromatogram_scorer=None, belongingness_matrix=None,
                  unobserved_penalty_scale=None, lambda_limit=0.2,
                  require_multiple_observations=True,
-                 observation_aggregator=None):
+                 observation_aggregator=None, n_threads=4):
         if observation_aggregator is None:
             observation_aggregator = VariableObservationAggregation
         if chromatogram_scorer is None:
@@ -335,6 +338,9 @@ class GlycosylationSiteModelBuilder(TaskBase):
         if self.belongingness_matrix is None:
             self.belongingness_matrix = self.build_belongingness_matrix()
         self.site_models = []
+        self.n_threads = n_threads
+        self.thread_pool = ThreadPool(n_threads)
+        self._lock = Lock()
 
     def build_belongingness_matrix(self):
         network = self.network
@@ -352,6 +358,8 @@ class GlycosylationSiteModelBuilder(TaskBase):
         return GlycanCompositionSolutionRecord(gp.glycan_composition, ms1_score, gp.total_signal)
 
     def add_glycoprotein(self, glycoprotein, evaluate_chromatograms=False):
+        async_results = []
+        sites_to_log = []
         for i, site in enumerate(glycoprotein.site_map['N-Linked'].sites):
             gps_for_site = glycoprotein.site_map[
                 'N-Linked'][glycoprotein.site_map['N-Linked'].sites[i]]
@@ -367,7 +375,18 @@ class GlycosylationSiteModelBuilder(TaskBase):
             for gp in glycopeptides:
                 records.append(self._transform_glycopeptide(gp, evaluate_chromatograms))
 
-            self.fit_site_model(records, site, glycoprotein)
+            if self.n_threads == 1:
+                self.fit_site_model(records, site, glycoprotein)
+            else:
+                sites_to_log.append(site)
+                async_results.append(
+                    self.thread_pool.apply_async(self.fit_site_model, (records, site, glycoprotein, )))
+
+        for i, result in enumerate(async_results):
+            if not result.ready():
+                self.log("... Waiting for Result from Site %d" % (sites_to_log[i], ))
+            result.get(300)
+
 
     def _get_learnable_cases(self, observations):
         learnable_cases = [rec for rec in observations if rec.score > 1]
@@ -433,6 +452,7 @@ class GlycosylationSiteModelBuilder(TaskBase):
                       np.array(params.tau).reshape((-1, 1)))
         updated_params = params.clone()
         updated_params.lmbda = min(self.lambda_limit, params.lmbda)
+        self.log("Projecting Solution Onto Network")
         fitted_network = search_result.annotate_network(updated_params)
         for node in fitted_network:
             if node.marked:
@@ -449,7 +469,8 @@ class GlycosylationSiteModelBuilder(TaskBase):
             site_distribution,
             updated_params.lmbda,
             glycan_map)
-        self.site_models.append(site_model)
+        with self._lock:
+            self.site_models.append(site_model)
         return site_model
 
     def save_models(self, path):

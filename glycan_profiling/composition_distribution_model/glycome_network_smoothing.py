@@ -419,8 +419,8 @@ def smooth_network(network, observed_compositions, threshold_step=0.5, apex_thre
         params = model_state
         if lmbda is not None:
             params.lmbda = lmbda
-    log_handle.log("... Projecting Solution Onto Network")
     if annotate_network:
+        log_handle.log("... Projecting Solution Onto Network")
         annotated_network = search.annotate_network(params, include_missing=include_missing)
     else:
         annotated_network = None
