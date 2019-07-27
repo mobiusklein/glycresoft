@@ -322,6 +322,7 @@ def _truncate_name(name, limit=30):
 
 
 class GlycosylationSiteModelBuilder(TaskBase):
+    _timeout_per_unit = 300
 
     def __init__(self, glycan_graph, chromatogram_scorer=None, belongingness_matrix=None,
                  unobserved_penalty_scale=None, lambda_limit=0.2,
@@ -401,7 +402,7 @@ class GlycosylationSiteModelBuilder(TaskBase):
                 if not result.ready():
                     self.log("... Waiting for Result from Site %d of %s" % (
                         sites_to_log[i], _truncate_name(glycoprotein.name, )))
-                result.get(300)
+                result.get(self._timeout_per_unit * self.n_threads + 20)
                 with self._lock:
                     self._concurrent_jobs -= 1
             with self._lock:
@@ -665,7 +666,7 @@ class GlycoproteinSiteModelBuildingWorkflow(TaskBase):
                             self.log("... Awaiting %s with %d Sites" % (
                                 _truncate_name(running_gp.name), running_gp_k_sites))
                             running_result.get(
-                                self._timeout_per_unit_site * running_gp_k_sites)
+                                self._timeout_per_unit_site * running_gp_k_sites * self.n_threads)
 
         # Now drain any pending tasks.
         while result_collector:
@@ -678,7 +679,7 @@ class GlycoproteinSiteModelBuildingWorkflow(TaskBase):
                 self.log("... Awaiting %s with %d Sites" % (
                     _truncate_name(running_gp.name), running_gp_k_sites))
                 running_result.get(
-                    self._timeout_per_unit_site * running_gp_k_sites)
+                    self._timeout_per_unit_site * running_gp_k_sites * self.n_threads)
 
     def run(self):
         self.log("Building Belongingness Matrix")
