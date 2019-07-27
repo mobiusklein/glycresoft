@@ -543,7 +543,7 @@ class GlycoproteinSiteModelBuildingWorkflow(TaskBase):
     def from_paths(cls, analysis_paths_and_ids, glycopeptide_hypothesis_path, glycopeptide_hypothesis_id,
                    glycan_hypothesis_path, glycan_hypothesis_id, unobserved_penalty_scale=None,
                    lambda_limit=0.2, require_multiple_observations=True, observation_aggregator=None,
-                   output_path=None):
+                   output_path=None, n_threads=4):
         gp_db = GlycopeptideDiskBackedStructureDatabase(
             glycopeptide_hypothesis_path, glycopeptide_hypothesis_id)
         gc_db = GlycanCompositionDiskBackedStructureDatabase(
@@ -554,7 +554,8 @@ class GlycoproteinSiteModelBuildingWorkflow(TaskBase):
         inst = cls(
             analyses, gp_db, gc_db, unobserved_penalty_scale=unobserved_penalty_scale,
             lambda_limit=lambda_limit, require_multiple_observations=require_multiple_observations,
-            observation_aggregator=observation_aggregator, output_path=output_path
+            observation_aggregator=observation_aggregator, output_path=output_path,
+            n_threads=n_threads,
         )
         return inst
 
