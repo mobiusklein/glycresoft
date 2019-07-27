@@ -1,14 +1,15 @@
 import re
 import json
+import time
 
-from collections import namedtuple, defaultdict
+from collections import namedtuple, defaultdict, deque
 try:
     from collections.abc import Mapping
 except ImportError:
     from collections import Mapping
 
 from multiprocessing.pool import ThreadPool
-from threading import Lock
+from threading import RLock, Condition
 
 import numpy as np
 
@@ -314,6 +315,12 @@ class SubstringGlycoproteomeModel(object):
         return self.get_models(glycopeptide)
 
 
+def _truncate_name(name, limit=20):
+    if len(name) > limit:
+        return name[:limit - 3] + '...'
+    return name
+
+
 class GlycosylationSiteModelBuilder(TaskBase):
 
     def __init__(self, glycan_graph, chromatogram_scorer=None, belongingness_matrix=None,
@@ -326,21 +333,26 @@ class GlycosylationSiteModelBuilder(TaskBase):
             chromatogram_scorer = _default_chromatogram_scorer
         if unobserved_penalty_scale is None:
             unobserved_penalty_scale = 1.0
+
         self.network = glycan_graph
         if not self.network.neighborhoods:
             self.network.neighborhoods = make_n_glycan_neighborhoods()
+
         self.chromatogram_scorer = chromatogram_scorer
         self.belongingness_matrix = belongingness_matrix
         self.observation_aggregator = observation_aggregator
         self.require_multiple_observations = require_multiple_observations
         self.unobserved_penalty_scale = unobserved_penalty_scale
         self.lambda_limit = lambda_limit
+
         if self.belongingness_matrix is None:
             self.belongingness_matrix = self.build_belongingness_matrix()
+
         self.site_models = []
         self.n_threads = n_threads
         self.thread_pool = ThreadPool(n_threads)
-        self._lock = Lock()
+        self._lock = RLock()
+        self._concurrent_jobs = 0
 
     def build_belongingness_matrix(self):
         network = self.network
@@ -366,8 +378,8 @@ class GlycosylationSiteModelBuilder(TaskBase):
             gps_for_site = [
                 gp for gp in gps_for_site if gp.chromatogram is not None]
 
-            self.log('... %d Identified Glycopeptides At Site %d' %
-                     (len(gps_for_site), site))
+            self.log('... %d Identified Glycopeptides At Site %d for %s' %
+                     (len(gps_for_site), site, _truncate_name(glycoprotein.name, )))
 
             glycopeptides = [
                 gp for gp in gps_for_site if gp.chromatogram is not None]
@@ -379,14 +391,19 @@ class GlycosylationSiteModelBuilder(TaskBase):
                 self.fit_site_model(records, site, glycoprotein)
             else:
                 sites_to_log.append(site)
-                async_results.append(
-                    self.thread_pool.apply_async(self.fit_site_model, (records, site, glycoprotein, )))
-
-        for i, result in enumerate(async_results):
-            if not result.ready():
-                self.log("... Waiting for Result from Site %d" % (sites_to_log[i], ))
-            result.get(300)
-
+                with self._lock:
+                    self._concurrent_jobs += 1
+                    async_results.append(
+                        self.thread_pool.apply_async(self.fit_site_model, (records, site, glycoprotein, )))
+        if async_results:
+            time.sleep(20)
+            for i, result in enumerate(async_results):
+                if not result.ready():
+                    self.log("... Waiting for Result from Site %d of %s" % (
+                        sites_to_log[i], _truncate_name(glycoprotein.name, )))
+                result.get(300)
+                with self._lock:
+                    self._concurrent_jobs -= 1
 
     def _get_learnable_cases(self, observations):
         learnable_cases = [rec for rec in observations if rec.score > 1]
@@ -396,7 +413,10 @@ class GlycosylationSiteModelBuilder(TaskBase):
             agg = VariableObservationAggregation(self.network)
             agg.collect(learnable_cases)
             recs, var = agg.build_records()
-            # use VariableObservationAggregation algorithm to collect the glycan
+            # TODO: Rewrite to avoid using VariableObservationAggregation because calculation
+            #       of the variance matrix is expensive.
+            #
+            # Use VariableObservationAggregation algorithm to collect the glycan
             # composition observations according to the network definition of multiple
             # observations, and then extract the observed indices along the diagonal
             # of the variance matrix.
@@ -424,7 +444,7 @@ class GlycosylationSiteModelBuilder(TaskBase):
         ]
         return learnable_cases
 
-    def fit_site_model(self, observations, site, protein):
+    def fit_site_model(self, observations, site, glycoprotein):
         learnable_cases = self._get_learnable_cases(observations)
 
         if not learnable_cases:
@@ -433,11 +453,14 @@ class GlycosylationSiteModelBuilder(TaskBase):
         acc = defaultdict(list)
         for case in learnable_cases:
             acc[case.glycan_composition].append(case)
-        for key, value in sorted(acc.items(), key=lambda x: x[0].mass()):
-            self.log("... %s: [%s]" % (
-                key,
-                ', '.join(["%0.2f" % f for f in sorted([r.score for r in value])])
-            ))
+        with self._lock:
+            self.log("... %d Glycan Compositions for Site %d of %s" % (
+                len(acc), site, _truncate_name(glycoprotein.name, )))
+            for key, value in sorted(acc.items(), key=lambda x: x[0].mass()):
+                self.log("... %s: [%s]" % (
+                    key,
+                    ', '.join(["%0.2f" % f for f in sorted([r.score for r in value])])
+                ))
 
         fitted_network, search_result, params = smooth_network(
             self.network, learnable_cases,
@@ -445,14 +468,15 @@ class GlycosylationSiteModelBuilder(TaskBase):
             observation_aggregator=VariableObservationAggregation,
             annotate_network=False)
         if params is None:
-            self.log("Skipping Site")
+            self.log("Skipping Site %d of %s" % (site, _truncate_name(glycoprotein.name, ) ))
             return
-        self.log("Lambda: %f" % (params.lmbda,))
-        display_table([x.name for x in self.network.neighborhoods],
-                      np.array(params.tau).reshape((-1, 1)))
+        with self._lock:
+            self.log("Site %d Lambda: %f" % (site, params.lmbda,))
+            display_table([x.name for x in self.network.neighborhoods],
+                          np.array(params.tau).reshape((-1, 1)))
         updated_params = params.clone()
         updated_params.lmbda = min(self.lambda_limit, params.lmbda)
-        self.log("Projecting Solution Onto Network")
+        self.log("Projecting Solution Onto Network for Site %d" % (site, ))
         fitted_network = search_result.annotate_network(updated_params)
         for node in fitted_network:
             if node.marked:
@@ -464,7 +488,7 @@ class GlycosylationSiteModelBuilder(TaskBase):
             for node in fitted_network
         }
         site_model = GlycosylationSiteModel(
-            protein.name,
+            glycoprotein.name,
             site,
             site_distribution,
             updated_params.lmbda,
@@ -482,10 +506,12 @@ class GlycosylationSiteModelBuilder(TaskBase):
 
 
 class GlycoproteinSiteModelBuildingWorkflow(TaskBase):
+    _timeout_per_unit_site = 300
+
     def __init__(self, analyses, glycopeptide_database, glycan_database,
                  unobserved_penalty_scale=None, lambda_limit=0.2,
                  require_multiple_observations=True, observation_aggregator=None,
-                 output_path=None):
+                 output_path=None, n_threads=4):
         if observation_aggregator is None:
             observation_aggregator = VariableObservationAggregation
         if unobserved_penalty_scale is None:
@@ -502,6 +528,12 @@ class GlycoproteinSiteModelBuildingWorkflow(TaskBase):
         self.observation_aggregator = observation_aggregator
 
         self.output_path = output_path
+
+        self.n_threads = n_threads
+        self.thread_pool = ThreadPool(self.n_threads)
+        self._lock = RLock()
+        self._count_barrier = Condition()
+        self._concurrent_jobs = 0
 
     @classmethod
     def from_paths(cls, analysis_paths_and_ids, glycopeptide_hypothesis_path, glycopeptide_hypothesis_id,
@@ -570,6 +602,64 @@ class GlycoproteinSiteModelBuildingWorkflow(TaskBase):
             i += 1
         return result
 
+    def thread_pool_saturated(self, ratio=1.0):
+        with self._lock:
+            jobs = self._concurrent_jobs
+        return (jobs / float(self.n_threads)) <= ratio
+
+    def _add_glycoprotein(self, glycoprotein, builder, k_sites):
+        # Acquire the condition lock, then wait until the thread pool is empty
+        # enough to do some work, then release the condition lock and do the work
+        self._count_barrier.acquire()
+        while self.thread_pool_saturated():
+            self._count_barrier.wait()
+        self._count_barrier.release()
+
+        with self._lock:
+            self._concurrent_jobs += k_sites
+
+        builder.add_glycoprotein(glycoprotein)
+
+        with self._lock:
+            self._concurrent_jobs -= k_sites
+
+        # Acquire the condition lock, wake up the next thread waiting, and release
+        # the condition lock
+        self._count_barrier.acquire()
+        self._count_barrier.notify()
+        self._count_barrier.release()
+
+    def _fit_glycoprotein_site_models(self, glycoproteins, builder):
+        n = len(glycoproteins)
+        n_sites = sum(len(gp.site_map['N-Linked']) for gp in glycoproteins)
+        k_sites_acc = 0
+        self.log(
+            "Analyzing %d glycoproteins with %d occupied N-glycosites" % (n, n_sites))
+        result_collector = deque()
+        for i, gp in enumerate(glycoproteins, 1):
+            k_sites = len(gp.site_map["N-Linked"])
+            k_sites_acc += k_sites
+            self.log("Building Model for \"%s\" with %d occupied N-glycosites %d/%d (%0.2f%%, %0.2f%% sites)" % (
+                _truncate_name(gp.name), k_sites, i, n, i * 100.0 / n, k_sites_acc * 100.0 / n_sites))
+            if self.n_threads == 1:
+                builder.add_glycoprotein(gp)
+            else:
+                with self._lock:
+                    result = self.thread_pool.apply_async(self._add_glycoprotein, (gp, builder, k_sites))
+                    result_collector.append((result, gp, k_sites))
+                # If the thread pool is full, we'll stop enqueuing new jobs and wait for it to clear out
+                if self.thread_pool_saturated():
+                    while self.thread_pool_saturated():
+                        running_result, running_gp, running_gp_k_sites = result_collector.popleft()
+                        while running_result.ready() and result_collector:
+                            running_result.get()  # get will re-raise errors if they occurred.
+                            running_result, running_gp, running_gp_k_sites = result_collector.popleft()
+                        if not running_result.ready():
+                            self.log("... Awaiting %s with %d Sites" % (
+                                _truncate_name(running_gp.name), running_gp_k_sites))
+                            running_result.get(
+                                self._timeout_per_unit_site * running_gp_k_sites)
+
     def run(self):
         self.log("Building Belongingness Matrix")
         network, belongingness_matrix = self.make_glycan_network()
@@ -579,7 +669,8 @@ class GlycoproteinSiteModelBuildingWorkflow(TaskBase):
             unobserved_penalty_scale=self.unobserved_penalty_scale,
             lambda_limit=self.lambda_limit,
             require_multiple_observations=self.require_multiple_observations,
-            observation_aggregator=self.observation_aggregator)
+            observation_aggregator=self.observation_aggregator,
+            n_threads=self.n_threads)
 
         self.log("Aggregating Glycoproteins")
         glycoproteins = self.aggregate_identified_glycoproteins()
@@ -587,16 +678,9 @@ class GlycoproteinSiteModelBuildingWorkflow(TaskBase):
             glycoproteins,
             key=lambda x: len(x.identified_glycopeptides),
             reverse=True)
-        n = len(glycoproteins)
-        n_sites = sum(len(gp.site_map['N-Linked']) for gp in glycoproteins)
-        k_sites_acc = 0
-        self.log("Analyzing %d glycoproteins with %d occupied N-glycosites" % (n, n_sites))
-        for i, gp in enumerate(glycoproteins, 1):
-            k_sites = len(gp.site_map["N-Linked"])
-            k_sites_acc += k_sites
-            self.log("Building Model for \"%s\" with %d occupied N-glycosites %d/%d (%0.2f%%, %0.2f%% sites)" % (
-                gp.name, k_sites, i, n, i * 100.0 / n, k_sites_acc * 100.0 / n_sites))
-            builder.add_glycoprotein(gp)
+
+        self._fit_glycoprotein_site_models(glycoproteins, builder)
+
         self.log("Saving Models")
         if self.output_path is not None:
             builder.save_models(self.output_path)
