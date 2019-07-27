@@ -652,6 +652,7 @@ class GlycoproteinSiteModelBuildingWorkflow(TaskBase):
                 with self._lock:
                     result = self.thread_pool.apply_async(self._add_glycoprotein, (gp, builder, k_sites))
                     result_collector.append((result, gp, k_sites))
+                    time.sleep(1) # sleep briefly to allow newly queued task to start
                 # If the thread pool is full, we'll stop enqueuing new jobs and wait for it to clear out
                 if self.thread_pool_saturated():
                     while self.thread_pool_saturated():
