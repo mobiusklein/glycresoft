@@ -315,7 +315,7 @@ class SubstringGlycoproteomeModel(object):
         return self.get_models(glycopeptide)
 
 
-def _truncate_name(name, limit=20):
+def _truncate_name(name, limit=30):
     if len(name) > limit:
         return name[:limit - 3] + '...'
     return name
@@ -404,6 +404,9 @@ class GlycosylationSiteModelBuilder(TaskBase):
                 result.get(300)
                 with self._lock:
                     self._concurrent_jobs -= 1
+            with self._lock:
+                self.log("... Finished Fitting %s, %d Tasks Pending" % (
+                    _truncate_name(glycoprotein.name), self._concurrent_jobs))
 
     def _get_learnable_cases(self, observations):
         learnable_cases = [rec for rec in observations if rec.score > 1]
@@ -468,15 +471,16 @@ class GlycosylationSiteModelBuilder(TaskBase):
             observation_aggregator=VariableObservationAggregation,
             annotate_network=False)
         if params is None:
-            self.log("Skipping Site %d of %s" % (site, _truncate_name(glycoprotein.name, ) ))
+            self.log("Skipping Site %d of %s" % (site, _truncate_name(glycoprotein.name) ))
             return
         with self._lock:
-            self.log("Site %d Lambda: %f" % (site, params.lmbda,))
+            self.log("... Site %d of %s Lambda: %f" % (site, _truncate_name(glycoprotein.name), params.lmbda,))
             display_table([x.name for x in self.network.neighborhoods],
                           np.array(params.tau).reshape((-1, 1)))
         updated_params = params.clone()
         updated_params.lmbda = min(self.lambda_limit, params.lmbda)
-        self.log("Projecting Solution Onto Network for Site %d" % (site, ))
+        self.log("... Projecting Solution Onto Network for Site %d of %s" %
+                 (site, _truncate_name(glycoprotein.name)))
         fitted_network = search_result.annotate_network(updated_params)
         for node in fitted_network:
             if node.marked:
@@ -605,7 +609,7 @@ class GlycoproteinSiteModelBuildingWorkflow(TaskBase):
     def thread_pool_saturated(self, ratio=1.0):
         with self._lock:
             jobs = self._concurrent_jobs
-        return (jobs / float(self.n_threads)) <= ratio
+        return (jobs / float(self.n_threads)) >= ratio
 
     def _add_glycoprotein(self, glycoprotein, builder, k_sites):
         # Acquire the condition lock, then wait until the thread pool is empty
@@ -618,6 +622,7 @@ class GlycoproteinSiteModelBuildingWorkflow(TaskBase):
         with self._lock:
             self._concurrent_jobs += k_sites
 
+        # This should block until all site model fitting finishes.
         builder.add_glycoprotein(glycoprotein)
 
         with self._lock:
@@ -659,6 +664,19 @@ class GlycoproteinSiteModelBuildingWorkflow(TaskBase):
                                 _truncate_name(running_gp.name), running_gp_k_sites))
                             running_result.get(
                                 self._timeout_per_unit_site * running_gp_k_sites)
+
+        # Now drain any pending tasks.
+        while result_collector:
+            running_result, running_gp, running_gp_k_sites = result_collector.popleft()
+            while running_result.ready() and result_collector:
+                # get will re-raise errors if they occurred.
+                running_result.get()
+                running_result, running_gp, running_gp_k_sites = result_collector.popleft()
+            if not running_result.ready():
+                self.log("... Awaiting %s with %d Sites" % (
+                    _truncate_name(running_gp.name), running_gp_k_sites))
+                running_result.get(
+                    self._timeout_per_unit_site * running_gp_k_sites)
 
     def run(self):
         self.log("Building Belongingness Matrix")
