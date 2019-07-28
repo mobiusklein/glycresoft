@@ -40,6 +40,18 @@ _default_chromatogram_scorer.add_feature(get_feature("null_charge"))
 MINIMUM = 1e-4
 
 
+glycan_composition_cache = dict()
+
+
+def parse_glycan_composition(string):
+    try:
+        return glycan_composition_cache[string]
+    except KeyError:
+        gc = HashableGlycanComposition.parse(string)
+        glycan_composition_cache[string] = gc
+        return gc
+
+
 class GlycosylationSiteModel(object):
 
     def __init__(self, protein_name, position, site_distribution, lmbda, glycan_map):
@@ -80,11 +92,17 @@ class GlycosylationSiteModel(object):
             site_distribution = d['tau']
         glycan_map = d['glycan_map']
         glycan_map = {
-            HashableGlycanComposition.parse(k): GlycanPriorRecord(v[0], v[1])
+            parse_glycan_composition(k): GlycanPriorRecord(v[0], v[1])
             for k, v in glycan_map.items()
         }
         inst = cls(name, position, site_distribution, lmbda, glycan_map)
         return inst
+
+    def pack(self, inplace=True):
+        if inplace:
+            self._pack()
+            return self
+        return self.copy()._pack()
 
     def _pack(self):
         new_map = {}
@@ -499,13 +517,13 @@ class GlycosylationSiteModelBuilder(TaskBase):
             updated_params.lmbda,
             glycan_map)
         with self._lock:
-            self.site_models.append(site_model)
+            self.site_models.append(site_model.pack())
         return site_model
 
     def save_models(self, path):
         with open(path, 'wt') as fh:
             prepared = []
-            for site in self.site_models:
+            for site in sorted(self.site_models, key=lambda x: (x.protein_name, x.position)):
                 prepared.append(site.to_dict())
             json.dump(prepared, fh)
 
