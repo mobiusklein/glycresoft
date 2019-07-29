@@ -168,6 +168,24 @@ class Protein(Base, AminoAcidSequenceWrapperBase):
                     d[k + '_count'] = v.count()
         return d
 
+    def reverse(self, copy_id=False, prefix=None, suffix=None):
+        n = len(self.protein_sequence)
+        sites = []
+        for site in self.sites:
+            sites.append(site.__class__(name=site.name, location=n - site.location - 1))
+        name = self.name
+        if name.startswith(">"):
+            if prefix:
+                name = ">" + prefix + name[1:]
+        if suffix:
+            name = name + suffix
+
+        inst = self.__class__(name=name, protein_sequence=self.protein_sequence[::-1])
+        if copy_id:
+            inst.id = self.id
+        inst.sites = sites
+        return inst
+
 
 class ProteinSite(Base):
     __tablename__ = "ProteinSite"

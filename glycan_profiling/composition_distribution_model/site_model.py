@@ -1,6 +1,7 @@
 import re
 import json
 import time
+import warnings
 
 from collections import namedtuple, defaultdict, deque
 try:
@@ -184,7 +185,15 @@ class GlycoproteinSiteSpecificGlycomeModel(object):
         pr = glycopeptide.protein_relation
         sites = self.find_sites_in(pr.start_position, pr.end_position)
         if len(sites) > 1:
-            raise NotImplementedError("Not compatible with multiple spanning glycosites (yet)")
+            score_acc = 0.0
+            warnings.warn("Multiple glycosylation sites are not (yet) supported")
+            for site in sites:
+                try:
+                    rec = site.glycan_map[glycopeptide.glycan_composition]
+                    score_acc += (rec.score)
+                except KeyError:
+                    score_acc += (MINIMUM)
+            return score_acc / len(sites)
         try:
             site = sites[0]
             try:
@@ -257,19 +266,18 @@ class GlycoproteomeModel(object):
         glycoprotein_model = self.glycoprotein_models[protein_id]
         return glycoprotein_model
 
-    def score(self, spectrum_match):
-        glycopeptide = spectrum_match.target
+    def score(self, glycopeptide):
         glycoprotein_model = self.find_model(glycopeptide)
         if glycoprotein_model is None:
             score = MINIMUM
         else:
             score = glycoprotein_model.score(glycopeptide)
-        return max(min(spectrum_match.score, score), 0)
+        return score
 
     @classmethod
-    def bind_to_hypothesis(cls, session, site_models, hypothesis_id=1, fuzzy=True):
+    def bind_to_hypothesis(cls, session, site_models, hypothesis_id=1, fuzzy=True, site_model_cls=GlycoproteinSiteSpecificGlycomeModel):
         inst = cls(
-            GlycoproteinSiteSpecificGlycomeModel.bind_to_hypothesis(
+            site_model_cls.bind_to_hypothesis(
                 session, site_models, hypothesis_id, fuzzy))
         return inst
 
@@ -310,13 +318,9 @@ class SubstringGlycoproteomeModel(object):
         models = self.get_models(glycopeptide)
         if len(models) == 0:
             return MINIMUM
-        # if len(models) > 1:
-        #     warnings.warn("Multiple proteins for {}".format(glycopeptide))
         sites = models[0]
         if len(sites) == 0:
             return MINIMUM
-        # if len(sites) > 1:
-        #     warnings.warn("Multiple sites for {}".format(glycopeptide))
         try:
             acc = []
             for site in sites:
