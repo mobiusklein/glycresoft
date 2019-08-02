@@ -259,6 +259,16 @@ class GlycoproteomeModel(object):
                 ggm.id: ggm for ggm in glycoprotein_models
             }
 
+    def relabel_proteins(self, name_to_id_map):
+        remapped = {}
+        for ggm in self.glycoprotein_models.values():
+            try:
+                new_id = name_to_id_map[ggm.name]
+                remapped[new_id] = ggm
+            except KeyError:
+                warnings.warn("No mapping for %r, it will be omitted" % (ggm.name, ))
+        self.glycoprotein_models = remapped
+
     def find_model(self, glycopeptide):
         if glycopeptide.protein_relation is None:
             return None
