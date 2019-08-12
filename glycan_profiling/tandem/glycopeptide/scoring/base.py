@@ -125,7 +125,7 @@ class GlycopeptideSpectrumMatcherBase(SpectrumMatcherBase):
             self._glycan_score = self.calculate_glycan_score(*args, **kwargs)
         return self._glycan_score
 
-    def _calculate_glycan_coverage(self, error_tolerance=2e-5, core_weight=0.4, coverage_weight=0.5, *args, **kwargs):
+    def _calculate_glycan_coverage(self, core_weight=0.4, coverage_weight=0.5, *args, **kwargs):
         seen = set()
         series = IonSeries.stub_glycopeptide
         theoretical_set = list(self.target.stub_fragments(extended=True))
@@ -158,11 +158,11 @@ class GlycopeptideSpectrumMatcherBase(SpectrumMatcherBase):
         self._glycan_coverage = coverage
         return coverage
 
-    def glycan_coverage(self, error_tolerance=2e-5, core_weight=0.4, coverage_weight=0.5, *args, **kwargs):
+    def glycan_coverage(self, core_weight=0.4, coverage_weight=0.5, *args, **kwargs):
         if self._glycan_coverage is not None:
             return self._glycan_coverage
         self._glycan_coverage = self._calculate_glycan_coverage(
-            error_tolerance, core_weight, coverage_weight, *args, **kwargs)
+            core_weight, coverage_weight, *args, **kwargs)
         return self._glycan_coverage
 
     def calculate_glycan_score(self, *args, **kwargs):
