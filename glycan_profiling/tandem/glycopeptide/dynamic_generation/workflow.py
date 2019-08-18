@@ -287,7 +287,7 @@ class MultipartGlycopeptideIdentifier(TaskBase):
                 # ('combined', 'combined')
             ],
             spectrum_batcher.out_queue,
-            multiprocessing.Queue(1),
+            multiprocessing.Queue(5),
             spectrum_batcher.done_event,
             precursor_error_tolerance=self.precursor_error_tolerance,
             mass_shifts=self.mass_shifts)
@@ -301,8 +301,9 @@ class MultipartGlycopeptideIdentifier(TaskBase):
             ]),
             self.scan_loader,
             mapping_batcher.out_queue,
-            multiprocessing.Queue(2),
-            mapping_batcher.done_event)
+            multiprocessing.Queue(5),
+            mapping_batcher.done_event,
+            tracking_directory=self.file_manager.get("mapping_tracker"))
         mapping_executor.done_event = multiprocessing.Event()
 
         # If we wished to, we could run multiple MatcherExecutors in

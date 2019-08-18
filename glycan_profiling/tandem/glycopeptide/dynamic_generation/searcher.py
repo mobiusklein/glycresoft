@@ -202,12 +202,13 @@ class SerializingMapperExecutor(MapperExecutor):
     process_name = 'glycopeptide-db-map'
 
     def __init__(self, predictive_searchers, scan_loader, in_queue, out_queue,
-                 in_done_event):
+                 in_done_event, tracking_directory=None):
         super(SerializingMapperExecutor, self).__init__(
             in_queue, out_queue, in_done_event)
 
         self.predictive_searchers = predictive_searchers
         self.scan_loader = scan_loader
+        self.tracking_directory = tracking_directory
 
     def execute_task(self, mapper_task):
         label = mapper_task.predictive_search
@@ -221,6 +222,14 @@ class SerializingMapperExecutor(MapperExecutor):
         matcher_task.label = label
         matcher_task.group_i = mapper_task.group_i
         matcher_task.group_n = mapper_task.group_n
+        if self.tracking_directory is not None:
+            if not os.path.exists(self.tracking_directory):
+                os.mkdir(self.tracking_directory)
+            track_file = os.path.join(
+                self.tracking_directory, "%s_%s_%s.xml" % (
+                    label, mapper_task.group_i, mapper_task.group_n))
+            with open(track_file, 'wb') as fh:
+                fh.write(workload)
         return matcher_task
 
     def run(self):
