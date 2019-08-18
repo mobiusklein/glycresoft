@@ -81,7 +81,7 @@ class JournalFileWriter(TaskBase):
             psm.score,
             psm.score_set.peptide_score,
             psm.score_set.glycan_score,
-            psm.score_set.glycan_coverage
+            psm.score_set.glycan_coverage,
         ])
         if self.include_fdr:
             q_value_set = psm.q_value_set
@@ -276,7 +276,7 @@ class SolutionSetGrouper(TaskBase):
         groups = collectiontools.groupby(
             self.spectrum_matches, lambda x: x.scan.id)
         by_match_type = defaultdict(list)
-        for scan_id, members in groups.items():
+        for _scan_id, members in groups.items():
             top_match = max(members, key=score_getter)
             top_score = top_match.score
             seen = set()
