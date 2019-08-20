@@ -411,6 +411,11 @@ class IdentificationProcessDispatcher(TaskBase):
                 if i % 1000 == 0:
                     self.log(
                         "...... Processed %d structures (%0.2f%%)" % (i, i * 100. / n))
+                expected_matches = hit_to_scan[target.id]
+                if len(expected_matches) != len(score_map):
+                    self.log("...... Expected %d spectrum matches for %r, but only received %d" % (
+                        len(expected_matches), target, len(score_map)))
+                self.store_result(target, score_map)
             except QueueEmptyException:
                 if len(seen) == n:
                     has_work = False
@@ -465,7 +470,7 @@ class IdentificationProcessDispatcher(TaskBase):
                             self.debug("......... %r" % (worker,))
                         self.debug("...... IPC Manager: %r" % (self.ipc_manager,))
                 continue
-            self.store_result(target, score_map)
+
         consumer_end = time.time()
         self.debug("... Consumer Done (%0.3g sec.)" % (consumer_end - start_time))
         self.consumer_done_event.set()

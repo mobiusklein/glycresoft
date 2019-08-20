@@ -172,6 +172,12 @@ class StructureMapper(TaskExecutionSequence):
 
 
 class MapperExecutor(TaskExecutionSequence):
+    """This task executor consumes batches of precursor mass-grouped spectra,
+    and produces batches of glycopeptides matched to spectra.
+
+    Its task type is :class:`StructureMapper`
+
+    """
     def __init__(self, in_queue, out_queue, in_done_event):
         self.in_queue = in_queue
         self.out_queue = out_queue
@@ -199,6 +205,10 @@ class MapperExecutor(TaskExecutionSequence):
 
 
 class SerializingMapperExecutor(MapperExecutor):
+    """This task extends :class:`MapperExecutor` to also serialize its mapping to gzipped
+    XML.
+
+    """
     process_name = 'glycopeptide-db-map'
 
     def __init__(self, predictive_searchers, scan_loader, in_queue, out_queue,
@@ -226,7 +236,7 @@ class SerializingMapperExecutor(MapperExecutor):
             if not os.path.exists(self.tracking_directory):
                 os.mkdir(self.tracking_directory)
             track_file = os.path.join(
-                self.tracking_directory, "%s_%s_%s.xml" % (
+                self.tracking_directory, "%s_%s_%s.xml.gz" % (
                     label, mapper_task.group_i, mapper_task.group_n))
             with open(track_file, 'wb') as fh:
                 fh.write(workload)
@@ -292,6 +302,14 @@ class SpectrumMatcher(TaskExecutionSequence):
 
 
 class MatcherExecutor(TaskExecutionSequence):
+    """This task executor consumes mappings from glycopeptide to scan and runs spectrum
+    matching, scoring each glycopeptide against their matched spectra. It produces  scored
+    spectrum matches.
+
+    This type complements :class:`MapperExecutor`
+
+    Its task type is :class:`SpectrumMatcher`
+    """
     def __init__(self, in_queue, out_queue, in_done_event, scorer_type=None, ipc_manager=None,
                  n_processes=6, evaluation_kwargs=None, **kwargs):
         if scorer_type is None:
@@ -311,11 +329,15 @@ class MatcherExecutor(TaskExecutionSequence):
         self.n_processes = n_processes
         self.ipc_manager = ipc_manager
 
-    def execute_task(self, matcher_task):
+    def configure_task(self, matcher_task):
         matcher_task.ipc_manager = self.ipc_manager
         matcher_task.n_processes = self.n_processes
         matcher_task.scorer_type = self.scorer_type
         matcher_task.evaluation_kwargs = self.evaluation_kwargs
+        return matcher_task
+
+    def execute_task(self, matcher_task):
+        matcher_task = self.configure_task(matcher_task)
         solutions = matcher_task()
         return solutions
 
@@ -334,6 +356,12 @@ class MatcherExecutor(TaskExecutionSequence):
 
 
 class WorkloadUnpackingMatcherExecutor(MatcherExecutor):
+    """This task executor extends :class:`MatcherExecutor` by also deserializing the
+    mapping from gzipped XML packaging.
+
+    This type complements :class:`SerializingMapperExecutor`
+
+    """
     def __init__(self, scan_loader, in_queue, out_queue, in_done_event, scorer_type=None,
                  ipc_manager=None, n_processes=6, evaluation_kwargs=None, **kwargs):
         super(WorkloadUnpackingMatcherExecutor, self).__init__(
