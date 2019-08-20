@@ -55,8 +55,7 @@ except KeyError:
 
 
 log_multiprocessing = bool(int(os.environ.get(
-    "GLYCRESOFT_LOG_MULTIPROCESSING", log_multiprocessing))) or (
-    LOG_LEVEL in ("DEBUG", logging_levels['DEBUG']))
+    "GLYCRESOFT_LOG_MULTIPROCESSING", log_multiprocessing)))
 
 
 def configure_logging(level=None, log_file_name=None, log_file_mode=None):

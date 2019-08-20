@@ -395,6 +395,7 @@ class IdentificationProcessDispatcher(TaskBase):
                         continue
                     else:
                         raise
+                self.log("...... %r -> %r %d" % (target.id, target, len(score_map)))
                 if target.id in seen:
                     self.debug(
                         "...... Duplicate Results For %s. First seen at %r, now again at %r" % (
@@ -417,10 +418,10 @@ class IdentificationProcessDispatcher(TaskBase):
                         len(expected_matches), target, len(score_map)))
                 self.store_result(target, score_map)
             except QueueEmptyException:
-                if len(seen) == n:
-                    has_work = False
+                # if len(seen) == n:
+                #     has_work = False
                 # do worker life cycle management here
-                elif self.all_workers_finished():
+                if self.all_workers_finished():
                     if len(seen) == n:
                         has_work = False
                     else:
