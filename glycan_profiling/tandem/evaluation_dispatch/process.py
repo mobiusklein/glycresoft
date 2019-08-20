@@ -462,7 +462,7 @@ class IdentificationProcessDispatcher(TaskBase):
                         self.log(
                             ("...... Too much time has elapsed with"
                              " missing items (%d children still alive). Evaluating serially.") % (
-                                len(multiprocessing.active_children()) - 1,))
+                                 len(multiprocessing.active_children()) - 1,))
                         i += self._reconstruct_missing_work_items(
                             seen, hit_map, hit_to_scan, scan_hit_type_map)
                         has_work = False

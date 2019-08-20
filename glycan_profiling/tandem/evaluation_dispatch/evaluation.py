@@ -178,8 +178,9 @@ class SolutionHandler(TaskBase):
             j += 1
             if j % 1000 == 0:
                 self.log("...... Mapping match %d for %s on %s with score %r" % (j, target, scan_id, score))
-            self.scan_solution_map[scan_id].append(
-                self._make_spectrum_match(scan_id, target, score, shift_type))
+            psm = self._make_spectrum_match(scan_id, target, score, shift_type)
+            self.log("....... %s" % (psm, ))
+            self.scan_solution_map[scan_id].append(psm)
 
     def __call__(self, target, score_map):
         return self.store_result(target, score_map)
