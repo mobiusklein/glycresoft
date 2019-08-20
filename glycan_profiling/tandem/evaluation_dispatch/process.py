@@ -418,10 +418,10 @@ class IdentificationProcessDispatcher(TaskBase):
                         len(expected_matches), target, len(score_map)))
                 self.store_result(target, score_map)
             except QueueEmptyException:
-                # if len(seen) == n:
-                #     has_work = False
+                if len(seen) == n:
+                    has_work = False
                 # do worker life cycle management here
-                if self.all_workers_finished():
+                elif self.all_workers_finished():
                     if len(seen) == n:
                         has_work = False
                     else:
