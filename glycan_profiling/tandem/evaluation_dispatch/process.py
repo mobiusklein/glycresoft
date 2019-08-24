@@ -149,7 +149,7 @@ class IdentificationProcessDispatcher(TaskBase):
             self.state = ProcessDispatcherState.terminating_workers_live
         else:
             self.state = ProcessDispatcherState.terminating
-        for i, worker in enumerate(self.workers):
+        for _i, worker in enumerate(self.workers):
             exitcode = worker.exitcode
             if exitcode != 0 and exitcode is not None:
                 self.log("... Worker Process %r had exitcode %r" % (worker, exitcode))
@@ -183,7 +183,7 @@ class IdentificationProcessDispatcher(TaskBase):
         self.output_queue = self._make_output_queue()
         self.feeder = TaskQueueFeeder(self.input_queue, self.producer_thread_done_event)
 
-        for i in range(self.n_processes):
+        for _i in range(self.n_processes):
             worker = self.worker_type(
                 input_queue=self.input_queue,
                 output_queue=self.output_queue,
@@ -475,6 +475,7 @@ class IdentificationProcessDispatcher(TaskBase):
         consumer_end = time.time()
         self.debug("... Consumer Done (%0.3g sec.)" % (consumer_end - start_time))
         self.consumer_done_event.set()
+        time.sleep(1) # Not a good solution but need to give workers a chance to sync
         i_spectrum_matches = sum(map(len, self.scan_solution_map.values()))
         self.log("... Finished Processing Matches (%d)" % (i_spectrum_matches,))
         self.clear_pool()
@@ -509,7 +510,7 @@ class SpectrumIdentificationWorkerBase(Process, SpectrumEvaluatorBase):
         self.spectrum_map = spectrum_map
         self.mass_shift_map = mass_shift_map
 
-        self.local_scan_map = LRUMapping(500)
+        self.local_scan_map = LRUMapping(1000)
         self.local_mass_shift_map = dict({
             Unmodified.name: Unmodified
         })
@@ -520,10 +521,24 @@ class SpectrumIdentificationWorkerBase(Process, SpectrumEvaluatorBase):
         self.items_handled = 0
 
     def log(self, message):
+        """Send a normal logging message via :attr:`log_handler`
+
+        Parameters
+        ----------
+        message : str
+            The message to log
+        """
         if self.log_handler is not None:
             self.log_handler(message)
 
     def debug(self, message):
+        """Send a debugging message via :attr:`log_handler`
+
+        Parameters
+        ----------
+        message : str
+            The message to log
+        """
         if self.verbose:
             self.log_handler("DEBUG::%s" % message)
 
@@ -544,6 +559,13 @@ class SpectrumIdentificationWorkerBase(Process, SpectrumEvaluatorBase):
             return mass_shift
 
     def all_work_done(self):
+        """A helper method to encapsulate :attr:`_work_complete`'s ``is_set``
+        method.
+
+        Returns
+        -------
+        bool
+        """
         return self._work_complete.is_set()
 
     def pack_output(self, target):
@@ -555,7 +577,12 @@ class SpectrumIdentificationWorkerBase(Process, SpectrumEvaluatorBase):
         raise NotImplementedError()
 
     def cleanup(self):
-        self.debug("... Process %s Setting Work Complete Flag. Processed %d structures" % (
+        """Send signals indicating the worker process is finished and do any
+        final shared resource cleanup needed on the worker's side.
+
+        This will set the :attr:`_work_complete` event and join :attr:`output_queue`
+        """
+        self.log("... Process %s Setting Work Complete Flag. Processed %d structures" % (
             self.name, self.items_handled))
         try:
             self._work_complete.set()
@@ -564,11 +591,14 @@ class SpectrumIdentificationWorkerBase(Process, SpectrumEvaluatorBase):
         self.output_queue.put(SentinelToken(self.token))
         self.consumer_done_event.wait()
         # joining the queue may not be necessary if we depend upon consumer_event_done
-        self.debug("... Process %s Queue Joining" % (self.name,))
+        self.log("... Process %s Queue Joining" % (self.name,))
         self.output_queue.join()
-        self.debug("... Process %s Finished" % (self.name,))
+        self.log("... Process %s Finished" % (self.name,))
 
     def task(self):
+        """The worker process's main loop where it will poll for new work items,
+        process incoming work items and send them back to the master process.
+        """
         has_work = True
         self.items_handled = 0
         strikes = 0

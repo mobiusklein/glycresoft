@@ -1,11 +1,32 @@
+from glycan_profiling.task import log_handle
+
 from .spectrum_match import SpectrumMatch, SpectrumReference, ScanWrapperBase, MultiScoreSpectrumMatch
 
 
 class SpectrumMatchRetentionStrategyBase(object):
+    """Encapsulate a method for filtering :class:`SpectrumMatch` objects
+    out of a list according to a specific criterion.
+
+    Attributes
+    ----------
+    threshold: object
+        Some abstract threshold
+    """
     def __init__(self, threshold):
         self.threshold = threshold
 
     def filter_matches(self, solution_set):
+        """Filter :class:`SpectrumMatch` objects from a list
+
+        Parameters
+        ----------
+        solution_set : list
+            The list of :class:`SpectrumMatch` objects to filter.
+
+        Returns
+        -------
+        list
+        """
         raise NotImplementedError()
 
     def __call__(self, solution_set):
@@ -21,6 +42,8 @@ class MinimumScoreRetentionStrategy(SpectrumMatchRetentionStrategyBase):
         for match in solution_set:
             if match.score > self.threshold:
                 retain.append(match)
+            else:
+                log_handle.log("{0} filtering {1} with score {2}".format(self, match, match.score))
         return retain
 
 
@@ -50,11 +73,26 @@ class TopScoringSolutionsRetentionStrategy(SpectrumMatchRetentionStrategyBase):
         for solution in solution_set:
             if (best_score - solution.score) < self.threshold:
                 retain.append(solution)
+            else:
+                log_handle.log("{0} filtering {1} with score {2} (best score {3})".format(
+                    self, solution, solution.score, best_score))
         return retain
 
 
 class SpectrumMatchRetentionMethod(SpectrumMatchRetentionStrategyBase):
-    def __init__(self, strategies=None):
+    """A collection of several :class:`SpectrumMatchRetentionStrategyBase`
+    objects which are applied in order to iteratively filter out :class:`SpectrumMatch`
+    objects.
+
+    This class implements the same :class:`SpectrumMatchRetentionStrategyBase` API
+    so it may be used interchangably with single strategies.
+
+    Attributes
+    ----------
+    strategies: list
+        The list of :class:`SpectrumMatchRetentionStrategyBase`
+    """
+    def __init__(self, strategies=None):  # pylint: disable=super-init-not-called
         if strategies is None:
             strategies = []
         self.strategies = strategies
