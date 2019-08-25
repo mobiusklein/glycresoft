@@ -1,4 +1,6 @@
-from glycan_profiling.task import log_handle
+'''Represent collections of :class:`~SpectrumMatch` instances covering the same
+spectrum, and methods for selecting which are worth keeping for downstream consideration.
+'''
 
 from .spectrum_match import SpectrumMatch, SpectrumReference, ScanWrapperBase, MultiScoreSpectrumMatch
 
@@ -37,17 +39,40 @@ class SpectrumMatchRetentionStrategyBase(object):
 
 
 class MinimumScoreRetentionStrategy(SpectrumMatchRetentionStrategyBase):
+    """A strategy for filtering :class:`~.SpectrumMatch` from a list if
+    their :attr:`~.SpectrumMatch.score` is less than :attr:`threshold`
+
+    Parameters
+    ----------
+    solution_set : list
+        The list of :class:`SpectrumMatch` objects to filter.
+
+    Returns
+    -------
+    list
+    """
     def filter_matches(self, solution_set):
         retain = []
         for match in solution_set:
             if match.score > self.threshold:
                 retain.append(match)
-            else:
-                log_handle.log("{0} filtering {1} with score {2}".format(self, match, match.score))
         return retain
 
 
 class MinimumMultiScoreRetentionStrategy(SpectrumMatchRetentionStrategyBase):
+    """A strategy for filtering :class:`~.SpectrumMatch` from a list if
+    their :attr:`~.SpectrumMatch.score_set` is less than :attr:`threshold`,
+    assuming they share the same dimensions.
+
+    Parameters
+    ----------
+    solution_set : list
+        The list of :class:`SpectrumMatch` objects to filter.
+
+    Returns
+    -------
+    list
+    """
     def filter_matches(self, solution_set):
         retain = []
         for match in solution_set:
@@ -60,11 +85,41 @@ class MinimumMultiScoreRetentionStrategy(SpectrumMatchRetentionStrategyBase):
 
 
 class MaximumSolutionCountRetentionStrategy(SpectrumMatchRetentionStrategyBase):
+    """A strategy for filtering :class:`~.SpectrumMatch` from a list to retain
+    the top :attr:`threshold` entries.
+
+    This assumes that `solution_set` is sorted.
+
+    Parameters
+    ----------
+    solution_set : list
+        The list of :class:`SpectrumMatch` objects to filter.
+
+    Returns
+    -------
+    list
+    """
     def filter_matches(self, solution_set):
         return solution_set[:self.threshold]
 
 
 class TopScoringSolutionsRetentionStrategy(SpectrumMatchRetentionStrategyBase):
+    """A strategy for filtering :class:`~.SpectrumMatch` from a list to retain
+    those with scores that are within :attr:`threshold` of the highest score in
+    the set.
+
+    This assumes that `solution_set` is sorted and that the highest score is at
+    the 0th index..
+
+    Parameters
+    ----------
+    solution_set : list
+        The list of :class:`SpectrumMatch` objects to filter.
+
+    Returns
+    -------
+    list
+    """
     def filter_matches(self, solution_set):
         if len(solution_set) == 0:
             return solution_set
@@ -73,9 +128,6 @@ class TopScoringSolutionsRetentionStrategy(SpectrumMatchRetentionStrategyBase):
         for solution in solution_set:
             if (best_score - solution.score) < self.threshold:
                 retain.append(solution)
-            else:
-                log_handle.log("{0} filtering {1} with score {2} (best score {3})".format(
-                    self, solution, solution.score, best_score))
         return retain
 
 
