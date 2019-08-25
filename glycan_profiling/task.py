@@ -151,7 +151,40 @@ def humanize_class_name(name):
     return ' '.join(parts)
 
 
-class TaskBase(object):
+class LoggingMixin(object):
+    logger_state = None
+    print_fn = printer
+    debug_print_fn = debug_printer
+    error_print_fn = printer
+
+    @classmethod
+    def log_with_logger(cls, logger):
+        cls.logger_state = logger
+        cls.print_fn = logger.info
+        cls.debug_print_fn = logger.debug
+        cls.error_print_fn = logger.error
+
+    def log(self, *message):
+        self.print_fn(', '.join(map(str, message)))
+
+    def debug(self, *message):
+        self.debug_print_fn(', '.join(map(str, message)))
+
+    def error(self, *message, **kwargs):
+        exception = kwargs.get("exception")
+        self.error_print_fn(', '.join(map(str, message)))
+        if exception is not None:
+            self.error_print_fn(traceback.format_exc(exception))
+
+    def ipc_logger(self, handler=None):
+        if handler is None:
+            def _default_closure_handler(message):
+                self.log(message)
+            handler = _default_closure_handler
+        return MessageSpooler(handler)
+
+
+class TaskBase(LoggingMixin):
     """A base class for a discrete, named step in a pipeline that
     executes in sequence.
 
@@ -178,11 +211,6 @@ class TaskBase(object):
     status = "new"
 
     _debug_enabled = None
-
-    logger_state = None
-    print_fn = printer
-    debug_print_fn = debug_printer
-    error_print_fn = printer
     display_fields = True
 
     _display_name = None
@@ -193,13 +221,6 @@ class TaskBase(object):
             return humanize_class_name(self.__class__.__name__)
         else:
             return self._display_name
-
-    @classmethod
-    def log_with_logger(cls, logger):
-        cls.logger_state = logger
-        cls.print_fn = logger.info
-        cls.debug_print_fn = logger.debug
-        cls.error_print_fn = logger.error
 
     def in_debug_mode(self):
         if self._debug_enabled is None:
@@ -215,18 +236,6 @@ class TaskBase(object):
                  if not k.startswith("_")})
         else:
             return ''
-
-    def log(self, *message):
-        self.print_fn(', '.join(map(str, message)))
-
-    def debug(self, *message):
-        self.debug_print_fn(', '.join(map(str, message)))
-
-    def error(self, *message, **kwargs):
-        exception = kwargs.get("exception")
-        self.error_print_fn(', '.join(map(str, message)))
-        if exception is not None:
-            self.error_print_fn(traceback.format_exc(exception))
 
     def display_header(self):
         display_version(self.log)
@@ -287,14 +296,6 @@ class TaskBase(object):
             ''
         ]
         return '\n'.join(chunks)
-
-    def ipc_logger(self, handler=None):
-        if handler is None:
-
-            def default_closure_handler(message):
-                self.log(message)
-            handler = default_closure_handler
-        return MessageSpooler(handler)
 
     def start(self, *args, **kwargs):
         self._begin(*args, **kwargs)

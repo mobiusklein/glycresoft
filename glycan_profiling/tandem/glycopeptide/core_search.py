@@ -49,7 +49,7 @@ default_components = (hexnac, hexose, xylose, fucose,)
 
 
 class CoreMotifFinder(PathFinder):
-    def __init__(self, components=None, product_error_tolerance=1e-5, minimum_peptide_mass=350.):
+    def __init__(self, components=None, product_error_tolerance=1e-5, minimum_peptide_mass=350.): # pylint: disable=super-init-not-called
         if components is None:
             components = default_components
         self.components = list(map(MassWrapper, components))
@@ -263,8 +263,8 @@ class GlycanCombinationRecord(object):
     def from_hypothesis(cls, session, hypothesis_id):
         query = session.query(GlycanCombination).filter(
             GlycanCombination.hypothesis_id == hypothesis_id).group_by(
-            GlycanCombination.composition, GlycanCombination.count).order_by(
-            GlycanCombination.dehydrated_mass())
+                GlycanCombination.composition, GlycanCombination.count).order_by(
+                    GlycanCombination.dehydrated_mass()) # pylint: disable=no-value-for-parameter
         candidates = query.all()
         out = []
         for candidate in candidates:

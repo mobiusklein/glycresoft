@@ -15,6 +15,8 @@ from glycopeptidepy.structure.sequence import (
 
 from ms_deisotope import isotopic_shift
 
+from glycan_profiling.task import LoggingMixin
+
 from glycan_profiling.chromatogram_tree import Unmodified
 
 from glycan_profiling.structure.lru import LRUMapping
@@ -218,7 +220,7 @@ class PeptideGlycosylator(GlycoformGeneratorBase):
         self.peptides.reset(**kwargs)
 
 
-class DynamicGlycopeptideSearchBase(object):
+class DynamicGlycopeptideSearchBase(LoggingMixin):
     neutron_shift = isotopic_shift()
 
     def handle_scan_group(self, group, precursor_error_tolerance=1e-5, mass_shifts=None):
@@ -259,6 +261,8 @@ class PredictiveGlycopeptideSearch(DynamicGlycopeptideSearchBase):
         peptide_masses_per_scan = self.peptide_masses_per_scan
         for scan in group:
             workload.add_scan(scan)
+            n_glycopeptides = 0
+            n_peptide_masses = 0
             if (not scan.precursor_information.defaulted and self.trust_precursor_fits):
                 probe = 0
             else:
@@ -272,15 +276,17 @@ class PredictiveGlycopeptideSearch(DynamicGlycopeptideSearchBase):
                     for peptide_mass in estimate_peptide_mass(scan, topn=peptide_masses_per_scan, mass_shift=mass_shift,
                                                               threshold=glycan_score_threshold,
                                                               min_fragments=min_fragments):
-                        j = 0
+                        self.log("... %s - %s -> %0.3f" % (scan.id, neutron_shift, peptide_mass))
+                        n_peptide_masses += 1
                         for candidate in handle_peptide_mass(peptide_mass, intact_mass, self.product_error_tolerance):
-                            j += 1
+                            n_glycopeptides += 1
                             key = (candidate.id, mass_shift_name)
                             if key in seen:
                                 continue
                             seen.add(key)
                             if (abs(intact_mass - candidate.total_mass) / intact_mass) <= precursor_error_tolerance:
                                 workload.add_scan_hit(scan, candidate, mass_shift_name)
+            self.log("%s had %d glycopeptides from %d peptide masses" % (scan.id, n_glycopeptides, n_peptide_masses))
         return workload
 
 
