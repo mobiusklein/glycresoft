@@ -281,10 +281,13 @@ class PredictiveGlycopeptideSearch(DynamicGlycopeptideSearchBase):
                         for candidate in handle_peptide_mass(peptide_mass, intact_mass, self.product_error_tolerance):
                             n_glycopeptides += 1
                             key = (candidate.id, mass_shift_name)
+                            mass_threshold_passed = (
+                                abs(intact_mass - candidate.total_mass) / intact_mass) <= precursor_error_tolerance
+                            self.log("...... %s: %s (%r/%r)" % (scan.id, candidate, key in seen, mass_threshold_passed))
                             if key in seen:
                                 continue
                             seen.add(key)
-                            if (abs(intact_mass - candidate.total_mass) / intact_mass) <= precursor_error_tolerance:
+                            if mass_threshold_passed:
                                 workload.add_scan_hit(scan, candidate, mass_shift_name)
             self.log("%s had %d glycopeptides from %d peptide masses" % (scan.id, n_glycopeptides, n_peptide_masses))
         return workload

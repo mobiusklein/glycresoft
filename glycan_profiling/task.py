@@ -159,10 +159,10 @@ class LoggingMixin(object):
 
     @classmethod
     def log_with_logger(cls, logger):
-        cls.logger_state = logger
-        cls.print_fn = logger.info
-        cls.debug_print_fn = logger.debug
-        cls.error_print_fn = logger.error
+        LoggingMixin.logger_state = logger
+        LoggingMixin.print_fn = logger.info
+        LoggingMixin.debug_print_fn = logger.debug
+        LoggingMixin.error_print_fn = logger.error
 
     def log(self, *message):
         self.print_fn(', '.join(map(str, message)))
