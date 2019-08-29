@@ -273,10 +273,11 @@ class PredictiveGlycopeptideSearch(DynamicGlycopeptideSearchBase):
                     seen = set()
                     mass_shift_name = mass_shift.name
                     intact_mass = scan.precursor_information.neutral_mass - mass_shift.mass - neutron_shift
-                    for peptide_mass in estimate_peptide_mass(scan, topn=peptide_masses_per_scan, mass_shift=mass_shift,
-                                                              threshold=glycan_score_threshold,
-                                                              min_fragments=min_fragments):
-                        self.log("... %s - %s -> %0.3f" % (scan.id, neutron_shift, peptide_mass))
+                    for peptide_mass_pred in estimate_peptide_mass(scan, topn=peptide_masses_per_scan, mass_shift=mass_shift,
+                                                                   threshold=glycan_score_threshold,
+                                                                   min_fragments=min_fragments, simplify=False):
+                        peptide_mass = peptide_mass_pred.peptide_mass
+                        self.log("... %s - %s -> %0.3f @ %0.2f" % (scan.id, neutron_shift, peptide_mass, peptide_mass_pred.score))
                         n_peptide_masses += 1
                         for candidate in handle_peptide_mass(peptide_mass, intact_mass, self.product_error_tolerance):
                             n_glycopeptides += 1

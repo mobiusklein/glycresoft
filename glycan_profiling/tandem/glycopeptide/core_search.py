@@ -19,7 +19,7 @@ from glycan_profiling.database.disk_backed_database import PPMQueryInterval
 from glycan_profiling.chromatogram_tree import Unmodified
 from glycan_profiling.structure.denovo import MassWrapper, PathSet, PathFinder
 
-logger = logging.getLogger("glycresoft.tandem")
+logger = logging.getLogger("glycresoft.core_search")
 
 
 hexnac = FrozenMonosaccharideResidue.from_iupac_lite("HexNAc")
@@ -645,16 +645,21 @@ class GlycanFilteringPeptideMassEstimator(GlycanCoarseScorerBase):
                             peptide_mass, recalibrated_peptide_mass))
             else:
                 recalibrated_peptide_mass = 0
-            output.append(GlycanMatchResult(
+            result = GlycanMatchResult(
                 peptide_mass,
-                best_score, best_match, glycan_combination.size, type_to_score, recalibrated_peptide_mass))
+                best_score, best_match, glycan_combination.size, type_to_score, recalibrated_peptide_mass)
+            output.append(result)
+            logger.info("\t%s: %0.2f @ %0.2f with %d matched", scan.id,
+                        result.peptide_mass, result.score, result.fragment_match_count)
         output = sorted(output, key=lambda x: x.score, reverse=1)
         return output
 
-    def estimate_peptide_mass(self, scan, topn=150, threshold=-1, min_fragments=0, mass_shift=Unmodified):
+    def estimate_peptide_mass(self, scan, topn=150, threshold=-1, min_fragments=0, mass_shift=Unmodified, simplify=True):
         out = self.match(scan, mass_shift=mass_shift)
         out = [x for x in out if x[1] > threshold and x.fragment_match_count >= min_fragments][:topn]
-        return [x[0] for x in out]
+        if simplify:
+            return [x[0] for x in out]
+        return out
 
     def glycan_for_peptide_mass(self, scan, peptide_mass):
         matches = []
