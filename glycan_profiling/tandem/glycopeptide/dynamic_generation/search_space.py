@@ -182,6 +182,9 @@ class PeptideGlycosylator(GlycoformGeneratorBase):
         if not isinstance(peptide_records, SearchableMassCollection):
             peptide_records = NeutralMassDatabase(peptide_records)
         self.peptides = peptide_records
+        logger.info(
+            "Created a PeptideGlycosylator with %d glycan combinations and %d peptides",
+            len(self.glycan_combinations), len(self.peptides))
 
     def handle_peptide_mass(self, peptide_mass, intact_mass, error_tolerance=1e-5):
         peptide_records = self.peptides.search_mass_ppm(peptide_mass, error_tolerance)
