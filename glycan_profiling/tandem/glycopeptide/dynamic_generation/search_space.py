@@ -84,6 +84,19 @@ class glycopeptide_key_t(_glycopeptide_key_t):
 class GlycoformGeneratorBase(object):
     @classmethod
     def from_hypothesis(cls, session, hypothesis_id):
+        """Build a glycan combination index from a :class:`~.GlycanHypothesis`
+
+        Parameters
+        ----------
+        session: :class:`DatabaseBoundOperation`
+            The database connection to use to load glycan combinations.
+        hypothesis_id: int
+            The id key of the :class:`~.GlycanHypothesis` to build from
+
+        Returns
+        -------
+        :class:`GlycoformGeneratorBase`
+        """
         glycan_combinations = GlycanCombinationRecord.from_hypothesis(session, hypothesis_id)
         return cls(glycan_combinations)
 
@@ -177,6 +190,10 @@ class PeptideGlycosylator(GlycoformGeneratorBase):
         result_set = []
         for peptide in peptide_records:
             self._combinate(peptide, glycan_combinations, result_set)
+        logger.info(
+            "... peptide mass %0.2f with intact mass %0.2f produced %d peptide matches, %d glycan"
+            " matches, and %d combinations",
+            peptide_mass, intact_mass, len(peptide_records), len(glycan_combinations), len(result_set))
         return result_set
 
     def _combinate(self, peptide, glycan_combinations, result_set=None):
