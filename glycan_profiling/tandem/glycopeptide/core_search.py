@@ -656,7 +656,19 @@ class GlycanFilteringPeptideMassEstimator(GlycanCoarseScorerBase):
 
     def estimate_peptide_mass(self, scan, topn=150, threshold=-1, min_fragments=0, mass_shift=Unmodified, simplify=True):
         out = self.match(scan, mass_shift=mass_shift)
-        out = [x for x in out if x[1] > threshold and x.fragment_match_count >= min_fragments][:topn]
+        out = [x for x in out if x.score > threshold and x.fragment_match_count >= min_fragments]
+        try:
+            last = out[topn]
+            extended_threshold = last.score - 0.01
+            for i in range(topn + 1, len(out)):
+                next_item = out[i]
+                if next_item.score >= extended_threshold:
+                    topn = i
+                else:
+                    break
+        except IndexError:
+            pass
+        out = out[:topn]
         if simplify:
             return [x[0] for x in out]
         return out
