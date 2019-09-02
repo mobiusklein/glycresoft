@@ -649,8 +649,6 @@ class GlycanFilteringPeptideMassEstimator(GlycanCoarseScorerBase):
                 peptide_mass,
                 best_score, best_match, glycan_combination.size, type_to_score, recalibrated_peptide_mass)
             output.append(result)
-            logger.info("\t%s: %0.2f @ %0.2f with %d matched", scan.id,
-                        result.peptide_mass, result.score, result.fragment_match_count)
         output = sorted(output, key=lambda x: x.score, reverse=1)
         return output
 
