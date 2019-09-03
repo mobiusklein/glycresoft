@@ -81,7 +81,7 @@ class glycopeptide_key_t(_glycopeptide_key_t):
         return self.structure_type != 0
 
 
-class GlycoformGeneratorBase(object):
+class GlycoformGeneratorBase(LoggingMixin):
     @classmethod
     def from_hypothesis(cls, session, hypothesis_id):
         """Build a glycan combination index from a :class:`~.GlycanHypothesis`
@@ -182,7 +182,7 @@ class PeptideGlycosylator(GlycoformGeneratorBase):
         if not isinstance(peptide_records, SearchableMassCollection):
             peptide_records = NeutralMassDatabase(peptide_records)
         self.peptides = peptide_records
-        logger.info(
+        self.log(
             "Created a PeptideGlycosylator with %d glycan combinations and %d peptides",
             len(self.glycan_combinations), len(self.peptides))
 
@@ -193,7 +193,7 @@ class PeptideGlycosylator(GlycoformGeneratorBase):
         result_set = []
         for peptide in peptide_records:
             self._combinate(peptide, glycan_combinations, result_set)
-        logger.info(
+        self.log(
             "... peptide mass %0.2f with intact mass %0.2f produced %d peptide matches, %d glycan"
             " matches, and %d combinations",
             peptide_mass, intact_mass, len(peptide_records), len(glycan_combinations), len(result_set))
