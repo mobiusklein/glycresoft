@@ -183,8 +183,8 @@ class PeptideGlycosylator(GlycoformGeneratorBase):
             peptide_records = NeutralMassDatabase(peptide_records)
         self.peptides = peptide_records
         self.log(
-            "Created a PeptideGlycosylator with %d glycan combinations and %d peptides",
-            len(self.glycan_combinations), len(self.peptides))
+            "Created a PeptideGlycosylator with %d glycan combinations and %d peptides" % (
+                len(self.glycan_combinations), len(self.peptides)))
 
     def handle_peptide_mass(self, peptide_mass, intact_mass, error_tolerance=1e-5):
         peptide_records = self.peptides.search_mass_ppm(peptide_mass, error_tolerance)
@@ -195,8 +195,8 @@ class PeptideGlycosylator(GlycoformGeneratorBase):
             self._combinate(peptide, glycan_combinations, result_set)
         self.log(
             "... peptide mass %0.2f with intact mass %0.2f produced %d peptide matches, %d glycan"
-            " matches, and %d combinations",
-            peptide_mass, intact_mass, len(peptide_records), len(glycan_combinations), len(result_set))
+            " matches, and %d combinations" % (
+                peptide_mass, intact_mass, len(peptide_records), len(glycan_combinations), len(result_set)))
         return result_set
 
     def _combinate(self, peptide, glycan_combinations, result_set=None):
