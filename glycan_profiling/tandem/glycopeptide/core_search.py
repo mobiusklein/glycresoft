@@ -500,6 +500,29 @@ class GlycanMatchResult(_GlycanMatchResult):
         return match.n_matched
 
 
+def group_by_score(matches, threshold=1e-2):
+    matches = sorted(matches, key=lambda x: x.score, reverse=True)
+    groups = []
+    if len(matches) == 0:
+        return groups
+    current_group = [matches[0]]
+    last_match = matches[0]
+    for match in matches[1:]:
+        delta = abs(match.score - last_match.score)
+        if delta > threshold:
+            groups.append(current_group)
+            current_group = [match]
+        else:
+            current_group.append(match)
+        last_match = match
+    groups.append(current_group)
+    return groups
+
+
+def flatten(groups):
+    return [b for a in groups for b in a]
+
+
 class GlycanFilteringPeptideMassEstimator(GlycanCoarseScorerBase):
     def __init__(self, glycan_combination_db, product_error_tolerance=1e-5,
                  fragment_weight=0.56, core_weight=0.42, minimum_peptide_mass=500.0,
@@ -658,18 +681,8 @@ class GlycanFilteringPeptideMassEstimator(GlycanCoarseScorerBase):
     def estimate_peptide_mass(self, scan, topn=150, threshold=-1, min_fragments=0, mass_shift=Unmodified, simplify=True):
         out = self.match(scan, mass_shift=mass_shift)
         out = [x for x in out if x.score > threshold and x.fragment_match_count >= min_fragments]
-        try:
-            last = out[topn]
-            extended_threshold = last.score - 0.01
-            for i in range(topn + 1, len(out)):
-                next_item = out[i]
-                if next_item.score >= extended_threshold:
-                    topn = i
-                else:
-                    break
-        except IndexError:
-            pass
-        out = out[:topn]
+        groups = group_by_score(out)
+        out = flatten(groups[:topn])
         for result in out:
             logger.info("\t PF %s: peptide mass %0.3f, score %0.3f", scan.id, result.peptide_mass, result.score)
         if simplify:
