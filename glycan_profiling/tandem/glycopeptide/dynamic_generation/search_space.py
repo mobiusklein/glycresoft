@@ -559,9 +559,9 @@ def _decompress(data):
 
 def serialize_workload(workload_manager, pretty_print=True):
     wl = etree.Element('workload')
-    wl.attrib['total_size'] = workload_manager.total_size
-    wl.attrib['scan_count'] = workload_manager.scan_count
-    wl.attrib['hit_count'] = workload_manager.hit_count
+    wl.attrib['total_size'] = str(workload_manager.total_size)
+    wl.attrib['scan_count'] = str(workload_manager.scan_count)
+    wl.attrib['hit_count'] = str(workload_manager.hit_count)
     for key, scans in workload_manager.hit_to_scan_map.items():
         sm = etree.SubElement(wl, 'scan_mapping')
         rec = workload_manager.hit_map[key]
