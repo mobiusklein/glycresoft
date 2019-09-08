@@ -291,7 +291,8 @@ class SpectrumMatcher(TaskExecutionSequence):
             temp = [case for case in temp if len(case) > 0]
             for case in temp:
                 case.simplify()
-                case.select_top()
+                # Don't run the select top filters for debugging
+                # case.select_top()
             target_solutions.extend(temp)
             batch.clear()
         return target_solutions

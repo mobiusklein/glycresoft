@@ -148,12 +148,6 @@ class WorkloadManager(object):
         """Compute the total amount of work required to
         resolve this complete workload
 
-        Parameters
-        ----------
-        workloads : list, optional
-            The precomputed workload graph clusters. If None, they will
-            be computed with :meth:`compute_workloads`
-
         Returns
         -------
         int
@@ -191,11 +185,44 @@ class WorkloadManager(object):
         yield self.hit_map
         yield self.hit_to_scan_map
 
+    @property
+    def total_size(self):
+        """Compute the total amount of work required to
+        resolve this complete workload
+
+        Returns
+        -------
+        int
+            The amount of work contained in this load, or 1
+            if the workload is empty.
+        """
+        return sum(map(len, self.scan_to_hit_map.values()))
+
+    @property
+    def scan_count(self):
+        """Return the number of scans in this workload
+
+        Returns
+        -------
+        int
+        """
+        return len(self.scan_map)
+
+    @property
+    def hit_count(self):
+        """Return the number of structures in this workload
+
+        Returns
+        -------
+        int
+        """
+        return len(self.hit_map)
+
     def __repr__(self):
         template = 'WorkloadManager(scan_map_size={}, hit_map_size={}, total_cross_product={})'
         rendered = template.format(
             len(self.scan_map), len(self.hit_map),
-            sum(map(len, self.scan_to_hit_map.values())))
+            self.total_size)
         return rendered
 
     def batches(self, max_size=15e4):

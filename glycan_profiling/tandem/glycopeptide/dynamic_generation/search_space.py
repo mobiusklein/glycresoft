@@ -297,14 +297,12 @@ class PredictiveGlycopeptideSearch(DynamicGlycopeptideSearchBase):
                                                                    threshold=glycan_score_threshold,
                                                                    min_fragments=min_fragments, simplify=False):
                         peptide_mass = peptide_mass_pred.peptide_mass
-                        self.log("... %s - %s -> %0.3f @ %0.2f" % (scan.id, neutron_shift, peptide_mass, peptide_mass_pred.score))
                         n_peptide_masses += 1
                         for candidate in handle_peptide_mass(peptide_mass, intact_mass, self.product_error_tolerance):
                             n_glycopeptides += 1
                             key = (candidate.id, mass_shift_name)
                             mass_threshold_passed = (
                                 abs(intact_mass - candidate.total_mass) / intact_mass) <= precursor_error_tolerance
-                            self.log("...... %s: %s (%r/%r)" % (scan.id, candidate, key in seen, mass_threshold_passed))
                             if key in seen:
                                 continue
                             seen.add(key)
@@ -561,6 +559,9 @@ def _decompress(data):
 
 def serialize_workload(workload_manager, pretty_print=True):
     wl = etree.Element('workload')
+    wl.attrib['total_size'] = workload_manager.total_size
+    wl.attrib['scan_count'] = workload_manager.scan_count
+    wl.attrib['hit_count'] = workload_manager.hit_count
     for key, scans in workload_manager.hit_to_scan_map.items():
         sm = etree.SubElement(wl, 'scan_mapping')
         rec = workload_manager.hit_map[key]

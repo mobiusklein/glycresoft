@@ -673,9 +673,6 @@ class GlycanFilteringPeptideMassEstimator(GlycanCoarseScorerBase):
                 best_score, best_match, glycan_combination.size, type_to_score, recalibrated_peptide_mass)
             output.append(result)
         output = sorted(output, key=lambda x: x.score, reverse=1)
-        for i, result in enumerate(output):
-            logger.info("\t%s: %d %0.2f @ %0.2f with %d matched", scan.id, i,
-                            result.peptide_mass, result.score, result.fragment_match_count)
         return output
 
     def estimate_peptide_mass(self, scan, topn=150, threshold=-1, min_fragments=0, mass_shift=Unmodified, simplify=True):
@@ -683,8 +680,6 @@ class GlycanFilteringPeptideMassEstimator(GlycanCoarseScorerBase):
         out = [x for x in out if x.score > threshold and x.fragment_match_count >= min_fragments]
         groups = group_by_score(out)
         out = flatten(groups[:topn])
-        for result in out:
-            logger.info("\t PF %s: peptide mass %0.3f, score %0.3f", scan.id, result.peptide_mass, result.score)
         if simplify:
             return [x[0] for x in out]
         return out
