@@ -193,10 +193,10 @@ class PeptideGlycosylator(GlycoformGeneratorBase):
         result_set = []
         for peptide in peptide_records:
             self._combinate(peptide, glycan_combinations, result_set)
-        self.log(
-            "... peptide mass %0.2f with intact mass %0.2f produced %d peptide matches, %d glycan"
-            " matches, and %d combinations" % (
-                peptide_mass, intact_mass, len(peptide_records), len(glycan_combinations), len(result_set)))
+        # self.log(
+        #     "... peptide mass %0.2f with intact mass %0.2f produced %d peptide matches, %d glycan"
+        #     " matches, and %d combinations" % (
+        #         peptide_mass, intact_mass, len(peptide_records), len(glycan_combinations), len(result_set)))
         return result_set
 
     def _combinate(self, peptide, glycan_combinations, result_set=None):
@@ -308,7 +308,7 @@ class PredictiveGlycopeptideSearch(DynamicGlycopeptideSearchBase):
                             seen.add(key)
                             if mass_threshold_passed:
                                 workload.add_scan_hit(scan, candidate, mass_shift_name)
-            self.log("%s had %d glycopeptides from %d peptide masses" % (scan.id, n_glycopeptides, n_peptide_masses))
+            # self.log("%s had %d glycopeptides from %d peptide masses" % (scan.id, n_glycopeptides, n_peptide_masses))
         return workload
 
 
