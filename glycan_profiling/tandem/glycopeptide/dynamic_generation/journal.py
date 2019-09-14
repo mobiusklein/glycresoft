@@ -6,6 +6,8 @@ import csv
 from collections import defaultdict
 from operator import attrgetter
 
+import numpy as np
+
 from glycopeptidepy.utils import collectiontools
 
 from glycan_profiling.task import TaskBase, TaskExecutionSequence, Empty
@@ -140,6 +142,13 @@ class JournalingConsumer(TaskExecutionSequence):
         self.done_event.set()
 
 
+def parse_float(value):
+    value = float(value)
+    if np.isnan(value):
+        return 0
+    return value
+
+
 class JournalFileReader(TaskBase):
     def __init__(self, path, cache_size=2 ** 12, mass_shift_map=None, scan_loader=None, include_fdr=False):
         if mass_shift_map is None:
@@ -186,9 +195,9 @@ class JournalFileReader(TaskBase):
 
     def _build_score_set(self, row):
         score_set = ScoreSet(
-            float(row['total_score']),
-            float(row['peptide_score']),
-            float(row['glycan_score']),
+            parse_float(row['total_score']),
+            parse_float(row['peptide_score']),
+            parse_float(row['glycan_score']),
             float(row['glycan_coverage']))
         return score_set
 
@@ -266,7 +275,7 @@ class SolutionSetGrouper(TaskBase):
                 scan = by_scan[0].scan
                 self.spectrum_ids.add(scan.scan_id)
                 ss = MultiScoreSpectrumSolutionSet(scan, by_scan)
-                ss.sort()
+                ss.sort_by(lambda x: x.score_set)
                 acc.append(ss)
             by_scan_groups[group] = acc
         return by_scan_groups

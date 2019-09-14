@@ -268,6 +268,8 @@ class SpectrumSolutionSet(ScanWrapperBase):
         return self
 
     def sort_by(self, sort_fn=None, maximize=True):
+        if sort_fn is None:
+            return self.sort(maximize=maximize)
         self.solutions.sort(key=lambda x: (sort_fn(x), x.target.id), reverse=maximize)
         self._is_sorted = True
         return self
