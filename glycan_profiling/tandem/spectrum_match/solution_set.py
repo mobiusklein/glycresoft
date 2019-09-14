@@ -164,7 +164,7 @@ default_selection_method = SpectrumMatchRetentionMethod([
 
 
 default_multiscore_selection_method = SpectrumMatchRetentionMethod([
-    # MinimumMultiScoreRetentionStrategy((0.1, 0., 0.)),
+    MinimumMultiScoreRetentionStrategy((0.1, 0., 0.)),
     # MinimumScoreRetentionStrategy(4.),
     # TopScoringSolutionsRetentionStrategy(100.),
     # MaximumSolutionCountRetentionStrategy(100)
@@ -311,3 +311,9 @@ class MultiScoreSpectrumSolutionSet(SpectrumSolutionSet):
     # note: Sorting by total score is not guaranteed to sort by total
     # FDR, so a post-FDR estimation re-ranking of spectrum matches will
     # be necessary.
+
+    def sort(self, maximize=True):
+        self.solutions.sort(key=lambda x: (
+            x.score_set, x.target.id), reverse=maximize)
+        self._is_sorted = True
+        return self

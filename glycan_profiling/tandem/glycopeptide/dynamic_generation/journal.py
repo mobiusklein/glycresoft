@@ -275,7 +275,7 @@ class SolutionSetGrouper(TaskBase):
                 scan = by_scan[0].scan
                 self.spectrum_ids.add(scan.scan_id)
                 ss = MultiScoreSpectrumSolutionSet(scan, by_scan)
-                ss.sort_by(lambda x: x.score_set)
+                ss.sort()
                 acc.append(ss)
             by_scan_groups[group] = acc
         return by_scan_groups
