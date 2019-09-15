@@ -165,8 +165,8 @@ default_selection_method = SpectrumMatchRetentionMethod([
 
 default_multiscore_selection_method = SpectrumMatchRetentionMethod([
     MinimumMultiScoreRetentionStrategy((1.0, 0., 0.)),
-    TopScoringSolutionsRetentionStrategy(100.),
-    MaximumSolutionCountRetentionStrategy(100)
+    # TopScoringSolutionsRetentionStrategy(100.),
+    # MaximumSolutionCountRetentionStrategy(100),
 ])
 
 
@@ -252,6 +252,8 @@ class SpectrumSolutionSet(ScanWrapperBase):
             method = self.default_selection_method
         if self._is_top_only:
             return
+        if not self._is_sorted:
+            self.sort()
         if len(self) > 0:
             best_solution = self.best_solution()
             self.solutions = method(self)
