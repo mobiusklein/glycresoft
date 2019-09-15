@@ -164,10 +164,9 @@ default_selection_method = SpectrumMatchRetentionMethod([
 
 
 default_multiscore_selection_method = SpectrumMatchRetentionMethod([
-    MinimumMultiScoreRetentionStrategy((0.1, 0., 0.)),
-    # MinimumScoreRetentionStrategy(4.),
-    # TopScoringSolutionsRetentionStrategy(100.),
-    # MaximumSolutionCountRetentionStrategy(100)
+    MinimumMultiScoreRetentionStrategy((4.0, 0., 0.)),
+    TopScoringSolutionsRetentionStrategy(100.),
+    MaximumSolutionCountRetentionStrategy(100)
 ])
 
 
