@@ -270,11 +270,45 @@ class SpectrumSolutionSet(ScanWrapperBase):
         return self
 
     def sort(self, maximize=True):
+        """Sort the spectrum matches in this solution set according to their score
+        attribute.
+
+        In the event of a tie, in order to enforce determistic behavior, this will also
+        sort matches according to their target's id attribute.
+
+        Sets :attr:`_is_sorted` to :const:`True`.
+
+        Parameters
+        ----------
+        maximize : bool, optional
+            If true, sort descending order instead of ascending. Defaults to :const:`True`
+
+        See Also
+        --------
+        sort_by
+        """
         self.solutions.sort(key=lambda x: (x.score, x.target.id), reverse=maximize)
         self._is_sorted = True
         return self
 
     def sort_by(self, sort_fn=None, maximize=True):
+        """Sort the spectrum matches in this solution set according to `sort_fn`.
+
+        This method behaves the same way :meth:`sort` does, except instead of
+        sorting on an intrinsic attribute it uses a callable. It uses the same
+        determistic augmentation as :meth:`sort`
+
+        Parameters
+        ----------
+        sort_fn : Callable, optional
+            The sort key function to use. If not provided, falls back to :meth:`sort`.
+        maximize : bool, optional
+            If true, sort descending order instead of ascending. Defaults to :const:`True`
+
+        See Also
+        --------
+        sort
+        """
         if sort_fn is None:
             return self.sort(maximize=maximize)
         self.solutions.sort(key=lambda x: (sort_fn(x), x.target.id), reverse=maximize)
