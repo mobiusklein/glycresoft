@@ -303,12 +303,16 @@ class IdentificationProcessDispatcher(TaskBase):
             self.solution_handler.packer)
         for missing_id in missing:
             target, scan_spec = self.build_work_order(missing_id, hit_map, scan_hit_type_map, hit_to_scan)
-            target, score_map = evaluator.handle_item(target, scan_spec)
-            seen[target.id] = (-1, 0)
-            self.store_result(target, score_map)
-            i += 1
-            if i % 1000 == 0:
-                self.log("...... Processed %d local matches (%0.2f%%)" % (i, i * 100. / n))
+            try:
+                target, score_map = evaluator.handle_item(target, scan_spec)
+                seen[target.id] = (-1, 0)
+                self.store_result(target, score_map)
+                i += 1
+                if i % 1000 == 0:
+                    self.log("...... Processed %d local matches (%0.2f%%)" % (i, i * 100. / n))
+            except Exception as err:
+                self.error("...... An error occurred while processing %r: %r" % (target, err), exception=err)
+                raise
         return i
 
     def evalute_work_order_local(self, structure, scan_specification):
