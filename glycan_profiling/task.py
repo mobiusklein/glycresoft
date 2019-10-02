@@ -4,6 +4,8 @@ import pprint
 import traceback
 import multiprocessing
 import threading
+import six
+
 from datetime import datetime
 
 try:
@@ -22,8 +24,15 @@ def display_version(print_fn):
     print_fn(msg)
 
 
+def ensure_text(obj):
+    if six.PY2:
+        return unicode(obj)
+    else:
+        return str(obj)
+
+
 def fmt_msg(*message):
-    return "%s %s" % (datetime.now().isoformat(' '), ', '.join(map(str, message)))
+    return u"%s %s" % (ensure_text(datetime.now().isoformat(' ')), u', '.join(map(ensure_text, message)))
 
 
 def printer(obj, *message):
@@ -32,7 +41,7 @@ def printer(obj, *message):
 
 def debug_printer(obj, *message):
     if obj.in_debug_mode():
-        print("DEBUG:" + fmt_msg(*message))
+        print(u"DEBUG:" + fmt_msg(*message))
 
 
 class CallInterval(object):
@@ -165,14 +174,14 @@ class LoggingMixin(object):
         LoggingMixin.error_print_fn = logger.error
 
     def log(self, *message):
-        self.print_fn(', '.join(map(str, message)))
+        self.print_fn(u', '.join(map(ensure_text, message)))
 
     def debug(self, *message):
-        self.debug_print_fn(', '.join(map(str, message)))
+        self.debug_print_fn(u', '.join(map(ensure_text, message)))
 
     def error(self, *message, **kwargs):
         exception = kwargs.get("exception")
-        self.error_print_fn(', '.join(map(str, message)))
+        self.error_print_fn(u', '.join(map(ensure_text, message)))
         if exception is not None:
             self.error_print_fn(traceback.format_exc(exception))
 
