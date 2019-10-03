@@ -47,6 +47,7 @@ class SpectrumEvaluatorBase(object):
         for scan, mass_shift in scan_specification:
             solution = self.handle_instance(structure, scan, mass_shift)
             solution_target = solution.target
+
         if solution is not None:
             try:
                 solution.target.clear_caches()
@@ -87,7 +88,6 @@ class LocalSpectrumEvaluator(SpectrumEvaluatorBase, TaskBase):
             if i % 1000 == 0:
                 self.log("... %0.2f%% of Hits Searched (%d/%d)" %
                          (i * 100. / n, i, n))
-
             yield self.handle_item(target, scan_spec)
 
 
@@ -122,6 +122,7 @@ class SequentialIdentificationProcessor(TaskBase):
             len(hit_to_scan_map),
             sum(map(len, hit_to_scan_map.values()))))
         for target, score_map in evaluator.process(hit_map, hit_to_scan_map, scan_hit_type_map):
+            self.log("Target: %r" % (target, ))
             self.store_result(target, score_map)
         self.log("Solutions Handled: %d" % (self.solution_handler.counter, ))
         return self.scan_solution_map

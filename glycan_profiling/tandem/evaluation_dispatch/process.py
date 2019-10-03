@@ -385,7 +385,8 @@ class IdentificationProcessDispatcher(TaskBase):
         strikes = 0
         self.state = ProcessDispatcherState.running
         self.log("... Searching Matches (%d)" % (n_spectrum_matches,))
-        start_time = time.time()
+        last_log_time = start_time = time.time()
+        should_log = False
         while has_work:
             try:
                 payload = self.output_queue.get(True, 1)
@@ -412,7 +413,9 @@ class IdentificationProcessDispatcher(TaskBase):
 
                 i += 1
                 strikes = 0
-                if i % 1000 == 0:
+                if i % 1000 == 0 or should_log:
+                    last_log_time = time.time()
+                    should_log = False
                     self.log(
                         "...... Processed %d structures (%0.2f%%)" % (i, i * 100. / n))
                 self.store_result(target, score_map)
@@ -443,6 +446,10 @@ class IdentificationProcessDispatcher(TaskBase):
                             self.debug("...... IPC Manager: %r" % (self.ipc_manager,))
                 else:
                     strikes += 1
+                    if strikes % 10 == 0:
+                        check_time = time.time()
+                        if check_time - last_log_time > 10:
+                            should_log = True
                     if strikes % 50 == 0:
                         self.log(
                             "...... %d cycles without output (%d/%d, %0.2f%% Done, %d children still alive)" % (
