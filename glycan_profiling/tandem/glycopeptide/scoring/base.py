@@ -168,6 +168,15 @@ class GlycopeptideSpectrumMatcherBase(SpectrumMatcherBase):
     def calculate_glycan_score(self, *args, **kwargs):
         return 0
 
+    def get_auxiliary_data(self):
+        data = super(GlycopeptideSpectrumMatcherBase, self).get_auxiliary_data()
+        data['score'] = self.score
+        data['glycan_score'] = self.glycan_score()
+        data['peptide_score'] = self.peptide_score()
+        data['glycan_coverage'] = self.glycan_coverage()
+        data['n_peaks'] = len(self.spectrum)
+        data['n_fragment_matches'] = len(self.solution_map)
+        return data
 
 try:
     from glycan_profiling._c.tandem.tandem_scoring_helpers import _match_oxonium_ions, _match_stub_glycopeptides

@@ -32,6 +32,9 @@ class GlycopeptideIdentificationWorker(SpectrumIdentificationWorkerBase):
     def evaluate(self, scan, structure, *args, **kwargs):
         target = self.parser(structure)
         matcher = self.scorer_type.evaluate(scan, target, *args, **kwargs)
+        self.log(
+            "\t%s: %s\t%s\t%s" % (
+                scan.id, target, matcher.score, matcher.get_auxiliary_data()))
         return matcher
 
 
