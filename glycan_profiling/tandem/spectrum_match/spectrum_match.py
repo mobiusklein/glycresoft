@@ -135,6 +135,9 @@ class SpectrumMatchBase(ScanWrapperBase):
             annotations['is_exd'] = result
         return result
 
+    def get_auxiliary_data(self):
+        return {}
+
 
 class SpectrumMatcherBase(SpectrumMatchBase):
     __slots__ = ["spectrum", "_score"]
@@ -207,20 +210,6 @@ except ImportError:
     pass
 
 
-class DeconvolutingSpectrumMatcherBase(SpectrumMatcherBase):
-
-    @staticmethod
-    def load_peaks(scan):
-        try:
-            return scan.convert(fitted=True, deconvoluted=False)
-        except AttributeError:
-            return scan
-
-    def __init__(self, scan, target):
-        super(DeconvolutingSpectrumMatcherBase, self).__init__(scan, target)
-        self.spectrum = scan.peak_set
-
-
 class SpectrumMatch(SpectrumMatchBase):
 
     __slots__ = ['score', 'best_match', 'data_bundle', "q_value", 'id']
@@ -291,6 +280,9 @@ class SpectrumMatch(SpectrumMatchBase):
         return self.__class__(
             self.scan, self.target, self.score, self.best_match, self.data_bundle,
             self.q_value, self.id, self.mass_shift)
+
+    def get_auxiliary_data(self):
+        return self.data_bundle
 
 
 class ModelTreeNode(object):

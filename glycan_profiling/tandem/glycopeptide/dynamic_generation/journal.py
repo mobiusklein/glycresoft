@@ -2,6 +2,7 @@
 glycopeptide spectrum match information to disk during processing.
 '''
 import csv
+import json
 
 from collections import defaultdict
 from operator import attrgetter
@@ -26,18 +27,19 @@ from .search_space import glycopeptide_key_t, StructureClassification
 
 
 class JournalFileWriter(TaskBase):
-    """A task for writing glycopeptide spectrum matches to a CSV-formatted
+    """A task for writing glycopeptide spectrum matches to a TSV-formatted
     journal file. This format is an intermediary result, and will contain many
     random or non-useful matches.
 
     """
-    def __init__(self, path, include_fdr=False):
+    def __init__(self, path, include_fdr=False, include_auxiliary=False):
         self.path = path
         if not hasattr(path, 'write'):
             self.handle = open(path, 'wb')
         else:
             self.handle = self.path
         self.include_fdr = include_fdr
+        self.include_auxiliary = include_auxiliary
         self.writer = csv.writer(self.handle, delimiter='\t')
         self.write_header()
         self.spectrum_counter = 0
@@ -69,6 +71,8 @@ class JournalFileWriter(TaskBase):
                 "glycopeptide_q_value",
                 "total_q_value"
             ])
+        if self.include_auxiliary:
+            names.append("auxiliary")
         return names
 
     def write_header(self):
@@ -99,6 +103,8 @@ class JournalFileWriter(TaskBase):
                     q_value_set.total_q_value
                 ]
             fields.extend(fdr_fields)
+        if self.include_auxiliary:
+            fields.append(json.dumps(psm.get_auxiliary_data(), sort_keys=True))
         fields = [str(f) for f in fields]
         return fields
 
