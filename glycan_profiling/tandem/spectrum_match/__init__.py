@@ -1,6 +1,6 @@
 from .spectrum_match import (
     SpectrumMatchBase, SpectrumMatcherBase, ScanWrapperBase,
-    SpectrumMatch, DeconvolutingSpectrumMatcherBase,
+    SpectrumMatch,
     ModelTreeNode,
     Unmodified, TargetReference, SpectrumReference,
     neutron_offset, MultiScoreSpectrumMatch, ScoreSet,
@@ -17,7 +17,6 @@ __all__ = [
     "SpectrumMatchBase",
     "SpectrumMatcherBase",
     "ScanWrapperBase",
-    "DeconvolutingSpectrumMatcherBase",
     "SpectrumMatch",
     "ModelTreeNode",
     "Unmodified",
