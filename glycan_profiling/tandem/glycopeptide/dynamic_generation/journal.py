@@ -283,6 +283,7 @@ class SolutionSetGrouper(TaskBase):
                 ss = MultiScoreSpectrumSolutionSet(scan, by_scan)
                 ss.sort()
                 acc.append(ss)
+            acc.sort(key=lambda x: x.scan.id)
             by_scan_groups[group] = acc
         return by_scan_groups
 
@@ -300,6 +301,8 @@ class SolutionSetGrouper(TaskBase):
                 if isclose(top_score, score_getter(match)) and score_getter(match) > 0 and match.match_type not in seen:
                     seen.add(match.match_type)
                     by_match_type[match.match_type].append(match)
+        for group_label, matches in by_match_type.items():
+            matches.sort(key=lambda x: (x.scan.id, score_getter(x)))
         return by_match_type
 
     @property
