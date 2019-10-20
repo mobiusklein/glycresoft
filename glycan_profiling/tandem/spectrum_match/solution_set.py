@@ -259,10 +259,10 @@ class SpectrumSolutionSet(ScanWrapperBase):
             before = self.solutions
             after = method(self)
             self.solutions = after
-            log_handle.log(
-                "{self.scan.id}: Selected Top {best_solution}, {n_before}, {n_after}".format(
-                    self=self, best_solution=best_solution, n_before=len(before), n_after=len(after)
-                ))
+            # log_handle.log(
+            #     "{self.scan.id}: Selected Top {best_solution}, {n_before}, {n_after}".format(
+            #         self=self, best_solution=best_solution, n_before=len(before), n_after=len(after)
+            #     ))
             if len(self) == 0:
                 self.solutions = [best_solution]
         self._is_top_only = True
