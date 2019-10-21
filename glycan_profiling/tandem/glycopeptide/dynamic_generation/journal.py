@@ -270,6 +270,17 @@ class SolutionSetGrouper(TaskBase):
     def __iter__(self):
         return iter(self.exclusive_match_groups.items())
 
+    def _by_scan_id(self):
+        acc = []
+        for by_scan in collectiontools.groupby(self.spectrum_matches, lambda x: x.scan.id).values():
+            scan = by_scan[0].scan
+            self.spectrum_ids.add(scan.scan_id)
+            ss = MultiScoreSpectrumSolutionSet(scan, by_scan)
+            ss.sort()
+            acc.append(ss)
+        acc.sort(key=lambda x: x.scan.id)
+        return acc
+
     def _collect(self):
         match_type_getter = attrgetter('match_type')
         groups = collectiontools.groupby(

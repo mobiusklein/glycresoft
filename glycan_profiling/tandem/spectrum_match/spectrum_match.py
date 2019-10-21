@@ -324,6 +324,31 @@ class ScoreSet(_ScoreSet):
     __slots__ = ()
     packer = struct.Struct("!ffff")
 
+    def __len__(self):
+        return 4
+
+    def __lt__(self, other):
+        if self.glycopeptide_score > other.glycopeptide_score:
+            return False
+        if self.peptide_score > other.peptide_score:
+            return False
+        if self.glycan_score > other.glycan_score:
+            return False
+        if self.glycan_coverage > other.glycan_coverage:
+            return False
+        return True
+
+    def __gt__(self, other):
+        if self.glycopeptide_score < other.glycopeptide_score:
+            return False
+        if self.peptide_score < other.peptide_score:
+            return False
+        if self.glycan_score < other.glycan_score:
+            return False
+        if self.glycan_coverage < other.glycan_coverage:
+            return False
+        return True
+
     @classmethod
     def from_spectrum_matcher(cls, match):
         return cls(match.score, match.peptide_score(), match.glycan_score(), match.glycan_coverage())
@@ -339,6 +364,28 @@ class ScoreSet(_ScoreSet):
 class FDRSet(make_struct("FDRSet", ['total_q_value', 'peptide_q_value', 'glycan_q_value', 'glycopeptide_q_value'])):
     __slots__ = ()
     packer = struct.Struct("!ffff")
+
+    def __lt__(self, other):
+        if self.total_q_value > other.total_q_value:
+            return False
+        if self.glycopeptide_q_value > other.glycopeptide_q_value:
+            return False
+        if self.peptide_q_value > other.peptide_q_value:
+            return False
+        if self.glycan_q_value > other.glycan_q_value:
+            return False
+        return True
+
+    def __gt__(self, other):
+        if self.total_q_value < other.total_q_value:
+            return False
+        if self.glycopeptide_q_value < other.glycopeptide_q_value:
+            return False
+        if self.peptide_q_value < other.peptide_q_value:
+            return False
+        if self.glycan_q_value < other.glycan_q_value:
+            return False
+        return True
 
     def pack(self):
         return self.packer.pack(*self)

@@ -155,6 +155,9 @@ class SpectrumMatchRetentionMethod(SpectrumMatchRetentionStrategyBase):
             retained = strategy(retained)
         return retained
 
+    def __repr__(self):
+        return "{self.__class__.__name__}({self.strategies!r})".format(self=self)
+
 
 default_selection_method = SpectrumMatchRetentionMethod([
     MinimumScoreRetentionStrategy(4.),
