@@ -99,8 +99,26 @@ class MaximumSolutionCountRetentionStrategy(SpectrumMatchRetentionStrategyBase):
     -------
     list
     """
+    def group_solutions(self, solutions, threshold=1e-2):
+        groups = []
+        if len(solutions) == 0:
+            return groups
+        current_group = [solutions[0]]
+        last_solution = solutions[0]
+        for solution in solutions[1:]:
+            delta = abs(solution.score - last_solution.score)
+            if delta > threshold:
+                groups.append(current_group)
+                current_group = [solution]
+            else:
+                current_group.append(solution)
+            last_solution = solution
+        groups.append(current_group)
+        return groups
+
     def filter_matches(self, solution_set):
-        return solution_set[:self.threshold]
+        groups = self.group_solutions(solution_set)
+        return [b for a in groups[:self.threshold] for b in a]
 
 
 class TopScoringSolutionsRetentionStrategy(SpectrumMatchRetentionStrategyBase):
