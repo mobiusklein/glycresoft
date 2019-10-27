@@ -588,7 +588,7 @@ class SpectrumIdentificationWorkerBase(Process, SpectrumEvaluatorBase):
 
         This will set the :attr:`_work_complete` event and join :attr:`output_queue`
         """
-        self.log("... Process %s Setting Work Complete Flag. Processed %d structures" % (
+        self.debug("... Process %s Setting Work Complete Flag. Processed %d structures" % (
             self.name, self.items_handled))
         try:
             self._work_complete.set()
@@ -597,9 +597,9 @@ class SpectrumIdentificationWorkerBase(Process, SpectrumEvaluatorBase):
         self.output_queue.put(SentinelToken(self.token))
         self.consumer_done_event.wait()
         # joining the queue may not be necessary if we depend upon consumer_event_done
-        self.log("... Process %s Queue Joining" % (self.name,))
+        self.debug("... Process %s Queue Joining" % (self.name,))
         self.output_queue.join()
-        self.log("... Process %s Finished" % (self.name,))
+        self.debug("... Process %s Finished" % (self.name,))
 
     def task(self):
         """The worker process's main loop where it will poll for new work items,
