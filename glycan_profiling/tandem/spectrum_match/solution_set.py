@@ -1,7 +1,6 @@
 '''Represent collections of :class:`~SpectrumMatch` instances covering the same
 spectrum, and methods for selecting which are worth keeping for downstream consideration.
 '''
-from glycan_profiling.task import log_handle
 from .spectrum_match import SpectrumMatch, SpectrumReference, ScanWrapperBase, MultiScoreSpectrumMatch
 
 
@@ -307,6 +306,7 @@ class SpectrumSolutionSet(ScanWrapperBase):
         See Also
         --------
         sort_by
+        sort_q_value
         """
         self.solutions.sort(key=lambda x: (x.score, x.target.id), reverse=maximize)
         self._is_sorted = True
@@ -333,6 +333,24 @@ class SpectrumSolutionSet(ScanWrapperBase):
         if sort_fn is None:
             return self.sort(maximize=maximize)
         self.solutions.sort(key=lambda x: (sort_fn(x), x.target.id), reverse=maximize)
+        self._is_sorted = True
+        return self
+
+    def sort_q_value(self):
+        """Sort the spectrum matches in this solution set according to their q_value
+        attribute.
+
+        In the event of a tie, in order to enforce determistic behavior, this will also
+        sort matches according to their target's id attribute.
+
+        Sets :attr:`_is_sorted` to :const:`True`.
+
+        See Also
+        --------
+        sort
+        sort_by
+        """
+        self.solutions.sort(key=lambda x: (x.q_value, x.target.id), reverse=False)
         self._is_sorted = True
         return self
 
@@ -375,7 +393,39 @@ class MultiScoreSpectrumSolutionSet(SpectrumSolutionSet):
     # be necessary.
 
     def sort(self, maximize=True):
+        """Sort the spectrum matches in this solution set according to their score_set
+        attribute.
+
+        In the event of a tie, in order to enforce determistic behavior, this will also
+        sort matches according to their target's id attribute.
+
+        Sets :attr:`_is_sorted` to :const:`True`.
+
+        See Also
+        --------
+        sort_by
+        sort_q_value
+        """
         self.solutions.sort(key=lambda x: (
             x.score_set, x.target.id), reverse=maximize)
+        self._is_sorted = True
+        return self
+
+    def sort_q_value(self):
+        """Sort the spectrum matches in this solution set according to their q_value_set
+        attribute.
+
+        In the event of a tie, in order to enforce determistic behavior, this will also
+        sort matches according to their target's id attribute.
+
+        Sets :attr:`_is_sorted` to :const:`True`.
+
+        See Also
+        --------
+        sort
+        sort_by
+        """
+        self.solutions.sort(key=lambda x: (
+            x.q_value_set, x.target.id), reverse=False)
         self._is_sorted = True
         return self

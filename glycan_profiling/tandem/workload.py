@@ -1,9 +1,6 @@
 import warnings
 
-from io import BytesIO
 from collections import defaultdict, namedtuple
-
-from lxml import etree
 
 from glycan_profiling.chromatogram_tree import Unmodified
 
@@ -244,7 +241,7 @@ class WorkloadManager(object):
             whose total work is approximately ``max_size``
         """
         if max_size is None:
-            max_size = 3e5
+            max_size = 15e4
         elif max_size <= 0:
             max_size = float('inf')
         current_batch_size = 0

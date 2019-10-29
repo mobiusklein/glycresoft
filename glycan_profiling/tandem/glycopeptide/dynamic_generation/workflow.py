@@ -37,8 +37,7 @@ from .search_space import (
 
 from .searcher import (
     SpectrumBatcher, SerializingMapperExecutor,
-    BatchMapper, WorkloadUnpackingMatcherExecutor,
-    MappingSerializer)
+    BatchMapper, WorkloadUnpackingMatcherExecutor)
 
 from .multipart_fdr import GlycopeptideFDREstimator
 

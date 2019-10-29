@@ -394,6 +394,46 @@ class FDRSet(make_struct("FDRSet", ['total_q_value', 'peptide_q_value', 'glycan_
     def default(cls):
         return cls(1.0, 1.0, 1.0, 1.0)
 
+    def __lt__(self, other):
+        if self.total_q_value < other.total_q_value:
+            return True
+        elif abs(self.total_q_value - other.total_q_value) > 1e-3:
+            return False
+
+        if self.peptide_q_value < other.peptide_q_value:
+            return True
+        elif abs(self.peptide_q_value - other.peptide_q_value) > 1e-3:
+            return False
+
+        if self.glycan_q_value < other.glycan_q_value:
+            return True
+        elif abs(self.glycan_q_value - other.glycan_q_value) > 1e-3:
+            return False
+
+        if self.glycopeptide_q_value < other.glycopeptide_q_value:
+            return True
+        return False
+
+    def __gt__(self, other):
+        if self.total_q_value > other.total_q_value:
+            return True
+        elif abs(self.total_q_value - other.total_q_value) > 1e-3:
+            return False
+
+        if self.peptide_q_value > other.peptide_q_value:
+            return True
+        elif abs(self.peptide_q_value - other.peptide_q_value) > 1e-3:
+            return False
+
+        if self.glycan_q_value > other.glycan_q_value:
+            return True
+        elif abs(self.glycan_q_value - other.glycan_q_value) > 1e-3:
+            return False
+
+        if self.glycopeptide_q_value > other.glycopeptide_q_value:
+            return True
+        return False
+
 
 class MultiScoreSpectrumMatch(SpectrumMatch):
     __slots__ = ('score_set', 'match_type', '_q_value_set')
