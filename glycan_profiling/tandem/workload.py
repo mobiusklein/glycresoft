@@ -225,7 +225,7 @@ class WorkloadManager(object):
             self.total_size)
         return rendered
 
-    def batches(self, max_size=15e4):
+    def batches(self, max_size=None):
         """Partition the workload into batches of approximately
         ``max_size`` comparisons.
 
@@ -243,6 +243,10 @@ class WorkloadManager(object):
             self-contained work required for a set of related scans
             whose total work is approximately ``max_size``
         """
+        if max_size is None:
+            max_size = 3e5
+        elif max_size <= 0:
+            max_size = float('inf')
         current_batch_size = 0
         current_scan_map = dict()
         current_hit_map = dict()

@@ -1,4 +1,5 @@
 import multiprocessing
+from collections import OrderedDict
 
 try:
     from Queue import Queue
@@ -212,60 +213,6 @@ class MultipartGlycopeptideIdentifier(TaskBase):
             peptide_masses_per_scan=self.peptide_masses_per_scan)
         return target_predictive_search, decoy_predictive_search
 
-    def run_workload_mapping_pipeline(self, scan_groups):
-        (target_predictive_search,
-         decoy_predictive_search) = self.build_predictive_searchers()
-
-        spectrum_batcher = SpectrumBatcher(
-            scan_groups,
-            Queue(10),
-            max_scans_per_workload=self.batch_size)
-
-        mapping_batcher = BatchMapper(
-            # map labels to be loaded in the mapper executor to avoid repeatedly
-            # serializing the databases.
-            [
-                ('target', 'target'),
-                ('decoy', 'decoy')
-                # ('combined', 'combined')
-            ],
-            spectrum_batcher.out_queue,
-            multiprocessing.Queue(3),
-            spectrum_batcher.done_event,
-            precursor_error_tolerance=self.precursor_error_tolerance,
-            mass_shifts=self.mass_shifts)
-        mapping_batcher.done_event = multiprocessing.Event()
-
-        mapping_executor = SerializingMapperExecutor(
-            dict([
-                ('target', target_predictive_search),
-                ('decoy', decoy_predictive_search)
-                # ('combined', combined_searcher)
-            ]),
-            self.scan_loader,
-            mapping_batcher.out_queue,
-            multiprocessing.Queue(50),
-            mapping_batcher.done_event)
-        mapping_executor.done_event = multiprocessing.Event()
-
-        workload_saver = MappingSerializer(
-            self.file_manager.base_directory,
-            mapping_executor.out_queue,
-            mapping_executor.done_event
-        )
-
-        mapping_executor.start(process=True)
-
-        pipeline = Pipeline([
-            spectrum_batcher,
-            mapping_batcher,
-            mapping_executor,
-            workload_saver,
-        ])
-
-        pipeline.start()
-        pipeline.join()
-
     def run_identification_pipeline(self, scan_groups):
         (target_predictive_search,
          decoy_predictive_search) = self.build_predictive_searchers()
@@ -294,7 +241,7 @@ class MultipartGlycopeptideIdentifier(TaskBase):
         mapping_batcher.done_event = multiprocessing.Event()
 
         mapping_executor = SerializingMapperExecutor(
-            dict([
+            OrderedDict([
                 ('target', target_predictive_search),
                 ('decoy', decoy_predictive_search)
                 # ('combined', combined_searcher)
