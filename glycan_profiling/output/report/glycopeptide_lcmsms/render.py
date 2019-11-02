@@ -85,10 +85,8 @@ class GlycopeptideDatabaseSearchReportCreator(ReportCreatorBase):
         theoretical_counts = self.session.query(Protein.name, Protein.id, func.count(Glycopeptide.id)).join(
             Glycopeptide).group_by(Protein.id).filter(
             Protein.hypothesis_id == hypothesis_id).all()
-        matched_counts = self.session.query(Protein.name, Protein.id, func.count(IdentifiedGlycopeptide.id)).join(
-            Glycopeptide).join(
-            IdentifiedGlycopeptide, IdentifiedGlycopeptide.structure_id == Glycopeptide.id).group_by(
-            Protein.id).filter(
+        matched_counts = self.session.query(Protein.name, Protein.id, func.count(IdentifiedGlycopeptide.id)).join(Protein.glycopeptides).join(
+            IdentifiedGlycopeptide, IdentifiedGlycopeptide.structure_id == Glycopeptide.id).group_by(Protein.id).filter(
             IdentifiedGlycopeptide.ms2_score > self.threshold,
             IdentifiedGlycopeptide.analysis_id == self.analysis_id).all()
         listing = []
