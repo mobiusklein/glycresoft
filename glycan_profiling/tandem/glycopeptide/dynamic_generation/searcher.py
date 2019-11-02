@@ -249,7 +249,8 @@ class SerializingMapperExecutor(MapperExecutor):
 
 class SpectrumMatcher(TaskExecutionSequence):
     def __init__(self, workload, group_i, group_n, scorer_type=None,
-                 ipc_manager=None, n_processes=6, evaluation_kwargs=None, **kwargs):
+                 ipc_manager=None, n_processes=6, mass_shifts=None,
+                 evaluation_kwargs=None, **kwargs):
         if scorer_type is None:
             scorer_type = LogIntensityScorer
         if evaluation_kwargs is None:
@@ -258,6 +259,7 @@ class SpectrumMatcher(TaskExecutionSequence):
         self.group_i = group_i
         self.group_n = group_n
 
+        self.mass_shifts = mass_shifts
         self.scorer_type = scorer_type
         self.evaluation_kwargs = evaluation_kwargs
         self.evaluation_kwargs.update(kwargs)
@@ -268,7 +270,9 @@ class SpectrumMatcher(TaskExecutionSequence):
     def score_spectra(self):
         matcher = MultiScoreGlycopeptideMatcher(
             [], self.scorer_type, None, Parser,
-            ipc_manager=self.ipc_manager, n_processes=self.n_processes)
+            ipc_manager=self.ipc_manager,
+            n_processes=self.n_processes,
+            mass_shifts=self.mass_shifts)
 
         target_solutions = []
         self.log("... %0.2f%%" % (max((self.group_i - 1), 0) * 100.0 / self.group_n), self.workload)
@@ -312,7 +316,7 @@ class MatcherExecutor(TaskExecutionSequence):
     Its task type is :class:`SpectrumMatcher`
     """
     def __init__(self, in_queue, out_queue, in_done_event, scorer_type=None, ipc_manager=None,
-                 n_processes=6, evaluation_kwargs=None, **kwargs):
+                 n_processes=6, mass_shifts=None, evaluation_kwargs=None, **kwargs):
         if scorer_type is None:
             scorer_type = LogIntensityScorer
         if evaluation_kwargs is None:
@@ -323,6 +327,7 @@ class MatcherExecutor(TaskExecutionSequence):
         self.in_done_event = in_done_event
         self.done_event = self._make_event()
 
+        self.mass_shifts = mass_shifts
         self.scorer_type = scorer_type
         self.evaluation_kwargs = evaluation_kwargs
         self.evaluation_kwargs.update(kwargs)
@@ -335,6 +340,7 @@ class MatcherExecutor(TaskExecutionSequence):
         matcher_task.n_processes = self.n_processes
         matcher_task.scorer_type = self.scorer_type
         matcher_task.evaluation_kwargs = self.evaluation_kwargs
+        matcher_task.mass_shifts = self.mass_shifts
         return matcher_task
 
     def execute_task(self, matcher_task):
@@ -364,10 +370,10 @@ class WorkloadUnpackingMatcherExecutor(MatcherExecutor):
 
     """
     def __init__(self, scan_loader, in_queue, out_queue, in_done_event, scorer_type=None,
-                 ipc_manager=None, n_processes=6, evaluation_kwargs=None, **kwargs):
+                 ipc_manager=None, n_processes=6, mass_shifts=None, evaluation_kwargs=None, **kwargs):
         super(WorkloadUnpackingMatcherExecutor, self).__init__(
             in_queue, out_queue, in_done_event, scorer_type, ipc_manager,
-            n_processes, evaluation_kwargs, **kwargs)
+            n_processes, mass_shifts, evaluation_kwargs, **kwargs)
         self.scan_loader = scan_loader
 
     def execute_task(self, matcher_task):

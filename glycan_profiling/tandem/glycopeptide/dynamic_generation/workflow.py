@@ -268,6 +268,7 @@ class MultipartGlycopeptideIdentifier(TaskBase):
             scorer_type=self.scorer_type,
             ipc_manager=self.ipc_manager,
             n_processes=self.n_processes,
+            mass_shifts=self.mass_shifts,
             evaluation_kwargs=self.evaluation_kwargs,
             error_tolerance=self.product_error_tolerance,
         )
