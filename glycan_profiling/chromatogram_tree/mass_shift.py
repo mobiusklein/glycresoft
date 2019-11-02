@@ -188,3 +188,25 @@ Formate = MassShift("Formate", Composition('HCOOH'), charge_carrier=1)
 Ammonium = MassShift("Ammonium", Composition("NH3"), Composition())
 Sodium = MassShift("Sodium", Composition("Na1H-1"), charge_carrier=1)
 Potassium = MassShift("Potassium", Composition("K1H-1"), charge_carrier=1)
+
+
+class MassShiftCollection(object):
+    def __init__(self, mass_shifts):
+        self.mass_shifts = list(mass_shifts)
+        self.mass_shift_map = {}
+        self._invalidate()
+
+    def _invalidate(self):
+        self.mass_shift_map = {
+            mass_shift.name: mass_shift for mass_shift in self.mass_shifts
+        }
+
+    def append(self, mass_shift):
+        self.mass_shifts.append(mass_shift)
+        self._invalidate()
+
+    def __getitem__(self, i):
+        try:
+            return self.mass_shifts[i]
+        except IndexError:
+            return self.mass_shifts[i]

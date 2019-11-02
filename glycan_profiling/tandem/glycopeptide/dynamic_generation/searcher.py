@@ -341,6 +341,7 @@ class MatcherExecutor(TaskExecutionSequence):
         matcher_task.scorer_type = self.scorer_type
         matcher_task.evaluation_kwargs = self.evaluation_kwargs
         matcher_task.mass_shifts = self.mass_shifts
+        matcher_task.mass_shift_map = {m.name: m for m in self.mass_shifts}
         return matcher_task
 
     def execute_task(self, matcher_task):
