@@ -409,11 +409,13 @@ class AbundanceWeightedFactorElutionTimeFitter(FactorElutionTimeFitter):
 
 
 class PeptideFactorElutionTimeFitter(FactorElutionTimeFitter):
-    def __init__(self, chromatograms, factors=['Hex', 'HexNAc', 'Fuc', 'Neu5Ac'], scale=1):
+    def __init__(self, chromatograms, factors=None, scale=1):
+        if factors is None:
+            factors = ['Hex', 'HexNAc', 'Fuc', 'Neu5Ac']
         self._peptide_to_indicator = defaultdict(make_counter(0))
         for obs in chromatograms:
             self._peptide_to_indicator[self._get_peptide_key(obs)]
-        super(PeptideFactorElutionTimeFitter, self).__init__(chromatograms, factors, scale)
+        super(PeptideFactorElutionTimeFitter, self).__init__(chromatograms, list(factors), scale)
 
     def _get_peptide_key(self, chromatogram):
         return PeptideSequence(str(chromatogram.structure)).deglycosylate()
@@ -436,6 +438,15 @@ class PeptideFactorElutionTimeFitter(FactorElutionTimeFitter):
             for f in self.factors)
         ).T
 
+    def feature_names(self):
+        names = ['intercept', ]
+        peptides = [None] * len(self._peptide_to_indicator)
+        for key, value in self._peptide_to_indicator.items():
+            peptides[value] = key
+        names.extend(peptides)
+        names.extend(self.factors)
+        return names
+
     def _prepare_data_vector(self, chromatogram):
         p = len(self._peptide_to_indicator)
         peptides = [0 for i in range(p)]
@@ -445,9 +456,7 @@ class PeptideFactorElutionTimeFitter(FactorElutionTimeFitter):
         except KeyError:
             pass
         return np.array(
-            [1,
-             ] + peptides + [
-                chromatogram.glycan_composition[f] for f in self.factors])
+            [1,] + peptides + [chromatogram.glycan_composition[f] for f in self.factors])
 
 
 def is_high_mannose(composition):

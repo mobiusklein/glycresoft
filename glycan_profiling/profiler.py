@@ -1006,6 +1006,7 @@ class MzMLGlycopeptideLCMSMSAnalyzer(GlycopeptideLCMSMSAnalyzer):
             "search_strategy": 'target-internal-decoy-competition',
             "trust_precursor_fits": self.trust_precursor_fits,
             "probing_range_for_missing_precursors": self.probing_range_for_missing_precursors,
+            "scoring_model": self.peak_shape_scoring_model
         }
 
     def make_analysis_serializer(self, output_path, analysis_name, sample_run, identified_glycopeptides,

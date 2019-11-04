@@ -1,3 +1,4 @@
+import os
 import multiprocessing
 from collections import OrderedDict
 
@@ -112,6 +113,9 @@ class PeptideDatabaseProxyLoader(object):
             ]
         mem_db = disk_backed_database.InMemoryPeptideStructureDatabase(peptides, db)
         return mem_db
+
+
+debug_mode = bool(os.environ.get("GLYCRESOFTDEBUG"))
 
 
 class MultipartGlycopeptideIdentifier(TaskBase):
@@ -239,6 +243,9 @@ class MultipartGlycopeptideIdentifier(TaskBase):
             mass_shifts=self.mass_shifts)
         mapping_batcher.done_event = multiprocessing.Event()
 
+        tracking_dir = None
+        if debug_mode:
+            tracking_dir = self.file_manager.get("mapping-log")
         mapping_executor = SerializingMapperExecutor(
             OrderedDict([
                 ('target', target_predictive_search),
@@ -249,6 +256,7 @@ class MultipartGlycopeptideIdentifier(TaskBase):
             mapping_batcher.out_queue,
             multiprocessing.Queue(5),
             mapping_batcher.done_event,
+            tracking_directory=tracking_dir,
         )
         mapping_executor.done_event = multiprocessing.Event()
 
