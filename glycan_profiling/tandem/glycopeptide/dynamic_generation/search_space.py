@@ -1,3 +1,4 @@
+import os
 import operator
 import logging
 import struct
@@ -32,6 +33,9 @@ from ..core_search import GlycanCombinationRecord, GlycanFilteringPeptideMassEst
 
 
 logger = logging.Logger("glycresoft.dynamic_generation")
+
+
+debug_mode = bool(os.environ.get("GLYCRESOFTDEBUG"))
 
 
 _glycopeptide_key_t = namedtuple(
@@ -292,7 +296,8 @@ class PredictiveGlycopeptideSearch(DynamicGlycopeptideSearchBase):
                 for mass_shift in mass_shifts:
                     seen = set()
                     mass_shift_name = mass_shift.name
-                    intact_mass = scan.precursor_information.neutral_mass - mass_shift.mass - neutron_shift
+                    mass_shift_mass = mass_shift.mass
+                    intact_mass = scan.precursor_information.neutral_mass - mass_shift_mass - neutron_shift
                     for peptide_mass_pred in estimate_peptide_mass(scan, topn=peptide_masses_per_scan, mass_shift=mass_shift,
                                                                    threshold=glycan_score_threshold,
                                                                    min_fragments=min_fragments, simplify=False):
@@ -303,9 +308,16 @@ class PredictiveGlycopeptideSearch(DynamicGlycopeptideSearchBase):
                             key = (candidate.id, mass_shift_name)
                             mass_threshold_passed = (
                                 abs(intact_mass - candidate.total_mass) / intact_mass) <= precursor_error_tolerance
+
                             if key in seen:
                                 continue
                             seen.add(key)
+                            if debug_mode:
+                                self.log("\t%s @ %s: %s: %f/%f %s" % (
+                                    scan.id, candidate, mass_shift.name,
+                                    abs(intact_mass - candidate.total_mass) / intact_mass,
+                                    abs((candidate.total_mass + mass_shift_mass) - scan.precursor_information.neutral_mass
+                                        ) / scan.precursor_information.neutral_mass, mass_threshold_passed))
                             if mass_threshold_passed:
                                 workload.add_scan_hit(scan, candidate, mass_shift_name)
             # self.log("%s had %d glycopeptides from %d peptide masses" % (scan.id, n_glycopeptides, n_peptide_masses))
