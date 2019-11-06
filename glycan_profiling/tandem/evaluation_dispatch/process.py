@@ -1,3 +1,4 @@
+import os
 import time
 import traceback
 
@@ -21,6 +22,9 @@ from glycan_profiling.structure import LRUMapping
 from .evaluation import SolutionHandler, LocalSpectrumEvaluator, SpectrumEvaluatorBase
 from .task import TaskQueueFeeder
 from .utils import SentinelToken, ProcessDispatcherState
+
+
+debug_mode = bool(os.environ.get("GLYCRESOFTDEBUG"))
 
 
 class IdentificationProcessDispatcher(TaskBase):

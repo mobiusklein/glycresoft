@@ -182,6 +182,20 @@ class WorkloadManager(object):
         yield self.hit_map
         yield self.hit_to_scan_map
 
+    def __eq__(self, other):
+        if self.hit_map != other.hit_map:
+            return False
+        elif self.scan_map != other.scan_map:
+            return False
+        elif self.scan_hit_type_map != other.scan_hit_type_map:
+            return False
+        elif self.hit_to_scan_map != other.hit_to_scan_map:
+            return False
+        return True
+
+    def __ne__(self, other):
+        return not (self == other)
+
     @property
     def total_size(self):
         """Compute the total amount of work required to

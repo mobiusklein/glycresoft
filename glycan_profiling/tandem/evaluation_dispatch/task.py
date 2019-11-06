@@ -1,6 +1,10 @@
+import os
 from collections import deque
 
 from glycan_profiling.task import TaskBase
+
+
+debug_mode = bool(os.environ.get("GLYCRESOFTDEBUG"))
 
 
 class StructureSpectrumSpecificationBuilder(object):
@@ -99,6 +103,8 @@ class TaskSourceBase(StructureSpectrumSpecificationBuilder, TaskBase):
                 self.join()
             try:
                 work_order = self.build_work_order(hit_id, hit_map, scan_hit_type_map, hit_to_scan)
+                if debug_mode:
+                    self.log("...... Matching %s against %r" % work_order)
                 self.add(work_order)
                 # Set a long progress update interval because the feeding step is less
                 # important than the processing step. Additionally, as the two threads

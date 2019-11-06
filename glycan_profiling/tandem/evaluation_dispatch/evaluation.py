@@ -1,9 +1,12 @@
+import os
 from collections import defaultdict
 
 from glycan_profiling.task import TaskBase
 
 from ..spectrum_match import SpectrumMatch, MultiScoreSpectrumMatch, ScoreSet
 from .task import TaskDeque
+
+debug_mode = bool(os.environ.get("GLYCRESOFTDEBUG"))
 
 
 class SpectrumEvaluatorBase(object):
@@ -37,7 +40,8 @@ class SpectrumEvaluatorBase(object):
     def handle_instance(self, structure, scan, mass_shift):
         solution = self.evaluate(scan, structure, mass_shift=mass_shift,
                                  **self.evaluation_args)
-        # self.log("%s @ %s => %s" % (scan.id, solution.target, solution.get_auxiliary_data()))
+        if debug_mode:
+            self.log("%s @ %s => %s" % (scan.id, solution.target, mass_shift.name))
         self.solution_map[scan.id, mass_shift.name] = self.solution_packer(solution)
         return solution
 

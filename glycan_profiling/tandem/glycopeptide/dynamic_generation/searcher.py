@@ -5,6 +5,8 @@ try:
 except ImportError:
     from queue import Empty
 
+from ms_deisotope.data_source import ProcessedScan
+
 from glycan_profiling.task import TaskExecutionSequence
 from glycan_profiling.chromatogram_tree import Unmodified
 
@@ -118,7 +120,13 @@ class StructureMapper(TaskExecutionSequence):
             self.log("Cache Performance: %d / %d (%0.2f%%)" % (hits, total, hits / float(total) * 100.0))
 
     def _prepare_scan(self, scan):
-        return scan.convert()
+        try:
+            return scan.convert()
+        except AttributeError:
+            if isinstance(scan, ProcessedScan):
+                return scan
+            else:
+                raise
 
     def map_structures(self):
         counter = 0
