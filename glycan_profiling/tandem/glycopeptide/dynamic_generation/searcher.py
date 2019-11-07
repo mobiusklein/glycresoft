@@ -39,6 +39,9 @@ def workload_grouping(chunks, max_scans_per_workload=500, starting_index=0):
     return workload, i
 
 
+debug_mode = bool(os.environ.get("GLYCRESOFTDEBUG"))
+
+
 class SpectrumBatcher(TaskExecutionSequence):
     def __init__(self, groups, out_queue, max_scans_per_workload=250):
         self.groups = groups
@@ -231,7 +234,13 @@ class SerializingMapperExecutor(MapperExecutor):
     def execute_task(self, mapper_task):
         label = mapper_task.predictive_search
         mapper_task.predictive_search = self.predictive_searchers[label]
+        if debug_mode:
+            self.log("... Running %s Mapping with Mass Shifts %r" % (label, mapper_task.mass_shifts))
         workload = mapper_task()
+        if debug_mode:
+            for scan_id, hit_ids in workload.scan_to_hit_map.items():
+                for hit_id in hit_ids:
+                    self.log("...... After mapping %s: %s" % (scan_id, workload.hit_map[hit_id]))
         workload.pack()
         workload = serialize_workload(workload)
         matcher_task = SpectrumMatcher(
