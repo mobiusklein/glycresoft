@@ -57,10 +57,42 @@ class WorkloadManager(object):
     def update(self, other):
         self.scan_map.update(other.scan_map)
         self.hit_map.update(other.hit_map)
-        self.hit_to_scan_map.update(other.hit_to_scan_map)
-        self.scan_to_hit_map.update(other.scan_to_hit_map)
+        self.merge_hit_to_scan_map(other)
+        self.merge_scan_to_hit_map(other)
         self.scan_hit_type_map.update(other.scan_hit_type_map)
         self._scan_graph = None
+
+    def merge_hit_to_scan_map(self, other):
+        """Merge the :attr:`hit_to_scan_map` of another :class:`WorkloadManager`
+        object into this one, adding non-redundant pairs.
+
+        Parameters
+        ----------
+        other : :class:`WorkloadManager`
+            The other workload manager to merge in.
+        """
+        for hit_id, scans in other.hit_to_scan_map.items():
+            already_present = {scan.id for scan in self.hit_to_scan_map[hit_id]}
+            for scan in scans:
+                if scan.id not in already_present:
+                    self.hit_to_scan_map[hit_id].append(scan)
+                    self.scan_hit_type_map[scan.id, hit_id] = other.scan_hit_type_map[scan.id, hit_id]
+
+    def merge_scan_to_hit_map(self, other):
+        """Merge the :attr:`scan_to_hit_map` of another :class:`WorkloadManager`
+        object into this one, adding non-redundant pairs.
+
+        Parameters
+        ----------
+        other : :class:`WorkloadManager`
+            The other workload manager to merge in.
+        """
+        for scan_id, hit_ids in other.scan_to_hit_map.items():
+            already_present = set(self.scan_to_hit_map[scan_id])
+            for hit_id in hit_ids:
+                if hit_id not in already_present:
+                    self.scan_to_hit_map[scan_id].append(hit_id)
+                    self.scan_hit_type_map[scan_id, hit_id] = other.scan_hit_type_map[scan_id, hit_id]
 
     def add_scan(self, scan):
         """Register a Scan-like object for tracking

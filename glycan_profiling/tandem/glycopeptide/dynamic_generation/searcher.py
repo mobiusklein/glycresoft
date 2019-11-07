@@ -242,6 +242,11 @@ class SerializingMapperExecutor(MapperExecutor):
                 for hit_id in hit_ids:
                     self.log("...... After mapping %s: %s" % (scan_id, workload.hit_map[hit_id]))
         workload.pack()
+        if debug_mode:
+            for scan_id, hit_ids in workload.scan_to_hit_map.items():
+                for hit_id in hit_ids:
+                    self.log("...... After packing %s: %s" % (scan_id, workload.hit_map[hit_id]))
+
         workload = serialize_workload(workload)
         matcher_task = SpectrumMatcher(
             workload, mapper_task.group_i, mapper_task.group_n)
