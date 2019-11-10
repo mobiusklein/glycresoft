@@ -1,3 +1,4 @@
+import warnings
 from weakref import WeakValueDictionary
 
 from sqlalchemy import (
@@ -57,8 +58,11 @@ class SpectrumMatchBase(BoundToAnalysis):
                 shift = self.mass_shift
                 session.rollback()
                 return shift
-            except OperationalError:
+            except OperationalError as err:
                 session.rollback()
+                warnings.warn(
+                    ("Encountered an error while checking if "
+                     "SpectrumMatch-tables support mass shifts: %r") % err)
                 session.info["has_spectrum_match_mass_shift"] = False
                 return None
         else:

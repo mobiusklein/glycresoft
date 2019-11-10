@@ -89,7 +89,14 @@ class LabelProducer(object):
 
 
 class NGlycanLabelProducer(LabelProducer):
+    """Create a square-brace enclosed tuplet of digits denoting the count
+    of of a specific set of glycan composition components common to N-Glycans.
+
+    Relies on :class:`GlycanLabelTransformer`
+
+    """
     def __init__(self, monosaccharides=("HexNAc", "Hex", "Fuc", "NeuAc")):
+        super(NGlycanLabelProducer, self).__init__()
         self.monosaccharides = monosaccharides
         self.stub = glypy.GlycanComposition()
         for x in monosaccharides:

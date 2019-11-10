@@ -221,13 +221,18 @@ def validate_fasta(path):
         click.secho("%d\">\" prefixed lines found, but %d entries parsed" % (n_deflines, n_entries))
     else:
         click.echo("%d Protein Sequences" % (n_entries, ))
+    n_glycoprots = 0
+    o_glycoprots = 0
     with open(path, 'r') as handle:
         invalid_sequences = []
         for entry in fasta.FastaFileParser(handle):
             try:
-                fasta.ProteinSequence(entry['name'], entry['sequence'])
+                seq = fasta.ProteinSequence(entry['name'], entry['sequence'])
+                n_glycoprots += bool(seq.n_glycan_sequon_sites)
+                o_glycoprots += bool(seq.o_glycan_sequon_sites)
             except UnknownAminoAcidException as e:
                 invalid_sequences.append((entry['name'], e))
+    click.echo("Proteins with N-Glycosites: %d" % n_glycoprots)
     for name, error in invalid_sequences:
         click.secho("%s had %s" % (name, error), fg='yellow')
 

@@ -1,4 +1,7 @@
-import os
+'''Types for managing the evaluation of spectrum matches, to
+describe matches in bulk for serialization.
+'''
+
 from collections import defaultdict
 
 from glycan_profiling.task import TaskBase
@@ -6,10 +9,20 @@ from glycan_profiling.task import TaskBase
 from ..spectrum_match import SpectrumMatch, MultiScoreSpectrumMatch, ScoreSet
 from .task import TaskDeque
 
-debug_mode = bool(os.environ.get("GLYCRESOFTDEBUG"))
-
 
 class SpectrumEvaluatorBase(object):
+    """Abstract base class for abstracting away how spectrum matches are
+    set up.
+
+    Attributes
+    ----------
+    scan_map: Mapping
+        A mapping from scan id to :class:`~.ProcessedScan`
+    mass_shift_map: Mapping
+        A mapping from mass shift name to :class:`~.MassShift`
+    solution_map: Mapping
+        A mapping from (scan id, mass shift name) to the packaged match.
+    """
 
     def fetch_scan(self, key):
         return self.scan_map[key]
@@ -40,8 +53,6 @@ class SpectrumEvaluatorBase(object):
     def handle_instance(self, structure, scan, mass_shift):
         solution = self.evaluate(scan, structure, mass_shift=mass_shift,
                                  **self.evaluation_args)
-        if debug_mode:
-            self.log("%s @ %s => %s" % (scan.id, solution.target, mass_shift.name))
         self.solution_map[scan.id, mass_shift.name] = self.solution_packer(solution)
         return solution
 
