@@ -36,6 +36,7 @@ class CSVSerializerBase(TaskBase):
         for i, row in enumerate(gen):
             if i % 100 == 0 and i != 0:
                 self.status_update("Handled %d Entities" % i)
+                self.outstream.flush()
             self.writer.writerow(row)
 
 

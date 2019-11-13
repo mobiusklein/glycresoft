@@ -336,8 +336,9 @@ class AbundanceWeightedElutionTimeFitter(ElutionTimeFitter):
 
 
 class FactorElutionTimeFitter(ElutionTimeFitter):
-    def __init__(self, chromatograms, factors=['Hex', 'HexNAc', 'Fuc', 'Neu5Ac'], scale=1):
-        self.factors = factors
+    def __init__(self, chromatograms, factors=None, scale=1):
+        if factors is None:
+            factors = ['Hex', 'HexNAc', 'Fuc', 'Neu5Ac']
         super(FactorElutionTimeFitter, self).__init__(chromatograms, scale=scale)
 
     def _prepare_data_matrix(self, mass_array):

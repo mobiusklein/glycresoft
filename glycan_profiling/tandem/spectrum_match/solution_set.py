@@ -99,6 +99,21 @@ class MaximumSolutionCountRetentionStrategy(SpectrumMatchRetentionStrategyBase):
     list
     """
     def group_solutions(self, solutions, threshold=1e-2):
+        """Group solutions which have scores that are very close to one-another
+        so that they are not arbitrarily truncated.
+
+        Parameters
+        ----------
+        solutions : list
+            A list of :class:`~.SpectrumMatchBase`
+        threshold : float, optional
+            The maxmimum distance between two scores to still be considered
+            part of a group (the default is 1e-2)
+
+        Returns
+        -------
+        list
+        """
         groups = []
         if len(solutions) == 0:
             return groups
@@ -191,6 +206,20 @@ default_multiscore_selection_method = SpectrumMatchRetentionMethod([
 
 
 class SpectrumSolutionSet(ScanWrapperBase):
+    """A collection of spectrum matches against a single scan
+    with different structures.
+
+    Implements the :class:`Sequence` interface.
+
+    Attributes
+    ----------
+    scan: :class:`~.Scan`-like
+        The matched scan
+    solutions: list
+        The distinct spectrum matches.
+    score: float
+        The best match's score
+    """
     spectrum_match_type = SpectrumMatch
     default_selection_method = default_selection_method
 
@@ -210,6 +239,12 @@ class SpectrumSolutionSet(ScanWrapperBase):
 
     @property
     def score(self):
+        """The best match's score
+
+        Returns
+        -------
+        float
+        """
         return self.best_solution().score
 
     def _make_target_map(self):
@@ -218,14 +253,41 @@ class SpectrumSolutionSet(ScanWrapperBase):
         }
 
     def solution_for(self, target):
+        """Find the spectrum match from this set which corresponds
+        to the provided `target` structure
+
+        Parameters
+        ----------
+        target : object
+            The target to search for
+
+        Returns
+        -------
+        :class:`~.SpectrumMatchBase`
+        """
         if self._target_map is None:
             self._make_target_map()
         return self._target_map[target]
 
     def precursor_mass_accuracy(self):
+        """The precursor mass accuracy of the best match
+
+        Returns
+        -------
+        float
+        """
         return self.best_solution().precursor_mass_accuracy()
 
     def best_solution(self):
+        """The :class:`SpectrumMatchBase` in :attr:`solutions` which
+        is the best match to :attr:`scan`, the match at position 0.
+
+        If the collection is not sorted, :meth:`sort` will be called.
+
+        Returns
+        -------
+        :class:`~.SpectrumMatchBase`
+        """
         if not self._is_sorted:
             self.sort()
         return self.solutions[0]
@@ -246,6 +308,14 @@ class SpectrumSolutionSet(ScanWrapperBase):
         return len(self.solutions)
 
     def simplify(self):
+        """Discard excess information in this collection to save
+        space.
+
+        Converts :attr:`scan` to a :class:`~.SpectrumReference`, and
+        converts all matches to :class:`~.SpectrumMatch`, discarding
+        matcher-specific information.
+
+        """
         if self._is_simplified:
             return
         self.scan = SpectrumReference(
@@ -264,10 +334,35 @@ class SpectrumSolutionSet(ScanWrapperBase):
         self._invalidate()
 
     def get_top_solutions(self, d=3):
+        """Get all matches within `d` of the best solution
+
+        Parameters
+        ----------
+        d : float, optional
+            The delta between the best match and the worst to return
+            (the default is 3)
+
+        Returns
+        -------
+        list
+        """
         best_score = self.best_solution().score
         return [x for x in self.solutions if (best_score - x.score) < d]
 
     def select_top(self, method=None):
+        """Filter spectrum matches in this collection in-place.
+
+        If all the solutions would be filtered out, only the best solution
+        will be kept.
+
+        Parameters
+        ----------
+        method : :class:`SpectrumRetentionStrategyBase`, optional
+            The filtering strategy to use, a callable object that returns a
+            shortened list of :class:`~.SpectrumMatchBase` instances.
+            If :const:`None`, :attr:`default_selection_method` will be used.
+
+        """
         if method is None:
             method = self.default_selection_method
         if self._is_top_only:

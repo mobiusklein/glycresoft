@@ -57,6 +57,7 @@ class SpectrumMatchBase(BoundToAnalysis):
                 session.begin_nested()
                 shift = self.mass_shift
                 session.rollback()
+                session.info["has_specturm_match_mass_shift"] = True
                 return shift
             except OperationalError as err:
                 session.rollback()

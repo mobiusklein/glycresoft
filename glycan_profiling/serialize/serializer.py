@@ -68,7 +68,7 @@ class AnalysisSerializer(DatabaseBoundOperation, TaskBase):
     def _build_scan_id_map(self):
         return dict(self.session.query(
             MSScan.scan_id, MSScan.id).filter(
-            MSScan.sample_run_id == self.sample_run_id))
+                MSScan.sample_run_id == self.sample_run_id))
 
     @property
     def analysis(self):
