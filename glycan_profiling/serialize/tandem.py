@@ -49,11 +49,14 @@ class SpectrumMatchBase(BoundToAnalysis):
         return relationship(CompoundMassShift, uselist=False)
 
     def _check_mass_shift(self, session):
+        import IPython
+        IPython.embed()
         flag = session.info.get("has_spectrum_match_mass_shift")
         if flag:
             return self.mass_shift
         elif flag is None:
             try:
+                print("Begin trying to resolve mass shifts")
                 session.begin_nested()
                 shift = self.mass_shift
                 session.rollback()

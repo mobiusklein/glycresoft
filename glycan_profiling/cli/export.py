@@ -202,7 +202,7 @@ def glycopeptide_identification(database_connection, analysis_identifier, output
     '''Write each distinct identified glycopeptide in CSV format
     '''
     database_connection = DatabaseBoundOperation(database_connection)
-    session = database_connection.session
+    session = database_connection.session()
     analysis = get_by_name_or_id(session, Analysis, analysis_identifier)
     if not analysis.analysis_type == AnalysisTypeEnum.glycopeptide_lc_msms:
         click.secho("Analysis %r is of type %r." % (
@@ -234,7 +234,7 @@ def glycopeptide_identification(database_connection, analysis_identifier, output
 
         def generate():
             i = 0
-            interval = 100
+            interval = 1000
             query = session.query(IdentifiedGlycopeptide).filter(
                 IdentifiedGlycopeptide.analysis_id == analysis_id)
             while True:
