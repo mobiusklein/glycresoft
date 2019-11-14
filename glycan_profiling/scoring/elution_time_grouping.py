@@ -339,6 +339,7 @@ class FactorElutionTimeFitter(ElutionTimeFitter):
     def __init__(self, chromatograms, factors=None, scale=1):
         if factors is None:
             factors = ['Hex', 'HexNAc', 'Fuc', 'Neu5Ac']
+        self.factors = list(factors)
         super(FactorElutionTimeFitter, self).__init__(chromatograms, scale=scale)
 
     def _prepare_data_matrix(self, mass_array):
