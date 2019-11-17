@@ -2,6 +2,11 @@ import os
 import time
 import traceback
 
+try:
+    import cPickle as pickle
+except ImportError:
+    import pickle
+
 from threading import Thread
 
 import multiprocessing
@@ -179,7 +184,7 @@ class IdentificationProcessDispatcher(TaskBase):
         self.scan_load_map.clear()
         # Do not copy the complete scan object into the IPC manager dict, as this will
         # pickle the scan source, and then unpickle it several times on the recieving end.
-        self.scan_load_map.update({k: v.copy(deep=False).unbind() for k, v in scan_map.items()})
+        self.scan_load_map.update({k: pickle.dumps(v.copy(deep=False).unbind(), -1) for k, v in scan_map.items()})
         self.local_scan_map.clear()
         self.local_scan_map.update(scan_map)
 
@@ -556,7 +561,8 @@ class SpectrumIdentificationWorkerBase(Process, SpectrumEvaluatorBase):
         try:
             return self.local_scan_map[key]
         except KeyError:
-            scan = self.spectrum_map[key]
+            serialized_scan = self.spectrum_map[key]
+            scan = pickle.loads(serialized_scan)
             self.local_scan_map[key] = scan
             return scan
 
