@@ -461,6 +461,15 @@ class PeptideFactorElutionTimeFitter(FactorElutionTimeFitter):
             [1,] + peptides + [chromatogram.glycan_composition[f] for f in self.factors])
 
 
+class AbundanceWeightedPeptideFactorElutionTimeFitter(PeptideFactorElutionTimeFitter):
+    def build_weight_matrix(self):
+        W = np.eye(len(self.chromatograms)) * [
+            (x.total_signal) for x in self.chromatograms
+        ]
+        W /= W.max()
+        return W
+
+
 def is_high_mannose(composition):
     return (composition['HexNAc'] == 2 and composition['Hex'] > 3 and
             not is_sialylated(composition))
