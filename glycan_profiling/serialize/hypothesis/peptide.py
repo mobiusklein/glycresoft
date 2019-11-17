@@ -386,7 +386,7 @@ class Glycopeptide(PeptideBase, Base):
             session = object_session(self)
             peptide_props = session.query(
                 Peptide.start_position, Peptide.end_position,
-                Peptide.protein_id, Peptide.hypothesis_id).get(self.peptide_id)
+                Peptide.protein_id, Peptide.hypothesis_id).filter(Peptide.id == self.peptide_id).first()
             peptide_relation_cache[self.peptide_id] = inst.protein_relation = PeptideProteinRelation(*peptide_props)
         return inst
 
