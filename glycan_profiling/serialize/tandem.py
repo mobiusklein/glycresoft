@@ -251,7 +251,7 @@ class GlycopeptideSpectrumMatch(Base, SpectrumMatchBase):
 
     def convert(self, mass_shift_cache=None):
         session = object_session(self)
-        scan = session.query(MSScan).get(self.scan_id).convert()
+        scan = session.query(MSScan).get(self.scan_id).convert(False, False)
         target = session.query(Glycopeptide).get(self.structure_id).convert()
         mass_shift = self._resolve_mass_shift(session, mass_shift_cache)
         if self.score_set is None:
@@ -377,7 +377,7 @@ class GlycanCompositionSpectrumMatch(Base, SpectrumMatchBase):
 
     def convert(self, mass_shift_cache=None):
         session = object_session(self)
-        scan = session.query(MSScan).get(self.scan_id).convert()
+        scan = session.query(MSScan).get(self.scan_id).convert(False, False)
         mass_shift = self._resolve_mass_shift(session, mass_shift_cache)
         target = session.query(GlycanComposition).get(self.composition_id).convert()
         inst = MemorySpectrumMatch(scan, target, self.score, mass_shift=mass_shift)
@@ -485,7 +485,7 @@ class UnidentifiedSpectrumMatch(Base, SpectrumMatchBase):
 
     def convert(self, mass_shift_cache=None):
         session = object_session(self)
-        scan = session.query(MSScan).get(self.scan_id).convert()
+        scan = session.query(MSScan).get(self.scan_id).convert(False, False)
         mass_shift = self._resolve_mass_shift(session, mass_shift_cache)
         inst = MemorySpectrumMatch(scan, None, self.score, mass_shift=mass_shift)
         inst.id = self.id

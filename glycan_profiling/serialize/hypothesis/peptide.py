@@ -4,8 +4,8 @@ from collections import OrderedDict
 from sqlalchemy.ext.baked import bakery
 from sqlalchemy.ext.declarative import declared_attr
 from sqlalchemy.orm import (
-    relationship, backref, make_transient, Query, validates,
-    deferred)
+    relationship, backref, Query, validates,
+    deferred, object_session)
 from sqlalchemy.ext.hybrid import hybrid_property, hybrid_method
 from sqlalchemy import (
     Column, Numeric, Integer, String, ForeignKey, PickleType,
@@ -373,13 +373,21 @@ class Glycopeptide(PeptideBase, Base):
     def _get_sequence_str(self):
         return self.glycopeptide_sequence
 
-    def convert(self):
+    def convert(self, peptide_relation_cache=None):
+        if peptide_relation_cache is None:
+            session = object_session(self)
+            session.info.setdefault("peptide_relation_cache", {})
+            peptide_relation_cache = session.info['peptide_relation_cache']
         inst = FragmentCachingGlycopeptide(self.glycopeptide_sequence)
         inst.id = self.id
-        peptide = self.peptide
-        inst.protein_relation = PeptideProteinRelation(
-            peptide.start_position, peptide.end_position, peptide.protein_id,
-            peptide.hypothesis_id)
+        try:
+            inst.protein_relation = peptide_relation_cache[self.peptide_id]
+        except KeyError:
+            session = object_session(self)
+            peptide_props = session.query(
+                Peptide.start_position, Peptide.end_position,
+                Peptide.protein_id, Peptide.hypothesis_id).get(self.peptide_id)
+            peptide_relation_cache[self.peptide_id] = inst.protein_relation = PeptideProteinRelation(*peptide_props)
         return inst
 
     def __repr__(self):

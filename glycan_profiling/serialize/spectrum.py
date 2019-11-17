@@ -63,9 +63,11 @@ class MSScan(Base):
         f += ")"
         return f
 
-    def convert(self, fitted=True, deconvoluted=True):
-        precursor_information = self.precursor_information.convert(
-        ) if self.precursor_information is not None else None
+    def convert(self, fitted=False, deconvoluted=True):
+        precursor_information = self.precursor_information
+        if precursor_information is None:
+            precursor_information.convert()
+
 
         session = object_session(self)
         conn = session.connection()
