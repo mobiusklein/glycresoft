@@ -415,8 +415,9 @@ class PeptideFactorElutionTimeFitter(FactorElutionTimeFitter):
         if factors is None:
             factors = ['Hex', 'HexNAc', 'Fuc', 'Neu5Ac']
         self._peptide_to_indicator = defaultdict(make_counter(0))
+        # Ensure that _peptide_to_indicator is properly initialized
         for obs in chromatograms:
-            self._peptide_to_indicator[self._get_peptide_key(obs)]
+            _ = self._peptide_to_indicator[self._get_peptide_key(obs)]
         super(PeptideFactorElutionTimeFitter, self).__init__(chromatograms, list(factors), scale)
 
     def _get_peptide_key(self, chromatogram):
