@@ -65,7 +65,7 @@ class MSScan(Base):
 
     def convert(self, fitted=False, deconvoluted=True):
         precursor_information = self.precursor_information
-        if precursor_information is None:
+        if precursor_information is not None:
             precursor_information.convert()
 
 
@@ -102,9 +102,13 @@ class MSScan(Base):
 
         info = self.info or {}
 
+        (scan_id, scan_title, scan_ms_level, scan_time, scan_index) = session.query(
+            MSScan.scan_id, MSScan.title, MSScan.ms_level, MSScan.scan_time, MSScan.index).filter(
+                MSScan.id == self.id).first()
+
         scan = ProcessedScan(
-            self.scan_id, self.title, precursor_information, int(self.ms_level),
-            float(self.scan_time), self.index, peak_index, deconvoluted_peak_set,
+            scan_id, scan_title, precursor_information, int(scan_ms_level),
+            float(scan_time), scan_index, peak_index, deconvoluted_peak_set,
             activation=info.get('activation'))
         return scan
 
