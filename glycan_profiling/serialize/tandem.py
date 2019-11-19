@@ -92,10 +92,14 @@ class SpectrumClusterBase(object):
     def __iter__(self):
         return iter(self.spectrum_solutions)
 
-    def convert(self, mass_shift_cache=None):
+    def convert(self, mass_shift_cache=None, scan_cache=None, structure_cache=None):
+        if scan_cache is None:
+            scan_cache = dict()
         if mass_shift_cache is None:
             mass_shift_cache = dict()
-        return [x.convert(mass_shift_cache=mass_shift_cache) for x in self.spectrum_solutions]
+        matches = [x.convert(mass_shift_cache=mass_shift_cache, scan_cache=scan_cache,
+                             structure_cache=structure_cache) for x in self.spectrum_solutions]
+        return matches
 
 
 class SolutionSetBase(object):
@@ -185,8 +189,11 @@ class GlycopeptideSpectrumSolutionSet(Base, SolutionSetBase, BoundToAnalysis):
                 analysis_id, inst.id, is_decoy, *args, **kwargs)
         return inst
 
-    def convert(self, mass_shift_cache=None):
-        matches = [x.convert(mass_shift_cache=mass_shift_cache) for x in self.spectrum_matches]
+    def convert(self, mass_shift_cache=None, scan_cache=None, structure_cache=None):
+        if scan_cache is None:
+            scan_cache = dict()
+        matches = [x.convert(mass_shift_cache=mass_shift_cache, scan_cache=scan_cache,
+                             structure_cache=structure_cache) for x in self.spectrum_matches]
         matches.sort(key=lambda x: x.score, reverse=True)
         inst = MemorySpectrumSolutionSet(
             convert_scan_to_record(self.scan),
@@ -249,10 +256,26 @@ class GlycopeptideSpectrumMatch(Base, SpectrumMatchBase):
             GlycopeptideSpectrumMatchScoreSet.serialize_from_spectrum_match(obj, session, inst.id)
         return inst
 
-    def convert(self, mass_shift_cache=None):
+    def convert(self, mass_shift_cache=None, scan_cache=None, structure_cache=None):
         session = object_session(self)
-        scan = session.query(MSScan).get(self.scan_id).convert(False, False)
-        target = session.query(Glycopeptide).get(self.structure_id).convert()
+        key = self.scan_id
+        if scan_cache is None:
+            scan = session.query(MSScan).get(key).convert(False, False)
+        else:
+            try:
+                scan = scan_cache[key]
+            except KeyError:
+                scan = scan_cache[key] = session.query(MSScan).get(key).convert(False, False)
+
+        key = self.structure_id
+        if structure_cache is None:
+            target = session.query(Glycopeptide).get(key).convert()
+        else:
+            try:
+                target = structure_cache[key]
+            except KeyError:
+                target = structure_cache[key] = session.query(Glycopeptide).get(key).convert()
+
         mass_shift = self._resolve_mass_shift(session, mass_shift_cache)
         if self.score_set is None:
             inst = MemorySpectrumMatch(scan, target, self.score, self.is_best_match,
@@ -325,8 +348,11 @@ class GlycanCompositionSpectrumSolutionSet(Base, SolutionSetBase, BoundToAnalysi
                 analysis_id, inst.id, *args, **kwargs)
         return inst
 
-    def convert(self, mass_shift_cache=None):
-        matches = [x.convert(mass_shift_cache=mass_shift_cache) for x in self.spectrum_matches]
+    def convert(self, mass_shift_cache=None, scan_cache=None, structure_cache=None):
+        if scan_cache is None:
+            scan_cache = dict()
+        matches = [x.convert(mass_shift_cache=mass_shift_cache, scan_cache=scan_cache,
+                             structure_cache=structure_cache) for x in self.spectrum_matches]
         matches.sort(key=lambda x: x.score, reverse=True)
         inst = MemorySpectrumSolutionSet(
             convert_scan_to_record(self.scan),
@@ -443,8 +469,13 @@ class UnidentifiedSpectrumSolutionSet(Base, SolutionSetBase, BoundToAnalysis):
                 analysis_id, inst.id, *args, **kwargs)
         return inst
 
-    def convert(self, mass_shift_cache=None):
-        matches = [x.convert(mass_shift_cache=mass_shift_cache) for x in self.spectrum_matches]
+    def convert(self, mass_shift_cache=None, scan_cache=None, structure_cache=None):
+        if scan_cache is None:
+            scan_cache = dict()
+        if mass_shift_cache is None:
+            mass_shift_cache = dict()
+        matches = [x.convert(mass_shift_cache=mass_shift_cache,
+                             scan_cache=scan_cache) for x in self.spectrum_matches]
         matches.sort(key=lambda x: x.score, reverse=True)
         inst = MemorySpectrumSolutionSet(
             convert_scan_to_record(self.scan),
@@ -548,16 +579,25 @@ class GlycopeptideSpectrumMatchScoreSet(Base):
         return inst
 
     def convert(self):
+        session = object_session(self)
+        G = GlycopeptideSpectrumMatchScoreSet
+        (peptide_score, glycan_score, glycopeptide_score,
+         glycan_coverage, total_q_value, peptide_q_value,
+         glycan_q_value, glycopeptide_q_value) = session.query(
+             G.peptide_score, G.glycan_score, G.glycopeptide_score,
+             G.glycan_coverage, G.total_q_value, G.peptide_q_value,
+             G.glycan_q_value, G.glycopeptide_q_value).filter(
+                G.id == self.id).first()
         score_set = ScoreSet(
-            peptide_score=self.peptide_score,
-            glycan_score=self.glycan_score,
-            glycopeptide_score=self.glycopeptide_score,
-            glycan_coverage=self.glycan_coverage)
+            peptide_score=peptide_score,
+            glycan_score=glycan_score,
+            glycopeptide_score=glycopeptide_score,
+            glycan_coverage=glycan_coverage)
         fdr_set = FDRSet(
-            total_q_value=self.total_q_value,
-            peptide_q_value=self.peptide_q_value,
-            glycan_q_value=self.glycan_q_value,
-            glycopeptide_q_value=self.glycopeptide_q_value)
+            total_q_value=total_q_value,
+            peptide_q_value=peptide_q_value,
+            glycan_q_value=glycan_q_value,
+            glycopeptide_q_value=glycopeptide_q_value)
         return score_set, fdr_set
 
     def __repr__(self):

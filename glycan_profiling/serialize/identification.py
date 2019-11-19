@@ -172,21 +172,31 @@ class IdentifiedGlycopeptide(Base, IdentifiedStructure):
         chromatogram.chromatogram.entity = structure
         return chromatogram
 
-    def convert(self, expand_shared_with=True, *args, **kwargs):
+    def convert(self, expand_shared_with=True, mass_shift_cache=None, scan_cache=None, structure_cache=None, *args, **kwargs):
         # bind this name late to avoid circular import error
         from glycan_profiling.tandem.glycopeptide.identified_structure import (
             IdentifiedGlycopeptide as MemoryIdentifiedGlycopeptide)
 
+        if mass_shift_cache is None:
+            mass_shift_cache = dict()
+        if scan_cache is None:
+            scan_cache = dict()
+        if structure_cache is None:
+            structure_cache = dict()
+
         if expand_shared_with and self.shared_with:
             stored = list(self.shared_with)
-            converted = [x.convert(expand_shared_with=False, *args, **kwargs) for x in stored]
+            converted = [
+                x.convert(expand_shared_with=False, mass_shift_cache=mass_shift_cache,
+                          scan_cache=scan_cache, structure_cache=structure_cache, *args, **kwargs) for x in stored]
             for i in range(len(stored)):
                 converted[i].shared_with = converted[:i] + converted[i + 1:]
             for i, member in enumerate(stored):
                 if member.id == self.id:
                     return converted[i]
         else:
-            spectrum_matches = self.spectrum_cluster.convert()
+            spectrum_matches = self.spectrum_cluster.convert(
+                mass_shift_cache=mass_shift_cache, scan_cache=scan_cache, structure_cache=structure_cache)
             structure = self.structure.convert()
 
             chromatogram = self.chromatogram
