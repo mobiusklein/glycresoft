@@ -579,25 +579,16 @@ class GlycopeptideSpectrumMatchScoreSet(Base):
         return inst
 
     def convert(self):
-        session = object_session(self)
-        G = GlycopeptideSpectrumMatchScoreSet
-        (peptide_score, glycan_score, glycopeptide_score,
-         glycan_coverage, total_q_value, peptide_q_value,
-         glycan_q_value, glycopeptide_q_value) = session.query(
-             G.peptide_score, G.glycan_score, G.glycopeptide_score,
-             G.glycan_coverage, G.total_q_value, G.peptide_q_value,
-             G.glycan_q_value, G.glycopeptide_q_value).filter(
-                G.id == self.id).first()
         score_set = ScoreSet(
-            peptide_score=peptide_score,
-            glycan_score=glycan_score,
-            glycopeptide_score=glycopeptide_score,
-            glycan_coverage=glycan_coverage)
+            peptide_score=self.peptide_score,
+            glycan_score=self.glycan_score,
+            glycopeptide_score=self.glycopeptide_score,
+            glycan_coverage=self.glycan_coverage)
         fdr_set = FDRSet(
-            total_q_value=total_q_value,
-            peptide_q_value=peptide_q_value,
-            glycan_q_value=glycan_q_value,
-            glycopeptide_q_value=glycopeptide_q_value)
+            total_q_value=self.total_q_value,
+            peptide_q_value=self.peptide_q_value,
+            glycan_q_value=self.glycan_q_value,
+            glycopeptide_q_value=self.glycopeptide_q_value)
         return score_set, fdr_set
 
     def __repr__(self):
