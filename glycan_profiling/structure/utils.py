@@ -1,4 +1,5 @@
 from glycopeptidepy.utils.collectiontools import decoratordict
+from ms_deisotope.utils import LRUDict
 
 
 class KeyTransformingDecoratorDict(decoratordict):

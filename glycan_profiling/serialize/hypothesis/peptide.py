@@ -22,6 +22,7 @@ from .generic import JSONType
 
 from glycopeptidepy.structure import sequence, residue, PeptideSequenceBase
 from glycan_profiling.structure.structure_loader import PeptideProteinRelation, FragmentCachingGlycopeptide
+from glycan_profiling.structure.utils import LRUDict
 
 
 class AminoAcidSequenceWrapperBase(PeptideSequenceBase):
@@ -171,7 +172,7 @@ class Protein(Base, AminoAcidSequenceWrapperBase):
     def reverse(self, copy_id=False, prefix=None, suffix=None):
         n = len(self.protein_sequence)
         sites = []
-        for site in self.sites:
+        for site in self.sites:  # pylint: disable=access-member-before-definition
             sites.append(site.__class__(name=site.name, location=n - site.location - 1))
         name = self.name
         if name.startswith(">"):
@@ -343,7 +344,7 @@ class Peptide(PeptideBase, Base):
         return (self.start_position <= position) & (position <= self.end_position)
 
     @hybrid_property
-    def scores(self):
+    def scores(self): # pylint: disable=method-hidden
         try:
             if self._scores is None:
                 self.scores = []
@@ -376,8 +377,9 @@ class Glycopeptide(PeptideBase, Base):
     def convert(self, peptide_relation_cache=None):
         if peptide_relation_cache is None:
             session = object_session(self)
-            session.info.setdefault("peptide_relation_cache", {})
-            peptide_relation_cache = session.info['peptide_relation_cache']
+            peptide_relation_cache = session.info.get("peptide_relation_cache")
+            if peptide_relation_cache is None:
+                peptide_relation_cache = session.info['peptide_relation_cache'] = LRUDict(maxsize=1024)
         inst = FragmentCachingGlycopeptide(self.glycopeptide_sequence)
         inst.id = self.id
         try:
