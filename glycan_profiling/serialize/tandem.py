@@ -225,7 +225,7 @@ class GlycopeptideSpectrumMatch(Base, SpectrumMatchBase):
             GlycopeptideSpectrumSolutionSet.id, ondelete='CASCADE'),
         index=True)
     solution_set = relationship(
-        GlycopeptideSpectrumSolutionSet, backref=backref("spectrum_matches", lazy=True))
+        GlycopeptideSpectrumSolutionSet, backref=backref("spectrum_matches", lazy='dynamic'))
 
     q_value = Column(Numeric(8, 7, asdecimal=False), index=True)
     is_decoy = Column(Boolean, index=True)
