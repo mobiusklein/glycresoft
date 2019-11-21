@@ -93,13 +93,13 @@ class SpectrumClusterBase(object):
     def __iter__(self):
         return iter(self.spectrum_solutions)
 
-    def convert(self, mass_shift_cache=None, scan_cache=None, structure_cache=None):
+    def convert(self, mass_shift_cache=None, scan_cache=None, structure_cache=None, **kwargs):
         if scan_cache is None:
             scan_cache = dict()
         if mass_shift_cache is None:
             mass_shift_cache = dict()
         matches = [x.convert(mass_shift_cache=mass_shift_cache, scan_cache=scan_cache,
-                             structure_cache=structure_cache) for x in self.spectrum_solutions]
+                             structure_cache=structure_cache, **kwargs) for x in self.spectrum_solutions]
         return matches
 
 
@@ -190,7 +190,7 @@ class GlycopeptideSpectrumSolutionSet(Base, SolutionSetBase, BoundToAnalysis):
                 analysis_id, inst.id, is_decoy, *args, **kwargs)
         return inst
 
-    def convert(self, mass_shift_cache=None, scan_cache=None, structure_cache=None):
+    def convert(self, mass_shift_cache=None, scan_cache=None, structure_cache=None, peptide_relation_cache=None):
         if scan_cache is None:
             scan_cache = dict()
         session = object_session(self)
@@ -201,7 +201,8 @@ class GlycopeptideSpectrumSolutionSet(Base, SolutionSetBase, BoundToAnalysis):
         else:
             spectrum_match_q = self.spectrum_matches
         matches = [x.convert(mass_shift_cache=mass_shift_cache, scan_cache=scan_cache,
-                             structure_cache=structure_cache) for x in spectrum_match_q]
+                             structure_cache=structure_cache, peptide_relation_cache=peptide_relation_cache)
+                             for x in spectrum_match_q]
         matches.sort(key=lambda x: x.score, reverse=True)
         inst = MemorySpectrumSolutionSet(
             convert_scan_to_record(self.scan),
