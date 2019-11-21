@@ -172,7 +172,30 @@ class IdentifiedGlycopeptide(Base, IdentifiedStructure):
         chromatogram.chromatogram.entity = structure
         return chromatogram
 
-    def convert(self, expand_shared_with=True, mass_shift_cache=None, scan_cache=None, structure_cache=None, *args, **kwargs):
+    @classmethod
+    def bulk_convert(cls, iterable, expand_shared_with=True, mass_shift_cache=None, scan_cache=None,
+                     structure_cache=None, peptide_relation_cache=None, *args, **kwargs):
+        if mass_shift_cache is None:
+            mass_shift_cache = {}
+        if scan_cache is None:
+            scan_cache = {}
+        if structure_cache is None:
+            structure_cache = {}
+        if peptide_relation_cache is None:
+            peptide_relation_cache = {}
+        result = [
+            obj.convert(expand_shared_with=expand_shared_with,
+                        mass_shift_cache=mass_shift_cache,
+                        scan_cache=scan_cache,
+                        structure_cache=structure_cache,
+                        peptide_relation_cache=peptide_relation_cache,
+                        *args, **kwargs)
+            for obj in iterable]
+        return result
+
+
+    def convert(self, expand_shared_with=True, mass_shift_cache=None, scan_cache=None, structure_cache=None,
+                peptide_relation_cache=None, *args, **kwargs):
         # bind this name late to avoid circular import error
         from glycan_profiling.tandem.glycopeptide.identified_structure import (
             IdentifiedGlycopeptide as MemoryIdentifiedGlycopeptide)
@@ -183,12 +206,14 @@ class IdentifiedGlycopeptide(Base, IdentifiedStructure):
             scan_cache = dict()
         if structure_cache is None:
             structure_cache = dict()
-
+        if peptide_relation_cache is None:
+            peptide_relation_cache = dict()
         if expand_shared_with and self.shared_with:
             stored = list(self.shared_with)
             converted = [
                 x.convert(expand_shared_with=False, mass_shift_cache=mass_shift_cache,
-                          scan_cache=scan_cache, structure_cache=structure_cache, *args, **kwargs) for x in stored]
+                          scan_cache=scan_cache, structure_cache=structure_cache,
+                          peptide_relation_cache=peptide_relation_cache, * args, **kwargs) for x in stored]
             for i in range(len(stored)):
                 converted[i].shared_with = converted[:i] + converted[i + 1:]
             for i, member in enumerate(stored):
@@ -196,8 +221,15 @@ class IdentifiedGlycopeptide(Base, IdentifiedStructure):
                     return converted[i]
         else:
             spectrum_matches = self.spectrum_cluster.convert(
-                mass_shift_cache=mass_shift_cache, scan_cache=scan_cache, structure_cache=structure_cache)
-            structure = self.structure.convert()
+                mass_shift_cache=mass_shift_cache, scan_cache=scan_cache,
+                structure_cache=structure_cache, peptide_relation_cache=peptide_relation_cache)
+            if structure_cache is not None:
+                try:
+                    structure = structure_cache[self.structure_id]
+                except KeyError:
+                    structure = structure_cache[self.structure_id] = self.structure.convert()
+            else:
+                structure = self.structure.convert()
 
             chromatogram = self.chromatogram
             if chromatogram is not None:
