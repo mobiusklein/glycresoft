@@ -5,7 +5,8 @@ from sqlalchemy import (
     Column, Numeric, Integer, String, ForeignKey, PickleType,
     Boolean, Table)
 from sqlalchemy.ext.declarative import declared_attr
-from sqlalchemy.orm import relationship, backref, object_session, deferred, synonym
+from sqlalchemy.orm import (
+    relationship, backref, object_session, deferred, synonym, Load)
 from sqlalchemy.exc import OperationalError
 
 from glycan_profiling.tandem.spectrum_match import (
@@ -192,8 +193,15 @@ class GlycopeptideSpectrumSolutionSet(Base, SolutionSetBase, BoundToAnalysis):
     def convert(self, mass_shift_cache=None, scan_cache=None, structure_cache=None):
         if scan_cache is None:
             scan_cache = dict()
+        session = object_session(self)
+        flag = session.info.get("has_spectrum_match_mass_shift")
+        if flag:
+            spectrum_match_q = self.spectrum_matches.options(
+                Load(GlycopeptideSpectrumMatch).undefer("mass_shift_id"))
+        else:
+            spectrum_match_q = self.spectrum_matches
         matches = [x.convert(mass_shift_cache=mass_shift_cache, scan_cache=scan_cache,
-                             structure_cache=structure_cache) for x in self.spectrum_matches]
+                             structure_cache=structure_cache) for x in spectrum_match_q]
         matches.sort(key=lambda x: x.score, reverse=True)
         inst = MemorySpectrumSolutionSet(
             convert_scan_to_record(self.scan),
@@ -216,7 +224,7 @@ class GlycopeptideSpectrumMatch(Base, SpectrumMatchBase):
             GlycopeptideSpectrumSolutionSet.id, ondelete='CASCADE'),
         index=True)
     solution_set = relationship(
-        GlycopeptideSpectrumSolutionSet, backref=backref("spectrum_matches", lazy='subquery'))
+        GlycopeptideSpectrumSolutionSet, backref=backref("spectrum_matches", lazy=True))
 
     q_value = Column(Numeric(8, 7, asdecimal=False), index=True)
     is_decoy = Column(Boolean, index=True)
