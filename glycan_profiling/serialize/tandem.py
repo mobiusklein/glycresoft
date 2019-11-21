@@ -52,14 +52,14 @@ class SpectrumMatchBase(BoundToAnalysis):
     def _check_mass_shift(self, session):
         flag = session.info.get("has_spectrum_match_mass_shift")
         if flag:
-            return self.mass_shift
+            return self.mass_shift_id
         elif flag is None:
             try:
                 session.begin_nested()
-                shift = self.mass_shift
+                shift_id = self.mass_shift_id
                 session.rollback()
                 session.info["has_spectrum_match_mass_shift"] = True
-                return shift
+                return shift_id
             except OperationalError as err:
                 session.rollback()
                 warnings.warn(
@@ -71,17 +71,18 @@ class SpectrumMatchBase(BoundToAnalysis):
             return None
 
     def _resolve_mass_shift(self, session, mass_shift_cache=None):
-        mass_shift = self._check_mass_shift(session)
-        if mass_shift is not None:
+        mass_shift_id = self._check_mass_shift(session)
+        if mass_shift_id is not None:
             if mass_shift_cache is not None:
                 try:
-                    mass_shift = mass_shift_cache[mass_shift.id]
+                    mass_shift = mass_shift_cache[mass_shift_id]
                 except KeyError:
-                    mass_shift_cache[mass_shift.id] = mass_shift.convert()
-                    mass_shift = mass_shift_cache[mass_shift.id]
+                    mass_shift = self.mass_shift
+                    mass_shift_cache[mass_shift_id] = mass_shift.convert()
+                    mass_shift = mass_shift_cache[mass_shift_id]
                 return mass_shift
             else:
-                return mass_shift.convert()
+                return self.mass_shift.convert()
         else:
             return None
 
@@ -197,9 +198,9 @@ class GlycopeptideSpectrumSolutionSet(Base, SolutionSetBase, BoundToAnalysis):
         flag = session.info.get("has_spectrum_match_mass_shift")
         if flag:
             spectrum_match_q = self.spectrum_matches.options(
-                Load(GlycopeptideSpectrumMatch).undefer("mass_shift_id"))
+                Load(GlycopeptideSpectrumMatch).undefer("mass_shift_id")).all()
         else:
-            spectrum_match_q = self.spectrum_matches
+            spectrum_match_q = self.spectrum_matches.all()
         matches = [x.convert(mass_shift_cache=mass_shift_cache, scan_cache=scan_cache,
                              structure_cache=structure_cache, peptide_relation_cache=peptide_relation_cache)
                              for x in spectrum_match_q]
