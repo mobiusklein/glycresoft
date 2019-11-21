@@ -265,7 +265,7 @@ class GlycopeptideSpectrumMatch(Base, SpectrumMatchBase):
             GlycopeptideSpectrumMatchScoreSet.serialize_from_spectrum_match(obj, session, inst.id)
         return inst
 
-    def convert(self, mass_shift_cache=None, scan_cache=None, structure_cache=None):
+    def convert(self, mass_shift_cache=None, scan_cache=None, structure_cache=None, peptide_relation_cache=None):
         session = object_session(self)
         key = self.scan_id
         if scan_cache is None:
@@ -283,7 +283,8 @@ class GlycopeptideSpectrumMatch(Base, SpectrumMatchBase):
             try:
                 target = structure_cache[key]
             except KeyError:
-                target = structure_cache[key] = session.query(Glycopeptide).get(key).convert()
+                target = structure_cache[key] = session.query(Glycopeptide).get(
+                    key).convert(peptide_relation_cache=peptide_relation_cache)
 
         mass_shift = self._resolve_mass_shift(session, mass_shift_cache)
         if self.score_set is None:
