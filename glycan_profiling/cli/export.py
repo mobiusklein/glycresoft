@@ -234,7 +234,7 @@ def glycopeptide_identification(database_connection, analysis_identifier, output
 
         def generate():
             i = 0
-            interval = 1000
+            interval = 500
             query = session.query(IdentifiedGlycopeptide).filter(
                 IdentifiedGlycopeptide.analysis_id == analysis_id)
             while True:
@@ -242,8 +242,9 @@ def glycopeptide_identification(database_connection, analysis_identifier, output
                 chunk = query.slice(i, i + interval).all()
                 if len(chunk) == 0:
                     break
+                chunk = IdentifiedGlycopeptide.bulk_convert(chunk)
                 for glycopeptide in chunk:
-                    yield glycopeptide.convert()
+                    yield glycopeptide
                 i += interval
         with output_stream:
             job = GlycopeptideLCMSMSAnalysisCSVSerializer(output_stream, generate(), protein_index)
