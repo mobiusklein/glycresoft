@@ -16,6 +16,7 @@ from glycan_profiling.structure import ScanStub
 
 from glycan_profiling.database import disk_backed_database, mass_collection
 from glycan_profiling.structure.structure_loader import PeptideDatabaseRecord
+from glycan_profiling.structure.scan import ScanInformationLoader
 
 from glycan_profiling.chromatogram_tree.chromatogram import GlycopeptideChromatogram
 from ...chromatogram_mapping import ChromatogramMSMSMapper
@@ -316,7 +317,8 @@ class MultipartGlycopeptideIdentifier(TaskBase):
         total_solutions_count = self.run_identification_pipeline(
             scan_groups)
         self.log("Loading Spectrum Matches From Journal...")
-        reader = enumerate(JournalFileReader(self.journal_path, scan_loader=self.scan_loader, mass_shift_map={
+        reader = enumerate(JournalFileReader(
+            self.journal_path, scan_loader=ScanInformationLoader(self.scan_loader), mass_shift_map={
             m.name: m for m in self.mass_shifts
         }))
         solutions = []

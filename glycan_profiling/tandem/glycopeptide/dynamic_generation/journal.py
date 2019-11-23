@@ -216,7 +216,8 @@ class JournalFileReader(TaskBase):
         return fdr_set
 
     def _make_mass_shift(self, row):
-        mass_shift = MassShift(row['mass_shift'], MassShift.get(row['mass_shift']))
+        # mass_shift = MassShift(row['mass_shift'], MassShift.get(row['mass_shift']))
+        mass_shift = self.mass_shift_map[row['mass_shift']]
         return mass_shift
 
     def _make_scan(self, row):
