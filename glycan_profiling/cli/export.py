@@ -234,7 +234,7 @@ def glycopeptide_identification(database_connection, analysis_identifier, output
 
         def generate():
             i = 0
-            interval = 500
+            interval = 100
             query = session.query(IdentifiedGlycopeptide).filter(
                 IdentifiedGlycopeptide.analysis_id == analysis_id)
             while True:
@@ -242,6 +242,7 @@ def glycopeptide_identification(database_connection, analysis_identifier, output
                 chunk = query.slice(i, i + interval).all()
                 if len(chunk) == 0:
                     break
+                click.echo("Loading %d Entities" % (i + interval), err=True)
                 chunk = IdentifiedGlycopeptide.bulk_convert(chunk)
                 for glycopeptide in chunk:
                     yield glycopeptide
