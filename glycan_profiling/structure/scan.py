@@ -121,7 +121,9 @@ class ScanInformation(object):
     consumption.
     """
 
-    __slots__ = ("id", "index", "scan_time", "ms_level", "precursor_information", "activation")
+    __slots__ = ("id", "index", "scan_time", "ms_level",
+                 "precursor_information", "activation",
+                 "__weakref__")
 
     def __init__(self, scan_id, index, scan_time, ms_level, precursor_information, activation=None):
         self.id = scan_id
