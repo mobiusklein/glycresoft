@@ -260,7 +260,11 @@ class ElutionTimeFitter(ScoringFeatureBase):
         rss = (np.diag(w) * residuals * residuals).sum()
         return rss
 
-    def R2(self):
+    @property
+    def mse(self):
+        return self.rss / (len(self.apex_time_array) - len(self.parameters) - 1.0)
+
+    def R2(self, adjust=False):
         x = self.data
         y = self.apex_time_array
         w = self.weight_matrix
@@ -269,7 +273,13 @@ class ElutionTimeFitter(ScoringFeatureBase):
         rss = (np.diag(w) * residuals * residuals).sum()
         tss = (y - y.mean())
         tss = (np.diag(w) * tss * tss).sum()
-        R2 = (1 - (rss / tss))
+        n = len(y)
+        k = len(self.parameters)
+        if adjust:
+            adjustment_factor = (n - 1.0) / float(n - k - 1.0)
+        else:
+            adjustment_factor = 1.0
+        R2 = (1 - adjustment_factor * (rss / tss))
         return R2
 
     def predict(self, chromatogram):
@@ -566,12 +576,12 @@ class PartitioningElutionTimeFitter(ElutionTimeFitter):
         ax.set_ylabel("Elution Apex Time\n(Minutes)", fontsize=16)
         return ax
 
-    def R2(self):
+    def R2(self, adjust=False):
         total = 0
         weights = 0
         for group, subfit in self.subfits.items():
             weight = subfit.weight_matrix.sum() * 100
-            total += subfit.R2() * weight
+            total += subfit.R2(adjust) * weight
             weights += weight
         return total / weights
 
@@ -721,7 +731,7 @@ class RecalibratingPredictor(object):
         score[score < 1e-3] = 1e-3
         return score
 
-    def R2(self):
+    def R2(self, adjust=False):
         y = self.apex_time_array
         w = self.weight_array
         yhat = self.predicted_apex_time_array
@@ -729,7 +739,13 @@ class RecalibratingPredictor(object):
         rss = (w * residuals * residuals).sum()
         tss = (y - y.mean())
         tss = (w * tss * tss).sum()
-        R2 = (1 - (rss / tss))
+        if adjust:
+            n = len(y)
+            k = len(self.model.parameters)
+            adjustment_factor = (n - 1.0) / float(n - k - 1.0)
+        else:
+            adjustment_factor = 1.0
+        R2 = (1 - adjustment_factor * (rss / tss))
         return R2
 
     @classmethod
