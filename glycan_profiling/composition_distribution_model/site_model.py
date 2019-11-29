@@ -71,6 +71,22 @@ class GlycosylationSiteModel(object):
         except KeyError:
             return GlycanPriorRecord(MINIMUM, False)
 
+    def __eq__(self, other):
+        if self.protein_name != other.protein_name:
+            return False
+        if self.position != other.position:
+            return False
+        if not np.isclose(self.lmbda, other.lmbda):
+            return False
+        if self.site_distribution != other.site_distribution:
+            return False
+        if self.glycan_map != other.glycan_map:
+            return False
+        return True
+
+    def __ne__(self, other):
+        return not (self == other)
+
     def to_dict(self):
         d = {}
         d['protein_name'] = self.protein_name
