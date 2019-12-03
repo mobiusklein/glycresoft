@@ -233,6 +233,9 @@ class SpectrumSolutionSet(ScanWrapperBase):
         self._is_top_only = False
         self._target_map = None
 
+    def is_multiscore(self):
+        return False
+
     def _invalidate(self):
         self._target_map = None
         self._is_sorted = False
@@ -477,6 +480,9 @@ class SpectrumSolutionSet(ScanWrapperBase):
 class MultiScoreSpectrumSolutionSet(SpectrumSolutionSet):
     spectrum_match_type = MultiScoreSpectrumMatch
     default_selection_method = default_multiscore_selection_method
+
+    def is_multiscore(self):
+        return True
 
     # note: Sorting by total score is not guaranteed to sort by total
     # FDR, so a post-FDR estimation re-ranking of spectrum matches will

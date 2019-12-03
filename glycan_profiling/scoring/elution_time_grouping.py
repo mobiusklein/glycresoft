@@ -223,6 +223,9 @@ class ElutionTimeFitter(ScoringFeatureBase):
                          chromatogram.weighted_neutral_mass,
                          ])
 
+    def feature_names(self):
+        return ['intercept', 'mass']
+
     def _prepare_data_matrix(self, mass_array):
         return np.vstack((
             np.ones(len(mass_array)),
@@ -263,6 +266,16 @@ class ElutionTimeFitter(ScoringFeatureBase):
     @property
     def mse(self):
         return self.rss / (len(self.apex_time_array) - len(self.parameters) - 1.0)
+
+    def parameter_significance(self):
+        XtWX_inv = np.linalg.pinv((self.data.T.dot(self.weight_matrix).dot(self.data)))
+        # With unknown variance, use the mean squared error estimate
+        sigma_params = np.sqrt(np.diag(self.mse * XtWX_inv))
+        degrees_of_freedom = len(self.apex_time_array) - len(self.parameters) - 1.0
+        # interval = stats.t.interval(1 - alpha / 2.0, degrees_of_freedom)
+        t_score = np.abs(self.parameters) / sigma_params
+        p_value = stats.t.sf(t_score, degrees_of_freedom) * 2
+        return p_value
 
     def R2(self, adjust=False):
         x = self.data
@@ -327,15 +340,6 @@ class ElutionTimeFitter(ScoringFeatureBase):
         return self.__class__(self.chromatograms)
 
 
-class ScoreWeightedElutionTimeFitter(ElutionTimeFitter):
-    def build_weight_matrix(self):
-        W = np.eye(len(self.chromatograms)) * [
-            x.score for x in self.chromatograms
-        ]
-        W /= W.max()
-        return W
-
-
 class AbundanceWeightedElutionTimeFitter(ElutionTimeFitter):
     def build_weight_matrix(self):
         W = np.eye(len(self.chromatograms)) * [
@@ -351,6 +355,9 @@ class FactorElutionTimeFitter(ElutionTimeFitter):
             factors = ['Hex', 'HexNAc', 'Fuc', 'Neu5Ac']
         self.factors = list(factors)
         super(FactorElutionTimeFitter, self).__init__(chromatograms, scale=scale)
+
+    def feature_names(self):
+        return ['intercept'] + self.factors
 
     def _prepare_data_matrix(self, mass_array):
         return np.vstack((
@@ -479,6 +486,63 @@ class AbundanceWeightedPeptideFactorElutionTimeFitter(PeptideFactorElutionTimeFi
         ]
         W /= W.max()
         return W
+
+
+class ReplicatedAbundanceWeightedPeptideFactorElutionTimeFitter(AbundanceWeightedPeptideFactorElutionTimeFitter):
+    def __init__(self, chromatograms, factors=None, scale=1):
+        if factors is None:
+            factors = ['Hex', 'HexNAc', 'Fuc', 'Neu5Ac']
+        self._replicate_to_indicator = defaultdict(make_counter(0))
+        # Ensure that _replicate_to_indicator is properly initialized
+        for obs in chromatograms:
+            _ = self._replicate_to_indicator[self._get_replicate_key(obs)]
+        super(ReplicatedAbundanceWeightedPeptideFactorElutionTimeFitter, self).__init__(
+            chromatograms, list(factors), scale)
+
+    def _get_replicate_key(self, chromatogram):
+        return getattr(chromatogram, 'replicate_id')
+
+    def _prepare_data_matrix(self, mass_array):
+        design_matrix = super(
+            ReplicatedAbundanceWeightedPeptideFactorElutionTimeFitter,
+            self)._prepare_data_matrix(mass_array)
+        p = len(self._replicate_to_indicator)
+        n = len(self.chromatograms)
+        replicate_matrix = np.zeros((p, n))
+        indicator = dict(self._replicate_to_indicator)
+        for i, c in enumerate(self.chromatograms):
+            try:
+                j = indicator[self._get_replicate_key(c)]
+                replicate_matrix[j, i] = 1
+            except KeyError:
+                pass
+        return np.hstack((replicate_matrix.T, design_matrix))
+
+    def feature_names(self):
+        names = ['intercept', ]
+        replicates = [None] * len(self._replicate_to_indicator)
+        for key, value in self._replicate_to_indicator.items():
+            replicates[value] = key
+        names.extend(replicates)
+        peptides = [None] * len(self._peptide_to_indicator)
+        for key, value in self._peptide_to_indicator.items():
+            peptides[value] = key
+        names.extend(peptides)
+        names.extend(self.factors)
+        return names
+
+    def _prepare_data_vector(self, chromatogram):
+        data_vector = super(
+            ReplicatedAbundanceWeightedPeptideFactorElutionTimeFitter,
+            self)._prepare_data_vector(chromatogram)
+        p = len(self._replicate_to_indicator)
+        replicates = [0 for i in range(p)]
+        indicator = dict(self._replicate_to_indicator)
+        try:
+            replicates[indicator[self._get_replicate_key(chromatogram)]] = 1
+        except KeyError:
+            pass
+        return np.hstack((replicates, data_vector))
 
 
 def is_high_mannose(composition):

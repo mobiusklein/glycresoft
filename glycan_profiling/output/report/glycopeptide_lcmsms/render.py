@@ -116,8 +116,8 @@ class GlycopeptideDatabaseSearchReportCreator(ReportCreatorBase):
                 raise IOError((
                     "No such file {}. If {} was relocated, you may need to explicily pass the"
                     " corrected file path.").format(
-                    self.mzml_path,
-                    self.database_connection._original_connection))
+                        self.mzml_path,
+                        self.database_connection._original_connection))
             self.scan_loader = ProcessedMzMLDeserializer(self.mzml_path)
 
     def iterglycoproteins(self):
@@ -127,10 +127,10 @@ class GlycopeptideDatabaseSearchReportCreator(ReportCreatorBase):
             glycopeptides = self.session.query(
                 IdentifiedGlycopeptide).join(Glycopeptide).join(
                 Protein).filter(
-                IdentifiedGlycopeptide.analysis_id == self.analysis_id,
-                Glycopeptide.hypothesis_id == self.hypothesis_id,
-                IdentifiedGlycopeptide.ms2_score > self.threshold,
-                Protein.id == protein.id).all()
+                    IdentifiedGlycopeptide.analysis_id == self.analysis_id,
+                    Glycopeptide.hypothesis_id == self.hypothesis_id,
+                    IdentifiedGlycopeptide.ms2_score > self.threshold,
+                    Protein.id == protein.id).all()
             glycoprotein = IdentifiedGlycoprotein(protein, glycopeptides)
             self.status_update(
                 "Processing %s (%d/%d) %0.2f%%" % (
