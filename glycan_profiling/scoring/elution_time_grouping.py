@@ -221,7 +221,7 @@ class ElutionTimeFitter(ScoringFeatureBase):
     def _prepare_data_vector(self, chromatogram):
         return np.array([1,
                          chromatogram.weighted_neutral_mass,
-                         ])
+                        ])
 
     def feature_names(self):
         return ['intercept', 'mass']
@@ -277,6 +277,17 @@ class ElutionTimeFitter(ScoringFeatureBase):
         p_value = stats.t.sf(t_score, degrees_of_freedom) * 2
         return p_value
 
+    def parameter_confidence_interval(self, alpha=0.05):
+        X = self.data
+        sigma_params = np.sqrt(
+            np.diag((self.mse) * np.linalg.pinv(
+                X.T.dot(self.weight_matrix).dot(X))))
+        degrees_of_freedom = len(self.apex_time_array) - \
+            len(self.parameters) - 1
+        iv = stats.t.interval((1 - alpha) / 2., degrees_of_freedom)
+        iv = np.array(iv) * sigma_params.reshape((-1, 1))
+        return np.array(self.parameters).reshape((-1, 1)) + iv
+
     def R2(self, adjust=False):
         x = self.data
         y = self.apex_time_array
@@ -322,7 +333,7 @@ class ElutionTimeFitter(ScoringFeatureBase):
 
     def plot(self, ax=None):
         if ax is None:
-            fig, ax = plt.subplots(1)
+            _fig, ax = plt.subplots(1)
         ax.scatter(self.neutral_mass_array, self.apex_time_array, label='Observed')
         theoretical_mass = np.linspace(
             max(self.neutral_mass_array.min() - 200, 0),
@@ -376,7 +387,7 @@ class FactorElutionTimeFitter(ElutionTimeFitter):
     def plot(self, ax=None, include_intervals=True):
         from glycan_profiling.plotting.colors import ColorMapper
         if ax is None:
-            fig, ax = plt.subplots(1)
+            _fig, ax = plt.subplots(1)
         colorer = ColorMapper()
         factors = self.factors
         column_offset = 1
@@ -451,15 +462,16 @@ class PeptideFactorElutionTimeFitter(FactorElutionTimeFitter):
                 peptides[j, i] = 1
             except KeyError:
                 pass
+        # Omit the intercept, so that all peptide levels are used without inducing linear dependence.
         return np.vstack((
-            np.ones(len(mass_array)), peptides,
+            peptides,
         ) + tuple(
             np.array([c.glycan_composition[f] for c in self.chromatograms])
             for f in self.factors)
         ).T
 
     def feature_names(self):
-        names = ['intercept', ]
+        names = []
         peptides = [None] * len(self._peptide_to_indicator)
         for key, value in self._peptide_to_indicator.items():
             peptides[value] = key
@@ -472,11 +484,12 @@ class PeptideFactorElutionTimeFitter(FactorElutionTimeFitter):
         peptides = [0 for i in range(p)]
         indicator = dict(self._peptide_to_indicator)
         try:
-            peptides[indicator[self._get_peptide_key(chromatogram)]] = 1
+            key_index = self._get_peptide_key(chromatogram)
+            peptides[indicator[key_index]] = 1
         except KeyError:
             pass
         return np.array(
-            [1,] + peptides + [chromatogram.glycan_composition[f] for f in self.factors])
+            peptides + [chromatogram.glycan_composition[f] for f in self.factors])
 
 
 class AbundanceWeightedPeptideFactorElutionTimeFitter(PeptideFactorElutionTimeFitter):
@@ -512,14 +525,17 @@ class ReplicatedAbundanceWeightedPeptideFactorElutionTimeFitter(AbundanceWeighte
         indicator = dict(self._replicate_to_indicator)
         for i, c in enumerate(self.chromatograms):
             try:
+                # Here, if one of the levels is not omitted, the matrix will be linearly dependent.
+                # So drop the 0th factor level.
                 j = indicator[self._get_replicate_key(c)]
-                replicate_matrix[j, i] = 1
+                if j != 0:
+                    replicate_matrix[j, i] = 1
             except KeyError:
                 pass
         return np.hstack((replicate_matrix.T, design_matrix))
 
     def feature_names(self):
-        names = ['intercept', ]
+        names = []
         replicates = [None] * len(self._replicate_to_indicator)
         for key, value in self._replicate_to_indicator.items():
             replicates[value] = key
@@ -539,7 +555,11 @@ class ReplicatedAbundanceWeightedPeptideFactorElutionTimeFitter(AbundanceWeighte
         replicates = [0 for i in range(p)]
         indicator = dict(self._replicate_to_indicator)
         try:
-            replicates[indicator[self._get_replicate_key(chromatogram)]] = 1
+            # Here, if one of the levels is not omitted, the matrix will be linearly dependent.
+            # So drop the 0th factor level.
+            j = self._get_replicate_key(chromatogram)
+            if j != 0:
+                replicates[indicator[j]] = 1
         except KeyError:
             pass
         return np.hstack((replicates, data_vector))
