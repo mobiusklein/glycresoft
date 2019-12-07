@@ -116,6 +116,81 @@ class IdentifiedGlycopeptide(Base, IdentifiedStructure):
             "members", lazy='dynamic'))
 
     @property
+    def score_set(self):
+        """The :class:`~.ScoreSet` of the best MS/MS match
+
+        Returns
+        -------
+        :class:`~.ScoreSet`
+        """
+        if not self.is_multiscore():
+            return None
+        best_match = self._best_spectrum_match
+        if best_match is None:
+            return None
+        return best_match.score_set
+
+    @property
+    def best_spectrum_match(self):
+        return self._best_spectrum_match
+
+    @property
+    def q_value_set(self):
+        """The :class:`~.FDRSet` of the best MS/MS match
+
+        Returns
+        -------
+        :class:`~.FDRSet`
+        """
+        if not self.is_multiscore():
+            return None
+        best_match = self._best_spectrum_match
+        if best_match is None:
+            return None
+        return best_match.q_value_set
+
+    def is_multiscore(self):
+        """Check whether this match collection has been produced by summarizing a multi-score
+        match, rather than a single score match.
+
+        Returns
+        -------
+        bool
+        """
+        return self.spectrum_cluster.is_multiscore()
+
+    def _find_best_spectrum_match(self):
+        is_multiscore = self.is_multiscore()
+        best_match = None
+        if is_multiscore:
+            best_score = 0.0
+            best_q_value = 1.0
+        else:
+            best_score = 0.0
+        for solution_set in self.spectrum_cluster:
+            try:
+                match = solution_set.solution_for(self.structure)
+                if is_multiscore:
+                    q_value = match.q_value
+                    if q_value <= best_q_value:
+                        best_q_value = q_value
+                        score = match.score
+                        if score > best_score:
+                            best_score = score
+                            best_match = match
+                else:
+                    score = match.score
+                    if score > best_score:
+                        best_score = score
+                        best_match = match
+            except KeyError:
+                continue
+        self._best_spectrum_match = best_match
+        self.ms2_score = best_match.score
+        self.q_value = best_match.q_value
+        return best_match
+
+    @property
     def glycan_composition(self):
         return self.structure.glycan_composition
 

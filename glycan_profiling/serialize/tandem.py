@@ -123,36 +123,6 @@ class SpectrumClusterBase(object):
         """
         return self[0].is_multiscore()
 
-    def _find_best_spectrum_match(self):
-        is_multiscore = self.is_multiscore()
-        best_match = None
-        if is_multiscore:
-            best_score = 0.0
-            best_q_value = 1.0
-        else:
-            best_score = 0.0
-        for solution_set in self.spectrum_matches:
-            try:
-                match = solution_set.solution_for(self.structure)
-                if is_multiscore:
-                    q_value = match.q_value
-                    if q_value <= best_q_value:
-                        best_q_value = q_value
-                        score = match.score
-                        if score > best_score:
-                            best_score = score
-                            best_match = match
-                else:
-                    score = match.score
-                    if score > best_score:
-                        best_score = score
-                        best_match = match
-            except KeyError:
-                continue
-        self._best_spectrum_match = best_match
-        self.ms2_score = best_match.score
-        self.q_value = best_match.q_value
-        return best_match
 
 class SolutionSetBase(object):
 

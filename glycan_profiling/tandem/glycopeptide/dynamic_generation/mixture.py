@@ -1,6 +1,6 @@
 import numpy as np
 from scipy import stats
-from scipy.misc import logsumexp
+from scipy.special import logsumexp
 
 try:
     from matplotlib import pyplot as plt
