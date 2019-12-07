@@ -119,8 +119,8 @@ class IdentifiedStructure(object):
             except KeyError:
                 continue
         self._best_spectrum_match = best_match
-        self.ms2_score = best_score
-        self.q_value = best_q_value
+        self.ms2_score = best_match.score
+        self.q_value = best_match.q_value
         return best_match
 
     @property
