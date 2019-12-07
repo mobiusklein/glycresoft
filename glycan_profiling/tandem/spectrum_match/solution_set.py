@@ -234,6 +234,13 @@ class SpectrumSolutionSet(ScanWrapperBase):
         self._target_map = None
 
     def is_multiscore(self):
+        """Check whether this match has been produced by summarizing a multi-score
+        match, rather than a single score match.
+
+        Returns
+        -------
+        bool
+        """
         return False
 
     def _invalidate(self):

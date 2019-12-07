@@ -18,23 +18,6 @@ class IdentifiedGlycopeptide(IdentifiedStructure):
         self.q_value = min(s.q_value for s in self.spectrum_matches)
         self.protein_relation = self.structure.protein_relation
 
-    def is_multiscore(self):
-        return self.spectrum_matches[0].is_multiscore()
-
-    @property
-    def score_set(self):
-        if not self.is_multiscore():
-            return None
-        best_match = min(self.spectrum_matches, key=lambda x: x.q_value)
-        return best_match.score_set
-
-    @property
-    def q_value_set(self):
-        if not self.is_multiscore():
-            return None
-        best_match = min(self.spectrum_matches, key=lambda x: x.q_value)
-        return best_match.q_value_set
-
     @property
     def start_position(self):
         return self.protein_relation.start_position

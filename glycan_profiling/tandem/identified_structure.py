@@ -1,3 +1,6 @@
+'''A set of base implementations for summarizing identified structures
+with both MS1 and MSn.
+'''
 import numpy as np
 
 from glycan_profiling.chromatogram_tree import get_chromatogram, ArithmeticMapping
@@ -6,19 +9,119 @@ from .chromatogram_mapping import TandemSolutionsWithoutChromatogram
 
 
 class IdentifiedStructure(object):
+    """A base class for summarizing structures identified by tandem MS
+    and matched to MS1 signal.
+
+    Attributes
+    ----------
+    structure: object
+        The structure object identified.
+    spectrum_matches: :class:`list` of :class:`~.SolutionSet`
+        The MSn spectra that were matched. This is a list of solution sets,
+        so other structures may be present, and in the case of multi-score
+        matches, they may even appear to score higher.
+    chromatogram: :class:`~.ChromatogramSolution`
+        The MS1 signal over time matched.
+    ms2_score: float
+        The best MSn identification score. Usually the highest score amongst
+        all spectra matched.
+    q_value: float
+        The best FDR estimate for this structure. Always the lowest amongst
+        all spectra matched.
+    ms1_score: float
+        The score of :attr:`chromatogram`, or :const:`0` if it is :const:`None`.
+    total_signal: float
+        The total abundance of :attr:`chromatogram`.
+    shared_with: list
+        Other :class:`IdentifiedStructure` instances which match the same signal.
+    """
     def __init__(self, structure, spectrum_matches, chromatogram, shared_with=None):
         if shared_with is None:
             shared_with = []
         self.structure = structure
         self.spectrum_matches = spectrum_matches
         self.chromatogram = chromatogram
-        self.ms2_score = max(s.score for s in spectrum_matches)
+        self._best_spectrum_match = None
+        self.ms2_score = None
+        self.q_value = None
+        self._find_best_spectrum_match()
         self.ms1_score = chromatogram.score if chromatogram is not None else 0
         self.total_signal = chromatogram.total_signal if chromatogram is not None else 0
         self.charge_states = chromatogram.charge_states if chromatogram is not None else {
             psm.scan.precursor_information.charge for psm in spectrum_matches
         }
         self.shared_with = shared_with
+
+    def is_multiscore(self):
+        """Check whether this match has been produced by summarizing a multi-score
+        match, rather than a single score match.
+
+        Returns
+        -------
+        bool
+        """
+        return self.spectrum_matches[0].is_multiscore()
+
+    @property
+    def score_set(self):
+        """The :class:`~.ScoreSet` of the best MS/MS match
+
+        Returns
+        -------
+        :class:`~.ScoreSet`
+        """
+        if not self.is_multiscore():
+            return None
+        best_match = self._best_spectrum_match
+        if best_match is None:
+            return None
+        return best_match.score_set
+
+    @property
+    def q_value_set(self):
+        """The :class:`~.FDRSet` of the best MS/MS match
+
+        Returns
+        -------
+        :class:`~.FDRSet`
+        """
+        if not self.is_multiscore():
+            return None
+        best_match = self._best_spectrum_match
+        if best_match is None:
+            return None
+        return best_match.q_value_set
+
+    def _find_best_spectrum_match(self):
+        is_multiscore = self.is_multiscore()
+        best_match = None
+        if is_multiscore:
+            best_score = 0.0
+            best_q_value = 1.0
+        else:
+            best_score = 0.0
+        for solution_set in self.spectrum_matches:
+            try:
+                match = solution_set.solution_for(self.structure)
+                if is_multiscore:
+                    q_value = match.q_value
+                    if q_value <= best_q_value:
+                        best_q_value = q_value
+                        score = match.score
+                        if score > best_score:
+                            best_score = score
+                            best_match = match
+                else:
+                    score = match.score
+                    if score > best_score:
+                        best_score = score
+                        best_match = match
+            except KeyError:
+                continue
+        self._best_spectrum_match = best_match
+        self.ms2_score = best_score
+        self.q_value = best_q_value
+        return best_match
 
     @property
     def neutral_mass(self):
