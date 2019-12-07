@@ -86,6 +86,16 @@ class SpectrumMatchBase(BoundToAnalysis):
         else:
             return None
 
+    def is_multiscore(self):
+        """Check whether this match has been produced by summarizing a multi-score
+        match, rather than a single score match.
+
+        Returns
+        -------
+        bool
+        """
+        return False
+
 
 class SpectrumClusterBase(object):
     def __getitem__(self, i):
@@ -103,6 +113,46 @@ class SpectrumClusterBase(object):
                              structure_cache=structure_cache, **kwargs) for x in self.spectrum_solutions]
         return matches
 
+    def is_multiscore(self):
+        """Check whether this match collection has been produced by summarizing a multi-score
+        match, rather than a single score match.
+
+        Returns
+        -------
+        bool
+        """
+        return self[0].is_multiscore()
+
+    def _find_best_spectrum_match(self):
+        is_multiscore = self.is_multiscore()
+        best_match = None
+        if is_multiscore:
+            best_score = 0.0
+            best_q_value = 1.0
+        else:
+            best_score = 0.0
+        for solution_set in self.spectrum_matches:
+            try:
+                match = solution_set.solution_for(self.structure)
+                if is_multiscore:
+                    q_value = match.q_value
+                    if q_value <= best_q_value:
+                        best_q_value = q_value
+                        score = match.score
+                        if score > best_score:
+                            best_score = score
+                            best_match = match
+                else:
+                    score = match.score
+                    if score > best_score:
+                        best_score = score
+                        best_match = match
+            except KeyError:
+                continue
+        self._best_spectrum_match = best_match
+        self.ms2_score = best_match.score
+        self.q_value = best_match.q_value
+        return best_match
 
 class SolutionSetBase(object):
 
@@ -142,6 +192,16 @@ class SolutionSetBase(object):
         if self._target_map is None:
             self._make_target_map()
         return self._target_map[target]
+
+    def is_multiscore(self):
+        """Check whether this match has been produced by summarizing a multi-score
+        match, rather than a single score match.
+
+        Returns
+        -------
+        bool
+        """
+        return self[0].is_multiscore()
 
 
 class GlycopeptideSpectrumCluster(Base, SpectrumClusterBase, BoundToAnalysis):
@@ -245,6 +305,16 @@ class GlycopeptideSpectrumMatch(Base, SpectrumMatchBase):
     @property
     def q_value_set(self):
         return self.score_set
+
+    def is_multiscore(self):
+        """Check whether this match has been produced by summarizing a multi-score
+        match, rather than a single score match.
+
+        Returns
+        -------
+        bool
+        """
+        return self.score_set is not None
 
     @classmethod
     def serialize(cls, obj, session, scan_look_up_cache, mass_shift_cache, analysis_id,

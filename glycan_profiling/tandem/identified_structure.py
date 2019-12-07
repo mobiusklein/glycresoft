@@ -78,6 +78,10 @@ class IdentifiedStructure(object):
         return best_match.score_set
 
     @property
+    def best_spectrum_match(self):
+        return self._best_spectrum_match
+
+    @property
     def q_value_set(self):
         """The :class:`~.FDRSet` of the best MS/MS match
 
