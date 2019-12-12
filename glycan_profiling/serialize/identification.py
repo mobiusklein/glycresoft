@@ -1,6 +1,5 @@
 from sqlalchemy import (
-    Column, Numeric, Integer, String, ForeignKey, PickleType,
-    Boolean, Table)
+    Column, Numeric, Integer, ForeignKey,)
 from sqlalchemy.orm import relationship, backref
 from sqlalchemy.ext.declarative import declared_attr
 

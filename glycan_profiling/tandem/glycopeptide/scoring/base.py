@@ -41,14 +41,14 @@ class GlycopeptideSpectrumMatcherBase(SpectrumMatcherBase):
                 #
                 masked_peaks.add(peak.index.neutral_mass)
                 self.solution_map.add(peak, frag)
-                if chemical_shift is not None:
-                    shifted_mass = frag.mass + self.mass_shift.tandem_mass
-                    for peak in self.spectrum.all_peaks_for(shifted_mass, error_tolerance):
-                        masked_peaks.add(peak.index.neutral_mass)
-                        shifted_frag = frag.clone()
-                        shifted_frag.chemical_shift = chemical_shift
-                        shifted_frag.name += "+ %s" % (self.mass_shift.name,)
-                        self.solution_map.add(peak, shifted_frag)
+            if chemical_shift is not None:
+                shifted_mass = frag.mass + self.mass_shift.tandem_mass
+                for peak in self.spectrum.all_peaks_for(shifted_mass, error_tolerance):
+                    masked_peaks.add(peak.index.neutral_mass)
+                    shifted_frag = frag.clone()
+                    shifted_frag.chemical_shift = chemical_shift
+                    shifted_frag.name += "+ %s" % (self.mass_shift.name,)
+                    self.solution_map.add(peak, shifted_frag)
         return masked_peaks
 
     def get_fragments(self, series, strategy=None, **kwargs):

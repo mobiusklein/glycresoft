@@ -366,16 +366,16 @@ def _match_stub_glycopeptides(self, double error_tolerance=2e-5, set masked_peak
             #
             masked_peaks.add(peak._index.neutral_mass)
             solution_map.add(peak, frag)
-            if chemical_shift is not None:
-                shifted_mass = frag.mass + chemical_shift.mass
-                shifted_peaks = spectrum.all_peaks_for(shifted_mass, error_tolerance)
-                for k in range(PyTuple_Size(shifted_peaks)):
-                    peak = <DeconvolutedPeak>PyTuple_GetItem(shifted_peaks, k)
-                    masked_peaks.add(peak.index.neutral_mass)
+        if chemical_shift is not None:
+            shifted_mass = frag.mass + chemical_shift.mass
+            shifted_peaks = spectrum.all_peaks_for(shifted_mass, error_tolerance)
+            for k in range(PyTuple_Size(shifted_peaks)):
+                peak = <DeconvolutedPeak>PyTuple_GetItem(shifted_peaks, k)
+                masked_peaks.add(peak.index.neutral_mass)
 
-                    shifted_frag = frag.clone()
-                    shifted_frag.set_chemical_shift(chemical_shift)
-                    solution_map.add(peak, shifted_frag)
+                shifted_frag = frag.clone()
+                shifted_frag.set_chemical_shift(chemical_shift)
+                solution_map.add(peak, shifted_frag)
     return masked_peaks
 
 
