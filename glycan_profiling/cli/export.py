@@ -436,7 +436,8 @@ def glycopeptide_chromatogram_records(database_connection, analysis_identifier, 
             continue
         obj = GlycopeptideChromatogramProxy.from_obj(
             idgp, ms1_score=idgp.ms1_score, ms2_score=idgp.ms2_score,
-            q_value=idgp.q_value, analysis_name=analysis_name)
+            q_value=idgp.q_value, analysis_name=analysis_name,
+            mass_shifts=';'.join([m.name for m in idgp.chromatogram.mass_shifts]))
         cases.append(obj)
     with fh:
         GlycopeptideChromatogramProxy.to_csv(cases,  fh)
