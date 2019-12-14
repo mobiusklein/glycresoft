@@ -18,6 +18,8 @@ except ImportError:
     pass
 
 
+from glypy.utils import Enum
+
 from glycan_profiling.task import TaskBase
 
 from glycan_profiling.tandem.target_decoy import NearestValueLookUp, TargetDecoyAnalyzer
@@ -29,6 +31,13 @@ from .mixture import GammaMixture, GaussianMixtureWithPriorComponent
 
 def noop(*args, **kwargs):
     pass
+
+
+class GlycopeptideFDREstimationStrategy(Enum):
+    multipart_gamma_gaussian_mixture = 0
+    peptide_fdr = 1
+    glycan_fdr = 2
+    glycopeptide_fdr = 3
 
 
 class FiniteMixtureModelFDREstimator(object):
@@ -170,7 +179,12 @@ class GlycanSizeCalculator(object):
 class GlycopeptideFDREstimator(TaskBase):
     display_fields = False
 
-    def __init__(self, groups):
+    def __init__(self, groups, strategy=None):
+        if strategy is None:
+            strategy = GlycopeptideFDREstimationStrategy.multipart_gamma_gaussian_mixture
+        else:
+            strategy = GlycopeptideFDREstimationStrategy[strategy]
+        self.strategy = strategy
         self.grouper = groups
         self.glycan_fdr = None
         self.peptide_fdr = None
@@ -260,12 +274,45 @@ class GlycopeptideFDREstimator(TaskBase):
             ts.q_value = ts.best_solution().q_value
         return solution_sets
 
+    def _assign_peptide_fdr(self, solution_sets):
+        for ts in solution_sets:
+            for t in ts:
+                total = t.q_value_set.peptide_q_value = self.peptide_fdr.q_value_map[
+                    t.score_set.peptide_score]
+                t.q_value_set.glycan_q_value = 0
+                t.q_value_set.glycopeptide_q_value = 0
+                t.q_value = t.q_value_set.total_q_value = total
+            ts.q_value = ts.best_solution().q_value
+        return solution_sets
+
+    def _assign_glycan_fdr(self, solution_sets):
+        for ts in solution_sets:
+            for t in ts:
+                t.q_value_set.peptide_q_value = 0
+                total = t.q_value_set.glycan_q_value = self.glycan_fdr.fdr_map[t.score_set.glycan_score]
+                t.q_value_set.glycopeptide_q_value = 0
+                t.q_value = t.q_value_set.total_q_value = total
+            ts.q_value = ts.best_solution().q_value
+        return solution_sets
+
     def fit_total_fdr(self):
-        self._assign_total_fdr(self.grouper.match_type_groups['target_peptide_target_glycan'])
+        if self.strategy == GlycopeptideFDREstimationStrategy.multipart_gamma_gaussian_mixture:
+            self._assign_total_fdr(self.grouper.match_type_groups['target_peptide_target_glycan'])
+        elif self.strategy == GlycopeptideFDREstimationStrategy.peptide_fdr:
+            self._assign_peptide_fdr(self.grouper.match_type_groups['target_peptide_target_glycan'])
+        elif self.strategy == GlycopeptideFDREstimationStrategy.glycan_fdr:
+            self._assign_glycan_fdr(self.grouper.match_type_groups['target_peptide_target_glycan'])
+        else:
+            raise NotImplementedError(self.strategy)
         return self.grouper
 
     def run(self):
-        self.fit_glycan_fdr()
-        self.fit_peptide_fdr()
-        self.fit_glycopeptide_fdr()
+        if self.strategy in (GlycopeptideFDREstimationStrategy.multipart_gamma_gaussian_mixture,
+                             GlycopeptideFDREstimationStrategy.glycan_fdr):
+            self.fit_glycan_fdr()
+        if self.strategy in (GlycopeptideFDREstimationStrategy.multipart_gamma_gaussian_mixture,
+                             GlycopeptideFDREstimationStrategy.peptide_fdr):
+            self.fit_peptide_fdr()
+        if self.strategy == GlycopeptideFDREstimationStrategy.multipart_gamma_gaussian_mixture:
+            self.fit_glycopeptide_fdr()
         return self.fit_total_fdr()

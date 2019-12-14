@@ -1,11 +1,14 @@
-from collections import namedtuple, defaultdict
+import csv
 import random
+
+from collections import namedtuple, defaultdict
 
 import numpy as np
 from scipy import stats
 from scipy.ndimage import gaussian_filter1d
 
 from glycopeptidepy import PeptideSequence
+from glypy.structure.glycan_composition import HashableGlycanComposition
 from glypy.utils import make_counter
 
 try:
@@ -155,35 +158,96 @@ def prediction_interval(solution, x0, y0, alpha=0.05):
     return np.stack([y0 - width, y0 + width])
 
 
+def _get_apex_time(chromatogram):
+    try:
+        x, y = chromatogram.as_arrays()
+        y = gaussian_filter1d(y, 1)
+        return x[np.argmax(y)]
+    except AttributeError:
+        return chromatogram.apex_time
+
 class ChromatogramProxy(object):
-    def __init__(self, weighted_neutral_mass, apex_time, total_signal, glycan_composition, obj=None):
+    def __init__(self, weighted_neutral_mass, apex_time, total_signal, glycan_composition, obj=None, **kwargs):
         self.weighted_neutral_mass = weighted_neutral_mass
         self.apex_time = apex_time
         self.total_signal = total_signal
         self.glycan_composition = glycan_composition
         self.obj = obj
+        self.kwargs = kwargs
 
     def __repr__(self):
-        return "%s(%f, %f, %f, %s)" % (
+        return "%s(%f, %f, %f, %s, %s)" % (
             self.__class__.__name__,
-            self.weighted_neutral_mass, self.apex_time, self.total_signal, self.glycan_composition)
+            self.weighted_neutral_mass, self.apex_time, self.total_signal,
+            self.glycan_composition, self.kwargs)
 
     @classmethod
-    def from_obj(cls, obj):
+    def from_obj(cls, obj, **kwargs):
+        try:
+            chrom = obj.get_chromatogram()
+            apex_time = _get_apex_time(chrom)
+        except (AttributeError, ValueError, TypeError):
+            apex_time = obj.apex_time
         inst = cls(
-            obj.weighted_neutral_mass, obj.apex_time, obj.total_signal,
-            obj.glycan_composition, obj)
+            obj.weighted_neutral_mass, apex_time, obj.total_signal,
+            obj.glycan_composition, obj, **kwargs)
         return inst
 
     def get_chromatogram(self):
         return self.obj.get_chromatogram()
 
+    def _to_csv(self):
+        d = {
+            "weighted_neutral_mass": self.weighted_neutral_mass,
+            "apex_time": self.apex_time,
+            "total_signal": self.total_signal,
+            "glycan_composition": self.glycan_composition,
+        }
+        d.update(self.kwargs)
+        return d
+
+    @classmethod
+    def to_csv(cls, instances, fh):
+        cases = [c._to_csv() for c in instances]
+        keys = list(cases[0].keys())
+        writer = csv.DictWriter(fh, fieldnames=keys)
+        writer.writeheader()
+        writer.writerows(cases)
+
+    @classmethod
+    def from_csv(cls, fh):
+        cases = []
+        reader = csv.DictReader(fh)
+
+        def _try_parse(value):
+            try:
+                return int(value)
+            except (ValueError, TypeError):
+                try:
+                    return float(value)
+                except (ValueError, TypeError):
+                    return value
+
+        for row in reader:
+            mass = float(row.pop("weighted_neutral_mass"))
+            apex_time = float(row.pop("apex_time"))
+            total_signal = float(row.pop("total_signal"))
+            gc = HashableGlycanComposition.parse(row.pop("glycan_composition"))
+            kwargs = {k: _try_parse(v) for k, v in row.items()}
+            cases.append(cls(mass, apex_time, total_signal, gc, **kwargs))
+        return cases
+
 
 class GlycopeptideChromatogramProxy(ChromatogramProxy):
     @property
     def structure(self):
-        gp = PeptideSequence(str(self.obj.structure))
+        gp = PeptideSequence(self.kwargs["structure"])
         return gp
+
+    @classmethod
+    def from_obj(cls, obj, **kwargs):
+        gp = PeptideSequence(str(obj.structure))
+        return super(GlycopeptideChromatogramProxy, cls).from_obj(obj, structure=gp, **kwargs)
 
 
 class ElutionTimeFitter(ScoringFeatureBase):
@@ -208,12 +272,7 @@ class ElutionTimeFitter(ScoringFeatureBase):
         self.scale = scale
 
     def _get_apex_time(self, chromatogram):
-        try:
-            x, y = chromatogram.as_arrays()
-            y = gaussian_filter1d(y, 1)
-            return x[np.argmax(y)]
-        except AttributeError:
-            return chromatogram.apex_time
+        return _get_apex_time(chromatogram)
 
     def build_weight_matrix(self):
         return np.eye(len(self.chromatograms))

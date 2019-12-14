@@ -402,3 +402,30 @@ def annotate_matched_spectra(database_connection, analysis_identifier, output_pa
         mzml_path)
     task.display_header()
     task.start()
+
+
+@export.command("glycopeptide-chromatogram-records")
+@database_connection
+@analysis_identifier("glycopeptide")
+@click.option("-o", "--output-path", type=click.Path(), default=None, help='Path to write to instead of stdout')
+def glycopeptide_chromatogram_records(database_connection, analysis_identifier, output_path):
+    database_connection = DatabaseBoundOperation(database_connection)
+    session = database_connection.session()
+    analysis = get_by_name_or_id(session, Analysis, analysis_identifier)
+    if not analysis.analysis_type == AnalysisTypeEnum.glycopeptide_lc_msms:
+        click.secho("Analysis %r is of type %r." % (
+            str(analysis.name), str(analysis.analysis_type)), fg='red', err=True)
+        raise click.Abort()
+    if output_path is None:
+        fh = click.open_file("-", 'wt')
+    else:
+        fh = open(output_path, 'wt')
+    idgps = session.query(
+        IdentifiedGlycopeptide).filter(IdentifiedGlycopeptide.analysis_id == analysis.id)
+    from glycan_profiling.scoring.elution_time_grouping import GlycopeptideChromatogramProxy
+    cases = []
+    for idgp in idgps:
+        obj = GlycopeptideChromatogramProxy.from_obj(idgp)
+        cases.append(obj)
+    with fh:
+        GlycopeptideChromatogramProxy.to_csv(cases,  fh)
