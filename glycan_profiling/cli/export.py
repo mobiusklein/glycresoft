@@ -426,15 +426,17 @@ def glycopeptide_chromatogram_records(database_connection, analysis_identifier, 
     n = len(idgps)
     from glycan_profiling.scoring.elution_time_grouping import GlycopeptideChromatogramProxy
     cases = []
+    analysis_name = analysis.name
     for i, idgp in enumerate(idgps):
-        if i % 10 == 0:
-            click.echo("%d/%d Records Processed" % (i, n))
+        if i % 50 == 0:
+            click.echo("%d/%d Records Processed" % (i, n), err=True)
         if idgp.chromatogram is None:
             continue
         if idgp.ms1_score < 0:
             continue
         obj = GlycopeptideChromatogramProxy.from_obj(
-            idgp, ms1_score=idgp.ms1_score, ms2_score=idgp.ms2_score, q_value=idgp.q_value)
+            idgp, ms1_score=idgp.ms1_score, ms2_score=idgp.ms2_score,
+            q_value=idgp.q_value, analysis_name=analysis_name)
         cases.append(obj)
     with fh:
         GlycopeptideChromatogramProxy.to_csv(cases,  fh)
