@@ -158,7 +158,8 @@ class IdentifiedGlycopeptide(Base, IdentifiedStructure):
         """
         return self.spectrum_cluster.is_multiscore()
 
-    def _find_best_spectrum_match(self):
+    @property
+    def _best_spectrum_match(self):
         is_multiscore = self.is_multiscore()
         best_match = None
         if is_multiscore:
@@ -184,9 +185,6 @@ class IdentifiedGlycopeptide(Base, IdentifiedStructure):
                         best_match = match
             except KeyError:
                 continue
-        self._best_spectrum_match = best_match
-        self.ms2_score = best_match.score
-        self.q_value = best_match.q_value
         return best_match
 
     @property
