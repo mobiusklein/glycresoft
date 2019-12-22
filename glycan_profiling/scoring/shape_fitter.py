@@ -260,6 +260,10 @@ class FittedPeakShape(object):
     def amplitude(self):
         return self['amplitude']
 
+    @property
+    def spread(self):
+        return self.shape_model.spread(self)
+
 
 class ChromatogramShapeFitterBase(ScoringFeatureBase):
     feature_type = "line_score"
@@ -283,13 +287,13 @@ class ChromatogramShapeFitterBase(ScoringFeatureBase):
     def extract_arrays(self):
         self.xs, self.ys = self.chromatogram.as_arrays()
         if self.smooth:
-            self.ys = gaussian_filter1d(self.ys, 1)
+            self.ys = gaussian_filter1d(self.ys, self.smooth)
         if len(self.xs) > MAX_POINTS:
             new_xs = np.linspace(self.xs.min(), self.xs.max(), MAX_POINTS)
             new_ys = np.interp(new_xs, self.xs, self.ys)
             self.xs = new_xs
             self.ys = new_ys
-            self.ys = gaussian_filter1d(self.ys, 1)
+            self.ys = gaussian_filter1d(self.ys, self.smooth)
 
     def compute_residuals(self):
         return NotImplemented
