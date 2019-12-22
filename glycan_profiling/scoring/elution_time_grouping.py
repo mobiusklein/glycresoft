@@ -22,6 +22,8 @@ from glycan_profiling.scoring.base import (
     is_sialylated)
 
 
+SMALL_ERROR = 1e-3
+
 WLSSolution = namedtuple("WLSSolution", [
     'yhat', 'parameters', 'data', 'weights', 'residuals',
     'projection_matrix', 'rss', 'press', 'R2'])
@@ -347,7 +349,7 @@ class ElutionTimeFitter(ScoringFeatureBase):
         iv = np.array(iv) * sigma_params.reshape((-1, 1))
         return np.array(self.parameters).reshape((-1, 1)) + iv
 
-    def R2(self, adjust=False):
+    def R2(self, adjust=True):
         x = self.data
         y = self.apex_time_array
         w = self.weight_matrix
@@ -379,6 +381,9 @@ class ElutionTimeFitter(ScoringFeatureBase):
         y = self._predict(x)
         return prediction_interval(self.solution, x, y)
 
+    def _df(self):
+        return max(len(self.chromatograms) - len(self.parameters), 1)
+
     def score(self, chromatogram):
         apex = self.predict(chromatogram)
         # Use heavier tails (scale 2) to be more tolerant of larger chromatographic
@@ -387,8 +392,8 @@ class ElutionTimeFitter(ScoringFeatureBase):
         # range of values to be (0, 1)
         score = stats.t.sf(
             abs(apex - self._get_apex_time(chromatogram)),
-            df=max(len(self.chromatograms) - len(self.parameters), 1), scale=self.scale) * 2
-        return max((score - 1e-3), 1e-3)
+            df=self._df(), scale=self.scale) * 2
+        return max((score - SMALL_ERROR), SMALL_ERROR)
 
     def plot(self, ax=None):
         if ax is None:
@@ -624,121 +629,17 @@ class ReplicatedAbundanceWeightedPeptideFactorElutionTimeFitter(AbundanceWeighte
         return np.hstack((replicates, data_vector))
 
 
-def is_high_mannose(composition):
-    return (composition['HexNAc'] == 2 and composition['Hex'] > 3 and
-            not is_sialylated(composition))
-
-
-class PartitioningElutionTimeFitter(ElutionTimeFitter):
-
-    def __init__(self, chromatograms, scale=1, fitter_cls=ElutionTimeFitter):
-        self.fitter_cls = fitter_cls
-        self.subfits = dict()
-        self.chromatograms = chromatograms
-        self.scale = scale
-        self.partitions = self.partition_chromatograms(chromatograms)
-
-    def label(self, chromatogram):
-        if chromatogram.composition:
-            composition = symbolic_composition(chromatogram)
-            if is_high_mannose(composition):
-                return 'high_mannose'
-            else:
-                return 'other'
-        else:
-            return 'unassigned'
-
-    def fit(self, resample=True):
-        for group, members in self.partitions.items():
-            subfit = self.fitter_cls(members, scale=self.scale)
-            subfit.fit(resample=resample)
-            self.subfits[group] = subfit
-        return self
-
-    def partition_chromatograms(self, chromatograms):
-        partitions = defaultdict(list)
-        for chromatogram in chromatograms:
-            label = self.label(chromatogram)
-            if label != "unassigned":
-                partitions[label].append(chromatogram)
-        return partitions
-
-    def predict(self, chromatogram):
-        label = self.label(chromatogram)
-        if label != 'unassigned':
-            fit = self.subfits[label]
-            return fit.predict(chromatogram)
-        else:
-            group, closest = self._find_best_fit_for_unassigned(chromatogram)
-            return closest
-
-    def predict_ci(self, chromatogram):
-        label = self.label(chromatogram)
-        if label != 'unassigned':
-            fit = self.subfits[label]
-            return fit.predict_ci(chromatogram)
-        else:
-            group, closest = self._find_best_fit_for_unassigned(chromatogram)
-            subfit = self.subfits[group]
-            return subfit.predict_ci(chromatogram)
-
-    def _find_best_fit_for_unassigned(self, chromatogram):
-        closest = 0
-        distance = float('inf')
-        closest_group = None
-        for group, subfit in self.subfits.items():
-            predicted = subfit.predict(chromatogram)
-            delta = abs(predicted - chromatogram.apex_time)
-            if delta < distance:
-                closest = predicted
-                distance = delta
-                closest_group = group
-        return closest_group, closest
-
-    def plot(self, ax=None):
-        if ax is None:
-            fig, ax = plt.subplots(1)
-        for group, fit in self.subfits.items():
-            label = ' '.join(group.split("_")).title()
-            r2 = fit.solution.R2
-            art = ax.scatter(fit.neutral_mass_array, fit.apex_time_array,
-                             label=r"%s (${\bar R^2}$: %0.3f)" % (label, r2),
-                             alpha=0.8)
-            color = art.get_facecolor()[0]
-            theoretical_mass = np.linspace(
-                max(fit.neutral_mass_array.min() - 200, 0),
-                fit.neutral_mass_array.max() + 200, 400)
-            X = fit._prepare_data_matrix(theoretical_mass)
-            Y = X.dot(fit.parameters)
-            ax.plot(theoretical_mass, Y, linestyle='--', color=color)
-            pred_interval = fit._predict_interval(X)
-            ax.fill_between(
-                theoretical_mass, pred_interval[0, :], pred_interval[1, :],
-                alpha=0.4, color=color)
-        ax.set_xlabel("Neutral Mass", fontsize=16)
-        ax.set_ylabel("Elution Apex Time\n(Minutes)", fontsize=16)
-        return ax
-
-    def R2(self, adjust=False):
-        total = 0
-        weights = 0
-        for group, subfit in self.subfits.items():
-            weight = subfit.weight_matrix.sum() * 100
-            total += subfit.R2(adjust) * weight
-            weights += weight
-        return total / weights
-
-
 class ElutionTimeModel(ScoringFeatureBase):
     feature_type = 'elution_time'
 
-    def __init__(self, fit=None):
+    def __init__(self, fit=None, factors=None):
         self.fit = fit
+        self.factors = factors
 
     def configure(self, analysis_data):
         if self.fit is None:
             matches = analysis_data['matches']
-            fitter = PartitioningElutionTimeFitter(matches)
+            fitter = AbundanceWeightedFactorElutionTimeFitter(matches, self.factors)
             fitter.fit()
             self.fit = fitter
 
@@ -819,9 +720,9 @@ class RecalibratingPredictor(object):
         score = stats.t.sf(
             delta,
             df=self._df(), scale=self.scale) * 2
-        score -= 1e-3
-        if score < 1e-3:
-            score = 1e-3
+        score -= SMALL_ERROR
+        if score < SMALL_ERROR:
+            score = SMALL_ERROR
         return score
 
     def _fit(self):
@@ -870,8 +771,8 @@ class RecalibratingPredictor(object):
         score = stats.t.sf(
             abs(self.predicted_apex_time_array - self.apex_time_array),
             df=self._df(), scale=self.scale) * 2
-        score -= 1e-3
-        score[score < 1e-3] = 1e-3
+        score -= SMALL_ERROR
+        score[score < SMALL_ERROR] = SMALL_ERROR
         return score
 
     def R2(self, adjust=False):
