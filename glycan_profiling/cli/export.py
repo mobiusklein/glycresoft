@@ -212,7 +212,7 @@ def glycopeptide_identification(database_connection, analysis_identifier, output
     if output_path is None:
         output_stream = ctxstream(sys.stdout)
     else:
-        output_stream = open(output_path, 'wb')
+        output_stream = open(output_path, 'wt')
     if report:
         with output_stream:
             if mzml_path is None:
@@ -291,7 +291,7 @@ def glycopeptide_spectrum_matches(database_connection, analysis_identifier, outp
     if output_path is None:
         output_stream = ctxstream(sys.stdout)
     else:
-        output_stream = open(output_path, 'wb')
+        output_stream = open(output_path, 'wt')
     with output_stream:
         job = GlycopeptideSpectrumMatchAnalysisCSVSerializer(output_stream, generate(), protein_index)
         job.run()
@@ -345,7 +345,7 @@ def glycopeptide_training_mgf(database_connection, analysis_identifier, output_p
     if output_path is None:
         output_stream = ctxstream(sys.stdout)
     else:
-        output_stream = open(output_path, 'wb')
+        output_stream = open(output_path, 'wt')
     with output_stream:
         TrainingMGFExporter.from_analysis(
             database_connection, analysis.id, output_stream, mzml_path, threshold).run()
@@ -373,7 +373,7 @@ def export_identified_glycans_from_glycopeptides(database_connection, analysis_i
     if output_path is None:
         output_stream = ctxstream(sys.stdout)
     else:
-        output_stream = open(output_path, 'wb')
+        output_stream = open(output_path, 'wt')
     with output_stream:
         job = ImportableGlycanHypothesisCSVSerializer(output_stream, glycans)
         job.run()
