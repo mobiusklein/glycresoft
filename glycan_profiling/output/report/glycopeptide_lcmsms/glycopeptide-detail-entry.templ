@@ -15,7 +15,7 @@
                     {% endif %}
                 </span>
                 <span class='glycopeptide-mass-error'>
-                    ({{"%0.3e"|format(spectral_match_info.precursor_mass_accuracy)}})                                    
+                    ({{"%0.3e"|format(spectral_match_info.precursor_mass_accuracy)}})
                 </span>
                 <span class='glycopeptide-charge-list'>
                     {% if glycopeptide.chromatogram %}
@@ -51,6 +51,8 @@
                     </tr>
                 </tbody>
             </table>
+            {% if glycopeptide.is_multiscore() %}
+            {%- endif %}
             <div class='mass-shift-signal-fraction-container'>
                 {% if glycopeptide.chromatogram is not none %}
                     <b>Adduct Signal Fractions</b>

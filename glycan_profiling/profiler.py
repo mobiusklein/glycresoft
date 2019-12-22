@@ -14,6 +14,8 @@ import ms_deisotope
 from ms_deisotope.output.mzml import ProcessedMzMLDeserializer
 
 import glypy
+from glypy.utils import Enum
+
 from glycopeptidepy.utils.collectiontools import descending_combination_counter
 
 
@@ -659,6 +661,12 @@ class MzMLGlycanChromatogramAnalyzer(GlycanChromatogramAnalyzer):
         exporter.set_parameters(param_dict)
         self.analysis = exporter.analysis
         self.analysis_id = exporter.analysis.id
+
+
+class GlycopeptideSearchStrategy(Enum):
+    target_internal_decoy_competition = "target-internal-decoy-competition"
+    target_decoy_competition = "target-decoy-competition"
+    multipart_target_decoy_competition = "multipart-target-decoy-competition"
 
 
 class GlycopeptideLCMSMSAnalyzer(TaskBase):
