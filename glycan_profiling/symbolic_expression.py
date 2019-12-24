@@ -17,6 +17,8 @@ from glypy.structure import glycan_composition
 
 _FMR = glycan_composition.FrozenMonosaccharideResidue
 _MR = glycan_composition.MonosaccharideResidue
+_SR = glycan_composition.SubstituentResidue
+_MC = glycan_composition.MolecularComposition
 
 
 def ensuretext(x):
@@ -672,7 +674,7 @@ class GlycanSymbolContext(SymbolContext):
         for key, value in dict(mapping).items():
             if isinstance(key, SymbolNode):
                 key = key.symbol
-            elif isinstance(key, (str, _MR)):
+            elif isinstance(key, (str, _MR, _SR, _MC)):
                 text_key = str(key)
                 key = _FMR.from_iupac_lite(text_key)
                 is_derivatized = composition_transform.has_derivatization(key)
