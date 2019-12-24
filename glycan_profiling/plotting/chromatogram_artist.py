@@ -301,12 +301,13 @@ class ChromatogramArtist(ArtistBase):
         self.ax.set_xticks(tick_values)
         self.ax.set_xticklabels(["%0.2f" % v for v in tick_values])
 
-    def layout_axes(self, legend=True, axis_font_size=18, axis_label_font_size=24):
+    def layout_axes(self, legend=True, axis_font_size=18, axis_label_font_size=24, legend_cols=2):
         self._interpolate_xticks(self.minimum_ident_time, self.maximum_ident_time)
         self.ax.set_ylim(0, self.maximum_intensity * 1.25)
         if legend:
             try:
-                self.legend = self.ax.legend(bbox_to_anchor=(1.2, 1.), ncol=2, fontsize=10)
+                self.legend = self.ax.legend(bbox_to_anchor=(
+                    1.2, 1.), ncol=legend_cols, fontsize=10)
             except ValueError:
                 # matplotlib 2.1.1 bug compares array-like colors using == and expects a
                 # scalar boolean, triggering a ValueError. When this happens, we can't
@@ -321,14 +322,17 @@ class ChromatogramArtist(ArtistBase):
         [t.set(fontsize=axis_font_size) for t in self.ax.get_xticklabels()]
         [t.set(fontsize=axis_font_size) for t in self.ax.get_yticklabels()]
 
-    def draw(self, label_function=None, legend=True, label_font_size=10):
+    def draw(self, label_function=None, legend=True, label_font_size=10, axis_label_font_size=24,
+             axis_font_size=18, legend_cols=2):
         if label_function is None:
             label_function = self.default_label_function
         for chroma in self.chromatograms:
             composition = chroma.composition
             self.process_group(composition, chroma, label_function,
                                label_font_size=label_font_size)
-        self.layout_axes(legend=legend)
+        self.layout_axes(
+            legend=legend, axis_label_font_size=axis_label_font_size,
+            axis_font_size=axis_font_size, legend_cols=legend_cols)
         return self
 
 
