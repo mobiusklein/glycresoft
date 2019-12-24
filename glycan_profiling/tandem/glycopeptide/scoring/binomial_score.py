@@ -55,11 +55,11 @@ def binomial_fragments_matched(total_product_ion_count, count_product_ion_matche
 def median_sorted(numbers):
     n = len(numbers)
     if n == 0:
-        return (n - 1) / 2, 0
+        return (n - 1) // 2, 0
     elif n % 2 == 0:
-        return (n - 1) / 2, (numbers[(n - 1) // 2] + numbers[((n - 1) // 2) + 1]) / 2.
+        return (n - 1) // 2, (numbers[(n - 1) // 2] + numbers[((n - 1) // 2) + 1]) / 2.
     else:
-        return (n - 1) / 2, numbers[(n - 1) / 2]
+        return (n - 1) // 2, numbers[(n - 1) // 2]
 
 
 def medians(array):

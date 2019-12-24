@@ -19,6 +19,9 @@ from glycan_profiling.task import TaskBase
 from glycan_profiling.serialize import DatabaseBoundOperation
 from glycan_profiling.serialize.hypothesis.peptide import Peptide, Protein
 
+from six import string_types as basestring
+
+
 RestrictedModificationTable = modification.RestrictedModificationTable
 combinations = itertools.combinations
 product = itertools.product
