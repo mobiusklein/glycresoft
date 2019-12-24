@@ -577,7 +577,7 @@ class ChromatogramTreeList(object):
         lo = 0
         hi = len(self.roots)
         while lo != hi:
-            i = (lo + hi) / 2
+            i = (lo + hi) // 2
             node = self.roots[i]
             if node.retention_time == retention_time:
                 return node, i

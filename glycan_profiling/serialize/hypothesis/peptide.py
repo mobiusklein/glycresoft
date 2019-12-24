@@ -205,6 +205,9 @@ class ProteinSite(Base):
         return ("{self.__class__.__name__}(location={self.location}, "
                 "name={self.name})").format(self=self)
 
+    def __hash__(self):
+        return hash((self.name, self.location))
+
     def __index__(self):
         return self.location
 
