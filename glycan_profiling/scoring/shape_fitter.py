@@ -460,7 +460,7 @@ class MultimodalChromatogramShapeFitter(ChromatogramShapeFitterBase):
         params_dict['center'] = center
 
         fit = leastsq(self.shape_fitter.fit,
-                      params_dict.values(), (xs, ys))
+                      list(params_dict.values()), (xs, ys))
         params = fit[0]
         params_dict = FittedPeakShape(self.shape_fitter.params_to_dict(params), self.shape_fitter)
         self.params_list.append(params)
@@ -718,7 +718,7 @@ class ProfileSplittingMultimodalChromatogramShapeFitter(ChromatogramShapeFitterB
             return ys, params_dict
 
         fit = leastsq(self.shape_fitter.fit,
-                      params_dict.values(), (xs, ys))
+                      list(params_dict.values()), (xs, ys))
         params = fit[0]
         params_dict = FittedPeakShape(self.shape_fitter.params_to_dict(params), self.shape_fitter)
         self.params_list.append(params)
