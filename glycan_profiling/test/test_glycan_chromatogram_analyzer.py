@@ -53,6 +53,7 @@ class GlycanProfilerConsumerTest(unittest.TestCase):
         self.assertTrue(os.path.exists(output_file))
         ads = AnalysisDeserializer(output_file)
         gcs = ads.load_glycan_composition_chromatograms()
+        self.assertEqual(len(gcs), 23)
         self.clear_file(db_file)
         # 'spacing_fit': 0.96367957815527916, 'isotopic_fit': 0.99366937970680247,
         # 'line_score': 0.99780414736388745, 'charge_count': 0.9365769766604084
@@ -87,7 +88,7 @@ class GlycanProfilerConsumerTest(unittest.TestCase):
         self.assertTrue(os.path.exists(output_file))
         ads = AnalysisDeserializer(output_file, analysis_id=1)
         gcs = ads.load_glycan_composition_chromatograms()
-
+        self.assertEqual(len(gcs), 23)
         self.confirm_score(gcs, "{Fuc:1; Hex:7; HexNAc:6; Neu5Ac:4}", 16.1425)
         self.confirm_score(gcs, "{Hex:8; HexNAc:7; Neu5Ac:3}", 8.8510)
         self.confirm_score(gcs, "{Hex:7; HexNAc:6; Neu5Ac:4}", 16.6722)
@@ -108,6 +109,7 @@ class GlycanProfilerConsumerTest(unittest.TestCase):
         task.start()
         ads = AnalysisDeserializer(output_file, analysis_id=1)
         gcs = ads.load_glycan_composition_chromatograms()
+        self.assertEqual(len(gcs), 23)
         self.confirm_score(gcs, "{Fuc:1; Hex:7; HexNAc:6; Neu5Ac:4}", 16.7795)
         self.confirm_score(gcs, "{Hex:8; HexNAc:7; Neu5Ac:3}", 10.6734)
         self.confirm_score(gcs, "{Hex:7; HexNAc:6; Neu5Ac:4}", 18.3360)
