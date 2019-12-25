@@ -655,7 +655,9 @@ class MultipleProcessPeptideGlycosylator(TaskBase):
             self.ipc_controller.stop()
             for worker in self.workers:
                 self.log("Joining Process %r (%s)" % (worker.pid, worker.is_alive()))
-                worker.join()
+                worker.join(10)
+                if worker.is_alive():
+                    self.log("Failed to join %r" % worker.pid)
 
             self.current_glycan_offset += self.glycan_limit
 
