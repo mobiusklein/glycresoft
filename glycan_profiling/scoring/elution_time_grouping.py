@@ -17,12 +17,10 @@ except ImportError:
     pass
 
 from glycan_profiling.scoring.base import (
-    ScoringFeatureBase,
-    symbolic_composition,
-    is_sialylated)
+    ScoringFeatureBase,)
 
 
-SMALL_ERROR = 1e-3
+SMALL_ERROR = 1e-5
 
 WLSSolution = namedtuple("WLSSolution", [
     'yhat', 'parameters', 'data', 'weights', 'residuals',
@@ -293,7 +291,7 @@ class ElutionTimeFitter(ScoringFeatureBase):
             np.array(mass_array),
         )).T
 
-    def _fit(self, resample=True):
+    def _fit(self, resample=False):
         if resample:
             solution = ransac(self.data, self.apex_time_array, self.weight_matrix)
             alt = weighted_linear_regression_fit(self.data, self.apex_time_array, self.weight_matrix)
@@ -305,7 +303,7 @@ class ElutionTimeFitter(ScoringFeatureBase):
                 self.data, self.apex_time_array, self.weight_matrix)
         return solution
 
-    def fit(self, resample=True):
+    def fit(self, resample=False):
         solution = self._fit(resample=resample)
         self.estimate = solution.yhat
         self.residuals = solution.residuals
@@ -435,17 +433,14 @@ class FactorElutionTimeFitter(ElutionTimeFitter):
         return ['intercept'] + self.factors
 
     def _prepare_data_matrix(self, mass_array):
-        return np.vstack((
-            np.ones(len(mass_array)),
-        ) + tuple(
+        return np.vstack([np.ones(len(mass_array)),] + [
             np.array([c.glycan_composition[f] for c in self.chromatograms])
-            for f in self.factors)
-        ).T
+            for f in self.factors]).T
 
-    def _prepare_data_vector(self, chromatogram):
+    def _prepare_data_vector(self, chromatogram, no_intercept=False):
+        intercept = 0 if no_intercept else 1
         return np.array(
-            [1,
-             ] + [
+            [intercept] + [
                 chromatogram.glycan_composition[f] for f in self.factors])
 
     def plot(self, ax=None, include_intervals=True):
@@ -492,6 +487,9 @@ class FactorElutionTimeFitter(ElutionTimeFitter):
     def clone(self):
         return self.__class__(self.chromatograms, factors=self.factors, scale=self.scale)
 
+    def predict(self, chromatogram, no_intercept=False):
+        return self._predict(self._prepare_data_vector(chromatogram, no_intercept=no_intercept))
+
 
 class AbundanceWeightedFactorElutionTimeFitter(FactorElutionTimeFitter):
     def build_weight_matrix(self):
@@ -527,12 +525,8 @@ class PeptideFactorElutionTimeFitter(FactorElutionTimeFitter):
             except KeyError:
                 pass
         # Omit the intercept, so that all peptide levels are used without inducing linear dependence.
-        return np.vstack((
-            peptides,
-        ) + tuple(
-            np.array([c.glycan_composition[f] for c in self.chromatograms])
-            for f in self.factors)
-        ).T
+        return np.vstack([peptides, ] +\
+            [np.array([c.glycan_composition[f] for c in self.chromatograms]) for f in self.factors]).T
 
     def feature_names(self):
         names = []
@@ -543,15 +537,17 @@ class PeptideFactorElutionTimeFitter(FactorElutionTimeFitter):
         names.extend(self.factors)
         return names
 
-    def _prepare_data_vector(self, chromatogram):
+    def _prepare_data_vector(self, chromatogram, no_intercept=False):
         p = len(self._peptide_to_indicator)
-        peptides = [0 for i in range(p)]
+        peptides = [0 for _ in range(p)]
         indicator = dict(self._peptide_to_indicator)
-        try:
-            key_index = self._get_peptide_key(chromatogram)
-            peptides[indicator[key_index]] = 1
-        except KeyError:
-            pass
+        if not no_intercept:
+            try:
+                peptide_key = self._get_peptide_key(chromatogram)
+                peptides[indicator[peptide_key]] = 1
+            except KeyError:
+                import warnings
+                warnings.warn("Peptide sequence %s not part of the model." % (peptide_key, ))
         return np.array(
             peptides + [chromatogram.glycan_composition[f] for f in self.factors])
 
@@ -566,9 +562,10 @@ class AbundanceWeightedPeptideFactorElutionTimeFitter(PeptideFactorElutionTimeFi
 
 
 class ReplicatedAbundanceWeightedPeptideFactorElutionTimeFitter(AbundanceWeightedPeptideFactorElutionTimeFitter):
-    def __init__(self, chromatograms, factors=None, scale=1):
+    def __init__(self, chromatograms, factors=None, scale=1, replicate_key_attr='analysis_name'):
         if factors is None:
             factors = ['Hex', 'HexNAc', 'Fuc', 'Neu5Ac']
+        self.replicate_key_attr = replicate_key_attr
         self._replicate_to_indicator = defaultdict(make_counter(0))
         # Ensure that _replicate_to_indicator is properly initialized
         for obs in chromatograms:
@@ -577,7 +574,7 @@ class ReplicatedAbundanceWeightedPeptideFactorElutionTimeFitter(AbundanceWeighte
             chromatograms, list(factors), scale)
 
     def _get_replicate_key(self, chromatogram):
-        return getattr(chromatogram, 'replicate_id')
+        return getattr(chromatogram, self.replicate_key_attr)
 
     def _prepare_data_matrix(self, mass_array):
         design_matrix = super(
@@ -611,21 +608,23 @@ class ReplicatedAbundanceWeightedPeptideFactorElutionTimeFitter(AbundanceWeighte
         names.extend(self.factors)
         return names
 
-    def _prepare_data_vector(self, chromatogram):
+    def _prepare_data_vector(self, chromatogram, no_intercept=False):
         data_vector = super(
             ReplicatedAbundanceWeightedPeptideFactorElutionTimeFitter,
-            self)._prepare_data_vector(chromatogram)
+            self)._prepare_data_vector(chromatogram, no_intercept=no_intercept)
         p = len(self._replicate_to_indicator)
-        replicates = [0 for i in range(p)]
+        replicates = [0 for _ in range(p)]
         indicator = dict(self._replicate_to_indicator)
-        try:
-            # Here, if one of the levels is not omitted, the matrix will be linearly dependent.
-            # So drop the 0th factor level.
-            j = self._get_replicate_key(chromatogram)
-            if j != 0:
-                replicates[indicator[j]] = 1
-        except KeyError:
-            pass
+        if not no_intercept:
+            try:
+                # Here, if one of the levels is not omitted, the matrix will be linearly dependent.
+                # So drop the 0th factor level.
+                j = self._get_replicate_key(chromatogram)
+                if j != 0:
+                    replicates[indicator[j]] = 1
+            except KeyError:
+                import warnings
+                warnings.warn("Replicate Key %s not part of the model." % (j, ))
         return np.hstack((replicates, data_vector))
 
 
@@ -709,13 +708,13 @@ class RecalibratingPredictor(object):
             dilation = self.dilation
         delta = []
         weight = []
-        for i, reference_point in enumerate(self.testing_examples):
+        for _i, reference_point in enumerate(self.testing_examples):
             delta.append(self._predict_delta_single(test_point, reference_point, dilation))
             weight.append(np.log10(reference_point.total_signal))
         return np.dot(delta, weight) / np.sum(weight), np.std(delta)
 
     def score_single(self, test_point):
-        delta, sd = (self.predict_delta_single(test_point))
+        delta, _sd = (self.predict_delta_single(test_point))
         delta = abs(delta)
         score = stats.t.sf(
             delta,
@@ -758,7 +757,7 @@ class RecalibratingPredictor(object):
         configs = self.configurations
         predicted_apex_time_array = []
         weight = []
-        for key, calibration_point in configs.items():
+        for _key, calibration_point in configs.items():
             predicted_apex_time_array.append(
                 (calibration_point.prrt + calibration_point.reference_point_rt) * calibration_point.weight)
             weight.append(calibration_point.weight)
@@ -804,7 +803,7 @@ class RecalibratingPredictor(object):
 
     def plot(self, ax=None):
         if ax is None:
-            fig, ax = plt.subplots(1)
+            _fig, ax = plt.subplots(1)
         X = self.apex_time_array
         Y = self.predicted_apex_time_array
         S = np.array([c.total_signal for c in self.testing_examples])

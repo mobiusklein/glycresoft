@@ -301,7 +301,7 @@ class ChromatogramArtist(ArtistBase):
         self.ax.set_xticks(tick_values)
         self.ax.set_xticklabels(["%0.2f" % v for v in tick_values])
 
-    def layout_axes(self, legend=True, axis_font_size=18, axis_label_font_size=24, legend_cols=2):
+    def layout_axes(self, legend=True, axis_font_size=18, axis_label_font_size=16, legend_cols=2):
         self._interpolate_xticks(self.minimum_ident_time, self.maximum_ident_time)
         self.ax.set_ylim(0, self.maximum_intensity * 1.25)
         if legend:
@@ -322,7 +322,7 @@ class ChromatogramArtist(ArtistBase):
         [t.set(fontsize=axis_font_size) for t in self.ax.get_xticklabels()]
         [t.set(fontsize=axis_font_size) for t in self.ax.get_yticklabels()]
 
-    def draw(self, label_function=None, legend=True, label_font_size=10, axis_label_font_size=24,
+    def draw(self, label_function=None, legend=True, label_font_size=10, axis_label_font_size=16,
              axis_font_size=18, legend_cols=2):
         if label_function is None:
             label_function = self.default_label_function
