@@ -35,7 +35,7 @@ from glycan_profiling.output import (
 from glycan_profiling.cli.utils import ctxstream
 
 
-def database_connection(fn):
+def database_connection_arg(fn):
     arg = click.argument(
         "database-connection",
         type=DatabaseConnectionParam(exists=True),
@@ -44,7 +44,7 @@ def database_connection(fn):
     return arg(fn)
 
 
-def analysis_identifier(analysis_type):
+def analysis_identifier_arg(analysis_type):
     def wrapper(fn):
         arg = click.argument("analysis-identifier", doc_help=(
             "The ID number or name of the %s analysis to use" % (analysis_type,)))
@@ -52,7 +52,7 @@ def analysis_identifier(analysis_type):
     return wrapper
 
 
-def hypothesis_identifier(hypothesis_type):
+def hypothesis_identifier_arg(hypothesis_type):
     def wrapper(fn):
         arg = click.argument("hypothesis-identifier", doc_help=(
             "The ID number or name of the %s hypothesis to use" % (hypothesis_type,)))
@@ -67,8 +67,8 @@ def export():
 
 @export.command("glycan-hypothesis",
                 short_help="Export theoretical glycan composition database to CSV")
-@database_connection
-@hypothesis_identifier("glycan")
+@database_connection_arg
+@hypothesis_identifier_arg("glycan")
 @click.option("-o", "--output-path", type=click.Path(), default=None, help='Path to write to instead of stdout')
 @click.option("-i", "--importable", is_flag=True,
               help="Make the file importable for later re-use, with less information.")
@@ -92,14 +92,14 @@ def glycan_hypothesis(database_connection, hypothesis_identifier, output_path=No
 
 @export.command("glycopeptide-hypothesis",
                 short_help='Export theoretical glycopeptide database to CSV')
-@database_connection
-@hypothesis_identifier("glycopeptide")
+@database_connection_arg
+@hypothesis_identifier_arg("glycopeptide")
 @click.option("-o", "--output-path", type=click.Path(), default=None, help='Path to write to instead of stdout')
 def glycopeptide_hypothesis(database_connection, hypothesis_identifier, output_path, multifasta=False):
     '''Write each theoretical glycopeptide in CSV format
     '''
     database_connection = DatabaseBoundOperation(database_connection)
-    session = database_connection.session()
+    session = database_connection.session()  # pylint: disable=not-callable
     hypothesis = get_by_name_or_id(session, GlycopeptideHypothesis, hypothesis_identifier)
 
     def generate():
@@ -124,8 +124,8 @@ def glycopeptide_hypothesis(database_connection, hypothesis_identifier, output_p
 
 @export.command("glycan-identification",
                 short_help="Exports assigned LC-MS features of Glycan Compositions to CSV or HTML")
-@database_connection
-@analysis_identifier("glycan")
+@database_connection_arg
+@analysis_identifier_arg("glycan")
 @click.option("-o", "--output-path", type=click.Path(), default=None, help='Path to write to instead of stdout')
 @click.option("-r", "--report", is_flag=True, help="Export an HTML report instead of a CSV")
 @click.option("-t", "--threshold", type=float, default=0)
@@ -134,7 +134,7 @@ def glycan_composition_identification(database_connection, analysis_identifier, 
     '''Write each glycan chromatogram in CSV format
     '''
     database_connection = DatabaseBoundOperation(database_connection)
-    session = database_connection.session()
+    session = database_connection.session()  # pylint: disable=not-callable
     analysis = get_by_name_or_id(session, Analysis, analysis_identifier)
     if not analysis.analysis_type == AnalysisTypeEnum.glycan_lc_ms:
         click.secho("Analysis %r is of type %r." % (
@@ -190,8 +190,8 @@ def glycan_composition_identification(database_connection, analysis_identifier, 
 
 @export.command("glycopeptide-identification",
                 short_help="Exports assigned LC-MS/MS features of Glycopeptides to CSV or HTML")
-@database_connection
-@analysis_identifier("glycopeptide")
+@database_connection_arg
+@analysis_identifier_arg("glycopeptide")
 @click.option("-o", "--output-path", type=click.Path(), default=None, help='Path to write to instead of stdout')
 @click.option("-r", "--report", is_flag=True, help="Export an HTML report instead of a CSV")
 @click.option("-m", "--mzml-path", type=click.Path(exists=True), default=None, help=(
@@ -202,7 +202,7 @@ def glycopeptide_identification(database_connection, analysis_identifier, output
     '''Write each distinct identified glycopeptide in CSV format
     '''
     database_connection = DatabaseBoundOperation(database_connection)
-    session = database_connection.session()
+    session = database_connection.session()  # pylint: disable=not-callable
     analysis = get_by_name_or_id(session, Analysis, analysis_identifier)
     if not analysis.analysis_type == AnalysisTypeEnum.glycopeptide_lc_msms:
         click.secho("Analysis %r is of type %r." % (
@@ -221,7 +221,7 @@ def glycopeptide_identification(database_connection, analysis_identifier, output
                     raise click.ClickException(
                         ("Sample path {} not found. Pass the path to"
                          " this file as `-m/--mzml-path` for this command.").format(
-                            mzml_path))
+                             mzml_path))
             GlycopeptideDatabaseSearchReportCreator(
                 database_connection._original_connection, analysis_id,
                 stream=output_stream, threshold=threshold,
@@ -229,7 +229,7 @@ def glycopeptide_identification(database_connection, analysis_identifier, output
     else:
         query = session.query(Protein.id, Protein.name).join(Protein.glycopeptides).join(
             IdentifiedGlycopeptide).filter(
-            IdentifiedGlycopeptide.analysis_id == analysis.id)
+                IdentifiedGlycopeptide.analysis_id == analysis.id)
         protein_index = dict(query)
 
         def generate():
@@ -254,14 +254,14 @@ def glycopeptide_identification(database_connection, analysis_identifier, output
 
 @export.command("glycopeptide-spectrum-matches",
                 short_help="Exports individual MS/MS assignments of Glycopeptides to CSV")
-@database_connection
-@analysis_identifier("glycopeptide")
+@database_connection_arg
+@analysis_identifier_arg("glycopeptide")
 @click.option("-o", "--output-path", type=click.Path(), default=None, help='Path to write to instead of stdout')
 def glycopeptide_spectrum_matches(database_connection, analysis_identifier, output_path=None):
     '''Write each matched glycopeptide spectrum in CSV format
     '''
     database_connection = DatabaseBoundOperation(database_connection)
-    session = database_connection.session()
+    session = database_connection.session()  # pylint: disable=not-callable
     analysis = get_by_name_or_id(session, Analysis, analysis_identifier)
     if not analysis.analysis_type == AnalysisTypeEnum.glycopeptide_lc_msms:
         click.secho("Analysis %r is of type %r." % (
@@ -270,7 +270,7 @@ def glycopeptide_spectrum_matches(database_connection, analysis_identifier, outp
     analysis_id = analysis.id
     query = session.query(Protein.id, Protein.name).join(Protein.glycopeptides).join(
         GlycopeptideSpectrumMatch).filter(
-        GlycopeptideSpectrumMatch.analysis_id == analysis.id)
+            GlycopeptideSpectrumMatch.analysis_id == analysis.id)
     protein_index = dict(query)
 
     def generate():
@@ -278,7 +278,7 @@ def glycopeptide_spectrum_matches(database_connection, analysis_identifier, outp
         interval = 100000
         query = session.query(GlycopeptideSpectrumMatch).filter(
             GlycopeptideSpectrumMatch.analysis_id == analysis_id).order_by(
-            GlycopeptideSpectrumMatch.scan_id)
+                GlycopeptideSpectrumMatch.scan_id)
         while True:
             session.expire_all()
             chunk = query.slice(i, i + interval).all()
@@ -298,8 +298,8 @@ def glycopeptide_spectrum_matches(database_connection, analysis_identifier, outp
 
 
 # @export.command("mzid", short_help="Export a Glycopeptide Analysis as MzIdentML")
-@database_connection
-@analysis_identifier("glycopeptide")
+@database_connection_arg
+@analysis_identifier_arg("glycopeptide")
 @click.argument("output-path")
 @click.option("-m", '--mzml-path', type=click.Path(exists=True), default=None,
               help="Alternative path to find the source mzML file")
@@ -311,7 +311,7 @@ def glycopeptide_mzidentml(database_connection, analysis_identifier, output_path
     extracted elution profile.
     '''
     database_connection = DatabaseBoundOperation(database_connection)
-    session = database_connection.session()
+    session = database_connection.session()  # pylint: disable=not-callable
     analysis = get_by_name_or_id(session, Analysis, analysis_identifier)
     if not analysis.analysis_type == AnalysisTypeEnum.glycopeptide_lc_msms:
         click.secho("Analysis %r is of type %r." % (
@@ -327,8 +327,8 @@ def glycopeptide_mzidentml(database_connection, analysis_identifier, output_path
 
 
 @export.command("glycopeptide-training-mgf")
-@database_connection
-@analysis_identifier("glycopeptide")
+@database_connection_arg
+@analysis_identifier_arg("glycopeptide")
 @click.option("-o", "--output-path", type=click.Path(), default=None, help='Path to write to instead of stdout')
 @click.option("-m", '--mzml-path', type=click.Path(exists=True), default=None,
               help="Alternative path to find the source mzML file")
@@ -336,7 +336,7 @@ def glycopeptide_mzidentml(database_connection, analysis_identifier, output_path
 def glycopeptide_training_mgf(database_connection, analysis_identifier, output_path=None,
                               mzml_path=None, threshold=None):
     database_connection = DatabaseBoundOperation(database_connection)
-    session = database_connection.session()
+    session = database_connection.session()  # pylint: disable=not-callable
     analysis = get_by_name_or_id(session, Analysis, analysis_identifier)
     if not analysis.analysis_type == AnalysisTypeEnum.glycopeptide_lc_msms:
         click.secho("Analysis %r is of type %r." % (
@@ -352,12 +352,12 @@ def glycopeptide_training_mgf(database_connection, analysis_identifier, output_p
 
 
 @export.command("identified-glycans-from-glycopeptides")
-@database_connection
-@analysis_identifier("glycopeptide")
+@database_connection_arg
+@analysis_identifier_arg("glycopeptide")
 @click.option("-o", "--output-path", type=click.Path(), default=None, help='Path to write to instead of stdout')
 def export_identified_glycans_from_glycopeptides(database_connection, analysis_identifier, output_path):
     database_connection = DatabaseBoundOperation(database_connection)
-    session = database_connection.session()
+    session = database_connection.session()  # pylint: disable=not-callable
     analysis = get_by_name_or_id(session, Analysis, analysis_identifier)
     if not analysis.analysis_type == AnalysisTypeEnum.glycopeptide_lc_msms:
         click.secho("Analysis %r is of type %r." % (
@@ -365,11 +365,11 @@ def export_identified_glycans_from_glycopeptides(database_connection, analysis_i
         raise click.Abort()
     glycans = session.query(GlycanComposition).join(
         GlycanCombinationGlycanComposition).join(GlycanCombination).join(
-        Glycopeptide,
-        Glycopeptide.glycan_combination_id == GlycanCombination.id).join(
-        IdentifiedGlycopeptide,
-        IdentifiedGlycopeptide.structure_id == Glycopeptide.id).filter(
-        IdentifiedGlycopeptide.analysis_id == analysis.id).all()
+            Glycopeptide,
+            Glycopeptide.glycan_combination_id == GlycanCombination.id).join(
+                IdentifiedGlycopeptide,
+                IdentifiedGlycopeptide.structure_id == Glycopeptide.id).filter(
+                    IdentifiedGlycopeptide.analysis_id == analysis.id).all()
     if output_path is None:
         output_stream = ctxstream(sys.stdout)
     else:
@@ -381,14 +381,14 @@ def export_identified_glycans_from_glycopeptides(database_connection, analysis_i
 
 @export.command("annotate-matched-spectra",
                 short_help="Exports individual MS/MS assignments of glycopeptides to PDF")
-@database_connection
-@analysis_identifier("glycopeptide")
+@database_connection_arg
+@analysis_identifier_arg("glycopeptide")
 @click.option("-o", "--output-path", type=click.Path(), default=None, help='Path to write to instead of stdout')
 @click.option("-m", '--mzml-path', type=click.Path(exists=True), default=None,
               help="Alternative path to find the source mzML file")
 def annotate_matched_spectra(database_connection, analysis_identifier, output_path, mzml_path=None):
     database_connection = DatabaseBoundOperation(database_connection)
-    session = database_connection.session()
+    session = database_connection.session()  # pylint: disable=not-callable
     analysis = get_by_name_or_id(session, Analysis, analysis_identifier)
     if not analysis.analysis_type == AnalysisTypeEnum.glycopeptide_lc_msms:
         click.secho("Analysis %r is of type %r." % (
@@ -405,12 +405,16 @@ def annotate_matched_spectra(database_connection, analysis_identifier, output_pa
 
 
 @export.command("glycopeptide-chromatogram-records")
-@database_connection
-@analysis_identifier("glycopeptide")
+@database_connection_arg
+@analysis_identifier_arg("glycopeptide")
 @click.option("-o", "--output-path", type=click.Path(), default=None, help='Path to write to instead of stdout')
-def glycopeptide_chromatogram_records(database_connection, analysis_identifier, output_path):
+@click.option('-r', '--apex-time-range', type=(float, float), default=(0, float('inf')),
+              help='The range of apex times to include')
+def glycopeptide_chromatogram_records(database_connection, analysis_identifier, output_path, apex_time_range=None):
+    if apex_time_range is None:
+        apex_time_range = (0, float('inf'))
     database_connection = DatabaseBoundOperation(database_connection)
-    session = database_connection.session()
+    session = database_connection.session()  # pylint: disable=not-callable
     analysis = get_by_name_or_id(session, Analysis, analysis_identifier)
     if not analysis.analysis_type == AnalysisTypeEnum.glycopeptide_lc_msms:
         click.secho("Analysis %r is of type %r." % (
@@ -427,6 +431,7 @@ def glycopeptide_chromatogram_records(database_connection, analysis_identifier, 
     from glycan_profiling.scoring.elution_time_grouping import GlycopeptideChromatogramProxy
     cases = []
     analysis_name = analysis.name
+    start_time, stop_time = apex_time_range
     for i, idgp in enumerate(idgps):
         if i % 50 == 0:
             click.echo("%d/%d Records Processed" % (i, n), err=True)
@@ -438,6 +443,9 @@ def glycopeptide_chromatogram_records(database_connection, analysis_identifier, 
             idgp, ms1_score=idgp.ms1_score, ms2_score=idgp.ms2_score,
             q_value=idgp.q_value, analysis_name=analysis_name,
             mass_shifts=';'.join([m.name for m in idgp.chromatogram.mass_shifts]))
+        if obj.apex_time < start_time or obj.apex_time > stop_time:
+            continue
         cases.append(obj)
+    click.echo("Writing %d Records" % (len(cases), ), err=True)
     with fh:
-        GlycopeptideChromatogramProxy.to_csv(cases,  fh)
+        GlycopeptideChromatogramProxy.to_csv(cases, fh)
