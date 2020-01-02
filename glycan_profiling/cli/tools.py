@@ -196,7 +196,7 @@ class SQLShellInterpreter(cmd.Cmd):
 @click.option("-s", "--script", default=None)
 def sql_shell(database_connection, script=None):
     db = DatabaseBoundOperation(database_connection)
-    session = db.session()
+    session = db.session()  # pylint: disable=not-callable
     interpreter = SQLShellInterpreter(session)
     if script is None:
         interpreter.cmdloop()
@@ -541,3 +541,28 @@ def extract_file_blob(database_connection, blob_identifier, output_path=None):
         while chunk:
             output_path.write(chunk)
             chunk = fh.read(chunk_size)
+
+
+@tools.command("csv-concat")
+@click.argument("csv-paths", type=click.File(mode='rt'), nargs=-1)
+@click.option("-o", "--output-path", type=click.Path(writable=True), help="Path to write output to")
+def csv_concat(csv_paths, output_path=None):
+    if output_path is None:
+        output_path = '-'
+    import csv
+    headers = None
+    with click.open_file(output_path, mode='wt') as outfh:
+        writer = csv.writer(outfh)
+        for infh in csv_paths:
+            reader = csv.reader(infh)
+            _header_line = next(reader)
+            if headers is None:
+                headers = _header_line
+                writer.writerow(headers)
+            elif _header_line != headers:
+                raise click.ClickException("File %s did not have matching headers (%s != %s)" % (
+                    infh.name, _header_line, headers))
+            for row in reader:
+                writer.writerow(row)
+            infh.close()
+            outfh.flush()
