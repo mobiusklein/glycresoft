@@ -4,8 +4,6 @@ from uuid import uuid4
 import dill as pickle
 
 import click
-from .base import (
-    cli, HiddenOption, processes_option)
 
 from glycan_profiling.serialize import (
     DatabaseBoundOperation,
@@ -27,6 +25,9 @@ from glycan_profiling.database.composition_network import GraphReader
 
 from glycan_profiling.models import GeneralScorer
 from glycan_profiling.task import fmt_msg
+
+from .base import (
+    cli, HiddenOption, processes_option)
 
 from .validators import (
     validate_analysis_name,
@@ -56,7 +57,7 @@ def analyze():
     pass
 
 
-def database_connection(arg_name='database-connection'):
+def database_connection_arg(arg_name='database-connection'):
     def database_connection_arg(fn):
         arg = click.argument(
             "database-connection",
@@ -67,7 +68,7 @@ def database_connection(arg_name='database-connection'):
     return database_connection_arg
 
 
-def hypothesis_identifier(hypothesis_type, arg_name='hypothesis-identifier'):
+def hypothesis_identifier_arg(hypothesis_type, arg_name='hypothesis-identifier'):
     def wrapper(fn):
         arg = click.argument(arg_name, doc_help=(
             "The ID number or name of the %s hypothesis to use" % (hypothesis_type,)))
@@ -75,7 +76,7 @@ def hypothesis_identifier(hypothesis_type, arg_name='hypothesis-identifier'):
     return wrapper
 
 
-def hypothesis_identifier_option(hypothesis_type, *args, **kwargs):
+def hypothesis_identifier_arg_option(hypothesis_type, *args, **kwargs):
     def wrapper(fn):
         arg = click.option(*args, help=(
             "The ID number or name of the %s hypothesis to use" % (hypothesis_type,)), **kwargs)
@@ -83,7 +84,7 @@ def hypothesis_identifier_option(hypothesis_type, *args, **kwargs):
     return wrapper
 
 
-def sample_path(fn):
+def sample_path_arg(fn):
     arg = click.argument(
         "sample-path",
         type=click.Path(exists=True, dir_okay=False, file_okay=True),
@@ -94,9 +95,9 @@ def sample_path(fn):
 
 @analyze.command("search-glycopeptide", short_help='Search preprocessed data for glycopeptide sequences')
 @click.pass_context
-@database_connection()
-@sample_path
-@hypothesis_identifier("glycopeptide")
+@database_connection_arg()
+@sample_path_arg
+@hypothesis_identifier_arg("glycopeptide")
 @click.option("-m", "--mass-error-tolerance", type=RelativeMassErrorParam(), default=1e-5,
               help="Mass accuracy constraint, in parts-per-million error, for matching MS^1 ions.")
 @click.option("-mn", "--msn-mass-error-tolerance", type=RelativeMassErrorParam(), default=2e-5,
@@ -106,8 +107,8 @@ def sample_path(fn):
 @click.option("-n", "--analysis-name", default=None, help='Name for analysis to be performed.')
 @click.option("-q", "--psm-fdr-threshold", default=0.05, type=float,
               help='Minimum FDR Threshold to use for filtering GPSMs when selecting identified glycopeptides')
-@click.option("-s", "--tandem-scoring-model", default='coverage_weighted_binomial', type=click.Choice(
-              glycopeptide_tandem_scoring_functions.keys()),
+@click.option("-s", "--tandem-scoring-model", default='coverage_weighted_binomial',
+              type=click.Choice(glycopeptide_tandem_scoring_functions.keys()),
               help="Select a scoring function to use for evaluating glycopeptide-spectrum matches")
 @click.option("-x", "--oxonium-threshold", default=0.05, type=float,
               help=('Minimum HexNAc-derived oxonium ion abundance '
@@ -119,11 +120,10 @@ def sample_path(fn):
     "Filter putative spectrum matches by estimating the peptide backbone mass "
     "from the precursor mass and stub glycopeptide signature ions"))
 @processes_option
-@click.option("--export", type=click.Choice(
-              ['csv', 'html', 'psm-csv']), multiple=True,
+@click.option("--export", type=click.Choice(['csv', 'html', 'psm-csv']), multiple=True,
               help="export command to after search is complete")
-@click.option("-o", "--output-path", default=None, type=click.Path(writable=True), help=(
-              "Path to write resulting analysis to."))
+@click.option("-o", "--output-path", default=None, type=click.Path(writable=True),
+              help=("Path to write resulting analysis to."))
 @click.option("-w", "--workload-size", default=500, type=int, help="Number of spectra to process at once")
 @click.option("--save-intermediate-results", default=None, type=click.Path(), required=False,
               help='Save intermediate spectrum matches to a file', cls=HiddenOption)
@@ -263,11 +263,11 @@ def search_glycopeptide(context, database_connection, sample_path, hypothesis_id
 @analyze.command("search-glycopeptide-multipart", short_help=(
     'Search preprocessed data for glycopeptide sequences scored for both peptide and glycan components'))
 @click.pass_context
-@database_connection("database-connection")
-@database_connection("decoy-database-connection")
-@sample_path
-@hypothesis_identifier_option("glycopeptide", '-T', '--target-hypothesis-identifier', default=1)
-@hypothesis_identifier_option("glycopeptide", '-D', "--decoy-hypothesis-identifier", default=1)
+@database_connection_arg("database-connection")
+@database_connection_arg("decoy-database-connection")
+@sample_path_arg
+@hypothesis_identifier_arg_option("glycopeptide", '-T', '--target-hypothesis-identifier', default=1)
+@hypothesis_identifier_arg_option("glycopeptide", '-D', "--decoy-hypothesis-identifier", default=1)
 @click.option("-M", "--memory-database-index", is_flag=True,
               help=("Whether to load the entire peptide database into memory during spectrum mapping. "
                     "Uses more memory but substantially accelerates the process"), default=False)
@@ -280,20 +280,19 @@ def search_glycopeptide(context, database_connection, sample_path, hypothesis_id
 @click.option("-n", "--analysis-name", default=None, help='Name for analysis to be performed.')
 @click.option("-q", "--psm-fdr-threshold", default=0.05, type=float,
               help='Minimum FDR Threshold to use for filtering GPSMs when selecting identified glycopeptides')
-@click.option("-s", "--tandem-scoring-model", default='log_intensity', type=click.Choice(
-    ["log_intensity", "simple"]),
-    help="Select a scoring function to use for evaluating glycopeptide-spectrum matches")
+@click.option("-s", "--tandem-scoring-model", default='log_intensity',
+              type=click.Choice(["log_intensity", "simple"]),
+              help="Select a scoring function to use for evaluating glycopeptide-spectrum matches")
 @click.option("-y", "--glycan-score-threshold", default=1.0, type=float,
               help="The minimum glycan score required to consider a peptide mass")
 @click.option("-a", "--adduct", 'mass_shifts', multiple=True, nargs=2,
               help=("Adducts to consider. Specify name or formula, and a"
                     " multiplicity."))
 @processes_option
-@click.option("--export", type=click.Choice(
-              ['csv', 'html', 'psm-csv']), multiple=True,
+@click.option("--export", type=click.Choice(['csv', 'html', 'psm-csv']), multiple=True,
               help="export command to after search is complete")
-@click.option("-o", "--output-path", default=None, type=click.Path(writable=True), help=(
-              "Path to write resulting analysis to."))
+@click.option("-o", "--output-path", default=None, type=click.Path(writable=True),
+              help=("Path to write resulting analysis to."))
 @click.option("-w", "--workload-size", default=500, type=int, help="Number of spectra to process at once")
 @click.option("--save-intermediate-results", default=None, type=click.Path(), required=False,
               help='Save intermediate spectrum matches to a file', cls=HiddenOption)
@@ -322,7 +321,7 @@ def search_glycopeptide_multipart(context, database_connection, decoy_database_c
             database_connection, GlycopeptideHypothesis, target_hypothesis_identifier)
     except Exception:
         click.secho("Could not locate Target Glycopeptide Hypothesis with identifier %r" %
-                    hypothesis_identifier, fg='yellow')
+                    target_hypothesis_identifier, fg='yellow')
         raise click.Abort()
 
     try:
@@ -330,7 +329,7 @@ def search_glycopeptide_multipart(context, database_connection, decoy_database_c
             decoy_database_connection, GlycopeptideHypothesis, decoy_hypothesis_identifier)
     except Exception:
         click.secho("Could not locate Decoy Glycopeptide Hypothesis with identifier %r" %
-                    hypothesis_identifier, fg='yellow')
+                    decoy_hypothesis_identifier, fg='yellow')
         raise click.Abort()
 
     tandem_scoring_model = validate_glycopeptide_tandem_scoring_function(
@@ -445,9 +444,9 @@ class RegularizationParameterType(click.ParamType):
 @analyze.command("search-glycan", short_help=('Search processed data for'
                                               ' glycan compositions'))
 @click.pass_context
-@database_connection()
-@sample_path
-@hypothesis_identifier("glycan")
+@database_connection_arg()
+@sample_path_arg
+@hypothesis_identifier_arg("glycan")
 @click.option("-m", "--mass-error-tolerance", type=RelativeMassErrorParam(), default=1e-5,
               help=("Mass accuracy constraint, in parts-per-million "
                     "error, for matching."))
@@ -465,8 +464,7 @@ class RegularizationParameterType(click.ParamType):
     "Maximum number of mass_shift combinations to consider"))
 @click.option("-d", "--minimum-mass", default=500., type=float,
               help="The minimum mass to consider signal at.")
-@click.option("-o", "--output-path", default=None, help=(
-              "Path to write resulting analysis to."))
+@click.option("-o", "--output-path", default=None, help=("Path to write resulting analysis to."))
 @click.option("--interact", is_flag=True, cls=HiddenOption)
 @click.option("-f", "--ms1-scoring-feature", "scoring_model_features", multiple=True,
               type=click.Choice(ms1_model_features.keys(lambda x: x.replace("_", "-"))),
@@ -484,8 +482,7 @@ class RegularizationParameterType(click.ParamType):
                     " and neighborhood rules"))
 @click.option("-t", "--delta-rt", default=0.5, type=float,
               help='The maximum time between observed data points before splitting features')
-@click.option("--export", type=click.Choice(
-              ['csv', 'glycan-list', 'html', "model"]), multiple=True,
+@click.option("--export", type=click.Choice(['csv', 'glycan-list', 'html', "model"]), multiple=True,
               help="export command to after search is complete")
 @click.option('-s', '--require-msms-signature', type=float, default=0.0,
               help="Minimum oxonium ion signature required in MS/MS scans to include.")
@@ -624,13 +621,14 @@ def search_glycan(context, database_connection, sample_path,
                 click.secho("Unrecognized Export: %s" % (export_type,), fg='yellow')
 
 
-@analyze.command("summarize-chromatograms", short_help="Simply summarize coherent chromatograms by mass and signal with time boundaries")
+@analyze.command("summarize-chromatograms",
+                 short_help="Simply summarize coherent chromatograms by mass and signal with time boundaries")
 @click.pass_context
-@sample_path
-@click.option("-o", "--output-path", default=None, type=click.Path(writable=True), help=(
-              "Path to write resulting analysis to as a CSV"))
-@click.option("-e", "--evaluate", is_flag=True, help=(
-              "Should all chromatograms be evaluated. Can greatly increase runtime."))
+@sample_path_arg
+@click.option("-o", "--output-path", default=None, type=click.Path(writable=True),
+              help=("Path to write resulting analysis to as a CSV"))
+@click.option("-e", "--evaluate", is_flag=True,
+              help=("Should all chromatograms be evaluated. Can greatly increase runtime."))
 def summarize_chromatograms(context, sample_path, output_path, evaluate=False):
     task = ChromatogramSummarizer(sample_path, evaluate=evaluate)
     chromatograms, summary_chromatograms = task.start()
@@ -645,3 +643,12 @@ def summarize_chromatograms(context, sample_path, output_path, evaluate=False):
         else:
             writer = SimpleChromatogramCSVSerializer(fh, chromatograms)
         writer.run()
+
+
+@analyze.command("fit-glycopeptide-retention-time", short_help="Model the retention time of the glycopeptide")
+@click.pass_context
+@click.argument("chromatogram-csv-path", type=click.Path(readable=True))
+@click.option("-o", "--output-path", default=None, type=click.Path(writable=True),
+              help=("Path to write resulting analysis to as a CSV"))
+def glycopeptide_retention_time_fit(context, chromatogram_csv_path, output_path):
+    pass

@@ -16,6 +16,7 @@ try:
 except ImportError:
     pass
 
+from glycan_profiling.task import TaskBase
 from glycan_profiling.scoring.base import (
     ScoringFeatureBase,)
 
@@ -181,6 +182,9 @@ class ChromatogramProxy(object):
             self.weighted_neutral_mass, self.apex_time, self.total_signal,
             self.glycan_composition, self.kwargs)
 
+    def pack(self):
+        self.obj = None
+
     @classmethod
     def from_obj(cls, obj, **kwargs):
         try:
@@ -239,10 +243,17 @@ class ChromatogramProxy(object):
 
 
 class GlycopeptideChromatogramProxy(ChromatogramProxy):
+    _structure = None
+
     @property
     def structure(self):
-        gp = PeptideSequence(self.kwargs["structure"])
-        return gp
+        if self._structure is None:
+            self._structure = PeptideSequence(self.kwargs["structure"])
+        return self._structure
+
+    @structure.setter
+    def structure_setter(self, value):
+        self._structure = value
 
     @classmethod
     def from_obj(cls, obj, **kwargs):
@@ -412,6 +423,28 @@ class ElutionTimeFitter(ScoringFeatureBase):
     def clone(self):
         return self.__class__(self.chromatograms)
 
+    def summary(self, join_char=' | ', justify=True):
+        if justify:
+            formatter = str.ljust
+        else:
+            formatter = lambda x, y: x
+        column_labels = ['Feature Name', "Value", "p-value", "Conf. Int."]
+        feature_names = list(map(str, self.feature_names()))
+        parameter_values = ['%0.2f' % val for val in self.parameters]
+        signif = ['%0.3f' % val for val in self.parameter_significance()]
+        ci = ['%0.2f-%0.2f' % tuple(cinv) for cinv in self.parameter_confidence_interval()]
+        sizes = list(map(len, column_labels))
+        value_sizes = [max(map(len, col)) for col in [feature_names, parameter_values, signif, ci]]
+        sizes = map(max, zip(sizes, value_sizes))
+        table = [[formatter(v, sizes[i]) for i, v in enumerate(column_labels)]]
+        for row in zip(feature_names, parameter_values, signif, ci):
+            table.append([
+                formatter(v, sizes[i]) for i, v in enumerate(row)
+            ])
+        joiner = join_char.join
+        table_str = '\n'.join(map(joiner, table))
+        return table_str
+
 
 class AbundanceWeightedElutionTimeFitter(ElutionTimeFitter):
     def build_weight_matrix(self):
@@ -560,6 +593,31 @@ class AbundanceWeightedPeptideFactorElutionTimeFitter(PeptideFactorElutionTimeFi
         W /= W.max()
         return W
 
+    def groupwise_R2(self, adjust=True):
+        x = self.data
+        y = self.apex_time_array
+        w = self.weight_matrix
+        yhat = x.dot(self.parameters)
+        residuals = (y - yhat)
+        rss_u = (np.diag(w) * residuals * residuals)
+        tss = (y - y.mean())
+        tss_u = (np.diag(w) * tss * tss)
+
+        mapping = {}
+        for key, value in self._peptide_to_indicator.items():
+            mask = x[:, value] == 1
+            rss = rss_u[mask].sum()
+            tss = tss_u[mask].sum()
+            n = len(y)
+            k = len(self.parameters)
+            if adjust:
+                adjustment_factor = (n - 1.0) / float(n - k - 1.0)
+            else:
+                adjustment_factor = 1.0
+            R2 = (1 - adjustment_factor * (rss / tss))
+            mapping[key] = R2
+        return mapping
+
 
 class ReplicatedAbundanceWeightedPeptideFactorElutionTimeFitter(AbundanceWeightedPeptideFactorElutionTimeFitter):
     def __init__(self, chromatograms, factors=None, scale=1, replicate_key_attr='analysis_name'):
@@ -626,6 +684,52 @@ class ReplicatedAbundanceWeightedPeptideFactorElutionTimeFitter(AbundanceWeighte
                 import warnings
                 warnings.warn("Replicate Key %s not part of the model." % (j, ))
         return np.hstack((replicates, data_vector))
+
+
+class GlycopeptideElutionTimeModeler(TaskBase):
+    def __init__(self, glycopeptide_chromatograms, factors=None, refit_filter=0.01):
+        self.glycopeptide_chromatograms = glycopeptide_chromatograms
+        self.factors = factors
+        if self.factors is None:
+            self.factors = self._infer_factors()
+        self.joint_model = None
+        self.refit_filter = refit_filter
+        self.by_peptide = defaultdict(list)
+        self.peptide_specific_models = dict()
+        self._partition_by_sequence()
+
+    def _partition_by_sequence(self):
+        for record in self.glycopeptide_chromatograms:
+            key = str(record.clone().deglycosylate())
+            self.by_peptide[key].append(record)
+
+    def _infer_factors(self):
+        keys = set()
+        for record in self.glycopeptide_chromatograms:
+            keys.update(record.glycan_composition)
+        keys = sorted(map(str, keys))
+        return keys
+
+    def fit_model(self, glycopeptide_chromatograms):
+        model = ReplicatedAbundanceWeightedPeptideFactorElutionTimeFitter(
+            glycopeptide_chromatograms, self.factors)
+        model.fit()
+        return model
+
+    def fit(self):
+        self.log("Fitting Joint Model")
+        model = self.fit_model(self.glycopeptide_chromatograms)
+        self.log("R^2: %0.3f" % (model.R2(), ))
+        if self.refit_filter != 0.0:
+            self.log("Filtering Training Data")
+            filtered_cases = [
+                case for case in self.glycopeptide_chromatograms
+                if model.score(case) > self.refit_filter
+            ]
+            self.log("Re-fitting After Filtering")
+            model = self.fit_model(filtered_cases)
+            self.log("R^2: %0.3f" % (model.R2(), ))
+        self.joint_model = model
 
 
 class ElutionTimeModel(ScoringFeatureBase):
