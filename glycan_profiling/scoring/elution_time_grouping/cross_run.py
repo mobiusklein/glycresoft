@@ -46,7 +46,7 @@ class ReplicatedAbundanceWeightedPeptideFactorElutionTimeFitter(AbundanceWeighte
     def _get_apex_time(self, chromatogram):
         value = super(ReplicatedAbundanceWeightedPeptideFactorElutionTimeFitter,
                       self)._get_apex_time(chromatogram)
-        if self.use_retention_time_normalization:
+        if self.use_retention_time_normalization and self.run_normalizer is not None:
             replicate_id = self._get_replicate_key(chromatogram)
             value = self.run_normalizer.correct(value, replicate_id)
         return value
