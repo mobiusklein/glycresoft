@@ -19,7 +19,7 @@ from .linear_regression import weighted_linear_regression_fit
 
 class ReplicatedAbundanceWeightedPeptideFactorElutionTimeFitter(AbundanceWeightedPeptideFactorElutionTimeFitter):
     def __init__(self, chromatograms, factors=None, scale=1, replicate_key_attr='analysis_name',
-                 use_retention_time_normalization=True, reference_sample=None):
+                 use_retention_time_normalization=False, reference_sample=None):
         if factors is None:
             factors = ['Hex', 'HexNAc', 'Fuc', 'Neu5Ac']
         self.replicate_key_attr = replicate_key_attr
@@ -34,9 +34,13 @@ class ReplicatedAbundanceWeightedPeptideFactorElutionTimeFitter(AbundanceWeighte
 
         index, samples = self._build_common_glycopeptides()
         self.replicate_names = samples
-        self.run_normalizer = LinearRetentionTimeCorrector(index, samples, self.reference_sample)
-        if self.reference_sample is None:
-            self.reference_sample = self.run_normalizer.reference_key
+        if self.use_retention_time_normalization:
+            self.run_normalizer = LinearRetentionTimeCorrector(index, samples, self.reference_sample)
+            if self.reference_sample is None:
+                self.reference_sample = self.run_normalizer.reference_key
+        else:
+            if self.reference_sample is None:
+                self.reference_sample = samples[0]
         self.run_normalizer.fit()
         _ = self._replicate_to_indicator[self.reference_sample]
         for sample_key in samples:
