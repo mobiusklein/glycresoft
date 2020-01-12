@@ -44,6 +44,14 @@ class ReplicatedAbundanceWeightedPeptideFactorElutionTimeFitter(AbundanceWeighte
         super(ReplicatedAbundanceWeightedPeptideFactorElutionTimeFitter, self).__init__(
             chromatograms, list(factors), scale)
 
+    def reset_reference_sample(self, reference_sample):
+        self.reference_sample = reference_sample
+        self._replicate_to_indicator = defaultdict(make_counter(0))
+        _ = self._replicate_to_indicator[self.reference_sample]
+        for sample_key in self.replicate_names:
+            _ = self._replicate_to_indicator[sample_key]
+        self.data = self._prepare_data_matrix(self.neutral_mass_array)
+
     def _get_apex_time(self, chromatogram):
         value = super(ReplicatedAbundanceWeightedPeptideFactorElutionTimeFitter,
                       self)._get_apex_time(chromatogram)
@@ -126,9 +134,9 @@ class LinearRetentionTimeCorrector(object):
         self.sample_to_correction_parameters = dict()
         self.sample_to_vector = dict()
         if self.reference_key is None:
-            self.reference_key = self._select_reference()
+            self.reference_key = self.select_reference()
 
-    def _select_reference(self):
+    def build_sample_distance_matrix(self):
         n = len(self.sample_keys)
         distance_matrix = np.zeros((n, n))
         for i in range(n):
@@ -136,9 +144,13 @@ class LinearRetentionTimeCorrector(object):
             for j in range(i + 1, n):
                 jvec = self._make_vector_for(self.sample_keys[j])
                 wls = self._fit_correction(jvec, ivec)
-                distance = wls.rss
+                distance = wls.R2
                 distance_matrix[i, j] = distance
                 distance_matrix[j, i] = distance
+        return distance_matrix
+
+    def select_reference(self):
+        distance_matrix = self.build_sample_distance_matrix()
         return self.sample_keys[np.argmin(distance_matrix.sum(axis=0))]
 
     def _make_vector_for(self, sample):
