@@ -26,13 +26,24 @@ class ElutionTimeFitter(ScoringFeatureBase):
 
     def __init__(self, chromatograms, scale=1):
         self.chromatograms = chromatograms
+        self.neutral_mass_array = None
+        self.data = None
+        self.apex_time_array = None
+        self.weight_matrix = None
+        self.parameters = None
+        self.residuals = None
+        self.estimate = None
+        self.scale = scale
+        self._init_model_data()
+
+    def _init_model_data(self):
         self.neutral_mass_array = np.array([
-            x.weighted_neutral_mass for x in chromatograms
+            x.weighted_neutral_mass for x in self.chromatograms
         ])
         self.data = self._prepare_data_matrix(self.neutral_mass_array)
 
         self.apex_time_array = np.array([
-            self._get_apex_time(x) for x in chromatograms
+            self._get_apex_time(x) for x in self.chromatograms
         ])
 
         self.weight_matrix = self.build_weight_matrix()
@@ -40,7 +51,6 @@ class ElutionTimeFitter(ScoringFeatureBase):
         self.parameters = None
         self.residuals = None
         self.estimate = None
-        self.scale = scale
 
     def _get_apex_time(self, chromatogram):
         return _get_apex_time(chromatogram)

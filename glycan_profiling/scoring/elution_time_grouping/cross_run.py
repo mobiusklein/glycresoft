@@ -30,8 +30,7 @@ class ReplicatedAbundanceWeightedPeptideFactorElutionTimeFitter(AbundanceWeighte
         # Ensure that _replicate_to_indicator is properly initialized
         # for obs in chromatograms:
         #     _ = self._replicate_to_indicator[self._get_replicate_key(obs)]
-        super(ReplicatedAbundanceWeightedPeptideFactorElutionTimeFitter, self).__init__(
-            chromatograms, list(factors), scale)
+        self.chromatograms = chromatograms
 
         index, samples = self._build_common_glycopeptides()
         self.replicate_names = samples
@@ -42,6 +41,8 @@ class ReplicatedAbundanceWeightedPeptideFactorElutionTimeFitter(AbundanceWeighte
         _ = self._replicate_to_indicator[self.reference_sample]
         for sample_key in samples:
             _ = self._replicate_to_indicator[sample_key]
+        super(ReplicatedAbundanceWeightedPeptideFactorElutionTimeFitter, self).__init__(
+            chromatograms, list(factors), scale)
 
     def _get_apex_time(self, chromatogram):
         value = super(ReplicatedAbundanceWeightedPeptideFactorElutionTimeFitter,
