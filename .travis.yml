@@ -16,6 +16,6 @@ install:
   - pip install --only-binary=numpy,scipy numpy scipy==0.19.0
   - pip install -r external-requirements.txt
   - python pyinstaller/install-from-git.py
-  - pip install PyInstaller dis3
+  - pip install PyInstaller==3.5 dis3
   - python setup.py install
 script: make test build-pyinstaller
