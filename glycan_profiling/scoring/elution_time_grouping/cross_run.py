@@ -38,10 +38,10 @@ class ReplicatedAbundanceWeightedPeptideFactorElutionTimeFitter(AbundanceWeighte
             self.run_normalizer = LinearRetentionTimeCorrector(index, samples, self.reference_sample)
             if self.reference_sample is None:
                 self.reference_sample = self.run_normalizer.reference_key
+            self.run_normalizer.fit()
         else:
             if self.reference_sample is None:
                 self.reference_sample = samples[0]
-        self.run_normalizer.fit()
         _ = self._replicate_to_indicator[self.reference_sample]
         for sample_key in samples:
             _ = self._replicate_to_indicator[sample_key]
