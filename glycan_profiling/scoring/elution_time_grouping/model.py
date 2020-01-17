@@ -16,7 +16,7 @@ except ImportError:
 from glycan_profiling.scoring.base import (
     ScoringFeatureBase,)
 
-from .structure import _get_apex_time
+from .structure import _get_apex_time, GlycopeptideChromatogramProxy
 from .linear_regression import (ransac, weighted_linear_regression_fit, prediction_interval, SMALL_ERROR)
 
 
@@ -252,6 +252,30 @@ class FactorElutionTimeFitter(ElutionTimeFitter):
         return np.array(
             [intercept] + [
                 chromatogram.glycan_composition[f] for f in self.factors])
+
+    def predict_delta_glycan(self, chromatogram, delta_glycan):
+        try:
+            shifted = chromatogram.shift_glycan_composition(delta_glycan)
+        except AttributeError:
+            shifted = GlycopeptideChromatogramProxy.from_obj(
+                chromatogram).shift_glycan_composition(delta_glycan)
+        return self.predict(shifted)
+
+    def prediction_plot(self, ax=None):
+        if ax is None:
+            _fig, ax = plt.subplots(1)
+        ax.scatter(self.apex_time_array, self.estimate)
+        preds = np.array(self.estimate)
+        obs = np.array(self.apex_time_array)
+        lo, hi = min(preds.min(), obs.min()), max(preds.max(), obs.max())
+        lo -= 0.2
+        hi += 0.2
+        ax.set_xlim(lo, hi)
+        ax.set_ylim(lo, hi)
+        ax.set_xlabel("Experimental RT (Min)", fontsize=14)
+        ax.set_ylabel("Predicted RT (Min)", fontsize=14)
+        ax.figure.text(0.15, 0.8, r"$R^2:%0.2f$" % self.R2(True))
+        return ax
 
     def plot(self, ax=None, include_intervals=True):
         from glycan_profiling.plotting.colors import ColorMapper

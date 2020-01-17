@@ -92,6 +92,11 @@ class ChromatogramProxy(object):
             cases.append(cls(mass, apex_time, total_signal, gc, **kwargs))
         return cases
 
+    def shift_glycan_composition(self, delta):
+        inst = self.__class__.from_obj(self)
+        inst.glycan_composition = HashableGlycanComposition(self.glycan_composition) - delta
+        return inst
+
 
 class GlycopeptideChromatogramProxy(ChromatogramProxy):
     _structure = None

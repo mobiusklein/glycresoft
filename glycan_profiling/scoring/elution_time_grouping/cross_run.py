@@ -20,6 +20,8 @@ from .linear_regression import weighted_linear_regression_fit
 class ReplicatedAbundanceWeightedPeptideFactorElutionTimeFitter(AbundanceWeightedPeptideFactorElutionTimeFitter):
     def __init__(self, chromatograms, factors=None, scale=1, replicate_key_attr='analysis_name',
                  use_retention_time_normalization=False, reference_sample=None):
+        if replicate_key_attr is None:
+            replicate_key_attr = 'analysis_name'
         if factors is None:
             factors = ['Hex', 'HexNAc', 'Fuc', 'Neu5Ac']
         self.replicate_key_attr = replicate_key_attr
@@ -75,7 +77,10 @@ class ReplicatedAbundanceWeightedPeptideFactorElutionTimeFitter(AbundanceWeighte
         return result, sorted(samples)
 
     def _get_replicate_key(self, chromatogram):
-        return getattr(chromatogram, self.replicate_key_attr)
+        if isinstance(self.replicate_key_attr, (str, unicode)):
+            return getattr(chromatogram, self.replicate_key_attr)
+        elif callable(self.replicate_key_attr):
+            return self.replicate_key_attr(chromatogram)
 
     def _prepare_data_matrix(self, mass_array):
         design_matrix = super(
