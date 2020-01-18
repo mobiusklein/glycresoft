@@ -108,7 +108,7 @@ class GlycopeptideChromatogramProxy(ChromatogramProxy):
     @property
     def structure(self):
         if self._structure is None:
-            self._structure = PeptideSequence(self.kwargs["structure"])
+            self._structure = PeptideSequence(str(self.kwargs["structure"]))
         return self._structure
 
     @structure.setter
