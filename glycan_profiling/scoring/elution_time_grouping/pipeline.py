@@ -2,6 +2,8 @@ from collections import defaultdict
 
 import numpy as np
 
+import glycopeptidepy
+
 from glycan_profiling.task import TaskBase
 
 from .cross_run import ReplicatedAbundanceWeightedPeptideFactorElutionTimeFitter
@@ -27,7 +29,7 @@ class GlycopeptideElutionTimeModeler(TaskBase):
 
     def _partition_by_sequence(self):
         for record in self.glycopeptide_chromatograms:
-            key = str(record.clone().deglycosylate())
+            key = glycopeptidepy.parse(str(record.structure)).deglycosylate()
             self.by_peptide[key].append(record)
 
     def _deltas_for(self, monosaccharide):
@@ -72,14 +74,21 @@ class GlycopeptideElutionTimeModeler(TaskBase):
         self.log('\n' + model.summary())
         self.joint_model = model
         factors = sorted(self.factors)
+        self.log("Measuring Single Monosaccharide Deltas, Median and MAD")
         for key in factors:
             deltas = self._deltas_for(key)
             self.delta_by_factor[key] = deltas
-            self.log("%s: %0.3f" % (key, np.median(deltas)))
+            self.log("%s:   %0.3f   %0.3f" %
+                     (key,
+                      np.median(deltas),
+                      np.median(np.abs(deltas - np.median(deltas))
+                      )))
         for key, members in self.by_peptide.items():
-            if len(members) - 1 <= len(self.factors):
-                self.log("Too few observations for %s" % (key, ))
-            self.log("Fitting Model For %s" % (key, ))
+            distinct_members = set(str(m.structure) for m in members)
+            self.log("Fitting Model For %s (%d observations, %d distinct)" % (key, len(members), len(distinct_members)))
+            if len(distinct_members) - 1 <= len(self.factors):
+                self.log("Too few distinct observations for %s" % (key, ))
+                continue
             model = self.fit_model(members)
             self.log("R^2: %0.3f" % (model.R2(), ))
             if self.refit_filter != 0.0:
