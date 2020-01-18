@@ -65,10 +65,22 @@ class ChromatogramProxy(object):
         d.update(self.kwargs)
         return d
 
+    def __getattr__(self, attr):
+        try:
+            return self.annotations[attr]
+        except KeyError:
+            raise AttributeError(attr)
+
+    @classmethod
+    def _csv_keys(cls, keys):
+        return ['glycan_composition', 'apex_time', 'total_signal', 'weighted_neutral_mass'] + \
+            sorted(set(keys) - {'glycan_composition', 'apex_time',
+                                'total_signal', 'weighted_neutral_mass'})
+
     @classmethod
     def to_csv(cls, instances, fh):
         cases = [c._to_csv() for c in instances]
-        keys = list(cases[0].keys())
+        keys = cls._csv_keys(cases[0].keys())
         writer = csv.DictWriter(fh, fieldnames=keys)
         writer.writeheader()
         writer.writerows(cases)
@@ -104,6 +116,13 @@ class ChromatogramProxy(object):
 
 class GlycopeptideChromatogramProxy(ChromatogramProxy):
     _structure = None
+
+    @classmethod
+    def _csv_keys(cls, keys):
+        return ['structure', 'glycan_composition', 'apex_time',
+                'total_signal', 'weighted_neutral_mass'] + \
+            sorted(set(keys) - {'structure', 'glycan_composition',
+                                'apex_time', 'total_signal', 'weighted_neutral_mass'})
 
     @property
     def structure(self):
