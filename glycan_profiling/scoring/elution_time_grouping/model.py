@@ -1,10 +1,10 @@
+import csv
 from collections import defaultdict
 
 import numpy as np
 from scipy import stats
 
 from glycopeptidepy import PeptideSequence
-from glypy.structure.glycan_composition import HashableGlycanComposition
 from glypy.utils import make_counter
 
 try:
@@ -220,6 +220,12 @@ class ElutionTimeFitter(ScoringFeatureBase):
         joiner = join_char.join
         table_str = '\n'.join(map(joiner, table))
         return table_str
+
+    def to_csv(self, fh):
+        writer = csv.writer(fh)
+        writer.writerow(["name", "value"])
+        for fname, value in zip(self.feature_names(), self.parameters):
+            writer.writerow([fname, value])
 
 
 class AbundanceWeightedElutionTimeFitter(ElutionTimeFitter):

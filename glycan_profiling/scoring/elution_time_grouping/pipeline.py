@@ -1,3 +1,4 @@
+import os
 from collections import defaultdict
 
 import numpy as np
@@ -6,6 +7,7 @@ import glycopeptidepy
 
 from glycan_profiling.task import TaskBase
 
+from .structure import GlycopeptideChromatogramProxy
 from .cross_run import ReplicatedAbundanceWeightedPeptideFactorElutionTimeFitter
 
 
@@ -16,6 +18,9 @@ class GlycopeptideElutionTimeModeler(TaskBase):
         if replicate_key_attr is None:
             replicate_key_attr = 'analysis_name'
         self.replicate_key_attr = replicate_key_attr
+        if not isinstance(glycopeptide_chromatograms[0], GlycopeptideChromatogramProxy):
+            glycopeptide_chromatograms = [
+                GlycopeptideChromatogramProxy.from_obj(i) for i in glycopeptide_chromatograms]
         self.glycopeptide_chromatograms = glycopeptide_chromatograms
         self.factors = factors
         if self.factors is None:
@@ -106,3 +111,57 @@ class GlycopeptideElutionTimeModeler(TaskBase):
             spec_perf = np.mean(map(model.score, members))
             self.log("Mean Peptide Model Score: %0.3f" % (spec_perf, ))
             self.log("Mean Joint Model Score:   %0.3f" % (joint_perf, ))
+
+    def evaluate(self):
+        for key, group in self.by_peptide.items():
+            self.log("Evaluating %s" % key)
+            for obs in group:
+                model = self._model_for(obs)
+                score = model.score(obs)
+                pred = model.predict(obs)
+                delta = model._get_apex_time(obs) - pred
+                obs.annotations['score'] = score
+                obs.annotations['predicted_apex_time'] = pred
+                obs.annotations['delta_apex_time'] = delta
+                self.log("\t%s: %0.2f @ %0.2f (%s%0.2f)" % (
+                    obs.structure, score, pred,
+                    "+" if delta > 0 else '-', abs(delta)
+                    ))
+
+    def _model_for(self, observation):
+        key = glycopeptidepy.parse(str(observation.structure)).deglycosylate()
+        model = self.peptide_specific_models.get(key, self.joint_model)
+        return model
+
+    def predict(self, observation):
+        model = self._model_for(observation)
+        return model.predict(observation)
+
+    def score(self, observation):
+        model = self._model_for(observation)
+        return model.score(observation)
+
+    def write(self, path):
+        from glycan_profiling.output.report.base import render_plot
+        from glycan_profiling.plotting.base import figax
+        if not os.path.exists(path):
+            os.makedirs(path)
+        elif not os.path.isdir(path):
+            raise IOError("Expected a path to a directory, %s is a file!" % (path, ))
+        pjoin = os.path.join
+        with open(pjoin(path, "scored_chromatograms.csv"), 'wt') as fh:
+            GlycopeptideChromatogramProxy.to_csv(self.glycopeptide_chromatograms, fh)
+        with open(pjoin(path, "joint_model_parameters.csv"), 'wt') as fh:
+            self.joint_model.to_csv(fh)
+        with open(pjoin(path, "joint_model_predplot.png"), 'wb') as fh:
+            ax = figax()
+            self.joint_model.prediction_plot(ax=ax)
+            fh.write(render_plot(ax).getvalue())
+
+        for key, model in self.peptide_specific_models.items():
+            with open(pjoin(path, "%s_model_parameters.csv" % (key, )), 'wt') as fh:
+                model.to_csv(fh)
+            with open(pjoin(path, "%s_model_predplot.png" % (key, )), 'wb') as fh:
+                ax = figax()
+                model.prediction_plot(ax=ax)
+                fh.write(render_plot(ax).getvalue())

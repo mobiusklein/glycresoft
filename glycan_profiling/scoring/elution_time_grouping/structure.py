@@ -27,6 +27,10 @@ class ChromatogramProxy(object):
         self.obj = obj
         self.kwargs = kwargs
 
+    @property
+    def annotations(self):
+        return self.kwargs
+
     def __repr__(self):
         return "%s(%f, %f, %f, %s, %s)" % (
             self.__class__.__name__,
