@@ -646,18 +646,18 @@ def summarize_chromatograms(context, sample_path, output_path, evaluate=False):
         writer.run()
 
 
-@analyze.command("fit-glycopeptide-retention-time", short_help="Model the retention time of the glycopeptide")
+@analyze.command("fit-glycopeptide-retention-time", short_help="Model the retention time of glycopeptides")
 @click.pass_context
 @click.argument("chromatogram-csv-path", type=click.Path(readable=True))
 @click.option("-t", "--test-chromatogram-csv-path", type=click.Path(readable=True),
               help=("Path to glycopeptide CSV chromatograms to evaluate with the model, but not fit on"))
 @click.option("-o", "--output-path", default=None, type=click.Path(writable=True),
-              help=("Path to write resulting analysis to as a CSV"))
-def glycopeptide_retention_time_fit(context, chromatogram_csv_path, output_path=None, test_chromatogram_path=None):
+              help=("Path to write resulting analysis to"))
+def glycopeptide_retention_time_fit(context, chromatogram_csv_path, output_path=None, test_chromatogram_csv_path=None):
     with open(chromatogram_csv_path, 'rt') as fh:
         chromatograms = GlycopeptideChromatogramProxy.from_csv(fh)
-    if test_chromatogram_path is not None:
-        with open(test_chromatogram_path, 'rt') as fh:
+    if test_chromatogram_csv_path is not None:
+        with open(test_chromatogram_csv_path, 'rt') as fh:
             test_chromatograms = GlycopeptideChromatogramProxy.from_csv(fh)
     else:
         test_chromatograms = None
