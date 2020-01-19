@@ -187,7 +187,7 @@ class GlycopeptideElutionTimeModeler(TaskBase):
         with open(pjoin(path, "joint_model_parameters.csv"), 'wt') as fh:
             self.joint_model.to_csv(fh)
         with open(pjoin(path, "joint_model_predplot.png"), 'wb') as fh:
-            ax = figax()
+            ax = figax(dpi=160.0)
             self.joint_model.prediction_plot(ax=ax)
             fh.write(render_plot(ax).getvalue())
 
@@ -196,13 +196,13 @@ class GlycopeptideElutionTimeModeler(TaskBase):
             with open(pjoin(path, "%s_model_parameters.csv" % (key, )), 'wt') as fh:
                 model.to_csv(fh)
             with open(pjoin(path, "%s_model_predplot.png" % (key, )), 'wb') as fh:
-                ax = figax()
+                ax = figax(dpi=160.0)
                 model.prediction_plot(ax=ax)
                 fh.write(render_plot(ax).getvalue())
 
         for factor, deltas in self.delta_by_factor.items():
             with open(pjoin(path, '%s_delta_hist.png' % (factor.replace("@", ""), )), 'wb') as fh:
-                ax = figax()
+                ax = figax(dpi=160.0)
                 x = np.linspace(deltas.min() + -0.1, deltas.max() + 0.1)
                 m = gaussian_kde(deltas)
                 ax.fill_between(x, 0, m.pdf(x), alpha=0.5, color='green')
@@ -213,4 +213,4 @@ class GlycopeptideElutionTimeModeler(TaskBase):
 
         self.log("Saving models")
         with open(pjoin(path, "model.pkl"), 'wb') as fh:
-            pickle.dump(self, path, -1)
+            pickle.dump(self, fh, -1)
