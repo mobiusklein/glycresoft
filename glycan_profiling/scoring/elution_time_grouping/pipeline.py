@@ -113,7 +113,7 @@ class GlycopeptideElutionTimeModeler(TaskBase):
             self.log("Mean Peptide Model Score: %0.3f" % (spec_perf, ))
             self.log("Mean Joint Model Score:   %0.3f" % (joint_perf, ))
 
-    def evaluate(self):
+    def evaluate_training(self):
         for key, group in self.by_peptide.items():
             self.log("Evaluating %s" % key)
             for obs in group:
@@ -129,6 +129,16 @@ class GlycopeptideElutionTimeModeler(TaskBase):
                     "+" if delta > 0 else '-', abs(delta)
                     ))
 
+    def evaluate(self, observations):
+        for obs in observations:
+            model = self._model_for(obs)
+            score = model.score(obs)
+            pred = model.predict(obs)
+            delta = model._get_apex_time(obs) - pred
+            obs.annotations['score'] = score
+            obs.annotations['predicted_apex_time'] = pred
+            obs.annotations['delta_apex_time'] = delta
+
     def _model_for(self, observation):
         key = glycopeptidepy.parse(str(observation.structure)).deglycosylate()
         model = self.peptide_specific_models.get(key, self.joint_model)
@@ -141,6 +151,10 @@ class GlycopeptideElutionTimeModeler(TaskBase):
     def score(self, observation):
         model = self._model_for(observation)
         return model.score(observation)
+
+    def run(self):
+        self.fit()
+        self.evaluate_training()
 
     def write(self, path):
         from glycan_profiling.output.report.base import render_plot

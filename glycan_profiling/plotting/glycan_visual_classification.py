@@ -75,7 +75,7 @@ class GlycanCompositionOrderer(object):
     def sort(self, compositions, key=None, reverse=False):
         if key is None:
 
-            def key(x):
+            def key(x):  # pylint: disable=function-redefined
                 return x
 
         proxies = [self._comparable_proxy(key(c), c) for c in compositions]
@@ -148,17 +148,34 @@ class GlycanCompositionClassifierColorizer(object):
 
 
 NGlycanCompositionColorizer = GlycanCompositionClassifierColorizer(OrderedDict([
+    (CompositionRuleClassifier("Sulfated Hybrid", [
+     CompositionRangeRule("HexNAc", 3, 3) & CompositionRangeRule("@sulfate", 1)]), 'yellow'),
+    (CompositionRuleClassifier("Sulfated Bi-Antennary",
+                               [CompositionRangeRule("HexNAc", 4, 4) & CompositionRangeRule("@sulfate", 1)]), 'teal'),
+    (CompositionRuleClassifier("Sulfated Tri-Antennary",
+                               [CompositionRangeRule("HexNAc", 5, 5) & CompositionRangeRule("@sulfate", 1)]), 'rosybrown'),
+    (CompositionRuleClassifier("Sulfated Tetra-Antennary",
+                               [CompositionRangeRule("HexNAc", 6, 6) & CompositionRangeRule("@sulfate", 1)]), 'magenta'),
     (CompositionRuleClassifier("Paucimannose", [
         CompositionRangeRule("HexNAc", 2, 2) & CompositionRangeRule("Hex", 0, 4)]), "#f05af0"),
-    (CompositionRuleClassifier("High Mannose", [CompositionRangeRule("HexNAc", 2, 2)]), '#1f77b4'),
-    (CompositionRuleClassifier("Hybrid", [CompositionRangeRule("HexNAc", 3, 3)]), '#ff7f0e'),
-    (CompositionRuleClassifier("Bi-Antennary", [CompositionRangeRule("HexNAc", 4, 4)]), '#2ca02c'),
-    (CompositionRuleClassifier("Tri-Antennary", [CompositionRangeRule("HexNAc", 5, 5)]), '#d62728'),
-    (CompositionRuleClassifier("Tetra-Antennary", [CompositionRangeRule("HexNAc", 6, 6)]), '#9467bd'),
-    (CompositionRuleClassifier("Penta-Antennary", [CompositionRangeRule("HexNAc", 7, 7)]), '#8c564b'),
-    (CompositionRuleClassifier("Supra-Penta-Antennary", [CompositionRangeRule("HexNAc", 8)]), 'brown'),
-    (CompositionRuleClassifier("Low Sulfate GAG", [CompositionRatioRule("HexN", "@sulfate", (0, 2))]), "#2aaaaa"),
-    (CompositionRuleClassifier("High Sulfate GAG", [CompositionRatioRule("HexN", "@sulfate", (2, 4))]), "#88faaa")
+    (CompositionRuleClassifier("High Mannose", [
+     CompositionRangeRule("HexNAc", 2, 2)]), '#1f77b4'),
+    (CompositionRuleClassifier("Hybrid", [
+     CompositionRangeRule("HexNAc", 3, 3)]), '#ff7f0e'),
+    (CompositionRuleClassifier("Bi-Antennary",
+                               [CompositionRangeRule("HexNAc", 4, 4)]), '#2ca02c'),
+    (CompositionRuleClassifier("Tri-Antennary",
+                               [CompositionRangeRule("HexNAc", 5, 5)]), '#d62728'),
+    (CompositionRuleClassifier("Tetra-Antennary",
+                               [CompositionRangeRule("HexNAc", 6, 6)]), '#9467bd'),
+    (CompositionRuleClassifier("Penta-Antennary",
+                               [CompositionRangeRule("HexNAc", 7, 7)]), '#8c564b'),
+    (CompositionRuleClassifier("Supra-Penta-Antennary",
+                               [CompositionRangeRule("HexNAc", 8)]), 'brown'),
+    (CompositionRuleClassifier("Low Sulfate GAG", [
+     CompositionRatioRule("HexN", "@sulfate", (0, 2))]), "#2aaaaa"),
+    (CompositionRuleClassifier("High Sulfate GAG", [
+     CompositionRatioRule("HexN", "@sulfate", (2, 4))]), "#88faaa")
 ]), default="slateblue")
 
 NGlycanCompositionOrderer = GlycanCompositionOrderer(["HexNAc", "Hex", "Fuc", "NeuAc"])
