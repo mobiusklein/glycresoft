@@ -65,6 +65,17 @@ class ChromatogramProxy(object):
         d.update(self.kwargs)
         return d
 
+    def __getstate__(self):
+        return self._to_csv()
+
+    def __setstate__(self, state):
+        state = dict(state)
+        self.glycan_composition = state.pop("glycan_composition", None)
+        self.apex_time = state.pop("apex_time", None)
+        self.total_signal = state.pop("total_signal", None)
+        self.weighted_neutral_mass = state.pop("weighted_neutral_mass", None)
+        self.kwargs = state
+
     def __getattr__(self, attr):
         try:
             return self.annotations[attr]

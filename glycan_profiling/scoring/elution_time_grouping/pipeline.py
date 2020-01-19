@@ -1,4 +1,8 @@
 import os
+try:
+    import cPickle as pickle
+except ImportError:
+    import pickle
 from collections import defaultdict
 
 import numpy as np
@@ -16,14 +20,21 @@ from .cross_run import ReplicatedAbundanceWeightedPeptideFactorElutionTimeFitter
 class GlycopeptideElutionTimeModeler(TaskBase):
     _model_class = ReplicatedAbundanceWeightedPeptideFactorElutionTimeFitter
 
-    def __init__(self, glycopeptide_chromatograms, factors=None, refit_filter=0.01, replicate_key_attr=None):
+    def __init__(self, glycopeptide_chromatograms, factors=None, refit_filter=0.01, replicate_key_attr=None,
+                 test_chromatograms=None):
         if replicate_key_attr is None:
             replicate_key_attr = 'analysis_name'
+        if test_chromatograms is not None:
+            if not isinstance(test_chromatograms[0], GlycopeptideChromatogramProxy):
+                test_chromatograms = [
+                    GlycopeptideChromatogramProxy.from_obj(i) for i in test_chromatograms]
+
         self.replicate_key_attr = replicate_key_attr
         if not isinstance(glycopeptide_chromatograms[0], GlycopeptideChromatogramProxy):
             glycopeptide_chromatograms = [
                 GlycopeptideChromatogramProxy.from_obj(i) for i in glycopeptide_chromatograms]
         self.glycopeptide_chromatograms = glycopeptide_chromatograms
+        self.test_chromatograms = test_chromatograms
         self.factors = factors
         if self.factors is None:
             self.factors = self._infer_factors()
@@ -155,6 +166,8 @@ class GlycopeptideElutionTimeModeler(TaskBase):
     def run(self):
         self.fit()
         self.evaluate_training()
+        if self.test_chromatograms:
+            self.evaluate(self.test_chromatograms)
 
     def write(self, path):
         from glycan_profiling.output.report.base import render_plot
@@ -167,6 +180,9 @@ class GlycopeptideElutionTimeModeler(TaskBase):
         self.log("Writing scored chromatograms")
         with open(pjoin(path, "scored_chromatograms.csv"), 'wt') as fh:
             GlycopeptideChromatogramProxy.to_csv(self.glycopeptide_chromatograms, fh)
+        if self.test_chromatograms:
+            with open(pjoin(path, "test_chromatograms.csv"), 'wt') as fh:
+                GlycopeptideChromatogramProxy.to_csv(self.test_chromatograms, fh)
         self.log("Writing joint model descriptors")
         with open(pjoin(path, "joint_model_parameters.csv"), 'wt') as fh:
             self.joint_model.to_csv(fh)
@@ -194,3 +210,7 @@ class GlycopeptideElutionTimeModeler(TaskBase):
                 ax.set_title(factor)
                 ax.figure.text(0.75, 0.8, 'Median: %0.3f' % np.median(deltas), ha='center')
                 fh.write(render_plot(ax).getvalue())
+
+        self.log("Saving models")
+        with open(pjoin(path, "model.pkl"), 'wb') as fh:
+            pickle.dump(self, path, -1)
