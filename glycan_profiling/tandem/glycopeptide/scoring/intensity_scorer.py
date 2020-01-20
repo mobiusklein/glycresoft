@@ -57,10 +57,11 @@ class LogIntensityScorer(SignatureAwareCoverageScorer, MassAccuracyMixin):
         for peak_pair in self.solution_map:
             if peak_pair.fragment.series != series:
                 continue
-            elif peak_pair.fragment_name in core_fragments:
-                core_matches.add(peak_pair.fragment_name)
+            fragment_name = peak_pair.fragment.base_name()
+            if fragment_name in core_fragments:
+                core_matches.add(fragment_name)
             else:
-                extended_matches.add(peak_pair.fragment_name)
+                extended_matches.add(fragment_name)
             peak = peak_pair.peak
             if peak.index.neutral_mass not in seen:
                 seen.add(peak.index.neutral_mass)
