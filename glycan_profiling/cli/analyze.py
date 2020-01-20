@@ -646,14 +646,22 @@ def summarize_chromatograms(context, sample_path, output_path, evaluate=False):
         writer.run()
 
 
-@analyze.command("fit-glycopeptide-retention-time", short_help="Model the retention time of glycopeptides")
+
+@analyze.group(short_help="Model and predict the retention time of glycopeptides")
+def retention_time():
+    pass
+
+
+@retention_time.command("fit-glycopeptide-retention-time", short_help="Model the retention time of glycopeptides")
 @click.pass_context
 @click.argument("chromatogram-csv-path", type=click.Path(readable=True))
+@click.argument("output-path", type=click.Path(writable=True))
 @click.option("-t", "--test-chromatogram-csv-path", type=click.Path(readable=True),
               help=("Path to glycopeptide CSV chromatograms to evaluate with the model, but not fit on"))
-@click.option("-o", "--output-path", default=None, type=click.Path(writable=True),
-              help=("Path to write resulting analysis to"))
-def glycopeptide_retention_time_fit(context, chromatogram_csv_path, output_path=None, test_chromatogram_csv_path=None):
+@click.option("-p", "--prefer-joint-model", is_flag=True,
+              help="Prefer the joint model over the peptide-specific ones")
+def glycopeptide_retention_time_fit(context, chromatogram_csv_path, output_path=None,
+                                    test_chromatogram_csv_path=None, prefer_joint_model=False):
     with open(chromatogram_csv_path, 'rt') as fh:
         chromatograms = GlycopeptideChromatogramProxy.from_csv(fh)
     if test_chromatogram_csv_path is not None:
@@ -661,7 +669,29 @@ def glycopeptide_retention_time_fit(context, chromatogram_csv_path, output_path=
             test_chromatograms = GlycopeptideChromatogramProxy.from_csv(fh)
     else:
         test_chromatograms = None
-    modeler = GlycopeptideElutionTimeModeler(chromatograms, test_chromatograms=test_chromatograms)
+    modeler = GlycopeptideElutionTimeModeler(
+        chromatograms, test_chromatograms=test_chromatograms,
+        prefer_joint_model=prefer_joint_model)
     modeler.run()
     if output_path:
         modeler.write(output_path)
+
+
+@retention_time.command(
+    "evaluate-glycopeptide-retention-time",
+    short_help="Predict and score the retention time of glycopeptides using an existing model")
+@click.argument("model-path", type=click.Path(readable=True))
+@click.argument("chromatogram-csv-path", type=click.Path(readable=True))
+@click.argument("output-path", type=click.Path(writable=True))
+def glycopeptide_retention_time_predict(context, model_path, chromatogram_csv_path, output_path):
+    """Predict and evaluate the retention time of glycopeptides using an existing model.
+
+    The model file should have the extension .pkl and have been produced by the same version of GlycReSoft.
+    """
+    with open(model_path, 'rb') as fh:
+        modeler = pickle.load(fh)
+    with open(chromatogram_csv_path, 'rt') as fh:
+        chromatograms = GlycopeptideChromatogramProxy.from_csv(fh)
+    modeler.evaluate(chromatograms)
+    with open(output_path, 'wt') as fh:
+        GlycopeptideChromatogramProxy.to_csv(chromatograms, fh)

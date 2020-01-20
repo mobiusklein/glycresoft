@@ -1,9 +1,8 @@
 import os
-try:
-    import cPickle as pickle
-except ImportError:
-    import pickle
+
 from collections import defaultdict
+
+import dill as pickle
 
 import numpy as np
 
@@ -21,7 +20,7 @@ class GlycopeptideElutionTimeModeler(TaskBase):
     _model_class = ReplicatedAbundanceWeightedPeptideFactorElutionTimeFitter
 
     def __init__(self, glycopeptide_chromatograms, factors=None, refit_filter=0.01, replicate_key_attr=None,
-                 test_chromatograms=None):
+                 test_chromatograms=None, use_retention_time_normalization=False, prefer_joint_model=False):
         if replicate_key_attr is None:
             replicate_key_attr = 'analysis_name'
         if test_chromatograms is not None:
@@ -35,9 +34,11 @@ class GlycopeptideElutionTimeModeler(TaskBase):
                 GlycopeptideChromatogramProxy.from_obj(i) for i in glycopeptide_chromatograms]
         self.glycopeptide_chromatograms = glycopeptide_chromatograms
         self.test_chromatograms = test_chromatograms
+        self.prefer_joint_model = prefer_joint_model
         self.factors = factors
         if self.factors is None:
             self.factors = self._infer_factors()
+        self.use_retention_time_normalization = use_retention_time_normalization
         self.joint_model = None
         self.refit_filter = refit_filter
         self.by_peptide = defaultdict(list)
@@ -72,7 +73,8 @@ class GlycopeptideElutionTimeModeler(TaskBase):
     def fit_model(self, glycopeptide_chromatograms):
         model = self._model_class(
             glycopeptide_chromatograms, self.factors,
-            replicate_key_attr=self.replicate_key_attr)
+            replicate_key_attr=self.replicate_key_attr,
+            use_retention_time_normalization=self.use_retention_time_normalization)
         model.fit()
         return model
 
@@ -103,7 +105,7 @@ class GlycopeptideElutionTimeModeler(TaskBase):
         for key, members in self.by_peptide.items():
             distinct_members = set(str(m.structure) for m in members)
             self.log("Fitting Model For %s (%d observations, %d distinct)" % (key, len(members), len(distinct_members)))
-            if len(distinct_members) - 1 <= len(self.factors):
+            if len(distinct_members) <= max(len(self.factors), 20):
                 self.log("Too few distinct observations for %s" % (key, ))
                 continue
             model = self.fit_model(members)
@@ -151,6 +153,8 @@ class GlycopeptideElutionTimeModeler(TaskBase):
             obs.annotations['delta_apex_time'] = delta
 
     def _model_for(self, observation):
+        if self.prefer_joint_model:
+            return self.joint_model
         key = glycopeptidepy.parse(str(observation.structure)).deglycosylate()
         model = self.peptide_specific_models.get(key, self.joint_model)
         return model
