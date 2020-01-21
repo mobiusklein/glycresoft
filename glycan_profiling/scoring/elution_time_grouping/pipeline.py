@@ -191,29 +191,29 @@ class GlycopeptideElutionTimeModeler(TaskBase):
         with open(pjoin(path, "joint_model_parameters.csv"), 'wt') as fh:
             self.joint_model.to_csv(fh)
         with open(pjoin(path, "joint_model_predplot.png"), 'wb') as fh:
-            ax = figax(dpi=160.0)
+            ax = figax()
             self.joint_model.prediction_plot(ax=ax)
-            fh.write(render_plot(ax).getvalue())
+            fh.write(render_plot(ax, dpi=160.0).getvalue())
 
         for key, model in self.peptide_specific_models.items():
             self.log("Writing %s model descriptors" % (key, ))
             with open(pjoin(path, "%s_model_parameters.csv" % (key, )), 'wt') as fh:
                 model.to_csv(fh)
             with open(pjoin(path, "%s_model_predplot.png" % (key, )), 'wb') as fh:
-                ax = figax(dpi=160.0)
+                ax = figax()
                 model.prediction_plot(ax=ax)
-                fh.write(render_plot(ax).getvalue())
+                fh.write(render_plot(ax, dpi=160.0).getvalue())
 
         for factor, deltas in self.delta_by_factor.items():
             with open(pjoin(path, '%s_delta_hist.png' % (factor.replace("@", ""), )), 'wb') as fh:
-                ax = figax(dpi=160.0)
+                ax = figax()
                 x = np.linspace(deltas.min() + -0.1, deltas.max() + 0.1)
                 m = gaussian_kde(deltas)
                 ax.fill_between(x, 0, m.pdf(x), alpha=0.5, color='green')
                 ax.hist(deltas, bins='auto', density=True, ec='black', alpha=0.5)
                 ax.set_title(factor)
                 ax.figure.text(0.75, 0.8, 'Median: %0.3f' % np.median(deltas), ha='center')
-                fh.write(render_plot(ax).getvalue())
+                fh.write(render_plot(ax, dpi=160.0).getvalue())
 
         self.log("Saving models")
         with open(pjoin(path, "model.pkl"), 'wb') as fh:
