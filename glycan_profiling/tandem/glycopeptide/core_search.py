@@ -227,7 +227,42 @@ class CoarseStubGlycopeptideFragment(object):
         )
 
 
-class GlycanCombinationRecord(object):
+class GlycanCombinationRecordBase(object):
+    __slots__ = ['id', 'dehydrated_mass', 'composition', 'count', 'glycan_types',
+                 'size', "_fragment_cache", "internal_size_approximation", "_hash"]
+
+    def is_n_glycan(self):
+        return GlycanTypes.n_glycan in self.glycan_types
+
+    def is_o_glycan(self):
+        return GlycanTypes.o_glycan in self.glycan_types
+
+    def is_gag_linker(self):
+        return GlycanTypes.gag_linker in self.glycan_types
+
+    def get_n_glycan_fragments(self):
+        if GlycanTypes.n_glycan not in self._fragment_cache:
+            strategy = StubGlycopeptideStrategy(None, extended=True)
+            shifts = strategy.n_glycan_composition_fragments(
+                self.composition, 1, 0)
+            fragment_structs = []
+            for shift in shifts:
+                shift['key'] = _AccumulatorBag(shift['key'])
+                if shift["key"]['HexNAc'] <= 2 and shift["key"]["Hex"] <= 3:
+                    shift['is_core'] = True
+                else:
+                    shift['is_core'] = False
+                fragment_structs.append(
+                    CoarseStubGlycopeptideFragment(
+                        shift['key'], shift['mass'], shift['is_core']))
+            self._fragment_cache[GlycanTypes.n_glycan] = sorted(
+                set(fragment_structs))
+            return self._fragment_cache[GlycanTypes.n_glycan]
+        else:
+            return self._fragment_cache[GlycanTypes.n_glycan]
+
+
+class GlycanCombinationRecord(GlycanCombinationRecordBase):
     """Represent a glycan combination compactly in memory
 
     Attributes
@@ -243,8 +278,7 @@ class GlycanCombinationRecord(object):
         The types of glycans combined to make this entity
     """
 
-    __slots__ = ['id', 'dehydrated_mass', 'composition', 'count', 'glycan_types',
-                 'size', "_fragment_cache", "internal_size_approximation"]
+    __slots__ = []
 
     @classmethod
     def from_combination(cls, combination):
@@ -295,6 +329,7 @@ class GlycanCombinationRecord(object):
         self.count = count
         self.glycan_types = glycan_types
         self._fragment_cache = dict()
+        self._hash = hash(self.composition)
 
     def __eq__(self, other):
         return (self.composition == other.composition) and (self.count == other.count) and (
@@ -304,44 +339,16 @@ class GlycanCombinationRecord(object):
         return not (self == other)
 
     def __hash__(self):
-        return hash(self.composition)
+        return self._hash
 
     def _approximate_total_size(self):
         return approximate_internal_size_of_glycan(self.composition)
-
-    def is_n_glycan(self):
-        return GlycanTypes.n_glycan in self.glycan_types
-
-    def is_o_glycan(self):
-        return GlycanTypes.o_glycan in self.glycan_types
-
-    def is_gag_linker(self):
-        return GlycanTypes.gag_linker in self.glycan_types
 
     def __reduce__(self):
         return GlycanCombinationRecord, (self.id, self.dehydrated_mass, self.composition, self.count, self.glycan_types)
 
     def __repr__(self):
         return "GlycanCombinationRecord(%s, %d)" % (self.composition, self.count)
-
-    def get_n_glycan_fragments(self):
-        if GlycanTypes.n_glycan not in self._fragment_cache:
-            strategy = StubGlycopeptideStrategy(None, extended=True)
-            shifts = strategy.n_glycan_composition_fragments(self.composition, 1, 0)
-            fragment_structs = []
-            for shift in shifts:
-                shift['key'] = _AccumulatorBag(shift['key'])
-                if shift["key"]['HexNAc'] <= 2 and shift["key"]["Hex"] <= 3:
-                    shift['is_core'] = True
-                else:
-                    shift['is_core'] = False
-                fragment_structs.append(
-                    CoarseStubGlycopeptideFragment(
-                        shift['key'], shift['mass'], shift['is_core']))
-            self._fragment_cache[GlycanTypes.n_glycan] = sorted(set(fragment_structs))
-            return self._fragment_cache[GlycanTypes.n_glycan]
-        else:
-            return self._fragment_cache[GlycanTypes.n_glycan]
 
     def get_o_glycan_fragments(self):
         if GlycanTypes.o_glycan not in self._fragment_cache:
