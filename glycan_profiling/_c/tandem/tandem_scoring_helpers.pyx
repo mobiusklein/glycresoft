@@ -152,7 +152,7 @@ def calculate_glycan_score(self, double error_tolerance=2e-5, double core_weight
         peak_pair = <PeakFragmentPair>obj
         if (<FragmentBase>peak_pair.fragment).get_series() != series:
             continue
-        fragment_name = peak_pair.fragment.base_name()
+        fragment_name = (<FragmentBase>peak_pair.fragment).base_name()
         if fragment_name in core_fragments:
             core_matches.add(fragment_name)
         else:
