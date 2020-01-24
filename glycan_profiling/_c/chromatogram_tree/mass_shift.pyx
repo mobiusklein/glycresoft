@@ -28,6 +28,10 @@ cdef class MassShiftBase(object):
     def get(cls, name):
         return mass_shift_index[name]
 
+    @classmethod
+    def _get_name_registry(cls):
+        return mass_shift_index
+
 
 cdef class MassShift(MassShiftBase):
     def __init__(self, name, composition, tandem_composition=None):

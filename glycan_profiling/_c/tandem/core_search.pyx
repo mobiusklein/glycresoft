@@ -78,6 +78,49 @@ cdef class GlycanCombinationRecordBase(object):
             result = <list>ptemp
             return result
 
+    cpdef list get_o_glycan_fragments(self):
+        cdef:
+            PyObject* ptemp
+            list result, fragment_structs
+        ptemp = PyDict_GetItem(self._fragment_cache, GlycanTypes_o_glycan)
+        if ptemp == NULL:
+            strategy = StubGlycopeptideStrategy(None, extended=True)
+            shifts = strategy.o_glycan_composition_fragments(self.composition, 1, 0)
+            fragment_structs = []
+            for shift in shifts:
+                shift['key'] = _AccumulatorBag(shift['key'])
+                fragment_structs.append(
+                    CoarseStubGlycopeptideFragment(
+                        shift['key'], shift['mass'], True))
+            result = sorted(set(fragment_structs))
+            PyDict_SetItem(self._fragment_cache, GlycanTypes_o_glycan, result)
+            return result
+        else:
+            result = <list>ptemp
+            return result
+
+    cpdef list get_gag_linker_glycan_fragments(self):
+        cdef:
+            PyObject* ptemp
+            list result, fragment_structs
+        ptemp = PyDict_GetItem(self._fragment_cache, GlycanTypes_gag_linker)
+        if ptemp == NULL:
+            strategy = StubGlycopeptideStrategy(None, extended=True)
+            shifts = strategy.gag_linker_composition_fragments(self.composition, 1, 0)
+            fragment_structs = []
+            for shift in shifts:
+                shift['key'] = _AccumulatorBag(shift['key'])
+                fragment_structs.append(
+                    CoarseStubGlycopeptideFragment(
+                        shift['key'], shift['mass'], True))
+            result = sorted(set(fragment_structs))
+            PyDict_SetItem(self._fragment_cache, GlycanTypes_gag_linker, result)
+            return result
+        else:
+            result = <list>ptemp
+            return result
+
+
 
 cdef class CoarseStubGlycopeptideFragment(object):
     cdef:
@@ -178,7 +221,8 @@ cdef class CoarseGlycanMatch(object):
             size_t i_fmatch, n_fmatch, i_peak, n_peak
             CoarseStubGlycopeptideMatch fmatch
             DeconvolutedPeak peak
-
+        weighted_mass_acc = 0
+        weight_acc = 0
         n_fmatch = PyList_Size(self.fragment_matches)
         for i_fmatch in range(n_fmatch):
             fmatch = <CoarseStubGlycopeptideMatch>PyList_GetItem(self.fragment_matches, i_fmatch)
@@ -285,6 +329,24 @@ cdef class GlycanCoarseScorerBase(object):
                     math.fabs(peak.neutral_mass - matched_fragment.mass) / matched_fragment.mass) ** 4) * coverage
         return score
 
+    cpdef CoarseGlycanMatch _n_glycan_match_stubs(self, scan, double peptide_mass,
+                                                  GlycanCombinationRecordBase glycan_combination,
+                                                  double mass_shift_tandem_mass=0.0):
+        shifts = glycan_combination.get_n_glycan_fragments()
+        return self._match_fragments(scan, peptide_mass, shifts, mass_shift_tandem_mass)
+
+    cpdef CoarseGlycanMatch _o_glycan_match_stubs(self, scan, double peptide_mass,
+                                                  GlycanCombinationRecordBase glycan_combination,
+                                                  double mass_shift_tandem_mass=0.0):
+        shifts = glycan_combination.get_o_glycan_fragments()
+        return self._match_fragments(scan, peptide_mass, shifts, mass_shift_tandem_mass)
+
+    cpdef CoarseGlycanMatch _gag_match_stubs(self, scan, double peptide_mass,
+                                             GlycanCombinationRecordBase glycan_combination,
+                                             double mass_shift_tandem_mass=0.0):
+        shifts = glycan_combination.get_gag_linker_glycan_fragments()
+        return self._match_fragments(scan, peptide_mass, shifts, mass_shift_tandem_mass)
+
 
 cdef bint isclose(double a, double b, double rtol=1e-05, double atol=1e-08):
     return abs(a - b) <= atol + rtol * abs(b)
@@ -300,6 +362,30 @@ cdef class GlycanMatchResult(object):
         public list glycan_types
         public double recalibrated_peptide_mass
 
+
+    @staticmethod
+    cdef GlycanMatchResult _create(double peptide_mass, double score, CoarseGlycanMatch match, size_t glycan_size,
+                                   list glycan_types, double recalibrated_peptide_mass):
+        cdef:
+            GlycanMatchResult self
+
+        self = GlycanMatchResult.__new__(GlycanMatchResult)
+        self.peptide_mass = peptide_mass
+        self.score = score
+        self.match = match
+        self.glycan_size = glycan_size
+        self.glycan_types = glycan_types
+        self.recalibrated_peptide_mass = recalibrated_peptide_mass
+        return self
+
+    def __init__(self, peptide_mass, score, match, glycan_size, glycan_types, recalibrated_peptide_mass):
+        self.peptide_mass = peptide_mass
+        self.score = score
+        self.match = match
+        self.glycan_size = glycan_size
+        self.glycan_types = glycan_types
+        self.recalibrated_peptide_mass = recalibrated_peptide_mass
+
     @property
     def fragment_match_count(self):
         match = self.match
@@ -313,15 +399,17 @@ cdef class GlycanMatchResult(object):
             " {self.match}, {self.glycan_size}, {self.glycan_types}, {self.recalibrated_peptide_mass})")
         return template.format(self=self)
 
-
+@cython.boundscheck(False)
+@cython.binding(True)
 def GlycanFilteringPeptideMassEstimator_match(GlycanCoarseScorerBase self, scan, MassShiftBase mass_shift=Unmodified):
     cdef:
         list output, glycan_combination_db
         double intact_mass, threshold_mass, last_peptide_mass, peptide_mass
         GlycanCombinationRecordBase glycan_combination
         dict type_to_score
-        double best_score
+        double best_score, score
         size_t i, n
+        tuple match_stat
         CoarseGlycanMatch best_match, match
 
     output = []
@@ -345,24 +433,27 @@ def GlycanFilteringPeptideMassEstimator_match(GlycanCoarseScorerBase self, scan,
         best_match = None
         type_to_score = {}
         if glycan_combination.is_n_glycan():
-            score, match = self.n_glycan_coarse_score(
-                scan, glycan_combination, mass_shift=mass_shift, peptide_mass=peptide_mass)
-            type_to_score[GlycanTypes_n_glycan] = (score, match)
+            match_stat = self.n_glycan_coarse_score(scan, glycan_combination, mass_shift, peptide_mass)
+            type_to_score[GlycanTypes_n_glycan] = match_stat
+            score = PyFloat_AsDouble(<object>PyTuple_GetItem(match_stat, 0))
             if score > best_score:
+                match = <CoarseGlycanMatch>PyTuple_GetItem(match_stat, 1)
                 best_score = score
                 best_match = match
         if glycan_combination.is_o_glycan():
-            score, match = self.o_glycan_coarse_score(
-                scan, glycan_combination, mass_shift=mass_shift, peptide_mass=peptide_mass)
-            type_to_score[GlycanTypes_o_glycan] = (score, match)
+            match_stat = self.o_glycan_coarse_score(scan, glycan_combination, mass_shift, peptide_mass)
+            type_to_score[GlycanTypes_o_glycan] = match_stat
+            score = PyFloat_AsDouble(<object>PyTuple_GetItem(match_stat, 0))
             if score > best_score:
+                match = <CoarseGlycanMatch>PyTuple_GetItem(match_stat, 1)
                 best_score = score
                 best_match = match
         if glycan_combination.is_gag_linker():
-            score, match = self.gag_coarse_score(
-                scan, glycan_combination, mass_shift=mass_shift, peptide_mass=peptide_mass)
-            type_to_score[GlycanTypes_gag_linker] = (score, match)
+            match_stat = self.gag_coarse_score(scan, glycan_combination, mass_shift, peptide_mass)
+            type_to_score[GlycanTypes_gag_linker] = match_stat
+            score = PyFloat_AsDouble(<object>PyTuple_GetItem(match_stat, 0))
             if score > best_score:
+                match = <CoarseGlycanMatch>PyTuple_GetItem(match_stat, 1)
                 best_score = score
                 best_match = match
 
@@ -374,7 +465,7 @@ def GlycanFilteringPeptideMassEstimator_match(GlycanCoarseScorerBase self, scan,
                         peptide_mass, recalibrated_peptide_mass))
         else:
             recalibrated_peptide_mass = 0
-        result = GlycanMatchResult(
+        result = GlycanMatchResult._create(
             peptide_mass,
             best_score, best_match, glycan_combination.size, type_to_score, recalibrated_peptide_mass)
         output.append(result)

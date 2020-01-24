@@ -11,7 +11,7 @@ cdef class MassShiftBase(object):
     cdef:
         public CComposition composition
         public CComposition tandem_composition
-        public str name
+        public basestring name
         public long _hash
         public double mass
         public double tandem_mass

@@ -25,6 +25,12 @@ class MassShiftBase(object):
     def get(cls, name):
         return mass_shift_index[name]
 
+try:
+    from glycan_profiling._c.chromatogram_tree.mass_shift import MassShiftBase
+    mass_shift_index = MassShiftBase._get_name_registry()
+except ImportError:
+    pass
+
 
 class MassShift(MassShiftBase):
     def __init__(self, name, composition, tandem_composition=None, charge_carrier=0):
@@ -89,8 +95,8 @@ class CompoundMassShift(MassShiftBase):
         self.composition = None
         self.tandem_composition = None
         self.name = None
-        self.mass = None
-        self.tandem_mass = None
+        self.mass = 0
+        self.tandem_mass = 0
         self.charge_carrier = 0
         self._compute_composition()
         self._compute_name()

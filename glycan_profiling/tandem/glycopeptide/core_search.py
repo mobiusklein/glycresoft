@@ -261,6 +261,45 @@ class GlycanCombinationRecordBase(object):
         else:
             return self._fragment_cache[GlycanTypes.n_glycan]
 
+    def get_o_glycan_fragments(self):
+        if GlycanTypes.o_glycan not in self._fragment_cache:
+            strategy = StubGlycopeptideStrategy(None, extended=True)
+            shifts = strategy.o_glycan_composition_fragments(
+                self.composition, 1, 0)
+            fragment_structs = []
+            for shift in shifts:
+                shift['key'] = _AccumulatorBag(shift['key'])
+                fragment_structs.append(
+                    CoarseStubGlycopeptideFragment(
+                        shift['key'], shift['mass'], True))
+            self._fragment_cache[GlycanTypes.o_glycan] = sorted(
+                set(fragment_structs))
+            return self._fragment_cache[GlycanTypes.o_glycan]
+        else:
+            return self._fragment_cache[GlycanTypes.o_glycan]
+
+    def get_gag_linker_glycan_fragments(self):
+        if GlycanTypes.gag_linker not in self._fragment_cache:
+            strategy = StubGlycopeptideStrategy(None, extended=True)
+            shifts = strategy.gag_linker_composition_fragments(
+                self.composition, 1, 0)
+            fragment_structs = []
+            for shift in shifts:
+                shift['key'] = _AccumulatorBag(shift['key'])
+                fragment_structs.append(
+                    CoarseStubGlycopeptideFragment(
+                        shift['key'], shift['mass'], True))
+            self._fragment_cache[GlycanTypes.gag_linker] = sorted(
+                set(fragment_structs))
+            return self._fragment_cache[GlycanTypes.gag_linker]
+        else:
+            return self._fragment_cache[GlycanTypes.gag_linker]
+
+try:
+    from glycan_profiling._c.tandem.core_search import GlycanCombinationRecordBase
+except ImportError:
+    pass
+
 
 class GlycanCombinationRecord(GlycanCombinationRecordBase):
     """Represent a glycan combination compactly in memory
@@ -349,36 +388,6 @@ class GlycanCombinationRecord(GlycanCombinationRecordBase):
 
     def __repr__(self):
         return "GlycanCombinationRecord(%s, %d)" % (self.composition, self.count)
-
-    def get_o_glycan_fragments(self):
-        if GlycanTypes.o_glycan not in self._fragment_cache:
-            strategy = StubGlycopeptideStrategy(None, extended=True)
-            shifts = strategy.o_glycan_composition_fragments(self.composition, 1, 0)
-            fragment_structs = []
-            for shift in shifts:
-                shift['key'] = _AccumulatorBag(shift['key'])
-                fragment_structs.append(
-                    CoarseStubGlycopeptideFragment(
-                        shift['key'], shift['mass'], True))
-            self._fragment_cache[GlycanTypes.o_glycan] = sorted(set(fragment_structs))
-            return self._fragment_cache[GlycanTypes.o_glycan]
-        else:
-            return self._fragment_cache[GlycanTypes.o_glycan]
-
-    def get_gag_linker_glycan_fragments(self):
-        if GlycanTypes.gag_linker not in self._fragment_cache:
-            strategy = StubGlycopeptideStrategy(None, extended=True)
-            shifts = strategy.gag_linker_composition_fragments(self.composition, 1, 0)
-            fragment_structs = []
-            for shift in shifts:
-                shift['key'] = _AccumulatorBag(shift['key'])
-                fragment_structs.append(
-                    CoarseStubGlycopeptideFragment(
-                        shift['key'], shift['mass'], True))
-            self._fragment_cache[GlycanTypes.gag_linker] = sorted(set(fragment_structs))
-            return self._fragment_cache[GlycanTypes.gag_linker]
-        else:
-            return self._fragment_cache[GlycanTypes.gag_linker]
 
 
 class CoarseStubGlycopeptideMatch(object):
@@ -483,6 +492,17 @@ class GlycanCoarseScorerBase(object):
                 score += np.log(peak.intensity) * (1 - (np.abs(peak.neutral_mass - mass) / mass) ** 4) * coverage
         return score
 
+    def _n_glycan_match_stubs(self, scan, peptide_mass, glycan_combination, mass_shift_tandem_mass=0.0):
+        shifts = glycan_combination.get_n_glycan_fragments()
+        return self._match_fragments(scan, peptide_mass, shifts, mass_shift_tandem_mass)
+
+    def _o_glycan_match_stubs(self, scan, peptide_mass, glycan_combination, mass_shift_tandem_mass=0.0):
+        shifts = glycan_combination.get_o_glycan_fragments()
+        return self._match_fragments(scan, peptide_mass, shifts, mass_shift_tandem_mass)
+
+    def _gag_match_stubs(self, scan, peptide_mass, glycan_combination, mass_shift_tandem_mass=0.0):
+        shifts = glycan_combination.get_gag_linker_glycan_fragments()
+        return self._match_fragments(scan, peptide_mass, shifts, mass_shift_tandem_mass)
 
 try:
     _GlycanCoarseScorerBase = GlycanCoarseScorerBase
@@ -546,18 +566,6 @@ class GlycanFilteringPeptideMassEstimator(GlycanCoarseScorerBase):
         super(GlycanFilteringPeptideMassEstimator, self).__init__(
             product_error_tolerance, fragment_weight, core_weight)
 
-    def _n_glycan_match_stubs(self, scan, peptide_mass, glycan_combination, mass_shift_tandem_mass=0.0):
-        shifts = glycan_combination.get_n_glycan_fragments()
-        return self._match_fragments(scan, peptide_mass, shifts, mass_shift_tandem_mass)
-
-    def _o_glycan_match_stubs(self, scan, peptide_mass, glycan_combination, mass_shift_tandem_mass=0.0):
-        shifts = glycan_combination.get_o_glycan_fragments()
-        return self._match_fragments(scan, peptide_mass, shifts, mass_shift_tandem_mass)
-
-    def _gag_match_stubs(self, scan, peptide_mass, glycan_combination, mass_shift_tandem_mass=0.0):
-        shifts = glycan_combination.get_gag_linker_glycan_fragments()
-        return self._match_fragments(scan, peptide_mass, shifts, mass_shift_tandem_mass)
-
     def n_glycan_coarse_score(self, scan, glycan_combination, mass_shift=Unmodified, peptide_mass=None):
         '''Calculates a ranking score from N-glycopeptide stub-glycopeptide fragments.
 
@@ -575,7 +583,7 @@ class GlycanFilteringPeptideMassEstimator(GlycanCoarseScorerBase):
                 scan.precursor_information.neutral_mass - glycan_combination.dehydrated_mass
             ) - mass_shift.mass
         if peptide_mass < 0:
-            return peptide_mass, -1e6
+            return -1e6, None
         glycan_match = self._n_glycan_match_stubs(
             scan, peptide_mass, glycan_combination, mass_shift_tandem_mass=mass_shift.tandem_mass)
         score = self._calculate_score(glycan_match)
@@ -598,7 +606,7 @@ class GlycanFilteringPeptideMassEstimator(GlycanCoarseScorerBase):
                 scan.precursor_information.neutral_mass - glycan_combination.dehydrated_mass
             ) - mass_shift.mass
         if peptide_mass < 0:
-            return peptide_mass, -1e6
+            return -1e6, None
         glycan_match = self._o_glycan_match_stubs(
             scan, peptide_mass, glycan_combination, mass_shift_tandem_mass=mass_shift.tandem_mass)
         score = self._calculate_score(glycan_match)
@@ -621,7 +629,7 @@ class GlycanFilteringPeptideMassEstimator(GlycanCoarseScorerBase):
                 scan.precursor_information.neutral_mass - glycan_combination.dehydrated_mass
             ) - mass_shift.mass
         if peptide_mass < 0:
-            return peptide_mass, -1e6
+            return -1e6, None
         glycan_match = self._gag_match_stubs(
             scan, peptide_mass, glycan_combination, mass_shift_tandem_mass=mass_shift.tandem_mass)
         score = self._calculate_score(glycan_match)
@@ -757,6 +765,10 @@ try:
     _CoarseStubGlycopeptideFragment = CoarseStubGlycopeptideFragment
     _CoarseGlycanMatch = CoarseGlycanMatch
     from glycan_profiling._c.structure.intervals import IntervalFilter
-    from glycan_profiling._c.tandem.core_search import (CoarseStubGlycopeptideFragment, CoarseGlycanMatch)
+    from glycan_profiling._c.tandem.core_search import (
+        CoarseStubGlycopeptideFragment, CoarseGlycanMatch, GlycanMatchResult,
+        GlycanFilteringPeptideMassEstimator_match)
+
+    GlycanFilteringPeptideMassEstimator.match = GlycanFilteringPeptideMassEstimator_match
 except ImportError:
     has_c = False
