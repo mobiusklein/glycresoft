@@ -366,7 +366,7 @@ class GlycanCombinationRecord(GlycanCombinationRecordBase):
         self.size = sum(composition.values())
         self.internal_size_approximation = self._approximate_total_size()
         self.count = count
-        self.glycan_types = glycan_types
+        self.glycan_types = list(glycan_types)
         self._fragment_cache = dict()
         self._hash = hash(self.composition)
 
