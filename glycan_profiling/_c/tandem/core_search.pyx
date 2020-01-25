@@ -359,13 +359,13 @@ cdef class GlycanMatchResult(object):
         public double score
         public CoarseGlycanMatch match
         public size_t glycan_size
-        public list glycan_types
+        public dict glycan_types
         public double recalibrated_peptide_mass
 
 
     @staticmethod
     cdef GlycanMatchResult _create(double peptide_mass, double score, CoarseGlycanMatch match, size_t glycan_size,
-                                   list glycan_types, double recalibrated_peptide_mass):
+                                   dict glycan_types, double recalibrated_peptide_mass):
         cdef:
             GlycanMatchResult self
 
