@@ -19,7 +19,8 @@ np.import_array()
 
 import warnings
 
-from glycopeptidepy.structure.fragmentation_strategy import StubGlycopeptideStrategy, _AccumulatorBag
+from glycopeptidepy._c.structure.fragmentation_strategy.glycan cimport StubGlycopeptideStrategy, GlycanCompositionFragment
+from glycopeptidepy._c.count_table cimport CountTable
 from glycan_profiling.chromatogram_tree import Unmodified as _Unmodified
 from glycan_profiling.serialize import GlycanTypes
 
@@ -63,14 +64,13 @@ cdef class GlycanCombinationRecordBase(object):
             shifts = strategy.n_glycan_composition_fragments(self.composition, 1, 0)
             fragment_structs = []
             for shift in shifts:
-                shift['key'] = _AccumulatorBag(shift['key'])
                 if shift["key"]['HexNAc'] <= 2 and shift["key"]["Hex"] <= 3:
-                    shift['is_core'] = True
+                    is_core = True
                 else:
-                    shift['is_core'] = False
+                    is_core = False
                 fragment_structs.append(
                     CoarseStubGlycopeptideFragment(
-                        shift['key'], shift['mass'], shift['is_core']))
+                        shift['key'], shift['mass'], is_core))
             result = sorted(set(fragment_structs))
             PyDict_SetItem(self._fragment_cache, GlycanTypes_n_glycan, result)
             return result
@@ -88,7 +88,6 @@ cdef class GlycanCombinationRecordBase(object):
             shifts = strategy.o_glycan_composition_fragments(self.composition, 1, 0)
             fragment_structs = []
             for shift in shifts:
-                shift['key'] = _AccumulatorBag(shift['key'])
                 fragment_structs.append(
                     CoarseStubGlycopeptideFragment(
                         shift['key'], shift['mass'], True))
@@ -109,7 +108,6 @@ cdef class GlycanCombinationRecordBase(object):
             shifts = strategy.gag_linker_composition_fragments(self.composition, 1, 0)
             fragment_structs = []
             for shift in shifts:
-                shift['key'] = _AccumulatorBag(shift['key'])
                 fragment_structs.append(
                     CoarseStubGlycopeptideFragment(
                         shift['key'], shift['mass'], True))
@@ -141,6 +139,24 @@ cdef class CoarseStubGlycopeptideFragment(object):
             self.__class__.__name__,
             self.key, self.mass, self.is_core
         )
+
+    def __eq__(self, other):
+        try:
+            return self.key == other.key and self.is_core == other.is_core
+        except AttributeError:
+            return self.key == other
+
+    def __ne__(self, other):
+        return not (self == other)
+
+    def __hash__(self):
+        return hash(int(self.mass))
+
+    def __lt__(self, other):
+        return self.mass < other.mass
+
+    def __gt__(self, other):
+        return self.mass > other.mass
 
 
 @cython.freelist(100000)
