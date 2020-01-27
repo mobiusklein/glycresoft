@@ -156,7 +156,7 @@ def parse_float(value):
 
 
 class JournalFileReader(TaskBase):
-    def __init__(self, path, cache_size=2 ** 12, mass_shift_map=None, scan_loader=None, include_fdr=False):
+    def __init__(self, path, cache_size=2 ** 16, mass_shift_map=None, scan_loader=None, include_fdr=False):
         if mass_shift_map is None:
             mass_shift_map = {Unmodified.name: Unmodified}
         else:
