@@ -371,9 +371,8 @@ class SpectrumMatch(SpectrumMatchBase):
 
     def __init__(self, scan, target, score, best_match=False, data_bundle=None,
                  q_value=None, id=None, mass_shift=None):
-        if data_bundle is None:
-            data_bundle = dict()
-
+        # if data_bundle is None:
+        #     data_bundle = dict()
         super(SpectrumMatch, self).__init__(scan, target, mass_shift)
 
         self.score = score
