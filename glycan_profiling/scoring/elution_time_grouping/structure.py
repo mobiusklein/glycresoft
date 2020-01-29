@@ -65,6 +65,9 @@ class ChromatogramProxy(object):
         d.update(self.kwargs)
         return d
 
+    def copy(self):
+        return self._from_csv(self._to_csv())
+
     def __getstate__(self):
         return self._to_csv()
 
@@ -97,9 +100,7 @@ class ChromatogramProxy(object):
         writer.writerows(cases)
 
     @classmethod
-    def from_csv(cls, fh):
-        cases = []
-        reader = csv.DictReader(fh)
+    def _from_csv(cls, row):
 
         def _try_parse(value):
             try:
@@ -110,13 +111,20 @@ class ChromatogramProxy(object):
                 except (ValueError, TypeError):
                     return value
 
+        mass = float(row.pop("weighted_neutral_mass"))
+        apex_time = float(row.pop("apex_time"))
+        total_signal = float(row.pop("total_signal"))
+        gc = HashableGlycanComposition.parse(row.pop("glycan_composition"))
+        kwargs = {k: _try_parse(v) for k, v in row.items()}
+        return cls(mass, apex_time, total_signal, gc, **kwargs)
+
+    @classmethod
+    def from_csv(cls, fh):
+        cases = []
+        reader = csv.DictReader(fh)
+
         for row in reader:
-            mass = float(row.pop("weighted_neutral_mass"))
-            apex_time = float(row.pop("apex_time"))
-            total_signal = float(row.pop("total_signal"))
-            gc = HashableGlycanComposition.parse(row.pop("glycan_composition"))
-            kwargs = {k: _try_parse(v) for k, v in row.items()}
-            cases.append(cls(mass, apex_time, total_signal, gc, **kwargs))
+            cases.append(cls._from_csv(row))
         return cases
 
     def shift_glycan_composition(self, delta):
@@ -188,5 +196,5 @@ class CommonGlycopeptide(object):
 
     def __repr__(self):
         template = "{self.__class__.__name__}({self.structure!s}, {count} observations)"
-        count = len(self.structure)
+        count = len(self.mapping)
         return template.format(self=self, count=count)

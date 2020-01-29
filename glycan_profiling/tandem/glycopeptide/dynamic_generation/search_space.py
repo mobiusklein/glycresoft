@@ -604,7 +604,9 @@ def deserialize_workload(buff, scan_loader):
         rec.glycopeptide = glycopeptide_record_tag.text
         rec.total_mass = mass
         rec.id = glycopeptide_key_t(
-            **{k: int(v) if k != 'structure_type' else StructureClassification[v] for k, v in attrib.items()})
+            int(attrib['start_position']), int(attrib['end_position']), int(attrib['peptide_id']),
+            int(attrib['protein_id']), int(attrib['hypothesis_id']), int(attrib['glycan_combination_id']),
+            StructureClassification[attrib['structure_type']], int(attrib['site_combination_index']))
         for scan_hit in scan_mapping[1:]:
             attrib = scan_hit.attrib
             scan_id = attrib['scan_id']
