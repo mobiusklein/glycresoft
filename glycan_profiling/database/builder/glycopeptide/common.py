@@ -302,6 +302,7 @@ class PeptideGlycosylator(object):
         water = Composition("H2O")
         peptide_composition = Composition(str(peptide.formula))
         obj = peptide.convert()
+        reference = obj.clone()
 
         # Handle N-linked glycosylation sites
 
@@ -313,10 +314,10 @@ class PeptideGlycosylator(object):
             i += 1
             for gc in self.glycan_combination_partitions[i, {GlycanTypes.n_glycan: i}]:
                 total_mass = peptide.calculated_mass + gc.calculated_mass - (gc.count * water.mass)
-                formula_string = formula(peptide_composition + Composition(str(gc.formula)) - (water * gc.count))
+                formula_string = formula(peptide_composition + gc.dehydrated_composition())
 
                 for site_set in limiting_combinations(n_glycosylation_unoccupied_sites, i):
-                    sequence = peptide.convert()
+                    sequence = reference.clone()
                     for site in site_set:
                         sequence.add_modification(site, _n_glycosylation.name)
                     sequence.glycan = gc.convert()
@@ -343,10 +344,10 @@ class PeptideGlycosylator(object):
             i += 1
             for gc in self.glycan_combination_partitions[i, {GlycanTypes.o_glycan: i}]:
                 total_mass = peptide.calculated_mass + gc.calculated_mass - (gc.count * water.mass)
-                formula_string = formula(peptide_composition + Composition(str(gc.formula)) - (water * gc.count))
+                formula_string = formula(peptide_composition + gc.dehydrated_composition())
 
                 for site_set in limiting_combinations(o_glycosylation_unoccupied_sites, i):
-                    sequence = peptide.convert()
+                    sequence = reference.clone()
                     for site in site_set:
                         sequence.add_modification(site, _o_glycosylation.name)
                     sequence.glycan = gc.convert()
@@ -372,9 +373,9 @@ class PeptideGlycosylator(object):
             i += 1
             for gc in self.glycan_combination_partitions[i, {GlycanTypes.gag_linker: i}]:
                 total_mass = peptide.calculated_mass + gc.calculated_mass - (gc.count * water.mass)
-                formula_string = formula(peptide_composition + Composition(str(gc.formula)) - (water * gc.count))
+                formula_string = formula(peptide_composition + gc.dehydrated_composition())
                 for site_set in limiting_combinations(gag_unoccupied_sites, i):
-                    sequence = peptide.convert()
+                    sequence = reference.clone()
                     for site in site_set:
                         sequence.add_modification(site, _gag_linker_glycosylation.name)
                     sequence.glycan = gc.convert()

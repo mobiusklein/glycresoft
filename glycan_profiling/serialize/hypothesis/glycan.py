@@ -13,10 +13,10 @@ from glypy.io import glycoct
 from glycopeptidepy import HashableGlycanComposition
 
 from glycan_profiling.serialize.hypothesis.hypothesis import GlycanHypothesis, GlycopeptideHypothesis
-from glycan_profiling.serialize.hypothesis.generic import HasReferenceAccessionNumber
+from glycan_profiling.serialize.hypothesis.generic import HasReferenceAccessionNumber, HasChemicalComposition
 
 
-class GlycanBase(object):
+class GlycanBase(HasChemicalComposition):
     calculated_mass = Column(Numeric(12, 6, asdecimal=False), index=True)
     formula = Column(String(128), index=True)
     composition = Column(String(128))
@@ -163,6 +163,14 @@ class GlycanCombination(GlycanBase, Base):
         mass = self.calculated_mass
         return mass - (water_mass * self.count)
 
+    _dehydrated_composition = None
+
+    def dehydrated_composition(self):
+        if self._dehydrated_composition is None:
+            self._dehydrated_composition = self.total_composition() - (
+                self.count * Composition("H2O"))
+        return self._dehydrated_composition
+
     def __repr__(self):
         rep = "GlycanCombination({self.count}, {self.composition})".format(self=self)
         return rep
@@ -196,7 +204,7 @@ class _namespace(object):
 
     def __contains__(self, key):
         return key in self.__dict__
-    
+
     def __getitem__(self, key):
         return self.__dict__[key]
 

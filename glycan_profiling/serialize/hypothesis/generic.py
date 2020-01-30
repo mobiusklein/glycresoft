@@ -18,6 +18,7 @@ from sqlalchemy.orm import relationship, backref, object_session, deferred
 from sqlalchemy.ext.declarative import declared_attr
 from sqlalchemy.ext.mutable import MutableDict
 
+from glypy import Composition
 
 from ..base import (
     Base)
@@ -226,3 +227,12 @@ class JSONType(TypeDecorator):
         if value is not None:
             value = json.loads(value)
         return value
+
+
+class HasChemicalComposition(object):
+    _total_composition = None
+
+    def total_composition(self):
+        if self._total_composition is None:
+            self._total_composition = Composition(self.formula)
+        return self._total_composition

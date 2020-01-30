@@ -18,7 +18,7 @@ from glycan_profiling.serialize.base import (
 
 from .hypothesis import GlycopeptideHypothesis
 from .glycan import GlycanCombination
-from .generic import JSONType
+from .generic import JSONType, HasChemicalComposition
 
 from glycopeptidepy.structure import sequence, residue, PeptideSequenceBase
 from glycan_profiling.structure.structure_loader import PeptideProteinRelation, FragmentCachingGlycopeptide
@@ -290,7 +290,7 @@ class PeptideBase(AminoAcidSequenceWrapperBase):
         return position in self.protein_relation
 
 
-class Peptide(PeptideBase, Base):
+class Peptide(PeptideBase, HasChemicalComposition, Base):
     __tablename__ = 'Peptide'
 
     id = Column(Integer, primary_key=True)
