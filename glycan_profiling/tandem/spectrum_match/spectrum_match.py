@@ -689,6 +689,17 @@ class MultiScoreSpectrumMatch(SpectrumMatch):
         self._q_value_set = value
         self.q_value = self._q_value_set.total_q_value
 
+    def clone(self):
+        """Create a shallow copy of this object
+
+        Returns
+        -------
+        :class:`SpectrumMatch`
+        """
+        return self.__class__(
+            self.scan, self.target, self.score_set, self.best_match, self.data_bundle,
+            self.q_value_set, self.id, self.mass_shift, self.match_type)
+
     def __reduce__(self):
         return self.__class__, (self.scan, self.target, self.score_set, self.best_match,
                                 self.data_bundle, self.q_value_set, self.id, self.mass_shift,
