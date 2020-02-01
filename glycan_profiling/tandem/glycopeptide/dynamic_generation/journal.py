@@ -307,7 +307,7 @@ class SolutionSetGrouper(TaskBase):
         by_match_type = defaultdict(list)
         for _scan_id, members in groups.items():
             top_match = max(members, key=score_getter)
-            top_score = top_match.score
+            top_score = score_getter(top_match)
             seen = set()
             for match in members:
                 if isclose(top_score, score_getter(match)) and score_getter(match) > 0 and match.match_type not in seen:

@@ -236,7 +236,9 @@ def limiting_combinations(iterable, n, limit=100):
 
 
 class GlycanCombinationRecord(object):
-    __slots__ = ['id', 'calculated_mass', 'formula', 'count', 'glycan_composition_string']
+    __slots__ = [
+        'id', 'calculated_mass', 'formula', 'count', 'glycan_composition_string',
+        '_composition', '_dehydrated_composition']
 
     def __init__(self, combination):
         self.id = combination.id
@@ -244,6 +246,18 @@ class GlycanCombinationRecord(object):
         self.formula = combination.formula
         self.count = combination.count
         self.glycan_composition_string = combination.composition
+        self._composition = None
+        self._dehydrated_composition = None
+
+    def total_composition(self):
+        if self._composition is None:
+            self._composition = self.convert().total_composition()
+        return self._composition
+
+    def dehydrated_composition(self):
+        if self._dehydrated_composition is None:
+            self._dehydrated_composition = self.total_composition() - (Composition("H2O") * self.count)
+        return self._dehydrated_composition
 
     def convert(self):
         gc = FrozenGlycanComposition.parse(self.glycan_composition_string)
