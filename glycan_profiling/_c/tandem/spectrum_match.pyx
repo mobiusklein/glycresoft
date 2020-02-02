@@ -251,3 +251,22 @@ cdef class FDRSet(object):
     @classmethod
     def default(cls):
         return FDRSet._create(1.0, 1.0, 1.0, 1.0)
+
+    def __len__(self):
+        return 4
+
+    def __getitem__(self, int i):
+        if i == 0:
+            return self.total_q_value
+        elif i == 1:
+            return self.peptide_q_value
+        elif i == 2:
+            return self.glycan_q_value
+        elif i == 3:
+            return self.glycopeptide_q_value
+        else:
+            raise IndexError(i)
+
+    def __reduce__(self):
+        return self.__class__, (self.total_q_value, self.peptide_q_value,
+                                self.glycan_q_value, self.glycopeptide_q_value)
