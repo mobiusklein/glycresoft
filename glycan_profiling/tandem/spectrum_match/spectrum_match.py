@@ -718,3 +718,9 @@ class MultiScoreSpectrumMatch(SpectrumMatch):
                 return match
             else:
                 raise
+
+try:
+    from glycan_profiling._c.tandem.spectrum_match import ScoreSet, FDRSet
+    _has_c = True
+except ImportError:
+    _has_c = False

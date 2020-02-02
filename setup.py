@@ -68,6 +68,10 @@ def make_extensions():
             Extension(name='glycan_profiling._c.tandem.tandem_scoring_helpers',
                       sources=["glycan_profiling/_c/tandem/tandem_scoring_helpers.pyx"],
                       include_dirs=[numpy.get_include()]),
+            Extension(name='glycan_profiling._c.tandem.spectrum_match',
+                      sources=[
+                          "glycan_profiling/_c/tandem/spectrum_match.pyx"],
+                      include_dirs=[numpy.get_include()]),
             Extension(name='glycan_profiling._c.composition_network.graph',
                       sources=[
                           "glycan_profiling/_c/composition_network/graph.pyx"],
@@ -102,6 +106,10 @@ def make_extensions():
                       include_dirs=[numpy.get_include()]),
             Extension(name='glycan_profiling._c.tandem.tandem_scoring_helpers',
                       sources=["glycan_profiling/_c/tandem/tandem_scoring_helpers.c"],
+                      include_dirs=[numpy.get_include()]),
+            Extension(name='glycan_profiling._c.tandem.spectrum_match',
+                      sources=[
+                          "glycan_profiling/_c/tandem/spectrum_match.c"],
                       include_dirs=[numpy.get_include()]),
             Extension(name='glycan_profiling._c.composition_network.graph',
                       sources=[
