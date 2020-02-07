@@ -1,6 +1,7 @@
 
 from glycan_profiling.serialize import func
-from glycan_profiling.serialize.hypothesis.peptide import Peptide, Protein, ProteinSite
+from glycan_profiling.serialize.hypothesis.peptide import (
+    Peptide, Protein, ProteinSite, Glycopeptide)
 from glycan_profiling.serialize.utils import toggle_indices
 
 from glycopeptidepy.algorithm import reverse_sequence
@@ -123,10 +124,10 @@ class FastaGlycopeptideHypothesisSerializer(GlycopeptideHypothesisSerializerBase
                 acc.append(glycopeptide)
                 i += 1
                 if len(acc) > 100000:
-                    self.session.bulk_save_objects(acc)
+                    self.session.bulk_insert_mappings(Glycopeptide, acc, render_nulls=True)
                     self.session.commit()
                     acc = []
-        self.session.bulk_save_objects(acc)
+        self.session.bulk_insert_mappings(Glycopeptide, acc, render_nulls=True)
         self.session.commit()
 
     def run(self):

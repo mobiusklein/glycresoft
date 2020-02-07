@@ -338,7 +338,7 @@ class PeptideGlycosylator(object):
 
                     glycopeptide_sequence = str(sequence)
 
-                    glycopeptide = Glycopeptide(
+                    glycopeptide = dict(
                         calculated_mass=total_mass,
                         formula=formula_string,
                         glycopeptide_sequence=glycopeptide_sequence,
@@ -368,7 +368,7 @@ class PeptideGlycosylator(object):
 
                     glycopeptide_sequence = str(sequence)
 
-                    glycopeptide = Glycopeptide(
+                    glycopeptide = dict(
                         calculated_mass=total_mass,
                         formula=formula_string,
                         glycopeptide_sequence=glycopeptide_sequence,
@@ -396,7 +396,7 @@ class PeptideGlycosylator(object):
 
                     glycopeptide_sequence = str(sequence)
 
-                    glycopeptide = Glycopeptide(
+                    glycopeptide = dict(
                         calculated_mass=total_mass,
                         formula=formula_string,
                         glycopeptide_sequence=glycopeptide_sequence,
@@ -434,7 +434,7 @@ class PeptideGlycosylatingProcess(Process):
         return self.work_done_event.is_set()
 
     def process_result(self, collection):
-        self.session.bulk_save_objects(collection)
+        self.session.bulk_insert_mappings(Glycopeptide, collection, render_nulls=True)
         self.session.commit()
 
     def load_peptides(self, work_items):
@@ -617,7 +617,7 @@ class MultipleProcessPeptideGlycosylator(TaskBase):
                                     # to disk and then try to drain the queue again
                                     i += len(batch)
                                     try:
-                                        session.bulk_save_objects(batch)
+                                        session.bulk_insert_mappings(Glycopeptide, batch, render_nulls=True)
                                         session.commit()
                                     except Exception:
                                         session.rollback()
@@ -636,7 +636,7 @@ class MultipleProcessPeptideGlycosylator(TaskBase):
                     i += len(batch)
 
                     try:
-                        session.bulk_save_objects(batch)
+                        session.bulk_insert_mappings(Glycopeptide, batch, render_nulls=True)
                         session.commit()
                     except Exception:
                         session.rollback()
