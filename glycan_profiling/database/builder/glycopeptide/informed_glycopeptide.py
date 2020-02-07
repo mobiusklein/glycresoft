@@ -1,6 +1,6 @@
 import os
 from multiprocessing import Queue, Event
-from glycan_profiling.serialize.hypothesis.peptide import Peptide, Protein
+from glycan_profiling.serialize.hypothesis.peptide import (Peptide, Protein, Glycopeptide)
 
 from .common import (
     GlycopeptideHypothesisSerializerBase, PeptideGlycosylator,
@@ -80,10 +80,10 @@ class MzIdentMLGlycopeptideHypothesisSerializer(GlycopeptideHypothesisSerializer
                 acc.append(glycopeptide)
                 i += 1
                 if len(acc) > 100000:
-                    self.session.bulk_save_objects(acc)
+                    self.session.bulk_insert_mappings(Glycopeptide, acc, render_nulls=True)
                     self.session.commit()
                     acc = []
-        self.session.bulk_save_objects(acc)
+        self.session.bulk_insert_mappings(Glycopeptide, acc, render_nulls=True)
         self.session.commit()
 
     def run(self):
