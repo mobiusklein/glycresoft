@@ -591,11 +591,11 @@ class ScanCollator(TaskBase):
 
     def drain_queue(self):
         i = 0
-        self.log("Begin Draining Output Queue")
         while self.count_pending_items() < 1000 and self.consume(1):
             self.count_jobs_done += 1
             i += 1
-        self.log("Drained Output Queue of %d Items" % (i, ))
+        if i > 15:
+            self.log("Drained Output Queue of %d Items" % (i, ))
         return i
 
     def print_state(self):
