@@ -591,9 +591,11 @@ class ScanCollator(TaskBase):
 
     def drain_queue(self):
         i = 0
-        while self.count_pending_items() < 500 and self.consume(0):
+        self.log("Begin Draining Output Queue")
+        while self.count_pending_items() < 1000 and self.consume(1):
             self.count_jobs_done += 1
             i += 1
+        self.log("Drained Output Queue of %d Items" % (i, ))
         return i
 
     def print_state(self):
@@ -630,8 +632,8 @@ class ScanCollator(TaskBase):
                     if self.queue.qsize() > 500:
                         self.drain_queue()
                 except NotImplementedError:
-                    # Some platforms do not support qsize
-                    pass
+                    # Some platforms do not support qsize. On these, always drain the queue.
+                    self.drain_queue()
             if self.last_index is None:
                 keys = sorted(self.waiting)
                 if keys:
@@ -853,7 +855,7 @@ class ScanGenerator(TaskBase, ScanGeneratorBase):
     def _initialize_workers(self, start_scan=None, end_scan=None, max_scans=None):
         try:
             self._input_queue = JoinableQueue(int(1e6))
-            self._output_queue = JoinableQueue(5000)
+            self._output_queue = JoinableQueue(int(1e6))
         except OSError:
             # Not all platforms permit limiting the size of queues
             self._input_queue = JoinableQueue()
