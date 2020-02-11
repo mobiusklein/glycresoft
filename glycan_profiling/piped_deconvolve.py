@@ -591,8 +591,11 @@ class ScanCollator(TaskBase):
 
     def drain_queue(self):
         i = 0
-        while self.count_pending_items() < 1000 and self.consume(1):
+        has_next = self.last_index + 1 not in self.waiting
+        while (self.count_pending_items() < (1000 if has_next else 10)
+               and self.consume(.1)):
             self.count_jobs_done += 1
+            has_next = self.last_index + 1 not in self.waiting
             i += 1
         if i > 15:
             self.log("Drained Output Queue of %d Items" % (i, ))
