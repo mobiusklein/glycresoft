@@ -1,3 +1,6 @@
+'''Implements a multiprocessing deconvolution algorithm
+'''
+
 import os
 import multiprocessing
 
@@ -68,7 +71,7 @@ class ScanIDYieldingProcess(Process):
     def _make_scan_batch(self):
         batch = []
         scan_ids = []
-        for i in range(self.batch_size):
+        for _i in range(self.batch_size):
             try:
                 bunch = next(self.loader)
                 scan, products = bunch
@@ -539,11 +542,11 @@ class ScanCollator(TaskBase):
         """
         blocking = timeout != 0
         try:
-            item, index, ms_level = self.queue.get(blocking, timeout)
+            item, index, _ms_level = self.queue.get(blocking, timeout)
             self.queue.task_done()
             # DONE message may be sent many times.
             while item == DONE:
-                item, index, ms_level = self.queue.get(blocking, timeout)
+                item, index, _ms_level = self.queue.get(blocking, timeout)
                 self.queue.task_done()
             self.store_item(item, index)
             return True
@@ -693,7 +696,7 @@ class ScanGeneratorBase(object):
         return self
 
     def __next__(self):
-        if self._iterator is None:
+        if self._iterator is None:  # pylint: disable=access-member-before-definition
             self._iterator = self.make_iterator()
         return next(self._iterator)
 
@@ -830,7 +833,7 @@ class ScanGenerator(TaskBase, ScanGeneratorBase):
         else:
             end_ix = len(reader)
         reader.reset()
-        index, interval_tree = build_scan_index(
+        _index, interval_tree = build_scan_index(
             reader, self.number_of_helpers + 1, (start_ix, end_ix))
         self._scan_interval_tree = interval_tree
 
@@ -881,7 +884,7 @@ class ScanGenerator(TaskBase, ScanGeneratorBase):
 
         self._deconv_helpers = []
 
-        for i in range(self.number_of_helpers):
+        for _i in range(self.number_of_helpers):
             self._deconv_helpers.append(self._make_transforming_process())
         self._deconv_process.start()
 

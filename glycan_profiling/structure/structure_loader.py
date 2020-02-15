@@ -330,6 +330,7 @@ class CachingPeptideParser(CachingGlycopeptideParser):
 class DecoyFragmentCachingGlycopeptide(FragmentCachingGlycopeptide):
 
     def stub_fragments(self, *args, **kwargs):
+        kwargs.setdefault("strategy", CachingStubGlycopeptideStrategy)
         key = ('stub_fragments', args, frozenset(kwargs.items()))
         try:
             return self.fragment_caches[key]
