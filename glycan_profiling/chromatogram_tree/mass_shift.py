@@ -55,6 +55,24 @@ class MassShift(MassShiftBase):
         else:
             raise TypeError("Cannot multiply MassShift by non-integer")
 
+    def __getstate__(self):
+        return {
+            "tandem_composition": self.tandem_composition,
+            "name": self.name,
+            "mass": self.mass,
+            "charge_carrier": self.charge_carrier,
+            "tandem_mass": self.tandem_mass,
+            "composition": self.composition
+        }
+
+    def __setstate__(self, state):
+        self.name = state['name']
+        self.charge_carrier = state['charge_carrier']
+        self.mass = state['mass']
+        self.composition = state['composition']
+        self.tandem_mass = state['tandem_mass']
+        self.tandem_composition = state['tandem_composition']
+
     def __add__(self, other):
         if self.composition == {}:
             return other
