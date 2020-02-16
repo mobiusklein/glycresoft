@@ -6,6 +6,8 @@ import ctypes
 import gzip
 import io
 
+from six import iteritems
+
 from collections import namedtuple
 
 from lxml import etree
@@ -83,6 +85,9 @@ class glycopeptide_key_t(_glycopeptide_key_t):
 
     def is_decoy(self):
         return self.structure_type != 0
+
+    def as_dict(self):
+        return self._asdict()
 
 
 class GlycoformGeneratorBase(LoggingMixin):
@@ -574,11 +579,11 @@ def serialize_workload(workload_manager, pretty_print=True):
     wl.attrib['total_size'] = str(workload_manager.total_size)
     wl.attrib['scan_count'] = str(workload_manager.scan_count)
     wl.attrib['hit_count'] = str(workload_manager.hit_count)
-    for key, scans in workload_manager.hit_to_scan_map.items():
+    for key, scans in iteritems(workload_manager.hit_to_scan_map):
         sm = etree.SubElement(wl, 'scan_mapping')
         rec = workload_manager.hit_map[key]
         el = etree.SubElement(sm, 'structure')
-        el.attrib.update({k: str(v) for k, v in rec.id._asdict().items()})
+        el.attrib.update({k: str(v) for k, v in rec.id.as_dict().items()})
         el.attrib['total_mass'] = str(rec.total_mass)
         el.text = rec.glycopeptide
         for scan in scans:

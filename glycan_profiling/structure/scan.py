@@ -30,6 +30,9 @@ class ScanStub(object):
         self.precursor_information.source = None
         return self
 
+    def unbind(self):
+        return self.detatch()
+
     def bind(self, source):
         self.source = source
         self.precursor_information.source = source

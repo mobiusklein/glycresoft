@@ -86,6 +86,7 @@ class BatchMapper(TaskExecutionSequence):
                 precursor_error_tolerance=self.precursor_error_tolerance,
                 mass_shifts=self.mass_shifts)
             task.label = label
+            task.unbind_scans()
             self.out_queue.put(task)
 
     def run(self):
@@ -113,6 +114,16 @@ class StructureMapper(TaskExecutionSequence):
         self.seen = set()
         self.mass_shifts = mass_shifts
         self.precursor_error_tolerance = precursor_error_tolerance
+
+    def bind_scans(self, source):
+        for group in self.chunks:
+            for scan in group:
+                scan.bind(source)
+
+    def unbind_scans(self):
+        for group in self.chunks:
+            for scan in group:
+                scan.unbind()
 
     def _log_cache(self):
         predictive_search = self.predictive_search
@@ -231,11 +242,16 @@ class SerializingMapperExecutor(MapperExecutor):
         self.scan_loader = scan_loader
         self.tracking_directory = tracking_directory
 
+    def prepare_chunk(self, chunk):
+        for scan in chunk:
+            scan.bind(self.scan_loader)
+
     def execute_task(self, mapper_task):
         label = mapper_task.predictive_search
         mapper_task.predictive_search = self.predictive_searchers[label]
         if debug_mode:
             self.log("... Running %s Mapping with Mass Shifts %r" % (label, mapper_task.mass_shifts))
+        mapper_task.bind_scans(self.scan_loader)
         workload = mapper_task()
         if debug_mode:
             for scan_id, hit_ids in workload.scan_to_hit_map.items():
