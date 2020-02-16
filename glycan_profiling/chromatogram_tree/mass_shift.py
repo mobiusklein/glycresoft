@@ -66,12 +66,24 @@ class MassShift(MassShiftBase):
         }
 
     def __setstate__(self, state):
-        self.name = state['name']
-        self.charge_carrier = state['charge_carrier']
-        self.mass = state['mass']
-        self.composition = state['composition']
-        self.tandem_mass = state['tandem_mass']
-        self.tandem_composition = state['tandem_composition']
+        if isinstance(state, tuple):
+            # We're receiving an older Cython pickled state
+            self._hash = state[0]
+            self.composition = state[1]
+            self.mass = state[2]
+            self.name = state[3]
+            self.tandem_composition = state[4]
+            self.tandem_mass = state[5]
+            self.charge_carrier = state[6]['charge_carrier']
+
+        else:
+            self.name = state['name']
+            self.charge_carrier = state['charge_carrier']
+            self.mass = state['mass']
+            self.composition = state['composition']
+            self.tandem_mass = state['tandem_mass']
+            self.tandem_composition = state['tandem_composition']
+            self._hash = hash(self.name)
 
     def __add__(self, other):
         if self.composition == {}:
