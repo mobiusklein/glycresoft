@@ -116,12 +116,12 @@ class StructureMapper(TaskExecutionSequence):
         self.precursor_error_tolerance = precursor_error_tolerance
 
     def bind_scans(self, source):
-        for group in self.chunks:
+        for group in self.chunk:
             for scan in group:
                 scan.bind(source)
 
     def unbind_scans(self):
-        for group in self.chunks:
+        for group in self.chunk:
             for scan in group:
                 scan.unbind()
 
