@@ -35,6 +35,8 @@ class SpectrumMatchSolutionCollectionBase(object):
         weights = self._compute_representative_weights(threshold_fn, reject_shifted)
         if weights:
             return [x for x in weights if abs(x.percentile - weights[0].percentile) < 1e-5]
+        else:
+            return []
 
 
 class TandemAnnotatedChromatogram(ChromatogramWrapper, SpectrumMatchSolutionCollectionBase):
