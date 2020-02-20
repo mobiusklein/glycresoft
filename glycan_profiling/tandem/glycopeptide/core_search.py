@@ -297,7 +297,8 @@ class GlycanCombinationRecordBase(object):
 
 try:
     from glycan_profiling._c.tandem.core_search import GlycanCombinationRecordBase
-except ImportError:
+except ImportError as err:
+    print(err)
     pass
 
 
