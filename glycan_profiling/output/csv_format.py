@@ -58,7 +58,7 @@ class GlycanHypothesisCSVSerializer(CSVSerializerBase):
             obj.calculated_mass,
             ";".join([sc.name for sc in obj.structure_classes])
         ]
-        return map(str, attribs)
+        return list(map(str, attribs))
 
 
 class ImportableGlycanHypothesisCSVSerializer(CSVSerializerBase):
@@ -76,7 +76,7 @@ class ImportableGlycanHypothesisCSVSerializer(CSVSerializerBase):
         # are treated as independent entries not containing whitespace
         # so that they are not quoted
         ] + [sc.name for sc in obj.structure_classes]
-        return map(str, attribs)
+        return list(map(str, attribs))
 
 
 class GlycopeptideHypothesisCSVSerializer(CSVSerializerBase):
@@ -101,7 +101,7 @@ class GlycopeptideHypothesisCSVSerializer(CSVSerializerBase):
             obj.peptide.end_position,
             obj.peptide.protein.name
         ]
-        return map(str, attribs)
+        return list(map(str, attribs))
 
 
 class SimpleChromatogramCSVSerializer(CSVSerializerBase):
@@ -205,7 +205,7 @@ class GlycanLCMSAnalysisCSVSerializer(CSVSerializerBase):
             ';'.join("%s:%s" % (p[0], p[1].name) for p in obj.ambiguous_with),
             ';'.join("%s:%s" % (p[0], p[1].name) for p in obj.used_as_mass_shift)
         ]
-        return map(str, attribs)
+        return list(map(str, attribs))
 
 
 class GlycopeptideLCMSMSAnalysisCSVSerializer(CSVSerializerBase):
@@ -230,6 +230,7 @@ class GlycopeptideLCMSMSAnalysisCSVSerializer(CSVSerializerBase):
             "peptide_start",
             "peptide_end",
             "protein_name",
+            "mass_shifts",
         ]
 
     def convert_object(self, obj):
@@ -244,8 +245,7 @@ class GlycopeptideLCMSMSAnalysisCSVSerializer(CSVSerializerBase):
         attribs = [
             str(obj.structure),
             weighted_neutral_mass,
-            ((obj.structure.total_mass - weighted_neutral_mass
-              ) / weighted_neutral_mass),
+            (obj.structure.total_mass - weighted_neutral_mass) / weighted_neutral_mass,
             obj.ms1_score,
             obj.ms2_score,
             obj.q_value,
@@ -257,9 +257,43 @@ class GlycopeptideLCMSMSAnalysisCSVSerializer(CSVSerializerBase):
             len(obj.spectrum_matches),
             obj.protein_relation.start_position,
             obj.protein_relation.end_position,
-            self.protein_name_resolver[obj.protein_relation.protein_id]
+            self.protein_name_resolver[obj.protein_relation.protein_id],
+            ';'.join([a.name for a in obj.mass_shifts]),
         ]
-        return map(str, attribs)
+        return list(map(str, attribs))
+
+
+class MultiScoreGlycopeptideLCMSMSAnalysisCSVSerializer(GlycopeptideLCMSMSAnalysisCSVSerializer):
+    def get_header(self):
+        headers = super(MultiScoreGlycopeptideLCMSMSAnalysisCSVSerializer, self).get_header()
+        headers.extend([
+            "glycopeptide_score",
+            "peptide_score",
+            "glycan_score",
+            "glycan_coverage",
+            "total_q_value",
+            "peptide_q_value",
+            "glycan_q_value",
+            "glycopeptide_q_value",
+        ])
+        return headers
+
+    def convert_object(self, obj):
+        fields = super(MultiScoreGlycopeptideLCMSMSAnalysisCSVSerializer, self).convert_object(obj)
+        score_set = obj.score_set
+        q_value_set = obj.q_value_set
+        new_fields = [
+            score_set.glycopeptide_score,
+            score_set.peptide_score,
+            score_set.glycan_score,
+            score_set.glycan_coverage,
+            q_value_set.total_q_value,
+            q_value_set.peptide_q_value,
+            q_value_set.glycan_q_value,
+            q_value_set.glycopeptide_q_value,
+        ]
+        fields.extend(map(str, new_fields))
+        return fields
 
 
 class GlycopeptideSpectrumMatchAnalysisCSVSerializer(CSVSerializerBase):
@@ -293,8 +327,7 @@ class GlycopeptideSpectrumMatchAnalysisCSVSerializer(CSVSerializerBase):
         attribs = [
             str(obj.target),
             precursor_mass,
-            ((obj.target.total_mass - precursor_mass
-              ) / precursor_mass),
+            (obj.target.total_mass - precursor_mass) / precursor_mass,
             mass_shift_name,
             obj.scan.scan_id,
             obj.scan.scan_time,
@@ -306,7 +339,7 @@ class GlycopeptideSpectrumMatchAnalysisCSVSerializer(CSVSerializerBase):
             obj.target.protein_relation.end_position,
             self.protein_name_resolver[obj.target.protein_relation.protein_id]
         ]
-        return map(str, attribs)
+        return list(map(str, attribs))
 
     def filter(self, iterable):
         seen = set()

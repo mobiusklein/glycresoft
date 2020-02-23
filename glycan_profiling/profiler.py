@@ -66,7 +66,8 @@ from glycan_profiling.tandem.glycopeptide.glycopeptide_matcher import (
     GlycopeptideDatabaseSearchIdentifier,
     ExclusiveGlycopeptideDatabaseSearchComparer)
 
-from glycan_profiling.tandem.glycopeptide.dynamic_generation import MultipartGlycopeptideIdentifier
+from glycan_profiling.tandem.glycopeptide.dynamic_generation import (
+    MultipartGlycopeptideIdentifier, GlycopeptideFDREstimationStrategy)
 
 from glycan_profiling.tandem.glycopeptide import (
     identified_structure as identified_glycopeptide)
@@ -1145,9 +1146,12 @@ class MultipartGlycopeptideLCMSMSAnalyzer(MzMLGlycopeptideLCMSMSAnalyzer):
                  glycan_score_threshold=1, mass_shifts=None,
                  n_processes=5, spectrum_batch_size=1000,
                  maximum_mass=float('inf'), probing_range_for_missing_precursors=3,
-                 trust_precursor_fits=True, use_memory_database=True):
+                 trust_precursor_fits=True, use_memory_database=True,
+                 fdr_estimation_strategy=None):
         if tandem_scoring_model == CoverageWeightedBinomialScorer:
             tandem_scoring_model = CoverageWeightedBinomialModelTree
+        if fdr_estimation_strategy is None:
+            fdr_estimation_strategy = GlycopeptideFDREstimationStrategy.multipart_gamma_gaussian_mixture
         super(MultipartGlycopeptideLCMSMSAnalyzer, self).__init__(
             database_connection, target_hypothesis_id, sample_path, output_path,
             analysis_name, grouping_error_tolerance, mass_error_tolerance,
@@ -1160,6 +1164,7 @@ class MultipartGlycopeptideLCMSMSAnalyzer(MzMLGlycopeptideLCMSMSAnalyzer):
         self.decoy_database_connection = decoy_database_connection
         self.use_memory_database = use_memory_database
         self.decoy_hypothesis_id = decoy_hypothesis_id
+        self.fdr_estimation_strategy = fdr_estimation_strategy
 
     @property
     def target_hypothesis_id(self):
@@ -1198,7 +1203,8 @@ class MultipartGlycopeptideLCMSMSAnalyzer(MzMLGlycopeptideLCMSMSAnalyzer):
             n_processes=self.n_processes,
             file_manager=self.file_manager,
             probing_range_for_missing_precursors=self.probing_range_for_missing_precursors,
-            trust_precursor_fits=self.trust_precursor_fits)
+            trust_precursor_fits=self.trust_precursor_fits,
+            fdr_estimation_strategy=self.fdr_estimation_strategy)
         return searcher
 
     def estimate_fdr(self, searcher, target_decoy_set):
@@ -1245,5 +1251,6 @@ class MultipartGlycopeptideLCMSMSAnalyzer(MzMLGlycopeptideLCMSMSAnalyzer):
             "target_database": str(self.database_connection),
             "decoy_database": str(self.decoy_database_connection),
             "search_strategy": 'multipart-target-decoy-competition',
+            "fdr_estimation_strategy": self.fdr_estimation_strategy,
         })
         return result

@@ -14,6 +14,7 @@ from glycan_profiling.profiler import (
     MzMLGlycopeptideLCMSMSAnalyzer,
     MzMLComparisonGlycopeptideLCMSMSAnalyzer,
     MultipartGlycopeptideLCMSMSAnalyzer,
+    GlycopeptideFDREstimationStrategy,
     MzMLGlycanChromatogramAnalyzer,
     LaplacianRegularizedChromatogramProcessor,
     ProcessedMzMLDeserializer,
@@ -281,6 +282,8 @@ def search_glycopeptide(context, database_connection, sample_path, hypothesis_id
 @click.option("-n", "--analysis-name", default=None, help='Name for analysis to be performed.')
 @click.option("-q", "--psm-fdr-threshold", default=0.05, type=float,
               help='Minimum FDR Threshold to use for filtering GPSMs when selecting identified glycopeptides')
+@click.option("-f", "--fdr-estimation-strategy", type=click.Choice(['multipart', 'peptide', 'glycan']),
+              default='multipart', help="The FDR estimation strategy to use.")
 @click.option("-s", "--tandem-scoring-model", default='log_intensity',
               type=click.Choice(["log_intensity", "simple"]),
               help="Select a scoring function to use for evaluating glycopeptide-spectrum matches")
@@ -307,9 +310,13 @@ def search_glycopeptide_multipart(context, database_connection, decoy_database_c
                                   peak_shape_scoring_model=None, tandem_scoring_model=None, glycan_score_threshold=1.0,
                                   memory_database_index=False, save_intermediate_results=None, processes=4,
                                   workload_size=500, mass_shifts=None, export=None, maximum_mass=float('inf'),
-                                  isotope_probing_range=3):
+                                  isotope_probing_range=3, fdr_estimation_strategy=None):
     if output_path is None:
         output_path = make_analysis_output_path("glycopeptide")
+    if fdr_estimation_strategy is None:
+        fdr_estimation_strategy = GlycopeptideFDREstimationStrategy.multipart_gamma_gaussian_mixture
+    else:
+        fdr_estimation_strategy = GlycopeptideFDREstimationStrategy[fdr_estimation_strategy]
     if tandem_scoring_model is None:
         tandem_scoring_model = "log_intensity"
     database_connection = DatabaseBoundOperation(database_connection)
@@ -366,11 +373,12 @@ def search_glycopeptide_multipart(context, database_connection, decoy_database_c
         tandem_scoring_model=tandem_scoring_model,
         glycan_score_threshold=glycan_score_threshold,
         mass_shifts=mass_shifts,
-        n_processes=5,
+        n_processes=processes,
         spectrum_batch_size=workload_size,
         maximum_mass=maximum_mass,
         probing_range_for_missing_precursors=isotope_probing_range,
-        use_memory_database=memory_database_index)
+        use_memory_database=memory_database_index,
+        fdr_estimation_strategy=fdr_estimation_strategy)
     analyzer.display_header()
     gps, unassigned, target_decoy_set = analyzer.start()
     if save_intermediate_results is not None:

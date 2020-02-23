@@ -41,7 +41,7 @@ from .searcher import (
     SpectrumBatcher, SerializingMapperExecutor,
     BatchMapper, WorkloadUnpackingMatcherExecutor)
 
-from .multipart_fdr import GlycopeptideFDREstimator
+from .multipart_fdr import GlycopeptideFDREstimator, GlycopeptideFDREstimationStrategy
 
 
 def _determine_database_contents(path, hypothesis_id=1):
@@ -124,7 +124,10 @@ class MultipartGlycopeptideIdentifier(TaskBase):
                  mass_shifts=None, n_processes=6,
                  evaluation_kwargs=None, ipc_manager=None, file_manager=None,
                  probing_range_for_missing_precursors=3, trust_precursor_fits=True,
-                 glycan_score_threshold=1.0, peptide_masses_per_scan=100, **kwargs):
+                 glycan_score_threshold=1.0, peptide_masses_per_scan=100,
+                 fdr_estimation_strategy=None, **kwargs):
+        if fdr_estimation_strategy is None:
+            fdr_estimation_strategy = GlycopeptideFDREstimationStrategy.multipart_gamma_gaussian_mixture
         if scorer_type is None:
             scorer_type = LogIntensityScorer
         if evaluation_kwargs is None:
@@ -143,8 +146,10 @@ class MultipartGlycopeptideIdentifier(TaskBase):
             decoy_peptide_db = self.build_default_disk_backed_db_wrapper(decoy_peptide_db)
 
         self.tandem_scans = tandem_scans
-        self.scorer_type = scorer_type
         self.scan_loader = scan_loader
+
+        self.scorer_type = scorer_type
+        self.fdr_estimation_strategy = GlycopeptideFDREstimationStrategy[fdr_estimation_strategy]
 
         self.target_peptide_db = target_peptide_db
         self.decoy_peptide_db = decoy_peptide_db
@@ -344,7 +349,8 @@ class MultipartGlycopeptideIdentifier(TaskBase):
         g = glycopeptide_spectrum_match_groups
         self.log("Running Target Decoy Analysis with %d targets and %d/%d/%d decoys" % (
             len(g[keys[0]]), len(g[keys[1]]), len(g[keys[2]]), len(g[keys[3]])))
-        estimator = GlycopeptideFDREstimator(glycopeptide_spectrum_match_groups)
+        estimator = GlycopeptideFDREstimator(
+            glycopeptide_spectrum_match_groups, self.fdr_estimation_strategy)
         groups = estimator.start()
         return groups
 

@@ -39,6 +39,10 @@ class GlycopeptideFDREstimationStrategy(Enum):
     glycan_fdr = 2
     glycopeptide_fdr = 3
 
+GlycopeptideFDREstimationStrategy.multipart_gamma_gaussian_mixture.add_name("multipart")
+GlycopeptideFDREstimationStrategy.peptide_fdr.add_name("peptide")
+GlycopeptideFDREstimationStrategy.glycan_fdr.add_name("glycan")
+
 
 class FiniteMixtureModelFDREstimator(object):
     def __init__(self, decoy_scores, target_scores):
