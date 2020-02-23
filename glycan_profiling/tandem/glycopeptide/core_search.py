@@ -247,14 +247,13 @@ class GlycanCombinationRecordBase(object):
                 self.composition, 1, 0)
             fragment_structs = []
             for shift in shifts:
-                shift['key'] = _AccumulatorBag(shift['key'])
                 if shift["key"]['HexNAc'] <= 2 and shift["key"]["Hex"] <= 3:
-                    shift['is_core'] = True
+                    is_core = True
                 else:
-                    shift['is_core'] = False
+                    is_core = False
                 fragment_structs.append(
                     CoarseStubGlycopeptideFragment(
-                        shift['key'], shift['mass'], shift['is_core']))
+                        shift['key'], shift['mass'], is_core))
             self._fragment_cache[GlycanTypes.n_glycan] = sorted(
                 set(fragment_structs))
             return self._fragment_cache[GlycanTypes.n_glycan]

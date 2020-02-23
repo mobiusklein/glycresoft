@@ -19,5 +19,5 @@ install:
   - pip install -r external-requirements.txt
   - python pyinstaller/install-from-git.py
   - pip install PyInstaller==3.5 dis3
-  - python setup.py install
+  - python setup.py build_ext -i install
 script: make test

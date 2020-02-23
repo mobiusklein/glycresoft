@@ -2,13 +2,12 @@
 from collections import defaultdict
 
 cimport cython
-from cpython cimport (
-    PyList_Append, PyList_Size, PyList_GetItem,
-    PyFloat_AsDouble, PyTuple_Size, PyTuple_GetItem,
-    PyObject, PyDict_GetItem, PyDict_SetItem)
 
-from cpython.list cimport PyList_GET_SIZE, PyList_GET_ITEM
-from cpython.tuple cimport PyTuple_GET_SIZE, PyTuple_GET_ITEM
+from cpython.object cimport PyObject
+from cpython.float cimport PyFloat_AsDouble
+from cpython.list cimport PyList_GET_SIZE, PyList_GET_ITEM, PyList_Append, PyList_Size, PyList_GetItem
+from cpython.tuple cimport PyTuple_GET_SIZE, PyTuple_GET_ITEM, PyTuple_Size, PyTuple_GetItem
+from cpython.dict cimport PyDict_GetItem, PyDict_SetItem
 
 from libc cimport math
 
