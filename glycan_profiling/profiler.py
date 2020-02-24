@@ -82,6 +82,9 @@ from glycan_profiling.scan_cache import (
 from glycan_profiling.task import TaskBase
 
 
+debug_mode = bool(os.environ.get('GLYCRESOFTDEBUG', False))
+
+
 class SampleConsumer(TaskBase):
     """Implements the LC-MS/MS sample deconvolution pipeline, taking an arbitrary
     MS data file providing MS1 and MSn scans and produces a new mzML file with the
@@ -897,6 +900,10 @@ class GlycopeptideLCMSMSAnalyzer(TaskBase):
         # Score chromatograms, both matched and unmatched
         self.log("Scoring chromatograms")
         scored_merged = self.score_chromatograms(merged)
+
+        if debug_mode:
+            for case in merged:
+                self.log("Scored Chromatogram: %r" % (case, ))
 
         gps, unassigned = self.assign_consensus(scored_merged, orphans)
 

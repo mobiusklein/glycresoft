@@ -1,3 +1,4 @@
+import os
 from glycan_profiling.task import TaskBase, log_handle
 from glycan_profiling.chromatogram_tree import (
     ChromatogramWrapper, build_rt_interval_tree, ChromatogramFilter,
@@ -6,6 +7,8 @@ from glycan_profiling.chromatogram_tree.chromatogram import GlycopeptideChromato
 from collections import defaultdict, namedtuple
 
 SolutionEntry = namedtuple("SolutionEntry", "solution, score, percentile, best_score, match")
+
+debug_mode = bool(os.environ.get('GLYCRESOFTDEBUG', False))
 
 
 class SpectrumMatchSolutionCollectionBase(object):
@@ -266,8 +269,12 @@ class ChromatogramMSMSMapper(TaskBase):
         chroma = overlapping_chroma.find_mass(
             solution.precursor_information.neutral_mass, self.error_tolerance)
         if chroma is None:
+            if debug_mode:
+                self.log("... %s is an orphan" % (solution, ))
             self.orphans.append(ScanTimeBundle(solution, precursor_scan_time))
         else:
+            if debug_mode:
+                self.log("... Assigning %s to %s" % (solution, chroma))
             chroma.tandem_solutions.append(solution)
 
     def assign_solutions_to_chromatograms(self, solutions):

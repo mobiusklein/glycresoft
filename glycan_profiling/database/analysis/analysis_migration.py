@@ -369,17 +369,29 @@ class GlycopeptideMSMSAnalysisSerializer(AnalysisMigrationBase):
         self.glycopeptide_db = glycopeptide_db
         self._identified_glycopeptide_set = identified_glycopeptide_set
 
+        self._unassigned_chromatogram_set = unassigned_chromatogram_set
+        self._glycopeptide_ids = None
+        self.unshare_targets()
+        self.aggregate_glycopeptide_ids()
+
+    def unshare_targets(self):
+        """Ensure each spectrum match's target refers to a *different* object
+        even if they describe the same structure.
+
+        """
         for gp in self._identified_glycopeptide_set:
             gp.structure = gp.structure.clone()
             for solution_set in gp.spectrum_matches:
                 for match in solution_set:
                     match.target = match.target.clone()
 
-        self._unassigned_chromatogram_set = unassigned_chromatogram_set
-        self._glycopeptide_ids = None
-        self.aggregate_glycopeptide_ids()
-
     def aggregate_glycopeptide_ids(self):
+        """Accumulate a set of all unique structure IDs over all spectrum matches.
+
+        Returns
+        -------
+        set
+        """
         aggregate = set()
         for gp in self._identified_glycopeptide_set:
             for solution_set in gp.spectrum_matches:
