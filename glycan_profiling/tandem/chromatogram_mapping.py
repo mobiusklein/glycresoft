@@ -192,6 +192,7 @@ def aggregate_by_assigned_entity(annotated_chromatograms, delta_rt=0.25, require
         for chromatogram in finished:
             # the structure's best match has not been identified in an unmodified state
             if Unmodified not in chromatogram.mass_shifts:
+                original_entity = getattr(chromatogram, "entity")
                 solutions = chromatogram.most_representative_solutions(
                     threshold_fn, reject_shifted=True)
                 # if there is a reasonable solution in an unmodified state
@@ -215,6 +216,8 @@ def aggregate_by_assigned_entity(annotated_chromatograms, delta_rt=0.25, require
                         solutions[0],
                         entity_chromatogram_type=chromatogram.chromatogram.__class__)
                     chromatogram.representative_solutions = solutions
+                    if debug_mode:
+                        log_handle.log("... Replacing %s with %s" % (original_entity, chromatogram.entity))
                     out.append(chromatogram)
                 else:
                     log_handle.log("... Could not find an alternative option for %r" % (chromatogram,))
@@ -319,6 +322,8 @@ class ChromatogramMSMSMapper(TaskBase):
             solutions = chromatogram.most_representative_solutions(threshold_fn)
             if solutions:
                 solutions = sorted(solutions, key=lambda x: x.score, reverse=True)
+                if debug_mode:
+                    self.log("... Assigning %s to %s" % (solutions[0], chromatogram))
                 chromatogram.assign_entity(solutions[0], entity_chromatogram_type=entity_chromatogram_type)
                 chromatogram.representative_solutions = solutions
 
