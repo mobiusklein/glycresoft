@@ -1063,6 +1063,14 @@ class EntityChromatogram(Chromatogram):
             self.composition = value
 
     @property
+    def structure(self):
+        return self.entity
+
+    @structure.setter
+    def structure(self, value):
+        self.entity = value
+
+    @property
     def elemental_composition(self):
         try:
             return self.entity.total_composition()

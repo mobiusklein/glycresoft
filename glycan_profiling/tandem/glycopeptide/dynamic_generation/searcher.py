@@ -254,15 +254,7 @@ class SerializingMapperExecutor(MapperExecutor):
             self.log("... Running %s Mapping with Mass Shifts %r" % (label, mapper_task.mass_shifts))
         # mapper_task.bind_scans(self.scan_loader)
         workload = mapper_task()
-        if debug_mode:
-            for scan_id, hit_ids in workload.scan_to_hit_map.items():
-                for hit_id in hit_ids:
-                    self.log("...... After mapping %s: %s" % (scan_id, workload.hit_map[hit_id]))
         workload.pack()
-        if debug_mode:
-            for scan_id, hit_ids in workload.scan_to_hit_map.items():
-                for hit_id in hit_ids:
-                    self.log("...... After packing %s: %s" % (scan_id, workload.hit_map[hit_id]))
 
         workload = serialize_workload(workload)
         matcher_task = SpectrumMatcher(

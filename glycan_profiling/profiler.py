@@ -800,9 +800,15 @@ class GlycopeptideLCMSMSAnalyzer(TaskBase):
         chroma_with_sols, orphans = searcher.map_to_chromatograms(
             chromatograms, target_hits, self.mass_error_tolerance,
             threshold_fn=threshold_fn)
+        if debug_mode:
+            for chrom in chroma_with_sols:
+                self.log("... Assigned Chromatograms %r" % (chrom, ))
         self.log("Aggregating Assigned Entities")
         merged = chromatogram_mapping.aggregate_by_assigned_entity(
             chroma_with_sols, threshold_fn=threshold_fn)
+        if debug_mode:
+            for chrom in merged:
+                self.log("... Merged Chromatograms %r" % (chrom, ))
         return merged, orphans
 
     def score_chromatograms(self, merged):
@@ -841,6 +847,9 @@ class GlycopeptideLCMSMSAnalyzer(TaskBase):
         assigned_list.extend(orphans)
         gps, unassigned = identified_glycopeptide.extract_identified_structures(
             assigned_list, lambda x: x.q_value < self.psm_fdr_threshold)
+        if debug_mode:
+            for gp in gps:
+                self.log("... Extracted Glycopeptide %r" % (gp, ))
         return gps, unassigned
 
     def rank_target_hits(self, searcher, target_decoy_set):

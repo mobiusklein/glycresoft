@@ -317,12 +317,12 @@ class PredictiveGlycopeptideSearch(DynamicGlycopeptideSearchBase):
                             if key in seen:
                                 continue
                             seen.add(key)
-                            if debug_mode:
-                                self.log("\t%s @ %s: %s: %f/%f %s" % (
-                                    scan.id, candidate, mass_shift.name,
-                                    abs(intact_mass - candidate.total_mass) / intact_mass,
-                                    abs((candidate.total_mass + mass_shift_mass) - scan.precursor_information.neutral_mass
-                                        ) / scan.precursor_information.neutral_mass, mass_threshold_passed))
+                            # if debug_mode:
+                            #     self.log("\t%s @ %s: %s: %f/%f %s" % (
+                            #         scan.id, candidate, mass_shift.name,
+                            #         abs(intact_mass - candidate.total_mass) / intact_mass,
+                            #         abs((candidate.total_mass + mass_shift_mass) - scan.precursor_information.neutral_mass
+                            #             ) / scan.precursor_information.neutral_mass, mass_threshold_passed))
                             if mass_threshold_passed:
                                 workload.add_scan_hit(scan, candidate, mass_shift_name)
             # self.log("%s had %d glycopeptides from %d peptide masses" % (scan.id, n_glycopeptides, n_peptide_masses))

@@ -224,7 +224,8 @@ def search_glycopeptide(context, database_connection, sample_path, hypothesis_id
             use_decoy_correction_threshold=fdr_correction,
             probing_range_for_missing_precursors=isotope_probing_range)
     analyzer.display_header()
-    gps, unassigned, target_decoy_set = analyzer.start()
+    result = analyzer.start()
+    gps, unassigned, target_decoy_set = result[:3]
     if save_intermediate_results is not None:
         analyzer.log("Saving Intermediate Results")
         with open(save_intermediate_results, 'wb') as handle:
@@ -380,7 +381,8 @@ def search_glycopeptide_multipart(context, database_connection, decoy_database_c
         use_memory_database=memory_database_index,
         fdr_estimation_strategy=fdr_estimation_strategy)
     analyzer.display_header()
-    gps, unassigned, target_decoy_set = analyzer.start()
+    result = analyzer.start()
+    gps, unassigned, target_decoy_set = result[:3]
     if save_intermediate_results is not None:
         analyzer.log("Saving Intermediate Results")
         with open(save_intermediate_results, 'wb') as handle:
