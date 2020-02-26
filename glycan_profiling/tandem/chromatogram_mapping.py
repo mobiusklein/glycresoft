@@ -323,7 +323,8 @@ class ChromatogramMSMSMapper(TaskBase):
             if solutions:
                 solutions = sorted(solutions, key=lambda x: x.score, reverse=True)
                 if debug_mode:
-                    self.log("... Assigning %s to %s" % (solutions[0], chromatogram))
+                    self.log("... Assigning %s to %s out of %r\n" % (
+                        solutions[0], chromatogram, solutions))
                 chromatogram.assign_entity(solutions[0], entity_chromatogram_type=entity_chromatogram_type)
                 chromatogram.representative_solutions = solutions
 
