@@ -305,8 +305,11 @@ class ChromatogramMSMSMapper(TaskBase):
                     if dist < best_distance:
                         best_index = i
                         best_distance = dist
-                    new_owner = candidates[best_index]
-                    new_owner.add_displaced_solution(orphan.solution)
+                new_owner = candidates[best_index]
+                if debug_mode:
+                    self.log("... Assigning %r to %r with %d existing solutions with distance %0.3f" %
+                             (orphan, new_owner, len(new_owner.tandem_solutions), best_distance))
+                new_owner.add_displaced_solution(orphan.solution)
             else:
                 if threshold_fn(orphan.solution):
                     if n_chromatograms > 0:
