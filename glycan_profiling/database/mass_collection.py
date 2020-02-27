@@ -144,7 +144,7 @@ class MassDatabase(SearchableMassCollection):
             err = x.mass() - mass
             if abs(err) <= error_tolerance:
                 best_index = mid
-                best_error = err
+                best_error = abs(err)
                 i = mid - 1
                 while i >= 0:
                     x = self.structures[i]

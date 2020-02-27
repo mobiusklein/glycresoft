@@ -90,7 +90,7 @@ cdef class NeutralMassDatabaseImpl(object):
             err = (x.mass - mass) / mass
             if abs(err) <= error_tolerance:
                 best_index = mid
-                best_error = err
+                best_error = abs(err)
                 i = mid - 1
                 while i >= 0:
                     x = <MassObject>PyList_GetItem(array, i)

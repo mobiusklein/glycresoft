@@ -52,7 +52,7 @@ cpdef (ssize_t, bint) binary_search_with_flag(list array, double mass, double er
         err = (x.mass - mass) / mass
         if abs(err) <= error_tolerance:
             best_index = mid
-            best_error = err
+            best_error = abs(err)
             i = mid - 1
             while i >= 0:
                 x = <MassObject>PyList_GetItem(array, i)
@@ -135,7 +135,7 @@ cdef class ChromatogramIndex(object):
 
     @chromatograms.setter
     def chromatograms(self, value):
-        self._chromatograms = list(map(MassObject.from_chromatogram, value))        
+        self._chromatograms = list(map(MassObject.from_chromatogram, value))
 
     cpdef (ssize_t, bint) _binary_search(self, double mass, double error_tolerance=1e-5):
         return binary_search_with_flag(self._chromatograms, mass, error_tolerance)
