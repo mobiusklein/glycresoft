@@ -13,6 +13,26 @@ debug_mode = bool(os.environ.get('GLYCRESOFTDEBUG', False))
 
 class SpectrumMatchSolutionCollectionBase(object):
     def _compute_representative_weights(self, threshold_fn=lambda x: True, reject_shifted=False):
+        """Calculate a total score for all matched structures across all time points for this
+        solution collection, and rank them.
+
+        This total score is the sum of the score over all spectrum matches for which that
+        structure was the best match. The percentile is the ratio of the total score for the
+        ith structure divided by the sum of total scores over all structures.
+
+        Parameters
+        ----------
+        threshold_fn: Callable
+            A function that filters out invalid solutions based on some criteria, e.g.
+            not passing the FDR threshold.
+        reject_shifted: bool
+            Whether or not to omit any solution that was not mass-shifted. Defaults to False
+
+        Returns
+        -------
+        list
+            A list of solutions, ranked by percentile.
+        """
         scores = defaultdict(float)
         best_scores = defaultdict(float)
         best_spectrum_match = dict()
@@ -35,6 +55,22 @@ class SpectrumMatchSolutionCollectionBase(object):
         return weights
 
     def most_representative_solutions(self, threshold_fn=lambda x: True, reject_shifted=False):
+        """Find the most representative solutions, the (very nearly the same, hopefully) structures with
+        the highest aggregated score across all MSn events assigned to this collection.
+
+        Parameters
+        ----------
+        threshold_fn: Callable
+            A function that filters out invalid solutions based on some criteria, e.g.
+            not passing the FDR threshold.
+        reject_shifted: bool
+            Whether or not to omit any solution that was not mass-shifted. Defaults to False
+
+        Returns
+        -------
+        list
+            A list of solutions with approximately the greatest weight
+        """
         weights = self._compute_representative_weights(threshold_fn, reject_shifted)
         if weights:
             return [x for x in weights if abs(x.percentile - weights[0].percentile) < 1e-5]
