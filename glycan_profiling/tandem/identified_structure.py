@@ -177,7 +177,14 @@ class IdentifiedStructure(object):
         try:
             return self.chromatogram.mass_shifts
         except AttributeError:
-            return []
+            shifts = set()
+            for solution in self.tandem_solutions:
+                try:
+                    sm = solution.solution_for(self.structure)
+                    shifts.add(sm.mass_shift)
+                except KeyError:
+                    continue
+            return list(shifts)
 
     def mass_shift_signal_fractions(self):
         try:
@@ -223,6 +230,26 @@ class IdentifiedStructure(object):
 
     def __hash__(self):
         return hash((self.structure, self.chromatogram))
+
+    def __iter__(self):
+        if self.chromatogram is None:
+            return iter(())
+        return iter(self.chromatogram)
+
+    def __len__(self):
+        if self.chromatogram is None:
+            return 0
+        return len(self.chromatogram)
+
+    def __getitem__(self, i):
+        if self.chromatogram is None:
+            raise IndexError(i)
+        return self.chromatogram[i]
+
+    def overlaps_in_time(self, x):
+        if self.chromatogram is None:
+            return False
+        return self.chromatogram.overlaps_in_time(x)
 
 
 def extract_identified_structures(tandem_annotated_chromatograms, threshold_fn, result_type=IdentifiedStructure):
