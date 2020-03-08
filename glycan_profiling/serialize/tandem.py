@@ -235,7 +235,10 @@ class GlycopeptideSpectrumSolutionSet(Base, SolutionSetBase, BoundToAnalysis):
                              structure_cache=structure_cache, peptide_relation_cache=peptide_relation_cache)
                              for x in spectrum_match_q]
         matches.sort(key=lambda x: x.score, reverse=True)
-        inst = MemorySpectrumSolutionSet(
+        solution_set_tp = MemorySpectrumSolutionSet
+        if matches and matches[0].is_multiscore():
+            solution_set_tp = MultiScoreSpectrumSolutionSet
+        inst = solution_set_tp(
             convert_scan_to_record(self.scan),
             matches
         )
