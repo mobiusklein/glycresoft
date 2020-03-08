@@ -140,7 +140,8 @@ class PeptideProteinRelation(SpanningMixin):
         self.end = value
 
     def __repr__(self):
-        return "PeptideProteinRelation(%d, %d, %d, %d)" % (self.start, self.end, self.protein_id, self.hypothesis_id)
+        return "PeptideProteinRelation(%d, %d, %r, %r)" % (
+            self.start_position, self.end_position, self.protein_id, self.hypothesis_id)
 
     def __iter__(self):
         yield self.start_position
@@ -163,6 +164,37 @@ class PeptideProteinRelation(SpanningMixin):
     def __hash__(self):
         return hash((self.start_position, self.end_position))
 
+
+class NamedPeptideProteinRelation(PeptideProteinRelation):
+    __slots__ = ("protein_name", )
+
+    def __init__(self, start_position, end_position, protein_id, hypothesis_id, protein_name=None):
+        super(NamedPeptideProteinRelation, self).__init__(
+            start_position, end_position, protein_id, hypothesis_id)
+        self.protein_name = protein_name
+
+    def __iter__(self):
+        yield self.start_position
+        yield self.end_position
+        yield self.protein_id
+        yield self.hypothesis_id
+        yield self.protein_name
+
+    def __reduce__(self):
+        return self.__class__, tuple(self)
+
+    def __eq__(self, other):
+        coords =  (self.start_position == other.start_position and
+                   self.end_position == other.end_position)
+        if coords:
+            if self.protein_name is not None:
+                try:
+                    coords = self.protein_name == other.protein_name
+                except AttributeError:
+                    coords = self.protein_id == other.protein_id
+            else:
+                coords = self.protein_id == other.protein_id
+        return coords
 
 class FragmentCachingGlycopeptide(PeptideSequence):
     def __init__(self, *args, **kwargs):
