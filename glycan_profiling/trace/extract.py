@@ -77,9 +77,12 @@ class ChromatogramExtractor(TaskBase):
         self.log("...... Aggregating Chromatograms")
         self.aggregate_chromatograms()
         self.summary_chromatograms()
+        # Ensure chromatograms are wrapped and sorted.
         if self.truncate:
             self.chromatograms = ChromatogramFilter(
                 self.truncate_chromatograms(self.chromatograms))
+        else:
+            self.chromatograms = ChromatogramFilter(self.chromatograms)
         return self.chromatograms
 
     def truncate_chromatograms(self, chromatograms):

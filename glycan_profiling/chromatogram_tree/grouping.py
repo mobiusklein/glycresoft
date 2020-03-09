@@ -90,6 +90,7 @@ class ChromatogramForest(TaskBase):
         self.count += 1
 
     def insert_chromatogram(self, chromatogram, index):
+        # TODO: Review this index arithmetic, the output isn't sorted.
         if index[0] != 0:
             self.chromatograms.insert(index[0] + 1, chromatogram)
         else:
@@ -253,44 +254,44 @@ class ChromatogramOverlapSmoother(object):
 
 
 def binary_search_with_flag(array, mass, error_tolerance=1e-5):
-        lo = 0
-        n = hi = len(array)
-        while hi != lo:
-            mid = (hi + lo) // 2
-            x = array[mid]
-            err = (x.neutral_mass - mass) / mass
-            if abs(err) <= error_tolerance:
-                i = mid - 1
-                # Begin Sweep forward
-                while i > 0:
-                    x = array[i]
-                    err = (x.neutral_mass - mass) / mass
-                    if abs(err) <= error_tolerance:
-                        i -= 1
-                        continue
-                    else:
-                        break
-                low_end = i
-                i = mid + 1
+    lo = 0
+    n = hi = len(array)
+    while hi != lo:
+        mid = (hi + lo) // 2
+        x = array[mid]
+        err = (x.neutral_mass - mass) / mass
+        if abs(err) <= error_tolerance:
+            i = mid - 1
+            # Begin Sweep forward
+            while i > 0:
+                x = array[i]
+                err = (x.neutral_mass - mass) / mass
+                if abs(err) <= error_tolerance:
+                    i -= 1
+                    continue
+                else:
+                    break
+            low_end = i
+            i = mid + 1
 
-                # Begin Sweep backward
-                while i < n:
-                    x = array[i]
-                    err = (x.neutral_mass - mass) / mass
-                    if abs(err) <= error_tolerance:
-                        i += 1
-                        continue
-                    else:
-                        break
-                high_end = i
-                return list(range(low_end, high_end)), True
-            elif (hi - lo) == 1:
-                return [mid], False
-            elif err > 0:
-                hi = mid
-            elif err < 0:
-                lo = mid
-        return 0, False
+            # Begin Sweep backward
+            while i < n:
+                x = array[i]
+                err = (x.neutral_mass - mass) / mass
+                if abs(err) <= error_tolerance:
+                    i += 1
+                    continue
+                else:
+                    break
+            high_end = i
+            return list(range(low_end, high_end)), True
+        elif (hi - lo) == 1:
+            return [mid], False
+        elif err > 0:
+            hi = mid
+        elif err < 0:
+            lo = mid
+    return 0, False
 
 
 def binary_search_exact(array, mass):
