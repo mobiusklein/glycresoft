@@ -224,6 +224,9 @@ class FragmentCachingGlycopeptide(PeptideSequence):
         except AttributeError:
             return super(FragmentCachingGlycopeptide, self).__eq__(other)
 
+    def __ne__(self, other):
+        return not self == other
+
     def get_fragments(self, *args, **kwargs):  # pylint: disable=arguments-differ
         key = ("get_fragments", args, frozenset(kwargs.items()))
         try:

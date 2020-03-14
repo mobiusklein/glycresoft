@@ -46,11 +46,18 @@ class IdentifiedStructure(object):
         self.q_value = None
         self._find_best_spectrum_match()
         self.ms1_score = chromatogram.score if chromatogram is not None else 0
-        self.total_signal = chromatogram.total_signal if chromatogram is not None else 0
         self.charge_states = chromatogram.charge_states if chromatogram is not None else {
             psm.scan.precursor_information.charge for psm in spectrum_matches
         }
         self.shared_with = shared_with
+
+    def clone(self):
+        dup = self.__class__(
+            self.structure,
+            [sset.clone() for sset in self.spectrum_matches],
+            self.chromatogram.clone(),
+            self.shared_with[:])
+        return dup
 
     def is_multiscore(self):
         """Check whether this match has been produced by summarizing a multi-score
@@ -60,7 +67,10 @@ class IdentifiedStructure(object):
         -------
         bool
         """
-        return self.spectrum_matches[0].is_multiscore()
+        try:
+            return self.spectrum_matches[0].is_multiscore()
+        except IndexError:
+            return False
 
     @property
     def score_set(self):
@@ -100,10 +110,10 @@ class IdentifiedStructure(object):
         is_multiscore = self.is_multiscore()
         best_match = None
         if is_multiscore:
-            best_score = 0.0
-            best_q_value = 1.0
+            best_score = -float('inf')
+            best_q_value = float('inf')
         else:
-            best_score = 0.0
+            best_score = -float('inf')
         for solution_set in self.spectrum_matches:
             try:
                 match = solution_set.solution_for(self.structure)
@@ -122,9 +132,14 @@ class IdentifiedStructure(object):
                         best_match = match
             except KeyError:
                 continue
-        self._best_spectrum_match = best_match
-        self.ms2_score = best_match.score
-        self.q_value = best_match.q_value
+        if best_match is None:
+            self._best_spectrum_match = None
+            self.ms2_score = 0
+            self.q_value = 1.0
+        else:
+            self._best_spectrum_match = best_match
+            self.ms2_score = best_match.score
+            self.q_value = best_match.q_value
         return best_match
 
     @property
@@ -171,6 +186,18 @@ class IdentifiedStructure(object):
             return self.chromatogram.as_arrays()
         except AttributeError:
             return np.array([]), np.array([])
+
+    @property
+    def integrated_abundance(self):
+        if self.chromatogram is None:
+            return 0
+        return self.chromatogram.integrated_abundance
+
+    @property
+    def total_signal(self):
+        if self.chromatogram is None:
+            return 0
+        return self.chromatogram.total_signal
 
     @property
     def mass_shifts(self):

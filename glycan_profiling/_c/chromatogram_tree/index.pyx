@@ -88,10 +88,19 @@ cdef class ChromatogramIndex(object):
 
     def __init__(self, chromatograms, sort=True):
         if sort:
-            self._chromatograms = [MassObject.from_chromatogram(c) for c in sorted([c for c in chromatograms if len(c)], key=lambda x: (
-                x.neutral_mass, x.start_time))]
+            self._sort(chromatograms)
         else:
             self._chromatograms = list(map(MassObject.from_chromatogram, chromatograms))
+
+    def _sort(self, iterable):
+        self._chromatograms = [
+            MassObject.from_chromatogram(c) for c in sorted(
+                [c for c in iterable if len(c)], key=lambda x: (x.neutral_mass, x.start_time))]
+
+    def add(self, chromatogram, sort=True):
+        self._chromatograms.append(MassObject.from_chromatogram(chromatogram))
+        if sort:
+            self._sort(self.chromatograms)
 
     def __len__(self):
         return self.get_size()

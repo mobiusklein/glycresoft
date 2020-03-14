@@ -257,6 +257,16 @@ class SpectrumSolutionSet(ScanWrapperBase):
         """
         return self.best_solution().score
 
+    @property
+    def q_value(self):
+        """The best match's q-value
+
+        Returns
+        -------
+        float
+        """
+        return self.best_solution().q_value
+
     def _make_target_map(self):
         self._target_map = {
             sol.target: sol for sol in self
@@ -532,3 +542,23 @@ class MultiScoreSpectrumSolutionSet(SpectrumSolutionSet):
             x.q_value_set, x.target.id), reverse=False)
         self._is_sorted = True
         return self
+
+    @property
+    def score_set(self):
+        """The best match's score set
+
+        Returns
+        -------
+        ScoreSet
+        """
+        return self.best_solution().score_set
+
+    @property
+    def q_value_set(self):
+        """The best match's q-value set
+
+        Returns
+        -------
+        FDRSet
+        """
+        return self.best_solution().q_value_set
