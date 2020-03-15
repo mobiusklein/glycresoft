@@ -232,6 +232,7 @@ class SpectrumSolutionSet(ScanWrapperBase):
         self._is_simplified = False
         self._is_top_only = False
         self._target_map = None
+        self._q_value = None
 
     def is_multiscore(self):
         """Check whether this match has been produced by summarizing a multi-score
@@ -265,7 +266,13 @@ class SpectrumSolutionSet(ScanWrapperBase):
         -------
         float
         """
-        return self.best_solution().q_value
+        if self._q_value is None:
+            self._q_value = self.best_solution().q_value
+        return self._q_value
+
+    @q_value.setter
+    def q_value(self, value):
+        self._q_value = value
 
     def _make_target_map(self):
         self._target_map = {

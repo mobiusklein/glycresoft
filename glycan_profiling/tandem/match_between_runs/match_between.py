@@ -1,9 +1,14 @@
 import warnings
-from collections import namedtuple
+from collections import defaultdict, namedtuple
 
 from glycan_profiling.task import TaskBase
 from glycan_profiling.chromatogram_tree.utils import ArithmeticMapping
+from glycan_profiling.chromatogram_tree.chromatogram import GlycopeptideChromatogram
+from glycan_profiling.scoring import ChromatogramSolution
+from glycan_profiling.tandem.chromatogram_mapping import TandemAnnotatedChromatogram
 from glycan_profiling.tandem.identified_structure import IdentifiedStructure
+
+from glycan_profiling.plotting import chromatogram_artist
 
 
 MergeAction = namedtuple("MergeAction", ("label", "existing", "new", "shift"))
@@ -30,6 +35,12 @@ class SharedIdentification(object):
 
     def __contains__(self, key):
         return key in self.identifications
+
+    def __iter__(self):
+        return iter(self.identifications)
+
+    def __len__(self):
+        return len(self.identifications)
 
     def keys(self):
         return self.identifications.keys()
@@ -62,6 +73,16 @@ class SharedIdentification(object):
             result[key] = value.total_signal
         return result
 
+    def plot(self, ax=None, **kwargs):
+        label_map = {v.chromatogram: k for k, v in self.items()}
+
+        def labeler(chromatogram, *args, **kwargs):
+            return label_map[chromatogram]
+
+        art = chromatogram_artist.SmoothingChromatogramArtist(
+            self.values(), label_peaks=False, ax=ax, **kwargs)
+        return art.draw(label_function=labeler, legend_cols=1)
+
 
 class MatchBetweenRunBuilder(TaskBase):
     def __init__(self, datasets):
@@ -78,7 +99,15 @@ class MatchBetweenRunBuilder(TaskBase):
                 except KeyError:
                     shared = SharedIdentification(ids.structure)
                     self.feature_table[ids.structure] = shared
-                shared[mbd.label] = ids
+                if mbd.label in shared:
+                    current = shared[mbd.label]
+                    self.log("Multiple entries for %r in %r" %
+                             (ids, mbd.label))
+                    shared[mbd.label] = max(
+                        [current, ids], key=lambda x: x.total_signal or 0)
+                    self.log("Chose %r" % (shared[mbd.label], ))
+                else:
+                    shared[mbd.label] = ids
 
     def get_by_label(self, label):
         for mbd in self.datasets:
@@ -87,13 +116,16 @@ class MatchBetweenRunBuilder(TaskBase):
         return None
 
     def create(self, label, structure, chromatogram, shift):
+        self.log("Creating %r as %r in %r" % (chromatogram, structure, label))
         mbd = self.get_by_label(label)
         ids = mbd.create(structure, chromatogram, shift)
-        shared_id = self.feature_table[structure]
-        shared_id[mbd.label] = ids
-        mbd.add(ids)
+        if ids is not None:
+            shared_id = self.feature_table[structure]
+            shared_id[mbd.label] = ids
+            mbd.add(ids)
 
     def merge(self, label, structure, new, shift):
+        self.log("Merging %r into %r in %r" % (new, structure, label))
         mbd = self.get_by_label(label)
         if isinstance(new, IdentifiedStructure):
             if new == structure:
@@ -151,20 +183,24 @@ class MatchBetweenRunBuilder(TaskBase):
                             if entity.structure.full_structure_equality(existing_match.structure):
                                 # Then is the protein different? We'll probably deal with them
                                 # soon.
-                                warnings.warn("Skipping Shared Structure %r in %r\n" % (
+                                self.log("Skipping Shared Structure %r in %r\n" % (
                                     existing_match.structure, mbd.label))
                             else:
                                 # Totally different structure, emit a warning?
-                                warnings.warn("Ambiguous 1 Link Between %r and %r with shift %r" % (
+                                warnings.warn("Ambiguous 1 Link Between %r and %r with shift %r\n" % (
                                     existing_match.structure, entity.structure, shift))
                         else:
-                            warnings.warn("Condition A should not happen %r and %r with shift %r" % (
-                                existing_match.structure, entity.structure, shift))
+                            if existing_match.chromatogram and entity.chromatogram:
+                                self.log("Multiple chromatograms for %r at %0.2f and %0.2f\n" % (
+                                    existing_match.structure, existing_match.apex_time, entity.apex_time))
                     else:
                         # It's a chromatogram, is it a different mass shift state?
-                        if abs(entity.apex_time - existing_match.apex_time) < time_error_tolerance:
-                            if existing_match.chromatogram.common_nodes(entity):
-                                warnings.warn("Repeated attempt to merge %r and %r in %r" % (
+                        existing_apex_time = existing_match.apex_time
+                        if existing_apex_time is None:
+                            existing_apex_time = existing_match.tandem_solutions[0].scan_time
+                        if abs(entity.apex_time - existing_apex_time) < time_error_tolerance:
+                            if existing_match.chromatogram is not None and existing_match.chromatogram.common_nodes(entity):
+                                self.log("Repeated attempt to merge %r and %r in %r\n" % (
                                     existing_match.structure, entity, mbd.label))
                                 continue
                             merge_actions.add(MergeAction(
@@ -173,13 +209,15 @@ class MatchBetweenRunBuilder(TaskBase):
             else:
                 for entity, shift in out:
                     if isinstance(entity, IdentifiedStructure):
-                        if entity.structure.full_structure_equality(existing_match.structure):
+                        if entity.structure.full_structure_equality(ids.structure):
                             # Then is the protein different? Should already be handled above.
+                            import pdb
+                            pdb.set_trace()
                             warnings.warn("Ambiguous 2 Link Between %r and %r with shift %r in %r\n" % (
                                 ids.structure, entity.structure, shift.name, mbd.label))
                         else:
                             # Totally different structure, emit a warning?
-                            warnings.warn("Ambiguous 3 Link Between %r and %r with shift %r in %r\n" % (
+                            self.log("Ambiguous 3 Link Between %r and %r with shift %r in %r\n" % (
                                 ids.structure, entity.structure, shift.name, mbd.label))
                     else:
                         # It's a chromatogram. Wrap it in something and add it to the shared_id

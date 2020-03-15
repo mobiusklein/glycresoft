@@ -12,6 +12,17 @@ from glycan_profiling.tandem.spectrum_match import (
 from glycan_profiling.tandem.glycopeptide.identified_structure import IdentifiedGlycopeptide
 
 
+from collections import defaultdict
+
+from glycan_profiling.chromatogram_tree import (
+    GlycopeptideChromatogram, ChromatogramTreeList, ChromatogramFilter)
+from glycan_profiling.scoring import ChromatogramSolution
+from glycan_profiling.tandem.chromatogram_mapping import TandemAnnotatedChromatogram
+from glycan_profiling.tandem.spectrum_match import (
+    ScoreSet, FDRSet, MultiScoreSpectrumMatch, MultiScoreSpectrumSolutionSet)
+from glycan_profiling.tandem.glycopeptide.identified_structure import IdentifiedGlycopeptide
+
+
 class FakeSpectrumMatch(MultiScoreSpectrumMatch):
     def __init__(self, target, mass_shift=None):
         super(FakeSpectrumMatch, self).__init__(
@@ -36,7 +47,7 @@ class MatchBetweenDataset(object):
         return self.analysis_loader.analysis.parameters.get('scoring_model')
 
     def find(self, ids, mass_error_tolerance=1e-5, time_error_tolerance=2.0):
-        key = str(ids.structure)
+        key = ids.structure
         out = []
         id_out = []
         ids_mass = ids.weighted_neutral_mass
@@ -64,17 +75,31 @@ class MatchBetweenDataset(object):
         return id_out + out
 
     def get_identified_structure_for(self, structure):
-        key = str(structure)
+        key = structure
         candidates = self._find_by_structure[key]
         for candidate in candidates:
             if candidate.structure == structure:
                 return candidate
-        raise KeyError("Could not locate %r (%r)" % (structure, structure.protein_relation))
+        else:
+            raise KeyError("Could not locate %r (%r)" %
+                           (structure, structure.protein_relation))
 
     def create(self, structure, chromatogram, shift):
         chrom = GlycopeptideChromatogram(
             structure, ChromatogramTreeList())
         chrom = chrom.merge(chromatogram, shift)
+
+        # If there is another identification that this wasn't merged with because of varying
+        # errors in apex time matching, things break down. Check just in case we really want
+        # to merge here.
+        try:
+            existing = self.get_identified_structure_for(structure)
+            if existing.chromatogram.common_nodes(chrom):
+                return None
+            else:
+                return self.merge(structure, chromatogram, shift)
+        except KeyError:
+            pass
         ms1_model = self.ms1_scoring_model
         chrom = ChromatogramSolution(
             chrom, ms1_model.logitscore(chrom), scorer=ms1_model)
@@ -91,10 +116,13 @@ class MatchBetweenDataset(object):
             structure, ChromatogramTreeList())
         chrom = chrom.merge(chromatogram, shift)
         chrom = TandemAnnotatedChromatogram(chrom)
-        candidate.chromatogram = candidate.chromatogram.merge(chrom)
+        if candidate.chromatogram is None:
+            candidate.chromatogram = chrom
+        else:
+            candidate.chromatogram = candidate.chromatogram.merge(chrom)
 
     def add(self, ids):
-        key = str(ids.structure)
+        key = ids.structure
         self._find_by_structure[key].append(ids)
         self.identified_structures.append(ids)
         self.chromatograms.extend([ids])
