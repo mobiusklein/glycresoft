@@ -1,3 +1,4 @@
+import csv
 import warnings
 from collections import defaultdict, namedtuple
 
@@ -85,11 +86,14 @@ class SharedIdentification(object):
 
 
 class MatchBetweenRunBuilder(TaskBase):
-    def __init__(self, datasets):
+    def __init__(self, datasets, mass_error_tolerance=1e-5, time_error_tolerance=2.0):
         self.datasets = datasets
         self.feature_table = dict()
         self.build_feature_table()
         self.labels = sorted([mbd.label for mbd in self.datasets])
+
+        self.mass_error_tolerance = mass_error_tolerance
+        self.time_error_tolerance = time_error_tolerance
 
     def build_feature_table(self, mass_error_tolerance=1e-5, time_error_tolerance=2.0):
         for mbd in self.datasets:
@@ -225,3 +229,32 @@ class MatchBetweenRunBuilder(TaskBase):
                             mbd.label, ids.structure, entity, shift))
 
         return merge_actions, create_actions
+
+    def run(self):
+        n = len(self.feature_table)
+        for i, shared_id in enumerate(self.feature_table.values()):
+            if i % 100 == 0 and i:
+                self.log("Processed %d/%d shared identifications (%0.2f%%)" % (i, n, i * 100.0 / n))
+            self.match_structure_between(shared_id, self.mass_error_tolerance, self.time_error_tolerance)
+
+    def to_csv(self, stream):
+        keys = ['glycopeptide', 'mass_shifts'] + [
+            '%s_abundance' % a for a in self.labels] + [
+            '%s_apex_time' % a for a in self.labels]
+        writer = csv.DictWriter(stream, keys)
+        writer.writeheader()
+        for gp, shared_id in self.feature_table.items():
+            mass_shifts = set()
+            record = {
+                "glycopeptide": str(gp)
+            }
+            seen = set()
+            for label, inst in shared_id.items():
+                record['%s_abundance' % label] = inst.total_signal or '0'
+                record['%s_apex_time' % label] = inst.apex_time
+                mass_shifts.update(inst.mass_shifts)
+            for label in set(self.labels) - set(shared_id.keys()):
+                record['%s_abundance' % label] = None
+                record['%s_apex_time' % label] = None
+            record['mass_shifts'] = ';'.join(m.name for m in mass_shifts)
+            writer.writerow(record)

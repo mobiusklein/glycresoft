@@ -5,17 +5,7 @@ from glycan_profiling import serialize
 from glycan_profiling.chromatogram_tree import (
     Chromatogram, GlycopeptideChromatogram, ChromatogramTreeList,
     ChromatogramFilter)
-from glycan_profiling.scoring import ChromatogramSolution
-from glycan_profiling.tandem.chromatogram_mapping import TandemAnnotatedChromatogram
-from glycan_profiling.tandem.spectrum_match import (
-    ScoreSet, FDRSet, MultiScoreSpectrumMatch, MultiScoreSpectrumSolutionSet)
-from glycan_profiling.tandem.glycopeptide.identified_structure import IdentifiedGlycopeptide
-
-
-from collections import defaultdict
-
-from glycan_profiling.chromatogram_tree import (
-    GlycopeptideChromatogram, ChromatogramTreeList, ChromatogramFilter)
+from glycan_profiling.trace import ChromatogramExtractor
 from glycan_profiling.scoring import ChromatogramSolution
 from glycan_profiling.tandem.chromatogram_mapping import TandemAnnotatedChromatogram
 from glycan_profiling.tandem.spectrum_match import (
@@ -32,15 +22,34 @@ class FakeSpectrumMatch(MultiScoreSpectrumMatch):
 
 
 class MatchBetweenDataset(object):
-    def __init__(self, analysis_loader, scan_loader, identified_structures, chromatograms, label=None):
+    def __init__(self, analysis_loader, scan_loader, label=None):
         if label is None:
             label = analysis_loader.analysis.name
         self.analysis_loader = analysis_loader
         self.scan_loader = scan_loader
-        self.identified_structures = list(identified_structures)
-        self.chromatograms = ChromatogramFilter(chromatograms)
+        self._load_chromatograms()
         self._prepare_structure_map()
         self.label = label
+
+    def _load_chromatograms(self):
+        extractor = ChromatogramExtractor(
+            self.scan_loader, minimum_mass=1000.0, grouping_tolerance=1.5e-5)
+        chromatograms = extractor.run()
+        for chrom in chromatograms:
+            chrom.mark = False
+        idgps = self.analysis_loader.load_identified_glycopeptides()
+        for idgp in idgps:
+            if idgp.chromatogram is None:
+                continue
+            for mshift in idgp.mass_shifts:
+                chroma = chromatograms.find_all_by_mass(
+                    idgp.weighted_neutral_mass + mshift.mass, 1e-5)
+                for chrom in chroma:
+                    if idgp.chromatogram.overlaps_in_time(chrom):
+                        chrom.mark = True
+        chromatograms = ChromatogramFilter([chrom for chrom in chromatograms if not chrom.mark] + list(idgps))
+        self.identified_structures = idgps
+        self.chromatograms = chromatograms
 
     @property
     def ms1_scoring_model(self):
@@ -80,9 +89,8 @@ class MatchBetweenDataset(object):
         for candidate in candidates:
             if candidate.structure == structure:
                 return candidate
-        else:
-            raise KeyError("Could not locate %r (%r)" %
-                           (structure, structure.protein_relation))
+        raise KeyError("Could not locate %r (%r)" %
+                        (structure, structure.protein_relation))
 
     def create(self, structure, chromatogram, shift):
         chrom = GlycopeptideChromatogram(
