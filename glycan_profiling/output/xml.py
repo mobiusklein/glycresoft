@@ -15,13 +15,14 @@ from glycan_profiling import task, serialize, version
 from glycan_profiling.chromatogram_tree.chromatogram import group_by
 
 
-def convert_to_protein_dict(protein):
+def convert_to_protein_dict(protein, include_sequence=True):
     data = {
         "id": protein.id,
         "accession": protein.name,
         "search_database_id": 1,
-        "sequence": protein.protein_sequence
     }
+    if include_sequence:
+        data["sequence"] = protein.protein_sequence
     return data
 
 
@@ -220,7 +221,7 @@ class MzIdentMLSerializer(task.TaskBase):
     def __init__(self, outfile, glycopeptide_list, analysis, database_handle,
                  q_value_threshold=0.05, ms2_score_threshold=0,
                  export_mzml=True, source_mzml_path=None,
-                 output_mzml_path=None):
+                 output_mzml_path=None, embed_protein_sequences=True):
         self.outfile = outfile
         self.database_handle = database_handle
         self._glycopeptide_list = glycopeptide_list
@@ -233,6 +234,7 @@ class MzIdentMLSerializer(task.TaskBase):
         self.export_mzml = export_mzml
         self.source_mzml_path = source_mzml_path
         self.output_mzml_path = output_mzml_path
+        self.embed_protein_sequences = embed_protein_sequences
 
     @property
     def glycopeptide_list(self):
@@ -263,7 +265,10 @@ class MzIdentMLSerializer(task.TaskBase):
                 gp.structure, self._id_tracker) for gp in self.glycopeptide_list
         ]
 
-        self._proteins = [convert_to_protein_dict(prot) for prot in self.protein_list]
+        self._proteins = [
+            convert_to_protein_dict(prot, self.embed_protein_sequences)
+            for prot in self.protein_list
+        ]
 
     def extract_spectrum_identifications(self):
         self.log("Extracting SpectrumIdentificationResults")

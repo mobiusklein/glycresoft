@@ -301,10 +301,12 @@ def glycopeptide_spectrum_matches(database_connection, analysis_identifier, outp
 @database_connection_arg
 @analysis_identifier_arg("glycopeptide")
 @click.argument("output-path")
+@click.option("--embed-protein-sequences/--exclude-protein-sequences", is_flag=True, default=True,
+              help="Include protein sequences in the output file")
 @click.option("-m", '--mzml-path', type=click.Path(exists=True), default=None,
               help="Alternative path to find the source mzML file")
 def glycopeptide_mzidentml(database_connection, analysis_identifier, output_path=None,
-                           mzml_path=None):
+                           mzml_path=None, embed_protein_sequences=True):
     '''Write identified glycopeptides as mzIdentML file, and associated MSn spectra
     to a paired mzML file if the matched data are available. If an mzML file is written
     it will also contain the extracted ion chromatograms for each glycopeptide with an
@@ -325,7 +327,9 @@ def glycopeptide_mzidentml(database_connection, analysis_identifier, output_path
         IdentifiedGlycopeptide.analysis_id == analysis_identifier).all()
     with open(output_path, 'wb') as outfile:
         writer = MzIdentMLSerializer(
-            outfile, glycopeptides, analysis, loader, source_mzml_path=mzml_path)
+            outfile, glycopeptides, analysis, loader,
+            source_mzml_path=mzml_path,
+            embed_protein_sequences=embed_protein_sequences)
         writer.run()
 
 
