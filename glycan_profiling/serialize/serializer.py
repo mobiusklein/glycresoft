@@ -341,9 +341,9 @@ class AnalysisDeserializer(DatabaseBoundOperation):
         return gps
 
     def load_identified_glycopeptides(self):
-        q = self.query(IdentifiedGlycopeptide).join(Glycopeptide).filter(
+        q = self.query(IdentifiedGlycopeptide).filter(
             IdentifiedGlycopeptide.analysis_id == self.analysis_id).yield_per(100)
-        gps = [c.convert() for c in q]
+        gps = IdentifiedGlycopeptide.bulk_convert(q)
         return gps
 
     def load_glycans_from_identified_glycopeptides(self):
