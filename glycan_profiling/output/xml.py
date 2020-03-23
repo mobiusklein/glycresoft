@@ -1,19 +1,18 @@
 import os
 from collections import defaultdict, OrderedDict
 
-from glycan_profiling import task, serialize, version
+from brainpy import mass_charge_ratio
 
 from glypy.composition import formula
-
 from glycopeptidepy.structure import parser, modification
-from glycan_profiling.chromatogram_tree.chromatogram import group_by
-
-from brainpy import mass_charge_ratio
 
 from psims.mzid import components
 from psims.mzid.writer import MzIdentMLWriter
 
 from ms_deisotope.output import mzml
+
+from glycan_profiling import task, serialize, version
+from glycan_profiling.chromatogram_tree.chromatogram import group_by
 
 
 def convert_to_protein_dict(protein):
@@ -37,7 +36,7 @@ def convert_to_peptide_dict(glycopeptide, id_tracker):
 
     i = 0
     # TODO: handle N-terminal and C-terminal modifications
-    for pos, mods in glycopeptide:
+    for _pos, mods in glycopeptide:
         i += 1
         if not mods:
             continue
@@ -100,13 +99,24 @@ def convert_to_identification_item_dict(spectrum_match, seen=None, id_tracker=No
         ],
         "id": spectrum_match.id
     }
+    if spectrum_match.is_multiscore():
+        score_params = [
+            {"name": "GlycReSoft:peptide_score", "value": spectrum_match.score_set.peptide_score},
+            {"name": "GlycReSoft:glycan_score", "value": spectrum_match.score_set.glycan_score},
+            {"name": "GlycReSoft:glycan_coverage", "value": spectrum_match.score_set.glycan_coverage},
+            {"name": "GlycReSoft:peptide_q_value", "value": spectrum_match.q_value_set.peptide_q_value},
+            {"name": "GlycReSoft:glycan_q_value", "value": spectrum_match.q_value_set.glycan_q_value},
+            # TODO: include the glycopeptide double-decoy q-value?
+        ]
+        data['params'].extend(score_params)
+
     return data
 
 
 def convert_to_spectrum_identification_dict(spectrum_solution_set, seen=None, id_tracker=None):
     data = {
         "spectra_data_id": 1,
-        "spectrum_id": spectrum_solution_set.scan.id,
+        "spectrum_id": spectrum_solution_set.scan.scan_id,
         "id": spectrum_solution_set.id
     }
     idents = []
@@ -353,8 +363,8 @@ class MzIdentMLSerializer(task.TaskBase):
         spec = {
             "enzymes": [
                 {"name": getattr(e, 'name', e), "missed_cleavages": hypothesis.parameters.get(
-                    'max_missed_cleavages', None)}
-                for e in hypothesis.parameters.get('enzymes')
+                    'max_missed_cleavages', None), "id": i}
+                for i, e in enumerate(hypothesis.parameters.get('enzymes'))
             ],
             "fragment_tolerance": (analysis.parameters['fragment_error_tolerance'] * 1e6, None, "parts per million"),
             "parent_tolerance": (analysis.parameters['mass_error_tolerance'] * 1e6, None, "parts per million"),
@@ -365,11 +375,13 @@ class MzIdentMLSerializer(task.TaskBase):
 
     def run(self):
         f = MzIdentMLWriter(self.outfile)
+        self.log("Loading Spectra Data")
         spectra_data = self.spectra_data()
+        self.log("Loading Search Database")
         search_database = self.search_database()
+        self.log("Building Protocol")
         protocol = self.protocol()
         source_file = self.source_file()
-
         self.extract_peptides()
         self.extract_spectrum_identifications()
 
@@ -416,7 +428,13 @@ class MzIdentMLSerializer(task.TaskBase):
             f.register("SearchDatabase", search_database['id'])
             f.register("SpectrumIdentificationList", self._spectrum_identification_list['id'])
 
-            f._sequence_collection(self._proteins, self._peptides, self._peptide_evidence)
+            with f.sequence_collection():
+                for prot in self._proteins:
+                    f.write_db_sequence(**prot)
+                for pep in self._peptides:
+                    f.write_peptide(**pep)
+                for pe in self._peptide_evidence:
+                    f.write_peptide_evidence(**pe)
 
             with f.analysis_protocol_collection():
                 f.spectrum_identification_protocol(**protocol)
@@ -427,6 +445,13 @@ class MzIdentMLSerializer(task.TaskBase):
             with f.element("DataCollection"):
                 f.inputs(source_file, search_database, spectra_data)
                 with f.element("AnalysisData"):
-                    f.spectrum_identification_list(**self._spectrum_identification_list)
+                    with f.spectrum_identification_list(id=self._spectrum_identification_list['id']):
+                        for result_ in self._spectrum_identification_list['identification_results']:
+                            result = dict(result_)
+                            identifications = result.pop("identifications")
+                            result = f.spectrum_identification_result(**result)
+                            with result:
+                                for item in identifications:
+                                    f.write_spectrum_identification_item(**item)
+
         f.outfile.close()
-        f.format()

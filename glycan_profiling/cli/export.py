@@ -242,7 +242,7 @@ def glycopeptide_identification(database_connection, analysis_identifier, output
                 chunk = query.slice(i, i + interval).all()
                 if len(chunk) == 0:
                     break
-                click.echo("Loading %d Entities" % (i + interval), err=True)
+                click.echo("Loading %d Entities" % (i + len(chunk)), err=True)
                 chunk = IdentifiedGlycopeptide.bulk_convert(chunk)
                 for glycopeptide in chunk:
                     yield glycopeptide
@@ -297,7 +297,7 @@ def glycopeptide_spectrum_matches(database_connection, analysis_identifier, outp
         job.run()
 
 
-# @export.command("mzid", short_help="Export a Glycopeptide Analysis as MzIdentML")
+@export.command("mzid", short_help="Export a Glycopeptide Analysis as MzIdentML")
 @database_connection_arg
 @analysis_identifier_arg("glycopeptide")
 @click.argument("output-path")
@@ -319,7 +319,10 @@ def glycopeptide_mzidentml(database_connection, analysis_identifier, output_path
         raise click.Abort()
     loader = AnalysisDeserializer(
         database_connection._original_connection, analysis_id=analysis.id)
-    glycopeptides = loader.load_identified_glycopeptides()
+    click.echo("Loading Identifications")
+    # glycopeptides = loader.load_identified_glycopeptides()
+    glycopeptides = loader.query(IdentifiedGlycopeptide).filter(
+        IdentifiedGlycopeptide.analysis_id == analysis_identifier).all()
     with open(output_path, 'wb') as outfile:
         writer = MzIdentMLSerializer(
             outfile, glycopeptides, analysis, loader, source_mzml_path=mzml_path)
