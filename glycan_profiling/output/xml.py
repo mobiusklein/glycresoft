@@ -12,6 +12,7 @@ from psims.mzid.writer import MzIdentMLWriter
 from ms_deisotope.output import mzml
 
 from glycan_profiling import task, serialize, version
+from glycan_profiling.chromatogram_tree import Unmodified
 from glycan_profiling.chromatogram_tree.chromatogram import group_by
 
 
@@ -102,15 +103,21 @@ def convert_to_identification_item_dict(spectrum_match, seen=None, id_tracker=No
     }
     if spectrum_match.is_multiscore():
         score_params = [
-            {"name": "GlycReSoft:peptide_score", "value": spectrum_match.score_set.peptide_score},
-            {"name": "GlycReSoft:glycan_score", "value": spectrum_match.score_set.glycan_score},
-            {"name": "GlycReSoft:glycan_coverage", "value": spectrum_match.score_set.glycan_coverage},
-            {"name": "GlycReSoft:peptide_q_value", "value": spectrum_match.q_value_set.peptide_q_value},
-            {"name": "GlycReSoft:glycan_q_value", "value": spectrum_match.q_value_set.glycan_q_value},
-            # TODO: include the glycopeptide double-decoy q-value?
+            {"name": "GlycReSoft:peptide score", "value": spectrum_match.score_set.peptide_score},
+            {"name": "GlycReSoft:glycan score", "value": spectrum_match.score_set.glycan_score},
+            {"name": "GlycReSoft:glycan coverage", "value": spectrum_match.score_set.glycan_coverage},
+
+            {"name": "GlycReSoft:peptide q-value", "value": spectrum_match.q_value_set.peptide_q_value},
+            {"name": "GlycReSoft:glycan q-value", "value": spectrum_match.q_value_set.glycan_q_value},
         ]
         data['params'].extend(score_params)
-
+    if spectrum_match.mass_shift.name != Unmodified.name:
+        data['params'].append({
+            "GlycReSoft:mass shift": "%s:%0.3f:%0.3f" % (
+                spectrum_match.mass_shift.name,
+                spectrum_match.mass_shift.mass,
+                spectrum_match.mass_shift.tandem_mass)
+        })
     return data
 
 

@@ -83,6 +83,23 @@ class MassShift(Base):
     tandem_composition = deferred(Column(String(128)))
 
     _hash = None
+    _mass = None
+    _tandem_mass = None
+
+    @property
+    def mass(self):
+        if self._mass is None:
+            self._mass = Composition(str(self.composition)).mass
+        return self._mass
+
+    @property
+    def tandem_mass(self):
+        if self._tandem_mass is None:
+            if self.tandem_composition:
+                self._tandem_mass = Composition(str(self.tandem_composition)).mass
+            else:
+                self._tandem_mass = self.mass
+        return self._tandem_mass
 
     def convert(self):
         try:
@@ -128,6 +145,21 @@ class CompoundMassShift(Base):
 
     counts = association_proxy(
         "_counts", "count", creator=lambda k, v: MassShiftToCompoundMassShift(individual_id=k.id, count=v))
+
+    _mass = None
+    _tandem_mass = None
+
+    @property
+    def mass(self):
+        if self._mass is None:
+            self._mass = sum([k.mass * v for k, v in self.counts.items()])
+        return self._mass
+
+    @property
+    def tandem_mass(self):
+        if self._tandem_mass is None:
+            self._tandem_mass = sum([k.tandem_mass * v for k, v in self.counts.items()])
+        return self._tandem_mass
 
     def convert(self):
         return MemoryCompoundMassShift({k.convert(): v for k, v in self.counts.items()})
