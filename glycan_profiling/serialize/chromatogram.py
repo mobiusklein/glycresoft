@@ -98,7 +98,7 @@ class MassShift(Base):
             if self.tandem_composition:
                 self._tandem_mass = Composition(str(self.tandem_composition)).mass
             else:
-                self._tandem_mass = self.mass
+                self._tandem_mass = 0.0
         return self._tandem_mass
 
     def convert(self):
