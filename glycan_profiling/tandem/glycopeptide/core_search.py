@@ -696,7 +696,7 @@ class GlycanFilteringPeptideMassEstimator(GlycanCoarseScorerBase):
         groups = group_by_score(out)
         out = flatten(groups[:topn])
         if simplify:
-            return [x[0] for x in out]
+            return [x.peptide_mass for x in out]
         return out
 
     def glycan_for_peptide_mass(self, scan, peptide_mass):
