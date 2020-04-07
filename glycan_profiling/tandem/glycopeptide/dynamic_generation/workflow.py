@@ -132,8 +132,10 @@ class MultipartGlycopeptideIdentifier(TaskBase):
             scorer_type = LogIntensityScorer
         if evaluation_kwargs is None:
             evaluation_kwargs = {}
-        if mass_shifts is None or not mass_shifts:
-            mass_shifts = [Unmodified]
+        if mass_shifts is None:
+            mass_shifts = []
+        if Unmodified not in mass_shifts:
+            mass_shifts = [Unmodified] + list(mass_shifts)
         if file_manager is None:
             file_manager = TempFileManager()
         elif isinstance(file_manager, str):
