@@ -62,7 +62,7 @@ def analyze():
 def database_connection_arg(arg_name='database-connection'):
     def database_connection_arg(fn):
         arg = click.argument(
-            "database-connection",
+            arg_name,
             type=DatabaseConnectionParam(exists=True),
             doc_help=(
                 "A connection URI for a database, or a path on the file system"))
