@@ -47,7 +47,7 @@ from glycan_profiling.trace import (
 
 from glycan_profiling import config # pylint: disable=unused-import
 
-from glycan_profiling.chromatogram_tree import ChromatogramFilter, SimpleChromatogram
+from glycan_profiling.chromatogram_tree import ChromatogramFilter, SimpleChromatogram, Unmodified
 
 from glycan_profiling.models import GeneralScorer, get_feature
 
@@ -691,7 +691,8 @@ class GlycopeptideLCMSMSAnalyzer(TaskBase):
                 return x
         if mass_shifts is None:
             mass_shifts = []
-
+        if Unmodified not in mass_shifts:
+            mass_shifts = [Unmodified] + list(mass_shifts)
         self.database_connection = database_connection
         self.hypothesis_id = hypothesis_id
         self.sample_run_id = sample_run_id
