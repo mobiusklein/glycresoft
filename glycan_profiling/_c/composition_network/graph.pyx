@@ -1,8 +1,12 @@
 cimport cython
 
+from collections import deque
+
 from cpython.object cimport PyObject
 from cpython.list cimport PyList_Size, PyList_GetItem
-from cpython.dict cimport PyDict_GetItem, PyDict_SetItem
+from cpython.set cimport PySet_Discard, PySet_Add
+from cpython.dict cimport PyDict_GetItem, PyDict_SetItem, PyDict_DelItem, PyDict_Items
+from cpython.float cimport PyFloat_AsDouble
 
 
 @cython.freelist(5000)
@@ -211,3 +215,125 @@ cpdef reindex_graph(self):
     for i in range(n):
         node = <CompositionGraphNode>PyList_GetItem(nodes, i)
         node.index = i
+
+
+cdef double INF = float('inf')
+
+
+cdef class DijkstraPathFinder(object):
+
+    cdef:
+        public object graph
+        public CompositionGraphNode start
+        public CompositionGraphNode end
+        public dict distance
+        public dict unvisited_finite_distance
+        public double limit
+
+    def __init__(self, graph, start, end, limit=INF):
+        self.graph = graph
+        self.start = start
+        self.end = end
+        self.distance = dict()
+        self.distance[start._str] = 0
+        self.unvisited_finite_distance = dict()
+        self.limit = limit
+
+    cpdef set _build_initial_key_set(self):
+        cdef:
+            size_t i, n
+            CompositionGraphNode node
+            set result
+            list nodes
+        result = set()
+        nodes = self.graph.nodes
+        n = PyList_Size(nodes)
+        for i in range(n):
+            node = <CompositionGraphNode>PyList_GetItem(nodes, i)
+            result.add(node._str)
+        return result
+
+    cpdef CompositionGraphNode find_smallest_unvisited(self, set unvisited):
+        cdef:
+            double smallest_distance, distance
+            object smallest_node, key
+            list iterable
+            tuple entry
+            PyObject* ptemp
+
+        smallest_distance = INF
+        smallest_node = None
+
+        if not self.unvisited_finite_distance:
+            for key in unvisited:
+                ptemp = PyDict_GetItem(self.distance, key)
+                if ptemp == NULL:
+                    distance = INF
+                if distance <= smallest_distance:
+                    smallest_node = key
+                    smallest_distance = distance
+        else:
+            iterable = PyDict_Items(self.unvisited_finite_distance)
+            for node, distance in iterable:
+                if distance <= smallest_distance:
+                    smallest_distance = distance
+                    smallest_node = node
+        return self.graph[smallest_node]
+
+    cpdef find_path(self):
+        cdef:
+            set unvisited
+            CompositionGraphNode current_node, terminal
+            EdgeSet edges
+            CompositionGraphEdge edge
+            PyObject* ptemp
+            double path_length, terminal_distance
+            long n
+
+        unvisited = self._build_initial_key_set()
+
+        visit_queue = deque([self.start])
+        n = 1
+        while self.end._str in unvisited:
+            if n > 0:
+                n -= 1
+                current_node = visit_queue.popleft()
+            else:
+                current_node = self.find_smallest_unvisited(unvisited)
+
+            if PySet_Discard(unvisited, current_node._str) != 1:
+                continue
+            if PyDict_GetItem(self.unvisited_finite_distance, current_node._str) != NULL:
+                PyDict_DelItem(self.unvisited_finite_distance, current_node._str)
+            edges = current_node.edges
+            for edge in edges:
+                terminal = edge._traverse(current_node)
+                if terminal._str not in unvisited:
+                    continue
+                ptemp = PyDict_GetItem(self.distance, current_node._str)
+                if ptemp == NULL:
+                    path_length = INF
+                else:
+                    path_length = PyFloat_AsDouble(<object>ptemp)
+                path_length += edge.order
+                ptemp = PyDict_GetItem(self.distance, terminal._str)
+                if ptemp == NULL:
+                    terminal_distance = INF
+                else:
+                    terminal_distance = PyFloat_AsDouble(<object>ptemp)
+
+                if terminal_distance > path_length:
+                    self.distance[terminal._str] = path_length
+                    if terminal._str in unvisited and terminal_distance < self.limit:
+                        self.unvisited_finite_distance[terminal._str] = path_length
+                if terminal_distance < self.limit:
+                    visit_queue.append(terminal)
+                    n += 1
+
+    def search(self):
+        self.find_path()
+        ptemp = PyDict_GetItem(self.distance, self.end._str)
+        if ptemp == NULL:
+            return INF
+        else:
+            return <object>(ptemp)

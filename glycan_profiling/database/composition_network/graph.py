@@ -135,6 +135,12 @@ class DijkstraPathFinder(object):
         return self.distance[self.end._str]
 
 
+try:
+    _has_c = True
+    from glycan_profiling._c.composition_network.graph import DijkstraPathFinder
+except ImportError:
+    _has_c = False
+
 class CompositionGraphNode(object):
 
     __slots__ = (
