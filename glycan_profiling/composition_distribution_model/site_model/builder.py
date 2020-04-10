@@ -1,31 +1,18 @@
-import re
-import json
 import time
-import warnings
+import json
 
-from collections import namedtuple, defaultdict, deque
-try:
-    from collections.abc import Mapping
-except ImportError:
-    from collections import Mapping
-
+from collections import defaultdict, deque
 from multiprocessing.pool import ThreadPool
 from threading import RLock, Condition
 
 import numpy as np
 
-from glypy.structure.glycan_composition import HashableGlycanComposition
-from glycopeptidepy.structure.parser import strip_modifications
-
 from glycan_profiling import serialize
 from glycan_profiling.task import TaskBase
-from glycan_profiling.structure import PeptideProteinRelation, LRUMapping
 
 from glycan_profiling.database import (
     GlycanCompositionDiskBackedStructureDatabase, GlycopeptideDiskBackedStructureDatabase)
 
-from glycan_profiling.database.builder.glycopeptide.proteomics.fasta import DeflineSuffix
-from glycan_profiling.database.builder.glycopeptide.proteomics.sequence_tree import SuffixTree
 
 from glycan_profiling.database.composition_network import NeighborhoodWalker, make_n_glycan_neighborhoods
 from glycan_profiling.composition_distribution_model import (
@@ -33,334 +20,11 @@ from glycan_profiling.composition_distribution_model import (
     GlycanCompositionSolutionRecord, GlycomeModel)
 from glycan_profiling.models import GeneralScorer, get_feature
 
+from .glycosite_model import GlycanPriorRecord, GlycosylationSiteModel
 
-GlycanPriorRecord = namedtuple("GlycanPriorRecord", ("score", "matched"))
+
 _default_chromatogram_scorer = GeneralScorer.clone()
 _default_chromatogram_scorer.add_feature(get_feature("null_charge"))
-
-MINIMUM = 1e-4
-
-
-glycan_composition_cache = dict()
-
-
-def parse_glycan_composition(string):
-    try:
-        return glycan_composition_cache[string]
-    except KeyError:
-        gc = HashableGlycanComposition.parse(string)
-        glycan_composition_cache[string] = gc
-        return gc
-
-
-class GlycosylationSiteModel(object):
-
-    def __init__(self, protein_name, position, site_distribution, lmbda, glycan_map):
-        self.protein_name = protein_name
-        self.position = position
-        self.site_distribution = site_distribution
-        self.lmbda = lmbda
-        self.glycan_map = glycan_map
-
-    def __getitem__(self, key):
-        return self.glycan_map[key][0]
-
-    def get_record(self, key):
-        try:
-            return self.glycan_map[key]
-        except KeyError:
-            return GlycanPriorRecord(MINIMUM, False)
-
-    def __eq__(self, other):
-        if self.protein_name != other.protein_name:
-            return False
-        if self.position != other.position:
-            return False
-        if not np.isclose(self.lmbda, other.lmbda):
-            return False
-        if self.site_distribution != other.site_distribution:
-            return False
-        if self.glycan_map != other.glycan_map:
-            return False
-        return True
-
-    def __ne__(self, other):
-        return not (self == other)
-
-    def to_dict(self):
-        d = {}
-        d['protein_name'] = self.protein_name
-        d['position'] = self.position
-        d['lmbda'] = self.lmbda
-        d['site_distribution'] = dict(**self.site_distribution)
-        d['glycan_map'] = {
-            str(k): (v.score, v.matched) for k, v in self.glycan_map.items()
-        }
-        return d
-
-    @classmethod
-    def from_dict(cls, d):
-        name = d['protein_name']
-        position = d['position']
-        lmbda = d['lmbda']
-        try:
-            site_distribution = d['site_distribution']
-        except KeyError:
-            site_distribution = d['tau']
-        glycan_map = d['glycan_map']
-        glycan_map = {
-            parse_glycan_composition(k): GlycanPriorRecord(v[0], v[1])
-            for k, v in glycan_map.items()
-        }
-        inst = cls(name, position, site_distribution, lmbda, glycan_map)
-        return inst
-
-    def pack(self, inplace=True):
-        if inplace:
-            self._pack()
-            return self
-        return self.copy()._pack()
-
-    def _pack(self):
-        new_map = {}
-        for key, value in self.glycan_map.items():
-            if value.score > MINIMUM:
-                new_map[key] = value
-        self.glycan_map = new_map
-
-    def __repr__(self):
-        template = ('{self.__class__.__name__}({self.protein_name!r}, {self.position}, '
-                    '{site_distribution}, {self.lmbda}, <{glycan_map_size} Glycans>)')
-        glycan_map_size = len(self.glycan_map)
-        site_distribution = {k: v for k, v in self.site_distribution.items() if v > 0.0}
-        return template.format(self=self, glycan_map_size=glycan_map_size, site_distribution=site_distribution)
-
-    def copy(self, deep=False):
-        dup = self.__class__(
-            self.protein_name, self.position, self.site_distribution, self.lmbda, self.glycan_map)
-        if deep:
-            dup.site_distribution = dup.site_distribution.copy()
-            dup.glycan_map = dup.glycan_map.copy()
-        return dup
-
-    def clone(self, *args, **kwargs):
-        return self.copy(*args, **kwargs)
-
-    def observed_glycans(self, threshold=0):
-        return {k: v.score for k, v in self.glycan_map.items() if v.matched and v.score > threshold}
-
-
-class GlycoproteinSiteSpecificGlycomeModel(object):
-    def __init__(self, protein, glycosylation_sites=None):
-        self.protein = protein
-        self._glycosylation_sites = []
-        self.glycosylation_sites = glycosylation_sites
-
-    @property
-    def glycosylation_sites(self):
-        return self._glycosylation_sites
-
-    @glycosylation_sites.setter
-    def glycosylation_sites(self, glycosylation_sites):
-        self._glycosylation_sites = sorted(glycosylation_sites or [], key=lambda x: x.position)
-
-    def __getitem__(self, i):
-        return self.glycosylation_sites[i]
-
-    def __len__(self):
-        return len(self.glycosylation_sites)
-
-    @property
-    def id(self):
-        return self.protein.id
-
-    @property
-    def name(self):
-        return self.protein.name
-
-    def find_sites_in(self, start, end):
-        spans = []
-        for site in self.glycosylation_sites:
-            if start <= site.position <= end:
-                spans.append(site)
-            elif end < site.position:
-                break
-        return spans
-
-    def _guess_sites_from_sequence(self, sequence):
-        prot_seq = str(self.protein)
-        query_seq = strip_modifications(sequence)
-        try:
-            start = prot_seq.index(query_seq)
-            end = start + len(query_seq)
-            return PeptideProteinRelation(start, end, self.protein.id, self.protein.hypothesis_id)
-        except ValueError:
-            return None
-
-    def score(self, glycopeptide):
-        pr = glycopeptide.protein_relation
-        sites = self.find_sites_in(pr.start_position, pr.end_position)
-        if len(sites) > 1:
-            score_acc = 0.0
-            warnings.warn("Multiple glycosylation sites are not (yet) supported")
-            for site in sites:
-                try:
-                    rec = site.glycan_map[glycopeptide.glycan_composition]
-                    score_acc += (rec.score)
-                except KeyError:
-                    score_acc += (MINIMUM)
-            return score_acc / len(sites)
-        try:
-            site = sites[0]
-            try:
-                rec = site.glycan_map[glycopeptide.glycan_composition]
-            except KeyError:
-                return MINIMUM
-            return rec.score
-        except IndexError:
-            return MINIMUM
-
-    @classmethod
-    def bind_to_hypothesis(cls, session, site_models, hypothesis_id=1, fuzzy=True):
-        by_protein_name = defaultdict(list)
-        for site in site_models:
-            by_protein_name[site.protein_name].append(site)
-        protein_models = {}
-        proteins = session.query(serialize.Protein).filter(
-            serialize.Protein.hypothesis_id == hypothesis_id).all()
-        protein_name_map = {prot.name: prot for prot in proteins}
-        if fuzzy:
-            tree = SuffixTree()
-            for prot in proteins:
-                tree.add_ngram(DeflineSuffix(prot.name, prot.name))
-
-        for protein_name, sites in by_protein_name.items():
-            if fuzzy:
-                labels = list(tree.subsequences_of(protein_name))
-                protein = protein_name_map[labels[0].original]
-            else:
-                protein = protein_name_map[protein_name]
-
-            model = cls(protein, sites)
-            protein_models[model.id] = model
-        return protein_models
-
-    def __repr__(self):
-        template = "{self.__class__.__name__}({self.name}, {self.glycosylation_sites})"
-        return template.format(self=self)
-
-
-class ReversedProteinSiteReflectionGlycoproteinSiteSpecificGlycomeModel(GlycoproteinSiteSpecificGlycomeModel):
-    @property
-    def glycosylation_sites(self):
-        return self._glycosylation_sites
-
-    @glycosylation_sites.setter
-    def glycosylation_sites(self, glycosylation_sites):
-        temp = []
-        n = len(str(self.protein))
-        for site in glycosylation_sites:
-            site = site.copy()
-            site.position = n - site.position - 1
-            temp.append(site)
-        self._glycosylation_sites = sorted(temp or [], key=lambda x: x.position)
-
-
-class GlycoproteomeModel(object):
-    def __init__(self, glycoprotein_models):
-        if isinstance(glycoprotein_models, Mapping):
-            self.glycoprotein_models = dict(glycoprotein_models)
-        else:
-            self.glycoprotein_models = {
-                ggm.id: ggm for ggm in glycoprotein_models
-            }
-
-    def relabel_proteins(self, name_to_id_map):
-        remapped = {}
-        for ggm in self.glycoprotein_models.values():
-            try:
-                new_id = name_to_id_map[ggm.name]
-                remapped[new_id] = ggm
-            except KeyError:
-                warnings.warn("No mapping for %r, it will be omitted" % (ggm.name, ))
-        self.glycoprotein_models = remapped
-
-    def find_model(self, glycopeptide):
-        if glycopeptide.protein_relation is None:
-            return None
-        protein_id = glycopeptide.protein_relation.protein_id
-        glycoprotein_model = self.glycoprotein_models[protein_id]
-        return glycoprotein_model
-
-    def score(self, glycopeptide):
-        glycoprotein_model = self.find_model(glycopeptide)
-        if glycoprotein_model is None:
-            score = MINIMUM
-        else:
-            score = glycoprotein_model.score(glycopeptide)
-        return score
-
-    @classmethod
-    def bind_to_hypothesis(cls, session, site_models, hypothesis_id=1, fuzzy=True, site_model_cls=GlycoproteinSiteSpecificGlycomeModel):
-        inst = cls(
-            site_model_cls.bind_to_hypothesis(
-                session, site_models, hypothesis_id, fuzzy))
-        return inst
-
-
-class SubstringGlycoproteomeModel(object):
-    def __init__(self, models, cache_size=2**15):
-        self.models = models
-        self.sequence_to_model = {
-            str(model.protein): model for model in models.values()
-        }
-        self.peptide_to_protein = LRUMapping(cache_size)
-
-    def get_models(self, glycopeptide):
-        out = []
-        seq = strip_modifications(glycopeptide)
-        if seq in self.peptide_to_protein:
-            return list(self.peptide_to_protein[seq])
-        pattern = re.compile(seq)
-        for case in self.sequence_to_model:
-            if seq in case:
-                bounds = pattern.finditer(case)
-                for match in bounds:
-                    protein_model = self.sequence_to_model[case]
-                    site_models = protein_model.find_sites_in(match.start(), match.end())
-                    out.append(site_models)
-        self.peptide_to_protein[seq] = tuple(out)
-        return out
-
-    def find_proteins(self, glycopeptide):
-        out = []
-        seq = strip_modifications(glycopeptide)
-        for case in self.sequence_to_model:
-            if seq in case:
-                out.append(self.sequence_to_model[case])
-        return out
-
-    def score(self, glycopeptide):
-        models = self.get_models(glycopeptide)
-        if len(models) == 0:
-            return MINIMUM
-        sites = models[0]
-        if len(sites) == 0:
-            return MINIMUM
-        try:
-            acc = []
-            for site in sites:
-                try:
-                    rec = site.glycan_map[glycopeptide.glycan_composition]
-                    acc.append(rec.score)
-                except KeyError:
-                    pass
-            return max(sum(acc) / len(acc), MINIMUM) if acc else MINIMUM
-        except IndexError:
-            return MINIMUM
-
-    def __call__(self, glycopeptide):
-        return self.get_models(glycopeptide)
 
 
 def _truncate_name(name, limit=30):
@@ -434,7 +98,8 @@ class GlycosylationSiteModelBuilder(TaskBase):
                 gp for gp in gps_for_site if gp.chromatogram is not None]
             records = []
             for gp in glycopeptides:
-                records.append(self._transform_glycopeptide(gp, evaluate_chromatograms))
+                records.append(self._transform_glycopeptide(
+                    gp, evaluate_chromatograms))
 
             if self.n_threads == 1:
                 self.fit_site_model(records, site, glycoprotein)
@@ -478,7 +143,8 @@ class GlycosylationSiteModelBuilder(TaskBase):
             # transformation VariableObservationAggregation carries out when estimating
             # the variance of each glycan composition observed.
             rec_variance = np.diag(var.variance_matrix)[var.observed_indices]
-            stable_cases = set([gc.glycan_composition for gc, v in zip(recs, rec_variance) if v != 1.0])
+            stable_cases = set(
+                [gc.glycan_composition for gc, v in zip(recs, rec_variance) if v != 1.0])
             self.log("... %d Stable Glycan Compositions" % (
                 len(stable_cases)))
             if len(stable_cases) == 0:
@@ -511,7 +177,8 @@ class GlycosylationSiteModelBuilder(TaskBase):
             for key, value in sorted(acc.items(), key=lambda x: x[0].mass()):
                 self.log("... %s: [%s]" % (
                     key,
-                    ', '.join(["%0.2f" % f for f in sorted([r.score for r in value])])
+                    ', '.join(["%0.2f" % f for f in sorted(
+                        [r.score for r in value])])
                 ))
 
         fitted_network, search_result, params = smooth_network(
@@ -520,10 +187,12 @@ class GlycosylationSiteModelBuilder(TaskBase):
             observation_aggregator=VariableObservationAggregation,
             annotate_network=False)
         if params is None:
-            self.log("Skipping Site %d of %s" % (site, _truncate_name(glycoprotein.name) ))
+            self.log("Skipping Site %d of %s" %
+                     (site, _truncate_name(glycoprotein.name)))
             return
         with self._lock:
-            self.log("... Site %d of %s Lambda: %f" % (site, _truncate_name(glycoprotein.name), params.lmbda,))
+            self.log("... Site %d of %s Lambda: %f" %
+                     (site, _truncate_name(glycoprotein.name), params.lmbda,))
             display_table([x.name for x in self.network.neighborhoods],
                           np.array(params.tau).reshape((-1, 1)))
         updated_params = params.clone()
@@ -535,7 +204,8 @@ class GlycosylationSiteModelBuilder(TaskBase):
             if node.marked:
                 node.score *= self.unobserved_penalty_scale
 
-        site_distribution = dict(zip([x.name for x in self.network.neighborhoods], updated_params.tau.tolist()))
+        site_distribution = dict(
+            zip([x.name for x in self.network.neighborhoods], updated_params.tau.tolist()))
         glycan_map = {
             str(node.glycan_composition): GlycanPriorRecord(node.score, not node.marked)
             for node in fitted_network
@@ -633,7 +303,8 @@ class GlycoproteinSiteModelBuildingWorkflow(TaskBase):
         acc = defaultdict(list)
         n = len(self.analyses)
         for i, analysis in enumerate(self.analyses, 1):
-            self.log("... Loading Glycopeptides for %s (%d/%d)" % (analysis.name, i, n))
+            self.log("... Loading Glycopeptides for %s (%d/%d)" %
+                     (analysis.name, i, n))
             for idgp in self.load_identified_glycoproteins_from_analysis(analysis):
                 acc[idgp.name].append(idgp)
         result = []
@@ -649,7 +320,8 @@ class GlycoproteinSiteModelBuildingWorkflow(TaskBase):
             if i % 100 == 0:
                 should_log = True
             if should_log:
-                self.log("... Merging %s (%d/%d, %0.2f%%)" % (name, i, n, i * 100.0 / n))
+                self.log("... Merging %s (%d/%d, %0.2f%%)" %
+                         (name, i, n, i * 100.0 / n))
                 should_log = False
             agg = duplicates[0]
             result.append(agg.merge(*duplicates[1:]))
@@ -700,15 +372,18 @@ class GlycoproteinSiteModelBuildingWorkflow(TaskBase):
                 builder.add_glycoprotein(gp)
             else:
                 with self._lock:
-                    result = self.thread_pool.apply_async(self._add_glycoprotein, (gp, builder, k_sites))
+                    result = self.thread_pool.apply_async(
+                        self._add_glycoprotein, (gp, builder, k_sites))
                     result_collector.append((result, gp, k_sites))
-                    time.sleep(1) # sleep briefly to allow newly queued task to start
+                    # sleep briefly to allow newly queued task to start
+                    time.sleep(1)
                 # If the thread pool is full, we'll stop enqueuing new jobs and wait for it to clear out
                 if self.thread_pool_saturated():
                     while self.thread_pool_saturated():
                         running_result, running_gp, running_gp_k_sites = result_collector.popleft()
                         while running_result.ready() and result_collector:
-                            running_result.get()  # get will re-raise errors if they occurred.
+                            # get will re-raise errors if they occurred.
+                            running_result.get()
                             running_result, running_gp, running_gp_k_sites = result_collector.popleft()
                         if not running_result.ready():
                             self.log("... Awaiting %s with %d Sites" % (
