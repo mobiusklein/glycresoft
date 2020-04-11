@@ -1,3 +1,4 @@
+import json
 from collections import namedtuple
 
 import numpy as np
@@ -118,3 +119,14 @@ class GlycosylationSiteModel(object):
 
     def observed_glycans(self, threshold=0):
         return {k: v.score for k, v in self.glycan_map.items() if v.matched and v.score > threshold}
+
+    @classmethod
+    def load(cls, fh):
+        site_dicts = json.load(fh)
+        site_models = [cls.from_dict(d) for d in site_dicts]
+        return site_models
+
+    @classmethod
+    def dump(cls, instances, fh):
+        site_dicts = [d.to_dict() for d in instances]
+        json.dump(site_dicts, fh)

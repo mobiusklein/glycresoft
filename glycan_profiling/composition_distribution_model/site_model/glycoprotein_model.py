@@ -1,8 +1,9 @@
 import warnings
-from collections import defaultdict
+from collections import defaultdict, namedtuple
 
 
 from glycopeptidepy.structure.parser import strip_modifications
+from glycopeptidepy.utils.collectiontools import groupby
 
 from glycan_profiling import serialize
 from glycan_profiling.structure import PeptideProteinRelation
@@ -10,7 +11,10 @@ from glycan_profiling.database.builder.glycopeptide.proteomics.fasta import Defl
 from glycan_profiling.database.builder.glycopeptide.proteomics.sequence_tree import SuffixTree
 
 
-from .glycosite_model import MINIMUM
+from .glycosite_model import MINIMUM, GlycosylationSiteModel
+
+
+ProteinStub = namedtuple("ProteinStub", ("name", ))
 
 
 class GlycoproteinSiteSpecificGlycomeModel(object):
@@ -114,6 +118,18 @@ class GlycoproteinSiteSpecificGlycomeModel(object):
         template = "{self.__class__.__name__}({self.name}, {self.glycosylation_sites})"
         return template.format(self=self)
 
+    @classmethod
+    def load(cls, fh, session=None, hypothesis_id=1, fuzzy=True):
+        site_models = GlycosylationSiteModel.load(fh)
+        if session is not None:
+            return cls.bind_to_hypothesis(session, site_models, hypothesis_id, fuzzy)
+        by_protein_name = groupby(site_models, lambda x: x.protein_name)
+        result = []
+        for name, models in by_protein_name.items():
+            result.append(cls(ProteinStub(name), models))
+        return result
+
+
 
 class ReversedProteinSiteReflectionGlycoproteinSiteSpecificGlycomeModel(GlycoproteinSiteSpecificGlycomeModel):
     @property
@@ -123,6 +139,8 @@ class ReversedProteinSiteReflectionGlycoproteinSiteSpecificGlycomeModel(Glycopro
     @glycosylation_sites.setter
     def glycosylation_sites(self, glycosylation_sites):
         temp = []
+        if isinstance(self.protein, ProteinStub):
+            raise TypeError("Cannot create a reflected glycosite model with a ProteinStub")
         n = len(str(self.protein))
         for site in glycosylation_sites:
             site = site.copy()

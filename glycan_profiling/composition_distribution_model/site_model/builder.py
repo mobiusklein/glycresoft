@@ -1,9 +1,19 @@
 import time
 import json
 
-from collections import defaultdict, deque
+from collections import defaultdict, deque, namedtuple
+
+import multiprocessing
 from multiprocessing.pool import ThreadPool
-from threading import RLock, Condition
+from multiprocessing import Process, Event, JoinableQueue
+from multiprocessing.managers import RemoteError
+
+try:
+    from Queue import Empty as QueueEmptyException
+except ImportError:
+    from queue import Empty as QueueEmptyException
+
+from threading import RLock, Condition, Thread
 
 import numpy as np
 
@@ -20,8 +30,9 @@ from glycan_profiling.composition_distribution_model import (
     GlycanCompositionSolutionRecord, GlycomeModel)
 from glycan_profiling.models import GeneralScorer, get_feature
 
-from .glycosite_model import GlycanPriorRecord, GlycosylationSiteModel
 
+from .glycosite_model import GlycanPriorRecord, GlycosylationSiteModel
+from .glycoprotein_model import ProteinStub
 
 _default_chromatogram_scorer = GeneralScorer.clone()
 _default_chromatogram_scorer.add_feature(get_feature("null_charge"))
@@ -33,13 +44,17 @@ def _truncate_name(name, limit=30):
     return name
 
 
+
+EmptySite = namedtuple("EmptySite", ("position", "protein_name"))
+
+
 class GlycosylationSiteModelBuilder(TaskBase):
     _timeout_per_unit = 300
 
     def __init__(self, glycan_graph, chromatogram_scorer=None, belongingness_matrix=None,
                  unobserved_penalty_scale=None, lambda_limit=0.2,
                  require_multiple_observations=True,
-                 observation_aggregator=None, n_threads=4):
+                 observation_aggregator=None, n_threads=1):
         if observation_aggregator is None:
             observation_aggregator = VariableObservationAggregation
         if chromatogram_scorer is None:
@@ -63,9 +78,14 @@ class GlycosylationSiteModelBuilder(TaskBase):
 
         self.site_models = []
         self.n_threads = n_threads
-        self.thread_pool = ThreadPool(n_threads)
-        self._lock = RLock()
-        self._concurrent_jobs = 0
+        if self.n_threads > 1:
+            self.thread_pool = ThreadPool(n_threads)
+            self._lock = RLock()
+            self._concurrent_jobs = 0
+        else:
+            self.thread_pool = None
+            self._lock = None
+            self._concurrent_jobs = 0
 
     def build_belongingness_matrix(self):
         network = self.network
@@ -81,6 +101,26 @@ class GlycosylationSiteModelBuilder(TaskBase):
         else:
             ms1_score = gp.ms1_score
         return GlycanCompositionSolutionRecord(gp.glycan_composition, ms1_score, gp.total_signal)
+
+    def prepare_glycoprotein(self, glycoprotein, evaluate_chromatograms=False):
+        prepared = []
+        for i, site in enumerate(glycoprotein.site_map['N-Linked'].sites):
+            gps_for_site = glycoprotein.site_map[
+                'N-Linked'][glycoprotein.site_map['N-Linked'].sites[i]]
+            gps_for_site = [
+                gp for gp in gps_for_site if gp.chromatogram is not None]
+
+            self.log('... %d Identified Glycopeptides At Site %d for %s' %
+                     (len(gps_for_site), site, _truncate_name(glycoprotein.name, )))
+
+            glycopeptides = [
+                gp for gp in gps_for_site if gp.chromatogram is not None]
+            records = []
+            for gp in glycopeptides:
+                records.append(self._transform_glycopeptide(
+                    gp, evaluate_chromatograms))
+            prepared.append((records, site, ProteinStub(glycoprotein.name)))
+        return prepared
 
     def add_glycoprotein(self, glycoprotein, evaluate_chromatograms=False):
         async_results = []
@@ -228,13 +268,112 @@ class GlycosylationSiteModelBuilder(TaskBase):
             json.dump(prepared, fh)
 
 
-class GlycoproteinSiteModelBuildingWorkflow(TaskBase):
-    _timeout_per_unit_site = 300
+class GlycositeModelBuildingProcess(Process):
+    def __init__(self, builder, input_queue, output_queue, producer_done_event, output_done_event, log_handler):
+        Process.__init__(self)
+        self.builder = builder
+        builder.log = self.log
+        self.input_queue = input_queue
+        self.output_queue = output_queue
+        self.producer_done_event = producer_done_event
+        self.output_done_event = output_done_event
 
+        self.log_handler = log_handler
+
+    def all_work_done(self):
+        """A helper method to encapsulate :attr:`output_done_event`'s ``is_set``
+        method.
+
+        Returns
+        -------
+        bool
+        """
+        return self.output_done_event.is_set()
+
+    def log(self, message):
+        """Send a normal logging message via :attr:`log_handler`
+
+        Parameters
+        ----------
+        message : str
+            The message to log
+        """
+        if self.log_handler is not None:
+            self.log_handler(message)
+
+    def debug(self, message):
+        """Send a debugging message via :attr:`log_handler`
+
+        Parameters
+        ----------
+        message : str
+            The message to log
+        """
+        if self.verbose:
+            self.log_handler("DEBUG::%s" % message)
+
+    def handle_item(self, observations, site, glycoprotein):
+        model = self.builder.fit_site_model(observations, site, glycoprotein)
+        if model is None:
+            model = EmptySite(site, glycoprotein.name)
+        self.output_queue.put(model)
+        # Do not accumulate models within the process
+        self.builder.site_models = []
+
+    def task(self):
+        """The worker process's main loop where it will poll for new work items,
+        process incoming work items and send them back to the master process.
+        """
+        has_work = True
+        self.items_handled = 0
+        strikes = 0
+        while has_work:
+            try:
+                observations, site, glycoprotein = self.input_queue.get(True, 5)
+                self.input_queue.task_done()
+                strikes = 0
+            except QueueEmptyException:
+                if self.producer_done_event.is_set():
+                    has_work = False
+                    break
+                else:
+                    strikes += 1
+                    if strikes % 1000 == 0:
+                        self.log("... %d iterations without work for %r" %
+                                 (strikes, self))
+                    continue
+            self.items_handled += 1
+            try:
+                self.handle_item(observations, site, glycoprotein)
+            except Exception:
+                import traceback
+                message = "An error occurred while processing %r of %r on %r:\n%s" % (
+                    site, glycoprotein.name, self, traceback.format_exc())
+                self.log(message)
+                break
+        self.cleanup()
+
+    def cleanup(self):
+        self.output_done_event.set()
+
+    def run(self):
+        new_name = getattr(self, 'process_name', None)
+        if new_name is not None:
+            TaskBase().try_set_process_name(new_name)
+        try:
+            self.task()
+        except Exception:
+            import traceback
+            self.log("An exception occurred while executing %r.\n%s" % (
+                self, traceback.format_exc()))
+            self.cleanup()
+
+
+class GlycoproteinSiteModelBuildingWorkflowBase(TaskBase):
     def __init__(self, analyses, glycopeptide_database, glycan_database,
                  unobserved_penalty_scale=None, lambda_limit=0.2,
                  require_multiple_observations=True, observation_aggregator=None,
-                 output_path=None, n_threads=4):
+                 output_path=None, n_threads=None):
         if observation_aggregator is None:
             observation_aggregator = VariableObservationAggregation
         if unobserved_penalty_scale is None:
@@ -251,12 +390,6 @@ class GlycoproteinSiteModelBuildingWorkflow(TaskBase):
         self.observation_aggregator = observation_aggregator
 
         self.output_path = output_path
-
-        self.n_threads = n_threads
-        self.thread_pool = ThreadPool(self.n_threads)
-        self._lock = RLock()
-        self._count_barrier = Condition()
-        self._concurrent_jobs = 0
 
     @classmethod
     def from_paths(cls, analysis_paths_and_ids, glycopeptide_hypothesis_path, glycopeptide_hypothesis_id,
@@ -327,6 +460,59 @@ class GlycoproteinSiteModelBuildingWorkflow(TaskBase):
             result.append(agg.merge(*duplicates[1:]))
             i += 1
         return result
+
+    def _fit_glycoprotein_site_models(self, glycoproteins, builder):
+        raise NotImplementedError()
+
+    def _init_builder(self, network, belongingness_matrix):
+        builder = GlycosylationSiteModelBuilder(
+            network, belongingness_matrix=belongingness_matrix,
+            unobserved_penalty_scale=self.unobserved_penalty_scale,
+            lambda_limit=self.lambda_limit,
+            require_multiple_observations=self.require_multiple_observations,
+            observation_aggregator=self.observation_aggregator,
+            n_threads=self.n_threads)
+        return builder
+
+    def run(self):
+        self.log("Building Belongingness Matrix")
+        network, belongingness_matrix = self.make_glycan_network()
+
+        builder = self._init_builder(network, belongingness_matrix)
+
+        self.log("Aggregating Glycoproteins")
+        glycoproteins = self.aggregate_identified_glycoproteins()
+        glycoproteins = sorted(
+            glycoproteins,
+            key=lambda x: len(x.identified_glycopeptides),
+            reverse=True)
+
+        self._fit_glycoprotein_site_models(glycoproteins, builder)
+
+        self.log("Saving Models")
+        if self.output_path is not None:
+            builder.save_models(self.output_path)
+
+
+class GlycoproteinSiteModelBuildingWorkflow(GlycoproteinSiteModelBuildingWorkflowBase):
+    _timeout_per_unit_site = 300
+
+    def __init__(self, analyses, glycopeptide_database, glycan_database,
+                 unobserved_penalty_scale=None, lambda_limit=0.2,
+                 require_multiple_observations=True, observation_aggregator=None,
+                 output_path=None, n_threads=4):
+        super(GlycoproteinSiteModelBuildingWorkflow, self).__init__(
+            analyses, glycopeptide_database, glycan_database,
+            unobserved_penalty_scale, lambda_limit,
+            require_multiple_observations, observation_aggregator,
+            output_path
+        )
+
+        self.n_threads = n_threads
+        self.thread_pool = ThreadPool(self.n_threads)
+        self._lock = RLock()
+        self._count_barrier = Condition()
+        self._concurrent_jobs = 0
 
     def thread_pool_saturated(self, ratio=1.0):
         with self._lock:
@@ -404,31 +590,156 @@ class GlycoproteinSiteModelBuildingWorkflow(TaskBase):
                 running_result.get(
                     self._timeout_per_unit_site * running_gp_k_sites * self.n_threads)
 
-    def run(self):
-        self.log("Building Belongingness Matrix")
-        network, belongingness_matrix = self.make_glycan_network()
 
-        builder = GlycosylationSiteModelBuilder(
-            network, belongingness_matrix=belongingness_matrix,
-            unobserved_penalty_scale=self.unobserved_penalty_scale,
-            lambda_limit=self.lambda_limit,
-            require_multiple_observations=self.require_multiple_observations,
-            observation_aggregator=self.observation_aggregator,
-            n_threads=self.n_threads)
+class MultiprocessingGlycoproteinSiteModelBuildingWorkflow(GlycoproteinSiteModelBuildingWorkflowBase):
 
-        self.log("Aggregating Glycoproteins")
-        glycoproteins = self.aggregate_identified_glycoproteins()
-        glycoproteins = sorted(
-            glycoproteins,
-            key=lambda x: len(x.identified_glycopeptides),
-            reverse=True)
+    def __init__(self, analyses, glycopeptide_database, glycan_database,
+                 unobserved_penalty_scale=None, lambda_limit=0.2,
+                 require_multiple_observations=True, observation_aggregator=None,
+                 output_path=None, n_threads=4):
+        super(MultiprocessingGlycoproteinSiteModelBuildingWorkflow, self).__init__(
+            analyses, glycopeptide_database, glycan_database,
+            unobserved_penalty_scale, lambda_limit,
+            require_multiple_observations, observation_aggregator,
+            output_path
+        )
 
-        self._fit_glycoprotein_site_models(glycoproteins, builder)
+        self.builder = None
 
-        self.log("Saving Models")
-        if self.output_path is not None:
-            builder.save_models(self.output_path)
+        self.input_queue = JoinableQueue(1000)
+        self.output_queue = JoinableQueue(1000)
+        self.input_done_event = Event()
+        self.n_threads = 1
+        self.n_workers = n_threads
+        self.workers = []
+        self._has_remote_error = False
+        self.log_controller = self.ipc_logger()
 
+    def prepare_glycoprotein_for_dispatch(self, glycoprotein, builder):
+        prepared = builder.prepare_glycoprotein(glycoprotein)
+        return prepared
+
+    def feed_queue(self, glycoproteins, builder):
+        n = len(glycoproteins)
+        n_sites = sum(len(gp.site_map['N-Linked']) for gp in glycoproteins)
+        self.log(
+            "Analyzing %d glycoproteins with %d occupied N-glycosites" % (n, n_sites))
+        i_site = 0
+        for i_prot, glycoprotein in enumerate(glycoproteins):
+            prepared = self.prepare_glycoprotein_for_dispatch(glycoprotein, builder)
+            for work_item in prepared:
+                i_site += 1
+                self.input_queue.put(work_item)
+            if i_site % 100 == 0 and i_site != 0:
+                self.input_queue.join()
+        self.input_done_event.set()
+
+    def make_workers(self):
+        for _i in range(self.n_workers):
+            worker = GlycositeModelBuildingProcess(
+                self.builder, self.input_queue, self.output_queue,
+                self.input_done_event, Event(), self.log_handler())
+            self.workers.append(worker)
+            worker.start()
+
+    def clear_pool(self):
+        for _i, worker in enumerate(self.workers):
+            exitcode = worker.exitcode
+            if exitcode != 0 and exitcode is not None:
+                self.log("... Worker Process %r had exitcode %r" % (worker, exitcode))
+            try:
+                worker.join(1)
+            except AttributeError:
+                pass
+            if worker.is_alive() and worker.token not in self._has_received_token:
+                self.debug("... Worker Process %r is still alive and incomplete" % (worker, ))
+                worker.terminate()
+
+    def all_workers_finished(self):
+        """Check if all worker processes have finished.
+        """
+        worker_still_busy = False
+        for worker in self.workers:
+            try:
+                is_done = worker.all_work_done()
+                if not is_done:
+                    worker_still_busy = True
+                    return worker_still_busy
+            except (RemoteError, KeyError):
+                worker_still_busy = True
+                self._has_remote_error = True
+                return worker_still_busy
+        return worker_still_busy
+
+    def _fit_glycoprotein_site_models(self, glycoproteins, builder):
+        self.builder = builder
+        feeder_thread = Thread(target=self.feed_queue, args=(glycoproteins, builder))
+        feeder_thread.start()
+        self.make_workers()
+        n_sites = sum(len(gp.site_map['N-Linked']) for gp in glycoproteins)
+        seen = dict()
+        strikes = 0
+        start_time = time.time()
+        i = 0
+        has_work = True
+        while has_work:
+            try:
+                site_model = self.output_queue.get(True, 3)
+                self.output_queue.task_done()
+                key = (site_model.protein_name, site_model.position)
+                seen.add(key)
+                if key in seen:
+                    self.debug(
+                        "...... Duplicate Results For %s. First seen at %r, now again at %r" % (
+                            key, seen[key], i, ))
+                else:
+                    seen[key] = i
+                i += 1
+                strikes = 0
+                if i % 1 == 0:
+                    self.log(
+                        "...... Processed %d sites (%0.2f%%)" % (i, i * 100. / n_sites))
+                if not isinstance(site_model, EmptySite):
+                    self.builder.site_models.append(site_model)
+            except QueueEmptyException:
+                if len(seen) == n_sites:
+                    has_work = False
+                # do worker life cycle management here
+                elif self.all_workers_finished():
+                    if len(seen) == n_sites:
+                        has_work = False
+                    else:
+                        strikes += 1
+                        if strikes % 50 == 0:
+                            self.log(
+                                "...... %d cycles without output (%d/%d, %0.2f%% Done)" % (
+                                    strikes, len(seen), n_sites, len(seen) * 100. / n_sites))
+                            self.debug("...... Processes")
+                            for worker in self.workers:
+                                self.debug("......... %r" % (worker,))
+                            self.debug("...... IPC Manager: %r" % (self.ipc_manager,))
+                else:
+                    strikes += 1
+                    if strikes % 50 == 0:
+                        self.log(
+                            "...... %d cycles without output (%d/%d, %0.2f%% Done, %d children still alive)" % (
+                                strikes, len(seen), n_sites, len(
+                                    seen) * 100. / n_sites,
+                                len(multiprocessing.active_children()) - 1))
+                        try:
+                            input_queue_size = self.input_queue.qsize()
+                        except Exception:
+                            input_queue_size = -1
+                        is_feeder_done = self.producer_thread_done_event.is_set()
+                        self.log("...... Input Queue Status: %r. Is Feeder Done? %r" % (
+                            input_queue_size, is_feeder_done))
+                continue
+        self.clear_pool()
+        self.log_controller.stop()
+        feeder_thread.join()
+        dispatcher_end = time.time()
+        self.log("... Dispatcher Finished (%0.3g sec.)" %
+                 (dispatcher_end - start_time))
 
 # '''
 # import sys
@@ -516,5 +827,4 @@ class GlycoproteinSiteModelBuildingWorkflow(TaskBase):
 # with open("./glycosite_models.json", 'w') as fh:
 #     sites = [s.to_dict() for s in site_models]
 #     json.dump(sites, fh)
-
 # '''
