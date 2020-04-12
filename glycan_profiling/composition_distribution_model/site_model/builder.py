@@ -78,14 +78,12 @@ class GlycosylationSiteModelBuilder(TaskBase):
 
         self.site_models = []
         self.n_threads = n_threads
+        self._lock = RLock()
+        self._concurrent_jobs = 0
         if self.n_threads > 1:
             self.thread_pool = ThreadPool(n_threads)
-            self._lock = RLock()
-            self._concurrent_jobs = 0
         else:
             self.thread_pool = None
-            self._lock = None
-            self._concurrent_jobs = 0
 
     def build_belongingness_matrix(self):
         network = self.network
@@ -269,6 +267,8 @@ class GlycosylationSiteModelBuilder(TaskBase):
 
 
 class GlycositeModelBuildingProcess(Process):
+    process_name = "glycosylation-site-modeler"
+
     def __init__(self, builder, input_queue, output_queue, producer_done_event, output_done_event, log_handler):
         Process.__init__(self)
         self.builder = builder
@@ -638,7 +638,7 @@ class MultiprocessingGlycoproteinSiteModelBuildingWorkflow(GlycoproteinSiteModel
         for _i in range(self.n_workers):
             worker = GlycositeModelBuildingProcess(
                 self.builder, self.input_queue, self.output_queue,
-                self.input_done_event, Event(), self.log_handler())
+                self.input_done_event, Event(), self.log_controller.sender())
             self.workers.append(worker)
             worker.start()
 
