@@ -630,7 +630,7 @@ class MultiprocessingGlycoproteinSiteModelBuildingWorkflow(GlycoproteinSiteModel
             for work_item in prepared:
                 i_site += 1
                 self.input_queue.put(work_item)
-            if i_site % 100 == 0 and i_site != 0:
+            if i_site % 10 == 0 and i_site != 0:
                 self.input_queue.join()
         self.input_done_event.set()
 
@@ -687,7 +687,7 @@ class MultiprocessingGlycoproteinSiteModelBuildingWorkflow(GlycoproteinSiteModel
                 site_model = self.output_queue.get(True, 3)
                 self.output_queue.task_done()
                 key = (site_model.protein_name, site_model.position)
-                seen.add(key)
+                seen[(key)] = i
                 if key in seen:
                     self.debug(
                         "...... Duplicate Results For %s. First seen at %r, now again at %r" % (
