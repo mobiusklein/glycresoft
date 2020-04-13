@@ -209,15 +209,17 @@ class GlycosylationSiteModelBuilder(TaskBase):
         acc = defaultdict(list)
         for case in learnable_cases:
             acc[case.glycan_composition].append(case)
+        log_buffer = []
+        log_buffer.append("... %d Glycan Compositions for Site %d of %s" % (
+            len(acc), site, _truncate_name(glycoprotein.name, )))
+        for key, value in sorted(acc.items(), key=lambda x: x[0].mass()):
+            log_buffer.append("... %s: [%s]" % (
+                key,
+                ', '.join(["%0.2f" % f for f in sorted(
+                    [r.score for r in value])])
+            ))
         with self._lock:
-            self.log("... %d Glycan Compositions for Site %d of %s" % (
-                len(acc), site, _truncate_name(glycoprotein.name, )))
-            for key, value in sorted(acc.items(), key=lambda x: x[0].mass()):
-                self.log("... %s: [%s]" % (
-                    key,
-                    ', '.join(["%0.2f" % f for f in sorted(
-                        [r.score for r in value])])
-                ))
+            self.log('\n'.join(log_buffer))
 
         fitted_network, search_result, params = smooth_network(
             self.network, learnable_cases,
@@ -411,6 +413,10 @@ class GlycoproteinSiteModelBuildingWorkflowBase(TaskBase):
         )
         return inst
 
+    def count_glycosites(self, glycoproteins):
+        n_sites = sum(len(gp.site_map['N-Linked']) for gp in glycoproteins)
+        return n_sites
+
     def make_glycan_network(self):
         network = self.glycan_database.glycan_composition_network
         network = network.augment_with_decoys()
@@ -494,14 +500,14 @@ class GlycoproteinSiteModelBuildingWorkflowBase(TaskBase):
             builder.save_models(self.output_path)
 
 
-class GlycoproteinSiteModelBuildingWorkflow(GlycoproteinSiteModelBuildingWorkflowBase):
+class ThreadedGlycoproteinSiteModelBuildingWorkflow(GlycoproteinSiteModelBuildingWorkflowBase):
     _timeout_per_unit_site = 300
 
     def __init__(self, analyses, glycopeptide_database, glycan_database,
                  unobserved_penalty_scale=None, lambda_limit=0.2,
                  require_multiple_observations=True, observation_aggregator=None,
                  output_path=None, n_threads=4):
-        super(GlycoproteinSiteModelBuildingWorkflow, self).__init__(
+        super(ThreadedGlycoproteinSiteModelBuildingWorkflow, self).__init__(
             analyses, glycopeptide_database, glycan_database,
             unobserved_penalty_scale, lambda_limit,
             require_multiple_observations, observation_aggregator,
@@ -544,7 +550,7 @@ class GlycoproteinSiteModelBuildingWorkflow(GlycoproteinSiteModelBuildingWorkflo
 
     def _fit_glycoprotein_site_models(self, glycoproteins, builder):
         n = len(glycoproteins)
-        n_sites = sum(len(gp.site_map['N-Linked']) for gp in glycoproteins)
+        n_sites = self.count_glycosites(glycoproteins)
         k_sites_acc = 0
         self.log(
             "Analyzing %d glycoproteins with %d occupied N-glycosites" % (n, n_sites))
@@ -621,7 +627,7 @@ class MultiprocessingGlycoproteinSiteModelBuildingWorkflow(GlycoproteinSiteModel
 
     def feed_queue(self, glycoproteins, builder):
         n = len(glycoproteins)
-        n_sites = sum(len(gp.site_map['N-Linked']) for gp in glycoproteins)
+        n_sites = self.count_glycosites(glycoproteins)
         self.log(
             "Analyzing %d glycoproteins with %d occupied N-glycosites" % (n, n_sites))
         i_site = 0
@@ -651,7 +657,7 @@ class MultiprocessingGlycoproteinSiteModelBuildingWorkflow(GlycoproteinSiteModel
                 worker.join(1)
             except AttributeError:
                 pass
-            if worker.is_alive() and worker.token not in self._has_received_token:
+            if worker.is_alive():
                 self.debug("... Worker Process %r is still alive and incomplete" % (worker, ))
                 worker.terminate()
 
@@ -676,7 +682,7 @@ class MultiprocessingGlycoproteinSiteModelBuildingWorkflow(GlycoproteinSiteModel
         feeder_thread = Thread(target=self.feed_queue, args=(glycoproteins, builder))
         feeder_thread.start()
         self.make_workers()
-        n_sites = sum(len(gp.site_map['N-Linked']) for gp in glycoproteins)
+        n_sites = self.count_glycosites(glycoproteins)
         seen = dict()
         strikes = 0
         start_time = time.time()
@@ -740,6 +746,9 @@ class MultiprocessingGlycoproteinSiteModelBuildingWorkflow(GlycoproteinSiteModel
         dispatcher_end = time.time()
         self.log("... Dispatcher Finished (%0.3g sec.)" %
                  (dispatcher_end - start_time))
+
+
+GlycoproteinSiteModelBuildingWorkflow = MultiprocessingGlycoproteinSiteModelBuildingWorkflow
 
 # '''
 # import sys
