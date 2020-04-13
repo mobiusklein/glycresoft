@@ -13,7 +13,20 @@ from .glycosite_model import MINIMUM
 from .glycoprotein_model import GlycoproteinSiteSpecificGlycomeModel
 
 
-class GlycoproteomeModel(object):
+class GlycoproteomeModelBase(object):
+    def score(self, glycopeptide):
+        raise NotImplementedError()
+
+    @classmethod
+    def bind_to_hypothesis(cls, session, site_models, hypothesis_id=1, fuzzy=True,
+                           site_model_cls=GlycoproteinSiteSpecificGlycomeModel):
+        inst = cls(
+            site_model_cls.bind_to_hypothesis(
+                session, site_models, hypothesis_id, fuzzy))
+        return inst
+
+
+class GlycoproteomeModel(GlycoproteomeModelBase):
     def __init__(self, glycoprotein_models):
         if isinstance(glycoprotein_models, Mapping):
             self.glycoprotein_models = dict(glycoprotein_models)
@@ -48,16 +61,8 @@ class GlycoproteomeModel(object):
             score = glycoprotein_model.score(glycopeptide)
         return score
 
-    @classmethod
-    def bind_to_hypothesis(cls, session, site_models, hypothesis_id=1, fuzzy=True,
-                           site_model_cls=GlycoproteinSiteSpecificGlycomeModel):
-        inst = cls(
-            site_model_cls.bind_to_hypothesis(
-                session, site_models, hypothesis_id, fuzzy))
-        return inst
 
-
-class SubstringGlycoproteomeModel(object):
+class SubstringGlycoproteomeModel(GlycoproteomeModelBase):
     def __init__(self, models, cache_size=2**15):
         self.models = models
         self.sequence_to_model = {

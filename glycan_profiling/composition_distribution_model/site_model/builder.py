@@ -631,7 +631,7 @@ class MultiprocessingGlycoproteinSiteModelBuildingWorkflow(GlycoproteinSiteModel
         self.log(
             "Analyzing %d glycoproteins with %d occupied N-glycosites" % (n, n_sites))
         i_site = 0
-        for i_prot, glycoprotein in enumerate(glycoproteins):
+        for glycoprotein in glycoproteins:
             prepared = self.prepare_glycoprotein_for_dispatch(glycoprotein, builder)
             for work_item in prepared:
                 i_site += 1
