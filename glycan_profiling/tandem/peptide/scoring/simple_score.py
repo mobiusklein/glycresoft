@@ -40,3 +40,12 @@ class SimpleCoverageScorer(PeptideSpectrumMatcherBase):
         mean_coverage = self.compute_coverage()
         score = mean_coverage
         return score
+
+
+try:
+    _has_c = True
+    from glycan_profiling._c.tandem.tandem_scoring_helpers import _peptide_compute_coverage_vectors, compute_coverage
+    SimpleCoverageScorer._compute_coverage_vectors = _peptide_compute_coverage_vectors
+    SimpleCoverageScorer.compute_coverage = compute_coverage
+except ImportError:
+    _has_c = False

@@ -66,6 +66,9 @@ def make_extensions():
                       sources=["glycan_profiling/_c/database/mass_collection.pyx"],
                       include_dirs=[numpy.get_include()]),
             Extension(name='glycan_profiling._c.tandem.tandem_scoring_helpers',
+                      libraries=['npymath'],
+                      library_dirs=[os.path.join(
+                          os.path.dirname(numpy.get_include()), 'lib')],
                       sources=["glycan_profiling/_c/tandem/tandem_scoring_helpers.pyx"],
                       include_dirs=[numpy.get_include()]),
             Extension(name='glycan_profiling._c.tandem.spectrum_match',
@@ -81,7 +84,7 @@ def make_extensions():
                           "glycan_profiling/_c/composition_distribution_model/utils.pyx"],
                       include_dirs=[numpy.get_include()]),
         ], compiler_directives=cython_directives, force=force_cythonize)
-    except ImportError:
+    except ImportError as err:
         extensions = ([
             Extension(name='glycan_profiling._c.structure.fragment_match_map',
                       sources=["glycan_profiling/_c/structure/fragment_match_map.c"],
@@ -105,6 +108,9 @@ def make_extensions():
                       sources=["glycan_profiling/_c/database/mass_collection.c"],
                       include_dirs=[numpy.get_include()]),
             Extension(name='glycan_profiling._c.tandem.tandem_scoring_helpers',
+                      libraries=['npymath'],
+                      library_dirs=[os.path.join(
+                          os.path.dirname(numpy.get_include()), 'lib')],
                       sources=["glycan_profiling/_c/tandem/tandem_scoring_helpers.c"],
                       include_dirs=[numpy.get_include()]),
             Extension(name='glycan_profiling._c.tandem.spectrum_match',
@@ -224,6 +230,7 @@ def run_setup(include_cext=True):
 try:
     run_setup(True)
 except Exception as exc:
+    print(exc)
     run_setup(False)
 
     status_msgs(

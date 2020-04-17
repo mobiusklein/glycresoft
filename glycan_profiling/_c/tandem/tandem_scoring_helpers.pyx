@@ -6,7 +6,7 @@ from libc.math cimport log10, log, sqrt, exp
 import numpy as np
 cimport numpy as np
 np.import_array()
-from numpy.math cimport isnan
+from numpy.math cimport isnan, log2l
 
 from ms_deisotope._c.peak_set cimport DeconvolutedPeak, DeconvolutedPeakSet
 
@@ -505,3 +505,22 @@ cpdef _peptide_compute_coverage_vectors(self):
             pep_frag = <PeptideFragment>frag
             c_term_ions[pep_frag.position] = 1
     return n_term_ions, c_term_ions
+
+
+@cython.binding(True)
+cpdef compute_coverage(self):
+    cdef:
+        np.ndarray[np.float64_t, ndim=1] n_term_ions, c_term_ions
+        long size, i
+        _PeptideSequenceCore target
+        double acc, log2_3, mean_coverage
+
+    target = <_PeptideSequenceCore>self.target
+    size = target.get_size()
+    (n_term_ions, c_term_ions) = self._compute_coverage_vectors()
+    acc = 0.0
+    log2_3 = log2l(3)
+    for i in range(size):
+        acc += log2l(n_term_ions[i] + c_term_ions[size - (i + 1)] + 1) / log2_3
+    mean_coverage = acc / size
+    return mean_coverage
