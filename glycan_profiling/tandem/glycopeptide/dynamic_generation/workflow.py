@@ -325,9 +325,9 @@ class MultipartGlycopeptideIdentifier(TaskBase):
             scan_groups)
         self.log("Loading Spectrum Matches From Journal...")
         reader = enumerate(JournalFileReader(
-            self.journal_path, scan_loader=ScanInformationLoader(self.scan_loader), mass_shift_map={
-            m.name: m for m in self.mass_shifts
-        }))
+            self.journal_path,
+            scan_loader=ScanInformationLoader(self.scan_loader),
+            mass_shift_map={m.name: m for m in self.mass_shifts}))
         solutions = []
         last = 0.1
         should_log = False

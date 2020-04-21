@@ -68,6 +68,22 @@ inverted_substituent_map = {
 }
 
 
+def mparam(name, value=None, accession=None, cvRef="PSI-MS", **kwargs):
+    if isinstance(name, dict):
+        value = name.pop('value', None)
+        accession = name.pop('accession')
+        cvRef = name.pop('cvRef', cvRef)
+        name_ = name.pop("name")
+        kwargs.update(kwargs)
+        name = name_
+    return components.CVParam(
+        name=name,
+        value=value,
+        accession=accession,
+        cvRef=cvRef,
+        **kwargs)
+
+
 def parse_glycan_formula(glycan_formula):
     gc = FrozenGlycanComposition()
     if glycan_formula.startswith("\""):
@@ -233,37 +249,57 @@ def convert_to_identification_item_dict(spectrum_match, seen=None, id_tracker=No
             spectrum_match.target.total_mass, charge),
         "peptide_id": id_tracker(spectrum_match.target),
         "peptide_evidence_id": spectrum_match.target.id,
-        "score": {"name": "GlycReSoft:score", "value": spectrum_match.score},
+        "score": mparam({
+            "name": "GlycReSoft:total score",
+            "value": spectrum_match.score,
+            "accession": "MS:XXX10A",
+        }),
         "params": [
-            {"name": "GlycReSoft:q-value", "value": spectrum_match.q_value},
             components.CVParam(**{
                 "name": "glycan dissociating, peptide preserving",
                 "accession": "MS:XXX111", "cvRef": "PSI-MS"}),
             components.CVParam(**{
                 "name": "glycan eliminated, peptide dissociating",
                 "accession": "MS:XXX114", "cvRef": "PSI-MS"}),
+            {
+                "name": "scan start time",
+                "value": spectrum_match.scan.scan_time,
+                "unit_name": "minute"
+            }
         ],
         "id": spectrum_match.id
     }
     if spectrum_match.is_multiscore():
         score_params = [
-            {"name": "GlycReSoft:peptide score", "value": spectrum_match.score_set.peptide_score},
-            {"name": "GlycReSoft:glycan score", "value": spectrum_match.score_set.glycan_score},
-            {"name": "GlycReSoft:glycan coverage", "value": spectrum_match.score_set.glycan_coverage},
-
-            {"name": "GlycReSoft:peptide q-value", "value": spectrum_match.q_value_set.peptide_q_value},
-            {"name": "GlycReSoft:glycan q-value", "value": spectrum_match.q_value_set.glycan_q_value},
-            {"name": "GlycReSoft:glycopeptide q-value",
-             "value": spectrum_match.q_value_set.glycopeptide_q_value},
+            mparam("GlycReSoft:peptide score",
+                  spectrum_match.score_set.peptide_score, "MS:XXX10C"),
+            mparam("GlycReSoft:glycan score",
+                  spectrum_match.score_set.glycan_score, "MS:XXX10B"),
+            mparam("GlycReSoft:glycan coverage",
+                  spectrum_match.score_set.glycan_coverage, "MS:XXX10H"),
+            mparam("GlycReSoft:joint q-value",
+                  spectrum_match.q_value, "MS:XXX10G"),
+            mparam("GlycReSoft:peptide q-value",
+                  spectrum_match.q_value_set.peptide_q_value,
+                  "MS:XXX10E"),
+            mparam("GlycReSoft:glycan q-value",
+                  spectrum_match.q_value_set.glycan_q_value, "MS:XXX10F"),
+            mparam("GlycReSoft:glycopeptide q-value",
+                  spectrum_match.q_value_set.glycopeptide_q_value, "MS:XXX10D"),
         ]
         data['params'].extend(score_params)
+    else:
+        data['params'].extend([
+            mparam("GlycReSoft:glycopeptide q-value",
+                  spectrum_match.q_value, "MS:XXX10D"),
+        ])
     if spectrum_match.mass_shift.name != Unmodified.name:
-        data['params'].append({
-            "GlycReSoft:mass shift": "%s:%0.3f:%0.3f" % (
+        data['params'].append(
+            mparam("GlycReSoft:mass shift", "%s:%0.3f:%0.3f" % (
                 spectrum_match.mass_shift.name,
                 spectrum_match.mass_shift.mass,
-                spectrum_match.mass_shift.tandem_mass)
-        })
+                spectrum_match.mass_shift.tandem_mass),
+                    "MS:XXX10I"))
     return data
 
 

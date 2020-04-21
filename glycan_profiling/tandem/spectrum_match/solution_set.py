@@ -546,7 +546,7 @@ class MultiScoreSpectrumSolutionSet(SpectrumSolutionSet):
         sort_by
         """
         self.solutions.sort(key=lambda x: (
-            x.q_value_set, x.target.id), reverse=False)
+            x.q_value_set, x.score_set, x.target.id), reverse=False)
         self._is_sorted = True
         return self
 
