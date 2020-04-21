@@ -2,7 +2,7 @@ import os
 import re
 import bisect
 
-from collections import defaultdict, OrderedDict, namedtuple
+from collections import defaultdict, OrderedDict, namedtuple, deque
 
 from brainpy import mass_charge_ratio
 
@@ -50,6 +50,12 @@ valid_monosaccharides = [
 ]
 
 
+def monosaccharide_to_term(monosaccharide):
+    if glypy.MonosaccharideResidue.from_iupac_lite("dHex") == monosaccharide:
+        return 'dHex'
+    return str(monosaccharide)
+
+
 substituent_map = {
     "Sulpho": "sulfate",
     "Phospho": "phosphate",
@@ -64,12 +70,17 @@ inverted_substituent_map = {
 
 def parse_glycan_formula(glycan_formula):
     gc = FrozenGlycanComposition()
+    if glycan_formula.startswith("\""):
+        glycan_formula = glycan_formula[1:-1]
     for mono, count in re.findall(r"([^0-9]+)\((\d+)\)", glycan_formula):
         count = int(count)
         if mono in substituent_map:
             parsed = SubstituentResidue(substituent_map[mono])
-        elif mono in ("Sia", "Pent"):
+        elif mono in ("Sia", ):
             continue
+        elif mono in ("Pent", ):
+            mono = "Pen"
+            parsed = FrozenMonosaccharideResidue.from_iupac_lite(mono)
         elif mono == 'Xxx':
             continue
         elif mono == 'X':
@@ -108,8 +119,7 @@ class GNOmeResolver(object):
         mass_index.sort()
         self.mass_index = mass_index
 
-    def resolve_gnome(self, glycan_composition):
-        mass = glycan_composition.mass()
+    def _find_mass_match(self, mass):
         i = bisect.bisect_left(self.mass_index, mass)
         lo = self.mass_index[i - 1]
         lo_err = abs(lo.mass - mass)
@@ -122,10 +132,19 @@ class GNOmeResolver(object):
         else:
             raise ValueError(
                 "Ambiguous duplicate masses (%0.2f, %0.2f)" % (lo.mass, hi.mass))
+        return term
+
+    def resolve_gnome(self, glycan_composition):
+        mass = glycan_composition.mass()
+        term = self._find_mass_match(mass)
         recast = glycan_composition.clone().reinterpret(valid_monosaccharides)
-        for child in term.children:
+        visit_queue = deque(term.children)
+        while visit_queue:
+            child = visit_queue.popleft()
             gc = child.get("glycan_composition")
-            if gc == recast:
+            if gc is None:
+                visit_queue.extend(child.children)
+            elif gc == recast:
                 return child
 
     def glycan_composition_to_terms(self, glycan_composition):
@@ -161,7 +180,7 @@ class GNOmeResolver(object):
                     if identity.is_a(mono, known):
                         out.append({
                             "name": "monosaccharide count",
-                            "value": ("%s:%d" % (known, count)),
+                            "value": ("%s:%d" % (monosaccharide_to_term(known), count)),
                             "accession": "MS:XXXXX2",
                             "cvRef": "PSI-MS"
                         })
@@ -169,7 +188,7 @@ class GNOmeResolver(object):
                 else:
                     out.append({
                         "name": "unknown monosaccharide count",
-                        "value": ("%s:%0.3f:%d" % (str(mono), mono.mass(), count)),
+                        "value": ("%s:%0.3f:%d" % (monosaccharide_to_term(mono), mono.mass(), count)),
                         "accession": "MS:XXXXX3",
                         "cvRef": "PSI-MS"
                     })
