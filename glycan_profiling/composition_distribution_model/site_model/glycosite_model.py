@@ -9,7 +9,7 @@ MINIMUM = 1e-4
 
 
 glycan_composition_cache = dict()
-
+decoy_glycan_cache = dict()
 
 def parse_glycan_composition(string):
     try:
@@ -17,6 +17,16 @@ def parse_glycan_composition(string):
     except KeyError:
         gc = HashableGlycanComposition.parse(string)
         glycan_composition_cache[string] = gc
+        return gc
+
+
+def to_decoy_glycan(string):
+    try:
+        return decoy_glycan_cache[string]
+    except KeyError:
+        gc = HashableGlycanComposition.parse(string)
+        gc["#decoy#"] = 2
+        decoy_glycan_cache[string] = gc
         return gc
 
 
