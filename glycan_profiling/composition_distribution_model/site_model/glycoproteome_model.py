@@ -9,12 +9,14 @@ except ImportError:
 from glycopeptidepy.structure.parser import strip_modifications
 from glycan_profiling.structure import LRUMapping
 
-from .glycosite_model import MINIMUM
+from glycan_profiling.tandem.spectrum_match import SpectrumMatchClassification as StructureClassification
+
+from .glycosite_model import MINIMUM, to_decoy_glycan, parse_glycan_composition
 from .glycoprotein_model import GlycoproteinSiteSpecificGlycomeModel
 
 
 class GlycoproteomeModelBase(object):
-    def score(self, glycopeptide):
+    def score(self, glycopeptide, glycan_composition=None):
         raise NotImplementedError()
 
     @classmethod
@@ -53,12 +55,12 @@ class GlycoproteomeModel(GlycoproteomeModelBase):
         glycoprotein_model = self.glycoprotein_models[protein_id]
         return glycoprotein_model
 
-    def score(self, glycopeptide):
+    def score(self, glycopeptide, glycan_composition=None):
         glycoprotein_model = self.find_model(glycopeptide)
         if glycoprotein_model is None:
             score = MINIMUM
         else:
-            score = glycoprotein_model.score(glycopeptide)
+            score = glycoprotein_model.score(glycopeptide, glycan_composition)
         return score
 
 
@@ -95,7 +97,9 @@ class SubstringGlycoproteomeModel(GlycoproteomeModelBase):
                 out.append(self.sequence_to_model[case])
         return out
 
-    def score(self, glycopeptide):
+    def score(self, glycopeptide, glycan_composition=None):
+        if glycan_composition is None:
+            glycan_composition = glycopeptide.glycan_composition
         models = self.get_models(glycopeptide)
         if len(models) == 0:
             return MINIMUM
@@ -106,7 +110,7 @@ class SubstringGlycoproteomeModel(GlycoproteomeModelBase):
             acc = []
             for site in sites:
                 try:
-                    rec = site.glycan_map[glycopeptide.glycan_composition]
+                    rec = site.glycan_map[glycan_composition]
                     acc.append(rec.score)
                 except KeyError:
                     pass
@@ -116,3 +120,19 @@ class SubstringGlycoproteomeModel(GlycoproteomeModelBase):
 
     def __call__(self, glycopeptide):
         return self.get_models(glycopeptide)
+
+
+class GlycoproteomePriorAnnotator(object):
+    def __init__(self, target_model, decoy_model):
+        self.target_model = target_model
+        self.decoy_model = decoy_model
+
+    def select_model(self, glycopeptide, structure_type):
+        if structure_type & StructureClassification.decoy_peptide_target_glycan:
+            return self.decoy_model
+        else:
+            return self.target_model
+
+    def score_glycan(self, glycopeptide, structure_type, model):
+        if structure_type & StructureClassification.target_peptide_decoy_glycan:
+            gc = to_decoy_glycan(glycopeptide.glycan_composition)

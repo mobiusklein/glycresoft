@@ -65,7 +65,9 @@ class GlycoproteinSiteSpecificGlycomeModel(object):
         except ValueError:
             return None
 
-    def score(self, glycopeptide):
+    def score(self, glycopeptide, glycan_composition=None):
+        if glycan_composition is None:
+            glycan_composition = glycopeptide.glycan_composition
         pr = glycopeptide.protein_relation
         sites = self.find_sites_in(pr.start_position, pr.end_position)
         if len(sites) > 1:
@@ -74,7 +76,7 @@ class GlycoproteinSiteSpecificGlycomeModel(object):
                 "Multiple glycosylation sites are not (yet) supported")
             for site in sites:
                 try:
-                    rec = site.glycan_map[glycopeptide.glycan_composition]
+                    rec = site.glycan_map[glycan_composition]
                     score_acc += (rec.score)
                 except KeyError:
                     score_acc += (MINIMUM)
@@ -82,7 +84,7 @@ class GlycoproteinSiteSpecificGlycomeModel(object):
         try:
             site = sites[0]
             try:
-                rec = site.glycan_map[glycopeptide.glycan_composition]
+                rec = site.glycan_map[glycan_composition]
             except KeyError:
                 return MINIMUM
             return rec.score
@@ -106,9 +108,14 @@ class GlycoproteinSiteSpecificGlycomeModel(object):
         for protein_name, sites in by_protein_name.items():
             if fuzzy:
                 labels = list(tree.subsequences_of(protein_name))
+                if not labels:
+                    continue
                 protein = protein_name_map[labels[0].original]
             else:
-                protein = protein_name_map[protein_name]
+                try:
+                    protein = protein_name_map[protein_name]
+                except KeyError:
+                    continue
 
             model = cls(protein, sites)
             protein_models[model.id] = model
