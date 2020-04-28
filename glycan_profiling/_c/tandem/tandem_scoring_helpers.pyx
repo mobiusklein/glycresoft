@@ -128,15 +128,18 @@ def calculate_glycan_score(self, double error_tolerance=2e-5, double core_weight
         IonSeriesBase series
         list theoretical_set
         double total, n, k, d, core_coverage, extended_coverage, score
+        double glycan_prior, glycan_coverage
         FragmentMatchMap solution_map
         FragmentBase frag
         PeakFragmentPair peak_pair
         DeconvolutedPeak peak
         size_t i
+        object target
 
+    target = self.target
     seen = set()
     series = IonSeries_stub_glycopeptide
-    theoretical_set = list(self.target.stub_fragments(extended=True))
+    theoretical_set = list(target.stub_fragments(extended=True))
     core_fragments = set()
     for i in range(len(theoretical_set)):
         frag = <FragmentBase>theoretical_set[i]
@@ -161,13 +164,17 @@ def calculate_glycan_score(self, double error_tolerance=2e-5, double core_weight
         if peak._index.neutral_mass not in seen:
             seen.add(peak._index.neutral_mass)
             total += log10(peak.intensity) * (1 - (abs(peak_pair.mass_accuracy()) / error_tolerance) ** 4)
-    n = self._get_internal_size(self.target.glycan_composition)
+    n = self._get_internal_size(target.glycan_composition)
     k = 2.0
     d = max(n * log(n) / k, n)
     core_coverage = ((len(core_matches) * 1.0) / len(core_fragments)) ** core_weight
     extended_coverage = min(float(len(core_matches) + len(extended_matches)) / d, 1.0) ** coverage_weight
     score = total * core_coverage * extended_coverage
-    self._glycan_coverage = core_coverage * extended_coverage
+    glycan_prior = 0.0
+    self._glycan_coverage = glycan_coverage = core_coverage * extended_coverage
+    if glycan_coverage > 0:
+        glycan_prior = target.glycan_prior
+        score += glycan_coverage * glycan_prior
     if isnan(score):
         return 0
     return score

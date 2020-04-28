@@ -73,6 +73,8 @@ class LogIntensityScorer(SignatureAwareCoverageScorer, MassAccuracyMixin):
         extended_coverage = min(float(len(core_matches) + len(extended_matches)) / d, 1.0) ** coverage_weight
         score = total * core_coverage * extended_coverage
         self._glycan_coverage = core_coverage * extended_coverage
+        glycan_prior = self.target.glycan_prior
+        score += self._glycan_coverage * glycan_prior
         if np.isnan(score):
             return 0
         return score

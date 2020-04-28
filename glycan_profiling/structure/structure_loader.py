@@ -196,6 +196,12 @@ class NamedPeptideProteinRelation(PeptideProteinRelation):
                 coords = self.protein_id == other.protein_id
         return coords
 
+
+# Add a new default attribute value to the parent class so all future instances
+# of the parent class (and all sub-classes) have a fallback value.
+PeptideSequence.glycan_prior = 0.0
+
+
 class FragmentCachingGlycopeptide(PeptideSequence):
     def __init__(self, *args, **kwargs):
         kwargs.setdefault('parser_function', hashable_glycan_glycopeptide_parser)
@@ -203,6 +209,7 @@ class FragmentCachingGlycopeptide(PeptideSequence):
         self.fragment_caches = {}
         self.protein_relation = None
         self.id = None
+        self.glycan_prior = 0.0
 
     def __reduce__(self):
         return self.__class__, (str(self), ), self.__getstate__()
@@ -211,11 +218,13 @@ class FragmentCachingGlycopeptide(PeptideSequence):
         state = {}
         state['protein_relation'] = self.protein_relation
         state['id'] = self.id
+        state['glycan_prior'] = self.glycan_prior
         return state
 
     def __setstate__(self, state):
         self.protein_relation = state['protein_relation']
         self.id = state['id']
+        self.glycan_prior = state.get('glycan_prior', 0.0)
 
     def __eq__(self, other):
         try:

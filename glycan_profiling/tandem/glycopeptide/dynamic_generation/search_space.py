@@ -476,26 +476,28 @@ class CompoundGlycopeptideSearch(object):
 
 
 class Record(object):
-    __slots__ = ('glycopeptide', 'id', 'total_mass')
+    __slots__ = ('glycopeptide', 'id', 'total_mass', 'glycan_prior')
 
     def __init__(self, glycopeptide=None):
         if glycopeptide is not None:
             self.glycopeptide = str(glycopeptide)
             self.id = glycopeptide.id
             self.total_mass = glycopeptide.total_mass
+            self.glycan_prior = glycopeptide.glycan_prior
         else:
             self.glycopeptide = ''
             self.id = None
             self.total_mass = 0
+            self.glycan_prior = 0.0
 
     def __repr__(self):
         return "Record(%s)" % self.glycopeptide
 
     def __getstate__(self):
-        return (self.glycopeptide, self.id, self.total_mass)
+        return (self.glycopeptide, self.id, self.total_mass, self.glycan_prior)
 
     def __setstate__(self, state):
-        self.glycopeptide, self.id, self.total_mass = state
+        self.glycopeptide, self.id, self.total_mass, self.glycan_prior = state
 
     def __eq__(self, other):
         if other is None:
@@ -514,6 +516,7 @@ class Record(object):
         else:
             structure = FragmentCachingGlycopeptide(self.glycopeptide)
         structure.id = self.id
+        structure.glycan_prior = self.glycan_prior
         return structure
 
     def serialize(self):
@@ -585,6 +588,7 @@ def serialize_workload(workload_manager, pretty_print=True):
         el = etree.SubElement(sm, 'structure')
         el.attrib.update({k: str(v) for k, v in rec.id.as_dict().items()})
         el.attrib['total_mass'] = str(rec.total_mass)
+        el.attrib['glycan_prior'] = str(rec.glycan_prior)
         el.text = rec.glycopeptide
         for scan in scans:
             etree.SubElement(
@@ -605,8 +609,10 @@ def deserialize_workload(buff, scan_loader):
         glycopeptide_record_tag = scan_mapping[0]
         attrib = glycopeptide_record_tag.attrib
         mass = float(attrib.pop("total_mass", 0))
+        glycan_prior = float(attrib.pop("glycan_prior", 0))
         rec = Record()
         rec.glycopeptide = glycopeptide_record_tag.text
+        rec.glycan_prior = glycan_prior
         rec.total_mass = mass
         rec.id = glycopeptide_key_t(
             int(attrib['start_position']), int(attrib['end_position']), int(attrib['peptide_id']),
