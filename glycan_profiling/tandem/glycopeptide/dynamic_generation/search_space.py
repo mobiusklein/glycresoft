@@ -23,7 +23,8 @@ from glycan_profiling.task import LoggingMixin
 from glycan_profiling.chromatogram_tree import Unmodified
 
 from glycan_profiling.structure.lru import LRUMapping
-from glycan_profiling.structure import (FragmentCachingGlycopeptide, DecoyFragmentCachingGlycopeptide)
+from glycan_profiling.structure import (
+    FragmentCachingGlycopeptide, DecoyFragmentCachingGlycopeptide, PeptideProteinRelation)
 
 from glycan_profiling.database import intervals
 from glycan_profiling.database.mass_collection import NeutralMassDatabase, SearchableMassCollection
@@ -92,7 +93,7 @@ class glycopeptide_key_t(_glycopeptide_key_t):
 
 class GlycoformGeneratorBase(LoggingMixin):
     @classmethod
-    def from_hypothesis(cls, session, hypothesis_id):
+    def from_hypothesis(cls, session, hypothesis_id, **kwargs):
         """Build a glycan combination index from a :class:`~.GlycanHypothesis`
 
         Parameters
@@ -107,7 +108,7 @@ class GlycoformGeneratorBase(LoggingMixin):
         :class:`GlycoformGeneratorBase`
         """
         glycan_combinations = GlycanCombinationRecord.from_hypothesis(session, hypothesis_id)
-        return cls(glycan_combinations)
+        return cls(glycan_combinations, **kwargs)
 
     def __init__(self, glycan_combinations, cache_size=None, default_structure_type=TT, *args, **kwargs):
         if not isinstance(glycan_combinations, SearchableMassCollection):
@@ -122,6 +123,7 @@ class GlycoformGeneratorBase(LoggingMixin):
         self._cache_hit = 0
         self._cache_miss = 0
         self.default_structure_type = default_structure_type
+        self.glycan_prior_model = kwargs.get("glycan_prior_model")
         super(GlycoformGeneratorBase, self).__init__(*args, **kwargs)
 
     def handle_glycan_combination(self, peptide_obj, peptide_record, glycan_combination,
@@ -131,6 +133,8 @@ class GlycoformGeneratorBase(LoggingMixin):
             self._cache_hit += 1
             return self._peptide_cache[key]
         self._cache_miss += 1
+        protein_relation = PeptideProteinRelation(
+            key.start_position, key.end_position, key.protein_id, key.hypothesis_id)
         glycosylation_sites_unoccupied = set(glycosylation_sites)
         for site in list(glycosylation_sites_unoccupied):
             if peptide_obj[site][1]:
@@ -143,6 +147,9 @@ class GlycoformGeneratorBase(LoggingMixin):
             glycoform.glycan = glycan_combination.composition.clone()
             for site in site_set:
                 glycoform.add_modification(site, core_type.name)
+            glycoform.protein_relation = protein_relation
+            if self.glycan_prior_model is not None:
+                glycoform.glycan_prior = self.glycan_prior_model.score(glycoform, key.structure_type)
             result_set[i] = glycoform
         result_set = Record.build(result_set)
         self._peptide_cache[key] = result_set
