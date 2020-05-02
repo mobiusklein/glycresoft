@@ -436,7 +436,8 @@ class GlycanChromatogramAnalyzer(TaskBase):
 
     def load_msms(self, peak_loader):
         prec_info = peak_loader.precursor_information()
-        msms_scans = [o.product for o in prec_info]
+        msms_scans = [
+            o.product for o in prec_info if o.neutral_mass is not None]
         return msms_scans
 
     def make_database(self):
@@ -633,7 +634,8 @@ class MzMLGlycanChromatogramAnalyzer(GlycanChromatogramAnalyzer):
 
     def load_msms(self, peak_loader):
         prec_info = peak_loader.precursor_information()
-        msms_scans = [ScanStub(o, peak_loader) for o in prec_info]
+        msms_scans = [ScanStub(o, peak_loader)
+                      for o in prec_info if o.neutral_mass is not None]
         return msms_scans
 
     def save_solutions(self, solutions, extractor, database, evaluator):
@@ -736,7 +738,7 @@ class GlycopeptideLCMSMSAnalyzer(TaskBase):
 
     def load_msms(self, peak_loader):
         prec_info = peak_loader.precursor_information()
-        msms_scans = [o.product for o in prec_info]
+        msms_scans = [o.product for o in prec_info if o.neutral_mass is not None]
         return msms_scans
 
     def make_search_engine(self, msms_scans, database, peak_loader):
@@ -1011,7 +1013,7 @@ class MzMLGlycopeptideLCMSMSAnalyzer(GlycopeptideLCMSMSAnalyzer):
 
     def load_msms(self, peak_loader):
         prec_info = peak_loader.precursor_information()
-        msms_scans = [ScanStub(o, peak_loader) for o in prec_info]
+        msms_scans = [ScanStub(o, peak_loader) for o in prec_info if o.neutral_mass is not None]
         return msms_scans
 
     def _build_analysis_saved_parameters(self, identified_glycopeptides, unassigned_chromatograms,
