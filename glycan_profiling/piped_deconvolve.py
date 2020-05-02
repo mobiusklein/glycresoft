@@ -93,7 +93,8 @@ class ScanIDYieldingProcess(Process):
         return batch, scan_ids
 
     def run(self):
-        self.loader = MSFileLoader(self.ms_file_path, huge_tree=huge_tree)
+        self.loader = MSFileLoader(
+            self.ms_file_path, huge_tree=huge_tree, decode_binary=False)
 
         if self.start_scan is not None:
             try:
@@ -316,29 +317,28 @@ class ScanTransformingProcess(Process, ScanTransformMixin):
         if scan is not None:
             if len(scan.arrays[0]) == 0:
                 self.skip_scan(scan)
-                return
-
-            try:
-                scan, priorities, product_scans = transformer.process_scan_group(
-                    scan, product_scans)
-                if scan is None:
-                    # no way to report skip
-                    pass
-                else:
-                    if self.verbose:
-                        self.log_message("Handling Precursor Scan %r with %d peaks" % (scan.id, len(scan.peak_set)))
-                    if self.deconvolute:
-                        transformer.deconvolute_precursor_scan(scan, priorities)
-                    self.send_scan(scan)
-            except NoIsotopicClustersError as e:
-                self.log_message("No isotopic clusters were extracted from scan %s (%r)" % (
-                    e.scan_id, len(scan.peak_set)))
-                self.skip_scan(scan)
-            except EmptyScanError as e:
-                self.skip_scan(scan)
-            except Exception as e:
-                self.skip_scan(scan)
-                self.log_error(e, scan_id, scan, (product_scan_ids))
+            else:
+                try:
+                    scan, priorities, product_scans = transformer.process_scan_group(
+                        scan, product_scans)
+                    if scan is None:
+                        # no way to report skip
+                        pass
+                    else:
+                        if self.verbose:
+                            self.log_message("Handling Precursor Scan %r with %d peaks" % (scan.id, len(scan.peak_set)))
+                        if self.deconvolute:
+                            transformer.deconvolute_precursor_scan(scan, priorities)
+                        self.send_scan(scan)
+                except NoIsotopicClustersError as e:
+                    self.log_message("No isotopic clusters were extracted from scan %s (%r)" % (
+                        e.scan_id, len(scan.peak_set)))
+                    self.skip_scan(scan)
+                except EmptyScanError as e:
+                    self.skip_scan(scan)
+                except Exception as e:
+                    self.skip_scan(scan)
+                    self.log_error(e, scan_id, scan, (product_scan_ids))
 
         for product_scan in product_scans:
             # no way to report skip
@@ -371,7 +371,8 @@ class ScanTransformingProcess(Process, ScanTransformMixin):
                                product_scan, (product_scan_ids))
 
     def run(self):
-        loader = MSFileLoader(self.mzml_path, huge_tree=huge_tree)
+        loader = MSFileLoader(
+            self.mzml_path, huge_tree=huge_tree, decode_binary=False)
         queued_loader = ScanBunchLoader(loader)
 
         has_input = True
@@ -823,7 +824,7 @@ class ScanGenerator(TaskBase, ScanGeneratorBase):
             self.error("An error occurred while pre-indexing.", e)
 
     def _make_interval_tree(self, start_scan, end_scan):
-        reader = MSFileLoader(self.ms_file)
+        reader = MSFileLoader(self.ms_file, decode_binary=False)
         if start_scan is not None:
             start_ix = reader.get_scan_by_id(start_scan).index
         else:
