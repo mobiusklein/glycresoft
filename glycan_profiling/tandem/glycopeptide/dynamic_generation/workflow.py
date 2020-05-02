@@ -210,6 +210,7 @@ class MultipartGlycopeptideIdentifier(TaskBase):
 
         glycan_prior_model = None
         if self.glycosylation_site_models_path is not None:
+            self.log("Loading glycosylation site scoring models from %r" % self.glycosylation_site_models_path)
             glycan_prior_model = GlycoproteomePriorAnnotator.load(
                 self.target_peptide_db.session,
                 self.decoy_peptide_db.session,
