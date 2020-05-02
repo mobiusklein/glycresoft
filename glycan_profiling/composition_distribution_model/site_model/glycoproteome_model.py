@@ -11,8 +11,8 @@ from glycan_profiling.structure import LRUMapping
 
 from glycan_profiling.tandem.spectrum_match import SpectrumMatchClassification as StructureClassification
 
-from .glycosite_model import MINIMUM, to_decoy_glycan, parse_glycan_composition
-from .glycoprotein_model import GlycoproteinSiteSpecificGlycomeModel
+from .glycosite_model import MINIMUM, to_decoy_glycan, parse_glycan_composition, GlycosylationSiteModel
+from .glycoprotein_model import GlycoproteinSiteSpecificGlycomeModel, ReversedProteinSiteReflectionGlycoproteinSiteSpecificGlycomeModel
 
 
 class GlycoproteomeModelBase(object):
@@ -52,7 +52,7 @@ class GlycoproteomeModel(GlycoproteomeModelBase):
         if glycopeptide.protein_relation is None:
             return None
         protein_id = glycopeptide.protein_relation.protein_id
-        glycoprotein_model = self.glycoprotein_models[protein_id]
+        glycoprotein_model = self.glycoprotein_models.get(protein_id)
         return glycoprotein_model
 
     def score(self, glycopeptide, glycan_composition=None):
@@ -123,6 +123,15 @@ class SubstringGlycoproteomeModel(GlycoproteomeModelBase):
 
 
 class GlycoproteomePriorAnnotator(object):
+    @classmethod
+    def load(cls, target_session, decoy_session, fh, hypothesis_id=1, fuzzy=True):
+        site_models = GlycosylationSiteModel.load(fh)
+        target_model = GlycoproteomeModel.bind_to_hypothesis(target_session, site_models)
+        decoy_model = GlycoproteomeModel.bind_to_hypothesis(
+            decoy_session, site_models,
+            site_model_cls=ReversedProteinSiteReflectionGlycoproteinSiteSpecificGlycomeModel)
+        return cls(target_model, decoy_model)
+
     def __init__(self, target_model, decoy_model):
         self.target_model = target_model
         self.decoy_model = decoy_model

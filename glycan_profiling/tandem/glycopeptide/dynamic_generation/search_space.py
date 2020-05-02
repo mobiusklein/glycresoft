@@ -26,6 +26,8 @@ from glycan_profiling.structure.lru import LRUMapping
 from glycan_profiling.structure import (
     FragmentCachingGlycopeptide, DecoyFragmentCachingGlycopeptide, PeptideProteinRelation)
 
+from glycan_profiling.composition_distribution_model.site_model import (
+    GlycoproteomePriorAnnotator)
 from glycan_profiling.database import intervals
 from glycan_profiling.database.mass_collection import NeutralMassDatabase, SearchableMassCollection
 from glycan_profiling.database.builder.glycopeptide.common import limiting_combinations

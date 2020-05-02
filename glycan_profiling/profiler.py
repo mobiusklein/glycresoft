@@ -1166,7 +1166,7 @@ class MultipartGlycopeptideLCMSMSAnalyzer(MzMLGlycopeptideLCMSMSAnalyzer):
                  n_processes=5, spectrum_batch_size=1000,
                  maximum_mass=float('inf'), probing_range_for_missing_precursors=3,
                  trust_precursor_fits=True, use_memory_database=True,
-                 fdr_estimation_strategy=None):
+                 fdr_estimation_strategy=None, glycosylation_site_models_path=None):
         if tandem_scoring_model == CoverageWeightedBinomialScorer:
             tandem_scoring_model = CoverageWeightedBinomialModelTree
         if fdr_estimation_strategy is None:
@@ -1184,6 +1184,7 @@ class MultipartGlycopeptideLCMSMSAnalyzer(MzMLGlycopeptideLCMSMSAnalyzer):
         self.use_memory_database = use_memory_database
         self.decoy_hypothesis_id = decoy_hypothesis_id
         self.fdr_estimation_strategy = fdr_estimation_strategy
+        self.glycosylation_site_models_path = glycosylation_site_models_path
 
     @property
     def target_hypothesis_id(self):
@@ -1223,7 +1224,8 @@ class MultipartGlycopeptideLCMSMSAnalyzer(MzMLGlycopeptideLCMSMSAnalyzer):
             file_manager=self.file_manager,
             probing_range_for_missing_precursors=self.probing_range_for_missing_precursors,
             trust_precursor_fits=self.trust_precursor_fits,
-            fdr_estimation_strategy=self.fdr_estimation_strategy)
+            fdr_estimation_strategy=self.fdr_estimation_strategy,
+            glycosylation_site_models_path=self.glycosylation_site_models_path)
         return searcher
 
     def estimate_fdr(self, searcher, target_decoy_set):

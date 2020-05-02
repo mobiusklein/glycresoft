@@ -17,6 +17,8 @@ from glycan_profiling.structure import ScanStub
 from glycan_profiling.database import disk_backed_database, mass_collection
 from glycan_profiling.structure.structure_loader import PeptideDatabaseRecord
 from glycan_profiling.structure.scan import ScanInformationLoader
+from glycan_profiling.composition_distribution_model.site_model import (
+    GlycoproteomePriorAnnotator)
 
 from glycan_profiling.chromatogram_tree.chromatogram import GlycopeptideChromatogram
 from ...chromatogram_mapping import ChromatogramMSMSMapper
@@ -125,7 +127,8 @@ class MultipartGlycopeptideIdentifier(TaskBase):
                  evaluation_kwargs=None, ipc_manager=None, file_manager=None,
                  probing_range_for_missing_precursors=3, trust_precursor_fits=True,
                  glycan_score_threshold=1.0, peptide_masses_per_scan=100,
-                 fdr_estimation_strategy=None, **kwargs):
+                 fdr_estimation_strategy=None, glycosylation_site_models_path=None,
+                 ** kwargs):
         if fdr_estimation_strategy is None:
             fdr_estimation_strategy = GlycopeptideFDREstimationStrategy.multipart_gamma_gaussian_mixture
         if scorer_type is None:
@@ -177,6 +180,8 @@ class MultipartGlycopeptideIdentifier(TaskBase):
         self.file_manager = file_manager
         self.journal_path = self.file_manager.get('glycopeptide-match-journal')
 
+        self.glycosylation_site_models_path = glycosylation_site_models_path
+
     @classmethod
     def build_default_disk_backed_db_wrapper(cls, path, **kwargs):
         peptide_db = make_disk_backed_peptide_database(path, **kwargs)
@@ -203,9 +208,17 @@ class MultipartGlycopeptideIdentifier(TaskBase):
         else:
             min_fragments = 0
 
+        glycan_prior_model = None
+        if self.glycosylation_site_models_path is not None:
+            glycan_prior_model = GlycoproteomePriorAnnotator.load(
+                self.target_peptide_db.session,
+                self.decoy_peptide_db.session,
+                open(self.glycosylation_site_models_path, 'rt'))
+
         generator = PeptideGlycosylator(
             self.target_peptide_db, glycan_combinations,
-            default_structure_type=StructureClassification.target_peptide_target_glycan)
+            default_structure_type=StructureClassification.target_peptide_target_glycan,
+            glycan_prior_model=glycan_prior_model)
         target_predictive_search = PredictiveGlycopeptideSearch(
             generator, product_error_tolerance=self.product_error_tolerance,
             glycan_score_threshold=self.glycan_score_threshold, min_fragments=min_fragments,
@@ -215,7 +228,8 @@ class MultipartGlycopeptideIdentifier(TaskBase):
 
         generator = PeptideGlycosylator(
             self.decoy_peptide_db, glycan_combinations,
-            default_structure_type=StructureClassification.decoy_peptide_target_glycan)
+            default_structure_type=StructureClassification.decoy_peptide_target_glycan,
+            glycan_prior_model=glycan_prior_model)
         decoy_predictive_search = PredictiveGlycopeptideSearch(
             generator, product_error_tolerance=self.product_error_tolerance,
             glycan_score_threshold=self.glycan_score_threshold, min_fragments=min_fragments,
