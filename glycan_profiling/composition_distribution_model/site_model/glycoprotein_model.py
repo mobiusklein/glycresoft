@@ -17,6 +17,14 @@ from .glycosite_model import MINIMUM, GlycosylationSiteModel
 ProteinStub = namedtuple("ProteinStub", ("name", ))
 
 
+def _make_name_suffix_lookup(proteins):
+    tree = SuffixTree()
+    for prot in proteins:
+        name = prot.name
+        tree.add_ngram(DeflineSuffix(name, name))
+    return tree
+
+
 class GlycoproteinSiteSpecificGlycomeModel(object):
     def __init__(self, protein, glycosylation_sites=None):
         self.protein = protein
@@ -100,23 +108,24 @@ class GlycoproteinSiteSpecificGlycomeModel(object):
         proteins = session.query(serialize.Protein).filter(
             serialize.Protein.hypothesis_id == hypothesis_id).all()
         protein_name_map = {prot.name: prot for prot in proteins}
-        if fuzzy:
-            tree = SuffixTree()
-            for prot in proteins:
-                tree.add_ngram(DeflineSuffix(prot.name, prot.name))
-
+        # if fuzzy:
+        #     tree = SuffixTree()
+        #     for prot in proteins:
+        #         tree.add_ngram(DeflineSuffix(prot.name, prot.name))
+        tree = None
         for protein_name, sites in by_protein_name.items():
-            if fuzzy:
-                labels = list(tree.subsequences_of(protein_name))
-                if not labels:
+            try:
+                protein = protein_name_map[protein_name]
+            except KeyError:
+                if fuzzy:
+                    if tree is None:
+                        tree = _make_name_suffix_lookup(proteins)
+                    labels = list(tree.subsequences_of(protein_name))
+                    if not labels:
+                        continue
+                    protein = protein_name_map[labels[0].original]
+                else:
                     continue
-                protein = protein_name_map[labels[0].original]
-            else:
-                try:
-                    protein = protein_name_map[protein_name]
-                except KeyError:
-                    continue
-
             model = cls(protein, sites)
             protein_models[model.id] = model
         return protein_models
