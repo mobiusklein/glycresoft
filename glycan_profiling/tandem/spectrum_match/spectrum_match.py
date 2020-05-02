@@ -16,6 +16,8 @@ from glycan_profiling.tandem.ref import TargetReference, SpectrumReference
 
 neutron_offset = isotopic_shift()
 
+LowCID = activation.dissociation_methods['low-energy collision-induced dissociation']
+
 
 class SpectrumMatchBase(ScanWrapperBase):
     """A base class for spectrum matches, a scored pairing between a structure
@@ -187,6 +189,7 @@ class SpectrumMatchBase(ScanWrapperBase):
             else:
                 result = activation_info.has_dissociation_type(activation.HCD) or\
                     activation_info.has_dissociation_type(activation.CID) or\
+                    activation_info.has_dissociation_type(LowCID) or\
                     activation_info.has_dissociation_type(activation.UnknownDissociation)
             annotations['is_hcd'] = result
         return result

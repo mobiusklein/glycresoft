@@ -170,7 +170,8 @@ class SignatureAwareCoverageScorer(SimpleCoverageScorer, GlycanCompositionSignat
 
         is_hcd = self.is_hcd()
         is_exd = self.is_exd()
-
+        if not is_hcd and not is_exd:
+            is_hcd = True
         # handle glycan fragments from collisional dissociation
         if is_hcd:
             self._match_oxonium_ions(error_tolerance, masked_peaks=masked_peaks)

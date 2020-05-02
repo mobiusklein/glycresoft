@@ -59,6 +59,8 @@ class PeptideSpectrumMatcherBase(SpectrumMatcherBase):
         include_neutral_losses = kwargs.get("include_neutral_losses", False)
         is_hcd = self.is_hcd()
         is_exd = self.is_exd()
+        if not is_hcd and not is_exd:
+            is_hcd = True
 
         self._match_precursor(error_tolerance, masked_peaks, include_neutral_losses)
 
