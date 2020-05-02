@@ -450,6 +450,15 @@ class InMemoryPeptideStructureDatabase(NeutralMassDatabase):
     def query(self, *args, **kwargs):
         return self.source_database.query(*args, **kwargs)
 
+    @property
+    def peptides(self):
+        return self.source_database.peptides
+
+    @property
+    def proteins(self):
+        return self.source_database.proteins
+
+
 
 class LazyLoadingGlycopeptideDiskBackedStructureDatabase(GlycopeptideDiskBackedStructureDatabase):
     fields = [
@@ -597,6 +606,8 @@ class PeptideDiskBackedStructureDatabase(DeclarativeDiskBackedDatabase):
             connection, hypothesis_id, cache_size, loading_interval,
             threshold_cache_total_count)
         self._convert_cache = CachingPeptideParser()
+        self.peptides = PeptideIndex(self.session, self.hypothesis_id)
+        self.proteins = ProteinIndex(self.session, self.hypothesis_id)
 
     # This should exist, but it conflicts with other conversion mechanisms
     # def _convert(self, bundle):

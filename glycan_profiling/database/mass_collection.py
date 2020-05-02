@@ -508,6 +508,8 @@ class SearchableMassCollectionWrapper(SearchableMassCollection):
     def reset(self, **kwargs):
         return self.searchable_mass_collection.reset(**kwargs)
 
+    # Fake the disk-backed interface
+
     @property
     def session(self):
         return self.searchable_mass_collection.session
@@ -522,6 +524,17 @@ class SearchableMassCollectionWrapper(SearchableMassCollection):
 
     def __len__(self):
         return len(self.searchable_mass_collection)
+
+    @property
+    def peptides(self):
+        return self.searchable_mass_collection.peptides
+
+    @property
+    def proteins(self):
+        return self.searchable_mass_collection.proteins
+
+    def query(self, *args, **kwargs):
+        return self.searchable_mass_collection.query(*args, **kwargs)
 
 
 class TransformingMassCollectionAdapter(SearchableMassCollectionWrapper):
@@ -607,20 +620,3 @@ class MassCollectionProxy(SearchableMassCollectionWrapper):
 
     def search_between(self, lower, higher):
         return self.searchable_mass_collection.search_between(lower, higher)
-
-    # Fake the disk-backed interface
-
-    @property
-    def hypothesis(self):
-        return self.searchable_mass_collection.hypothesis
-
-    @property
-    def hypothesis_id(self):
-        return self.searchable_mass_collection.hypothesis_id
-
-    @property
-    def session(self):
-        return self.searchable_mass_collection.session
-
-    def query(self, *args, **kwargs):
-        return self.searchable_mass_collection.query(*args, **kwargs)
