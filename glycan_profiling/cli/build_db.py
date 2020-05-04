@@ -220,9 +220,10 @@ def glycopeptide_hypothesis_common_options(cmd):
               help='Peptide modification rule which will be applied variablely')
 @click.option("-y", "--semispecific-digest", is_flag=True, help=(
     "Apply a semispecific enzyme digest permitting one peptide terminal to be non-specific"))
-@click.option("--reverse", default=False, is_flag=True, help='Reverse protein sequences', cls=HiddenOption)
+@click.option("-R", "--reverse", default=False, is_flag=True, help='Reverse protein sequences')
 @click.option("--dry-run", default=False, is_flag=True, help="Do not save glycopeptides", cls=HiddenOption)
-@click.option("-F", "--not-full-crossproduct", is_flag=True, help="Do not produce full crossproduct", cls=HiddenOption)
+@click.option("-F", "--not-full-crossproduct", is_flag=True, help=(
+    "Do not produce full crossproduct. For when the search space is too large to enumerate, store, and load."))
 def glycopeptide_fa(context, fasta_file, database_connection, enzyme, missed_cleavages, occupied_glycosites, name,
                     constant_modification, variable_modification, processes, glycan_source, glycan_source_type,
                     glycan_source_identifier=None, semispecific_digest=False, reverse=False, dry_run=False,

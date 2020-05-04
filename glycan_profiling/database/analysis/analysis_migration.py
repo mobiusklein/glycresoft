@@ -130,7 +130,11 @@ class SampleMigrator(DatabaseBoundOperation, TaskBase):
         return peak_id
 
     def migrate_precursor_information(self, prec_info):
-        prec_id = self.scan_id(prec_info.precursor)
+        try:
+            prec_id = self.scan_id(prec_info.precursor)
+        except KeyError as err:
+            prec_id = None
+            self.log("Unable to locate precursor scan with ID %r" % (err , ))
         prod_id = self.scan_id(prec_info.product)
         new_info = PrecursorInformation(
             sample_run_id=self.sample_run_id,
@@ -452,7 +456,10 @@ class GlycopeptideMSMSAnalysisSerializer(AnalysisMigrationBase):
         scans = []
         for scan_id in scan_ids:
             if scan_id is not None:
-                scans.append(self.chromatogram_extractor.get_scan_header_by_id(scan_id))
+                try:
+                    scans.append(self.chromatogram_extractor.get_scan_header_by_id(scan_id))
+                except KeyError:
+                    self.log("Could not locate scan for ID %r" % (scan_id, ))
         return sorted(scans, key=lambda x: (x.ms_level, x.index))
 
     def _get_glycan_combination_for_glycopeptide(self, glycopeptide_id):

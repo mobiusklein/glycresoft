@@ -128,9 +128,11 @@ def sample_path_arg(fn):
               help=("Path to write resulting analysis to."))
 @click.option("-w", "--workload-size", default=500, type=int, help="Number of spectra to process at once")
 @click.option("--save-intermediate-results", default=None, type=click.Path(), required=False,
-              help='Save intermediate spectrum matches to a file', cls=HiddenOption)
-@click.option("--maximum-mass", default=float('inf'), type=float, cls=HiddenOption)
-@click.option("-D", "--decoy-database-connection", default=None, cls=HiddenOption)
+              help='Save intermediate spectrum matches to a file')
+@click.option("--maximum-mass", default=float('inf'), type=float)
+@click.option("-D", "--decoy-database-connection", default=None, help=(
+    "Provide an alternative hypothesis to draw decoy glycopeptides from instead of the simpler reversed-peptide "
+    "decoy. This is especially necessary when the stub peptide+Y ions account for a large fraction of MS2 signal."))
 @click.option("--fdr-correction", default='auto', type=GlycopeptideFDRParam(),
               help=("Whether to attempt to correct for small sample size for target-decoy analysis."),
               cls=HiddenOption)
