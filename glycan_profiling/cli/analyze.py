@@ -427,6 +427,7 @@ def search_glycopeptide_multipart(context, database_connection, decoy_database_c
 
 @analyze.command("fit-glycoproteome-smoothing-model", short_help=(
     "Fit a site-specific glycome network smoothing model for each site in the glycoproteome"))
+@click.pass_context
 @processes_option
 @click.option("-i", "--analysis-path", nargs=2, multiple=True, required=True)
 @click.option("-o", "--output-path", type=click.Path(writable=True), required=True)
