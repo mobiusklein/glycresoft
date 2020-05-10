@@ -441,7 +441,7 @@ def search_glycopeptide_multipart(context, database_connection, decoy_database_c
                   "Require a glycan/glycosite combination be observed in multiple samples to treat it as real."
                   " Defaults to True."))
 def fit_glycoproteome_model(context, analysis_path, output_path, glycopeptide_hypothesis, glycan_hypothesis,
-                            n_processes=4, unobserved_penalty_scale=None, smoothing_limit=0.2,
+                            processes=4, unobserved_penalty_scale=None, smoothing_limit=0.2,
                             require_multiple_observations=True):
     analysis_path_set = analysis_path
     analysis_path_set_transformed = []
@@ -479,7 +479,7 @@ def fit_glycoproteome_model(context, analysis_path, output_path, glycopeptide_hy
     workflow = site_model.GlycoproteinSiteModelBuildingWorkflow.from_paths(
         analysis_path_set, glycopeptide_database_connection_path, glycopeptide_hypothesis.id,
         glycan_database_connection_path, glycan_hypothesis.id, unobserved_penalty_scale, smoothing_limit,
-        require_multiple_observations, output_path=output_path, n_threads=n_processes)
+        require_multiple_observations, output_path=output_path, n_threads=processes)
     workflow.start()
 
 
