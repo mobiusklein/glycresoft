@@ -57,15 +57,18 @@ def monosaccharide_to_term(monosaccharide):
 
 
 substituent_map = {
-    "Sulpho": "sulfate",
-    "Phospho": "phosphate",
-    "Methyl": "methyl",
-    # "Acetyl": "acetyl",
+    "S": "sulfate",
+    "P": "phosphate",
+    # "Me": "methyl",
+    # "Ac": "acetyl",
 }
 
 inverted_substituent_map = {
     v: k for k, v in substituent_map.items()
 }
+
+substituent_map['Sulpho'] = "sulfate"
+substituent_map['Phospho'] = "phosphate"
 
 
 def mparam(name, value=None, accession=None, cvRef="PSI-MS", **kwargs):
