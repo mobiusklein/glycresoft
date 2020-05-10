@@ -8,7 +8,8 @@ import click
 from glycan_profiling.serialize import (
     DatabaseBoundOperation,
     GlycanHypothesis,
-    GlycopeptideHypothesis)
+    GlycopeptideHypothesis,
+    Analysis)
 
 from glycan_profiling.profiler import (
     MzMLGlycopeptideLCMSMSAnalyzer,
@@ -20,6 +21,7 @@ from glycan_profiling.profiler import (
     ProcessedMzMLDeserializer,
     ChromatogramSummarizer)
 
+from glycan_profiling.composition_distribution_model import site_model
 from glycan_profiling.scoring.elution_time_grouping import GlycopeptideChromatogramProxy, GlycopeptideElutionTimeModeler
 from glycan_profiling.tandem.glycopeptide.scoring import CoverageWeightedBinomialScorer
 from glycan_profiling.composition_distribution_model import GridPointSolution
@@ -420,6 +422,64 @@ def search_glycopeptide_multipart(context, database_connection, decoy_database_c
                     analysis_identifier=analyzer.analysis_id,
                     output_path=export_path,
                     report=True)
+
+
+
+@analyze.command("build-glycoproteome-smoothing-model")
+@processes_option
+@click.option("-i", "--analysis-path", nargs=2, multiple=True, required=True)
+@click.option("-o", "--output-path", type=click.Path(writable=True), required=True)
+@click.option("-p", "--glycopeptide-hypothesis", type=(DatabaseConnectionParam(exists=True), str))
+@click.option("-g", "--glycan-hypothesis", type=(DatabaseConnectionParam(exists=True), str))
+@click.option("-u", "--unobserved-penalty-scale", type=float, default=1.0, required=False,
+              help="A penalty to scale unobserved-but-suggested glycans by. Defaults to 1.0, no penalty.")
+@click.option("-a", "--smoothing-limit", type=float, default=0.2,
+              help="An upper bound on the network smoothness to use when estimating the posterior probability.")
+@click.option("-r", "--require-multiple-observations/--no-require-multiple-observations", is_flag=True, default=True,
+              help=(
+                  "Require a glycan/glycosite combination be observed in multiple samples to treat it as real."
+                  " Defaults to True."))
+def build_glycoproteome_model(context, analysis_path, output_path, glycopeptide_hypothesis, glycan_hypothesis,
+                              n_processes=4, unobserved_penalty_scale=None, smoothing_limit=0.2,
+                              require_multiple_observations=True):
+    analysis_path_set = analysis_path
+    analysis_path_set_transformed = []
+    for analysis_path, analysis_id in analysis_path_set:
+        database_connection = DatabaseBoundOperation(analysis_path)
+        try:
+            analysis = get_by_name_or_id(database_connection, Analysis, analysis_id)
+        except Exception:
+            click.secho("Could not locate an Analysis in %r with identifier %r" %
+                        (analysis_path, analysis_id), fg='yellow')
+            raise click.Abort()
+        analysis_path_set_transformed.append((analysis_path, analysis.id))
+    analysis_path_set = analysis_path_set_transformed
+
+    glycopeptide_database_connection_path, hypothesis_identifier = glycopeptide_hypothesis
+    glycopeptide_database_connection = DatabaseBoundOperation(glycopeptide_database_connection_path)
+    try:
+        glycopeptide_hypothesis = get_by_name_or_id(
+            glycopeptide_database_connection, GlycopeptideHypothesis, hypothesis_identifier)
+    except Exception:
+        click.secho("Could not locate a Glycopeptide Hypothesis with identifier %r" %
+                    hypothesis_identifier, fg='yellow')
+        raise click.Abort()
+    glycan_database_connection_path, hypothesis_identifier = glycan_hypothesis
+    glycan_database_connection = DatabaseBoundOperation(
+        glycan_database_connection_path)
+    try:
+        glycan_hypothesis = get_by_name_or_id(
+            glycan_database_connection, GlycanHypothesis, hypothesis_identifier)
+    except Exception:
+        click.secho("Could not locate a Glycopeptide Hypothesis with identifier %r" %
+                    hypothesis_identifier, fg='yellow')
+        raise click.Abort()
+
+    workflow = site_model.GlycoproteinSiteModelBuildingWorkflow.from_paths(
+        analysis_path_set, glycopeptide_database_connection_path, glycopeptide_hypothesis.id,
+        glycan_database_connection_path, glycan_hypothesis.id, unobserved_penalty_scale, smoothing_limit,
+        require_multiple_observations, output_path=output_path, n_threads=n_processes)
+    workflow.start()
 
 
 class RegularizationParameterType(click.ParamType):
