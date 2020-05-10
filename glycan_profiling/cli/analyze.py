@@ -425,7 +425,8 @@ def search_glycopeptide_multipart(context, database_connection, decoy_database_c
 
 
 
-@analyze.command("build-glycoproteome-smoothing-model")
+@analyze.command("fit-glycoproteome-smoothing-model", short_help=(
+    "Fit a site-specific glycome network smoothing model for each site in the glycoproteome"))
 @processes_option
 @click.option("-i", "--analysis-path", nargs=2, multiple=True, required=True)
 @click.option("-o", "--output-path", type=click.Path(writable=True), required=True)
@@ -439,9 +440,9 @@ def search_glycopeptide_multipart(context, database_connection, decoy_database_c
               help=(
                   "Require a glycan/glycosite combination be observed in multiple samples to treat it as real."
                   " Defaults to True."))
-def build_glycoproteome_model(context, analysis_path, output_path, glycopeptide_hypothesis, glycan_hypothesis,
-                              n_processes=4, unobserved_penalty_scale=None, smoothing_limit=0.2,
-                              require_multiple_observations=True):
+def fit_glycoproteome_model(context, analysis_path, output_path, glycopeptide_hypothesis, glycan_hypothesis,
+                            n_processes=4, unobserved_penalty_scale=None, smoothing_limit=0.2,
+                            require_multiple_observations=True):
     analysis_path_set = analysis_path
     analysis_path_set_transformed = []
     for analysis_path, analysis_id in analysis_path_set:
