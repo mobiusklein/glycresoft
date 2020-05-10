@@ -635,9 +635,12 @@ class GlycanFilteringPeptideMassEstimator(GlycanCoarseScorerBase):
         score = self._calculate_score(glycan_match)
         return score, glycan_match
 
-    def match(self, scan, mass_shift=Unmodified):
+    def match(self, scan, mass_shift=Unmodified, query_mass=None):
         output = []
-        intact_mass = scan.precursor_information.neutral_mass
+        if query_mass is None:
+            intact_mass = scan.precursor_information.neutral_mass
+        else:
+            intact_mass = query_mass
         threshold_mass = (intact_mass + 1) - self.minimum_peptide_mass
         last_peptide_mass = 0
         for glycan_combination in self.glycan_combination_db:

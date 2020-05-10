@@ -497,7 +497,7 @@ cpdef double score_getter(object x):
 
 @cython.boundscheck(False)
 @cython.binding(True)
-cpdef GlycanFilteringPeptideMassEstimator_match(GlycanCoarseScorerBase self, scan, MassShiftBase mass_shift=Unmodified):
+cpdef GlycanFilteringPeptideMassEstimator_match(GlycanCoarseScorerBase self, scan, MassShiftBase mass_shift=Unmodified, query_mass=None):
     cdef:
         list output, glycan_combination_db
         double intact_mass, threshold_mass, last_peptide_mass, peptide_mass
@@ -509,7 +509,10 @@ cpdef GlycanFilteringPeptideMassEstimator_match(GlycanCoarseScorerBase self, sca
         CoarseGlycanMatch best_match, match
 
     output = []
-    intact_mass = scan.precursor_information.neutral_mass
+    if query_mass is None:
+        intact_mass = scan.precursor_information.neutral_mass
+    else:
+        intact_mass = query_mass
     threshold_mass = (intact_mass + 1) - self.minimum_peptide_mass
     last_peptide_mass = 0
     glycan_combination_db = self.glycan_combination_db

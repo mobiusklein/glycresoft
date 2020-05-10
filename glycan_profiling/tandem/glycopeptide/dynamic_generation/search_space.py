@@ -125,7 +125,7 @@ class GlycoformGeneratorBase(LoggingMixin):
         self._cache_hit = 0
         self._cache_miss = 0
         self.default_structure_type = default_structure_type
-        self.glycan_prior_model = kwargs.pop("glycan_prior_model")
+        self.glycan_prior_model = kwargs.pop("glycan_prior_model", None)
         super(GlycoformGeneratorBase, self).__init__(*args, **kwargs)
 
     def handle_glycan_combination(self, peptide_obj, peptide_record, glycan_combination,
