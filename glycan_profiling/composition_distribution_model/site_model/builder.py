@@ -680,6 +680,7 @@ class MultiprocessingGlycoproteinSiteModelBuildingWorkflow(GlycoproteinSiteModel
     def _fit_glycoprotein_site_models(self, glycoproteins, builder):
         self.builder = builder
         feeder_thread = Thread(target=self.feed_queue, args=(glycoproteins, builder))
+        feeder_thread.daemon = True
         feeder_thread.start()
         self.make_workers()
         n_sites = self.count_glycosites(glycoproteins)

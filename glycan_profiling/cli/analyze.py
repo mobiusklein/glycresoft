@@ -431,7 +431,7 @@ def search_glycopeptide_multipart(context, database_connection, decoy_database_c
 @processes_option
 @click.option("-i", "--analysis-path", nargs=2, multiple=True, required=True)
 @click.option("-o", "--output-path", type=click.Path(writable=True), required=True)
-@click.option("-p", "--glycopeptide-hypothesis", type=(DatabaseConnectionParam(exists=True), str))
+@click.option("-P", "--glycopeptide-hypothesis", type=(DatabaseConnectionParam(exists=True), str))
 @click.option("-g", "--glycan-hypothesis", type=(DatabaseConnectionParam(exists=True), str))
 @click.option("-u", "--unobserved-penalty-scale", type=float, default=1.0, required=False,
               help="A penalty to scale unobserved-but-suggested glycans by. Defaults to 1.0, no penalty.")
