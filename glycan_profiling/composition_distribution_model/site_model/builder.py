@@ -619,7 +619,7 @@ class MultiprocessingGlycoproteinSiteModelBuildingWorkflow(GlycoproteinSiteModel
         self.n_workers = n_threads
         self.workers = []
         self._has_remote_error = False
-        self.log_controller = self.ipc_logger()
+        self.ipc_manager = self.ipc_logger()
 
     def prepare_glycoprotein_for_dispatch(self, glycoprotein, builder):
         prepared = builder.prepare_glycoprotein(glycoprotein)
@@ -644,7 +644,7 @@ class MultiprocessingGlycoproteinSiteModelBuildingWorkflow(GlycoproteinSiteModel
         for _i in range(self.n_workers):
             worker = GlycositeModelBuildingProcess(
                 self.builder, self.input_queue, self.output_queue,
-                self.input_done_event, Event(), self.log_controller.sender())
+                self.input_done_event, Event(), self.ipc_manager.sender())
             self.workers.append(worker)
             worker.start()
 
@@ -742,7 +742,7 @@ class MultiprocessingGlycoproteinSiteModelBuildingWorkflow(GlycoproteinSiteModel
                             input_queue_size, is_feeder_done))
                 continue
         self.clear_pool()
-        self.log_controller.stop()
+        self.ipc_manager.stop()
         feeder_thread.join()
         dispatcher_end = time.time()
         self.log("... Dispatcher Finished (%0.3g sec.)" %
