@@ -209,7 +209,7 @@ else:
 _srcfile = os.path.normcase(currentframe.__code__.co_filename)
 
 
-def find_caller(self):
+def find_caller(self, stack_info=False):
     f = currentframe()
     # On some versions of IronPython, currentframe() returns None if
     # IronPython isn't run with -X:Frames.
