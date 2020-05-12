@@ -640,6 +640,20 @@ class MultiprocessingGlycoproteinSiteModelBuildingWorkflow(GlycoproteinSiteModel
                 self.input_queue.join()
         self.input_done_event.set()
 
+    def _handle_local(self, glycoproteins, builder, seen):
+        for glycoprotein in glycoproteins:
+            prepared = self.prepare_glycoprotein_for_dispatch(
+                glycoprotein, builder)
+            for records, site, protein_stub in prepared:
+                key = (protein_stub.name, site)
+                if key in seen:
+                    continue
+                else:
+                    seen[key] = -1
+                    model = builder.fit_site_model(records, site, protein_stub)
+                    if model is not None:
+                        self.builder.site_models.append(model)
+
     def make_workers(self):
         for _i in range(self.n_workers):
             worker = GlycositeModelBuildingProcess(
@@ -725,6 +739,9 @@ class MultiprocessingGlycoproteinSiteModelBuildingWorkflow(GlycoproteinSiteModel
                             for worker in self.workers:
                                 self.debug("......... %r" % (worker,))
                             self.debug("...... IPC Manager: %r" % (self.ipc_manager,))
+                        if strikes > 1000:
+                            self.log("Too much time has elapsed waiting for final results, finishing locally.")
+                            self._handle_local(glycoproteins, builder, seen)
                 else:
                     strikes += 1
                     if strikes % 50 == 0:
@@ -740,6 +757,9 @@ class MultiprocessingGlycoproteinSiteModelBuildingWorkflow(GlycoproteinSiteModel
                         is_feeder_done = self.producer_thread_done_event.is_set()
                         self.log("...... Input Queue Status: %r. Is Feeder Done? %r" % (
                             input_queue_size, is_feeder_done))
+                    if strikes > 1000:
+                        self.log("Too much time has elapsed waiting for workers, finishing locally.")
+                        self._handle_local(glycoproteins, builder, seen)
                 continue
         self.clear_pool()
         self.ipc_manager.stop()
