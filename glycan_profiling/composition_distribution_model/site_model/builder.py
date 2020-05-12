@@ -636,7 +636,7 @@ class MultiprocessingGlycoproteinSiteModelBuildingWorkflow(GlycoproteinSiteModel
             for work_item in prepared:
                 i_site += 1
                 self.input_queue.put(work_item)
-            if i_site % 10 == 0 and i_site != 0:
+            if i_site % 50 == 0 and i_site != 0:
                 self.input_queue.join()
         self.input_done_event.set()
 
