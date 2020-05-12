@@ -128,7 +128,7 @@ class IntervalSet(object):
         if hi == 0:
             return 0, False
         while hi != lo:
-            mid = (hi + lo) / 2
+            mid = (hi + lo) // 2
             x = self[mid]
             err = x.center - mass
             if abs(err) <= 1e-9:
@@ -191,7 +191,7 @@ class IntervalSet(object):
         lo = 0
         n = hi = len(self)
         while hi != lo:
-            mid = (hi + lo) / 2
+            mid = (hi + lo) // 2
             x = self[mid]
             err = x.center - query.center
             if err == 0 or x.contains_interval(query):

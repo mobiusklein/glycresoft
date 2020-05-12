@@ -508,7 +508,7 @@ class DatabaseScanDeserializer(ScanDeserializerBase, DatabaseBoundOperation):
             hi = len(indices)
 
             while lo != hi:
-                mid = (lo + hi) / 2
+                mid = (lo + hi) // 2
                 x = indices[mid]
                 if x == start:
                     i = mid
@@ -558,7 +558,7 @@ class DatabaseScanDeserializer(ScanDeserializerBase, DatabaseBoundOperation):
             hi = len(times)
 
             while lo != hi:
-                mid = (lo + hi) / 2
+                mid = (lo + hi) // 2
                 x = times[mid]
                 if x == rt:
                     i = mid
