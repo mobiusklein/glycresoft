@@ -57,6 +57,7 @@ from glycan_profiling.database.composition_network import (
     CompositionRuleClassifier,
     CompositionExpressionRule, make_n_glycan_neighborhoods)
 
+from glycopeptidepy.enzyme import enzyme_rules
 from glycopeptidepy.utils.collectiontools import decoratordict
 from glycopeptidepy.structure.modification import RestrictedModificationTable
 
@@ -211,7 +212,11 @@ def glycopeptide_hypothesis_common_options(cmd):
     "A file containing protein sequences in FASTA format"))
 @database_connection
 @click.option("-e", "--enzyme", default=['trypsin'], multiple=True,
-              help='The proteolytic enzyme to use during digestion')
+              help=(
+                  'The proteolytic enzyme to use during digestion. May be specified multiple'
+                  ' times, generating a co-digestion. May specify an enzyme name or a regular'
+                  ' expression describing the cleavage pattern. Recognized enzyme names are: ' +
+                  ', '.join(sorted(enzyme_rules))))
 @click.option("-m", "--missed-cleavages", type=int, default=1,
               help="The number of missed proteolytic cleavage sites permitted")
 @click.option("-c", "--constant-modification", multiple=True,
