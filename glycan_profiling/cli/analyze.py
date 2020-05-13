@@ -437,10 +437,10 @@ def search_glycopeptide_multipart(context, database_connection, decoy_database_c
               help="A penalty to scale unobserved-but-suggested glycans by. Defaults to 1.0, no penalty.")
 @click.option("-a", "--smoothing-limit", type=float, default=0.2,
               help="An upper bound on the network smoothness to use when estimating the posterior probability.")
-@click.option("-r", "--require-multiple-observations/--no-require-multiple-observations", is_flag=True, default=True,
+@click.option("-r", "--require-multiple-observations/--no-require-multiple-observations", is_flag=True, default=False,
               help=(
                   "Require a glycan/glycosite combination be observed in multiple samples to treat it as real."
-                  " Defaults to True."))
+                  " Defaults to False."))
 def fit_glycoproteome_model(context, analysis_path, output_path, glycopeptide_hypothesis, glycan_hypothesis,
                             processes=4, unobserved_penalty_scale=None, smoothing_limit=0.2,
                             require_multiple_observations=True):
