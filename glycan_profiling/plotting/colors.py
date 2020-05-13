@@ -58,7 +58,7 @@ class ColorMapper(object):
         try:
             return self.color_name_map[name]
         except KeyError:
-            o = self.color_name_map[name] = self.color_generator.next()
+            o = self.color_name_map[name] = next(self.color_generator)
             return o
 
     __getitem__ = get_color
