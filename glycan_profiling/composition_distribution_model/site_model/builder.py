@@ -218,8 +218,7 @@ class GlycosylationSiteModelBuilder(TaskBase):
                 ', '.join(["%0.2f" % f for f in sorted(
                     [r.score for r in value])])
             ))
-        with self._lock:
-            self.log('\n'.join(log_buffer))
+        self.log('\n'.join(log_buffer))
 
         fitted_network, search_result, params = smooth_network(
             self.network, learnable_cases,
@@ -229,12 +228,11 @@ class GlycosylationSiteModelBuilder(TaskBase):
         if params is None:
             self.log("Skipping Site %d of %s" %
                      (site, _truncate_name(glycoprotein.name)))
-            return
-        with self._lock:
-            self.log("... Site %d of %s Lambda: %f" %
-                     (site, _truncate_name(glycoprotein.name), params.lmbda,))
-            display_table([x.name for x in self.network.neighborhoods],
-                          np.array(params.tau).reshape((-1, 1)))
+            return None
+        self.log("... Site %d of %s Lambda: %f" %
+                 (site, _truncate_name(glycoprotein.name), params.lmbda,))
+        display_table([x.name for x in self.network.neighborhoods],
+                        np.array(params.tau).reshape((-1, 1)))
         updated_params = params.clone()
         updated_params.lmbda = min(self.lambda_limit, params.lmbda)
         self.log("... Projecting Solution Onto Network for Site %d of %s" %
@@ -256,8 +254,7 @@ class GlycosylationSiteModelBuilder(TaskBase):
             site_distribution,
             updated_params.lmbda,
             glycan_map)
-        with self._lock:
-            self.site_models.append(site_model.pack())
+        self.site_models.append(site_model.pack())
         return site_model
 
     def save_models(self, path):
