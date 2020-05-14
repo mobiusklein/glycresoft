@@ -173,6 +173,13 @@ class LoggingMixin(object):
         LoggingMixin.debug_print_fn = logger.debug
         LoggingMixin.error_print_fn = logger.error
 
+    @classmethod
+    def log_to_stdout(cls):
+        cls.logger_state = None
+        cls.print_fn = printer
+        cls.debug_print_fn = debug_printer
+        cls.error_print_fn = printer
+
     def log(self, *message):
         self.print_fn(u', '.join(map(ensure_text, message)))
 
