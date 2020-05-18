@@ -1,6 +1,12 @@
 import os
 import re
 import traceback
+
+try:
+    import cPickle as pickle
+except ImportError:
+    import pickle
+
 from functools import partial
 
 import click
@@ -335,6 +341,12 @@ def validate_glycopeptide_tandem_scoring_function(context, name):
     try:
         return glycopeptide_tandem_scoring_functions[name]
     except KeyError:
+        # Custom scorer loading
+        if name.startswith("model://"):
+            path = name[8:]
+            with open(path, 'rb') as fh:
+                scorer = pickle.load(fh)
+                return scorer
         raise click.Abort("Could not recognize scoring function by name %r" % (name,))
 
 
