@@ -359,6 +359,9 @@ class GlycositeModelBuildingProcess(Process):
         new_name = getattr(self, 'process_name', None)
         if new_name is not None:
             TaskBase().try_set_process_name(new_name)
+        # The task might actually use the same logger from different threads
+        # which causes a deadlock. This "fixes" that. by writing directly to STDOUT
+        # at the cost of not being able to write to file instead.
         TaskBase.log_to_stdout()
         try:
             self.task()
