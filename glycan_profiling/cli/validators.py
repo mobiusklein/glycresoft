@@ -347,7 +347,8 @@ def validate_glycopeptide_tandem_scoring_function(context, name):
             with open(path, 'rb') as fh:
                 scorer = pickle.load(fh)
                 return scorer
-        raise click.Abort("Could not recognize scoring function by name %r" % (name,))
+        else:
+            raise click.Abort("Could not recognize scoring function by name %r" % (name,))
 
 
 def get_by_name_or_id(session, model_type, name_or_id):
