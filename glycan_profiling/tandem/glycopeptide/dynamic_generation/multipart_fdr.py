@@ -27,6 +27,7 @@ from glycan_profiling.tandem.spectrum_match import SpectrumMatch
 from glycan_profiling.tandem.glycopeptide.core_search import approximate_internal_size_of_glycan
 
 from .mixture import GammaMixture, GaussianMixtureWithPriorComponent
+from .journal import SolutionSetGrouper
 
 
 def noop(*args, **kwargs):
@@ -320,3 +321,6 @@ class GlycopeptideFDREstimator(TaskBase):
         if self.strategy == GlycopeptideFDREstimationStrategy.multipart_gamma_gaussian_mixture:
             self.fit_glycopeptide_fdr()
         return self.fit_total_fdr()
+
+    def pack(self):
+        self.grouper = SolutionSetGrouper([])

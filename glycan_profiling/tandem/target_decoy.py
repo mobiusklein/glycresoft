@@ -324,6 +324,10 @@ class TargetDecoyAnalyzer(object):
         self._calculate_thresholds()
         self._q_value_map = self.calculate_q_values()
 
+    def pack(self):
+        self.target_series = []
+        self.decoy_series = []
+
     def _calculate_thresholds(self):
         self.n_targets_at = {}
         self.n_decoys_at = {}
@@ -487,6 +491,13 @@ class GroupwiseTargetDecoyAnalyzer(object):
             self.add_group(fn)
 
         self.partition()
+
+    def pack(self):
+        self.target_series = []
+        self.decoy_series = []
+        self.groups = [[] for g in self.groups]
+        for fit in self.group_fits:
+            fit.pack()
 
     def partition(self):
         for target in self.target_series:
