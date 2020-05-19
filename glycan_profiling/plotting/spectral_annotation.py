@@ -48,11 +48,9 @@ class SpectrumMatchAnnotator(object):
         if peak.charge > 1:
             label += "$^{%d}$" % peak.charge
         y = peak.intensity
-        upshift_scale = round(np.log10(self.upper))
-        if upshift_scale > 2:
-            upshift = 100
-        else:
-            upshift = 10
+        upshift = 100
+        if upshift > y:
+            upshift = 0.1 * y
         y = min(y + upshift, self.upper * 0.9)
 
         kw.setdefault("clip_on", self.clip_labels)
