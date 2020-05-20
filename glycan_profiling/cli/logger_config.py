@@ -1,13 +1,18 @@
-import sys
-import logging
-import warnings
-import codecs
-import uuid
-from stat import S_IRUSR, S_IWUSR, S_IXUSR, S_IRGRP, S_IWGRP, S_IROTH, S_IWOTH
+import io
 import os
+import sys
+import uuid
+import codecs
+import logging
 from logging import FileHandler
+import warnings
+import traceback
 import multiprocessing
 from multiprocessing import current_process
+
+from six import PY2
+
+from stat import S_IRUSR, S_IWUSR, S_IXUSR, S_IRGRP, S_IWGRP, S_IROTH, S_IWOTH
 
 from glycan_profiling import task
 from glycan_profiling.config import config_file
@@ -209,24 +214,41 @@ else:
 _srcfile = os.path.normcase(currentframe.__code__.co_filename)
 
 
-def find_caller(self, stack_info=False):
+def find_caller(self, stack_info=False, stacklevel=1):
     f = currentframe()
     # On some versions of IronPython, currentframe() returns None if
     # IronPython isn't run with -X:Frames.
-    if f is not None:
+    orig_f = f
+    stacklevel += 1
+    while f and stacklevel > 1:
         f = f.f_back
-        if f is not None:
-            f = f.f_back
+        stacklevel -= 1
+    if not f:
+        f = orig_f
     rv = "(unknown file)", 0, "(unknown function)"
+    sinfo = None
+    i = 0
     while hasattr(f, "f_code"):
+        i += 1
         co = f.f_code
         filename = os.path.normcase(co.co_filename)
         if filename == _srcfile:
             f = f.f_back
             continue
+        sinfo = None
+        if stack_info:
+            sio = io.StringIO()
+            sio.write('Stack (most recent call last):\n')
+            traceback.print_stack(f, file=sio)
+            sinfo = sio.getvalue()
+            if sinfo[-1] == '\n':
+                sinfo = sinfo[:-1]
+            sio.close()
         rv = (os.path.splitext(os.path.basename(co.co_filename))[0].ljust(13)[:13],
               f.f_lineno, co.co_name.ljust(5)[:5])
         break
+    if not PY2:
+        rv += (sinfo, )
     return rv
 
 
