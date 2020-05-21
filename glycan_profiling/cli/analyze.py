@@ -42,7 +42,7 @@ from .validators import (
     ms1_model_features,
     RelativeMassErrorParam,
     DatabaseConnectionParam,
-    GlycopeptideFDRParam)
+    GlycopeptideFDRParam, ChoiceOrURI)
 
 
 def make_analysis_output_path(prefix):
@@ -112,7 +112,7 @@ def sample_path_arg(fn):
 @click.option("-q", "--psm-fdr-threshold", default=0.05, type=float,
               help='Minimum FDR Threshold to use for filtering GPSMs when selecting identified glycopeptides')
 @click.option("-s", "--tandem-scoring-model", default='coverage_weighted_binomial',
-              type=click.Choice(glycopeptide_tandem_scoring_functions.keys()),
+              type=ChoiceOrURI(glycopeptide_tandem_scoring_functions.keys()),
               help="Select a scoring function to use for evaluating glycopeptide-spectrum matches")
 @click.option("-x", "--oxonium-threshold", default=0.05, type=float,
               help=('Minimum HexNAc-derived oxonium ion abundance '
@@ -290,7 +290,7 @@ def search_glycopeptide(context, database_connection, sample_path, hypothesis_id
 @click.option("-f", "--fdr-estimation-strategy", type=click.Choice(['multipart', 'peptide', 'glycan']),
               default='multipart', help="The FDR estimation strategy to use.")
 @click.option("-s", "--tandem-scoring-model", default='log_intensity',
-              type=click.Choice(["log_intensity", "simple"]),
+              type=ChoiceOrURI(["log_intensity", "simple"]),
               help="Select a scoring function to use for evaluating glycopeptide-spectrum matches")
 @click.option("-y", "--glycan-score-threshold", default=1.0, type=float,
               help="The minimum glycan score required to consider a peptide mass")

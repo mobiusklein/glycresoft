@@ -344,11 +344,57 @@ def validate_glycopeptide_tandem_scoring_function(context, name):
         # Custom scorer loading
         if name.startswith("model://"):
             path = name[8:]
+            if not os.path.exists(path):
+                raise click.Abort("Model file at \"%s\" does not exist." % (path, ))
             with open(path, 'rb') as fh:
                 scorer = pickle.load(fh)
                 return scorer
         else:
             raise click.Abort("Could not recognize scoring function by name %r" % (name,))
+
+
+class ChoiceOrURI(click.Choice):
+    def get_metavar(self, param):
+        return "[%s|model://path]" % ('|'.join(self.choices), )
+
+    def get_missing_message(self, param):
+        choice_str = ",\n\t".join(self.choices)
+        return "Choose from:\n\t%s\nor specify a model://path" % choice_str
+
+    def convert(self, value, param, ctx):
+        # Match through normalization and case sensitivity
+        # first do token_normalize_func, then lowercase
+        # preserve original `value` to produce an accurate message in
+        # `self.fail`
+        normed_value = value
+        normed_choices = {choice: choice for choice in self.choices}
+
+        if ctx is not None and ctx.token_normalize_func is not None:
+            normed_value = ctx.token_normalize_func(value)
+            normed_choices = {
+                ctx.token_normalize_func(normed_choice): original
+                for normed_choice, original in normed_choices.items()
+            }
+
+        if not self.case_sensitive:
+            normed_value = normed_value.casefold()
+            normed_choices = {
+                normed_choice.casefold(): original
+                for normed_choice, original in normed_choices.items()
+            }
+
+        if normed_value in normed_choices:
+            return normed_choices[normed_value]
+
+        if value.startswith("model://"):
+            return value
+
+        self.fail(
+            "invalid value: {value}. (choose from {choices} or specify a \"model://path\")".format(
+                value=value, choices=', '.join(self.choices)),
+            param,
+            ctx,
+        )
 
 
 def get_by_name_or_id(session, model_type, name_or_id):
