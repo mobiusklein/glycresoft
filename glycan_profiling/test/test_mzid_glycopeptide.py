@@ -17,7 +17,7 @@ MZID_PATH = fixtures.get_test_data("AGP_Proteomics2.mzid")
 class MzIdGlycopeptideTests(unittest.TestCase):
 
     def setup_tempfile(self, source):
-        file_name = tempfile.mktemp()
+        file_name = tempfile.mktemp() + '.tmp'
         open(file_name, 'w').write(source)
         return file_name
 

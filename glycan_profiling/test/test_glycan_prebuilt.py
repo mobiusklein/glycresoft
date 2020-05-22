@@ -9,7 +9,7 @@ from glycan_profiling.database.prebuilt import biosynthesis_human_n_linked
 
 class GlycanCombinatoricsTests(unittest.TestCase):
     def setup_tempfile(self):
-        file_name = tempfile.mktemp()
+        file_name = tempfile.mktemp() + '.tmp'
         open(file_name, 'w').write('')
         return file_name
 

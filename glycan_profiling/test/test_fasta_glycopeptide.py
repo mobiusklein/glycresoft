@@ -120,7 +120,7 @@ constant_modifications = [mt[c] for c in constant_modifications]
 class FastaGlycopeptideTests(unittest.TestCase):
 
     def setup_tempfile(self, source):
-        file_name = tempfile.mktemp()
+        file_name = tempfile.mktemp() + '.tmp'
         open(file_name, 'w').write(source)
         return file_name
 

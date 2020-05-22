@@ -7,7 +7,7 @@ from glycan_profiling.database.builder.glycopeptide.common import GlycopeptideHy
 
 class GlycanCombinatoricsTests(unittest.TestCase):
     def setup_tempfile(self):
-        file_name = tempfile.mktemp()
+        file_name = tempfile.mktemp() + '.tmp'
         open(file_name, 'w').write(FILE_SOURCE)
         return file_name
 

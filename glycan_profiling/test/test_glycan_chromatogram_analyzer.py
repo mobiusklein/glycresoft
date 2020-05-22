@@ -18,7 +18,7 @@ agp_glycomics_mzml = fixtures.get_test_data(
 class GlycanProfilerConsumerTest(unittest.TestCase):
 
     def setup_tempfile(self, content):
-        file_name = tempfile.mktemp()
+        file_name = tempfile.mktemp() + '.tmp'
         open(file_name, 'w').write(content)
         return file_name
 
