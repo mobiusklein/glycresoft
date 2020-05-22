@@ -6,11 +6,11 @@ dev:
 
 
 test:
-	py.test -v  glycan_profiling --cov=glycan_profiling --cov-report=html -s
+	py.test -v  glycan_profiling --cov=glycan_profiling --cov-report=html -s -l -ra
 
 
 retest:
-	py.test -v  glycan_profiling --lf
+	py.test -v  glycan_profiling --lf -l -ra
 
 
 clean:

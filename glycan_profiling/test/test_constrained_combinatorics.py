@@ -48,6 +48,7 @@ class GlycanCombinatoricsTests(unittest.TestCase):
 
     def setup_tempfile(self):
         file_name = tempfile.mktemp()
+        file_name += '.tmp'
         open(file_name, 'w').write(FILE_SOURCE)
         return file_name
 
