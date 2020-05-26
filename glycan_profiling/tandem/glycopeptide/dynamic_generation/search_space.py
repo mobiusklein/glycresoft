@@ -613,7 +613,8 @@ def serialize_workload(workload_manager, pretty_print=True):
 def deserialize_workload(buff, scan_loader):
     wm = WorkloadManager()
     buff = _decompress(buff)
-    tree = etree.fromstring(buff)
+    xml_parser = etree.XMLParser(huge_tree=True)
+    tree = etree.fromstring(buff, parser=xml_parser)
     for scan_mapping in tree:
         glycopeptide_record_tag = scan_mapping[0]
         attrib = glycopeptide_record_tag.attrib
