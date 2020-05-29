@@ -308,6 +308,8 @@ def search_glycopeptide(context, database_connection, sample_path, hypothesis_id
 @click.option("--maximum-mass", default=float('inf'), type=float, cls=HiddenOption)
 @click.option("--isotope-probing-range", type=int, default=3, help=(
     "The maximum number of isotopic peak errors to allow when searching for untrusted precursor masses"))
+@click.option("-S", "--glycoproteome-smoothing-model", type=click.Path(readable=True), help=(
+    "Path to a glycoproteome site-specific glycome model"), default=None)
 def search_glycopeptide_multipart(context, database_connection, decoy_database_connection, sample_path,
                                   target_hypothesis_identifier=1, decoy_hypothesis_identifier=1,
                                   analysis_name=None, output_path=None, grouping_error_tolerance=1.5e-5,
@@ -315,7 +317,8 @@ def search_glycopeptide_multipart(context, database_connection, decoy_database_c
                                   peak_shape_scoring_model=None, tandem_scoring_model=None, glycan_score_threshold=1.0,
                                   memory_database_index=False, save_intermediate_results=None, processes=4,
                                   workload_size=500, mass_shifts=None, export=None, maximum_mass=float('inf'),
-                                  isotope_probing_range=3, fdr_estimation_strategy=None):
+                                  isotope_probing_range=3, fdr_estimation_strategy=None,
+                                  glycoproteome_smoothing_model=None):
     if output_path is None:
         output_path = make_analysis_output_path("glycopeptide")
     if fdr_estimation_strategy is None:
@@ -383,7 +386,8 @@ def search_glycopeptide_multipart(context, database_connection, decoy_database_c
         maximum_mass=maximum_mass,
         probing_range_for_missing_precursors=isotope_probing_range,
         use_memory_database=memory_database_index,
-        fdr_estimation_strategy=fdr_estimation_strategy)
+        fdr_estimation_strategy=fdr_estimation_strategy,
+        glycosylation_site_models_path=glycoproteome_smoothing_model)
     analyzer.display_header()
     result = analyzer.start()
     gps, unassigned, target_decoy_set = result[:3]

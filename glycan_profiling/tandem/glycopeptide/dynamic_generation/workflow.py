@@ -96,9 +96,7 @@ class PeptideDatabaseProxyLoader(object):
     def __call__(self):
         db = disk_backed_database.PeptideDiskBackedStructureDatabase(
             self.path, hypothesis_id=self.hypothesis_id)
-        peptides = map(
-            PeptideDatabaseRecord.from_record,
-            db)
+        peptides = [PeptideDatabaseRecord.from_record(r) for r in db]
         if self.n_glycan and self.o_glycan:
             peptides = [
                 rec for rec in peptides
