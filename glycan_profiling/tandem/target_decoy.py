@@ -335,7 +335,8 @@ class TargetDecoyAnalyzer(object):
         target_series = self.targets
         decoy_series = self.decoys
 
-        thresholds = sorted({case.score for case in target_series} | {case.score for case in decoy_series})
+        thresholds = np.array(sorted({case.score for case in target_series} |
+                                     {case.score for case in decoy_series}), dtype=float)
         self.thresholds = thresholds
         if len(thresholds) > 0:
             self.n_targets_at = ScoreThresholdCounter(

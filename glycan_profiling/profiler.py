@@ -1185,6 +1185,8 @@ class MultipartGlycopeptideLCMSMSAnalyzer(MzMLGlycopeptideLCMSMSAnalyzer):
         self.decoy_hypothesis_id = decoy_hypothesis_id
         self.fdr_estimation_strategy = fdr_estimation_strategy
         self.glycosylation_site_models_path = glycosylation_site_models_path
+        self.fdr_estimator = None
+        self.precursor_mass_error_distribution = None
 
     @property
     def target_hypothesis_id(self):
@@ -1247,7 +1249,8 @@ class MultipartGlycopeptideLCMSMSAnalyzer(MzMLGlycopeptideLCMSMSAnalyzer):
         Iterable of SpectrumMatch-like objects
         '''
         self.log("Estimating FDR")
-        self.estimate_fdr(searcher, target_decoy_set)
+        _groups, fdr_estimator = self.estimate_fdr(searcher, target_decoy_set)
+        self.fdr_estimator = fdr_estimator
         target_hits = target_decoy_set.target_matches
         n_below = 0
         for target in target_hits:
@@ -1273,5 +1276,6 @@ class MultipartGlycopeptideLCMSMSAnalyzer(MzMLGlycopeptideLCMSMSAnalyzer):
             "decoy_database": str(self.decoy_database_connection),
             "search_strategy": 'multipart-target-decoy-competition',
             "fdr_estimation_strategy": self.fdr_estimation_strategy,
+            "fdr_estimator": self.fdr_estimator
         })
         return result

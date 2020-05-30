@@ -367,7 +367,7 @@ class MultipartGlycopeptideIdentifier(TaskBase):
         estimator = GlycopeptideFDREstimator(
             glycopeptide_spectrum_match_groups, self.fdr_estimation_strategy)
         groups = estimator.start()
-        return groups
+        return groups, estimator
 
     def map_to_chromatograms(self, chromatograms, tandem_identifications,
                              precursor_error_tolerance=1e-5, threshold_fn=lambda x: x.q_value < 0.05,
