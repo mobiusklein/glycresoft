@@ -415,21 +415,30 @@ class GlycopeptideMSMSAnalysisSerializer(AnalysisMigrationBase):
         self._glycopeptide_hypothesis_migrator.migrate_hypothesis(
             self.glycopeptide_db.hypothesis)
 
+        self.log("... Migrating Glycans")
         glycan_compositions, glycan_combinations = self.fetch_glycan_compositions(
             self._glycopeptide_ids)
 
-        for gc in glycan_compositions:
+        for i, gc in enumerate(glycan_compositions):
+            if i % 1000 == 0 and i:
+                self.log("...... Migrating Glycan %d %s" % (i, gc))
             self._glycopeptide_hypothesis_migrator.migrate_glycan_composition(gc)
-        for gc in glycan_combinations:
+        for i, gc in enumerate(glycan_combinations):
+            if i % 1000 == 0 and i:
+                self.log("...... Migrating Glycan Combination %d %s" % (i, gc))
             self._glycopeptide_hypothesis_migrator.migrate_glycan_combination(gc)
 
+        self.log("... Migrating Proteins and Peptides")
         peptides = self.fetch_peptides(self._glycopeptide_ids)
         proteins = self.fetch_proteins(peptides)
-
-        for protein in proteins:
+        for i, protein in enumerate(proteins):
+            if i % 1000 == 0 and i:
+                self.log("...... Migrating Protein %d %s" % (i, protein.name))
             self._glycopeptide_hypothesis_migrator.migrate_protein(protein)
 
-        for peptide in peptides:
+        for i, peptide in enumerate(peptides):
+            if i % 1000 == 0 and i:
+                self.log("...... Migrating Peptide %d %s" % (i, str(peptide)))
             self._glycopeptide_hypothesis_migrator.migrate_peptide(peptide)
 
         peptides = []
