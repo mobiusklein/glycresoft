@@ -227,6 +227,30 @@ class SpectrumMatchBase(ScanWrapperBase):
             annotations['is_exd'] = result
         return result
 
+    def mz_range(self):
+        annotations = self.annotations
+        try:
+            result = annotations['mz_range']
+        except KeyError:
+            acquisition_info = self.scan.acquisition_information
+            if acquisition_info is None:
+                mz_range = (0, 1e6)
+            else:
+                lo = float('inf')
+                hi = 0
+                for event in acquisition_info:
+                    for window in event:
+                        lo = min(window.lower, lo)
+                        hi = max(window.upper, hi)
+                # No events/windows or an error
+                if hi < lo:
+                    mz_range = (0, 1e6)
+                else:
+                    mz_range = (lo, hi)
+            annotations['mz_range'] = mz_range
+            result = mz_range
+        return result
+
     def get_auxiliary_data(self):
         return {}
 
