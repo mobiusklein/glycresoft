@@ -40,6 +40,7 @@ def workload_grouping(chunks, max_scans_per_workload=500, starting_index=0):
 
 
 debug_mode = bool(os.environ.get("GLYCRESOFTDEBUG"))
+memory_debug = bool(os.environ.get("GLYCRESOFTDEBUGMEMORY"))
 
 
 class SpectrumBatcher(TaskExecutionSequence):
@@ -215,8 +216,16 @@ class MapperExecutor(TaskExecutionSequence):
 
     def run(self):
         has_work = True
+        if memory_debug:
+            from pympler import summary, muppy
+            start_point = summary.summarize(muppy.get_objects())
         while has_work:
             try:
+                if memory_debug:
+                    collected = summary.summarize(muppy.get_objects())
+                    diff = summary.get_diff(collected, start_point)
+                    summary.print_(diff)
+                    del collected
                 mapper_task = self.in_queue.get(True, 5)
                 matcher_task = self.execute_task(mapper_task)
                 self.out_queue.put(matcher_task)
