@@ -224,7 +224,7 @@ class MapperExecutor(TaskExecutionSequence):
                 if memory_debug:
                     collected = summary.summarize(muppy.get_objects())
                     diff = summary.get_diff(collected, start_point)
-                    summary.print_(diff)
+                    self.log('Memory Tracking\n' + '\n'.join(summary.format_(diff)))
                     del collected
                 mapper_task = self.in_queue.get(True, 5)
                 matcher_task = self.execute_task(mapper_task)
