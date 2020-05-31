@@ -127,6 +127,11 @@ class StructureMapper(TaskExecutionSequence):
             for scan in group:
                 scan.unbind()
 
+    def get_scan_source(self):
+        for group in self.chunk:
+            for scan in group:
+                return scan.source
+
     def _log_cache(self):
         predictive_search = self.predictive_search
         hits = predictive_search.peptide_glycosylator._cache_hit
@@ -229,6 +234,9 @@ class MapperExecutor(TaskExecutionSequence):
                 mapper_task = self.in_queue.get(True, 5)
                 matcher_task = self.execute_task(mapper_task)
                 self.out_queue.put(matcher_task)
+                source = mapper_task.get_scan_source()
+                mapper_task.unbind_scans()
+                source._dispose()
                 if memory_debug:
                     collected = summary.summarize(muppy.get_objects())
                     self.log('Post-task Memory Tracking\n' +
