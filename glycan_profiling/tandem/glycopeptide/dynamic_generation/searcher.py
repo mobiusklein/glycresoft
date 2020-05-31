@@ -221,14 +221,19 @@ class MapperExecutor(TaskExecutionSequence):
             start_point = summary.summarize(muppy.get_objects())
         while has_work:
             try:
-                if memory_debug:
-                    collected = summary.summarize(muppy.get_objects())
-                    diff = summary.get_diff(collected, start_point)
-                    self.log('Memory Tracking\n' + '\n'.join(summary.format_(diff)))
-                    del collected
+                # if memory_debug:
+                #     collected = summary.summarize(muppy.get_objects())
+                #     diff = summary.get_diff(collected, start_point)
+                #     self.log('Pre-task Memory Tracking\n' + '\n'.join(summary.format_(diff)))
+                #     del collected
                 mapper_task = self.in_queue.get(True, 5)
                 matcher_task = self.execute_task(mapper_task)
                 self.out_queue.put(matcher_task)
+                if memory_debug:
+                    collected = summary.summarize(muppy.get_objects())
+                    self.log('Post-task Memory Tracking\n' +
+                             '\n'.join(summary.format_(collected)))
+                    del collected
             except Empty:
                 if self.in_done_event.is_set():
                     has_work = False
