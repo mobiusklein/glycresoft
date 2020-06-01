@@ -1251,6 +1251,8 @@ class MultipartGlycopeptideLCMSMSAnalyzer(MzMLGlycopeptideLCMSMSAnalyzer):
         self.log("Estimating FDR")
         _groups, fdr_estimator = self.estimate_fdr(searcher, target_decoy_set)
         self.fdr_estimator = fdr_estimator
+        if self.fdr_estimator is not None:
+            self.fdr_estimator.pack()
         target_hits = target_decoy_set.target_matches
         n_below = 0
         for target in target_hits:
