@@ -245,4 +245,4 @@ class MassShiftCollection(object):
         try:
             return self.mass_shifts[i]
         except IndexError:
-            return self.mass_shifts[i]
+            return self.mass_shift_map[i]
