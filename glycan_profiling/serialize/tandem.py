@@ -139,7 +139,10 @@ class SolutionSetBase(object):
         return self.scan.scan_time
 
     def best_solution(self):
-        return sorted(self.spectrum_matches, key=lambda x: x.score, reverse=True)[0]
+        if not self.is_multiscore():
+            return sorted(self.spectrum_matches, key=lambda x: x.score, reverse=True)[0]
+        else:
+            return sorted(self.spectrum_matches, key=lambda x: (x.q_value, -x.score))[0]
 
     @property
     def score(self):
