@@ -212,13 +212,13 @@ class GlycosylationSiteModelBuilder(TaskBase):
         log_buffer = []
         log_buffer.append("... %d Glycan Compositions for Site %d of %s" % (
             len(acc), site, _truncate_name(glycoprotein.name, )))
-        for key, value in sorted(acc.items(), key=lambda x: x[0].mass()):
-            log_buffer.append("... %s: [%s]" % (
-                key,
-                ', '.join(["%0.2f" % f for f in sorted(
-                    [r.score for r in value])])
-            ))
-        self.log('\n'.join(log_buffer))
+        # for key, value in sorted(acc.items(), key=lambda x: x[0].mass()):
+        #     log_buffer.append("... %s: [%s]" % (
+        #         key,
+        #         ', '.join(["%0.2f" % f for f in sorted(
+        #             [r.score for r in value])])
+        #     ))
+        # self.log('\n'.join(log_buffer))
 
         fitted_network, search_result, params = smooth_network(
             self.network, learnable_cases,
@@ -637,8 +637,8 @@ class MultiprocessingGlycoproteinSiteModelBuildingWorkflow(GlycoproteinSiteModel
             for work_item in prepared:
                 i_site += 1
                 self.input_queue.put(work_item)
-            if i_site % 50 == 0 and i_site != 0:
-                self.input_queue.join()
+                if i_site % 50 == 0 and i_site != 0:
+                    self.input_queue.join()
         self.input_done_event.set()
 
     def _handle_local(self, glycoproteins, builder, seen):
@@ -680,13 +680,14 @@ class MultiprocessingGlycoproteinSiteModelBuildingWorkflow(GlycoproteinSiteModel
         """Check if all worker processes have finished.
         """
         worker_still_busy = False
+        assert self.workers
         for worker in self.workers:
             try:
                 is_done = worker.all_work_done()
                 if not is_done:
                     worker_still_busy = True
                     return worker_still_busy
-            except (RemoteError, KeyError):
+            except (RemoteError, KeyError) as err:
                 worker_still_busy = True
                 self._has_remote_error = True
                 return worker_still_busy
@@ -732,7 +733,7 @@ class MultiprocessingGlycoproteinSiteModelBuildingWorkflow(GlycoproteinSiteModel
                         has_work = False
                     else:
                         strikes += 1
-                        if strikes % 10 == 0:
+                        if strikes % 25 == 0:
                             self.log(
                                 "...... %d cycles without output (%d/%d, %0.2f%% Done)" % (
                                     strikes, len(seen), n_sites, len(seen) * 100. / n_sites))
@@ -740,7 +741,7 @@ class MultiprocessingGlycoproteinSiteModelBuildingWorkflow(GlycoproteinSiteModel
                             for worker in self.workers:
                                 self.debug("......... %r" % (worker,))
                             self.debug("...... IPC Manager: %r" % (self.ipc_manager,))
-                        if strikes > 15:
+                        if strikes > 1000:
                             self.log("Too much time has elapsed waiting for final results, finishing locally.")
                             self._handle_local(glycoproteins, builder, seen)
                 else:
