@@ -138,8 +138,9 @@ class FastaGlycopeptideHypothesisSerializer(GlycopeptideHypothesisSerializerBase
         index_toggler = toggle_indices(self.session, Peptide)
         index_toggler.drop()
         self.digest_proteins()
-        self.split_proteins()
+        self.log("Rebuilding Peptide Index")
         index_toggler.create()
+        self.split_proteins()
         self.log("Combinating Glycans")
         self.combinate_glycans(self.max_glycosylation_events)
         if self.full_cross_product:

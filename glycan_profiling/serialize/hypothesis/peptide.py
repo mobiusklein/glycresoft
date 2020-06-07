@@ -71,7 +71,7 @@ class Protein(Base, AminoAcidSequenceWrapperBase):
         if self._n_glycan_sequon_sites is None:
             sites = self.sites.filter(ProteinSite.name == ProteinSite.N_GLYCOSYLATION).all()
             if sites:
-                self._n_glycan_sequon_sites = [int(i) for i in sites]
+                self._n_glycan_sequon_sites = sorted([int(i) for i in sites])
             # else:
             #     try:
             #         self._n_glycan_sequon_sites = sequence.find_n_glycosylation_sequons(self._get_sequence())
@@ -88,7 +88,7 @@ class Protein(Base, AminoAcidSequenceWrapperBase):
         if self._o_glycan_sequon_sites is None:
             sites = self.sites.filter(ProteinSite.name == ProteinSite.O_GLYCOSYLATION).all()
             if sites:
-                self._o_glycan_sequon_sites = [int(i) for i in sites]
+                self._o_glycan_sequon_sites = sorted([int(i) for i in sites])
             else:
                 try:
                     self._o_glycan_sequon_sites = sequence.find_o_glycosylation_sequons(self._get_sequence())
@@ -103,7 +103,7 @@ class Protein(Base, AminoAcidSequenceWrapperBase):
         if self._glycosaminoglycan_sequon_sites is None:
             sites = self.sites.filter(ProteinSite.name == ProteinSite.GAGYLATION).all()
             if sites:
-                self._glycosaminoglycan_sequon_sites = [int(i) for i in sites]
+                self._glycosaminoglycan_sequon_sites = sorted([int(i) for i in sites])
             else:
                 try:
                     self._glycosaminoglycan_sequon_sites = sequence.find_glycosaminoglycan_sequons(

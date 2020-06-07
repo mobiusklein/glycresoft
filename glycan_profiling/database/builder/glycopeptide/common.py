@@ -412,6 +412,8 @@ def null_log_handler(msg):
 
 
 class PeptideGlycosylatingProcess(Process):
+    process_name = "glycopeptide-build-worker"
+
     def __init__(self, connection, hypothesis_id, input_queue, chunk_size=5000, done_event=None,
                  log_handler=null_log_handler, glycan_offset=None,
                  glycan_limit=_DEFAULT_GLYCAN_STEP_LIMIT):
@@ -485,6 +487,9 @@ class PeptideGlycosylatingProcess(Process):
         self.log_handler("Process %r completed. (%d peptides, %d glycopeptides)" % (self.pid, n, n_gps))
 
     def run(self):
+        new_name = getattr(self, 'process_name', None)
+        if new_name is not None:
+            TaskBase().try_set_process_name(new_name)
         try:
             self.task()
         except Exception as e:

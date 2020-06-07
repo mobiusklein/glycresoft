@@ -276,7 +276,6 @@ class GlycositeModelBuildingProcess(Process):
         self.output_queue = output_queue
         self.producer_done_event = producer_done_event
         self.output_done_event = output_done_event
-
         self.log_handler = log_handler
 
     def all_work_done(self):
@@ -363,6 +362,7 @@ class GlycositeModelBuildingProcess(Process):
         # which causes a deadlock. This "fixes" that. by writing directly to STDOUT
         # at the cost of not being able to write to file instead.
         TaskBase.log_to_stdout()
+        self.output_done_event.clear()
         try:
             self.task()
         except Exception:
@@ -659,7 +659,9 @@ class MultiprocessingGlycoproteinSiteModelBuildingWorkflow(GlycoproteinSiteModel
         for _i in range(self.n_workers):
             worker = GlycositeModelBuildingProcess(
                 self.builder, self.input_queue, self.output_queue,
-                self.input_done_event, Event(), self.ipc_manager.sender())
+                producer_done_event=self.input_done_event,
+                output_done_event=Event(),
+                log_handler=self.ipc_manager.sender())
             self.workers.append(worker)
             worker.start()
 

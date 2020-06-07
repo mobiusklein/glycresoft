@@ -348,6 +348,21 @@ class DeclarativeDiskBackedDatabase(DiskBackedStructureDatabaseBase):
             self.mass_field)
         return imap(self._convert, self.session.execute(stmt))
 
+    def __iter__(self):
+        stmt = self._limit_to_hypothesis(
+            select(self._get_record_properties()).select_from(
+                self.selectable)).order_by(
+            self.mass_field)
+        cursor = self.session.execute(stmt)
+        converter = self._convert
+        while True:
+            block_size = 2 ** 16
+            block = cursor.fetchmany(block_size)
+            if not block:
+                break
+            for row in block:
+                yield converter(row)
+
     def __getitem__(self, i):
         stmt = self._limit_to_hypothesis(
             select(self._get_record_properties()).select_from(

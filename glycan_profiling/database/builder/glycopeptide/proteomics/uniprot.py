@@ -51,6 +51,7 @@ class UniprotProteinDownloader(TaskBase):
         while has_work:
             try:
                 accession_number = self.input_queue.get(True, 5)
+                self.input_queue.task_done()
                 self.fetch(accession_number)
             except Empty:
                 if self.no_more_work.is_set():
@@ -59,20 +60,22 @@ class UniprotProteinDownloader(TaskBase):
                     continue
 
     def feeder_task(self):
-        for item in self.accession_list:
+        for i, item in enumerate(self.accession_list):
+            if i % 100 == 0 and i:
+                self.input_queue.join()
             self.input_queue.put(item)
+        # self.input_queue.join()
         self.no_more_work.set()
 
     def run(self):
         feeder = threading.Thread(target=self.feeder_task)
         feeder.start()
-        workers = []
+        self.workers = workers = []
         for i in range(self.n_threads):
             t = threading.Thread(target=self.fetcher_task)
             t.daemon = True
             t.start()
             workers.append(t)
-        self.workers = workers
 
     def join(self):
         for worker in self.workers:

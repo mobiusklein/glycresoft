@@ -1,5 +1,6 @@
-from collections import defaultdict
+import bisect
 import itertools
+from collections import defaultdict
 from multiprocessing import Process, Queue, Event
 
 from lxml.etree import XMLSyntaxError
@@ -30,34 +31,46 @@ chain_iterable = itertools.chain.from_iterable
 SequenceLocation = modification.SequenceLocation
 
 
+def span_test(site_list, start, end):
+    i = bisect.bisect_left(site_list, start)
+    after_start = site_list[i:]
+    out = []
+    for j in after_start:
+        if j < end:
+            out.append(j)
+        else:
+            break
+    return out
+
+
 def n_glycan_sequon_sites(peptide, protein, use_local_sequence=False):
     sites = set()
-    sites |= set(site - peptide.start_position for site in protein.n_glycan_sequon_sites
-                 if peptide.start_position <= site < peptide.end_position)
+    sites |= set(site - peptide.start_position for site in span_test(
+        protein.n_glycan_sequon_sites, peptide.start_position, peptide.end_position))
     if use_local_sequence:
         sites |= set(sequence.find_n_glycosylation_sequons(
             peptide.modified_peptide_sequence))
-    return list(sites)
+    return sorted(sites)
 
 
 def o_glycan_sequon_sites(peptide, protein=None, use_local_sequence=False):
     sites = set()
-    sites |= set(site - peptide.start_position for site in protein.o_glycan_sequon_sites
-                 if peptide.start_position <= site < peptide.end_position)
+    sites |= set(site - peptide.start_position for site in span_test(
+        protein.o_glycan_sequon_sites, peptide.start_position, peptide.end_position))
     if use_local_sequence:
         sites |= set(sequence.find_o_glycosylation_sequons(
             peptide.modified_peptide_sequence))
-    return sites
+    return sorted(sites)
 
 
 def gag_sequon_sites(peptide, protein=None, use_local_sequence=False):
     sites = set()
-    sites |= set(site - peptide.start_position for site in protein.glycosaminoglycan_sequon_sites
-                 if peptide.start_position <= site < peptide.end_position)
+    sites |= set(site - peptide.start_position for site in span_test(
+        protein.glycosaminoglycan_sequon_sites, peptide.start_position, peptide.end_position))
     if use_local_sequence:
         sites = sequence.find_glycosaminoglycan_sequons(
             peptide.modified_peptide_sequence)
-    return sites
+    return sorted(sites)
 
 
 def get_base_peptide(peptide_obj):
@@ -321,6 +334,7 @@ digest = ProteinDigestor.digest_protein
 
 
 class ProteinDigestingProcess(Process):
+    process_name = "protein-digest-worker"
 
     def __init__(self, connection, hypothesis_id, input_queue, digestor, done_event=None,
                  chunk_size=5000, message_handler=None):
@@ -384,6 +398,9 @@ class ProteinDigestingProcess(Process):
             acc = []
 
     def run(self):
+        new_name = getattr(self, 'process_name', None)
+        if new_name is not None:
+            TaskBase().try_set_process_name(new_name)
         self.task()
 
 
@@ -451,7 +468,7 @@ class ProteinSplitter(TaskBase):
             self.constant_modifications, self.variable_modifications)
 
     def handle_protein(self, protein_obj, sites=None):
-        if sites is None or not sites:
+        if sites is None:
             try:
                 accession = get_uniprot_accession(protein_obj.name)
                 if accession:
