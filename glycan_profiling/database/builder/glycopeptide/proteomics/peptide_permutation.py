@@ -222,7 +222,7 @@ class ProteinDigestor(TaskBase):
 
     def __init__(self, protease, constant_modifications=None, variable_modifications=None,
                  max_missed_cleavages=2, min_length=6, max_length=60, semispecific=False,
-                 max_variable_modifications=None):
+                 max_variable_modifications=None, require_glycosylation_sites=False):
         if constant_modifications is None:
             constant_modifications = []
         if variable_modifications is None:
@@ -239,6 +239,7 @@ class ProteinDigestor(TaskBase):
         self.max_length = max_length
         self.semispecific = semispecific
         self.max_variable_modifications = max_variable_modifications
+        self.require_glycosylation_sites = require_glycosylation_sites
 
     def _prepare_protease(self, protease):
         if isinstance(protease, enzyme.Protease):
@@ -292,6 +293,9 @@ class ProteinDigestor(TaskBase):
                 peptide, protein_obj)
             o_glycosites = o_glycan_sequon_sites(peptide, protein_obj)
             gag_glycosites = gag_sequon_sites(peptide, protein_obj)
+            if self.require_glycosylation_sites:
+                if (len(n_glycosites) + len(o_glycosites) + len(gag_glycosites)) == 0:
+                    continue
             peptide.count_glycosylation_sites = len(n_glycosites)
             peptide.n_glycosylation_sites = sorted(n_glycosites)
             peptide.o_glycosylation_sites = sorted(o_glycosites)

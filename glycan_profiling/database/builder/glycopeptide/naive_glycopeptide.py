@@ -85,7 +85,8 @@ class FastaGlycopeptideHypothesisSerializer(GlycopeptideHypothesisSerializerBase
         digestor = ProteinDigestor(
             self.protease, self.constant_modifications, self.variable_modifications,
             self.max_missed_cleavages, min_length=self.peptide_length_range[0],
-            max_length=self.peptide_length_range[1], semispecific=self.semispecific)
+            max_length=self.peptide_length_range[1], semispecific=self.semispecific,
+            require_glycosylation_sites=True)
         i = 0
         j = 0
         protein_ids = self.protein_ids()
@@ -166,7 +167,8 @@ class MultipleProcessFastaGlycopeptideHypothesisSerializer(FastaGlycopeptideHypo
     def digest_proteins(self):
         digestor = ProteinDigestor(
             self.protease, self.constant_modifications, self.variable_modifications,
-            self.max_missed_cleavages, semispecific=self.semispecific)
+            self.max_missed_cleavages, semispecific=self.semispecific,
+            require_glycosylation_sites=True)
         task = MultipleProcessProteinDigestor(
             self._original_connection,
             self.hypothesis_id,
