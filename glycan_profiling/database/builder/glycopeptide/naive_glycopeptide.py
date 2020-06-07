@@ -199,7 +199,10 @@ class ReversingMultipleProcessFastaGlycopeptideHypothesisSerializer(_MPFGHS):
         for protein in ProteinFastaFileParser(self.fasta_file):
             original_sequence = protein.protein_sequence
             n = len(original_sequence)
-            protein.protein_sequence = str(reverse_sequence(protein.protein_sequence, suffix_len=0))
+            try:
+                protein.protein_sequence = str(reverse_sequence(protein.protein_sequence, suffix_len=0))
+            except UnknownAminoAcidException:
+                continue
             protein.hypothesis_id = self.hypothesis_id
 
             original_sequence = PeptideSequence(original_sequence)
