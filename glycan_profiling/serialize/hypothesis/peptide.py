@@ -125,25 +125,32 @@ class Protein(Base, AminoAcidSequenceWrapperBase):
 
     def _init_sites(self):
         try:
-            n_glycosites = sequence.find_n_glycosylation_sequons(self._get_sequence())
+            parsed_sequence = self._get_sequence()
+        except residue.UnknownAminoAcidException:
+            return
+        sites = self.sites
+        try:
+            n_glycosites = sequence.find_n_glycosylation_sequons(parsed_sequence)
             for n_glycosite in n_glycosites:
-                self.sites.append(
+                sites.append(
                     ProteinSite(name=ProteinSite.N_GLYCOSYLATION, location=n_glycosite))
         except residue.UnknownAminoAcidException:
             pass
 
         try:
-            o_glycosites = sequence.find_o_glycosylation_sequons(self._get_sequence())
+            o_glycosites = sequence.find_o_glycosylation_sequons(
+                parsed_sequence)
             for o_glycosite in o_glycosites:
-                self.sites.append(
+                sites.append(
                     ProteinSite(name=ProteinSite.O_GLYCOSYLATION, location=o_glycosite))
         except residue.UnknownAminoAcidException:
             pass
 
         try:
-            gag_sites = sequence.find_glycosaminoglycan_sequons(self._get_sequence())
+            gag_sites = sequence.find_glycosaminoglycan_sequons(
+                parsed_sequence)
             for gag_site in gag_sites:
-                self.sites.append(
+                sites.append(
                     ProteinSite(name=ProteinSite.GAGYLATION, location=gag_site))
         except residue.UnknownAminoAcidException:
             pass
@@ -201,12 +208,17 @@ class ProteinSite(Base):
     O_GLYCOSYLATION = "O-Glycosylation"
     GAGYLATION = "Glycosaminoglycosylation"
 
+    _hash = None
+
     def __repr__(self):
         return ("{self.__class__.__name__}(location={self.location}, "
                 "name={self.name})").format(self=self)
 
     def __hash__(self):
-        return hash((self.name, self.location))
+        hash_val = self._hash
+        if hash_val is None:
+            hash_val = self._hash = hash((self.name, self.location))
+        return hash_val
 
     def __index__(self):
         return self.location
