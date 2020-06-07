@@ -72,13 +72,11 @@ class Protein(Base, AminoAcidSequenceWrapperBase):
             sites = self.sites.filter(ProteinSite.name == ProteinSite.N_GLYCOSYLATION).all()
             if sites:
                 self._n_glycan_sequon_sites = [int(i) for i in sites]
-            elif self.sites.count() == 0:
+            else:
                 try:
                     self._n_glycan_sequon_sites = sequence.find_n_glycosylation_sequons(self._get_sequence())
                 except residue.UnknownAminoAcidException:
-                    return []
-            else:
-                return []
+                    self._n_glycan_sequon_site = []
         return self._n_glycan_sequon_sites
 
     _o_glycan_sequon_sites = None
@@ -89,13 +87,11 @@ class Protein(Base, AminoAcidSequenceWrapperBase):
             sites = self.sites.filter(ProteinSite.name == ProteinSite.O_GLYCOSYLATION).all()
             if sites:
                 self._o_glycan_sequon_sites = [int(i) for i in sites]
-            elif self.sites.count() == 0:
+            else:
                 try:
                     self._o_glycan_sequon_sites = sequence.find_o_glycosylation_sequons(self._get_sequence())
                 except residue.UnknownAminoAcidException:
-                    return []
-            else:
-                return []
+                    self._o_glycan_sequon_sites = []
         return self._o_glycan_sequon_sites
 
     _glycosaminoglycan_sequon_sites = None
@@ -106,14 +102,12 @@ class Protein(Base, AminoAcidSequenceWrapperBase):
             sites = self.sites.filter(ProteinSite.name == ProteinSite.GAGYLATION).all()
             if sites:
                 self._glycosaminoglycan_sequon_sites = [int(i) for i in sites]
-            elif self.sites.count() == 0:
+            else:
                 try:
                     self._glycosaminoglycan_sequon_sites = sequence.find_glycosaminoglycan_sequons(
                         self._get_sequence())
                 except residue.UnknownAminoAcidException:
-                    return []
-            else:
-                return []
+                    self._glycosaminoglycan_sequon_sites = []
         return self._glycosaminoglycan_sequon_sites
 
     @property
@@ -137,23 +131,25 @@ class Protein(Base, AminoAcidSequenceWrapperBase):
         except residue.UnknownAminoAcidException:
             pass
 
-        try:
-            o_glycosites = sequence.find_o_glycosylation_sequons(
-                parsed_sequence)
-            for o_glycosite in o_glycosites:
-                sites.append(
-                    ProteinSite(name=ProteinSite.O_GLYCOSYLATION, location=o_glycosite))
-        except residue.UnknownAminoAcidException:
-            pass
+        # The O- and GAG-linker sites are not determined by a multi AA sequon. We don't
+        # need to abstract them away and they are much too common.
+        # try:
+        #     o_glycosites = sequence.find_o_glycosylation_sequons(
+        #         parsed_sequence)
+        #     for o_glycosite in o_glycosites:
+        #         sites.append(
+        #             ProteinSite(name=ProteinSite.O_GLYCOSYLATION, location=o_glycosite))
+        # except residue.UnknownAminoAcidException:
+        #     pass
 
-        try:
-            gag_sites = sequence.find_glycosaminoglycan_sequons(
-                parsed_sequence)
-            for gag_site in gag_sites:
-                sites.append(
-                    ProteinSite(name=ProteinSite.GAGYLATION, location=gag_site))
-        except residue.UnknownAminoAcidException:
-            pass
+        # try:
+        #     gag_sites = sequence.find_glycosaminoglycan_sequons(
+        #         parsed_sequence)
+        #     for gag_site in gag_sites:
+        #         sites.append(
+        #             ProteinSite(name=ProteinSite.GAGYLATION, location=gag_site))
+        # except residue.UnknownAminoAcidException:
+        #     pass
 
     def __repr__(self):
         return "DBProtein({0}, {1}, {2}, {3}...)".format(

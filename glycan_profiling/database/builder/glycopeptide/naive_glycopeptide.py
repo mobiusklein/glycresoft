@@ -67,7 +67,7 @@ class FastaGlycopeptideHypothesisSerializer(GlycopeptideHypothesisSerializerBase
 
             self.session.add(protein)
             i += 1
-            if i % 100 == 0:
+            if i % 1000 == 0:
                 self.log("... %d Proteins Extracted" % (i,))
                 self.session.commit()
 
@@ -204,35 +204,36 @@ class ReversingMultipleProcessFastaGlycopeptideHypothesisSerializer(_MPFGHS):
             except UnknownAminoAcidException:
                 continue
             protein.hypothesis_id = self.hypothesis_id
-
+            sites = protein.sites
             original_sequence = PeptideSequence(original_sequence)
             try:
                 n_glycosites = find_n_glycosylation_sequons(original_sequence)
                 for n_glycosite in n_glycosites:
-                    protein.sites.append(
+                    sites.append(
                         ProteinSite(name=ProteinSite.N_GLYCOSYLATION, location=n - n_glycosite - 1))
             except UnknownAminoAcidException:
                 pass
 
-            try:
-                o_glycosites = find_o_glycosylation_sequons(original_sequence)
-                for o_glycosite in o_glycosites:
-                    protein.sites.append(
-                        ProteinSite(name=ProteinSite.O_GLYCOSYLATION, location=n - o_glycosite - 1))
-            except UnknownAminoAcidException:
-                pass
+            # See Protein._init_sites for explanation
+            # try:
+            #     o_glycosites = find_o_glycosylation_sequons(original_sequence)
+            #     for o_glycosite in o_glycosites:
+            #         sites.append(
+            #             ProteinSite(name=ProteinSite.O_GLYCOSYLATION, location=n - o_glycosite - 1))
+            # except UnknownAminoAcidException:
+            #     pass
 
-            try:
-                gag_sites = find_glycosaminoglycan_sequons(original_sequence)
-                for gag_site in gag_sites:
-                    protein.sites.append(
-                        ProteinSite(name=ProteinSite.GAGYLATION, location=n - gag_site - 1))
-            except UnknownAminoAcidException:
-                pass
+            # try:
+            #     gag_sites = find_glycosaminoglycan_sequons(original_sequence)
+            #     for gag_site in gag_sites:
+            #         sites.append(
+            #             ProteinSite(name=ProteinSite.GAGYLATION, location=n - gag_site - 1))
+            # except UnknownAminoAcidException:
+            #     pass
 
             self.session.add(protein)
             i += 1
-            if i % 100 == 0:
+            if i % 1000 == 0:
                 self.log("... %d Proteins Extracted" % (i,))
                 self.session.commit()
 
