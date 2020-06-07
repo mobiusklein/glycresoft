@@ -31,6 +31,14 @@ class GlycoproteinSiteSpecificGlycomeModel(object):
         self._glycosylation_sites = []
         self.glycosylation_sites = glycosylation_sites
 
+    def __eq__(self, other):
+        if other is None:
+            return False
+        return (self.protein == other.protein) and (self.glycosylation_sites == other.glycosylation_sites)
+
+    def __ne__(self, other):
+        return not self == other
+
     @property
     def glycosylation_sites(self):
         return self._glycosylation_sites
