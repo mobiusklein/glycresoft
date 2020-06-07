@@ -426,7 +426,10 @@ class MultipleProcessProteinDigestor(TaskBase):
         protein_ids = self.protein_ids
         i = 0
         n = len(protein_ids)
-        chunk_size = 2
+        if n < 100:
+            chunk_size = 2
+        else:
+            chunk_size = int(n / 100.0)
         interval = 30
         for process in processes:
             input_queue.put(protein_ids[i:(i + chunk_size)])
