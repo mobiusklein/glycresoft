@@ -72,11 +72,13 @@ class Protein(Base, AminoAcidSequenceWrapperBase):
             sites = self.sites.filter(ProteinSite.name == ProteinSite.N_GLYCOSYLATION).all()
             if sites:
                 self._n_glycan_sequon_sites = [int(i) for i in sites]
+            # else:
+            #     try:
+            #         self._n_glycan_sequon_sites = sequence.find_n_glycosylation_sequons(self._get_sequence())
+            #     except residue.UnknownAminoAcidException:
+            #         self._n_glycan_sequon_sites = []
             else:
-                try:
-                    self._n_glycan_sequon_sites = sequence.find_n_glycosylation_sequons(self._get_sequence())
-                except residue.UnknownAminoAcidException:
-                    self._n_glycan_sequon_site = []
+                self._n_glycan_sequon_sites = []
         return self._n_glycan_sequon_sites
 
     _o_glycan_sequon_sites = None
@@ -122,7 +124,7 @@ class Protein(Base, AminoAcidSequenceWrapperBase):
             parsed_sequence = self._get_sequence()
         except residue.UnknownAminoAcidException:
             return
-        sites = self.sites
+        sites = []
         try:
             n_glycosites = sequence.find_n_glycosylation_sequons(parsed_sequence)
             for n_glycosite in n_glycosites:
@@ -150,6 +152,7 @@ class Protein(Base, AminoAcidSequenceWrapperBase):
         #             ProteinSite(name=ProteinSite.GAGYLATION, location=gag_site))
         # except residue.UnknownAminoAcidException:
         #     pass
+        self.sites.extend(sites)
 
     def __repr__(self):
         return "DBProtein({0}, {1}, {2}, {3}...)".format(

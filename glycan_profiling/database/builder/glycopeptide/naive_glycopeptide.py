@@ -67,7 +67,7 @@ class FastaGlycopeptideHypothesisSerializer(GlycopeptideHypothesisSerializerBase
 
             self.session.add(protein)
             i += 1
-            if i % 1000 == 0:
+            if i % 5000 == 0:
                 self.log("... %d Proteins Extracted" % (i,))
                 self.session.commit()
 
@@ -199,13 +199,19 @@ class ReversingMultipleProcessFastaGlycopeptideHypothesisSerializer(_MPFGHS):
         for protein in ProteinFastaFileParser(self.fasta_file):
             original_sequence = protein.protein_sequence
             n = len(original_sequence)
+            if "(" in protein.protein_sequence:
+                try:
+                    protein.protein_sequence = str(reverse_sequence(protein.protein_sequence, suffix_len=0))
+                except UnknownAminoAcidException:
+                    continue
+            else:
+                protein.protein_sequence = protein.protein_sequence[::-1]
+            protein.hypothesis_id = self.hypothesis_id
+            sites = []
             try:
-                protein.protein_sequence = str(reverse_sequence(protein.protein_sequence, suffix_len=0))
+                original_sequence = PeptideSequence(original_sequence)
             except UnknownAminoAcidException:
                 continue
-            protein.hypothesis_id = self.hypothesis_id
-            sites = protein.sites
-            original_sequence = PeptideSequence(original_sequence)
             try:
                 n_glycosites = find_n_glycosylation_sequons(original_sequence)
                 for n_glycosite in n_glycosites:
@@ -230,10 +236,11 @@ class ReversingMultipleProcessFastaGlycopeptideHypothesisSerializer(_MPFGHS):
             #             ProteinSite(name=ProteinSite.GAGYLATION, location=n - gag_site - 1))
             # except UnknownAminoAcidException:
             #     pass
+            protein.sites.extend(sites)
 
             self.session.add(protein)
             i += 1
-            if i % 1000 == 0:
+            if i % 5000 == 0:
                 self.log("... %d Proteins Extracted" % (i,))
                 self.session.commit()
 
