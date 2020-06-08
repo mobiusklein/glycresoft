@@ -96,7 +96,6 @@ class PeptideDatabaseProxyLoader(object):
     def __call__(self):
         db = disk_backed_database.PeptideDiskBackedStructureDatabase(
             self.path, hypothesis_id=self.hypothesis_id)
-        peptides = [PeptideDatabaseRecord.from_record(r) for r in db]
         if self.n_glycan and self.o_glycan:
             filter_level = 0
         elif self.n_glycan:
@@ -105,7 +104,7 @@ class PeptideDatabaseProxyLoader(object):
             filter_level = 2
         else:
             raise ValueError("Cannot determine how to filter peptides")
-
+        peptides = []
         for r in db:
             rec = PeptideDatabaseRecord.from_record(r)
             if filter_level == 1 and rec.n_glycosylation_sites:
