@@ -98,20 +98,23 @@ class PeptideDatabaseProxyLoader(object):
             self.path, hypothesis_id=self.hypothesis_id)
         peptides = [PeptideDatabaseRecord.from_record(r) for r in db]
         if self.n_glycan and self.o_glycan:
-            peptides = [
-                rec for rec in peptides
-                if rec.has_glycosylation_sites()
-            ]
+            filter_level = 0
         elif self.n_glycan:
-            peptides = [
-                rec for rec in peptides
-                if rec.n_glycosylation_sites
-            ]
+            filter_level = 1
         elif self.o_glycan:
-            peptides = [
-                rec for rec in peptides
-                if bool(rec.o_glycosylation_sites) or bool(rec.gagylation_sites)
-            ]
+            filter_level = 2
+        else:
+            raise ValueError("Cannot determine how to filter peptides")
+
+        for r in db:
+            rec = PeptideDatabaseRecord.from_record(r)
+            if filter_level == 1 and rec.n_glycosylation_sites:
+                peptides.append(rec)
+            elif filter_level == 2 and rec.o_glycosylation_sites:
+                peptides.append(rec)
+            elif filter_level == 3 and rec.has_glycosylation_sites():
+                peptides.append(rec)
+
         mem_db = disk_backed_database.InMemoryPeptideStructureDatabase(peptides, db)
         return mem_db
 
