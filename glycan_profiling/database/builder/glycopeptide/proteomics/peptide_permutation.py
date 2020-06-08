@@ -414,7 +414,7 @@ class MultipleProcessProteinDigestor(TaskBase):
 
     def run(self):
         logger = self.ipc_logger()
-        input_queue = Queue(20 * self.n_processes)
+        input_queue = Queue(2 * self.n_processes)
         done_event = Event()
         processes = [
             ProteinDigestingProcess(
@@ -621,7 +621,7 @@ class UniprotProteinAnnotator(TaskBase):
         uniprot_queue = UniprotProteinDownloader(protein_names)
         uniprot_queue.start()
         n = len(protein_ids)
-        interval = int(min((n * 0.1) + 1, 100))
+        interval = int(min((n * 0.1) + 1, 1000))
         acc = []
         seen = set()
         while True:
