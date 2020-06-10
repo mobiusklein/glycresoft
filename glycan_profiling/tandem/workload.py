@@ -1,5 +1,4 @@
 import warnings
-import os
 
 from collections import defaultdict, namedtuple
 
@@ -9,7 +8,7 @@ from glycan_profiling.chromatogram_tree import Unmodified
 from .spectrum_graph import ScanGraph
 
 
-DEFAULT_WORKLOAD_MAX = float(os.environ.get("GLYCRESOFTDEFAULTWORKLOADMAX", 15e4))
+DEFAULT_WORKLOAD_MAX = 15e4
 
 
 class WorkloadManager(object):

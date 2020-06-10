@@ -1,3 +1,4 @@
+import os
 from ms_deisotope import isotopic_shift
 
 from glycan_profiling.task import TaskBase
@@ -38,7 +39,7 @@ def group_by_precursor_mass(scans, window_size=1.5e-5):
     return groups
 
 
-DEFAULT_BATCH_SIZE = 25e4
+DEFAULT_BATCH_SIZE = float(os.environ.get("GLYCRESOFTDEFAULTWORKLOADMAX", 25e4))
 
 
 class TandemClusterEvaluatorBase(TaskBase):
