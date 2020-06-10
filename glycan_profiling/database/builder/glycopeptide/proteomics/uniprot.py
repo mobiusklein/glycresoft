@@ -18,7 +18,7 @@ def get_uniprot_accession(name):
     except (AttributeError, fasta.UnparsableDeflineError):
         return None
 
-
+# TODO: Transition ot use worker processes with multiple threads instead of just worker threads.
 class UniprotProteinDownloader(TaskBase):
     def __init__(self, accession_list, n_threads=10):
         self.accession_list = accession_list
