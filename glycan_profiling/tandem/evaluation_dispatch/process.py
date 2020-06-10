@@ -313,7 +313,9 @@ class IdentificationProcessDispatcher(TaskBase):
         for missing_id in missing:
             target, scan_spec = self.build_work_order(missing_id, hit_map, scan_hit_type_map, hit_to_scan)
             try:
-                target, score_map = evaluator.handle_item(target, scan_spec)
+                # Change this to be the target's ID and look it up in hit_map
+                target_id, score_map = evaluator.handle_item(target, scan_spec)
+                target = hit_map.get(target_id, target_id)
                 seen[target.id] = (-1, 0)
                 self.store_result(target, score_map)
                 i += 1
@@ -401,7 +403,8 @@ class IdentificationProcessDispatcher(TaskBase):
                 payload = self.output_queue.get(True, 1)
                 self.output_queue.task_done()
                 try:
-                    (target, score_map, token) = payload
+                    # Change this to be the target's ID and look it up in hit_map
+                    (target_id, score_map, token) = payload
                 except (TypeError, ValueError):
                     if isinstance(payload, SentinelToken):
                         self.debug("...... Received sentinel from %s" % (self._token_to_worker[payload.token].name))
@@ -409,6 +412,7 @@ class IdentificationProcessDispatcher(TaskBase):
                         continue
                     else:
                         raise
+                target = hit_map.get(target_id, target_id)
                 if target.id in seen:
                     self.debug(
                         "...... Duplicate Results For %s. First seen at %r, now again at %r" % (
@@ -586,7 +590,8 @@ class SpectrumIdentificationWorkerBase(Process, SpectrumEvaluatorBase):
 
     def pack_output(self, target):
         if self.solution_map:
-            self.output_queue.put((target, self.solution_map, self.token))
+            target_id = getattr(target, 'id', target)
+            self.output_queue.put((target_id, self.solution_map, self.token))
         self.solution_map = dict()
 
     def evaluate(self, scan, structure, *args, **kwargs):
