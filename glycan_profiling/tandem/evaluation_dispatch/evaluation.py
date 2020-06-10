@@ -139,7 +139,7 @@ class SequentialIdentificationProcessor(TaskBase):
             sum(map(len, hit_to_scan_map.values()))))
         for target, score_map in evaluator.process(hit_map, hit_to_scan_map, scan_hit_type_map):
             self.store_result(target, score_map)
-        self.log("Solutions Handled: %d" % (self.solution_handler.counter, ))
+        self.log("... Solutions Handled: %d" % (self.solution_handler.counter, ))
         return self.scan_solution_map
 
     @property

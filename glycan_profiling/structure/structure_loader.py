@@ -309,7 +309,7 @@ class GlycopeptideCache(object):
 
 
 class CachingGlycopeptideParser(object):
-    def __init__(self, cache_size=4000):
+    def __init__(self, cache_size=12000):
         self.cache = GlycopeptideCache()
         self.cache_size = cache_size
         self.lru = LRUCache()

@@ -88,6 +88,17 @@ class GlycopeptideMatcher(PeptideMassFilteringDatabaseSearchMixin, TandemCluster
         matcher = self.scorer_type.evaluate(scan, target, *args, **kwargs)
         return matcher
 
+    def _transform_matched_collection(self, solution_set_collection):
+        cache = {}
+        for solution_set in solution_set_collection:
+            for sm in solution_set:
+                target = sm.target
+                if target.id in cache:
+                    sm.target = cache[target.id]
+                else:
+                    sm.target = cache[target.id] = self.parser(target)
+        return solution_set_collection
+
     @property
     def _worker_specification(self):
         return GlycopeptideIdentificationWorker, {"parser_type": self.parser_type}
