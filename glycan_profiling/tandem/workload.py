@@ -1,4 +1,5 @@
 import warnings
+import os
 
 from collections import defaultdict, namedtuple
 
@@ -6,6 +7,9 @@ from glycan_profiling.chromatogram_tree import Unmodified
 
 
 from .spectrum_graph import ScanGraph
+
+
+DEFAULT_WORKLOAD_MAX = float(os.environ.get("GLYCRESOFTDEFAULTWORKLOADMAX", 15e4))
 
 
 class WorkloadManager(object):
@@ -287,7 +291,7 @@ class WorkloadManager(object):
             whose total work is approximately ``max_size``
         """
         if max_size is None:
-            max_size = 15e4
+            max_size = DEFAULT_WORKLOAD_MAX
         elif max_size <= 0:
             max_size = float('inf')
         current_batch_size = 0
