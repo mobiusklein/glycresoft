@@ -389,9 +389,13 @@ class DecoyFragmentCachingGlycopeptide(FragmentCachingGlycopeptide):
                 int(round(self.glycan_composition.mass())))
             random_low = kwargs.get('random_low', 1.0)
             random_high = kwargs.get("random_high", 30.0)
+            n = len(result)
+            rand_deltas = random_state.uniform(random_low, random_high, n)
+            i = 0
             for frag in result:
                 if frag.glycosylation_size > 1:
-                    delta = random_state.uniform(random_low, random_high)
+                    delta = rand_deltas[i]
+                    i += 1
                     frag.mass += delta
             self.fragment_caches[key] = result
             return result
