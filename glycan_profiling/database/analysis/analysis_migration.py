@@ -4,6 +4,7 @@ from glypy.composition import formula
 
 from glycan_profiling.task import TaskBase
 from glycan_profiling.chromatogram_tree import ChromatogramFilter, DisjointChromatogramSet
+from glycan_profiling.serialize.utils import toggle_indices
 from glycan_profiling.serialize.hypothesis import GlycanComposition
 from glycan_profiling.serialize import DatabaseBoundOperation
 from glycan_profiling.database.builder.glycan.migrate import (
@@ -432,26 +433,39 @@ class GlycopeptideMSMSAnalysisSerializer(AnalysisMigrationBase):
         peptides = self.fetch_peptides(self._glycopeptide_ids)
         proteins = self.fetch_proteins(peptides)
         self.log("... Migrating Proteins")
+        n = len(proteins)
+        index_toggler = toggle_indices(self._glycopeptide_hypothesis_migrator.session, Protein)
+        index_toggler.drop()
         for i, protein in enumerate(proteins):
-            if i % 1000 == 0 and i:
-                self.log("...... Migrating Protein %d %s" % (i, protein.name))
-            self._glycopeptide_hypothesis_migrator.migrate_protein(protein)
-        self.log("... Migrating Peptides")
-        for i, peptide in enumerate(peptides):
             if i % 5000 == 0 and i:
-                self.log("...... Migrating Peptide %d %s" % (i, str(peptide)))
+                self.log("...... Migrating Protein %d/%d (%0.2f%%) %s" % (i, n, i * 100.0 / n, protein.name))
+            self._glycopeptide_hypothesis_migrator.migrate_protein(protein)
+        index_toggler.create()
+        index_toggler = toggle_indices(
+            self._glycopeptide_hypothesis_migrator.session, Peptide)
+        index_toggler.drop()
+        self.log("... Migrating Peptides")
+        n = len(peptides)
+        for i, peptide in enumerate(peptides):
+            if i % 15000 == 0 and i:
+                self.log("...... Migrating Peptide %d/%d (%0.2f%%) %s" % (i, n, i * 100.0 / n, str(peptide)))
             self._glycopeptide_hypothesis_migrator.migrate_peptide(peptide)
-
+        index_toggler.create()
         peptides = []
         proteins = []
 
         self.log("... Migrating Glycopeptides")
         glycopeptides = self.fetch_glycopeptides(self._glycopeptide_ids)
+
+        index_toggler = toggle_indices(self._glycopeptide_hypothesis_migrator.session, Glycopeptide)
+        index_toggler.drop()
+        n = len(glycopeptides)
         for i, glycopeptide in enumerate(glycopeptides):
             if i % 5000 == 0 and i:
-                self.log("...... Migrating Glycopeptide %d %s" % (i, str(glycopeptide)))
+                self.log("...... Migrating Glycopeptide %d/%d (%0.2f%%) %s" % (i, n, i * 100.0 / n, str(glycopeptide)))
             self._glycopeptide_hypothesis_migrator.migrate_glycopeptide(
                 glycopeptide)
+        index_toggler.create()
         self._glycopeptide_hypothesis_migrator.commit()
 
     def fetch_scans(self):
