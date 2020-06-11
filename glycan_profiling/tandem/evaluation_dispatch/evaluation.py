@@ -104,7 +104,9 @@ class LocalSpectrumEvaluator(SpectrumEvaluatorBase, TaskBase):
             if i % 1000 == 0:
                 self.log("... %0.2f%% of Hits Searched (%d/%d)" %
                          (i * 100. / n, i, n))
-            yield self.handle_item(target, scan_spec)
+            target_id, result = self.handle_item(target, scan_spec)
+            target = hit_map[target_id]
+            yield (target, result)
 
 
 class SequentialIdentificationProcessor(TaskBase):
