@@ -74,11 +74,11 @@ class MassShift(MassShiftBase):
             self.name = state[3]
             self.tandem_composition = state[4]
             self.tandem_mass = state[5]
-            self.charge_carrier = state[6]['charge_carrier']
+            self.charge_carrier = state[6].get('charge_carrier', 0)
 
         else:
             self.name = state['name']
-            self.charge_carrier = state['charge_carrier']
+            self.charge_carrier = state.get('charge_carrier', 0)
             self.mass = state['mass']
             self.composition = state['composition']
             self.tandem_mass = state['tandem_mass']
