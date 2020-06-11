@@ -90,7 +90,7 @@ class LocalSpectrumEvaluator(SpectrumEvaluatorBase, TaskBase):
         return self.evaluator.evaluate(scan, structure, *args, **kwargs)
 
     def pack_output(self, target):
-        package = (target, self.solution_map)
+        package = (target.id, self.solution_map)
         self.solution_map = dict()
         return package
 
