@@ -616,7 +616,8 @@ def deserialize_workload(buff, scan_loader):
     xml_parser = etree.XMLParser(huge_tree=True)
     tree = etree.fromstring(buff, parser=xml_parser)
     for scan_mapping in tree:
-        glycopeptide_record_tag = scan_mapping[0]
+        scan_mapping_iter = iter(scan_mapping)
+        glycopeptide_record_tag = next(scan_mapping_iter)
         attrib = glycopeptide_record_tag.attrib
         mass = float(attrib.pop("total_mass", 0))
         glycan_prior = float(attrib.pop("glycan_prior", 0))
@@ -628,7 +629,7 @@ def deserialize_workload(buff, scan_loader):
             int(attrib['start_position']), int(attrib['end_position']), int(attrib['peptide_id']),
             int(attrib['protein_id']), int(attrib['hypothesis_id']), int(attrib['glycan_combination_id']),
             StructureClassification[attrib['structure_type']], int(attrib['site_combination_index']))
-        for scan_hit in scan_mapping[1:]:
+        for scan_hit in scan_mapping_iter:
             attrib = scan_hit.attrib
             scan_id = attrib['scan_id']
             scan = scan_loader.get_scan_by_id(scan_id)
