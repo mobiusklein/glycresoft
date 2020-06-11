@@ -1,7 +1,7 @@
 import os
 import multiprocessing
+import datetime
 from collections import OrderedDict
-
 try:
     from Queue import Queue
 except ImportError:
@@ -336,8 +336,11 @@ class MultipartGlycopeptideIdentifier(TaskBase):
         self.log("{:d} Scans, {:d} Scan Groups".format(
             len(self.tandem_scans), len(scan_groups)))
         self.log("Running Identification Pipeline...")
+        start_time = datetime.datetime.now()
         total_solutions_count = self.run_identification_pipeline(
             scan_groups)
+        end_time = datetime.datetime.now()
+        self.log("Database Search Complete, %s Elapsed" % (end_time - start_time))
         self.log("Loading Spectrum Matches From Journal...")
         reader = enumerate(JournalFileReader(
             self.journal_path,
@@ -350,7 +353,7 @@ class MultipartGlycopeptideIdentifier(TaskBase):
             if i * 1.0 / total_solutions_count > last:
                 should_log = True
                 last += 0.1
-            elif i % 5000 == 0:
+            elif i % 10000 == 0:
                 should_log = True
             if should_log:
                 self.log("... %d/%d Solutions Loaded (%0.2f%%)" % (

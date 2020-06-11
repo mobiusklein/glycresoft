@@ -332,7 +332,7 @@ class SpectrumMatcher(TaskExecutionSequence):
         lo, hi = self.workload.mass_range()
         self.log("... Query Mass Range: %0.2f-%0.2f" % (lo, hi))
 
-        batches = list(self.workload.batches())
+        batches = list(self.workload.batches(matcher.batch_size))
         running_total_work = 0
         total_work = self.workload.total_work_required()
         self.workload.clear()
