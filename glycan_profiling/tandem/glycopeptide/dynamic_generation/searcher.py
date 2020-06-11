@@ -237,6 +237,7 @@ class MapperExecutor(TaskExecutionSequence):
                 source = mapper_task.get_scan_source()
                 mapper_task.unbind_scans()
                 source._dispose()
+                source.close()
                 if memory_debug:
                     collected = summary.summarize(muppy.get_objects())
                     self.log('Post-task Memory Tracking\n' +
