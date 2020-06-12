@@ -223,7 +223,6 @@ class MapperExecutor(TaskExecutionSequence):
         has_work = True
         if memory_debug:
             from pympler import summary, muppy
-            start_point = summary.summarize(muppy.get_objects())
         while has_work:
             try:
                 # if memory_debug:
