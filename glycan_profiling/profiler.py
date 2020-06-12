@@ -796,7 +796,7 @@ class GlycopeptideLCMSMSAnalyzer(TaskBase):
         """
 
         def threshold_fn(x):
-            return x.q_value < self.psm_fdr_threshold
+            return x.q_value <= self.psm_fdr_threshold
 
         chromatograms = tuple(extractor)
 
@@ -849,7 +849,7 @@ class GlycopeptideLCMSMSAnalyzer(TaskBase):
         assigned_list = list(scored_merged)
         assigned_list.extend(orphans)
         gps, unassigned = identified_glycopeptide.extract_identified_structures(
-            assigned_list, lambda x: x.q_value < self.psm_fdr_threshold)
+            assigned_list, lambda x: x.q_value <= self.psm_fdr_threshold)
         if debug_mode:
             for gp in gps:
                 self.log("... Extracted Glycopeptide %r" % (gp, ))
