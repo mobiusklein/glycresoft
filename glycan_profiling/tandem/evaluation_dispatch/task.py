@@ -99,7 +99,7 @@ class TaskSourceBase(StructureSpectrumSpecificationBuilder, TaskBase):
                     "Hit %r already dealt under hit_id %r, now again at %r" % (
                         hit, seen[hit.id], hit_id))
             seen[hit.id] = hit_id
-            if i % self.batch_size == 0:
+            if i % self.batch_size == 0 and i:
                 self.join()
             try:
                 work_order = self.build_work_order(hit_id, hit_map, scan_hit_type_map, hit_to_scan)
