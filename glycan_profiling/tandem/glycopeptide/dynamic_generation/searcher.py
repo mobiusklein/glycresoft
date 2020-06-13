@@ -4,6 +4,7 @@ try:
     from Queue import Empty
 except ImportError:
     from queue import Empty
+from collections import Counter
 
 from ms_deisotope.data_source import ProcessedScan
 
@@ -225,18 +226,15 @@ class MapperExecutor(TaskExecutionSequence):
             from pympler import summary, muppy
         while has_work:
             try:
-                # if memory_debug:
-                #     collected = summary.summarize(muppy.get_objects())
-                #     diff = summary.get_diff(collected, start_point)
-                #     self.log('Pre-task Memory Tracking\n' + '\n'.join(summary.format_(diff)))
-                #     del collected
                 mapper_task = self.in_queue.get(True, 5)
                 matcher_task = self.execute_task(mapper_task)
                 self.out_queue.put(matcher_task)
                 source = mapper_task.get_scan_source()
                 mapper_task.unbind_scans()
+                #
                 source._dispose()
                 source.close()
+                del source
                 if memory_debug:
                     collected = summary.summarize(muppy.get_objects())
                     self.log('Post-task Memory Tracking\n' +
@@ -277,6 +275,16 @@ class SerializingMapperExecutor(MapperExecutor):
         # mapper_task.bind_scans(self.scan_loader)
         workload = mapper_task()
         workload.pack()
+
+        peptide_groups = Counter()
+        count_peptide_groups_with_count = Counter()
+        for key in workload.hit_map:
+            peptide_groups[key.peptide_id] += 1
+        for value in peptide_groups.values():
+            count_peptide_groups_with_count[value] += 1
+        self.log("Workload contains %d Peptide Groups" % (len(peptide_groups), ))
+        for key, value in sorted(count_peptide_groups_with_count.items()):
+            self.log("%d: %d" % (key, value))
 
         workload = serialize_workload(workload)
         matcher_task = SpectrumMatcher(
