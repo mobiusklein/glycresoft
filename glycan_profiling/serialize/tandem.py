@@ -620,7 +620,7 @@ class GlycopeptideSpectrumMatchScoreSet(Base):
     def serialize_from_spectrum_match(cls, obj, session, db_id):
         scores = obj.score_set
         qs = obj.q_value_set
-        inst = cls(
+        fields = dict(
             id=db_id,
             peptide_score=scores.peptide_score,
             glycan_score=scores.glycan_score,
@@ -631,9 +631,7 @@ class GlycopeptideSpectrumMatchScoreSet(Base):
             glycan_q_value=qs.glycan_q_value,
             glycopeptide_q_value=qs.glycopeptide_q_value
         )
-        session.add(inst)
-        session.flush()
-        return inst
+        session.execute(cls.__table__.insert(), fields)
 
     def convert(self):
         score_set = ScoreSet(
