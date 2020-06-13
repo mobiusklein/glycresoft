@@ -41,6 +41,7 @@ class GlycopeptideFDREstimationStrategy(Enum):
     glycopeptide_fdr = 3
 
 GlycopeptideFDREstimationStrategy.multipart_gamma_gaussian_mixture.add_name("multipart")
+GlycopeptideFDREstimationStrategy.multipart_gamma_gaussian_mixture.add_name("joint")
 GlycopeptideFDREstimationStrategy.peptide_fdr.add_name("peptide")
 GlycopeptideFDREstimationStrategy.glycan_fdr.add_name("glycan")
 

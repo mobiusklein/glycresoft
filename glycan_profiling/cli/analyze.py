@@ -287,8 +287,8 @@ def search_glycopeptide(context, database_connection, sample_path, hypothesis_id
 @click.option("-n", "--analysis-name", default=None, help='Name for analysis to be performed.')
 @click.option("-q", "--psm-fdr-threshold", default=0.05, type=float,
               help='Minimum FDR Threshold to use for filtering GPSMs when selecting identified glycopeptides')
-@click.option("-f", "--fdr-estimation-strategy", type=click.Choice(['multipart', 'peptide', 'glycan']),
-              default='multipart', help="The FDR estimation strategy to use.")
+@click.option("-f", "--fdr-estimation-strategy", type=click.Choice(['joint', 'peptide', 'glycan']),
+              default='joint', help="The FDR estimation strategy to use.")
 @click.option("-s", "--tandem-scoring-model", default='log_intensity',
               type=ChoiceOrURI(["log_intensity", "simple"]),
               help="Select a scoring function to use for evaluating glycopeptide-spectrum matches")
