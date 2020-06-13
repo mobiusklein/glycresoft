@@ -59,15 +59,18 @@ class SimpleSerializerCacheBase(object):
         self.session = session
         self.store = store
 
+    def extract_key(self, obj):
+        return extract_key(obj)
+
     def serialize(self, obj, *args, **kwargs):
         if obj is None:
             return None
         try:
-            db_obj = self.store[extract_key(obj)]
+            db_obj = self.store[self.extract_key(obj)]
             return db_obj
         except KeyError:
             db_obj = self._model_class.serialize(obj, self.session, *args, **kwargs)
-            self.store[extract_key(db_obj)] = db_obj
+            self.store[self.extract_key(db_obj)] = db_obj
             return db_obj
 
     def __getitem__(self, obj):
@@ -206,6 +209,9 @@ class MassShiftToCompoundMassShift(Base):
 
 class MassShiftSerializer(SimpleSerializerCacheBase):
     _model_class = CompoundMassShift
+
+    def extract_key(self, obj):
+        return obj.name
 
 
 def _create_chromatogram_tree_node_branch(x):
