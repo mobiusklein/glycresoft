@@ -100,11 +100,12 @@ class GlycanFragmentCache(object):
         self.cache = dict()
 
     def get_oxonium_ions(self, glycopeptide):
+        key = str(glycopeptide.glycan)
         try:
-            return self.cache[glycopeptide.glycan]
+            return self.cache[key]
         except KeyError:
             oxonium_ions = list(glycopeptide._glycan_fragments())
-            self.cache[glycopeptide.glycan] = oxonium_ions
+            self.cache[key] = oxonium_ions
             return oxonium_ions
 
     def __call__(self, glycopeptide):
@@ -200,6 +201,33 @@ class NamedPeptideProteinRelation(PeptideProteinRelation):
 # Add a new default attribute value to the parent class so all future instances
 # of the parent class (and all sub-classes) have a fallback value.
 PeptideSequence.glycan_prior = 0.0
+
+
+class FragmentCachingContext(object):
+    def __init__(self, store=None):
+        if store is None:
+            store = dict()
+        self.store = store
+
+    def clear_for(self, case):
+        pass
+
+    def peptide_backbone_fragment_key(self, target, args, kwargs):
+        key = ("get_fragments", args, frozenset(kwargs.items()))
+        return key
+
+    def stub_fragment_key(self, target, args, kwargs):
+        key = ('stub_fragments', args, frozenset(kwargs.items()))
+        return key
+
+    def __getitem__(self, key):
+        return self.store[key]
+
+    def __setitem__(self, key, value):
+        self.store[key] = value
+
+    def clear(self):
+        self.store.clear()
 
 
 class FragmentCachingGlycopeptide(PeptideSequence):
