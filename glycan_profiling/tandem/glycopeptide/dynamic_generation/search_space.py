@@ -90,7 +90,10 @@ class glycopeptide_key_t(_glycopeptide_key_t):
         return self.structure_type != 0
 
     def as_dict(self):
-        return self._asdict()
+        d = {}
+        for i, label in enumerate(self._fields):
+            d[label] = self[i]
+        return d
 
 
 class GlycoformGeneratorBase(LoggingMixin):
@@ -614,6 +617,7 @@ def deserialize_workload(buff, scan_loader):
     wm = WorkloadManager()
     buff = _decompress(buff)
     xml_parser = etree.XMLParser(huge_tree=True)
+    scan_cache = {}
     tree = etree.fromstring(buff, parser=xml_parser)
     for scan_mapping in tree:
         scan_mapping_iter = iter(scan_mapping)
@@ -632,7 +636,10 @@ def deserialize_workload(buff, scan_loader):
         for scan_hit in scan_mapping_iter:
             attrib = scan_hit.attrib
             scan_id = attrib['scan_id']
-            scan = scan_loader.get_scan_by_id(scan_id)
+            try:
+                scan = scan_cache[scan_id]
+            except KeyError:
+                scan = scan_cache[scan_id] = scan_loader.get_scan_by_id(scan_id)
             wm.add_scan(scan)
             wm.add_scan_hit(scan, rec, attrib['hit_type'])
     return wm
