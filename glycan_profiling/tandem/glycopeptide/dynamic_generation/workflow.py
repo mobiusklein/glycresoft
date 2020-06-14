@@ -111,7 +111,7 @@ class PeptideDatabaseProxyLoader(object):
                 peptides.append(rec)
             elif filter_level == 2 and rec.o_glycosylation_sites:
                 peptides.append(rec)
-            elif filter_level == 3 and rec.has_glycosylation_sites():
+            elif filter_level == 0 and rec.has_glycosylation_sites():
                 peptides.append(rec)
 
         mem_db = disk_backed_database.InMemoryPeptideStructureDatabase(peptides, db)
