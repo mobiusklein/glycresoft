@@ -319,11 +319,17 @@ class SolutionSetGrouper(TaskBase):
 
     @property
     def target_matches(self):
-        return self.match_type_groups[StructureClassification.target_peptide_target_glycan]
+        try:
+            return self.match_type_groups[StructureClassification.target_peptide_target_glycan]
+        except KeyError:
+            return []
 
     @property
     def decoy_matches(self):
-        return self.match_type_groups[StructureClassification.decoy_peptide_target_glycan]
+        try:
+            return self.match_type_groups[StructureClassification.decoy_peptide_target_glycan]
+        except KeyError:
+            return []
 
     def target_count(self):
         return len(self.target_matches)
