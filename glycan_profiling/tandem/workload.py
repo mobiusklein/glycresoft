@@ -236,6 +236,8 @@ class WorkloadManager(object):
             return False
         elif self.hit_to_scan_map != other.hit_to_scan_map:
             return False
+        elif self.hit_group_map != other.hit_group_map:
+            return False
         return True
 
     def __ne__(self, other):
@@ -307,7 +309,7 @@ class WorkloadManager(object):
         if max_size == float('inf'):
             current_scan_map = self.scan_map.copy()
             current_hit_map = self.hit_map.copy()
-            current_hit_to_scan_map = self.hit_to_scan_map.copy()
+            current_hit_to_scan_map = {k: [v.id for v in vs] for k, vs in self.hit_to_scan_map.items()}
             current_scan_hit_type_map = self.scan_hit_type_map.copy()
             current_hit_group_map = self.hit_group_map.copy()
             batch = WorkloadBatch(
