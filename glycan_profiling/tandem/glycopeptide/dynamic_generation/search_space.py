@@ -8,7 +8,7 @@ import io
 
 from six import iteritems
 
-from collections import namedtuple
+from collections import namedtuple, defaultdict
 
 from lxml import etree
 
@@ -206,6 +206,25 @@ class PeptideGlycosylator(GlycoformGeneratorBase):
         self.log(
             "Created a PeptideGlycosylator with %d glycan combinations and %d peptides" % (
                 len(self.glycan_combinations), len(self.peptides)))
+        self.peptide_to_group_id = None
+        self.build_peptide_groups()
+
+    def build_peptide_groups(self):
+        peptide_groups = defaultdict(list)
+        for peptide in self.peptides:
+            peptide_groups[peptide.modified_peptide_sequence].append(peptide.id)
+
+        sequence_to_group_id = {}
+        for i, key in enumerate(peptide_groups):
+            sequence_to_group_id[key] = i
+
+        peptide_to_group_id = {}
+        for peptide in self.peptides:
+            peptide_to_group_id[peptide.id] = sequence_to_group_id[peptide.modified_peptide_sequence]
+        sequence_to_group_id.clear()
+        peptide_groups.clear()
+        self.peptide_to_group_id = peptide_to_group_id
+
 
     def handle_peptide_mass(self, peptide_mass, intact_mass, error_tolerance=1e-5):
         peptide_records = self.peptides.search_mass_ppm(peptide_mass, error_tolerance)
@@ -594,6 +613,10 @@ def serialize_workload(workload_manager, pretty_print=True):
     wl.attrib['total_size'] = str(workload_manager.total_size)
     wl.attrib['scan_count'] = str(workload_manager.scan_count)
     wl.attrib['hit_count'] = str(workload_manager.hit_count)
+    hit_to_group = dict()
+    for group_id, hit_ids in workload_manager.hit_group_map.items():
+        for hit_id in hit_ids:
+            hit_to_group[hit_id] = group_id
     for key, scans in iteritems(workload_manager.hit_to_scan_map):
         sm = etree.SubElement(wl, 'scan_mapping')
         rec = workload_manager.hit_map[key]
@@ -601,6 +624,7 @@ def serialize_workload(workload_manager, pretty_print=True):
         el.attrib.update({k: str(v) for k, v in rec.id.as_dict().items()})
         el.attrib['total_mass'] = str(rec.total_mass)
         el.attrib['glycan_prior'] = str(rec.glycan_prior)
+        el.attrib['hit_group'] = str(hit_to_group.get(rec.id, -1))
         el.text = rec.glycopeptide
         for scan in scans:
             etree.SubElement(
@@ -633,6 +657,9 @@ def deserialize_workload(buff, scan_loader):
             int(attrib['start_position']), int(attrib['end_position']), int(attrib['peptide_id']),
             int(attrib['protein_id']), int(attrib['hypothesis_id']), int(attrib['glycan_combination_id']),
             StructureClassification[attrib['structure_type']], int(attrib['site_combination_index']))
+        hit_group_id = int(attrib.get('hit_group', -1))
+        if hit_group_id != -1:
+            wm.hit_group_map[hit_group_id].add(rec.id)
         for scan_hit in scan_mapping_iter:
             attrib = scan_hit.attrib
             scan_id = attrib['scan_id']
