@@ -258,7 +258,7 @@ class TandemClusterEvaluatorBase(TaskBase):
         return solution_set_collection
 
     def _evaluate_hit_groups_single_process(self, workload, *args, **kwargs):
-        batch_size, scan_map, hit_map, hit_to_scan_map, scan_hit_type_map = workload
+        batch_size, scan_map, hit_map, hit_to_scan_map, scan_hit_type_map, hit_group_map = workload
         handler_tp = self._get_solution_handler()
         processor = SequentialIdentificationProcessor(
             self,
@@ -288,7 +288,7 @@ class TandemClusterEvaluatorBase(TaskBase):
         raise NotImplementedError()
 
     def _evaluate_hit_groups_multiple_processes(self, workload, **kwargs):
-        batch_size, scan_map, hit_map, hit_to_scan, scan_hit_type_map = workload
+        batch_size, scan_map, hit_map, hit_to_scan, scan_hit_type_map, hit_group_map = workload
         worker_type, init_args = self._worker_specification
         handler_tp = self._get_solution_handler()
         dispatcher = IdentificationProcessDispatcher(

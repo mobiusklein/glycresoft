@@ -220,9 +220,12 @@ class WorkloadManager(object):
                     len(scan_node.edges)))
 
     def __iter__(self):
+        yield self.total_size
         yield self.scan_map
         yield self.hit_map
         yield self.hit_to_scan_map
+        yield self.scan_hit_type_map
+        yield self.hit_group_map
 
     def __eq__(self, other):
         if self.hit_map != other.hit_map:
