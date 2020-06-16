@@ -333,7 +333,8 @@ class WorkloadManager(object):
                 current_hit_group_map[group_id] = hit_ids
                 for hit_id in hit_ids:
                     current_hit_map[hit_id] = self.hit_map[hit_id]
-                    for scan_id in self.hit_to_scan_map[hit_id]:
+                    for scan in self.hit_to_scan_map[hit_id]:
+                        scan_id = scan.id
                         current_scan_map[scan_id] = self.scan_map[scan_id]
                         current_hit_to_scan_map[hit_id].append(scan_id)
                         current_scan_hit_type_map[
