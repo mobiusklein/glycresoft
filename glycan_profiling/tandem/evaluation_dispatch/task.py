@@ -111,10 +111,70 @@ class TaskSourceBase(StructureSpectrumSpecificationBuilder, TaskBase):
                 # run concurrently, the feeding thread can log a short interval before
                 # the entire process has formally logged that it has started.
                 if i % 10000 == 0:
-                    self.log("...... Dealt %d work items (%0.2f%% Complete)" % (i,
-                             i * 100.0 / n))
+                    self.log("...... Dealt %d work items (%0.2f%% Complete)" % (i, i * 100.0 / n))
             except Exception as e:
                 self.log("An exception occurred while feeding %r and %d scan ids: %r" % (hit_id, len(scan_ids), e))
+        self.log("...... Finished dealing %d work items" % (i,))
+        self.join()
+        return
+
+    def feed_groups(self, hit_map, hit_to_scan, scan_hit_type_map, hit_to_group):
+        """Push task groups onto the input queue feeding the worker
+        processes.
+
+        Parameters
+        ----------
+        hit_map : dict
+            Maps hit id to structure
+        hit_to_scan : dict
+            Maps hit id to list of scan ids
+        scan_hit_type_map : dict
+            Maps (hit id, scan id) to the type of mass shift
+            applied for this match
+        hit_to_group: dict
+            Maps group id to the set of hit ids which are
+        """
+        i = 0
+        j = 0
+        n = len(hit_to_group)
+        seen = dict()
+        for group_key, hit_keys in hit_to_group.items():
+            hit_group = {
+                "hits": {},
+                "work_orders": {}
+            }
+            i += 1
+            for hit_id in hit_keys:
+                j += 1
+                scan_ids = hit_to_scan[hit_id]
+                hit = hit_map[hit_id]
+                hit_group['hits'][hit_id] = hit
+                # This sanity checking is likely unnecessary, and is a hold-over from
+                # debugging redundancy in the result queue. For the moment, it is retained
+                # to catch "new" bugs.
+                # If a hit structure's id doesn't match the id it was looked up with, something
+                # may be wrong with the upstream process. Log this event.
+                if hit.id != hit_id:
+                    self.log("Hit %r doesn't match its id %r" % (hit, hit_id))
+                    if hit_to_scan[hit.id] != scan_ids:
+                        self.log("Mismatch leads to different scans! (%d, %d)" % (
+                            len(scan_ids), len(hit_to_scan[hit.id])))
+                # If a hit structure has been seen multiple times independent of whether or
+                # not the expected hit id matches, something may be wrong in the upstream process.
+                # Log this event.
+                if hit.id in seen:
+                    self.log("Hit %r already dealt under hit_id %r, now again at %r in group %r" % (
+                        hit, seen[hit.id], hit_id, group_key))
+                    raise ValueError(
+                        "Hit %r already dealt under hit_id %r, now again at %r" % (
+                            hit, seen[hit.id], hit_id))
+                seen[hit.id] = (hit_id, group_key)
+                work_order = self.build_work_order(
+                    hit_id, hit_map, scan_hit_type_map, hit_to_scan)
+                hit_group['work_orders'][hit_id] = work_order
+            self.add(hit_group)
+            if i % self.batch_size == 0 and i:
+                self.join()
         self.log("...... Finished dealing %d work items" % (i,))
         self.join()
         return
