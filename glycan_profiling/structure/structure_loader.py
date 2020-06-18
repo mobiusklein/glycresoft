@@ -111,6 +111,24 @@ class GlycanFragmentCache(object):
     def __call__(self, glycopeptide):
         return self.get_oxonium_ions(glycopeptide)
 
+    def update(self, source):
+        if isinstance(source, dict):
+            self.cache.update(source)
+        else:
+            self.cache.update(source.cache)
+
+    def populate(self, glycan_composition_iterator):
+        # A template peptide sequence which won't matter
+        peptide = PeptideSequence("PEPTIDE")
+        # Pretend to support the backdoor method
+        peptide._glycan_fragments = peptide.glycan_fragments
+        # Attach each glycan composition to the peptide and
+        # calculate oxonium ions and cache them ahead of time.
+        for gc in glycan_composition_iterator:
+            gc = gc.clone()
+            peptide.glycan = gc
+            self(peptide)
+
 
 oxonium_ion_cache = GlycanFragmentCache()
 
@@ -203,14 +221,13 @@ class NamedPeptideProteinRelation(PeptideProteinRelation):
 PeptideSequence.glycan_prior = 0.0
 
 
-class FragmentCachingContext(object):
+class GlycopeptideFragmentCachingContext(object):
+    __slots__ = ('store', )
+
     def __init__(self, store=None):
         if store is None:
-            store = dict()
+            store = {}
         self.store = store
-
-    def clear_for(self, case):
-        pass
 
     def peptide_backbone_fragment_key(self, target, args, kwargs):
         key = ("get_fragments", args, frozenset(kwargs.items()))
@@ -229,12 +246,19 @@ class FragmentCachingContext(object):
     def clear(self):
         self.store.clear()
 
+    def bind(self, target):
+        target.fragment_caches = self
+        return target
+
+    def unbind(self, target):
+        target.fragment_caches = self.__class__()
+
 
 class FragmentCachingGlycopeptide(PeptideSequence):
     def __init__(self, *args, **kwargs):
         kwargs.setdefault('parser_function', hashable_glycan_glycopeptide_parser)
         super(FragmentCachingGlycopeptide, self).__init__(*args, **kwargs)
-        self.fragment_caches = {}
+        self.fragment_caches = GlycopeptideFragmentCachingContext()
         self.protein_relation = None
         self.id = None
         self.glycan_prior = 0.0
@@ -265,7 +289,7 @@ class FragmentCachingGlycopeptide(PeptideSequence):
         return not self == other
 
     def get_fragments(self, *args, **kwargs):  # pylint: disable=arguments-differ
-        key = ("get_fragments", args, frozenset(kwargs.items()))
+        key = self.fragment_caches.peptide_backbone_fragment_key(self, args, kwargs)
         try:
             return self.fragment_caches[key]
         except KeyError:
@@ -275,7 +299,7 @@ class FragmentCachingGlycopeptide(PeptideSequence):
 
     def stub_fragments(self, *args, **kwargs):  # pylint: disable=arguments-differ
         kwargs.setdefault("strategy", CachingStubGlycopeptideStrategy)
-        key = ('stub_fragments', args, frozenset(kwargs.items()))
+        key = self.fragment_caches.stub_fragment_key(self, args, kwargs)
         try:
             return self.fragment_caches[key]
         except KeyError:
