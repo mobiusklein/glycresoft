@@ -616,6 +616,12 @@ class SpectrumIdentificationWorkerBase(Process, SpectrumEvaluatorBase):
         self.output_queue.join()
         self.debug("... Process %s Finished" % (self.name,))
 
+    def before_task(self):
+        '''A method to be overriden by subclasses that want to do something before
+        starting the task loop.
+        '''
+        pass
+
     def task(self):
         """The worker process's main loop where it will poll for new work items,
         process incoming work items and send them back to the master process.
@@ -651,6 +657,11 @@ class SpectrumIdentificationWorkerBase(Process, SpectrumEvaluatorBase):
         new_name = getattr(self, 'process_name', None)
         if new_name is not None:
             TaskBase().try_set_process_name(new_name)
+        try:
+            self.before_task()
+        except Exception:
+            self.log("An exception occurred during before_task for %r.\n%s" % (
+                self, traceback.format_exc()))
         try:
             self.task()
         except Exception:
