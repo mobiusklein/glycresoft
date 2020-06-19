@@ -140,7 +140,6 @@ class TaskSourceBase(StructureSpectrumSpecificationBuilder, TaskBase):
         seen = dict()
         for group_key, hit_keys in hit_to_group.items():
             hit_group = {
-                "hits": {},
                 "work_orders": {}
             }
             i += 1
@@ -148,7 +147,6 @@ class TaskSourceBase(StructureSpectrumSpecificationBuilder, TaskBase):
                 j += 1
                 scan_ids = hit_to_scan[hit_id]
                 hit = hit_map[hit_id]
-                hit_group['hits'][hit_id] = hit
                 # This sanity checking is likely unnecessary, and is a hold-over from
                 # debugging redundancy in the result queue. For the moment, it is retained
                 # to catch "new" bugs.
