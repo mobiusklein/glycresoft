@@ -228,7 +228,7 @@ class IdentificationProcessDispatcher(TaskBase):
                 worker_still_busy = True
                 self._has_remote_error = True
         self.log("... All Workers Done: %r (%d/%d), Error? %r" % (not worker_still_busy, j, i, self._has_remote_error))
-        return worker_still_busy
+        return not worker_still_busy
 
     def build_work_order(self, hit_id, hit_map, scan_hit_type_map, hit_to_scan):
         """Packs several task-defining data structures into a simple to unpack payload for
