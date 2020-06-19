@@ -128,7 +128,7 @@ class MultipartGlycopeptideIdentifier(TaskBase):
                  probing_range_for_missing_precursors=3, trust_precursor_fits=True,
                  glycan_score_threshold=1.0, peptide_masses_per_scan=100,
                  fdr_estimation_strategy=None, glycosylation_site_models_path=None,
-                 ** kwargs):
+                 cache_seeds=None, **kwargs):
         if fdr_estimation_strategy is None:
             fdr_estimation_strategy = GlycopeptideFDREstimationStrategy.multipart_gamma_gaussian_mixture
         if scorer_type is None:
@@ -176,6 +176,7 @@ class MultipartGlycopeptideIdentifier(TaskBase):
 
         self.n_processes = n_processes
         self.ipc_manager = ipc_manager
+        self.cache_seeds = cache_seeds
 
         self.file_manager = file_manager
         self.journal_path = self.file_manager.get('glycopeptide-match-journal')
@@ -302,6 +303,7 @@ class MultipartGlycopeptideIdentifier(TaskBase):
             mass_shifts=self.mass_shifts,
             evaluation_kwargs=self.evaluation_kwargs,
             error_tolerance=self.product_error_tolerance,
+            cache_seeds=self.cache_seeds
         )
 
         journal_writer = JournalFileWriter(self.journal_path)

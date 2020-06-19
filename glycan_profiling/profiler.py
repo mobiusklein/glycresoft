@@ -6,6 +6,11 @@ LC-MS/MS deconvolution or structure identification
 import os
 from collections import defaultdict
 
+try:
+    import cPickle as pickle
+except ImportError:
+    import pickle
+
 import numpy as np
 
 import ms_peak_picker
@@ -52,6 +57,8 @@ from glycan_profiling.chromatogram_tree import ChromatogramFilter, SimpleChromat
 from glycan_profiling.models import GeneralScorer, get_feature
 
 from glycan_profiling.structure import ScanStub
+from glycan_profiling.structure.structure_loader import (
+    oxonium_ion_cache, CachingStubGlycopeptideStrategy)
 
 from glycan_profiling.tandem import chromatogram_mapping
 from glycan_profiling.tandem.target_decoy import TargetDecoySet
@@ -80,6 +87,7 @@ from glycan_profiling.scan_cache import (
     ThreadedMzMLScanCacheHandler)
 
 from glycan_profiling.task import TaskBase
+from glycan_profiling import serialize
 
 
 debug_mode = bool(os.environ.get('GLYCRESOFTDEBUG', False))
@@ -735,6 +743,22 @@ class GlycopeptideLCMSMSAnalyzer(TaskBase):
             peak_loader, grouping_tolerance=self.grouping_error_tolerance,
             minimum_mass=self.minimum_mass)
         return extractor
+
+    def prepare_cache_seeds(self, database):
+
+        def flatten(nested):
+            return set([y for x in nested for y in x])
+
+        gcs = database.query(serialize.GlycanCombination).all()
+        gcs = [(gc.convert(), flatten(gc.component_classes)) for gc in gcs]
+
+        oxonium_ion_cache.populate([gc for gc, tps in gcs])
+        # CachingStubGlycopeptideStrategy.populate([gc for gc, tps in gcs if "N-Glycan" in tps])
+        seeds = {
+            "oxonium_ion_cache": pickle.dumps(oxonium_ion_cache, -1),
+            # "n_glycan_stub_cache": pickle.dumps(CachingStubGlycopeptideStrategy.get_cache(), -1)
+        }
+        return seeds
 
     def load_msms(self, peak_loader):
         prec_info = peak_loader.precursor_information()

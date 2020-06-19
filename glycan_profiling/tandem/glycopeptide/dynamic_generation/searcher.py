@@ -311,7 +311,7 @@ class SerializingMapperExecutor(MapperExecutor):
 class SpectrumMatcher(TaskExecutionSequence):
     def __init__(self, workload, group_i, group_n, scorer_type=None,
                  ipc_manager=None, n_processes=6, mass_shifts=None,
-                 evaluation_kwargs=None, **kwargs):
+                 evaluation_kwargs=None, cache_seeds=None, **kwargs):
         if scorer_type is None:
             scorer_type = LogIntensityScorer
         if evaluation_kwargs is None:
@@ -327,13 +327,15 @@ class SpectrumMatcher(TaskExecutionSequence):
 
         self.ipc_manager = ipc_manager
         self.n_processes = n_processes
+        self.cache_seeds = cache_seeds
 
     def score_spectra(self):
         matcher = MultiScoreGlycopeptideMatcher(
             [], self.scorer_type, None, Parser,
             ipc_manager=self.ipc_manager,
             n_processes=self.n_processes,
-            mass_shifts=self.mass_shifts)
+            mass_shifts=self.mass_shifts,
+            cache_seeds=self.cache_seeds)
 
         target_solutions = []
         self.log("... %0.2f%%" % (max((self.group_i - 1), 0) * 100.0 / self.group_n), self.workload)
@@ -377,7 +379,8 @@ class MatcherExecutor(TaskExecutionSequence):
     Its task type is :class:`SpectrumMatcher`
     """
     def __init__(self, in_queue, out_queue, in_done_event, scorer_type=None, ipc_manager=None,
-                 n_processes=6, mass_shifts=None, evaluation_kwargs=None, **kwargs):
+                 n_processes=6, mass_shifts=None, evaluation_kwargs=None, cache_seeds=None,
+                 **kwargs):
         if scorer_type is None:
             scorer_type = LogIntensityScorer
         if evaluation_kwargs is None:
@@ -395,6 +398,7 @@ class MatcherExecutor(TaskExecutionSequence):
 
         self.n_processes = n_processes
         self.ipc_manager = ipc_manager
+        self.cache_seeds = cache_seeds
 
     def configure_task(self, matcher_task):
         matcher_task.ipc_manager = self.ipc_manager
@@ -432,10 +436,11 @@ class WorkloadUnpackingMatcherExecutor(MatcherExecutor):
 
     """
     def __init__(self, scan_loader, in_queue, out_queue, in_done_event, scorer_type=None,
-                 ipc_manager=None, n_processes=6, mass_shifts=None, evaluation_kwargs=None, **kwargs):
+                 ipc_manager=None, n_processes=6, mass_shifts=None, evaluation_kwargs=None,
+                 cache_seeds=None, **kwargs):
         super(WorkloadUnpackingMatcherExecutor, self).__init__(
             in_queue, out_queue, in_done_event, scorer_type, ipc_manager,
-            n_processes, mass_shifts, evaluation_kwargs, **kwargs)
+            n_processes, mass_shifts, evaluation_kwargs, cache_seeds=cache_seeds, **kwargs)
         self.scan_loader = scan_loader
 
     def execute_task(self, matcher_task):

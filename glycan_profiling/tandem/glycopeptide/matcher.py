@@ -6,6 +6,11 @@ try:
 except ImportError:
     from queue import Queue as ThreadQueue
 
+try:
+    import cPickle as pickle
+except ImportError:
+    import pickle
+
 from glycan_profiling.chromatogram_tree import Unmodified
 
 from glycan_profiling.structure import (
@@ -22,20 +27,39 @@ class GlycopeptideIdentificationWorker(SpectrumIdentificationWorkerBase):
 
     def __init__(self, input_queue, output_queue, producer_done_event, consumer_done_event,
                  scorer_type, evaluation_args, spectrum_map, mass_shift_map, log_handler,
-                 parser_type, solution_packer):
+                 parser_type, solution_packer, cache_seeds=None):
+        if cache_seeds is None:
+            cache_seeds = {}
         SpectrumIdentificationWorkerBase.__init__(
             self, input_queue, output_queue, producer_done_event, consumer_done_event,
             scorer_type, evaluation_args, spectrum_map, mass_shift_map,
             log_handler=log_handler, solution_packer=solution_packer)
         self.parser = parser_type()
+        self.cache_seeds = cache_seeds
 
     def evaluate(self, scan, structure, *args, **kwargs):
         target = self.parser(structure)
         matcher = self.scorer_type.evaluate(scan, target, *args, **kwargs)
-        # self.log(
-        #     "\t%s: %s\t%s\t%s" % (
-        #         scan.id, target, matcher.score, matcher.get_auxiliary_data()))
         return matcher
+
+    def before_task(self):
+        if self.cache_seeds is None:
+            return
+        cache_seeds = self.cache_seeds
+        if isinstance(cache_seeds, (str, bytes)):
+            cache_seeds = pickle.loads(cache_seeds)
+
+        oxonium_cache_seed = cache_seeds.get('oxonium_ion_cache')
+        if oxonium_cache_seed is not None:
+            oxonium_cache_seed = pickle.loads(oxonium_cache_seed)
+            from glycan_profiling.structure.structure_loader import oxonium_ion_cache
+            oxonium_ion_cache.update(oxonium_cache_seed)
+
+        n_glycan_stub_cache_seed = cache_seeds.get('n_glycan_stub_cache')
+        if n_glycan_stub_cache_seed is not None:
+            n_glycan_stub_cache_seed = pickle.loads(n_glycan_stub_cache_seed)
+            from glycan_profiling.structure.structure_loader import CachingStubGlycopeptideStrategy
+            CachingStubGlycopeptideStrategy.update(n_glycan_stub_cache_seed)
 
 
 class PeptideMassFilteringDatabaseSearchMixin(object):
@@ -65,7 +89,7 @@ class GlycopeptideMatcher(PeptideMassFilteringDatabaseSearchMixin, TandemCluster
     def __init__(self, tandem_cluster, scorer_type, structure_database, parser_type=None,
                  n_processes=5, ipc_manager=None, probing_range_for_missing_precursors=3,
                  mass_shifts=None, batch_size=DEFAULT_BATCH_SIZE, peptide_mass_filter=None,
-                 trust_precursor_fits=True):
+                 trust_precursor_fits=True, cache_seeds=None):
         if parser_type is None:
             parser_type = self._default_parser_type()
         super(GlycopeptideMatcher, self).__init__(
@@ -76,6 +100,7 @@ class GlycopeptideMatcher(PeptideMassFilteringDatabaseSearchMixin, TandemCluster
         self.peptide_mass_filter = peptide_mass_filter
         self.parser_type = parser_type
         self.parser = parser_type()
+        self.cache_seeds = cache_seeds
 
     def _default_parser_type(self):
         return CachingGlycopeptideParser
@@ -101,7 +126,10 @@ class GlycopeptideMatcher(PeptideMassFilteringDatabaseSearchMixin, TandemCluster
 
     @property
     def _worker_specification(self):
-        return GlycopeptideIdentificationWorker, {"parser_type": self.parser_type}
+        return GlycopeptideIdentificationWorker, {
+            "parser_type": self.parser_type,
+            "cache_seeds": self.cache_seeds
+        }
 
 
 class DecoyGlycopeptideMatcher(GlycopeptideMatcher):
@@ -124,12 +152,13 @@ class TargetDecoyInterleavingGlycopeptideMatcher(PeptideMassFilteringDatabaseSea
     def __init__(self, tandem_cluster, scorer_type, structure_database, minimum_oxonium_ratio=0.05,
                  n_processes=5, ipc_manager=None, probing_range_for_missing_precursors=3,
                  mass_shifts=None, batch_size=DEFAULT_BATCH_SIZE, peptide_mass_filter=None,
-                 trust_precursor_fits=True):
+                 trust_precursor_fits=True, cache_seeds=None):
         super(TargetDecoyInterleavingGlycopeptideMatcher, self).__init__(
             tandem_cluster, scorer_type, structure_database, verbose=False,
             n_processes=n_processes, ipc_manager=ipc_manager,
             probing_range_for_missing_precursors=probing_range_for_missing_precursors,
-            mass_shifts=mass_shifts, batch_size=batch_size, trust_precursor_fits=trust_precursor_fits)
+            mass_shifts=mass_shifts, batch_size=batch_size,
+            trust_precursor_fits=trust_precursor_fits, cache_seeds=cache_seeds)
         self.tandem_cluster = tandem_cluster
         self.scorer_type = scorer_type
         self.structure_database = structure_database
@@ -140,13 +169,13 @@ class TargetDecoyInterleavingGlycopeptideMatcher(PeptideMassFilteringDatabaseSea
             ipc_manager=ipc_manager,
             probing_range_for_missing_precursors=probing_range_for_missing_precursors,
             mass_shifts=mass_shifts, peptide_mass_filter=peptide_mass_filter,
-            trust_precursor_fits=trust_precursor_fits)
+            trust_precursor_fits=trust_precursor_fits, cache_seeds=cache_seeds)
         self.decoy_evaluator = DecoyGlycopeptideMatcher(
             [], self.scorer_type, self.structure_database, n_processes=n_processes,
             ipc_manager=ipc_manager,
             probing_range_for_missing_precursors=probing_range_for_missing_precursors,
             mass_shifts=mass_shifts, peptide_mass_filter=peptide_mass_filter,
-            trust_precursor_fits=trust_precursor_fits)
+            trust_precursor_fits=trust_precursor_fits, cache_seeds=cache_seeds)
 
     def filter_for_oxonium_ions(self, error_tolerance=1e-5):
         keep = []
@@ -291,13 +320,13 @@ class ComparisonGlycopeptideMatcher(TargetDecoyInterleavingGlycopeptideMatcher):
                  minimum_oxonium_ratio=0.05, n_processes=5, ipc_manager=None,
                  probing_range_for_missing_precursors=3, mass_shifts=None,
                  batch_size=DEFAULT_BATCH_SIZE, peptide_mass_filter=None,
-                 trust_precursor_fits=True):
+                 trust_precursor_fits=True, cache_seeds=None):
         super(ComparisonGlycopeptideMatcher, self).__init__(
             tandem_cluster, scorer_type, target_structure_database,
             n_processes=n_processes, ipc_manager=ipc_manager,
             probing_range_for_missing_precursors=probing_range_for_missing_precursors,
             mass_shifts=mass_shifts, batch_size=batch_size, peptide_mass_filter=peptide_mass_filter,
-            trust_precursor_fits=trust_precursor_fits)
+            trust_precursor_fits=trust_precursor_fits, cache_seeds=cache_seeds)
 
         self.tandem_cluster = tandem_cluster
         self.scorer_type = scorer_type
