@@ -234,7 +234,7 @@ class GlycopeptideFragmentCachingContext(object):
         return key
 
     def stub_fragment_key(self, target, args, kwargs):
-        key = ('stub_fragments', args, frozenset(kwargs.items()))
+        key = ('stub_fragments', args, frozenset(kwargs.items()), )
         return key
 
     def __getitem__(self, key):
@@ -427,7 +427,7 @@ class DecoyFragmentCachingGlycopeptide(FragmentCachingGlycopeptide):
 
     def stub_fragments(self, *args, **kwargs):
         kwargs.setdefault("strategy", CachingStubGlycopeptideStrategy)
-        key = ('stub_fragments', args, frozenset(kwargs.items()))
+        key = self.fragment_caches.stub_fragment_key(self, args, kwargs)
         try:
             return self.fragment_caches[key]
         except KeyError:
