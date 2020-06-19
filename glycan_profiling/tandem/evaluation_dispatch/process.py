@@ -214,16 +214,20 @@ class IdentificationProcessDispatcher(TaskBase):
         """Check if all worker processes have finished.
         """
         worker_still_busy = False
+        i = 0
+        j = 0
         for worker in self.workers:
+            i += 1
             try:
                 is_done = worker.all_work_done()
+                j += is_done
                 if not is_done:
                     worker_still_busy = True
                     return worker_still_busy
             except (RemoteError, KeyError):
                 worker_still_busy = True
                 self._has_remote_error = True
-                return worker_still_busy
+        self.log("... All Workers Done: %r (%d/%d), Error? %r" % (not worker_still_busy, j, i, self._has_remote_error))
         return worker_still_busy
 
     def build_work_order(self, hit_id, hit_map, scan_hit_type_map, hit_to_scan):
@@ -535,6 +539,7 @@ class SpectrumIdentificationWorkerBase(Process, SpectrumEvaluatorBase):
         })
         self.solution_map = dict()
         self._work_complete = Event()
+        self._work_complete.clear()
         self.log_handler = log_handler
         self.token = uid()
         self.items_handled = 0
