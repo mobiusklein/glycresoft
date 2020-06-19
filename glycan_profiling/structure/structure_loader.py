@@ -484,6 +484,21 @@ class CachingStubGlycopeptideStrategy(StubGlycopeptideStrategy):
             self._cache[glycan, core_count, iteration_count] = value
             return value
 
+    @classmethod
+    def update(cls, source):
+        cls._cache.update(source)
+
+    @classmethod
+    def populate(cls, glycan_composition_iterator):
+        inst = cls(None, extended=True)
+        for gc in glycan_composition_iterator:
+            gc = gc.clone()
+            inst.n_glycan_composition_fragments(gc, 1, 0)
+
+    @classmethod
+    def get_cache(cls):
+        return cls._cache
+
 
 class SequenceReversingCachingGlycopeptideParser(CachingGlycopeptideParser):
 
