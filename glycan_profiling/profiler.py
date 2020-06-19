@@ -1239,6 +1239,8 @@ class MultipartGlycopeptideLCMSMSAnalyzer(MzMLGlycopeptideLCMSMSAnalyzer):
         return database
 
     def make_search_engine(self, msms_scans, database, peak_loader):
+        cache_seeds = self.prepare_cache_seeds(
+            serialize.DatabaseBoundOperation(self.database_connection))
         searcher = MultipartGlycopeptideIdentifier(
             [scan for scan in msms_scans
              if scan.precursor_information.neutral_mass < self.maximum_mass],
@@ -1251,7 +1253,8 @@ class MultipartGlycopeptideLCMSMSAnalyzer(MzMLGlycopeptideLCMSMSAnalyzer):
             probing_range_for_missing_precursors=self.probing_range_for_missing_precursors,
             trust_precursor_fits=self.trust_precursor_fits,
             fdr_estimation_strategy=self.fdr_estimation_strategy,
-            glycosylation_site_models_path=self.glycosylation_site_models_path)
+            glycosylation_site_models_path=self.glycosylation_site_models_path,
+            cache_seeds=cache_seeds)
         return searcher
 
     def estimate_fdr(self, searcher, target_decoy_set):
