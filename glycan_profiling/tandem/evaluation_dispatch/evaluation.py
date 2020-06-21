@@ -151,6 +151,14 @@ class SpectrumEvaluatorBase(object):
 
 
 class LocalSpectrumEvaluator(SpectrumEvaluatorBase, TaskBase):
+    '''A :class:`SpectrumEvaluatorBase` implementation that counter-points
+    :class:`IdentificationProcessDispatcher` by doing all of its evaluation within
+    a single process.
+
+    To avoid excessive subclassing, instances first try to steal the
+    :meth:`construct_cache_subgroups` and :meth:`create_evaluation_context` from
+    :attr:`evaluator`.
+    '''
     def __init__(self, evaluator, scan_map, mass_shift_map, solution_packer, evaluation_args=None):
         if evaluation_args is None:
             evaluation_args = dict()
@@ -168,7 +176,6 @@ class LocalSpectrumEvaluator(SpectrumEvaluatorBase, TaskBase):
             self.create_evaluation_context = self.evaluator.create_evaluation_context
         except AttributeError:
             pass
-
 
     def evaluate(self, scan, structure, *args, **kwargs):
         return self.evaluator.evaluate(scan, structure, *args, **kwargs)
