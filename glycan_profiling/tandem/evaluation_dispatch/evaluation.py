@@ -104,9 +104,9 @@ class SpectrumEvaluatorBase(object):
             A list of packed results for each member of the group
         """
         results = []
-        context = self.create_evaluation_context(subgroup)
-        for inst in subgroup:
-            scan_specification = work_order['work_orders'][inst.id][1]
+        evaluation_context = self.create_evaluation_context(subgroup)
+        for structure in subgroup:
+            scan_specification = work_order['work_orders'][structure.id][1]
             scan_specification = [
                 (self.fetch_scan(i), self.fetch_mass_shift(j)) for i, j in scan_specification]
             solution_target = None
