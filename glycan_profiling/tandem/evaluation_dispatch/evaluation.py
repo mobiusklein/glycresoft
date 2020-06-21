@@ -160,6 +160,15 @@ class LocalSpectrumEvaluator(SpectrumEvaluatorBase, TaskBase):
         self.solution_packer = solution_packer
         self.solution_map = dict()
         self.evaluation_args = evaluation_args
+        try:
+            self.construct_cache_subgroups = self.evaluator.construct_cache_subgroups
+        except AttributeError:
+            pass
+        try:
+            self.create_evaluation_context = self.evaluator.create_evaluation_context
+        except AttributeError:
+            pass
+
 
     def evaluate(self, scan, structure, *args, **kwargs):
         return self.evaluator.evaluate(scan, structure, *args, **kwargs)
@@ -198,7 +207,7 @@ class LocalSpectrumEvaluator(SpectrumEvaluatorBase, TaskBase):
 
 
 class SequentialIdentificationProcessor(TaskBase):
-    def __init__(self, evaluator, mass_shift_map, evaluation_args=None, solution_handler_type=None):
+    def __init__(self, evaluator, mass_shift_map, evaluation_args=None, solution_handler_type=None, ev):
         if evaluation_args is None:
             evaluation_args = dict()
         if solution_handler_type is None:
