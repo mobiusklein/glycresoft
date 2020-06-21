@@ -177,8 +177,11 @@ class TaskSourceBase(StructureSpectrumSpecificationBuilder, TaskBase):
         self.join()
         return
 
-    def __call__(self, hit_map, hit_to_scan, scan_hit_type_map):
-        return self.feed(hit_map, hit_to_scan, scan_hit_type_map)
+    def __call__(self, hit_map, hit_to_scan, scan_hit_type_map, hit_to_group=None):
+        if not hit_to_group:
+            return self.feed(hit_map, hit_to_scan, scan_hit_type_map)
+        else:
+            return self.feed_groups(hit_map, hit_to_scan, scan_hit_type_map, hit_to_group)
 
 
 class TaskDeque(TaskSourceBase):
