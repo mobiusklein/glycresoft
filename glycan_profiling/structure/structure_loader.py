@@ -252,6 +252,7 @@ class GlycopeptideFragmentCachingContext(object):
 
     def unbind(self, target):
         target.fragment_caches = self.__class__()
+        return target
 
 
 class FragmentCachingGlycopeptide(PeptideSequence):
@@ -467,7 +468,8 @@ class DecoyFragmentCachingGlycopeptide(FragmentCachingGlycopeptide):
         inst.id = target.id + (-1, )
         inst.protein_relation = target.protein_relation
         # Intentionally share caches with offspring
-        inst.fragment_caches = {k: v for k, v in target.fragment_caches.items() if 'stub_fragments' not in k}
+        inst.fragment_caches = inst.fragment_caches.__class__(
+            {k: v for k, v in target.fragment_caches.items() if 'stub_fragments' not in k})
         return inst
 
 
@@ -475,13 +477,14 @@ class CachingStubGlycopeptideStrategy(StubGlycopeptideStrategy):
     _cache = dict()
 
     def n_glycan_composition_fragments(self, glycan, core_count=1, iteration_count=0):
+        key = (str(glycan), core_count, iteration_count)
         try:
-            value = self._cache[glycan, core_count, iteration_count]
+            value = self._cache[key]
             return value
         except KeyError:
             value = super(CachingStubGlycopeptideStrategy, self).n_glycan_composition_fragments(
                 glycan, core_count, iteration_count)
-            self._cache[glycan, core_count, iteration_count] = value
+            self._cache[key] = value
             return value
 
     @classmethod
