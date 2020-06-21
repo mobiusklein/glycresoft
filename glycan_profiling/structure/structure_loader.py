@@ -243,6 +243,15 @@ class GlycopeptideFragmentCachingContext(object):
     def __setitem__(self, key, value):
         self.store[key] = value
 
+    def keys(self):
+        return self.store.keys()
+
+    def values(self):
+        return self.store.values()
+
+    def items(self):
+        return self.store.items()
+
     def clear(self):
         self.store.clear()
 
@@ -253,6 +262,17 @@ class GlycopeptideFragmentCachingContext(object):
     def unbind(self, target):
         target.fragment_caches = self.__class__()
         return target
+
+    def __call__(self, target):
+        return self.bind(target)
+
+
+class GlycanAwareGlycopeptideFragmentCachingContext(GlycopeptideFragmentCachingContext):
+    def stub_fragment_key(self, target, args, kwargs):
+        tid = target.id
+        key = ('stub_fragments', args, frozenset(
+            kwargs.items()), tid.glycan_combination_id, tid.structure_type)
+        return key
 
 
 class FragmentCachingGlycopeptide(PeptideSequence):
