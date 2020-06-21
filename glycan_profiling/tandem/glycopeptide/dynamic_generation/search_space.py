@@ -591,9 +591,18 @@ class Record(object):
 
 
 class Parser(object):
+    def __init__(self, *args, **kwargs):
+        self.last_id = None
+        self.last_value = None
+
     def __call__(self, record):
-        struct = record.convert()
-        return struct
+        if record.id == self.last_id:
+            return self.last_value
+        else:
+            struct = record.convert()
+            self.last_id = record.id
+            self.last_value = struct
+            return struct
 
 
 def _compress(data):
