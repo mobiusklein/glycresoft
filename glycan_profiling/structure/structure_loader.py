@@ -335,7 +335,7 @@ class FragmentCachingGlycopeptide(PeptideSequence):
         return oxonium_ion_cache(self)
 
     def clear_caches(self):
-        self.fragment_caches.clear()
+        self.fragment_caches = GlycopeptideFragmentCachingContext()
 
     def clone(self, *args, **kwargs):  # pylint: disable=arguments-differ
         share_cache = kwargs.pop("share_cache", True)
