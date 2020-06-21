@@ -214,7 +214,7 @@ class LocalSpectrumEvaluator(SpectrumEvaluatorBase, TaskBase):
 
 
 class SequentialIdentificationProcessor(TaskBase):
-    def __init__(self, evaluator, mass_shift_map, evaluation_args=None, solution_handler_type=None, ev):
+    def __init__(self, evaluator, mass_shift_map, evaluation_args=None, solution_handler_type=None):
         if evaluation_args is None:
             evaluation_args = dict()
         if solution_handler_type is None:
