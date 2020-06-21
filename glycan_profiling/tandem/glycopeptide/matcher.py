@@ -37,8 +37,10 @@ class GlycopeptideIdentificationWorker(SpectrumIdentificationWorkerBase):
         self.parser = parser_type()
         self.cache_seeds = cache_seeds
 
-    def evaluate(self, scan, structure, *args, **kwargs):
+    def evaluate(self, scan, structure, evaluation_context=None, *args, **kwargs):
         target = self.parser(structure)
+        if evaluation_context is not None:
+            evaluation_context(target)
         matcher = self.scorer_type.evaluate(scan, target, *args, **kwargs)
         return matcher
 

@@ -330,39 +330,7 @@ class IdentificationProcessDispatcher(TaskBase):
                 raise
         return i
 
-    def evalute_work_order_local(self, structure, scan_specification):
-        """Mimic one iteration of the main loop of :class:`SpectrumIdentificationWorkerBase`
-        to evaluate task items locally.
-
-        Parameters
-        ----------
-        structure : object
-            object to match against MSn scans
-        scan_specification : list
-            List of tuples of (scan id, mass shift name) to match against ``structure``
-
-        Returns
-        -------
-        object
-            Fully processed version of ``structure``
-        dict
-            Mapping of (scan id, mass shift name) to match score
-        """
-        scan_specification = [(self.fetch_scan(i), self.fetch_mass_shift(j)) for i, j in scan_specification]
-        solution_target = None
-        solution = None
-        solution_map = dict()
-        for scan, mass_shift in scan_specification:
-            solution = self.handle_instance(structure, scan, mass_shift, solution_map)
-            solution_target = solution.target
-        if solution is not None:
-            try:
-                solution.target.clear_caches()
-            except AttributeError:
-                pass
-        return solution_target, solution_map
-
-    def process(self, scan_map, hit_map, hit_to_scan, scan_hit_type_map):
+    def process(self, scan_map, hit_map, hit_to_scan, scan_hit_type_map, hit_group_map=None):
         """Evaluate all spectrum matches, spreading work among the worker
         process pool.
 
@@ -377,10 +345,16 @@ class IdentificationProcessDispatcher(TaskBase):
             it has a precursor mass match.
         scan_hit_type_map : :class:`dict`
             Mapping from (:attr:`~.ScanBase.id`, `structure.id`) to :class:`MassShiftBase`
+        hit_group_map : :class:`dict`, optional
+            An additional :class:`dict` that maps abstract group ids to sets of hit ids
+            in `hit_map` which all share information that can be computed once and shared
+            between all members of the group.
         """
         self.structure_map = hit_map
         self.solution_handler.scan_map = scan_map
         self.create_pool(scan_map)
+
+        # Won't feed hit groups until after more work is done here.
         feeder_thread = self.spawn_queue_feeder(
             hit_map, hit_to_scan, scan_hit_type_map)
         has_work = True
@@ -599,7 +573,7 @@ class SpectrumIdentificationWorkerBase(Process, SpectrumEvaluatorBase):
             self.output_queue.put((target_id, self.solution_map, self.token))
         self.solution_map = dict()
 
-    def evaluate(self, scan, structure, *args, **kwargs):
+    def evaluate(self, scan, structure, evaluation_context=None, *args, **kwargs):
         raise NotImplementedError()
 
     def cleanup(self):
