@@ -235,5 +235,7 @@ class TaskQueueFeeder(TaskSourceBase):
         self.done_event.set()
         return
 
-    def __call__(self, hit_map, hit_to_scan, scan_hit_type_map):
-        return self.feed(hit_map, hit_to_scan, scan_hit_type_map)
+    def feed_groups(self, hit_map, hit_to_scan, scan_hit_type_map, hit_to_group):
+        super(TaskQueueFeeder, self).feed_groups(hit_map, hit_to_scan, scan_hit_type_map, hit_to_group)
+        self.done_event.set()
+        return
