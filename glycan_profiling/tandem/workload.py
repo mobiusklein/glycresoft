@@ -283,7 +283,7 @@ class WorkloadManager(object):
             self.total_size)
         return rendered
 
-    def batches(self, max_size=None):
+    def batches(self, max_size=None, ignore_groups=False):
         """Partition the workload into batches of approximately
         ``max_size`` comparisons.
 
@@ -326,7 +326,7 @@ class WorkloadManager(object):
         current_scan_hit_type_map = defaultdict(lambda: Unmodified.name)
         current_hit_group_map = defaultdict(set)
 
-        if self.hit_group_map:
+        if self.hit_group_map and not ignore_groups:
             source = sorted(self.hit_group_map.items())
             batch_index = 0
             for group_id, hit_ids in source:
