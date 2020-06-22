@@ -591,17 +591,16 @@ class Record(object):
 
 
 class Parser(object):
-    def __init__(self, *args, **kwargs):
-        self.last_id = None
-        self.last_value = None
+    def __init__(self, max_size=2 ** 12):
+        self.cache = LRUMapping(max_size)
 
     def __call__(self, record):
-        if record.id == self.last_id:
-            return self.last_value
+        key = record.id
+        if key in self.cache:
+            return self.cache[key]
         else:
             struct = record.convert()
-            self.last_id = record.id
-            self.last_value = struct
+            self.cache[key] = struct
             return struct
 
 
