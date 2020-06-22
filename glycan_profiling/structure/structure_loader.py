@@ -446,6 +446,21 @@ class CachingPeptideParser(CachingGlycopeptideParser):
 
 class DecoyFragmentCachingGlycopeptide(FragmentCachingGlycopeptide):
 
+    def _permute_stub_masses(self, stub_fragments, kwargs):
+        random_state = np.random.RandomState(
+            int(round(self.glycan_composition.mass())))
+        random_low = kwargs.get('random_low', 1.0)
+        random_high = kwargs.get("random_high", 30.0)
+        n = len(stub_fragments)
+        rand_deltas = random_state.uniform(random_low, random_high, n)
+        i = 0
+        for frag in stub_fragments:
+            if frag.glycosylation_size > 1:
+                delta = rand_deltas[i]
+                i += 1
+                frag.mass += delta
+        return stub_fragments
+
     def stub_fragments(self, *args, **kwargs):
         kwargs.setdefault("strategy", CachingStubGlycopeptideStrategy)
         key = self.fragment_caches.stub_fragment_key(self, args, kwargs)
@@ -458,18 +473,7 @@ class DecoyFragmentCachingGlycopeptide(FragmentCachingGlycopeptide):
                 # querying.
                 super(FragmentCachingGlycopeptide, self).stub_fragments( # pylint: disable=bad-super-call
                     *args, **kwargs))
-            random_state = np.random.RandomState(
-                int(round(self.glycan_composition.mass())))
-            random_low = kwargs.get('random_low', 1.0)
-            random_high = kwargs.get("random_high", 30.0)
-            n = len(result)
-            rand_deltas = random_state.uniform(random_low, random_high, n)
-            i = 0
-            for frag in result:
-                if frag.glycosylation_size > 1:
-                    delta = rand_deltas[i]
-                    i += 1
-                    frag.mass += delta
+            result = self._permute_stub_masses(result, kwargs)
             self.fragment_caches[key] = result
             return result
 
