@@ -295,7 +295,7 @@ class TandemClusterEvaluatorBase(TaskBase):
             worker_type, self.scorer_type, evaluation_args=kwargs, init_args=init_args,
             n_processes=self.n_processes, ipc_manager=self.ipc_manager,
             mass_shift_map=self.mass_shift_map, solution_handler_type=handler_tp)
-        return dispatcher.process(scan_map, hit_map, hit_to_scan, scan_hit_type_map)
+        return dispatcher.process(scan_map, hit_map, hit_to_scan, scan_hit_type_map, hit_group_map)
 
     def _evaluate_hit_groups(self, batch, **kwargs):
         if self.n_processes == 1 or len(batch.hit_map) < 2500:
