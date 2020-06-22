@@ -16,13 +16,43 @@ from glycan_profiling.chromatogram_tree import Unmodified
 from glycan_profiling.structure import (
     CachingGlycopeptideParser,
     SequenceReversingCachingGlycopeptideParser)
+from glycan_profiling.structure.structure_loader import GlycanAwareGlycopeptideFragmentCachingContext
 
 from ..spectrum_evaluation import TandemClusterEvaluatorBase, DEFAULT_BATCH_SIZE
 from ..process_dispatcher import SpectrumIdentificationWorkerBase
 from ..oxonium_ions import gscore_scanner
 
 
-class GlycopeptideIdentificationWorker(SpectrumIdentificationWorkerBase):
+class GlycopeptideSpectrumGroupEvaluatorMixin(object):
+    __slots__ = ()
+
+    def create_evaluation_context(self, subgroup):
+        return GlycanAwareGlycopeptideFragmentCachingContext()
+
+    def construct_cache_subgroups(self, work_order):
+        record_by_id = {}
+        subgroups = []
+        for key, order in work_order['work_orders'].items():
+            record = order[0]
+            record_by_id[record.id] = record
+            structure = self.parser(record)
+            for group in subgroups:
+                if structure.modified_sequence_equality(group[0]):
+                    group.append(structure)
+                    break
+            else:
+                subgroups.append([structure])
+        subgroups = [
+            sorted([record_by_id[structure.id]
+                    for structure in subgroup], key=lambda x: x.id.structure_type)
+            if len(subgroup) > 1 else [record_by_id[structure.id] for structure in subgroup]
+            for subgroup in subgroups
+        ]
+        return subgroups
+
+
+
+class GlycopeptideIdentificationWorker(GlycopeptideSpectrumGroupEvaluatorMixin, SpectrumIdentificationWorkerBase):
     process_name = 'glycopeptide-identification-worker'
 
     def __init__(self, input_queue, output_queue, producer_done_event, consumer_done_event,
@@ -87,7 +117,7 @@ class PeptideMassFilteringDatabaseSearchMixin(object):
         return hits
 
 
-class GlycopeptideMatcher(PeptideMassFilteringDatabaseSearchMixin, TandemClusterEvaluatorBase):
+class GlycopeptideMatcher(GlycopeptideSpectrumGroupEvaluatorMixin, PeptideMassFilteringDatabaseSearchMixin, TandemClusterEvaluatorBase):
     def __init__(self, tandem_cluster, scorer_type, structure_database, parser_type=None,
                  n_processes=5, ipc_manager=None, probing_range_for_missing_precursors=3,
                  mass_shifts=None, batch_size=DEFAULT_BATCH_SIZE, peptide_mass_filter=None,
@@ -139,7 +169,7 @@ class DecoyGlycopeptideMatcher(GlycopeptideMatcher):
         return SequenceReversingCachingGlycopeptideParser
 
 
-class TargetDecoyInterleavingGlycopeptideMatcher(PeptideMassFilteringDatabaseSearchMixin, TandemClusterEvaluatorBase):
+class TargetDecoyInterleavingGlycopeptideMatcher(GlycopeptideSpectrumGroupEvaluatorMixin, PeptideMassFilteringDatabaseSearchMixin, TandemClusterEvaluatorBase):
     '''Searches a single database against all spectra, where targets are
     database matches, and decoys are the reverse of the individual target
     glycopeptides.
