@@ -253,7 +253,7 @@ class IdentificationProcessDispatcher(TaskBase):
         """
         return self.feeder.build_work_order(hit_id, hit_map, scan_hit_type_map, hit_to_scan)
 
-    def spawn_queue_feeder(self, hit_map, hit_to_scan, scan_hit_type_map):
+    def spawn_queue_feeder(self, hit_map, hit_to_scan, scan_hit_type_map, hit_to_group=None):
         """Create a thread to run :meth:`feeder` with the provided arguments
         so that work can be sent in tandem with waiting for results
 
@@ -266,13 +266,14 @@ class IdentificationProcessDispatcher(TaskBase):
         scan_hit_type_map : dict
             Maps (hit id, scan id) to the type of mass shift
             applied for this match
-
+        hit_to_group: dict, optional
+            Maps group id to the set of hit ids which are
         Returns
         -------
         Thread
         """
         feeder_thread = Thread(
-            target=self.feeder, args=(hit_map, hit_to_scan, scan_hit_type_map))
+            target=self.feeder, args=(hit_map, hit_to_scan, scan_hit_type_map, hit_to_group))
         feeder_thread.daemon = True
         feeder_thread.start()
         return feeder_thread
@@ -356,7 +357,7 @@ class IdentificationProcessDispatcher(TaskBase):
 
         # Won't feed hit groups until after more work is done here.
         feeder_thread = self.spawn_queue_feeder(
-            hit_map, hit_to_scan, scan_hit_type_map)
+            hit_map, hit_to_scan, scan_hit_type_map, hit_group_map)
         has_work = True
         i = 0
         scan_count = len(scan_map)
@@ -568,6 +569,17 @@ class SpectrumIdentificationWorkerBase(Process, SpectrumEvaluatorBase):
         return self._work_complete.is_set()
 
     def pack_output(self, target):
+        """Transmit the completed identifications for a given target
+        structure.
+
+        Rather than returning these values directly, this implementation uses
+        the output queue to send the target and its scores along an IPC queue.
+
+        Parameters
+        ----------
+        target : object
+            The structure being identified.
+        """
         if self.solution_map:
             target_id = getattr(target, 'id', target)
             self.output_queue.put((target_id, self.solution_map, self.token))
@@ -610,7 +622,7 @@ class SpectrumIdentificationWorkerBase(Process, SpectrumEvaluatorBase):
         strikes = 0
         while has_work:
             try:
-                structure, scan_ids = self.input_queue.get(True, 5)
+                payload = self.input_queue.get(True, 5)
                 self.input_queue.task_done()
                 strikes = 0
             except QueueEmptyException:
@@ -622,14 +634,28 @@ class SpectrumIdentificationWorkerBase(Process, SpectrumEvaluatorBase):
                     if strikes % 1000 == 0:
                         self.log("... %d iterations without work for %r" % (strikes, self))
                     continue
-            self.items_handled += 1
-            try:
-                self.handle_item(structure, scan_ids)
-            except Exception:
-                message = "An error occurred while processing %r on %r:\n%s" % (
-                    structure, self, traceback.format_exc())
-                self.log(message)
-                break
+
+            # Handling a group of work items
+            if isinstance(payload, dict):
+                work_order = payload
+                self.items_handled += 1
+                try:
+                    self.handle_group(work_order)
+                except Exception:
+                    message = "An error occurred while processing %r on %r:\n%s" % (
+                        work_order, self, traceback.format_exc())
+                    self.log(message)
+                    break
+            else: # Handling a single work item
+                structure, scan_ids = payload
+                self.items_handled += 1
+                try:
+                    self.handle_item(structure, scan_ids)
+                except Exception:
+                    message = "An error occurred while processing %r on %r:\n%s" % (
+                        structure, self, traceback.format_exc())
+                    self.log(message)
+                    break
         self.cleanup()
 
     def run(self):
