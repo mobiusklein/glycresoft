@@ -24,7 +24,9 @@ from glycan_profiling.chromatogram_tree import Unmodified
 
 from glycan_profiling.structure.lru import LRUMapping
 from glycan_profiling.structure import (
-    FragmentCachingGlycopeptide, DecoyFragmentCachingGlycopeptide, PeptideProteinRelation)
+    FragmentCachingGlycopeptide, DecoyFragmentCachingGlycopeptide,
+    PeptideProteinRelation, )
+from glycan_profiling.structure.structure_loader import CachingStubGlycopeptideStrategy
 
 from glycan_profiling.composition_distribution_model.site_model import (
     GlycoproteomePriorAnnotator)
@@ -548,7 +550,8 @@ class Record(object):
 
     def convert(self):
         if self.id.structure_type.value & StructureClassification.target_peptide_decoy_glycan.value:
-            structure = DecoyFragmentCachingGlycopeptide(self.glycopeptide)
+            structure = SharedCacheAwareDecoyFragmentCachingGlycopeptide(
+                self.glycopeptide)
         else:
             structure = FragmentCachingGlycopeptide(self.glycopeptide)
         structure.id = self.id
@@ -593,6 +596,35 @@ class Record(object):
         inst.glycopeptide = self.glycopeptide
         inst.total_mass = self.total_mass
         return inst
+
+
+class SharedCacheAwareDecoyFragmentCachingGlycopeptide(DecoyFragmentCachingGlycopeptide):
+    def _make_target_key(self, key):
+        value = key[-1]
+        as_target_peptide = StructureClassification[int(value) ^ 1]
+        new_key = key[:-1] + (as_target_peptide, )
+        return new_key
+
+    def stub_fragments(self, *args, **kwargs):
+        kwargs.setdefault("strategy", CachingStubGlycopeptideStrategy)
+        key = self.fragment_caches.stub_fragment_key(self, args, kwargs)
+        try:
+            return self.fragment_caches[key]
+        except KeyError:
+            target_key = self._make_target_key(key)
+            try:
+                result = self.fragment_caches[target_key]
+                result = [f.clone() for f in result]
+            except KeyError:
+                result = list(
+                    # Directly call the superclass method of FragmentCachingGlycopeptide as we
+                    # do not need to go through a preliminary round of cache key construction and
+                    # querying.
+                    super(FragmentCachingGlycopeptide, self).stub_fragments(  # pylint: disable=bad-super-call
+                        *args, **kwargs))
+            result = self._permute_stub_masses(result, kwargs)
+            self.fragment_caches[key] = result
+            return result
 
 
 class Parser(object):
