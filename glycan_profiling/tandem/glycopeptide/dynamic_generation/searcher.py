@@ -197,7 +197,9 @@ class StructureMapper(TaskExecutionSequence):
 
     def run(self):
         workload = self.map_structures()
+        workload.pack()
         self.add_decoy_glycans(workload)
+        self.predictive_search.construct_peptide_groups(workload)
         return workload
 
 

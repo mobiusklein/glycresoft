@@ -225,7 +225,6 @@ class PeptideGlycosylator(GlycoformGeneratorBase):
         peptide_groups.clear()
         self.peptide_to_group_id = peptide_to_group_id
 
-
     def handle_peptide_mass(self, peptide_mass, intact_mass, error_tolerance=1e-5):
         peptide_records = self.peptides.search_mass_ppm(peptide_mass, error_tolerance)
         glycan_mass = intact_mass - peptide_mass
@@ -288,6 +287,12 @@ class DynamicGlycopeptideSearchBase(LoggingMixin):
 
     def reset(self):
         self.peptide_glycosylator.reset()
+
+    def construct_peptide_groups(self, workload):
+        workload.hit_group_map.clear()
+        for hit in workload.hit_map.values():
+            workload.hit_group_map[
+                self.peptide_glycosylator.peptide_to_group_id[hit.id.peptide_id]].add(hit.id)
 
 
 class PredictiveGlycopeptideSearch(DynamicGlycopeptideSearchBase):
