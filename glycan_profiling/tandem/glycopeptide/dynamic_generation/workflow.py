@@ -355,7 +355,7 @@ class MultipartGlycopeptideIdentifier(TaskBase):
             if i * 1.0 / total_solutions_count > last:
                 should_log = True
                 last += 0.1
-            elif i % 10000 == 0:
+            elif i % 100000 == 0:
                 should_log = True
             if should_log:
                 self.log("... %d/%d Solutions Loaded (%0.2f%%)" % (
