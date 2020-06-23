@@ -91,10 +91,10 @@ class glycopeptide_key_t(_glycopeptide_key_t):
     def is_decoy(self):
         return self.structure_type != 0
 
-    def as_dict(self):
+    def as_dict(self, stringify=False):
         d = {}
         for i, label in enumerate(self._fields):
-            d[label] = self[i]
+            d[label] = str(self[i]) if stringify else self[i]
         return d
 
 
@@ -599,11 +599,6 @@ class Record(object):
 
 
 class SharedCacheAwareDecoyFragmentCachingGlycopeptide(DecoyFragmentCachingGlycopeptide):
-    def _make_target_key(self, key):
-        value = key[-1]
-        as_target_peptide = StructureClassification[int(value) ^ 1]
-        new_key = key[:-1] + (as_target_peptide, )
-        return new_key
 
     def stub_fragments(self, *args, **kwargs):
         kwargs.setdefault("strategy", CachingStubGlycopeptideStrategy)
@@ -611,8 +606,10 @@ class SharedCacheAwareDecoyFragmentCachingGlycopeptide(DecoyFragmentCachingGlyco
         try:
             return self.fragment_caches[key]
         except KeyError:
-            target_key = self._make_target_key(key)
+            target_key = self.fragment_caches._make_target_key(key)
             try:
+                if target_key is None:
+                    raise KeyError(None)
                 result = self.fragment_caches[target_key]
                 result = [f.clone() for f in result]
             except KeyError:
@@ -642,14 +639,14 @@ class Parser(object):
 
 
 def _compress(data):
-    buff = io.BytesIO()
-    gzip.GzipFile(fileobj=buff, mode='wb').write(data)
-    data = buff.getvalue()
+    # buff = io.BytesIO()
+    # gzip.GzipFile(fileobj=buff, mode='wb').write(data)
+    # data = buff.getvalue()
     return data
 
 
 def _decompress(data):
-    data = gzip.GzipFile(fileobj=io.BytesIO(data), mode='rb').read()
+    # data = gzip.GzipFile(fileobj=io.BytesIO(data), mode='rb').read()
     return data
 
 
@@ -666,7 +663,7 @@ def serialize_workload(workload_manager, pretty_print=True):
         sm = etree.SubElement(wl, 'scan_mapping')
         rec = workload_manager.hit_map[key]
         el = etree.SubElement(sm, 'structure')
-        el.attrib.update({k: str(v) for k, v in rec.id.as_dict().items()})
+        el.attrib.update(rec.id.as_dict(True))
         el.attrib['total_mass'] = str(rec.total_mass)
         el.attrib['glycan_prior'] = str(rec.glycan_prior)
         el.attrib['hit_group'] = str(hit_to_group.get(rec.id, -1))

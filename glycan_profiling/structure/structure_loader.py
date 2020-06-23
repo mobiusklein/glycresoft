@@ -266,6 +266,13 @@ class GlycopeptideFragmentCachingContext(object):
     def __call__(self, target):
         return self.bind(target)
 
+    def _make_target_key(self, key):
+        # value = key[-1]
+        # as_target_peptide = StructureClassification[int(value) ^ 1]
+        # new_key = key[:-1] + (as_target_peptide, )
+        # return new_key
+        return None
+
 
 class GlycanAwareGlycopeptideFragmentCachingContext(GlycopeptideFragmentCachingContext):
     def stub_fragment_key(self, target, args, kwargs):
@@ -273,6 +280,13 @@ class GlycanAwareGlycopeptideFragmentCachingContext(GlycopeptideFragmentCachingC
         key = ('stub_fragments', args, frozenset(
             kwargs.items()), tid.glycan_combination_id, tid.structure_type)
         return key
+
+    def _make_target_key(self, key):
+        from glycan_profiling.tandem.glycopeptide.dynamic_generation.search_space import StructureClassification
+        value = key[-1]
+        as_target_peptide = StructureClassification[int(value) ^ 1]
+        new_key = key[:-1] + (as_target_peptide, )
+        return new_key
 
 
 class FragmentCachingGlycopeptide(PeptideSequence):
