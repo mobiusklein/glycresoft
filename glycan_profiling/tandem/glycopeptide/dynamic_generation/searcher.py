@@ -278,16 +278,6 @@ class SerializingMapperExecutor(MapperExecutor):
         workload = mapper_task()
         workload.pack()
 
-        peptide_groups = Counter()
-        count_peptide_groups_with_count = Counter()
-        for key in workload.hit_map:
-            peptide_groups[key.peptide_id] += 1
-        for value in peptide_groups.values():
-            count_peptide_groups_with_count[value] += 1
-        self.log("Workload contains %d Peptide Groups" % (len(peptide_groups), ))
-        for key, value in sorted(count_peptide_groups_with_count.items()):
-            self.log("%d: %d" % (key, value))
-
         workload = serialize_workload(workload)
         matcher_task = SpectrumMatcher(
             workload, mapper_task.group_i, mapper_task.group_n)
