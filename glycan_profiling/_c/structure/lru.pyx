@@ -3,7 +3,7 @@ from cpython.dict cimport PyDict_GetItem
 from cpython.object cimport PyObject
 
 @cython.freelist(10000)
-class LRUNode(object):
+cdef class LRUNode(object):
     cdef:
         public object data
         public LRUNode forward
