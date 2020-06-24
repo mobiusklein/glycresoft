@@ -1,4 +1,13 @@
+cimport cython
+from cpython.dict cimport PyDict_GetItem
+from cpython.object cimport PyObject
+
+@cython.freelist(10000)
 class LRUNode(object):
+    cdef:
+        public object data
+        public LRUNode forward
+        public LRUNode backward
 
     def __init__(self, data, forward, backward):
         self.data = data
@@ -14,21 +23,27 @@ class LRUNode(object):
     def __repr__(self):
         return "LRUNode(%s)" % self.data
 
-try:
-    from glycan_profiling._c.structure.lru import LRUCache, LRUNode
-except ImportError:
-    pass
+    @staticmethod
+    cdef LRUNode _create(data, LRUNode forward, LRUNode backward):
+        cdef LRUNode inst = LRUNode.__new__(LRUNode)
+        inst.data = data
+        inst.forward = forward
+        inst.backward = backward
+        return inst
 
 
-class LRUCache(object):
+cdef class LRUCache(object):
+    cdef:
+        public LRUNode head
+        public dict _mapping
 
     def __init__(self):
-        self.head = LRUNode(None, None, None)
+        self.head = LRUNode._create(None, None, None)
         self.head.forward = self.head
         self.head.backward = self.head
         self._mapping = dict()
 
-    def move_node_up(self, node):
+    cpdef move_node_up(self, LRUNode node):
         was_head_lru = self.head.backward is self.head
         if was_head_lru:
             raise ValueError("Head cannot be LRU")
@@ -59,11 +74,11 @@ class LRUCache(object):
         if now_head_lru:
             raise ValueError("Head became LRU!")
 
-    def add_node(self, data):
+    cpdef add_node(self, data):
         if data in self._mapping:
             self.hit_node(data)
             return
-        node = LRUNode(data, None, None)
+        node = LRUNode._create(data, None, None)
 
         pushed = self.head.forward
         self.head.forward = node
@@ -73,17 +88,24 @@ class LRUCache(object):
 
         self._mapping[node.data] = node
 
-    def get_least_recently_used(self):
+    cpdef get_least_recently_used(self):
         lru = self.head.backward
         if lru is self.head:
             raise ValueError("Head node cannot be LRU!")
         return lru.data
 
-    def hit_node(self, k):
-        out = self._mapping[k]
-        self.move_node_up(out)
+    cpdef hit_node(self, k):
+        cdef:
+            LRUNode out
+            PyObject* tmp
+        tmp = PyDict_GetItem(self._mapping, k)
+        if tmp == NULL:
+            raise KeyError(k)
+        else:
+            out = <LRUNode>tmp
+            self.move_node_up(out)
 
-    def unspool(self):
+    cpdef unspool(self):
         chain = []
         current = self.head
         while current.forward is not self.head:
@@ -92,88 +114,18 @@ class LRUCache(object):
         chain.append(current)
         return chain
 
-    def remove_node(self, data):
-        # print("Removing ", data, id(data))
+    cpdef remove_node(self, data):
+        cdef:
+            LRUNode node, fwd, bck
         node = self._mapping[data]
         fwd = node.forward
-        # assert fwd is not node
         bck = node.backward
-        # assert bck is not node
         fwd.backward = bck
         bck.forward = fwd
         self._mapping.pop(data)
-        # assert node not in self.unspool()[1:]
-        # print("Removed")
 
-    def clear(self):
-        self.head = LRUNode(None, None, None)
+    cpdef clear(self):
+        self.head = LRUNode._create(None, None, None)
         self.head.forward = self.head
         self.head.backward = self.head
         self._mapping.clear()
-
-
-class LRUMapping(object):
-    def __init__(self, max_size=512):
-        self.max_size = max_size
-        self.store = dict()
-        self.lru = LRUCache()
-
-    def __getitem__(self, key):
-        value = self.store[key]
-        self.lru.hit_node(key)
-        return value
-
-    def __setitem__(self, key, value):
-        self.lru.add_node(key)
-        self.store[key] = value
-        self._check_size()
-
-    def __delitem__(self, key):
-        del self.store[key]
-        self.lru.remove_node(key)
-
-    def _check_size(self):
-        n = len(self.store)
-        while n > self.max_size:
-            key = self.lru.get_least_recently_used()
-            self.store.pop(key)
-            self.lru.remove_node(key)
-            n -= 1
-
-    def __contains__(self, key):
-        contained = key in self.store
-        return contained
-
-    def __iter__(self):
-        return iter(self.store)
-
-    def __len__(self):
-        return len(self.store)
-
-    def keys(self):
-        return self.store.keys()
-
-    def values(self):
-        return self.store.values()
-
-    def items(self):
-        return self.store.items()
-
-    def get(self, key, default=None):
-        try:
-            value = self[key]
-            return value
-        except KeyError:
-            return default
-
-    def pop(self, key, default=None):
-        try:
-            value = self[key]
-            del self[key]
-            return value
-        except KeyError:
-            return default
-
-    def clear(self):
-        self.store.clear()
-        self.lru.clear()

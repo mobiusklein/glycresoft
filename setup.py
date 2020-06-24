@@ -83,6 +83,9 @@ def make_extensions():
                       sources=[
                           "glycan_profiling/_c/composition_distribution_model/utils.pyx"],
                       include_dirs=[numpy.get_include()]),
+            Extension(name='glycan_profiling._c.structure.lru',
+                      sources=[
+                          "glycan_profiling/_c/structure/lru.pyx"]),
         ], compiler_directives=cython_directives, force=force_cythonize)
     except ImportError as err:
         extensions = ([
@@ -125,6 +128,9 @@ def make_extensions():
                       sources=[
                           "glycan_profiling/_c/composition_distribution_model/utils.c"],
                       include_dirs=[numpy.get_include()]),
+            Extension(name='glycan_profiling._c.structure.lru',
+                      sources=[
+                          "glycan_profiling/_c/structure/lru.c"]),
         ])
     return extensions
 
