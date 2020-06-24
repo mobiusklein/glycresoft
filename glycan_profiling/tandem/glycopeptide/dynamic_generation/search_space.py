@@ -13,6 +13,8 @@ from collections import namedtuple, defaultdict
 from lxml import etree
 
 from glycopeptidepy import GlycosylationType
+
+from glycopeptidepy.structure.glycan import GlycanCompositionWithOffsetProxy
 from glycopeptidepy.structure.sequence import (
     _n_glycosylation, _o_glycosylation, _gag_linker_glycosylation)
 
@@ -151,7 +153,7 @@ class GlycoformGeneratorBase(LoggingMixin):
         for i, site_set in enumerate(site_combinations):
             glycoform = peptide_obj.clone(share_cache=False)
             glycoform.id = key._replace(site_combination_index=i)
-            glycoform.glycan = glycan_combination.composition.clone()
+            glycoform.glycan = GlycanCompositionWithOffsetProxy(glycan_combination.composition)
             for site in site_set:
                 glycoform.add_modification(site, core_type.name)
             glycoform.protein_relation = protein_relation
