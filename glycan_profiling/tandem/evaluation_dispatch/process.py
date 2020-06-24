@@ -377,6 +377,7 @@ class IdentificationProcessDispatcher(TaskBase):
         self.log("... Searching Matches (%d)" % (n_spectrum_matches,))
         last_log_time = start_time = time.time()
         should_log = False
+        log_cycle = 5000
         while has_work:
             try:
                 payload = self.output_queue.get(True, 1)
@@ -405,7 +406,7 @@ class IdentificationProcessDispatcher(TaskBase):
 
                 i += 1
                 strikes = 0
-                if i % 1000 == 0 or should_log:
+                if i % log_cycle == 0 or should_log:
                     last_log_time = time.time()
                     should_log = False
                     self.log(
