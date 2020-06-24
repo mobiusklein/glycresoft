@@ -94,12 +94,16 @@ class _TimeIntervalMethods(object):
     __slots__ = []
 
     def overlaps_in_time(self, interval):
-        cond = ((self.start_time <= interval.start_time and self.end_time >= interval.end_time) or (
-            self.start_time >= interval.start_time and self.end_time <= interval.end_time) or (
-            self.start_time >= interval.start_time and self.end_time >= interval.end_time and
-            self.start_time <= interval.end_time) or (
-            self.start_time <= interval.start_time and self.end_time >= interval.start_time) or (
-            self.start_time <= interval.end_time and self.end_time >= interval.end_time))
+        self_start_time = self.start_time
+        self_end_time = self.end_time
+        interval_start_time = interval.start_time
+        interval_end_time = interval.end_time
+        cond = ((self_start_time <= interval_start_time and self_end_time >= interval_end_time) or (
+            self_start_time >= interval_start_time and self_end_time <= interval_end_time) or (
+            self_start_time >= interval_start_time and self_end_time >= interval_end_time and
+            self_start_time <= interval_end_time) or (
+            self_start_time <= interval_start_time and self_end_time >= interval_start_time) or (
+            self_start_time <= interval_end_time and self_end_time >= interval_end_time))
         return cond
 
     def spans_time_point(self, point):
