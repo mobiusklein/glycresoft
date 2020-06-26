@@ -386,11 +386,12 @@ class Chromatogram(_TimeIntervalMethods):
         for chunk in chunks:
             chunk.created_at = self.created_at
 
-        for member in chunks:
-            for other in chunks:
-                if member == other:
-                    continue
-                assert not member.overlaps_in_time(other)
+        # Sanity check previously done here
+        # for member in chunks:
+        #     for other in chunks:
+        #         if member == other:
+        #             continue
+        #         assert not member.overlaps_in_time(other)
 
         return chunks
 
