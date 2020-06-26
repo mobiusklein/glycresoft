@@ -9,7 +9,7 @@ except ImportError:
 
 from glycan_profiling import serialize
 
-from glycan_profiling.task import TaskBase, Pipeline
+from glycan_profiling.task import TaskBase, Pipeline, LoggingMixin
 from glycan_profiling.chromatogram_tree import Unmodified
 
 from glycan_profiling.structure import ScanStub
@@ -86,7 +86,7 @@ def make_disk_backed_peptide_database(path, hypothesis_id=1, **kwargs):
     return peptide_db
 
 
-class PeptideDatabaseProxyLoader(object):
+class PeptideDatabaseProxyLoader(LoggingMixin):
     def __init__(self, path, n_glycan=True, o_glycan=True, hypothesis_id=1):
         self.path = path
         self.n_glycan = n_glycan
@@ -94,6 +94,7 @@ class PeptideDatabaseProxyLoader(object):
         self.hypothesis_id = hypothesis_id
 
     def __call__(self):
+        self.log("Expanding %s in Process %r" % (self.path, multiprocessing.current_process().pid))
         db = disk_backed_database.PeptideDiskBackedStructureDatabase(
             self.path, hypothesis_id=self.hypothesis_id)
         if self.n_glycan and self.o_glycan:
