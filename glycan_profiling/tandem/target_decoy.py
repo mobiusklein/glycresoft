@@ -128,6 +128,12 @@ class NearestValueLookUp(object):
         return pair[1]
 
 
+try:
+    from glycan_profiling._c.tandem.target_decoy import NearestValueLookUp
+except ImportError:
+    pass
+
+
 class ScoreThresholdCounter(object):
     def __init__(self, series, thresholds):
         self.series = sorted(series, key=lambda x: x.score)

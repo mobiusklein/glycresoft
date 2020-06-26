@@ -86,6 +86,10 @@ def make_extensions():
             Extension(name='glycan_profiling._c.structure.lru',
                       sources=[
                           "glycan_profiling/_c/structure/lru.pyx"]),
+            Extension(name='glycan_profiling._c.tandem.target_decoy',
+                      sources=[
+                          "glycan_profiling/_c/tandem/target_decoy.pyx"],
+                      include_dirs=[numpy.get_include()]),
         ], compiler_directives=cython_directives, force=force_cythonize)
     except ImportError as err:
         extensions = ([
@@ -131,6 +135,10 @@ def make_extensions():
             Extension(name='glycan_profiling._c.structure.lru',
                       sources=[
                           "glycan_profiling/_c/structure/lru.c"]),
+            Extension(name='glycan_profiling._c.tandem.target_decoy',
+                      sources=[
+                          "glycan_profiling/_c/tandem/target_decoy.c"],
+                      include_dirs=[numpy.get_include()]),
         ])
     return extensions
 
