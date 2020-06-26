@@ -53,7 +53,7 @@ def format_identification(spectrum_solution):
         spectrum_solution.scan.id,
         spectrum_solution.scan.precursor_information.neutral_mass,
         spectrum_solution.best_solution().score,
-        spectrum_solution.best_solution().target)
+        str(spectrum_solution.best_solution().target))
 
 
 def format_identification_batch(group, n):

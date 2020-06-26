@@ -393,7 +393,7 @@ class WorkloadManager(object):
             batch = WorkloadBatch(
                 current_batch_size, current_scan_map,
                 current_hit_map, current_hit_to_scan_map,
-                current_scan_hit_type_map)
+                current_scan_hit_type_map, current_hit_group_map)
             yield batch
 
     @classmethod
