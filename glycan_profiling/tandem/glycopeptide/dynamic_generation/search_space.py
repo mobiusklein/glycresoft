@@ -207,11 +207,7 @@ class PeptideGlycosylator(GlycoformGeneratorBase):
         if not isinstance(peptide_records, SearchableMassCollection):
             peptide_records = NeutralMassDatabase(peptide_records)
         self.peptides = peptide_records
-        self.log(
-            "Created a PeptideGlycosylator with %d glycan combinations and %d peptides" % (
-                len(self.glycan_combinations), len(self.peptides)))
         self.peptide_to_group_id = None
-        self.build_peptide_groups()
 
     def build_peptide_groups(self):
         peptide_groups = defaultdict(list)
@@ -293,6 +289,8 @@ class DynamicGlycopeptideSearchBase(LoggingMixin):
         self.peptide_glycosylator.reset()
 
     def construct_peptide_groups(self, workload):
+        if self.peptide_glycosylator.peptide_to_group_id is None:
+            self.peptide_glycosylator.build_peptide_groups()
         workload.hit_group_map.clear()
         for hit in workload.hit_map.values():
             workload.hit_group_map[
