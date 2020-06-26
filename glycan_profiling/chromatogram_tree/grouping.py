@@ -91,17 +91,18 @@ class ChromatogramForest(TaskBase):
 
     def insert_chromatogram(self, chromatogram, index):
         # TODO: Review this index arithmetic, the output isn't sorted.
-        if index[0] != 0:
-            self.chromatograms.insert(index[0] + 1, chromatogram)
+        index = index[0] # index is (index, matched) from binary_search_with_flag
+        if index != 0:
+            self.chromatograms.insert(index + 1, chromatogram)
         else:
             if len(self) == 0:
-                new_index = index[0]
+                new_index = index
             else:
-                x = self.chromatograms[index[0]]
+                x = self.chromatograms[index]
                 if x.neutral_mass < chromatogram.neutral_mass:
-                    new_index = index[0] + 1
+                    new_index = index + 1
                 else:
-                    new_index = index[0]
+                    new_index = index
             self.chromatograms.insert(new_index, chromatogram)
 
     def aggregate_unmatched_peaks(self, *args, **kwargs):
