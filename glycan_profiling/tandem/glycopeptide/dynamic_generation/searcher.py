@@ -27,6 +27,10 @@ class MultiScoreGlycopeptideMatcher(GlycopeptideMatcher):
     solution_set_type = MultiScoreSpectrumSolutionSet
 
 
+def IsTask(cls):
+    return cls
+
+
 def workload_grouping(chunks, max_scans_per_workload=500, starting_index=0):
     workload = []
     total_scans_in_workload = 0
@@ -105,6 +109,7 @@ class BatchMapper(TaskExecutionSequence):
         self.done_event.set()
 
 
+@IsTask
 class StructureMapper(TaskExecutionSequence):
     def __init__(self, chunk, group_i, group_n, predictive_search, precursor_error_tolerance=5e-6,
                  mass_shifts=None):
@@ -300,6 +305,7 @@ class SerializingMapperExecutor(MapperExecutor):
         return super(SerializingMapperExecutor, self).run()
 
 
+@IsTask
 class SpectrumMatcher(TaskExecutionSequence):
     def __init__(self, workload, group_i, group_n, scorer_type=None,
                  ipc_manager=None, n_processes=6, mass_shifts=None,
