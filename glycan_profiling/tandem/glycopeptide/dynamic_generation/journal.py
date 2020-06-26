@@ -155,6 +155,12 @@ def parse_float(value):
     return value
 
 
+try:
+    from glycan_profiling._c.tandem.tandem_scoring_helpers import parse_float
+except ImportError:
+    pass
+
+
 class JournalFileReader(TaskBase):
     def __init__(self, path, cache_size=2 ** 16, mass_shift_map=None, scan_loader=None, include_fdr=False):
         if mass_shift_map is None:

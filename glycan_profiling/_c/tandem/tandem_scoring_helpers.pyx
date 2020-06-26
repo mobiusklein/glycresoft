@@ -531,3 +531,12 @@ cpdef compute_coverage(self):
         acc += log2l(n_term_ions[i] + c_term_ions[size - (i + 1)] + 1) / log2_3
     mean_coverage = acc / size
     return mean_coverage
+
+
+cpdef parse_float(str text):
+    cdef:
+        object value
+    value = float(text)
+    if isnan(value):
+        return 0.0
+    return value
