@@ -378,7 +378,7 @@ class GlycopeptideMSMSAnalysisSerializer(AnalysisMigrationBase):
 
         self._unassigned_chromatogram_set = unassigned_chromatogram_set
         self._glycopeptide_ids = None
-        self.unshare_targets()
+        # self.unshare_targets()
         self.aggregate_glycopeptide_ids()
 
     def unshare_targets(self):
