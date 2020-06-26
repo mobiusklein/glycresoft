@@ -9,9 +9,9 @@ from glycopeptidepy.structure.composition import Composition
 from glycopeptidepy.structure.sequence import PeptideSequence
 from glycopeptidepy.structure.parser import sequence_tokenizer
 from glycopeptidepy.algorithm import reverse_preserve_sequon
-from glycopeptidepy.structure.glycan import HashableGlycanComposition
-from glycopeptidepy.structure.fragmentation_strategy import StubGlycopeptideStrategy
+from glycopeptidepy.structure.glycan import HashableGlycanComposition, GlycanCompositionWithOffsetProxy
 from glypy.structure.glycan_composition import FrozenMonosaccharideResidue
+from glycopeptidepy.structure.fragmentation_strategy import StubGlycopeptideStrategy
 
 
 from .lru import LRUCache
@@ -77,13 +77,13 @@ class TextHashableGlycanCompositionParser(object):
 
     def parse(self, text):
         try:
-            return self.cache[text].clone()
+            return GlycanCompositionWithOffsetProxy(self.cache[text])
         except KeyError:
             inst = self._parse(text)
-            self.cache[text] = inst
             if len(self.cache) > self.size and self.size != -1:
                 self.cache.popitem()
-            return inst.clone()
+            self.cache[text] = inst
+            return GlycanCompositionWithOffsetProxy(inst)
 
     def __call__(self, text):
         return self.parse(text)
