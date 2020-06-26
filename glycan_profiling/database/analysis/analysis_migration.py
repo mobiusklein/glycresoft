@@ -132,11 +132,13 @@ class SampleMigrator(DatabaseBoundOperation, TaskBase):
 
     def migrate_precursor_information(self, prec_info):
         try:
-            prec_id = self.scan_id(prec_info.precursor)
+            # prec_id = self.scan_id(prec_info.precursor)
+            prec_id = prec_info.precursor_scan_id
         except KeyError as err:
             prec_id = None
             self.log("Unable to locate precursor scan with ID %r" % (err , ))
-        prod_id = self.scan_id(prec_info.product)
+        # prod_id = self.scan_id(prec_info.product)
+        prod_id = prec_info.product_scan_id
         new_info = PrecursorInformation(
             sample_run_id=self.sample_run_id,
             # precursor may be missing
