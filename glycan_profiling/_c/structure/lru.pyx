@@ -24,7 +24,7 @@ cdef class LRUNode(object):
         return "LRUNode(%s)" % self.data
 
     @staticmethod
-    cdef LRUNode _create(data, LRUNode forward, LRUNode backward):
+    cdef LRUNode _create(object data, LRUNode forward, LRUNode backward):
         cdef LRUNode inst = LRUNode.__new__(LRUNode)
         inst.data = data
         inst.forward = forward

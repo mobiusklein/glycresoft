@@ -14,11 +14,6 @@ class LRUNode(object):
     def __repr__(self):
         return "LRUNode(%s)" % self.data
 
-try:
-    from glycan_profiling._c.structure.lru import LRUCache, LRUNode
-except ImportError:
-    pass
-
 
 class LRUCache(object):
 
@@ -110,6 +105,12 @@ class LRUCache(object):
         self.head.forward = self.head
         self.head.backward = self.head
         self._mapping.clear()
+
+
+try:
+    from glycan_profiling._c.structure.lru import LRUCache, LRUNode
+except ImportError:
+    pass
 
 
 class LRUMapping(object):
