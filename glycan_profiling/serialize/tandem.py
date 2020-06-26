@@ -218,10 +218,16 @@ class GlycopeptideSpectrumSolutionSet(Base, SolutionSetBase, BoundToAnalysis):
             cluster_id=cluster_id)
         session.add(inst)
         session.flush()
+        score_sets = []
         for solution in obj:
-            GlycopeptideSpectrumMatch.serialize(
+            inst = GlycopeptideSpectrumMatch.serialize(
                 solution, session, scan_look_up_cache, mass_shift_cache,
-                analysis_id, inst.id, is_decoy, *args, **kwargs)
+                analysis_id, inst.id, is_decoy, save_score_set=False, *args, **kwargs)
+            if hasattr(solution, 'score_set'):
+                score_sets.append(GlycopeptideSpectrumMatchScoreSet.get_fields_from_object(solution, inst.id))
+        if score_sets:
+            session.execute(
+                GlycopeptideSpectrumMatchScoreSet.__table__.insert(), score_sets)
         return inst
 
     def convert(self, mass_shift_cache=None, scan_cache=None, structure_cache=None, peptide_relation_cache=None):
@@ -294,7 +300,7 @@ class GlycopeptideSpectrumMatch(Base, SpectrumMatchBase):
 
     @classmethod
     def serialize(cls, obj, session, scan_look_up_cache, mass_shift_cache, analysis_id,
-                  solution_set_id, is_decoy=False, *args, **kwargs):
+                  solution_set_id, is_decoy=False, save_score_set=True, *args, **kwargs):
         inst = cls(
             scan_id=scan_look_up_cache[obj.scan.id],
             is_decoy=is_decoy,
@@ -307,7 +313,7 @@ class GlycopeptideSpectrumMatch(Base, SpectrumMatchBase):
             mass_shift_id=mass_shift_cache[obj.mass_shift].id)
         session.add(inst)
         session.flush()
-        if hasattr(obj, 'score_set'):
+        if hasattr(obj, 'score_set') and save_score_set:
             assert inst.id is not None
             GlycopeptideSpectrumMatchScoreSet.serialize_from_spectrum_match(obj, session, inst.id)
         return inst
@@ -615,6 +621,23 @@ class GlycopeptideSpectrumMatchScoreSet(Base):
 
     spectrum_match = relationship(
         GlycopeptideSpectrumMatch, backref=backref("score_set", lazy='joined', uselist=False))
+
+    @classmethod
+    def get_fields_from_object(cls, obj, db_id=None):
+        scores = obj.score_set
+        qs = obj.q_value_set
+        fields = dict(
+            id=db_id,
+            peptide_score=scores.peptide_score,
+            glycan_score=scores.glycan_score,
+            glycan_coverage=scores.glycan_coverage,
+            glycopeptide_score=scores.glycopeptide_score,
+            total_q_value=qs.total_q_value,
+            peptide_q_value=qs.peptide_q_value,
+            glycan_q_value=qs.glycan_q_value,
+            glycopeptide_q_value=qs.glycopeptide_q_value
+        )
+        return fields
 
     @classmethod
     def serialize_from_spectrum_match(cls, obj, session, db_id):
