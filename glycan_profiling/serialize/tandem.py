@@ -220,11 +220,12 @@ class GlycopeptideSpectrumSolutionSet(Base, SolutionSetBase, BoundToAnalysis):
         session.flush()
         score_sets = []
         for solution in obj:
-            inst = GlycopeptideSpectrumMatch.serialize(
+            gpsm = GlycopeptideSpectrumMatch.serialize(
                 solution, session, scan_look_up_cache, mass_shift_cache,
                 analysis_id, inst.id, is_decoy, save_score_set=False, *args, **kwargs)
             if hasattr(solution, 'score_set'):
-                score_sets.append(GlycopeptideSpectrumMatchScoreSet.get_fields_from_object(solution, inst.id))
+                score_sets.append(
+                    GlycopeptideSpectrumMatchScoreSet.get_fields_from_object(solution, gpsm.id))
         if score_sets:
             session.execute(
                 GlycopeptideSpectrumMatchScoreSet.__table__.insert(), score_sets)
