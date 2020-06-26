@@ -2,7 +2,7 @@ import unittest
 
 from glycan_profiling.structure.structure_loader import (
     FragmentCachingGlycopeptide, hashable_glycan_glycopeptide_parser,
-    HashableGlycanComposition)
+    HashableGlycanComposition, GlycanCompositionWithOffsetProxy)
 
 glycopeptide = "YPVLN(N-Glycosylation)VTMPN(Deamidation)NGKFDK{Hex:9; HexNAc:2}"
 
@@ -15,7 +15,8 @@ class TestFragmentCachingGlycopeptide(unittest.TestCase):
     def test_parse(self):
         parts = hashable_glycan_glycopeptide_parser(glycopeptide)
         gc = parts[-3]
-        self.assertIsInstance(gc, HashableGlycanComposition)
+        self.assertIsInstance(
+            gc, (HashableGlycanComposition, GlycanCompositionWithOffsetProxy))
 
 
 if __name__ == '__main__':
