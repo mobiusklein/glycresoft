@@ -97,7 +97,7 @@ class BatchMapper(TaskExecutionSequence):
                 precursor_error_tolerance=self.precursor_error_tolerance,
                 mass_shifts=self.mass_shifts)
             task.label = label
-            # Introduces a thread safety issue
+            # Introduces a thread safety issue?
             task.unbind_scans()
             self.out_queue_for_label(label).put(task)
 
@@ -275,12 +275,14 @@ class SerializingMapperExecutor(MapperExecutor):
         self.tracking_directory = tracking_directory
 
     def execute_task(self, mapper_task):
+        self.scan_loader.reset()
         label = mapper_task.predictive_search
         mapper_task.predictive_search = self.predictive_searchers[label]
         if debug_mode:
             self.log("... Running %s Mapping with Mass Shifts %r" % (label, mapper_task.mass_shifts))
         mapper_task.bind_scans(self.scan_loader)
         workload = mapper_task()
+        self.scan_loader.reset()
         workload.pack()
 
         workload = serialize_workload(workload)
