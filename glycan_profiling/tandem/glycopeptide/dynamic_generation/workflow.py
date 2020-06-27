@@ -73,8 +73,8 @@ def make_memory_database_proxy_resolver(path, n_glycan=None, o_glycan=None, hypo
             o_glycan = config['o_glycan']
         if n_glycan is None:
             n_glycan = config['n_glycan']
-    proxy = mass_collection.MassCollectionProxy(
-        PeptideDatabaseProxyLoader(path, n_glycan, o_glycan, hypothesis_id))
+    loader = PeptideDatabaseProxyLoader(path, n_glycan, o_glycan, hypothesis_id)
+    proxy = mass_collection.MassCollectionProxy(loader, loader.session_resolver, hypothesis_id)
     return proxy
 
 
@@ -86,15 +86,19 @@ def make_disk_backed_peptide_database(path, hypothesis_id=1, **kwargs):
     return peptide_db
 
 
-class PeptideDatabaseProxyLoader(LoggingMixin):
+class PeptideDatabaseProxyLoader(TaskBase):
     def __init__(self, path, n_glycan=True, o_glycan=True, hypothesis_id=1):
         self.path = path
         self.n_glycan = n_glycan
         self.o_glycan = o_glycan
         self.hypothesis_id = hypothesis_id
 
+    def session_resolver(self):
+        db = disk_backed_database.PeptideDiskBackedStructureDatabase(
+            self.path, hypothesis_id=self.hypothesis_id)
+        return db.session
+
     def __call__(self):
-        self.log("Expanding %s in Process %r" % (self.path, multiprocessing.current_process().pid))
         db = disk_backed_database.PeptideDiskBackedStructureDatabase(
             self.path, hypothesis_id=self.hypothesis_id)
         if self.n_glycan and self.o_glycan:

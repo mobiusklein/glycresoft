@@ -573,9 +573,28 @@ class TransformingMassCollectionAdapter(SearchableMassCollectionWrapper):
 
 
 class MassCollectionProxy(SearchableMassCollectionWrapper):
-    def __init__(self, resolver):
+    def __init__(self, resolver, session_resolver=None, hypothesis_id=None):
         self._searchable_mass_collection = None
+        self._session = None
+        self._hypothesis_id = hypothesis_id
         self.resolver = resolver
+        self.session_resolver = session_resolver
+
+    @property
+    def hypothesis_id(self):
+        if self._hypothesis_id is not None:
+            return self._hypothesis_id
+        else:
+            return self.searchable_mass_collection.hypothesis_id
+
+    @property
+    def session(self):
+        if self._session is None and self.session_resolver is not None:
+            self._session = self.session_resolver()
+        if self._session is not None:
+            return self._session
+        else:
+            return self.searchable_mass_collection.session
 
     @property
     def searchable_mass_collection(self):
@@ -592,7 +611,8 @@ class MassCollectionProxy(SearchableMassCollectionWrapper):
 
     def __getstate__(self):
         return {
-            "resolver": dill.dumps(self.resolver)
+            "resolver": dill.dumps(self.resolver),
+            "session_resolver": dill.dumps(self.session_resolver)
         }
 
     def _has_resolved(self):
@@ -607,6 +627,7 @@ class MassCollectionProxy(SearchableMassCollectionWrapper):
 
     def __setstate__(self, state):
         self.resolver = dill.loads(state['resolver'])
+        self.session_resolver = dill.loads(state['session_resolver'])
 
     def search_mass(self, mass, error_tolerance):  # pylint: disable=signature-differs
         result = self.searchable_mass_collection.search_mass(mass, error_tolerance)
