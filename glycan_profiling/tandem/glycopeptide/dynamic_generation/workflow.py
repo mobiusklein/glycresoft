@@ -9,7 +9,7 @@ except ImportError:
 
 from glycan_profiling import serialize
 
-from glycan_profiling.task import TaskBase, Pipeline, LoggingMixin
+from glycan_profiling.task import TaskBase, Pipeline, MultiEvent
 from glycan_profiling.chromatogram_tree import Unmodified
 
 from glycan_profiling.structure import ScanStub
@@ -92,15 +92,23 @@ class PeptideDatabaseProxyLoader(TaskBase):
         self.n_glycan = n_glycan
         self.o_glycan = o_glycan
         self.hypothesis_id = hypothesis_id
+        self._source_database = None
+
+    @property
+    def source_database(self):
+        if self._source_database is None:
+            self._source_database = disk_backed_database.PeptideDiskBackedStructureDatabase(
+                self.path, hypothesis_id=self.hypothesis_id)
+        return self._source_database
 
     def session_resolver(self):
-        db = disk_backed_database.PeptideDiskBackedStructureDatabase(
-            self.path, hypothesis_id=self.hypothesis_id)
-        return db.session
+        return self.source_database.session
+
+    def hypothesis(self):
+        return self.source_database.hypothesis
 
     def __call__(self):
-        db = disk_backed_database.PeptideDiskBackedStructureDatabase(
-            self.path, hypothesis_id=self.hypothesis_id)
+        db = self.source_database
         if self.n_glycan and self.o_glycan:
             filter_level = 0
         elif self.n_glycan:
@@ -249,13 +257,17 @@ class MultipartGlycopeptideIdentifier(TaskBase):
         (target_predictive_search,
          decoy_predictive_search) = self.build_predictive_searchers()
 
-        # combined_searcher = CompoundGlycopeptideSearch(
-        #     [target_predictive_search, decoy_predictive_search])
-
         spectrum_batcher = SpectrumBatcher(
             scan_groups,
             Queue(10),
             max_scans_per_workload=self.batch_size)
+
+
+        # common_queue = multiprocessing.Queue(5)
+        label_to_batch_queue = {
+            "target": multiprocessing.Queue(5),
+            "decoy": multiprocessing.Queue(5),
+        }
 
         mapping_batcher = BatchMapper(
             # map labels to be loaded in the mapper executor to avoid repeatedly
@@ -263,10 +275,9 @@ class MultipartGlycopeptideIdentifier(TaskBase):
             [
                 ('target', 'target'),
                 ('decoy', 'decoy')
-                # ('combined', 'combined')
             ],
             spectrum_batcher.out_queue,
-            multiprocessing.Queue(5),
+            label_to_batch_queue,
             spectrum_batcher.done_event,
             precursor_error_tolerance=self.precursor_error_tolerance,
             mass_shifts=self.mass_shifts)
@@ -275,19 +286,37 @@ class MultipartGlycopeptideIdentifier(TaskBase):
         tracking_dir = None
         if debug_mode:
             tracking_dir = self.file_manager.get("mapping-log")
-        mapping_executor = SerializingMapperExecutor(
+
+        mapping_executor_out_queue = multiprocessing.Queue(5)
+
+        target_mapping_executor = SerializingMapperExecutor(
             OrderedDict([
                 ('target', target_predictive_search),
-                ('decoy', decoy_predictive_search)
-                # ('combined', combined_searcher)
             ]),
             self.scan_loader,
-            mapping_batcher.out_queue,
-            multiprocessing.Queue(5),
+            label_to_batch_queue['target'],
+            mapping_executor_out_queue,
             mapping_batcher.done_event,
             tracking_directory=tracking_dir,
         )
-        mapping_executor.done_event = multiprocessing.Event()
+        target_mapping_executor.done_event = multiprocessing.Event()
+
+        decoy_mapping_executor = SerializingMapperExecutor(
+            OrderedDict([
+                ('decoy', decoy_predictive_search),
+            ]),
+            self.scan_loader,
+            label_to_batch_queue['decoy'],
+            mapping_executor_out_queue,
+            mapping_batcher.done_event,
+            tracking_directory=tracking_dir,
+        )
+        decoy_mapping_executor.done_event = multiprocessing.Event()
+
+        mapping_executor_done_event= MultiEvent([
+            target_mapping_executor.done_event,
+            decoy_mapping_executor.done_event,
+        ])
 
         # If we wished to, we could run multiple MatcherExecutors in
         # separate processes, and have them feed their results to the
@@ -299,9 +328,9 @@ class MultipartGlycopeptideIdentifier(TaskBase):
         # MatcherExecutor its own journal.
         matching_executor = WorkloadUnpackingMatcherExecutor(
             self.scan_loader,
-            mapping_executor.out_queue,
-            Queue(50),
-            mapping_executor.done_event,
+            mapping_executor_out_queue,
+            Queue(5),
+            mapping_executor_done_event,
             scorer_type=self.scorer_type,
             ipc_manager=self.ipc_manager,
             n_processes=self.n_processes,
@@ -317,12 +346,15 @@ class MultipartGlycopeptideIdentifier(TaskBase):
             matching_executor.out_queue,
             matching_executor.done_event)
 
-        mapping_executor.start(process=True)
+        # Launch the sequences that execute in separate processes
+        # before launching the thread chain.
+        target_mapping_executor.start(process=True)
+        decoy_mapping_executor.start(process=True)
 
         pipeline = Pipeline([
             spectrum_batcher,
             mapping_batcher,
-            mapping_executor,
+            target_mapping_executor,
             matching_executor,
             journal_consumer,
         ])

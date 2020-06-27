@@ -4,7 +4,6 @@ try:
     from Queue import Empty
 except ImportError:
     from queue import Empty
-from collections import Counter
 
 from ms_deisotope.data_source import ProcessedScan
 
@@ -72,11 +71,14 @@ class SpectrumBatcher(TaskExecutionSequence):
 
 
 class BatchMapper(TaskExecutionSequence):
-    def __init__(self, predictive_searchers, in_queue, out_queue, in_done_event,
+    def __init__(self, search_groups, in_queue, out_queue, in_done_event,
                  precursor_error_tolerance=5e-6, mass_shifts=None):
         if mass_shifts is None:
             mass_shifts = [Unmodified]
-        self.predictive_searchers = predictive_searchers
+        if not isinstance(out_queue, dict):
+            for label, _group in search_groups:
+                out_queue = {label: out_queue}
+        self.search_groups = search_groups
         self.precursor_error_tolerance = precursor_error_tolerance
         self.mass_shifts = mass_shifts
         self.in_queue = in_queue
@@ -84,17 +86,20 @@ class BatchMapper(TaskExecutionSequence):
         self.in_done_event = in_done_event
         self.done_event = self._make_event()
 
+    def out_queue_for_label(self, label):
+        return self.out_queue[label]
+
     def execute_task(self, task):
         chunk, group_i_prev, group_n = task
-        for label, predictive_search in self.predictive_searchers:
+        for label, search_group in self.search_groups:
             task = StructureMapper(
-                chunk, group_i_prev, group_n, predictive_search,
+                chunk, group_i_prev, group_n, search_group,
                 precursor_error_tolerance=self.precursor_error_tolerance,
                 mass_shifts=self.mass_shifts)
             task.label = label
             # Introduces a thread safety issue
-            # task.unbind_scans()
-            self.out_queue.put(task)
+            task.unbind_scans()
+            self.out_queue_for_label(label).put(task)
 
     def run(self):
         has_work = True
@@ -215,11 +220,13 @@ class MapperExecutor(TaskExecutionSequence):
     Its task type is :class:`StructureMapper`
 
     """
-    def __init__(self, in_queue, out_queue, in_done_event):
+
+    def __init__(self, scan_loader, in_queue, out_queue, in_done_event):
         self.in_queue = in_queue
         self.out_queue = out_queue
         self.in_done_event = in_done_event
         self.done_event = self._make_event()
+        self.scan_loader = scan_loader
 
     def execute_task(self, mapper_task):
         workload = mapper_task()
@@ -229,25 +236,23 @@ class MapperExecutor(TaskExecutionSequence):
 
     def run(self):
         has_work = True
-        if memory_debug:
-            from pympler import summary, muppy
+        strikes = 0
         while has_work:
             try:
                 mapper_task = self.in_queue.get(True, 5)
                 matcher_task = self.execute_task(mapper_task)
                 self.out_queue.put(matcher_task)
-                source = mapper_task.get_scan_source()
+                # source = mapper_task.get_scan_source()
+                # source._dispose()
+                # source.close()
+                # del source
                 mapper_task.unbind_scans()
-                #
-                source._dispose()
-                source.close()
-                del source
-                if memory_debug:
-                    collected = summary.summarize(muppy.get_objects())
-                    self.log('Post-task Memory Tracking\n' +
-                             '\n'.join(summary.format_(collected)))
-                    del collected
+
             except Empty:
+                strikes += 1
+                if strikes % 50 and strikes:
+                    self.log("%d iterations without new batches on %s, done event: %s" % (
+                        strikes, self, self.in_done_event.is_set()))
                 if self.in_done_event.is_set():
                     has_work = False
                     break
@@ -264,22 +269,17 @@ class SerializingMapperExecutor(MapperExecutor):
     def __init__(self, predictive_searchers, scan_loader, in_queue, out_queue,
                  in_done_event, tracking_directory=None):
         super(SerializingMapperExecutor, self).__init__(
+            scan_loader,
             in_queue, out_queue, in_done_event)
-
         self.predictive_searchers = predictive_searchers
-        self.scan_loader = scan_loader
         self.tracking_directory = tracking_directory
-
-    def prepare_chunk(self, chunk):
-        for scan in chunk:
-            scan.bind(self.scan_loader)
 
     def execute_task(self, mapper_task):
         label = mapper_task.predictive_search
         mapper_task.predictive_search = self.predictive_searchers[label]
         if debug_mode:
             self.log("... Running %s Mapping with Mass Shifts %r" % (label, mapper_task.mass_shifts))
-        # mapper_task.bind_scans(self.scan_loader)
+        mapper_task.bind_scans(self.scan_loader)
         workload = mapper_task()
         workload.pack()
 
@@ -294,7 +294,7 @@ class SerializingMapperExecutor(MapperExecutor):
             if not os.path.exists(self.tracking_directory):
                 os.mkdir(self.tracking_directory)
             track_file = os.path.join(
-                self.tracking_directory, "%s_%s_%s.xml.gz" % (
+                self.tracking_directory, "%s_%s_%s.xml" % (
                     label, mapper_task.group_i, mapper_task.group_n))
             with open(track_file, 'wb') as fh:
                 fh.write(workload)
