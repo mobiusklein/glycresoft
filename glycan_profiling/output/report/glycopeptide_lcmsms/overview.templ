@@ -13,7 +13,7 @@
 <body>
 <div>
     <div id='display-panel'>
-        
+
     </div>
     <h2>
         {{analysis.name}}
@@ -83,7 +83,7 @@
                 {% endfor %}
                 </div>
                 </section>
-                {% for glycopeptide in glycoprotein.identified_glycopeptides|sort(reverse=True, attribute='ms2_score') %}
+                {% for glycopeptide in glycoprotein.identified_glycopeptides|sort(reverse=True, attribute='-q_value,ms2_score') %}
                     {% include "glycopeptide-detail-entry.templ" %}
                 {% endfor %}
             </div>
