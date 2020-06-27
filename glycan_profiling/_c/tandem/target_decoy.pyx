@@ -152,6 +152,8 @@ cdef class NearestValueLookUp(object):
         ix = self._find_closest_item(key)
         if ix >= len(self):
             ix = len(self) - 1
+        if ix < 0:
+            ix = 0
         try:
             pair = self.items[ix]
         except IndexError:
