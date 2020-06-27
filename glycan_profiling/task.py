@@ -249,7 +249,7 @@ class TaskBase(LoggingMixin):
         if self.display_fields:
             return '\n' + pprint.pformat(
                 {k: v for k, v in self.__dict__.items()
-                 if not k.startswith("_")})
+                 if not (k.startswith("_") or v is None)})
         else:
             return ''
 
@@ -373,16 +373,16 @@ class TaskExecutionSequence(TaskBase):
     """A task unit that executes in a separate thread or process.
     """
 
-    _thread = None
-    _running_in_process = False
-
     def __call__(self):
         try:
+            if self._running_in_process:
+                self.log("%s running on PID %r" % (self, multiprocessing.current_process().pid))
             result = self.run()
             self.debug("%r Done" % self)
             return result
         except Exception as err:
-            self.error("An error occurred while executing %s" % self, exception=err)
+            self.error("An error occurred while executing %s" %
+                       self, exception=err)
             return None
 
     def run(self):
@@ -390,6 +390,9 @@ class TaskExecutionSequence(TaskBase):
 
     def _get_repr_details(self):
         return ''
+
+    _thread = None
+    _running_in_process = False
 
     def __repr__(self):
         template = "{self.__class__.__name__}({details})"
