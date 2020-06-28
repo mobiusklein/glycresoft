@@ -65,6 +65,7 @@ class GlycopeptideDatabaseSearchIdentifier(TaskBase):
         self.minimum_oxonium_ratio = minimum_oxonium_ratio
         self.mass_shifts = mass_shifts
         self.permute_decoy_glycans = permute_decoy_glycans
+        self.log("permute_decoy_glycans: %s" % (self.permute_decoy_glycans))
 
         self.probing_range_for_missing_precursors = probing_range_for_missing_precursors
         self.trust_precursor_fits = trust_precursor_fits
