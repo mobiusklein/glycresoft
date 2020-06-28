@@ -727,6 +727,7 @@ class GlycopeptideLCMSMSAnalyzer(TaskBase):
         self.probing_range_for_missing_precursors = probing_range_for_missing_precursors
         self.trust_precursor_fits = trust_precursor_fits
         self.file_manager = TempFileManager()
+        self.fdr_estimator = None
 
     def make_peak_loader(self):
         peak_loader = DatabaseScanDeserializer(
@@ -895,7 +896,10 @@ class GlycopeptideLCMSMSAnalyzer(TaskBase):
         Iterable of SpectrumMatch-like objects
         '''
         self.log("Estimating FDR")
-        self.estimate_fdr(searcher, target_decoy_set)
+        tda = self.estimate_fdr(searcher, target_decoy_set)
+        if tda is not None:
+            tda.pack()
+        self.fdr_estimator = tda
         target_hits = target_decoy_set.target_matches
         n_below = 0
         for target in target_hits:
@@ -959,7 +963,8 @@ class GlycopeptideLCMSMSAnalyzer(TaskBase):
             "minimum_mass": self.minimum_mass,
             "use_peptide_mass_filter": self.use_peptide_mass_filter,
             "mass_shifts": self.mass_shifts,
-            "maximum_mass": self.maximum_mass
+            "maximum_mass": self.maximum_mass,
+            "fdr_estimator": self.fdr_estimator
         }
 
     def save_solutions(self, identified_glycopeptides, unassigned_chromatograms,
@@ -1060,7 +1065,8 @@ class MzMLGlycopeptideLCMSMSAnalyzer(GlycopeptideLCMSMSAnalyzer):
             "search_strategy": 'target-internal-decoy-competition',
             "trust_precursor_fits": self.trust_precursor_fits,
             "probing_range_for_missing_precursors": self.probing_range_for_missing_precursors,
-            "scoring_model": self.peak_shape_scoring_model
+            "scoring_model": self.peak_shape_scoring_model,
+            "fdr_estimator": self.fdr_estimator
         }
 
     def make_analysis_serializer(self, output_path, analysis_name, sample_run, identified_glycopeptides,
@@ -1162,7 +1168,6 @@ class MzMLComparisonGlycopeptideLCMSMSAnalyzer(MzMLGlycopeptideLCMSMSAnalyzer):
             "decoy_database": str(self.decoy_database_connection),
             "decoy_correction_threshold": self.use_decoy_correction_threshold,
             "search_strategy": 'target-decoy-competition',
-
         })
         return result
 

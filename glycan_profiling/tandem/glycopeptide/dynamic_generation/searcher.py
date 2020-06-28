@@ -250,8 +250,8 @@ class MapperExecutor(TaskExecutionSequence):
 
             except Empty:
                 strikes += 1
-                if strikes % 50 and strikes:
-                    self.log("%d iterations without new batches on %s, done event: %s" % (
+                if strikes % 50 == 0 and strikes:
+                    self.log("... %d iterations without new batches on %s, done event: %s" % (
                         strikes, self, self.in_done_event.is_set()))
                 if self.in_done_event.is_set():
                     has_work = False

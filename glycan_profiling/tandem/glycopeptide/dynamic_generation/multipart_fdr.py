@@ -328,4 +328,5 @@ class GlycopeptideFDREstimator(TaskBase):
 
     def pack(self):
         self.grouper = SolutionSetGrouper([])
-        self.peptide_fdr.pack()
+        if self.peptide_fdr is not None:
+            self.peptide_fdr.pack()
