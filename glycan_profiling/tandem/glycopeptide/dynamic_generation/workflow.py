@@ -355,6 +355,7 @@ class MultipartGlycopeptideIdentifier(TaskBase):
             spectrum_batcher,
             mapping_batcher,
             target_mapping_executor,
+            decoy_mapping_executor,
             matching_executor,
             journal_consumer,
         ])
