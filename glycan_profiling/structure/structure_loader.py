@@ -396,11 +396,14 @@ class GlycopeptideCache(object):
 
 
 class CachingGlycopeptideParser(object):
-    def __init__(self, cache_size=4000):
+    __slots__ = ('cache', 'cache_size', 'lru', 'churn', 'sequence_cls')
+
+    def __init__(self, cache_size=4000, sequence_cls=FragmentCachingGlycopeptide):
         self.cache = GlycopeptideCache()
         self.cache_size = cache_size
         self.lru = LRUCache()
         self.churn = 0
+        self.sequence_cls = sequence_cls
 
     def _check_cache_valid(self):
         lru = self.lru
@@ -415,7 +418,7 @@ class CachingGlycopeptideParser(object):
                 pass
 
     def _make_new_value(self, struct):
-        value = FragmentCachingGlycopeptide(struct.glycopeptide_sequence)
+        value = self.sequence_cls(struct.glycopeptide_sequence)
         value.id = struct.id
         value.protein_relation = PeptideProteinRelation(
             struct.start_position, struct.end_position,
@@ -446,8 +449,10 @@ class CachingGlycopeptideParser(object):
 
 
 class CachingPeptideParser(CachingGlycopeptideParser):
+    __slots__ = ()
+
     def _make_new_value(self, struct):
-        value = FragmentCachingGlycopeptide(struct.modified_peptide_sequence)
+        value = self.sequence_cls(struct.modified_peptide_sequence)
         value.id = struct.id
         value.protein_relation = PeptideProteinRelation(
             struct.start_position, struct.end_position,
@@ -542,9 +547,10 @@ class CachingStubGlycopeptideStrategy(StubGlycopeptideStrategy):
 
 
 class SequenceReversingCachingGlycopeptideParser(CachingGlycopeptideParser):
+    __slots__ = ()
 
     def _make_new_value(self, struct):
-        value = FragmentCachingGlycopeptide(str(reverse_preserve_sequon(struct.glycopeptide_sequence)))
+        value = self.sequence_cls(str(reverse_preserve_sequon(struct.glycopeptide_sequence)))
         value.id = struct.id
         value.protein_relation = PeptideProteinRelation(
             struct.start_position, struct.end_position,

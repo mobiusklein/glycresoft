@@ -135,6 +135,9 @@ def sample_path_arg(fn):
 @click.option("-D", "--decoy-database-connection", default=None, help=(
     "Provide an alternative hypothesis to draw decoy glycopeptides from instead of the simpler reversed-peptide "
     "decoy. This is especially necessary when the stub peptide+Y ions account for a large fraction of MS2 signal."))
+@click.option("-G", "--permute-decoy-glycan-fragments", is_flag=True, default=False, help=(
+    "Whether or not to permute decoy glycopeptides' peptide+Y ions. The intact mass, peptide, "
+    "and peptide+Y1 ions are unchanged."))
 @click.option("--fdr-correction", default='auto', type=GlycopeptideFDRParam(),
               help=("Whether to attempt to correct for small sample size for target-decoy analysis."),
               cls=HiddenOption)
@@ -147,7 +150,7 @@ def search_glycopeptide(context, database_connection, sample_path, hypothesis_id
                         processes=4, workload_size=500, mass_shifts=None, export=None,
                         use_peptide_mass_filter=False, maximum_mass=float('inf'),
                         decoy_database_connection=None, fdr_correction='auto',
-                        isotope_probing_range=3):
+                        isotope_probing_range=3, permute_decoy_glycan_fragments=False):
     """Identify glycopeptide sequences from processed LC-MS/MS data
     """
     if output_path is None:
@@ -204,7 +207,9 @@ def search_glycopeptide(context, database_connection, sample_path, hypothesis_id
             mass_shifts=mass_shifts,
             use_peptide_mass_filter=use_peptide_mass_filter,
             maximum_mass=maximum_mass,
-            probing_range_for_missing_precursors=isotope_probing_range)
+            probing_range_for_missing_precursors=isotope_probing_range,
+            permute_decoy_glycans=permute_decoy_glycan_fragments
+            ),
     else:
         analyzer = MzMLComparisonGlycopeptideLCMSMSAnalyzer(
             database_connection._original_connection,
@@ -226,7 +231,8 @@ def search_glycopeptide(context, database_connection, sample_path, hypothesis_id
             use_peptide_mass_filter=use_peptide_mass_filter,
             maximum_mass=maximum_mass,
             use_decoy_correction_threshold=fdr_correction,
-            probing_range_for_missing_precursors=isotope_probing_range)
+            probing_range_for_missing_precursors=isotope_probing_range,
+            permute_decoy_glycans=permute_decoy_glycan_fragments)
     analyzer.display_header()
     result = analyzer.start()
     gps, unassigned, target_decoy_set = result[:3]

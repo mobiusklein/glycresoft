@@ -625,7 +625,7 @@ class SharedCacheAwareDecoyFragmentCachingGlycopeptide(DecoyFragmentCachingGlyco
 
 
 class Parser(object):
-    def __init__(self, max_size=2 ** 12):
+    def __init__(self, max_size=2 ** 12, **kwargs):
         self.cache = LRUMapping(max_size)
 
     def __call__(self, record):

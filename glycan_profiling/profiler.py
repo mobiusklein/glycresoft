@@ -690,7 +690,8 @@ class GlycopeptideLCMSMSAnalyzer(TaskBase):
                  tandem_scoring_model=None, minimum_mass=1000., save_unidentified=False,
                  oxonium_threshold=0.05, scan_transformer=None, mass_shifts=None, n_processes=5,
                  spectrum_batch_size=1000, use_peptide_mass_filter=False, maximum_mass=float('inf'),
-                 probing_range_for_missing_precursors=3, trust_precursor_fits=True):
+                 probing_range_for_missing_precursors=3, trust_precursor_fits=True,
+                 permute_decoy_glycans=False):
         if tandem_scoring_model is None:
             tandem_scoring_model = CoverageWeightedBinomialScorer
         if peak_shape_scoring_model is None:
@@ -728,6 +729,7 @@ class GlycopeptideLCMSMSAnalyzer(TaskBase):
         self.trust_precursor_fits = trust_precursor_fits
         self.file_manager = TempFileManager()
         self.fdr_estimator = None
+        self.permute_decoy_glycans = permute_decoy_glycans
 
     def make_peak_loader(self):
         peak_loader = DatabaseScanDeserializer(
@@ -779,7 +781,8 @@ class GlycopeptideLCMSMSAnalyzer(TaskBase):
             use_peptide_mass_filter=self.use_peptide_mass_filter,
             file_manager=self.file_manager,
             probing_range_for_missing_precursors=self.probing_range_for_missing_precursors,
-            trust_precursor_fits=self.trust_precursor_fits)
+            trust_precursor_fits=self.trust_precursor_fits,
+            permute_decoy_glycans=self.permute_decoy_glycans)
         return searcher
 
     def do_search(self, searcher):
@@ -964,7 +967,8 @@ class GlycopeptideLCMSMSAnalyzer(TaskBase):
             "use_peptide_mass_filter": self.use_peptide_mass_filter,
             "mass_shifts": self.mass_shifts,
             "maximum_mass": self.maximum_mass,
-            "fdr_estimator": self.fdr_estimator
+            "fdr_estimator": self.fdr_estimator,
+            "permute_decoy_glycans": self.permute_decoy_glycans
         }
 
     def save_solutions(self, identified_glycopeptides, unassigned_chromatograms,
@@ -1012,7 +1016,7 @@ class MzMLGlycopeptideLCMSMSAnalyzer(GlycopeptideLCMSMSAnalyzer):
                  oxonium_threshold=0.05, scan_transformer=None, mass_shifts=None,
                  n_processes=5, spectrum_batch_size=1000, use_peptide_mass_filter=False,
                  maximum_mass=float('inf'), probing_range_for_missing_precursors=3,
-                 trust_precursor_fits=True):
+                 trust_precursor_fits=True, permute_decoy_glycans=False):
         super(MzMLGlycopeptideLCMSMSAnalyzer, self).__init__(
             database_connection,
             hypothesis_id, -1,
@@ -1024,7 +1028,7 @@ class MzMLGlycopeptideLCMSMSAnalyzer(GlycopeptideLCMSMSAnalyzer):
             scan_transformer, mass_shifts, n_processes, spectrum_batch_size,
             use_peptide_mass_filter, maximum_mass,
             probing_range_for_missing_precursors=probing_range_for_missing_precursors,
-            trust_precursor_fits=trust_precursor_fits)
+            trust_precursor_fits=trust_precursor_fits, permute_decoy_glycans=permute_decoy_glycans)
         self.sample_path = sample_path
         self.output_path = output_path
 
@@ -1066,7 +1070,8 @@ class MzMLGlycopeptideLCMSMSAnalyzer(GlycopeptideLCMSMSAnalyzer):
             "trust_precursor_fits": self.trust_precursor_fits,
             "probing_range_for_missing_precursors": self.probing_range_for_missing_precursors,
             "scoring_model": self.peak_shape_scoring_model,
-            "fdr_estimator": self.fdr_estimator
+            "fdr_estimator": self.fdr_estimator,
+            "permute_decoy_glycans": self.permute_decoy_glycans,
         }
 
     def make_analysis_serializer(self, output_path, analysis_name, sample_run, identified_glycopeptides,
@@ -1117,7 +1122,8 @@ class MzMLComparisonGlycopeptideLCMSMSAnalyzer(MzMLGlycopeptideLCMSMSAnalyzer):
                  oxonium_threshold=0.05, scan_transformer=None, mass_shifts=None,
                  n_processes=5, spectrum_batch_size=1000, use_peptide_mass_filter=False,
                  maximum_mass=float('inf'), use_decoy_correction_threshold=None,
-                 probing_range_for_missing_precursors=3, trust_precursor_fits=True):
+                 probing_range_for_missing_precursors=3, trust_precursor_fits=True,
+                 permute_decoy_glycans=False):
         if use_decoy_correction_threshold is None:
             use_decoy_correction_threshold = 0.33
         if tandem_scoring_model == CoverageWeightedBinomialScorer:
@@ -1129,7 +1135,8 @@ class MzMLComparisonGlycopeptideLCMSMSAnalyzer(MzMLGlycopeptideLCMSMSAnalyzer):
             tandem_scoring_model, minimum_mass, save_unidentified,
             oxonium_threshold, scan_transformer, mass_shifts,
             n_processes, spectrum_batch_size, use_peptide_mass_filter,
-            maximum_mass, probing_range_for_missing_precursors, trust_precursor_fits)
+            maximum_mass, probing_range_for_missing_precursors,
+            trust_precursor_fits, permute_decoy_glycans=permute_decoy_glycans)
         self.decoy_database_connection = decoy_database_connection
         self.use_decoy_correction_threshold = use_decoy_correction_threshold
 
@@ -1146,7 +1153,8 @@ class MzMLComparisonGlycopeptideLCMSMSAnalyzer(MzMLGlycopeptideLCMSMSAnalyzer):
             use_peptide_mass_filter=self.use_peptide_mass_filter,
             file_manager=self.file_manager,
             probing_range_for_missing_precursors=self.probing_range_for_missing_precursors,
-            trust_precursor_fits=self.trust_precursor_fits)
+            trust_precursor_fits=self.trust_precursor_fits,
+            permute_decoy_glycans=self.permute_decoy_glycans)
         return searcher
 
     def make_decoy_database(self):
@@ -1195,7 +1203,8 @@ class MultipartGlycopeptideLCMSMSAnalyzer(MzMLGlycopeptideLCMSMSAnalyzer):
                  n_processes=5, spectrum_batch_size=1000,
                  maximum_mass=float('inf'), probing_range_for_missing_precursors=3,
                  trust_precursor_fits=True, use_memory_database=True,
-                 fdr_estimation_strategy=None, glycosylation_site_models_path=None):
+                 fdr_estimation_strategy=None, glycosylation_site_models_path=None,
+                 permute_decoy_glycans=False):
         if tandem_scoring_model == CoverageWeightedBinomialScorer:
             tandem_scoring_model = CoverageWeightedBinomialModelTree
         if fdr_estimation_strategy is None:
@@ -1207,7 +1216,11 @@ class MultipartGlycopeptideLCMSMSAnalyzer(MzMLGlycopeptideLCMSMSAnalyzer):
             tandem_scoring_model, minimum_mass, save_unidentified,
             0, None, mass_shifts,
             n_processes, spectrum_batch_size, True,
-            maximum_mass, probing_range_for_missing_precursors, trust_precursor_fits)
+            maximum_mass, probing_range_for_missing_precursors,
+            trust_precursor_fits,
+            # The multipart scoring algorithm automatically implies permute_decoy_glycan
+            # fragment masses.
+            permute_decoy_glycans=True)
         self.glycan_score_threshold = glycan_score_threshold
         self.decoy_database_connection = decoy_database_connection
         self.use_memory_database = use_memory_database
