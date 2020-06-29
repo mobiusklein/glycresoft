@@ -25,6 +25,15 @@ from ..process_dispatcher import SpectrumIdentificationWorkerBase
 from ..oxonium_ions import gscore_scanner
 
 
+class ParserClosure(object):
+    def __init__(self, parser_type, sequence_cls):
+        self.parser_type = parser_type
+        self.sequence_cls = sequence_cls
+
+    def __call__(self):
+        return self.parser_type(sequence_cls=self.sequence_cls)
+
+
 class GlycopeptideSpectrumGroupEvaluatorMixin(object):
     __slots__ = ()
 
@@ -87,12 +96,6 @@ class GlycopeptideIdentificationWorker(GlycopeptideSpectrumGroupEvaluatorMixin, 
             oxonium_cache_seed = pickle.loads(oxonium_cache_seed)
             from glycan_profiling.structure.structure_loader import oxonium_ion_cache
             oxonium_ion_cache.update(oxonium_cache_seed)
-
-        n_glycan_stub_cache_seed = cache_seeds.get('n_glycan_stub_cache')
-        if n_glycan_stub_cache_seed is not None:
-            n_glycan_stub_cache_seed = pickle.loads(n_glycan_stub_cache_seed)
-            from glycan_profiling.structure.structure_loader import CachingStubGlycopeptideStrategy
-            CachingStubGlycopeptideStrategy.update(n_glycan_stub_cache_seed)
 
 
 class PeptideMassFilteringDatabaseSearchMixin(object):
@@ -168,7 +171,7 @@ class GlycopeptideMatcher(GlycopeptideSpectrumGroupEvaluatorMixin, PeptideMassFi
     @property
     def _worker_specification(self):
         return GlycopeptideIdentificationWorker, {
-            "parser_type": self.parser_type,
+            "parser_type": ParserClosure(self.parser_type, self.sequence_type),
             "cache_seeds": self.cache_seeds
         }
 

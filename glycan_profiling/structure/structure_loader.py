@@ -558,26 +558,6 @@ class SequenceReversingCachingGlycopeptideParser(CachingGlycopeptideParser):
         return value
 
 
-class DecoyMonosaccharideResidue(FrozenMonosaccharideResidue):
-    _delta = 3.0
-    __cache = {}
-
-    @classmethod
-    def get_cache(cls):
-        return cls.__cache
-
-    def mass(self, *args, **kwargs):  # pylint: disable=arguments-differ
-        return super(DecoyMonosaccharideResidue, self).mass(*args, **kwargs) + self._delta
-
-
-class DecoyShiftingStubGlycopeptideStrategy(StubGlycopeptideStrategy):
-    def __init__(self, peptide, extended=True):
-        super(DecoyShiftingStubGlycopeptideStrategy, self).__init__(peptide, extended=extended)
-
-    def _prepare_monosaccharide(self, name):
-        return DecoyMonosaccharideResidue.from_iupac_lite(name)
-
-
 class GlycopeptideDatabaseRecord(object):
     __slots__ = [
         "id", "calculated_mass",
