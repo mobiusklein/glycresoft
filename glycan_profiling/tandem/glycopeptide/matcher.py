@@ -141,7 +141,6 @@ class GlycopeptideMatcher(GlycopeptideSpectrumGroupEvaluatorMixin, PeptideMassFi
         self.parser = None
         self.reset_parser()
         self.cache_seeds = cache_seeds
-        self.log("%s: sequence_type: %s, %s" % (self, self.sequence_type, self._default_sequence_type()))
 
     def _default_sequence_type(self):
         return FragmentCachingGlycopeptide
