@@ -131,7 +131,8 @@ class NearestValueLookUp(object):
 
 
 try:
-    from glycan_profiling._c.tandem.target_decoy import NearestValueLookUp
+    _NearestValueLookUp = NearestValueLookUp
+    from glycan_profiling._c.tandem.target_decoy import NearestValueLookUp as NearestValueLookUp
 except ImportError:
     pass
 

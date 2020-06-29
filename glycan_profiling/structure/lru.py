@@ -178,3 +178,9 @@ class LRUMapping(object):
     def clear(self):
         self.store.clear()
         self.lru.clear()
+
+
+try:
+    from glycan_profiling._c.structure.lru import LRUMapping
+except ImportError:
+    pass

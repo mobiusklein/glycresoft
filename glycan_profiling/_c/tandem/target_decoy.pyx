@@ -43,7 +43,23 @@ cdef class NearestValueLookUp(object):
     def __init__(self, items):
         if isinstance(items, dict):
             items = items.items()
-        self.items = sorted([ScoreCell(*x) for x in items if not np.isnan(x[0])], key=lambda x: x[0])
+        self.items = self._transform_items(items)
+
+    def _transform_items(self, items):
+        return sorted([ScoreCell(*x) for x in items if not np.isnan(x[0])], key=lambda x: x[0])
+
+    def __setstate__(self, state):
+        if isinstance(state, tuple):
+            self.items = self._transform_items(state[0])
+        elif isinstance(state, dict):
+            self.items = self._transform_items(state['items'])
+        else:
+            raise
+
+    def __getstate__(self):
+        return {
+            "items": self.items
+        }
 
     cpdef Py_ssize_t _find_closest_item(self, double value):
         cdef:

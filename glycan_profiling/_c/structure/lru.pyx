@@ -129,3 +129,82 @@ cdef class LRUCache(object):
         self.head.forward = self.head
         self.head.backward = self.head
         self._mapping.clear()
+
+
+cdef class LRUMapping(object):
+    cdef:
+        public size_t max_size
+        public dict store
+        public LRUCache lru
+
+    def __init__(self, max_size=512):
+        self.max_size = max_size
+        self.store = dict()
+        self.lru = LRUCache()
+
+    def __getitem__(self, key):
+        value = self.store[key]
+        self.lru.hit_node(key)
+        return value
+
+    def __setitem__(self, key, value):
+        self.lru.add_node(key)
+        self.store[key] = value
+        self._check_size()
+
+    def __delitem__(self, key):
+        del self.store[key]
+        self.lru.remove_node(key)
+
+    cpdef _check_size(self):
+        cdef:
+            Py_ssize_t n
+        n = len(self.store)
+        while n > self.max_size:
+            key = self.lru.get_least_recently_used()
+            self.store.pop(key)
+            self.lru.remove_node(key)
+            n -= 1
+
+    def __contains__(self, key):
+        cdef:
+            PyObject* temp
+
+        temp = PyDict_GetItem(self.store, key)
+        if temp == NULL:
+            return False
+        return True
+
+    def __iter__(self):
+        return iter(self.store)
+
+    def __len__(self):
+        return len(self.store)
+
+    def keys(self):
+        return self.store.keys()
+
+    def values(self):
+        return self.store.values()
+
+    def items(self):
+        return self.store.items()
+
+    def get(self, key, default=None):
+        try:
+            value = self[key]
+            return value
+        except KeyError:
+            return default
+
+    def pop(self, key, default=None):
+        try:
+            value = self[key]
+            del self[key]
+            return value
+        except KeyError:
+            return default
+
+    def clear(self):
+        self.store.clear()
+        self.lru.clear()
