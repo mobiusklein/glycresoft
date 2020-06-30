@@ -688,12 +688,12 @@ class MultiprocessingGlycoproteinSiteModelBuildingWorkflow(GlycoproteinSiteModel
                 is_done = worker.all_work_done()
                 if not is_done:
                     worker_still_busy = True
-                    return worker_still_busy
+                    break
             except (RemoteError, KeyError) as err:
                 worker_still_busy = True
                 self._has_remote_error = True
-                return worker_still_busy
-        return worker_still_busy
+                break
+        return not worker_still_busy
 
     def _fit_glycoprotein_site_models(self, glycoproteins, builder):
         self.builder = builder
