@@ -209,7 +209,7 @@ def search_glycopeptide(context, database_connection, sample_path, hypothesis_id
             maximum_mass=maximum_mass,
             probing_range_for_missing_precursors=isotope_probing_range,
             permute_decoy_glycans=permute_decoy_glycan_fragments
-            ),
+            )
     else:
         analyzer = MzMLComparisonGlycopeptideLCMSMSAnalyzer(
             database_connection._original_connection,
