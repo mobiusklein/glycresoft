@@ -453,8 +453,14 @@ class TargetDecoyAnalyzer(object):
         decoy_counts = np.array([self.n_decoys_above_threshold(i)
                                 for i in thresholds])
         fdr = np.array([self.q_value_map[i] for i in thresholds])
-        at_5_percent = np.where(fdr < 0.05)[0][0]
-        at_1_percent = np.where(fdr < 0.01)[0][0]
+        try:
+            at_5_percent = np.where(fdr < 0.05)[0][0]
+        except IndexError:
+            at_5_percent = fdr[-1]
+        try:
+            at_1_percent = np.where(fdr < 0.01)[0][0]
+        except IndexError:
+            at_1_percent = fdr[-1]
         line1 = ax.plot(thresholds, target_counts, label='Target', color='blue')
         line2 = ax.plot(thresholds, decoy_counts, label='Decoy', color='orange')
         tline5 = ax.vlines(
