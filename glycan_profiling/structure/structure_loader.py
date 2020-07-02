@@ -508,8 +508,11 @@ class DecoyFragmentCachingGlycopeptide(FragmentCachingGlycopeptide):
             target.sequence, glycan,
             target.n_term.modification,
             target.c_term.modification)
-        inst.id = target.id + (-1, )
-        inst.protein_relation = target.protein_relation
+        try:
+            inst.id = target.id
+            inst.protein_relation = target.protein_relation
+        except AttributeError:
+            inst.protein_relation = None
         # Intentionally share caches with offspring
         inst.fragment_caches = inst.fragment_caches.__class__(
             {k: v for k, v in target.fragment_caches.items() if 'stub_fragments' not in k})
