@@ -459,6 +459,8 @@ class RelativeMassErrorParam(click.types.FloatParamType):
                 "Warning: %r has a relatively large margin, %f" % (
                     getattr(param, "human_readable_name", param),
                     value), fg='yellow')
+        if value <= 0:
+            self.fail("mass error value must be greater than 0.")
         return value
 
 
