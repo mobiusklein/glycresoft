@@ -476,11 +476,8 @@ class MzIdentMLSerializer(task.TaskBase):
                 mod = mods[0]
             if mod.rule.is_a("glycosylation"):
                 mod_params = [
-                    {
-                        "name": str(mod.rule.glycosylation_type),
-                        "cvRef": "PSI-MS",
-                        "accession": "MS:XXXXXXX"
-                    }
+                    glycosylation_type_to_term(
+                        str(mod.rule.glycosylation_type))
                 ]
                 if mod.rule.is_core:
 
@@ -526,7 +523,7 @@ class MzIdentMLSerializer(task.TaskBase):
                     "monoisotopic_mass_delta": mass,
                     "location": i,
                     # "name": "unknown modification",
-                    "name": "glycan modification",
+                    "name": "glycosylation modification",
                     "params": [components.CVParam(**x) for x in mod_params]
                 }
                 data['modifications'].append(mod_dict)
