@@ -107,6 +107,9 @@ class PeptideDatabaseProxyLoader(TaskBase):
     def hypothesis(self):
         return self.source_database.hypothesis
 
+    def __reduce__(self):
+        return self.__class__, (self.path, self.n_glycan, self.o_glycan, self.hypothesis_id)
+
     def __call__(self):
         db = self.source_database
         if self.n_glycan and self.o_glycan:
@@ -141,7 +144,7 @@ class MultipartGlycopeptideIdentifier(TaskBase):
                  probing_range_for_missing_precursors=3, trust_precursor_fits=True,
                  glycan_score_threshold=1.0, peptide_masses_per_scan=100,
                  fdr_estimation_strategy=None, glycosylation_site_models_path=None,
-                 cache_seeds=None, n_mapping_workers=2, **kwargs):
+                 cache_seeds=None, n_mapping_workers=1, **kwargs):
         if fdr_estimation_strategy is None:
             fdr_estimation_strategy = GlycopeptideFDREstimationStrategy.multipart_gamma_gaussian_mixture
         if scorer_type is None:
