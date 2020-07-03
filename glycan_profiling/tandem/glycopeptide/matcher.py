@@ -48,6 +48,10 @@ class GlycopeptideSpectrumGroupEvaluatorMixin(object):
             record_by_id[record.id] = record
             structure = self.parser(record)
             for group in subgroups:
+                # This works when the localized modification is a core (N-Glycosylation, O-Glycosylation), but
+                # will break down if there is a fully defined glycan (composition or structure). Those will need
+                # to be handled differently, especially considering ExD-type dissociation where they will actually
+                # matter.
                 if structure.modified_sequence_equality(group[0]):
                     group.append(structure)
                     break

@@ -141,7 +141,7 @@ class MultipartGlycopeptideIdentifier(TaskBase):
                  probing_range_for_missing_precursors=3, trust_precursor_fits=True,
                  glycan_score_threshold=1.0, peptide_masses_per_scan=100,
                  fdr_estimation_strategy=None, glycosylation_site_models_path=None,
-                 cache_seeds=None, **kwargs):
+                 cache_seeds=None, n_mapping_workers=2, **kwargs):
         if fdr_estimation_strategy is None:
             fdr_estimation_strategy = GlycopeptideFDREstimationStrategy.multipart_gamma_gaussian_mixture
         if scorer_type is None:
@@ -188,6 +188,7 @@ class MultipartGlycopeptideIdentifier(TaskBase):
         self.evaluation_kwargs.update(kwargs)
 
         self.n_processes = n_processes
+        self.n_mapping_workers = n_mapping_workers
         self.ipc_manager = ipc_manager
         self.cache_seeds = cache_seeds
 
@@ -289,33 +290,36 @@ class MultipartGlycopeptideIdentifier(TaskBase):
 
         mapping_executor_out_queue = multiprocessing.Queue(5)
 
-        target_mapping_executor = SerializingMapperExecutor(
-            OrderedDict([
-                ('target', target_predictive_search),
-            ]),
-            self.scan_loader,
-            label_to_batch_queue['target'],
-            mapping_executor_out_queue,
-            mapping_batcher.done_event,
-            tracking_directory=tracking_dir,
-        )
-        target_mapping_executor.done_event = multiprocessing.Event()
+        mapping_executors = []
+        for _i in range(self.n_mapping_workers):
+            target_mapping_executor = SerializingMapperExecutor(
+                OrderedDict([
+                    ('target', target_predictive_search),
+                ]),
+                self.scan_loader,
+                label_to_batch_queue['target'],
+                mapping_executor_out_queue,
+                mapping_batcher.done_event,
+                tracking_directory=tracking_dir,
+            )
+            target_mapping_executor.done_event = multiprocessing.Event()
 
-        decoy_mapping_executor = SerializingMapperExecutor(
-            OrderedDict([
-                ('decoy', decoy_predictive_search),
-            ]),
-            self.scan_loader,
-            label_to_batch_queue['decoy'],
-            mapping_executor_out_queue,
-            mapping_batcher.done_event,
-            tracking_directory=tracking_dir,
-        )
-        decoy_mapping_executor.done_event = multiprocessing.Event()
+            decoy_mapping_executor = SerializingMapperExecutor(
+                OrderedDict([
+                    ('decoy', decoy_predictive_search),
+                ]),
+                self.scan_loader,
+                label_to_batch_queue['decoy'],
+                mapping_executor_out_queue,
+                mapping_batcher.done_event,
+                tracking_directory=tracking_dir,
+            )
+            decoy_mapping_executor.done_event = multiprocessing.Event()
+            mapping_executors.append(target_mapping_executor)
+            mapping_executors.append(decoy_mapping_executor)
 
         mapping_executor_done_event= MultiEvent([
-            target_mapping_executor.done_event,
-            decoy_mapping_executor.done_event,
+            mapping_executor.done_event for mapping_executor in mapping_executors
         ])
 
         # If we wished to, we could run multiple MatcherExecutors in
@@ -348,14 +352,13 @@ class MultipartGlycopeptideIdentifier(TaskBase):
 
         # Launch the sequences that execute in separate processes
         # before launching the thread chain.
-        target_mapping_executor.start(process=True)
-        decoy_mapping_executor.start(process=True)
+        for mapping_executor in mapping_executors:
+            mapping_executor.start(process=True)
 
         pipeline = Pipeline([
             spectrum_batcher,
             mapping_batcher,
-            target_mapping_executor,
-            decoy_mapping_executor,
+        ] + mapping_executors + [
             matching_executor,
             journal_consumer,
         ])
