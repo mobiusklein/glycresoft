@@ -192,7 +192,7 @@ class StructureMapper(TaskExecutionSequence):
                     solutions.total_work_required(), total_work))
             workload.update(solutions)
         end = time.time()
-        self.log("Mapping Completed (%0.2f Sec)" % (end - start))
+        self.log("... Mapping Completed (%0.2f sec.)" % (end - start))
         self._log_cache()
         predictive_search.reset()
         return workload
@@ -284,8 +284,11 @@ class SerializingMapperExecutor(MapperExecutor):
         workload = mapper_task()
         self.scan_loader.reset()
         workload.pack()
-
+        start_serializing_workload = time.time()
         workload = serialize_workload(workload)
+        end_serializing_workload = time.time()
+        self.log("... Serializing Workload Took %0.2f sec." % (
+            end_serializing_workload - start_serializing_workload))
         matcher_task = SpectrumMatcher(
             workload, mapper_task.group_i, mapper_task.group_n)
 
@@ -446,9 +449,12 @@ class WorkloadUnpackingMatcherExecutor(MatcherExecutor):
 
     def execute_task(self, matcher_task):
         workload = matcher_task.workload
+        start = time.time()
         matcher_task.workload = deserialize_workload(
             workload,
             self.scan_loader)
+        end = time.time()
+        self.log("... Deserializing Workload Took %0.2f sec." % (end - start, ))
         return super(WorkloadUnpackingMatcherExecutor, self).execute_task(matcher_task)
 
 
