@@ -111,7 +111,8 @@ class PeptideDatabaseProxyLoader(TaskBase):
         return self.__class__, (self.path, self.n_glycan, self.o_glycan, self.hypothesis_id)
 
     def __call__(self):
-        db = self.source_database
+        db = disk_backed_database.PeptideDiskBackedStructureDatabase(
+            self.path, hypothesis_id=self.hypothesis_id)
         if self.n_glycan and self.o_glycan:
             filter_level = 0
         elif self.n_glycan:
