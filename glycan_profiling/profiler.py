@@ -1204,7 +1204,7 @@ class MultipartGlycopeptideLCMSMSAnalyzer(MzMLGlycopeptideLCMSMSAnalyzer):
                  maximum_mass=float('inf'), probing_range_for_missing_precursors=3,
                  trust_precursor_fits=True, use_memory_database=True,
                  fdr_estimation_strategy=None, glycosylation_site_models_path=None,
-                 permute_decoy_glycans=False):
+                 permute_decoy_glycans=False, n_mapping_processes=1):
         if tandem_scoring_model == CoverageWeightedBinomialScorer:
             tandem_scoring_model = CoverageWeightedBinomialModelTree
         if fdr_estimation_strategy is None:
@@ -1221,6 +1221,7 @@ class MultipartGlycopeptideLCMSMSAnalyzer(MzMLGlycopeptideLCMSMSAnalyzer):
             # The multipart scoring algorithm automatically implies permute_decoy_glycan
             # fragment masses.
             permute_decoy_glycans=True)
+        self.n_mapping_processes = n_mapping_processes
         self.glycan_score_threshold = glycan_score_threshold
         self.decoy_database_connection = decoy_database_connection
         self.use_memory_database = use_memory_database
@@ -1272,7 +1273,7 @@ class MultipartGlycopeptideLCMSMSAnalyzer(MzMLGlycopeptideLCMSMSAnalyzer):
             trust_precursor_fits=self.trust_precursor_fits,
             fdr_estimation_strategy=self.fdr_estimation_strategy,
             glycosylation_site_models_path=self.glycosylation_site_models_path,
-            cache_seeds=cache_seeds)
+            cache_seeds=cache_seeds, n_mapping_workers=self.n_mapping_processes)
         return searcher
 
     def estimate_fdr(self, searcher, target_decoy_set):

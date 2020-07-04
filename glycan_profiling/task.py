@@ -403,14 +403,19 @@ class TaskExecutionSequence(TaskBase):
             provider = threading
         return provider.Event()
 
-    def start(self, process=False):
+    def start(self, process=False, daemon=False):
         if self._thread is not None:
             return self._thread
         if process:
             self._running_in_process = True
-            t = multiprocessing.Process(target=self, name=("%s-%r" % (self.__class__.__name__, id(self))))
+            t = multiprocessing.Process(
+                target=self, name=("%s-%r" % (self.__class__.__name__, id(self))))
+            if daemon:
+                t.daemon = daemon
         else:
             t = threading.Thread(target=self, name=("%s-%r" % (self.__class__.__name__, id(self))))
+            if daemon:
+                t.daemon = daemon
         t.start()
         self._thread = t
         return t

@@ -357,7 +357,7 @@ class MultipartGlycopeptideIdentifier(TaskBase):
         # Launch the sequences that execute in separate processes
         # before launching the thread chain.
         for mapping_executor in mapping_executors:
-            mapping_executor.start(process=True)
+            mapping_executor.start(process=True, daemon=True)
 
         pipeline = Pipeline([
             spectrum_batcher,

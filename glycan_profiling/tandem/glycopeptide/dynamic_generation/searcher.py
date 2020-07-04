@@ -149,7 +149,7 @@ class StructureMapper(TaskExecutionSequence):
         misses = predictive_search.peptide_glycosylator._cache_miss
         total = hits + misses
         if total > 0:
-            self.log("Cache Performance: %d / %d (%0.2f%%)" % (hits, total, hits / float(total) * 100.0))
+            self.log("... Cache Performance: %d / %d (%0.2f%%)" % (hits, total, hits / float(total) * 100.0))
 
     def _prepare_scan(self, scan):
         try:
