@@ -7,6 +7,7 @@ try:
 except ImportError:
     import pickle
 
+from collections import deque
 from threading import Thread
 
 import multiprocessing
@@ -129,6 +130,7 @@ class IdentificationProcessDispatcher(TaskBase):
         self._token_to_worker = {}
         self._has_received_token = set()
         self._has_remote_error = False
+        self._result_buffer = deque()
 
     @property
     def scan_solution_map(self):
@@ -331,6 +333,24 @@ class IdentificationProcessDispatcher(TaskBase):
                 raise
         return i
 
+    def get_result(self, seen, hit_map):
+        if self._result_buffer:
+            return self._result_buffer.popleft()
+
+        payload = self.output_queue.get(True, 1)
+        self.output_queue.task_done()
+
+            # Change this to be the target's ID and look it up in hit_map
+        if isinstance(payload, SentinelToken):
+            self.debug("...... Received sentinel from %s" %
+                        (self._token_to_worker[payload.token].name))
+            self._has_received_token.add(payload.token)
+        else:
+            self._result_buffer.extend(payload)
+            if self._result_buffer:
+                return self._result_buffer.popleft()
+
+
     def process(self, scan_map, hit_map, hit_to_scan, scan_hit_type_map, hit_group_map=None):
         """Evaluate all spectrum matches, spreading work among the worker
         process pool.
@@ -380,27 +400,20 @@ class IdentificationProcessDispatcher(TaskBase):
         log_cycle = 5000
         while has_work:
             try:
-                payload = self.output_queue.get(True, 1)
-                self.output_queue.task_done()
-                try:
-                    # Change this to be the target's ID and look it up in hit_map
+                payload = self.get_result(seen, hit_map)
+                if payload is None:
+                    continue
+                else:
                     (target_id, score_map, token) = payload
-                except (TypeError, ValueError):
-                    if isinstance(payload, SentinelToken):
-                        self.debug("...... Received sentinel from %s" % (self._token_to_worker[payload.token].name))
-                        self._has_received_token.add(payload.token)
-                        continue
-                    else:
-                        raise
                 target = hit_map.get(target_id, target_id)
                 if target.id in seen:
-                    self.debug(
+                    self.log(
                         "...... Duplicate Results For %s. First seen at %r, now again at %r" % (
                             target, seen[target.id], (i, token)))
                 else:
                     seen[target.id] = (i, token)
                 if (i > n) and ((i - n) % 10 == 0):
-                    self.debug(
+                    self.log(
                         "...... Warning: %d additional output received. %s and %d matches." % (
                             i - n, target, len(score_map)))
 
@@ -519,6 +532,8 @@ class SpectrumIdentificationWorkerBase(Process, SpectrumEvaluatorBase):
         self.log_handler = log_handler
         self.token = uid()
         self.items_handled = 0
+        self.result_buffer = []
+        self.buffer_size = 1000
 
     def log(self, message):
         """Send a normal logging message via :attr:`log_handler`
@@ -569,6 +584,17 @@ class SpectrumIdentificationWorkerBase(Process, SpectrumEvaluatorBase):
         """
         return self._work_complete.is_set()
 
+    def _append_to_result_buffer(self, payload):
+        self.result_buffer.append(payload)
+        if len(self.result_buffer) > self.buffer_size:
+            self.output_queue.put(self.result_buffer)
+            self.result_buffer = []
+
+    def _flush_result_buffer(self):
+        if self.result_buffer:
+            self.output_queue.put(self.result_buffer)
+            self.result_buffer = []
+
     def pack_output(self, target):
         """Transmit the completed identifications for a given target
         structure.
@@ -583,7 +609,7 @@ class SpectrumIdentificationWorkerBase(Process, SpectrumEvaluatorBase):
         """
         if self.solution_map:
             target_id = getattr(target, 'id', target)
-            self.output_queue.put((target_id, self.solution_map, self.token))
+            self._append_to_result_buffer((target_id, self.solution_map, self.token))
         self.solution_map = dict()
 
     def evaluate(self, scan, structure, evaluation_context=None, *args, **kwargs):
@@ -601,6 +627,7 @@ class SpectrumIdentificationWorkerBase(Process, SpectrumEvaluatorBase):
             self._work_complete.set()
         except (RemoteError, KeyError):
             self.log("An error occurred while cleaning up worker %r" % (self, ))
+        self._flush_result_buffer()
         self.output_queue.put(SentinelToken(self.token))
         self.consumer_done_event.wait()
         # joining the queue may not be necessary if we depend upon consumer_event_done
@@ -632,6 +659,7 @@ class SpectrumIdentificationWorkerBase(Process, SpectrumEvaluatorBase):
                     break
                 else:
                     strikes += 1
+                    self._flush_result_buffer()
                     if strikes % 1000 == 0:
                         self.log("... %d iterations without work for %r" % (strikes, self))
                     continue
