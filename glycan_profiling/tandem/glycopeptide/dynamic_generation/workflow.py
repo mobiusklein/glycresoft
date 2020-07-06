@@ -586,3 +586,4 @@ class IdentificationWorkerBranch(TaskExecutionSequence):
         pipeline.join()
         journal_writer.close()
         self.results_processed.value = journal_writer.solution_counter
+        ipc_manager.shutdown()
