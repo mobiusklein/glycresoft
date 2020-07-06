@@ -468,6 +468,8 @@ class MzIdentMLSerializer(task.TaskBase):
 
         i = 0
         # TODO: handle N-terminal and C-terminal modifications
+        glycosylation_event_count = len(glycopeptide.convert().glycosylation_manager)
+        glycosylation_events_handled = 0
         for _pos, mods in glycopeptide:
             i += 1
             if not mods:
@@ -475,27 +477,41 @@ class MzIdentMLSerializer(task.TaskBase):
             else:
                 mod = mods[0]
             if mod.rule.is_a("glycosylation"):
+                glycosylation_events_handled += 1
+                is_aggregate_stub = False
                 mod_params = [
                     glycosylation_type_to_term(
                         str(mod.rule.glycosylation_type))
                 ]
                 if mod.rule.is_core:
 
-                    mod_params.append({
-                        "accession": 'MS:1000864',
-                        "cvRef": "PSI-MS",
-                        "name": "chemical formula",
-                        "value": formula(glycopeptide.glycan_composition.total_composition()),
-                    })
                     mod_params.extend(
                         self.gnome_resolver.glycan_composition_to_terms(glycopeptide.glycan_composition.clone()))
 
                     mass = glycopeptide.glycan_composition.mass()
-                    mod_params.append({
-                        "name": "glycan composition",
-                        "cvRef": "PSI-MS",
-                        "accession": "MS:XXXXXXX"
-                    })
+                    if glycosylation_event_count == 1:
+                        mod_params.append({
+                            "name": "glycan composition",
+                            "cvRef": "PSI-MS",
+                            "accession": "MS:XXXX14"
+                        })
+                    else:
+                        mod_params.append({
+                            "name": "glycan aggregate",
+                            "cvRef": "PSI-MS",
+                            "accession": "MS:XXXX15"
+                        })
+                        if glycosylation_events_handled > 1:
+                            mass = 0
+                            is_aggregate_stub = True
+
+                    if not is_aggregate_stub:
+                        mod_params.append({
+                            "accession": 'MS:1000864',
+                            "cvRef": "PSI-MS",
+                            "name": "chemical formula",
+                            "value": formula(glycopeptide.glycan_composition.total_composition()),
+                        })
 
                 else:
                     mod_params.append({
@@ -509,7 +525,7 @@ class MzIdentMLSerializer(task.TaskBase):
                         mod_params.append({
                             "name": "glycan composition",
                             "cvRef": "PSI-MS",
-                            "accession": "MS:XXXXXXX"
+                            "accession": "MS:XXXX14"
                         })
                     else:
                         mod_params.append({
