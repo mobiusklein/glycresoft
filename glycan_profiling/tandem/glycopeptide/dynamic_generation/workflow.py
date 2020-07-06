@@ -292,7 +292,10 @@ class MultipartGlycopeptideIdentifier(TaskBase):
         execution_branches = []
         approx_num_concurrent = max(int(self.n_processes / 6.0), 1)
         concurrent_branch_controller = multiprocessing.BoundedSemaphore(approx_num_concurrent)
-        n_workers_per_branch = min(self.n_processes / self.n_mapping_workers + 1, self.n_processes)
+        if self.n_mapping_workers == 1:
+            n_workers_per_branch = self.n_processes
+        else:
+            n_workers_per_branch = self.n_processes / approx_num_concurrent
         self.log("... Creating %d Branches With %d Workers Per Branch" %
                  (self.n_mapping_workers * 2, n_workers_per_branch))
         for _i in range(self.n_mapping_workers * 2):
