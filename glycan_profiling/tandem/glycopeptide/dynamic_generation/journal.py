@@ -147,6 +147,9 @@ class JournalingConsumer(TaskExecutionSequence):
                     break
         self.done_event.set()
 
+    def close_stream(self):
+        self.journal_file.close()
+
 
 def parse_float(value):
     value = float(value)

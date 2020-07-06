@@ -1,5 +1,6 @@
 import os
 import multiprocessing
+import ctypes
 import datetime
 from collections import OrderedDict
 try:
@@ -9,7 +10,7 @@ except ImportError:
 
 from glycan_profiling import serialize
 
-from glycan_profiling.task import TaskBase, Pipeline, MultiEvent
+from glycan_profiling.task import TaskBase, Pipeline, MultiEvent, TaskExecutionSequence
 from glycan_profiling.chromatogram_tree import Unmodified
 
 from glycan_profiling.structure import ScanStub
@@ -41,7 +42,8 @@ from .search_space import (
 
 from .searcher import (
     SpectrumBatcher, SerializingMapperExecutor,
-    BatchMapper, WorkloadUnpackingMatcherExecutor)
+    BatchMapper, WorkloadUnpackingMatcherExecutor,
+    MapperExecutor, SemaphoreBoundMatcherExecutor)
 
 from .multipart_fdr import GlycopeptideFDREstimator, GlycopeptideFDREstimationStrategy
 
@@ -198,7 +200,7 @@ class MultipartGlycopeptideIdentifier(TaskBase):
 
         self.file_manager = file_manager
         self.journal_path = self.file_manager.get('glycopeptide-match-journal')
-
+        self.journal_path_collection = []
         self.glycosylation_site_models_path = glycosylation_site_models_path
 
     @classmethod
@@ -257,6 +259,74 @@ class MultipartGlycopeptideIdentifier(TaskBase):
             trust_precursor_fits=self.trust_precursor_fits,
             peptide_masses_per_scan=self.peptide_masses_per_scan)
         return target_predictive_search, decoy_predictive_search
+
+    def run_branching_identification_pipeline(self, scan_groups):
+        (target_predictive_search,
+         decoy_predictive_search) = self.build_predictive_searchers()
+
+        spectrum_batcher = SpectrumBatcher(
+            scan_groups,
+            Queue(10),
+            max_scans_per_workload=self.batch_size)
+
+        common_queue = multiprocessing.Queue(5)
+        label_to_batch_queue = {
+            "target": common_queue,
+            "decoy": common_queue,
+        }
+
+        mapping_batcher = BatchMapper(
+            # map labels to be loaded in the mapper executor to avoid repeatedly
+            # serializing the databases.
+            [
+                ('target', 'target'),
+                ('decoy', 'decoy')
+            ],
+            spectrum_batcher.out_queue,
+            label_to_batch_queue,
+            spectrum_batcher.done_event,
+            precursor_error_tolerance=self.precursor_error_tolerance,
+            mass_shifts=self.mass_shifts)
+        mapping_batcher.done_event = multiprocessing.Event()
+
+        execution_branches = []
+        approx_num_concurrent = max(int(self.n_processes / 6.0), 1)
+        concurrent_branch_controller = multiprocessing.BoundedSemaphore(approx_num_concurrent)
+        n_workers_per_branch = max(self.n_processes / self.n_mapping_workers + 1, self.n_processes)
+        self.log("... Creating %d Branches With %d Workers Per Branch" %
+                 (self.n_mapping_workers * 2, n_workers_per_branch))
+        for _i in range(self.n_mapping_workers * 2):
+            journal_path_for = self.file_manager.get('glycopeptide-match-journal-%d' % (_i))
+            self.log("... Branch %d Writing To %r" % (_i, journal_path_for))
+            self.journal_path_collection.append(journal_path_for)
+            done_event_for = multiprocessing.Event()
+            branch = IdentificationWorkerBranch(
+                common_queue,
+                mapping_batcher.done_event,
+                journal_path_for,
+                concurrent_branch_controller,
+                done_event_for,
+                self.scan_loader, target_predictive_search, decoy_predictive_search,
+                n_workers_per_branch,
+                scorer_type=self.scorer_type,
+                evaluation_kwargs=self.evaluation_kwargs,
+                error_tolerance=self.product_error_tolerance,
+                cache_seeds=self.cache_seeds,
+                mass_shifts=self.mass_shifts)
+            execution_branches.append(branch)
+
+        pipeline = Pipeline([
+            spectrum_batcher,
+            mapping_batcher,
+        ] + execution_branches)
+        for branch in execution_branches:
+            branch.start(process=True, daemon=False)
+        pipeline.start(daemon=True)
+        pipeline.join()
+        total = 0
+        for branch in execution_branches:
+            total += branch.results_processed.value
+        return total
 
     def run_identification_pipeline(self, scan_groups):
         (target_predictive_search,
@@ -322,7 +392,7 @@ class MultipartGlycopeptideIdentifier(TaskBase):
             mapping_executors.append(target_mapping_executor)
             mapping_executors.append(decoy_mapping_executor)
 
-        mapping_executor_done_event= MultiEvent([
+        mapping_executor_done_event = MultiEvent([
             mapping_executor.done_event for mapping_executor in mapping_executors
         ])
 
@@ -366,11 +436,33 @@ class MultipartGlycopeptideIdentifier(TaskBase):
             matching_executor,
             journal_consumer,
         ])
-
-        pipeline.start()
+        self.journal_path_collection.append(self.journal_path)
+        pipeline.start(daemon=True)
         pipeline.join()
         journal_writer.close()
         return journal_writer.solution_counter
+
+    def _load_identifications_from_journal(self, journal_path, total_solutions_count, accumulator=None):
+        if accumulator is None:
+            accumulator = []
+        reader = enumerate(JournalFileReader(
+            journal_path,
+            scan_loader=ScanInformationLoader(self.scan_loader),
+            mass_shift_map={m.name: m for m in self.mass_shifts}), len(accumulator))
+        last = 0.1
+        should_log = False
+        for i, sol in reader:
+            if i * 1.0 / total_solutions_count > last:
+                should_log = True
+                last += 0.1
+            elif i % 100000 == 0:
+                should_log = True
+            if should_log:
+                self.log("... %d/%d Solutions Loaded (%0.2f%%)" % (
+                    i, total_solutions_count, i * 100.0 / total_solutions_count))
+                should_log = False
+            accumulator.append(sol)
+        return accumulator
 
     def search(self, precursor_error_tolerance=1e-5, simplify=True, batch_size=500, **kwargs):
         self.evaluation_kwargs.update(kwargs)
@@ -384,29 +476,14 @@ class MultipartGlycopeptideIdentifier(TaskBase):
             len(self.tandem_scans), len(scan_groups)))
         self.log("Running Identification Pipeline...")
         start_time = datetime.datetime.now()
-        total_solutions_count = self.run_identification_pipeline(
-            scan_groups)
+        # total_solutions_count = self.run_identification_pipeline(scan_groups)
+        total_solutions_count = self.run_branching_identification_pipeline(scan_groups)
         end_time = datetime.datetime.now()
         self.log("Database Search Complete, %s Elapsed" % (end_time - start_time))
         self.log("Loading Spectrum Matches From Journal...")
-        reader = enumerate(JournalFileReader(
-            self.journal_path,
-            scan_loader=ScanInformationLoader(self.scan_loader),
-            mass_shift_map={m.name: m for m in self.mass_shifts}))
         solutions = []
-        last = 0.1
-        should_log = False
-        for i, sol in reader:
-            if i * 1.0 / total_solutions_count > last:
-                should_log = True
-                last += 0.1
-            elif i % 100000 == 0:
-                should_log = True
-            if should_log:
-                self.log("... %d/%d Solutions Loaded (%0.2f%%)" % (
-                    i, total_solutions_count, i * 100.0 / total_solutions_count))
-                should_log = False
-            solutions.append(sol)
+        for journal_path in self.journal_path_collection:
+            self._load_identifications_from_journal(journal_path, total_solutions_count, solutions)
         self.log("Partitioning Spectrum Matches...")
         groups = SolutionSetGrouper(solutions)
         return groups
@@ -436,3 +513,76 @@ class MultipartGlycopeptideIdentifier(TaskBase):
         self.log("Selecting Most Representative Matches")
         mapper.assign_entities(threshold_fn, entity_chromatogram_type=entity_chromatogram_type)
         return mapper.chromatograms, mapper.orphans
+
+
+class IdentificationWorkerBranch(TaskExecutionSequence):
+    def __init__(self, input_batch_queue, input_done_event, journal_path, branch_semaphore, done_event,
+                 # Mapping Executor Parameters
+                 scan_loader=None, target_predictive_search=None, decoy_predictive_search=None,
+                 # Matching Executor Parameters
+                 n_processes=4, scorer_type=None, evaluation_kwargs=None, error_tolerance=None, cache_seeds=None,
+                 mass_shifts=None, ):
+        self.input_batch_queue = input_batch_queue
+        self.input_done_event = input_done_event
+        self.journal_path = journal_path
+        self.branch_semaphore = branch_semaphore
+        self.done_event = done_event
+
+        # Mapping Executor
+        self.scan_loader = scan_loader
+        self.target_predictive_search = target_predictive_search
+        self.decoy_predictive_search = decoy_predictive_search
+
+        # Matching Executor
+        self.n_processes = n_processes
+        self.scorer_type = scorer_type
+        self.evaluation_kwargs = evaluation_kwargs
+        self.error_tolerance = error_tolerance
+        self.cache_seeds = cache_seeds
+        self.mass_shifts = mass_shifts
+        self.results_processed = multiprocessing.Value(ctypes.c_uint64)
+
+    def run(self):
+        ipc_manager = multiprocessing.Manager()
+        self.try_set_process_name("glycresoft-identification")
+        mapping_executor = MapperExecutor(
+            OrderedDict([
+                ('target', self.target_predictive_search),
+                ('decoy', self.decoy_predictive_search)
+            ]),
+            self.scan_loader,
+            self.input_batch_queue,
+            Queue(5),
+            self.input_done_event,
+        )
+
+        matching_executor = SemaphoreBoundMatcherExecutor(
+            self.branch_semaphore,
+            mapping_executor.out_queue,
+            Queue(5),
+            mapping_executor.done_event,
+            scorer_type=self.scorer_type,
+            ipc_manager=ipc_manager,
+            n_processes=self.n_processes,
+            mass_shifts=self.mass_shifts,
+            evaluation_kwargs=self.evaluation_kwargs,
+            error_tolerance=self.error_tolerance,
+            cache_seeds=self.cache_seeds
+        )
+
+        journal_writer = JournalFileWriter(self.journal_path)
+        journal_consumer = JournalingConsumer(
+            journal_writer,
+            matching_executor.out_queue,
+            matching_executor.done_event)
+        journal_consumer.done_event = self.done_event
+
+        pipeline = Pipeline([
+            mapping_executor,
+            matching_executor,
+            journal_consumer,
+        ])
+        pipeline.start(daemon=True)
+        pipeline.join()
+        journal_writer.close()
+        self.results_processed.value = journal_writer.solution_counter

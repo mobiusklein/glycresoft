@@ -432,9 +432,9 @@ class Pipeline(TaskExecutionSequence):
     def __init__(self, tasks):
         self.tasks = tasks
 
-    def start(self):
+    def start(self, *args, **kwargs):
         for task in self.tasks:
-            task.start()
+            task.start(*args, **kwargs)
 
     def join(self, timeout=None):
         for task in self.tasks:

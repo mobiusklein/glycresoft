@@ -221,15 +221,24 @@ class MapperExecutor(TaskExecutionSequence):
 
     """
 
-    def __init__(self, scan_loader, in_queue, out_queue, in_done_event):
+    def __init__(self, predictive_searchers, scan_loader, in_queue, out_queue, in_done_event):
         self.in_queue = in_queue
         self.out_queue = out_queue
         self.in_done_event = in_done_event
         self.done_event = self._make_event()
         self.scan_loader = scan_loader
+        self.predictive_searchers = predictive_searchers
 
     def execute_task(self, mapper_task):
+        self.scan_loader.reset()
+        # In case this came from a labeled batch mapper and not
+        # attached to an actual dynamic glycopeptide generator
+        label = mapper_task.predictive_search
+        if isinstance(label, str):
+            mapper_task.predictive_search = self.predictive_searchers[label]
+        mapper_task.bind_scans(self.scan_loader)
         workload = mapper_task()
+        self.scan_loader.reset()
         matcher_task = SpectrumMatcher(
             workload, mapper_task.group_i, mapper_task.group_n)
         return matcher_task
@@ -269,7 +278,7 @@ class SerializingMapperExecutor(MapperExecutor):
     def __init__(self, predictive_searchers, scan_loader, in_queue, out_queue,
                  in_done_event, tracking_directory=None):
         super(SerializingMapperExecutor, self).__init__(
-            scan_loader,
+            predictive_searchers, scan_loader,
             in_queue, out_queue, in_done_event)
         self.predictive_searchers = predictive_searchers
         self.tracking_directory = tracking_directory
@@ -430,6 +439,21 @@ class MatcherExecutor(TaskExecutionSequence):
                     has_work = False
                     break
         self.done_event.set()
+
+
+class SemaphoreBoundMatcherExecutor(MatcherExecutor):
+    def __init__(self, semaphore, in_queue, out_queue, in_done_event, scorer_type=None,
+                 ipc_manager=None, n_processes=6, mass_shifts=None, evaluation_kwargs=None,
+                 cache_seeds=None, **kwargs):
+        super(SemaphoreBoundMatcherExecutor, self).__init__(
+            in_queue, out_queue, in_done_event, scorer_type, ipc_manager,
+            n_processes, mass_shifts, evaluation_kwargs, cache_seeds=cache_seeds, **kwargs)
+        self.semaphore = semaphore
+
+    def execute_task(self, matcher_task):
+        with self.semaphore:
+            result = super(SemaphoreBoundMatcherExecutor, self).execute_task(matcher_task)
+        return result
 
 
 class WorkloadUnpackingMatcherExecutor(MatcherExecutor):

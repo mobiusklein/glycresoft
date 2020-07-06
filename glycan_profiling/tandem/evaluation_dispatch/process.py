@@ -534,6 +534,7 @@ class SpectrumIdentificationWorkerBase(Process, SpectrumEvaluatorBase):
         self.items_handled = 0
         self.result_buffer = []
         self.buffer_size = 1000
+        self.last_sent_result = time.time()
 
     def log(self, message):
         """Send a normal logging message via :attr:`log_handler`
@@ -587,13 +588,13 @@ class SpectrumIdentificationWorkerBase(Process, SpectrumEvaluatorBase):
     def _append_to_result_buffer(self, payload):
         self.result_buffer.append(payload)
         if len(self.result_buffer) > self.buffer_size:
-            self.output_queue.put(self.result_buffer)
-            self.result_buffer = []
+            self._flush_result_buffer()
 
     def _flush_result_buffer(self):
         if self.result_buffer:
             self.output_queue.put(self.result_buffer)
             self.result_buffer = []
+            self.last_sent_result = time.time()
 
     def pack_output(self, target):
         """Transmit the completed identifications for a given target
@@ -663,7 +664,9 @@ class SpectrumIdentificationWorkerBase(Process, SpectrumEvaluatorBase):
                     if strikes % 1000 == 0:
                         self.log("... %d iterations without work for %r" % (strikes, self))
                     continue
-
+            if self.items_handled % 100 == 0:
+                if time.time() - self.last_sent_result > 60:
+                    self._flush_result_buffer()
             # Handling a group of work items
             if isinstance(payload, dict):
                 work_order = payload
