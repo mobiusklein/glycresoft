@@ -251,10 +251,7 @@ class MapperExecutor(TaskExecutionSequence):
                 mapper_task = self.in_queue.get(True, 5)
                 matcher_task = self.execute_task(mapper_task)
                 self.out_queue.put(matcher_task)
-                # source = mapper_task.get_scan_source()
-                # source._dispose()
-                # source.close()
-                # del source
+                # Detach the scans from the scan source again.
                 mapper_task.unbind_scans()
 
             except Empty:
@@ -266,6 +263,20 @@ class MapperExecutor(TaskExecutionSequence):
                     has_work = False
                     break
         self.done_event.set()
+
+
+class SemaphoreBoundMapperExecutor(MapperExecutor):
+    def __init__(self, semaphore, predictive_searchers, scan_loader, in_queue, out_queue,
+                 in_done_event, tracking_directory=None):
+        super(SemaphoreBoundMapperExecutor, self).__init__(
+            predictive_searchers, scan_loader,
+            in_queue, out_queue, in_done_event)
+        self.semaphore = semaphore
+
+    def execute_task(self, mapper_task):
+        with self.semaphore:
+            result = super(SemaphoreBoundMapperExecutor, self).execute_task(mapper_task)
+        return result
 
 
 class SerializingMapperExecutor(MapperExecutor):

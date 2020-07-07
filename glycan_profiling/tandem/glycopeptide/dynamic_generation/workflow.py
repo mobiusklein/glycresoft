@@ -1,5 +1,6 @@
 import os
 import multiprocessing
+import threading
 import ctypes
 import datetime
 from collections import OrderedDict
@@ -10,7 +11,7 @@ except ImportError:
 
 from glycan_profiling import serialize
 
-from glycan_profiling.task import TaskBase, Pipeline, MultiEvent, TaskExecutionSequence
+from glycan_profiling.task import TaskBase, Pipeline, MultiEvent, TaskExecutionSequence, MultiLock
 from glycan_profiling.chromatogram_tree import Unmodified
 
 from glycan_profiling.structure import ScanStub
@@ -43,7 +44,8 @@ from .search_space import (
 from .searcher import (
     SpectrumBatcher, SerializingMapperExecutor,
     BatchMapper, WorkloadUnpackingMatcherExecutor,
-    MapperExecutor, SemaphoreBoundMatcherExecutor)
+    MapperExecutor, SemaphoreBoundMatcherExecutor,
+    SemaphoreBoundMapperExecutor)
 
 from .multipart_fdr import GlycopeptideFDREstimator, GlycopeptideFDREstimationStrategy
 
@@ -546,9 +548,11 @@ class IdentificationWorkerBranch(TaskExecutionSequence):
         self.results_processed = multiprocessing.Value(ctypes.c_uint64)
 
     def run(self):
-        ipc_manager = multiprocessing.Manager()
         self.try_set_process_name("glycresoft-identification")
-        mapping_executor = MapperExecutor(
+        ipc_manager = multiprocessing.Manager()
+        lock = threading.Semaphore()
+        mapping_executor = SemaphoreBoundMapperExecutor(
+            lock,
             OrderedDict([
                 ('target', self.target_predictive_search),
                 ('decoy', self.decoy_predictive_search)
@@ -560,7 +564,7 @@ class IdentificationWorkerBranch(TaskExecutionSequence):
         )
 
         matching_executor = SemaphoreBoundMatcherExecutor(
-            self.branch_semaphore,
+            MultiLock([lock, self.branch_semaphore]),
             mapping_executor.out_queue,
             Queue(5),
             mapping_executor.done_event,

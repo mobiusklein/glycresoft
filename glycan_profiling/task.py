@@ -369,6 +369,25 @@ class MultiEvent(object):
             event.clear()
 
 
+class MultiLock(object):
+    def __init__(self, locks):
+        self.locks = list(locks)
+
+    def acquire(self):
+        for lock in self.locks:
+            lock.acquire()
+
+    def release(self):
+        for lock in self.locks:
+            lock.release()
+
+    def __enter__(self):
+        return self.acquire()
+
+    def __exit__(self, *args):
+        self.release()
+
+
 class TaskExecutionSequence(TaskBase):
     """A task unit that executes in a separate thread or process.
     """
