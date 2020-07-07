@@ -1,6 +1,8 @@
 import csv
 import logging
 
+from io import TextIOWrapper
+
 from glycan_profiling.task import TaskBase
 
 
@@ -14,8 +16,8 @@ class CSVSerializerBase(TaskBase):
             self.is_binary = 'b' in self.outstream.mode
         except AttributeError:
             self.is_binary = True
-        if self.is_binary and isinstance(delimiter, str):
-            delimiter = delimiter.encode("utf8")
+        if self.is_binary:
+            self.outstream = TextIOWrapper(outstream, 'utf8', newline="")
         self.writer = csv.writer(self.outstream, delimiter=delimiter)
         self._entities_iterable = entities_iterable
 
@@ -38,16 +40,12 @@ class CSVSerializerBase(TaskBase):
     def run(self):
         if self.header:
             header = self.header
-            if self.is_binary and isinstance(header[0], str):
-                header = [c.encode('utf8') for c in header]
             self.writer.writerow(header)
         gen = (self.convert_object(entity) for entity in self._entities_iterable)
         for i, row in enumerate(gen):
             if i % 100 == 0 and i != 0:
                 self.status_update("Handled %d Entities" % i)
                 self.outstream.flush()
-            if self.is_binary and isinstance(row[0], str):
-                row = [c.encode('utf8') for c in row]
             self.writer.writerow(row)
 
 
