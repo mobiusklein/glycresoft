@@ -17,7 +17,11 @@ class CSVSerializerBase(TaskBase):
         except AttributeError:
             self.is_binary = True
         if self.is_binary:
-            self.outstream = TextIOWrapper(outstream, 'utf8', newline="")
+            try:
+                self.outstream = TextIOWrapper(outstream, 'utf8', newline="")
+            except AttributeError:
+                # must be Py2
+                pass
         self.writer = csv.writer(self.outstream, delimiter=delimiter)
         self._entities_iterable = entities_iterable
 
