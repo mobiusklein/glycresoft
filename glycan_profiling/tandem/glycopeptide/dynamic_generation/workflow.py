@@ -11,7 +11,9 @@ except ImportError:
 
 from glycan_profiling import serialize
 
-from glycan_profiling.task import TaskBase, Pipeline, MultiEvent, TaskExecutionSequence, MultiLock
+from glycan_profiling.task import (
+    TaskBase, Pipeline, MultiEvent,
+    TaskExecutionSequence, MultiLock, LoggingMixin)
 from glycan_profiling.chromatogram_tree import Unmodified
 
 from glycan_profiling.structure import ScanStub
@@ -292,7 +294,8 @@ class MultipartGlycopeptideIdentifier(TaskBase):
         mapping_batcher.done_event = multiprocessing.Event()
 
         execution_branches = []
-        approx_num_concurrent = max(int(self.n_processes / 6.0), 1)
+        # approx_num_concurrent = max(int(self.n_processes / 6.0), 1)
+        approx_num_concurrent = self.n_processes
         concurrent_branch_controller = multiprocessing.BoundedSemaphore(approx_num_concurrent)
         if self.n_mapping_workers == 1:
             n_workers_per_branch = self.n_processes
@@ -300,19 +303,22 @@ class MultipartGlycopeptideIdentifier(TaskBase):
             n_workers_per_branch = self.n_processes / approx_num_concurrent
         self.log("... Creating %d Branches With %d Workers Per Branch" %
                  (self.n_mapping_workers * 2, n_workers_per_branch))
-        for _i in range(self.n_mapping_workers * 2):
-            journal_path_for = self.file_manager.get('glycopeptide-match-journal-%d' % (_i))
-            self.log("... Branch %d Writing To %r" % (_i, journal_path_for))
+        # for _i in range(self.n_mapping_workers * 2):
+        for i in range(self.n_processes):
+            journal_path_for = self.file_manager.get('glycopeptide-match-journal-%d' % (i))
+            self.log("... Branch %d Writing To %r" % (i, journal_path_for))
             self.journal_path_collection.append(journal_path_for)
             done_event_for = multiprocessing.Event()
             branch = IdentificationWorkerBranch(
+                i,
                 common_queue,
                 mapping_batcher.done_event,
                 journal_path_for,
                 concurrent_branch_controller,
                 done_event_for,
                 self.scan_loader, target_predictive_search, decoy_predictive_search,
-                n_workers_per_branch,
+                # n_workers_per_branch,
+                1,
                 scorer_type=self.scorer_type,
                 evaluation_kwargs=self.evaluation_kwargs,
                 error_tolerance=self.product_error_tolerance,
@@ -520,13 +526,32 @@ class MultipartGlycopeptideIdentifier(TaskBase):
         return mapper.chromatograms, mapper.orphans
 
 
+class SectionAnnouncer(LoggingMixin):
+    def __init__(self, message):
+        self.message = message
+
+    def acquire(self):
+        self.log(self.message)
+        return True
+
+    def release(self):
+        pass
+
+    def __enter__(self):
+        return self.acquire()
+
+    def __exit__(self, *args):
+        pass
+
+
 class IdentificationWorkerBranch(TaskExecutionSequence):
-    def __init__(self, input_batch_queue, input_done_event, journal_path, branch_semaphore, done_event,
+    def __init__(self, name, input_batch_queue, input_done_event, journal_path, branch_semaphore, done_event,
                  # Mapping Executor Parameters
                  scan_loader=None, target_predictive_search=None, decoy_predictive_search=None,
                  # Matching Executor Parameters
                  n_processes=4, scorer_type=None, evaluation_kwargs=None, error_tolerance=None, cache_seeds=None,
                  mass_shifts=None, ):
+        self.name = name
         self.input_batch_queue = input_batch_queue
         self.input_done_event = input_done_event
         self.journal_path = journal_path
@@ -547,10 +572,14 @@ class IdentificationWorkerBranch(TaskExecutionSequence):
         self.mass_shifts = mass_shifts
         self.results_processed = multiprocessing.Value(ctypes.c_uint64)
 
+    def _get_repr_details(self):
+        props = ["name=%r" % self.name, "pid=%r" % multiprocessing.current_process().pid]
+        return ', '.join(props)
+
     def run(self):
         self.try_set_process_name("glycresoft-identification")
         ipc_manager = multiprocessing.Manager()
-        lock = threading.Semaphore()
+        lock = threading.RLock()
         mapping_executor = SemaphoreBoundMapperExecutor(
             lock,
             OrderedDict([
@@ -564,7 +593,7 @@ class IdentificationWorkerBranch(TaskExecutionSequence):
         )
 
         matching_executor = SemaphoreBoundMatcherExecutor(
-            MultiLock([lock, self.branch_semaphore]),
+            MultiLock([lock, self.branch_semaphore, SectionAnnouncer("%r Entering Execution Branch")]),
             mapping_executor.out_queue,
             Queue(5),
             mapping_executor.done_event,

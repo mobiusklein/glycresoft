@@ -240,6 +240,9 @@ def search_glycopeptide(context, database_connection, sample_path, hypothesis_id
         analyzer.log("Saving Intermediate Results")
         with open(save_intermediate_results, 'wb') as handle:
             pickle.dump((target_decoy_set, gps), handle)
+    del gps
+    del unassigned
+    del target_decoy_set
     if export:
         for export_type in set(export):
             click.echo(fmt_msg("Handling Export: %s" % (export_type,)))
@@ -405,6 +408,9 @@ def search_glycopeptide_multipart(context, database_connection, decoy_database_c
         analyzer.log("Saving Intermediate Results")
         with open(save_intermediate_results, 'wb') as handle:
             pickle.dump((target_decoy_set, gps), handle)
+    del gps
+    del unassigned
+    del target_decoy_set
     if export:
         for export_type in set(export):
             click.echo(fmt_msg("Handling Export: %s" % (export_type,)))
