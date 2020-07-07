@@ -32,11 +32,17 @@ class CSVSerializerBase(TaskBase):
     def run(self):
         if self.header:
             self.writer.writerow(self.header)
+        try:
+            is_binary = 'b' in self.outstream.mode
+        except AttributeError:
+            is_binary = True
         gen = (self.convert_object(entity) for entity in self._entities_iterable)
         for i, row in enumerate(gen):
             if i % 100 == 0 and i != 0:
                 self.status_update("Handled %d Entities" % i)
                 self.outstream.flush()
+            if is_binary and isinstance(row[0], str):
+                row = [c.encode('utf8') for c in row]
             self.writer.writerow(row)
 
 
