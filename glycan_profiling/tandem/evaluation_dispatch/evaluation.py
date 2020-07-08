@@ -1,7 +1,7 @@
 '''Types for managing the evaluation of spectrum matches, to
 describe matches in bulk for serialization.
 '''
-
+import time
 from collections import defaultdict
 
 from glycan_profiling.task import TaskBase
@@ -238,6 +238,7 @@ class SequentialIdentificationProcessor(TaskBase):
 
     def process(self, scan_map, hit_map, hit_to_scan_map, scan_hit_type_map, hit_group_map=None):
         self.structure_map = hit_map
+        start_time = time.time()
         self.scan_map = self.solution_handler.scan_map = scan_map
         evaluator = self._make_evaluator()
         self.log("... Searching Hits (%d:%d)" % (
@@ -245,7 +246,10 @@ class SequentialIdentificationProcessor(TaskBase):
             sum(map(len, hit_to_scan_map.values()))))
         for target, score_map in evaluator.process(hit_map, hit_to_scan_map, scan_hit_type_map, hit_group_map):
             self.store_result(target, score_map)
-        self.log("... Solutions Handled: %d" % (self.solution_handler.counter, ))
+        end_time = time.time()
+        elapsed = end_time - start_time
+        self.log("... Identification Completed (%0.2f sec.): %d Solutions" %
+                 (elapsed, self.solution_handler.counter, ))
         return self.scan_solution_map
 
     @property

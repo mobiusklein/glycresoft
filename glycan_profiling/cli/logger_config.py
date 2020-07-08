@@ -63,7 +63,16 @@ log_multiprocessing = bool(int(os.environ.get(
     "GLYCRESOFT_LOG_MULTIPROCESSING", log_multiprocessing)))
 
 
+LOGGING_CONFIGURED = False
+
+
 def configure_logging(level=None, log_file_name=None, log_file_mode=None):
+    global LOGGING_CONFIGURED
+    # If we've already called this, don't repeat it
+    if LOGGING_CONFIGURED:
+        return
+    else:
+        LOGGING_CONFIGURED = True
     if level is None:
         level = logging_levels.get(LOG_LEVEL, "INFO")
     if log_file_name is None:
@@ -71,7 +80,7 @@ def configure_logging(level=None, log_file_name=None, log_file_mode=None):
     if log_file_mode is None:
         log_file_mode = LOG_FILE_MODE
     file_fmter = logging.Formatter(
-        "%(asctime)s - %(name)s:%(filename)s:%(lineno)-4d - %(levelname)s - %(message)s",
+        "%(asctime)s %(name)s:%(filename)s:%(lineno)-4d - %(levelname)s - %(message)s",
         "%H:%M:%S")
     if log_file_mode not in ("w", "a"):
         warnings.warn("File Logger configured with mode %r not applicable, using \"w\" instead" % (
@@ -99,7 +108,7 @@ def configure_logging(level=None, log_file_name=None, log_file_mode=None):
 
     if current_process().name == "MainProcess":
         fmt = logging.Formatter(
-            "%(asctime)s - %(name)s:%(filename)s:%(lineno)-4d - %(levelname)s - %(message)s", "%H:%M:%S")
+            "%(asctime)s %(name)s:%(filename)s:%(lineno)-4d - %(levelname)s:%(processName)s: - %(message)s", "%H:%M:%S")
         handler = logging.StreamHandler()
         handler.setFormatter(fmt)
         handler.setLevel(level)
@@ -206,7 +215,7 @@ else:
     def currentframe():
         """Return the frame object for the caller's stack frame."""
         try:
-            raise Exception
+            raise Exception()
         except Exception:
             return sys.exc_info()[2].tb_frame.f_back
 

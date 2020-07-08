@@ -309,8 +309,9 @@ class MultipartGlycopeptideIdentifier(TaskBase):
             self.log("... Branch %d Writing To %r" % (i, journal_path_for))
             self.journal_path_collection.append(journal_path_for)
             done_event_for = multiprocessing.Event()
-            branch = IdentificationWorkerBranch(
-                i,
+            branch = IdentificationWorker(
+                "IdentificationWorker-%d" % i,
+                self.ipc_manager.address,
                 common_queue,
                 mapping_batcher.done_event,
                 journal_path_for,
@@ -544,14 +545,15 @@ class SectionAnnouncer(LoggingMixin):
         pass
 
 
-class IdentificationWorkerBranch(TaskExecutionSequence):
-    def __init__(self, name, input_batch_queue, input_done_event, journal_path, branch_semaphore, done_event,
+class IdentificationWorker(TaskExecutionSequence):
+    def __init__(self, name, ipc_manager_address, input_batch_queue, input_done_event, journal_path, branch_semaphore, done_event,
                  # Mapping Executor Parameters
                  scan_loader=None, target_predictive_search=None, decoy_predictive_search=None,
                  # Matching Executor Parameters
                  n_processes=4, scorer_type=None, evaluation_kwargs=None, error_tolerance=None, cache_seeds=None,
                  mass_shifts=None, ):
         self.name = name
+        self.ipc_manager_address = ipc_manager_address
         self.input_batch_queue = input_batch_queue
         self.input_done_event = input_done_event
         self.journal_path = journal_path
@@ -576,9 +578,13 @@ class IdentificationWorkerBranch(TaskExecutionSequence):
         props = ["name=%r" % self.name, "pid=%r" % multiprocessing.current_process().pid]
         return ', '.join(props)
 
+    def _name_for_execution_sequence(self):
+        return self.name
+
     def run(self):
         self.try_set_process_name("glycresoft-identification")
-        ipc_manager = multiprocessing.Manager()
+        ipc_manager = multiprocessing.managers.SyncManager(self.ipc_manager_address)
+        ipc_manager.connect()
         lock = threading.RLock()
         mapping_executor = SemaphoreBoundMapperExecutor(
             lock,
@@ -593,7 +599,7 @@ class IdentificationWorkerBranch(TaskExecutionSequence):
         )
 
         matching_executor = SemaphoreBoundMatcherExecutor(
-            MultiLock([lock, self.branch_semaphore, SectionAnnouncer("%r Entering Execution Branch")]),
+            MultiLock([lock, self.branch_semaphore, SectionAnnouncer("%r Entering Execution Branch" % (self, ))]),
             mapping_executor.out_queue,
             Queue(5),
             mapping_executor.done_event,
@@ -622,4 +628,3 @@ class IdentificationWorkerBranch(TaskExecutionSequence):
         pipeline.join()
         journal_writer.close()
         self.results_processed.value = journal_writer.solution_counter
-        ipc_manager.shutdown()

@@ -422,17 +422,21 @@ class TaskExecutionSequence(TaskBase):
             provider = threading
         return provider.Event()
 
+    def _name_for_execution_sequence(self):
+        return ("%s-%r" % (self.__class__.__name__, id(self)))
+
     def start(self, process=False, daemon=False):
         if self._thread is not None:
             return self._thread
         if process:
             self._running_in_process = True
             t = multiprocessing.Process(
-                target=self, name=("%s-%r" % (self.__class__.__name__, id(self))))
+                target=self, name=self._name_for_execution_sequence())
             if daemon:
                 t.daemon = daemon
         else:
-            t = threading.Thread(target=self, name=("%s-%r" % (self.__class__.__name__, id(self))))
+            t = threading.Thread(
+                target=self, name=self._name_for_execution_sequence())
             if daemon:
                 t.daemon = daemon
         t.start()
