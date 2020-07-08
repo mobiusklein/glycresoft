@@ -121,12 +121,7 @@ class NearestValueLookUp(object):
             ix = len(self) - 1
         if ix < 0:
             ix = 0
-        try:
-            pair = self.items[ix]
-        except IndexError:
-            print("IndexError in %r with index %r and query %r" % (self, ix, key))
-            print(self.items)
-            raise
+        pair = self.items[ix]
         return pair[1]
 
 
@@ -491,10 +486,24 @@ class TargetDecoyAnalyzer(object):
 
     def q_values(self):
         q_map = self._q_value_map
+        if len(q_map) == 0:
+            import warnings
+            warnings.warn("No FDR estimate what possible.")
+            for target in self.targets:
+                target.q_value = 0.0
+            for decoy in self.decoys:
+                decoy.q_value = 0.0
+            return
         for target in self.targets:
-            target.q_value = q_map[target.score]
+            try:
+                target.q_value = q_map[target.score]
+            except IndexError:
+                target.q_value = 0.0
         for decoy in self.decoys:
-            decoy.q_value = q_map[decoy.score]
+            try:
+                decoy.q_value = q_map[decoy.score]
+            except IndexError:
+                decoy.q_value = 0.0
 
     def score(self, spectrum_match):
         spectrum_match.q_value = self._q_value_map[spectrum_match.score]
