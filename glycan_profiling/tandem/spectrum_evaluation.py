@@ -265,7 +265,8 @@ class TandemClusterEvaluatorBase(TaskBase):
             self.mass_shift_map,
             evaluation_args=kwargs,
             solution_handler_type=handler_tp)
-        processor.process(scan_map, hit_map, hit_to_scan_map, scan_hit_type_map)
+        processor.process(scan_map, hit_map, hit_to_scan_map,
+                          scan_hit_type_map, hit_group_map)
         return processor.scan_solution_map
 
     def _collect_scan_solutions(self, scan_solution_map, scan_map):
