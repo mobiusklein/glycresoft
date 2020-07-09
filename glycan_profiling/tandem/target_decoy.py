@@ -506,7 +506,12 @@ class TargetDecoyAnalyzer(object):
                 decoy.q_value = 0.0
 
     def score(self, spectrum_match):
-        spectrum_match.q_value = self._q_value_map[spectrum_match.score]
+        try:
+            spectrum_match.q_value = self._q_value_map[spectrum_match.score]
+        except IndexError:
+            import warnings
+            warnings.warn("Empty q-value mapping. q-value will be 0.")
+            spectrum_match.q_value = 0.0
         return spectrum_match
 
     @property
