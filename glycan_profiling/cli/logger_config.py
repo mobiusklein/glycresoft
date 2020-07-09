@@ -66,6 +66,16 @@ log_multiprocessing = bool(int(os.environ.get(
 LOGGING_CONFIGURED = False
 
 
+class ProcessAwareFormatter(logging.Formatter):
+    def format(self, record):
+        if record.__dict__['processName'] == "MainProcess":
+            record.__dict__['maybeproc'] = ''
+        else:
+            record.__dict__['maybeproc'] = ":%s:" % record.__dict__[
+                'processName']
+        return super(ProcessAwareFormatter, self).format(record)
+
+
 def configure_logging(level=None, log_file_name=None, log_file_mode=None):
     global LOGGING_CONFIGURED
     # If we've already called this, don't repeat it
@@ -79,8 +89,8 @@ def configure_logging(level=None, log_file_name=None, log_file_mode=None):
         log_file_name = LOG_FILE_NAME
     if log_file_mode is None:
         log_file_mode = LOG_FILE_MODE
-    file_fmter = logging.Formatter(
-        "%(asctime)s %(name)s:%(filename)s:%(lineno)-4d - %(levelname)s - %(message)s",
+    file_fmter = ProcessAwareFormatter(
+        "%(asctime)s %(name)s:%(filename)s:%(lineno)-4d - %(levelname)s%(maybeproc)s - %(message)s",
         "%H:%M:%S")
     if log_file_mode not in ("w", "a"):
         warnings.warn("File Logger configured with mode %r not applicable, using \"w\" instead" % (
@@ -107,8 +117,8 @@ def configure_logging(level=None, log_file_name=None, log_file_mode=None):
     status_logger.addHandler(handler)
 
     if current_process().name == "MainProcess":
-        fmt = logging.Formatter(
-            "%(asctime)s %(name)s:%(filename)s:%(lineno)-4d - %(levelname)s:%(processName)s: - %(message)s", "%H:%M:%S")
+        fmt = ProcessAwareFormatter(
+            "%(asctime)s %(name)s:%(filename)s:%(lineno)-4d - %(levelname)s%(maybeproc)s - %(message)s", "%H:%M:%S")
         handler = logging.StreamHandler()
         handler.setFormatter(fmt)
         handler.setLevel(level)
