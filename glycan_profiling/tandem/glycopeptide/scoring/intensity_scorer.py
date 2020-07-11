@@ -41,7 +41,8 @@ class LogIntensityScorer(SignatureAwareCoverageScorer, MassAccuracyMixin):
             return 0
         return score
 
-    def calculate_glycan_score(self, error_tolerance=2e-5, core_weight=0.4, coverage_weight=0.5, *args, **kwargs):
+    def calculate_glycan_score(self, error_tolerance=2e-5, core_weight=0.4, coverage_weight=0.5,
+                               fragile_fucose=True, *args, **kwargs):
         seen = set()
         series = IonSeries.stub_glycopeptide
         theoretical_set = list(self.target.stub_fragments(extended=True))
@@ -66,8 +67,14 @@ class LogIntensityScorer(SignatureAwareCoverageScorer, MassAccuracyMixin):
             if peak.index.neutral_mass not in seen:
                 seen.add(peak.index.neutral_mass)
                 total += np.log10(peak.intensity) * (1 - (abs(peak_pair.mass_accuracy()) / error_tolerance) ** 4)
-        n = self._get_internal_size(self.target.glycan_composition)
+        glycan_composition = self.target.glycan_composition
+        n = self._get_internal_size(glycan_composition)
         k = 2.0
+        if not fragile_fucose:
+            side_group_count = self._glycan_side_group_count(
+                glycan_composition)
+            if side_group_count > 0:
+                k = 1.0
         d = max(n * np.log(n) / k, n)
         core_coverage = ((len(core_matches) * 1.0) / len(core_fragments)) ** core_weight
         extended_coverage = min(float(len(core_matches) + len(extended_matches)) / d, 1.0) ** coverage_weight

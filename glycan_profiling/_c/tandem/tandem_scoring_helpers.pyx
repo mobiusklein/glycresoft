@@ -122,7 +122,8 @@ def calculate_peptide_score(self, double error_tolerance=2e-5, double coverage_w
 @cython.binding(True)
 @cython.cdivision(True)
 @cython.boundscheck(False)
-def calculate_glycan_score(self, double error_tolerance=2e-5, double core_weight=0.4, double coverage_weight=0.5, *args, **kwargs):
+def calculate_glycan_score(self, double error_tolerance=2e-5, double core_weight=0.4, double coverage_weight=0.5,
+                           bint fragile_fucose=True, *args, **kwargs):
     cdef:
         set seen, core_fragments, core_matches, extended_matches
         IonSeriesBase series
@@ -133,9 +134,9 @@ def calculate_glycan_score(self, double error_tolerance=2e-5, double core_weight
         FragmentBase frag
         PeakFragmentPair peak_pair
         DeconvolutedPeak peak
+        int side_group_count
         size_t i
         object target
-
     target = self.target
     seen = set()
     series = IonSeries_stub_glycopeptide
@@ -164,8 +165,13 @@ def calculate_glycan_score(self, double error_tolerance=2e-5, double core_weight
         if peak._index.neutral_mass not in seen:
             seen.add(peak._index.neutral_mass)
             total += log10(peak.intensity) * (1 - (abs(peak_pair.mass_accuracy()) / error_tolerance) ** 4)
-    n = self._get_internal_size(target.glycan_composition)
+    glycan_composition = target.glycan_composition
+    n = self._get_internal_size(glycan_composition)
     k = 2.0
+    if not fragile_fucose:
+        side_group_count = self._glycan_side_group_count(glycan_composition)
+        if side_group_count > 0:
+            k = 1.0
     d = max(n * log(n) / k, n)
     core_coverage = ((len(core_matches) * 1.0) / len(core_fragments)) ** core_weight
     extended_coverage = min(float(len(core_matches) + len(extended_matches)) / d, 1.0) ** coverage_weight

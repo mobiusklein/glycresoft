@@ -1,7 +1,6 @@
 import numpy as np
 
 from glycan_profiling.structure import FragmentMatchMap
-from glypy.structure.glycan_composition import FrozenMonosaccharideResidue
 
 from glycan_profiling.tandem.glycopeptide.core_search import approximate_internal_size_of_glycan
 

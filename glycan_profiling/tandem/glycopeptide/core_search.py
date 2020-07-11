@@ -26,6 +26,7 @@ hexnac = FrozenMonosaccharideResidue.from_iupac_lite("HexNAc")
 hexose = FrozenMonosaccharideResidue.from_iupac_lite("Hex")
 xylose = FrozenMonosaccharideResidue.from_iupac_lite("Xyl")
 fucose = FrozenMonosaccharideResidue.from_iupac_lite("Fuc")
+dhex = FrozenMonosaccharideResidue.from_iupac_lite("dHex")
 neuac = FrozenMonosaccharideResidue.from_iupac_lite("NeuAc")
 neugc = FrozenMonosaccharideResidue.from_iupac_lite("NeuGc")
 
@@ -33,12 +34,18 @@ neugc = FrozenMonosaccharideResidue.from_iupac_lite("NeuGc")
 def approximate_internal_size_of_glycan(glycan_composition):
     terminal_groups = glycan_composition._getitem_fast(neuac) +\
         glycan_composition._getitem_fast(neugc)
-    side_groups = glycan_composition._getitem_fast(fucose)
+    side_groups = glycan_composition._getitem_fast(fucose) + glycan_composition._getitem_fast(dhex)
     n = sum(glycan_composition.values())
     n -= terminal_groups
     if side_groups > 1:
-        n -= side_groups - (side_groups - 1)
+        n -= 1
     return n
+
+
+def glycan_side_group_count(glycan_composition):
+    side_groups = glycan_composition._getitem_fast(
+        fucose) + glycan_composition._getitem_fast(dhex)
+    return side_groups
 
 
 def isclose(a, b, rtol=1e-05, atol=1e-08):

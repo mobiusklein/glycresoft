@@ -1,7 +1,9 @@
 import math
+
+
 from glycopeptidepy.structure.fragment import ChemicalShift, IonSeries
 from glycopeptidepy.structure.fragmentation_strategy import EXDFragmentationStrategy, HCDFragmentationStrategy
-
+from ..core_search import glycan_side_group_count
 from ...spectrum_match import SpectrumMatcherBase, ModelTreeNode
 
 
@@ -126,7 +128,10 @@ class GlycopeptideSpectrumMatcherBase(SpectrumMatcherBase):
             self._glycan_score = self.calculate_glycan_score(*args, **kwargs)
         return self._glycan_score
 
-    def _calculate_glycan_coverage(self, core_weight=0.4, coverage_weight=0.5, *args, **kwargs):
+    def _glycan_side_group_count(self, glycan_composition):
+        return glycan_side_group_count(glycan_composition)
+
+    def _calculate_glycan_coverage(self, core_weight=0.4, coverage_weight=0.5, fragile_fucose=True, *args, **kwargs):
         seen = set()
         series = IonSeries.stub_glycopeptide
         theoretical_set = list(self.target.stub_fragments(extended=True))
@@ -148,8 +153,13 @@ class GlycopeptideSpectrumMatcherBase(SpectrumMatcherBase):
             peak = peak_pair.peak
             if peak.index.neutral_mass not in seen:
                 seen.add(peak.index.neutral_mass)
-        n = self._get_internal_size(self.target.glycan_composition)
+        glycan_composition = self.target.glycan_composition
+        n = self._get_internal_size(glycan_composition)
         k = 2.0
+        if not fragile_fucose:
+            side_group_count = self._glycan_side_group_count(glycan_composition)
+            if side_group_count > 0:
+                k = 1.0
         d = max(n * math.log(n) / k, n)
         core_coverage = ((len(core_matches) * 1.0) /
                          len(core_fragments)) ** core_weight
@@ -159,11 +169,11 @@ class GlycopeptideSpectrumMatcherBase(SpectrumMatcherBase):
         self._glycan_coverage = coverage
         return coverage
 
-    def glycan_coverage(self, core_weight=0.4, coverage_weight=0.5, *args, **kwargs):
+    def glycan_coverage(self, core_weight=0.4, coverage_weight=0.5, fragile_fucose=True, *args, **kwargs):
         if self._glycan_coverage is not None:
             return self._glycan_coverage
         self._glycan_coverage = self._calculate_glycan_coverage(
-            core_weight, coverage_weight, *args, **kwargs)
+            core_weight, coverage_weight, fragile_fucose, *args, **kwargs)
         return self._glycan_coverage
 
     def calculate_glycan_score(self, *args, **kwargs):
