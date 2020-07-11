@@ -76,6 +76,11 @@ def update_glycan_chromatogram_composition_ids(hypothesis_migration, glycan_chro
 
 
 def update_glycopeptide_ids(hypothesis_migration, identified_glycopeptide_set):
+    '''Build a mapping from searched hypothesis structure ID to saved subset structure
+    ID, ensuring that each object has its new ID assigned exactly once.
+
+    The use of :func:`id` here is to ensure that exactness.
+    '''
     mapping = defaultdict(dict)
     for glycopeptide in identified_glycopeptide_set:
         mapping[glycopeptide.structure.id][id(glycopeptide.structure)] = glycopeptide.structure
@@ -557,6 +562,7 @@ class GlycopeptideMSMSAnalysisSerializer(AnalysisMigrationBase):
             self._glycopeptide_hypothesis_migrator,
             self._identified_glycopeptide_set)
 
+        self._glycopeptide_hypothesis_migrator.clear()
         self._analysis_serializer.save_glycopeptide_identification_set(
             self._identified_glycopeptide_set)
 

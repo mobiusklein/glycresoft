@@ -23,6 +23,12 @@ class GlycopeptideHypothesisMigrator(DatabaseBoundOperation, TaskBase):
         self.glycan_combination_id_map = dict()
         self.glycopeptide_id_map = dict()
 
+    def clear(self):
+        self.protein_id_map.clear()
+        self.peptide_id_map.clear()
+        self.glycan_combination_id_map.clear()
+        self.glycopeptide_id_map.clear()
+
     def _migrate(self, obj):
         self.session.add(obj)
         self.session.flush()
