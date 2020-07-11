@@ -1,5 +1,6 @@
 import os
 import multiprocessing
+from multiprocessing.managers import SyncManager
 import threading
 import ctypes
 import datetime
@@ -13,7 +14,9 @@ from glycan_profiling import serialize
 
 from glycan_profiling.task import (
     TaskBase, Pipeline, MultiEvent,
-    TaskExecutionSequence, MultiLock, LoggingMixin)
+    TaskExecutionSequence, MultiLock,
+    LoggingMixin, make_shared_memory_manager)
+
 from glycan_profiling.chromatogram_tree import Unmodified
 
 from glycan_profiling.structure import ScanStub
@@ -167,7 +170,7 @@ class MultipartGlycopeptideIdentifier(TaskBase):
         elif isinstance(file_manager, str):
             file_manager = TempFileManager(file_manager)
         if ipc_manager is None:
-            ipc_manager = multiprocessing.Manager()
+            ipc_manager = make_shared_memory_manager()
         if isinstance(target_peptide_db, str):
             target_peptide_db = self.build_default_disk_backed_db_wrapper(target_peptide_db)
         if isinstance(decoy_peptide_db, str):
@@ -598,7 +601,7 @@ class IdentificationWorker(TaskExecutionSequence):
 
     def run(self):
         self.try_set_process_name("glycresoft-identification")
-        ipc_manager = multiprocessing.managers.SyncManager(self.ipc_manager_address)
+        ipc_manager = SyncManager(self.ipc_manager_address)
         ipc_manager.connect()
         lock = threading.RLock()
         mapping_executor = SemaphoreBoundMapperExecutor(

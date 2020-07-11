@@ -5,7 +5,7 @@ import traceback
 import multiprocessing
 import threading
 import six
-
+from multiprocessing.managers import SyncManager
 from datetime import datetime
 
 try:
@@ -497,3 +497,17 @@ class SinkTask(TaskExecutionSequence):
                     has_work = False
                     break
         self.done_event.set()
+
+
+def make_shared_memory_manager():
+    manager = SyncManager()
+    manager.start(_name_process, ("glycresoft-shm", ))
+    return manager
+
+
+def _name_process(name):
+    try:
+        import setproctitle
+        setproctitle.setproctitle(name)
+    except (ImportError, AttributeError):
+        pass
