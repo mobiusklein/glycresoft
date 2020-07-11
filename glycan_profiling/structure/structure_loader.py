@@ -659,3 +659,48 @@ class PeptideDatabaseRecord(object):
     @classmethod
     def from_record(cls, record):
         return cls(**record)
+
+
+class LazyGlycopeptide(object):
+    __slots__ = ("sequence", "id", "protein_relation")
+
+    def __init__(self, sequence, id, protein_relation=None):
+        self.sequence = sequence
+        self.id = id
+        self.protein_relation = protein_relation
+
+    def convert(self, sequence_cls=None):
+        if sequence_cls is None:
+            sequence_cls = FragmentCachingGlycopeptide
+        inst = sequence_cls(self.sequence)
+        inst.id = self.id
+        inst.protein_relation = self.protein_relation
+        return inst
+
+    def __iter__(self):
+        for pos in self.convert():
+            yield pos
+
+    def __getitem__(self, i):
+        return self.convert()[i]
+
+    def __len__(self):
+        result = hashable_glycan_glycopeptide_parser(self.sequence)
+        return len(result[0])
+
+    def glycan_composition(self):
+        result = hashable_glycan_glycopeptide_parser(self.sequence)
+        glycan_composition = result[2]
+        return glycan_composition
+
+    def __repr__(self):
+        return "{self.__class__.__name__}({self.sequence}, {self.id})".format(self=self)
+
+    def __str__(self):
+        return str(self.sequence)
+
+    def __eq__(self, other):
+        return self.sequence == other.sequence and self.id == other.id
+
+    def __hash__(self):
+        return hash(self.sequence)

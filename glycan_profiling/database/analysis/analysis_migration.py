@@ -103,6 +103,10 @@ class SampleMigrator(DatabaseBoundOperation, TaskBase):
     def commit(self):
         self.session.commit()
 
+    def clear(self):
+        self.peak_id_map.clear()
+        self.ms_scan_id_map.clear()
+
     def migrate_sample_run(self, sample_run):
         new_sample_run = SampleRun(
             name=sample_run.name,

@@ -136,7 +136,7 @@ class PeptideDatabaseProxyLoader(TaskBase):
                 peptides.append(rec)
             elif filter_level == 0 and rec.has_glycosylation_sites():
                 peptides.append(rec)
-
+        db.session.remove()
         mem_db = disk_backed_database.InMemoryPeptideStructureDatabase(peptides, db)
         return mem_db
 
@@ -494,7 +494,9 @@ class MultipartGlycopeptideIdentifier(TaskBase):
         self.log("Database Search Complete, %s Elapsed" % (end_time - start_time))
         self.log("Loading Spectrum Matches From Journal...")
         solutions = []
-        for journal_path in self.journal_path_collection:
+        n = len(self.journal_path_collection)
+        for i, journal_path in enumerate(self.journal_path_collection, 1):
+            self.log("... Reading Journal Shard %s, %d/%d" % (self.journal_path, i, n))
             self._load_identifications_from_journal(journal_path, total_solutions_count, solutions)
         self.log("Partitioning Spectrum Matches...")
         groups = SolutionSetGrouper(solutions)
@@ -508,6 +510,19 @@ class MultipartGlycopeptideIdentifier(TaskBase):
         estimator = GlycopeptideFDREstimator(
             glycopeptide_spectrum_match_groups, self.fdr_estimation_strategy)
         groups = estimator.start()
+        self.log("Rebuilding Targets")
+        cache = {}
+        target_match_sets = groups.target_matches
+        n = len(target_match_sets)
+        for i, target_match_set in enumerate(target_match_sets):
+            if i % 10000 == 0 and i:
+                self.log("... Rebuilt %d Targets (%0.2f%%)" % (i, i * 100.0 / n))
+            for target_match in target_match_set:
+                if target_match.target.id in cache:
+                    target_match.target = cache[target_match.target.id]
+                else:
+                    target_match.target = cache[target_match.target.id] = target_match.target.convert()
+        cache.clear()
         return groups, estimator
 
     def map_to_chromatograms(self, chromatograms, tandem_identifications,
