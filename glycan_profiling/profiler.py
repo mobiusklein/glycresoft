@@ -878,9 +878,6 @@ class GlycopeptideLCMSMSAnalyzer(TaskBase):
         assigned_list.extend(orphans)
         gps, unassigned = identified_glycopeptide.extract_identified_structures(
             assigned_list, lambda x: x.q_value <= self.psm_fdr_threshold)
-        if debug_mode:
-            for gp in gps:
-                self.log("... Extracted Glycopeptide %r" % (gp, ))
         return gps, unassigned
 
     def rank_target_hits(self, searcher, target_decoy_set):
@@ -933,9 +930,16 @@ class GlycopeptideLCMSMSAnalyzer(TaskBase):
 
         target_hits = self.rank_target_hits(searcher, target_decoy_set)
 
+        # from pympler import muppy, summary
+        # checkpoint = summary.summarize(muppy.get_objects())
+        # summary.print_(checkpoint)
+
         # Map MS/MS solutions to chromatograms.
         self.log("Building and Mapping Chromatograms")
         merged, orphans = self.map_chromatograms(searcher, extractor, target_hits)
+
+        # checkpoint2 = summary.summarize(muppy.get_objects())
+        # summary.print_(summary.get_diff(checkpoint, checkpoint2))
 
         if not self.save_unidentified:
             merged = [chroma for chroma in merged if chroma.composition is not None]
@@ -943,10 +947,6 @@ class GlycopeptideLCMSMSAnalyzer(TaskBase):
         # Score chromatograms, both matched and unmatched
         self.log("Scoring chromatograms")
         scored_merged = self.score_chromatograms(merged)
-
-        if debug_mode:
-            for case in merged:
-                self.log("Scored Chromatogram: %r" % (case, ))
 
         gps, unassigned = self.assign_consensus(scored_merged, orphans)
 
