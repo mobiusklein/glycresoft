@@ -688,6 +688,7 @@ class LazyGlycopeptide(object):
         result = hashable_glycan_glycopeptide_parser(self.sequence)
         return len(result[0])
 
+    @property
     def glycan_composition(self):
         result = hashable_glycan_glycopeptide_parser(self.sequence)
         glycan_composition = result[2]
