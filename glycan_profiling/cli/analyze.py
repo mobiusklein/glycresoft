@@ -299,7 +299,8 @@ def search_glycopeptide(context, database_connection, sample_path, hypothesis_id
 @click.option("-f", "--fdr-estimation-strategy", type=click.Choice(['joint', 'peptide', 'glycan']),
               default='joint', help="The FDR estimation strategy to use.")
 @click.option("-s", "--tandem-scoring-model", default='log_intensity',
-              type=ChoiceOrURI(["log_intensity", "simple"]),
+              type=ChoiceOrURI(["log_intensity", "simple",
+                                "penalized_log_intensty"]),
               help="Select a scoring function to use for evaluating glycopeptide-spectrum matches")
 @click.option("-y", "--glycan-score-threshold", default=1.0, type=float,
               help="The minimum glycan score required to consider a peptide mass")
