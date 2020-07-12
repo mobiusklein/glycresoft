@@ -173,7 +173,7 @@ class GlycopeptideSpectrumMatcherBase(SpectrumMatcherBase):
         if self._glycan_coverage is not None:
             return self._glycan_coverage
         self._glycan_coverage = self._calculate_glycan_coverage(
-            core_weight, coverage_weight, fragile_fucose, *args, **kwargs)
+            core_weight, coverage_weight, fragile_fucose=fragile_fucose, *args, **kwargs)
         return self._glycan_coverage
 
     def calculate_glycan_score(self, *args, **kwargs):
