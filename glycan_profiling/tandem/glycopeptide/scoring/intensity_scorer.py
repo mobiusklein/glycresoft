@@ -119,6 +119,15 @@ LogIntensityModelTree = ModelTreeNode(LogIntensityScorer, {
 })
 
 
+class FullSignaturePenalizedLogIntensityScorer(LogIntensityScorer):
+    def calculate_glycan_score(self, error_tolerance=2e-5, core_weight=0.4, coverage_weight=0.5,
+                               fragile_fucose=True, *args, **kwargs):
+        score = super(FullSignaturePenalizedLogIntensityScorer, self).calculate_glycan_score(
+            error_tolerance, core_weight, coverage_weight, fragile_fucose=fragile_fucose, *args, **kwargs)
+        signature_component = self._signature_ion_score(error_tolerance)
+        return score + signature_component
+
+
 class HyperscoreScorer(SignatureAwareCoverageScorer, MassAccuracyMixin):
 
     def _calculate_hyperscore(self, *args, **kwargs):

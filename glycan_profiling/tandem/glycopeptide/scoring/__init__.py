@@ -6,7 +6,8 @@ from .simple_score import SimpleCoverageScorer
 from .coverage_weighted_binomial import (
     CoverageWeightedBinomialScorer, ShortPeptideCoverageWeightedBinomialScorer,
     CoverageWeightedBinomialModelTree)
-from .intensity_scorer import LogIntensityScorer, LogIntensityModelTree, HyperscoreScorer
+from .intensity_scorer import (LogIntensityScorer, LogIntensityModelTree,
+                               HyperscoreScorer, FullSignaturePenalizedLogIntensityScorer)
 from .base import SpectrumMatcherBase, GlycopeptideSpectrumMatcherBase
 
 
@@ -15,5 +16,5 @@ __all__ = [
     "MassAccuracyModel", "MassAccuracyMixin", "SimpleCoverageScorer", "CoverageWeightedBinomialScorer",
     "ShortPeptideCoverageWeightedBinomialScorer", "CoverageWeightedBinomialModelTree",
     "GlycopeptideSpectrumMatcherBase", "SpectrumMatcherBase",
-    "LogIntensityScorer", "LogIntensityModelTree", "HyperscoreScorer"
+    "LogIntensityScorer", "LogIntensityModelTree", "HyperscoreScorer", "FullSignaturePenalizedLogIntensityScorer"
 ]
