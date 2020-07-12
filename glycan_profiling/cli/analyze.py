@@ -315,6 +315,7 @@ def search_glycopeptide(context, database_connection, sample_path, hypothesis_id
 @click.option("-A", "--mapping-processes", type=int, default=1,
               help=("Number of database mapping process pairs to use concurrently. Defaults to one, "
                     "which translates to two worker processes, one for the target database and one for the decoy."))
+@click.option("-F", "--durable-fucose", is_flag=True, default=False, help="Expect Fucose/deoxy-Hexose peptide+Y ions to count towards glycan coverage")
 @click.option("--save-intermediate-results", default=None, type=click.Path(), required=False,
               help='Save intermediate spectrum matches to a file', cls=HiddenOption)
 @click.option("--maximum-mass", default=float('inf'), type=float, cls=HiddenOption)
@@ -330,7 +331,7 @@ def search_glycopeptide_multipart(context, database_connection, decoy_database_c
                                   memory_database_index=False, save_intermediate_results=None, processes=4,
                                   workload_size=500, mass_shifts=None, export=None, maximum_mass=float('inf'),
                                   isotope_probing_range=3, fdr_estimation_strategy=None,
-                                  glycoproteome_smoothing_model=None, mapping_processes=1):
+                                  glycoproteome_smoothing_model=None, mapping_processes=1, durable_fucose=False):
     if output_path is None:
         output_path = make_analysis_output_path("glycopeptide")
     if fdr_estimation_strategy is None:
@@ -400,7 +401,7 @@ def search_glycopeptide_multipart(context, database_connection, decoy_database_c
         use_memory_database=memory_database_index,
         fdr_estimation_strategy=fdr_estimation_strategy,
         glycosylation_site_models_path=glycoproteome_smoothing_model,
-        n_mapping_processes=mapping_processes)
+        fragile_fucose=not durable_fucose)
     analyzer.display_header()
     result = analyzer.start()
     gps, unassigned, target_decoy_set = result[:3]
