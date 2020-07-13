@@ -163,6 +163,27 @@ class TopScoringSolutionsRetentionStrategy(SpectrumMatchRetentionStrategyBase):
         return retain
 
 
+class QValueRetentionStrategy(SpectrumMatchRetentionStrategyBase):
+    """A strategy for filtering :class:`~.SpectrumMatch` from a list to retain
+    those with q-value that are less than :attr:`threshold`.
+
+    Parameters
+    ----------
+    solution_set : list
+        The list of :class:`SpectrumMatch` objects to filter.
+
+    Returns
+    -------
+    list
+    """
+    def filter_matches(self, solution_set):
+        retain = []
+        for match in solution_set:
+            if match.q_value < self.threshold:
+                retain.append(match)
+        return retain
+
+
 class SpectrumMatchRetentionMethod(SpectrumMatchRetentionStrategyBase):
     """A collection of several :class:`SpectrumMatchRetentionStrategyBase`
     objects which are applied in order to iteratively filter out :class:`SpectrumMatch`

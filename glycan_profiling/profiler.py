@@ -64,6 +64,8 @@ from glycan_profiling.tandem import chromatogram_mapping
 from glycan_profiling.tandem.target_decoy import TargetDecoySet
 from glycan_profiling.tandem.temp_store import TempFileManager
 
+from glycan_profiling.tandem.spectrum_match.solution_set import QValueRetentionStrategy
+
 from glycan_profiling.tandem.glycopeptide.scoring import (
     LogIntensityScorer,
     CoverageWeightedBinomialScorer,
@@ -954,6 +956,13 @@ class GlycopeptideLCMSMSAnalyzer(TaskBase):
         self.save_solutions(gps, unassigned, extractor, database)
         return gps, unassigned, target_decoy_set
 
+    def _filter_out_poor_matches_before_saving(self, identified_glycopeptides):
+        filt = QValueRetentionStrategy(max(0.75, self.psm_fdr_threshold * 10.))
+        for idgp in identified_glycopeptides:
+            for gpsm_set in idgp.tandem_solutions:
+                gpsm_set.threshold(filt)
+        return identified_glycopeptides
+
     def _build_analysis_saved_parameters(self, identified_glycopeptides, unassigned_chromatograms,
                                          chromatogram_extractor, database):
         return {
@@ -984,7 +993,8 @@ class GlycopeptideLCMSMSAnalyzer(TaskBase):
                 identified_glycopeptides, unassigned_chromatograms,
                 chromatogram_extractor, database))
 
-        analysis_saver.save_glycopeptide_identification_set(identified_glycopeptides)
+        analysis_saver.save_glycopeptide_identification_set(
+            self._filter_out_poor_matches_before_saving(identified_glycopeptides))
         if self.save_unidentified:
             i = 0
             last = 0
@@ -1072,6 +1082,7 @@ class MzMLGlycopeptideLCMSMSAnalyzer(GlycopeptideLCMSMSAnalyzer):
             "scoring_model": self.peak_shape_scoring_model,
             "fdr_estimator": self.fdr_estimator,
             "permute_decoy_glycans": self.permute_decoy_glycans,
+            "tandem_scoring_model": self.tandem_scoring_model,
         }
 
     def make_analysis_serializer(self, output_path, analysis_name, sample_run, identified_glycopeptides,
@@ -1089,7 +1100,7 @@ class MzMLGlycopeptideLCMSMSAnalyzer(GlycopeptideLCMSMSAnalyzer):
             self.output_path,
             self.analysis_name,
             chromatogram_extractor.peak_loader.sample_run,
-            identified_glycopeptides,
+            self._filter_out_poor_matches_before_saving(identified_glycopeptides),
             unassigned_chromatograms,
             database,
             chromatogram_extractor)
@@ -1312,7 +1323,8 @@ class MultipartGlycopeptideLCMSMSAnalyzer(MzMLGlycopeptideLCMSMSAnalyzer):
     def make_analysis_serializer(self, output_path, analysis_name, sample_run, identified_glycopeptides,
                                  unassigned_chromatograms, database, chromatogram_extractor):
         return DynamicGlycopeptideMSMSAnalysisSerializer(
-            output_path, analysis_name, sample_run, identified_glycopeptides,
+            output_path, analysis_name, sample_run,
+            self._filter_out_poor_matches_before_saving(identified_glycopeptides),
             unassigned_chromatograms, database, chromatogram_extractor)
 
     def _build_analysis_saved_parameters(self, identified_glycopeptides, unassigned_chromatograms,

@@ -443,7 +443,7 @@ class GlycopeptideMSMSAnalysisSerializer(AnalysisMigrationBase):
         self.log("... Loading Proteins and Peptides from Glycopeptides")
         peptides = self.fetch_peptides(self._glycopeptide_ids)
         proteins = self.fetch_proteins(peptides)
-        self.log("... Migrating Proteins")
+        self.log("... Migrating Proteins (%d)" % (len(proteins), ))
         n = len(proteins)
         index_toggler = toggle_indices(self._glycopeptide_hypothesis_migrator.session, Protein)
         index_toggler.drop()
@@ -451,11 +451,12 @@ class GlycopeptideMSMSAnalysisSerializer(AnalysisMigrationBase):
             if i % 5000 == 0 and i:
                 self.log("...... Migrating Protein %d/%d (%0.2f%%) %s" % (i, n, i * 100.0 / n, protein.name))
             self._glycopeptide_hypothesis_migrator.migrate_protein(protein)
+        proteins = []
         index_toggler.create()
         index_toggler = toggle_indices(
             self._glycopeptide_hypothesis_migrator.session, Peptide)
         index_toggler.drop()
-        self.log("... Migrating Peptides")
+        self.log("... Migrating Peptides (%d)" % (len(peptides)))
         n = len(peptides)
         for i, peptide in enumerate(peptides):
             if i % 15000 == 0 and i:
@@ -463,10 +464,9 @@ class GlycopeptideMSMSAnalysisSerializer(AnalysisMigrationBase):
             self._glycopeptide_hypothesis_migrator.migrate_peptide(peptide)
         index_toggler.create()
         peptides = []
-        proteins = []
 
-        self.log("... Migrating Glycopeptides")
         glycopeptides = self.fetch_glycopeptides(self._glycopeptide_ids)
+        self.log("... Migrating Glycopeptides (%d)" % (len(glycopeptides), ))
 
         index_toggler = toggle_indices(self._glycopeptide_hypothesis_migrator.session, Glycopeptide)
         index_toggler.drop()

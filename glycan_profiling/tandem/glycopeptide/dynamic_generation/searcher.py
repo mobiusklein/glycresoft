@@ -386,6 +386,8 @@ class SpectrumMatcher(TaskExecutionSequence):
                 # case.select_top()
             target_solutions.extend(temp)
             batch.clear()
+        self.log("... Finished %0.2f%%" % (max((self.group_i - 1), 0)
+                                           * 100.0 / self.group_n), self.workload)
         return target_solutions
 
     def run(self):
