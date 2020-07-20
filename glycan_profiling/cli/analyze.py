@@ -453,6 +453,8 @@ def search_glycopeptide_multipart(context, database_connection, decoy_database_c
 @processes_option
 @click.option("-i", "--analysis-path", nargs=2, multiple=True, required=True)
 @click.option("-o", "--output-path", type=click.Path(writable=True), required=True)
+@click.option('-q', '--fdr-threshold', type=float, default=0.05,
+              help="The FDR threshold to apply when selecting identified glycopeptides")
 @click.option("-P", "--glycopeptide-hypothesis", type=(DatabaseConnectionParam(exists=True), str))
 @click.option("-g", "--glycan-hypothesis", type=(DatabaseConnectionParam(exists=True), str))
 @click.option("-u", "--unobserved-penalty-scale", type=float, default=1.0, required=False,
@@ -465,7 +467,7 @@ def search_glycopeptide_multipart(context, database_connection, decoy_database_c
                   " Defaults to False."))
 def fit_glycoproteome_model(context, analysis_path, output_path, glycopeptide_hypothesis, glycan_hypothesis,
                             processes=4, unobserved_penalty_scale=None, smoothing_limit=0.2,
-                            require_multiple_observations=True):
+                            require_multiple_observations=True, fdr_threshold=0.05):
     analysis_path_set = analysis_path
     analysis_path_set_transformed = []
     for analysis_path, analysis_id in analysis_path_set:
@@ -502,7 +504,8 @@ def fit_glycoproteome_model(context, analysis_path, output_path, glycopeptide_hy
     workflow = site_model.GlycoproteinSiteModelBuildingWorkflow.from_paths(
         analysis_path_set, glycopeptide_database_connection_path, glycopeptide_hypothesis.id,
         glycan_database_connection_path, glycan_hypothesis.id, unobserved_penalty_scale, smoothing_limit,
-        require_multiple_observations, output_path=output_path, n_threads=processes)
+        require_multiple_observations, output_path=output_path, n_threads=processes,
+        q_value_threshold=fdr_threshold)
     workflow.start()
 
 

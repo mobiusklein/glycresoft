@@ -94,11 +94,11 @@ class Analysis(Base, HasUniqueName, HasFiles):
 
     hypothesis = property(get_hypothesis)
 
-    def aggregate_identified_glycoproteins(self):
+    def aggregate_identified_glycoproteins(self, glycopeptides=None):
         from glycan_profiling.tandem.glycopeptide.identified_structure import IdentifiedGlycoprotein
         from . import Protein
-
-        glycopeptides = self.identified_glycopeptides.all()
+        if glycopeptides is None:
+            glycopeptides = self.identified_glycopeptides.all()
 
         protein_index = {}
         session = object_session(self)
