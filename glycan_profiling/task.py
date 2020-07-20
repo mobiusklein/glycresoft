@@ -14,6 +14,7 @@ except ImportError:
     from queue import Empty
 
 from glycan_profiling.version import version
+from glycan_profiling.log_config import LoggingMixin
 
 
 logger = logging.getLogger("glycan_profiling.task")
@@ -44,105 +45,6 @@ def debug_printer(obj, *message):
         print(u"DEBUG:" + fmt_msg(*message))
 
 
-class CallInterval(object):
-    """Call a function every `interval` seconds from
-    a separate thread.
-
-    Attributes
-    ----------
-    stopped: threading.Event
-        A semaphore lock that controls when to run `call_target`
-    call_target: callable
-        The thing to call every `interval` seconds
-    args: iterable
-        Arguments for `call_target`
-    interval: number
-        Time between calls to `call_target`
-    """
-
-    def __init__(self, interval, call_target, *args):
-        self.stopped = threading.Event()
-        self.interval = interval
-        self.call_target = call_target
-        self.args = args
-        self.thread = threading.Thread(target=self.mainloop)
-        self.thread.daemon = True
-
-    def mainloop(self):
-        while not self.stopped.wait(self.interval):
-            try:
-                self.call_target(*self.args)
-            except Exception as e:
-                logger.exception("An error occurred in %r", self, exc_info=e)
-
-    def start(self):
-        self.thread.start()
-
-    def stop(self):
-        self.stopped.set()
-
-
-class MessageSpooler(object):
-    """An IPC-based logging helper
-
-    Attributes
-    ----------
-    halting : bool
-        Whether the object is attempting to
-        stop, so that the internal thread can
-        tell when it should stop and tell other
-        objects using it it is trying to stop
-    handler : Callable
-        A Callable object which can be used to do
-        the actual logging
-    message_queue : multiprocessing.Queue
-        The Inter-Process Communication queue
-    thread : threading.Thread
-        The internal listener thread that will consume
-        message_queue work items
-    """
-    def __init__(self, handler):
-        self.handler = handler
-        self.message_queue = multiprocessing.Queue()
-        self.halting = False
-        self.thread = threading.Thread(target=self.run)
-        self.thread.start()
-
-    def run(self):
-        while not self.halting:
-            try:
-                message = self.message_queue.get(True, 2)
-                self.handler(*message)
-            except Exception:
-                continue
-
-    def stop(self):
-        self.halting = True
-        self.thread.join()
-
-    def sender(self):
-        return MessageSender(self.message_queue)
-
-
-class MessageSender(object):
-    """A simple callable for pushing objects into an IPC
-    queue.
-
-    Attributes
-    ----------
-    queue : multiprocessing.Queue
-        The Inter-Process Communication queue
-    """
-    def __init__(self, queue):
-        self.queue = queue
-
-    def __call__(self, *message):
-        self.send(*message)
-
-    def send(self, *message):
-        self.queue.put(message)
-
-
 def humanize_class_name(name):
     parts = []
     i = 0
@@ -158,46 +60,6 @@ def humanize_class_name(name):
         i += 1
     parts.append(name[last:i])
     return ' '.join(parts)
-
-
-class LoggingMixin(object):
-    logger_state = None
-    print_fn = printer
-    debug_print_fn = debug_printer
-    error_print_fn = printer
-
-    @classmethod
-    def log_with_logger(cls, logger):
-        LoggingMixin.logger_state = logger
-        LoggingMixin.print_fn = logger.info
-        LoggingMixin.debug_print_fn = logger.debug
-        LoggingMixin.error_print_fn = logger.error
-
-    @classmethod
-    def log_to_stdout(cls):
-        cls.logger_state = None
-        cls.print_fn = printer
-        cls.debug_print_fn = debug_printer
-        cls.error_print_fn = printer
-
-    def log(self, *message):
-        self.print_fn(u', '.join(map(ensure_text, message)))
-
-    def debug(self, *message):
-        self.debug_print_fn(u', '.join(map(ensure_text, message)))
-
-    def error(self, *message, **kwargs):
-        exception = kwargs.get("exception")
-        self.error_print_fn(u', '.join(map(ensure_text, message)))
-        if exception is not None:
-            self.error_print_fn(traceback.format_exc(exception))
-
-    def ipc_logger(self, handler=None):
-        if handler is None:
-            def _default_closure_handler(message):
-                self.log(message)
-            handler = _default_closure_handler
-        return MessageSpooler(handler)
 
 
 class TaskBase(LoggingMixin):
@@ -388,6 +250,20 @@ class MultiLock(object):
         self.release()
 
 
+class LoggingWrapper(object):
+    def __init__(self, wrapped, logging_config):
+        self.wrapped = wrapped
+        self.logging_config = logging_config
+
+    def configure_logging(self):
+        if self.logging_config is not None:
+            LoggingMixin.log_with_logger(self.logging_config)
+
+    def __call__(self, *args, **kwargs):
+        self.configure_logging()
+        return self.wrapped(*args, **kwargs)
+
+
 class TaskExecutionSequence(TaskBase):
     """A task unit that executes in a separate thread or process.
     """
@@ -425,13 +301,14 @@ class TaskExecutionSequence(TaskBase):
     def _name_for_execution_sequence(self):
         return ("%s-%r" % (self.__class__.__name__, id(self)))
 
-    def start(self, process=False, daemon=False):
+    def start(self, process=False, daemon=False, logging_provider=None):
         if self._thread is not None:
             return self._thread
         if process:
             self._running_in_process = True
             t = multiprocessing.Process(
-                target=self, name=self._name_for_execution_sequence())
+                target=(LoggingWrapper(self, logging_provider)),
+                name=self._name_for_execution_sequence())
             if daemon:
                 t.daemon = daemon
         else:
