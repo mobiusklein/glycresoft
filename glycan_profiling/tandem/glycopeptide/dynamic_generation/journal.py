@@ -139,7 +139,7 @@ class JournalingConsumer(TaskExecutionSequence):
             try:
                 solutions = self.in_queue.get(True, 5)
                 self.journal_file.writeall(solutions)
-                self.log("... Handled %d spectra with %d solutions so far\n" % (
+                self.log("... Handled %d spectra with %d solutions so far" % (
                     self.journal_file.spectrum_counter, self.journal_file.solution_counter))
             except Empty:
                 if self.in_done_event.is_set():
