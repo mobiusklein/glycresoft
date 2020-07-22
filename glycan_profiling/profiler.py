@@ -1338,6 +1338,8 @@ class MultipartGlycopeptideLCMSMSAnalyzer(MzMLGlycopeptideLCMSMSAnalyzer):
             "decoy_database": str(self.decoy_database_connection),
             "search_strategy": 'multipart-target-decoy-competition',
             "fdr_estimation_strategy": self.fdr_estimation_strategy,
-            "fdr_estimator": self.fdr_estimator
+            "fdr_estimator": self.fdr_estimator,
+            "fragile_fucose": self.fragile_fucose,
+            "glycosylation_site_models_path": self.glycosylation_site_models_path,
         })
         return result
