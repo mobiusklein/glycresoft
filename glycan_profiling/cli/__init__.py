@@ -1,4 +1,5 @@
-from .logger_config import configure_logging
+# from .logger_config import configure_logging
+from glycan_profiling.log_config import configure_logging
 
 configure_logging()
 

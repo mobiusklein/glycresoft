@@ -25,7 +25,7 @@ from glycan_profiling.serialize import (
 from glycan_profiling.database import (
     GlycopeptideDiskBackedStructureDatabase,
     GlycanCompositionDiskBackedStructureDatabase)
-
+from glycan_profiling import task
 from glycan_profiling.database.builder.glycopeptide.proteomics import mzid_proteome
 from glycan_profiling.database.builder.glycopeptide.proteomics.uniprot import UniprotProteinDownloader
 
@@ -566,3 +566,18 @@ def csv_concat(csv_paths, output_path=None):
                 writer.writerow(row)
             infh.close()
             outfh.flush()
+
+
+@tools.command("log-test")
+def log_test():
+    handle = task.TaskBase()
+    handle.log("Foo")
+    ipc = handle.ipc_logger()
+    sender = ipc.sender()
+    import multiprocessing
+    proc = multiprocessing.Process(target=sender, args=("Bar", ))
+    print("Launching Worker")
+    proc.start()
+    proc.join()
+    print("Closing IPC Logger")
+    ipc.stop()

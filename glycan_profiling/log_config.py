@@ -25,7 +25,6 @@ except ImportError:
 
 from glycan_profiling.version import version
 
-from glycan_profiling import task
 from glycan_profiling.config import config_file
 
 logging_levels = {
@@ -171,7 +170,7 @@ class QueueHandler(logging.Handler):
         """
         try:
             self.enqueue(self.prepare(record))
-        except Exception:
+        except Exception as err:
             self.handleError(record)
 
 
@@ -357,8 +356,10 @@ class MessageSpooler(object):
             try:
                 message = self.message_queue.get(True, 2)
                 self.handle_message(message)
+            except Empty:
+                continue
             except Exception as err:
-                print(err)
+                print("Error:", type(err), err)
                 continue
 
     def stop(self):
@@ -385,6 +386,7 @@ class MessageSender(object):
         self.logger = None
 
     def install(self):
+        print("Installing Logging Config")
         configure_logging_multiprocessing(self.queue)
         self.logger = logging.getLogger("glycresoft")
         self.configured = True
@@ -393,7 +395,6 @@ class MessageSender(object):
         # process = current_process()
         # if process.name == "MainProcess":
         #     raise ValueError("Should not be invoked from the main process!")
-        from glycan_profiling.task import LoggingMixin
         LoggingMixin.log_with_logger(self)
 
     def __call__(self, *message, **kwargs):
@@ -581,8 +582,10 @@ def configure_logging_multiprocessing(queue):
     if queue is None:
         raise ValueError("Logging queue cannot be None!")
     handler = QueueHandler(queue)
-    handler.setLevel("INFO")
+    handler.setLevel(logging.INFO)
+    logging.getLogger().setLevel(logging.INFO)
     logging.getLogger().addHandler(handler)
+    logging.getLogger().addHandler(logging.StreamHandler())
     warner = logging.getLogger('py.warnings')
     warner.setLevel("CRITICAL")
 
@@ -620,7 +623,7 @@ def configure_logging(level=None, log_file_name=None, log_file_mode=None):
     logging.captureWarnings(True)
 
     logger = logging.getLogger("glycresoft")
-    task.TaskBase.log_with_logger(logger)
+    LoggingMixin.log_with_logger(logger)
 
     status_logger = logging.getLogger("glycresoft.status")
     status_logger.propagate = False
