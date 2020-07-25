@@ -473,6 +473,7 @@ def fit_glycoproteome_model(context, analysis_path, output_path, glycopeptide_hy
     for analysis_path, analysis_id in analysis_path_set:
         database_connection = DatabaseBoundOperation(analysis_path)
         try:
+            click.echo("Checking analysis %r:%r" % (database_connection, analysis_id))
             analysis = get_by_name_or_id(database_connection, Analysis, analysis_id)
         except Exception:
             click.secho("Could not locate an Analysis in %r with identifier %r" %
