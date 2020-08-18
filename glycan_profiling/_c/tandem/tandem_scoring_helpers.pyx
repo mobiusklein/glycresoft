@@ -1,5 +1,8 @@
 cimport cython
-from cpython cimport PyTuple_GetItem, PyTuple_Size, PyList_GET_ITEM, PyList_GET_SIZE
+from cpython cimport (
+    PyTuple_GetItem, PyTuple_Size, PyTuple_GET_ITEM,
+    PyList_GET_ITEM, PyList_GET_SIZE,
+    PySet_Add, PySet_Contains)
 
 from libc.math cimport log10, log, sqrt, exp
 
@@ -13,9 +16,11 @@ from ms_deisotope._c.peak_set cimport DeconvolutedPeak, DeconvolutedPeakSet
 from glycan_profiling._c.structure.fragment_match_map cimport (
     FragmentMatchMap, PeakFragmentPair)
 
+from glypy.composition.ccomposition cimport CComposition
+
 from glycopeptidepy._c.structure.sequence_methods cimport _PeptideSequenceCore
-from glycopeptidepy._c.structure.fragment cimport PeptideFragment, FragmentBase, IonSeriesBase, ChemicalShiftBase
-from glycopeptidepy.structure.fragment import IonSeries
+from glycopeptidepy._c.structure.fragment cimport PeptideFragment, FragmentBase, IonSeriesBase, ChemicalShiftBase, SimpleFragment
+from glycopeptidepy.structure.fragment import IonSeries, ChemicalShift
 from glycopeptidepy.structure.fragmentation_strategy import HCDFragmentationStrategy
 
 
@@ -27,6 +32,8 @@ IonSeries_y = IonSeries.y
 IonSeries_c = IonSeries.c
 IonSeries_z = IonSeries.z
 IonSeries_stub_glycopeptide = IonSeries.stub_glycopeptide
+IonSeries_precursor = IonSeries.precursor
+
 
 cdef object zeros = np.zeros
 cdef object np_float64 = np.float64
@@ -546,3 +553,65 @@ cpdef parse_float(str text):
     if isnan(value):
         return 0.0
     return value
+
+
+cdef CComposition H2O_loss = -CComposition("H2O")
+cdef CComposition NH3_loss = -CComposition("NH3")
+
+cdef double NH3_loss_mass = NH3_loss.mass
+cdef double H2O_loss_mass = H2O_loss.mass
+
+cdef ChemicalShiftBase NH3_loss_shift = ChemicalShift("-NH3", NH3_loss)
+cdef ChemicalShiftBase H2O_loss_shift = ChemicalShift("-H2O", H2O_loss)
+
+@cython.binding(True)
+cpdef _match_precursor(self, double error_tolerance=2e-5, set masked_peaks=None, bint include_neutral_losses=False):
+
+    cdef:
+        list frags, fragments
+        tuple peaks
+        SimpleFragment frag, shifted_frag
+        FragmentMatchMap solution_map
+        DeconvolutedPeak peak
+        DeconvolutedPeakSet spectrum
+        size_t i_peaks
+
+    if masked_peaks is None:
+        masked_peaks = set()
+
+    spectrum = self.spectrum
+    mass = self.target.total_mass
+    frag = SimpleFragment("M", mass, IonSeries_precursor, None)
+
+    spectrum = self.spectrum
+    solution_map = <FragmentMatchMap>self.solution_map
+
+    peaks = <tuple>spectrum.all_peaks_for(frag.mass, error_tolerance)
+    for i_peaks in range(PyTuple_Size(peaks)):
+        peak = <DeconvolutedPeak>PyTuple_GET_ITEM(peaks, i_peaks)
+        key = <object>peak._index.neutral_mass
+        if PySet_Contains(masked_peaks, key):
+            continue
+        PySet_Add(masked_peaks, key)
+        solution_map.add(peak, frag)
+        if include_neutral_losses:
+            peaks = <tuple>spectrum.all_peaks_for(frag.mass + NH3_loss_mass, error_tolerance)
+            for i_peaks in range(PyTuple_Size(peaks)):
+                peak = <DeconvolutedPeak>PyTuple_GET_ITEM(peaks, i_peaks)
+                key = <object>peak._index.neutral_mass
+                if PySet_Contains(masked_peaks, key):
+                    continue
+                PySet_Add(masked_peaks, key)
+                shifted_frag = frag.clone()
+                shifted_frag.set_chemical_shift(NH3_loss_shift)
+                solution_map.add(peak, shifted_frag)
+            peaks = <tuple>spectrum.all_peaks_for(frag.mass + H2O_loss_mass, error_tolerance)
+            for i_peaks in range(PyTuple_Size(peaks)):
+                peak = <DeconvolutedPeak>PyTuple_GET_ITEM(peaks, i_peaks)
+                key = <object>peak._index.neutral_mass
+                if PySet_Contains(masked_peaks, key):
+                    continue
+                PySet_Add(masked_peaks, key)
+                shifted_frag = frag.clone()
+                shifted_frag.set_chemical_shift(H2O_loss_shift)
+                solution_map.add(peak, shifted_frag)

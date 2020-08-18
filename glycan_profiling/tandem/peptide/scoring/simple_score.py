@@ -37,9 +37,8 @@ class SimpleCoverageScorer(PeptideSpectrumMatcherBase):
         return score
 
     def _coverage_score(self):
-        mean_coverage = self.compute_coverage()
-        score = mean_coverage
-        return score
+        return self.compute_coverage()
+
 
 
 try:

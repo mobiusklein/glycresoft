@@ -10,8 +10,6 @@ from .simple_score import SimpleCoverageScorer
 class LogIntensityScorer(SimpleCoverageScorer):
     def __init__(self, scan, sequence, mass_shift=None, *args, **kwargs):
         super(LogIntensityScorer, self).__init__(scan, sequence, mass_shift, *args, **kwargs)
-        self._score = None
-        self.solution_map = FragmentMatchMap()
 
     def _intensity_score(self, error_tolerance=2e-5, *args, **kwargs):
         total = 0
