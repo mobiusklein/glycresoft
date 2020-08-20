@@ -1,6 +1,6 @@
 cimport cython
 from cpython cimport (
-    PyTuple_GetItem, PyTuple_Size, PyTuple_GET_ITEM,
+    PyTuple_GetItem, PyTuple_Size, PyTuple_GET_ITEM, PyTuple_GET_SIZE,
     PyList_GET_ITEM, PyList_GET_SIZE,
     PySet_Add, PySet_Contains)
 
@@ -459,8 +459,8 @@ cpdef scalar_or_array gauss(scalar_or_array x, double mu, double sigma):
 @cython.binding(True)
 @cython.cdivision(True)
 @cython.boundscheck(False)
-def PeptideSpectrumMatcherBase_match_backbone_series(self, IonSeriesBase series, double error_tolerance=2e-5,
-                                                     set masked_peaks=None, strategy=None, bint include_neutral_losses=False):
+cpdef PeptideSpectrumMatcherBase_match_backbone_series(self, IonSeriesBase series, double error_tolerance=2e-5,
+                                                       set masked_peaks=None, strategy=None, bint include_neutral_losses=False):
     cdef:
         list frags, fragments
         tuple peaks
@@ -489,16 +489,17 @@ def PeptideSpectrumMatcherBase_match_backbone_series(self, IonSeriesBase series,
         for j in range(m):
             frag = <PeptideFragment>PyList_GET_ITEM(frags, j)
             peaks = <tuple>spectrum.all_peaks_for(frag.mass, error_tolerance)
-            for i_peaks in range(PyTuple_Size(peaks)):
-                peak = <DeconvolutedPeak>PyTuple_GetItem(peaks, i_peaks)
-                if peak._index.neutral_mass in masked_peaks:
+            n_peaks = PyTuple_GET_SIZE(peaks)
+            for i_peaks in range(n_peaks):
+                peak = <DeconvolutedPeak>PyTuple_GET_ITEM(peaks, i_peaks)
+                if PySet_Contains(masked_peaks, peak._index.neutral_mass):
                     continue
                 solution_map.add(peak, frag)
 
 
 @cython.binding(True)
 @cython.boundscheck(False)
-cpdef _peptide_compute_coverage_vectors(self):
+cpdef tuple _peptide_compute_coverage_vectors(self):
     cdef:
         np.ndarray[np.float64_t, ndim=1] n_term_ions, c_term_ions
         long size
@@ -518,28 +519,35 @@ cpdef _peptide_compute_coverage_vectors(self):
     for obj in solution_map.fragments():
         frag = <FragmentBase>obj
         series = frag.get_series()
-        if series in (IonSeries_b, IonSeries_c):
+        if series.name in (IonSeries_b.name, IonSeries_c.name):
             pep_frag = <PeptideFragment>frag
             n_term_ions[pep_frag.position] = 1
-        elif series in (IonSeries_y, IonSeries_z):
+        elif series.name in (IonSeries_y.name, IonSeries_z.name):
             pep_frag = <PeptideFragment>frag
             c_term_ions[pep_frag.position] = 1
     return n_term_ions, c_term_ions
 
 
+cdef double log2_3 = log2l(3)
+
 @cython.binding(True)
+@cython.boundscheck(False)
+@cython.cdivision(True)
 cpdef compute_coverage(self):
     cdef:
         np.ndarray[np.float64_t, ndim=1] n_term_ions, c_term_ions
         long size, i
         _PeptideSequenceCore target
-        double acc, log2_3, mean_coverage
+        double acc, mean_coverage
+        tuple vectors
 
     target = <_PeptideSequenceCore>self.target
     size = target.get_size()
-    (n_term_ions, c_term_ions) = self._compute_coverage_vectors()
+    vectors = <tuple>self._compute_coverage_vectors()
+    n_term_ions = <np.ndarray>PyTuple_GetItem(vectors, 0)
+    c_term_ions = <np.ndarray>PyTuple_GetItem(vectors, 1)
     acc = 0.0
-    log2_3 = log2l(3)
+
     for i in range(size):
         acc += log2l(n_term_ions[i] + c_term_ions[size - (i + 1)] + 1) / log2_3
     mean_coverage = acc / size
@@ -615,3 +623,59 @@ cpdef _match_precursor(self, double error_tolerance=2e-5, set masked_peaks=None,
                 shifted_frag = frag.clone()
                 shifted_frag.set_chemical_shift(H2O_loss_shift)
                 solution_map.add(peak, shifted_frag)
+
+
+@cython.binding(True)
+cpdef tuple peptide_backbone_fragment_key(self, target, args, dict kwargs):
+    key = ("get_fragments", args, frozenset(kwargs.items()))
+    return key
+
+
+cdef long _factorial(long x):
+    cdef:
+        long i
+        long acc
+
+    acc = 1
+    for i in range(x, 0, -1):
+        acc *= i
+    return acc
+
+
+@cython.binding(True)
+def _calculate_hyperscore(self, *args, **kwargs):
+    cdef:
+        FragmentMatchMap solution_map
+        PeakFragmentPair pfp
+        PeptideFragment pep_frag
+        double n_term_intensity
+        double c_term_intensity
+        long n_term
+        long c_term
+        double hyper
+
+
+    n_term_intensity = 0
+    c_term_intensity = 0
+    n_term = 0
+    c_term = 0
+    hyper = 0
+
+    solution_map = self.solution_map
+
+    for obj in solution_map.members:
+        pfp = <PeakFragmentPair>obj
+        series = (<FragmentBase>pfp.fragment).get_series()
+        if series.name in (IonSeries_b.name, IonSeries_c.name):
+            n_term += 1
+            n_term_intensity += pfp.peak.intensity
+        elif series.name in (IonSeries_y.name, IonSeries_z.name):
+            c_term += 1
+            c_term_intensity += pfp.peak.intensity
+
+    hyper += log(n_term_intensity)
+    hyper += log(_factorial(n_term))
+
+    hyper += log(c_term_intensity)
+    hyper += log(_factorial(c_term))
+    return hyper
