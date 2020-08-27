@@ -32,6 +32,10 @@ cdef class MassObject(object):
         return abs(self.mass - other.mass) >= 1e-3
 
 
+def identity(x):
+    return x
+
+
 cdef class NeutralMassDatabaseImpl(object):
     cdef:
         public list structures
@@ -155,6 +159,9 @@ cdef class NeutralMassDatabaseImpl(object):
         if isinstance(i, slice):
             return [mo.obj for mo in self.structures[i]]
         return self.get_item(i)
+
+    def __reduce__(self):
+        return self.__class__, ([], identity, False), self.__getstate__()
 
     @property
     def lowest_mass(self):
