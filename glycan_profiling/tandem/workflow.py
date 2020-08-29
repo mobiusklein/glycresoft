@@ -1,3 +1,5 @@
+# This file is a DRAFT of a generic implementation. IT SHOULD NOT BE USED AS A REFERENCE
+
 from multiprocessing import Manager as IPCManager
 
 from glycan_profiling.chromatogram_tree import Unmodified
@@ -6,13 +8,13 @@ from glycan_profiling.task import TaskBase
 
 from .temp_store import TempFileManager, SpectrumMatchStore
 
-from .spectrum_evaluation import TandemClusterEvaluatorBase, DEFAULT_BATCH_SIZE
+from .spectrum_evaluation import TandemClusterEvaluatorBase, DEFAULT_WORKLOAD_MAX
 
 
 class TandemDatabaseMatcherBase(TandemClusterEvaluatorBase):
     def __init__(self, tandem_cluster, scorer_type, structure_database, parser_type=None,
                  n_processes=5, ipc_manager=None, probing_range_for_missing_precursors=3,
-                 trust_precursor_fits=True, mass_shifts=None, batch_size=DEFAULT_BATCH_SIZE):
+                 trust_precursor_fits=True, mass_shifts=None, batch_size=DEFAULT_WORKLOAD_MAX):
         if parser_type is None:
             parser_type = self._default_parser_type()
         super(TandemDatabaseMatcherBase, self).__init__(

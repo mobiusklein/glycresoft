@@ -20,7 +20,7 @@ from glycan_profiling.structure import (
     DecoyFragmentCachingGlycopeptide)
 from glycan_profiling.structure.structure_loader import GlycanAwareGlycopeptideFragmentCachingContext
 
-from ..spectrum_evaluation import TandemClusterEvaluatorBase, DEFAULT_BATCH_SIZE
+from ..spectrum_evaluation import TandemClusterEvaluatorBase, DEFAULT_WORKLOAD_MAX
 from ..process_dispatcher import SpectrumIdentificationWorkerBase
 from ..oxonium_ions import gscore_scanner
 
@@ -128,7 +128,7 @@ class PeptideMassFilteringDatabaseSearchMixin(object):
 class GlycopeptideMatcher(GlycopeptideSpectrumGroupEvaluatorMixin, PeptideMassFilteringDatabaseSearchMixin, TandemClusterEvaluatorBase):
     def __init__(self, tandem_cluster, scorer_type, structure_database, parser_type=None,
                  n_processes=5, ipc_manager=None, probing_range_for_missing_precursors=3,
-                 mass_shifts=None, batch_size=DEFAULT_BATCH_SIZE, peptide_mass_filter=None,
+                 mass_shifts=None, batch_size=DEFAULT_WORKLOAD_MAX, peptide_mass_filter=None,
                  trust_precursor_fits=True, cache_seeds=None, sequence_type=None):
         if parser_type is None:
             parser_type = self._default_parser_type()
@@ -211,7 +211,7 @@ class TargetDecoyInterleavingGlycopeptideMatcher(GlycopeptideSpectrumGroupEvalua
     '''
     def __init__(self, tandem_cluster, scorer_type, structure_database, minimum_oxonium_ratio=0.05,
                  n_processes=5, ipc_manager=None, probing_range_for_missing_precursors=3,
-                 mass_shifts=None, batch_size=DEFAULT_BATCH_SIZE, peptide_mass_filter=None,
+                 mass_shifts=None, batch_size=DEFAULT_WORKLOAD_MAX, peptide_mass_filter=None,
                  trust_precursor_fits=True, cache_seeds=None, permute_decoy_glycans=False):
         super(TargetDecoyInterleavingGlycopeptideMatcher, self).__init__(
             tandem_cluster, scorer_type, structure_database, verbose=False,
@@ -385,7 +385,7 @@ class ComparisonGlycopeptideMatcher(TargetDecoyInterleavingGlycopeptideMatcher):
     def __init__(self, tandem_cluster, scorer_type, target_structure_database, decoy_structure_database,
                  minimum_oxonium_ratio=0.05, n_processes=5, ipc_manager=None,
                  probing_range_for_missing_precursors=3, mass_shifts=None,
-                 batch_size=DEFAULT_BATCH_SIZE, peptide_mass_filter=None,
+                 batch_size=DEFAULT_WORKLOAD_MAX, peptide_mass_filter=None,
                  trust_precursor_fits=True, cache_seeds=None, permute_decoy_glycans=False):
         super(ComparisonGlycopeptideMatcher, self).__init__(
             tandem_cluster, scorer_type, target_structure_database,
