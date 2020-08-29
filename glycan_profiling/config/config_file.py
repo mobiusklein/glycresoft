@@ -89,16 +89,19 @@ def recursive_merge(a, b):
 
 def get_configuration():
     global _CURRENT_CONFIG
-    _CURRENT_CONFIG = load_configuration_from_path(USER_CONFIG_PATH)
-    if os.path.exists(os.path.join(os.getcwd(), CONFIG_FILE_NAME)):
-        local_config = load_substituent_rule(os.path.join(os.getcwd(), CONFIG_FILE_NAME))
+    _CURRENT_CONFIG = load_configuration_from_path(USER_CONFIG_PATH, apply=False)
+    local_config_path = os.path.join(os.getcwd(), CONFIG_FILE_NAME)
+    if os.path.exists(local_config_path):
+        local_config = load_configuration_from_path(local_config_path, apply=False)
         recursive_merge(_CURRENT_CONFIG, local_config)
+    process(_CURRENT_CONFIG)
     return _CURRENT_CONFIG
 
 
-def load_configuration_from_path(path):
+def load_configuration_from_path(path, apply=True):
     cfg = hjson.load(open(path))
-    process(cfg)
+    if apply:
+        process(cfg)
     return cfg
 
 
