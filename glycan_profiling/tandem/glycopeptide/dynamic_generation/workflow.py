@@ -4,7 +4,12 @@ from multiprocessing.managers import SyncManager
 import threading
 import ctypes
 import datetime
+import zlib
 from collections import OrderedDict
+try:
+    import cPickle as pickle
+except ImportError:
+    import pickle
 try:
     from Queue import Queue
 except ImportError:
@@ -300,13 +305,7 @@ class MultipartGlycopeptideIdentifier(TaskBase):
         # approx_num_concurrent = max(int(self.n_processes / 6.0), 1)
         approx_num_concurrent = self.n_processes
         concurrent_branch_controller = multiprocessing.BoundedSemaphore(approx_num_concurrent)
-        if self.n_mapping_workers == 1:
-            n_workers_per_branch = self.n_processes
-        else:
-            n_workers_per_branch = self.n_processes / approx_num_concurrent
-        self.log("... Creating %d Branches With %d Workers Per Branch" %
-                 (self.n_mapping_workers * 2, n_workers_per_branch))
-        # for _i in range(self.n_mapping_workers * 2):
+        scorer_type_payload = zlib.compress(pickle.dumps(self.scorer_type, -1), 9)
         for i in range(self.n_processes):
             journal_path_for = self.file_manager.get('glycopeptide-match-journal-%d' % (i))
             self.log("... Branch %d Writing To %r" % (i, journal_path_for))
@@ -321,15 +320,14 @@ class MultipartGlycopeptideIdentifier(TaskBase):
                 concurrent_branch_controller,
                 done_event_for,
                 self.scan_loader, target_predictive_search, decoy_predictive_search,
-                # n_workers_per_branch,
                 1,
-                scorer_type=self.scorer_type,
+                scorer_type=scorer_type_payload,
                 evaluation_kwargs=self.evaluation_kwargs,
                 error_tolerance=self.product_error_tolerance,
                 cache_seeds=self.cache_seeds,
                 mass_shifts=self.mass_shifts)
             execution_branches.append(branch)
-
+        del scorer_type_payload
         pipeline = Pipeline([
             spectrum_batcher,
             mapping_batcher,
@@ -342,120 +340,6 @@ class MultipartGlycopeptideIdentifier(TaskBase):
         for branch in execution_branches:
             total += branch.results_processed.value
         return total
-
-    def run_identification_pipeline(self, scan_groups):
-        (target_predictive_search,
-         decoy_predictive_search) = self.build_predictive_searchers()
-
-        spectrum_batcher = SpectrumBatcher(
-            scan_groups,
-            Queue(10),
-            max_scans_per_workload=self.batch_size)
-
-
-        # common_queue = multiprocessing.Queue(5)
-        label_to_batch_queue = {
-            "target": multiprocessing.Queue(5),
-            "decoy": multiprocessing.Queue(5),
-        }
-
-        mapping_batcher = BatchMapper(
-            # map labels to be loaded in the mapper executor to avoid repeatedly
-            # serializing the databases.
-            [
-                ('target', 'target'),
-                ('decoy', 'decoy')
-            ],
-            spectrum_batcher.out_queue,
-            label_to_batch_queue,
-            spectrum_batcher.done_event,
-            precursor_error_tolerance=self.precursor_error_tolerance,
-            mass_shifts=self.mass_shifts)
-        mapping_batcher.done_event = multiprocessing.Event()
-
-        tracking_dir = None
-        if debug_mode:
-            tracking_dir = self.file_manager.get("mapping-log")
-
-        mapping_executor_out_queue = multiprocessing.Queue(5)
-
-        mapping_executors = []
-        for _i in range(self.n_mapping_workers):
-            target_mapping_executor = SerializingMapperExecutor(
-                OrderedDict([
-                    ('target', target_predictive_search),
-                ]),
-                self.scan_loader,
-                label_to_batch_queue['target'],
-                mapping_executor_out_queue,
-                mapping_batcher.done_event,
-                tracking_directory=tracking_dir,
-            )
-            target_mapping_executor.done_event = multiprocessing.Event()
-
-            decoy_mapping_executor = SerializingMapperExecutor(
-                OrderedDict([
-                    ('decoy', decoy_predictive_search),
-                ]),
-                self.scan_loader,
-                label_to_batch_queue['decoy'],
-                mapping_executor_out_queue,
-                mapping_batcher.done_event,
-                tracking_directory=tracking_dir,
-            )
-            decoy_mapping_executor.done_event = multiprocessing.Event()
-            mapping_executors.append(target_mapping_executor)
-            mapping_executors.append(decoy_mapping_executor)
-
-        mapping_executor_done_event = MultiEvent([
-            mapping_executor.done_event for mapping_executor in mapping_executors
-        ])
-
-        # If we wished to, we could run multiple MatcherExecutors in
-        # separate processes, and have them feed their results to the
-        # final consumer via IPC queue, but that requires that the
-        # matching process is bottlenecked by IdentificationProcessDispatcher's
-        # consumer (currently running in the main thread) but this will
-        # require finding a more efficient serialization method to then
-        # pass even more traffic to the JournalingConsumer, or give each
-        # MatcherExecutor its own journal.
-        matching_executor = WorkloadUnpackingMatcherExecutor(
-            self.scan_loader,
-            mapping_executor_out_queue,
-            Queue(5),
-            mapping_executor_done_event,
-            scorer_type=self.scorer_type,
-            ipc_manager=self.ipc_manager,
-            n_processes=self.n_processes,
-            mass_shifts=self.mass_shifts,
-            evaluation_kwargs=self.evaluation_kwargs,
-            error_tolerance=self.product_error_tolerance,
-            cache_seeds=self.cache_seeds
-        )
-
-        journal_writer = JournalFileWriter(self.journal_path)
-        journal_consumer = JournalingConsumer(
-            journal_writer,
-            matching_executor.out_queue,
-            matching_executor.done_event)
-
-        # Launch the sequences that execute in separate processes
-        # before launching the thread chain.
-        for mapping_executor in mapping_executors:
-            mapping_executor.start(process=True, daemon=True)
-
-        pipeline = Pipeline([
-            spectrum_batcher,
-            mapping_batcher,
-        ] + mapping_executors + [
-            matching_executor,
-            journal_consumer,
-        ])
-        self.journal_path_collection.append(self.journal_path)
-        pipeline.start(daemon=True)
-        pipeline.join()
-        journal_writer.close()
-        return journal_writer.solution_counter
 
     def _load_identifications_from_journal(self, journal_path, total_solutions_count, accumulator=None):
         if accumulator is None:
@@ -491,7 +375,6 @@ class MultipartGlycopeptideIdentifier(TaskBase):
             len(self.tandem_scans), len(scan_groups)))
         self.log("Running Identification Pipeline...")
         start_time = datetime.datetime.now()
-        # total_solutions_count = self.run_identification_pipeline(scan_groups)
         total_solutions_count = self.run_branching_identification_pipeline(scan_groups)
         end_time = datetime.datetime.now()
         self.log("Database Search Complete, %s Elapsed" % (end_time - start_time))
@@ -560,7 +443,7 @@ class SectionAnnouncer(LoggingMixin):
         return self.acquire()
 
     def __exit__(self, *args):
-        pass
+        self.release()
 
 
 class IdentificationWorker(TaskExecutionSequence):
@@ -604,8 +487,12 @@ class IdentificationWorker(TaskExecutionSequence):
         ipc_manager = SyncManager(self.ipc_manager_address)
         ipc_manager.connect()
         lock = threading.RLock()
+        # Late loading of the compressed serialized scorer type to avoid balooning
+        # the parent process
+        if isinstance(self.scorer_type, (str, bytes)):
+            self.scorer_type = pickle.loads(zlib.decompress(self.scorer_type))
         mapping_executor = SemaphoreBoundMapperExecutor(
-            lock,
+            MultiLock([lock, SectionAnnouncer("%r Matching Precursors" % (self, ))]),
             OrderedDict([
                 ('target', self.target_predictive_search),
                 ('decoy', self.decoy_predictive_search)
@@ -615,9 +502,8 @@ class IdentificationWorker(TaskExecutionSequence):
             Queue(5),
             self.input_done_event,
         )
-
         matching_executor = SemaphoreBoundMatcherExecutor(
-            MultiLock([lock, self.branch_semaphore, SectionAnnouncer("%r Entering Execution Branch" % (self, ))]),
+            MultiLock([lock, self.branch_semaphore, SectionAnnouncer("%r Matching Spectra" % (self, ))]),
             mapping_executor.out_queue,
             Queue(5),
             mapping_executor.done_event,
