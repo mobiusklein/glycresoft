@@ -1,5 +1,6 @@
 cimport cython
-from libc.stdint cimport uint32_t, uint64_t
+
+from numpy cimport npy_uint32 as uint32_t, npy_uint64 as uint64_t
 
 
 @cython.freelist(1000000)
@@ -61,3 +62,9 @@ cdef class glycopeptide_key(object):
             self.start_position, self.end_position, self.peptide_id, self.protein_id,
             self.hypothesis_id, self.glycan_combination_id, self.structure_type,
             self.site_combination_index)
+
+
+@cython.binding(True)
+cpdef tuple peptide_backbone_fragment_key(self, target, args, dict kwargs):
+    key = ("get_fragments", args, frozenset(kwargs.items()))
+    return key

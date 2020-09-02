@@ -625,10 +625,6 @@ cpdef _match_precursor(self, double error_tolerance=2e-5, set masked_peaks=None,
                 solution_map.add(peak, shifted_frag)
 
 
-@cython.binding(True)
-cpdef tuple peptide_backbone_fragment_key(self, target, args, dict kwargs):
-    key = ("get_fragments", args, frozenset(kwargs.items()))
-    return key
 
 
 cdef long _factorial(long x):
@@ -679,3 +675,50 @@ def _calculate_hyperscore(self, *args, **kwargs):
     hyper += log(c_term_intensity)
     hyper += log(_factorial(c_term))
     return hyper
+
+
+cpdef double fast_coarse_score(DeconvolutedPeakSet peak_set, _PeptideSequenceCore target, double error_tolerance=2e-5):
+    cdef:
+        size_t i, n, j, m, k, l
+        list fragments, frags
+        double acc
+        object fragout
+        PeptideFragment frag
+        tuple peaks
+        DeconvolutedPeak peak
+
+    acc = 0.0
+    fragout = target.get_fragments("b")
+    if isinstance(fragout, list):
+        fragments = <list>fragout
+    else:
+        fragments = list(fragout)
+    n = PyList_GET_SIZE(fragments)
+    for i in range(n):
+        frags = <list>PyList_GET_ITEM(fragments, i)
+        m = PyList_GET_SIZE(frags)
+        for j in range(m):
+            frag = <PeptideFragment>PyList_GET_ITEM(frags, j)
+            peaks = peak_set.all_peaks_for(frag.mass, error_tolerance)
+            l = PyTuple_GET_SIZE(peaks)
+            for k in range(l):
+                peak = <DeconvolutedPeak>PyTuple_GET_ITEM(peaks, k)
+                acc += log10(peak.intensity)
+
+    fragout = target.get_fragments("y")
+    if isinstance(fragout, list):
+        fragments = <list>fragout
+    else:
+        fragments = list(fragout)
+    n = PyList_GET_SIZE(fragments)
+    for i in range(n):
+        frags = <list>PyList_GET_ITEM(fragments, i)
+        m = PyList_GET_SIZE(frags)
+        for j in range(m):
+            frag = <PeptideFragment>PyList_GET_ITEM(frags, j)
+            peaks = peak_set.all_peaks_for(frag.mass, error_tolerance)
+            l = PyTuple_GET_SIZE(peaks)
+            for k in range(l):
+                peak = <DeconvolutedPeak>PyTuple_GET_ITEM(peaks, k)
+                acc += log10(peak.intensity)
+    return acc

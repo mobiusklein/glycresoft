@@ -7,6 +7,17 @@ from .base import (
     HCDFragmentationStrategy, IonSeries)
 
 
+class SimpleCountScorer(PeptideSpectrumMatcherBase):
+    def __init__(self, scan, sequence, mass_shift=None):
+        super(SimpleCountScorer, self).__init__(scan, sequence, mass_shift)
+        self._score = None
+        self.solution_map = FragmentMatchMap()
+
+    def calculate_score(self, **kwargs):
+        self._score = len(self.solution_map)
+        return self._score
+
+
 class SimpleCoverageScorer(PeptideSpectrumMatcherBase):
     def __init__(self, scan, sequence, mass_shift=None):
         super(SimpleCoverageScorer, self).__init__(scan, sequence, mass_shift)
