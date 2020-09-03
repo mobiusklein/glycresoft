@@ -16,6 +16,7 @@ from .glycoprotein_model import GlycoproteinSiteSpecificGlycomeModel, ReversedPr
 
 
 class GlycoproteomeModelBase(object):
+    __slots__ = ()
     def score(self, glycopeptide, glycan_composition=None):
         raise NotImplementedError()
 
