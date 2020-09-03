@@ -1,4 +1,5 @@
-from libc.stdint cimport uint32_t, uint64_t
+from numpy cimport npy_uint32 as uint32_t, npy_uint64 as uint64_t
+
 
 cdef class GlycopeptideDatabaseRecord(object):
     cdef:
@@ -10,6 +11,7 @@ cdef class GlycopeptideDatabaseRecord(object):
         public int end_position
         public double peptide_mass
         public int hypothesis_id
+
 
 cdef class glycopeptide_key(object):
     cdef:

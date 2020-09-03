@@ -274,6 +274,13 @@ class GlycopeptideFragmentCachingContext(object):
         return None
 
 
+try:
+    from glycan_profiling._c.structure.structure_loader import peptide_backbone_fragment_key
+    GlycopeptideFragmentCachingContext.peptide_backbone_fragment_key = peptide_backbone_fragment_key
+except ImportError:
+    pass
+
+
 class GlycanAwareGlycopeptideFragmentCachingContext(GlycopeptideFragmentCachingContext):
     def stub_fragment_key(self, target, args, kwargs):
         tid = target.id
