@@ -49,6 +49,10 @@ class GlycoproteomeModel(GlycoproteomeModelBase):
                     "No mapping for %r, it will be omitted" % (ggm.name, ))
         self.glycoprotein_models = remapped
 
+    def stub_proteins(self):
+        for model in self.glycoprotein_models.values():
+            model.stub_protein()
+
     def find_model(self, glycopeptide):
         if glycopeptide.protein_relation is None:
             return None
@@ -131,6 +135,8 @@ class GlycoproteomePriorAnnotator(object):
         decoy_model = GlycoproteomeModel.bind_to_hypothesis(
             decoy_session, site_models,
             site_model_cls=ReversedProteinSiteReflectionGlycoproteinSiteSpecificGlycomeModel)
+        target_model.stub_proteins()
+        decoy_model.stub_proteins()
         return cls(target_model, decoy_model)
 
     def __init__(self, target_model, decoy_model):

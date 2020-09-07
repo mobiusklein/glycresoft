@@ -306,6 +306,9 @@ class MultipartGlycopeptideIdentifier(TaskBase):
         approx_num_concurrent = self.n_processes
         concurrent_branch_controller = multiprocessing.BoundedSemaphore(approx_num_concurrent)
         scorer_type_payload = zlib.compress(pickle.dumps(self.scorer_type, -1), 9)
+        predictive_search_payload = zlib.compress(
+            pickle.dumps(
+                (target_predictive_search, decoy_predictive_search), -1), 9)
         for i in range(self.n_processes):
             journal_path_for = self.file_manager.get('glycopeptide-match-journal-%d' % (i))
             self.log("... Branch %d Writing To %r" % (i, journal_path_for))
@@ -319,7 +322,9 @@ class MultipartGlycopeptideIdentifier(TaskBase):
                 journal_path_for,
                 concurrent_branch_controller,
                 done_event_for,
-                self.scan_loader, target_predictive_search, decoy_predictive_search,
+                self.scan_loader,
+                predictive_search_payload,
+                None,
                 1,
                 scorer_type=scorer_type_payload,
                 evaluation_kwargs=self.evaluation_kwargs,
@@ -328,6 +333,7 @@ class MultipartGlycopeptideIdentifier(TaskBase):
                 mass_shifts=self.mass_shifts)
             execution_branches.append(branch)
         del scorer_type_payload
+        del predictive_search_payload
         pipeline = Pipeline([
             spectrum_batcher,
             mapping_batcher,
@@ -491,6 +497,8 @@ class IdentificationWorker(TaskExecutionSequence):
         # the parent process
         if isinstance(self.scorer_type, (str, bytes)):
             self.scorer_type = pickle.loads(zlib.decompress(self.scorer_type))
+        if isinstance(self.target_predictive_search, (str, bytes)):
+            self.target_predictive_search, self.decoy_predictive_search = pickle.loads(zlib.decompress(self.target_predictive_search))
         mapping_executor = SemaphoreBoundMapperExecutor(
             MultiLock([lock, SectionAnnouncer("%r Matching Precursors" % (self, ))]),
             OrderedDict([

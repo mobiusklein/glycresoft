@@ -30,3 +30,19 @@ cdef class glycopeptide_key(object):
                                   object structure_type, uint64_t site_combination_index)
 
     cpdef glycopeptide_key copy(self)
+
+
+cdef class PeptideDatabaseRecordBase(object):
+    cdef:
+        public size_t id
+        public double calculated_mass
+        public basestring modified_peptide_sequence
+        public uint32_t protein_id
+        public int start_position
+        public int end_position
+        public uint32_t hypothesis_id
+        public tuple n_glycosylation_sites
+        public tuple o_glycosylation_sites
+        public tuple gagylation_sites
+
+    cpdef bint has_glycosylation_sites(self)

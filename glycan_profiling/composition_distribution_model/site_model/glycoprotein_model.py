@@ -14,7 +14,33 @@ from glycan_profiling.database.builder.glycopeptide.proteomics.sequence_tree imp
 from .glycosite_model import MINIMUM, GlycosylationSiteModel
 
 
-ProteinStub = namedtuple("ProteinStub", ("name", ))
+class ProteinStub(object):
+    __slots__ = ('name', 'id', 'glycosylation_sites')
+
+    def __init__(self, name, id=None, glycosylation_sites=None):
+        self.name = name
+        self.id = id
+        self.glycosylation_sites = glycosylation_sites
+
+    def __getstate__(self):
+        out = {
+            'name': self.name,
+            'id': self.id,
+            'glycosylation_sites': self.glycosylation_sites
+        }
+        return out
+
+    def __setstate__(self, state):
+        self.name = state['name']
+        self.id = state['id']
+        self.glycosylation_sites = state['glycosylation_sites']
+
+    def __repr__(self):
+        return "{self.__class__.__name__}({self.name!r}, {self.id!r}, {self.glycosylation_sites!r})".format(self=self)
+
+    @classmethod
+    def from_protein(cls, protein):
+        return cls(protein.name, protein.id)
 
 
 def _make_name_suffix_lookup(proteins):
@@ -26,10 +52,22 @@ def _make_name_suffix_lookup(proteins):
 
 
 class GlycoproteinSiteSpecificGlycomeModel(object):
+    __slots__ = ('protein', '_glycosylation_sites')
+
     def __init__(self, protein, glycosylation_sites=None):
         self.protein = protein
         self._glycosylation_sites = []
         self.glycosylation_sites = glycosylation_sites
+
+    def __getstate__(self):
+        return {
+            "protein": self.protein,
+            "_glycosylation_sites": self._glycosylation_sites
+        }
+
+    def __setstate__(self, state):
+        self.protein = state['protein']
+        self._glycosylation_sites = state['_glycosylation_sites']
 
     def __eq__(self, other):
         if other is None:
@@ -89,7 +127,7 @@ class GlycoproteinSiteSpecificGlycomeModel(object):
         if len(sites) > 1:
             score_acc = 0.0
             warnings.warn(
-                "Multiple glycosylation sites are not (yet) supported")
+                "Multiple glycosylation sites are not (yet) supported. Using average instead")
             for site in sites:
                 try:
                     rec = site.glycan_map[glycan_composition]
@@ -153,9 +191,14 @@ class GlycoproteinSiteSpecificGlycomeModel(object):
             result.append(cls(ProteinStub(name), models))
         return result
 
+    def stub_protein(self):
+        self.protein = ProteinStub.from_protein(self.protein)
+
 
 
 class ReversedProteinSiteReflectionGlycoproteinSiteSpecificGlycomeModel(GlycoproteinSiteSpecificGlycomeModel):
+    __slots__ = ()
+
     @property
     def glycosylation_sites(self):
         return self._glycosylation_sites

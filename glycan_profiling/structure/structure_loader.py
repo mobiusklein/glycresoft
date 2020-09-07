@@ -603,29 +603,9 @@ class GlycopeptideDatabaseRecord(object):
         return template.format(self=self)
 
 
-class PeptideDatabaseRecord(object):
+class PeptideDatabaseRecordBase(object):
     __slots__ = ['id', "calculated_mass", "modified_peptide_sequence", "protein_id", "start_position", "end_position",
                  "hypothesis_id", "n_glycosylation_sites", "o_glycosylation_sites", "gagylation_sites"]
-
-    def __init__(self, id, calculated_mass, modified_peptide_sequence, protein_id, start_position, end_position,
-                 hypothesis_id, n_glycosylation_sites, o_glycosylation_sites, gagylation_sites):
-        self.id = id
-        self.calculated_mass = calculated_mass
-        self.modified_peptide_sequence = modified_peptide_sequence
-        self.protein_id = protein_id
-        self.start_position = start_position
-        self.end_position = end_position
-        self.hypothesis_id = hypothesis_id
-        self.n_glycosylation_sites = list(n_glycosylation_sites)
-        self.o_glycosylation_sites = list(o_glycosylation_sites)
-        self.gagylation_sites = list(gagylation_sites)
-
-    def convert(self):
-        peptide = FragmentCachingGlycopeptide(self.modified_peptide_sequence)
-        peptide.id = self.id
-        rel = PeptideProteinRelation(self.start_position, self.end_position, self.protein_id, self.hypothesis_id)
-        peptide.protein_relation = rel
-        return peptide
 
     def __hash__(self):
         return hash(self.modified_peptide_sequence)
@@ -659,13 +639,45 @@ class PeptideDatabaseRecord(object):
     def has_glycosylation_sites(self):
         return (len(self.n_glycosylation_sites) + len(self.o_glycosylation_sites) + len(self.gagylation_sites)) > 0
 
-    def __repr__(self):
-        fields = ', '.join(["%s=%r" % (n, getattr(self, n)) for n in self.__slots__])
-        return "{self.__class__.__name__}({fields})".format(self=self, fields=fields)
-
     @classmethod
     def from_record(cls, record):
         return cls(**record)
+
+
+try:
+    from glycan_profiling._c.structure.structure_loader import PeptideDatabaseRecordBase
+except ImportError:
+    pass
+
+class PeptideDatabaseRecord(PeptideDatabaseRecordBase):
+    __slots__ = ()
+
+    def __init__(self, id, calculated_mass, modified_peptide_sequence, protein_id, start_position, end_position,
+                 hypothesis_id, n_glycosylation_sites, o_glycosylation_sites, gagylation_sites):
+        self.id = id
+        self.calculated_mass = calculated_mass
+        self.modified_peptide_sequence = modified_peptide_sequence
+        self.protein_id = protein_id
+        self.start_position = start_position
+        self.end_position = end_position
+        self.hypothesis_id = hypothesis_id
+        self.n_glycosylation_sites = tuple(n_glycosylation_sites)
+        self.o_glycosylation_sites = tuple(o_glycosylation_sites)
+        self.gagylation_sites = tuple(gagylation_sites)
+
+    def convert(self):
+        peptide = FragmentCachingGlycopeptide(self.modified_peptide_sequence)
+        peptide.id = self.id
+        rel = PeptideProteinRelation(
+            self.start_position, self.end_position, self.protein_id, self.hypothesis_id)
+        peptide.protein_relation = rel
+        return peptide
+
+    def __repr__(self):
+        fields = ', '.join(["%s=%r" % (n, getattr(self, n)) for n in [
+            'id', "calculated_mass", "modified_peptide_sequence", "protein_id", "start_position", "end_position",
+            "hypothesis_id", "n_glycosylation_sites", "o_glycosylation_sites", "gagylation_sites"]])
+        return "{self.__class__.__name__}({fields})".format(self=self, fields=fields)
 
 
 class LazyGlycopeptide(object):

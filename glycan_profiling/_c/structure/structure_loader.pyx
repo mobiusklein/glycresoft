@@ -68,3 +68,48 @@ cdef class glycopeptide_key(object):
 cpdef tuple peptide_backbone_fragment_key(self, target, args, dict kwargs):
     key = ("get_fragments", args, frozenset(kwargs.items()))
     return key
+
+
+cdef class PeptideDatabaseRecordBase(object):
+
+    def __hash__(self):
+        return hash(self.modified_peptide_sequence)
+
+    def __eq__(self, PeptideDatabaseRecordBase other):
+        if other is None:
+            return False
+        if self.id != other.id:
+            return False
+        if self.protein_id != other.protein_id:
+            return False
+        if abs(self.calculated_mass - other.calculated_mass) > 1e-3:
+            return False
+        if self.start_position != other.start_position:
+            return False
+        if self.end_position != other.end_position:
+            return False
+        if self.hypothesis_id != other.hypothesis_id:
+            return False
+        if self.n_glycosylation_sites != other.n_glycosylation_sites:
+            return False
+        if self.o_glycosylation_sites != other.o_glycosylation_sites:
+            return False
+        if self.gagylation_sites != other.gagylation_sites:
+            return False
+        return True
+
+    def __ne__(self, other):
+        return not (self == other)
+
+    cpdef bint has_glycosylation_sites(self):
+        if len(self.n_glycosylation_sites) > 0:
+            return True
+        elif len(self.o_glycosylation_sites) > 0:
+            return True
+        elif len(self.gagylation_sites) > 0:
+            return True
+        return False
+
+    @classmethod
+    def from_record(cls, record):
+        return cls(**record)

@@ -13,6 +13,7 @@ from libc cimport math
 
 import numpy as np
 cimport numpy as np
+from numpy cimport npy_uint16 as uint16_t
 
 from ms_deisotope._c.peak_set cimport DeconvolutedPeak, DeconvolutedPeakSet
 from glycan_profiling._c.chromatogram_tree.mass_shift cimport MassShiftBase
@@ -40,9 +41,10 @@ cdef class GlycanCombinationRecordBase(object):
         public size_t id
         public double dehydrated_mass
         public object composition
-        public size_t size
-        public size_t internal_size_approximation
-        public size_t count
+        public uint16_t size
+        public uint16_t internal_size_approximation
+        public uint16_t side_group_count
+        public uint16_t count
         public list glycan_types
         public dict _fragment_cache
         public Py_hash_t _hash
@@ -55,6 +57,22 @@ cdef class GlycanCombinationRecordBase(object):
 
     cpdef bint is_gag_linker(self):
         return GlycanTypes_gag_linker in self.glycan_types
+
+    @cython.cdivision(True)
+    cpdef double normalized_size(self):
+        cdef:
+            double k
+            double d
+            uint16_t n
+        n = self.internal_size_approximation
+        if n == 0:
+            return 0.0
+        if self.side_group_count > 0:
+            k = 1.0
+        else:
+            k = 2.0
+        d = max(n * math.log(n) / k, n)
+        return d
 
     cpdef list get_n_glycan_fragments(self):
         cdef:
@@ -277,7 +295,7 @@ cdef class GlycanCoarseScorerBase(object):
         cdef:
             list fragment_matches
             double core_matched, core_theoretical, product_error_tolerance
-            double n_frags_matched
+            double n_frags_matched, approximate_size_normalizer
             DeconvolutedPeakSet peak_set
             size_t i, n
             bint has_tandem_shift
@@ -345,7 +363,8 @@ cdef class GlycanCoarseScorerBase(object):
             for j in range(m):
                 peak = <DeconvolutedPeak>PyTuple_GET_ITEM(matched_fragment.peaks_matched, j)
                 score += math.log(peak.intensity) * (1 - (
-                    math.fabs(peak.neutral_mass - matched_fragment.mass) / matched_fragment.mass) ** 4) * coverage
+                    math.fabs(peak.neutral_mass - matched_fragment.mass) / matched_fragment.mass) ** 4)
+        score *= coverage
         return score
 
     cpdef CoarseGlycanMatch _n_glycan_match_stubs(self, scan, double peptide_mass,
