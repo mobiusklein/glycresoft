@@ -761,7 +761,7 @@ class MultiprocessingGlycoproteinSiteModelBuildingWorkflow(GlycoproteinSiteModel
                             input_queue_size = self.input_queue.qsize()
                         except Exception:
                             input_queue_size = -1
-                        is_feeder_done = self.producer_thread_done_event.is_set()
+                        is_feeder_done = self.input_done_event.is_set()
                         self.log("...... Input Queue Status: %r. Is Feeder Done? %r" % (
                             input_queue_size, is_feeder_done))
                     if strikes > 1000:
