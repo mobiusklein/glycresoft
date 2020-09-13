@@ -540,3 +540,5 @@ class IdentificationWorker(TaskExecutionSequence):
         pipeline.join()
         journal_writer.close()
         self.results_processed.value = journal_writer.solution_counter
+        self.log("%s has finished. %d solutions calculated." %
+                 (self, journal_writer.solution_counter, ))

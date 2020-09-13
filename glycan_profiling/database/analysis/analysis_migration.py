@@ -433,11 +433,11 @@ class GlycopeptideMSMSAnalysisSerializer(AnalysisMigrationBase):
 
         for i, gc in enumerate(glycan_compositions):
             if i % 1000 == 0 and i:
-                self.log("...... Migrating Glycan %d %s" % (i, gc))
+                self.log("...... Migrating Glycan %d" % (i, ))
             self._glycopeptide_hypothesis_migrator.migrate_glycan_composition(gc)
         for i, gc in enumerate(glycan_combinations):
             if i % 1000 == 0 and i:
-                self.log("...... Migrating Glycan Combination %d %s" % (i, gc))
+                self.log("...... Migrating Glycan Combination %d" % (i, ))
             self._glycopeptide_hypothesis_migrator.migrate_glycan_combination(gc)
 
         self.log("... Loading Proteins and Peptides from Glycopeptides")
