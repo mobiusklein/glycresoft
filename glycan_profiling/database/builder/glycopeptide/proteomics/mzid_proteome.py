@@ -373,8 +373,10 @@ class MzIdentMLPeptide(object):
                     else:
                         try:
                             _name = mod["name"]
+                            _name = str(_name)
                             accession = getattr(_name, "accession", None)
                             if accession is not None:
+                                accession = str(accession)
                                 try:
                                     modification = Modification(accession)
                                 except ModificationNameResolutionError:
@@ -782,7 +784,7 @@ class MzIdentMLProteomeExtraction(TaskBase):
                 except KeyError:
                     name = mod['unknown modification']
                     try:
-                        Modification(name)
+                        Modification(str(name))
                     except ModificationNameResolutionError:
                         self.modification_translation_table[name] = modification.AnonymousModificationRule(
                             str(name), mod['massDelta'])

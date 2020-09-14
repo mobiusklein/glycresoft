@@ -273,11 +273,7 @@ class TaskBase(LoggingMixin):
             name = getattr(self, 'process_name', None)
         if name is None:
             return
-        try:
-            import setproctitle
-            setproctitle.setproctitle(name)
-        except (ImportError, AttributeError):
-            pass
+        _name_process(name)
 
     def _begin(self, verbose=True, *args, **kwargs):
         self.on_begin()
@@ -511,3 +507,33 @@ def _name_process(name):
         setproctitle.setproctitle(name)
     except (ImportError, AttributeError):
         pass
+
+
+def elapsed(seconds):
+    '''Convert a second count into a human readable duration
+
+    Parameters
+    ----------
+    seconds : :class:`int`
+        The number of seconds elapsed
+
+    Returns
+    -------
+    :class:`str` :
+        A formatted, comma separated list of units of duration in days, hours, minutes, and seconds
+    '''
+    periods = [
+        ('day', 60 * 60 * 24),
+        ('hour', 60 * 60),
+        ('minute', 60),
+        ('second', 1)
+    ]
+
+    tokens = []
+    for period_name, period_seconds in periods:
+        if seconds > period_seconds:
+            period_value, seconds = divmod(seconds, period_seconds)
+            has_s = 's' if period_value > 1 else ''
+            tokens.append("%s %s%s" % (period_value, period_name, has_s))
+
+    return ", ".join(tokens)
