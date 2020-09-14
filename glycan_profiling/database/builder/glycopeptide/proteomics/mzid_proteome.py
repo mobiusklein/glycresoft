@@ -367,14 +367,14 @@ class MzIdentMLPeptide(object):
                             if _name in self.modification_translation_table:
                                 modification = self.modification_translation_table[_name]()
                             else:
-                                modification = Modification(_name)
+                                modification = Modification(str(_name))
                         except ModificationNameResolutionError:
                             raise KeyError("Cannot find key in %r" % (mod,))
                     else:
                         try:
                             _name = mod["name"]
-                            _name = str(_name)
                             accession = getattr(_name, "accession", None)
+                            _name = str(_name)
                             if accession is not None:
                                 accession = str(accession)
                                 try:
