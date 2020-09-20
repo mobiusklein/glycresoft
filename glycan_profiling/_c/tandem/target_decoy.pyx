@@ -37,6 +37,14 @@ cdef class ScoreCell(object):
 
 
 cdef class NearestValueLookUp(object):
+    '''A mapping-like object which simplifies
+    finding the value of a pair whose key is nearest
+    to a given query.
+
+    .. note::
+        Queries exceeding the maximum key will return
+        the maximum key's value.
+    '''
     cdef:
         public list items
 
@@ -60,6 +68,16 @@ cdef class NearestValueLookUp(object):
         return {
             "items": self.items
         }
+
+    cpdef max_key(self):
+        cdef:
+            Py_ssize_t n
+            ScoreCell cell
+        n = len(self.items)
+        if n == 0:
+            return 0
+        cell = <ScoreCell>PyList_GetItem(self.items, n - 1)
+        return cell.score
 
     cpdef Py_ssize_t _find_closest_item(self, double value):
         cdef:

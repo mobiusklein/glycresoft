@@ -795,7 +795,7 @@ class GlycopeptideLCMSMSAnalyzer(TaskBase):
         return assigned_spectra
 
     def estimate_fdr(self, searcher, target_decoy_set):
-        return searcher.estimate_fdr(*target_decoy_set)
+        return searcher.estimate_fdr(*target_decoy_set, decoy_pseudocount=0.0)
 
     def map_chromatograms(self, searcher, extractor, target_hits):
         """Map identified spectrum matches onto extracted chromatogram groups, selecting the

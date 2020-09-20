@@ -18,10 +18,24 @@ ScoreCell = namedtuple('ScoreCell', ['score', 'value'])
 
 
 class NearestValueLookUp(object):
+    '''A mapping-like object which simplifies
+    finding the value of a pair whose key is nearest
+    to a given query.
+
+    .. note::
+        Queries exceeding the maximum key will return
+        the maximum key's value.
+    '''
     def __init__(self, items):
         if isinstance(items, dict):
             items = items.items()
         self.items = sorted([ScoreCell(*x) for x in items if not np.isnan(x[0])], key=lambda x: x[0])
+
+    def max_key(self):
+        try:
+            return self.items[-1][0]
+        except IndexError:
+            return 0
 
     def _find_closest_item(self, value, key_index=0):
         array = self.items
@@ -293,9 +307,12 @@ class TargetDecoyAnalyzer(object):
         A weight (less than 1.0) to put on target matches to make them weaker
         than decoys in situations where there is little data.
     decoy_correction : Number
-        A quantity to use to correct for correcting for decoys, and if non-zero,
+        A quantity to use to correct for decoys, and if non-zero,
         will indicate that the negative binomial correction for decoys should be
         used.
+    decoy_pseudocount : Number
+        The value to report when querying the decoy count for a score exceeding
+        the maximum score of a decoy match. This is distinct from `decoy_correction`
     decoy_count : int
         The total number of decoys
     decoys : list
@@ -315,7 +332,7 @@ class TargetDecoyAnalyzer(object):
     """
 
     def __init__(self, target_series, decoy_series, with_pit=False, decoy_correction=0, database_ratio=1.0,
-                 target_weight=1.0):
+                 target_weight=1.0, decoy_pseudocount=1.0):
         self.targets = target_series
         self.decoys = decoy_series
         self.target_count = len(target_series)
@@ -324,6 +341,7 @@ class TargetDecoyAnalyzer(object):
         self.target_weight = target_weight
         self.with_pit = with_pit
         self.decoy_correction = decoy_correction
+        self.decoy_pseudocount = decoy_pseudocount
 
         self._calculate_thresholds()
         self._q_value_map = self.calculate_q_values()
@@ -350,6 +368,8 @@ class TargetDecoyAnalyzer(object):
 
     def n_decoys_above_threshold(self, threshold):
         try:
+            if threshold > self.n_decoys_at.max_key():
+                return self.decoy_pseudocount + self.decoy_correction
             return self.n_decoys_at[threshold] + self.decoy_correction
         except IndexError:
             if len(self.n_decoys_at) == 0:
@@ -525,7 +545,7 @@ class TargetDecoyAnalyzer(object):
 
 class GroupwiseTargetDecoyAnalyzer(object):
     def __init__(self, target_series, decoy_series, with_pit=False, grouping_functions=None, decoy_correction=0,
-                 database_ratio=1.0, target_weight=1.0):
+                 database_ratio=1.0, target_weight=1.0, decoy_pseudocount=1.0):
         if grouping_functions is None:
             grouping_functions = [lambda x: True]
         self.targets = target_series
@@ -534,6 +554,7 @@ class GroupwiseTargetDecoyAnalyzer(object):
         self.grouping_functions = []
         self.groups = []
         self.group_fits = []
+        self.decoy_pseudocount = decoy_pseudocount
         self.decoy_correction = decoy_correction
         self.database_ratio = database_ratio
         self.target_weight = target_weight
@@ -562,7 +583,8 @@ class GroupwiseTargetDecoyAnalyzer(object):
                 *group, with_pit=self.with_pit,
                 decoy_correction=self.decoy_correction,
                 database_ratio=self.database_ratio,
-                target_weight=self.target_weight)
+                target_weight=self.target_weight,
+                decoy_pseudocount=self.decoy_pseudocount)
             self.group_fits.append(fit)
 
     def add_group(self, fn):
