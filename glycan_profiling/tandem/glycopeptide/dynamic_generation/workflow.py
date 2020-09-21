@@ -342,6 +342,11 @@ class MultipartGlycopeptideIdentifier(TaskBase):
             branch.start(process=True, daemon=False)
         pipeline.start(daemon=True)
         pipeline.join()
+        had_error = pipeline.error_occurred()
+        if had_error:
+            message = "%d unrecoverable error%s occured during search!" % (
+                had_error, 's' if had_error > 1 else '')
+            raise Exception(message)
         total = 0
         for branch in execution_branches:
             total += branch.results_processed.value
@@ -538,6 +543,9 @@ class IdentificationWorker(TaskExecutionSequence):
         ])
         pipeline.start(daemon=True)
         pipeline.join()
+        if pipeline.error_occurred():
+            self.log("An error occurred while executing %s" % (self, ))
+            self.set_error_occurred()
         journal_writer.close()
         self.results_processed.value = journal_writer.solution_counter
         self.log("%s has finished. %d solutions calculated." %

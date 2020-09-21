@@ -135,7 +135,7 @@ class JournalingConsumer(TaskExecutionSequence):
 
     def run(self):
         has_work = True
-        while has_work:
+        while has_work and not self.error_occurred():
             try:
                 solutions = self.in_queue.get(True, 5)
                 self.journal_file.writeall(solutions)

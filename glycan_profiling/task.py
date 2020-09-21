@@ -360,6 +360,12 @@ class MultiEvent(object):
                 return result
         return True
 
+    def wait(self, *args, **kwargs):
+        result = True
+        for event in self.events:
+            result &= event.wait(*args, **kwargs)
+        return result
+
     def clear(self):
         for event in self.events:
             event.clear()
@@ -394,11 +400,17 @@ class TaskExecutionSequence(TaskBase):
                 self.log("%s running on PID %r" % (self, multiprocessing.current_process().pid))
             result = self.run()
             self.debug("%r Done" % self)
-            return result
         except Exception as err:
             self.error("An error occurred while executing %s" %
                        self, exception=err)
-            return None
+            result = None
+            self.set_error_occurred()
+            try:
+                self.done_event.set()
+            except AttributeError:
+                pass
+        finally:
+            return result
 
     def run(self):
         raise NotImplementedError()
@@ -408,6 +420,19 @@ class TaskExecutionSequence(TaskBase):
 
     _thread = None
     _running_in_process = False
+    _error_flag = None
+
+    def error_occurred(self):
+        if self._error_flag is None:
+            return False
+        else:
+            return self._error_flag.is_set()
+
+    def set_error_occurred(self):
+        if self._error_flag is None:
+            return False
+        else:
+            return self._error_flag.set()
 
     def __repr__(self):
         template = "{self.__class__.__name__}({details})"
@@ -426,11 +451,13 @@ class TaskExecutionSequence(TaskBase):
             return self._thread
         if process:
             self._running_in_process = True
+            self._error_flag = self._make_event(multiprocessing)
             t = multiprocessing.Process(
                 target=self, name=self._name_for_execution_sequence())
             if daemon:
                 t.daemon = daemon
         else:
+            self._error_flag = self._make_event(threading)
             t = threading.Thread(
                 target=self, name=self._name_for_execution_sequence())
             if daemon:
@@ -440,11 +467,18 @@ class TaskExecutionSequence(TaskBase):
         return t
 
     def join(self, timeout=None):
+        if self.error_occurred():
+            return True
         return self._thread.join(timeout)
 
+    def is_alive(self):
+        if self.error_occurred():
+            return False
+        return self._thread.is_alive()
+
     def stop(self):
-        if self._thread.is_alive():
-            pass
+        if self.is_alive():
+            self.set_error_occurred()
 
 
 class Pipeline(TaskExecutionSequence):
@@ -452,12 +486,43 @@ class Pipeline(TaskExecutionSequence):
         self.tasks = tasks
 
     def start(self, *args, **kwargs):
-        for task in self.tasks:
+        for task in self:
             task.start(*args, **kwargs)
 
     def join(self, timeout=None):
+        if timeout is not None:
+            for task in self:
+                task.join(timeout)
+        else:
+            timeout = max(60 // len(self), 2)
+            while True:
+                has_error = self.error_occurred()
+                if has_error:
+                    for task in self:
+                        task.stop()
+                alive = 0
+                for task in self:
+                    task.join(timeout)
+                    is_alive = task.is_alive()
+                    alive += is_alive
+                if alive == 0:
+                    break
+
+    def is_alive(self):
+        alive = 0
+        for task in self:
+            alive += task.is_alive()
+        return alive
+
+    def error_occurred(self):
+        errors = 0
         for task in self.tasks:
-            task.join(timeout)
+            errors += task.error_occurred()
+        return errors
+
+    def stop(self):
+        for task in self.tasks:
+            task.stop()
 
     def __iter__(self):
         return iter(self.tasks)
@@ -484,7 +549,7 @@ class SinkTask(TaskExecutionSequence):
 
     def process(self):
         has_work = True
-        while has_work:
+        while has_work and not self.error_occurred():
             try:
                 item = self.in_queue.get(True, 10)
                 self.handle_item(item)

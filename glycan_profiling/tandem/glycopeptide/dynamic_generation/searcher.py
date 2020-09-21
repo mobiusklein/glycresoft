@@ -1,9 +1,9 @@
 import os
 import time
 try:
-    from Queue import Empty
+    from Queue import Empty, Full
 except ImportError:
-    from queue import Empty
+    from queue import Empty, Full
 
 from ms_deisotope.data_source import ProcessedScan
 
@@ -66,7 +66,14 @@ class SpectrumBatcher(TaskExecutionSequence):
 
     def run(self):
         for batch in self.generate():
-            self.out_queue.put(batch)
+            if self.error_occurred():
+                break
+            while not self.error_occurred():
+                try:
+                    self.out_queue.put(batch, True, 5)
+                    break
+                except Full:
+                    pass
         self.done_event.set()
 
 
@@ -99,11 +106,16 @@ class BatchMapper(TaskExecutionSequence):
             task.label = label
             # Introduces a thread safety issue?
             task.unbind_scans()
-            self.out_queue_for_label(label).put(task)
+            while not self.error_occurred():
+                try:
+                    self.out_queue_for_label(label).put(task, True, 5)
+                    break
+                except Full:
+                    pass
 
     def run(self):
         has_work = True
-        while has_work:
+        while has_work and not self.error_occurred():
             try:
                 task = self.in_queue.get(True, 5)
                 self.execute_task(task)
@@ -246,11 +258,16 @@ class MapperExecutor(TaskExecutionSequence):
     def run(self):
         has_work = True
         strikes = 0
-        while has_work:
+        while has_work and not self.error_occurred():
             try:
                 mapper_task = self.in_queue.get(True, 5)
                 matcher_task = self.execute_task(mapper_task)
-                self.out_queue.put(matcher_task)
+                while not self.error_occurred():
+                    try:
+                        self.out_queue.put(matcher_task, True, 5)
+                        break
+                    except Full:
+                        pass
                 # Detach the scans from the scan source again.
                 mapper_task.unbind_scans()
 
@@ -442,11 +459,16 @@ class MatcherExecutor(TaskExecutionSequence):
 
     def run(self):
         has_work = True
-        while has_work:
+        while has_work and not self.error_occurred():
             try:
                 matcher_task = self.in_queue.get(True, 3)
                 solutions = self.execute_task(matcher_task)
-                self.out_queue.put(solutions)
+                while not self.error_occurred():
+                    try:
+                        self.out_queue.put(solutions, True, 5)
+                        break
+                    except Full:
+                        pass
             except Empty:
                 if self.in_done_event.is_set():
                     has_work = False
@@ -506,7 +528,7 @@ class MappingSerializer(TaskExecutionSequence):
         if not os.path.exists(self.storage_directory):
             os.makedirs(self.storage_directory)
         has_work = True
-        while has_work:
+        while has_work and not self.error_occurred():
             try:
                 package = self.in_queue.get(True, 5)
                 data = package.workload
