@@ -152,8 +152,8 @@ class SimpleChromatogramCSVSerializer(CSVSerializerBase):
             obj.total_signal,
             ';'.join(map(str, obj.charge_states)),
             obj.start_time,
-            obj.end_time,
             obj.apex_time,
+            obj.end_time,
         ]
         return map(str, attribs)
 

@@ -421,7 +421,7 @@ class GlycopeptideMSMSAnalysisSerializer(AnalysisMigrationBase):
                 except KeyError:
                     message = "Could not find a mapping from ID %r for %r in the new keyspace, reconstructing to recover..." % (
                         value.id, value)
-                    warnings.warn(message)
+                    self.log(message)
                     value.id = self._migrate_single_glycopeptide(value)
 
     @property
