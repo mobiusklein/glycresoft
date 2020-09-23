@@ -359,7 +359,12 @@ class MultipartGlycopeptideIdentifier(TaskBase):
             journal_path,
             scan_loader=ScanInformationLoader(self.scan_loader),
             mass_shift_map={m.name: m for m in self.mass_shifts}), len(accumulator))
-        last = 0.1
+        i = float(len(accumulator))
+        try:
+            # Get the nearest progress checkpoint
+            last = round(i / total_solutions_count, 1)
+        except ZeroDivisionError:
+            last = 0.1
         should_log = False
         for i, sol in reader:
             if i * 1.0 / total_solutions_count > last:
