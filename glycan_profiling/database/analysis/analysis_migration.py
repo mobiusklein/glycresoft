@@ -1,3 +1,4 @@
+import warnings
 from collections import defaultdict
 
 from glypy.composition import formula
@@ -73,23 +74,6 @@ def update_glycan_chromatogram_composition_ids(hypothesis_migration, glycan_chro
     for key, group in tandem_mapping.items():
         for value in group:
             value.id = hypothesis_migration.glycan_composition_id_map[key]
-
-
-def update_glycopeptide_ids(hypothesis_migration, identified_glycopeptide_set):
-    '''Build a mapping from searched hypothesis structure ID to saved subset structure
-    ID, ensuring that each object has its new ID assigned exactly once.
-
-    The use of :func:`id` here is to ensure that exactness.
-    '''
-    mapping = defaultdict(dict)
-    for glycopeptide in identified_glycopeptide_set:
-        mapping[glycopeptide.structure.id][id(glycopeptide.structure)] = glycopeptide.structure
-        for solution_set in glycopeptide.spectrum_matches:
-            for match in solution_set:
-                mapping[match.target.id][id(match.target)] = match.target
-    for key, instances in mapping.items():
-        for value in instances.values():
-            value.id = hypothesis_migration.glycopeptide_id_map[value.id]
 
 
 class SampleMigrator(DatabaseBoundOperation, TaskBase):
@@ -415,6 +399,31 @@ class GlycopeptideMSMSAnalysisSerializer(AnalysisMigrationBase):
                     aggregate.add(match.target.id)
         self._glycopeptide_ids = aggregate
 
+    def update_glycopeptide_ids(self):
+        '''Build a mapping from searched hypothesis structure ID to saved subset structure
+        ID, ensuring that each object has its new ID assigned exactly once.
+
+        The use of :func:`id` here is to ensure that exactness.
+        '''
+        hypothesis_migration = self._glycopeptide_hypothesis_migrator
+        identified_glycopeptide_set = self._identified_glycopeptide_set
+        mapping = defaultdict(dict)
+        for glycopeptide in identified_glycopeptide_set:
+            mapping[glycopeptide.structure.id][id(
+                glycopeptide.structure)] = glycopeptide.structure
+            for solution_set in glycopeptide.spectrum_matches:
+                for match in solution_set:
+                    mapping[match.target.id][id(match.target)] = match.target
+        for key, instances in mapping.items():
+            for value in instances.values():
+                try:
+                    value.id = hypothesis_migration.glycopeptide_id_map[value.id]
+                except KeyError:
+                    message = "Could not find a mapping from ID %r for %r in the new keyspace, reconstructing to recover..." % (
+                        value.id, value)
+                    warnings.warn(message)
+                    value.id = self._migrate_single_glycopeptide(value)
+
     @property
     def chromatogram_set(self):
         return [
@@ -546,6 +555,14 @@ class GlycopeptideMSMSAnalysisSerializer(AnalysisMigrationBase):
                 Glycopeptide).get(i) for i in glycopeptide_ids
         ]
 
+    def _migrate_single_glycopeptide(self, glycopeptide):
+        '''Stupendously slow if used in bulk, intended for recovering from cases where
+        a single glycopeptide somehow slipped through the cracks.
+        '''
+        gp = self.glycopeptide_db.query(Glycopeptide).get(id)
+        self._glycopeptide_hypothesis_migrator.migrate_glycopeptide(gp)
+        return self._glycopeptide_hypothesis_migrator.glycopeptide_id_map[glycopeptide.id]
+
     def create_analysis(self):
         self._analysis_serializer = AnalysisSerializer(
             self._original_connection,
@@ -558,10 +575,10 @@ class GlycopeptideMSMSAnalysisSerializer(AnalysisMigrationBase):
         self._analysis_serializer.set_peak_lookup_table(
             self._sample_migrator.peak_id_map)
 
-        update_glycopeptide_ids(
-            self._glycopeptide_hypothesis_migrator,
-            self._identified_glycopeptide_set)
+        # Patch the in-memory objects to be mapped through to the new database keyspace
+        self.update_glycopeptide_ids()
 
+        # Free up memory from the glycopeptide identity map
         self._glycopeptide_hypothesis_migrator.clear()
         self._analysis_serializer.save_glycopeptide_identification_set(
             self._identified_glycopeptide_set)
@@ -599,3 +616,17 @@ class DynamicGlycopeptideMSMSAnalysisSerializer(GlycopeptideMSMSAnalysisSerializ
                 formula=formula(obj.total_composition()))
             out.append(inst)
         return out
+
+    def _migrate_single_glycopeptide(self, glycopeptide):
+        inst = Glycopeptide(
+            id=glycopeptide.id,
+            peptide_id=glycopeptide.id.peptide_id,
+            glycan_combination_id=glycopeptide.id.glycan_combination_id,
+            protein_id=glycopeptide.id.protein_id,
+            hypothesis_id=glycopeptide.id.hypothesis_id,
+            glycopeptide_sequence=glycopeptide.get_sequence(),
+            calculated_mass=glycopeptide.total_mass,
+            formula=formula(glycopeptide.total_composition()))
+        self._glycopeptide_hypothesis_migrator.migrate_glycopeptide(inst)
+        self._glycopeptide_hypothesis_migrator.commit()
+        return self._glycopeptide_hypothesis_migrator.glycopeptide_id_map[glycopeptide.id]
