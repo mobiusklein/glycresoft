@@ -3,10 +3,24 @@ import logging
 
 from io import TextIOWrapper
 
+from six import PY2
+
 from glycan_profiling.task import TaskBase
 
 
 status_logger = logging.getLogger("glycresoft.status")
+
+
+def csv_stream(outstream):
+    if 'b' in outstream.mode:
+        if not PY2:
+            return TextIOWrapper(outstream, 'utf8', newline="")
+        else:
+            return outstream
+    else:
+        import warnings
+        warnings.warn("Opened CSV stream in text mode!")
+        return outstream
 
 
 class CSVSerializerBase(TaskBase):

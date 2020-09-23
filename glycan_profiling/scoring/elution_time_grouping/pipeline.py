@@ -11,6 +11,7 @@ from scipy.stats import gaussian_kde
 import glycopeptidepy
 
 from glycan_profiling.task import TaskBase
+from glycan_profiling.output.csv_format import csv_stream
 
 from .structure import GlycopeptideChromatogramProxy
 from .cross_run import ReplicatedAbundanceWeightedPeptideFactorElutionTimeFitter
@@ -182,13 +183,13 @@ class GlycopeptideElutionTimeModeler(TaskBase):
             raise IOError("Expected a path to a directory, %s is a file!" % (path, ))
         pjoin = os.path.join
         self.log("Writing scored chromatograms")
-        with open(pjoin(path, "scored_chromatograms.csv"), 'wt') as fh:
+        with csv_stream(open(pjoin(path, "scored_chromatograms.csv"), 'wb')) as fh:
             GlycopeptideChromatogramProxy.to_csv(self.glycopeptide_chromatograms, fh)
         if self.test_chromatograms:
-            with open(pjoin(path, "test_chromatograms.csv"), 'wt') as fh:
+            with csv_stream(open(pjoin(path, "test_chromatograms.csv"), 'wb')) as fh:
                 GlycopeptideChromatogramProxy.to_csv(self.test_chromatograms, fh)
         self.log("Writing joint model descriptors")
-        with open(pjoin(path, "joint_model_parameters.csv"), 'wt') as fh:
+        with csv_stream(open(pjoin(path, "joint_model_parameters.csv"), 'wb')) as fh:
             self.joint_model.to_csv(fh)
         with open(pjoin(path, "joint_model_predplot.png"), 'wb') as fh:
             ax = figax()
@@ -197,7 +198,7 @@ class GlycopeptideElutionTimeModeler(TaskBase):
 
         for key, model in self.peptide_specific_models.items():
             self.log("Writing %s model descriptors" % (key, ))
-            with open(pjoin(path, "%s_model_parameters.csv" % (key, )), 'wt') as fh:
+            with csv_stream(open(pjoin(path, "%s_model_parameters.csv" % (key, )), 'wb')) as fh:
                 model.to_csv(fh)
             with open(pjoin(path, "%s_model_predplot.png" % (key, )), 'wb') as fh:
                 ax = figax()
