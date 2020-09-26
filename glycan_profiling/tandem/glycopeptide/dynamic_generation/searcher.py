@@ -48,6 +48,10 @@ memory_debug = bool(os.environ.get("GLYCRESOFTDEBUGMEMORY"))
 
 
 class SpectrumBatcher(TaskExecutionSequence):
+    '''Break a big list of scans into precursor mass batched blocks of
+    spectrum groups with an approximate maximum size. Feeds raw workloads
+    into the pipeline.
+    '''
     def __init__(self, groups, out_queue, max_scans_per_workload=250):
         self.groups = groups
         self.max_scans_per_workload = max_scans_per_workload
@@ -78,6 +82,13 @@ class SpectrumBatcher(TaskExecutionSequence):
 
 
 class BatchMapper(TaskExecutionSequence):
+    '''Wrap scan groups from :class:`SpectrumBatcher` in :class:`StructureMapper` tasks
+    and ships them to an appropriate work queue (usually another process).
+
+    .. note::
+        The StructureMapper could be applied with or without a database bound to it,
+        and for an IPC consumer the database should not be bound, only labeled.
+    '''
     def __init__(self, search_groups, in_queue, out_queue, in_done_event,
                  precursor_error_tolerance=5e-6, mass_shifts=None):
         if mass_shifts is None:
@@ -128,6 +139,10 @@ class BatchMapper(TaskExecutionSequence):
 
 @IsTask
 class StructureMapper(TaskExecutionSequence):
+    """Map spectra against the database using a precursor filtering search strategy,
+    generating a task graph of spectrum-structure-mass_shift relationships, a
+    :class:`~.WorkloadManager` instance.
+    """
     def __init__(self, chunk, group_i, group_n, predictive_search, precursor_error_tolerance=5e-6,
                  mass_shifts=None):
         if mass_shifts is None:
@@ -349,6 +364,13 @@ class SerializingMapperExecutor(MapperExecutor):
 
 @IsTask
 class SpectrumMatcher(TaskExecutionSequence):
+    """Actually execute the spectrum matching specified in a :class:`~.WorkloadManager`.
+
+    .. note::
+        This task may spin up additional processes if :attr:`n_processes` is greater than
+        1, but it must be ~4 or better usually to have an appreciable speedup compared to
+        a executing the matching in serial. IPC communication is expensive, no matter what.
+    """
     def __init__(self, workload, group_i, group_n, scorer_type=None,
                  ipc_manager=None, n_processes=6, mass_shifts=None,
                  evaluation_kwargs=None, cache_seeds=None, **kwargs):
