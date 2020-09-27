@@ -48,8 +48,9 @@ class EntitySummaryBarChartArtist(ArtistBase):
 
     def prepare_x_args(self):
         items = self.sort_items()
-        if len(items) == 0:
-            raise ValueError("Cannot render. Zero items to plot.")
+        # if len(items) == 0:
+        #     # raise ValueError("Cannot render. Zero items to plot.")
+        #     return [], [], [],
         keys = [c.glycan_composition for c in items]
         include_classes = set(map(self.colorizer.classify, keys))
         xtick_labeler = GlycanLabelTransformer(keys, self.orderer)
@@ -67,9 +68,12 @@ class EntitySummaryBarChartArtist(ArtistBase):
     def configure_x_axis(self):
         ax = self.ax
         ax.set_xticks(self.indices + (self.bar_width))
+        n = len(self.indices)
+        if not n:
+            n = 1
         font_size = min(
             max(
-                (150. / (len(self.indices) / 2.)),
+                (150. / (n / 2.)),
                 3),
             24)
 
