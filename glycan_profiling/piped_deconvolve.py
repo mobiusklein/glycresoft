@@ -328,7 +328,7 @@ class ScanTransformingProcess(Process, ScanTransformMixin):
                         if self.verbose:
                             self.log_message("Handling Precursor Scan %r with %d peaks" % (scan.id, len(scan.peak_set)))
                         if self.deconvolute:
-                            transformer.deconvolute_precursor_scan(scan, priorities)
+                            transformer.deconvolute_precursor_scan(scan, priorities, product_scans)
                         self.send_scan(scan)
                 except NoIsotopicClustersError as e:
                     self.log_message("No isotopic clusters were extracted from scan %s (%r)" % (
@@ -837,6 +837,7 @@ class ScanGenerator(TaskBase, ScanGeneratorBase):
         _index, interval_tree = build_scan_index(
             reader, self.number_of_helpers + 1, (start_ix, end_ix))
         self._scan_interval_tree = interval_tree
+        self.log("RT Tree: %r" % (self._scan_interval_tree.rt_tree))
 
     def _make_transforming_process(self):
         return ScanTransformingProcess(
