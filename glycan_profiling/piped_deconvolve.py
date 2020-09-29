@@ -837,7 +837,6 @@ class ScanGenerator(TaskBase, ScanGeneratorBase):
         _index, interval_tree = build_scan_index(
             reader, self.number_of_helpers + 1, (start_ix, end_ix))
         self._scan_interval_tree = interval_tree
-        self.log("RT Tree: %r" % (self._scan_interval_tree.rt_tree))
 
     def _make_transforming_process(self):
         return ScanTransformingProcess(
