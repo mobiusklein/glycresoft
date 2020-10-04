@@ -55,7 +55,10 @@ from glycan_profiling.database.composition_network import (
     CompositionRangeRule,
     CompositionRatioRule,
     CompositionRuleClassifier,
-    CompositionExpressionRule, make_n_glycan_neighborhoods)
+    CompositionExpressionRule,
+    make_n_glycan_neighborhoods,
+    make_adjacency_neighborhoods,
+    make_mammalian_n_glycan_neighborhoods)
 
 from glycopeptidepy.enzyme import enzyme_rules
 from glycopeptidepy.utils.collectiontools import decoratordict
@@ -574,7 +577,8 @@ def glycan_network(context, database_connection, hypothesis_identifier, edge_str
 @click.option("-i", "--input-path", type=click.Path(dir_okay=False), default=None)
 @click.option("-o", "--output-path", type=click.Path(dir_okay=False, writable=True),
               default=None)
-@click.option("-n", "--name", help='Set the neighborhood name', type=click.Choice(["n-glycan"]), required=True)
+@click.option("-n", "--name", help='Set the neighborhood name', type=click.Choice(
+    ["n-glycan", "mammalian-n-glycan", ]), required=True)
 def add_prebuild_neighborhoods_to_network(context, input_path, output_path, name):
     if input_path is None:
         input_stream = ctxstream(sys.stdin)
@@ -584,6 +588,8 @@ def add_prebuild_neighborhoods_to_network(context, input_path, output_path, name
         graph = GraphReader(input_stream).network
     if name == 'n-glycan':
         neighborhoods = make_n_glycan_neighborhoods()
+    elif name == 'mammalian-n-glycan':
+        neighborhoods = make_mammalian_n_glycan_neighborhoods()
     else:
         raise LookupError(name)
     for n in neighborhoods:

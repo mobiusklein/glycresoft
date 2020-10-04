@@ -88,6 +88,13 @@ class ExpressionBase(object):
     def get_symbols(self):
         return []
 
+    def evaluate(self, context):
+        raise NotImplementedError()
+
+    def itersymbols(self):
+        for i in []:
+            yield i
+
 
 class ConstraintExpression(ExpressionBase):
     """
@@ -114,7 +121,7 @@ class ConstraintExpression(ExpressionBase):
     def __repr__(self):
         return "{}".format(self.expression)
 
-    def __call__(self, context):
+    def evaluate(self, context):
         """
         Test for satisfaction of :attr:`expression`
 
@@ -128,6 +135,9 @@ class ConstraintExpression(ExpressionBase):
         bool
         """
         return context[self.expression]
+
+    def __call__(self, context):
+        return self.evaluate(context)
 
     def __and__(self, other):
         """
@@ -215,6 +225,9 @@ class SymbolNode(ExpressionBase):
     def __ne__(self, other):
         return not self == other
 
+    def evaluate(self, context):
+        return context[self] * self.coefficient
+
     def __repr__(self):
         if self.symbol is not None:
             if self.coefficient != 1:
@@ -226,6 +239,9 @@ class SymbolNode(ExpressionBase):
 
     def get_symbols(self):
         return [self.symbol]
+
+    def itersymbols(self):
+        yield self
 
 
 class ValueNode(ExpressionBase):
@@ -258,6 +274,9 @@ class ValueNode(ExpressionBase):
             return str(self.value) == ensuretext(other)
         else:
             return self.value == other.value
+
+    def evaluate(self, context):
+        return self.value
 
     def __ne__(self, other):
         return not self == other
@@ -326,7 +345,7 @@ def parse_expression(string):
         c = string[i]
         if c == " ":
             if current_symbol != "":
-                if current_symbol.endswith(","):
+                if current_symbol.endswith(",") and current_symbol != ',':
                     expression_stack.append(current_symbol[:-1])
                     expression_stack.append(",")
                 else:
@@ -338,6 +357,10 @@ def parse_expression(string):
                 if current_function != '':
                     function_stack.append(current_function)
                 current_function = current_symbol
+            else:
+                if current_function != '':
+                    function_stack.append(current_function)
+                current_function = ''
             current_symbol = ""
             resolver_stack.append(expression_stack)
             expression_stack = []
@@ -353,6 +376,12 @@ def parse_expression(string):
             if current_function != "":
                 fn = SymbolNode(current_function)
                 term = FunctionCallNode(fn, Operator.get("call"), term)
+                if function_stack:
+                    current_function = function_stack.pop()
+                else:
+                    current_function = ''
+            else:
+                term = EnclosedExpression(term)
                 if function_stack:
                     current_function = function_stack.pop()
                 else:
@@ -509,6 +538,30 @@ class ExpressionNode(ExpressionBase):
     def get_symbols(self):
         return self.left.get_symbols() + self.right.get_symbols()
 
+    def itersymbols(self):
+        for symbol in self.left.itersymbols():
+            yield symbol
+        for symbol in self.right.itersymbols():
+            yield symbol
+
+
+class EnclosedExpression(ExpressionBase):
+    def __init__(self, expr, coefficient=1):
+        self.expr = expr
+        self.coefficient = coefficient
+
+    def evaluate(self, context):
+        return self.expr.evaluate(context)
+
+    def get_symbols(self):
+        return self.expr.get_symbols()
+
+    def __repr__(self):
+        return "(%r)" % (self.expr, )
+
+    def itersymbols(self):
+        return self.expr.itersymbols()
+
 
 class FunctionCallNode(ExpressionNode):
     def __repr__(self):
@@ -564,7 +617,7 @@ class SymbolSpace(object):
             return expr.symbol in self.context
         if isinstance(expr, ValueNode):
             return True
-        if isinstance(expr, ExpressionNode):
+        if isinstance(expr, (ExpressionNode, EnclosedExpression)):
             symbols = expr.get_symbols()
             return self._test_symbols_defined(symbols, partial)
 
@@ -599,6 +652,13 @@ class SymbolContext(SymbolSpace):
         if context is None:
             context = dict()
         self.context = self._format_map(context)
+
+    def _normalize(self, symbol):
+        try:
+            symbol = _FMR.from_iupac_lite(symbol)
+            return str(symbol)
+        except Exception:
+            return symbol
 
     @staticmethod
     def _format_map(mapping):
@@ -636,11 +696,17 @@ class SymbolContext(SymbolSpace):
                 try:
                     return self.context[node] * node.coefficient
                 except KeyError:
+                    normalized = self._normalize(node.symbol)
+                    if normalized != node.symbol:
+                        if normalized in self.context:
+                            return self.context[normalized] * node.coefficient
                     return 0
         elif isinstance(node, ValueNode):
             return node.value
-        elif isinstance(node, ExpressionNode):
+        elif isinstance(node, (ExpressionNode, EnclosedExpression)):
             return node.evaluate(self)
+        else:
+            raise TypeError("Don't know how to evaluate %r of type %s" % (node, node.__class__))
 
     def __contains__(self, expr):
         if not isinstance(expr, ExpressionBase):
@@ -651,7 +717,7 @@ class SymbolContext(SymbolSpace):
             return expr.symbol in self.context
         elif isinstance(expr, ValueNode):
             return True
-        elif isinstance(expr, ExpressionNode):
+        elif isinstance(expr, (ExpressionNode, EnclosedExpression)):
             return expr.evaluate(self) > 0
 
     def __repr__(self):
@@ -999,9 +1065,21 @@ def symbolic_abs(terms, context):
     return abs(context[terms])
 
 
+def symbolic_max(terms, context):
+    args = terms.evaluate(context)
+    return max(args)
+
+
+def symbolic_min(terms, context):
+    args = terms.evaluate(context)
+    return min(args)
+
+
 function_table = {
     "sum": symbolic_sum,
-    "abs": symbolic_abs
+    "abs": symbolic_abs,
+    "max": symbolic_max,
+    "min": symbolic_min,
 }
 
 

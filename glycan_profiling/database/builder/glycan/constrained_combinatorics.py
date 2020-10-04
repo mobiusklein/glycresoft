@@ -85,14 +85,9 @@ class CombinatoricCompositionGenerator(object):
         self.rules_table = rules_table
 
     def normalize_symbols(self, expression):
-        symbol_stack = deque([expression])
-        while symbol_stack:
-            node = symbol_stack.popleft()
-            if isinstance(node, ExpressionNode):
-                symbol_stack.append(node.left)
-                symbol_stack.append(node.right)
-            elif isinstance(node, SymbolNode):
-                node.symbol = normalize_iupac_lite(node.symbol)
+        symbols = list(expression.itersymbols())
+        for node in symbols:
+            node.symbol = normalize_iupac_lite(node.symbol)
 
     def _build_rules_table(self):
         rules_table = {}

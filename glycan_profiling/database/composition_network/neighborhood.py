@@ -71,7 +71,10 @@ class NeighborhoodCollection(object):
 
 
 def make_n_glycan_neighborhoods():
-    """Create broad N-glycan neighborhoods
+    """Create broad N-glycan neighborhoods.
+
+    This method is primarily designed for human-like N-glycan biosynthesis and does
+    not deal well with abundant Gal-alpha Gal or LacDiNAc extensions.
 
     Returns
     -------
@@ -125,6 +128,71 @@ def make_n_glycan_neighborhoods():
                 _hexose, base_hexnac + i - 1,
                 base_hexnac + i + 2)
 
+            asialo.name = "asialo-%s-antennary" % spec
+            neighborhoods.add(sialo)
+            neighborhoods.add(asialo)
+    return neighborhoods
+
+
+def make_mammalian_n_glycan_neighborhoods():
+    """Create broad N-glycan neighborhoods allowing for mammalian N-glycans.
+
+    This method deals with N-glycosyltransferases not found in humans (specifically Gal-alpha Gal)
+    which skew the boundaries between neighborhoods on the Hexose dimension. :func:`make_n_glycan_neighborhoods`
+    already handles NeuGc trivially.
+
+    Returns
+    -------
+    NeighborhoodCollection
+    """
+    neighborhoods = NeighborhoodCollection()
+
+    _neuraminic = "(%s)" % ' + '.join(map(str, (
+        FrozenMonosaccharideResidue.from_iupac_lite("NeuAc"),
+        FrozenMonosaccharideResidue.from_iupac_lite("NeuGc")
+    )))
+    _terminal = _neuraminic + \
+        " + max(%s - %%d, 0)" % FrozenMonosaccharideResidue.from_iupac_lite("Hex")
+    _hexose = "(%s)" % ' + '.join(
+        map(str, map(FrozenMonosaccharideResidue.from_iupac_lite, ['Hex', ])))
+    _hexnac = "(%s)" % ' + '.join(
+        map(str, map(FrozenMonosaccharideResidue.from_iupac_lite, ['HexNAc', ])))
+
+    high_mannose = CompositionRangeRule(
+        _hexose, 3, 12) & CompositionRangeRule(
+        _hexnac, 2, 2) & CompositionRangeRule(
+        _neuraminic, 0, 0)
+    high_mannose.name = "high-mannose"
+    neighborhoods.add(high_mannose)
+
+    base_hexnac = 3
+    base_terminal_groups = 2
+    for i, spec in enumerate(['hybrid', 'bi', 'tri', 'tetra', 'penta', "hexa", "hepta"]):
+        if spec == 'hybrid':
+            rule = CompositionRangeRule(
+                _hexnac, base_hexnac - 1, base_hexnac + 1
+            ) & CompositionRangeRule(
+                _neuraminic, 0, base_terminal_groups) & CompositionRangeRule(
+                _hexose, base_hexnac + i - 1,
+                base_hexnac + i + 3)
+            rule.name = spec
+            neighborhoods.add(rule)
+        else:
+            sialo = CompositionRangeRule(
+                _hexnac, base_hexnac + i - 1, base_hexnac + i + 1
+            ) & CompositionRangeRule(
+                (_neuraminic), 1, base_terminal_groups + i
+            ) & CompositionExpressionRule(
+                "(Hex > %d) & (Hex < (%d - (NeuAc + NeuGc)))" % (base_hexnac + i - 2, base_hexnac + (2 * i) + 3))
+
+            sialo.name = "%s-antennary" % spec
+            asialo = CompositionRangeRule(
+                _hexnac, base_hexnac + i - 1, base_hexnac + i + 1
+            ) & CompositionRangeRule(
+                _neuraminic, 0, 1 if i < 2 else 0
+            ) & CompositionRangeRule(
+                _hexose, base_hexnac + i - 1,
+                base_hexnac + (2 * i) + 3)
             asialo.name = "asialo-%s-antennary" % spec
             neighborhoods.add(sialo)
             neighborhoods.add(asialo)
