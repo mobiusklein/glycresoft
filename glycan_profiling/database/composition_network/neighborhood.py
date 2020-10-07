@@ -222,7 +222,10 @@ class NeighborhoodWalker(object):
 
     def __init__(self, network, neighborhoods=None, assign=True, distance_fn=n_glycan_distance):
         if neighborhoods is None:
-            neighborhoods = NeighborhoodCollection(_n_glycan_neighborhoods)
+            if network.neighborhoods:
+                neighborhoods = NeighborhoodCollection(network.neighborhoods)
+            else:
+                neighborhoods = NeighborhoodCollection(_n_glycan_neighborhoods)
         self.network = network
         self.neighborhood_assignments = defaultdict(set)
         self.neighborhoods = neighborhoods
