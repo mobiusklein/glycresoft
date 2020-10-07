@@ -514,12 +514,12 @@ class ThreadedGlycoproteinSiteModelBuildingWorkflow(GlycoproteinSiteModelBuildin
     def __init__(self, analyses, glycopeptide_database, glycan_database,
                  unobserved_penalty_scale=None, lambda_limit=0.2,
                  require_multiple_observations=True, observation_aggregator=None,
-                 output_path=None, n_threads=4, q_value_threshold=0.05):
+                 output_path=None, n_threads=4, q_value_threshold=0.05, network=None):
         super(ThreadedGlycoproteinSiteModelBuildingWorkflow, self).__init__(
             analyses, glycopeptide_database, glycan_database,
             unobserved_penalty_scale, lambda_limit,
             require_multiple_observations, observation_aggregator,
-            output_path,  q_value_threshold=q_value_threshold
+            output_path,  q_value_threshold=q_value_threshold, network=network
         )
 
         self.n_threads = n_threads
@@ -610,12 +610,12 @@ class MultiprocessingGlycoproteinSiteModelBuildingWorkflow(GlycoproteinSiteModel
     def __init__(self, analyses, glycopeptide_database, glycan_database,
                  unobserved_penalty_scale=None, lambda_limit=0.2,
                  require_multiple_observations=True, observation_aggregator=None,
-                 output_path=None, n_threads=4, q_value_threshold=0.05):
+                 output_path=None, n_threads=4, q_value_threshold=0.05, network=None):
         super(MultiprocessingGlycoproteinSiteModelBuildingWorkflow, self).__init__(
             analyses, glycopeptide_database, glycan_database,
             unobserved_penalty_scale, lambda_limit,
             require_multiple_observations, observation_aggregator,
-            output_path, q_value_threshold=q_value_threshold
+            output_path, q_value_threshold=q_value_threshold, network=network
         )
 
         self.builder = None
