@@ -465,11 +465,19 @@ def search_glycopeptide_multipart(context, database_connection, decoy_database_c
               help=(
                   "Require a glycan/glycosite combination be observed in multiple samples to treat it as real."
                   " Defaults to False."))
+@click.option("-w", "--network-path", type=click.Path(exists=True, file_okay=True, dir_okay=False), required=False, default=None,
+              help=("The path to a text file defining the glycan network and its neighborhoods, as produced by "
+                    "`glycresfoft build-hypothesis glycan-network`, otherwise the default human N-glycan network "
+                    "will be used with the glycans defined in `-g`."))
 def fit_glycoproteome_model(context, analysis_path, output_path, glycopeptide_hypothesis, glycan_hypothesis,
                             processes=4, unobserved_penalty_scale=None, smoothing_limit=0.2,
-                            require_multiple_observations=True, fdr_threshold=0.05):
+                            require_multiple_observations=True, fdr_threshold=0.05,
+                            network_path=None):
     analysis_path_set = analysis_path
     analysis_path_set_transformed = []
+    if require_multiple_observations and len(analysis_path_set) == 1:
+        click.secho("Requested multiple observations required but only one analysis provided"
+                    " discarding multiple observation requirement.", fg='yellow')
     for analysis_path, analysis_id in analysis_path_set:
         database_connection = DatabaseBoundOperation(analysis_path)
         try:
@@ -482,6 +490,12 @@ def fit_glycoproteome_model(context, analysis_path, output_path, glycopeptide_hy
             raise click.Abort()
         analysis_path_set_transformed.append((analysis_path, analysis.id))
     analysis_path_set = analysis_path_set_transformed
+
+    if network_path is not None:
+        with open(network_path, 'r') as netfile:
+            network = GraphReader(netfile).network
+    else:
+        network = None
 
     glycopeptide_database_connection_path, hypothesis_identifier = glycopeptide_hypothesis
     glycopeptide_database_connection = DatabaseBoundOperation(glycopeptide_database_connection_path)
