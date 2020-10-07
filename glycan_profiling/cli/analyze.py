@@ -478,17 +478,18 @@ def fit_glycoproteome_model(context, analysis_path, output_path, glycopeptide_hy
     if require_multiple_observations and len(analysis_path_set) == 1:
         click.secho("Requested multiple observations required but only one analysis provided"
                     " discarding multiple observation requirement.", fg='yellow')
-    # for analysis_path, analysis_id in analysis_path_set:
-    #     database_connection = DatabaseBoundOperation(analysis_path)
-    #     try:
-    #         click.echo("Checking analysis %s:%s" %
-    #                    (analysis_path, analysis_id))
-    #         analysis = get_by_name_or_id(database_connection, Analysis, analysis_id)
-    #     except Exception:
-    #         click.secho("Could not locate an Analysis in %r with identifier %r" %
-    #                     (analysis_path, analysis_id), fg='yellow')
-    #         raise click.Abort()
-    #     analysis_path_set_transformed.append((analysis_path, analysis.id))
+    for analysis_path, analysis_id in analysis_path_set:
+        database_connection = DatabaseBoundOperation(analysis_path)
+        try:
+            click.echo("Checking analysis %s:%s" %
+                       (analysis_path, analysis_id))
+            # analysis = get_by_name_or_id(database_connection, Analysis, analysis_id)
+        except Exception:
+            click.secho("Could not locate an Analysis in %r with identifier %r" %
+                        (analysis_path, analysis_id), fg='yellow')
+            raise click.Abort()
+        # analysis_path_set_transformed.append((analysis_path, analysis.id))
+        analysis_path_set_transformed.append((analysis_path, int(analysis_id)))
     analysis_path_set = analysis_path_set_transformed
 
     if network_path is not None:
@@ -522,7 +523,7 @@ def fit_glycoproteome_model(context, analysis_path, output_path, glycopeptide_hy
         analysis_path_set, glycopeptide_database_connection_path, glycopeptide_hypothesis.id,
         glycan_database_connection_path, glycan_hypothesis.id, unobserved_penalty_scale, smoothing_limit,
         require_multiple_observations, output_path=output_path, n_threads=processes,
-        q_value_threshold=fdr_threshold)
+        q_value_threshold=fdr_threshold, network=network)
     workflow.start()
 
 
