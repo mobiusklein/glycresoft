@@ -281,13 +281,18 @@ def glycopeptide_spectrum_matches(database_connection, analysis_identifier, outp
         query = session.query(GlycopeptideSpectrumMatch).filter(
             GlycopeptideSpectrumMatch.analysis_id == analysis_id).order_by(
                 GlycopeptideSpectrumMatch.scan_id)
+        mass_shift_cache = {}
+        scan_cache = {}
+        structure_cache = {}
+        peptide_relation_cache = {}
         while True:
             session.expire_all()
             chunk = query.slice(i, i + interval).all()
             if len(chunk) == 0:
                 break
             for glycopeptide in chunk:
-                yield glycopeptide.convert()
+                yield glycopeptide.convert(
+                    mass_shift_cache, scan_cache, structure_cache, peptide_relation_cache)
             i += interval
 
     if output_path is None:
