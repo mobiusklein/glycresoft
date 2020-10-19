@@ -104,6 +104,13 @@ class SpectrumClusterBase(object):
     def __iter__(self):
         return iter(self.spectrum_solutions)
 
+    def __len__(self):
+        return len(self.spectrum_solutions)
+
+    def __repr__(self):
+        template = "{self.__class__.__name__}(<{size}>)"
+        return template.format(self=self, size=len(self))
+
     def convert(self, mass_shift_cache=None, scan_cache=None, structure_cache=None, **kwargs):
         if scan_cache is None:
             scan_cache = dict()

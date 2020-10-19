@@ -173,10 +173,13 @@ class IdentifiedGlycopeptide(Base, IdentifiedStructure):
                 if is_multiscore:
                     q_value = match.q_value
                     if q_value <= best_q_value:
+                        delta_q_value = best_q_value - q_value
                         best_q_value = q_value
                         score = match.score
                         if score > best_score:
                             best_score = score
+                            best_match = match
+                        elif delta_q_value > 0.001:
                             best_match = match
                 else:
                     score = match.score
