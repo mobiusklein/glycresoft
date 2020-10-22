@@ -282,7 +282,8 @@ def glycopeptide_fa(context, fasta_file, database_connection, enzyme, missed_cle
         semispecific=semispecific_digest,
         n_processes=processes,
         full_cross_product=not not_full_crossproduct,
-        max_variable_modifications=max_variable_modifications)
+        max_variable_modifications=max_variable_modifications,
+        peptide_length_range=peptide_length_range)
     builder.display_header()
     builder.start()
     return builder.hypothesis_id
@@ -331,7 +332,8 @@ def glycopeptide_mzid(context, mzid_file, database_connection, name, occupied_gl
         target_proteins=proteins,
         max_glycosylation_events=occupied_glycosites,
         reference_fasta=reference_fasta,
-        n_processes=processes)
+        n_processes=processes,
+        peptide_length_range=peptide_length_range)
     builder.display_header()
     builder.start()
     return builder.hypothesis_id
