@@ -31,6 +31,7 @@ class SpectrumMatchAnnotator(object):
             spectrum_match.spectrum, key=lambda x: x.intensity
         ).intensity * 1.35
         self.peak_labels = []
+        self.upshift = 10
 
     def draw_all_peaks(self, color='black', alpha=0.5, **kwargs):
         draw_peaklist(
@@ -48,7 +49,7 @@ class SpectrumMatchAnnotator(object):
         if peak.charge > 1:
             label += "$^{%d}$" % peak.charge
         y = peak.intensity
-        upshift = 10
+        upshift = self.upshift
         y = min(y + upshift, self.upper * 0.9)
 
         kw.setdefault("clip_on", self.clip_labels)
