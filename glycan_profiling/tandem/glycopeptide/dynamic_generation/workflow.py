@@ -398,7 +398,7 @@ class MultipartGlycopeptideIdentifier(TaskBase):
         solutions = []
         n = len(self.journal_path_collection)
         for i, journal_path in enumerate(self.journal_path_collection, 1):
-            self.log("... Reading Journal Shard %s, %d/%d" % (self.journal_path, i, n))
+            self.log("... Reading Journal Shard %s, %d/%d" % (journal_path, i, n))
             self._load_identifications_from_journal(journal_path, total_solutions_count, solutions)
         self.log("Partitioning Spectrum Matches...")
         groups = SolutionSetGrouper(solutions)

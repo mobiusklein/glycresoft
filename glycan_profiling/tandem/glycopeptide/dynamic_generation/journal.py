@@ -16,6 +16,7 @@ from glycan_profiling.task import TaskBase, TaskExecutionSequence, Empty
 from glycan_profiling.structure.structure_loader import (
     FragmentCachingGlycopeptide, DecoyFragmentCachingGlycopeptide,
     PeptideProteinRelation, LazyGlycopeptide)
+from glycan_profiling.structure.scan import ScanInformationLoader
 from glycan_profiling.structure.lru import LRUMapping
 from glycan_profiling.chromatogram_tree import MassShift, Unmodified
 
@@ -267,6 +268,11 @@ def isclose(a, b, rtol=1e-05, atol=1e-08):
 
 
 class SolutionSetGrouper(TaskBase):
+    """Partition multi-score glycopeptide identificatins into groups
+    according to either glycopeptide target/decoy classification (:attr:`match_type_groups`)
+    or by best match to a given scan and target/decoy classification (:attr:`exclusive_match_groups`)
+
+    """
     def __init__(self, spectrum_matches):
         self.spectrum_matches = list(spectrum_matches)
         self.spectrum_ids = set()
@@ -344,3 +350,49 @@ class SolutionSetGrouper(TaskBase):
 
     def decoy_count(self):
         return len(self.decoy_matches)
+
+
+class JournalSetLoader(TaskBase):
+    """A helper class to load a list of journal file fragments
+    into a single cohesive result, as from a previously compiled
+    analysis's bundled journal file shards.
+    """
+    def __init__(self, journal_files, scan_loader, mass_shift_map=None):
+        if mass_shift_map is None:
+            mass_shift_map = {Unmodified.name: Unmodified}
+        self.journal_files = journal_files
+        self.scan_loader = scan_loader
+        self.mass_shift_map = mass_shift_map
+        self.solutions = []
+
+    def load(self):
+        n = len(self.journal_files)
+        for i, journal_path in enumerate(self.journal_files, 1):
+            self.log("... Reading Journal Shard %s, %d/%d" %
+                     (journal_path, i, n))
+            self._load_identifications_from_journal(self.solutions)
+        self.log("Partitioning Spectrum Matches...")
+        return SolutionSetGrouper(self.solutions)
+
+    def __iter__(self):
+        if not self.solutions:
+            self.load()
+        return iter(self.solutions)
+
+    def _load_identifications_from_journal(self, journal_path, accumulator=None):
+        if accumulator is None:
+            accumulator = []
+        reader = enumerate(JournalFileReader(
+            journal_path,
+            scan_loader=ScanInformationLoader(self.scan_loader),
+            mass_shift_map=self.mass_shift_map), len(accumulator))
+        i = float(len(accumulator))
+        should_log = False
+        for i, sol in reader:
+            if i % 100000 == 0:
+                should_log = True
+            if should_log:
+                self.log("... %d Solutions Loaded" % (i, ))
+                should_log = False
+            accumulator.append(sol)
+        return accumulator

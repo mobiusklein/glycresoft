@@ -42,7 +42,7 @@ from .validators import (
     ms1_model_features,
     RelativeMassErrorParam,
     DatabaseConnectionParam,
-    GlycopeptideFDRParam, ChoiceOrURI)
+    SmallSampleFDRCorrectionParam, ChoiceOrURI)
 
 
 def make_analysis_output_path(prefix):
@@ -138,7 +138,7 @@ def sample_path_arg(fn):
 @click.option("-G", "--permute-decoy-glycan-fragments", is_flag=True, default=False, help=(
     "Whether or not to permute decoy glycopeptides' peptide+Y ions. The intact mass, peptide, "
     "and peptide+Y1 ions are unchanged."))
-@click.option("--fdr-correction", default='auto', type=GlycopeptideFDRParam(),
+@click.option("--fdr-correction", default='auto', type=SmallSampleFDRCorrectionParam(),
               help=("Whether to attempt to correct for small sample size for target-decoy analysis."),
               cls=HiddenOption)
 @click.option("--isotope-probing-range", type=int, default=3, help=(
@@ -296,8 +296,11 @@ def search_glycopeptide(context, database_connection, sample_path, hypothesis_id
 @click.option("-n", "--analysis-name", default=None, help='Name for analysis to be performed.')
 @click.option("-q", "--psm-fdr-threshold", default=0.05, type=float,
               help='Minimum FDR Threshold to use for filtering GPSMs when selecting identified glycopeptides')
-@click.option("-f", "--fdr-estimation-strategy", type=click.Choice(['joint', 'peptide', 'glycan']),
-              default='joint', help="The FDR estimation strategy to use.")
+@click.option("-f", "--fdr-estimation-strategy", type=click.Choice(['joint', 'peptide', 'glycan', 'any']),
+              default='joint',
+              help=("The FDR estimation strategy to use. The joint estimate uses both peptide and glycan scores, "
+                    "peptide uses only peptide scores, glycan uses only glycan scores, and any uses the smallest "
+                    "FDR of the joint, peptide, and glycan estiamtes."))
 @click.option("-s", "--tandem-scoring-model", default='log_intensity',
               type=ChoiceOrURI(["log_intensity", "simple",
                                 "penalized_log_intensty"]),
@@ -518,7 +521,6 @@ def fit_glycoproteome_model(context, analysis_path, output_path, glycopeptide_hy
         click.secho("Could not locate a Glycopeptide Hypothesis with identifier %r" %
                     hypothesis_identifier, fg='yellow')
         raise click.Abort()
-
     workflow = site_model.GlycoproteinSiteModelBuildingWorkflow.from_paths(
         analysis_path_set, glycopeptide_database_connection_path, glycopeptide_hypothesis.id,
         glycan_database_connection_path, glycan_hypothesis.id, unobserved_penalty_scale, smoothing_limit,
