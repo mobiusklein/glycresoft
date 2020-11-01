@@ -340,11 +340,22 @@ class SpectrumSolutionSet(ScanWrapperBase):
             self.sort()
         return self.solutions[0]
 
+    def mark_top_solutions(self):
+        solution = self.best_solution()
+        solution.best_match = True
+        score = solution.score
+        for solution in self:
+            if (score - solution.score) < 1e-3:
+                solution.best_match = True
+            else:
+                solution.best_match = False
+        return self
+
     def __repr__(self):
         if len(self) == 0:
-            return "SpectrumSolutionSet(%s, [])" % (self.scan,)
-        return "SpectrumSolutionSet(%s, %s, %f)" % (
-            self.scan, self.best_solution().target, self.best_solution().score)
+            return "{self.__class__.__name__}({self.scan}, [])".format(self=self)
+        return "{self.__class__.__name__}({self.scan}, {best.target}, {best.score})".format(
+            self=self, best=self.best_solution())
 
     def __getitem__(self, i):
         return self.solutions[i]
@@ -550,6 +561,20 @@ class MultiScoreSpectrumSolutionSet(SpectrumSolutionSet):
         self.solutions.sort(key=lambda x: (
             x.score_set, x.target.id), reverse=maximize)
         self._is_sorted = True
+        return self
+
+    def mark_top_solutions(self):
+        solution = self.best_solution()
+        solution.best_match = True
+        score_set = solution.score_set
+        for solution in self:
+            if (abs(score_set.glycopeptide_score - solution.score_set.glycopeptide_score)) < 1e-3:
+                if abs(score_set.peptide_score - solution.score_set.peptide_score) < 1e-3 and abs(score_set.glycan_score - solution.score_set.glycan_score) < 1e-3:
+                    solution.best_match = True
+                else:
+                    solution.best_match = False
+            else:
+                solution.best_match = False
         return self
 
     def sort_q_value(self):
