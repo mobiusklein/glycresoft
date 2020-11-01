@@ -31,6 +31,18 @@ from glycan_profiling.serialize.spectrum import (
     PrecursorInformation)
 
 
+def slurp(session, model, ids):
+    total = sorted(ids)
+    last = 0
+    step = 100
+    results = []
+    while last < total:
+        results.extend(session.query(model).filter(
+            model.id.in_(ids[last:last + step])))
+        last += step
+    return results
+
+
 def fetch_scans_used_in_chromatogram(chromatogram_set, extractor):
     scan_ids = set()
     for chroma in chromatogram_set:
@@ -541,19 +553,23 @@ class GlycopeptideMSMSAnalysisSerializer(AnalysisMigrationBase):
         for glycopeptide_id in glycopeptide_ids:
             peptide_id = self._get_peptide_id_for_glycopeptide(glycopeptide_id)
             peptides.add(peptide_id)
-        return [self.glycopeptide_db.query(Peptide).get(i) for i in peptides]
+
+        return slurp(self.glycopeptide_db, Peptide, peptides)
+        # return [self.glycopeptide_db.query(Peptide).get(i) for i in peptides]
 
     def fetch_proteins(self, peptide_set):
         proteins = set()
         for peptide in peptide_set:
             proteins.add(peptide.protein_id)
-        return [self.glycopeptide_db.query(Protein).get(i) for i in proteins]
+        return slurp(self.glycopeptide_db, Protein, proteins)
+        # return [self.glycopeptide_db.query(Protein).get(i) for i in proteins]
 
     def fetch_glycopeptides(self, glycopeptide_ids):
-        return [
-            self.glycopeptide_db.query(
-                Glycopeptide).get(i) for i in glycopeptide_ids
-        ]
+        # return [
+        #     self.glycopeptide_db.query(
+        #         Glycopeptide).get(i) for i in glycopeptide_ids
+        # ]
+        return slurp(self.glycopeptide_db, Glycopeptide, glycopeptide_ids)
 
     def _migrate_single_glycopeptide(self, glycopeptide):
         '''Stupendously slow if used in bulk, intended for recovering from cases where
