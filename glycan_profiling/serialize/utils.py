@@ -287,7 +287,7 @@ def temp_table(table, metdata=None):
         if hasattr(table, "metadata"):
             metadata = table.metadata
         else:
-            from glycresoft_sqlalchemy.data_model import Base
+            from glycan_profiling.serialize import Base
             metadata = Base.metadata
     if hasattr(table, "__table__"):
         table = table.__table__

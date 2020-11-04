@@ -17,103 +17,8 @@ from glycan_profiling.serialize.base import (
 from glycan_profiling.serialize.spectrum import SampleRun
 
 from glycan_profiling.serialize.hypothesis.generic import HasFiles
-
+from glycan_profiling.serialize.param import LazyMutableMappingWrapper, HasParameters
 from glypy.utils import Enum
-
-
-class LazyMutableDict(object):
-    def __init__(self, payload, unpickler):
-        self._payload = payload
-        self._unpickler = unpickler
-        self._object = None
-
-    def _load(self):
-        if self._object is not None:
-            return self._object
-        self._object = self._unpickler.loads(self._payload)
-        return self._object
-
-    def keys(self):
-        return self._load().keys()
-
-    def values(self):
-        return self._load().values()
-
-    def items(self):
-        return self._load().items()
-
-    def __len__(self):
-        return len(self._load())
-
-    def __contains__(self, key):
-        return key in self._load()
-
-    def __getitem__(self, key):
-        return self._load()[key]
-
-    def __setitem__(self, key, value):
-        """Detect dictionary set events and emit change events."""
-        self._load()[key] = value
-        self.changed()
-
-    def setdefault(self, key, value):
-        result = self._load().setdefault(key, value)
-        self.changed()
-        return result
-
-    def __delitem__(self, key):
-        """Detect dictionary del events and emit change events."""
-        self._load().__delitem__(key)
-        self.changed()
-
-    def update(self, *a, **kw):
-        self._load().update(*a, **kw)
-        self.changed()
-
-    def pop(self, *arg):
-        result = self._load().pop(*arg)
-        self.changed()
-        return result
-
-    def popitem(self):
-        result = self._load().popitem()
-        self.changed()
-        return result
-
-    def clear(self):
-        self._load().clear()
-        self.changed()
-
-    def __getstate__(self):
-        return dict(self)
-
-    def __setstate__(self, state):
-        self.update(state)
-
-    @classmethod
-    def coerce(cls, key, value):
-        """Convert plain dictionary to instance of this class."""
-        if not isinstance(value, cls):
-            if isinstance(value, dict):
-                return MutableDict(value)
-            elif isinstance(value, (str, bytes)):
-                return cls(value, dill.loads)
-            elif isinstance(value, AutoLoadPickle):
-                return cls(value, AutoLoadPickle.load)
-            return Mutable.coerce(key, value)
-        else:
-            return value
-
-
-class AutoLoadPickle(object):
-    def __init__(self, payload):
-        self.payload = payload
-
-    def __call__(self):
-        return self.load()
-
-    def load(self):
-        return dill.loads(self.payload)
 
 
 DillType = partial(PickleType, pickler=dill)
@@ -128,15 +33,19 @@ AnalysisTypeEnum.glycopeptide_lc_msms.add_name("Glycopeptide LC-MS/MS")
 AnalysisTypeEnum.glycan_lc_ms.add_name("Glycan LC-MS")
 
 
-class Analysis(Base, HasUniqueName, HasFiles):
+class Analysis(Base, HasUniqueName, HasFiles, HasParameters):
     __tablename__ = "Analysis"
 
     id = Column(Integer, primary_key=True)
     sample_run_id = Column(Integer, ForeignKey(SampleRun.id, ondelete="CASCADE"), index=True)
     sample_run = relationship(SampleRun)
     analysis_type = Column(String(128))
-    parameters = deferred(Column(MutableDict.as_mutable(DillType)))
+    # parameters = deferred(Column(MutableDict.as_mutable(DillType), default=LazyMutableMappingWrapper))
     status = Column(String(28))
+
+    def __init__(self, **kwargs):
+        self._init_parameters(kwargs)
+        super(Analysis, self).__init__(**kwargs)
 
     def __repr__(self):
         sample_run = self.sample_run
