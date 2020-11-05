@@ -32,7 +32,8 @@ from glycan_profiling.serialize.spectrum import (
 
 
 def slurp(session, model, ids):
-    total = sorted(ids)
+    ids = sorted(ids)
+    total = len(ids)
     last = 0
     step = 100
     results = []
