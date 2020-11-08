@@ -408,6 +408,14 @@ class SpectrumMatch(SpectrumMatchBase):
         self.q_value = q_value
         self.id = id
 
+    @property
+    def is_best_match(self):
+        return self.best_match
+
+    @is_best_match.setter
+    def is_best_match(self, value):
+        self.best_match = value
+
     def is_multiscore(self):
         """Check whether this match has been produced by summarizing a multi-score
         match, rather than a single score match.
