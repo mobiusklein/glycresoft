@@ -218,6 +218,7 @@ class AnalysisMigrationBase(DatabaseBoundOperation, TaskBase):
         raise NotImplementedError()
 
     def migrate_sample(self):
+        self.log("... Loading Scans")
         scans = self.fetch_scans()
         self._sample_migrator = SampleMigrator(self._original_connection)
         self._sample_migrator.migrate_sample_run(self.sample_run)
@@ -503,15 +504,18 @@ class GlycopeptideMSMSAnalysisSerializer(AnalysisMigrationBase):
 
     def fetch_scans(self):
         scan_ids = set()
-
+        precursor_ids = dict()
         for glycopeptide in self._identified_glycopeptide_set:
             if glycopeptide.chromatogram is not None:
                 scan_ids.update(glycopeptide.chromatogram.scan_ids)
             for msms in glycopeptide.spectrum_matches:
                 scan_ids.add(msms.scan.id)
-                scan_ids.add(
-                    self.chromatogram_extractor.get_scan_header_by_id(
-                        msms.scan.id).precursor_information.precursor_scan_id)
+                try:
+                    scan_ids.add(precursor_ids[msms.scan.id])
+                except KeyError:
+                    precursor_ids[msms.scan.id] = self.chromatogram_extractor.get_scan_header_by_id(
+                        msms.scan.id).precursor_information.precursor_scan_id
+                    scan_ids.add(precursor_ids[msms.scan.id])
         scans = []
         for scan_id in scan_ids:
             if scan_id is not None:
