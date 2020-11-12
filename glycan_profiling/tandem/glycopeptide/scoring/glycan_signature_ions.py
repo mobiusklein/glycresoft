@@ -4,7 +4,7 @@ import numpy as np
 
 from glypy.structure.glycan_composition import (
     FrozenMonosaccharideResidue,
-    Composition)
+    Composition, from_iupac_lite)
 
 from glycopeptidepy.structure.glycan import GlycanCompositionProxy
 
@@ -17,6 +17,47 @@ signatures = {
     FrozenMonosaccharideResidue.from_iupac_lite("NeuAc"): 0.5,
     FrozenMonosaccharideResidue.from_iupac_lite("NeuGc"): 0.5,
 }
+
+
+class CompoundSignature(object):
+    __slots__ = ('components', 'masses', '_hash')
+
+    def __init__(self, components, masses):
+        self.components = tuple(
+            FrozenMonosaccharideResidue.from_iupac_lite(k) for k in components)
+        self.masses = tuple(masses)
+        self._hash = hash(self.components)
+
+    def __getitem__(self, i):
+        return self.components[i]
+
+    def __iter__(self):
+        return iter(self.components)
+
+    def __hash__(self):
+        return self._hash
+
+    def __eq__(self, other):
+        return self.components == other.components
+
+    def __repr__(self):
+        return "{self.__class__.__name__}({self.components}, {self.masses})".format(self=self)
+
+    def is_expected(self, glycan_composition):
+        is_expected = glycan_composition._getitem_fast(self[0]) != 0
+        if is_expected:
+            is_expected = all(glycan_composition._getitem_fast(
+                k) != 0 for k in self)
+        return is_expected
+
+
+compound_signatures = {
+    CompoundSignature(('@phosphate', 'Hex'), [
+        242.01915393925,
+        224.00858925555,
+    ]): 0.75,
+}
+
 
 _water = Composition("H2O")
 keyfn = attrgetter("intensity")
@@ -52,6 +93,7 @@ class GlycanCompositionSignatureMatcher(GlycopeptideSpectrumMatcherBase):
         return GlycanCompositionProxy(self.target.glycan_composition)
 
     signatures = signatures
+    compound_signatures = compound_signatures
 
     def match(self, error_tolerance=2e-5, *args, **kwargs):
         if len(self.spectrum) == 0:
@@ -74,6 +116,23 @@ class GlycanCompositionSignatureMatcher(GlycopeptideSpectrumMatcherBase):
                 self.expected_matches[monosaccharide] = peak
             else:
                 self.unexpected_matches[monosaccharide] = peak
+
+        for compound in self.compound_signatures:
+            is_expected = compound.is_expected(self.glycan_composition)
+            peak = []
+            for mass in compound.masses:
+                peak += spectrum.all_peaks_for(mass, error_tolerance)
+            if peak:
+                peak = base_peak_tuple(peak)
+            else:
+                if is_expected:
+                    self.expected_matches[compound] = None
+                continue
+            if is_expected:
+                self.expected_matches[compound] = peak
+            else:
+                self.unexpected_matches[compound] = peak
+
 
     def _find_peak_pairs(self, error_tolerance=2e-5, include_compound=False, *args, **kwargs):
         peak_set = self.spectrum
