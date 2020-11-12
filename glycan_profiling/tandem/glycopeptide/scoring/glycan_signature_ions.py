@@ -55,7 +55,7 @@ compound_signatures = {
     CompoundSignature(('@phosphate', 'Hex'), [
         242.01915393925,
         224.00858925555,
-    ]): 0.75,
+    ]): 0.5,
 }
 
 
