@@ -32,6 +32,7 @@ class SpectrumMatchAnnotator(object):
         ).intensity * 1.35
         self.peak_labels = []
         self.upshift = 10
+        self.sequence_logo = None
 
     def draw_all_peaks(self, color='black', alpha=0.5, **kwargs):
         draw_peaklist(
@@ -142,6 +143,7 @@ class SpectrumMatchAnnotator(object):
         figure = self.ax.figure
         iax = figure.add_axes([xrel, yrel, width, height])
         logo = glycopeptide_match_logo(self.spectrum_match, ax=iax, **kwargs)
+        self.sequence_logo = logo
         return logo
 
     def _draw_mass_accuracy_plot(self, ax, error_tolerance=2e-5, **kwargs):
