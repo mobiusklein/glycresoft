@@ -117,21 +117,21 @@ class GlycanCompositionSignatureMatcher(GlycopeptideSpectrumMatcherBase):
             else:
                 self.unexpected_matches[monosaccharide] = peak
 
-        for compound in self.compound_signatures:
-            is_expected = compound.is_expected(self.glycan_composition)
-            peak = []
-            for mass in compound.masses:
-                peak += spectrum.all_peaks_for(mass, error_tolerance)
-            if peak:
-                peak = base_peak_tuple(peak)
-            else:
-                if is_expected:
-                    self.expected_matches[compound] = None
-                continue
-            if is_expected:
-                self.expected_matches[compound] = peak
-            else:
-                self.unexpected_matches[compound] = peak
+        # for compound in self.compound_signatures:
+        #     is_expected = compound.is_expected(self.glycan_composition)
+        #     peak = []
+        #     for mass in compound.masses:
+        #         peak += spectrum.all_peaks_for(mass, error_tolerance)
+        #     if peak:
+        #         peak = base_peak_tuple(peak)
+        #     else:
+        #         if is_expected:
+        #             self.expected_matches[compound] = None
+        #         continue
+        #     if is_expected:
+        #         self.expected_matches[compound] = peak
+        #     else:
+        #         self.unexpected_matches[compound] = peak
 
 
     def _find_peak_pairs(self, error_tolerance=2e-5, include_compound=False, *args, **kwargs):
