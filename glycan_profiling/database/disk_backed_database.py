@@ -446,8 +446,8 @@ class GlycopeptideDiskBackedStructureDatabase(DeclarativeDiskBackedDatabase):
 
 
 class InMemoryPeptideStructureDatabase(NeutralMassDatabase):
-    def __init__(self, records, source_database):
-        super(InMemoryPeptideStructureDatabase, self).__init__(records)
+    def __init__(self, records, source_database=None, sort=True):
+        super(InMemoryPeptideStructureDatabase, self).__init__(records, sort=sort)
         self.source_database = source_database
 
     @property
