@@ -755,7 +755,14 @@ class GlycopeptideLCMSMSAnalyzer(TaskBase):
             return set([y for x in nested for y in x])
 
         gcs = database.query(serialize.GlycanCombination).all()
-        gcs = [(gc.convert(), flatten(gc.component_classes)) for gc in gcs]
+        gcs = [
+            (
+                gc.convert(),
+                # flatten(gc.component_classes)
+                set()
+            )
+            for gc in gcs
+        ]
 
         oxonium_ion_cache.populate([gc for gc, tps in gcs])
         # CachingStubGlycopeptideStrategy.populate([gc for gc, tps in gcs if "N-Glycan" in tps])
