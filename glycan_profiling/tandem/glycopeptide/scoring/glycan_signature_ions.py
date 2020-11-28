@@ -99,7 +99,7 @@ class GlycanCompositionSignatureMatcher(GlycopeptideSpectrumMatcherBase):
     signatures = signatures
     compound_signatures = compound_signatures
 
-    def match(self, error_tolerance=2e-5, *args, **kwargs):
+    def match(self, error_tolerance=2e-5, rare_signatures=False, *args, **kwargs):
         if len(self.spectrum) == 0:
             return
         self.maximum_intensity = self.base_peak()
@@ -121,21 +121,22 @@ class GlycanCompositionSignatureMatcher(GlycopeptideSpectrumMatcherBase):
             else:
                 self.unexpected_matches[monosaccharide] = peak
 
-        # for compound in self.compound_signatures:
-        #     is_expected = compound.is_expected(self.glycan_composition)
-        #     peak = []
-        #     for mass in compound.masses:
-        #         peak += spectrum.all_peaks_for(mass, error_tolerance)
-        #     if peak:
-        #         peak = base_peak_tuple(peak)
-        #     else:
-        #         if is_expected:
-        #             self.expected_matches[compound] = None
-        #         continue
-        #     if is_expected:
-        #         self.expected_matches[compound] = peak
-        #     else:
-        #         self.unexpected_matches[compound] = peak
+        if rare_signatures:
+            for compound in self.compound_signatures:
+                is_expected = compound.is_expected(self.glycan_composition)
+                peak = ()
+                for mass in compound.masses:
+                    peak += spectrum.all_peaks_for(mass, error_tolerance)
+                if peak:
+                    peak = base_peak_tuple(peak)
+                else:
+                    if is_expected:
+                        self.expected_matches[compound] = None
+                    continue
+                if is_expected:
+                    self.expected_matches[compound] = peak
+                else:
+                    self.unexpected_matches[compound] = peak
 
 
     def _find_peak_pairs(self, error_tolerance=2e-5, include_compound=False, *args, **kwargs):
