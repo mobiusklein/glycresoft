@@ -370,7 +370,7 @@ class JournalSetLoader(TaskBase):
         for i, journal_path in enumerate(self.journal_files, 1):
             self.log("... Reading Journal Shard %s, %d/%d" %
                      (journal_path, i, n))
-            self._load_identifications_from_journal(self.solutions)
+            self._load_identifications_from_journal(journal_path, self.solutions)
         self.log("Partitioning Spectrum Matches...")
         return SolutionSetGrouper(self.solutions)
 
