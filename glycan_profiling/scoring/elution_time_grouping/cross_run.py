@@ -212,13 +212,14 @@ class LinearRetentionTimeCorrector(object):
         Xhat = np.arange(X.min(), X.max())
         for sample_key in sorted(self.sample_keys):
             if sample_key == self.reference_key:
-                continue
-            fit = self.sample_to_correction_parameters[sample_key]
-            ax.scatter(fit.data[0][:, 1], fit.data[1],
-                       label=r'%s %0.2fX + %0.2f ($R^2$=%0.2f)' % (
-                           sample_key, fit.parameters[1], fit.parameters[0], fit.R2))
-            Yhat = Xhat * fit.parameters[1] + fit.parameters[0]
-            ax.plot(Xhat, Yhat, linestyle='--')
+                ax.scatter(X, np.zeros_like(X), label="%s Reference" % (sample_key, ))
+            else:
+                fit = self.sample_to_correction_parameters[sample_key]
+                ax.scatter(fit.data[0][:, 1], fit.data[1],
+                        label=r'%s %0.2fX + %0.2f ($R^2$=%0.2f)' % (
+                            sample_key, fit.parameters[1], fit.parameters[0], fit.R2))
+                Yhat = Xhat * fit.parameters[1] + fit.parameters[0]
+                ax.plot(Xhat, Yhat, linestyle='--')
         legend = ax.legend(fontsize=6)
         frame = legend.get_frame()
         frame.set_linewidth(0.5)

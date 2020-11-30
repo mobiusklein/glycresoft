@@ -785,8 +785,12 @@ def retention_time():
               help=("Path to glycopeptide CSV chromatograms to evaluate with the model, but not fit on"))
 @click.option("-p", "--prefer-joint-model", is_flag=True,
               help="Prefer the joint model over the peptide-specific ones")
+@click.option('-m', '--minimum-observations-for-specific-model', type=int, default=20,
+              help="The minimum number of observations required to fit a peptide sequence-specific model")
+@click.option('-r', '--use-retention-time-normalization', is_flag=True)
 def glycopeptide_retention_time_fit(context, chromatogram_csv_path, output_path=None,
-                                    test_chromatogram_csv_path=None, prefer_joint_model=False):
+                                    test_chromatogram_csv_path=None, prefer_joint_model=False,
+                                    minimum_observations_for_specific_model=20, use_retention_time_normalization=False):
     with open(chromatogram_csv_path, 'rt') as fh:
         chromatograms = GlycopeptideChromatogramProxy.from_csv(fh)
     if test_chromatogram_csv_path is not None:
@@ -796,7 +800,9 @@ def glycopeptide_retention_time_fit(context, chromatogram_csv_path, output_path=
         test_chromatograms = None
     modeler = GlycopeptideElutionTimeModeler(
         chromatograms, test_chromatograms=test_chromatograms,
-        prefer_joint_model=prefer_joint_model)
+        prefer_joint_model=prefer_joint_model,
+        use_retention_time_normalization=use_retention_time_normalization,
+        minimum_observations_for_specific_model=minimum_observations_for_specific_model)
     modeler.run()
     if output_path:
         modeler.write(output_path)
