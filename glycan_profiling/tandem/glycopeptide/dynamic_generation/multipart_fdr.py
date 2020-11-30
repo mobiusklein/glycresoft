@@ -292,9 +292,7 @@ class GlycopeptideFDREstimator(TaskBase):
                 t.q_value_set.glycan_q_value = self.glycan_fdr.fdr_map[t.score_set.glycan_score]
                 t.q_value_set.glycopeptide_q_value = self.glycopeptide_fdr.fdr_map[
                     t.score_set.glycopeptide_score]
-                joint = max((t.q_value_set.peptide_q_value + t.q_value_set.glycan_q_value -
-                         t.q_value_set.glycopeptide_q_value), 0)
-                total = min(t.q_value_set.peptide_q_value, t.q_value_set.glycan_q_value, joint)
+                total = min(t.q_value_set.peptide_q_value, t.q_value_set.glycan_q_value)
                 t.q_value = t.q_value_set.total_q_value = total
             ts.q_value = ts.best_solution().q_value
         return solution_sets
