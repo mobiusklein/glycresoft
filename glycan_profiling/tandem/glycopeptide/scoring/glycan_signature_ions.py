@@ -13,13 +13,10 @@ from glycan_profiling.structure import SpectrumGraph
 from .base import GlycopeptideSpectrumMatcherBase
 
 
-signatures = {
-    FrozenMonosaccharideResidue.from_iupac_lite("NeuAc"): 0.5,
-    FrozenMonosaccharideResidue.from_iupac_lite("NeuGc"): 0.5,
-}
+_WATER = Composition("H2O")
 
 
-class CompoundSignature(object):
+class SignatureSpecification(object):
     __slots__ = ('components', 'masses', '_hash')
 
     def __init__(self, components, masses):
@@ -50,13 +47,43 @@ class CompoundSignature(object):
                 k) != 0 for k in self)
         return is_expected
 
+    def count_of(self, glycan_composition):
+        limit = float('inf')
+        for component in self:
+            cnt = glycan_composition._getitem_fast(component)
+            if cnt < limit:
+                limit = cnt
+        return limit
+
+
+NeuAc = FrozenMonosaccharideResidue.from_iupac_lite("NeuAc")
+NeuGc = FrozenMonosaccharideResidue.from_iupac_lite("NeuGc")
+
+
+signatures = {
+    FrozenMonosaccharideResidue.from_iupac_lite("NeuAc"): 0.5,
+    FrozenMonosaccharideResidue.from_iupac_lite("NeuGc"): 0.5,
+}
+
+
+single_signatures = {
+    SignatureSpecification((str(NeuAc), ), [
+        NeuAc.mass(),
+        NeuAc.mass() - _WATER.mass
+    ]): 0.5,
+    SignatureSpecification((str(NeuGc), ), [
+        NeuGc.mass(),
+        NeuGc.mass() - _WATER.mass
+    ]): 0.5,
+}
+
 
 compound_signatures = {
-    CompoundSignature(('@phosphate', 'Hex'), [
+    SignatureSpecification(('@phosphate', 'Hex'), [
         242.01915393925,
         224.00858925555,
     ]): 0.5,
-    CompoundSignature(("@acetyl", "NeuAc"), [
+    SignatureSpecification(("@acetyl", "NeuAc"), [
         333.10598119017,
         315.09541650647
     ]): 0.5
@@ -96,9 +123,9 @@ class GlycanCompositionSignatureMatcher(GlycopeptideSpectrumMatcherBase):
     def _copy_glycan_composition(self):
         return GlycanCompositionProxy(self.target.glycan_composition)
 
-    signatures = signatures
+    signatures = single_signatures
     compound_signatures = compound_signatures
-    all_signatures = signatures.copy()
+    all_signatures = single_signatures.copy()
     all_signatures.update(compound_signatures)
 
     def match(self, error_tolerance=2e-5, rare_signatures=False, *args, **kwargs):
@@ -108,20 +135,21 @@ class GlycanCompositionSignatureMatcher(GlycopeptideSpectrumMatcherBase):
         water = _water
         spectrum = self.spectrum
 
-        for monosaccharide in self.signatures:
-            is_expected = self.glycan_composition._getitem_fast(monosaccharide) != 0
-            peak = spectrum.all_peaks_for(monosaccharide.mass(), error_tolerance)
-            peak += spectrum.all_peaks_for(monosaccharide.mass() - water.mass, error_tolerance)
+        for mono in self.signatures:
+            is_expected = mono.is_expected(self.glycan_composition)
+            peak = ()
+            for mass in mono.masses:
+                peak += spectrum.all_peaks_for(mass, error_tolerance)
             if peak:
                 peak = base_peak_tuple(peak)
             else:
                 if is_expected:
-                    self.expected_matches[monosaccharide] = None
+                    self.expected_matches[mono] = None
                 continue
             if is_expected:
-                self.expected_matches[monosaccharide] = peak
+                self.expected_matches[mono] = peak
             else:
-                self.unexpected_matches[monosaccharide] = peak
+                self.unexpected_matches[mono] = peak
 
         if rare_signatures:
             for compound in self.compound_signatures:
@@ -169,7 +197,7 @@ class GlycanCompositionSignatureMatcher(GlycopeptideSpectrumMatcherBase):
         return pairs
 
     def estimate_missing_ion_importance(self, key):
-        count = self.glycan_composition[key]
+        count = key.count_of(self.glycan_composition)
         weight = self.all_signatures[key]
         return min(weight * count, 0.99)
 

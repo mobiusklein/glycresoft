@@ -69,7 +69,7 @@ class TestGlycopeptideScorers(unittest.TestCase):
 
         match = intensity_scorer.LogIntensityScorer.evaluate(scan, gp)
         self.assertAlmostEqual(match.score, 55.396555993522334, 3)
-        match = intensity_scorer.LogIntensityScorer.evaluate(scan, gp2)
+        match = intensity_scorer.LogIntensityScorer.evaluate(scan, gp2, rare_signatures=True)
         self.assertAlmostEqual(match.score, 55.396555993522334, 3)
 
         match = intensity_scorer.LogIntensityScorer.evaluate(scan2, gp)
