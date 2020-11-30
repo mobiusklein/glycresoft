@@ -98,6 +98,8 @@ class GlycanCompositionSignatureMatcher(GlycopeptideSpectrumMatcherBase):
 
     signatures = signatures
     compound_signatures = compound_signatures
+    all_signatures = signatures.copy()
+    all_signatures.update(compound_signatures)
 
     def match(self, error_tolerance=2e-5, rare_signatures=False, *args, **kwargs):
         if len(self.spectrum) == 0:
@@ -168,7 +170,7 @@ class GlycanCompositionSignatureMatcher(GlycopeptideSpectrumMatcherBase):
 
     def estimate_missing_ion_importance(self, key):
         count = self.glycan_composition[key]
-        weight = self.signatures[key]
+        weight = self.all_signatures[key]
         return min(weight * count, 0.99)
 
     def _signature_ion_score(self, error_tolerance=2e-5):

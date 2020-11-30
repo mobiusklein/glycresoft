@@ -712,10 +712,15 @@ class GlycanFilteringPeptideMassEstimator(GlycanCoarseScorerBase):
 
     def glycan_for_peptide_mass(self, scan, peptide_mass):
         matches = []
-        glycan_mass = scan.precursor_information.neutral_mass - peptide_mass
+        try:
+            glycan_mass = scan.precursor_information.neutral_mass - peptide_mass
+        except AttributeError:
+            glycan_mass = scan - peptide_mass
         for glycan_record in self.glycan_combination_db:
             if abs(glycan_record.dehydrated_mass - glycan_mass) / glycan_mass < self.product_error_tolerance:
                 matches.append(glycan_record)
+            elif glycan_mass > glycan_record.dehydrated_mass:
+                break
         return matches
 
     def build_peptide_filter(self, scan, error_tolerance=None, mass_shift=Unmodified):
