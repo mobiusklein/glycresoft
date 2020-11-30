@@ -157,7 +157,7 @@ class SignatureAwareCoverageScorer(SimpleCoverageScorer, GlycanCompositionSignat
         super(SignatureAwareCoverageScorer, self).__init__(scan, sequence, mass_shift, *args, **kwargs)
 
     def match(self, error_tolerance=2e-5, *args, **kwargs):
-        GlycanCompositionSignatureMatcher.match(self, error_tolerance=error_tolerance)
+        GlycanCompositionSignatureMatcher.match(self, error_tolerance=error_tolerance, **kwargs)
         masked_peaks = set()
         include_neutral_losses = kwargs.get("include_neutral_losses", False)
 
