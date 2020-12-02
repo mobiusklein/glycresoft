@@ -52,6 +52,27 @@ _glycopeptide_key_t = namedtuple(
                          'hypothesis_id', 'glycan_combination_id', 'structure_type',
                          'site_combination_index'))
 
+
+class glycopeptide_key_t_base(_glycopeptide_key_t):
+    __slot__ = ()
+
+    def copy(self, structure_type=None):
+        if structure_type is None:
+            structure_type = self.structure_type
+        return self._replace(structure_type=structure_type)
+
+    def as_dict(self, stringify=False):
+        d = {}
+        for i, label in enumerate(self._fields):
+            d[label] = str(self[i]) if stringify else self[i]
+        return d
+
+
+try:
+    from glycan_profiling._c.structure.structure_loader import glycopeptide_key as glycopeptide_key_t_base
+except ImportError:
+    pass
+
 # The site_combination_index slot is necessary to distinguish alternative arrangements of
 # the same combination of glycans on the same amino acid sequence. The placeholder value
 # used for unassigned glycosite combination permutations, the maximum value that fits in
@@ -67,7 +88,7 @@ placeholder_permutation = ctypes.c_uint32(-1).value
 TT = StructureClassification.target_peptide_target_glycan
 
 
-class glycopeptide_key_t(_glycopeptide_key_t):
+class glycopeptide_key_t(glycopeptide_key_t_base):
     __slots__ = ()
 
     struct_spec = struct.Struct('!LLLLLLLL')
@@ -79,11 +100,6 @@ class glycopeptide_key_t(_glycopeptide_key_t):
     def parse(cls, binary):
         return cls(*cls.struct_spec.unpack(binary))
 
-    def copy(self, structure_type=None):
-        if structure_type is None:
-            structure_type = self.structure_type
-        return self._replace(structure_type=structure_type)
-
     def to_decoy_glycan(self):
         structure_type = self.structure_type
         new_tp = StructureClassification[
@@ -93,11 +109,6 @@ class glycopeptide_key_t(_glycopeptide_key_t):
     def is_decoy(self):
         return self.structure_type != 0
 
-    def as_dict(self, stringify=False):
-        d = {}
-        for i, label in enumerate(self._fields):
-            d[label] = str(self[i]) if stringify else self[i]
-        return d
 
 
 class GlycoformGeneratorBase(LoggingMixin):

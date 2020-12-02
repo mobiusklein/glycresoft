@@ -23,13 +23,16 @@ cdef class glycopeptide_key(object):
         public uint64_t glycan_combination_id
         public object structure_type
         public uint64_t site_combination_index
+        public Py_hash_t _hash
 
     @staticmethod
     cdef glycopeptide_key _create(uint32_t start_position, uint32_t end_position, uint64_t peptide_id,
                                   uint32_t protein_id, uint32_t hypothesis_id, uint64_t glycan_combination_id,
-                                  object structure_type, uint64_t site_combination_index)
+                                  object structure_type, uint64_t site_combination_index, Py_hash_t _hash=*)
 
-    cpdef glycopeptide_key copy(self)
+    cdef void _rehash(self)
+    cpdef glycopeptide_key copy(self, object structure_type=*)
+    cpdef dict as_dict(self, bint stringify=*)
 
 
 cdef class PeptideDatabaseRecordBase(object):
