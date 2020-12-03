@@ -243,7 +243,7 @@ class TargetDecoyInterleavingGlycopeptideMatcher(GlycopeptideSpectrumGroupEvalua
             mass_shifts=mass_shifts, peptide_mass_filter=peptide_mass_filter,
             trust_precursor_fits=trust_precursor_fits, cache_seeds=cache_seeds)
 
-    def filter_for_oxonium_ions(self, error_tolerance=1e-5):
+    def filter_for_oxonium_ions(self, error_tolerance=1e-5, **kwargs):
         keep = []
         for scan in self.tandem_cluster:
             minimum_mass = 0
