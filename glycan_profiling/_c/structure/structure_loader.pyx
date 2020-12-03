@@ -1,4 +1,7 @@
 cimport cython
+from cpython.object cimport PyObject
+from cpython.ref cimport Py_INCREF
+from cpython.tuple cimport PyTuple_GET_SIZE, PyTuple_GET_ITEM, PyTuple_SET_ITEM, PyTuple_New
 
 from numpy cimport npy_uint32 as uint32_t, npy_uint64 as uint64_t
 
@@ -197,3 +200,80 @@ cdef class PeptideDatabaseRecordBase(object):
     @classmethod
     def from_record(cls, record):
         return cls(**record)
+
+
+cdef class GlycopeptideFragmentCachingContext(object):
+    def __init__(self, store=None):
+        if store is None:
+            store = {}
+        self.store = store
+
+    cpdef peptide_backbone_fragment_key(self, target, args, dict kwargs):
+        key = ("get_fragments", args, frozenset(kwargs.items()))
+        return key
+
+    cpdef stub_fragment_key(self, target, args, dict kwargs):
+        key = ('stub_fragments', args, frozenset(kwargs.items()), )
+        return key
+
+    def __getitem__(self, key):
+        return self.store[key]
+
+    def __setitem__(self, key, value):
+        self.store[key] = value
+
+    def __reduce__(self):
+        return self.__class__, (self.store, )
+
+    def keys(self):
+        return self.store.keys()
+
+    def values(self):
+        return self.store.values()
+
+    def items(self):
+        return self.store.items()
+
+    def clear(self):
+        self.store.clear()
+
+    cpdef bind(self, target):
+        target.fragment_caches = self
+        return target
+
+    cpdef unbind(self, target):
+        target.fragment_caches = self.__class__()
+        return target
+
+    def __call__(self, target):
+        return self.bind(target)
+
+    cpdef _make_target_key(self, tuple key):
+        return None
+
+
+cdef class GlycanAwareGlycopeptideFragmentCachingContext(GlycopeptideFragmentCachingContext):
+    cpdef stub_fragment_key(self, target, args, dict kwargs):
+        cdef tid = target.id
+        key = ('stub_fragments', args, frozenset(
+            kwargs.items()), tid.glycan_combination_id, tid.structure_type)
+        return key
+
+    cpdef _make_target_key(self, tuple key):
+        cdef:
+            size_t n, i
+            tuple new_key
+            PyObject* tmp
+            object as_target_peptide, value
+        from glycan_profiling.tandem.glycopeptide.dynamic_generation.search_space import StructureClassification
+        n = PyTuple_GET_SIZE(key)
+        value = <object>PyTuple_GET_ITEM(key, n - 1)
+        new_key = PyTuple_New(n)
+        for i in range(n - 1):
+            tmp = PyTuple_GET_ITEM(key, i)
+            Py_INCREF(<object>tmp)
+            PyTuple_SET_ITEM(new_key, i, <object>tmp)
+        as_target_peptide = StructureClassification[int(value) ^ 1]
+        Py_INCREF(as_target_peptide)
+        PyTuple_SET_ITEM(new_key, n - 1, as_target_peptide)
+        return new_key

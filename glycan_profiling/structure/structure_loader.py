@@ -295,6 +295,12 @@ class GlycanAwareGlycopeptideFragmentCachingContext(GlycopeptideFragmentCachingC
         new_key = key[:-1] + (as_target_peptide, )
         return new_key
 
+try:
+    from glycan_profiling._c.structure.structure_loader import GlycopeptideFragmentCachingContext, GlycanAwareGlycopeptideFragmentCachingContext
+except ImportError as err:
+    print(err)
+    pass
+
 
 class FragmentCachingGlycopeptide(PeptideSequence):
     def __init__(self, *args, **kwargs):

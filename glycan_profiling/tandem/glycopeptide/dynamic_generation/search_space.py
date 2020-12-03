@@ -68,10 +68,10 @@ class glycopeptide_key_t_base(_glycopeptide_key_t):
         return d
 
 
-try:
-    from glycan_profiling._c.structure.structure_loader import glycopeptide_key as glycopeptide_key_t_base
-except ImportError:
-    pass
+# try:
+#     from glycan_profiling._c.structure.structure_loader import glycopeptide_key as glycopeptide_key_t_base
+# except ImportError:
+#     pass
 
 # The site_combination_index slot is necessary to distinguish alternative arrangements of
 # the same combination of glycans on the same amino acid sequence. The placeholder value

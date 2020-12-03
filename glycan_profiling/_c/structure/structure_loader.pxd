@@ -49,3 +49,18 @@ cdef class PeptideDatabaseRecordBase(object):
         public tuple gagylation_sites
 
     cpdef bint has_glycosylation_sites(self)
+
+
+cdef class GlycopeptideFragmentCachingContext(object):
+    cdef:
+        public dict store
+
+    cpdef peptide_backbone_fragment_key(self, target, args, dict kwargs)
+    cpdef stub_fragment_key(self, target, args, dict kwargs)
+    cpdef bind(self, target)
+    cpdef unbind(self, target)
+    cpdef _make_target_key(self, tuple key)
+
+
+cdef class GlycanAwareGlycopeptideFragmentCachingContext(GlycopeptideFragmentCachingContext):
+    pass
