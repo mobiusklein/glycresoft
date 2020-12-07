@@ -587,13 +587,11 @@ cpdef _match_precursor(self, double error_tolerance=2e-5, set masked_peaks=None,
     if masked_peaks is None:
         masked_peaks = set()
 
-    spectrum = self.spectrum
     mass = self.target.total_mass
     frag = SimpleFragment("M", mass, IonSeries_precursor, None)
 
     spectrum = self.spectrum
     solution_map = <FragmentMatchMap>self.solution_map
-
     peaks = <tuple>spectrum.all_peaks_for(frag.mass, error_tolerance)
     for i_peaks in range(PyTuple_Size(peaks)):
         peak = <DeconvolutedPeak>PyTuple_GET_ITEM(peaks, i_peaks)
@@ -602,28 +600,27 @@ cpdef _match_precursor(self, double error_tolerance=2e-5, set masked_peaks=None,
             continue
         PySet_Add(masked_peaks, key)
         solution_map.add(peak, frag)
-        if include_neutral_losses:
-            peaks = <tuple>spectrum.all_peaks_for(frag.mass + NH3_loss_mass, error_tolerance)
-            for i_peaks in range(PyTuple_Size(peaks)):
-                peak = <DeconvolutedPeak>PyTuple_GET_ITEM(peaks, i_peaks)
-                key = <object>peak._index.neutral_mass
-                if PySet_Contains(masked_peaks, key):
-                    continue
-                PySet_Add(masked_peaks, key)
-                shifted_frag = frag.clone()
-                shifted_frag.set_chemical_shift(NH3_loss_shift)
-                solution_map.add(peak, shifted_frag)
-            peaks = <tuple>spectrum.all_peaks_for(frag.mass + H2O_loss_mass, error_tolerance)
-            for i_peaks in range(PyTuple_Size(peaks)):
-                peak = <DeconvolutedPeak>PyTuple_GET_ITEM(peaks, i_peaks)
-                key = <object>peak._index.neutral_mass
-                if PySet_Contains(masked_peaks, key):
-                    continue
-                PySet_Add(masked_peaks, key)
-                shifted_frag = frag.clone()
-                shifted_frag.set_chemical_shift(H2O_loss_shift)
-                solution_map.add(peak, shifted_frag)
-
+    if include_neutral_losses:
+        peaks = <tuple>spectrum.all_peaks_for(frag.mass + NH3_loss_mass, error_tolerance)
+        for i_peaks in range(PyTuple_Size(peaks)):
+            peak = <DeconvolutedPeak>PyTuple_GET_ITEM(peaks, i_peaks)
+            key = <object>peak._index.neutral_mass
+            if PySet_Contains(masked_peaks, key):
+                continue
+            PySet_Add(masked_peaks, key)
+            shifted_frag = frag.clone()
+            shifted_frag.set_chemical_shift(NH3_loss_shift)
+            solution_map.add(peak, shifted_frag)
+        peaks = <tuple>spectrum.all_peaks_for(frag.mass + H2O_loss_mass, error_tolerance)
+        for i_peaks in range(PyTuple_Size(peaks)):
+            peak = <DeconvolutedPeak>PyTuple_GET_ITEM(peaks, i_peaks)
+            key = <object>peak._index.neutral_mass
+            if PySet_Contains(masked_peaks, key):
+                continue
+            PySet_Add(masked_peaks, key)
+            shifted_frag = frag.clone()
+            shifted_frag.set_chemical_shift(H2O_loss_shift)
+            solution_map.add(peak, shifted_frag)
 
 
 
