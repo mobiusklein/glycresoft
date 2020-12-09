@@ -259,13 +259,13 @@ cdef class CoarseGlycanMatch(object):
             DeconvolutedPeak peak
         weighted_mass_acc = 0
         weight_acc = 0
-        n_fmatch = PyList_Size(self.fragment_matches)
+        n_fmatch = PyList_GET_SIZE(self.fragment_matches)
         for i_fmatch in range(n_fmatch):
-            fmatch = <CoarseStubGlycopeptideMatch>PyList_GetItem(self.fragment_matches, i_fmatch)
+            fmatch = <CoarseStubGlycopeptideMatch>PyList_GET_ITEM(self.fragment_matches, i_fmatch)
             fmass = fmatch.shift_mass
-            n_peak = PyTuple_Size(fmatch.peaks_matched)
+            n_peak = PyTuple_GET_SIZE(fmatch.peaks_matched)
             for i_peak in range(n_peak):
-                peak = <DeconvolutedPeak>PyTuple_GetItem(fmatch.peaks_matched, i_peak)
+                peak = <DeconvolutedPeak>PyTuple_GET_ITEM(fmatch.peaks_matched, i_peak)
                 weighted_mass_acc += (peak.neutral_mass - fmass) * peak.intensity
                 weight_acc += peak.intensity
         if weight_acc == 0:
@@ -284,11 +284,13 @@ cdef class GlycanCoarseScorerBase(object):
         public double product_error_tolerance
         public double fragment_weight
         public double core_weight
+        public bint recalibrate_peptide_mass
 
-    def __init__(self, product_error_tolerance=1e-5, fragment_weight=0.56, core_weight=0.42):
+    def __init__(self, product_error_tolerance=1e-5, fragment_weight=0.56, core_weight=0.42, recalibrate_peptide_mass=False):
         self.product_error_tolerance = product_error_tolerance
         self.fragment_weight = fragment_weight
         self.core_weight = core_weight
+        self.recalibrate_peptide_mass = recalibrate_peptide_mass
 
     @cython.boundscheck(False)
     cpdef CoarseGlycanMatch _match_fragments(self, object scan, double peptide_mass, list shifts, double mass_shift_tandem_mass=0.0):
@@ -571,7 +573,7 @@ cpdef GlycanFilteringPeptideMassEstimator_match(GlycanCoarseScorerBase self, sca
                 best_score = score
                 best_match = match
 
-        if best_match is not None:
+        if best_match is not None and self.recalibrate_peptide_mass:
             recalibrated_peptide_mass = best_match.estimate_peptide_mass()
             if recalibrated_peptide_mass > 0:
                 if abs(recalibrated_peptide_mass - peptide_mass) > 0.5:
