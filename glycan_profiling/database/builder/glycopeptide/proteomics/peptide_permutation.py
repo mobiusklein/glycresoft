@@ -625,13 +625,15 @@ class UniprotProteinAnnotator(TaskBase):
         interval = int(min((n * 0.1) + 1, 1000))
         acc = []
         seen = set()
+        # TODO: This seems to periodically exit before finishing processing of all proteins?
         while True:
             try:
                 protein_name, record = uniprot_queue.get()
                 protein_id = name_to_id[protein_name]
                 seen.add(protein_id)
                 i += 1
-                if isinstance(record, Exception):
+                if isinstance(record, (Exception, str)):
+                    self.log("... Skipping %s: %s" % (protein_name, record))
                     continue
                 protein = self.query(Protein).get(protein_id)
                 if i % interval == 0:
@@ -647,7 +649,6 @@ class UniprotProteinAnnotator(TaskBase):
                         acc = []
             except Empty:
                 uniprot_queue.join()
-                self.log("Threaded Queue Closed")
                 if uniprot_queue.done_event.is_set():
                     break
 
