@@ -160,6 +160,7 @@ class SignatureAwareCoverageScorer(SimpleCoverageScorer, GlycanCompositionSignat
         GlycanCompositionSignatureMatcher.match(self, error_tolerance=error_tolerance, **kwargs)
         masked_peaks = set()
         include_neutral_losses = kwargs.get("include_neutral_losses", False)
+        extended_glycan_search = kwargs.get("extended_glycan_search", False)
 
         if self.mass_shift.tandem_mass != 0:
             chemical_shift = ChemicalShift(
@@ -174,7 +175,9 @@ class SignatureAwareCoverageScorer(SimpleCoverageScorer, GlycanCompositionSignat
         # handle glycan fragments from collisional dissociation
         if is_hcd:
             self._match_oxonium_ions(error_tolerance, masked_peaks=masked_peaks)
-            self._match_stub_glycopeptides(error_tolerance, masked_peaks=masked_peaks, chemical_shift=chemical_shift)
+            self._match_stub_glycopeptides(error_tolerance, masked_peaks=masked_peaks,
+                                           chemical_shift=chemical_shift,
+                                           extended_glycan_search=extended_glycan_search)
         # handle N-term
         if is_hcd and not is_exd:
             self._match_backbone_series(

@@ -31,10 +31,14 @@ class GlycopeptideSpectrumMatcherBase(SpectrumMatcherBase):
                 masked_peaks.add(peak.index.neutral_mass)
         return masked_peaks
 
-    def _match_stub_glycopeptides(self, error_tolerance=2e-5, masked_peaks=None, chemical_shift=None):
+    def _match_stub_glycopeptides(self, error_tolerance=2e-5, masked_peaks=None, chemical_shift=None, extended_glycan_search=False):
         if masked_peaks is None:
             masked_peaks = set()
-        for frag in self.target.stub_fragments(extended=True):
+        if not extended_glycan_search:
+            fragments = self.target.stub_fragments(extended=True)
+        else:
+            fragments = self.target.stub_fragments(extended=True, extended_fucosylation=True)
+        for frag in fragments:
             for peak in self.spectrum.all_peaks_for(frag.mass, error_tolerance):
                 # should we be masking these? peptides which have amino acids which are
                 # approximately the same mass as a monosaccharide unit at ther terminus
@@ -73,6 +77,7 @@ class GlycopeptideSpectrumMatcherBase(SpectrumMatcherBase):
     def match(self, error_tolerance=2e-5, *args, **kwargs):
         masked_peaks = set()
         include_neutral_losses = kwargs.get("include_neutral_losses", False)
+        extended_glycan_search = kwargs.get("extended_glycan_search", False)
         if self.mass_shift.tandem_mass != 0:
             chemical_shift = ChemicalShift(
                 self.mass_shift.name, self.mass_shift.tandem_composition)
@@ -86,7 +91,9 @@ class GlycopeptideSpectrumMatcherBase(SpectrumMatcherBase):
         # handle glycan fragments from collisional dissociation
         if is_hcd:
             self._match_oxonium_ions(error_tolerance, masked_peaks=masked_peaks)
-            self._match_stub_glycopeptides(error_tolerance, masked_peaks=masked_peaks, chemical_shift=chemical_shift)
+            self._match_stub_glycopeptides(error_tolerance, masked_peaks=masked_peaks,
+                                           chemical_shift=chemical_shift,
+                                           extended_glycan_search=extended_glycan_search)
 
         # handle N-term
         if is_hcd and not is_exd:
@@ -131,10 +138,13 @@ class GlycopeptideSpectrumMatcherBase(SpectrumMatcherBase):
     def _glycan_side_group_count(self, glycan_composition):
         return glycan_side_group_count(glycan_composition)
 
-    def _calculate_glycan_coverage(self, core_weight=0.4, coverage_weight=0.5, fragile_fucose=True, *args, **kwargs):
+    def _calculate_glycan_coverage(self, core_weight=0.4, coverage_weight=0.5, fragile_fucose=True, extended_glycan_search=False, *args, **kwargs):
         seen = set()
         series = IonSeries.stub_glycopeptide
-        theoretical_set = list(self.target.stub_fragments(extended=True))
+        if not extended_glycan_search:
+            theoretical_set = list(self.target.stub_fragments(extended=True))
+        else:
+            theoretical_set = list(self.target.stub_fragments(extended=True, extended_fucosylation=True))
         core_fragments = set()
         for frag in theoretical_set:
             if not frag.is_extended:
@@ -169,11 +179,12 @@ class GlycopeptideSpectrumMatcherBase(SpectrumMatcherBase):
         self._glycan_coverage = coverage
         return coverage
 
-    def glycan_coverage(self, core_weight=0.4, coverage_weight=0.5, fragile_fucose=True, *args, **kwargs):
+    def glycan_coverage(self, core_weight=0.4, coverage_weight=0.5, fragile_fucose=True, extended_glycan_search=False, * args, **kwargs):
         if self._glycan_coverage is not None:
             return self._glycan_coverage
         self._glycan_coverage = self._calculate_glycan_coverage(
-            core_weight, coverage_weight, fragile_fucose=fragile_fucose, *args, **kwargs)
+            core_weight, coverage_weight, fragile_fucose=fragile_fucose,
+            extended_glycan_search=extended_glycan_search, *args, **kwargs)
         return self._glycan_coverage
 
     def calculate_glycan_score(self, *args, **kwargs):

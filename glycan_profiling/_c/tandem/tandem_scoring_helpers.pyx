@@ -130,7 +130,7 @@ def calculate_peptide_score(self, double error_tolerance=2e-5, double coverage_w
 @cython.cdivision(True)
 @cython.boundscheck(False)
 def calculate_glycan_score(self, double error_tolerance=2e-5, double core_weight=0.4, double coverage_weight=0.5,
-                           bint fragile_fucose=True, *args, **kwargs):
+                           bint fragile_fucose=True, bint extended_glycan_search=False, *args, **kwargs):
     cdef:
         set seen, core_fragments, core_matches, extended_matches
         IonSeriesBase series
@@ -147,7 +147,10 @@ def calculate_glycan_score(self, double error_tolerance=2e-5, double core_weight
     target = self.target
     seen = set()
     series = IonSeries_stub_glycopeptide
-    theoretical_set = list(target.stub_fragments(extended=True))
+    if not extended_glycan_search:
+        theoretical_set = list(target.stub_fragments(extended=True))
+    else:
+        theoretical_set = list(target.stub_fragments(extended=True, extended_fucosylation=True))
     core_fragments = set()
     for i in range(len(theoretical_set)):
         frag = <FragmentBase>theoretical_set[i]
@@ -351,7 +354,7 @@ def _match_oxonium_ions(self, double error_tolerance=2e-5, set masked_peaks=None
 
 @cython.binding(True)
 def _match_stub_glycopeptides(self, double error_tolerance=2e-5, set masked_peaks=None,
-                              ChemicalShiftBase chemical_shift=None):
+                              ChemicalShiftBase chemical_shift=None, bint extended_glycan_search=False):
 
     cdef:
         list fragments
@@ -365,7 +368,10 @@ def _match_stub_glycopeptides(self, double error_tolerance=2e-5, set masked_peak
     if masked_peaks is None:
         masked_peaks = set()
 
-    obj = self.target.stub_fragments(extended=True)
+    if not extended_glycan_search:
+        obj = self.target.stub_fragments(extended=True)
+    else:
+        obj = self.target.stub_fragments(extended=True, extended_fucosylation=True)
     if isinstance(obj, list):
         fragments = <list>obj
     else:
