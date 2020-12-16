@@ -842,15 +842,11 @@ class GlycopeptideLCMSMSAnalyzer(TaskBase):
         chroma_with_sols, orphans = searcher.map_to_chromatograms(
             chromatograms, target_hits, self.mass_error_tolerance,
             threshold_fn=threshold_fn)
-        if debug_mode:
-            for chrom in chroma_with_sols:
-                self.log("... Assigned Chromatograms %r" % (chrom, ))
+
         self.log("Aggregating Assigned Entities")
         merged = chromatogram_mapping.aggregate_by_assigned_entity(
             chroma_with_sols, threshold_fn=threshold_fn)
-        if debug_mode:
-            for chrom in merged:
-                self.log("... Merged Chromatograms %r" % (chrom, ))
+
         return merged, orphans
 
     def score_chromatograms(self, merged):
@@ -941,16 +937,9 @@ class GlycopeptideLCMSMSAnalyzer(TaskBase):
 
         target_hits = self.rank_target_hits(searcher, target_decoy_set)
 
-        # from pympler import muppy, summary
-        # checkpoint = summary.summarize(muppy.get_objects())
-        # summary.print_(checkpoint)
-
         # Map MS/MS solutions to chromatograms.
         self.log("Building and Mapping Chromatograms")
         merged, orphans = self.map_chromatograms(searcher, extractor, target_hits)
-
-        # checkpoint2 = summary.summarize(muppy.get_objects())
-        # summary.print_(summary.get_diff(checkpoint, checkpoint2))
 
         if not self.save_unidentified:
             merged = [chroma for chroma in merged if chroma.composition is not None]
