@@ -3,12 +3,39 @@ from glycan_profiling.task import TaskBase, log_handle
 from glycan_profiling.chromatogram_tree import (
     ChromatogramWrapper, build_rt_interval_tree, ChromatogramFilter,
     Unmodified)
+
 from glycan_profiling.chromatogram_tree.chromatogram import GlycopeptideChromatogram
+from .spectrum_match.solution_set import NOParsimonyMixin
+
 from collections import defaultdict, namedtuple
 
 SolutionEntry = namedtuple("SolutionEntry", "solution, score, percentile, best_score, match")
 
 debug_mode = bool(os.environ.get('GLYCRESOFTDEBUG', False))
+
+
+class NOParsimonyRepresentativeSelector(NOParsimonyMixin):
+    def get_score(self, solution):
+        return solution.percentile
+
+    def get_target(self, solution):
+        return solution.match.target
+
+    def sort(self, solution_set):
+        solution_set = sorted(solution_set, key=lambda x: x.percentile, reverse=True)
+        try:
+            if solution_set and self.get_target(solution_set[0]).is_o_glycosylated():
+                solution_set = self.hoist_equivalent_n_linked_solution(solution_set)
+        except AttributeError:
+            import warnings
+            warnings.warn("Could not determine glycosylation state of target of type %r" % type(self.get_target(solution_set[0])))
+        return solution_set
+
+    def __call__(self, solution_set):
+        return self.sort(solution_set)
+
+
+parsimony_sort = NOParsimonyRepresentativeSelector()
 
 
 class SpectrumMatchSolutionCollectionBase(object):
@@ -51,7 +78,7 @@ class SpectrumMatchSolutionCollectionBase(object):
                           best_spectrum_match[k]) for k, v in scores.items()
             if k in best_spectrum_match
         ]
-        weights.sort(key=lambda x: x.percentile, reverse=True)
+        weights = parsimony_sort(weights)
         return weights
 
     def most_representative_solutions(self, threshold_fn=lambda x: True, reject_shifted=False):
@@ -73,7 +100,8 @@ class SpectrumMatchSolutionCollectionBase(object):
         """
         weights = self._compute_representative_weights(threshold_fn, reject_shifted)
         if weights:
-            return [x for x in weights if abs(x.percentile - weights[0].percentile) < 1e-5]
+            representers = [x for x in weights if (weights[0].percentile - x.percentile) < 1e-5]
+            return representers
         else:
             return []
 

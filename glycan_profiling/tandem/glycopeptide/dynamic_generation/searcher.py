@@ -16,7 +16,7 @@ from .search_space import (
     deserialize_workload)
 
 from ...workload import WorkloadManager
-from ...spectrum_match import MultiScoreSpectrumSolutionSet
+from ...spectrum_match.solution_set import MultiScoreSpectrumSolutionSet
 
 from ..scoring import LogIntensityScorer
 from ..matcher import GlycopeptideMatcher

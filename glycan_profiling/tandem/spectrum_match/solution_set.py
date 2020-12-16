@@ -225,6 +225,145 @@ default_multiscore_selection_method = SpectrumMatchRetentionMethod([
     MaximumSolutionCountRetentionStrategy(100),
 ])
 
+class SpectrumMatchSortingStrategy(object):
+    '''A base strategy for sorting spectrum matches to rank the best solution.
+    '''
+    def key_function(self, spectrum_match):
+        '''Create the sorting key for the spectrum match.
+
+        For consistency, the target's ``id`` attribute is used to order
+        matches that have the same score so repeated searches with the same
+        database produce the same ordering.
+
+        Returns
+        -------
+        tuple
+        '''
+        return (spectrum_match.score, spectrum_match.target.id)
+
+    def sort(self, solution_set, maximize=True):
+        '''Perform the sorting step.
+
+        Parameters
+        ----------
+        solution_set: :class:`Iterable` of :class:`~.SpectrumMatch` instances
+            The spectrum matches to sort
+        maximize: bool
+            Whether to sort ascending or descending
+
+        Returns
+        -------
+        :class:`list` of :class:`~.SpectrumMatch` instances
+        '''
+        return sorted(solution_set, key=self.key_function, reverse=maximize)
+
+    def __call__(self, solution_set, maximize=True):
+        '''Perform the sorting step.
+
+        Parameters
+        ----------
+        solution_set: :class:`Iterable` of :class:`~.SpectrumMatch` instances
+            The spectrum matches to sort
+        maximize: bool
+            Whether to sort ascending or descending
+
+        Returns
+        -------
+        :class:`list` of :class:`~.SpectrumMatch` instances
+        '''
+        return self.sort(solution_set)
+
+
+class MultiScoreSpectrumMatchSortingStrategy(SpectrumMatchSortingStrategy):
+    def key_function(self, spectrum_match):
+        return (spectrum_match.score_set, spectrum_match.target.id)
+
+
+class NOParsimonyMixin(object):
+    def __init__(self, threshold_percentile=0.75):
+        self.threshold_percentile = threshold_percentile
+
+    def get_score(self, solution):
+        return solution.score_set.glycan_score
+
+    def get_target(self, solution):
+        return solution.target
+
+    def hoist_equivalent_n_linked_solution(self, solution_set, maximize=True):
+        '''Apply a parsimony step re-ordering solutions when the top solution
+        may be N-linked or O-linked.
+
+        The O-linked core motif is much simpler than the N-linked core, so it gets
+        preferential treatment. This re-orders the matches so that the N-linked solution
+        equivalent to the O-linked solution gets marked as the top solution if the
+        N-linked solution's glycan score is within :attr:`threshold_percent` of the
+        actual top scoring O-linked solution.
+
+        Parameters
+        ----------
+        solution_set: :class:`Iterable` of :class:`~.SpectrumMatch` instances
+            The spectrum matches to sort
+        maximize: bool
+            Whether to sort ascending or descending
+
+        Returns
+        -------
+        :class:`list` of :class:`~.SpectrumMatch` instances
+
+        '''
+        best_solution = solution_set[0]
+        best_gp = self.get_target(best_solution)
+        best_gc = best_gp.glycan_composition
+
+        hoisted = []
+        rest = [best_solution]
+        if maximize:
+            threshold = self.get_score(best_solution) * self.threshold_percentile
+        else:
+            threshold = self.get_score(best_solution) * (1 + (1 - self.threshold_percentile))
+        i = 0
+        for i, sm in enumerate(solution_set):
+            if i == 0:
+                continue
+
+            if maximize:
+                if self.get_score(sm) < threshold:
+                    rest.append(sm)
+                    break
+            else:
+                if self.get_score(sm) > threshold:
+                    rest.append(sm)
+                    break
+            sm_target = self.get_target(sm)
+            if (best_gp.base_sequence_equality(sm_target) and best_gc == sm_target.glycan_composition \
+                    and sm_target.is_n_glycosylated()):
+                hoisted.append(sm)
+            else:
+                rest.append(sm)
+        rest.extend(solution_set[i + 1:])
+        hoisted.extend(rest)
+        return hoisted
+
+
+class NOParsimonyMultiScoreSpectrumMatchSortingStrategy(NOParsimonyMixin, MultiScoreSpectrumMatchSortingStrategy):
+    '''A sorting strategy that tries to apply parsimony to selecting the top solution when
+    an N-linked solution is more parsimonious than an O-linked solution.
+    '''
+
+    def sort(self, solution_set, maximize=True):
+        solution_set = super(NOParsimonyMultiScoreSpectrumMatchSortingStrategy, self).sort(solution_set, maximize)
+        if solution_set and solution_set[0].target.is_o_glycosylated():
+            solution_set = self.hoist_equivalent_n_linked_solution(solution_set, maximize)
+        return solution_set
+
+
+single_score_sorter = SpectrumMatchSortingStrategy()
+multi_score_sorter = MultiScoreSpectrumMatchSortingStrategy()
+# This sort function isn't useful at this moment. The actual
+# ordering is set in chromatogram_mapping
+# multi_score_parsimony_sorter = NOParsimonyMultiScoreSpectrumMatchSortingStrategy(0.75)
+
+
 
 class SpectrumSolutionSet(ScanWrapperBase):
     """A collection of spectrum matches against a single scan
@@ -438,7 +577,7 @@ class SpectrumSolutionSet(ScanWrapperBase):
         self._invalidate()
         return self
 
-    def sort(self, maximize=True):
+    def sort(self, maximize=True, method=None):
         """Sort the spectrum matches in this solution set according to their score
         attribute.
 
@@ -457,7 +596,9 @@ class SpectrumSolutionSet(ScanWrapperBase):
         sort_by
         sort_q_value
         """
-        self.solutions.sort(key=lambda x: (x.score, x.target.id), reverse=maximize)
+        if method is None:
+            method = single_score_sorter
+        self.solutions = method(self.solutions, maximize=maximize)
         self._is_sorted = True
         return self
 
@@ -544,7 +685,7 @@ class MultiScoreSpectrumSolutionSet(SpectrumSolutionSet):
     # FDR, so a post-FDR estimation re-ranking of spectrum matches will
     # be necessary.
 
-    def sort(self, maximize=True):
+    def sort(self, maximize=True, method=None):
         """Sort the spectrum matches in this solution set according to their score_set
         attribute.
 
@@ -558,8 +699,9 @@ class MultiScoreSpectrumSolutionSet(SpectrumSolutionSet):
         sort_by
         sort_q_value
         """
-        self.solutions.sort(key=lambda x: (
-            x.score_set, x.target.id), reverse=maximize)
+        if method is None:
+            method = multi_score_sorter
+        self.solutions = method(self.solutions, maximize=maximize)
         self._is_sorted = True
         return self
 
@@ -568,8 +710,9 @@ class MultiScoreSpectrumSolutionSet(SpectrumSolutionSet):
         solution.best_match = True
         score_set = solution.score_set
         for solution in self:
-            if (abs(score_set.glycopeptide_score - solution.score_set.glycopeptide_score)) < 1e-3:
-                if abs(score_set.peptide_score - solution.score_set.peptide_score) < 1e-3 and abs(score_set.glycan_score - solution.score_set.glycan_score) < 1e-3:
+            if ((score_set.glycopeptide_score - solution.score_set.glycopeptide_score)) < 1e-3:
+                if (score_set.peptide_score - solution.score_set.peptide_score) < 1e-3 and (
+                    score_set.glycan_score - solution.score_set.glycan_score) < 1e-3:
                     solution.best_match = True
                 else:
                     solution.best_match = False
