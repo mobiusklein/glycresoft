@@ -53,7 +53,7 @@ denoise = ms_peak_picker.scan_filter.FTICRBaselineRemoval(window_length=2.)
 class ScanIDYieldingProcess(Process):
 
     def __init__(self, ms_file_path, queue, start_scan=None, max_scans=None, end_scan=None,
-                 no_more_event=None, ignore_tandem_scans=False, batch_size=1):
+                 no_more_event=None, ignore_tandem_scans=False, batch_size=1, log_handler=None):
         Process.__init__(self)
         self.daemon = True
         self.ms_file_path = ms_file_path
@@ -63,18 +63,25 @@ class ScanIDYieldingProcess(Process):
         self.start_scan = start_scan
         self.max_scans = max_scans
         self.end_scan = end_scan
+        self.end_scan_index = None
+        self.passed_first_batch = False
         self.ignore_tandem_scans = ignore_tandem_scans
         self.batch_size = batch_size
 
         self.no_more_event = no_more_event
 
+    def log_handler(self, *message):
+        log_handle.log(*message)
+
     def _make_scan_batch(self):
         batch = []
         scan_ids = []
-        for _i in range(self.batch_size):
+        for _ in range(self.batch_size):
             try:
                 bunch = next(self.loader)
                 scan, products = bunch
+                products = [
+                    prod for prod in products if prod.index <= self.end_scan_index]
                 if scan is not None:
                     scan_id = scan.id
                 else:
@@ -83,7 +90,7 @@ class ScanIDYieldingProcess(Process):
             except StopIteration:
                 break
             except Exception as e:
-                log_handle.error("An error occurred in _make_scan_batch", e)
+                self.log_handler("An error occurred in _make_scan_batch", e)
                 break
             if not self.ignore_tandem_scans:
                 batch.append((scan_id, product_scan_ids, True))
@@ -93,19 +100,20 @@ class ScanIDYieldingProcess(Process):
         return batch, scan_ids
 
     def run(self):
-        self.loader = MSFileLoader(
-            self.ms_file_path, huge_tree=huge_tree, decode_binary=False)
+        self.loader = MSFileLoader(self.ms_file_path, decode_binary=False)
 
         if self.start_scan is not None:
             try:
                 self.loader.start_from_scan(
                     self.start_scan, require_ms1=self.loader.has_ms1_scans(), grouped=True)
             except IndexError as e:
-                log_handle.error("An error occurred while locating start scan", e)
+                self.log_handler(
+                    "An error occurred while locating start scan", e)
                 self.loader.reset()
                 self.loader.make_iterator(grouped=True)
             except AttributeError:
-                log_handle.error("The reader does not support random access, start time will be ignored", e)
+                self.log_handler(
+                    "The reader does not support random access, start time will be ignored", e)
                 self.loader.reset()
                 self.loader.make_iterator(grouped=True)
         else:
@@ -119,6 +127,8 @@ class ScanIDYieldingProcess(Process):
             max_scans = self.max_scans
 
         end_scan = self.end_scan
+        self.end_scan_index = self.loader.get_scan_by_id(end_scan).index
+
         while count < max_scans:
             try:
                 batch, ids = self._make_scan_batch()
@@ -129,17 +139,18 @@ class ScanIDYieldingProcess(Process):
                     last = count
                     self.queue.join()
                 if (end_scan in ids and end_scan is not None) or len(ids) == 0:
-                    log_handle.log("End Scan Found")
+                    self.log_handler("End Scan Found")
                     break
             except StopIteration:
                 break
             except Exception as e:
-                log_handle.error("An error occurred while fetching scans", e)
+                self.log_handler("An error occurred while fetching scans", e)
                 break
 
         if self.no_more_event is not None:
             self.no_more_event.set()
-            log_handle.log("All Scan IDs have been dealt. %d scan bunches." % (count,))
+            self.log_handler(
+                "All Scan IDs have been dealt. %d scan bunches." % (count,))
         else:
             self.queue.put(DONE)
 
