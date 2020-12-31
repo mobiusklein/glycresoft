@@ -26,6 +26,9 @@ class IdentifiedGlycopeptide(IdentifiedStructure):
     def end_position(self):
         return self.protein_relation.end_position
 
+    def is_multiply_glycosylated(self):
+        return self.structure.is_multiply_glycosylated()
+
     def __repr__(self):
         return "IdentifiedGlycopeptide(%s, %0.3f, %0.3f, %0.3e)" % (
             self.structure, self.ms2_score, self.ms1_score, self.total_signal)

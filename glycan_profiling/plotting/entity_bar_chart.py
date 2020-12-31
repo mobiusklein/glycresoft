@@ -3,6 +3,8 @@ from collections import Counter
 import numpy as np
 from matplotlib import pyplot as plt
 
+from glypy.structure.glycan_composition import HashableGlycanComposition
+
 from .glycan_visual_classification import (
     NGlycanCompositionColorizer,
     NGlycanCompositionOrderer,
@@ -106,8 +108,8 @@ class EntitySummaryBarChartArtist(ArtistBase):
 
 class BundledGlycanComposition(object):
     def __init__(self, glycan_composition, total_signal):
-        self.glycan_composition = glycan_composition
-        self.total_signal = total_signal
+        self.glycan_composition = HashableGlycanComposition.parse(str(glycan_composition))
+        self.total_signal = float(total_signal)
 
     def __hash__(self):
         return hash(self.glycan_composition)
