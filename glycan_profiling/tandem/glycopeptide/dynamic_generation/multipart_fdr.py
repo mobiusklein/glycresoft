@@ -47,7 +47,19 @@ GlycopeptideFDREstimationStrategy.peptide_fdr.add_name("peptide")
 GlycopeptideFDREstimationStrategy.glycan_fdr.add_name("glycan")
 GlycopeptideFDREstimationStrategy.peptide_or_glycan.add_name('any')
 
+
+def interpolate_from_zero(nearest_value_map, zero_value=1.0):
+    smallest = nearest_value_map.items[0]
+    X = np.linspace(0, smallest[0])
+    Y = np.interp(X, [0, smallest[0]], [zero_value, smallest[1]])
+    pairs = list(zip(X, Y))
+    pairs.extend(nearest_value_map.items)
+    return nearest_value_map.__class__(pairs)
+
+
 class FiniteMixtureModelFDREstimator(object):
+    min_score = 1
+
     def __init__(self, decoy_scores, target_scores):
         self.decoy_scores = np.array(decoy_scores)
         self.target_scores = np.array(target_scores)
@@ -166,6 +178,10 @@ class FiniteMixtureModelFDREstimator(object):
         self.estimate_gaussian(max_components)
         fdr = self.estimate_fdr(self.target_scores)
         self.fdr_map = NearestValueLookUp(zip(self.target_scores, fdr))
+        # Since 0 is not in the domain of the model, we need to include it by interpolating from 1 to the smallest
+        # fitted value.
+        if self.fdr_map.items[0][0] > 0:
+            self.fdr_map = interpolate_from_zero(self.fdr_map)
         return self.fdr_map
 
 
@@ -215,8 +231,9 @@ class GlycopeptideFDREstimator(TaskBase):
              for s in td_gpsms], dtype=int)
 
         glycan_fdr = FiniteMixtureModelFDREstimator(
-            decoy_glycan_scores[(size_mask > 3) & (decoy_glycan_scores > 1)],
-            target_scores=target_glycan_scores[target_glycan_scores > 1])
+            decoy_glycan_scores[(size_mask > 3) & (
+                decoy_glycan_scores > FiniteMixtureModelFDREstimator.min_score)],
+            target_scores=target_glycan_scores[target_glycan_scores > FiniteMixtureModelFDREstimator.min_score])
         glycan_fdr.log = noop
         glycan_fdr.fit()
 

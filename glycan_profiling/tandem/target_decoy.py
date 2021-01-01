@@ -111,7 +111,8 @@ class NearestValueLookUp(object):
                 hi = i
 
     def get_pair(self, key, key_index=0):
-        return self.items[self._find_closest_item(key, key_index) + 1]
+        k = self._find_closest_item(key, key_index) + 1
+        return self.items[k]
 
     def __len__(self):
         return len(self.items)
