@@ -546,9 +546,6 @@ cpdef GlycanFilteringPeptideMassEstimator_match(GlycanCoarseScorerBase self, sca
         peptide_mass = (
             intact_mass - glycan_combination.dehydrated_mass
         ) - mass_shift.mass
-        if isclose(last_peptide_mass, peptide_mass):
-            continue
-        last_peptide_mass = peptide_mass
         best_score = 0
         best_match = None
         type_to_score = {}
