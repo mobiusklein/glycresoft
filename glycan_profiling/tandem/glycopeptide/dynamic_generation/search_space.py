@@ -345,16 +345,20 @@ class PredictiveGlycopeptideSearch(DynamicGlycopeptideSearchBase):
                 probe = 0
             else:
                 probe = self.probing_range_for_missing_precursors
+            precursor_mass = scan.precursor_information.neutral_mass
             for i in range(probe + 1):
                 neutron_shift = self.neutron_shift * i
                 for mass_shift in mass_shifts:
                     seen = set()
                     mass_shift_name = mass_shift.name
                     mass_shift_mass = mass_shift.mass
-                    intact_mass = scan.precursor_information.neutral_mass - mass_shift_mass - neutron_shift
+                    intact_mass = precursor_mass - mass_shift_mass - neutron_shift
+                    # TODO: Use precursor_mass - neutron_shift with `estimate_peptide_mass`'s query_mass parameter
+                    # to adjust the precursor mass for correct glycan mass inference, but this will alter the arithmetic
+                    # for intact_mass passed to `handle_peptide_mass`.
                     for peptide_mass_pred in estimate_peptide_mass(scan, topn=peptide_masses_per_scan, mass_shift=mass_shift,
-                                                                   threshold=glycan_score_threshold,
-                                                                   min_fragments=min_fragments, simplify=False):
+                                                                   threshold=glycan_score_threshold, min_fragments=min_fragments,
+                                                                   simplify=False):
                         peptide_mass = peptide_mass_pred.peptide_mass
                         n_peptide_masses += 1
                         for candidate in handle_peptide_mass(peptide_mass, intact_mass, self.product_error_tolerance):
@@ -366,15 +370,8 @@ class PredictiveGlycopeptideSearch(DynamicGlycopeptideSearchBase):
                             if key in seen:
                                 continue
                             seen.add(key)
-                            # if debug_mode:
-                            #     self.log("\t%s @ %s: %s: %f/%f %s" % (
-                            #         scan.id, candidate, mass_shift.name,
-                            #         abs(intact_mass - candidate.total_mass) / intact_mass,
-                            #         abs((candidate.total_mass + mass_shift_mass) - scan.precursor_information.neutral_mass
-                            #             ) / scan.precursor_information.neutral_mass, mass_threshold_passed))
                             if mass_threshold_passed:
                                 workload.add_scan_hit(scan, candidate, mass_shift_name)
-            # self.log("%s had %d glycopeptides from %d peptide masses" % (scan.id, n_glycopeptides, n_peptide_masses))
         return workload
 
 

@@ -699,8 +699,26 @@ class GlycanFilteringPeptideMassEstimator(GlycanCoarseScorerBase):
         output = sorted(output, key=lambda x: x.score, reverse=1)
         return output
 
-    def estimate_peptide_mass(self, scan, topn=150, threshold=-1, min_fragments=0, mass_shift=Unmodified, simplify=True):
-        out = self.match(scan, mass_shift=mass_shift)
+    def estimate_peptide_mass(self, scan, topn=150, threshold=-1, min_fragments=0, mass_shift=Unmodified,
+                              simplify=True, query_mass=None):
+        '''Given an scan, estimate the possible peptide masses using the connected glycan database and
+        mass differences from the precursor mass.
+
+        Parameters
+        ----------
+        scan : ProcessedScan
+            The deconvoluted scan to search
+        topn : int, optional
+            The number of solutions to return, sorted by quality descending
+        threshold : float, optional
+            The minimum match score to allow a returned solution to have.
+        min_fragments : int, optional
+            The minimum number of matched fragments to require a solution to have, independent
+            of score.
+        mass_shift : MassShift, optional
+            The mass shift to apply to
+        '''
+        out = self.match(scan, mass_shift=mass_shift, query_mass=query_mass)
         out = [x for x in out if x.score > threshold and x.fragment_match_count >= min_fragments]
         groups = group_by_score(out)
         out = flatten(groups[:topn])
