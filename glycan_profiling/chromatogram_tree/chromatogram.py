@@ -475,6 +475,28 @@ class Chromatogram(_TimeIntervalMethods):
         return new
 
     def bisect_mass_shift(self, mass_shift):
+        '''Split a chromatogram into two parts, one with the provided mass shift
+        and one without.
+
+        This method does not try to deal with composite mass shifts, see :meth:`deducte_node_type`
+        for that behavior.
+
+        Parameters
+        ----------
+        mass_shift : MassShift
+            The mass shift to split on
+
+        Returns
+        -------
+        new_with_mass_shift : Chromatogram
+            The portion of the chromatogram that has the mass shift
+        new_no_mass_shift : Chromatogram
+            The portion of the chromatogram that did not have the mass shift
+
+        See Also
+        --------
+        :meth:`deduct_node_type`
+        '''
         new_mass_shift = self.__class__(self.composition)
         new_no_mass_shift = self.__class__(self.composition)
         for node in self:
