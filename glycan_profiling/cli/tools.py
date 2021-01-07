@@ -487,12 +487,13 @@ def version_check():
 
 @tools.command("interactive-shell")
 @click.option("-s", "--script", default=None)
-def interactive_shell(script):
+@click.argument("script_args", nargs=-1)
+def interactive_shell(script_args, script):
     if script:
         with open(script, 'rt') as fh:
             script = fh.read()
         exec(script)
-    code.interact()
+    code.interact(local=locals())
 
 
 @tools.command("update-analysis-parameters")
