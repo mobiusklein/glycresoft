@@ -190,7 +190,7 @@ class LoggingMixin(object):
         exception = kwargs.get("exception")
         self.error_print_fn(u', '.join(map(ensure_text, message)))
         if exception is not None:
-            self.error_print_fn(traceback.format_exc(exception))
+            self.error_print_fn(traceback.format_exc())
 
     def ipc_logger(self, handler=None):
         if handler is None:
@@ -395,6 +395,7 @@ class TaskExecutionSequence(TaskBase):
     """
 
     def __call__(self):
+        result = None
         try:
             if self._running_in_process:
                 self.log("%s running on PID %r" % (self, multiprocessing.current_process().pid))

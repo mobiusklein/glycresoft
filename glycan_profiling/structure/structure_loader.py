@@ -333,6 +333,8 @@ class FragmentCachingGlycopeptide(PeptideSequence):
         except AttributeError:
             return super(FragmentCachingGlycopeptide, self).__eq__(other)
 
+    __hash__ = PeptideSequence.__hash__
+
     def __ne__(self, other):
         return not self == other
 

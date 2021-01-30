@@ -36,7 +36,7 @@ class JournalFileWriter(TaskBase):
     def __init__(self, path, include_fdr=False, include_auxiliary=False):
         self.path = path
         if not hasattr(path, 'write'):
-            self.handle = open(path, 'wb')
+            self.handle = open(path, 'wt')
         else:
             self.handle = self.path
         self.include_fdr = include_fdr
@@ -173,7 +173,7 @@ class JournalFileReader(TaskBase):
             mass_shift_map.setdefault(Unmodified.name, Unmodified)
         self.path = path
         if not hasattr(path, 'read'):
-            self.handle = open(path, 'rb')
+            self.handle = open(path, 'rt')
         else:
             self.handle = self.path
         self.reader = csv.DictReader(self.handle, delimiter='\t')

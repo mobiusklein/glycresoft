@@ -3,6 +3,8 @@ import logging
 
 from io import BytesIO
 
+from six import string_types as basestring
+
 from matplotlib.axes import Axes
 from matplotlib import pyplot as plt
 from matplotlib import rcParams as mpl_params

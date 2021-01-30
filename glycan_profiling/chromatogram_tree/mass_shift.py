@@ -244,5 +244,5 @@ class MassShiftCollection(object):
     def __getitem__(self, i):
         try:
             return self.mass_shifts[i]
-        except IndexError:
+        except (IndexError, TypeError):
             return self.mass_shift_map[i]

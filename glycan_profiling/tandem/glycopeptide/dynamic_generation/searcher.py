@@ -13,7 +13,7 @@ from glycan_profiling.chromatogram_tree import Unmodified
 from .search_space import (
     Parser,
     serialize_workload,
-    deserialize_workload)
+    deserialize_workload, iteritems)
 
 from ...workload import WorkloadManager
 from ...spectrum_match.solution_set import MultiScoreSpectrumSolutionSet
@@ -225,7 +225,8 @@ class StructureMapper(TaskExecutionSequence):
         return workload
 
     def add_decoy_glycans(self, workload):
-        for hit_id, record in workload.hit_map.items():
+        items = list(iteritems(workload.hit_map))
+        for hit_id, record in items:
             record = record.to_decoy_glycan()
             for scan in workload.hit_to_scan_map[hit_id]:
                 hit_type = workload.scan_hit_type_map[scan.id, hit_id]
