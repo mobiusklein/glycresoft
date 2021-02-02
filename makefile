@@ -24,7 +24,7 @@ build-pyinstaller:
 
 
 pack-pyinstaller:
-	cd pyinstaller/dist && 7z a glycresoft-cli.zip glycresoft-cli && cp dist/glycresoft-cli.zip ../
+	cd pyinstaller/dist && 7z a glycresoft-cli.zip glycresoft-cli && cp glycresoft-cli.zip ../
 
 
 install-dependencies:
