@@ -390,9 +390,9 @@ def download_uniprot(name_file_path=None, output_path=None):
     for line in handle:
         accession_list.append(name_getter(line))
     if output_path is None:
-        outhandle = sys.stdout
+        outhandle = click.get_binary_stream('stdout')
     else:
-        outhandle = open(output_path, 'w')
+        outhandle = open(output_path, 'wb')
     writer = fasta.FastaFileWriter(outhandle)
     downloader = UniprotProteinDownloader(accession_list, 10)
     downloader.start()
