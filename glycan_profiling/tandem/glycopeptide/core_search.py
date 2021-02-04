@@ -180,7 +180,7 @@ class CoreMotifFinder(PathFinder):
         peptide_masses.sort()
         return peptide_masses
 
-    def build_peptide_filter(self, scan, error_tolerance=1e-5, mass_shift=Unmodified, query_mass=none):
+    def build_peptide_filter(self, scan, error_tolerance=1e-5, mass_shift=Unmodified, query_mass=None):
         peptide_masses = self.estimate_peptide_mass(
             scan, mass_shift=mass_shift, query_mass=query_mass)
 
