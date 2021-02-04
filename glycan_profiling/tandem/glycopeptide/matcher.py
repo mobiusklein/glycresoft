@@ -111,15 +111,15 @@ class PeptideMassFilteringDatabaseSearchMixin(object):
         peptide_filter = None
         hits = []
         intact_mass = scan.precursor_information.extracted_neutral_mass
-        if self.peptide_mass_filter:
-            peptide_filter = self.peptide_mass_filter.build_peptide_filter(
-                scan, self.peptide_mass_filter.product_error_tolerance, mass_shift=mass_shift)
         for i in range(probing_range + 1):
             query_mass = intact_mass - (i * self.neutron_offset) - mass_shift.mass
             unfiltered_matches = self.search_database_for_precursors(query_mass, error_tolerance)
             if self.peptide_mass_filter:
+                peptide_filter = self.peptide_mass_filter.build_peptide_filter(
+                    scan, self.peptide_mass_filter.product_error_tolerance, mass_shift=mass_shift,
+                        query_mass=intact_mass - (i * self.neutron_offset))
                 hits.extend(map(self._mark_hit, [match for match in unfiltered_matches if peptide_filter(
-                            match.peptide_mass - (i * self.neutron_offset))]))
+                            match.peptide_mass)]))
             else:
                 hits.extend(map(self._mark_hit, unfiltered_matches))
         return hits

@@ -145,7 +145,7 @@ class CoreMotifFinder(PathFinder):
                         terminals[path[0].start] = max((path, last_path), key=lambda x: x.total_signal)
         return PathSet(terminals.values())
 
-    def estimate_peptide_mass(self, scan, topn=100, mass_shift=Unmodified):
+    def estimate_peptide_mass(self, scan, topn=100, mass_shift=Unmodified, query_mass=None):
         graph = self._find_edges(scan, mass_shift=mass_shift)
         paths = self._init_paths(graph)
         groups = self._aggregate_paths(paths)
@@ -180,8 +180,9 @@ class CoreMotifFinder(PathFinder):
         peptide_masses.sort()
         return peptide_masses
 
-    def build_peptide_filter(self, scan, error_tolerance=1e-5, mass_shift=Unmodified):
-        peptide_masses = self.estimate_peptide_mass(scan, mass_shift=mass_shift)
+    def build_peptide_filter(self, scan, error_tolerance=1e-5, mass_shift=Unmodified, query_mass=none):
+        peptide_masses = self.estimate_peptide_mass(
+            scan, mass_shift=mass_shift, query_mass=query_mass)
 
         out = []
         if len(peptide_masses) == 0:
@@ -739,10 +740,11 @@ class GlycanFilteringPeptideMassEstimator(GlycanCoarseScorerBase):
                 break
         return matches
 
-    def build_peptide_filter(self, scan, error_tolerance=None, mass_shift=Unmodified):
+    def build_peptide_filter(self, scan, error_tolerance=None, mass_shift=Unmodified, query_mass=None):
         if error_tolerance is None:
             error_tolerance = self.product_error_tolerance
-        peptide_masses = self.estimate_peptide_mass(scan, mass_shift=mass_shift)
+        peptide_masses = self.estimate_peptide_mass(
+            scan, mass_shift=mass_shift, query_mass=query_mass)
         peptide_masses = [PPMQueryInterval(p, error_tolerance) for p in peptide_masses]
         if self.use_denovo_motif:
             path_masses = self.motif_finder.build_peptide_filter(scan, error_tolerance, mass_shift=mass_shift)
