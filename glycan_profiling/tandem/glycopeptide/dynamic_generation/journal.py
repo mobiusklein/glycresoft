@@ -11,6 +11,8 @@ import numpy as np
 
 from glycopeptidepy.utils import collectiontools
 
+from ms_deisotope.output import ProcessedMzMLDeserializer
+
 from glycan_profiling.task import TaskBase, TaskExecutionSequence, Empty
 
 from glycan_profiling.structure.structure_loader import (
@@ -357,6 +359,16 @@ class JournalSetLoader(TaskBase):
     into a single cohesive result, as from a previously compiled
     analysis's bundled journal file shards.
     """
+
+    @classmethod
+    def from_analysis(cls, analysis, scan_loader=None):
+        mass_shift_map = {
+            m.name: m for m in analysis.parameters['mass_shifts']}
+        if scan_loader is None:
+            scan_loader = ProcessedMzMLDeserializer(analysis.parameters['sample_path'])
+        stub_loader = ScanInformationLoader(scan_loader)
+        return cls([f.open() for f in analysis.files], stub_loader, mass_shift_map)
+
     def __init__(self, journal_files, scan_loader, mass_shift_map=None):
         if mass_shift_map is None:
             mass_shift_map = {Unmodified.name: Unmodified}
