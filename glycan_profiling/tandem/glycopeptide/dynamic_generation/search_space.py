@@ -316,7 +316,8 @@ class PredictiveGlycopeptideSearch(DynamicGlycopeptideSearchBase):
 
     def __init__(self, peptide_glycosylator, product_error_tolerance=2e-5, glycan_score_threshold=0.1,
                  min_fragments=2, peptide_masses_per_scan=100,
-                 probing_range_for_missing_precursors=3, trust_precursor_fits=True):
+                 probing_range_for_missing_precursors=3, trust_precursor_fits=True,
+                 fragment_weight=0.56, core_weight=0.42):
         if min_fragments is None:
             min_fragments = 2
         self.peptide_glycosylator = peptide_glycosylator
@@ -326,7 +327,8 @@ class PredictiveGlycopeptideSearch(DynamicGlycopeptideSearchBase):
         # self.peptide_mass_predictor = GlycanFilteringPeptideMassEstimator(
         self.peptide_mass_predictor = IndexedGlycanFilteringPeptideMassEstimator(
             self.peptide_glycosylator.glycan_combinations,
-            product_error_tolerance)
+            product_error_tolerance, fragment_weight=fragment_weight,
+            core_weight=core_weight)
         self.peptide_masses_per_scan = peptide_masses_per_scan
         self.probing_range_for_missing_precursors = probing_range_for_missing_precursors
         self.trust_precursor_fits = trust_precursor_fits

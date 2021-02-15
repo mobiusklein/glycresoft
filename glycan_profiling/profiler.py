@@ -1213,11 +1213,11 @@ class MultipartGlycopeptideLCMSMSAnalyzer(MzMLGlycopeptideLCMSMSAnalyzer):
                  peak_shape_scoring_model=None, tandem_scoring_model=LogIntensityScorer,
                  minimum_mass=1000., save_unidentified=False,
                  glycan_score_threshold=1, mass_shifts=None,
-                 n_processes=5, spectrum_batch_size=1000,
+                 n_processes=5, spectrum_batch_size=100,
                  maximum_mass=float('inf'), probing_range_for_missing_precursors=3,
                  trust_precursor_fits=True, use_memory_database=True,
                  fdr_estimation_strategy=None, glycosylation_site_models_path=None,
-                 permute_decoy_glycans=False, fragile_fucose=True, rare_signatures=False):
+                 permute_decoy_glycans=False, fragile_fucose=False, rare_signatures=False):
         if tandem_scoring_model == CoverageWeightedBinomialScorer:
             tandem_scoring_model = CoverageWeightedBinomialModelTree
         if fdr_estimation_strategy is None:

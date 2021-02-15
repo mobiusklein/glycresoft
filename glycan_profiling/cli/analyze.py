@@ -318,8 +318,9 @@ def search_glycopeptide(context, database_connection, sample_path, hypothesis_id
               help="export command to after search is complete")
 @click.option("-o", "--output-path", default=None, type=click.Path(writable=True),
               help=("Path to write resulting analysis to."), required=True)
-@click.option("-w", "--workload-size", default=500, type=int, help="Number of spectra to process at once")
-@click.option("-F", "--durable-fucose", is_flag=True, default=False, help="Expect Fucose/deoxy-Hexose peptide+Y ions to count towards glycan coverage")
+@click.option("-w", "--workload-size", default=100, type=int, help="Number of spectra to process at once")
+@click.option("-F", "--durable-fucose", is_flag=True, default=False,
+              help="Expect Fucose/deoxy-Hexose peptide+Y ions to count towards glycan coverage", cls=HiddenOption)
 @click.option("-R", "--rare-signatures", is_flag=True, default=False, help="Look for rare signature ions when scoring glycan oxonium signature")
 @click.option("--save-intermediate-results", default=None, type=click.Path(), required=False,
               help='Save intermediate spectrum matches to a file', cls=HiddenOption)
@@ -334,7 +335,7 @@ def search_glycopeptide_multipart(context, database_connection, decoy_database_c
                                   mass_error_tolerance=1e-5, msn_mass_error_tolerance=2e-5, psm_fdr_threshold=0.05,
                                   peak_shape_scoring_model=None, tandem_scoring_model=None, glycan_score_threshold=1.0,
                                   memory_database_index=False, save_intermediate_results=None, processes=4,
-                                  workload_size=500, mass_shifts=None, export=None, maximum_mass=float('inf'),
+                                  workload_size=100, mass_shifts=None, export=None, maximum_mass=float('inf'),
                                   isotope_probing_range=3, fdr_estimation_strategy=None,
                                   glycoproteome_smoothing_model=None, durable_fucose=False, rare_signatures=False):
     if fdr_estimation_strategy is None:
@@ -407,7 +408,7 @@ def search_glycopeptide_multipart(context, database_connection, decoy_database_c
         use_memory_database=memory_database_index,
         fdr_estimation_strategy=fdr_estimation_strategy,
         glycosylation_site_models_path=glycoproteome_smoothing_model,
-        fragile_fucose=not durable_fucose,
+        fragile_fucose=False,
         rare_signatures=rare_signatures)
     analyzer.display_header()
     result = analyzer.start()

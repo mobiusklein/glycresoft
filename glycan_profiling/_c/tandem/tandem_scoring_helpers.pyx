@@ -130,7 +130,7 @@ def calculate_peptide_score(self, double error_tolerance=2e-5, double coverage_w
 @cython.cdivision(True)
 @cython.boundscheck(False)
 def calculate_glycan_score(self, double error_tolerance=2e-5, double core_weight=0.4, double coverage_weight=0.5,
-                           bint fragile_fucose=True, bint extended_glycan_search=False, *args, **kwargs):
+                           bint fragile_fucose=False, bint extended_glycan_search=False, *args, **kwargs):
     cdef:
         set seen, core_fragments, core_matches, extended_matches
         IonSeriesBase series

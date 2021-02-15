@@ -138,7 +138,7 @@ class GlycopeptideSpectrumMatcherBase(SpectrumMatcherBase):
     def _glycan_side_group_count(self, glycan_composition):
         return glycan_side_group_count(glycan_composition)
 
-    def _calculate_glycan_coverage(self, core_weight=0.4, coverage_weight=0.5, fragile_fucose=True, extended_glycan_search=False):
+    def _calculate_glycan_coverage(self, core_weight=0.4, coverage_weight=0.5, fragile_fucose=False, extended_glycan_search=False):
         seen = set()
         series = IonSeries.stub_glycopeptide
         if not extended_glycan_search:

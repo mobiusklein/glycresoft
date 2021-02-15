@@ -42,7 +42,7 @@ class LogIntensityScorer(SignatureAwareCoverageScorer, MassAccuracyMixin):
         return score
 
     def calculate_glycan_score(self, error_tolerance=2e-5, core_weight=0.4, coverage_weight=0.5,
-                               fragile_fucose=True, extended_glycan_search=False, * args, **kwargs):
+                               fragile_fucose=False, extended_glycan_search=False, * args, **kwargs):
         seen = set()
         series = IonSeries.stub_glycopeptide
         if not extended_glycan_search:
@@ -107,6 +107,14 @@ try:
     LogIntensityScorer.calculate_glycan_score = calculate_glycan_score
 except ImportError:
     pass
+
+
+class LogIntensityScorerReweighted(LogIntensityScorer):
+    def glycan_score(self, error_tolerance=2e-5, core_weight=1.4, coverage_weight=0.5, *args, **kwargs):
+        if self._glycan_score is None:
+            self._glycan_score = self.calculate_glycan_score(
+                error_tolerance, core_weight, coverage_weight, *args, **kwargs)
+        return self._glycan_score
 
 
 class ShortPeptideLogIntensityScorer(LogIntensityScorer):
