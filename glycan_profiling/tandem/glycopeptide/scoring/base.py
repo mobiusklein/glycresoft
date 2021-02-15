@@ -138,7 +138,7 @@ class GlycopeptideSpectrumMatcherBase(SpectrumMatcherBase):
     def _glycan_side_group_count(self, glycan_composition):
         return glycan_side_group_count(glycan_composition)
 
-    def _calculate_glycan_coverage(self, core_weight=0.4, coverage_weight=0.5, fragile_fucose=True, extended_glycan_search=False, *args, **kwargs):
+    def _calculate_glycan_coverage(self, core_weight=0.4, coverage_weight=0.5, fragile_fucose=True, extended_glycan_search=False):
         seen = set()
         series = IonSeries.stub_glycopeptide
         if not extended_glycan_search:
@@ -165,12 +165,13 @@ class GlycopeptideSpectrumMatcherBase(SpectrumMatcherBase):
                 seen.add(peak.index.neutral_mass)
         glycan_composition = self.target.glycan_composition
         n = self._get_internal_size(glycan_composition)
+        m = len(theoretical_set)
         k = 2.0
         if not fragile_fucose:
             side_group_count = self._glycan_side_group_count(glycan_composition)
             if side_group_count > 0:
                 k = 1.0
-        d = max(n * math.log(n) / k, n)
+        d = min(max(n * math.log(n) / k, n), m)
         core_coverage = ((len(core_matches) * 1.0) /
                          len(core_fragments)) ** core_weight
         extended_coverage = min(
@@ -201,8 +202,12 @@ class GlycopeptideSpectrumMatcherBase(SpectrumMatcherBase):
         return data
 
 try:
-    from glycan_profiling._c.tandem.tandem_scoring_helpers import _match_oxonium_ions, _match_stub_glycopeptides
+    from glycan_profiling._c.tandem.tandem_scoring_helpers import (
+        _match_oxonium_ions, _match_stub_glycopeptides,
+        _calculate_glycan_coverage, _compute_glycan_coverage_from_metrics)
     GlycopeptideSpectrumMatcherBase._match_oxonium_ions = _match_oxonium_ions
     GlycopeptideSpectrumMatcherBase._match_stub_glycopeptides = _match_stub_glycopeptides
+    GlycopeptideSpectrumMatcherBase._calculate_glycan_coverage = _calculate_glycan_coverage
+    GlycopeptideSpectrumMatcherBase._compute_glycan_coverage_from_metrics = _compute_glycan_coverage_from_metrics
 except ImportError:
     pass

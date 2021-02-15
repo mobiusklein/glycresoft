@@ -19,7 +19,7 @@ from glycan_profiling._c.structure.fragment_match_map cimport (
 from glypy.composition.ccomposition cimport CComposition
 
 from glycopeptidepy._c.structure.sequence_methods cimport _PeptideSequenceCore
-from glycopeptidepy._c.structure.fragment cimport PeptideFragment, FragmentBase, IonSeriesBase, ChemicalShiftBase, SimpleFragment
+from glycopeptidepy._c.structure.fragment cimport PeptideFragment, FragmentBase, IonSeriesBase, ChemicalShiftBase, SimpleFragment, StubFragment
 from glycopeptidepy.structure.fragment import IonSeries, ChemicalShift
 from glycopeptidepy.structure.fragmentation_strategy import HCDFragmentationStrategy
 
@@ -135,14 +135,14 @@ def calculate_glycan_score(self, double error_tolerance=2e-5, double core_weight
         set seen, core_fragments, core_matches, extended_matches
         IonSeriesBase series
         list theoretical_set
-        double total, n, k, d, core_coverage, extended_coverage, score
+        double total, score
         double glycan_prior, glycan_coverage
         FragmentMatchMap solution_map
         FragmentBase frag
         PeakFragmentPair peak_pair
         DeconvolutedPeak peak
         int side_group_count
-        size_t i
+        size_t i, m
         object target
     target = self.target
     seen = set()
@@ -175,19 +175,14 @@ def calculate_glycan_score(self, double error_tolerance=2e-5, double core_weight
         if peak._index.neutral_mass not in seen:
             seen.add(peak._index.neutral_mass)
             total += log10(peak.intensity) * (1 - (abs(peak_pair.mass_accuracy()) / error_tolerance) ** 4)
-    glycan_composition = target.glycan_composition
-    n = self._get_internal_size(glycan_composition)
-    k = 2.0
-    if not fragile_fucose:
-        side_group_count = self._glycan_side_group_count(glycan_composition)
-        if side_group_count > 0:
-            k = 1.0
-    d = max(n * log(n) / k, n)
-    core_coverage = ((len(core_matches) * 1.0) / len(core_fragments)) ** core_weight
-    extended_coverage = min(float(len(core_matches) + len(extended_matches)) / d, 1.0) ** coverage_weight
-    score = total * core_coverage * extended_coverage
+
+    m = PyList_GET_SIZE(theoretical_set)
+    glycan_coverage = _compute_glycan_coverage_from_metrics(
+        self, fragile_fucose, len(core_matches), len(extended_matches),
+        len(core_fragments), m, core_weight, coverage_weight)
+    score = total * glycan_coverage
     glycan_prior = 0.0
-    self._glycan_coverage = glycan_coverage = core_coverage * extended_coverage
+    self._glycan_coverage = glycan_coverage
     if glycan_coverage > 0:
         glycan_prior = target.glycan_prior
         score += glycan_coverage * glycan_prior
@@ -195,6 +190,89 @@ def calculate_glycan_score(self, double error_tolerance=2e-5, double core_weight
         return 0
     return score
 
+
+@cython.binding(True)
+@cython.cdivision(True)
+@cython.boundscheck(False)
+cpdef double _calculate_glycan_coverage(self, double core_weight=0.4, double coverage_weight=0.5,
+                                        bint fragile_fucose=True, bint extended_glycan_search=False):
+    cdef:
+        set seen, core_fragments, core_matches, extended_matches
+        IonSeriesBase series
+        list theoretical_set
+        double total, n, k, d, core_coverage, extended_coverage, score
+        FragmentMatchMap solution_map
+        StubFragment frag
+        PeakFragmentPair peak_pair
+        size_t i, n_core_matches, n_extended_matches, m
+
+    if self._glycan_coverage is not None:
+            return self._glycan_coverage
+    seen = set()
+    series = IonSeries_stub_glycopeptide
+    if not extended_glycan_search:
+        theoretical_set = list(self.target.stub_fragments(extended=True))
+    else:
+        theoretical_set = list(self.target.stub_fragments(extended=True, extended_fucosylation=True))
+    core_fragments = set()
+    for i in range(len(theoretical_set)):
+        frag = <StubFragment>theoretical_set[i]
+        if not frag.is_extended:
+            core_fragments.add(frag._name)
+
+    total = 0
+    core_matches = set()
+    extended_matches = set()
+    solution_map = <FragmentMatchMap>self.solution_map
+
+    for obj in solution_map.members:
+        peak_pair = <PeakFragmentPair>obj
+        if (<FragmentBase>peak_pair.fragment).get_series() != series:
+            continue
+        elif peak_pair.fragment_name in core_fragments:
+            core_matches.add(peak_pair.fragment_name)
+        else:
+            extended_matches.add(peak_pair.fragment_name)
+
+    coverage = self._compute_glycan_coverage_from_metrics(
+        self, fragile_fucose, len(core_matches), len(extended_matches),
+        len(core_fragments), m, core_weight, coverage_weight)
+
+    self._glycan_coverage = coverage
+    return coverage
+
+
+@cython.binding(True)
+@cython.cdivision(True)
+cpdef double _compute_glycan_coverage_from_metrics(self, bint fragile_fucose, size_t n_core_matches,
+                                                   size_t n_extended_matches, size_t n_core_fragments, size_t n_fragments,
+                                                   double core_weight, double coverage_weight):
+    cdef:
+        double glycan_composition_size_normalizer
+        double core_coverage, extended_coverage
+        double approximate_size, extra_branch_factor
+
+        double coverage
+
+
+    glycan_composition = self.target.glycan_composition
+    approximate_size = self._get_internal_size(glycan_composition)
+    extra_branch_factor = 2.0
+    if not fragile_fucose:
+        side_group_count = self._glycan_side_group_count(glycan_composition)
+        if side_group_count > 0:
+            extra_branch_factor = 1.0
+
+    glycan_composition_size_normalizer = min(
+        max(approximate_size * log(approximate_size) / extra_branch_factor, approximate_size),
+        n_fragments)
+
+    core_coverage = ((n_core_matches * 1.0) / n_core_fragments) ** core_weight
+    extended_coverage = min((n_core_matches + n_extended_matches) / glycan_composition_size_normalizer, 1.0) ** coverage_weight
+    coverage = core_coverage * extended_coverage
+    if isnan(coverage):
+        coverage = 0.0
+    return coverage
 
 @cython.binding(True)
 @cython.cdivision(True)

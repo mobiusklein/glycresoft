@@ -2,7 +2,7 @@
 
 import logging
 import warnings
-from collections import namedtuple
+from collections import namedtuple, defaultdict
 
 try:
     from collections import Sequence
@@ -237,7 +237,8 @@ class CoarseStubGlycopeptideFragment(object):
 
 class GlycanCombinationRecordBase(object):
     __slots__ = ['id', 'dehydrated_mass', 'composition', 'count', 'glycan_types',
-                 'size', "_fragment_cache", "internal_size_approximation", "_hash"]
+                 'size', "_fragment_cache", "internal_size_approximation", "_hash",
+                 'fragment_set_properties']
 
     def is_n_glycan(self):
         return GlycanTypes.n_glycan in self.glycan_types
@@ -302,6 +303,9 @@ class GlycanCombinationRecordBase(object):
         else:
             return self._fragment_cache[GlycanTypes.gag_linker]
 
+    def clear(self):
+        self._fragment_cache.clear()
+
 try:
     from glycan_profiling._c.tandem.core_search import GlycanCombinationRecordBase
 except ImportError as err:
@@ -325,7 +329,7 @@ class GlycanCombinationRecord(GlycanCombinationRecordBase):
         The types of glycans combined to make this entity
     """
 
-    __slots__ = []
+    __slots__ = ()
 
     @classmethod
     def from_combination(cls, combination):
@@ -378,6 +382,7 @@ class GlycanCombinationRecord(GlycanCombinationRecordBase):
         self.glycan_types = list(glycan_types)
         self._fragment_cache = dict()
         self._hash = hash(self.composition)
+        self.fragment_set_properties = dict()
 
     def __eq__(self, other):
         return (self.composition == other.composition) and (self.count == other.count) and (
@@ -393,7 +398,15 @@ class GlycanCombinationRecord(GlycanCombinationRecordBase):
         return approximate_internal_size_of_glycan(self.composition)
 
     def __reduce__(self):
-        return GlycanCombinationRecord, (self.id, self.dehydrated_mass, self.composition, self.count, self.glycan_types)
+        return GlycanCombinationRecord, (self.id, self.dehydrated_mass, self.composition, self.count, self.glycan_types), self.__getstate__()
+
+    def __getstate__(self):
+        return {
+            "fragment_set_properties": self.fragment_set_properties
+        }
+
+    def __setstate__(self, state):
+        self.fragment_set_properties = state['fragment_set_properties']
 
     def __repr__(self):
         return "GlycanCombinationRecord(%s, %d)" % (self.composition, self.count)
@@ -559,7 +572,7 @@ def flatten(groups):
     return [b for a in groups for b in a]
 
 
-class GlycanFilteringPeptideMassEstimator(GlycanCoarseScorerBase):
+class GlycanFilteringPeptideMassEstimatorBase(object):
     def __init__(self, glycan_combination_db, product_error_tolerance=1e-5,
                  fragment_weight=0.56, core_weight=0.42, minimum_peptide_mass=500.0,
                  use_denovo_motif=False, components=None,
@@ -568,13 +581,77 @@ class GlycanFilteringPeptideMassEstimator(GlycanCoarseScorerBase):
             glycan_combination_db = [GlycanCombinationRecord.from_combination(gc)
                                      for gc in glycan_combination_db]
         self.use_denovo_motif = use_denovo_motif
-        self.motif_finder = CoreMotifFinder(components, product_error_tolerance)
-        self.glycan_combination_db = sorted(glycan_combination_db, key=lambda x: (x.dehydrated_mass, x.id))
+        self.motif_finder = CoreMotifFinder(
+            components, product_error_tolerance)
+        self.glycan_combination_db = sorted(
+            glycan_combination_db, key=lambda x: (x.dehydrated_mass, x.id))
         self.minimum_peptide_mass = minimum_peptide_mass
         self.use_recalibrated_peptide_mass = use_recalibrated_peptide_mass
-        super(GlycanFilteringPeptideMassEstimator, self).__init__(
+        super(GlycanFilteringPeptideMassEstimatorBase, self).__init__(
             product_error_tolerance, fragment_weight, core_weight)
 
+    def estimate_peptide_mass(self, scan, topn=150, threshold=-1, min_fragments=0, mass_shift=Unmodified,
+                              simplify=True, query_mass=None):
+        '''Given an scan, estimate the possible peptide masses using the connected glycan database and
+        mass differences from the precursor mass.
+
+        Parameters
+        ----------
+        scan : ProcessedScan
+            The deconvoluted scan to search
+        topn : int, optional
+            The number of solutions to return, sorted by quality descending
+        threshold : float, optional
+            The minimum match score to allow a returned solution to have.
+        min_fragments : int, optional
+            The minimum number of matched fragments to require a solution to have, independent
+            of score.
+        mass_shift : MassShift, optional
+            The mass shift to apply to
+        '''
+        out = self.match(scan, mass_shift=mass_shift, query_mass=query_mass)
+        out = [x for x in out if x.score >
+               threshold and x.fragment_match_count >= min_fragments]
+        groups = group_by_score(out)
+        out = flatten(groups[:topn])
+        if simplify:
+            return [x.peptide_mass for x in out]
+        return out
+
+    def glycan_for_peptide_mass(self, scan, peptide_mass):
+        matches = []
+        try:
+            glycan_mass = scan.precursor_information.neutral_mass - peptide_mass
+        except AttributeError:
+            glycan_mass = scan - peptide_mass
+        for glycan_record in self.glycan_combination_db:
+            if abs(glycan_record.dehydrated_mass - glycan_mass) / glycan_mass < self.product_error_tolerance:
+                matches.append(glycan_record)
+            elif glycan_mass > glycan_record.dehydrated_mass:
+                break
+        return matches
+
+    def build_peptide_filter(self, scan, error_tolerance=None, mass_shift=Unmodified, query_mass=None):
+        if error_tolerance is None:
+            error_tolerance = self.product_error_tolerance
+        peptide_masses = self.estimate_peptide_mass(
+            scan, mass_shift=mass_shift, query_mass=query_mass)
+        peptide_masses = [PPMQueryInterval(
+            p, error_tolerance) for p in peptide_masses]
+        if self.use_denovo_motif:
+            path_masses = self.motif_finder.build_peptide_filter(
+                scan, error_tolerance, mass_shift=mass_shift)
+            peptide_masses.extend(path_masses)
+        peptide_masses.sort(key=lambda x: x.center)
+
+        if len(peptide_masses) == 0:
+            return IntervalFilter([])
+        out = IntervalFilter(peptide_masses)
+        out.compress()
+        return out
+
+
+class GlycanFilteringPeptideMassEstimator(GlycanFilteringPeptideMassEstimatorBase, GlycanCoarseScorerBase):
     def n_glycan_coarse_score(self, scan, glycan_combination, mass_shift=Unmodified, peptide_mass=None):
         '''Calculates a ranking score from N-glycopeptide stub-glycopeptide fragments.
 
@@ -700,63 +777,6 @@ class GlycanFilteringPeptideMassEstimator(GlycanCoarseScorerBase):
         output = sorted(output, key=lambda x: x.score, reverse=1)
         return output
 
-    def estimate_peptide_mass(self, scan, topn=150, threshold=-1, min_fragments=0, mass_shift=Unmodified,
-                              simplify=True, query_mass=None):
-        '''Given an scan, estimate the possible peptide masses using the connected glycan database and
-        mass differences from the precursor mass.
-
-        Parameters
-        ----------
-        scan : ProcessedScan
-            The deconvoluted scan to search
-        topn : int, optional
-            The number of solutions to return, sorted by quality descending
-        threshold : float, optional
-            The minimum match score to allow a returned solution to have.
-        min_fragments : int, optional
-            The minimum number of matched fragments to require a solution to have, independent
-            of score.
-        mass_shift : MassShift, optional
-            The mass shift to apply to
-        '''
-        out = self.match(scan, mass_shift=mass_shift, query_mass=query_mass)
-        out = [x for x in out if x.score > threshold and x.fragment_match_count >= min_fragments]
-        groups = group_by_score(out)
-        out = flatten(groups[:topn])
-        if simplify:
-            return [x.peptide_mass for x in out]
-        return out
-
-    def glycan_for_peptide_mass(self, scan, peptide_mass):
-        matches = []
-        try:
-            glycan_mass = scan.precursor_information.neutral_mass - peptide_mass
-        except AttributeError:
-            glycan_mass = scan - peptide_mass
-        for glycan_record in self.glycan_combination_db:
-            if abs(glycan_record.dehydrated_mass - glycan_mass) / glycan_mass < self.product_error_tolerance:
-                matches.append(glycan_record)
-            elif glycan_mass > glycan_record.dehydrated_mass:
-                break
-        return matches
-
-    def build_peptide_filter(self, scan, error_tolerance=None, mass_shift=Unmodified, query_mass=None):
-        if error_tolerance is None:
-            error_tolerance = self.product_error_tolerance
-        peptide_masses = self.estimate_peptide_mass(
-            scan, mass_shift=mass_shift, query_mass=query_mass)
-        peptide_masses = [PPMQueryInterval(p, error_tolerance) for p in peptide_masses]
-        if self.use_denovo_motif:
-            path_masses = self.motif_finder.build_peptide_filter(scan, error_tolerance, mass_shift=mass_shift)
-            peptide_masses.extend(path_masses)
-        peptide_masses.sort(key=lambda x: x.center)
-
-        if len(peptide_masses) == 0:
-            return IntervalFilter([])
-        out = IntervalFilter(peptide_masses)
-        out.compress()
-        return out
-
 
 class IntervalFilter(Sequence):
     def __init__(self, intervals):
@@ -806,3 +826,236 @@ try:
     GlycanFilteringPeptideMassEstimator.match = GlycanFilteringPeptideMassEstimator_match
 except ImportError:
     has_c = False
+
+
+from glycopeptidepy.structure.fragmentation_strategy.glycan import GlycanCompositionFragment
+
+class IndexGlycanCompositionFragment(GlycanCompositionFragment):
+    __slots__ = ('index', 'name')
+
+    def __init__(self, mass, composition, key, is_extended=False):
+        self.mass = mass
+        self.composition = composition
+        self.key = key
+        self.is_extended = is_extended
+        self._hash_key = -1
+        self.index = -1
+        self.name = None
+
+    def __reduce__(self):
+        return self.__class__, (self.mass, self.composition, self.key, self.is_extended), self.__getstate__()
+
+    def __getstate__(self):
+        return {
+            "index": self.index,
+            "name": self.name,
+            "_hash_key": self._hash_key
+        }
+
+    def __setstate__(self, state):
+        self.index = state['index']
+        self.name = state['name']
+        self._hash_key = state['_hash_key']
+
+
+class ComplementFragment(object):
+    __slots__ = ('mass', 'keys')
+
+    def __init__(self, mass, keys=None):
+        self.mass = mass
+        self.keys = keys or []
+
+    def __repr__(self):
+        return "{self.__class__.__name__}({self.mass})".format(self=self)
+
+
+from glycan_profiling.serialize import GlycanTypes
+
+GlycanTypes_n_glycan = GlycanTypes.n_glycan
+GlycanTypes_o_glycan = GlycanTypes.o_glycan
+GlycanTypes_gag_linker = GlycanTypes.gag_linker
+
+
+class PartialGlycanSolution(object):
+    __slots__ = ("peptide_mass", "score", "core_matches", "fragment_matches", "glycan_index")
+
+    def __init__(self, peptide_mass=-1, score=0, core_matches=None, fragment_matches=None, glycan_index=-1):
+        if core_matches is None:
+            core_matches = set()
+        if fragment_matches is None:
+            fragment_matches = set()
+        self.peptide_mass = peptide_mass
+        self.score = score
+        self.core_matches = core_matches
+        self.fragment_matches = fragment_matches
+        self.glycan_index = glycan_index
+
+    def __repr__(self):
+        template = ("{self.__class__.__name__}({self.peptide_mass}, {self.score}, "
+                    "{self.core_matches}, {self.fragment_matches}, {self.glycan_index})")
+        return template.format(self=self)
+
+    @property
+    def fragment_match_count(self):
+        return len(self.fragment_matches)
+
+
+class GlycanFragmentIndex(object):
+    def __init__(self, members=None, fragment_weight=0.56, core_weight=0.42, resolution=100):
+        self.members = members or []
+        self.unique_fragments = defaultdict(dict)
+        self._fragments = []
+        self.fragment_index = defaultdict(list)
+        self.counter = 0
+        self.fragment_weight = fragment_weight
+        self.core_weight = core_weight
+        self.lower_bound = float('inf')
+        self.upper_bound = 0
+        self.resolution = resolution
+
+    def _intern(self, fragment, glycosylation_type):
+        key = str(HashableGlycanComposition(fragment.key))
+        try:
+            return self.unique_fragments[glycosylation_type][key]
+        except KeyError:
+            fragment = IndexGlycanCompositionFragment(
+                fragment.mass, None, fragment.key, not fragment.is_core)
+            self.unique_fragments[glycosylation_type][key] = fragment
+            fragment.name = key
+            fragment.index = self.counter
+            self._fragments.append(fragment)
+            self.counter += 1
+            return fragment
+
+    def _get_fragments(self, gcr, glycosylation_type):
+        if glycosylation_type == GlycanTypes_n_glycan:
+            return gcr.get_n_glycan_fragments()
+        elif glycosylation_type == GlycanTypes_o_glycan:
+            return gcr.get_o_glycan_fragments()
+        elif glycosylation_type == GlycanTypes_gag_linker:
+            return gcr.get_gag_linker_glycan_fragments()
+        else:
+            raise ValueError(glycosylation_type)
+
+    def build(self):
+        self.members.sort(key=lambda x: (x.dehydrated_mass, x.id))
+        self.fragment_index.clear()
+        j = 0
+        low = float('inf')
+        high = 0
+        for i, member in enumerate(self.members):
+            mass = member.dehydrated_mass
+            n_core = 0
+            n_frags = 0
+            for glycosylation_type in member.glycan_types:
+                for frag in self._get_fragments(member, glycosylation_type):
+                    frag = self._intern(frag, glycosylation_type)
+                    if not frag.is_extended:
+                        n_core += 1
+                    n_frags += 1
+                    d = mass - frag.mass
+                    if d < 0:
+                        d = 0
+                    if high < d:
+                        high = d
+                    if low > d:
+                        low = d
+                    key = int(d * self.resolution)
+                    for comp in self.fragment_index[key]:
+                        if abs(comp.mass - d) <= 1e-3:
+                            comp.keys.append((frag, i, glycosylation_type))
+                            break
+                    else:
+                        self.fragment_index[key].append(ComplementFragment(d, [(frag, i, glycosylation_type)]))
+                        j += 1
+
+                member.fragment_set_properties[glycosylation_type] = (n_core, n_frags)
+            member.clear()
+        self.lower_bound = low
+        self.upper_bound = high
+        return j
+
+    def _match_fragments(self, delta_mass, peak, error_tolerance, result):
+        key = int(delta_mass * self.resolution)
+        width = int(peak.neutral_mass * error_tolerance * self.resolution) + 1
+        for off in range(-width, width + 1):
+            for comp_frag in self.fragment_index[key + off]:
+                if abs(comp_frag.mass - delta_mass) / peak.neutral_mass <= error_tolerance:
+                    for frag, i, glycosylation_type in comp_frag.keys:
+                        sol = result[i][glycosylation_type]
+                        sol.score += np.log(peak.intensity) * (
+                            1 - ((abs(delta_mass - comp_frag.mass) / peak.neutral_mass) / error_tolerance) ** 4)
+                        if not frag.is_extended:
+                            sol.core_matches.add(frag.index)
+                        sol.fragment_matches.add(frag.index)
+
+    def match(self, scan, error_tolerance=1e-5, mass_shift=Unmodified, query_mass=None):
+        if query_mass is None:
+            precursor_mass = scan.precursor_information.neutral_mass
+        else:
+            precursor_mass = query_mass
+
+        mass_shift_mass = mass_shift.mass
+        mass_shift_tandem_mass = mass_shift.tandem_mass
+
+        result = defaultdict(lambda: defaultdict(PartialGlycanSolution))
+        for peak in scan.deconvoluted_peak_set:
+            d = (precursor_mass - peak.neutral_mass - mass_shift_mass)
+            self._match_fragments(d, peak, error_tolerance, result)
+            if mass_shift_tandem_mass != 0:
+                d = (precursor_mass - peak.neutral_mass - mass_shift_mass + mass_shift_tandem_mass)
+                self._match_fragments(d, peak, error_tolerance, result)
+
+        out = []
+        for i, glycosylation_type_to_solutions in result.items():
+            rec = self.members[i]
+            best_score = -float('inf')
+            best_solution = None
+            for glycosylation_type, sol in glycosylation_type_to_solutions.items():
+                n_core, n_frag = rec.fragment_set_properties[glycosylation_type]
+                coverage = (len(sol.core_matches) * 1.0 / n_core) ** self.core_weight * (
+                    len(sol.fragment_matches) * 1.0 / n_frag) ** self.fragment_weight
+                sol.score *= coverage
+                sol.peptide_mass = precursor_mass - rec.dehydrated_mass - mass_shift_mass
+                sol.glycan_index = i
+                if best_score < sol.score:
+                    best_score = sol.score
+                    best_solution = sol
+            if best_solution is not None:
+                out.append(sol)
+
+        out.sort(key=lambda x: x.score, reverse=True)
+        return out
+
+
+try:
+    _GlycanFragmentIndex = GlycanFragmentIndex
+    _IndexGlycanCompositionFragment = IndexGlycanCompositionFragment
+    _ComplementFragment = ComplementFragment
+    _PartialGlycanSolution = PartialGlycanSolution
+    from glycan_profiling._c.tandem.core_search import (
+        GlycanFragmentIndex,
+        IndexGlycanCompositionFragment, ComplementFragment, PartialGlycanSolution)
+except ImportError:
+    pass
+
+
+class _adapt(object):
+    def __init__(self, *args, **kwargs):
+        pass
+
+
+class IndexedGlycanFilteringPeptideMassEstimator(GlycanFilteringPeptideMassEstimatorBase, _adapt):
+    def __init__(self, glycan_combination_db, product_error_tolerance=1e-5,
+                 fragment_weight=0.56, core_weight=0.42, minimum_peptide_mass=500.0,
+                 use_denovo_motif=False, components=None,
+                 use_recalibrated_peptide_mass=False):
+        super(IndexedGlycanFilteringPeptideMassEstimator, self).__init__(
+            glycan_combination_db, product_error_tolerance, fragment_weight, core_weight,
+            minimum_peptide_mass, use_denovo_motif, components, use_recalibrated_peptide_mass)
+        self.index = GlycanFragmentIndex(
+            self.glycan_combination_db, fragment_weight=fragment_weight, core_weight=core_weight)
+        self.index.build()
+
+    def match(self, scan, mass_shift=Unmodified, query_mass=None):
+        return self.index.match(scan, mass_shift=mass_shift, query_mass=query_mass)

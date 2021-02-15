@@ -553,8 +553,8 @@ class CachingStubGlycopeptideStrategy(StubGlycopeptideStrategy):
         cls._cache.update(source)
 
     @classmethod
-    def populate(cls, glycan_composition_iterator):
-        inst = cls(None, extended=True)
+    def populate(cls, glycan_composition_iterator, **kwargs):
+        inst = cls(None, **kwargs)
         for gc in glycan_composition_iterator:
             gc = gc.clone()
             inst.n_glycan_composition_fragments(gc, 1, 0)

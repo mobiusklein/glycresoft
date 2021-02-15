@@ -38,7 +38,7 @@ from glycan_profiling.database.builder.glycopeptide.common import limiting_combi
 
 from ...spectrum_match import SpectrumMatchClassification as StructureClassification
 from ...workload import WorkloadManager
-from ..core_search import GlycanCombinationRecord, GlycanFilteringPeptideMassEstimator
+from ..core_search import GlycanCombinationRecord, GlycanFilteringPeptideMassEstimator, IndexedGlycanFilteringPeptideMassEstimator
 
 
 logger = logging.Logger("glycresoft.dynamic_generation")
@@ -204,17 +204,21 @@ class GlycoformGeneratorBase(LoggingMixin):
             peptide_obj, peptide_record, glycan_combination, peptide_record.gagylation_sites,
             _gag_linker_glycosylation)
 
-    def reset(self, **kwargs):
+    def reset_cache(self, **kwargs):
         self._cache_hit = 0
         self._cache_miss = 0
         self._peptide_cache.clear()
+
+    def reset(self, **kwargs):
+        self.reset_cache(**kwargs)
 
 
 class PeptideGlycosylator(GlycoformGeneratorBase):
     def __init__(self, peptide_records, glycan_combinations, cache_size=2**16, default_structure_type=TT,
                  *args, **kwargs):
         super(PeptideGlycosylator, self).__init__(
-            glycan_combinations, default_structure_type=default_structure_type, *args, **kwargs)
+            glycan_combinations, default_structure_type=default_structure_type,
+            cache_size=cache_size, *args, **kwargs)
         if not isinstance(peptide_records, SearchableMassCollection):
             peptide_records = NeutralMassDatabase(peptide_records)
         self.peptides = peptide_records
@@ -296,8 +300,8 @@ class DynamicGlycopeptideSearchBase(LoggingMixin):
     def handle_scan_group(self, group, precursor_error_tolerance=1e-5, mass_shifts=None):
         raise NotImplementedError()
 
-    def reset(self):
-        self.peptide_glycosylator.reset()
+    def reset(self, **kwargs):
+        self.peptide_glycosylator.reset(**kwargs)
 
     def construct_peptide_groups(self, workload):
         if self.peptide_glycosylator.peptide_to_group_id is None:
@@ -319,7 +323,8 @@ class PredictiveGlycopeptideSearch(DynamicGlycopeptideSearchBase):
         self.product_error_tolerance = product_error_tolerance
         self.glycan_score_threshold = glycan_score_threshold
         self.min_fragments = int(min_fragments)
-        self.peptide_mass_predictor = GlycanFilteringPeptideMassEstimator(
+        # self.peptide_mass_predictor = GlycanFilteringPeptideMassEstimator(
+        self.peptide_mass_predictor = IndexedGlycanFilteringPeptideMassEstimator(
             self.peptide_glycosylator.glycan_combinations,
             product_error_tolerance)
         self.peptide_masses_per_scan = peptide_masses_per_scan
