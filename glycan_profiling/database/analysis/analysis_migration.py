@@ -30,6 +30,7 @@ from glycan_profiling.serialize.spectrum import (
     DeconvolutedPeak,
     PrecursorInformation)
 
+from ms_deisotope.data_source import ChargeNotProvided
 
 def slurp(session, model, ids):
     ids = sorted(ids)
@@ -145,13 +146,16 @@ class SampleMigrator(DatabaseBoundOperation, TaskBase):
             self.log("Unable to locate precursor scan with ID %r" % (err , ))
         # prod_id = self.scan_id(prec_info.product)
         prod_id = prec_info.product_scan_id
+        charge = prec_info.charge
+        if charge == ChargeNotProvided:
+            charge = 0
         new_info = PrecursorInformation(
             sample_run_id=self.sample_run_id,
             # precursor may be missing
             precursor_id=self.ms_scan_id_map.get(prec_id),
             product_id=self.ms_scan_id_map[prod_id],
             neutral_mass=prec_info.neutral_mass,
-            charge=prec_info.charge,
+            charge=charge,
             intensity=prec_info.intensity)
         return self._migrate(new_info)
 

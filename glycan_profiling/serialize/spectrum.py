@@ -201,9 +201,12 @@ class PrecursorInformation(Base):
 
     @classmethod
     def serialize(cls, inst, precursor, product, sample_run_id):
+        charge = inst.extracted_charge
+        if charge == ChargeNotProvided:
+            charge = 0
         db_pi = PrecursorInformation(
             precursor_id=precursor.id, product_id=product.id,
-            charge=inst.extracted_charge if inst.extracted_charge != ChargeNotProvided else 0, intensity=inst.extracted_intensity,
+            charge=charge, intensity=inst.extracted_intensity,
             neutral_mass=inst.extracted_neutral_mass, sample_run_id=sample_run_id,
             defaulted=inst.defaulted, orphan=inst.orphan)
         return db_pi
