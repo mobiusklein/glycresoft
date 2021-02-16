@@ -26,6 +26,8 @@ from glycan_profiling.output import (
     GlycopeptideHypothesisCSVSerializer, GlycanLCMSAnalysisCSVSerializer,
     GlycopeptideLCMSMSAnalysisCSVSerializer,
     GlycopeptideSpectrumMatchAnalysisCSVSerializer,
+    MultiScoreGlycopeptideLCMSMSAnalysisCSVSerializer,
+    MultiScoreGlycopeptideSpectrumMatchAnalysisCSVSerializer,
     MzIdentMLSerializer,
     GlycanChromatogramReportCreator,
     GlycopeptideDatabaseSearchReportCreator,
@@ -224,15 +226,23 @@ def glycopeptide_identification(database_connection, analysis_identifier, output
                         ("Sample path {} not found. Pass the path to"
                          " this file as `-m/--mzml-path` for this command.").format(
                              mzml_path))
-            GlycopeptideDatabaseSearchReportCreator(
+            job = GlycopeptideDatabaseSearchReportCreator(
                 database_connection._original_connection, analysis_id,
                 stream=output_stream, threshold=threshold,
-                mzml_path=mzml_path).run()
+                mzml_path=mzml_path)
+            job.run()
     else:
         query = session.query(Protein.id, Protein.name).join(Protein.glycopeptides).join(
             IdentifiedGlycopeptide).filter(
                 IdentifiedGlycopeptide.analysis_id == analysis.id)
         protein_index = dict(query)
+
+        gpsm = session.query(GlycopeptideSpectrumMatch).filter(
+            GlycopeptideSpectrumMatch.analysis_id == analysis_id).first()
+        if gpsm.is_multiscore():
+            job_type = MultiScoreGlycopeptideLCMSMSAnalysisCSVSerializer
+        else:
+            job_type = GlycopeptideLCMSMSAnalysisCSVSerializer
 
         def generate():
             i = 0
@@ -250,7 +260,7 @@ def glycopeptide_identification(database_connection, analysis_identifier, output
                     yield glycopeptide
                 i += interval
         with output_stream:
-            job = GlycopeptideLCMSMSAnalysisCSVSerializer(output_stream, generate(), protein_index)
+            job = job_type(output_stream, generate(), protein_index)
             job.run()
 
 
@@ -295,12 +305,18 @@ def glycopeptide_spectrum_matches(database_connection, analysis_identifier, outp
                     mass_shift_cache, scan_cache, structure_cache, peptide_relation_cache)
             i += interval
 
+    gpsm = session.query(GlycopeptideSpectrumMatch).filter(
+        GlycopeptideSpectrumMatch.analysis_id == analysis_id).first()
+    if gpsm.is_multiscore():
+        job_type = MultiScoreGlycopeptideSpectrumMatchAnalysisCSVSerializer
+    else:
+        job_type = GlycopeptideSpectrumMatchAnalysisCSVSerializer
     if output_path is None:
         output_stream = ctxstream(click.get_binary_stream('stdout'))
     else:
         output_stream = open(output_path, 'wb')
     with output_stream:
-        job = GlycopeptideSpectrumMatchAnalysisCSVSerializer(output_stream, generate(), protein_index)
+        job = job_type(output_stream, generate(), protein_index)
         job.run()
 
 

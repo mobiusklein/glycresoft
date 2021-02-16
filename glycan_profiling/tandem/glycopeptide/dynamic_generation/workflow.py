@@ -136,6 +136,7 @@ class PeptideDatabaseProxyLoader(TaskBase):
         else:
             raise ValueError("Cannot determine how to filter peptides")
         peptides = []
+        self.log("... Loading peptides from %r:%r" % (self.path, self.hypothesis_id))
         for r in db:
             rec = PeptideDatabaseRecord.from_record(r)
             if filter_level == 1 and rec.n_glycosylation_sites:

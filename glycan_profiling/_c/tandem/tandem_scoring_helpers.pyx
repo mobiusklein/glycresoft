@@ -195,7 +195,7 @@ def calculate_glycan_score(self, double error_tolerance=2e-5, double core_weight
 @cython.cdivision(True)
 @cython.boundscheck(False)
 cpdef double _calculate_glycan_coverage(self, double core_weight=0.4, double coverage_weight=0.5,
-                                        bint fragile_fucose=True, bint extended_glycan_search=False):
+                                        bint fragile_fucose=False, bint extended_glycan_search=False):
     cdef:
         set seen, core_fragments, core_matches, extended_matches
         IonSeriesBase series
@@ -215,7 +215,8 @@ cpdef double _calculate_glycan_coverage(self, double core_weight=0.4, double cov
     else:
         theoretical_set = list(self.target.stub_fragments(extended=True, extended_fucosylation=True))
     core_fragments = set()
-    for i in range(len(theoretical_set)):
+    m = len(theoretical_set)
+    for i in range(m):
         frag = <StubFragment>theoretical_set[i]
         if not frag.is_extended:
             core_fragments.add(frag._name)

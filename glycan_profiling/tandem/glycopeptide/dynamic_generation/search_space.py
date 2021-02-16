@@ -317,7 +317,9 @@ class PredictiveGlycopeptideSearch(DynamicGlycopeptideSearchBase):
     def __init__(self, peptide_glycosylator, product_error_tolerance=2e-5, glycan_score_threshold=0.1,
                  min_fragments=2, peptide_masses_per_scan=100,
                  probing_range_for_missing_precursors=3, trust_precursor_fits=True,
-                 fragment_weight=0.56, core_weight=0.42):
+                 fragment_weight=0.56, core_weight=1.42):
+        # Intentionally use a larger core_weight here than in the real scoring function to
+        # prefer solutions with more core fragments, but not to discard them later.
         if min_fragments is None:
             min_fragments = 2
         self.peptide_glycosylator = peptide_glycosylator
@@ -360,9 +362,6 @@ class PredictiveGlycopeptideSearch(DynamicGlycopeptideSearchBase):
                     mass_shift_name = mass_shift.name
                     mass_shift_mass = mass_shift.mass
                     intact_mass = precursor_mass - mass_shift_mass - neutron_shift
-                    # TODO: Use precursor_mass - neutron_shift with `estimate_peptide_mass`'s query_mass parameter
-                    # to adjust the precursor mass for correct glycan mass inference, but this will alter the arithmetic
-                    # for intact_mass passed to `handle_peptide_mass`.
                     for peptide_mass_pred in estimate_peptide_mass(scan, topn=peptide_masses_per_scan, mass_shift=mass_shift,
                                                                    threshold=glycan_score_threshold, min_fragments=min_fragments,
                                                                    simplify=False, query_mass=precursor_mass - neutron_shift):
@@ -654,14 +653,10 @@ class Parser(object):
 
 
 def _compress(data):
-    # buff = io.BytesIO()
-    # gzip.GzipFile(fileobj=buff, mode='wb').write(data)
-    # data = buff.getvalue()
     return data
 
 
 def _decompress(data):
-    # data = gzip.GzipFile(fileobj=io.BytesIO(data), mode='rb').read()
     return data
 
 

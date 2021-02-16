@@ -901,6 +901,36 @@ class PartialGlycanSolution(object):
 
 
 class GlycanFragmentIndex(object):
+    '''A fast and sparse in-memory fragment ion index for quickly matching peaks against multiple
+    glycan composition complements.
+
+    Based upon the complement ion indexing strategy described in [1]_.
+
+    Attributes
+    ----------
+    members : :class:`list` of :class:`GlycanCombinationRecord`
+        The glycan composition combinations in this index.
+    unique_fragments : :class:`dict` of :class:`str` -> :class:`dict` of :class:`str` -> :class:`IndexGlycanCompositionFragment`
+        An internment table for each glycosylation type mapping fragment name to glycan composition fragments
+    fragment_index : :class:`dict` of :class:`int` -> :class:`list` of :class:`ComplementFragment`
+        A sparse index mapping :attr:`resolution` scaled masses to bins. The mass values and binned fragments are complements of
+        true fragments.
+    counter : int
+        A counter to assign each unique fragment a unique integer index.
+    fragment_weight : float
+        A scoring parameter to weight overall coverage with.
+    core_weight : float
+        A scoring parameter to weight core motif coverage with.
+    resolution : float
+        A scaling factor to convert real masses into truncated bin indices.
+
+
+    References
+    ----------
+    ..[1] Zeng, W., Cao, W., Liu, M., He, S., & Yang, P. (2021). Precise, Fast and
+      Comprehensive Analysis of Intact Glycopeptides and Monosaccharide-Modifications with pGlyco3.
+      Bioarxiv. https://doi.org/https://doi.org/10.1101/2021.02.06.430063
+    '''
     def __init__(self, members=None, fragment_weight=0.56, core_weight=0.42, resolution=100):
         self.members = members or []
         self.unique_fragments = defaultdict(dict)
