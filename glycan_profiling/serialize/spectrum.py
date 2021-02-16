@@ -15,7 +15,7 @@ from ms_deisotope.averagine import (
     mass_charge_ratio)
 
 from ms_deisotope.data_source.common import (
-    ProcessedScan, PrecursorInformation as MemoryPrecursorInformation)
+    ProcessedScan, PrecursorInformation as MemoryPrecursorInformation, ChargeNotProvided)
 
 
 from .base import (Base, Mass, HasUniqueName)
@@ -190,9 +190,12 @@ class PrecursorInformation(Base):
         product_id = None
         if self.product is not None:
             product_id = self.product.scan_id
+        charge = self.charge
+        if charge == 0:
+            charge = ChargeNotProvided
         conv = MemoryPrecursorInformation(
-            mass_charge_ratio(self.neutral_mass, self.charge), self.intensity, self.charge,
-            precursor_id, data_source, self.neutral_mass, self.charge,
+            mass_charge_ratio(self.neutral_mass, charge), self.intensity, charge,
+            precursor_id, data_source, self.neutral_mass, charge,
             self.intensity, self.defaulted, self.orphan, product_id)
         return conv
 
@@ -200,7 +203,7 @@ class PrecursorInformation(Base):
     def serialize(cls, inst, precursor, product, sample_run_id):
         db_pi = PrecursorInformation(
             precursor_id=precursor.id, product_id=product.id,
-            charge=inst.extracted_charge, intensity=inst.extracted_intensity,
+            charge=inst.extracted_charge if inst.extracted_charge != ChargeNotProvided else 0, intensity=inst.extracted_intensity,
             neutral_mass=inst.extracted_neutral_mass, sample_run_id=sample_run_id,
             defaulted=inst.defaulted, orphan=inst.orphan)
         return db_pi
