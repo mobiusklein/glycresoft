@@ -1,9 +1,9 @@
 import os
 import time
 try:
-    from Queue import Empty
+    from Queue import Empty, Full
 except ImportError:
-    from queue import Empty
+    from queue import Empty, Full
 
 from ms_deisotope.data_source import ProcessedScan
 
@@ -13,10 +13,10 @@ from glycan_profiling.chromatogram_tree import Unmodified
 from .search_space import (
     Parser,
     serialize_workload,
-    deserialize_workload)
+    deserialize_workload, iteritems)
 
 from ...workload import WorkloadManager
-from ...spectrum_match import MultiScoreSpectrumSolutionSet
+from ...spectrum_match.solution_set import MultiScoreSpectrumSolutionSet
 
 from ..scoring import LogIntensityScorer
 from ..matcher import GlycopeptideMatcher
@@ -48,6 +48,10 @@ memory_debug = bool(os.environ.get("GLYCRESOFTDEBUGMEMORY"))
 
 
 class SpectrumBatcher(TaskExecutionSequence):
+    '''Break a big list of scans into precursor mass batched blocks of
+    spectrum groups with an approximate maximum size. Feeds raw workloads
+    into the pipeline.
+    '''
     def __init__(self, groups, out_queue, max_scans_per_workload=250):
         self.groups = groups
         self.max_scans_per_workload = max_scans_per_workload
@@ -66,11 +70,25 @@ class SpectrumBatcher(TaskExecutionSequence):
 
     def run(self):
         for batch in self.generate():
-            self.out_queue.put(batch)
+            if self.error_occurred():
+                break
+            while not self.error_occurred():
+                try:
+                    self.out_queue.put(batch, True, 5)
+                    break
+                except Full:
+                    pass
         self.done_event.set()
 
 
 class BatchMapper(TaskExecutionSequence):
+    '''Wrap scan groups from :class:`SpectrumBatcher` in :class:`StructureMapper` tasks
+    and ships them to an appropriate work queue (usually another process).
+
+    .. note::
+        The StructureMapper could be applied with or without a database bound to it,
+        and for an IPC consumer the database should not be bound, only labeled.
+    '''
     def __init__(self, search_groups, in_queue, out_queue, in_done_event,
                  precursor_error_tolerance=5e-6, mass_shifts=None):
         if mass_shifts is None:
@@ -99,11 +117,16 @@ class BatchMapper(TaskExecutionSequence):
             task.label = label
             # Introduces a thread safety issue?
             task.unbind_scans()
-            self.out_queue_for_label(label).put(task)
+            while not self.error_occurred():
+                try:
+                    self.out_queue_for_label(label).put(task, True, 5)
+                    break
+                except Full:
+                    pass
 
     def run(self):
         has_work = True
-        while has_work:
+        while has_work and not self.error_occurred():
             try:
                 task = self.in_queue.get(True, 5)
                 self.execute_task(task)
@@ -116,6 +139,10 @@ class BatchMapper(TaskExecutionSequence):
 
 @IsTask
 class StructureMapper(TaskExecutionSequence):
+    """Map spectra against the database using a precursor filtering search strategy,
+    generating a task graph of spectrum-structure-mass_shift relationships, a
+    :class:`~.WorkloadManager` instance.
+    """
     def __init__(self, chunk, group_i, group_n, predictive_search, precursor_error_tolerance=5e-6,
                  mass_shifts=None):
         if mass_shifts is None:
@@ -148,7 +175,7 @@ class StructureMapper(TaskExecutionSequence):
         hits = predictive_search.peptide_glycosylator._cache_hit
         misses = predictive_search.peptide_glycosylator._cache_miss
         total = hits + misses
-        if total > 0:
+        if total > 5000:
             self.log("... Cache Performance: %d / %d (%0.2f%%)" % (hits, total, hits / float(total) * 100.0))
 
     def _prepare_scan(self, scan):
@@ -192,13 +219,15 @@ class StructureMapper(TaskExecutionSequence):
                     solutions.total_work_required(), total_work))
             workload.update(solutions)
         end = time.time()
-        self.log("... Mapping Completed (%0.2f sec.)" % (end - start))
+        if counter:
+            self.log("... Mapping Completed (%0.2f sec.)" % (end - start))
         self._log_cache()
         predictive_search.reset()
         return workload
 
     def add_decoy_glycans(self, workload):
-        for hit_id, record in workload.hit_map.items():
+        items = list(iteritems(workload.hit_map))
+        for hit_id, record in items:
             record = record.to_decoy_glycan()
             for scan in workload.hit_to_scan_map[hit_id]:
                 hit_type = workload.scan_hit_type_map[scan.id, hit_id]
@@ -246,11 +275,16 @@ class MapperExecutor(TaskExecutionSequence):
     def run(self):
         has_work = True
         strikes = 0
-        while has_work:
+        while has_work and not self.error_occurred():
             try:
                 mapper_task = self.in_queue.get(True, 5)
                 matcher_task = self.execute_task(mapper_task)
-                self.out_queue.put(matcher_task)
+                while not self.error_occurred():
+                    try:
+                        self.out_queue.put(matcher_task, True, 5)
+                        break
+                    except Full:
+                        pass
                 # Detach the scans from the scan source again.
                 mapper_task.unbind_scans()
 
@@ -332,6 +366,13 @@ class SerializingMapperExecutor(MapperExecutor):
 
 @IsTask
 class SpectrumMatcher(TaskExecutionSequence):
+    """Actually execute the spectrum matching specified in a :class:`~.WorkloadManager`.
+
+    .. note::
+        This task may spin up additional processes if :attr:`n_processes` is greater than
+        1, but it must be ~4 or better usually to have an appreciable speedup compared to
+        a executing the matching in serial. IPC communication is expensive, no matter what.
+    """
     def __init__(self, workload, group_i, group_n, scorer_type=None,
                  ipc_manager=None, n_processes=6, mass_shifts=None,
                  evaluation_kwargs=None, cache_seeds=None, **kwargs):
@@ -363,13 +404,17 @@ class SpectrumMatcher(TaskExecutionSequence):
         target_solutions = []
         self.log("... %0.2f%%" % (max((self.group_i - 1), 0) * 100.0 / self.group_n), self.workload)
         lo, hi = self.workload.mass_range()
-        self.log("... Query Mass Range: %0.2f-%0.2f" % (lo, hi))
-
         batches = list(self.workload.batches(matcher.batch_size))
+        if len(batches):
+            self.log("... Query Mass Range: %0.2f-%0.2f" % (lo, hi))
+
         running_total_work = 0
         total_work = self.workload.total_work_required()
         self.workload.clear()
         for i, batch in enumerate(batches):
+            if batch.batch_size == 0:
+                batch.clear()
+                continue
             self.log("... Batch %d (%d/%d) %0.2f%%" % (
                 i + 1, running_total_work + batch.batch_size, total_work,
                 ((running_total_work + batch.batch_size) * 100.) / float(total_work + 1)))
@@ -386,8 +431,9 @@ class SpectrumMatcher(TaskExecutionSequence):
                 # case.select_top()
             target_solutions.extend(temp)
             batch.clear()
-        self.log("... Finished %0.2f%%" % (max((self.group_i - 1), 0)
-                                           * 100.0 / self.group_n), self.workload)
+        if len(batches):
+            self.log("... Finished %0.2f%% (%0.2f-%0.2f)" % (max((self.group_i - 1), 0)
+                                            * 100.0 / self.group_n, lo, hi))
         return target_solutions
 
     def run(self):
@@ -442,11 +488,16 @@ class MatcherExecutor(TaskExecutionSequence):
 
     def run(self):
         has_work = True
-        while has_work:
+        while has_work and not self.error_occurred():
             try:
                 matcher_task = self.in_queue.get(True, 3)
                 solutions = self.execute_task(matcher_task)
-                self.out_queue.put(solutions)
+                while not self.error_occurred():
+                    try:
+                        self.out_queue.put(solutions, True, 5)
+                        break
+                    except Full:
+                        pass
             except Empty:
                 if self.in_done_event.is_set():
                     has_work = False
@@ -506,7 +557,7 @@ class MappingSerializer(TaskExecutionSequence):
         if not os.path.exists(self.storage_directory):
             os.makedirs(self.storage_directory)
         has_work = True
-        while has_work:
+        while has_work and not self.error_occurred():
             try:
                 package = self.in_queue.get(True, 5)
                 data = package.workload

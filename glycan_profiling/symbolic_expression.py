@@ -20,6 +20,21 @@ _MR = glycan_composition.MonosaccharideResidue
 _SR = glycan_composition.SubstituentResidue
 _MC = glycan_composition.MolecularComposition
 
+_is_numeric = re.compile(r"^\d+(?:\.\d+)?$")
+
+def is_numeric(x):
+    return _is_numeric.match(x) is not None
+
+def numerical(x):
+    try:
+        return int(x)
+    except (TypeError, ValueError):
+        try:
+            return float(x)
+        except (TypeError, ValueError):
+            pass
+    raise ValueError("Cannot coerce {} to numerical type".format(x))
+
 
 def ensuretext(x):
     if isinstance(x, str):
@@ -88,6 +103,13 @@ class ExpressionBase(object):
     def get_symbols(self):
         return []
 
+    def evaluate(self, context):
+        raise NotImplementedError()
+
+    def itersymbols(self):
+        for i in []:
+            yield i
+
 
 class ConstraintExpression(ExpressionBase):
     """
@@ -114,7 +136,7 @@ class ConstraintExpression(ExpressionBase):
     def __repr__(self):
         return "{}".format(self.expression)
 
-    def __call__(self, context):
+    def evaluate(self, context):
         """
         Test for satisfaction of :attr:`expression`
 
@@ -128,6 +150,9 @@ class ConstraintExpression(ExpressionBase):
         bool
         """
         return context[self.expression]
+
+    def __call__(self, context):
+        return self.evaluate(context)
 
     def __and__(self, other):
         """
@@ -215,6 +240,9 @@ class SymbolNode(ExpressionBase):
     def __ne__(self, other):
         return not self == other
 
+    def evaluate(self, context):
+        return context[self] * self.coefficient
+
     def __repr__(self):
         if self.symbol is not None:
             if self.coefficient != 1:
@@ -226,6 +254,9 @@ class SymbolNode(ExpressionBase):
 
     def get_symbols(self):
         return [self.symbol]
+
+    def itersymbols(self):
+        yield self
 
 
 class ValueNode(ExpressionBase):
@@ -258,6 +289,9 @@ class ValueNode(ExpressionBase):
             return str(self.value) == ensuretext(other)
         else:
             return self.value == other.value
+
+    def evaluate(self, context):
+        return self.value
 
     def __ne__(self, other):
         return not self == other
@@ -326,7 +360,7 @@ def parse_expression(string):
         c = string[i]
         if c == " ":
             if current_symbol != "":
-                if current_symbol.endswith(","):
+                if current_symbol.endswith(",") and current_symbol != ',':
                     expression_stack.append(current_symbol[:-1])
                     expression_stack.append(",")
                 else:
@@ -338,6 +372,10 @@ def parse_expression(string):
                 if current_function != '':
                     function_stack.append(current_function)
                 current_function = current_symbol
+            else:
+                if current_function != '':
+                    function_stack.append(current_function)
+                current_function = ''
             current_symbol = ""
             resolver_stack.append(expression_stack)
             expression_stack = []
@@ -351,8 +389,18 @@ def parse_expression(string):
             term = collapse_expression_sequence(expression_stack)
             expression_stack = resolver_stack.pop()
             if current_function != "":
-                fn = SymbolNode(current_function)
-                term = FunctionCallNode(fn, Operator.get("call"), term)
+                if is_numeric(current_function):
+                    coef = numerical(current_function)
+                    term = EnclosedExpression(term, coef)
+                else:
+                    fn = SymbolNode(current_function)
+                    term = FunctionCallNode(fn, Operator.get("call"), term)
+                if function_stack:
+                    current_function = function_stack.pop()
+                else:
+                    current_function = ''
+            else:
+                term = EnclosedExpression(term)
                 if function_stack:
                     current_function = function_stack.pop()
                 else:
@@ -368,53 +416,6 @@ def parse_expression(string):
     if len(resolver_stack) > 0:
         raise ValueError("Unpaired parenthesis")
     return collapse_expression_sequence(expression_stack)
-
-
-def parse_ast(string):
-    return eval_(ast.parse(string, mode='eval').body)
-
-
-# supported operators
-operators = {ast.Add: op.add, ast.Sub: op.sub, ast.Mult: op.mul,
-             ast.Div: op.truediv, ast.Pow: op.pow, ast.BitXor: op.xor,
-             ast.USub: op.neg, ast.Gt: op.gt,
-             ast.GtE: op.ge, ast.Lt: op.lt, ast.LtE: op.le, ast.Eq: op.eq,
-             ast.NotEq: op.ne}
-
-
-def eval_(node):
-    if isinstance(node, ast.Num):  # <number>
-        return ValueNode(node.n)
-    elif isinstance(node, ast.Name):
-        return SymbolNode(node.id)
-    elif isinstance(node, ast.Compare):
-        if len(node.comparators) > 1:
-            raise ValueError("Chained comparators unsupported")
-        comparator = node.comparators[0]
-        op = node.ops[0]
-        return operators[type(op)](eval_(node.left), eval_(comparator))
-    elif isinstance(node, ast.Call):
-        return FunctionCallNode(
-            node.func.name, Operator.get("call"), [eval_(a) for a in node.args])
-    elif isinstance(node, ast.BinOp):  # <left> <operator> <right>
-        return operators[type(node.op)](eval_(node.left), eval_(node.right))
-    elif isinstance(node, ast.UnaryOp):  # <operator> <operand> e.g., -1
-        return operators[type(node.op)](eval_(node.operand))
-    else:
-        raise TypeError(node)
-
-
-def break_at_operator(character, current_symbol, string, i):
-    # we have a new character which may correspond to an operator
-    if character in operator_map:
-        # we are extending an existing symbol which will form an operator
-        if current_symbol + character in operator_map:
-            return False
-        else:
-            # break the current symbol
-            return True
-    else:
-        return False
 
 
 def is_operator(symbol):
@@ -509,6 +510,44 @@ class ExpressionNode(ExpressionBase):
     def get_symbols(self):
         return self.left.get_symbols() + self.right.get_symbols()
 
+    def itersymbols(self):
+        for symbol in self.left.itersymbols():
+            yield symbol
+        for symbol in self.right.itersymbols():
+            yield symbol
+
+
+class EnclosedExpression(ExpressionBase):
+    def __init__(self, expr, coefficient=1):
+        self.expr = expr
+        self.coefficient = coefficient
+        self._simplify()
+
+    def _simplify(self):
+        while self.coefficient == 1:
+            if isinstance(self.expr, EnclosedExpression):
+                inner = self.expr
+                self.expr = inner.expr
+                self.coefficient = inner.coefficient
+                return True
+            else:
+                break
+        return False
+
+    def evaluate(self, context):
+        return self.expr.evaluate(context) * self.coefficient
+
+    def get_symbols(self):
+        return self.expr.get_symbols()
+
+    def __repr__(self):
+        if self.coefficient != 1:
+            return "%r(%r)" % (self.coefficient, self.expr)
+        return "(%r)" % (self.expr, )
+
+    def itersymbols(self):
+        return self.expr.itersymbols()
+
 
 class FunctionCallNode(ExpressionNode):
     def __repr__(self):
@@ -564,7 +603,7 @@ class SymbolSpace(object):
             return expr.symbol in self.context
         if isinstance(expr, ValueNode):
             return True
-        if isinstance(expr, ExpressionNode):
+        if isinstance(expr, (ExpressionNode, EnclosedExpression)):
             symbols = expr.get_symbols()
             return self._test_symbols_defined(symbols, partial)
 
@@ -599,6 +638,13 @@ class SymbolContext(SymbolSpace):
         if context is None:
             context = dict()
         self.context = self._format_map(context)
+
+    def _normalize(self, symbol):
+        try:
+            symbol = _FMR.from_iupac_lite(symbol)
+            return str(symbol)
+        except Exception:
+            return symbol
 
     @staticmethod
     def _format_map(mapping):
@@ -636,11 +682,17 @@ class SymbolContext(SymbolSpace):
                 try:
                     return self.context[node] * node.coefficient
                 except KeyError:
+                    normalized = self._normalize(node.symbol)
+                    if normalized != node.symbol:
+                        if normalized in self.context:
+                            return self.context[normalized] * node.coefficient
                     return 0
         elif isinstance(node, ValueNode):
             return node.value
-        elif isinstance(node, ExpressionNode):
+        elif isinstance(node, (ExpressionNode, EnclosedExpression)):
             return node.evaluate(self)
+        else:
+            raise TypeError("Don't know how to evaluate %r of type %s" % (node, node.__class__))
 
     def __contains__(self, expr):
         if not isinstance(expr, ExpressionBase):
@@ -651,7 +703,7 @@ class SymbolContext(SymbolSpace):
             return expr.symbol in self.context
         elif isinstance(expr, ValueNode):
             return True
-        elif isinstance(expr, ExpressionNode):
+        elif isinstance(expr, (ExpressionNode, EnclosedExpression)):
             return expr.evaluate(self) > 0
 
     def __repr__(self):
@@ -899,8 +951,8 @@ class Subtraction(Operator):
     precedence = 1
 
     def __call__(self, left, right, context):
-        left_val = context[left] * left.coefficient
-        right_val = context[right] * right.coefficient
+        left_val = context[left]
+        right_val = context[right]
         return left_val - right_val
 
 
@@ -910,8 +962,8 @@ class Addition(Operator):
     precedence = 1
 
     def __call__(self, left, right, context):
-        left_val = context[left] * left.coefficient
-        right_val = context[right] * right.coefficient
+        left_val = context[left]
+        right_val = context[right]
         return left_val + right_val
 
 
@@ -921,8 +973,8 @@ class Multplication(Operator):
     precedence = 2
 
     def __call__(self, left, right, context):
-        left_val = context[left] * left.coefficient
-        right_val = context[right] * right.coefficient
+        left_val = context[left]
+        right_val = context[right]
         return left_val * right_val
 
 
@@ -932,8 +984,8 @@ class Division(Operator):
     precedence = 2
 
     def __call__(self, left, right, context):
-        left_val = context[left] * left.coefficient
-        right_val = context[right] * right.coefficient
+        left_val = context[left]
+        right_val = context[right]
         return left_val / right_val
 
 
@@ -999,9 +1051,34 @@ def symbolic_abs(terms, context):
     return abs(context[terms])
 
 
+def symbolic_max(terms, context):
+    args = terms.evaluate(context)
+    return max(args)
+
+
+def symbolic_min(terms, context):
+    args = terms.evaluate(context)
+    return min(args)
+
+
+def ifelse(terms, context):
+    if len(terms) != 3:
+        raise ValueError("ifelse takes three arguments, given %d" % (len(terms), ))
+    condition = terms[0]
+    if_true = terms[1]
+    if_false = terms[2]
+    if condition.evaluate(context):
+        return if_true.evaluate(context)
+    else:
+        return if_false.evaluate(context)
+
+
 function_table = {
     "sum": symbolic_sum,
-    "abs": symbolic_abs
+    "abs": symbolic_abs,
+    "max": symbolic_max,
+    "min": symbolic_min,
+    "ifelse": ifelse
 }
 
 

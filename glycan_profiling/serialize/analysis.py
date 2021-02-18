@@ -5,9 +5,9 @@ from sqlalchemy import (
     Column, Numeric, Integer, String, ForeignKey, PickleType,
     Boolean, Table, func)
 
-from sqlalchemy.orm import relationship, backref, object_session
+from sqlalchemy.orm import relationship, backref, object_session, deferred
 from sqlalchemy.ext.declarative import declared_attr
-from sqlalchemy.ext.mutable import MutableDict
+from sqlalchemy.ext.mutable import MutableDict, Mutable
 
 import dill
 
@@ -17,7 +17,7 @@ from glycan_profiling.serialize.base import (
 from glycan_profiling.serialize.spectrum import SampleRun
 
 from glycan_profiling.serialize.hypothesis.generic import HasFiles
-
+from glycan_profiling.serialize.param import LazyMutableMappingWrapper, HasParameters
 from glypy.utils import Enum
 
 
@@ -33,15 +33,19 @@ AnalysisTypeEnum.glycopeptide_lc_msms.add_name("Glycopeptide LC-MS/MS")
 AnalysisTypeEnum.glycan_lc_ms.add_name("Glycan LC-MS")
 
 
-class Analysis(Base, HasUniqueName, HasFiles):
+class Analysis(Base, HasUniqueName, HasFiles, HasParameters):
     __tablename__ = "Analysis"
 
     id = Column(Integer, primary_key=True)
     sample_run_id = Column(Integer, ForeignKey(SampleRun.id, ondelete="CASCADE"), index=True)
     sample_run = relationship(SampleRun)
     analysis_type = Column(String(128))
-    parameters = Column(MutableDict.as_mutable(DillType))
+    # parameters = deferred(Column(MutableDict.as_mutable(DillType), default=LazyMutableMappingWrapper))
     status = Column(String(28))
+
+    def __init__(self, **kwargs):
+        self._init_parameters(kwargs)
+        super(Analysis, self).__init__(**kwargs)
 
     def __repr__(self):
         sample_run = self.sample_run

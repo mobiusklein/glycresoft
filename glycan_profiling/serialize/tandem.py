@@ -104,6 +104,13 @@ class SpectrumClusterBase(object):
     def __iter__(self):
         return iter(self.spectrum_solutions)
 
+    def __len__(self):
+        return len(self.spectrum_solutions)
+
+    def __repr__(self):
+        template = "{self.__class__.__name__}(<{size}>)"
+        return template.format(self=self, size=len(self))
+
     def convert(self, mass_shift_cache=None, scan_cache=None, structure_cache=None, **kwargs):
         if scan_cache is None:
             scan_cache = dict()
@@ -142,7 +149,7 @@ class SolutionSetBase(object):
         if not self.is_multiscore():
             return sorted(self.spectrum_matches, key=lambda x: x.score, reverse=True)[0]
         else:
-            return sorted(self.spectrum_matches, key=lambda x: (x.q_value, -x.score))[0]
+            return sorted(self.spectrum_matches, key=lambda x: (x.score_set.convert()[0]))[0]
 
     @property
     def score(self):
@@ -211,6 +218,8 @@ class GlycopeptideSpectrumSolutionSet(Base, SolutionSetBase, BoundToAnalysis):
     @classmethod
     def serialize(cls, obj, session, scan_look_up_cache, mass_shift_cache, analysis_id,
                   cluster_id, is_decoy=False, *args, **kwargs):
+        if not obj.best_solution().best_match:
+            obj.mark_top_solutions()
         inst = cls(
             scan_id=scan_look_up_cache[obj.scan.id],
             is_decoy=is_decoy,
@@ -233,7 +242,9 @@ class GlycopeptideSpectrumSolutionSet(Base, SolutionSetBase, BoundToAnalysis):
 
     def convert(self, mass_shift_cache=None, scan_cache=None, structure_cache=None, peptide_relation_cache=None):
         if scan_cache is None:
-            scan_cache = dict()
+            scan_cache = {}
+        if mass_shift_cache is None:
+            mass_shift_cache = {}
         session = object_session(self)
         flag = session.info.get("has_spectrum_match_mass_shift")
         if flag:
@@ -244,7 +255,6 @@ class GlycopeptideSpectrumSolutionSet(Base, SolutionSetBase, BoundToAnalysis):
         matches = [x.convert(mass_shift_cache=mass_shift_cache, scan_cache=scan_cache,
                              structure_cache=structure_cache, peptide_relation_cache=peptide_relation_cache)
                              for x in spectrum_match_q]
-        matches.sort(key=lambda x: x.score, reverse=True)
         solution_set_tp = MemorySpectrumSolutionSet
         if matches and matches[0].is_multiscore():
             solution_set_tp = MultiScoreSpectrumSolutionSet
@@ -252,7 +262,7 @@ class GlycopeptideSpectrumSolutionSet(Base, SolutionSetBase, BoundToAnalysis):
             convert_scan_to_record(self.scan),
             matches
         )
-        inst.q_value = min(x.q_value for x in inst)
+        inst.sort()
         inst.id = self.id
         return inst
 
@@ -332,13 +342,12 @@ class GlycopeptideSpectrumMatch(Base, SpectrumMatchBase):
 
         key = self.structure_id
         if structure_cache is None:
-            target = session.query(Glycopeptide).get(key).convert()
+            target = self.structure.convert(peptide_relation_cache=peptide_relation_cache)
         else:
             try:
                 target = structure_cache[key]
             except KeyError:
-                target = structure_cache[key] = session.query(Glycopeptide).get(
-                    key).convert(peptide_relation_cache=peptide_relation_cache)
+                target = structure_cache[key] = self.structure.convert(peptide_relation_cache=peptide_relation_cache)
 
         mass_shift = self._resolve_mass_shift(session, mass_shift_cache)
         if self.score_set is None:

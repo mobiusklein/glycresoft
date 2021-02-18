@@ -1,7 +1,11 @@
 from abc import ABCMeta, abstractmethod, abstractproperty
 
 import operator
-import itertools
+
+try:
+    from itertools import imap
+except ImportError:
+    imap = map
 
 import dill
 
@@ -565,7 +569,7 @@ class TransformingMassCollectionAdapter(SearchableMassCollectionWrapper):
         return self.transformer(self.searchable_mass_collection[i])
 
     def __iter__(self):
-        return itertools.imap(self.transformer, self.searchable_mass_collection)
+        return imap(self.transformer, self.searchable_mass_collection)
 
     def search_between(self, lower, higher):
         return self.__class__(

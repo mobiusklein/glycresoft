@@ -6,7 +6,7 @@ from .rule import (
 
 from .neighborhood import (
     NeighborhoodCollection, NeighborhoodWalker, make_n_glycan_neighborhoods,
-    make_adjacency_neighborhoods)
+    make_adjacency_neighborhoods, make_mammalian_n_glycan_neighborhoods)
 
 from .graph import (
     CompositionNormalizer, CompositionGraph, CompositionGraphNode,
@@ -20,7 +20,7 @@ __all__ = [
     "CompositionRatioRule", "CompositionRuleClassifier",
 
     "NeighborhoodCollection", "NeighborhoodWalker", "make_n_glycan_neighborhoods",
-    "make_adjacency_neighborhoods",
+    "make_adjacency_neighborhoods", "make_mammalian_n_glycan_neighborhoods",
 
     "CompositionNormalizer", "CompositionGraph", "CompositionGraphNode",
     "CompositionGraphEdge", "EdgeSet", "DijkstraPathFinder",

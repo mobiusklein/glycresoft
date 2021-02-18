@@ -35,6 +35,10 @@ from rdflib.plugins.stores import sparqlstore
 
 from glycan_profiling.cli.__main__ import main
 
+from glycopeptide_feature_learning import (peak_relations, multinomial_regression, scoring)
+# from glycopeptide_feature_learning._c import (amino_acid_classification, approximation, model_types, peak_relations)
+
+
 from glycan_profiling.cli.validators import strip_site_root
 
 sys.excepthook = strip_site_root

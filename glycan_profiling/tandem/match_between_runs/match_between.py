@@ -15,14 +15,18 @@ from glycan_profiling.plotting import chromatogram_artist
 MergeAction = namedtuple("MergeAction", ("label", "existing", "new", "shift"))
 CreateAction = namedtuple(
     "CreateAction", ("label", "structure", "chromatogram", "shift"))
+LinkAction = namedtuple('LinkAction', ('label', 'from_', 'to', "shift", 'reason'))
 
 
 class SharedIdentification(object):
-    def __init__(self, identification_key, identifications=None):
+    def __init__(self, identification_key, identifications=None, links=None):
         if identifications is None:
             identifications = dict()
+        if links is None:
+            links = set()
         self.identification_key = identification_key
         self.identifications = dict(identifications)
+        self.links = links
 
     @property
     def structure(self):
@@ -141,25 +145,36 @@ class MatchBetweenRunBuilder(TaskBase):
             new = new.chromatogram
         mbd.merge(structure, new, shift)
 
+    def link(self, label, structure_from, structure_to, shift, reason):
+        sf = self.feature_table[structure_from]
+        st = self.feature_table[structure_to]
+        link = LinkAction(label, structure_from, structure_to, shift, reason)
+        sf.links.add(link)
+        st.links.add(link)
+
     def search(self, shared_id, mass_error_tolerance=1e-5, time_error_tolerance=2.0):
         create_actions = set()
         merge_actions = set()
+        link_actions = set()
 
         for inst in shared_id.values():
-            merges, creates = self.find(
+            merges, creates, links = self.find(
                 inst, mass_error_tolerance, time_error_tolerance)
             create_actions.update(creates)
             merge_actions.update(merges)
-        return merge_actions, create_actions
+            link_actions.update(links)
+        return merge_actions, create_actions, link_actions
 
     def match_structure_between(self, shared_id, mass_error_tolerance=1e-5, time_error_tolerance=2.0):
-        merge_actions, create_actions = self.search(
+        merge_actions, create_actions, link_actions = self.search(
             shared_id, mass_error_tolerance, time_error_tolerance)
 
         create_actions = sorted(
             create_actions, key=lambda x: x.chromatogram.total_signal, reverse=True)
         merge_actions = sorted(
             merge_actions, key=lambda x: x.new.total_signal, reverse=True)
+        link_actions = sorted(
+            link_actions, key=lambda x: max(x.from_.total_signal, x.to.total_signal), reverse=True)
 
         for action in create_actions:
             self.create(action.label, action.structure,
@@ -167,11 +182,17 @@ class MatchBetweenRunBuilder(TaskBase):
 
         for action in merge_actions:
             self.merge(action.label, action.existing, action.new, action.shift)
-        return merge_actions, create_actions
+
+        for action in link_actions:
+            self.link(action.label, action.from_.structure,
+                      action.to.structure, action.shift, action.reason)
+
+        return merge_actions, create_actions, link_actions
 
     def find(self, ids, mass_error_tolerance=1e-5, time_error_tolerance=2.0):
         create_actions = set()
         merge_actions = set()
+        link_actions = set()
 
         for mbd in self.datasets:
             shared_id = self.feature_table[ids.structure]
@@ -193,6 +214,8 @@ class MatchBetweenRunBuilder(TaskBase):
                                 # Totally different structure, emit a warning?
                                 warnings.warn("Ambiguous 1 Link Between %r and %r with shift %r\n" % (
                                     existing_match.structure, entity.structure, shift))
+                                link_actions.add(
+                                    LinkAction(mbd.label, existing_match, entity, shift, 1))
                         else:
                             if existing_match.chromatogram and entity.chromatogram:
                                 self.log("Multiple chromatograms for %r at %0.2f and %0.2f\n" % (
@@ -223,12 +246,14 @@ class MatchBetweenRunBuilder(TaskBase):
                             # Totally different structure, emit a warning?
                             self.log("Ambiguous 3 Link Between %r and %r with shift %r in %r\n" % (
                                 ids.structure, entity.structure, shift.name, mbd.label))
+                            link_actions.add(
+                                LinkAction(mbd.label, ids, entity, shift, 3))
                     else:
                         # It's a chromatogram. Wrap it in something and add it to the shared_id
                         create_actions.add(CreateAction(
                             mbd.label, ids.structure, entity, shift))
 
-        return merge_actions, create_actions
+        return merge_actions, create_actions, link_actions
 
     def run(self):
         n = len(self.feature_table)

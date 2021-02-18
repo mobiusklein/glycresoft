@@ -63,6 +63,46 @@ def humanize_class_name(name):
     return ' '.join(parts)
 
 
+class LoggingMixin(object):
+    logger_state = None
+    print_fn = printer
+    debug_print_fn = debug_printer
+    error_print_fn = printer
+
+    @classmethod
+    def log_with_logger(cls, logger):
+        LoggingMixin.logger_state = logger
+        LoggingMixin.print_fn = logger.info
+        LoggingMixin.debug_print_fn = logger.debug
+        LoggingMixin.error_print_fn = logger.error
+
+    @classmethod
+    def log_to_stdout(cls):
+        cls.logger_state = None
+        cls.print_fn = printer
+        cls.debug_print_fn = debug_printer
+        cls.error_print_fn = printer
+
+    def log(self, *message):
+        self.print_fn(u', '.join(map(ensure_text, message)))
+
+    def debug(self, *message):
+        self.debug_print_fn(u', '.join(map(ensure_text, message)))
+
+    def error(self, *message, **kwargs):
+        exception = kwargs.get("exception")
+        self.error_print_fn(u', '.join(map(ensure_text, message)))
+        if exception is not None:
+            self.error_print_fn(traceback.format_exc())
+
+    def ipc_logger(self, handler=None):
+        if handler is None:
+            def _default_closure_handler(message):
+                self.log(message)
+            handler = _default_closure_handler
+        return MessageSpooler(handler)
+
+
 class TaskBase(LoggingMixin):
     """A base class for a discrete, named step in a pipeline that
     executes in sequence.
@@ -136,11 +176,7 @@ class TaskBase(LoggingMixin):
             name = getattr(self, 'process_name', None)
         if name is None:
             return
-        try:
-            import setproctitle
-            setproctitle.setproctitle(name)
-        except (ImportError, AttributeError):
-            pass
+        _name_process(name)
 
     def _begin(self, verbose=True, *args, **kwargs):
         self.on_begin()
@@ -227,6 +263,12 @@ class MultiEvent(object):
                 return result
         return True
 
+    def wait(self, *args, **kwargs):
+        result = True
+        for event in self.events:
+            result &= event.wait(*args, **kwargs)
+        return result
+
     def clear(self):
         for event in self.events:
             event.clear()
@@ -270,16 +312,23 @@ class TaskExecutionSequence(TaskBase):
     """
 
     def __call__(self):
+        result = None
         try:
             if self._running_in_process:
                 self.log("%s running on PID %r" % (self, multiprocessing.current_process().pid))
             result = self.run()
             self.debug("%r Done" % self)
-            return result
         except Exception as err:
             self.error("An error occurred while executing %s" %
                        self, exception=err)
-            return None
+            result = None
+            self.set_error_occurred()
+            try:
+                self.done_event.set()
+            except AttributeError:
+                pass
+        finally:
+            return result
 
     def run(self):
         raise NotImplementedError()
@@ -289,6 +338,19 @@ class TaskExecutionSequence(TaskBase):
 
     _thread = None
     _running_in_process = False
+    _error_flag = None
+
+    def error_occurred(self):
+        if self._error_flag is None:
+            return False
+        else:
+            return self._error_flag.is_set()
+
+    def set_error_occurred(self):
+        if self._error_flag is None:
+            return False
+        else:
+            return self._error_flag.set()
 
     def __repr__(self):
         template = "{self.__class__.__name__}({details})"
@@ -307,12 +369,14 @@ class TaskExecutionSequence(TaskBase):
             return self._thread
         if process:
             self._running_in_process = True
+            self._error_flag = self._make_event(multiprocessing)
             t = multiprocessing.Process(
                 target=(LoggingWrapper(self, logging_provider)),
                 name=self._name_for_execution_sequence())
             if daemon:
                 t.daemon = daemon
         else:
+            self._error_flag = self._make_event(threading)
             t = threading.Thread(
                 target=self, name=self._name_for_execution_sequence())
             if daemon:
@@ -322,11 +386,18 @@ class TaskExecutionSequence(TaskBase):
         return t
 
     def join(self, timeout=None):
+        if self.error_occurred():
+            return True
         return self._thread.join(timeout)
 
+    def is_alive(self):
+        if self.error_occurred():
+            return False
+        return self._thread.is_alive()
+
     def stop(self):
-        if self._thread.is_alive():
-            pass
+        if self.is_alive():
+            self.set_error_occurred()
 
 
 class Pipeline(TaskExecutionSequence):
@@ -334,12 +405,43 @@ class Pipeline(TaskExecutionSequence):
         self.tasks = tasks
 
     def start(self, *args, **kwargs):
-        for task in self.tasks:
+        for task in self:
             task.start(*args, **kwargs)
 
     def join(self, timeout=None):
+        if timeout is not None:
+            for task in self:
+                task.join(timeout)
+        else:
+            timeout = max(60 // len(self), 2)
+            while True:
+                has_error = self.error_occurred()
+                if has_error:
+                    for task in self:
+                        task.stop()
+                alive = 0
+                for task in self:
+                    task.join(timeout)
+                    is_alive = task.is_alive()
+                    alive += is_alive
+                if alive == 0:
+                    break
+
+    def is_alive(self):
+        alive = 0
+        for task in self:
+            alive += task.is_alive()
+        return alive
+
+    def error_occurred(self):
+        errors = 0
         for task in self.tasks:
-            task.join(timeout)
+            errors += task.error_occurred()
+        return errors
+
+    def stop(self):
+        for task in self.tasks:
+            task.stop()
 
     def __iter__(self):
         return iter(self.tasks)
@@ -366,7 +468,7 @@ class SinkTask(TaskExecutionSequence):
 
     def process(self):
         has_work = True
-        while has_work:
+        while has_work and not self.error_occurred():
             try:
                 item = self.in_queue.get(True, 10)
                 self.handle_item(item)
@@ -389,3 +491,33 @@ def _name_process(name):
         setproctitle.setproctitle(name)
     except (ImportError, AttributeError):
         pass
+
+
+def elapsed(seconds):
+    '''Convert a second count into a human readable duration
+
+    Parameters
+    ----------
+    seconds : :class:`int`
+        The number of seconds elapsed
+
+    Returns
+    -------
+    :class:`str` :
+        A formatted, comma separated list of units of duration in days, hours, minutes, and seconds
+    '''
+    periods = [
+        ('day', 60 * 60 * 24),
+        ('hour', 60 * 60),
+        ('minute', 60),
+        ('second', 1)
+    ]
+
+    tokens = []
+    for period_name, period_seconds in periods:
+        if seconds > period_seconds:
+            period_value, seconds = divmod(seconds, period_seconds)
+            has_s = 's' if period_value > 1 else ''
+            tokens.append("%s %s%s" % (period_value, period_name, has_s))
+
+    return ", ".join(tokens)

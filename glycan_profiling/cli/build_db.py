@@ -55,7 +55,10 @@ from glycan_profiling.database.composition_network import (
     CompositionRangeRule,
     CompositionRatioRule,
     CompositionRuleClassifier,
-    CompositionExpressionRule, make_n_glycan_neighborhoods)
+    CompositionExpressionRule,
+    make_n_glycan_neighborhoods,
+    make_adjacency_neighborhoods,
+    make_mammalian_n_glycan_neighborhoods)
 
 from glycopeptidepy.enzyme import enzyme_rules
 from glycopeptidepy.utils.collectiontools import decoratordict
@@ -223,6 +226,8 @@ def glycopeptide_hypothesis_common_options(cmd):
               help='Peptide modification rule which will be applied constantly')
 @click.option("-v", "--variable-modification", multiple=True,
               help='Peptide modification rule which will be applied variablely')
+@click.option("-V", "--max-variable-modifications", type=int, default=4, required=False,
+              help=("The maximum number of variable modifications that can be applied to a single peptide"))
 @click.option("-y", "--semispecific-digest", is_flag=True, help=(
     "Apply a semispecific enzyme digest permitting one peptide terminal to be non-specific"))
 @click.option("-R", "--reverse", default=False, is_flag=True, help='Reverse protein sequences')
@@ -232,7 +237,7 @@ def glycopeptide_hypothesis_common_options(cmd):
 def glycopeptide_fa(context, fasta_file, database_connection, enzyme, missed_cleavages, occupied_glycosites, name,
                     constant_modification, variable_modification, processes, glycan_source, glycan_source_type,
                     glycan_source_identifier=None, semispecific_digest=False, reverse=False, dry_run=False,
-                    peptide_length_range=(5, 60), not_full_crossproduct=False):
+                    peptide_length_range=(5, 60), not_full_crossproduct=False, max_variable_modifications=4):
     '''Constructs a glycopeptide hypothesis from a FASTA file of proteins and a
     collection of glycans.
     '''
@@ -276,7 +281,9 @@ def glycopeptide_fa(context, fasta_file, database_connection, enzyme, missed_cle
         hypothesis_name=name,
         semispecific=semispecific_digest,
         n_processes=processes,
-        full_cross_product=not not_full_crossproduct)
+        full_cross_product=not not_full_crossproduct,
+        max_variable_modifications=max_variable_modifications,
+        peptide_length_range=peptide_length_range)
     builder.display_header()
     builder.start()
     return builder.hypothesis_id
@@ -325,7 +332,8 @@ def glycopeptide_mzid(context, mzid_file, database_connection, name, occupied_gl
         target_proteins=proteins,
         max_glycosylation_events=occupied_glycosites,
         reference_fasta=reference_fasta,
-        n_processes=processes)
+        n_processes=processes,
+        peptide_length_range=peptide_length_range)
     builder.display_header()
     builder.start()
     return builder.hypothesis_id
@@ -571,7 +579,8 @@ def glycan_network(context, database_connection, hypothesis_identifier, edge_str
 @click.option("-i", "--input-path", type=click.Path(dir_okay=False), default=None)
 @click.option("-o", "--output-path", type=click.Path(dir_okay=False, writable=True),
               default=None)
-@click.option("-n", "--name", help='Set the neighborhood name', type=click.Choice(["n-glycan"]), required=True)
+@click.option("-n", "--name", help='Set the neighborhood name', type=click.Choice(
+    ["n-glycan", "mammalian-n-glycan", ]), required=True)
 def add_prebuild_neighborhoods_to_network(context, input_path, output_path, name):
     if input_path is None:
         input_stream = ctxstream(sys.stdin)
@@ -581,6 +590,8 @@ def add_prebuild_neighborhoods_to_network(context, input_path, output_path, name
         graph = GraphReader(input_stream).network
     if name == 'n-glycan':
         neighborhoods = make_n_glycan_neighborhoods()
+    elif name == 'mammalian-n-glycan':
+        neighborhoods = make_mammalian_n_glycan_neighborhoods()
     else:
         raise LookupError(name)
     for n in neighborhoods:

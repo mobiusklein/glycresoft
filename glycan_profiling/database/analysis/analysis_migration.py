@@ -1,3 +1,4 @@
+import warnings
 from collections import defaultdict
 
 from glypy.composition import formula
@@ -28,6 +29,20 @@ from glycan_profiling.serialize.spectrum import (
     MSScan,
     DeconvolutedPeak,
     PrecursorInformation)
+
+from ms_deisotope.data_source import ChargeNotProvided
+
+def slurp(session, model, ids):
+    ids = sorted(ids)
+    total = len(ids)
+    last = 0
+    step = 100
+    results = []
+    while last < total:
+        results.extend(session.query(model).filter(
+            model.id.in_(ids[last:last + step])))
+        last += step
+    return results
 
 
 def fetch_scans_used_in_chromatogram(chromatogram_set, extractor):
@@ -73,23 +88,6 @@ def update_glycan_chromatogram_composition_ids(hypothesis_migration, glycan_chro
     for key, group in tandem_mapping.items():
         for value in group:
             value.id = hypothesis_migration.glycan_composition_id_map[key]
-
-
-def update_glycopeptide_ids(hypothesis_migration, identified_glycopeptide_set):
-    '''Build a mapping from searched hypothesis structure ID to saved subset structure
-    ID, ensuring that each object has its new ID assigned exactly once.
-
-    The use of :func:`id` here is to ensure that exactness.
-    '''
-    mapping = defaultdict(dict)
-    for glycopeptide in identified_glycopeptide_set:
-        mapping[glycopeptide.structure.id][id(glycopeptide.structure)] = glycopeptide.structure
-        for solution_set in glycopeptide.spectrum_matches:
-            for match in solution_set:
-                mapping[match.target.id][id(match.target)] = match.target
-    for key, instances in mapping.items():
-        for value in instances.values():
-            value.id = hypothesis_migration.glycopeptide_id_map[value.id]
 
 
 class SampleMigrator(DatabaseBoundOperation, TaskBase):
@@ -148,13 +146,16 @@ class SampleMigrator(DatabaseBoundOperation, TaskBase):
             self.log("Unable to locate precursor scan with ID %r" % (err , ))
         # prod_id = self.scan_id(prec_info.product)
         prod_id = prec_info.product_scan_id
+        charge = prec_info.charge
+        if charge == ChargeNotProvided:
+            charge = 0
         new_info = PrecursorInformation(
             sample_run_id=self.sample_run_id,
             # precursor may be missing
             precursor_id=self.ms_scan_id_map.get(prec_id),
             product_id=self.ms_scan_id_map[prod_id],
             neutral_mass=prec_info.neutral_mass,
-            charge=prec_info.charge,
+            charge=charge,
             intensity=prec_info.intensity)
         return self._migrate(new_info)
 
@@ -221,6 +222,7 @@ class AnalysisMigrationBase(DatabaseBoundOperation, TaskBase):
         raise NotImplementedError()
 
     def migrate_sample(self):
+        self.log("... Loading Scans")
         scans = self.fetch_scans()
         self._sample_migrator = SampleMigrator(self._original_connection)
         self._sample_migrator.migrate_sample_run(self.sample_run)
@@ -415,6 +417,31 @@ class GlycopeptideMSMSAnalysisSerializer(AnalysisMigrationBase):
                     aggregate.add(match.target.id)
         self._glycopeptide_ids = aggregate
 
+    def update_glycopeptide_ids(self):
+        '''Build a mapping from searched hypothesis structure ID to saved subset structure
+        ID, ensuring that each object has its new ID assigned exactly once.
+
+        The use of :func:`id` here is to ensure that exactness.
+        '''
+        hypothesis_migration = self._glycopeptide_hypothesis_migrator
+        identified_glycopeptide_set = self._identified_glycopeptide_set
+        mapping = defaultdict(dict)
+        for glycopeptide in identified_glycopeptide_set:
+            mapping[glycopeptide.structure.id][id(
+                glycopeptide.structure)] = glycopeptide.structure
+            for solution_set in glycopeptide.spectrum_matches:
+                for match in solution_set:
+                    mapping[match.target.id][id(match.target)] = match.target
+        for key, instances in mapping.items():
+            for value in instances.values():
+                try:
+                    value.id = hypothesis_migration.glycopeptide_id_map[value.id]
+                except KeyError:
+                    message = "Could not find a mapping from ID %r for %r in the new keyspace, reconstructing to recover..." % (
+                        value.id, value)
+                    self.log(message)
+                    value.id = self._migrate_single_glycopeptide(value)
+
     @property
     def chromatogram_set(self):
         return [
@@ -433,11 +460,11 @@ class GlycopeptideMSMSAnalysisSerializer(AnalysisMigrationBase):
 
         for i, gc in enumerate(glycan_compositions):
             if i % 1000 == 0 and i:
-                self.log("...... Migrating Glycan %d %s" % (i, gc))
+                self.log("...... Migrating Glycan %d" % (i, ))
             self._glycopeptide_hypothesis_migrator.migrate_glycan_composition(gc)
         for i, gc in enumerate(glycan_combinations):
             if i % 1000 == 0 and i:
-                self.log("...... Migrating Glycan Combination %d %s" % (i, gc))
+                self.log("...... Migrating Glycan Combination %d" % (i, ))
             self._glycopeptide_hypothesis_migrator.migrate_glycan_combination(gc)
 
         self.log("... Loading Proteins and Peptides from Glycopeptides")
@@ -460,7 +487,7 @@ class GlycopeptideMSMSAnalysisSerializer(AnalysisMigrationBase):
         n = len(peptides)
         for i, peptide in enumerate(peptides):
             if i % 15000 == 0 and i:
-                self.log("...... Migrating Peptide %d/%d (%0.2f%%) %s" % (i, n, i * 100.0 / n, str(peptide)))
+                self.log("...... Migrating Peptide %d/%d (%0.2f%%)" % (i, n, i * 100.0 / n))
             self._glycopeptide_hypothesis_migrator.migrate_peptide(peptide)
         index_toggler.create()
         peptides = []
@@ -472,8 +499,8 @@ class GlycopeptideMSMSAnalysisSerializer(AnalysisMigrationBase):
         index_toggler.drop()
         n = len(glycopeptides)
         for i, glycopeptide in enumerate(glycopeptides):
-            if i % 5000 == 0 and i:
-                self.log("...... Migrating Glycopeptide %d/%d (%0.2f%%) %s" % (i, n, i * 100.0 / n, str(glycopeptide)))
+            if i % 15000 == 0 and i:
+                self.log("...... Migrating Referenced Glycopeptide %d/%d (%0.2f%%)" % (i, n, i * 100.0 / n))
             self._glycopeptide_hypothesis_migrator.migrate_glycopeptide(
                 glycopeptide)
         index_toggler.create()
@@ -481,15 +508,18 @@ class GlycopeptideMSMSAnalysisSerializer(AnalysisMigrationBase):
 
     def fetch_scans(self):
         scan_ids = set()
-
+        precursor_ids = dict()
         for glycopeptide in self._identified_glycopeptide_set:
             if glycopeptide.chromatogram is not None:
                 scan_ids.update(glycopeptide.chromatogram.scan_ids)
             for msms in glycopeptide.spectrum_matches:
                 scan_ids.add(msms.scan.id)
-                scan_ids.add(
-                    self.chromatogram_extractor.get_scan_header_by_id(
-                        msms.scan.id).precursor_information.precursor_scan_id)
+                try:
+                    scan_ids.add(precursor_ids[msms.scan.id])
+                except KeyError:
+                    precursor_ids[msms.scan.id] = self.chromatogram_extractor.get_scan_header_by_id(
+                        msms.scan.id).precursor_information.precursor_scan_id
+                    scan_ids.add(precursor_ids[msms.scan.id])
         scans = []
         for scan_id in scan_ids:
             if scan_id is not None:
@@ -532,19 +562,31 @@ class GlycopeptideMSMSAnalysisSerializer(AnalysisMigrationBase):
         for glycopeptide_id in glycopeptide_ids:
             peptide_id = self._get_peptide_id_for_glycopeptide(glycopeptide_id)
             peptides.add(peptide_id)
-        return [self.glycopeptide_db.query(Peptide).get(i) for i in peptides]
+
+        return slurp(self.glycopeptide_db, Peptide, peptides)
+        # return [self.glycopeptide_db.query(Peptide).get(i) for i in peptides]
 
     def fetch_proteins(self, peptide_set):
         proteins = set()
         for peptide in peptide_set:
             proteins.add(peptide.protein_id)
-        return [self.glycopeptide_db.query(Protein).get(i) for i in proteins]
+        return slurp(self.glycopeptide_db, Protein, proteins)
+        # return [self.glycopeptide_db.query(Protein).get(i) for i in proteins]
 
     def fetch_glycopeptides(self, glycopeptide_ids):
-        return [
-            self.glycopeptide_db.query(
-                Glycopeptide).get(i) for i in glycopeptide_ids
-        ]
+        # return [
+        #     self.glycopeptide_db.query(
+        #         Glycopeptide).get(i) for i in glycopeptide_ids
+        # ]
+        return slurp(self.glycopeptide_db, Glycopeptide, glycopeptide_ids)
+
+    def _migrate_single_glycopeptide(self, glycopeptide):
+        '''Stupendously slow if used in bulk, intended for recovering from cases where
+        a single glycopeptide somehow slipped through the cracks.
+        '''
+        gp = self.glycopeptide_db.query(Glycopeptide).get(id)
+        self._glycopeptide_hypothesis_migrator.migrate_glycopeptide(gp)
+        return self._glycopeptide_hypothesis_migrator.glycopeptide_id_map[glycopeptide.id]
 
     def create_analysis(self):
         self._analysis_serializer = AnalysisSerializer(
@@ -558,10 +600,10 @@ class GlycopeptideMSMSAnalysisSerializer(AnalysisMigrationBase):
         self._analysis_serializer.set_peak_lookup_table(
             self._sample_migrator.peak_id_map)
 
-        update_glycopeptide_ids(
-            self._glycopeptide_hypothesis_migrator,
-            self._identified_glycopeptide_set)
+        # Patch the in-memory objects to be mapped through to the new database keyspace
+        self.update_glycopeptide_ids()
 
+        # Free up memory from the glycopeptide identity map
         self._glycopeptide_hypothesis_migrator.clear()
         self._analysis_serializer.save_glycopeptide_identification_set(
             self._identified_glycopeptide_set)
@@ -599,3 +641,17 @@ class DynamicGlycopeptideMSMSAnalysisSerializer(GlycopeptideMSMSAnalysisSerializ
                 formula=formula(obj.total_composition()))
             out.append(inst)
         return out
+
+    def _migrate_single_glycopeptide(self, glycopeptide):
+        inst = Glycopeptide(
+            id=glycopeptide.id,
+            peptide_id=glycopeptide.id.peptide_id,
+            glycan_combination_id=glycopeptide.id.glycan_combination_id,
+            protein_id=glycopeptide.id.protein_id,
+            hypothesis_id=glycopeptide.id.hypothesis_id,
+            glycopeptide_sequence=glycopeptide.get_sequence(),
+            calculated_mass=glycopeptide.total_mass,
+            formula=formula(glycopeptide.total_composition()))
+        self._glycopeptide_hypothesis_migrator.migrate_glycopeptide(inst)
+        self._glycopeptide_hypothesis_migrator.commit()
+        return self._glycopeptide_hypothesis_migrator.glycopeptide_id_map[glycopeptide.id]

@@ -376,7 +376,7 @@ class GlycoproteinSiteModelBuildingWorkflowBase(TaskBase):
     def __init__(self, analyses, glycopeptide_database, glycan_database,
                  unobserved_penalty_scale=None, lambda_limit=0.2,
                  require_multiple_observations=True, observation_aggregator=None,
-                 output_path=None, n_threads=None, q_value_threshold=0.05):
+                 output_path=None, n_threads=None, q_value_threshold=0.05, network=None):
         if observation_aggregator is None:
             observation_aggregator = VariableObservationAggregation
         if unobserved_penalty_scale is None:
@@ -394,12 +394,13 @@ class GlycoproteinSiteModelBuildingWorkflowBase(TaskBase):
         self.observation_aggregator = observation_aggregator
 
         self.output_path = output_path
+        self.network = network
 
     @classmethod
     def from_paths(cls, analysis_paths_and_ids, glycopeptide_hypothesis_path, glycopeptide_hypothesis_id,
                    glycan_hypothesis_path, glycan_hypothesis_id, unobserved_penalty_scale=None,
                    lambda_limit=0.2, require_multiple_observations=True, observation_aggregator=None,
-                   output_path=None, n_threads=4, q_value_threshold=0.05):
+                   output_path=None, n_threads=4, q_value_threshold=0.05, network=None):
         gp_db = GlycopeptideDiskBackedStructureDatabase(
             glycopeptide_hypothesis_path, glycopeptide_hypothesis_id)
         gc_db = GlycanCompositionDiskBackedStructureDatabase(
@@ -411,7 +412,7 @@ class GlycoproteinSiteModelBuildingWorkflowBase(TaskBase):
             analyses, gp_db, gc_db, unobserved_penalty_scale=unobserved_penalty_scale,
             lambda_limit=lambda_limit, require_multiple_observations=require_multiple_observations,
             observation_aggregator=observation_aggregator, output_path=output_path,
-            n_threads=n_threads, q_value_threshold=q_value_threshold
+            n_threads=n_threads, q_value_threshold=q_value_threshold, network=network
         )
         return inst
 
@@ -420,7 +421,10 @@ class GlycoproteinSiteModelBuildingWorkflowBase(TaskBase):
         return n_sites
 
     def make_glycan_network(self):
-        network = self.glycan_database.glycan_composition_network
+        if self.network is None:
+            network = self.glycan_database.glycan_composition_network
+        else:
+            network = self.network
         network = network.augment_with_decoys()
         network.create_edges()
 
@@ -510,12 +514,12 @@ class ThreadedGlycoproteinSiteModelBuildingWorkflow(GlycoproteinSiteModelBuildin
     def __init__(self, analyses, glycopeptide_database, glycan_database,
                  unobserved_penalty_scale=None, lambda_limit=0.2,
                  require_multiple_observations=True, observation_aggregator=None,
-                 output_path=None, n_threads=4):
+                 output_path=None, n_threads=4, q_value_threshold=0.05, network=None):
         super(ThreadedGlycoproteinSiteModelBuildingWorkflow, self).__init__(
             analyses, glycopeptide_database, glycan_database,
             unobserved_penalty_scale, lambda_limit,
             require_multiple_observations, observation_aggregator,
-            output_path
+            output_path,  q_value_threshold=q_value_threshold, network=network
         )
 
         self.n_threads = n_threads
@@ -606,12 +610,12 @@ class MultiprocessingGlycoproteinSiteModelBuildingWorkflow(GlycoproteinSiteModel
     def __init__(self, analyses, glycopeptide_database, glycan_database,
                  unobserved_penalty_scale=None, lambda_limit=0.2,
                  require_multiple_observations=True, observation_aggregator=None,
-                 output_path=None, n_threads=4):
+                 output_path=None, n_threads=4, q_value_threshold=0.05, network=None):
         super(MultiprocessingGlycoproteinSiteModelBuildingWorkflow, self).__init__(
             analyses, glycopeptide_database, glycan_database,
             unobserved_penalty_scale, lambda_limit,
             require_multiple_observations, observation_aggregator,
-            output_path
+            output_path, q_value_threshold=q_value_threshold, network=network
         )
 
         self.builder = None
@@ -761,7 +765,7 @@ class MultiprocessingGlycoproteinSiteModelBuildingWorkflow(GlycoproteinSiteModel
                             input_queue_size = self.input_queue.qsize()
                         except Exception:
                             input_queue_size = -1
-                        is_feeder_done = self.producer_thread_done_event.is_set()
+                        is_feeder_done = self.input_done_event.is_set()
                         self.log("...... Input Queue Status: %r. Is Feeder Done? %r" % (
                             input_queue_size, is_feeder_done))
                     if strikes > 1000:

@@ -9,7 +9,7 @@ from sqlalchemy.orm import (
 from sqlalchemy.ext.hybrid import hybrid_property, hybrid_method
 from sqlalchemy import (
     Column, Numeric, Integer, String, ForeignKey, PickleType,
-    Boolean, Table, Text, Index)
+    Boolean, Table, Text, Index, select)
 from sqlalchemy.ext.mutable import MutableDict, MutableList
 
 from glycan_profiling.serialize.base import (
@@ -409,6 +409,17 @@ class Glycopeptide(PeptideBase, Base):
     def __repr__(self):
         return "DBGlycopeptideSequence({self.glycopeptide_sequence}, {self.calculated_mass})".format(self=self)
     _protein_relation = None
+
+    @hybrid_method
+    def is_multiply_glycosylated(self):
+        return self.glycan_combination.count > 1
+
+    @is_multiply_glycosylated.expression
+    def is_multiply_glycosylated(self):
+        expr = select([GlycanCombination.count > 1]).where(
+            GlycanCombination.id == Glycopeptide.glycan_combination_id).label(
+            "is_multiply_glycosylated")
+        return expr
 
     @property
     def protein_relation(self):

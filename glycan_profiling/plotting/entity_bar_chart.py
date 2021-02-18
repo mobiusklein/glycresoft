@@ -3,6 +3,8 @@ from collections import Counter
 import numpy as np
 from matplotlib import pyplot as plt
 
+from glypy.structure.glycan_composition import HashableGlycanComposition
+
 from .glycan_visual_classification import (
     NGlycanCompositionColorizer,
     NGlycanCompositionOrderer,
@@ -48,8 +50,9 @@ class EntitySummaryBarChartArtist(ArtistBase):
 
     def prepare_x_args(self):
         items = self.sort_items()
-        if len(items) == 0:
-            raise ValueError("Cannot render. Zero items to plot.")
+        # if len(items) == 0:
+        #     # raise ValueError("Cannot render. Zero items to plot.")
+        #     return [], [], [],
         keys = [c.glycan_composition for c in items]
         include_classes = set(map(self.colorizer.classify, keys))
         xtick_labeler = GlycanLabelTransformer(keys, self.orderer)
@@ -67,9 +70,12 @@ class EntitySummaryBarChartArtist(ArtistBase):
     def configure_x_axis(self):
         ax = self.ax
         ax.set_xticks(self.indices + (self.bar_width))
+        n = len(self.indices)
+        if not n:
+            n = 1
         font_size = min(
             max(
-                (150. / (len(self.indices) / 2.)),
+                (150. / (n / 2.)),
                 3),
             24)
 
@@ -102,8 +108,8 @@ class EntitySummaryBarChartArtist(ArtistBase):
 
 class BundledGlycanComposition(object):
     def __init__(self, glycan_composition, total_signal):
-        self.glycan_composition = glycan_composition
-        self.total_signal = total_signal
+        self.glycan_composition = HashableGlycanComposition.parse(str(glycan_composition))
+        self.total_signal = float(total_signal)
 
     def __hash__(self):
         return hash(self.glycan_composition)

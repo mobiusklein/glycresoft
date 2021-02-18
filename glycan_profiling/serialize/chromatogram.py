@@ -669,6 +669,9 @@ class Chromatogram(Base, BoundToAnalysis):
         distinct_shifts = set(shift_ids)
         for i in distinct_shifts:
             shift = session.query(CompoundMassShift).get(i)
+            if shift is None:
+                # Somehow this might still be None?
+                shift = {s.id: s for s in session.query(CompoundMassShift).all()}[i]
             mass[shift_ids == i] -= shift.convert().mass
         intensity = arr[:, 0]
         return mass.dot(intensity) / intensity.sum()

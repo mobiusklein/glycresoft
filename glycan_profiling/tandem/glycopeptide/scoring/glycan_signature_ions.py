@@ -4,21 +4,20 @@ import numpy as np
 
 from glypy.structure.glycan_composition import (
     FrozenMonosaccharideResidue,
-    Composition)
+    Composition, from_iupac_lite)
 
 from glycopeptidepy.structure.glycan import GlycanCompositionProxy
 
 from glycan_profiling.structure import SpectrumGraph
 
+from glycan_profiling.tandem.oxonium_ions import SignatureSpecification, single_signatures, compound_signatures
+
 from .base import GlycopeptideSpectrumMatcherBase
 
 
-signatures = {
-    FrozenMonosaccharideResidue.from_iupac_lite("NeuAc"): 0.5,
-    FrozenMonosaccharideResidue.from_iupac_lite("NeuGc"): 0.5,
-}
+_WATER = Composition("H2O")
 
-_water = Composition("H2O")
+
 keyfn = attrgetter("intensity")
 
 
@@ -51,29 +50,51 @@ class GlycanCompositionSignatureMatcher(GlycopeptideSpectrumMatcherBase):
     def _copy_glycan_composition(self):
         return GlycanCompositionProxy(self.target.glycan_composition)
 
-    signatures = signatures
+    signatures = single_signatures
+    compound_signatures = compound_signatures
+    all_signatures = single_signatures.copy()
+    all_signatures.update(compound_signatures)
 
-    def match(self, error_tolerance=2e-5, *args, **kwargs):
+    def match(self, error_tolerance=2e-5, rare_signatures=False, *args, **kwargs):
         if len(self.spectrum) == 0:
             return
         self.maximum_intensity = self.base_peak()
-        water = _water
+        water = _WATER
         spectrum = self.spectrum
 
-        for monosaccharide in self.signatures:
-            is_expected = self.glycan_composition._getitem_fast(monosaccharide) != 0
-            peak = spectrum.all_peaks_for(monosaccharide.mass(), error_tolerance)
-            peak += spectrum.all_peaks_for(monosaccharide.mass() - water.mass, error_tolerance)
+        for mono in self.signatures:
+            is_expected = mono.is_expected(self.glycan_composition)
+            peak = ()
+            for mass in mono.masses:
+                peak += spectrum.all_peaks_for(mass, error_tolerance)
             if peak:
                 peak = base_peak_tuple(peak)
             else:
                 if is_expected:
-                    self.expected_matches[monosaccharide] = None
+                    self.expected_matches[mono] = None
                 continue
             if is_expected:
-                self.expected_matches[monosaccharide] = peak
+                self.expected_matches[mono] = peak
             else:
-                self.unexpected_matches[monosaccharide] = peak
+                self.unexpected_matches[mono] = peak
+
+        if rare_signatures:
+            for compound in self.compound_signatures:
+                is_expected = compound.is_expected(self.glycan_composition)
+                peak = ()
+                for mass in compound.masses:
+                    peak += spectrum.all_peaks_for(mass, error_tolerance)
+                if peak:
+                    peak = base_peak_tuple(peak)
+                else:
+                    if is_expected:
+                        self.expected_matches[compound] = None
+                    continue
+                if is_expected:
+                    self.expected_matches[compound] = peak
+                else:
+                    self.unexpected_matches[compound] = peak
+
 
     def _find_peak_pairs(self, error_tolerance=2e-5, include_compound=False, *args, **kwargs):
         peak_set = self.spectrum
@@ -103,8 +124,8 @@ class GlycanCompositionSignatureMatcher(GlycopeptideSpectrumMatcherBase):
         return pairs
 
     def estimate_missing_ion_importance(self, key):
-        count = self.glycan_composition[key]
-        weight = self.signatures[key]
+        count = key.count_of(self.glycan_composition)
+        weight = self.all_signatures[key]
         return min(weight * count, 0.99)
 
     def _signature_ion_score(self, error_tolerance=2e-5):

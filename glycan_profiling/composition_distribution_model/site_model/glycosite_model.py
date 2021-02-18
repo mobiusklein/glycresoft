@@ -32,6 +32,11 @@ def to_decoy_glycan(string):
 
 GlycanPriorRecord = namedtuple("GlycanPriorRecord", ("score", "matched"))
 
+try:
+    from glycan_profiling._c.composition_distribution_model.utils import GlycanPriorRecord
+except ImportError:
+    pass
+
 
 class GlycosylationSiteModel(object):
 
@@ -107,6 +112,7 @@ class GlycosylationSiteModel(object):
             if value.score > MINIMUM:
                 new_map[key] = value
         self.glycan_map = new_map
+        return self
 
     def __repr__(self):
         template = ('{self.__class__.__name__}({self.protein_name!r}, {self.position}, '

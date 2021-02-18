@@ -289,6 +289,12 @@ class ChromatogramSolution(object):
     def __iter__(self):
         return iter(self.chromatogram)
 
+    def __eq__(self, other):
+        return self.chromatogram.__eq__(other)
+
+    def __hash__(self):
+        return self.chromatogram.__hash__()
+
     def compute_score(self):
         try:
             self.internal_score = self.score = self.scorer.score(self.chromatogram)

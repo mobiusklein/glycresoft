@@ -485,7 +485,7 @@ class DatabaseConnectionParam(click.types.StringParamType):
             return value
 
 
-class GlycopeptideFDRParam(click.ParamType):
+class SmallSampleFDRCorrectionParam(click.ParamType):
     name = '0-1.0/on/off/auto'
 
     error_message_template = (

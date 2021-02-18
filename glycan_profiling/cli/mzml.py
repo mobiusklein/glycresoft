@@ -119,12 +119,19 @@ def preprocess(ms_file, outfile_path, averagine=None, start_time=None, end_time=
     if isinstance(loader, RandomAccessScanSource):
         last_scan = loader[len(loader) - 1]
         last_time = last_scan.scan_time
-        start_scan = loader._locate_ms1_scan(
-            loader.get_scan_by_time(start_time))
+
         if end_time > last_time:
             end_time = last_time
-        end_scan = loader._locate_ms1_scan(
-            loader.get_scan_by_time(end_time))
+
+        try:
+            start_scan = loader._locate_ms1_scan(loader.get_scan_by_time(start_time))
+        except IndexError:
+            start_scan = loader.get_scan_by_time(start_time)
+
+        try:
+            end_scan = loader._locate_ms1_scan(loader.get_scan_by_time(end_time))
+        except IndexError:
+            end_scan = loader.get_scan_by_time(end_time)
 
         start_scan_id = start_scan.id
         end_scan_id = end_scan.id
@@ -133,7 +140,8 @@ def preprocess(ms_file, outfile_path, averagine=None, start_time=None, end_time=
         end_scan_time = end_scan.scan_time
 
         loader.reset()
-        loader.start_from_scan(start_scan_id, grouped=True)
+        loader.start_from_scan(
+            start_scan_id, require_ms1=loader.has_ms1_scans(), grouped=True)
     else:
         click.secho("The file format provided does not support random"
                     " access, start and end points will be ignored", fg='yellow')

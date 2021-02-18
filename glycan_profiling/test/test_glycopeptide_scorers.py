@@ -5,6 +5,7 @@ from ms_deisotope.output import ProcessedMzMLDeserializer
 
 from glycan_profiling.test.fixtures import get_test_data
 
+from glycan_profiling.structure import FragmentCachingGlycopeptide
 from glycan_profiling.tandem.glycopeptide.scoring import (
     base, intensity_scorer, simple_score, binomial_score, coverage_weighted_binomial)
 
@@ -14,8 +15,9 @@ class TestGlycopeptideScorers(unittest.TestCase):
         return list(ProcessedMzMLDeserializer(get_test_data("example_glycopeptide_spectra.mzML")))
 
     def build_structures(self):
-        gp = PeptideSequence('YLGN(N-Glycosylation)ATAIFFLPDEGK{Hex:5; HexNAc:4; Neu5Ac:1}')
-        gp2 = PeptideSequence('YLGN(#:iupac,glycosylation_type=N-Linked:?-?-Hexp-(?-?)-?-?-'
+        gp = FragmentCachingGlycopeptide(
+            'YLGN(N-Glycosylation)ATAIFFLPDEGK{Hex:5; HexNAc:4; Neu5Ac:1}')
+        gp2 = FragmentCachingGlycopeptide('YLGN(#:iupac,glycosylation_type=N-Linked:?-?-Hexp-(?-?)-?-?-'
                               'Hexp2NAc-(?-?)-a-D-Manp-(1-6)-[a-D-Neup5Ac-(?-?)-?-?-Hexp-(?-?'
                               ')-?-?-Hexp2NAc-(?-?)-a-D-Manp-(1-3)]b-D-Manp-(1-4)-b-D-Glcp2NA'
                               'c-(1-4)-b-D-Glcp2NAc)ATAIFFLPDEGK')
@@ -69,7 +71,7 @@ class TestGlycopeptideScorers(unittest.TestCase):
 
         match = intensity_scorer.LogIntensityScorer.evaluate(scan, gp)
         self.assertAlmostEqual(match.score, 55.396555993522334, 3)
-        match = intensity_scorer.LogIntensityScorer.evaluate(scan, gp2)
+        match = intensity_scorer.LogIntensityScorer.evaluate(scan, gp2, rare_signatures=True)
         self.assertAlmostEqual(match.score, 55.396555993522334, 3)
 
         match = intensity_scorer.LogIntensityScorer.evaluate(scan2, gp)

@@ -93,7 +93,9 @@ class PeptideSpectrumMatcherBase(SpectrumMatcherBase):
 
 
 try:
-    from glycan_profiling._c.tandem.tandem_scoring_helpers import PeptideSpectrumMatcherBase_match_backbone_series
+    from glycan_profiling._c.tandem.tandem_scoring_helpers import (
+        PeptideSpectrumMatcherBase_match_backbone_series, _match_precursor)
     PeptideSpectrumMatcherBase._match_backbone_series = PeptideSpectrumMatcherBase_match_backbone_series
+    PeptideSpectrumMatcherBase._match_precursor = _match_precursor
 except ImportError:
     pass

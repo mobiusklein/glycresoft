@@ -31,7 +31,8 @@ class FastaGlycopeptideHypothesisSerializer(GlycopeptideHypothesisSerializerBase
     def __init__(self, fasta_file, connection, glycan_hypothesis_id, hypothesis_name=None,
                  protease='trypsin', constant_modifications=None, variable_modifications=None,
                  max_missed_cleavages=2, max_glycosylation_events=1, semispecific=False,
-                 max_variable_modifications=None, full_cross_product=True, peptide_length_range=(5, 60)):
+                 max_variable_modifications=None, full_cross_product=True,
+                 peptide_length_range=(5, 60)):
         GlycopeptideHypothesisSerializerBase.__init__(
             self, connection, hypothesis_name, glycan_hypothesis_id, full_cross_product)
         self.fasta_file = fasta_file
@@ -43,7 +44,6 @@ class FastaGlycopeptideHypothesisSerializer(GlycopeptideHypothesisSerializerBase
         self.semispecific = semispecific
         self.max_variable_modifications = max_variable_modifications
         self.peptide_length_range = peptide_length_range or (5, 60)
-        assert len(self.peptide_length_range) == 2
 
         params = {
             "fasta_file": fasta_file,

@@ -4,7 +4,7 @@ import glycopeptidepy
 from glycopeptidepy.structure import sequence, modification
 from glycopeptidepy.structure.fragment import IonSeries
 from glycopeptidepy.utils import simple_repr
-from glypy.plot import plot as draw_tree
+from glypy.plot import plot as draw_tree, SNFGNomenclature
 
 from .colors import darken, cnames, hex2color, get_color
 
@@ -14,6 +14,16 @@ from matplotlib import pyplot as plt, patches as mpatches, textpath, font_manage
 
 
 font_options = font_manager.FontProperties(family='monospace')
+glycan_symbol_grammar = SNFGNomenclature()
+
+
+def bbox_path(path):
+    nodes = path.vertices
+    xmin = nodes[:, 0].min()
+    xmax = nodes[:, 0].max()
+    ymin = nodes[:, 1].min()
+    ymax = nodes[:, 1].max()
+    return (xmin, ymin, xmax, ymax)
 
 
 class SequencePositionGlyph(object):
@@ -47,7 +57,7 @@ class SequencePositionGlyph(object):
         tpath = textpath.TextPath(
             (self.x, self.y), symbol, size=self.options.get('size'), prop=font_options)
         tpatch = mpatches.PathPatch(
-            tpath, color=color, lw=0.25, label=label)
+            tpath, color=color, lw=self.options.get('lw', 0.25), label=label)
         self._patch = tpatch
         ax.add_patch(tpatch)
         return ax
@@ -64,10 +74,56 @@ class SequencePositionGlyph(object):
             c += 1
         return point / c
 
+    def bbox(self):
+        return bbox_path(self._patch.get_path())
+
+
+class GlycanCompositionGlyphs(object):
+    def __init__(self, glycan_composition, x, y, ax, **kwargs):
+        self.glycan_composition = glycan_composition
+        self.ax = ax
+        self.x = x
+        self.xend = x
+        self.y = y
+        self.options = kwargs
+        self._patches = []
+
+    def render(self):
+        x = self.x
+        y = self.y
+        glyphs = []
+        for mono, count in self.glycan_composition.items():
+            glyph = glycan_symbol_grammar.draw(mono, x, y, ax=self.ax, scale=(0.4, 0.4))
+            x += 0.75
+            glyphs.extend(glyph.shape_patches)
+            glyph = glycan_symbol_grammar.draw_text(
+                self.ax, x, y - 0.17, r'$\times %d$' % count, center=False, fontsize=22)
+            x += 1.75
+            glyphs.extend(glyph)
+
+        self.xend = x
+        self._patches = glyphs
+
+    def set_transform(self, transform):
+        for patch in self._patches:
+            patch.set_transform(transform)
+
+    def bbox(self):
+        if not self._patches:
+            return self.x, self.y, self.xend, self.y
+        xmin, ymin, xmax, ymax = bbox_path(self._patches[0].get_path())
+        for patch in self._patches:
+            a, b, c, d = bbox_path(patch.get_path())
+            xmin = min(xmin, a)
+            ymin = min(ymin, b)
+            xmax = max(xmax, c)
+            ymax = max(ymax, d)
+        return xmin, ymin, xmax, ymax
+
 
 class SequenceGlyph(object):
 
-    def __init__(self, peptide, ax=None, size=1, step_coefficient=1.0, **kwargs):
+    def __init__(self, peptide, ax=None, size=1, step_coefficient=1.0, draw_glycan=False, **kwargs):
         if not isinstance(peptide, sequence.PeptideSequenceBase):
             peptide = sequence.PeptideSequence(peptide)
         self.sequence = peptide
@@ -82,6 +138,8 @@ class SequenceGlyph(object):
         self.options = kwargs
         self.next_at_height = dict(c_term=defaultdict(float), n_term=defaultdict(float))
         self.multi_tier_annotation = False
+        self.draw_glycan = draw_glycan
+        self.glycan_composition_glyphs = None
         self.render()
 
     def transform(self, transform):
@@ -89,10 +147,12 @@ class SequenceGlyph(object):
             glyph.set_transform(transform + self.ax.transData)
         for annot in self.annotations:
             annot.set_transform(transform + self.ax.transData)
+        if self.draw_glycan:
+            self.glycan_composition_glyphs.set_transform(transform + self.ax.transData)
         return self
 
-    def make_position_glyph(self, position, i, x, y, size):
-        glyph = SequencePositionGlyph(position, i, x, y, size=size)
+    def make_position_glyph(self, position, i, x, y, size, lw=0.25):
+        glyph = SequencePositionGlyph(position, i, x, y, size=size, lw=lw)
         return glyph
 
     def render(self):
@@ -109,11 +169,15 @@ class SequenceGlyph(object):
         glyphs = self.sequence_position_glyphs = []
         i = 0
         for position in self.sequence:
-            glyph = self.make_position_glyph(position, i, x, y, size=size)
+            glyph = self.make_position_glyph(position, i, x, y, size=size, lw=self.options.get("lw", 0.25))
             glyph.render(ax)
             glyphs.append(glyph)
             x += size * self.step_coefficient
             i += 1
+        if self.draw_glycan:
+            self.glycan_composition_glyphs = GlycanCompositionGlyphs(
+                self.sequence.glycan_composition, x + size * self.step_coefficient, y + 0.35, ax)
+            self.glycan_composition_glyphs.render()
         return ax
 
     def __getitem__(self, i):
@@ -140,6 +204,7 @@ class SequenceGlyph(object):
     def draw_n_term_label(
             self, index, label, height=0.25, length=0.75, size=0.45,
             color='black', **kwargs):
+        kwargs.setdefault('lw', self.options.get("lw", 0.25))
         x = self.next_between(index)
         y = self.y - height - size
         length *= self.step_coefficient
@@ -153,7 +218,7 @@ class SequenceGlyph(object):
         tpath = textpath.TextPath(
             (label_x, label_y), label, size=size, prop=font_options)
         tpatch = mpatches.PathPatch(
-            tpath, color='black', lw=0.25)
+            tpath, color='black', lw=kwargs.get('lw'))
         self.ax.add_patch(tpatch)
         self.annotations.append(tpatch)
         self.next_at_height['n_term'][index] = tpath.vertices[:, 1].min()
@@ -171,6 +236,7 @@ class SequenceGlyph(object):
     def draw_c_term_label(
             self, index, label, height=0.25, length=0.75, size=0.45,
             color='black', **kwargs):
+        kwargs.setdefault('lw', self.options.get("lw", 0.25))
         x = self.next_between(index)
         y = (self.y * 2) + height
         length *= self.step_coefficient
@@ -183,7 +249,7 @@ class SequenceGlyph(object):
         tpath = textpath.TextPath(
             (label_x, label_y), label, size=size, prop=font_options)
         tpatch = mpatches.PathPatch(
-            tpath, color='black', lw=0.25)
+            tpath, color='black', lw=kwargs.get('lw'))
         self.ax.add_patch(tpatch)
         self.annotations.append(tpatch)
         self.next_at_height['c_term'][index] = tpath.vertices[:, 1].max() + 0.1
@@ -199,11 +265,10 @@ class SequenceGlyph(object):
 
     def layout(self):
         ax = self.ax
-        ax.set_xlim(self.x -
-                    1, self.size *
-                    self.step_coefficient *
-                    len(self.sequence) +
-                    1)
+        xmax = self.x + self.size * self.step_coefficient * len(self.sequence) + 1
+        if self.draw_glycan:
+            xmax += self.glycan_composition_glyphs.xend - self.glycan_composition_glyphs.x + 1
+        ax.set_xlim(self.x - 1, xmax)
         ax.set_ylim(self.y - 1, self.y + 2)
         if self.multi_tier_annotation:
             ax.set_ylim(self.y - 2, self.y + 3)

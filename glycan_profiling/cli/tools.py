@@ -390,9 +390,9 @@ def download_uniprot(name_file_path=None, output_path=None):
     for line in handle:
         accession_list.append(name_getter(line))
     if output_path is None:
-        outhandle = sys.stdout
+        outhandle = click.get_binary_stream('stdout')
     else:
-        outhandle = open(output_path, 'w')
+        outhandle = open(output_path, 'wb')
     writer = fasta.FastaFileWriter(outhandle)
     downloader = UniprotProteinDownloader(accession_list, 10)
     downloader.start()
@@ -487,12 +487,13 @@ def version_check():
 
 @tools.command("interactive-shell")
 @click.option("-s", "--script", default=None)
-def interactive_shell(script):
+@click.argument("script_args", nargs=-1)
+def interactive_shell(script_args, script):
     if script:
         with open(script, 'rt') as fh:
             script = fh.read()
         exec(script)
-    code.interact()
+    code.interact(local=locals())
 
 
 @tools.command("update-analysis-parameters")

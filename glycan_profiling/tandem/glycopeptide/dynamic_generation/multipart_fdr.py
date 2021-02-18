@@ -39,14 +39,27 @@ class GlycopeptideFDREstimationStrategy(Enum):
     peptide_fdr = 1
     glycan_fdr = 2
     glycopeptide_fdr = 3
+    peptide_or_glycan = 4
 
 GlycopeptideFDREstimationStrategy.multipart_gamma_gaussian_mixture.add_name("multipart")
 GlycopeptideFDREstimationStrategy.multipart_gamma_gaussian_mixture.add_name("joint")
 GlycopeptideFDREstimationStrategy.peptide_fdr.add_name("peptide")
 GlycopeptideFDREstimationStrategy.glycan_fdr.add_name("glycan")
+GlycopeptideFDREstimationStrategy.peptide_or_glycan.add_name('any')
+
+
+def interpolate_from_zero(nearest_value_map, zero_value=1.0):
+    smallest = nearest_value_map.items[0]
+    X = np.linspace(0, smallest[0])
+    Y = np.interp(X, [0, smallest[0]], [zero_value, smallest[1]])
+    pairs = list(zip(X, Y))
+    pairs.extend(nearest_value_map.items)
+    return nearest_value_map.__class__(pairs)
 
 
 class FiniteMixtureModelFDREstimator(object):
+    min_score = 1
+
     def __init__(self, decoy_scores, target_scores):
         self.decoy_scores = np.array(decoy_scores)
         self.target_scores = np.array(target_scores)
@@ -165,6 +178,10 @@ class FiniteMixtureModelFDREstimator(object):
         self.estimate_gaussian(max_components)
         fdr = self.estimate_fdr(self.target_scores)
         self.fdr_map = NearestValueLookUp(zip(self.target_scores, fdr))
+        # Since 0 is not in the domain of the model, we need to include it by interpolating from 1 to the smallest
+        # fitted value.
+        if self.fdr_map.items[0][0] > 0:
+            self.fdr_map = interpolate_from_zero(self.fdr_map)
         return self.fdr_map
 
 
@@ -187,6 +204,7 @@ class GlycanSizeCalculator(object):
 
 class GlycopeptideFDREstimator(TaskBase):
     display_fields = False
+    minimum_glycan_size = 3
 
     def __init__(self, groups, strategy=None):
         if strategy is None:
@@ -214,8 +232,9 @@ class GlycopeptideFDREstimator(TaskBase):
              for s in td_gpsms], dtype=int)
 
         glycan_fdr = FiniteMixtureModelFDREstimator(
-            decoy_glycan_scores[(size_mask > 3) & (decoy_glycan_scores > 1)],
-            target_scores=target_glycan_scores[target_glycan_scores > 1])
+            decoy_glycan_scores[(size_mask > self.minimum_glycan_size) & (
+                decoy_glycan_scores > FiniteMixtureModelFDREstimator.min_score)],
+            target_scores=target_glycan_scores[target_glycan_scores > FiniteMixtureModelFDREstimator.min_score])
         glycan_fdr.log = noop
         glycan_fdr.fit()
 
@@ -270,7 +289,7 @@ class GlycopeptideFDREstimator(TaskBase):
         self.glycopeptide_fdr = glycopeptide_fdr
         return self.glycopeptide_fdr
 
-    def _assign_total_fdr(self, solution_sets):
+    def _assign_joint_fdr(self, solution_sets):
         for ts in solution_sets:
             for t in ts:
                 t.q_value_set.peptide_q_value = self.peptide_fdr.q_value_map[t.score_set.peptide_score]
@@ -279,6 +298,19 @@ class GlycopeptideFDREstimator(TaskBase):
                 total = (t.q_value_set.peptide_q_value + t.q_value_set.glycan_q_value -
                          t.q_value_set.glycopeptide_q_value)
                 total = max(t.q_value_set.peptide_q_value, t.q_value_set.glycan_q_value, total)
+                t.q_value = t.q_value_set.total_q_value = total
+            ts.q_value = ts.best_solution().q_value
+        return solution_sets
+
+    def _assign_minimum_fdr(self, solution_sets):
+        for ts in solution_sets:
+            for t in ts:
+                t.q_value_set.peptide_q_value = self.peptide_fdr.q_value_map[
+                    t.score_set.peptide_score]
+                t.q_value_set.glycan_q_value = self.glycan_fdr.fdr_map[t.score_set.glycan_score]
+                t.q_value_set.glycopeptide_q_value = self.glycopeptide_fdr.fdr_map[
+                    t.score_set.glycopeptide_score]
+                total = min(t.q_value_set.peptide_q_value, t.q_value_set.glycan_q_value)
                 t.q_value = t.q_value_set.total_q_value = total
             ts.q_value = ts.best_solution().q_value
         return solution_sets
@@ -306,23 +338,25 @@ class GlycopeptideFDREstimator(TaskBase):
 
     def fit_total_fdr(self):
         if self.strategy == GlycopeptideFDREstimationStrategy.multipart_gamma_gaussian_mixture:
-            self._assign_total_fdr(self.grouper.match_type_groups['target_peptide_target_glycan'])
+            self._assign_joint_fdr(self.grouper.match_type_groups['target_peptide_target_glycan'])
         elif self.strategy == GlycopeptideFDREstimationStrategy.peptide_fdr:
             self._assign_peptide_fdr(self.grouper.match_type_groups['target_peptide_target_glycan'])
         elif self.strategy == GlycopeptideFDREstimationStrategy.glycan_fdr:
             self._assign_glycan_fdr(self.grouper.match_type_groups['target_peptide_target_glycan'])
+        elif self.strategy == GlycopeptideFDREstimationStrategy.peptide_or_glycan:
+            self._assign_minimum_fdr(self.grouper.match_type_groups['target_peptide_target_glycan'])
         else:
             raise NotImplementedError(self.strategy)
         return self.grouper
 
     def run(self):
         if self.strategy in (GlycopeptideFDREstimationStrategy.multipart_gamma_gaussian_mixture,
-                             GlycopeptideFDREstimationStrategy.glycan_fdr):
+                             GlycopeptideFDREstimationStrategy.glycan_fdr, GlycopeptideFDREstimationStrategy.peptide_or_glycan):
             self.fit_glycan_fdr()
         if self.strategy in (GlycopeptideFDREstimationStrategy.multipart_gamma_gaussian_mixture,
-                             GlycopeptideFDREstimationStrategy.peptide_fdr):
+                             GlycopeptideFDREstimationStrategy.peptide_fdr, GlycopeptideFDREstimationStrategy.peptide_or_glycan):
             self.fit_peptide_fdr()
-        if self.strategy == GlycopeptideFDREstimationStrategy.multipart_gamma_gaussian_mixture:
+        if self.strategy in (GlycopeptideFDREstimationStrategy.multipart_gamma_gaussian_mixture, GlycopeptideFDREstimationStrategy.peptide_or_glycan):
             self.fit_glycopeptide_fdr()
         return self.fit_total_fdr()
 

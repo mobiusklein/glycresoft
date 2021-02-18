@@ -281,7 +281,7 @@ class FactorElutionTimeFitter(ElutionTimeFitter):
         ax.plot([lo, hi], [lo, hi], color='black', linestyle='--', lw=0.75)
         ax.set_xlabel("Experimental RT (Min)", fontsize=14)
         ax.set_ylabel("Predicted RT (Min)", fontsize=14)
-        ax.figure.text(0.15, 0.8, r"$R^2:%0.2f$" % self.R2(True))
+        ax.figure.text(0.15, 0.8, "$R^2:%0.2f$\nMSE:%0.2f" % (self.R2(True), self.mse))
         return ax
 
     def plot(self, ax=None, include_intervals=True):

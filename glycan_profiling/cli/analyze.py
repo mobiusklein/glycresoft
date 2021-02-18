@@ -42,7 +42,7 @@ from .validators import (
     ms1_model_features,
     RelativeMassErrorParam,
     DatabaseConnectionParam,
-    GlycopeptideFDRParam, ChoiceOrURI)
+    SmallSampleFDRCorrectionParam, ChoiceOrURI)
 
 
 def make_analysis_output_path(prefix):
@@ -127,7 +127,7 @@ def sample_path_arg(fn):
 @click.option("--export", type=click.Choice(['csv', 'html', 'psm-csv']), multiple=True,
               help="export command to after search is complete")
 @click.option("-o", "--output-path", default=None, type=click.Path(writable=True),
-              help=("Path to write resulting analysis to."))
+              help=("Path to write resulting analysis to."), required=True)
 @click.option("-w", "--workload-size", default=500, type=int, help="Number of spectra to process at once")
 @click.option("--save-intermediate-results", default=None, type=click.Path(), required=False,
               help='Save intermediate spectrum matches to a file')
@@ -138,11 +138,12 @@ def sample_path_arg(fn):
 @click.option("-G", "--permute-decoy-glycan-fragments", is_flag=True, default=False, help=(
     "Whether or not to permute decoy glycopeptides' peptide+Y ions. The intact mass, peptide, "
     "and peptide+Y1 ions are unchanged."))
-@click.option("--fdr-correction", default='auto', type=GlycopeptideFDRParam(),
+@click.option("--fdr-correction", default='auto', type=SmallSampleFDRCorrectionParam(),
               help=("Whether to attempt to correct for small sample size for target-decoy analysis."),
               cls=HiddenOption)
 @click.option("--isotope-probing-range", type=int, default=3, help=(
     "The maximum number of isotopic peak errors to allow when searching for untrusted precursor masses"))
+@click.option("-R", "--rare-signatures", is_flag=True, default=False, help="Look for rare signature ions when scoring glycan oxonium signature")
 def search_glycopeptide(context, database_connection, sample_path, hypothesis_identifier,
                         analysis_name, output_path=None, grouping_error_tolerance=1.5e-5, mass_error_tolerance=1e-5,
                         msn_mass_error_tolerance=2e-5, psm_fdr_threshold=0.05, peak_shape_scoring_model=None,
@@ -150,13 +151,14 @@ def search_glycopeptide(context, database_connection, sample_path, hypothesis_id
                         processes=4, workload_size=500, mass_shifts=None, export=None,
                         use_peptide_mass_filter=False, maximum_mass=float('inf'),
                         decoy_database_connection=None, fdr_correction='auto',
-                        isotope_probing_range=3, permute_decoy_glycan_fragments=False):
+                        isotope_probing_range=3, permute_decoy_glycan_fragments=False, rare_signatures=False):
     """Identify glycopeptide sequences from processed LC-MS/MS data
     """
-    if output_path is None:
-        output_path = make_analysis_output_path("glycopeptide")
     if tandem_scoring_model is None:
         tandem_scoring_model = CoverageWeightedBinomialScorer
+    if os.path.exists(output_path):
+        click.secho("Output path '%s' exists, removing..." % output_path, fg='yellow')
+        os.remove(output_path)
     database_connection = DatabaseBoundOperation(database_connection)
     ms_data = ProcessedMzMLDeserializer(sample_path, use_index=False)
     sample_run = ms_data.sample_run
@@ -208,8 +210,8 @@ def search_glycopeptide(context, database_connection, sample_path, hypothesis_id
             use_peptide_mass_filter=use_peptide_mass_filter,
             maximum_mass=maximum_mass,
             probing_range_for_missing_precursors=isotope_probing_range,
-            permute_decoy_glycans=permute_decoy_glycan_fragments
-            )
+            permute_decoy_glycans=permute_decoy_glycan_fragments,
+            rare_signatures=rare_signatures)
     else:
         analyzer = MzMLComparisonGlycopeptideLCMSMSAnalyzer(
             database_connection._original_connection,
@@ -232,7 +234,8 @@ def search_glycopeptide(context, database_connection, sample_path, hypothesis_id
             maximum_mass=maximum_mass,
             use_decoy_correction_threshold=fdr_correction,
             probing_range_for_missing_precursors=isotope_probing_range,
-            permute_decoy_glycans=permute_decoy_glycan_fragments)
+            permute_decoy_glycans=permute_decoy_glycan_fragments,
+            rare_signatures=rare_signatures)
     analyzer.display_header()
     result = analyzer.start()
     gps, unassigned, target_decoy_set = result[:3]
@@ -296,8 +299,11 @@ def search_glycopeptide(context, database_connection, sample_path, hypothesis_id
 @click.option("-n", "--analysis-name", default=None, help='Name for analysis to be performed.')
 @click.option("-q", "--psm-fdr-threshold", default=0.05, type=float,
               help='Minimum FDR Threshold to use for filtering GPSMs when selecting identified glycopeptides')
-@click.option("-f", "--fdr-estimation-strategy", type=click.Choice(['joint', 'peptide', 'glycan']),
-              default='joint', help="The FDR estimation strategy to use.")
+@click.option("-f", "--fdr-estimation-strategy", type=click.Choice(['joint', 'peptide', 'glycan', 'any']),
+              default='joint',
+              help=("The FDR estimation strategy to use. The joint estimate uses both peptide and glycan scores, "
+                    "peptide uses only peptide scores, glycan uses only glycan scores, and any uses the smallest "
+                    "FDR of the joint, peptide, and glycan estiamtes."))
 @click.option("-s", "--tandem-scoring-model", default='log_intensity',
               type=ChoiceOrURI(["log_intensity", "simple",
                                 "penalized_log_intensty"]),
@@ -311,12 +317,11 @@ def search_glycopeptide(context, database_connection, sample_path, hypothesis_id
 @click.option("--export", type=click.Choice(['csv', 'html', 'psm-csv']), multiple=True,
               help="export command to after search is complete")
 @click.option("-o", "--output-path", default=None, type=click.Path(writable=True),
-              help=("Path to write resulting analysis to."))
-@click.option("-w", "--workload-size", default=500, type=int, help="Number of spectra to process at once")
-@click.option("-A", "--mapping-processes", type=int, default=1,
-              help=("Number of database mapping process pairs to use concurrently. Defaults to one, "
-                    "which translates to two worker processes, one for the target database and one for the decoy."))
-@click.option("-F", "--durable-fucose", is_flag=True, default=False, help="Expect Fucose/deoxy-Hexose peptide+Y ions to count towards glycan coverage")
+              help=("Path to write resulting analysis to."), required=True)
+@click.option("-w", "--workload-size", default=100, type=int, help="Number of spectra to process at once")
+@click.option("-F", "--durable-fucose", is_flag=True, default=False,
+              help="Expect Fucose/deoxy-Hexose peptide+Y ions to count towards glycan coverage", cls=HiddenOption)
+@click.option("-R", "--rare-signatures", is_flag=True, default=False, help="Look for rare signature ions when scoring glycan oxonium signature")
 @click.option("--save-intermediate-results", default=None, type=click.Path(), required=False,
               help='Save intermediate spectrum matches to a file', cls=HiddenOption)
 @click.option("--maximum-mass", default=float('inf'), type=float, cls=HiddenOption)
@@ -330,17 +335,18 @@ def search_glycopeptide_multipart(context, database_connection, decoy_database_c
                                   mass_error_tolerance=1e-5, msn_mass_error_tolerance=2e-5, psm_fdr_threshold=0.05,
                                   peak_shape_scoring_model=None, tandem_scoring_model=None, glycan_score_threshold=1.0,
                                   memory_database_index=False, save_intermediate_results=None, processes=4,
-                                  workload_size=500, mass_shifts=None, export=None, maximum_mass=float('inf'),
+                                  workload_size=100, mass_shifts=None, export=None, maximum_mass=float('inf'),
                                   isotope_probing_range=3, fdr_estimation_strategy=None,
-                                  glycoproteome_smoothing_model=None, mapping_processes=1, durable_fucose=False):
-    if output_path is None:
-        output_path = make_analysis_output_path("glycopeptide")
+                                  glycoproteome_smoothing_model=None, durable_fucose=False, rare_signatures=False):
     if fdr_estimation_strategy is None:
         fdr_estimation_strategy = GlycopeptideFDREstimationStrategy.multipart_gamma_gaussian_mixture
     else:
         fdr_estimation_strategy = GlycopeptideFDREstimationStrategy[fdr_estimation_strategy]
     if tandem_scoring_model is None:
         tandem_scoring_model = "log_intensity"
+    if os.path.exists(output_path):
+        click.secho("Output path '%s' exists, removing..." % output_path, fg='yellow')
+        os.remove(output_path)
     database_connection = DatabaseBoundOperation(database_connection)
     decoy_database_connection = DatabaseBoundOperation(decoy_database_connection)
     ms_data = ProcessedMzMLDeserializer(sample_path, use_index=False)
@@ -402,7 +408,8 @@ def search_glycopeptide_multipart(context, database_connection, decoy_database_c
         use_memory_database=memory_database_index,
         fdr_estimation_strategy=fdr_estimation_strategy,
         glycosylation_site_models_path=glycoproteome_smoothing_model,
-        fragile_fucose=not durable_fucose)
+        fragile_fucose=False,
+        rare_signatures=rare_signatures)
     analyzer.display_header()
     result = analyzer.start()
     gps, unassigned, target_decoy_set = result[:3]
@@ -465,21 +472,39 @@ def search_glycopeptide_multipart(context, database_connection, decoy_database_c
               help=(
                   "Require a glycan/glycosite combination be observed in multiple samples to treat it as real."
                   " Defaults to False."))
+@click.option("-w", "--network-path", type=click.Path(exists=True, file_okay=True, dir_okay=False), required=False, default=None,
+              help=("The path to a text file defining the glycan network and its neighborhoods, as produced by "
+                    "`glycresfoft build-hypothesis glycan-network`, otherwise the default human N-glycan network "
+                    "will be used with the glycans defined in `-g`."))
 def fit_glycoproteome_model(context, analysis_path, output_path, glycopeptide_hypothesis, glycan_hypothesis,
                             processes=4, unobserved_penalty_scale=None, smoothing_limit=0.2,
-                            require_multiple_observations=True, fdr_threshold=0.05):
+                            require_multiple_observations=True, fdr_threshold=0.05,
+                            network_path=None):
     analysis_path_set = analysis_path
     analysis_path_set_transformed = []
+    if require_multiple_observations and len(analysis_path_set) == 1:
+        click.secho("Requested multiple observations required but only one analysis provided"
+                    " discarding multiple observation requirement.", fg='yellow')
     for analysis_path, analysis_id in analysis_path_set:
         database_connection = DatabaseBoundOperation(analysis_path)
         try:
-            analysis = get_by_name_or_id(database_connection, Analysis, analysis_id)
+            click.echo("Checking analysis %s:%s" %
+                       (analysis_path, analysis_id))
+            # analysis = get_by_name_or_id(database_connection, Analysis, analysis_id)
         except Exception:
             click.secho("Could not locate an Analysis in %r with identifier %r" %
                         (analysis_path, analysis_id), fg='yellow')
             raise click.Abort()
-        analysis_path_set_transformed.append((analysis_path, analysis.id))
+        # analysis_path_set_transformed.append((analysis_path, analysis.id))
+        analysis_path_set_transformed.append((analysis_path, int(analysis_id)))
     analysis_path_set = analysis_path_set_transformed
+
+    if network_path is not None:
+        click.echo("Loading graph from \"%s\"" % (network_path, ))
+        with open(network_path, 'r') as netfile:
+            network = GraphReader(netfile).network
+    else:
+        network = None
 
     glycopeptide_database_connection_path, hypothesis_identifier = glycopeptide_hypothesis
     glycopeptide_database_connection = DatabaseBoundOperation(glycopeptide_database_connection_path)
@@ -500,12 +525,11 @@ def fit_glycoproteome_model(context, analysis_path, output_path, glycopeptide_hy
         click.secho("Could not locate a Glycopeptide Hypothesis with identifier %r" %
                     hypothesis_identifier, fg='yellow')
         raise click.Abort()
-
     workflow = site_model.GlycoproteinSiteModelBuildingWorkflow.from_paths(
         analysis_path_set, glycopeptide_database_connection_path, glycopeptide_hypothesis.id,
         glycan_database_connection_path, glycan_hypothesis.id, unobserved_penalty_scale, smoothing_limit,
         require_multiple_observations, output_path=output_path, n_threads=processes,
-        q_value_threshold=fdr_threshold)
+        q_value_threshold=fdr_threshold, network=network)
     workflow.start()
 
 
@@ -564,7 +588,8 @@ class RegularizationParameterType(click.ParamType):
     "Maximum number of mass_shift combinations to consider"))
 @click.option("-d", "--minimum-mass", default=500., type=float,
               help="The minimum mass to consider signal at.")
-@click.option("-o", "--output-path", default=None, help=("Path to write resulting analysis to."))
+@click.option("-o", "--output-path", default=None, help=("Path to write resulting analysis to."),
+              required=True)
 @click.option("--interact", is_flag=True, cls=HiddenOption)
 @click.option("-f", "--ms1-scoring-feature", "scoring_model_features", multiple=True,
               type=click.Choice(ms1_model_features.keys(lambda x: x.replace("_", "-"))),
@@ -601,8 +626,10 @@ def search_glycan(context, database_connection, sample_path,
     """Identify glycan compositions from preprocessed LC-MS data, stored in mzML
     format.
     """
-    if output_path is None and not interact:
-        output_path = make_analysis_output_path("glycan")
+    if os.path.exists(output_path):
+        click.secho("Output path '%s' exists, removing..." % output_path, fg='yellow')
+        os.remove(output_path)
+
     if scoring_model is None:
         scoring_model = GeneralScorer
 
@@ -759,8 +786,12 @@ def retention_time():
               help=("Path to glycopeptide CSV chromatograms to evaluate with the model, but not fit on"))
 @click.option("-p", "--prefer-joint-model", is_flag=True,
               help="Prefer the joint model over the peptide-specific ones")
+@click.option('-m', '--minimum-observations-for-specific-model', type=int, default=20,
+              help="The minimum number of observations required to fit a peptide sequence-specific model")
+@click.option('-r', '--use-retention-time-normalization', is_flag=True)
 def glycopeptide_retention_time_fit(context, chromatogram_csv_path, output_path=None,
-                                    test_chromatogram_csv_path=None, prefer_joint_model=False):
+                                    test_chromatogram_csv_path=None, prefer_joint_model=False,
+                                    minimum_observations_for_specific_model=20, use_retention_time_normalization=False):
     with open(chromatogram_csv_path, 'rt') as fh:
         chromatograms = GlycopeptideChromatogramProxy.from_csv(fh)
     if test_chromatogram_csv_path is not None:
@@ -770,7 +801,9 @@ def glycopeptide_retention_time_fit(context, chromatogram_csv_path, output_path=
         test_chromatograms = None
     modeler = GlycopeptideElutionTimeModeler(
         chromatograms, test_chromatograms=test_chromatograms,
-        prefer_joint_model=prefer_joint_model)
+        prefer_joint_model=prefer_joint_model,
+        use_retention_time_normalization=use_retention_time_normalization,
+        minimum_observations_for_specific_model=minimum_observations_for_specific_model)
     modeler.run()
     if output_path:
         modeler.write(output_path)

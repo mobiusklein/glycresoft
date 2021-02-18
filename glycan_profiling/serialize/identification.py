@@ -1,7 +1,8 @@
 from sqlalchemy import (
-    Column, Numeric, Integer, ForeignKey,)
+    Column, Numeric, Integer, ForeignKey, select)
 from sqlalchemy.orm import relationship, backref
 from sqlalchemy.ext.declarative import declared_attr
+from sqlalchemy.ext.hybrid import hybrid_property, hybrid_method
 
 from glycan_profiling.serialize.analysis import BoundToAnalysis
 
@@ -173,10 +174,13 @@ class IdentifiedGlycopeptide(Base, IdentifiedStructure):
                 if is_multiscore:
                     q_value = match.q_value
                     if q_value <= best_q_value:
+                        delta_q_value = best_q_value - q_value
                         best_q_value = q_value
                         score = match.score
                         if score > best_score:
                             best_score = score
+                            best_match = match
+                        elif delta_q_value > 0.001:
                             best_match = match
                 else:
                     score = match.score
@@ -186,6 +190,17 @@ class IdentifiedGlycopeptide(Base, IdentifiedStructure):
             except KeyError:
                 continue
         return best_match
+
+    @hybrid_method
+    def is_multiply_glycosylated(self):
+        return self.structure.is_multiply_glycosylated()
+
+    @is_multiply_glycosylated.expression
+    def is_multiply_glycosylated(self):
+        expr = select([Glycopeptide.is_multiply_glycosylated()]).where(
+            Glycopeptide.id == IdentifiedGlycopeptide.structure_id).label(
+            "is_multiply_glycosylated")
+        return
 
     @property
     def glycan_composition(self):

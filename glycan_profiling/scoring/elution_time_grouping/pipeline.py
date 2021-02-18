@@ -11,6 +11,7 @@ from scipy.stats import gaussian_kde
 import glycopeptidepy
 
 from glycan_profiling.task import TaskBase
+from glycan_profiling.output.csv_format import csv_stream
 
 from .structure import GlycopeptideChromatogramProxy
 from .cross_run import ReplicatedAbundanceWeightedPeptideFactorElutionTimeFitter
@@ -20,7 +21,8 @@ class GlycopeptideElutionTimeModeler(TaskBase):
     _model_class = ReplicatedAbundanceWeightedPeptideFactorElutionTimeFitter
 
     def __init__(self, glycopeptide_chromatograms, factors=None, refit_filter=0.01, replicate_key_attr=None,
-                 test_chromatograms=None, use_retention_time_normalization=False, prefer_joint_model=False):
+                 test_chromatograms=None, use_retention_time_normalization=False, prefer_joint_model=False,
+                 minimum_observations_for_specific_model=20):
         if replicate_key_attr is None:
             replicate_key_attr = 'analysis_name'
         if test_chromatograms is not None:
@@ -35,6 +37,7 @@ class GlycopeptideElutionTimeModeler(TaskBase):
         self.glycopeptide_chromatograms = glycopeptide_chromatograms
         self.test_chromatograms = test_chromatograms
         self.prefer_joint_model = prefer_joint_model
+        self.minimum_observations_for_specific_model = minimum_observations_for_specific_model
         self.factors = factors
         if self.factors is None:
             self.factors = self._infer_factors()
@@ -81,7 +84,7 @@ class GlycopeptideElutionTimeModeler(TaskBase):
     def fit(self):
         self.log("Fitting Joint Model")
         model = self.fit_model(self.glycopeptide_chromatograms)
-        self.log("R^2: %0.3f" % (model.R2(), ))
+        self.log("R^2: %0.3f, MSE: %0.3f" % (model.R2(), model.mse))
         if self.refit_filter != 0.0:
             self.log("Filtering Training Data")
             filtered_cases = [
@@ -90,7 +93,7 @@ class GlycopeptideElutionTimeModeler(TaskBase):
             ]
             self.log("Re-fitting After Filtering")
             model = self.fit_model(filtered_cases)
-            self.log("R^2: %0.3f" % (model.R2(), ))
+            self.log("R^2: %0.3f, MSE: %0.3f" % (model.R2(), model.mse))
         self.log('\n' + model.summary())
         self.joint_model = model
         factors = sorted(self.factors)
@@ -105,11 +108,11 @@ class GlycopeptideElutionTimeModeler(TaskBase):
         for key, members in self.by_peptide.items():
             distinct_members = set(str(m.structure) for m in members)
             self.log("Fitting Model For %s (%d observations, %d distinct)" % (key, len(members), len(distinct_members)))
-            if len(distinct_members) <= max(len(self.factors), 20):
+            if len(distinct_members) <= max(len(self.factors), self.minimum_observations_for_specific_model):
                 self.log("Too few distinct observations for %s" % (key, ))
                 continue
             model = self.fit_model(members)
-            self.log("R^2: %0.3f" % (model.R2(), ))
+            self.log("R^2: %0.3f, MSE: %0.3f" % (model.R2(), model.mse))
             if self.refit_filter != 0.0:
                 self.log("Filtering Training Data")
                 filtered_cases = [
@@ -118,7 +121,7 @@ class GlycopeptideElutionTimeModeler(TaskBase):
                 ]
                 self.log("Re-fitting After Filtering")
                 model = self.fit_model(filtered_cases)
-                self.log("R^2: %0.3f" % (model.R2(), ))
+                self.log("R^2: %0.3f, MSE: %0.3f" % (model.R2(), model.mse))
             self.log('\n' + model.summary())
             self.peptide_specific_models[key] = model
             joint_perf = np.mean(map(self.joint_model.score, members))
@@ -182,37 +185,54 @@ class GlycopeptideElutionTimeModeler(TaskBase):
             raise IOError("Expected a path to a directory, %s is a file!" % (path, ))
         pjoin = os.path.join
         self.log("Writing scored chromatograms")
-        with open(pjoin(path, "scored_chromatograms.csv"), 'wt') as fh:
+        with csv_stream(open(pjoin(path, "scored_chromatograms.csv"), 'wb')) as fh:
             GlycopeptideChromatogramProxy.to_csv(self.glycopeptide_chromatograms, fh)
         if self.test_chromatograms:
-            with open(pjoin(path, "test_chromatograms.csv"), 'wt') as fh:
+            with csv_stream(open(pjoin(path, "test_chromatograms.csv"), 'wb')) as fh:
                 GlycopeptideChromatogramProxy.to_csv(self.test_chromatograms, fh)
         self.log("Writing joint model descriptors")
-        with open(pjoin(path, "joint_model_parameters.csv"), 'wt') as fh:
+        with csv_stream(open(pjoin(path, "joint_model_parameters.csv"), 'wb')) as fh:
             self.joint_model.to_csv(fh)
         with open(pjoin(path, "joint_model_predplot.png"), 'wb') as fh:
             ax = figax()
             self.joint_model.prediction_plot(ax=ax)
             fh.write(render_plot(ax, dpi=160.0).getvalue())
 
+        if self.use_retention_time_normalization:
+            with open(pjoin(path, "retention_time_normalization.png"), 'wb') as fh:
+                ax = figax()
+                self.joint_model.run_normalizer.plot(ax=ax)
+                ax.set_title("Cross-Run RT Correction")
+                fh.write(render_plot(ax, dpi=160.0).getvalue())
+
         for key, model in self.peptide_specific_models.items():
             self.log("Writing %s model descriptors" % (key, ))
-            with open(pjoin(path, "%s_model_parameters.csv" % (key, )), 'wt') as fh:
+            with csv_stream(open(pjoin(path, "%s_model_parameters.csv" % (key, )), 'wb')) as fh:
                 model.to_csv(fh)
             with open(pjoin(path, "%s_model_predplot.png" % (key, )), 'wb') as fh:
                 ax = figax()
                 model.prediction_plot(ax=ax)
+                ax.set_title(key)
                 fh.write(render_plot(ax, dpi=160.0).getvalue())
 
         for factor, deltas in self.delta_by_factor.items():
             with open(pjoin(path, '%s_delta_hist.png' % (factor.replace("@", ""), )), 'wb') as fh:
                 ax = figax()
-                x = np.linspace(deltas.min() + -0.1, deltas.max() + 0.1)
-                m = gaussian_kde(deltas)
-                ax.fill_between(x, 0, m.pdf(x), alpha=0.5, color='green')
-                ax.hist(deltas, bins='auto', density=True, ec='black', alpha=0.5)
+
+                ax.hist(deltas, bins='auto', density=False, ec='black', alpha=0.5)
                 ax.set_title(factor)
                 ax.figure.text(0.75, 0.8, 'Median: %0.3f' % np.median(deltas), ha='center')
+                ax.set_xlabel("RT Shift (Min)")
+                ax.set_ylabel("Count")
+                ax2 = ax.twinx()
+                if len(deltas) > 1:
+                    x = np.linspace(deltas.min() + -0.1, deltas.max() + 0.1)
+                    m = gaussian_kde(deltas)
+                    ax2.fill_between(x, 0, m.pdf(x), alpha=0.5, color='green')
+                    ax2.set_ylabel("Density")
+                    ax2.set_ylim(0, ax2.get_ylim()[1])
+                else:
+                    m = None
                 fh.write(render_plot(ax, dpi=160.0).getvalue())
 
         self.log("Saving models")
