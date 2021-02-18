@@ -175,7 +175,7 @@ class StructureMapper(TaskExecutionSequence):
         hits = predictive_search.peptide_glycosylator._cache_hit
         misses = predictive_search.peptide_glycosylator._cache_miss
         total = hits + misses
-        if total > 0:
+        if total > 5000:
             self.log("... Cache Performance: %d / %d (%0.2f%%)" % (hits, total, hits / float(total) * 100.0))
 
     def _prepare_scan(self, scan):
@@ -219,7 +219,8 @@ class StructureMapper(TaskExecutionSequence):
                     solutions.total_work_required(), total_work))
             workload.update(solutions)
         end = time.time()
-        self.log("... Mapping Completed (%0.2f sec.)" % (end - start))
+        if counter:
+            self.log("... Mapping Completed (%0.2f sec.)" % (end - start))
         self._log_cache()
         predictive_search.reset()
         return workload
@@ -403,13 +404,17 @@ class SpectrumMatcher(TaskExecutionSequence):
         target_solutions = []
         self.log("... %0.2f%%" % (max((self.group_i - 1), 0) * 100.0 / self.group_n), self.workload)
         lo, hi = self.workload.mass_range()
-        self.log("... Query Mass Range: %0.2f-%0.2f" % (lo, hi))
-
         batches = list(self.workload.batches(matcher.batch_size))
+        if len(batches):
+            self.log("... Query Mass Range: %0.2f-%0.2f" % (lo, hi))
+
         running_total_work = 0
         total_work = self.workload.total_work_required()
         self.workload.clear()
         for i, batch in enumerate(batches):
+            if batch.batch_size == 0:
+                batch.clear()
+                continue
             self.log("... Batch %d (%d/%d) %0.2f%%" % (
                 i + 1, running_total_work + batch.batch_size, total_work,
                 ((running_total_work + batch.batch_size) * 100.) / float(total_work + 1)))
@@ -426,8 +431,9 @@ class SpectrumMatcher(TaskExecutionSequence):
                 # case.select_top()
             target_solutions.extend(temp)
             batch.clear()
-        self.log("... Finished %0.2f%% (%0.2f-%0.2f)" % (max((self.group_i - 1), 0)
-                                           * 100.0 / self.group_n, lo, hi))
+        if len(batches):
+            self.log("... Finished %0.2f%% (%0.2f-%0.2f)" % (max((self.group_i - 1), 0)
+                                            * 100.0 / self.group_n, lo, hi))
         return target_solutions
 
     def run(self):
