@@ -204,6 +204,7 @@ class GlycanSizeCalculator(object):
 
 class GlycopeptideFDREstimator(TaskBase):
     display_fields = False
+    minimum_glycan_size = 3
 
     def __init__(self, groups, strategy=None):
         if strategy is None:
@@ -231,7 +232,7 @@ class GlycopeptideFDREstimator(TaskBase):
              for s in td_gpsms], dtype=int)
 
         glycan_fdr = FiniteMixtureModelFDREstimator(
-            decoy_glycan_scores[(size_mask > 3) & (
+            decoy_glycan_scores[(size_mask > self.minimum_glycan_size) & (
                 decoy_glycan_scores > FiniteMixtureModelFDREstimator.min_score)],
             target_scores=target_glycan_scores[target_glycan_scores > FiniteMixtureModelFDREstimator.min_score])
         glycan_fdr.log = noop
