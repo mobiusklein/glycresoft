@@ -63,46 +63,6 @@ def humanize_class_name(name):
     return ' '.join(parts)
 
 
-class LoggingMixin(object):
-    logger_state = None
-    print_fn = printer
-    debug_print_fn = debug_printer
-    error_print_fn = printer
-
-    @classmethod
-    def log_with_logger(cls, logger):
-        LoggingMixin.logger_state = logger
-        LoggingMixin.print_fn = logger.info
-        LoggingMixin.debug_print_fn = logger.debug
-        LoggingMixin.error_print_fn = logger.error
-
-    @classmethod
-    def log_to_stdout(cls):
-        cls.logger_state = None
-        cls.print_fn = printer
-        cls.debug_print_fn = debug_printer
-        cls.error_print_fn = printer
-
-    def log(self, *message):
-        self.print_fn(u', '.join(map(ensure_text, message)))
-
-    def debug(self, *message):
-        self.debug_print_fn(u', '.join(map(ensure_text, message)))
-
-    def error(self, *message, **kwargs):
-        exception = kwargs.get("exception")
-        self.error_print_fn(u', '.join(map(ensure_text, message)))
-        if exception is not None:
-            self.error_print_fn(traceback.format_exc())
-
-    def ipc_logger(self, handler=None):
-        if handler is None:
-            def _default_closure_handler(message):
-                self.log(message)
-            handler = _default_closure_handler
-        return MessageSpooler(handler)
-
-
 class TaskBase(LoggingMixin):
     """A base class for a discrete, named step in a pipeline that
     executes in sequence.
