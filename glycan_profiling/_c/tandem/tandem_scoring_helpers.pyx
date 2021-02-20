@@ -236,7 +236,7 @@ cpdef double _calculate_glycan_coverage(self, double core_weight=0.4, double cov
             extended_matches.add(peak_pair.fragment_name)
 
     coverage = self._compute_glycan_coverage_from_metrics(
-        self, fragile_fucose, len(core_matches), len(extended_matches),
+        fragile_fucose, len(core_matches), len(extended_matches),
         len(core_fragments), m, core_weight, coverage_weight)
 
     self._glycan_coverage = coverage
