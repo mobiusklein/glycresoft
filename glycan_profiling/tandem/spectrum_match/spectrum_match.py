@@ -304,9 +304,14 @@ class SpectrumMatcherBase(SpectrumMatchBase):
 
         """
         try:
-            return max([peak.intensity for peak in self.spectrum])
-        except ValueError:
-            return 0
+            return self.spectrum.annotations['_base_peak']
+        except KeyError:
+            peak = self.spectrum.base_peak()
+            if peak is not None:
+                value = self.spectrum.annotations['_base_peak'] = peak.intensity
+            else:
+                value = self.spectrum.annotations['_base_peak'] = 0.0
+            return value
 
     @classmethod
     def evaluate(cls, scan, target, *args, **kwargs):
