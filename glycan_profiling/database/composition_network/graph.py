@@ -324,12 +324,12 @@ class CompositionGraphBase(object):
 try:
     _has_c = True
     from glycan_profiling._c.composition_network.graph import (
-        CompositionGraphEdge, CompositionGraphNode, EdgeSet, CompositionGraphBase, copy as CompositionGraphBase_copy)
+        CompositionGraphEdge, CompositionGraphNode, EdgeSet, CompositionGraphBase)
 except ImportError:
     _has_c = False
 
 
-class CompositionGraph(object):
+class CompositionGraph(CompositionGraphBase):
     def __init__(self, compositions, distance_fn=n_glycan_distance, neighborhoods=None):
         if neighborhoods is None:
             neighborhoods = []
@@ -541,6 +541,9 @@ class CompositionGraph(object):
 
     def __len__(self):
         return len(self.nodes)
+
+    def __reduce__(self):
+        return self.__class__, ([], self.distance_fn), self.__getstate__()
 
     def __getstate__(self):
         string_buffer = StringIO()
