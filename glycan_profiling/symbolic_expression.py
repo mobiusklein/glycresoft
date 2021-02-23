@@ -719,6 +719,9 @@ class SymbolContext(SymbolSpace):
         return self.context.values()
 
 
+_glycosymbol_map = {}
+
+
 class GlycanSymbolContext(SymbolContext):
     @staticmethod
     def _format_map(mapping):
@@ -726,14 +729,21 @@ class GlycanSymbolContext(SymbolContext):
         for key, value in dict(mapping).items():
             if isinstance(key, SymbolNode):
                 key = key.symbol
-            elif isinstance(key, (str, _MR, _SR, _MC)):
+            elif isinstance(key, (str, _MR, _SR)):
                 text_key = str(key)
-                key = _FMR.from_iupac_lite(text_key)
-                is_derivatized = composition_transform.has_derivatization(key)
-                if is_derivatized:
-                    key = str(glycan_composition.from_iupac_lite.strip_derivatization(text_key))
-                else:
-                    key = text_key
+                try:
+                    key = _glycosymbol_map[text_key]
+                except KeyError:
+                    key = _FMR.from_iupac_lite(text_key)
+                    is_derivatized = composition_transform.has_derivatization(key)
+                    if is_derivatized:
+                        key = str(
+                            glycan_composition.from_iupac_lite.strip_derivatization(text_key))
+                    else:
+                        key = text_key
+                    _glycosymbol_map[text_key] = key
+            elif isinstance(key, _MC):
+                key = str(key)
             store[key] = value
         return store
 

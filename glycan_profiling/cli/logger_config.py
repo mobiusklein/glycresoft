@@ -68,11 +68,14 @@ LOGGING_CONFIGURED = False
 
 class ProcessAwareFormatter(logging.Formatter):
     def format(self, record):
-        if record.__dict__['processName'] == "MainProcess":
-            record.__dict__['maybeproc'] = ''
-        else:
-            record.__dict__['maybeproc'] = ":%s:" % record.__dict__[
-                'processName']
+        d = record.__dict__
+        try:
+            if d['processName'] == "MainProcess":
+                d['maybeproc'] = ''
+            else:
+                d['maybeproc'] = ":%s:" % d['processName']
+        except KeyError:
+            d['maybeproc'] = ''
         return super(ProcessAwareFormatter, self).format(record)
 
 

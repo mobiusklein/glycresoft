@@ -306,9 +306,25 @@ class CompositionGraphEdge(object):
             pass
 
 
+class CompositionGraphBase(object):
+    def copy(self):
+        graph = CompositionGraph([], self.distance_fn)
+        graph._composition_normalizer = self._composition_normalizer.copy()
+        for node in self.nodes:
+            graph.add_node(node.clone())
+        for edge in self.edges:
+            n1 = graph.nodes[edge.node1.index]
+            n2 = graph.nodes[edge.node2.index]
+            e = edge.copy_for(n1, n2)
+            graph.edges.add(e)
+        graph.neighborhoods.update(self.neighborhoods.copy())
+        return graph
+
+
 try:
     _has_c = True
-    from glycan_profiling._c.composition_network.graph import (CompositionGraphEdge, CompositionGraphNode, EdgeSet)
+    from glycan_profiling._c.composition_network.graph import (
+        CompositionGraphEdge, CompositionGraphNode, EdgeSet, CompositionGraphBase, copy as CompositionGraphBase_copy)
 except ImportError:
     _has_c = False
 
@@ -545,19 +561,6 @@ class CompositionGraph(object):
     def __repr__(self):
         return "{self.__class__.__name__}({node_count} nodes, {edge_count} edges)".format(
             self=self, node_count=len(self), edge_count=len(self.edges))
-
-    def copy(self):
-        graph = CompositionGraph([], self.distance_fn)
-        graph._composition_normalizer = self._composition_normalizer.copy()
-        for node in self.nodes:
-            graph.add_node(node.clone())
-        for edge in self.edges:
-            n1 = graph.nodes[edge.node1.index]
-            n2 = graph.nodes[edge.node2.index]
-            e = edge.copy_for(n1, n2)
-            graph.edges.add(e)
-        graph.neighborhoods.update(self.neighborhoods.copy())
-        return graph
 
     def clone(self):
         return self.copy()

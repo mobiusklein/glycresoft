@@ -3,9 +3,9 @@ cimport cython
 from collections import deque
 
 from cpython.object cimport PyObject
-from cpython.list cimport PyList_Size, PyList_GetItem
+from cpython.list cimport PyList_Size, PyList_GetItem, PyList_GET_ITEM
 from cpython.set cimport PySet_Discard, PySet_Add
-from cpython.dict cimport PyDict_GetItem, PyDict_SetItem, PyDict_DelItem, PyDict_Items
+from cpython.dict cimport PyDict_GetItem, PyDict_SetItem, PyDict_DelItem, PyDict_Items, PyDict_Values
 from cpython.float cimport PyFloat_AsDouble
 
 
@@ -129,6 +129,10 @@ cdef class EdgeSet(object):
     def __eq__(self, other):
         return self.store == other.store
 
+    cdef list get_edges(self):
+        return PyDict_Values(self.store)
+
+
 
 @cython.freelist(15000)
 cdef class CompositionGraphEdge(object):
@@ -218,6 +222,37 @@ cpdef reindex_graph(self):
 
 
 cdef double INF = float('inf')
+
+
+cdef class CompositionGraphBase(object):
+    cdef list get_edges(self):
+        return self.edges.get_edges()
+
+    cpdef CompositionGraphBase copy(CompositionGraphBase self):
+        cdef:
+            CompositionGraphNode n1, n2
+            CompositionGraphEdge edge, e
+            CompositionGraphBase graph
+            list edges, nodes
+            size_t n, i
+
+        graph = self.__class__([], self.distance_fn)
+        graph._composition_normalizer = self._composition_normalizer.copy()
+        for node in self.nodes:
+            graph.add_node(node.clone())
+
+        nodes = graph.nodes
+        edges = self.get_edges()
+
+        n = PyList_Size(edges)
+        for i in range(n):
+            edge = <CompositionGraphEdge>PyList_GET_ITEM(edges, i)
+            n1 = nodes[edge.node1.index]
+            n2 = nodes[edge.node2.index]
+            e = edge.copy_for(n1, n2)
+            graph.edges.add(e)
+        graph.neighborhoods.update(self.neighborhoods.copy())
+        return graph
 
 
 cdef class DijkstraPathFinder(object):
