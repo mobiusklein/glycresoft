@@ -86,13 +86,14 @@ gscore_scanner = OxoniumIonScanner(_gscore_oxonium_ions)
 
 
 class SignatureSpecification(object):
-    __slots__ = ('components', 'masses', '_hash')
+    __slots__ = ('components', 'masses', '_hash', '_is_compound')
 
     def __init__(self, components, masses):
         self.components = tuple(
             FrozenMonosaccharideResidue.from_iupac_lite(k) for k in components)
         self.masses = tuple(masses)
         self._hash = hash(self.components)
+        self._is_compound = len(self.masses) > 1
 
     def __getitem__(self, i):
         return self.components[i]
@@ -111,7 +112,7 @@ class SignatureSpecification(object):
 
     def is_expected(self, glycan_composition):
         is_expected = glycan_composition._getitem_fast(self[0]) != 0
-        if is_expected:
+        if is_expected and self._is_compound:
             is_expected = all(glycan_composition._getitem_fast(
                 k) != 0 for k in self)
         return is_expected
