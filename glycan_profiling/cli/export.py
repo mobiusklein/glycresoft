@@ -32,7 +32,8 @@ from glycan_profiling.output import (
     GlycanChromatogramReportCreator,
     GlycopeptideDatabaseSearchReportCreator,
     TrainingMGFExporter,
-    SpectrumAnnotatorExport)
+    SpectrumAnnotatorExport,
+    CSVSpectrumAnnotatorExport)
 
 from glycan_profiling.output.csv_format import csv_stream
 
@@ -432,6 +433,33 @@ def annotate_matched_spectra(database_connection, analysis_identifier, output_pa
         mzml_path)
     task.display_header()
     task.start()
+
+
+@export.command("write-spectrum-library")
+@database_connection_arg
+@analysis_identifier_arg("glycopeptide")
+@click.option("-o", "--output-path", type=click.Path(), default=None, help='Path to write to instead of stdout')
+@click.option("-m", '--mzml-path', type=click.Path(exists=True), default=None,
+              help="Alternative path to find the source mzML file")
+@click.option("-t", "--fdr-threshold", type=float, default=0.05)
+def write_spectrum_library(database_connection, analysis_identifier, output_path, mzml_path=None, fdr_threshold=0.05):
+    database_connection = DatabaseBoundOperation(database_connection)
+    session = database_connection.session()  # pylint: disable=not-callable
+    analysis = get_by_name_or_id(session, Analysis, analysis_identifier)
+    if not analysis.analysis_type == AnalysisTypeEnum.glycopeptide_lc_msms:
+        click.secho("Analysis %r is of type %r." % (
+            str(analysis.name), str(analysis.analysis_type)), fg='red', err=True)
+        raise click.Abort()
+    if output_path is None:
+        output_stream = ctxstream(click.get_binary_stream('stdout'))
+    else:
+        output_stream = open(output_path, 'wb')
+
+    with output_stream:
+        task = CSVSpectrumAnnotatorExport(
+            database_connection._original_connection, analysis.id, output_stream,
+            mzml_path, fdr_threshold)
+        task.run()
 
 
 @export.command("glycopeptide-chromatogram-records")

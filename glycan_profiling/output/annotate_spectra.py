@@ -2,6 +2,8 @@ import os
 import logging
 import string
 import platform
+import csv
+from io import TextIOWrapper
 
 from glycan_profiling import serialize
 from glycan_profiling.serialize import (
@@ -110,3 +112,83 @@ class SpectrumAnnotatorExport(TaskBase, DatabaseBoundOperation):
                     abspath = '\\\\?\\' + abspath
                 fig.savefig(abspath, bbox_inches='tight')
                 plt.close(fig)
+
+
+class CSVSpectrumAnnotatorExport(SpectrumAnnotatorExport):
+    def __init__(self, database_connection, analysis_id, outstream, mzml_path=None, fdr_threshold=0.05):
+        super(CSVSpectrumAnnotatorExport, self).__init__(
+            database_connection, analysis_id, None, mzml_path)
+        self.outstream = outstream
+        try:
+            self.is_binary = 'b' in self.outstream.mode
+        except AttributeError:
+            self.is_binary = True
+        if self.is_binary:
+            try:
+                self.outstream = TextIOWrapper(outstream, 'utf8', newline="")
+            except AttributeError:
+                # must be Py2
+                pass
+        self.fdr_threshold = fdr_threshold
+        self.writer = csv.writer(self.outstream, delimiter=',')
+
+    def get_header(self):
+        return [
+            "glycopeptide",
+            "scan_id",
+            "fragment_name",
+            "peak_mass",
+            "peak_charge",
+            "peak_intensity",
+            "mass_accuracy_ppm",
+        ]
+
+    def _load_spectrum_matches(self):
+        query = self.query(GlycopeptideSpectrumMatch).join(
+            GlycopeptideSpectrumMatch.scan).filter(
+            GlycopeptideSpectrumMatch.analysis_id == self.analysis_id,
+            GlycopeptideSpectrumMatch.is_best_match,
+            GlycopeptideSpectrumMatch.q_value <= self.fdr_threshold).order_by(
+                GlycopeptideSpectrumMatch.score.desc(), MSScan.index)
+        return query.all()
+
+    def convert_object(self, obj):
+        records = []
+        for pfp in sorted(obj.solution_map, key=lambda x: x.fragment.mass):
+            peak, fragment = pfp
+            rec = [
+                str(obj.target),
+                str(obj.scan.scan_id),
+                fragment.name,
+                peak.neutral_mass,
+                peak.charge,
+                peak.intensity,
+                pfp.mass_accuracy() * 1e6
+            ]
+            records.append(rec)
+        return records
+
+    def status_update(self, message):
+        status_logger.info(message)
+
+    def writerows(self, iterable):
+        self.writer.writerows(iterable)
+
+    def writerow(self, row):
+        self.writer.writerow(row)
+
+    def run(self):
+        header = self.get_header()
+        self.writerow(header)
+
+        scan_loader = self._make_scan_loader()
+        gpsms = self._load_spectrum_matches()
+
+        n = len(gpsms)
+        for i, gpsm in enumerate(gpsms):
+            scan = scan_loader.get_scan_by_id(gpsm.scan.scan_id)
+            gpep = gpsm.structure.convert()
+            match = CoverageWeightedBinomialModelTree.evaluate(scan, gpep)
+            self.writerows(self.convert_object(match))
+            if i % 100 == 0 and i:
+                self.status_update("%d Spectrum Matches Handled (%0.2f%%)" % (i, i * 100.0 / n))

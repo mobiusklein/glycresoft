@@ -18,7 +18,7 @@ from .report import (
     GlycanChromatogramReportCreator,
     GlycopeptideDatabaseSearchReportCreator)
 
-from .annotate_spectra import SpectrumAnnotatorExport
+from .annotate_spectra import SpectrumAnnotatorExport, CSVSpectrumAnnotatorExport
 
 
 from .text_format import TrainingMGFExporter

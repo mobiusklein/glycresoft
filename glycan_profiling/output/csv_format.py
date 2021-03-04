@@ -45,6 +45,9 @@ class CSVSerializerBase(TaskBase):
     def writerows(self, iterable):
         self.writer.writerows(iterable)
 
+    def writerow(self, row):
+        self.writer.writerow(row)
+
     def get_header(self):
         raise NotImplementedError()
 
@@ -58,13 +61,13 @@ class CSVSerializerBase(TaskBase):
     def run(self):
         if self.header:
             header = self.header
-            self.writer.writerow(header)
+            self.writerow(header)
         gen = (self.convert_object(entity) for entity in self._entities_iterable)
         for i, row in enumerate(gen):
             if i % 100 == 0 and i != 0:
                 self.status_update("Handled %d Entities" % i)
                 self.outstream.flush()
-            self.writer.writerow(row)
+            self.writerow(row)
 
 
 class GlycanHypothesisCSVSerializer(CSVSerializerBase):
