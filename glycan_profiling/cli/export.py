@@ -435,7 +435,7 @@ def annotate_matched_spectra(database_connection, analysis_identifier, output_pa
     task.start()
 
 
-@export.command("write-spectrum-library")
+@export.command("write-csv-spectrum-library")
 @database_connection_arg
 @analysis_identifier_arg("glycopeptide")
 @click.option("-o", "--output-path", type=click.Path(), default=None, help='Path to write to instead of stdout')
