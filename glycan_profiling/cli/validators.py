@@ -447,19 +447,14 @@ def strip_site_root(type, value, tb):
 
 
 class RelativeMassErrorParam(click.types.FloatParamType):
-    name = 'NUMBER'
+    name = 'PPM MASS ERR'
 
     def convert(self, value, param, ctx):
         value = super(RelativeMassErrorParam, self).convert(value, param, ctx)
-        if value >= 1:
-            self.fail("mass error value must be less than 1, as "
-                      "in parts-per-million error tolerance (e.g. 1e-5 for "
-                      "10 parts-per-million error tolerance)")
         if value > 1e-3:
             click.secho(
-                "Warning: %r has a relatively large margin, %f" % (
-                    getattr(param, "human_readable_name", param),
-                    value), fg='yellow')
+                "Translating {0} PPM -> {1}".format(param, value, value / 1e-6), fg='yellow')
+            value /= 1e-6
         if value <= 0:
             self.fail("mass error value must be greater than 0.")
         return value
