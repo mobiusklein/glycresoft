@@ -146,10 +146,14 @@ class SolutionSetBase(object):
         return self.scan.scan_time
 
     def best_solution(self):
+        best_match = self.spectrum_matches.filter_by(is_best_match=True).first()
+        if best_match is not None:
+            # If the best match is already marked, return it
+            return best_match
         if not self.is_multiscore():
             return sorted(self.spectrum_matches, key=lambda x: x.score, reverse=True)[0]
         else:
-            return sorted(self.spectrum_matches, key=lambda x: (x.score_set.convert()[0]))[0]
+            return sorted(self.spectrum_matches, key=lambda x: (x.score_set.convert()[0]), reverse=True)[0]
 
     @property
     def score(self):
