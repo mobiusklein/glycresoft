@@ -363,7 +363,7 @@ def glycopeptide_mzidentml(database_connection, analysis_identifier, output_path
 @click.option("-o", "--output-path", type=click.Path(), default=None, help='Path to write to instead of stdout')
 @click.option("-m", '--mzml-path', type=click.Path(exists=True), default=None,
               help="Alternative path to find the source mzML file")
-@click.option("-t", "--threshold", type=float, default=None)
+@click.option("-t", "--threshold", type=float, default=None, help='Minimum MS2 score to export')
 def glycopeptide_training_mgf(database_connection, analysis_identifier, output_path=None,
                               mzml_path=None, threshold=None):
     database_connection = DatabaseBoundOperation(database_connection)

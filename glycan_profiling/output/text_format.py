@@ -93,12 +93,12 @@ class TrainingMGFExporterBase(TaskBase):
             scan.annotations['ms2_glycan_score'] = score_set.glycan_score
             scan.annotations['ms2_glycan_coverage'] = score_set.glycan_coverage
             q_value_set = spectrum_match.q_value_set
-            scan.annotations['q_value'] = q_value_set.q_value
-            scan.annotations['glycan_q_value'] = q_value_set.q_value_set.glycan_q_value
-            scan.annotations['peptide_q_value'] = q_value_set.q_value_set.peptide_q_value
-            scan.annotations['glycopeptide_q_value'] = q_value_set.q_value_set.glycopeptide_q_value
-        except AttributeError:
-            pass
+            scan.annotations['q_value'] = q_value_set.total_q_value
+            scan.annotations['glycan_q_value'] = q_value_set.glycan_q_value
+            scan.annotations['peptide_q_value'] = q_value_set.peptide_q_value
+            scan.annotations['glycopeptide_q_value'] = q_value_set.glycopeptide_q_value
+        except AttributeError as err:
+            print(err)
         return scan
 
     def run(self):
@@ -125,15 +125,17 @@ class TrainingMGFExporter(TrainingMGFExporterBase):
         A = aliased(serialize.GlycopeptideSpectrumMatch)
         B = aliased(serialize.GlycopeptideSpectrumMatch)
 
-        qinner = database_connection.query(
-            B.id.label('inner_id'), serialize.func.max(B.score).label("inner_score"),
-            B.scan_id.label("inner_scan_id")).group_by(B.scan_id).selectable
+        q = database_connection.query(serialize.GlycopeptideSpectrumMatch).filter(
+            serialize.GlycopeptideSpectrumMatch.is_best_match)
+        # qinner = database_connection.query(
+        #     B.id.label('inner_id'), serialize.func.max(B.score).label("inner_score"),
+        #     B.scan_id.label("inner_scan_id")).group_by(B.scan_id).selectable
 
-        q = database_connection.query(A).join(
-            qinner, qinner.c.inner_id == A.id and A.score == qinner.inner_score).filter(
-            A.analysis_id == analysis_id)
+        # q = database_connection.query(A).join(
+        #     qinner, qinner.c.inner_id == A.id and A.score == qinner.inner_score).filter(
+        #     A.analysis_id == analysis_id)
         if threshold is not None:
-            q = q.filter(A.score > threshold)
+            q = q.filter(A.score >= threshold)
         for gsm in q:
             yield gsm.convert()
 
