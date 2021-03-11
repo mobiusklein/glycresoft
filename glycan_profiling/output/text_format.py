@@ -124,17 +124,17 @@ class TrainingMGFExporter(TrainingMGFExporterBase):
     def _from_analysis_id_query(cls, database_connection, analysis_id, threshold=0.0):
 
         A = aliased(serialize.GlycopeptideSpectrumMatch)
-        q = database_connection.query(A).filter(
-            A.is_best_match,
-            A.analysis_id == analysis_id)
-        # B = aliased(serialize.GlycopeptideSpectrumMatch)
-        # qinner = database_connection.query(
-        #     B.id.label('inner_id'), serialize.func.max(B.score).label("inner_score"),
-        #     B.scan_id.label("inner_scan_id")).group_by(B.scan_id).selectable
-
-        # q = database_connection.query(A).join(
-        #     qinner, qinner.c.inner_id == A.id and A.score == qinner.inner_score).filter(
+        # q = database_connection.query(A).filter(
+        #     A.is_best_match,
         #     A.analysis_id == analysis_id)
+        B = aliased(serialize.GlycopeptideSpectrumMatch)
+        qinner = database_connection.query(
+            B.id.label('inner_id'), serialize.func.max(B.score).label("inner_score"),
+            B.scan_id.label("inner_scan_id")).group_by(B.scan_id).selectable
+
+        q = database_connection.query(A).join(
+            qinner, qinner.c.inner_id == A.id and A.score == qinner.inner_score).filter(
+            A.analysis_id == analysis_id)
 
         if threshold is not None:
             q = q.filter(A.score >= threshold)
