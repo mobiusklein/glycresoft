@@ -3,7 +3,7 @@ import math
 from .base import (
     ChemicalShift, ModelTreeNode, EXDFragmentationStrategy,
     HCDFragmentationStrategy, IonSeries)
-from .binomial_score import BinomialSpectrumMatcher
+from .binomial_score import BinomialSpectrumMatcher, StubIgnoringBinomialSpectrumMatcher
 from .simple_score import SimpleCoverageScorer, SignatureAwareCoverageScorer
 from .precursor_mass_accuracy import MassAccuracyMixin
 
@@ -68,3 +68,8 @@ try:
     CoverageWeightedBinomialScorer._match_backbone_series = CoverageWeightedBinomialScorer_match_backbone_series
 except ImportError:
     pass
+
+
+class StubIgnoringCoverageWeightedBinomialScorer(CoverageWeightedBinomialScorer):
+
+    _sanitize_solution_map = StubIgnoringBinomialSpectrumMatcher._sanitize_solution_map

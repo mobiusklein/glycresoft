@@ -314,3 +314,13 @@ class BinomialSpectrumMatcher(GlycopeptideSpectrumMatcherBase):
         score = self._binomial_score(error_tolerance)
         self._score = score
         return score
+
+
+class StubIgnoringBinomialSpectrumMatcher(BinomialSpectrumMatcher):
+
+    def _sanitize_solution_map(self):
+        san = list()
+        for pair in self.solution_map:
+            if pair.fragment.series not in ("oxonium_ion", "stub_glycopeptide"):
+                san.append(pair)
+        return san
