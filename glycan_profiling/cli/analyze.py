@@ -476,10 +476,11 @@ def search_glycopeptide_multipart(context, database_connection, decoy_database_c
               help=("The path to a text file defining the glycan network and its neighborhoods, as produced by "
                     "`glycresfoft build-hypothesis glycan-network`, otherwise the default human N-glycan network "
                     "will be used with the glycans defined in `-g`."))
+@click.option("-D / -ND", "--include-decoys / --exclude-decoys", is_flag=True, default=True, help="Include decoy glycans in the network.")
 def fit_glycoproteome_model(context, analysis_path, output_path, glycopeptide_hypothesis, glycan_hypothesis,
                             processes=4, unobserved_penalty_scale=None, smoothing_limit=0.2,
                             require_multiple_observations=True, fdr_threshold=0.05,
-                            network_path=None):
+                            network_path=None, include_decoys=True):
     analysis_path_set = analysis_path
     analysis_path_set_transformed = []
     if require_multiple_observations and len(analysis_path_set) == 1:
@@ -529,7 +530,7 @@ def fit_glycoproteome_model(context, analysis_path, output_path, glycopeptide_hy
         analysis_path_set, glycopeptide_database_connection_path, glycopeptide_hypothesis.id,
         glycan_database_connection_path, glycan_hypothesis.id, unobserved_penalty_scale, smoothing_limit,
         require_multiple_observations, output_path=output_path, n_threads=processes,
-        q_value_threshold=fdr_threshold, network=network)
+        q_value_threshold=fdr_threshold, network=network, include_decoy_glycans=include_decoys)
     workflow.start()
 
 

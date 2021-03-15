@@ -376,7 +376,8 @@ class GlycoproteinSiteModelBuildingWorkflowBase(TaskBase):
     def __init__(self, analyses, glycopeptide_database, glycan_database,
                  unobserved_penalty_scale=None, lambda_limit=0.2,
                  require_multiple_observations=True, observation_aggregator=None,
-                 output_path=None, n_threads=None, q_value_threshold=0.05, network=None):
+                 output_path=None, n_threads=None, q_value_threshold=0.05,
+                 network=None, include_decoy_glycans=True):
         if observation_aggregator is None:
             observation_aggregator = VariableObservationAggregation
         if unobserved_penalty_scale is None:
@@ -395,12 +396,13 @@ class GlycoproteinSiteModelBuildingWorkflowBase(TaskBase):
 
         self.output_path = output_path
         self.network = network
+        self.include_decoy_glycans = include_decoy_glycans
 
     @classmethod
     def from_paths(cls, analysis_paths_and_ids, glycopeptide_hypothesis_path, glycopeptide_hypothesis_id,
                    glycan_hypothesis_path, glycan_hypothesis_id, unobserved_penalty_scale=None,
                    lambda_limit=0.2, require_multiple_observations=True, observation_aggregator=None,
-                   output_path=None, n_threads=4, q_value_threshold=0.05, network=None):
+                   output_path=None, n_threads=4, q_value_threshold=0.05, network=None, include_decoy_glycans=True):
         gp_db = GlycopeptideDiskBackedStructureDatabase(
             glycopeptide_hypothesis_path, glycopeptide_hypothesis_id)
         gc_db = GlycanCompositionDiskBackedStructureDatabase(
@@ -412,7 +414,8 @@ class GlycoproteinSiteModelBuildingWorkflowBase(TaskBase):
             analyses, gp_db, gc_db, unobserved_penalty_scale=unobserved_penalty_scale,
             lambda_limit=lambda_limit, require_multiple_observations=require_multiple_observations,
             observation_aggregator=observation_aggregator, output_path=output_path,
-            n_threads=n_threads, q_value_threshold=q_value_threshold, network=network
+            n_threads=n_threads, q_value_threshold=q_value_threshold, network=network,
+            include_decoy_glycans=include_decoy_glycans
         )
         return inst
 
@@ -425,7 +428,8 @@ class GlycoproteinSiteModelBuildingWorkflowBase(TaskBase):
             network = self.glycan_database.glycan_composition_network
         else:
             network = self.network
-        network = network.augment_with_decoys()
+        if self.include_decoy_glycans:
+            network = network.augment_with_decoys()
         network.create_edges()
 
         model = GlycomeModel([], network)
@@ -514,12 +518,13 @@ class ThreadedGlycoproteinSiteModelBuildingWorkflow(GlycoproteinSiteModelBuildin
     def __init__(self, analyses, glycopeptide_database, glycan_database,
                  unobserved_penalty_scale=None, lambda_limit=0.2,
                  require_multiple_observations=True, observation_aggregator=None,
-                 output_path=None, n_threads=4, q_value_threshold=0.05, network=None):
+                 output_path=None, n_threads=4, q_value_threshold=0.05, network=None, include_decoy_glycans=True):
         super(ThreadedGlycoproteinSiteModelBuildingWorkflow, self).__init__(
             analyses, glycopeptide_database, glycan_database,
             unobserved_penalty_scale, lambda_limit,
             require_multiple_observations, observation_aggregator,
-            output_path,  q_value_threshold=q_value_threshold, network=network
+            output_path,  q_value_threshold=q_value_threshold, network=network,
+            include_decoy_glycans=include_decoy_glycans
         )
 
         self.n_threads = n_threads
@@ -610,12 +615,14 @@ class MultiprocessingGlycoproteinSiteModelBuildingWorkflow(GlycoproteinSiteModel
     def __init__(self, analyses, glycopeptide_database, glycan_database,
                  unobserved_penalty_scale=None, lambda_limit=0.2,
                  require_multiple_observations=True, observation_aggregator=None,
-                 output_path=None, n_threads=4, q_value_threshold=0.05, network=None):
+                 output_path=None, n_threads=4, q_value_threshold=0.05, network=None,
+                 include_decoy_glycans=True):
         super(MultiprocessingGlycoproteinSiteModelBuildingWorkflow, self).__init__(
             analyses, glycopeptide_database, glycan_database,
             unobserved_penalty_scale, lambda_limit,
             require_multiple_observations, observation_aggregator,
-            output_path, q_value_threshold=q_value_threshold, network=network
+            output_path, q_value_threshold=q_value_threshold, network=network,
+            include_decoy_glycans=include_decoy_glycans
         )
 
         self.builder = None
