@@ -100,6 +100,19 @@ def make_disk_backed_peptide_database(path, hypothesis_id=1, **kwargs):
     return peptide_db
 
 
+class FetchManyIterator(object):
+    def __init__(self, cursor, batch_size=10000):
+        self.cursor = cursor
+        self.batch_size = batch_size
+
+    def __iter__(self):
+        result_set = self.cursor.fetchmany(self.batch_size)
+        while result_set:
+            for x in result_set:
+                yield x
+            result_set = self.cursor.fetchmany(self.batch_size)
+
+
 class PeptideDatabaseProxyLoader(TaskBase):
     def __init__(self, path, n_glycan=True, o_glycan=True, hypothesis_id=1):
         self.path = path
@@ -137,6 +150,14 @@ class PeptideDatabaseProxyLoader(TaskBase):
             raise ValueError("Cannot determine how to filter peptides")
         peptides = []
         self.log("... Loading peptides from %r:%r" % (self.path, self.hypothesis_id))
+        start = datetime.datetime.now()
+        if filter_level == 1:
+            # Fast path for N-glycosylation sites which are marked, but where the bounds
+            # aren't precise so the if statements are still needed.
+            q = db.spanning_n_glycosylation_site()
+            iterator = FetchManyIterator(db.session.execute(q))
+        else:
+            iterator = db
         for r in db:
             rec = PeptideDatabaseRecord.from_record(r)
             if filter_level == 1 and rec.n_glycosylation_sites:
@@ -146,6 +167,9 @@ class PeptideDatabaseProxyLoader(TaskBase):
             elif filter_level == 0 and rec.has_glycosylation_sites():
                 peptides.append(rec)
         db.session.remove()
+        end = datetime.datetime.now()
+        elapsed = (end - start).total_seconds()
+        self.log("... %0.2f seconds elapsed." % elapsed)
         mem_db = disk_backed_database.InMemoryPeptideStructureDatabase(peptides, db)
         return mem_db
 

@@ -361,12 +361,15 @@ class JournalSetLoader(TaskBase):
     """
 
     @classmethod
-    def from_analysis(cls, analysis, scan_loader=None):
+    def from_analysis(cls, analysis, scan_loader=None, stub_wrapping=True):
         mass_shift_map = {
             m.name: m for m in analysis.parameters['mass_shifts']}
         if scan_loader is None:
             scan_loader = ProcessedMzMLDeserializer(analysis.parameters['sample_path'])
-        stub_loader = ScanInformationLoader(scan_loader)
+        if stub_wrapping:
+            stub_loader = ScanInformationLoader(scan_loader)
+        else:
+            stub_loader = scan_loader
         return cls([f.open() for f in analysis.files], stub_loader, mass_shift_map)
 
     def __init__(self, journal_files, scan_loader, mass_shift_map=None):

@@ -909,10 +909,20 @@ class GlycopeptideLCMSMSAnalyzer(TaskBase):
         self.fdr_estimator = tda
         target_hits = target_decoy_set.target_matches
         n_below = 0
+        n_below_1 = 0
+        n_below_5 = 0
         for target in target_hits:
             if target.q_value <= self.psm_fdr_threshold:
                 n_below += 1
+            if target.q_value <= 0.05:
+                n_below_5 += 1
+            if target.q_value <= 0.01:
+                n_below_1 += 1
         self.log("%d spectrum matches accepted" % (n_below,))
+        if self.psm_fdr_threshold != 0.05:
+            self.log("%d spectra matched passing 5%% FDR" % n_below_5)
+        if self.psm_fdr_threshold != 0.01:
+            self.log("%d spectra matched passing 1%% FDR" % n_below_1)
         return target_hits
 
     def run(self):
@@ -1318,10 +1328,20 @@ class MultipartGlycopeptideLCMSMSAnalyzer(MzMLGlycopeptideLCMSMSAnalyzer):
             self.fdr_estimator.pack()
         target_hits = target_decoy_set.target_matches
         n_below = 0
+        n_below_1 = 0
+        n_below_5 = 0
         for target in target_hits:
             if target.q_value <= self.psm_fdr_threshold:
                 n_below += 1
+            if target.q_value <= 0.05:
+                n_below_5 += 1
+            if target.q_value <= 0.01:
+                n_below_1 += 1
         self.log("%d spectrum matches accepted" % (n_below,))
+        if self.psm_fdr_threshold != 0.05:
+            self.log("%d spectra matched passing 5%% FDR" % n_below_5)
+        if self.psm_fdr_threshold != 0.01:
+            self.log("%d spectra matched passing 1%% FDR" % n_below_1)
         return target_hits
 
     def make_analysis_serializer(self, output_path, analysis_name, sample_run, identified_glycopeptides,

@@ -14,7 +14,7 @@ from glycan_profiling.serialize import (
     GlycanComposition, Glycopeptide, Peptide,
     func, GlycopeptideHypothesis, GlycanHypothesis,
     DatabaseBoundOperation, GlycanClass, GlycanTypes,
-    GlycanCompositionToClass)
+    GlycanCompositionToClass, ProteinSite, Protein)
 
 from .mass_collection import SearchableMassCollection, NeutralMassDatabase
 from .intervals import (
@@ -636,3 +636,11 @@ class PeptideDiskBackedStructureDatabase(DeclarativeDiskBackedDatabase):
     @property
     def hypothesis(self):
         return self.session.query(GlycopeptideHypothesis).get(self.hypothesis_id)
+
+    def spanning_n_glycosylation_site(self):
+        q = select(self.fields).select_from(
+            self.selectable.join(Protein.__table__).join(ProteinSite.__table__)).where(
+                Peptide.spans(ProteinSite.location) & (ProteinSite.name == ProteinSite.N_GLYCOSYLATION)
+                & (Protein.hypothesis_id == self.hypothesis_id)).order_by(
+            self.mass_field)
+        return q
