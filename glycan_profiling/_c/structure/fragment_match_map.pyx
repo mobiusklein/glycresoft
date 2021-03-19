@@ -5,7 +5,7 @@ cimport cython
 from cpython cimport PyObject
 from cpython cimport PyList_Append, PyList_Size, PyList_GetItem
 from cpython cimport PySet_Add
-from cpython cimport PyDict_GetItem, PyDict_SetItem
+from cpython cimport PyDict_GetItem, PyDict_SetItem, PyDict_Contains
 from cpython cimport PyInt_AsLong
 
 import numpy as np
@@ -341,8 +341,8 @@ cdef class _FragmentIndexBase(object):
         self.fragment_set = fragment_set
         self._mapping = None
 
-    cpdef _create_mapping(self):
-        raise NotImplementedError()
+    cdef int _create_mapping(self):
+        return 0
 
     @property
     def mapping(self):
@@ -350,11 +350,27 @@ cdef class _FragmentIndexBase(object):
             self._create_mapping()
         return self._mapping
 
-    cpdef invalidate(self):
+    cdef void invalidate(self):
         self._mapping = None
 
+    cdef list getitem(self, object key):
+        cdef:
+            PyObject* ptemp
+        if self._mapping is None:
+            self._create_mapping()
+        ptemp = PyDict_GetItem(self._mapping, key)
+        if ptemp == NULL:
+            return []
+        else:
+            return <list>ptemp
+
+    cdef bint has_key(self, object key):
+        if self._mapping is None:
+            self._create_mapping()
+        return PyDict_Contains(self._mapping, key)
+
     def __getitem__(self, key):
-        return self.mapping[key]
+        return self.getitem(key)
 
     def __iter__(self):
         return iter(self.mapping)
@@ -372,7 +388,7 @@ cdef class _FragmentIndexBase(object):
         return len(self.mapping)
 
     def __contains__(self, key):
-        return key in self.mapping
+        return self.has_key(key)
 
     def __str__(self):
         return str(self.mapping)
@@ -387,16 +403,23 @@ cdef class ByFragmentIndex(_FragmentIndexBase):
         self._mapping = None
         return self
 
-    cpdef _create_mapping(self):
+    cdef int _create_mapping(self):
         cdef:
-            set frags
             object obj
+            PyObject* ptemp
             PeakFragmentPair pair
-        self._mapping = defaultdict(list)
+            list bucket
+        self._mapping = {}
         for obj in self.fragment_set.members:
             pair = <PeakFragmentPair>obj
-            (<list>(self._mapping[pair.fragment])).append(
-                pair.peak)
+            ptemp = PyDict_GetItem(self._mapping, pair.fragment)
+            if ptemp == NULL:
+                bucket = [pair.peak]
+                PyDict_SetItem(self._mapping, pair.fragment, bucket)
+            else:
+                bucket = <list>ptemp
+                bucket.append(pair.peak)
+        return 0
 
 
 cdef class ByPeakIndex(_FragmentIndexBase):
@@ -408,16 +431,23 @@ cdef class ByPeakIndex(_FragmentIndexBase):
         self._mapping = None
         return self
 
-    cpdef _create_mapping(self):
+    cdef int _create_mapping(self):
         cdef:
-            set frags
             object obj
+            PyObject* ptemp
             PeakFragmentPair pair
-        self._mapping = defaultdict(list)
+            list bucket
+        self._mapping = {}
         for obj in self.fragment_set.members:
             pair = <PeakFragmentPair>obj
-            (<list>(self._mapping[pair.peak])).append(
-                pair.fragment)
+            ptemp = PyDict_GetItem(self._mapping, pair.peak)
+            if ptemp == NULL:
+                bucket = [pair.fragment]
+                PyDict_SetItem(self._mapping, pair.peak, bucket)
+            else:
+                bucket = <list>ptemp
+                bucket.append(pair.fragment)
+        return 0
 
 
 @cython.final
@@ -442,11 +472,11 @@ cdef class FragmentMatchMap(object):
                 pairs.append(pair)
         return pairs
 
-    def fragments_for(self, peak):
-        return self.by_peak[peak]
+    cpdef list fragments_for(self, peak):
+        return self.by_peak.getitem(peak)
 
-    def peaks_for(self, fragment):
-        return self.by_fragment[fragment]
+    cpdef list peaks_for(self, fragment):
+        return self.by_fragment.getitem(fragment)
 
     def __eq__(self, other):
         return self.members == other.members

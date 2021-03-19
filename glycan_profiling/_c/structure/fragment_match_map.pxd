@@ -27,7 +27,7 @@ cdef class PeakPairTransition(object):
         public object annotation
         public tuple key
         public Py_hash_t _hash
-    
+
     @staticmethod
     cdef PeakPairTransition _create(DeconvolutedPeak start, DeconvolutedPeak end, object annotation)
 
@@ -57,8 +57,10 @@ cdef class _FragmentIndexBase(object):
         public FragmentMatchMap fragment_set
         public object _mapping
 
-    cpdef _create_mapping(self)
-    cpdef invalidate(self)
+    cdef int _create_mapping(self)
+    cdef void invalidate(self)
+    cdef list getitem(self, object key)
+    cdef bint has_key(self, object key)
 
 
 cdef class ByFragmentIndex(_FragmentIndexBase):
@@ -87,3 +89,6 @@ cdef class FragmentMatchMap(object):
     cpdef FragmentMatchMap copy(self)
     cpdef FragmentMatchMap clone(self)
     cpdef clear(self)
+
+    cpdef list peaks_for(self, fragment)
+    cpdef list fragments_for(self, peak)

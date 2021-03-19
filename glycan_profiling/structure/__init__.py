@@ -13,7 +13,8 @@ from .structure_loader import (
 from .scan import (
     ScanStub,
     ScanWrapperBase,
-    ScanInformation)
+    ScanInformation,
+    ScanInformationLoader)
 from .fragment_match_map import FragmentMatchMap, SpectrumGraph
 from .utils import KeyTransformingDecoratorDict
 
@@ -33,6 +34,7 @@ __all__ = [
     "ScanStub",
     "ScanWrapperBase",
     "ScanInformation",
+    "ScanInformationLoader",
     "FragmentMatchMap",
     "SpectrumGraph",
     "KeyTransformingDecoratorDict",
