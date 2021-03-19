@@ -157,7 +157,8 @@ class GlycoproteomePriorAnnotator(object):
 
     def score_glycan(self, glycopeptide, structure_type, model):
         if structure_type & StructureClassification.target_peptide_decoy_glycan:
-            gc = to_decoy_glycan(glycopeptide.glycan_composition)
+            # gc = to_decoy_glycan(glycopeptide.glycan_composition)
+            gc = glycopeptide.glycan_composition
         else:
             gc = glycopeptide.glycan_composition
         return model.score(glycopeptide, gc)
