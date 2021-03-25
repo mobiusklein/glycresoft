@@ -538,7 +538,7 @@ class CachingStubGlycopeptideStrategy(StubGlycopeptideStrategy):
     _cache = dict()
 
     def n_glycan_composition_fragments(self, glycan, core_count=1, iteration_count=0):
-        key = (str(glycan), core_count, iteration_count)
+        key = (str(glycan), core_count, iteration_count, self.extended, self.extended_fucosylation)
         try:
             value = self._cache[key]
             return value
