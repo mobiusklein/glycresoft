@@ -113,6 +113,18 @@ class SimpleChromatogram(OrderedDict):
     def get_chromatogram(self):
         return self
 
+    def _new(self):
+        return self.__class__()
+
+    def slice(self, start, end):
+        pairs = []
+        for t, v in self.items():
+            if start <= t <= end:
+                pairs.append((t, v))
+        dup = self._new()
+        dup.update(pairs)
+        return dup
+
 
 class SimpleEntityChromatogram(SimpleChromatogram):
 
@@ -121,6 +133,9 @@ class SimpleEntityChromatogram(SimpleChromatogram):
         self.composition = entity
         self.glycan_composition = glycan_composition
         super(SimpleEntityChromatogram, self).__init__()
+
+    def _new(self):
+        return self.__class__(self.entity, self.glycan_composition)
 
 
 class PairedArray(object):
