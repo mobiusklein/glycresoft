@@ -371,6 +371,9 @@ class ChromatogramShapeFitter(ChromatogramShapeFitterBase):
     def compute_fitted(self):
         return self.shape_fitter.shape(self.xs, **self.params_dict)
 
+    def interpolate(self, x):
+        return self.shape_fitter.shape(x, **self.params_dict)
+
     def peak_shape_fit(self):
         xs, ys = self.xs, self.ys
         params = self.shape_fitter.guess(xs, ys)
@@ -493,6 +496,12 @@ class MultimodalChromatogramShapeFitter(ChromatogramShapeFitterBase):
             fitted += self.shape_fitter.shape(xs, **params_dict)
         return fitted
 
+    def interpolate(self, x):
+        fitted = np.zeros_like(x)
+        for params_dict in self.params_dict_list:
+            fitted += self.shape_fitter.shape(x, **params_dict)
+        return fitted
+
     def compute_residuals(self):
         return self.ys - self.compute_fitted()
 
@@ -554,6 +563,9 @@ class AdaptiveMultimodalChromatogramShapeFitter(ChromatogramShapeFitterBase):
 
     def compute_fitted(self):
         return self.best_fit.compute_fitted()
+
+    def interpolate(self, x):
+        return self.best_fit.interpolate(x)
 
     def compute_residuals(self):
         return self.best_fit.compute_residuals()
@@ -737,6 +749,12 @@ class ProfileSplittingMultimodalChromatogramShapeFitter(ChromatogramShapeFitterB
         for segment, params_dict in zip(self.build_partitions(), self.params_dict_list):
             fitted.append(self.shape_fitter.shape(segment[0], **params_dict))
         return np.concatenate(fitted)
+
+    def interpolate(self, x):
+        fitted = np.zeros_like(x)
+        for params_dict in self.params_dict_list:
+            fitted += self.shape_fitter.shape(x, **params_dict)
+        return fitted
 
     def compute_residuals(self):
         return self.ys - self.compute_fitted()
