@@ -780,6 +780,11 @@ class MzIdentMLSerializer(task.TaskBase):
                     "accession": "MS:XXXX17",
                     "cvRef": "PSI-MS",
                 },
+                {
+                    "name": "param: oxonium ion",
+                    "accession": "MS:XXXX22",
+                    "cvRef": "PSI-MS",
+                },
             ]
         }
         spec['additional_search_params'] = [components.CVParam(**x) for x in spec['additional_search_params']]
