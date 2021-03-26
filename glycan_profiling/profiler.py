@@ -1227,7 +1227,8 @@ class MultipartGlycopeptideLCMSMSAnalyzer(MzMLGlycopeptideLCMSMSAnalyzer):
                  maximum_mass=float('inf'), probing_range_for_missing_precursors=3,
                  trust_precursor_fits=True, use_memory_database=True,
                  fdr_estimation_strategy=None, glycosylation_site_models_path=None,
-                 permute_decoy_glycans=False, fragile_fucose=False, rare_signatures=False):
+                 permute_decoy_glycans=False, fragile_fucose=False, rare_signatures=False,
+                 extended_glycan_search=True):
         if tandem_scoring_model == CoverageWeightedBinomialScorer:
             tandem_scoring_model = CoverageWeightedBinomialModelTree
         if fdr_estimation_strategy is None:
@@ -1246,6 +1247,7 @@ class MultipartGlycopeptideLCMSMSAnalyzer(MzMLGlycopeptideLCMSMSAnalyzer):
             permute_decoy_glycans=True)
         self.fragile_fucose = fragile_fucose
         self.rare_signatures = rare_signatures
+        self.extended_glycan_search = extended_glycan_search
         self.glycan_score_threshold = glycan_score_threshold
         self.decoy_database_connection = decoy_database_connection
         self.use_memory_database = use_memory_database
@@ -1300,6 +1302,7 @@ class MultipartGlycopeptideLCMSMSAnalyzer(MzMLGlycopeptideLCMSMSAnalyzer):
             cache_seeds=cache_seeds, evaluation_kwargs={
                 "fragile_fucose": self.fragile_fucose,
                 "rare_signatures": self.rare_signatures,
+                "extended_glycan_search": self.extended_glycan_search,
             })
         return searcher
 
@@ -1365,6 +1368,7 @@ class MultipartGlycopeptideLCMSMSAnalyzer(MzMLGlycopeptideLCMSMSAnalyzer):
             "fdr_estimator": self.fdr_estimator,
             "fragile_fucose": self.fragile_fucose,
             "rare_signatures": self.rare_signatures,
+            "extended_glycan_search": self.extended_glycan_search,
             "glycosylation_site_models_path": self.glycosylation_site_models_path,
         })
         return result

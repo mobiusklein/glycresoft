@@ -125,6 +125,36 @@ class SimpleChromatogram(OrderedDict):
         dup.update(pairs)
         return dup
 
+    def split_sparse(self, delta_rt=1.):
+        parts = []
+        start = 0
+        last = None
+        for i, t in enumerate(self.keys()):
+            if last is None:
+                last = t
+                start = t
+            if t - last >= delta_rt:
+                parts.append(self.slice(start, last))
+                start = t
+            last = t
+        if last != start:
+            parts.append(self.slice(start, last))
+        return parts
+
+    @property
+    def start_time(self):
+        return next(iter(self.keys()))
+
+    @property
+    def end_time(self):
+        return list(self.keys())[-1]
+
+    @property
+    def apex_time(self):
+        time, intensity = self.as_arrays()
+        i = np.argmax(intensity)
+        return time[i]
+
 
 class SimpleEntityChromatogram(SimpleChromatogram):
 
