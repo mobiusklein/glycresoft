@@ -426,9 +426,8 @@ class SpectrumMatcher(TaskExecutionSequence):
             temp = [case for case in temp if len(case) > 0]
             for case in temp:
                 case.simplify()
-                # Don't run the select top filters for consistency? They seemed to
+                # Don't run the select top filters for consistency. They seemed to
                 # influence reproducibility. Possibly because glycan decoys get dropped?
-                # case.select_top()
             target_solutions.extend(temp)
             batch.clear()
         if len(batches):

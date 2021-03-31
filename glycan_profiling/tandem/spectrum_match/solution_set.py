@@ -1,6 +1,8 @@
 '''Represent collections of :class:`~SpectrumMatch` instances covering the same
 spectrum, and methods for selecting which are worth keeping for downstream consideration.
 '''
+from glycan_profiling.chromatogram_tree import Unmodified
+
 from .spectrum_match import SpectrumMatch, SpectrumReference, ScanWrapperBase, MultiScoreSpectrumMatch
 
 
@@ -465,7 +467,7 @@ class SpectrumSolutionSet(ScanWrapperBase):
         """
         return self.best_solution().precursor_mass_accuracy()
 
-    def best_solution(self):
+    def best_solution(self, reject_shifted=False):
         """The :class:`SpectrumMatchBase` in :attr:`solutions` which
         is the best match to :attr:`scan`, the match at position 0.
 
@@ -477,10 +479,16 @@ class SpectrumSolutionSet(ScanWrapperBase):
         """
         if not self._is_sorted:
             self.sort()
-        return self.solutions[0]
+        if not reject_shifted:
+            return self.solutions[0]
+        for solution in self:
+            if solution.mass_shift == Unmodified:
+                return solution
 
-    def mark_top_solutions(self):
-        solution = self.best_solution()
+    def mark_top_solutions(self, reject_shifted=False):
+        solution = self.best_solution(reject_shifted=reject_shifted)
+        if solution is None and reject_shifted:
+            return self.mark_top_solutions(reject_shifted=False)
         solution.best_match = True
         score = solution.score
         for solution in self:
@@ -531,7 +539,7 @@ class SpectrumSolutionSet(ScanWrapperBase):
         self._is_simplified = True
         self._invalidate()
 
-    def get_top_solutions(self, d=3):
+    def get_top_solutions(self, d=3, reject_shifted=False):
         """Get all matches within `d` of the best solution
 
         Parameters
@@ -544,7 +552,12 @@ class SpectrumSolutionSet(ScanWrapperBase):
         -------
         list
         """
-        best_score = self.best_solution().score
+        best = self.best_solution(reject_shifted=reject_shifted)
+        if best is None and reject_shifted:
+            return self.get_top_solutions(d, reject_shifted=False)
+        best_score = best.score
+        if reject_shifted:
+            return [x for x in self.solutions if (best_score - x.score) < d and x.mass_shift == Unmodified]
         return [x for x in self.solutions if (best_score - x.score) < d]
 
     def select_top(self, method=None):
@@ -705,11 +718,16 @@ class MultiScoreSpectrumSolutionSet(SpectrumSolutionSet):
         self._is_sorted = True
         return self
 
-    def mark_top_solutions(self):
-        solution = self.best_solution()
+    def mark_top_solutions(self, reject_shifted=False):
+        solution = self.best_solution(reject_shifted=reject_shifted)
+        if solution is None and reject_shifted:
+            return self.mark_top_solutions(reject_shifted=False)
         solution.best_match = True
         score_set = solution.score_set
         for solution in self:
+            if reject_shifted and solution.mass_shift != Unmodified:
+                solution.best_match = False
+                continue
             if ((score_set.glycopeptide_score - solution.score_set.glycopeptide_score)) < 1e-3:
                 if (score_set.peptide_score - solution.score_set.peptide_score) < 1e-3 and (
                     score_set.glycan_score - solution.score_set.glycan_score) < 1e-3:

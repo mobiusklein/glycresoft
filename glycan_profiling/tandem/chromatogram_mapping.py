@@ -1,13 +1,18 @@
 import os
+
+from collections import defaultdict, namedtuple
+
+import numpy as np
+
 from glycan_profiling.task import TaskBase, log_handle
 from glycan_profiling.chromatogram_tree import (
     ChromatogramWrapper, build_rt_interval_tree, ChromatogramFilter,
     Unmodified)
 
+from glycan_profiling.scoring import shape_fitter
+
 from glycan_profiling.chromatogram_tree.chromatogram import GlycopeptideChromatogram
 from .spectrum_match.solution_set import NOParsimonyMixin
-
-from collections import defaultdict, namedtuple
 
 SolutionEntry = namedtuple("SolutionEntry", "solution, score, percentile, best_score, match")
 
@@ -65,7 +70,7 @@ class SpectrumMatchSolutionCollectionBase(object):
         best_spectrum_match = dict()
         for psm in self.tandem_solutions:
             if threshold_fn(psm):
-                for sol in psm.get_top_solutions():
+                for sol in psm.get_top_solutions(d=5, reject_shifted=reject_shifted):
                     if not threshold_fn(sol):
                         continue
                     if reject_shifted and sol.mass_shift != Unmodified:
@@ -291,6 +296,7 @@ class AnnotatedChromatogramAggregator(TaskBase):
             # the bad shift from the composite, and reset the modified nodes to
             # Unmodified.
             partitions.append(partition.deduct_node_type(shift))
+
         # Merge in
         accumulated_chromatogram = partitions[0]
         for partition in partitions[1:]:
@@ -298,6 +304,8 @@ class AnnotatedChromatogramAggregator(TaskBase):
         chromatogram.chromatogram = accumulated_chromatogram
 
         # update the tandem annotations
+        for solution_set in self.tandem_solutions:
+            solution_set.mark_top_solutions(reject_shifted=True)
         chromatogram.assign_entity(
             solutions[0],
             entity_chromatogram_type=chromatogram.chromatogram.__class__)
@@ -361,15 +369,21 @@ class ChromatogramMSMSMapper(TaskBase):
         except Exception:
             precursor_scan_time = self.scan_id_to_rt(solution.scan_id)
         overlapping_chroma = self.find_chromatogram_spanning(precursor_scan_time)
-        chroma = overlapping_chroma.find_mass(
+        chromas = overlapping_chroma.find_all_by_mass(
             solution.precursor_information.neutral_mass, self.error_tolerance)
-        if chroma is None:
+        if len(chromas) == 0:
             if debug_mode:
                 self.log("... %s is an orphan" % (solution, ))
             self.orphans.append(ScanTimeBundle(solution, precursor_scan_time))
         else:
-            if debug_mode:
-                self.log("... Assigning %s to %s" % (solution, chroma))
+            if len(chromas) > 1:
+                chroma = max(chromas, key=lambda x: x.total_signal)
+            else:
+                chroma = chromas[0]
+            # if debug_mode:
+            self.log("... Assigning %s to %s %s (%0.2f -> %0.2f -> %0.2f)" % (
+                solution, chroma, chroma.spans_time_point(precursor_scan_time),
+                chroma.start_time, precursor_scan_time, chroma.end_time))
             chroma.tandem_solutions.append(solution)
 
     def assign_solutions_to_chromatograms(self, solutions):

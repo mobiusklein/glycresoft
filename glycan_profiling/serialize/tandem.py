@@ -232,16 +232,18 @@ class GlycopeptideSpectrumSolutionSet(Base, SolutionSetBase, BoundToAnalysis):
         session.add(inst)
         session.flush()
         score_sets = []
-        for solution in obj:
-            gpsm = GlycopeptideSpectrumMatch.serialize(
-                solution, session, scan_look_up_cache, mass_shift_cache,
-                analysis_id, inst.id, is_decoy, save_score_set=False, *args, **kwargs)
-            if hasattr(solution, 'score_set'):
-                score_sets.append(
-                    GlycopeptideSpectrumMatchScoreSet.get_fields_from_object(solution, gpsm.id))
-        if score_sets:
-            session.execute(
-                GlycopeptideSpectrumMatchScoreSet.__table__.insert(), score_sets)
+        GlycopeptideSpectrumMatch.serialize_bulk(
+            obj, session, scan_look_up_cache, mass_shift_cache, analysis_id, inst.id)
+        # for solution in obj:
+        #     gpsm = GlycopeptideSpectrumMatch.serialize(
+        #         solution, session, scan_look_up_cache, mass_shift_cache,
+        #         analysis_id, inst.id, is_decoy, save_score_set=False, *args, **kwargs)
+        #     if hasattr(solution, 'score_set'):
+        #         score_sets.append(
+        #             GlycopeptideSpectrumMatchScoreSet.get_fields_from_object(solution, gpsm.id))
+        # if score_sets:
+        #     session.execute(
+        #         GlycopeptideSpectrumMatchScoreSet.__table__.insert(), score_sets)
         return inst
 
     def convert(self, mass_shift_cache=None, scan_cache=None, structure_cache=None, peptide_relation_cache=None):
@@ -332,6 +334,44 @@ class GlycopeptideSpectrumMatch(Base, SpectrumMatchBase):
             assert inst.id is not None
             GlycopeptideSpectrumMatchScoreSet.serialize_from_spectrum_match(obj, session, inst.id)
         return inst
+
+    @classmethod
+    def serialize_bulk(cls, objs, session, scan_look_up_cache, mass_shift_cache, analysis_id,
+                       solution_set_id, is_decoy=False, save_score_set=True, *args, **kwargs):
+        acc = []
+        revmap = {}
+        for obj in objs:
+            scan_id = scan_look_up_cache[obj.scan.id]
+            target_id = obj.target.id
+            shift_id = mass_shift_cache[obj.mass_shift].id
+            inst = cls(
+                scan_id=scan_look_up_cache[obj.scan.id],
+                is_decoy=is_decoy,
+                analysis_id=analysis_id,
+                score=obj.score,
+                q_value=obj.q_value,
+                solution_set_id=solution_set_id,
+                is_best_match=obj.best_match,
+                structure_id=target_id,
+                mass_shift_id=shift_id)
+            acc.append(inst)
+            revmap[scan_id, target_id, shift_id] = obj
+
+        session.bulk_save_objects(acc)
+
+        if save_score_set:
+            session.flush()
+            fwd = session.query(cls.id, cls.scan_id, cls.structure_id, cls.mass_shift_id).filter(
+                cls.solution_set_id == solution_set_id).all()
+            acc = []
+            for inst in fwd:
+                obj = revmap[inst.scan_id, inst.structure_id, inst.mass_shift_id]
+                if hasattr(obj, 'score_set'):
+                    fields = GlycopeptideSpectrumMatchScoreSet.get_fields_from_object(obj, inst.id)
+                    acc.append(fields)
+            if acc:
+                session.bulk_insert_mappings(GlycopeptideSpectrumMatchScoreSet, acc)
+        return revmap
 
     def convert(self, mass_shift_cache=None, scan_cache=None, structure_cache=None, peptide_relation_cache=None):
         session = object_session(self)
@@ -655,19 +695,7 @@ class GlycopeptideSpectrumMatchScoreSet(Base):
 
     @classmethod
     def serialize_from_spectrum_match(cls, obj, session, db_id):
-        scores = obj.score_set
-        qs = obj.q_value_set
-        fields = dict(
-            id=db_id,
-            peptide_score=scores.peptide_score,
-            glycan_score=scores.glycan_score,
-            glycan_coverage=scores.glycan_coverage,
-            glycopeptide_score=scores.glycopeptide_score,
-            total_q_value=qs.total_q_value,
-            peptide_q_value=qs.peptide_q_value,
-            glycan_q_value=qs.glycan_q_value,
-            glycopeptide_q_value=qs.glycopeptide_q_value
-        )
+        fields = cls.get_fields_from_object(obj, db_id)
         session.execute(cls.__table__.insert(), fields)
 
     def convert(self):

@@ -483,26 +483,19 @@ class GlycopeptideMSMSAnalysisSerializer(AnalysisMigrationBase):
         index_toggler = toggle_indices(
             self._glycopeptide_hypothesis_migrator.session, Peptide)
         index_toggler.drop()
-        self.log("... Migrating Peptides (%d)" % (len(peptides)))
         n = len(peptides)
-        for i, peptide in enumerate(peptides):
-            if i % 15000 == 0 and i:
-                self.log("...... Migrating Peptide %d/%d (%0.2f%%)" % (i, n, i * 100.0 / n))
-            self._glycopeptide_hypothesis_migrator.migrate_peptide(peptide)
+        self.log("... Migrating Peptides (%d)" % (n, ))
+        self._glycopeptide_hypothesis_migrator.migrate_peptides_bulk(peptides)
         index_toggler.create()
         peptides = []
 
         glycopeptides = self.fetch_glycopeptides(self._glycopeptide_ids)
-        self.log("... Migrating Glycopeptides (%d)" % (len(glycopeptides), ))
 
         index_toggler = toggle_indices(self._glycopeptide_hypothesis_migrator.session, Glycopeptide)
         index_toggler.drop()
         n = len(glycopeptides)
-        for i, glycopeptide in enumerate(glycopeptides):
-            if i % 15000 == 0 and i:
-                self.log("...... Migrating Referenced Glycopeptide %d/%d (%0.2f%%)" % (i, n, i * 100.0 / n))
-            self._glycopeptide_hypothesis_migrator.migrate_glycopeptide(
-                glycopeptide)
+        self.log("... Migrating Glycopeptides (%d)" % (n, ))
+        self._glycopeptide_hypothesis_migrator.migrate_glycopeptide_bulk(glycopeptides)
         index_toggler.create()
         self._glycopeptide_hypothesis_migrator.commit()
 
