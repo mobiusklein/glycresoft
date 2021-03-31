@@ -304,7 +304,7 @@ class AnnotatedChromatogramAggregator(TaskBase):
         chromatogram.chromatogram = accumulated_chromatogram
 
         # update the tandem annotations
-        for solution_set in self.tandem_solutions:
+        for solution_set in chromatogram.tandem_solutions:
             solution_set.mark_top_solutions(reject_shifted=True)
         chromatogram.assign_entity(
             solutions[0],
@@ -380,10 +380,10 @@ class ChromatogramMSMSMapper(TaskBase):
                 chroma = max(chromas, key=lambda x: x.total_signal)
             else:
                 chroma = chromas[0]
-            # if debug_mode:
-            self.log("... Assigning %s to %s %s (%0.2f -> %0.2f -> %0.2f)" % (
-                solution, chroma, chroma.spans_time_point(precursor_scan_time),
-                chroma.start_time, precursor_scan_time, chroma.end_time))
+            if debug_mode:
+                self.log("... Assigning %s to %s %s (%0.2f -> %0.2f -> %0.2f)" % (
+                    solution, chroma, chroma.spans_time_point(precursor_scan_time),
+                    chroma.start_time, precursor_scan_time, chroma.end_time))
             chroma.tandem_solutions.append(solution)
 
     def assign_solutions_to_chromatograms(self, solutions):
