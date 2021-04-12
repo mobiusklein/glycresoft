@@ -71,5 +71,9 @@ except ImportError:
 
 
 class StubIgnoringCoverageWeightedBinomialScorer(CoverageWeightedBinomialScorer):
-
-    _sanitize_solution_map = StubIgnoringBinomialSpectrumMatcher._sanitize_solution_map
+    def _sanitize_solution_map(self):
+        san = list()
+        for pair in self.solution_map:
+            if pair.fragment.series not in ("oxonium_ion", "stub_glycopeptide"):
+                san.append(pair)
+        return san
