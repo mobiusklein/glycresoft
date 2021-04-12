@@ -20,12 +20,24 @@ def get_uniprot_accession(name):
         return None
 
 
+def retry(task, n=5):
+    result = None
+    errs = []
+    for i in range(n):
+        try:
+            result = task()
+            return result, errs
+        except Exception as err:
+            errs.append(err)
+    raise errs[-1]
+
+
 class UniprotSource(TaskBase):
     def task_handler(self, accession_number):
         accession = get_uniprot_accession(accession_number)
         if accession is None:
             accession = accession_number
-        protein_data = uniprot.get(accession)
+        protein_data, errs = retry(lambda: uniprot.get(accession), 5)
         self.output_queue.put((accession_number, protein_data))
         return protein_data
 
