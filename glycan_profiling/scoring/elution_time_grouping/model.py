@@ -142,7 +142,7 @@ class ElutionTimeFitter(ScoringFeatureBase):
         n = len(y)
         k = len(self.parameters)
         if adjust:
-            adjustment_factor = (n - 1.0) / float(n - k - 1.0)
+            adjustment_factor = (n - 1.0) / max(float(n - k - 1.0), 1)
         else:
             adjustment_factor = 1.0
         R2 = (1 - adjustment_factor * (rss / tss))
