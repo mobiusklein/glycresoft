@@ -79,6 +79,7 @@ def _get_help_record(opt):
     if isinstance(opt.type, click.Choice):
         def chunk(iterable, size=3):
             i = 0
+            iterable = tuple(iterable)
             n = len(iterable)
             while i < n:
                 yield iterable[i:i + size]
