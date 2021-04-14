@@ -5,7 +5,7 @@ from docutils.parsers.rst import directives
 from docutils import statemachine
 
 import click
-from sphinx.util.compat import Directive
+from docutils.parsers.rst import Directive
 
 
 def clean_type_name(typename):
