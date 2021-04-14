@@ -468,7 +468,12 @@ def write_spectrum_library(database_connection, analysis_identifier, output_path
 @click.option("-o", "--output-path", type=click.Path(), default=None, help='Path to write to instead of stdout')
 @click.option('-r', '--apex-time-range', type=(float, float), default=(0, float('inf')),
               help='The range of apex times to include')
-def glycopeptide_chromatogram_records(database_connection, analysis_identifier, output_path, apex_time_range=None):
+@click.option("-t", "--fdr-threshold", type=float, default=0.05)
+def glycopeptide_chromatogram_records(
+        database_connection, analysis_identifier, output_path, apex_time_range=None, fdr_threshold=0.05):
+    '''Export a simplified table of glycopeptide chromatographic features, formatted for retention time
+    modeling.
+    '''
     if apex_time_range is None:
         apex_time_range = (0, float('inf'))
     database_connection = DatabaseBoundOperation(database_connection)
@@ -496,6 +501,8 @@ def glycopeptide_chromatogram_records(database_connection, analysis_identifier, 
         if idgp.chromatogram is None:
             continue
         if idgp.ms1_score < 0:
+            continue
+        if idgp.q_value > fdr_threshold:
             continue
         obj = GlycopeptideChromatogramProxy.from_obj(
             idgp, ms1_score=idgp.ms1_score, ms2_score=idgp.ms2_score,
