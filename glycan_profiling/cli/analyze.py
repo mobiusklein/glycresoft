@@ -154,6 +154,9 @@ def search_glycopeptide(context, database_connection, sample_path, hypothesis_id
                         isotope_probing_range=3, permute_decoy_glycan_fragments=False, rare_signatures=False):
     """Identify glycopeptide sequences from processed LC-MS/MS data. This algorithm requires a fully materialized
     cross-product database (the default), and uses a reverse-peptide decoy by default, evaluated on the total score.
+
+    For a search algorithm that applies separate FDR control on the peptide and the glycan, see
+    `search-glycopeptide-multipart`
     """
     if tandem_scoring_model is None:
         tandem_scoring_model = CoverageWeightedBinomialScorer
