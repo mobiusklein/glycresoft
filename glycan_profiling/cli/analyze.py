@@ -152,7 +152,8 @@ def search_glycopeptide(context, database_connection, sample_path, hypothesis_id
                         use_peptide_mass_filter=False, maximum_mass=float('inf'),
                         decoy_database_connection=None, fdr_correction='auto',
                         isotope_probing_range=3, permute_decoy_glycan_fragments=False, rare_signatures=False):
-    """Identify glycopeptide sequences from processed LC-MS/MS data
+    """Identify glycopeptide sequences from processed LC-MS/MS data. This algorithm requires a fully materialized
+    cross-product database (the default), and uses a reverse-peptide decoy by default, evaluated on the total score.
     """
     if tandem_scoring_model is None:
         tandem_scoring_model = CoverageWeightedBinomialScorer
@@ -793,6 +794,10 @@ def retention_time():
 def glycopeptide_retention_time_fit(context, chromatogram_csv_path, output_path=None,
                                     test_chromatogram_csv_path=None, prefer_joint_model=False,
                                     minimum_observations_for_specific_model=20, use_retention_time_normalization=False):
+    '''Fit a retention time model to glycopeptide chromatogram observations, and evaluate the chromatographic apex
+    retention of each glycopeptide based upon the model fit. For large enough groups, try to fit a model to just
+    that group.
+    '''
     with open(chromatogram_csv_path, 'rt') as fh:
         chromatograms = GlycopeptideChromatogramProxy.from_csv(fh)
     if test_chromatogram_csv_path is not None:

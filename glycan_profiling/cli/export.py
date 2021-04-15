@@ -201,9 +201,10 @@ def glycan_composition_identification(database_connection, analysis_identifier, 
 @click.option("-r", "--report", is_flag=True, help="Export an HTML report instead of a CSV")
 @click.option("-m", "--mzml-path", type=click.Path(exists=True), default=None, help=(
     "Path to read processed spectra from instead of the path embedded in the analysis metadata"))
-@click.option("-t", "--threshold", type=float, default=0)
+@click.option("-t", "--threshold", type=float, default=0, help='The minimum MS2 score threshold (larger is better)')
+@click.option("-f", "--fdr-threshold", type=float, default=1, help='The maximum FDR threshold (smaller is better)')
 def glycopeptide_identification(database_connection, analysis_identifier, output_path=None,
-                                report=False, mzml_path=None, threshold=0):
+                                report=False, mzml_path=None, threshold=0, fdr_threshold=1):
     '''Write each distinct identified glycopeptide in CSV format
     '''
     database_connection = DatabaseBoundOperation(database_connection)
@@ -250,6 +251,10 @@ def glycopeptide_identification(database_connection, analysis_identifier, output
             interval = 100
             query = session.query(IdentifiedGlycopeptide).filter(
                 IdentifiedGlycopeptide.analysis_id == analysis_id)
+            if threshold != 0:
+                query = query.filter(IdentifiedGlycopeptide.ms2_score >= threshold)
+            if fdr_threshold < 1:
+                query = query.filter(IdentifiedGlycopeptide.q_value <= fdr_threshold)
             while True:
                 session.expire_all()
                 chunk = query.slice(i, i + interval).all()
@@ -270,7 +275,10 @@ def glycopeptide_identification(database_connection, analysis_identifier, output
 @database_connection_arg
 @analysis_identifier_arg("glycopeptide")
 @click.option("-o", "--output-path", type=click.Path(), default=None, help='Path to write to instead of stdout')
-def glycopeptide_spectrum_matches(database_connection, analysis_identifier, output_path=None):
+@click.option("-t", "--threshold", type=float, default=0, help='The minimum MS2 score threshold (larger is better)')
+@click.option("-f", "--fdr-threshold", type=float, default=1, help='The maximum FDR threshold (smaller is better)')
+def glycopeptide_spectrum_matches(database_connection, analysis_identifier, output_path=None, threshold=0,
+                                  fdr_threshold=1.0):
     '''Write each matched glycopeptide spectrum in CSV format
     '''
     database_connection = DatabaseBoundOperation(database_connection)
@@ -292,6 +300,10 @@ def glycopeptide_spectrum_matches(database_connection, analysis_identifier, outp
         query = session.query(GlycopeptideSpectrumMatch).filter(
             GlycopeptideSpectrumMatch.analysis_id == analysis_id).order_by(
                 GlycopeptideSpectrumMatch.scan_id)
+        if threshold != 0:
+            query = query.filter(GlycopeptideSpectrumMatch.score >= threshold)
+        if fdr_threshold > 1:
+            query = query.filter(GlycopeptideSpectrumMatch.q_value <= fdr_threshold)
         mass_shift_cache = {}
         scan_cache = {}
         structure_cache = {}
