@@ -156,7 +156,7 @@ def search_glycopeptide(context, database_connection, sample_path, hypothesis_id
     cross-product database (the default), and uses a reverse-peptide decoy by default, evaluated on the total score.
 
     For a search algorithm that applies separate FDR control on the peptide and the glycan, see
-    `search-glycopeptide-multipart`
+    :ref:`search-glycopeptide-multipart`
     """
     if tandem_scoring_model is None:
         tandem_scoring_model = CoverageWeightedBinomialScorer
@@ -342,6 +342,8 @@ def search_glycopeptide_multipart(context, database_connection, decoy_database_c
                                   workload_size=100, mass_shifts=None, export=None, maximum_mass=float('inf'),
                                   isotope_probing_range=3, fdr_estimation_strategy=None,
                                   glycoproteome_smoothing_model=None, durable_fucose=False, rare_signatures=False):
+    '''
+    '''
     if fdr_estimation_strategy is None:
         fdr_estimation_strategy = GlycopeptideFDREstimationStrategy.multipart_gamma_gaussian_mixture
     else:
