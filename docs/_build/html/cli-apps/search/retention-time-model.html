@@ -1,0 +1,202 @@
+
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+
+<html xmlns="http://www.w3.org/1999/xhtml">
+  <head>
+    <meta http-equiv="X-UA-Compatible" content="IE=Edge" />
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+    <title>Retention Time Modeling for Glycopeptide Identifications &#8212; glycresoft  documentation</title>
+    <link rel="stylesheet" href="../../_static/haiku.css" type="text/css" />
+    <link rel="stylesheet" href="../../_static/pygments.css" type="text/css" />
+    <script type="text/javascript" id="documentation_options" data-url_root="../../" src="../../_static/documentation_options.js"></script>
+    <script type="text/javascript" src="../../_static/jquery.js"></script>
+    <script type="text/javascript" src="../../_static/underscore.js"></script>
+    <script type="text/javascript" src="../../_static/doctools.js"></script>
+    <script type="text/javascript" src="../../_static/language_data.js"></script>
+    <script async="async" type="text/javascript" src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.5/latest.js?config=TeX-AMS-MML_HTMLorMML"></script>
+    <link rel="index" title="Index" href="../../genindex.html" />
+    <link rel="search" title="Search" href="../../search.html" />
+    <link rel="next" title="Output Files and Exporting" href="../output/index.html" />
+    <link rel="prev" title="Searching a Processed Sample with a Glycopeptide Database" href="search-glycopeptide.html" /> 
+  </head><body>
+      <div class="header" role="banner"><img class="rightlogo" src="../../_static/logo.png" alt="Logo" style='width:120px;'/><h1 class="heading"><a href="../../index.html">
+          <span>glycresoft  documentation</span></a></h1>
+        <h2 class="heading"><span>Retention Time Modeling for Glycopeptide Identifications</span></h2>
+      </div>
+      <div class="topnav" role="navigation" aria-label="top navigation">
+      
+        <p>
+        «&#160;&#160;<a href="search-glycopeptide.html">Searching a Processed Sample with a Glycopeptide Database</a>
+        &#160;&#160;::&#160;&#160;
+        <a class="uplink" href="../../index.html">Contents</a>
+        &#160;&#160;::&#160;&#160;
+        <a href="../output/index.html">Output Files and Exporting</a>&#160;&#160;»
+        </p>
+
+      </div>
+      <div class="content">
+        
+        
+  <div class="section" id="retention-time-modeling-for-glycopeptide-identifications">
+<h1>Retention Time Modeling for Glycopeptide Identifications<a class="headerlink" href="#retention-time-modeling-for-glycopeptide-identifications" title="Permalink to this headline">¶</a></h1>
+<p>GlycReSoft can use chromatographic retention time to refine glycan composition assignments
+to glycopeptides using related glycoforms as points of reference.</p>
+<div class="section" id="preparing-input-data">
+<h2>Preparing Input Data<a class="headerlink" href="#preparing-input-data" title="Permalink to this headline">¶</a></h2>
+<p>The model fitting process uses a simplified representation of glycopeptide chromatograms
+which can be exported as a CSV file from a result database.</p>
+<div class="section" id="glycresoft-export-glycopeptide-chromatogram-records">
+<h3>glycresoft export glycopeptide-chromatogram-records<a class="headerlink" href="#glycresoft-export-glycopeptide-chromatogram-records" title="Permalink to this headline">¶</a></h3>
+<p>Export a simplified table of glycopeptide chromatographic features, formatted for retention time
+modeling.</p>
+<div class="highlight-shell notranslate"><div class="highlight"><pre><span></span>glycresoft <span class="nb">export</span> glycopeptide-chromatogram-records <span class="o">[</span>OPTIONS<span class="o">]</span>
+                                                    DATABASE_CONNECTION
+                                                    ANALYSIS_IDENTIFIER
+</pre></div>
+</div>
+<p class="rubric">Options</p>
+<dl class="option">
+<dt id="cmdoption-glycresoft-export-glycopeptide-chromatogram-records-o">
+<code class="descname">-o</code><code class="descclassname"></code><code class="descclassname">, </code><code class="descname">--output-path</code><code class="descclassname"> &lt;path&gt;</code><a class="headerlink" href="#cmdoption-glycresoft-export-glycopeptide-chromatogram-records-o" title="Permalink to this definition">¶</a></dt>
+<dd><p>Path to write to instead of stdout</p>
+</dd></dl>
+
+<dl class="option">
+<dt id="cmdoption-glycresoft-export-glycopeptide-chromatogram-records-r">
+<code class="descname">-r</code><code class="descclassname"></code><code class="descclassname">, </code><code class="descname">--apex-time-range</code><code class="descclassname"> &lt;tuple&gt;</code><a class="headerlink" href="#cmdoption-glycresoft-export-glycopeptide-chromatogram-records-r" title="Permalink to this definition">¶</a></dt>
+<dd><p>The range of apex times to include  [default: 0, inf]</p>
+</dd></dl>
+
+<dl class="option">
+<dt id="cmdoption-glycresoft-export-glycopeptide-chromatogram-records-t">
+<code class="descname">-t</code><code class="descclassname"></code><code class="descclassname">, </code><code class="descname">--fdr-threshold</code><code class="descclassname"> &lt;float&gt;</code><a class="headerlink" href="#cmdoption-glycresoft-export-glycopeptide-chromatogram-records-t" title="Permalink to this definition">¶</a></dt>
+<dd><p>[default: 0.05]</p>
+</dd></dl>
+
+<p class="rubric">Arguments</p>
+<dl class="option">
+<dt id="cmdoption-glycresoft-export-glycopeptide-chromatogram-records-arg-database-connection">
+<code class="descname">DATABASE_CONNECTION</code><code class="descclassname"></code><a class="headerlink" href="#cmdoption-glycresoft-export-glycopeptide-chromatogram-records-arg-database-connection" title="Permalink to this definition">¶</a></dt>
+<dd><p>Required argument
+&lt;databaseconnectionparam&gt; A connection URI for a database, or a path on the file system</p>
+</dd></dl>
+
+<dl class="option">
+<dt id="cmdoption-glycresoft-export-glycopeptide-chromatogram-records-arg-analysis-identifier">
+<code class="descname">ANALYSIS_IDENTIFIER</code><code class="descclassname"></code><a class="headerlink" href="#cmdoption-glycresoft-export-glycopeptide-chromatogram-records-arg-analysis-identifier" title="Permalink to this definition">¶</a></dt>
+<dd><p>Required argument
+&lt;string&gt; The ID number or name of the glycopeptide analysis to use</p>
+</dd></dl>
+
+</div>
+</div>
+<div class="section" id="fitting-the-model">
+<h2>Fitting The Model<a class="headerlink" href="#fitting-the-model" title="Permalink to this headline">¶</a></h2>
+<div class="section" id="glycresoft-analyze-retention-time-fit-glycopeptide-retention-time">
+<h3>glycresoft analyze retention-time fit-glycopeptide-retention-time<a class="headerlink" href="#glycresoft-analyze-retention-time-fit-glycopeptide-retention-time" title="Permalink to this headline">¶</a></h3>
+<p>Fit a retention time model to glycopeptide chromatogram observations, and evaluate the chromatographic apex
+retention of each glycopeptide based upon the model fit. For large enough groups, try to fit a model to just
+that group.</p>
+<div class="highlight-shell notranslate"><div class="highlight"><pre><span></span>glycresoft analyze retention-time fit-glycopeptide-retention-time 
+    <span class="o">[</span>OPTIONS<span class="o">]</span> CHROMATOGRAM_CSV_PATH OUTPUT_PATH
+</pre></div>
+</div>
+<p class="rubric">Options</p>
+<dl class="option">
+<dt id="cmdoption-glycresoft-analyze-retention-time-fit-glycopeptide-retention-time-t">
+<code class="descname">-t</code><code class="descclassname"></code><code class="descclassname">, </code><code class="descname">--test-chromatogram-csv-path</code><code class="descclassname"> &lt;path&gt;</code><a class="headerlink" href="#cmdoption-glycresoft-analyze-retention-time-fit-glycopeptide-retention-time-t" title="Permalink to this definition">¶</a></dt>
+<dd><p>Path to glycopeptide CSV chromatograms to evaluate with the model, but not fit on</p>
+</dd></dl>
+
+<dl class="option">
+<dt id="cmdoption-glycresoft-analyze-retention-time-fit-glycopeptide-retention-time-p">
+<code class="descname">-p</code><code class="descclassname"></code><code class="descclassname">, </code><code class="descname">--prefer-joint-model</code><code class="descclassname"></code><a class="headerlink" href="#cmdoption-glycresoft-analyze-retention-time-fit-glycopeptide-retention-time-p" title="Permalink to this definition">¶</a></dt>
+<dd><p>Prefer the joint model over the peptide-specific ones  [default: False]</p>
+</dd></dl>
+
+<dl class="option">
+<dt id="cmdoption-glycresoft-analyze-retention-time-fit-glycopeptide-retention-time-m">
+<code class="descname">-m</code><code class="descclassname"></code><code class="descclassname">, </code><code class="descname">--minimum-observations-for-specific-model</code><code class="descclassname"> &lt;int&gt;</code><a class="headerlink" href="#cmdoption-glycresoft-analyze-retention-time-fit-glycopeptide-retention-time-m" title="Permalink to this definition">¶</a></dt>
+<dd><p>The minimum number of observations required to fit a peptide sequence-specific model  [default: 20]</p>
+</dd></dl>
+
+<dl class="option">
+<dt id="cmdoption-glycresoft-analyze-retention-time-fit-glycopeptide-retention-time-r">
+<code class="descname">-r</code><code class="descclassname"></code><code class="descclassname">, </code><code class="descname">--use-retention-time-normalization</code><code class="descclassname"></code><a class="headerlink" href="#cmdoption-glycresoft-analyze-retention-time-fit-glycopeptide-retention-time-r" title="Permalink to this definition">¶</a></dt>
+<dd><p>[default: False]</p>
+</dd></dl>
+
+<p class="rubric">Arguments</p>
+<dl class="option">
+<dt id="cmdoption-glycresoft-analyze-retention-time-fit-glycopeptide-retention-time-arg-chromatogram-csv-path">
+<code class="descname">CHROMATOGRAM_CSV_PATH</code><code class="descclassname"></code><a class="headerlink" href="#cmdoption-glycresoft-analyze-retention-time-fit-glycopeptide-retention-time-arg-chromatogram-csv-path" title="Permalink to this definition">¶</a></dt>
+<dd><p>Required argument
+&lt;path&gt;</p>
+</dd></dl>
+
+<dl class="option">
+<dt id="cmdoption-glycresoft-analyze-retention-time-fit-glycopeptide-retention-time-arg-output-path">
+<code class="descname">OUTPUT_PATH</code><code class="descclassname"></code><a class="headerlink" href="#cmdoption-glycresoft-analyze-retention-time-fit-glycopeptide-retention-time-arg-output-path" title="Permalink to this definition">¶</a></dt>
+<dd><p>Required argument
+&lt;path&gt;</p>
+</dd></dl>
+
+</div>
+</div>
+<div class="section" id="re-using-a-fitted-model">
+<h2>Re-using A Fitted Model<a class="headerlink" href="#re-using-a-fitted-model" title="Permalink to this headline">¶</a></h2>
+<div class="section" id="glycresoft-analyze-retention-time-evaluate-glycopeptide-retention-time">
+<h3>glycresoft analyze retention-time evaluate-glycopeptide-retention-time<a class="headerlink" href="#glycresoft-analyze-retention-time-evaluate-glycopeptide-retention-time" title="Permalink to this headline">¶</a></h3>
+<p>Predict and evaluate the retention time of glycopeptides using an existing model.</p>
+<p>The model file should have the extension .pkl and have been produced by the same version of GlycReSoft.</p>
+<div class="highlight-shell notranslate"><div class="highlight"><pre><span></span>glycresoft analyze retention-time evaluate-glycopeptide-retention-time 
+    <span class="o">[</span>OPTIONS<span class="o">]</span> MODEL_PATH CHROMATOGRAM_CSV_PATH OUTPUT_PATH
+</pre></div>
+</div>
+<p class="rubric">Arguments</p>
+<dl class="option">
+<dt id="cmdoption-glycresoft-analyze-retention-time-evaluate-glycopeptide-retention-time-arg-model-path">
+<code class="descname">MODEL_PATH</code><code class="descclassname"></code><a class="headerlink" href="#cmdoption-glycresoft-analyze-retention-time-evaluate-glycopeptide-retention-time-arg-model-path" title="Permalink to this definition">¶</a></dt>
+<dd><p>Required argument
+&lt;path&gt;</p>
+</dd></dl>
+
+<dl class="option">
+<dt id="cmdoption-glycresoft-analyze-retention-time-evaluate-glycopeptide-retention-time-arg-chromatogram-csv-path">
+<code class="descname">CHROMATOGRAM_CSV_PATH</code><code class="descclassname"></code><a class="headerlink" href="#cmdoption-glycresoft-analyze-retention-time-evaluate-glycopeptide-retention-time-arg-chromatogram-csv-path" title="Permalink to this definition">¶</a></dt>
+<dd><p>Required argument
+&lt;path&gt;</p>
+</dd></dl>
+
+<dl class="option">
+<dt id="cmdoption-glycresoft-analyze-retention-time-evaluate-glycopeptide-retention-time-arg-output-path">
+<code class="descname">OUTPUT_PATH</code><code class="descclassname"></code><a class="headerlink" href="#cmdoption-glycresoft-analyze-retention-time-evaluate-glycopeptide-retention-time-arg-output-path" title="Permalink to this definition">¶</a></dt>
+<dd><p>Required argument
+&lt;path&gt;</p>
+</dd></dl>
+
+</div>
+</div>
+</div>
+
+
+      </div>
+      <div class="bottomnav" role="navigation" aria-label="bottom navigation">
+      
+        <p>
+        «&#160;&#160;<a href="search-glycopeptide.html">Searching a Processed Sample with a Glycopeptide Database</a>
+        &#160;&#160;::&#160;&#160;
+        <a class="uplink" href="../../index.html">Contents</a>
+        &#160;&#160;::&#160;&#160;
+        <a href="../output/index.html">Output Files and Exporting</a>&#160;&#160;»
+        </p>
+
+      </div>
+
+    <div class="footer" role="contentinfo">
+        &#169; Copyright 2017, Joshua Klein.
+      Created using <a href="http://sphinx-doc.org/">Sphinx</a> 1.8.5.
+    </div>
+  </body>
+</html>

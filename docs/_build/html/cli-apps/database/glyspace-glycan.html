@@ -4,87 +4,40 @@
 
 <html xmlns="http://www.w3.org/1999/xhtml">
   <head>
+    <meta http-equiv="X-UA-Compatible" content="IE=Edge" />
     <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
     <title>Building a Glycan Hypothesis from glySpace &#8212; glycresoft  documentation</title>
-    <link rel="stylesheet" href="../_static/alabaster.css" type="text/css" />
-    <link rel="stylesheet" href="../_static/pygments.css" type="text/css" />
-    <script type="text/javascript">
-      var DOCUMENTATION_OPTIONS = {
-        URL_ROOT:    '../',
-        VERSION:     '',
-        COLLAPSE_INDEX: false,
-        FILE_SUFFIX: '.html',
-        HAS_SOURCE:  true,
-        SOURCELINK_SUFFIX: '.txt'
-      };
-    </script>
-    <script type="text/javascript" src="../_static/jquery.js"></script>
-    <script type="text/javascript" src="../_static/underscore.js"></script>
-    <script type="text/javascript" src="../_static/doctools.js"></script>
-    <link rel="index" title="Index" href="../genindex.html" />
-    <link rel="search" title="Search" href="../search.html" />
+    <link rel="stylesheet" href="../../_static/haiku.css" type="text/css" />
+    <link rel="stylesheet" href="../../_static/pygments.css" type="text/css" />
+    <script type="text/javascript" id="documentation_options" data-url_root="../../" src="../../_static/documentation_options.js"></script>
+    <script type="text/javascript" src="../../_static/jquery.js"></script>
+    <script type="text/javascript" src="../../_static/underscore.js"></script>
+    <script type="text/javascript" src="../../_static/doctools.js"></script>
+    <script type="text/javascript" src="../../_static/language_data.js"></script>
+    <script async="async" type="text/javascript" src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.5/latest.js?config=TeX-AMS-MML_HTMLorMML"></script>
+    <link rel="index" title="Index" href="../../genindex.html" />
+    <link rel="search" title="Search" href="../../search.html" />
     <link rel="next" title="Building a Glycopeptide Hypothesis from a FASTA File" href="fasta-glycopeptide.html" />
-    <link rel="prev" title="Building a Glycan Hypothesis from a Text File" href="text-glycan.html" />
-   
-  <link rel="stylesheet" href="../_static/custom.css" type="text/css" />
-  
-  
-  <meta name="viewport" content="width=device-width, initial-scale=0.9, maximum-scale=0.9" />
-
-  </head>
-  <body>
-  <div class="document">
-    
-      <div class="sphinxsidebar" role="navigation" aria-label="main navigation">
-        <div class="sphinxsidebarwrapper"><p class='logo'>
-    <a href="../index.html">
-        <img class="logo" src="../_static/img/logo.png" style="width: 120px;"><br>
-        <span class='logo-title' style='text-align: center;'>glycresoft</span>
-    </a>
-</p>
-  <h3><a href="../index.html">Table Of Contents</a></h3>
-  <ul>
-<li><a class="reference internal" href="#">Building a Glycan Hypothesis from glySpace</a><ul>
-<li><a class="reference internal" href="#glycresoft-build-hypothesis-glycan-glyspace">glycresoft build-hypothesis glycan-glyspace</a></li>
-<li><a class="reference internal" href="#usage-example">Usage Example</a></li>
-<li><a class="reference internal" href="#bibliography">Bibliography</a></li>
-</ul>
-</li>
-</ul>
-<div class="relations">
-<h3>Related Topics</h3>
-<ul>
-  <li><a href="../index.html">Documentation overview</a><ul>
-  <li><a href="index.html">Command Line Applications</a><ul>
-      <li>Previous: <a href="text-glycan.html" title="previous chapter">Building a Glycan Hypothesis from a Text File</a></li>
-      <li>Next: <a href="fasta-glycopeptide.html" title="next chapter">Building a Glycopeptide Hypothesis from a FASTA File</a></li>
-  </ul></li>
-  </ul></li>
-</ul>
-</div>
-  <div role="note" aria-label="source link">
-    <h3>This Page</h3>
-    <ul class="this-page-menu">
-      <li><a href="../_sources/cli-apps/glyspace-glycan.rst.txt"
-            rel="nofollow">Show Source</a></li>
-    </ul>
-   </div>
-<div id="searchbox" style="display: none" role="search">
-  <h3>Quick search</h3>
-    <form class="search" action="../search.html" method="get">
-      <div><input type="text" name="q" /></div>
-      <div><input type="submit" value="Go" /></div>
-      <input type="hidden" name="check_keywords" value="yes" />
-      <input type="hidden" name="area" value="default" />
-    </form>
-</div>
-<script type="text/javascript">$('#searchbox').show(0);</script>
-        </div>
+    <link rel="prev" title="Building a Glycan Hypothesis from a Text File" href="text-glycan.html" /> 
+  </head><body>
+      <div class="header" role="banner"><img class="rightlogo" src="../../_static/logo.png" alt="Logo" style='width:120px;'/><h1 class="heading"><a href="../../index.html">
+          <span>glycresoft  documentation</span></a></h1>
+        <h2 class="heading"><span>Building a Glycan Hypothesis from glySpace</span></h2>
       </div>
-      <div class="documentwrapper">
-        <div class="bodywrapper">
-          <div class="body" role="main">
-            
+      <div class="topnav" role="navigation" aria-label="top navigation">
+      
+        <p>
+        «&#160;&#160;<a href="text-glycan.html">Building a Glycan Hypothesis from a Text File</a>
+        &#160;&#160;::&#160;&#160;
+        <a class="uplink" href="../../index.html">Contents</a>
+        &#160;&#160;::&#160;&#160;
+        <a href="fasta-glycopeptide.html">Building a Glycopeptide Hypothesis from a FASTA File</a>&#160;&#160;»
+        </p>
+
+      </div>
+      <div class="content">
+        
+        
   <div class="section" id="building-a-glycan-hypothesis-from-glyspace">
 <span id="glyspace-glycan-hypothesis"></span><h1>Building a Glycan Hypothesis from glySpace<a class="headerlink" href="#building-a-glycan-hypothesis-from-glyspace" title="Permalink to this headline">¶</a></h1>
 <p>The glycoinformatics community has developed a federation of
@@ -98,7 +51,7 @@ glycan structures in <cite>glySpace</cite> for N-glycans and O-glycans,
 with or without taxonomic filters.</p>
 <div class="section" id="glycresoft-build-hypothesis-glycan-glyspace">
 <h2>glycresoft build-hypothesis glycan-glyspace<a class="headerlink" href="#glycresoft-build-hypothesis-glycan-glyspace" title="Permalink to this headline">¶</a></h2>
-<div class="highlight-shell"><div class="highlight"><pre><span></span>glycresoft build-hypothesis glycan-glyspace <span class="o">[</span>OPTIONS<span class="o">]</span> DATABASE_CONNECTION
+<div class="highlight-shell notranslate"><div class="highlight"><pre><span></span>glycresoft build-hypothesis glycan-glyspace <span class="o">[</span>OPTIONS<span class="o">]</span> DATABASE_CONNECTION
 </pre></div>
 </div>
 <p class="rubric">Options</p>
@@ -162,7 +115,7 @@ with or without taxonomic filters.</p>
 <p>For more information on reductions and derivatizations, please see <a class="reference external" href="todo">Glycan Modifications</a></p>
 <div class="section" id="usage-example">
 <h2>Usage Example<a class="headerlink" href="#usage-example" title="Permalink to this headline">¶</a></h2>
-<div class="highlight-bash"><div class="highlight"><pre><span></span><span class="c1"># Get all human N-glycans</span>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="c1"># Get all human N-glycans</span>
 $ glycresoft build-hypothesis glycan-glyspace -m n-linked -t <span class="m">9606</span> glyspace-glycans.db -n <span class="s2">&quot;Human N-Linked Glycans&quot;</span>
 Building Glycan Hypothesis Human N-Linked Glycans <span class="o">(</span><span class="m">2</span><span class="o">)</span>
 <span class="m">14</span>:35:34 - glycresoft:log:175 - INFO - Begin N Glycan Glyspace Hypothesis Serializer
@@ -230,25 +183,22 @@ GlyTouCan 1.0 – The international glycan structure repository. Nucleic Acids R
 </div>
 
 
-          </div>
-        </div>
       </div>
-    <div class="clearer"></div>
-  </div>
-    <div class="footer">
-      &copy;2017, Joshua Klein.
+      <div class="bottomnav" role="navigation" aria-label="bottom navigation">
       
-      |
-      Powered by <a href="http://sphinx-doc.org/">Sphinx 1.6.6</a>
-      &amp; <a href="https://github.com/bitprophet/alabaster">Alabaster 0.7.10</a>
-      
-      |
-      <a href="../_sources/cli-apps/glyspace-glycan.rst.txt"
-          rel="nofollow">Page source</a>
+        <p>
+        «&#160;&#160;<a href="text-glycan.html">Building a Glycan Hypothesis from a Text File</a>
+        &#160;&#160;::&#160;&#160;
+        <a class="uplink" href="../../index.html">Contents</a>
+        &#160;&#160;::&#160;&#160;
+        <a href="fasta-glycopeptide.html">Building a Glycopeptide Hypothesis from a FASTA File</a>&#160;&#160;»
+        </p>
+
+      </div>
+
+    <div class="footer" role="contentinfo">
+        &#169; Copyright 2017, Joshua Klein.
+      Created using <a href="http://sphinx-doc.org/">Sphinx</a> 1.8.5.
     </div>
-
-    
-
-    
   </body>
 </html>

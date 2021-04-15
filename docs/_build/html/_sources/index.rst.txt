@@ -7,13 +7,13 @@ Welcome to glycresoft's documentation!
 ======================================
 
 .. toctree::
-   :maxdepth: 2
+   :maxdepth: 3
    :caption: Contents:
 
    Installing <installing>
    Command Line Applications <cli-apps/index>
    Tutorials <tutorials/index>
-
+   Topics <topics/index>
 
 Indices and tables
 ==================

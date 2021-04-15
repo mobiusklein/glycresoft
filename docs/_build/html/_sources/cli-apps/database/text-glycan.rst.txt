@@ -4,7 +4,7 @@ Building a Glycan Hypothesis from a Text File
 =============================================
 
 When a comprehensive list of glycan compositions is available,
-you can translate them into a list encoded in `IUPAClite <todo>`_
+you can translate them into a list encoded in `IUPAClite <../../topics/iupaclite.html>`_
 with one composition per line. Lines may have the form
 
 .. code-block:: Text
@@ -28,7 +28,7 @@ Usage Example
 -------------
 
 .. code-block:: bash
-    
+
     $ head glycan-compositions.txt
     {Hex:5; HexNAc:4; Neu5Ac:1}  N-Glycan
     {Hex:5; HexNAc:4; Neu5Ac:2}  N-Glycan

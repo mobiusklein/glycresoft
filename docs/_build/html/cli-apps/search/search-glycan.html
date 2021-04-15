@@ -4,101 +4,52 @@
 
 <html xmlns="http://www.w3.org/1999/xhtml">
   <head>
+    <meta http-equiv="X-UA-Compatible" content="IE=Edge" />
     <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
     <title>Searching a Processed Sample with a Glycan Database &#8212; glycresoft  documentation</title>
-    <link rel="stylesheet" href="../_static/alabaster.css" type="text/css" />
-    <link rel="stylesheet" href="../_static/pygments.css" type="text/css" />
-    <script type="text/javascript">
-      var DOCUMENTATION_OPTIONS = {
-        URL_ROOT:    '../',
-        VERSION:     '',
-        COLLAPSE_INDEX: false,
-        FILE_SUFFIX: '.html',
-        HAS_SOURCE:  true,
-        SOURCELINK_SUFFIX: '.txt'
-      };
-    </script>
-    <script type="text/javascript" src="../_static/jquery.js"></script>
-    <script type="text/javascript" src="../_static/underscore.js"></script>
-    <script type="text/javascript" src="../_static/doctools.js"></script>
-    <link rel="index" title="Index" href="../genindex.html" />
-    <link rel="search" title="Search" href="../search.html" />
-    <link rel="next" title="Tutorials" href="../tutorials/index.html" />
-    <link rel="prev" title="Exporting Glycopeptide Search Results" href="export-glycopeptide.html" />
-   
-  <link rel="stylesheet" href="../_static/custom.css" type="text/css" />
-  
-  
-  <meta name="viewport" content="width=device-width, initial-scale=0.9, maximum-scale=0.9" />
-
-  </head>
-  <body>
-  <div class="document">
-    
-      <div class="sphinxsidebar" role="navigation" aria-label="main navigation">
-        <div class="sphinxsidebarwrapper"><p class='logo'>
-    <a href="../index.html">
-        <img class="logo" src="../_static/img/logo.png" style="width: 120px;"><br>
-        <span class='logo-title' style='text-align: center;'>glycresoft</span>
-    </a>
-</p>
-  <h3><a href="../index.html">Table Of Contents</a></h3>
-  <ul>
-<li><a class="reference internal" href="#">Searching a Processed Sample with a Glycan Database</a><ul>
-<li><a class="reference internal" href="#glycresoft-analyze-search-glycan">glycresoft analyze search-glycan</a></li>
-<li><a class="reference internal" href="#usage-example">Usage Example</a></li>
-<li><a class="reference internal" href="#adducts">Adducts</a></li>
-<li><a class="reference internal" href="#network-regularization">Network Regularization</a></li>
-<li><a class="reference internal" href="#ms-ms-signatures">MS/MS Signatures</a></li>
-</ul>
-</li>
-</ul>
-<div class="relations">
-<h3>Related Topics</h3>
-<ul>
-  <li><a href="../index.html">Documentation overview</a><ul>
-  <li><a href="index.html">Command Line Applications</a><ul>
-      <li>Previous: <a href="export-glycopeptide.html" title="previous chapter">Exporting Glycopeptide Search Results</a></li>
-      <li>Next: <a href="../tutorials/index.html" title="next chapter">Tutorials</a></li>
-  </ul></li>
-  </ul></li>
-</ul>
-</div>
-  <div role="note" aria-label="source link">
-    <h3>This Page</h3>
-    <ul class="this-page-menu">
-      <li><a href="../_sources/cli-apps/search-glycan.rst.txt"
-            rel="nofollow">Show Source</a></li>
-    </ul>
-   </div>
-<div id="searchbox" style="display: none" role="search">
-  <h3>Quick search</h3>
-    <form class="search" action="../search.html" method="get">
-      <div><input type="text" name="q" /></div>
-      <div><input type="submit" value="Go" /></div>
-      <input type="hidden" name="check_keywords" value="yes" />
-      <input type="hidden" name="area" value="default" />
-    </form>
-</div>
-<script type="text/javascript">$('#searchbox').show(0);</script>
-        </div>
+    <link rel="stylesheet" href="../../_static/haiku.css" type="text/css" />
+    <link rel="stylesheet" href="../../_static/pygments.css" type="text/css" />
+    <script type="text/javascript" id="documentation_options" data-url_root="../../" src="../../_static/documentation_options.js"></script>
+    <script type="text/javascript" src="../../_static/jquery.js"></script>
+    <script type="text/javascript" src="../../_static/underscore.js"></script>
+    <script type="text/javascript" src="../../_static/doctools.js"></script>
+    <script type="text/javascript" src="../../_static/language_data.js"></script>
+    <script async="async" type="text/javascript" src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.5/latest.js?config=TeX-AMS-MML_HTMLorMML"></script>
+    <link rel="index" title="Index" href="../../genindex.html" />
+    <link rel="search" title="Search" href="../../search.html" />
+    <link rel="next" title="Searching a Processed Sample with a Glycopeptide Database" href="search-glycopeptide.html" />
+    <link rel="prev" title="LC-MS/MS Data Preprocessing and Deconvolution" href="mzml-preprocess.html" /> 
+  </head><body>
+      <div class="header" role="banner"><img class="rightlogo" src="../../_static/logo.png" alt="Logo" style='width:120px;'/><h1 class="heading"><a href="../../index.html">
+          <span>glycresoft  documentation</span></a></h1>
+        <h2 class="heading"><span>Searching a Processed Sample with a Glycan Database</span></h2>
       </div>
-      <div class="documentwrapper">
-        <div class="bodywrapper">
-          <div class="body" role="main">
-            
+      <div class="topnav" role="navigation" aria-label="top navigation">
+      
+        <p>
+        «&#160;&#160;<a href="mzml-preprocess.html">LC-MS/MS Data Preprocessing and Deconvolution</a>
+        &#160;&#160;::&#160;&#160;
+        <a class="uplink" href="../../index.html">Contents</a>
+        &#160;&#160;::&#160;&#160;
+        <a href="search-glycopeptide.html">Searching a Processed Sample with a Glycopeptide Database</a>&#160;&#160;»
+        </p>
+
+      </div>
+      <div class="content">
+        
+        
   <div class="section" id="searching-a-processed-sample-with-a-glycan-database">
 <span id="glycan-search"></span><h1>Searching a Processed Sample with a Glycan Database<a class="headerlink" href="#searching-a-processed-sample-with-a-glycan-database" title="Permalink to this headline">¶</a></h1>
 <p>Match features from a deconvoluted LC-MS or LC-MS/MS
 data file with released glycan compositions from a
-glycan hypothesis (see <a class="reference internal" href="combinatorial-glycan.html#combinatorial-glycan-hypothesis"><span class="std std-ref">Combinatorial</span></a>,
-<a class="reference internal" href="text-glycan.html#text-glycan-hypothesis"><span class="std std-ref">Text</span></a>, and <a class="reference internal" href="glyspace-glycan.html#glyspace-glycan-hypothesis"><span class="std std-ref">glySpace</span></a>
+glycan hypothesis (see <a class="reference internal" href="../database/combinatorial-glycan.html#combinatorial-glycan-hypothesis"><span class="std std-ref">Combinatorial</span></a>,
+<a class="reference internal" href="../database/text-glycan.html#text-glycan-hypothesis"><span class="std std-ref">Text</span></a>, and <a class="reference internal" href="../database/glyspace-glycan.html#glyspace-glycan-hypothesis"><span class="std std-ref">glySpace</span></a>
 glycan database construction methods).</p>
 <div class="section" id="glycresoft-analyze-search-glycan">
 <h2>glycresoft analyze search-glycan<a class="headerlink" href="#glycresoft-analyze-search-glycan" title="Permalink to this headline">¶</a></h2>
 <p>Identify glycan compositions from preprocessed LC-MS data, stored in mzML
 format.</p>
-<div class="highlight-shell"><div class="highlight"><pre><span></span>glycresoft analyze search-glycan <span class="o">[</span>OPTIONS<span class="o">]</span> DATABASE_CONNECTION SAMPLE_PATH
+<div class="highlight-shell notranslate"><div class="highlight"><pre><span></span>glycresoft analyze search-glycan <span class="o">[</span>OPTIONS<span class="o">]</span> DATABASE_CONNECTION SAMPLE_PATH
                                  HYPOTHESIS_IDENTIFIER
 </pre></div>
 </div>
@@ -129,8 +80,14 @@ format.</p>
 
 <dl class="option">
 <dt id="cmdoption-glycresoft-analyze-search-glycan-a">
-<code class="descname">-a</code><code class="descclassname"></code><code class="descclassname">, </code><code class="descname">--adduct</code><code class="descclassname"> &lt;string&gt;</code><a class="headerlink" href="#cmdoption-glycresoft-analyze-search-glycan-a" title="Permalink to this definition">¶</a></dt>
+<code class="descname">-a</code><code class="descclassname"></code><code class="descclassname">, </code><code class="descname">--mass_shift</code><code class="descclassname"> &lt;string&gt;</code><a class="headerlink" href="#cmdoption-glycresoft-analyze-search-glycan-a" title="Permalink to this definition">¶</a></dt>
 <dd><p>Adducts to consider. Specify name or formula, and a multiplicity. (May specify more than once)</p>
+</dd></dl>
+
+<dl class="option">
+<dt id="cmdoption-glycresoft-analyze-search-glycan-mass-shift-combination-limit">
+<code class="descname">--mass_shift-combination-limit</code><code class="descclassname"> &lt;int&gt;</code><a class="headerlink" href="#cmdoption-glycresoft-analyze-search-glycan-mass-shift-combination-limit" title="Permalink to this definition">¶</a></dt>
+<dd><p>Maximum number of mass_shift combinations to consider  [default: 8]</p>
 </dd></dl>
 
 <dl class="option">
@@ -142,7 +99,7 @@ format.</p>
 <dl class="option">
 <dt id="cmdoption-glycresoft-analyze-search-glycan-o">
 <code class="descname">-o</code><code class="descclassname"></code><code class="descclassname">, </code><code class="descname">--output-path</code><code class="descclassname"> &lt;string&gt;</code><a class="headerlink" href="#cmdoption-glycresoft-analyze-search-glycan-o" title="Permalink to this definition">¶</a></dt>
-<dd><p>Path to write resulting analysis to.</p>
+<dd><p>Path to write resulting analysis to.  [required]</p>
 </dd></dl>
 
 <dl class="option">
@@ -161,13 +118,13 @@ format.</p>
 <dl class="option">
 <dt id="cmdoption-glycresoft-analyze-search-glycan-r">
 <code class="descname">-r</code><code class="descclassname"></code><code class="descclassname">, </code><code class="descname">--regularize</code><code class="descclassname"> &lt;regularization parameter&gt;</code><a class="headerlink" href="#cmdoption-glycresoft-analyze-search-glycan-r" title="Permalink to this definition">¶</a></dt>
-<dd><p>Apply Laplacian regularization with either a specified weight or “grid” to grid search</p>
+<dd><p>Apply Laplacian regularization with either a specified weight or “grid” to grid search, or a pair of values separated by a / to specify a weight or grid search  for model fitting and a separate weight for scoring</p>
 </dd></dl>
 
 <dl class="option">
 <dt id="cmdoption-glycresoft-analyze-search-glycan-w">
 <code class="descname">-w</code><code class="descclassname"></code><code class="descclassname">, </code><code class="descname">--regularization-model-path</code><code class="descclassname"> &lt;path&gt;</code><a class="headerlink" href="#cmdoption-glycresoft-analyze-search-glycan-w" title="Permalink to this definition">¶</a></dt>
-<dd><p>Path to a file containing neighborhood model for regularization</p>
+<dd><p>Path to a file containing a neighborhood model for regularization</p>
 </dd></dl>
 
 <dl class="option">
@@ -232,7 +189,7 @@ format.</p>
 </div>
 <div class="section" id="usage-example">
 <h2>Usage Example<a class="headerlink" href="#usage-example" title="Permalink to this headline">¶</a></h2>
-<div class="highlight-bash"><div class="highlight"><pre><span></span>$ glycresoft analyze search-glycan -a Formate <span class="m">1</span> -o agp-native-results.db<span class="se">\</span>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$ glycresoft analyze search-glycan -a Formate <span class="m">1</span> -o agp-native-results.db<span class="se">\</span>
     ../hypothesis/native-n-glycans.db path/to/sample.preprocessed.mzML <span class="m">1</span><span class="se">\</span>
     --export csv
 </pre></div>
@@ -243,8 +200,8 @@ format.</p>
 <p>Adducts are mass shifts that may represent alternative charge carriers
 such as formate or sodium, or chemical defects such as water loss or
 incomplete permethylation.</p>
-<p>Adducts are considered combinatorially, so if you were to pass <code class="docutils literal"><span class="pre">-a</span> <span class="pre">Ammonium</span> <span class="pre">3</span></code>
-and <code class="docutils literal"><span class="pre">-a</span> <span class="pre">&quot;C-1H-2&quot;</span> <span class="pre">1</span></code> to indicate up to three ammonium adducts and up to one
+<p>Adducts are considered combinatorially, so if you were to pass <code class="docutils literal notranslate"><span class="pre">-a</span> <span class="pre">Ammonium</span> <span class="pre">3</span></code>
+and <code class="docutils literal notranslate"><span class="pre">-a</span> <span class="pre">&quot;C-1H-2&quot;</span> <span class="pre">1</span></code> to indicate up to three ammonium adducts and up to one
 incomplete permethylation, the program would search for</p>
 <table border="1" class="docutils">
 <colgroup>
@@ -273,14 +230,14 @@ incomplete permethylation, the program would search for</p>
 <p>Apply network smoothing by laplacian regularization to the glycan composition identification
 scores. This procedure is described in detail in XXX. By default, the network used is simply
 the full set of all glycan compositions in the hypothesis, with edges between compositions
-whose composition-distance is less than or equal to  and with neighborhoods defined
+whose composition-distance is less than or equal to <span class="math notranslate nohighlight">\(1\)</span> and with neighborhoods defined
 for <em>N</em>-glycans.</p>
 </div>
 <div class="section" id="ms-ms-signatures">
 <h2>MS/MS Signatures<a class="headerlink" href="#ms-ms-signatures" title="Permalink to this headline">¶</a></h2>
 <p>Though this tool is designed to annotate putative glycan compositions from
 LC-MS, this can lead to lots of strange matches. If your data contain MS/MS
-scans, passing a non-zero value to <code class="docutils literal"><span class="pre">--require-msms-signature</span></code> causes the
+scans, passing a non-zero value to <code class="docutils literal notranslate"><span class="pre">--require-msms-signature</span></code> causes the
 program to include only features which contain MS/MS scans which look
 “glycan-like”. Here “glycan-like” means containing abundant peaks which have
 masses derived from mono-, di-, or tri-saccharide losses. The value of this
@@ -289,25 +246,22 @@ parameter sets the minimum ratio score.</p>
 </div>
 
 
-          </div>
-        </div>
       </div>
-    <div class="clearer"></div>
-  </div>
-    <div class="footer">
-      &copy;2017, Joshua Klein.
+      <div class="bottomnav" role="navigation" aria-label="bottom navigation">
       
-      |
-      Powered by <a href="http://sphinx-doc.org/">Sphinx 1.6.6</a>
-      &amp; <a href="https://github.com/bitprophet/alabaster">Alabaster 0.7.10</a>
-      
-      |
-      <a href="../_sources/cli-apps/search-glycan.rst.txt"
-          rel="nofollow">Page source</a>
+        <p>
+        «&#160;&#160;<a href="mzml-preprocess.html">LC-MS/MS Data Preprocessing and Deconvolution</a>
+        &#160;&#160;::&#160;&#160;
+        <a class="uplink" href="../../index.html">Contents</a>
+        &#160;&#160;::&#160;&#160;
+        <a href="search-glycopeptide.html">Searching a Processed Sample with a Glycopeptide Database</a>&#160;&#160;»
+        </p>
+
+      </div>
+
+    <div class="footer" role="contentinfo">
+        &#169; Copyright 2017, Joshua Klein.
+      Created using <a href="http://sphinx-doc.org/">Sphinx</a> 1.8.5.
     </div>
-
-    
-
-    
   </body>
 </html>

@@ -4,96 +4,45 @@
 
 <html xmlns="http://www.w3.org/1999/xhtml">
   <head>
+    <meta http-equiv="X-UA-Compatible" content="IE=Edge" />
     <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
     <title>Building a Glycopeptide Hypothesis from a FASTA File &#8212; glycresoft  documentation</title>
-    <link rel="stylesheet" href="../_static/alabaster.css" type="text/css" />
-    <link rel="stylesheet" href="../_static/pygments.css" type="text/css" />
-    <script type="text/javascript">
-      var DOCUMENTATION_OPTIONS = {
-        URL_ROOT:    '../',
-        VERSION:     '',
-        COLLAPSE_INDEX: false,
-        FILE_SUFFIX: '.html',
-        HAS_SOURCE:  true,
-        SOURCELINK_SUFFIX: '.txt'
-      };
-    </script>
-    <script type="text/javascript" src="../_static/jquery.js"></script>
-    <script type="text/javascript" src="../_static/underscore.js"></script>
-    <script type="text/javascript" src="../_static/doctools.js"></script>
-    <link rel="index" title="Index" href="../genindex.html" />
-    <link rel="search" title="Search" href="../search.html" />
-    <link rel="next" title="Searching a Processed Sample with a Glycopeptide Database" href="search-glycopeptide.html" />
-    <link rel="prev" title="Building a Glycan Hypothesis from glySpace" href="glyspace-glycan.html" />
-   
-  <link rel="stylesheet" href="../_static/custom.css" type="text/css" />
-  
-  
-  <meta name="viewport" content="width=device-width, initial-scale=0.9, maximum-scale=0.9" />
-
-  </head>
-  <body>
-  <div class="document">
-    
-      <div class="sphinxsidebar" role="navigation" aria-label="main navigation">
-        <div class="sphinxsidebarwrapper"><p class='logo'>
-    <a href="../index.html">
-        <img class="logo" src="../_static/img/logo.png" style="width: 120px;"><br>
-        <span class='logo-title' style='text-align: center;'>glycresoft</span>
-    </a>
-</p>
-  <h3><a href="../index.html">Table Of Contents</a></h3>
-  <ul>
-<li><a class="reference internal" href="#">Building a Glycopeptide Hypothesis from a FASTA File</a><ul>
-<li><a class="reference internal" href="#glycresoft-build-hypothesis-glycopeptide-fa">glycresoft build-hypothesis glycopeptide-fa</a></li>
-<li><a class="reference internal" href="#usage-example">Usage Example</a><ul>
-<li><a class="reference internal" href="#supported-proteases">Supported Proteases</a></li>
-<li><a class="reference internal" href="#supported-modification-rules">Supported Modification Rules</a></li>
-<li><a class="reference internal" href="#uniprot-integration">UniProt Integration</a></li>
-</ul>
-</li>
-</ul>
-</li>
-</ul>
-<div class="relations">
-<h3>Related Topics</h3>
-<ul>
-  <li><a href="../index.html">Documentation overview</a><ul>
-  <li><a href="index.html">Command Line Applications</a><ul>
-      <li>Previous: <a href="glyspace-glycan.html" title="previous chapter">Building a Glycan Hypothesis from glySpace</a></li>
-      <li>Next: <a href="search-glycopeptide.html" title="next chapter">Searching a Processed Sample with a Glycopeptide Database</a></li>
-  </ul></li>
-  </ul></li>
-</ul>
-</div>
-  <div role="note" aria-label="source link">
-    <h3>This Page</h3>
-    <ul class="this-page-menu">
-      <li><a href="../_sources/cli-apps/fasta-glycopeptide.rst.txt"
-            rel="nofollow">Show Source</a></li>
-    </ul>
-   </div>
-<div id="searchbox" style="display: none" role="search">
-  <h3>Quick search</h3>
-    <form class="search" action="../search.html" method="get">
-      <div><input type="text" name="q" /></div>
-      <div><input type="submit" value="Go" /></div>
-      <input type="hidden" name="check_keywords" value="yes" />
-      <input type="hidden" name="area" value="default" />
-    </form>
-</div>
-<script type="text/javascript">$('#searchbox').show(0);</script>
-        </div>
+    <link rel="stylesheet" href="../../_static/haiku.css" type="text/css" />
+    <link rel="stylesheet" href="../../_static/pygments.css" type="text/css" />
+    <script type="text/javascript" id="documentation_options" data-url_root="../../" src="../../_static/documentation_options.js"></script>
+    <script type="text/javascript" src="../../_static/jquery.js"></script>
+    <script type="text/javascript" src="../../_static/underscore.js"></script>
+    <script type="text/javascript" src="../../_static/doctools.js"></script>
+    <script type="text/javascript" src="../../_static/language_data.js"></script>
+    <script async="async" type="text/javascript" src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.5/latest.js?config=TeX-AMS-MML_HTMLorMML"></script>
+    <link rel="index" title="Index" href="../../genindex.html" />
+    <link rel="search" title="Search" href="../../search.html" />
+    <link rel="next" title="Search and Analysis Tools" href="../search/index.html" />
+    <link rel="prev" title="Building a Glycan Hypothesis from glySpace" href="glyspace-glycan.html" /> 
+  </head><body>
+      <div class="header" role="banner"><img class="rightlogo" src="../../_static/logo.png" alt="Logo" style='width:120px;'/><h1 class="heading"><a href="../../index.html">
+          <span>glycresoft  documentation</span></a></h1>
+        <h2 class="heading"><span>Building a Glycopeptide Hypothesis from a FASTA File</span></h2>
       </div>
-      <div class="documentwrapper">
-        <div class="bodywrapper">
-          <div class="body" role="main">
-            
+      <div class="topnav" role="navigation" aria-label="top navigation">
+      
+        <p>
+        «&#160;&#160;<a href="glyspace-glycan.html">Building a Glycan Hypothesis from glySpace</a>
+        &#160;&#160;::&#160;&#160;
+        <a class="uplink" href="../../index.html">Contents</a>
+        &#160;&#160;::&#160;&#160;
+        <a href="../search/index.html">Search and Analysis Tools</a>&#160;&#160;»
+        </p>
+
+      </div>
+      <div class="content">
+        
+        
   <div class="section" id="building-a-glycopeptide-hypothesis-from-a-fasta-file">
 <h1>Building a Glycopeptide Hypothesis from a FASTA File<a class="headerlink" href="#building-a-glycopeptide-hypothesis-from-a-fasta-file" title="Permalink to this headline">¶</a></h1>
 <p>The simplest way to build a glycopeptide database is to start with a
 list of theoretical glycoproteins in a FASTA file and perform a simple
-<em>in-silico</em> digest with one or more proteases, apply a set of <code class="docutils literal"><span class="pre">modification</span> <span class="pre">rules</span></code>,
+<em>in-silico</em> digest with one or more proteases, apply a set of <code class="docutils literal notranslate"><span class="pre">modification</span> <span class="pre">rules</span></code>,
 and combine the resulting peptides with a glycan hypothesis to produce
 glycopeptides.</p>
 <div class="admonition warning">
@@ -109,11 +58,17 @@ several worker processes to share the load.</p>
 <h2>glycresoft build-hypothesis glycopeptide-fa<a class="headerlink" href="#glycresoft-build-hypothesis-glycopeptide-fa" title="Permalink to this headline">¶</a></h2>
 <p>Constructs a glycopeptide hypothesis from a FASTA file of proteins and a
 collection of glycans.</p>
-<div class="highlight-shell"><div class="highlight"><pre><span></span>glycresoft build-hypothesis glycopeptide-fa <span class="o">[</span>OPTIONS<span class="o">]</span> FASTA_FILE
+<div class="highlight-shell notranslate"><div class="highlight"><pre><span></span>glycresoft build-hypothesis glycopeptide-fa <span class="o">[</span>OPTIONS<span class="o">]</span> FASTA_FILE
                                             DATABASE_CONNECTION
 </pre></div>
 </div>
 <p class="rubric">Options</p>
+<dl class="option">
+<dt id="cmdoption-glycresoft-build-hypothesis-glycopeptide-fa-z">
+<code class="descname">-z</code><code class="descclassname"></code><code class="descclassname">, </code><code class="descname">--peptide-length-range</code><code class="descclassname"> &lt;tuple&gt;</code><a class="headerlink" href="#cmdoption-glycresoft-build-hypothesis-glycopeptide-fa-z" title="Permalink to this definition">¶</a></dt>
+<dd><p>The minimum and maximum peptide length to consider  [default: 5, 60]</p>
+</dd></dl>
+
 <dl class="option">
 <dt id="cmdoption-glycresoft-build-hypothesis-glycopeptide-fa-g">
 <code class="descname">-g</code><code class="descclassname"></code><code class="descclassname">, </code><code class="descname">--glycan-source</code><code class="descclassname"> &lt;string&gt;</code><a class="headerlink" href="#cmdoption-glycresoft-build-hypothesis-glycopeptide-fa-g" title="Permalink to this definition">¶</a></dt>
@@ -160,7 +115,7 @@ collection of glycans.</p>
 <dl class="option">
 <dt id="cmdoption-glycresoft-build-hypothesis-glycopeptide-fa-e">
 <code class="descname">-e</code><code class="descclassname"></code><code class="descclassname">, </code><code class="descname">--enzyme</code><code class="descclassname"> &lt;string&gt;</code><a class="headerlink" href="#cmdoption-glycresoft-build-hypothesis-glycopeptide-fa-e" title="Permalink to this definition">¶</a></dt>
-<dd><p>The proteolytic enzyme to use during digestion  [default: trypsin] (May specify more than once)</p>
+<dd><p>The proteolytic enzyme to use during digestion. May be specified multiple times, generating a co-digestion. May specify an enzyme name or a regular expression describing the cleavage pattern. Recognized enzyme names are: 2-iodobenzoate, alpha-lytic protease, arg-c, asp-n, asp-n_ambic, bnps-skatole, caspase 1, caspase 10, caspase 2, caspase 3, caspase 4, caspase 5, caspase 6, caspase 7, caspase 8, caspase 9, chymotrypsin, chymotrypsin high specificity, chymotrypsin low specificity, clostripain, cnbr, enterokinase, factor xa, formic acid, glu-c, glutamyl endopeptidase, granzyme b, hydroxylamine, iodosobenzoic acid, leukocyte elastase, lys-c, lys-c/p, none, ntcb, pepsin ph1.3, pepsin ph2.0, pepsina, proline endopeptidase, proteinase k, staphylococcal peptidase i, thermolysin, thrombin, trypchymo, trypsin, trypsin/p, v8-de, v8-e  [default: trypsin] (May specify more than once)</p>
 </dd></dl>
 
 <dl class="option">
@@ -179,6 +134,30 @@ collection of glycans.</p>
 <dt id="cmdoption-glycresoft-build-hypothesis-glycopeptide-fa-v">
 <code class="descname">-v</code><code class="descclassname"></code><code class="descclassname">, </code><code class="descname">--variable-modification</code><code class="descclassname"> &lt;string&gt;</code><a class="headerlink" href="#cmdoption-glycresoft-build-hypothesis-glycopeptide-fa-v" title="Permalink to this definition">¶</a></dt>
 <dd><p>Peptide modification rule which will be applied variablely (May specify more than once)</p>
+</dd></dl>
+
+<dl class="option">
+<dt id="cmdoption-glycresoft-build-hypothesis-glycopeptide-fa-max-variable-modifications">
+<code class="descname">-V</code><code class="descclassname"></code><code class="descclassname">, </code><code class="descname">--max-variable-modifications</code><code class="descclassname"> &lt;int&gt;</code><a class="headerlink" href="#cmdoption-glycresoft-build-hypothesis-glycopeptide-fa-max-variable-modifications" title="Permalink to this definition">¶</a></dt>
+<dd><p>The maximum number of variable modifications that can be applied to a single peptide  [default: 4]</p>
+</dd></dl>
+
+<dl class="option">
+<dt id="cmdoption-glycresoft-build-hypothesis-glycopeptide-fa-y">
+<code class="descname">-y</code><code class="descclassname"></code><code class="descclassname">, </code><code class="descname">--semispecific-digest</code><code class="descclassname"></code><a class="headerlink" href="#cmdoption-glycresoft-build-hypothesis-glycopeptide-fa-y" title="Permalink to this definition">¶</a></dt>
+<dd><p>Apply a semispecific enzyme digest permitting one peptide terminal to be non-specific  [default: False]</p>
+</dd></dl>
+
+<dl class="option">
+<dt id="cmdoption-glycresoft-build-hypothesis-glycopeptide-fa-r">
+<code class="descname">-R</code><code class="descclassname"></code><code class="descclassname">, </code><code class="descname">--reverse</code><code class="descclassname"></code><a class="headerlink" href="#cmdoption-glycresoft-build-hypothesis-glycopeptide-fa-r" title="Permalink to this definition">¶</a></dt>
+<dd><p>Reverse protein sequences  [default: False]</p>
+</dd></dl>
+
+<dl class="option">
+<dt id="cmdoption-glycresoft-build-hypothesis-glycopeptide-fa-f">
+<code class="descname">-F</code><code class="descclassname"></code><code class="descclassname">, </code><code class="descname">--not-full-crossproduct</code><code class="descclassname"></code><a class="headerlink" href="#cmdoption-glycresoft-build-hypothesis-glycopeptide-fa-f" title="Permalink to this definition">¶</a></dt>
+<dd><p>Do not produce full crossproduct. For when the search space is too large to enumerate, store, and load.  [default: False]</p>
 </dd></dl>
 
 <p class="rubric">Arguments</p>
@@ -200,7 +179,7 @@ collection of glycans.</p>
 <div class="section" id="usage-example">
 <h2>Usage Example<a class="headerlink" href="#usage-example" title="Permalink to this headline">¶</a></h2>
 <p>Below is a basic example of how to use this tool</p>
-<div class="highlight-bash"><div class="highlight"><pre><span></span><span class="c1"># We&#39;ll build a simple glycopeptide hypothesis from just two glycoproteins, the</span>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="c1"># We&#39;ll build a simple glycopeptide hypothesis from just two glycoproteins, the</span>
 <span class="c1"># isoforms of Alpha-1-acid glycoprotein.</span>
 $ cat agp.fa
 &gt;sp<span class="p">|</span>P02763<span class="p">|</span>A1AG1_HUMAN Alpha-1-acid glycoprotein <span class="m">1</span> <span class="nv">OS</span><span class="o">=</span>Homo sapiens <span class="nv">GN</span><span class="o">=</span>ORM1 <span class="nv">PE</span><span class="o">=</span><span class="m">1</span> <span class="nv">SV</span><span class="o">=</span><span class="m">1</span>
@@ -335,7 +314,7 @@ MultipleProcessFastaGlycopeptideHypothesisSerializer completed successfully.
 </div>
 <p>If you instead wish to use an existing glycan hypothesis instead
 of creating a new one, you can modify the instructions above:</p>
-<div class="highlight-bash"><div class="highlight"><pre><span></span>$ glycresoft build-hypothesis glycan-combinatorial rules-file.txt combinatorial-database -n <span class="s2">&quot;Combinatorial Human N-Glycans&quot;</span>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$ glycresoft build-hypothesis glycan-combinatorial rules-file.txt combinatorial-database -n <span class="s2">&quot;Combinatorial Human N-Glycans&quot;</span>
 ...
 
 $ glycresoft build-hypothesis glycopeptide-fa -g combinatorial-database.db -s hypothesis -G <span class="m">1</span><span class="se">\</span>
@@ -345,10 +324,10 @@ $ glycresoft build-hypothesis glycopeptide-fa -g combinatorial-database.db -s hy
 ...
 </pre></div>
 </div>
-<p>The primary difference here is that the value of the <code class="docutils literal"><span class="pre">-g</span></code> option is the path to the source
-database’s path (or connection URI), <code class="docutils literal"><span class="pre">-s</span></code> indicates that the source is a hypothesis, and
-the new <code class="docutils literal"><span class="pre">-G</span></code> option identifies the hypothesis to use, as a single database may contain many
-hypotheses. The value of <code class="docutils literal"><span class="pre">-G</span></code> can be the ID of the hypothesis or the hypothesis’s name (in this case
+<p>The primary difference here is that the value of the <code class="docutils literal notranslate"><span class="pre">-g</span></code> option is the path to the source
+database’s path (or connection URI), <code class="docutils literal notranslate"><span class="pre">-s</span></code> indicates that the source is a hypothesis, and
+the new <code class="docutils literal notranslate"><span class="pre">-G</span></code> option identifies the hypothesis to use, as a single database may contain many
+hypotheses. The value of <code class="docutils literal notranslate"><span class="pre">-G</span></code> can be the ID of the hypothesis or the hypothesis’s name (in this case
 “Combinatorial Human N-Glycans”).</p>
 <div class="section" id="supported-proteases">
 <h3>Supported Proteases<a class="headerlink" href="#supported-proteases" title="Permalink to this headline">¶</a></h3>
@@ -363,6 +342,30 @@ hypotheses. The value of <code class="docutils literal"><span class="pre">-G</sp
 </tr>
 </thead>
 <tbody valign="top">
+<tr class="row-even"><td>proline endopeptidase</td>
+<td>(?&lt;=[HKR])P(?=[^P])</td>
+</tr>
+<tr class="row-odd"><td>hydroxylamine</td>
+<td>N(?=G)</td>
+</tr>
+<tr class="row-even"><td>chymotrypsin low specificity</td>
+<td>([FLY](?=[^P]))|(W(?=[^MP]))|(M(?=[^PY]))|(H(?=[^DMPW]))</td>
+</tr>
+<tr class="row-odd"><td>chymotrypsin high specificity</td>
+<td>([FY](?=[^P]))|(W(?=[^MP]))</td>
+</tr>
+<tr class="row-even"><td>chymotrypsin</td>
+<td>(?&lt;=[FYWL])(?!P)</td>
+</tr>
+<tr class="row-odd"><td>staphylococcal peptidase i</td>
+<td>(?&lt;=[^E])E</td>
+</tr>
+<tr class="row-even"><td>trypsin/p</td>
+<td>(?&lt;=[KR])</td>
+</tr>
+<tr class="row-odd"><td>iodosobenzoic acid</td>
+<td>W</td>
+</tr>
 <tr class="row-even"><td>caspase 3</td>
 <td>(?&lt;=DMQ)D(?=[^PEDQKR])</td>
 </tr>
@@ -372,26 +375,20 @@ hypotheses. The value of <code class="docutils literal"><span class="pre">-G</sp
 <tr class="row-even"><td>caspase 1</td>
 <td>(?&lt;=[FWYL]w[HAT])D(?=[^PEDQKR])</td>
 </tr>
-<tr class="row-odd"><td>factor xa</td>
-<td>(?&lt;=[AFGILTVM][DE]G)R</td>
-</tr>
-<tr class="row-even"><td>caspase 7</td>
+<tr class="row-odd"><td>caspase 7</td>
 <td>(?&lt;=DEV)D(?=[^PEDQKR])</td>
 </tr>
-<tr class="row-odd"><td>caspase 6</td>
+<tr class="row-even"><td>caspase 6</td>
 <td>(?&lt;=VE[HI])D(?=[^PEDQKR])</td>
 </tr>
-<tr class="row-even"><td>caspase 5</td>
+<tr class="row-odd"><td>caspase 5</td>
 <td>(?&lt;=[LW]EH)D</td>
 </tr>
-<tr class="row-odd"><td>caspase 4</td>
+<tr class="row-even"><td>caspase 4</td>
 <td>(?&lt;=LEV)D(?=[^PEDQKR])</td>
 </tr>
-<tr class="row-even"><td>glutamyl endopeptidase</td>
+<tr class="row-odd"><td>glutamyl endopeptidase</td>
 <td>E</td>
-</tr>
-<tr class="row-odd"><td>trypsin</td>
-<td>([KR](?=[^P]))|((?&lt;=W)K(?=P))|((?&lt;=M)R(?=P))</td>
 </tr>
 <tr class="row-even"><td>caspase 9</td>
 <td>(?&lt;=LEH)D</td>
@@ -399,74 +396,92 @@ hypotheses. The value of <code class="docutils literal"><span class="pre">-G</sp
 <tr class="row-odd"><td>caspase 8</td>
 <td>(?&lt;=[IL]ET)D(?=[^PEDQKR])</td>
 </tr>
-<tr class="row-even"><td>granzyme b</td>
-<td>(?&lt;=IEP)D</td>
-</tr>
-<tr class="row-odd"><td>enterokinase</td>
-<td>(?&lt;=[DE]{3})K</td>
-</tr>
-<tr class="row-even"><td>cnbr</td>
-<td>M</td>
-</tr>
-<tr class="row-odd"><td>proline endopeptidase</td>
-<td>(?&lt;=[HKR])P(?=[^P])</td>
-</tr>
-<tr class="row-even"><td>arg-c</td>
-<td>R</td>
-</tr>
-<tr class="row-odd"><td>formic acid</td>
-<td>D</td>
-</tr>
-<tr class="row-even"><td>chymotrypsin high specificity</td>
-<td>([FY](?=[^P]))|(W(?=[^MP]))</td>
-</tr>
-<tr class="row-odd"><td>caspase 10</td>
-<td>(?&lt;=IEA)D</td>
-</tr>
-<tr class="row-even"><td>bnps-skatole</td>
-<td>W</td>
-</tr>
-<tr class="row-odd"><td>thermolysin</td>
-<td>[^DE](?=[AFILMV])</td>
-</tr>
-<tr class="row-even"><td>none</td>
-<td>&#160;</td>
-</tr>
-<tr class="row-odd"><td>proteinase k</td>
-<td>[AEFILTVWY]</td>
-</tr>
-<tr class="row-even"><td>thrombin</td>
-<td>((?&lt;=G)R(?=G))|((?&lt;=[AFGILTVM][AFGILTVWA]P)R(?=[^DE][^DE]))</td>
-</tr>
-<tr class="row-odd"><td>lysc</td>
-<td>K</td>
-</tr>
-<tr class="row-even"><td>asp-n</td>
-<td>w(?=D)</td>
-</tr>
-<tr class="row-odd"><td>ntcb</td>
-<td>w(?=C)</td>
-</tr>
-<tr class="row-even"><td>staphylococcal peptidase i</td>
-<td>(?&lt;=[^E])E</td>
-</tr>
-<tr class="row-odd"><td>iodosobenzoic acid</td>
-<td>W</td>
-</tr>
 <tr class="row-even"><td>pepsin ph1.3</td>
 <td>((?&lt;=[^HKR][^P])[^R](?=[FLWY][^P]))|((?&lt;=[^HKR][^P])[FLWY](?=w[^P]))</td>
 </tr>
-<tr class="row-odd"><td>pepsin ph2.0</td>
-<td>((?&lt;=[^HKR][^P])[^R](?=[FL][^P]))|((?&lt;=[^HKR][^P])[FL](?=w[^P]))</td>
+<tr class="row-odd"><td>trypchymo</td>
+<td>(?&lt;=[FYWLKR])(?!P)</td>
+</tr>
+<tr class="row-even"><td>leukocyte elastase</td>
+<td>(?&lt;=[ALIV])(?!P)</td>
+</tr>
+<tr class="row-odd"><td>none</td>
+<td>^&amp;$</td>
 </tr>
 <tr class="row-even"><td>clostripain</td>
 <td>R</td>
 </tr>
-<tr class="row-odd"><td>hydroxylamine</td>
-<td>N(?=G)</td>
+<tr class="row-odd"><td>alpha-lytic protease</td>
+<td>[TASV]</td>
 </tr>
-<tr class="row-even"><td>chymotrypsin low specificity</td>
-<td>([FLY](?=[^P]))|(W(?=[^MP]))|(M(?=[^PY]))|(H(?=[^DMPW]))</td>
+<tr class="row-even"><td>factor xa</td>
+<td>(?&lt;=[AFGILTVM][DE]G)R</td>
+</tr>
+<tr class="row-odd"><td>cnbr</td>
+<td>M</td>
+</tr>
+<tr class="row-even"><td>arg-c</td>
+<td>(?&lt;=R)(?!P)</td>
+</tr>
+<tr class="row-odd"><td>formic acid</td>
+<td>D</td>
+</tr>
+<tr class="row-even"><td>caspase 10</td>
+<td>(?&lt;=IEA)D</td>
+</tr>
+<tr class="row-odd"><td>bnps-skatole</td>
+<td>W</td>
+</tr>
+<tr class="row-even"><td>lys-c</td>
+<td>(?&lt;=K)(?!P)</td>
+</tr>
+<tr class="row-odd"><td>glu-c</td>
+<td>E</td>
+</tr>
+<tr class="row-even"><td>thrombin</td>
+<td>((?&lt;=G)R(?=G))|((?&lt;=[AFGILTVM][AFGILTVWA]P)R(?=[^DE][^DE]))</td>
+</tr>
+<tr class="row-odd"><td>v8-de</td>
+<td>(?&lt;=[BDEZ])(?!P)</td>
+</tr>
+<tr class="row-even"><td>ntcb</td>
+<td>w(?=C)</td>
+</tr>
+<tr class="row-odd"><td>thermolysin</td>
+<td>[^DE](?=[AFILMV])</td>
+</tr>
+<tr class="row-even"><td>v8-e</td>
+<td>(?&lt;=[EZ])(?!P)</td>
+</tr>
+<tr class="row-odd"><td>proteinase k</td>
+<td>[AEFILTVWY]</td>
+</tr>
+<tr class="row-even"><td>pepsin ph2.0</td>
+<td>((?&lt;=[^HKR][^P])[^R](?=[FL][^P]))|((?&lt;=[^HKR][^P])[FL](?=w[^P]))</td>
+</tr>
+<tr class="row-odd"><td>granzyme b</td>
+<td>(?&lt;=IEP)D</td>
+</tr>
+<tr class="row-even"><td>enterokinase</td>
+<td>(?&lt;=[DE]{3})K</td>
+</tr>
+<tr class="row-odd"><td>pepsina</td>
+<td>(?&lt;=[FL])</td>
+</tr>
+<tr class="row-even"><td>2-iodobenzoate</td>
+<td>(?&lt;=W)</td>
+</tr>
+<tr class="row-odd"><td>lys-c/p</td>
+<td>(?&lt;=K)</td>
+</tr>
+<tr class="row-even"><td>asp-n</td>
+<td>(?=[BD])</td>
+</tr>
+<tr class="row-odd"><td>trypsin</td>
+<td>([KR](?=[^P]))|((?&lt;=W)K(?=P))|((?&lt;=M)R(?=P))</td>
+</tr>
+<tr class="row-even"><td>asp-n_ambic</td>
+<td>(?=[DE])</td>
 </tr>
 </tbody>
 </table>
@@ -491,25 +506,22 @@ see <a class="reference external" href="todo">Peptide Modifications</a></p>
 </div>
 
 
-          </div>
-        </div>
       </div>
-    <div class="clearer"></div>
-  </div>
-    <div class="footer">
-      &copy;2017, Joshua Klein.
+      <div class="bottomnav" role="navigation" aria-label="bottom navigation">
       
-      |
-      Powered by <a href="http://sphinx-doc.org/">Sphinx 1.6.6</a>
-      &amp; <a href="https://github.com/bitprophet/alabaster">Alabaster 0.7.10</a>
-      
-      |
-      <a href="../_sources/cli-apps/fasta-glycopeptide.rst.txt"
-          rel="nofollow">Page source</a>
+        <p>
+        «&#160;&#160;<a href="glyspace-glycan.html">Building a Glycan Hypothesis from glySpace</a>
+        &#160;&#160;::&#160;&#160;
+        <a class="uplink" href="../../index.html">Contents</a>
+        &#160;&#160;::&#160;&#160;
+        <a href="../search/index.html">Search and Analysis Tools</a>&#160;&#160;»
+        </p>
+
+      </div>
+
+    <div class="footer" role="contentinfo">
+        &#169; Copyright 2017, Joshua Klein.
+      Created using <a href="http://sphinx-doc.org/">Sphinx</a> 1.8.5.
     </div>
-
-    
-
-    
   </body>
 </html>

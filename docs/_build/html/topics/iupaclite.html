@@ -1,0 +1,81 @@
+
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+
+<html xmlns="http://www.w3.org/1999/xhtml">
+  <head>
+    <meta http-equiv="X-UA-Compatible" content="IE=Edge" />
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+    <title>IUPAClite Monosaccharide and Glycan Notation &#8212; glycresoft  documentation</title>
+    <link rel="stylesheet" href="../_static/haiku.css" type="text/css" />
+    <link rel="stylesheet" href="../_static/pygments.css" type="text/css" />
+    <script type="text/javascript" id="documentation_options" data-url_root="../" src="../_static/documentation_options.js"></script>
+    <script type="text/javascript" src="../_static/jquery.js"></script>
+    <script type="text/javascript" src="../_static/underscore.js"></script>
+    <script type="text/javascript" src="../_static/doctools.js"></script>
+    <script type="text/javascript" src="../_static/language_data.js"></script>
+    <script async="async" type="text/javascript" src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.5/latest.js?config=TeX-AMS-MML_HTMLorMML"></script>
+    <link rel="index" title="Index" href="../genindex.html" />
+    <link rel="search" title="Search" href="../search.html" />
+    <link rel="prev" title="Other Topics" href="index.html" /> 
+  </head><body>
+      <div class="header" role="banner"><img class="rightlogo" src="../_static/logo.png" alt="Logo" style='width:120px;'/><h1 class="heading"><a href="../index.html">
+          <span>glycresoft  documentation</span></a></h1>
+        <h2 class="heading"><span>IUPAClite Monosaccharide and Glycan Notation</span></h2>
+      </div>
+      <div class="topnav" role="navigation" aria-label="top navigation">
+      
+        <p>
+        «&#160;&#160;<a href="index.html">Other Topics</a>
+        &#160;&#160;::&#160;&#160;
+        <a class="uplink" href="../index.html">Contents</a>
+        </p>
+
+      </div>
+      <div class="content">
+        
+        
+  <div class="section" id="iupaclite-monosaccharide-and-glycan-notation">
+<h1>IUPAClite Monosaccharide and Glycan Notation<a class="headerlink" href="#iupaclite-monosaccharide-and-glycan-notation" title="Permalink to this headline">¶</a></h1>
+<p>GlycReSoft uses <code class="xref py py-mod docutils literal notranslate"><span class="pre">glypy</span></code>’s <span class="xref std std-term">IUPAClite</span> notation for monosaccharides and glycan compositions.</p>
+<p>A monosaccharide is denoted using IUPAC notation, omitting ring shape, anomeric state, chirality,
+and modification positions (optionally). For example, <code class="docutils literal notranslate"><span class="pre">a-D-Manp</span></code> would be written <code class="docutils literal notranslate"><span class="pre">Man</span></code>, or
+<code class="docutils literal notranslate"><span class="pre">b-D-Glcp2NAc</span></code> would be written <code class="docutils literal notranslate"><span class="pre">GlcNAc</span></code>.</p>
+<p>You can also use generic base types like <code class="docutils literal notranslate"><span class="pre">Hex</span></code> or <code class="docutils literal notranslate"><span class="pre">Pen</span></code> for example, to denote a six or five
+carbon monosaccharide. The notation is composable, so you can specify an arbitrarily modified
+monosaccharide, like <code class="docutils literal notranslate"><span class="pre">HexNAc(S)</span></code> to specify a sulfated HexNAc, using the parenthesized convention
+that separates substituent groups, or <code class="docutils literal notranslate"><span class="pre">dHexN</span></code> for a deoxy-Hexosamine.</p>
+<p>You can also define “floating” substituent groups by prefixing their full lowercase
+names with an <code class="docutils literal notranslate"><span class="pre">&#64;</span></code>-sign, like <code class="docutils literal notranslate"><span class="pre">&#64;sulfate</span></code> for sulfate or <code class="docutils literal notranslate"><span class="pre">&#64;acetyl</span></code> for an acetyl group.</p>
+<p>A glycan composition is written as one or more <code class="docutils literal notranslate"><span class="pre">&lt;monosaccharide&gt;:&lt;count&gt;</span></code> occurrences separated by
+a “; ” (semi-colon + space), enclosed in “{ }”. A few examples are shown below:</p>
+<div class="literal-block-wrapper docutils container" id="id1">
+<div class="code-block-caption"><span class="caption-text">IUPAClite glycan compositions</span><a class="headerlink" href="#id1" title="Permalink to this code">¶</a></div>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="p">{</span><span class="n">Hex</span><span class="p">:</span><span class="mi">5</span><span class="p">;</span> <span class="n">HexNAc</span><span class="p">:</span><span class="mi">4</span><span class="p">;</span> <span class="n">Neu5Ac</span><span class="p">:</span><span class="mi">1</span><span class="p">}</span>
+<span class="p">{</span><span class="n">Hex</span><span class="p">:</span><span class="mi">5</span><span class="p">;</span> <span class="n">HexNAc</span><span class="p">:</span><span class="mi">4</span><span class="p">;</span> <span class="n">Neu5Ac</span><span class="p">:</span><span class="mi">2</span><span class="p">}</span>
+<span class="p">{</span><span class="n">Fuc</span><span class="p">:</span><span class="mi">1</span><span class="p">;</span> <span class="n">Hex</span><span class="p">:</span><span class="mi">5</span><span class="p">;</span> <span class="n">HexNAc</span><span class="p">:</span><span class="mi">4</span><span class="p">;</span> <span class="n">Neu5Ac</span><span class="p">:</span><span class="mi">2</span><span class="p">}</span>
+<span class="p">{</span><span class="n">Fuc</span><span class="p">:</span><span class="mi">2</span><span class="p">;</span> <span class="n">Hex</span><span class="p">:</span><span class="mi">6</span><span class="p">;</span> <span class="n">HexNAc</span><span class="p">:</span><span class="mi">5</span><span class="p">;</span> <span class="n">Neu5Ac</span><span class="p">:</span><span class="mi">1</span><span class="p">}</span>
+<span class="p">{</span><span class="n">Fuc</span><span class="p">:</span><span class="mi">1</span><span class="p">;</span> <span class="n">Hex</span><span class="p">:</span><span class="mi">6</span><span class="p">;</span> <span class="n">HexNAc</span><span class="p">:</span><span class="mi">5</span><span class="p">;</span> <span class="n">Neu5Ac</span><span class="p">:</span><span class="mi">2</span><span class="p">}</span>
+</pre></div>
+</div>
+</div>
+</div>
+
+
+      </div>
+      <div class="bottomnav" role="navigation" aria-label="bottom navigation">
+      
+        <p>
+        «&#160;&#160;<a href="index.html">Other Topics</a>
+        &#160;&#160;::&#160;&#160;
+        <a class="uplink" href="../index.html">Contents</a>
+        </p>
+
+      </div>
+
+    <div class="footer" role="contentinfo">
+        &#169; Copyright 2017, Joshua Klein.
+      Created using <a href="http://sphinx-doc.org/">Sphinx</a> 1.8.5.
+    </div>
+  </body>
+</html>

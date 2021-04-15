@@ -19,6 +19,10 @@ Usage Example
          -o "agp-glycopepitdes-in-sample.db"
 
 
+.. click:: glycan_profiling.cli.analyze:search_glycopeptide_multipart
+    :prog: glycresoft analyze search-glycopeptide-multipart
+
+
 Memory Consumption and Workload Size
 ------------------------------------
 Extensive use of caching and work-sharing has been done to make searching enormous

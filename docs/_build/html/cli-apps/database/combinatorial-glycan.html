@@ -4,110 +4,64 @@
 
 <html xmlns="http://www.w3.org/1999/xhtml">
   <head>
+    <meta http-equiv="X-UA-Compatible" content="IE=Edge" />
     <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
     <title>Building a Combinatorial Glycan Hypothesis &#8212; glycresoft  documentation</title>
-    <link rel="stylesheet" href="../_static/alabaster.css" type="text/css" />
-    <link rel="stylesheet" href="../_static/pygments.css" type="text/css" />
-    <script type="text/javascript">
-      var DOCUMENTATION_OPTIONS = {
-        URL_ROOT:    '../',
-        VERSION:     '',
-        COLLAPSE_INDEX: false,
-        FILE_SUFFIX: '.html',
-        HAS_SOURCE:  true,
-        SOURCELINK_SUFFIX: '.txt'
-      };
-    </script>
-    <script type="text/javascript" src="../_static/jquery.js"></script>
-    <script type="text/javascript" src="../_static/underscore.js"></script>
-    <script type="text/javascript" src="../_static/doctools.js"></script>
-    <link rel="index" title="Index" href="../genindex.html" />
-    <link rel="search" title="Search" href="../search.html" />
+    <link rel="stylesheet" href="../../_static/haiku.css" type="text/css" />
+    <link rel="stylesheet" href="../../_static/pygments.css" type="text/css" />
+    <script type="text/javascript" id="documentation_options" data-url_root="../../" src="../../_static/documentation_options.js"></script>
+    <script type="text/javascript" src="../../_static/jquery.js"></script>
+    <script type="text/javascript" src="../../_static/underscore.js"></script>
+    <script type="text/javascript" src="../../_static/doctools.js"></script>
+    <script type="text/javascript" src="../../_static/language_data.js"></script>
+    <script async="async" type="text/javascript" src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.5/latest.js?config=TeX-AMS-MML_HTMLorMML"></script>
+    <link rel="index" title="Index" href="../../genindex.html" />
+    <link rel="search" title="Search" href="../../search.html" />
     <link rel="next" title="Building a Glycan Hypothesis from a Text File" href="text-glycan.html" />
-    <link rel="prev" title="LC-MS/MS Data Preprocessing and Deconvolution" href="mzml-preprocess.html" />
-   
-  <link rel="stylesheet" href="../_static/custom.css" type="text/css" />
-  
-  
-  <meta name="viewport" content="width=device-width, initial-scale=0.9, maximum-scale=0.9" />
-
-  </head>
-  <body>
-  <div class="document">
-    
-      <div class="sphinxsidebar" role="navigation" aria-label="main navigation">
-        <div class="sphinxsidebarwrapper"><p class='logo'>
-    <a href="../index.html">
-        <img class="logo" src="../_static/img/logo.png" style="width: 120px;"><br>
-        <span class='logo-title' style='text-align: center;'>glycresoft</span>
-    </a>
-</p>
-  <h3><a href="../index.html">Table Of Contents</a></h3>
-  <ul>
-<li><a class="reference internal" href="#">Building a Combinatorial Glycan Hypothesis</a><ul>
-<li><a class="reference internal" href="#glycresoft-build-hypothesis-glycan-combinatorial">glycresoft build-hypothesis glycan-combinatorial</a></li>
-<li><a class="reference internal" href="#example-usage">Example Usage</a></li>
-</ul>
-</li>
-</ul>
-<div class="relations">
-<h3>Related Topics</h3>
-<ul>
-  <li><a href="../index.html">Documentation overview</a><ul>
-  <li><a href="index.html">Command Line Applications</a><ul>
-      <li>Previous: <a href="mzml-preprocess.html" title="previous chapter">LC-MS/MS Data Preprocessing and Deconvolution</a></li>
-      <li>Next: <a href="text-glycan.html" title="next chapter">Building a Glycan Hypothesis from a Text File</a></li>
-  </ul></li>
-  </ul></li>
-</ul>
-</div>
-  <div role="note" aria-label="source link">
-    <h3>This Page</h3>
-    <ul class="this-page-menu">
-      <li><a href="../_sources/cli-apps/combinatorial-glycan.rst.txt"
-            rel="nofollow">Show Source</a></li>
-    </ul>
-   </div>
-<div id="searchbox" style="display: none" role="search">
-  <h3>Quick search</h3>
-    <form class="search" action="../search.html" method="get">
-      <div><input type="text" name="q" /></div>
-      <div><input type="submit" value="Go" /></div>
-      <input type="hidden" name="check_keywords" value="yes" />
-      <input type="hidden" name="area" value="default" />
-    </form>
-</div>
-<script type="text/javascript">$('#searchbox').show(0);</script>
-        </div>
+    <link rel="prev" title="Database Building Tools" href="index.html" /> 
+  </head><body>
+      <div class="header" role="banner"><img class="rightlogo" src="../../_static/logo.png" alt="Logo" style='width:120px;'/><h1 class="heading"><a href="../../index.html">
+          <span>glycresoft  documentation</span></a></h1>
+        <h2 class="heading"><span>Building a Combinatorial Glycan Hypothesis</span></h2>
       </div>
-      <div class="documentwrapper">
-        <div class="bodywrapper">
-          <div class="body" role="main">
-            
+      <div class="topnav" role="navigation" aria-label="top navigation">
+      
+        <p>
+        «&#160;&#160;<a href="index.html">Database Building Tools</a>
+        &#160;&#160;::&#160;&#160;
+        <a class="uplink" href="../../index.html">Contents</a>
+        &#160;&#160;::&#160;&#160;
+        <a href="text-glycan.html">Building a Glycan Hypothesis from a Text File</a>&#160;&#160;»
+        </p>
+
+      </div>
+      <div class="content">
+        
+        
   <div class="section" id="building-a-combinatorial-glycan-hypothesis">
 <span id="combinatorial-glycan-hypothesis"></span><h1>Building a Combinatorial Glycan Hypothesis<a class="headerlink" href="#building-a-combinatorial-glycan-hypothesis" title="Permalink to this headline">¶</a></h1>
 <p>When you do not have a complete list of glycan compositions you
 know are reasonable and present, a first pass can be done with a
 combinatorial glycan composition hypothesis.</p>
-<p>A combinatorial glycan hypothesis is defined by a set of <code class="docutils literal"><span class="pre">component</span>
-<span class="pre">ranges</span></code> and a set of <code class="docutils literal"><span class="pre">algebraic</span> <span class="pre">constraints</span></code>.</p>
-<p>A <code class="docutils literal"><span class="pre">component</span> <span class="pre">range</span></code> is defined by a <code class="docutils literal"><span class="pre">component</span></code> residue such as a
+<p>A combinatorial glycan hypothesis is defined by a set of <code class="docutils literal notranslate"><span class="pre">component</span>
+<span class="pre">ranges</span></code> and a set of <code class="docutils literal notranslate"><span class="pre">algebraic</span> <span class="pre">constraints</span></code>.</p>
+<p>A <code class="docutils literal notranslate"><span class="pre">component</span> <span class="pre">range</span></code> is defined by a <code class="docutils literal notranslate"><span class="pre">component</span></code> residue such as a
 monossaccharide (or any entity which can be encoded with <a class="reference external" href="todo">IUPAClite</a>)
-with a <code class="docutils literal"><span class="pre">minimum</span></code> count and a <code class="docutils literal"><span class="pre">maximum</span></code> count. Candidate glycan compositions will
-contain the <code class="docutils literal"><span class="pre">component</span></code> with every possible value in the range between <code class="docutils literal"><span class="pre">minimum</span></code>
-and <code class="docutils literal"><span class="pre">maximum</span></code></p>
-<p>An <code class="docutils literal"><span class="pre">algebraic</span> <span class="pre">constraint</span></code> is defined by two expressions containing numbers
-binary arithmetic operators and variables corresponding to <code class="docutils literal"><span class="pre">components</span></code> and
+with a <code class="docutils literal notranslate"><span class="pre">minimum</span></code> count and a <code class="docutils literal notranslate"><span class="pre">maximum</span></code> count. Candidate glycan compositions will
+contain the <code class="docutils literal notranslate"><span class="pre">component</span></code> with every possible value in the range between <code class="docutils literal notranslate"><span class="pre">minimum</span></code>
+and <code class="docutils literal notranslate"><span class="pre">maximum</span></code></p>
+<p>An <code class="docutils literal notranslate"><span class="pre">algebraic</span> <span class="pre">constraint</span></code> is defined by two expressions containing numbers
+binary arithmetic operators and variables corresponding to <code class="docutils literal notranslate"><span class="pre">components</span></code> and
 a comparator operator relating the two expressions. No candidate glycan composition
 will be included in the hypothesis will fail to satisfy all applied constraints.</p>
-<div class="highlight-text"><div class="highlight"><pre><span></span>HexNAc &gt; (NeuAc + NeuGc + 1)
+<div class="highlight-text notranslate"><div class="highlight"><pre><span></span>HexNAc &gt; (NeuAc + NeuGc + 1)
 </pre></div>
 </div>
 <p>This constraint requires that the total number of sialylic acids always be one less
 than the number of HexNAc, which is common for canonical N-glycans in humans.</p>
 <p>To pass these instructions to the build tool, they must be written in a text file
 following the format</p>
-<div class="highlight-text"><div class="highlight"><pre><span></span>; comments are allowed on lines starting with a semi-colon
+<div class="highlight-text notranslate"><div class="highlight"><pre><span></span>; comments are allowed on lines starting with a semi-colon
 &lt;component&gt;  &lt;minimum&gt;  &lt;maximum&gt;
 &lt;component&gt;  &lt;minimum&gt;  &lt;maximum&gt;
 ...
@@ -128,7 +82,7 @@ on glycan composition classifiers, please see <a class="reference external" href
 </div>
 <div class="section" id="glycresoft-build-hypothesis-glycan-combinatorial">
 <h2>glycresoft build-hypothesis glycan-combinatorial<a class="headerlink" href="#glycresoft-build-hypothesis-glycan-combinatorial" title="Permalink to this headline">¶</a></h2>
-<div class="highlight-shell"><div class="highlight"><pre><span></span>glycresoft build-hypothesis glycan-combinatorial <span class="o">[</span>OPTIONS<span class="o">]</span> RULE_FILE
+<div class="highlight-shell notranslate"><div class="highlight"><pre><span></span>glycresoft build-hypothesis glycan-combinatorial <span class="o">[</span>OPTIONS<span class="o">]</span> RULE_FILE
                                                  DATABASE_CONNECTION
 </pre></div>
 </div>
@@ -170,7 +124,7 @@ on glycan composition classifiers, please see <a class="reference external" href
 <p>For more information on reductions and derivatizations, please see <a class="reference external" href="todo">Glycan Modifications</a></p>
 <div class="section" id="example-usage">
 <h2>Example Usage<a class="headerlink" href="#example-usage" title="Permalink to this headline">¶</a></h2>
-<div class="highlight-bash"><div class="highlight"><pre><span></span>$ cat rules-file.txt
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$ cat rules-file.txt
 Hex <span class="m">3</span> <span class="m">10</span>
 HexNAc <span class="m">2</span> <span class="m">9</span>
 Fuc <span class="m">0</span> <span class="m">5</span>
@@ -206,25 +160,22 @@ CombinatorialGlycanHypothesisSerializer completed successfully.
 </div>
 
 
-          </div>
-        </div>
       </div>
-    <div class="clearer"></div>
-  </div>
-    <div class="footer">
-      &copy;2017, Joshua Klein.
+      <div class="bottomnav" role="navigation" aria-label="bottom navigation">
       
-      |
-      Powered by <a href="http://sphinx-doc.org/">Sphinx 1.6.6</a>
-      &amp; <a href="https://github.com/bitprophet/alabaster">Alabaster 0.7.10</a>
-      
-      |
-      <a href="../_sources/cli-apps/combinatorial-glycan.rst.txt"
-          rel="nofollow">Page source</a>
+        <p>
+        «&#160;&#160;<a href="index.html">Database Building Tools</a>
+        &#160;&#160;::&#160;&#160;
+        <a class="uplink" href="../../index.html">Contents</a>
+        &#160;&#160;::&#160;&#160;
+        <a href="text-glycan.html">Building a Glycan Hypothesis from a Text File</a>&#160;&#160;»
+        </p>
+
+      </div>
+
+    <div class="footer" role="contentinfo">
+        &#169; Copyright 2017, Joshua Klein.
+      Created using <a href="http://sphinx-doc.org/">Sphinx</a> 1.8.5.
     </div>
-
-    
-
-    
   </body>
 </html>
