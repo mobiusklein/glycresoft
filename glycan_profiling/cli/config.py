@@ -3,12 +3,12 @@ import click
 from glycan_profiling.cli.base import cli
 from glycan_profiling.config.config_file import (
     add_user_modification_rule as add_user_peptide_modification_rule,
-    add_user_substituent_rule)
+    add_user_substituent_rule, delete_config_dir)
 
-from glypy.composition import formula
+from glypy.composition import formula, Composition
 
 from glycopeptidepy.structure.modification import (
-    extract_targets_from_string, ModificationRule, Composition,
+    extract_targets_from_string, ModificationRule,
     Modification)
 
 
@@ -67,3 +67,9 @@ def substituent(name, composition, is_nh_derivatizable, can_nh_derivatize, attac
     click.echo("is_nh_derivatizable: %s" % (is_nh_derivatizable,))
     click.echo("can_nh_derivatize: %s" % (can_nh_derivatize,))
     click.echo("attachment_loss: %s" % (attachment_loss,))
+
+
+@config.command("clear-configuration")
+def clear_config():
+    click.secho("Deleting Configuration Directory", fg='red')
+    delete_config_dir()

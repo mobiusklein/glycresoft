@@ -89,7 +89,14 @@ class LabelProducer(object):
 
 
 class NGlycanLabelProducer(LabelProducer):
+    """Create a square-brace enclosed tuplet of digits denoting the count
+    of of a specific set of glycan composition components common to N-Glycans.
+
+    Relies on :class:`GlycanLabelTransformer`
+
+    """
     def __init__(self, monosaccharides=("HexNAc", "Hex", "Fuc", "NeuAc")):
+        super(NGlycanLabelProducer, self).__init__()
         self.monosaccharides = monosaccharides
         self.stub = glypy.GlycanComposition()
         for x in monosaccharides:
@@ -124,7 +131,7 @@ class ChromatogramArtist(ArtistBase):
     default_label_function = staticmethod(default_label_extractor)
     include_points = True
 
-    def __init__(self, chromatograms, ax=None, colorizer=None, label_peaks=True):
+    def __init__(self, chromatograms, ax=None, colorizer=None, label_peaks=True, clip_labels=True):
         if colorizer is None:
             colorizer = ColorCycler()
         if ax is None:
@@ -143,6 +150,7 @@ class ChromatogramArtist(ArtistBase):
         self.default_colorizer = colorizer
         self.legend = None
         self.label_peaks = label_peaks
+        self.clip_labels = clip_labels
 
     def __iter__(self):
         return iter(self.chromatograms)
@@ -188,7 +196,7 @@ class ChromatogramArtist(ArtistBase):
         rt_apex = rt[apex_ind]
 
         if label is not None:
-            self.ax.text(rt_apex, apex + 1200, label, ha='center', fontsize=label_font_size, clip_on=True)
+            self.ax.text(rt_apex, apex + 1200, label, ha='center', fontsize=label_font_size, clip_on=self.clip_labels)
 
     def draw_group(self, label, rt, heights, color, label_peak=True, chromatogram=None, label_font_size=10):
         if chromatogram is not None:
@@ -224,7 +232,7 @@ class ChromatogramArtist(ArtistBase):
         if label is not None and label_peak:
             self.ax.text(
                 rt_apex, min(apex * 1.1, apex + 1200), label, ha='center', fontsize=label_font_size,
-                clip_on=True)
+                clip_on=self.clip_labels)
 
     def transform_group(self, rt, heights):
         return rt, heights
@@ -293,12 +301,13 @@ class ChromatogramArtist(ArtistBase):
         self.ax.set_xticks(tick_values)
         self.ax.set_xticklabels(["%0.2f" % v for v in tick_values])
 
-    def layout_axes(self, legend=True, axis_font_size=18, axis_label_font_size=24):
+    def layout_axes(self, legend=True, axis_font_size=18, axis_label_font_size=16, legend_cols=2):
         self._interpolate_xticks(self.minimum_ident_time, self.maximum_ident_time)
         self.ax.set_ylim(0, self.maximum_intensity * 1.25)
         if legend:
             try:
-                self.legend = self.ax.legend(bbox_to_anchor=(1.2, 1.), ncol=2, fontsize=10)
+                self.legend = self.ax.legend(bbox_to_anchor=(
+                    1.2, 1.), ncol=legend_cols, fontsize=10)
             except ValueError:
                 # matplotlib 2.1.1 bug compares array-like colors using == and expects a
                 # scalar boolean, triggering a ValueError. When this happens, we can't
@@ -313,31 +322,25 @@ class ChromatogramArtist(ArtistBase):
         [t.set(fontsize=axis_font_size) for t in self.ax.get_xticklabels()]
         [t.set(fontsize=axis_font_size) for t in self.ax.get_yticklabels()]
 
-    def draw(self, filter_function=lambda x, y: False, label_function=None,
-             legend=True, label_font_size=10):
+    def draw(self, label_function=None, legend=True, label_font_size=10, axis_label_font_size=16,
+             axis_font_size=18, legend_cols=2):
         if label_function is None:
             label_function = self.default_label_function
         for chroma in self.chromatograms:
             composition = chroma.composition
-            if composition is not None:
-                if hasattr(chroma, 'entity') and chroma.entity is not None:
-                    gc = chroma.glycan_composition
-                else:
-                    gc = glypy.GlycanComposition.parse(composition)
-            else:
-                gc = None
-            if filter_function(gc, chroma):
-                continue
-
-            self.process_group(composition, chroma, label_function, label_font_size=label_font_size)
-        self.layout_axes(legend=legend)
+            self.process_group(composition, chroma, label_function,
+                               label_font_size=label_font_size)
+        self.layout_axes(
+            legend=legend, axis_label_font_size=axis_label_font_size,
+            axis_font_size=axis_font_size, legend_cols=legend_cols)
         return self
 
 
 class SmoothingChromatogramArtist(ChromatogramArtist):
-    def __init__(self, chromatograms, ax=None, colorizer=None, smoothing_factor=1.0, label_peaks=True):
+    def __init__(self, chromatograms, ax=None, colorizer=None, smoothing_factor=1.0,
+                 label_peaks=True, clip_labels=True):
         super(SmoothingChromatogramArtist, self).__init__(
-            chromatograms, ax=ax, colorizer=colorizer, label_peaks=label_peaks)
+            chromatograms, ax=ax, colorizer=colorizer, label_peaks=label_peaks, clip_labels=clip_labels)
         self.smoothing_factor = smoothing_factor
 
     def transform_group(self, rt, heights):
@@ -371,7 +374,7 @@ class SmoothingChromatogramArtist(ChromatogramArtist):
 
         if label is not None:
             self.ax.text(rt_apex, apex + 1200, label, ha='center', fontsize=label_font_size,
-                         clip_on=True)
+                         clip_on=self.clip_labels)
 
 
 class ChargeSeparatingChromatogramArtist(ChromatogramArtist):
@@ -389,3 +392,25 @@ class ChargeSeparatingChromatogramArtist(ChromatogramArtist):
 class ChargeSeparatingSmoothingChromatogramArtist(
         ChargeSeparatingChromatogramArtist, SmoothingChromatogramArtist):
     pass
+
+
+def mass_shift_separating_chromatogram(chroma, ax=None, **kwargs):
+    mass_shifts = list(chroma.mass_shifts)
+    labels = {}
+    for mass_shift in mass_shifts:
+        with_mass_shift, _ = chroma.bisect_mass_shift(mass_shift)
+        labels[mass_shift] = with_mass_shift
+    mass_shift_plot = SmoothingChromatogramArtist(
+        labels.values(),
+        colorizer=lambda *a, **k: 'green', ax=ax).draw(
+        label_function=lambda *a, **k: tuple(a[0].mass_shifts)[0].name,
+        legend=False,
+        **kwargs)
+    rt, intens = chroma.as_arrays()
+    mass_shift_plot.draw_generic_chromatogram(
+        "Total", rt, intens, color='steelblue')
+    ymin = mass_shift_plot.ax.get_ylim()[0]
+    mass_shift_plot.ax.set_ylim(ymin, intens.max() * 1.01)
+    mass_shift_plot.ax.set_title(
+        "Mass Shift-Separated\nExtracted Ion Chromatogram", fontsize=24)
+    return mass_shift_plot.ax

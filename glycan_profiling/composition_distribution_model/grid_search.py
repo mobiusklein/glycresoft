@@ -2,35 +2,92 @@ from collections import OrderedDict, namedtuple
 import re
 
 import numpy as np
+
+from scipy import sparse
+
 from matplotlib import pyplot as plt
 
 from ms_deisotope.feature_map.profile_transform import peak_indices
+
+from glycan_profiling.task import log_handle
 
 from .constants import DEFAULT_RHO
 
 
 class NetworkReduction(object):
+    r"""A mapping-like ordered data structure that maps score thresholds to
+    :class:`NetworkTrimmingSolution` instances produced at that score. Used
+    for selecting the optimal smoothing factor :math:`\lambda` and during the
+    grid search for finding the optimal score threshold.
+
+    Attributes
+    ----------
+    store : :class:`~.OrderedDict`
+        The storage mapping score to solution
+    """
 
     def __init__(self, store=None):
         if store is None:
             store = OrderedDict()
         self.store = store
+        self._invalidated = True
+        self._resort()
 
     def getkey(self, key):
+        """Get the solution whose score threshold matches ``key``
+
+        Parameters
+        ----------
+        key : float
+            The score threshold
+
+        Returns
+        -------
+        :class:`NetworkTrimmingSolution`
+        """
         return self.store[key]
 
     def getindex(self, ix):
+        """Get the ``ix``th solution, regardless of threshold value
+
+        Parameters
+        ----------
+        ix : int
+            The index to return
+
+        Returns
+        -------
+        :class:`NetworkTrimmingSolution`
+        """
         return self.getkey(list(self.store.keys())[ix])
 
     def searchkey(self, value):
+        """Search for the solution whose score threshold
+        is closest to ``value``
+
+        Parameters
+        ----------
+        value : float
+            The threshold to search for
+
+        Returns
+        -------
+        :class:`NetworkTrimmingSolution`
+        """
+        if self._invalidated:
+            self._resort()
         array = list(self.store.keys())
         ix = self.binsearch(array, value)
         key = array[ix]
-        assert abs(value - key) < 1e-3
         return self.getkey(key)
 
     def put(self, key, value):
         self.store[key] = value
+        self._invalidated = True
+
+    def _resort(self):
+        self.store = OrderedDict((key, self[key]) for key in sorted(self.store.keys()))
+        self._invalidated = False
 
     def __getitem__(self, key):
         return self.getkey(key)
@@ -41,16 +98,20 @@ class NetworkReduction(object):
     def __iter__(self):
         return iter(self.store.values())
 
+    def __len__(self):
+        return len(self.store)
+
     @staticmethod
     def binsearch(array, value):
         lo = 0
-        hi = len(array) - 1
-        while hi - lo:
-            i = (hi + lo) / 2
+        hi = len(array)
+        i = 0
+        while (hi - lo) != 0:
+            i = (hi + lo) // 2
             x = array[i]
-            if x == value:
+            if abs(x - value) < 1e-3:
                 return i
-            elif hi - lo == 1:
+            elif (hi - lo) == 1:
                 return i
             elif x < value:
                 lo = i
@@ -69,8 +130,8 @@ class NetworkReduction(object):
         ax.scatter(x, y)
         ax.set_xlim(*xbound)
         ax.set_ylim(*ybound)
-        ax.set_xlabel("$S_o$ Threshold", fontsize=18)
-        ax.set_ylabel("Optimal $\lambda$", fontsize=18)
+        ax.set_xlabel(r"$S_o$ Threshold", fontsize=18)
+        ax.set_ylabel(r"Optimal $\lambda$", fontsize=18)
         return ax
 
     def minimum_threshold_for_lambda(self, lmbda_target):
@@ -95,6 +156,34 @@ class NetworkReduction(object):
 
 
 class NetworkTrimmingSearchSolution(object):
+    r"""Hold all the information for the grid search over the smoothing factor
+    :math:`\lambda` at score threshold :attr:`threshold`.
+
+    Attributes
+    ----------
+    lambda_values : :class:`np.ndarray`
+        The :math:`\lambda` searched over
+    minimum_residuals : float
+        The smallest PRESS residuals
+    model : :class:`~.LaplacianSmoothingModel`
+        The smoothing model used for producing these estimates
+    network : :class:`~.CompositionGraph`
+        The network structure retained at :attr:`threshold`
+    observed : list
+        The graph nodes considered observed at this threshold
+    optimal_lambda : float
+        The best :math:`\lambda` value selected by minimizing the PRESS
+    optimal_tau : :class:`np.ndarray`
+        The value of :math:`\tau` for the best value of :math:`\lambda`
+    press_residuals : :class:`np.ndarray`
+        The PRESS at each value of :math:`\lambda`
+    taus : list
+        The :class:`np.ndarray` for each value of :math:`\lambda`
+    threshold : float
+        The score threshold used to produce this trimmed network
+    updated : bool
+        Whether or not this model has changed since the last threshold
+    """
 
     def __init__(self, threshold, lambda_values, press_residuals, network, observed=None,
                  updated=None, taus=None, model=None):
@@ -129,12 +218,24 @@ class NetworkTrimmingSearchSolution(object):
         return "NetworkTrimmingSearchSolution(%f, %d, %0.3f -> %0.3e)" % (
             self.threshold, self.n_kept, opt_lambda, min_press)
 
+    def copy(self):
+        dup = self.__class__(
+            self.threshold,
+            self.lambda_values.copy(),
+            self.press_residuals.copy(),
+            self.network.clone(),
+            self.observed.copy(),
+            list(self.updated),
+            list(self.taus),
+            self.model)
+        return dup
+
     def plot(self, ax=None, **kwargs):
         if ax is None:
             fig, ax = plt.subplots(1)
         ax.plot(self.lambda_values, self.press_residuals, **kwargs)
-        ax.set_xlabel("$\lambda$")
-        ax.set_ylabel("Summed $PRESS$ Residual")
+        ax.set_xlabel(r"$\lambda$")
+        ax.set_ylabel(r"Summed $PRESS$ Residual")
         return ax
 
 
@@ -143,14 +244,137 @@ GridSearchSolution = namedtuple("GridSearchSolution", (
     "target_thresholds"))
 
 
+
+class GridPointTextCodec(object):
+    version_code = 1
+
+    def __init__(self, cls_type=None):
+        if cls_type is None:
+            cls_type = GridPointSolution
+        self.cls_type = cls_type
+
+    def load(self, fp):
+        state = "BETWEEN"
+        threshold = 0
+        lmbda = 0
+        tau = []
+        belongingness_matrix = []
+        variance_matrix_tags = {}
+        neighborhood_names = []
+        node_names = []
+        version_code = self.version_code
+
+        for line_number, line in enumerate(fp):
+            line = line.strip("\n\r")
+            if line.startswith(";version="):
+                version_code = int(line.split("=", 1)[1])
+            if line.startswith(";"):
+                continue
+            if line.startswith("threshold:"):
+                threshold = float(line.split(":")[1])
+                if state in ("TAU", "BELONG"):
+                    state = "BETWEEN"
+            elif line.startswith("lambda:"):
+                lmbda = float(line.split(":")[1])
+                if state in ("TAU", "BELONG"):
+                    state = "BETWEEN"
+            elif line.startswith("tau:"):
+                state = "TAU"
+            elif line.startswith("belongingness:"):
+                state = "BELONG"
+            elif line.startswith("variance:"):
+                state = "VARIANCE"
+            elif line.startswith("\t") or line.startswith("  "):
+                if state == "TAU":
+                    try:
+                        _, name, value = re.split(r"\t|\s{2,}", line)
+                    except ValueError as e:
+                        print(line_number, line)
+                        raise e
+                    tau.append(float(value))
+                    neighborhood_names.append(name)
+                elif state == "BELONG":
+                    try:
+                        _, name, values = re.split(r"\t|\s{2,}", line)
+                    except ValueError as e:
+                        print(line_number, line)
+                        raise e
+                    belongingness_matrix.append([float(t) for t in values.split(",")])
+                    node_names.append(name)
+                elif state == 'VARIANCE':
+                    try:
+                        _, tag, values = re.split(r"\t|\s{2,}", line)
+                        values = list(map(float, values.split(",")))
+                        variance_matrix_tags[tag] = values
+                    except ValueError as e:
+                        print(line_number, line)
+                        raise e
+                else:
+                    state = "BETWEEN"
+        if variance_matrix_tags:
+            vmat_shape = [int(p) for p in variance_matrix_tags['shape']]
+            variance_matrix = np.zeros(vmat_shape)
+            row_ix = np.array(variance_matrix_tags['rows'], dtype=int)
+            col_ix = np.array(variance_matrix_tags['cols'], dtype=int)
+            variance_matrix[row_ix, col_ix] = variance_matrix_tags['data']
+        else:
+            variance_matrix = None
+
+        return self.cls_type(threshold, lmbda, np.array(tau, dtype=np.float64),
+                   np.array(belongingness_matrix, dtype=np.float64),
+                   neighborhood_names=neighborhood_names,
+                   node_names=node_names, variance_matrix=variance_matrix)
+
+    def dump(self, obj, fp):
+        fp.write(";version=%s\n" % self.version_code)
+        fp.write("threshold: %f\n" % (obj.threshold,))
+        fp.write("lambda: %f\n" % (obj.lmbda,))
+        fp.write("tau:\n")
+        for i, t in enumerate(obj.tau):
+            fp.write("\t%s\t%f\n" % (obj.neighborhood_names[i], t,))
+        fp.write("belongingness:\n")
+        for g, row in enumerate(obj.belongingness_matrix):
+            fp.write("\t%s\t" % (obj.node_names[g]))
+            for i, a_ij in enumerate(row):
+                if i != 0:
+                    fp.write(",")
+                fp.write("%f" % (a_ij,))
+            fp.write("\n")
+        fp.write("variance:\n")
+        var_coords = sparse.coo_matrix(obj.variance_matrix)
+        fp.write('\tshape\t%s\n' % (','.join(map(str, var_coords.shape))))
+        fp.write("\trow\t%s\n" % (','.join(map(str, var_coords.row))))
+        fp.write("\tcol\t%s\n" % (','.join(map(str, var_coords.col))))
+        fp.write("\tdata\t%s\n" % (','.join(map(str, var_coords.data))))
+        return fp
+
+
 class GridPointSolution(object):
-    def __init__(self, threshold, lmbda, tau, belongingness_matrix, neighborhood_names, node_names):
+    def __init__(self, threshold, lmbda, tau, belongingness_matrix, neighborhood_names, node_names,
+                 variance_matrix=None):
+        if variance_matrix is None:
+            variance_matrix = np.identity(len(node_names), dtype=np.float64)
         self.threshold = threshold
         self.lmbda = lmbda
-        self.tau = tau
-        self.belongingness_matrix = belongingness_matrix
+        self.tau = np.array(tau, dtype=np.float64)
+        self.belongingness_matrix = np.array(belongingness_matrix, dtype=np.float64)
         self.neighborhood_names = np.array(neighborhood_names)
         self.node_names = np.array(node_names)
+        self.variance_matrix = np.array(variance_matrix, dtype=np.float64)
+
+    def __eq__(self, other):
+        ac = np.allclose
+        match = ac(self.threshold, other.threshold) and ac(self.lmbda, other.lmbda) and ac(
+            self.tau, other.tau) and ac(self.belongingness_matrix, other.belongingness_matrix) and ac(
+            self.variance_matrix, other.variance_matrix)
+        if not match:
+            return match
+        match = np.all(self.node_names == other.node_names) and np.all(
+            self.neighborhood_names == other.neighborhood_names)
+        return match
+
+    def __ne__(self, other):
+        return not (self == other)
 
     def __repr__(self):
         return "GridPointSolution(threshold=%0.3f, lmbda=%0.3f, tau=%r)" % (
@@ -163,7 +387,8 @@ class GridPointSolution(object):
             self.tau.copy(),
             self.belongingness_matrix.copy(),
             self.neighborhood_names.copy(),
-            self.node_names.copy())
+            self.node_names.copy(),
+            self.variance_matrix.copy())
 
     def reindex(self, model):
         node_indices, node_names = self._build_node_index_map(model)
@@ -171,6 +396,7 @@ class GridPointSolution(object):
 
         self.belongingness_matrix = self.belongingness_matrix[node_indices, :][:, tau_indices]
         self.tau = self.tau[tau_indices]
+        self.variance_matrix = self.variance_matrix[node_indices, node_indices]
 
         self.neighborhood_names = model.neighborhood_names
         self.node_names = node_names
@@ -196,80 +422,83 @@ class GridPointSolution(object):
         tau_indices = [model.neighborhood_names.index(name) for name in self.neighborhood_names]
         return tau_indices
 
-    def dump(self, fp):
-        fp.write("threshold: %f\n" % (self.threshold,))
-        fp.write("lambda: %f\n" % (self.lmbda,))
-        fp.write("tau:\n")
-        for i, t in enumerate(self.tau):
-            fp.write("\t%s\t%f\n" % (self.neighborhood_names[i], t,))
-        fp.write("belongingness:\n")
-        for g, row in enumerate(self.belongingness_matrix):
-            fp.write("\t%s\t" % (self.node_names[g]))
-            for i, a_ij in enumerate(row):
-                if i != 0:
-                    fp.write(",")
-                fp.write("%f" % (a_ij,))
-            fp.write("\n")
+    def dump(self, fp, codec=None):
+        if codec is None:
+            codec = GridPointTextCodec()
+        codec.dump(self, fp)
         return fp
 
     @classmethod
-    def load(cls, fp):
-        state = "BETWEEN"
-        threshold = 0
-        lmbda = 0
-        tau = []
-        belongingness_matrix = []
-        neighborhood_names = []
-        node_names = []
-        for line_number, line in enumerate(fp):
-            line = line.strip("\n\r")
-            if line.startswith(";"):
-                continue
-            if line.startswith("threshold:"):
-                threshold = float(line.split(":")[1])
-                if state in ("TAU", "BELONG"):
-                    state = "BETWEEN"
-            elif line.startswith("lambda:"):
-                lmbda = float(line.split(":")[1])
-                if state in ("TAU", "BELONG"):
-                    state = "BETWEEN"
-            elif line.startswith("tau:"):
-                state = "TAU"
-            elif line.startswith("belongingness:"):
-                state = "BELONG"
-            elif line.startswith("\t") or line.startswith("  "):
-                if state == "TAU":
-                    try:
-                        _, name, value = re.split(r"\t|\s{2,}", line)
-                    except ValueError as e:
-                        print(line_number, line)
-                        raise e
-                    tau.append(float(value))
-                    neighborhood_names.append(name)
-                elif state == "BELONG":
-                    try:
-                        _, name, values = re.split(r"\t|\s{2,}", line)
-                    except ValueError as e:
-                        print(line_number, line)
-                        raise e
-                    belongingness_matrix.append([float(t) for t in values.split(",")])
-                    node_names.append(name)
-                else:
-                    state = "BETWEEN"
-        return cls(threshold, lmbda, np.array(tau, dtype=np.float64),
-                   np.array(belongingness_matrix, dtype=np.float64),
-                   neighborhood_names=neighborhood_names,
-                   node_names=node_names)
+    def load(cls, fp, codec=None):
+        if codec is None:
+            codec = GridPointTextCodec(cls)
+        inst = codec.load(fp)
+        return inst
 
 
-class ThresholdSelectionGridSearch(object):
-    def __init__(self, model, network_reduction=None, apex_threshold=0.95, threshold_bias=4.0):
+class NetworkSmoothingModelSolutionBase(object):
+    def __init__(self, model):
         self.model = model
+
+    def _get_default_solution(self, *args, **kwargs):
+        raise NotImplementedError()
+
+    def estimate_phi_observed(self, solution=None, remove_threshold=True, rho=DEFAULT_RHO):
+        if solution is None:
+            solution = self._get_default_solution(rho=rho)
+        if remove_threshold:
+            self.model.reset()
+        return self.model.optimize_observed_scores(
+            solution.lmbda, solution.belongingness_matrix[self.model.obs_ix, :].dot(solution.tau))
+
+    def estimate_phi_missing(self, solution=None, remove_threshold=True, observed_scores=None):
+        if solution is None:
+            solution = self._get_default_solution()
+        if remove_threshold:
+            self.model.reset()
+        if observed_scores is None:
+            observed_scores = self.estimate_phi_observed(
+                solution=solution, remove_threshold=False)
+        t0 = self.model.A0.dot(solution.tau)
+        tm = self.model.Am.dot(solution.tau)
+        return self.model.compute_missing_scores(observed_scores, t0, tm)
+
+    def annotate_network(self, solution=None, remove_threshold=True, include_missing=True):
+        if solution is None:
+            solution = self._get_default_solution()
+        if remove_threshold:
+            self.model.reset()
+        observed_scores = self.estimate_phi_observed(solution, remove_threshold=False)
+
+        if include_missing:
+            missing_scores = self.estimate_phi_missing(
+                solution, remove_threshold=False,
+                observed_scores=observed_scores)
+
+        network = self.model.network.clone()
+        network.neighborhoods = self.model.neighborhood_walker.neighborhoods.clone()
+        for i, ix in enumerate(self.model.obs_ix):
+            network[ix].score = observed_scores[i]
+
+        if include_missing:
+            for i, ix in enumerate(self.model.miss_ix):
+                network[ix].score = missing_scores[i]
+                network[ix].marked = True
+
+        return network
+
+
+class ThresholdSelectionGridSearch(NetworkSmoothingModelSolutionBase):
+    def __init__(self, model, network_reduction=None, apex_threshold=0.95, threshold_bias=4.0):
+        super(ThresholdSelectionGridSearch, self).__init__(model)
         self.network_reduction = network_reduction
         self.apex_threshold = apex_threshold
         self.threshold_bias = float(threshold_bias)
         if self.threshold_bias < 1:
             raise ValueError("Threshold Bias must be 1 or greater")
+
+    def _get_default_solution(self, *args, **kwargs):
+        return self.average_solution(*args, **kwargs)
 
     def has_reduction(self):
         return self.network_reduction is not None and bool(self.network_reduction)
@@ -278,12 +507,13 @@ class ThresholdSelectionGridSearch(object):
         if self.network_reduction is None:
             self.network_reduction = self.model.find_threshold_and_lambda(
                 rho=DEFAULT_RHO, threshold_step=0.1, fit_tau=True)
+        log_handle.log("... Exploring Grid Landscape")
         stack = []
         tau_magnitude = []
-        xaxis = []
+        thresholds = []
 
         for level in self.network_reduction:
-            xaxis.append(level.threshold)
+            thresholds.append(level.threshold)
 
         # Pull the distribution slightly to the right
         bias_shift = 1 - (1 / self.threshold_bias)
@@ -297,11 +527,27 @@ class ThresholdSelectionGridSearch(object):
                     (level.threshold / bias_scale) + bias_shift)
             )
         tau_magnitude = np.array(tau_magnitude)
-        apex = peak_indices(tau_magnitude)
-        xaxis = np.array(xaxis)
-        apex = apex[(tau_magnitude[apex] > (tau_magnitude[apex].max() * self.apex_threshold))]
-        target_thresholds = [t for t in xaxis[apex]]
-        solution = GridSearchSolution(stack, tau_magnitude, xaxis, apex, target_thresholds)
+        if len(tau_magnitude) == 0:
+            # No solutions, so these will be empty
+            return GridSearchSolution(stack, tau_magnitude, thresholds, np.array([]), thresholds)
+        elif len(tau_magnitude) <= 2:
+            apex = np.argmax(tau_magnitude)
+        elif len(tau_magnitude) > 2:
+            apex = peak_indices(tau_magnitude)
+            if len(apex) == 0:
+                apex = np.array([np.argmax(tau_magnitude)])
+
+        thresholds = np.array(thresholds)
+        apex_threshold = tau_magnitude[apex].max() * self.apex_threshold
+        if apex_threshold != 0:
+            apex = apex[(tau_magnitude[apex] > apex_threshold)]
+        else:
+            # The tau threshold may be 0, in which case any point will do, but this
+            # solution carries no generalization.
+            apex = apex[(tau_magnitude[apex] >= apex_threshold)]
+        target_thresholds = [t for t in thresholds[apex]]
+        solution = GridSearchSolution(stack, tau_magnitude, thresholds, apex, target_thresholds)
+        log_handle.log("... %d Candidate Solutions" % (len(target_thresholds),))
         return solution
 
     def _get_solution_states(self):
@@ -321,15 +567,19 @@ class ThresholdSelectionGridSearch(object):
         # Removes rows from A0
         self.model.set_threshold(state.threshold)
 
-        # tau = self.model.estimate_tau_from_S0(rho, lmbda)
         tau = self.model.estimate_tau_from_S0(rho, lmbda)
         A = self.model.normalized_belongingness_matrix.copy()
 
+        # Restore removed rows from A0
         self.model.remove_belongingness_patch()
+
+        variance_matrix = np.identity(len(self.model.network)) * 0
+        variance_matrix[self.model.obs_ix, self.model.obs_ix] = np.diag(self.model.variance_matrix)
 
         return GridPointSolution(state.threshold, lmbda, tau, A,
                                  self.model.neighborhood_names,
-                                 self.model.node_names)
+                                 self.model.node_names,
+                                 variance_matrix=variance_matrix)
 
     def get_solutions(self, rho=DEFAULT_RHO, lmbda=None):
         states = self._get_solution_states()
@@ -340,9 +590,12 @@ class ThresholdSelectionGridSearch(object):
 
     def average_solution(self, rho=DEFAULT_RHO, lmbda=None):
         solutions = self.get_solutions(rho=rho, lmbda=lmbda)
+        if len(solutions) == 0:
+            return None
         tau_acc = np.zeros_like(solutions[0].tau)
         lmbda_acc = 0
         thresh_acc = 0
+        # variance_matrix = np.zeros_like()
         A = np.zeros_like(solutions[0].belongingness_matrix)
         for sol in solutions:
             thresh_acc += sol.threshold
@@ -355,53 +608,13 @@ class ThresholdSelectionGridSearch(object):
         lmbda_acc /= n
         A /= n
         # A = ProportionMatrixNormalization.normalize(A, self.model._belongingness_normalization)
+        variance_matrix = np.identity(len(self.model.network)) * 0
+        variance_matrix[self.model.obs_ix, self.model.obs_ix] = np.diag(self.model.variance_matrix)
         average_solution = GridPointSolution(
             thresh_acc, lmbda_acc, tau_acc, A,
-            self.model.neighborhood_names, self.model.node_names)
+            self.model.neighborhood_names, self.model.node_names,
+            variance_matrix=variance_matrix)
         return average_solution
-
-    def estimate_phi_observed(self, solution=None, remove_threshold=True, rho=DEFAULT_RHO):
-        if solution is None:
-            solution = self.average_solution(rho=rho)
-        if remove_threshold:
-            self.model.reset()
-        return self.model.optimize_observed_scores(
-            solution.lmbda, solution.belongingness_matrix[self.model.obs_ix, :].dot(solution.tau))
-
-    def estimate_phi_missing(self, solution=None, remove_threshold=True, observed_scores=None):
-        if solution is None:
-            solution = self.average_solution()
-        if remove_threshold:
-            self.model.reset()
-        if observed_scores is None:
-            observed_scores = self.estimate_phi_observed(
-                solution=solution, remove_threshold=False)
-        t0 = self.model.A0.dot(solution.tau)
-        tm = self.model.Am.dot(solution.tau)
-        return self.model.compute_missing_scores(observed_scores, t0, tm)
-
-    def annotate_network(self, solution=None, remove_threshold=True, include_missing=True):
-        if solution is None:
-            solution = self.average_solution()
-        if remove_threshold:
-            self.model.reset()
-        observed_scores = self.estimate_phi_observed(solution, remove_threshold=False)
-
-        if include_missing:
-            missing_scores = self.estimate_phi_missing(
-                solution, remove_threshold=False,
-                observed_scores=observed_scores)
-
-        network = self.model.network.clone()
-
-        for i, ix in enumerate(self.model.obs_ix):
-            network[ix].score = observed_scores[i]
-
-        if include_missing:
-            for i, ix in enumerate(self.model.miss_ix):
-                network[ix].score = missing_scores[i]
-
-        return network
 
     def plot(self, ax=None):
         if ax is None:
@@ -415,7 +628,7 @@ class ThresholdSelectionGridSearch(object):
         ax.set_ylabel("Criterion", fontsize=18)
         ax.set_title("Locate Ideal Threshold\nBy Maximizing ${\\bar \\tau_j}$", fontsize=28)
         ax.set_xticks([x_ for i, x_ in enumerate(solution.thresholds) if i % 5 == 0])
-        ax.set_xticklabels(["%0.2f" % x_ for i, x_ in enumerate(solution.thresholds) if i % 5 == 0])
+        ax.set_xticklabels(["%0.2f" % x_ for i, x_ in enumerate(solution.thresholds) if i % 5 == 0], rotation=90)
         return ax
 
     def plot_thresholds(self, ax=None):
@@ -426,3 +639,21 @@ class ThresholdSelectionGridSearch(object):
         ax.vlines(solution.thresholds[solution.apexes], 0, 1, color='red')
         ax.set_title("Selected Estimation Points for ${\\bar \\tau}$", fontsize=28)
         return ax
+
+    def fit(self, rho=DEFAULT_RHO, lmbda=None):
+        solution = self.average_solution(rho=rho, lmbda=lmbda)
+        if solution is None:
+            raise ValueError("Could not fit model. No acceptable solution found.")
+        return NetworkSmoothingModelFit(self.model, solution)
+
+
+class NetworkSmoothingModelFit(NetworkSmoothingModelSolutionBase):
+    def __init__(self, model, solution):
+        super(NetworkSmoothingModelFit, self).__init__(model)
+        self.solution = solution
+
+    def _get_default_solution(self, *args, **kwargs):
+        return self.solution
+
+    def __repr__(self):
+        return "{self.__class__.__name__}({self.model}, {self.solution})".format(self=self)

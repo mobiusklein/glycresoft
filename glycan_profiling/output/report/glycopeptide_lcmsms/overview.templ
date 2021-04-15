@@ -13,7 +13,7 @@
 <body>
 <div>
     <div id='display-panel'>
-        
+
     </div>
     <h2>
         {{analysis.name}}
@@ -59,13 +59,21 @@
         </table>
     </section>
     <section id='glycoprotein-detail-list'>
-        {% for glycoprotein in glycoprotein_iterator %}
-            <div class='glycoprotein-entry-detail' id='detail-glycoprotein-{{glycoprotein.id}}'>
+        {% for i, glycoprotein in glycoprotein_iterator %}
+            <div class='glycoprotein-entry-detail' id='detail-glycoprotein-{{glycoprotein.id}}'
+                 data-glycoprotein-index="{{i}}"
+                {% if use_dynamic_display_mode and i > 0 %}
+                     style='display: none;'
+                {% endif %}
+                >
                 <section>
                 {% include "protein-heading.templ" %}
-                <div class='glycoform-pileup-container'>
-                    {{renderer.draw_glycoforms(glycoprotein)}}
-                </div>
+
+                {% if not use_dynamic_display_mode or (use_dynamic_display_mode and glycoprotein.identified_glycopeptides|length > 1) %}
+                    <div class='glycoform-pileup-container'>
+                        {{renderer.draw_glycoforms(glycoprotein)}}
+                    </div>
+                {% endif %}
                 {% include "glycopeptide-table.templ" %}
                 <div class='flex-container plot-grid'>
                 {% for site_type, axis in renderer.site_specific_abundance_plots(glycoprotein).items() %}
@@ -75,7 +83,7 @@
                 {% endfor %}
                 </div>
                 </section>
-                {% for glycopeptide in glycoprotein.identified_glycopeptides|sort(reverse=True, attribute='ms2_score') %}
+                {% for glycopeptide in glycoprotein.identified_glycopeptides|sort(reverse=True, attribute='-q_value,ms2_score') %}
                     {% include "glycopeptide-detail-entry.templ" %}
                 {% endfor %}
             </div>

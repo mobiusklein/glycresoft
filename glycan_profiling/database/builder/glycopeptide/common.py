@@ -55,7 +55,7 @@ class GlycopeptideHypothesisSerializerBase(DatabaseBoundOperation, HypothesisSer
     uuid : str
         The uuid of the hypothesis to be constructed
     """
-    def __init__(self, database_connection, hypothesis_name=None, glycan_hypothesis_id=None):
+    def __init__(self, database_connection, hypothesis_name=None, glycan_hypothesis_id=None, full_cross_product=True):
         DatabaseBoundOperation.__init__(self, database_connection)
         self._hypothesis_name = hypothesis_name
         self._hypothesis_id = None
@@ -63,6 +63,7 @@ class GlycopeptideHypothesisSerializerBase(DatabaseBoundOperation, HypothesisSer
         self._glycan_hypothesis_id = glycan_hypothesis_id
         self.uuid = str(uuid4().hex)
         self.total_glycan_combination_count = -1
+        self.full_cross_product = full_cross_product
 
     def _construct_hypothesis(self):
         if self._hypothesis_name is None or self._hypothesis_name.strip() == "":
@@ -95,12 +96,18 @@ class GlycopeptideHypothesisSerializerBase(DatabaseBoundOperation, HypothesisSer
             self.hypothesis_id, n)
         combinator.run()
         self.total_glycan_combination_count = combinator.total_count
+        if not (self.total_glycan_combination_count > 0):
+            raise ValueError("No glycan combinations were generated. No glycopeptides can be produced!")
 
     def _count_produced_glycopeptides(self):
         count = self.query(
             func.count(Glycopeptide.id)).filter(
             Glycopeptide.hypothesis_id == self.hypothesis_id).scalar()
         self.log("Generated %d glycopeptides" % count)
+        self.set_parameters({
+            "database_size": count
+        })
+        return count
 
     def _sql_analyze_database(self):
         self.log("Analyzing Indices")
@@ -229,7 +236,9 @@ def limiting_combinations(iterable, n, limit=100):
 
 
 class GlycanCombinationRecord(object):
-    __slots__ = ['id', 'calculated_mass', 'formula', 'count', 'glycan_composition_string']
+    __slots__ = [
+        'id', 'calculated_mass', 'formula', 'count', 'glycan_composition_string',
+        '_composition', '_dehydrated_composition']
 
     def __init__(self, combination):
         self.id = combination.id
@@ -237,6 +246,18 @@ class GlycanCombinationRecord(object):
         self.formula = combination.formula
         self.count = combination.count
         self.glycan_composition_string = combination.composition
+        self._composition = None
+        self._dehydrated_composition = None
+
+    def total_composition(self):
+        if self._composition is None:
+            self._composition = self.convert().total_composition()
+        return self._composition
+
+    def dehydrated_composition(self):
+        if self._dehydrated_composition is None:
+            self._dehydrated_composition = self.total_composition() - (Composition("H2O") * self.count)
+        return self._dehydrated_composition
 
     def convert(self):
         gc = FrozenGlycanComposition.parse(self.glycan_composition_string)
@@ -270,15 +291,11 @@ class PeptideGlycosylator(object):
 
     def _load_glycan_records(self):
         if self.glycan_offset is None:
-            # log_handle.log("... Building Glycan Combination Records Without Offset")
             glycan_combinations = self.session.query(
                 GlycanCombination).filter(
                 GlycanCombination.hypothesis_id == self.hypothesis_id).all()
             glycan_combinations = [GlycanCombinationRecord(gc) for gc in glycan_combinations]
         else:
-            # log_handle.log(
-            #     "... Building Glycan Combination Records With Offset %r Limit %r" % (
-            #         self.glycan_offset, self.glycan_limit))
             glycan_combinations = self.session.query(
                 GlycanCombination).filter(
                 GlycanCombination.hypothesis_id == self.hypothesis_id).offset(
@@ -299,6 +316,7 @@ class PeptideGlycosylator(object):
         water = Composition("H2O")
         peptide_composition = Composition(str(peptide.formula))
         obj = peptide.convert()
+        reference = obj.clone()
 
         # Handle N-linked glycosylation sites
 
@@ -310,17 +328,17 @@ class PeptideGlycosylator(object):
             i += 1
             for gc in self.glycan_combination_partitions[i, {GlycanTypes.n_glycan: i}]:
                 total_mass = peptide.calculated_mass + gc.calculated_mass - (gc.count * water.mass)
-                formula_string = formula(peptide_composition + Composition(str(gc.formula)) - (water * gc.count))
+                formula_string = formula(peptide_composition + gc.dehydrated_composition())
 
                 for site_set in limiting_combinations(n_glycosylation_unoccupied_sites, i):
-                    sequence = peptide.convert()
+                    sequence = reference.clone()
                     for site in site_set:
                         sequence.add_modification(site, _n_glycosylation.name)
                     sequence.glycan = gc.convert()
 
                     glycopeptide_sequence = str(sequence)
 
-                    glycopeptide = Glycopeptide(
+                    glycopeptide = dict(
                         calculated_mass=total_mass,
                         formula=formula_string,
                         glycopeptide_sequence=glycopeptide_sequence,
@@ -340,17 +358,17 @@ class PeptideGlycosylator(object):
             i += 1
             for gc in self.glycan_combination_partitions[i, {GlycanTypes.o_glycan: i}]:
                 total_mass = peptide.calculated_mass + gc.calculated_mass - (gc.count * water.mass)
-                formula_string = formula(peptide_composition + Composition(str(gc.formula)) - (water * gc.count))
+                formula_string = formula(peptide_composition + gc.dehydrated_composition())
 
                 for site_set in limiting_combinations(o_glycosylation_unoccupied_sites, i):
-                    sequence = peptide.convert()
+                    sequence = reference.clone()
                     for site in site_set:
                         sequence.add_modification(site, _o_glycosylation.name)
                     sequence.glycan = gc.convert()
 
                     glycopeptide_sequence = str(sequence)
 
-                    glycopeptide = Glycopeptide(
+                    glycopeptide = dict(
                         calculated_mass=total_mass,
                         formula=formula_string,
                         glycopeptide_sequence=glycopeptide_sequence,
@@ -369,16 +387,16 @@ class PeptideGlycosylator(object):
             i += 1
             for gc in self.glycan_combination_partitions[i, {GlycanTypes.gag_linker: i}]:
                 total_mass = peptide.calculated_mass + gc.calculated_mass - (gc.count * water.mass)
-                formula_string = formula(peptide_composition + Composition(str(gc.formula)) - (water * gc.count))
+                formula_string = formula(peptide_composition + gc.dehydrated_composition())
                 for site_set in limiting_combinations(gag_unoccupied_sites, i):
-                    sequence = peptide.convert()
+                    sequence = reference.clone()
                     for site in site_set:
                         sequence.add_modification(site, _gag_linker_glycosylation.name)
                     sequence.glycan = gc.convert()
 
                     glycopeptide_sequence = str(sequence)
 
-                    glycopeptide = Glycopeptide(
+                    glycopeptide = dict(
                         calculated_mass=total_mass,
                         formula=formula_string,
                         glycopeptide_sequence=glycopeptide_sequence,
@@ -394,6 +412,8 @@ def null_log_handler(msg):
 
 
 class PeptideGlycosylatingProcess(Process):
+    process_name = "glycopeptide-build-worker"
+
     def __init__(self, connection, hypothesis_id, input_queue, chunk_size=5000, done_event=None,
                  log_handler=null_log_handler, glycan_offset=None,
                  glycan_limit=_DEFAULT_GLYCAN_STEP_LIMIT):
@@ -416,7 +436,7 @@ class PeptideGlycosylatingProcess(Process):
         return self.work_done_event.is_set()
 
     def process_result(self, collection):
-        self.session.bulk_save_objects(collection)
+        self.session.bulk_insert_mappings(Glycopeptide, collection, render_nulls=True)
         self.session.commit()
 
     def load_peptides(self, work_items):
@@ -467,6 +487,9 @@ class PeptideGlycosylatingProcess(Process):
         self.log_handler("Process %r completed. (%d peptides, %d glycopeptides)" % (self.pid, n, n_gps))
 
     def run(self):
+        new_name = getattr(self, 'process_name', None)
+        if new_name is not None:
+            TaskBase().try_set_process_name(new_name)
         try:
             self.task()
         except Exception as e:
@@ -590,19 +613,35 @@ class MultipleProcessPeptideGlycosylator(TaskBase):
                             self.log("... %d waiting sets." % (waiting_batches,))
                             try:
                                 for _ in range(waiting_batches):
-                                    batch.extend(self.output_queue.get_nowait())
+                                    batch.extend(self.output_queue.get(True, 1))
+                                # check to see if any new work items have arrived while
+                                # we've been draining the queue
+                                waiting_batches = self.output_queue.qsize()
+                                if waiting_batches != 0:
+                                    # if so, while the barrier is up, let's write the batch
+                                    # to disk and then try to drain the queue again
+                                    i += len(batch)
+                                    try:
+                                        session.bulk_insert_mappings(Glycopeptide, batch, render_nulls=True)
+                                        session.commit()
+                                    except Exception:
+                                        session.rollback()
+                                        raise
+                                    batch = []
+                                    for _ in range(waiting_batches):
+                                        batch.extend(self.output_queue.get_nowait())
                             except QueueEmptyException:
                                 pass
                             self.teardown_barrier()
                     except NotImplementedError:
                         # platform does not support qsize()
                         pass
-                    i += len(batch)
 
                     self.create_barrier()
+                    i += len(batch)
 
                     try:
-                        session.bulk_save_objects(batch)
+                        session.bulk_insert_mappings(Glycopeptide, batch, render_nulls=True)
                         session.commit()
                     except Exception:
                         session.rollback()
@@ -621,7 +660,9 @@ class MultipleProcessPeptideGlycosylator(TaskBase):
             self.ipc_controller.stop()
             for worker in self.workers:
                 self.log("Joining Process %r (%s)" % (worker.pid, worker.is_alive()))
-                worker.join()
+                worker.join(10)
+                if worker.is_alive():
+                    self.log("Failed to join %r" % worker.pid)
 
             self.current_glycan_offset += self.glycan_limit
 

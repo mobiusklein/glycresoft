@@ -13,7 +13,7 @@ FILE_SOURCE = '''
 class GlycanSourceTests(unittest.TestCase):
 
     def setup_tempfile(self):
-        file_name = tempfile.mktemp()
+        file_name = tempfile.mktemp() + ".txt"
         open(file_name, 'w').write(FILE_SOURCE)
         return file_name
 

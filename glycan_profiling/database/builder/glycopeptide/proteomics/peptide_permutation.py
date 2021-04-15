@@ -1,20 +1,27 @@
-from collections import defaultdict
+import bisect
 import itertools
+from collections import defaultdict
 from multiprocessing import Process, Queue, Event
 
 from lxml.etree import XMLSyntaxError
 
+from ms_deisotope.peak_dependency_network.intervals import Interval, IntervalTreeNode
+
 from glycopeptidepy import enzyme
 from .utils import slurp
-from .uniprot import uniprot, get_uniprot_accession
+from .uniprot import (uniprot, get_uniprot_accession, UniprotProteinDownloader, Empty)
 
 from glypy.composition import formula
 from glycopeptidepy.structure import sequence, modification, residue
+from glycopeptidepy.algorithm import ModificationSiteAssignmentCombinator
 from glycopeptidepy import PeptideSequence
 
 from glycan_profiling.task import TaskBase
 from glycan_profiling.serialize import DatabaseBoundOperation
 from glycan_profiling.serialize.hypothesis.peptide import Peptide, Protein
+
+from six import string_types as basestring
+
 
 RestrictedModificationTable = modification.RestrictedModificationTable
 combinations = itertools.combinations
@@ -24,66 +31,46 @@ chain_iterable = itertools.chain.from_iterable
 SequenceLocation = modification.SequenceLocation
 
 
-def parent_sequence_aware_n_glycan_sequon_sites(peptide, protein):
-    sites = set(sequence.find_n_glycosylation_sequons(
-        peptide.modified_peptide_sequence))
-    sites |= set(site - peptide.start_position for site in protein.glycosylation_sites
-                 if peptide.start_position <= site < peptide.end_position)
-    return list(sites)
+def span_test(site_list, start, end):
+    i = bisect.bisect_left(site_list, start)
+    after_start = site_list[i:]
+    out = []
+    for j in after_start:
+        if j < end:
+            out.append(j)
+        else:
+            break
+    return out
 
 
-def o_glycan_sequon_sites(peptide, protein=None):
-    sites = sequence.find_o_glycosylation_sequons(
-        peptide.modified_peptide_sequence)
-    return sites
+def n_glycan_sequon_sites(peptide, protein, use_local_sequence=False):
+    sites = set()
+    sites |= set(site - peptide.start_position for site in span_test(
+        protein.n_glycan_sequon_sites, peptide.start_position, peptide.end_position))
+    if use_local_sequence:
+        sites |= set(sequence.find_n_glycosylation_sequons(
+            peptide.modified_peptide_sequence))
+    return sorted(sites)
 
 
-def gag_sequon_sites(peptide, protein=None):
-    sites = sequence.find_glycosaminoglycan_sequons(
-        peptide.modified_peptide_sequence)
-    return sites
+def o_glycan_sequon_sites(peptide, protein=None, use_local_sequence=False):
+    sites = set()
+    sites |= set(site - peptide.start_position for site in span_test(
+        protein.o_glycan_sequon_sites, peptide.start_position, peptide.end_position))
+    if use_local_sequence:
+        sites |= set(sequence.find_o_glycosylation_sequons(
+            peptide.modified_peptide_sequence))
+    return sorted(sites)
 
 
-def split_terminal_modifications(modifications):
-    """Group modification rules into three classes, N-terminal,
-    C-terminal, and Internal modifications.
-
-    A modification rule can be assigned to multiple groups if it
-    is valid at multiple sites.
-
-    Parameters
-    ----------
-    modifications : Iterable of ModificationRule
-        The modification rules
-
-    Returns
-    -------
-    n_terminal: list
-        list of N-terminal modification rules
-    c_terminal: list
-        list of C-terminal modification rules
-    internal: list
-        list of Internal modification rules
-    """
-    n_terminal = []
-    c_terminal = []
-    internal = []
-
-    for mod in modifications:
-        n_term = mod.n_term_targets
-        if n_term:
-            n_term_rule = mod.clone(n_term)
-            mod = mod - n_term_rule
-            n_terminal.append(n_term_rule)
-        c_term = mod.c_term_targets
-        if c_term:
-            c_term_rule = mod.clone(c_term)
-            mod = mod - c_term_rule
-            c_terminal.append(c_term_rule)
-        if (mod.targets):
-            internal.append(mod)
-
-    return n_terminal, c_terminal, internal
+def gag_sequon_sites(peptide, protein=None, use_local_sequence=False):
+    sites = set()
+    sites |= set(site - peptide.start_position for site in span_test(
+        protein.glycosaminoglycan_sequon_sites, peptide.start_position, peptide.end_position))
+    if use_local_sequence:
+        sites = sequence.find_glycosaminoglycan_sequons(
+            peptide.modified_peptide_sequence)
+    return sorted(sites)
 
 
 def get_base_peptide(peptide_obj):
@@ -93,51 +80,59 @@ def get_base_peptide(peptide_obj):
         return PeptideSequence(str(peptide_obj))
 
 
-def modification_series(variable_sites):
-    """Given a dictionary mapping between modification names and
-    an iterable of valid sites, create a dictionary mapping between
-    modification names and a list of valid sites plus the constant `None`
-
-    Parameters
-    ----------
-    variable_sites : dict
-        Description
-
-    Returns
-    -------
-    dict
-        Description
-    """
-    sites = defaultdict(list)
-    for mod, varsites in variable_sites.items():
-        for site in varsites:
-            sites[site].append(mod)
-    for site in list(sites):
-        sites[site].append(None)
-    return sites
-
-
-def remove_empty_sites(site_mod_pairs):
-    return [sm for sm in site_mod_pairs if sm[1] is not None]
-
-
-def site_modification_assigner(modification_sites_dict):
-    sites = modification_sites_dict.keys()
-    choices = modification_sites_dict.values()
-    for selected in itertools.product(*choices):
-        site_mod_pairs = zip(sites, selected)
-        yield remove_empty_sites(site_mod_pairs)
-
-
 class PeptidePermuter(object):
-    def __init__(self, constant_modifications, variable_modifications, maximum_variable_modifications=4):
+    def __init__(self, constant_modifications, variable_modifications, max_variable_modifications=None):
+        if max_variable_modifications is None:
+            max_variable_modifications = 4
         self.constant_modifications = list(constant_modifications)
         self.variable_modifications = list(variable_modifications)
-        self.maximum_variable_modifications = maximum_variable_modifications
+        self.max_variable_modifications = max_variable_modifications
 
         (self.n_term_modifications,
          self.c_term_modifications,
-         self.variable_modifications) = split_terminal_modifications(self.variable_modifications)
+         self.variable_modifications) = self.split_terminal_modifications(self.variable_modifications)
+
+    @staticmethod
+    def split_terminal_modifications(modifications):
+        """Group modification rules into three classes, N-terminal,
+        C-terminal, and Internal modifications.
+
+        A modification rule can be assigned to multiple groups if it
+        is valid at multiple sites.
+
+        Parameters
+        ----------
+        modifications : Iterable of ModificationRule
+            The modification rules
+
+        Returns
+        -------
+        n_terminal: list
+            list of N-terminal modification rules
+        c_terminal: list
+            list of C-terminal modification rules
+        internal: list
+            list of Internal modification rules
+        """
+        n_terminal = []
+        c_terminal = []
+        internal = []
+
+        for mod in modifications:
+            n_term = mod.n_term_targets
+            if n_term and all([t.amino_acid_targets is None for t in n_term]):
+                n_term_rule = mod.clone(n_term)
+                mod = mod - n_term_rule
+                n_terminal.append(n_term_rule)
+            c_term = mod.c_term_targets
+            if c_term and all([t.amino_acid_targets is None for t in c_term]):
+                c_term_rule = mod.clone(c_term)
+                mod = mod - c_term_rule
+                c_terminal.append(c_term_rule)
+            if (mod.targets):
+                internal.append(mod)
+
+        return n_terminal, c_terminal, internal
 
     def prepare_peptide(self, sequence):
         return get_base_peptide(sequence)
@@ -170,7 +165,7 @@ class PeptidePermuter(object):
         variable_sites = {
             mod.name: set(
                 mod.find_valid_sites(sequence)) for mod in self.variable_modifications}
-        modification_sites = modification_series(variable_sites)
+        modification_sites = ModificationSiteAssignmentCombinator(variable_sites)
         return modification_sites
 
     def apply_variable_modifications(self, sequence, assignments, n_term, c_term):
@@ -207,8 +202,8 @@ class PeptidePermuter(object):
         modification_sites = self.modification_sites(sequence)
 
         for n_term, c_term in itertools.product(n_term_modifications, c_term_modifications):
-            for assignments in site_modification_assigner(modification_sites):
-                if len(assignments) > self.maximum_variable_modifications:
+            for assignments in modification_sites:
+                if len(assignments) > self.max_variable_modifications:
                     continue
                 yield self.apply_variable_modifications(
                     sequence, assignments, n_term, c_term)
@@ -218,20 +213,19 @@ class PeptidePermuter(object):
 
     @classmethod
     def peptide_permutations(cls, sequence, constant_modifications, variable_modifications,
-                             maximum_variable_modifications=4):
+                             max_variable_modifications=4):
         inst = cls(constant_modifications, variable_modifications,
-                   maximum_variable_modifications)
+                   max_variable_modifications)
         return inst.permute_peptide(sequence)
 
 
 peptide_permutations = PeptidePermuter.peptide_permutations
 
 
-def cleave_sequence(sequence, protease, missed_cleavages=2, min_length=6):
+def cleave_sequence(sequence, protease, missed_cleavages=2, min_length=6, max_length=60, semispecific=False):
     for peptide, start, end, missed in protease.cleave(sequence, missed_cleavages=missed_cleavages,
-                                                       min_length=min_length):
-        if missed > missed_cleavages:
-            continue
+                                                       min_length=min_length, max_length=max_length,
+                                                       semispecific=semispecific):
         if "X" in peptide:
             continue
         yield peptide, start, end, missed
@@ -240,7 +234,8 @@ def cleave_sequence(sequence, protease, missed_cleavages=2, min_length=6):
 class ProteinDigestor(TaskBase):
 
     def __init__(self, protease, constant_modifications=None, variable_modifications=None,
-                 max_missed_cleavages=2, max_length=60, min_length=6):
+                 max_missed_cleavages=2, min_length=6, max_length=60, semispecific=False,
+                 max_variable_modifications=None, require_glycosylation_sites=False):
         if constant_modifications is None:
             constant_modifications = []
         if variable_modifications is None:
@@ -250,10 +245,14 @@ class ProteinDigestor(TaskBase):
         self.variable_modifications = variable_modifications
         self.peptide_permuter = PeptidePermuter(
             self.constant_modifications,
-            self.variable_modifications)
+            self.variable_modifications,
+            max_variable_modifications=max_variable_modifications)
         self.max_missed_cleavages = max_missed_cleavages
         self.min_length = min_length
         self.max_length = max_length
+        self.semispecific = semispecific
+        self.max_variable_modifications = max_variable_modifications
+        self.require_glycosylation_sites = require_glycosylation_sites
 
     def _prepare_protease(self, protease):
         if isinstance(protease, enzyme.Protease):
@@ -266,7 +265,8 @@ class ProteinDigestor(TaskBase):
 
     def cleave(self, sequence):
         return cleave_sequence(sequence, self.protease, self.max_missed_cleavages,
-                               min_length=self.min_length)
+                               min_length=self.min_length, max_length=self.max_length,
+                               semispecific=self.semispecific)
 
     def digest(self, protein):
         sequence = protein.protein_sequence
@@ -302,10 +302,13 @@ class ProteinDigestor(TaskBase):
             peptide.hypothesis_id = hypothesis_id
             peptide.peptide_score = 0
             peptide.peptide_score_type = 'null_score'
-            n_glycosites = parent_sequence_aware_n_glycan_sequon_sites(
+            n_glycosites = n_glycan_sequon_sites(
                 peptide, protein_obj)
             o_glycosites = o_glycan_sequon_sites(peptide, protein_obj)
             gag_glycosites = gag_sequon_sites(peptide, protein_obj)
+            if self.require_glycosylation_sites:
+                if (len(n_glycosites) + len(o_glycosites) + len(gag_glycosites)) == 0:
+                    continue
             peptide.count_glycosylation_sites = len(n_glycosites)
             peptide.n_glycosylation_sites = sorted(n_glycosites)
             peptide.o_glycosylation_sites = sorted(o_glycosites)
@@ -318,10 +321,10 @@ class ProteinDigestor(TaskBase):
     @classmethod
     def digest_protein(cls, sequence, protease, constant_modifications=None,
                        variable_modifications=None, max_missed_cleavages=2,
-                       max_length=60, min_length=6):
+                       min_length=6, max_length=60, semispecific=False):
         inst = cls(
             protease, constant_modifications, variable_modifications,
-            max_missed_cleavages, max_length, min_length)
+            max_missed_cleavages, min_length, max_length, semispecific)
         if isinstance(sequence, basestring):
             sequence = Protein(protein_sequence=sequence)
         return inst(sequence)
@@ -331,6 +334,7 @@ digest = ProteinDigestor.digest_protein
 
 
 class ProteinDigestingProcess(Process):
+    process_name = "protein-digest-worker"
 
     def __init__(self, connection, hypothesis_id, input_queue, digestor, done_event=None,
                  chunk_size=5000, message_handler=None):
@@ -370,7 +374,7 @@ class ProteinDigestingProcess(Process):
             for protein in proteins:
                 size = len(protein.protein_sequence)
                 if size > threshold_size:
-                    self.message_handler("Started digesting %s (%d)" % (protein.name, size))
+                    self.message_handler("...... Started digesting %s (%d)" % (protein.name, size))
                 i = 0
                 for peptide in digestor.process_protein(protein):
                     acc.append(peptide)
@@ -381,10 +385,10 @@ class ProteinDigestingProcess(Process):
                         acc = []
                     if i % 10000 == 0:
                         self.message_handler(
-                            "Digested %d peptides from %r (%d)" % (
+                            "...... Digested %d peptides from %r (%d)" % (
                                 i, protein.name, size))
                 if size > threshold_size:
-                    self.message_handler("Finished digesting %s (%d)" % (protein.name, size))
+                    self.message_handler("...... Finished digesting %s (%d)" % (protein.name, size))
             session.bulk_save_objects(acc)
             session.commit()
             acc = []
@@ -394,6 +398,9 @@ class ProteinDigestingProcess(Process):
             acc = []
 
     def run(self):
+        new_name = getattr(self, 'process_name', None)
+        if new_name is not None:
+            TaskBase().try_set_process_name(new_name)
         self.task()
 
 
@@ -407,7 +414,7 @@ class MultipleProcessProteinDigestor(TaskBase):
 
     def run(self):
         logger = self.ipc_logger()
-        input_queue = Queue(20 * self.n_processes)
+        input_queue = Queue(2 * self.n_processes)
         done_event = Event()
         processes = [
             ProteinDigestingProcess(
@@ -419,7 +426,10 @@ class MultipleProcessProteinDigestor(TaskBase):
         protein_ids = self.protein_ids
         i = 0
         n = len(protein_ids)
-        chunk_size = 2
+        if n < 100:
+            chunk_size = 2
+        else:
+            chunk_size = int(n / 100.0)
         interval = 30
         for process in processes:
             input_queue.put(protein_ids[i:(i + chunk_size)])
@@ -441,6 +451,12 @@ class MultipleProcessProteinDigestor(TaskBase):
         logger.stop()
 
 
+class PeptideInterval(Interval):
+    def __init__(self, peptide):
+        Interval.__init__(self, peptide.start_position, peptide.end_position, [peptide])
+        self.data['peptide'] = str(peptide)
+
+
 class ProteinSplitter(TaskBase):
     def __init__(self, constant_modifications=None, variable_modifications=None, min_length=6):
         if constant_modifications is None:
@@ -454,27 +470,32 @@ class ProteinSplitter(TaskBase):
         self.peptide_permuter = PeptidePermuter(
             self.constant_modifications, self.variable_modifications)
 
-    def handle_protein(self, protein_obj):
-        try:
-            accession = get_uniprot_accession(protein_obj.name)
-            if accession:
-                try:
-                    sites = self.get_split_sites(accession)
-                    return self.split_protein(protein_obj, sites)
-                except IOError:
+    def handle_protein(self, protein_obj, sites=None):
+        if sites is None:
+            try:
+                accession = get_uniprot_accession(protein_obj.name)
+                if accession:
+                    try:
+                        sites = self.get_split_sites(accession)
+                        return self.split_protein(protein_obj, sites)
+                    except IOError:
+                        return []
+                else:
                     return []
-            else:
+            except XMLSyntaxError:
                 return []
-        except XMLSyntaxError:
-            return []
-        except Exception as e:
-            self.error(
-                ("An unhandled error occurred while retrieving"
-                 " non-proteolytic cleavage sites"), e)
-            return []
+            except Exception as e:
+                self.error(
+                    ("An unhandled error occurred while retrieving"
+                     " non-proteolytic cleavage sites"), e)
+                return []
+        else:
+            try:
+                return self.split_protein(protein_obj, sites)
+            except IOError:
+                return []
 
-    def get_split_sites(self, accession):
-        record = uniprot.get(accession)
+    def get_split_sites_from_features(self, record):
         splittable_features = ("signal peptide", "propeptide", "initiator methionine",
                                "peptide", "transit peptide")
         split_sites = set()
@@ -488,6 +509,10 @@ class ProteinSplitter(TaskBase):
             pass
         return sorted(split_sites)
 
+    def get_split_sites(self, accession):
+        record = uniprot.get(accession)
+        return self.get_split_sites_from_features(record)
+
     def _make_split_expression(self, sites):
         return [
             (Peptide.start_position < s) & (Peptide.end_position > s) for s in sites]
@@ -498,47 +523,152 @@ class ProteinSplitter(TaskBase):
     def split_protein(self, protein_obj, sites=None):
         if sites is None:
             sites = []
-        n = len(sites)
+        if not sites:
+            return
         seen = set()
-        for i in range(1, n + 1):
-            for split_sites in itertools.combinations(sites, i):
-                spanning_peptides = protein_obj.peptides.filter(*self._make_split_expression(
-                    split_sites)).all()
-                for peptide in spanning_peptides:
-                    adjusted_sites = [0] + [s - peptide.start_position for s in split_sites] + [
-                        peptide.sequence_length]
-                    for j in range(len(adjusted_sites) - 1):
-                        begin, end = adjusted_sites[j], adjusted_sites[j + 1]
-                        if end - begin < self.min_length:
-                            continue
-                        start_position = begin + peptide.start_position
-                        end_position = end + peptide.start_position
-                        if (start_position, end_position) in seen:
-                            continue
-                        else:
-                            seen.add((start_position, end_position))
-                        for modified_peptide, n_variable_modifications in self._permuted_peptides(
-                                peptide.base_peptide_sequence[begin:end]):
-                            inst = Peptide(
-                                base_peptide_sequence=str(peptide.base_peptide_sequence[begin:end]),
-                                modified_peptide_sequence=str(modified_peptide),
-                                count_missed_cleavages=peptide.count_missed_cleavages,
-                                count_variable_modifications=n_variable_modifications,
-                                sequence_length=len(modified_peptide),
-                                start_position=start_position,
-                                end_position=end_position,
-                                calculated_mass=modified_peptide.mass,
-                                formula=formula(modified_peptide.total_composition()),
-                                protein_id=protein_obj.id)
-                            inst.hypothesis_id = protein_obj.hypothesis_id
-                            inst.peptide_score = 0
-                            inst.peptide_score_type = 'null_score'
-                            n_glycosites = parent_sequence_aware_n_glycan_sequon_sites(
-                                inst, protein_obj)
-                            o_glycosites = o_glycan_sequon_sites(inst, protein_obj)
-                            gag_glycosites = gag_sequon_sites(inst, protein_obj)
-                            inst.count_glycosylation_sites = len(n_glycosites)
-                            inst.n_glycosylation_sites = sorted(n_glycosites)
-                            inst.o_glycosylation_sites = sorted(o_glycosites)
-                            inst.gagylation_sites = sorted(gag_glycosites)
-                            yield inst
+        sites_seen = set()
+        peptides = protein_obj.peptides.all()
+        peptide_intervals = IntervalTreeNode.build(map(PeptideInterval, peptides))
+        for site in sites:
+            overlap_region = peptide_intervals.contains_point(site - 1)
+            spanned_intervals = IntervalTreeNode.build(overlap_region)
+            # No spanned peptides. May be caused by regions of protein which digest to peptides
+            # of unacceptable size.
+            if spanned_intervals is None:
+                continue
+            lo = spanned_intervals.start
+            hi = spanned_intervals.end
+            # Get the set of all sites spanned by any peptide which spans the current query site
+            spanned_sites = [s for s in sites if lo <= s <= hi]
+            for i in range(1, len(spanned_sites) + 1):
+                for split_sites in itertools.combinations(spanned_sites, i):
+                    site_key = frozenset(split_sites)
+                    if site_key in sites_seen:
+                        continue
+                    sites_seen.add(site_key)
+                    spanning_peptides_query = spanned_intervals.contains_point(split_sites[0])
+                    for site_j in split_sites[1:]:
+                        spanning_peptides_query = [
+                            sp for sp in spanning_peptides_query if site_j in sp
+                        ]
+                    spanning_peptides = []
+                    for sp in spanning_peptides_query:
+                        spanning_peptides.extend(sp)
+                    for peptide in spanning_peptides:
+                        adjusted_sites = [0] + [s - peptide.start_position for s in split_sites] + [
+                            peptide.sequence_length]
+                        for j in range(len(adjusted_sites) - 1):
+                            # TODO: Cleavage sites may be off by one in the start. Revisit the index math here.
+                            begin, end = adjusted_sites[j], adjusted_sites[j + 1]
+                            if end - begin < self.min_length:
+                                continue
+                            start_position = begin + peptide.start_position
+                            end_position = end + peptide.start_position
+                            if (start_position, end_position) in seen:
+                                continue
+                            else:
+                                seen.add((start_position, end_position))
+                            for modified_peptide, n_variable_modifications in self._permuted_peptides(
+                                    peptide.base_peptide_sequence[begin:end]):
+
+                                inst = Peptide(
+                                    base_peptide_sequence=str(peptide.base_peptide_sequence[begin:end]),
+                                    modified_peptide_sequence=str(modified_peptide),
+                                    count_missed_cleavages=peptide.count_missed_cleavages,
+                                    count_variable_modifications=n_variable_modifications,
+                                    sequence_length=len(modified_peptide),
+                                    start_position=start_position,
+                                    end_position=end_position,
+                                    calculated_mass=modified_peptide.mass,
+                                    formula=formula(modified_peptide.total_composition()),
+                                    protein_id=protein_obj.id)
+                                inst.hypothesis_id = protein_obj.hypothesis_id
+                                inst.peptide_score = 0
+                                inst.peptide_score_type = 'null_score'
+                                n_glycosites = n_glycan_sequon_sites(
+                                    inst, protein_obj)
+                                o_glycosites = o_glycan_sequon_sites(inst, protein_obj)
+                                gag_glycosites = gag_sequon_sites(inst, protein_obj)
+                                inst.count_glycosylation_sites = len(n_glycosites)
+                                inst.n_glycosylation_sites = sorted(n_glycosites)
+                                inst.o_glycosylation_sites = sorted(o_glycosites)
+                                inst.gagylation_sites = sorted(gag_glycosites)
+                                yield inst
+
+
+class UniprotProteinAnnotator(TaskBase):
+    def __init__(self, hypothesis_builder, protein_ids, constant_modifications, variable_modifications):
+        self.hypothesis_builder = hypothesis_builder
+        self.protein_ids = protein_ids
+        self.constant_modifications = constant_modifications
+        self.variable_modifications = variable_modifications
+        self.session = hypothesis_builder.session
+
+    def query(self, *args, **kwargs):
+        return self.session.query(*args, **kwargs)
+
+    def commit(self):
+        return self.session.commit()
+
+    def run(self):
+        self.log("Begin Applying Protein Annotations")
+        splitter = ProteinSplitter(self.constant_modifications, self.variable_modifications)
+        i = 0
+        j = 0
+        protein_ids = self.protein_ids
+        protein_names = [self.query(Protein.name).filter(
+            Protein.id == protein_id).first()[0] for protein_id in protein_ids]
+        name_to_id = {n: i for n, i in zip(protein_names, protein_ids)}
+        uniprot_queue = UniprotProteinDownloader(protein_names)
+        uniprot_queue.start()
+        n = len(protein_ids)
+        interval = int(min((n * 0.1) + 1, 1000))
+        acc = []
+        seen = set()
+        # TODO: This seems to periodically exit before finishing processing of all proteins?
+        while True:
+            try:
+                protein_name, record = uniprot_queue.get()
+                protein_id = name_to_id[protein_name]
+                seen.add(protein_id)
+                i += 1
+                if isinstance(record, (Exception, str)):
+                    self.log("... Skipping %s: %s" % (protein_name, record))
+                    continue
+                protein = self.query(Protein).get(protein_id)
+                if i % interval == 0:
+                    self.log("... %0.3f%% Complete (%d/%d). %d Peptides Produced." % (i * 100. / n, i, n, j))
+                sites = splitter.get_split_sites_from_features(record)
+                for peptide in splitter.handle_protein(protein, sites):
+                    acc.append(peptide)
+                    j += 1
+                    if len(acc) > 100000:
+                        self.log("... %0.3f%% Complete (%d/%d). %d Peptides Produced." % (i * 100. / n, i, n, j))
+                        self.session.bulk_save_objects(acc)
+                        self.session.commit()
+                        acc = []
+            except Empty:
+                uniprot_queue.join()
+                if uniprot_queue.done_event.is_set():
+                    break
+
+        leftover_ids = set(protein_ids) - seen
+        if leftover_ids:
+            self.log("%d IDs not covered by queue" % (len(leftover_ids), ))
+
+        for protein_id in leftover_ids:
+            i += 1
+            protein = self.query(Protein).get(protein_id)
+            if i % interval == 0:
+                self.log("... %0.3f%% Complete (%d/%d). %d Peptides Produced." % (i * 100. / n, i, n, j))
+            for peptide in splitter.handle_protein(protein):
+                acc.append(peptide)
+                j += 1
+                if len(acc) > 100000:
+                    self.log("... %0.3f%% Complete (%d/%d). %d Peptides Produced." % (i * 100. / n, i, n, j))
+                    self.session.bulk_save_objects(acc)
+                    self.session.commit()
+                    acc = []
+        self.session.bulk_save_objects(acc)
+        self.session.commit()
+        acc = []

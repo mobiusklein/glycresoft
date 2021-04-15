@@ -6,36 +6,36 @@ from glypy.structure import (
 def gag_linkers():
     xyl = monosaccharides.Xyl
     gal = monosaccharides.Gal
-    xyl.add_monosaccharide(gal, 3)
+    xyl.add_monosaccharide(gal, 4, child_position=1)
     gal2 = monosaccharides.Gal
-    gal.add_monosaccharide(gal2, 3)
+    gal.add_monosaccharide(gal2, 3, child_position=1)
     hexa = monosaccharides.Hex
     hexa.add_modification(Modification.Acidic, 6)
-    gal2.add_monosaccharide(hexa, 3)
+    gal2.add_monosaccharide(hexa, 3, child_position=1)
     hexnac = monosaccharides.HexNAc
-    hexa.add_monosaccharide(hexnac, 3)
+    hexa.add_monosaccharide(hexnac, 3, child_position=1)
     enhexa = monosaccharides.Hex
     enhexa.add_modification(Modification.Acidic, 6)
     enhexa.add_modification(Modification.en, 2)
-    hexnac.add_monosaccharide(enhexa, 3)
+    hexnac.add_monosaccharide(enhexa, 3, child_position=1)
     base_linker = Glycan(xyl).reindex()
 
     variants = [{"substituents": {
         5: "sulfate"
     }}, {
         "monosaccharides": {
-            1: "Fuc"
+            2: "Fuc"
         }
     }, {
         "monosaccharides": {
-            1: "Fuc"
+            2: "Fuc"
         },
         "substituents": {
             5: "sulfate"
         }
     }, {
         "monosaccharides": {
-            1: "Fuc"
+            2: "Fuc"
         },
         "substituents": {
             5: "sulfate",

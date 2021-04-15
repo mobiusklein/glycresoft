@@ -1,0 +1,5123 @@
+{
+  "enzymes": [
+    "galt", 
+    "gntIV", 
+    "gntI", 
+    "gntVI", 
+    "siat2_6", 
+    "fuct6", 
+    "glucosidaseI", 
+    "fuct3", 
+    "glucosidaseII", 
+    "manI", 
+    "manII", 
+    "gntV", 
+    "gntIII", 
+    "gntII"
+  ], 
+  "graph": {
+    "{Fuc:1; Hex:3; HexNAc:4}": {
+      "{Fuc:1; Hex:3; HexNAc:5}": [
+        "gntIV", 
+        "gntV", 
+        "gntIII"
+      ], 
+      "{Fuc:1; Hex:4; HexNAc:4}": [
+        "galt"
+      ]
+    }, 
+    "{Fuc:1; Hex:3; HexNAc:5}": {
+      "{Fuc:1; Hex:3; HexNAc:6}": [
+        "gntIV", 
+        "gntV", 
+        "gntIII", 
+        "gntVI"
+      ], 
+      "{Fuc:1; Hex:4; HexNAc:5}": [
+        "galt"
+      ]
+    }, 
+    "{Fuc:1; Hex:3; HexNAc:6}": {
+      "{Fuc:1; Hex:3; HexNAc:7}": [
+        "gntIV", 
+        "gntIII", 
+        "gntVI"
+      ], 
+      "{Fuc:1; Hex:4; HexNAc:6}": [
+        "galt"
+      ]
+    }, 
+    "{Fuc:1; Hex:3; HexNAc:7}": {
+      "{Fuc:1; Hex:3; HexNAc:8}": [
+        "gntIII"
+      ], 
+      "{Fuc:1; Hex:4; HexNAc:7}": [
+        "galt"
+      ]
+    }, 
+    "{Fuc:1; Hex:3; HexNAc:8}": {
+      "{Fuc:1; Hex:4; HexNAc:8}": [
+        "galt"
+      ]
+    }, 
+    "{Fuc:1; Hex:4; HexNAc:3; Neu5Ac:1}": {
+      "{Fuc:1; Hex:4; HexNAc:4; Neu5Ac:1}": [
+        "gntIII"
+      ]
+    }, 
+    "{Fuc:1; Hex:4; HexNAc:3}": {
+      "{Fuc:1; Hex:4; HexNAc:3; Neu5Ac:1}": [
+        "siat2_6"
+      ], 
+      "{Fuc:1; Hex:4; HexNAc:4}": [
+        "gntIII"
+      ]
+    }, 
+    "{Fuc:1; Hex:4; HexNAc:4; Neu5Ac:1}": {
+      "{Fuc:1; Hex:4; HexNAc:5; Neu5Ac:1}": [
+        "gntIII"
+      ], 
+      "{Fuc:1; Hex:5; HexNAc:4; Neu5Ac:1}": [
+        "galt"
+      ], 
+      "{Fuc:2; Hex:4; HexNAc:4; Neu5Ac:1}": [
+        "fuct6", 
+        "fuct3"
+      ]
+    }, 
+    "{Fuc:1; Hex:4; HexNAc:4}": {
+      "{Fuc:1; Hex:4; HexNAc:4; Neu5Ac:1}": [
+        "siat2_6"
+      ], 
+      "{Fuc:1; Hex:4; HexNAc:5}": [
+        "gntIII"
+      ], 
+      "{Fuc:1; Hex:5; HexNAc:4}": [
+        "galt"
+      ], 
+      "{Fuc:2; Hex:4; HexNAc:4}": [
+        "fuct6", 
+        "fuct3"
+      ]
+    }, 
+    "{Fuc:1; Hex:4; HexNAc:5; Neu5Ac:1}": {
+      "{Fuc:1; Hex:4; HexNAc:6; Neu5Ac:1}": [
+        "gntIII"
+      ], 
+      "{Fuc:1; Hex:5; HexNAc:5; Neu5Ac:1}": [
+        "galt"
+      ], 
+      "{Fuc:2; Hex:4; HexNAc:5; Neu5Ac:1}": [
+        "fuct6", 
+        "fuct3"
+      ]
+    }, 
+    "{Fuc:1; Hex:4; HexNAc:5}": {
+      "{Fuc:1; Hex:4; HexNAc:5; Neu5Ac:1}": [
+        "siat2_6"
+      ], 
+      "{Fuc:1; Hex:4; HexNAc:6}": [
+        "gntIII"
+      ], 
+      "{Fuc:1; Hex:5; HexNAc:5}": [
+        "galt"
+      ], 
+      "{Fuc:2; Hex:4; HexNAc:5}": [
+        "fuct6", 
+        "fuct3"
+      ]
+    }, 
+    "{Fuc:1; Hex:4; HexNAc:6; Neu5Ac:1}": {
+      "{Fuc:1; Hex:4; HexNAc:7; Neu5Ac:1}": [
+        "gntIII"
+      ], 
+      "{Fuc:1; Hex:5; HexNAc:6; Neu5Ac:1}": [
+        "galt"
+      ], 
+      "{Fuc:2; Hex:4; HexNAc:6; Neu5Ac:1}": [
+        "fuct6", 
+        "fuct3"
+      ]
+    }, 
+    "{Fuc:1; Hex:4; HexNAc:6}": {
+      "{Fuc:1; Hex:4; HexNAc:6; Neu5Ac:1}": [
+        "siat2_6"
+      ], 
+      "{Fuc:1; Hex:4; HexNAc:7}": [
+        "gntIII"
+      ], 
+      "{Fuc:1; Hex:5; HexNAc:6}": [
+        "galt"
+      ], 
+      "{Fuc:2; Hex:4; HexNAc:6}": [
+        "fuct6", 
+        "fuct3"
+      ]
+    }, 
+    "{Fuc:1; Hex:4; HexNAc:7; Neu5Ac:1}": {
+      "{Fuc:1; Hex:4; HexNAc:8; Neu5Ac:1}": [
+        "gntIII"
+      ], 
+      "{Fuc:1; Hex:5; HexNAc:7; Neu5Ac:1}": [
+        "galt"
+      ], 
+      "{Fuc:2; Hex:4; HexNAc:7; Neu5Ac:1}": [
+        "fuct6", 
+        "fuct3"
+      ]
+    }, 
+    "{Fuc:1; Hex:4; HexNAc:7}": {
+      "{Fuc:1; Hex:4; HexNAc:7; Neu5Ac:1}": [
+        "siat2_6"
+      ], 
+      "{Fuc:1; Hex:4; HexNAc:8}": [
+        "gntIII"
+      ], 
+      "{Fuc:1; Hex:5; HexNAc:7}": [
+        "galt"
+      ], 
+      "{Fuc:2; Hex:4; HexNAc:7}": [
+        "fuct6", 
+        "fuct3"
+      ]
+    }, 
+    "{Fuc:1; Hex:4; HexNAc:8; Neu5Ac:1}": {
+      "{Fuc:1; Hex:5; HexNAc:8; Neu5Ac:1}": [
+        "galt"
+      ], 
+      "{Fuc:2; Hex:4; HexNAc:8; Neu5Ac:1}": [
+        "fuct6", 
+        "fuct3"
+      ]
+    }, 
+    "{Fuc:1; Hex:4; HexNAc:8}": {
+      "{Fuc:1; Hex:4; HexNAc:8; Neu5Ac:1}": [
+        "siat2_6"
+      ], 
+      "{Fuc:1; Hex:5; HexNAc:8}": [
+        "galt"
+      ], 
+      "{Fuc:2; Hex:4; HexNAc:8}": [
+        "fuct6", 
+        "fuct3"
+      ]
+    }, 
+    "{Fuc:1; Hex:5; HexNAc:3; Neu5Ac:1}": {
+      "{Fuc:1; Hex:4; HexNAc:3; Neu5Ac:1}": [
+        "manII"
+      ], 
+      "{Fuc:1; Hex:5; HexNAc:4; Neu5Ac:1}": [
+        "gntIII"
+      ]
+    }, 
+    "{Fuc:1; Hex:5; HexNAc:3}": {
+      "{Fuc:1; Hex:4; HexNAc:3}": [
+        "manII"
+      ], 
+      "{Fuc:1; Hex:5; HexNAc:3; Neu5Ac:1}": [
+        "siat2_6"
+      ], 
+      "{Fuc:1; Hex:5; HexNAc:4}": [
+        "gntIII"
+      ]
+    }, 
+    "{Fuc:1; Hex:5; HexNAc:4; Neu5Ac:1}": {
+      "{Fuc:1; Hex:4; HexNAc:4; Neu5Ac:1}": [
+        "manII"
+      ], 
+      "{Fuc:1; Hex:5; HexNAc:4; Neu5Ac:2}": [
+        "siat2_6"
+      ], 
+      "{Fuc:1; Hex:5; HexNAc:5; Neu5Ac:1}": [
+        "gntIII"
+      ], 
+      "{Fuc:1; Hex:6; HexNAc:4; Neu5Ac:1}": [
+        "galt"
+      ], 
+      "{Fuc:2; Hex:5; HexNAc:4; Neu5Ac:1}": [
+        "fuct6", 
+        "fuct3"
+      ]
+    }, 
+    "{Fuc:1; Hex:5; HexNAc:4; Neu5Ac:2}": {
+      "{Fuc:1; Hex:5; HexNAc:5; Neu5Ac:2}": [
+        "gntIII"
+      ], 
+      "{Fuc:2; Hex:5; HexNAc:4; Neu5Ac:2}": [
+        "fuct6", 
+        "fuct3"
+      ]
+    }, 
+    "{Fuc:1; Hex:5; HexNAc:4}": {
+      "{Fuc:1; Hex:4; HexNAc:4}": [
+        "manII"
+      ], 
+      "{Fuc:1; Hex:5; HexNAc:4; Neu5Ac:1}": [
+        "siat2_6"
+      ], 
+      "{Fuc:1; Hex:5; HexNAc:5}": [
+        "gntIII"
+      ], 
+      "{Fuc:1; Hex:6; HexNAc:4}": [
+        "galt"
+      ], 
+      "{Fuc:2; Hex:5; HexNAc:4}": [
+        "fuct6", 
+        "fuct3"
+      ]
+    }, 
+    "{Fuc:1; Hex:5; HexNAc:5; Neu5Ac:1}": {
+      "{Fuc:1; Hex:5; HexNAc:5; Neu5Ac:2}": [
+        "siat2_6"
+      ], 
+      "{Fuc:1; Hex:5; HexNAc:6; Neu5Ac:1}": [
+        "gntIII"
+      ], 
+      "{Fuc:1; Hex:6; HexNAc:5; Neu5Ac:1}": [
+        "galt"
+      ], 
+      "{Fuc:2; Hex:5; HexNAc:5; Neu5Ac:1}": [
+        "fuct6", 
+        "fuct3"
+      ]
+    }, 
+    "{Fuc:1; Hex:5; HexNAc:5; Neu5Ac:2}": {
+      "{Fuc:1; Hex:5; HexNAc:6; Neu5Ac:2}": [
+        "gntIII"
+      ], 
+      "{Fuc:1; Hex:6; HexNAc:5; Neu5Ac:2}": [
+        "galt"
+      ], 
+      "{Fuc:2; Hex:5; HexNAc:5; Neu5Ac:2}": [
+        "fuct6", 
+        "fuct3"
+      ]
+    }, 
+    "{Fuc:1; Hex:5; HexNAc:5}": {
+      "{Fuc:1; Hex:5; HexNAc:5; Neu5Ac:1}": [
+        "siat2_6"
+      ], 
+      "{Fuc:1; Hex:5; HexNAc:6}": [
+        "gntIII"
+      ], 
+      "{Fuc:1; Hex:6; HexNAc:5}": [
+        "galt"
+      ], 
+      "{Fuc:2; Hex:5; HexNAc:5}": [
+        "fuct6", 
+        "fuct3"
+      ]
+    }, 
+    "{Fuc:1; Hex:5; HexNAc:6; Neu5Ac:1}": {
+      "{Fuc:1; Hex:5; HexNAc:6; Neu5Ac:2}": [
+        "siat2_6"
+      ], 
+      "{Fuc:1; Hex:5; HexNAc:7; Neu5Ac:1}": [
+        "gntIII"
+      ], 
+      "{Fuc:1; Hex:6; HexNAc:6; Neu5Ac:1}": [
+        "galt"
+      ], 
+      "{Fuc:2; Hex:5; HexNAc:6; Neu5Ac:1}": [
+        "fuct6", 
+        "fuct3"
+      ]
+    }, 
+    "{Fuc:1; Hex:5; HexNAc:6; Neu5Ac:2}": {
+      "{Fuc:1; Hex:5; HexNAc:7; Neu5Ac:2}": [
+        "gntIII"
+      ], 
+      "{Fuc:1; Hex:6; HexNAc:6; Neu5Ac:2}": [
+        "galt"
+      ], 
+      "{Fuc:2; Hex:5; HexNAc:6; Neu5Ac:2}": [
+        "fuct6", 
+        "fuct3"
+      ]
+    }, 
+    "{Fuc:1; Hex:5; HexNAc:6}": {
+      "{Fuc:1; Hex:5; HexNAc:6; Neu5Ac:1}": [
+        "siat2_6"
+      ], 
+      "{Fuc:1; Hex:5; HexNAc:7}": [
+        "gntIII"
+      ], 
+      "{Fuc:1; Hex:6; HexNAc:6}": [
+        "galt"
+      ], 
+      "{Fuc:2; Hex:5; HexNAc:6}": [
+        "fuct6", 
+        "fuct3"
+      ]
+    }, 
+    "{Fuc:1; Hex:5; HexNAc:7; Neu5Ac:1}": {
+      "{Fuc:1; Hex:5; HexNAc:7; Neu5Ac:2}": [
+        "siat2_6"
+      ], 
+      "{Fuc:1; Hex:5; HexNAc:8; Neu5Ac:1}": [
+        "gntIII"
+      ], 
+      "{Fuc:1; Hex:6; HexNAc:7; Neu5Ac:1}": [
+        "galt"
+      ], 
+      "{Fuc:2; Hex:5; HexNAc:7; Neu5Ac:1}": [
+        "fuct6", 
+        "fuct3"
+      ]
+    }, 
+    "{Fuc:1; Hex:5; HexNAc:7; Neu5Ac:2}": {
+      "{Fuc:1; Hex:5; HexNAc:8; Neu5Ac:2}": [
+        "gntIII"
+      ], 
+      "{Fuc:1; Hex:6; HexNAc:7; Neu5Ac:2}": [
+        "galt"
+      ], 
+      "{Fuc:2; Hex:5; HexNAc:7; Neu5Ac:2}": [
+        "fuct6", 
+        "fuct3"
+      ]
+    }, 
+    "{Fuc:1; Hex:5; HexNAc:7}": {
+      "{Fuc:1; Hex:5; HexNAc:7; Neu5Ac:1}": [
+        "siat2_6"
+      ], 
+      "{Fuc:1; Hex:5; HexNAc:8}": [
+        "gntIII"
+      ], 
+      "{Fuc:1; Hex:6; HexNAc:7}": [
+        "galt"
+      ], 
+      "{Fuc:2; Hex:5; HexNAc:7}": [
+        "fuct6", 
+        "fuct3"
+      ]
+    }, 
+    "{Fuc:1; Hex:5; HexNAc:8; Neu5Ac:1}": {
+      "{Fuc:1; Hex:5; HexNAc:8; Neu5Ac:2}": [
+        "siat2_6"
+      ], 
+      "{Fuc:1; Hex:6; HexNAc:8; Neu5Ac:1}": [
+        "galt"
+      ], 
+      "{Fuc:2; Hex:5; HexNAc:8; Neu5Ac:1}": [
+        "fuct6", 
+        "fuct3"
+      ]
+    }, 
+    "{Fuc:1; Hex:5; HexNAc:8; Neu5Ac:2}": {
+      "{Fuc:1; Hex:6; HexNAc:8; Neu5Ac:2}": [
+        "galt"
+      ], 
+      "{Fuc:2; Hex:5; HexNAc:8; Neu5Ac:2}": [
+        "fuct6", 
+        "fuct3"
+      ]
+    }, 
+    "{Fuc:1; Hex:5; HexNAc:8}": {
+      "{Fuc:1; Hex:5; HexNAc:8; Neu5Ac:1}": [
+        "siat2_6"
+      ], 
+      "{Fuc:1; Hex:6; HexNAc:8}": [
+        "galt"
+      ], 
+      "{Fuc:2; Hex:5; HexNAc:8}": [
+        "fuct6", 
+        "fuct3"
+      ]
+    }, 
+    "{Fuc:1; Hex:6; HexNAc:3; Neu5Ac:1}": {
+      "{Fuc:1; Hex:5; HexNAc:3; Neu5Ac:1}": [
+        "manI", 
+        "manII"
+      ], 
+      "{Fuc:1; Hex:6; HexNAc:4; Neu5Ac:1}": [
+        "gntIII"
+      ]
+    }, 
+    "{Fuc:1; Hex:6; HexNAc:3}": {
+      "{Fuc:1; Hex:5; HexNAc:3}": [
+        "manI", 
+        "manII"
+      ], 
+      "{Fuc:1; Hex:6; HexNAc:3; Neu5Ac:1}": [
+        "siat2_6"
+      ], 
+      "{Fuc:1; Hex:6; HexNAc:4}": [
+        "gntIII"
+      ]
+    }, 
+    "{Fuc:1; Hex:6; HexNAc:4; Neu5Ac:1}": {
+      "{Fuc:1; Hex:5; HexNAc:4; Neu5Ac:1}": [
+        "manI", 
+        "manII"
+      ], 
+      "{Fuc:1; Hex:6; HexNAc:4; Neu5Ac:2}": [
+        "siat2_6"
+      ], 
+      "{Fuc:1; Hex:6; HexNAc:5; Neu5Ac:1}": [
+        "gntIII"
+      ], 
+      "{Fuc:1; Hex:7; HexNAc:4; Neu5Ac:1}": [
+        "galt"
+      ], 
+      "{Fuc:2; Hex:6; HexNAc:4; Neu5Ac:1}": [
+        "fuct3"
+      ]
+    }, 
+    "{Fuc:1; Hex:6; HexNAc:4; Neu5Ac:2}": {
+      "{Fuc:1; Hex:5; HexNAc:4; Neu5Ac:2}": [
+        "manII"
+      ], 
+      "{Fuc:1; Hex:6; HexNAc:5; Neu5Ac:2}": [
+        "gntIII"
+      ], 
+      "{Fuc:2; Hex:6; HexNAc:4; Neu5Ac:2}": [
+        "fuct3"
+      ]
+    }, 
+    "{Fuc:1; Hex:6; HexNAc:4}": {
+      "{Fuc:1; Hex:5; HexNAc:4}": [
+        "manI", 
+        "manII"
+      ], 
+      "{Fuc:1; Hex:6; HexNAc:4; Neu5Ac:1}": [
+        "siat2_6"
+      ], 
+      "{Fuc:1; Hex:6; HexNAc:5}": [
+        "gntIII"
+      ], 
+      "{Fuc:1; Hex:7; HexNAc:4}": [
+        "galt"
+      ], 
+      "{Fuc:2; Hex:6; HexNAc:4}": [
+        "fuct3"
+      ]
+    }, 
+    "{Fuc:1; Hex:6; HexNAc:5; Neu5Ac:1}": {
+      "{Fuc:1; Hex:5; HexNAc:5; Neu5Ac:1}": [
+        "manI"
+      ], 
+      "{Fuc:1; Hex:6; HexNAc:5; Neu5Ac:2}": [
+        "siat2_6"
+      ], 
+      "{Fuc:1; Hex:6; HexNAc:6; Neu5Ac:1}": [
+        "gntIII"
+      ], 
+      "{Fuc:1; Hex:7; HexNAc:5; Neu5Ac:1}": [
+        "galt"
+      ], 
+      "{Fuc:2; Hex:6; HexNAc:5; Neu5Ac:1}": [
+        "fuct6", 
+        "fuct3"
+      ]
+    }, 
+    "{Fuc:1; Hex:6; HexNAc:5; Neu5Ac:2}": {
+      "{Fuc:1; Hex:6; HexNAc:5; Neu5Ac:3}": [
+        "siat2_6"
+      ], 
+      "{Fuc:1; Hex:6; HexNAc:6; Neu5Ac:2}": [
+        "gntIII"
+      ], 
+      "{Fuc:2; Hex:6; HexNAc:5; Neu5Ac:2}": [
+        "fuct6", 
+        "fuct3"
+      ]
+    }, 
+    "{Fuc:1; Hex:6; HexNAc:5; Neu5Ac:3}": {
+      "{Fuc:1; Hex:6; HexNAc:6; Neu5Ac:3}": [
+        "gntIII"
+      ], 
+      "{Fuc:2; Hex:6; HexNAc:5; Neu5Ac:3}": [
+        "fuct6", 
+        "fuct3"
+      ]
+    }, 
+    "{Fuc:1; Hex:6; HexNAc:5}": {
+      "{Fuc:1; Hex:5; HexNAc:5}": [
+        "manI"
+      ], 
+      "{Fuc:1; Hex:6; HexNAc:5; Neu5Ac:1}": [
+        "siat2_6"
+      ], 
+      "{Fuc:1; Hex:6; HexNAc:6}": [
+        "gntIII"
+      ], 
+      "{Fuc:1; Hex:7; HexNAc:5}": [
+        "galt"
+      ], 
+      "{Fuc:2; Hex:6; HexNAc:5}": [
+        "fuct6", 
+        "fuct3"
+      ]
+    }, 
+    "{Fuc:1; Hex:6; HexNAc:6; Neu5Ac:1}": {
+      "{Fuc:1; Hex:6; HexNAc:6; Neu5Ac:2}": [
+        "siat2_6"
+      ], 
+      "{Fuc:1; Hex:6; HexNAc:7; Neu5Ac:1}": [
+        "gntIII"
+      ], 
+      "{Fuc:1; Hex:7; HexNAc:6; Neu5Ac:1}": [
+        "galt"
+      ], 
+      "{Fuc:2; Hex:6; HexNAc:6; Neu5Ac:1}": [
+        "fuct6", 
+        "fuct3"
+      ]
+    }, 
+    "{Fuc:1; Hex:6; HexNAc:6; Neu5Ac:2}": {
+      "{Fuc:1; Hex:6; HexNAc:6; Neu5Ac:3}": [
+        "siat2_6"
+      ], 
+      "{Fuc:1; Hex:6; HexNAc:7; Neu5Ac:2}": [
+        "gntIII"
+      ], 
+      "{Fuc:1; Hex:7; HexNAc:6; Neu5Ac:2}": [
+        "galt"
+      ], 
+      "{Fuc:2; Hex:6; HexNAc:6; Neu5Ac:2}": [
+        "fuct6", 
+        "fuct3"
+      ]
+    }, 
+    "{Fuc:1; Hex:6; HexNAc:6; Neu5Ac:3}": {
+      "{Fuc:1; Hex:6; HexNAc:7; Neu5Ac:3}": [
+        "gntIII"
+      ], 
+      "{Fuc:1; Hex:7; HexNAc:6; Neu5Ac:3}": [
+        "galt"
+      ], 
+      "{Fuc:2; Hex:6; HexNAc:6; Neu5Ac:3}": [
+        "fuct6", 
+        "fuct3"
+      ]
+    }, 
+    "{Fuc:1; Hex:6; HexNAc:6}": {
+      "{Fuc:1; Hex:6; HexNAc:6; Neu5Ac:1}": [
+        "siat2_6"
+      ], 
+      "{Fuc:1; Hex:6; HexNAc:7}": [
+        "gntIII"
+      ], 
+      "{Fuc:1; Hex:7; HexNAc:6}": [
+        "galt"
+      ], 
+      "{Fuc:2; Hex:6; HexNAc:6}": [
+        "fuct6", 
+        "fuct3"
+      ]
+    }, 
+    "{Fuc:1; Hex:6; HexNAc:7; Neu5Ac:1}": {
+      "{Fuc:1; Hex:6; HexNAc:7; Neu5Ac:2}": [
+        "siat2_6"
+      ], 
+      "{Fuc:1; Hex:6; HexNAc:8; Neu5Ac:1}": [
+        "gntIII"
+      ], 
+      "{Fuc:1; Hex:7; HexNAc:7; Neu5Ac:1}": [
+        "galt"
+      ], 
+      "{Fuc:2; Hex:6; HexNAc:7; Neu5Ac:1}": [
+        "fuct6", 
+        "fuct3"
+      ]
+    }, 
+    "{Fuc:1; Hex:6; HexNAc:7; Neu5Ac:2}": {
+      "{Fuc:1; Hex:6; HexNAc:7; Neu5Ac:3}": [
+        "siat2_6"
+      ], 
+      "{Fuc:1; Hex:6; HexNAc:8; Neu5Ac:2}": [
+        "gntIII"
+      ], 
+      "{Fuc:1; Hex:7; HexNAc:7; Neu5Ac:2}": [
+        "galt"
+      ], 
+      "{Fuc:2; Hex:6; HexNAc:7; Neu5Ac:2}": [
+        "fuct6", 
+        "fuct3"
+      ]
+    }, 
+    "{Fuc:1; Hex:6; HexNAc:7; Neu5Ac:3}": {
+      "{Fuc:1; Hex:6; HexNAc:8; Neu5Ac:3}": [
+        "gntIII"
+      ], 
+      "{Fuc:1; Hex:7; HexNAc:7; Neu5Ac:3}": [
+        "galt"
+      ], 
+      "{Fuc:2; Hex:6; HexNAc:7; Neu5Ac:3}": [
+        "fuct6", 
+        "fuct3"
+      ]
+    }, 
+    "{Fuc:1; Hex:6; HexNAc:7}": {
+      "{Fuc:1; Hex:6; HexNAc:7; Neu5Ac:1}": [
+        "siat2_6"
+      ], 
+      "{Fuc:1; Hex:6; HexNAc:8}": [
+        "gntIII"
+      ], 
+      "{Fuc:1; Hex:7; HexNAc:7}": [
+        "galt"
+      ], 
+      "{Fuc:2; Hex:6; HexNAc:7}": [
+        "fuct6", 
+        "fuct3"
+      ]
+    }, 
+    "{Fuc:1; Hex:6; HexNAc:8; Neu5Ac:1}": {
+      "{Fuc:1; Hex:6; HexNAc:8; Neu5Ac:2}": [
+        "siat2_6"
+      ], 
+      "{Fuc:1; Hex:7; HexNAc:8; Neu5Ac:1}": [
+        "galt"
+      ], 
+      "{Fuc:2; Hex:6; HexNAc:8; Neu5Ac:1}": [
+        "fuct6", 
+        "fuct3"
+      ]
+    }, 
+    "{Fuc:1; Hex:6; HexNAc:8; Neu5Ac:2}": {
+      "{Fuc:1; Hex:6; HexNAc:8; Neu5Ac:3}": [
+        "siat2_6"
+      ], 
+      "{Fuc:1; Hex:7; HexNAc:8; Neu5Ac:2}": [
+        "galt"
+      ], 
+      "{Fuc:2; Hex:6; HexNAc:8; Neu5Ac:2}": [
+        "fuct6", 
+        "fuct3"
+      ]
+    }, 
+    "{Fuc:1; Hex:6; HexNAc:8; Neu5Ac:3}": {
+      "{Fuc:1; Hex:7; HexNAc:8; Neu5Ac:3}": [
+        "galt"
+      ], 
+      "{Fuc:2; Hex:6; HexNAc:8; Neu5Ac:3}": [
+        "fuct6", 
+        "fuct3"
+      ]
+    }, 
+    "{Fuc:1; Hex:6; HexNAc:8}": {
+      "{Fuc:1; Hex:6; HexNAc:8; Neu5Ac:1}": [
+        "siat2_6"
+      ], 
+      "{Fuc:1; Hex:7; HexNAc:8}": [
+        "galt"
+      ], 
+      "{Fuc:2; Hex:6; HexNAc:8}": [
+        "fuct6", 
+        "fuct3"
+      ]
+    }, 
+    "{Fuc:1; Hex:7; HexNAc:3; Neu5Ac:1}": {
+      "{Fuc:1; Hex:6; HexNAc:3; Neu5Ac:1}": [
+        "manI", 
+        "manII"
+      ], 
+      "{Fuc:1; Hex:7; HexNAc:4; Neu5Ac:1}": [
+        "gntIII"
+      ]
+    }, 
+    "{Fuc:1; Hex:7; HexNAc:3}": {
+      "{Fuc:1; Hex:6; HexNAc:3}": [
+        "manI", 
+        "manII"
+      ], 
+      "{Fuc:1; Hex:7; HexNAc:3; Neu5Ac:1}": [
+        "siat2_6"
+      ], 
+      "{Fuc:1; Hex:7; HexNAc:4}": [
+        "gntIII"
+      ]
+    }, 
+    "{Fuc:1; Hex:7; HexNAc:4; Neu5Ac:1}": {
+      "{Fuc:1; Hex:6; HexNAc:4; Neu5Ac:1}": [
+        "manI", 
+        "manII"
+      ], 
+      "{Fuc:1; Hex:7; HexNAc:4; Neu5Ac:2}": [
+        "siat2_6"
+      ], 
+      "{Fuc:1; Hex:7; HexNAc:5; Neu5Ac:1}": [
+        "gntIII"
+      ], 
+      "{Fuc:1; Hex:8; HexNAc:4; Neu5Ac:1}": [
+        "galt"
+      ], 
+      "{Fuc:2; Hex:7; HexNAc:4; Neu5Ac:1}": [
+        "fuct3"
+      ]
+    }, 
+    "{Fuc:1; Hex:7; HexNAc:4; Neu5Ac:2}": {
+      "{Fuc:1; Hex:6; HexNAc:4; Neu5Ac:2}": [
+        "manI", 
+        "manII"
+      ], 
+      "{Fuc:1; Hex:7; HexNAc:5; Neu5Ac:2}": [
+        "gntIII"
+      ], 
+      "{Fuc:2; Hex:7; HexNAc:4; Neu5Ac:2}": [
+        "fuct3"
+      ]
+    }, 
+    "{Fuc:1; Hex:7; HexNAc:4}": {
+      "{Fuc:1; Hex:6; HexNAc:4}": [
+        "manI", 
+        "manII"
+      ], 
+      "{Fuc:1; Hex:7; HexNAc:4; Neu5Ac:1}": [
+        "siat2_6"
+      ], 
+      "{Fuc:1; Hex:7; HexNAc:5}": [
+        "gntIII"
+      ], 
+      "{Fuc:1; Hex:8; HexNAc:4}": [
+        "galt"
+      ], 
+      "{Fuc:2; Hex:7; HexNAc:4}": [
+        "fuct3"
+      ]
+    }, 
+    "{Fuc:1; Hex:7; HexNAc:5; Neu5Ac:1}": {
+      "{Fuc:1; Hex:6; HexNAc:5; Neu5Ac:1}": [
+        "manI"
+      ], 
+      "{Fuc:1; Hex:7; HexNAc:5; Neu5Ac:2}": [
+        "siat2_6"
+      ], 
+      "{Fuc:1; Hex:8; HexNAc:5; Neu5Ac:1}": [
+        "galt"
+      ], 
+      "{Fuc:2; Hex:7; HexNAc:5; Neu5Ac:1}": [
+        "fuct3"
+      ]
+    }, 
+    "{Fuc:1; Hex:7; HexNAc:5; Neu5Ac:2}": {
+      "{Fuc:1; Hex:6; HexNAc:5; Neu5Ac:2}": [
+        "manI"
+      ], 
+      "{Fuc:2; Hex:7; HexNAc:5; Neu5Ac:2}": [
+        "fuct3"
+      ]
+    }, 
+    "{Fuc:1; Hex:7; HexNAc:5}": {
+      "{Fuc:1; Hex:6; HexNAc:5}": [
+        "manI"
+      ], 
+      "{Fuc:1; Hex:7; HexNAc:5; Neu5Ac:1}": [
+        "siat2_6"
+      ], 
+      "{Fuc:1; Hex:8; HexNAc:5}": [
+        "galt"
+      ], 
+      "{Fuc:2; Hex:7; HexNAc:5}": [
+        "fuct3"
+      ]
+    }, 
+    "{Fuc:1; Hex:7; HexNAc:6; Neu5Ac:1}": {
+      "{Fuc:1; Hex:7; HexNAc:6; Neu5Ac:2}": [
+        "siat2_6"
+      ], 
+      "{Fuc:1; Hex:7; HexNAc:7; Neu5Ac:1}": [
+        "gntIII"
+      ], 
+      "{Fuc:2; Hex:7; HexNAc:6; Neu5Ac:1}": [
+        "fuct6", 
+        "fuct3"
+      ]
+    }, 
+    "{Fuc:1; Hex:7; HexNAc:6; Neu5Ac:2}": {
+      "{Fuc:1; Hex:7; HexNAc:6; Neu5Ac:3}": [
+        "siat2_6"
+      ], 
+      "{Fuc:1; Hex:7; HexNAc:7; Neu5Ac:2}": [
+        "gntIII"
+      ], 
+      "{Fuc:2; Hex:7; HexNAc:6; Neu5Ac:2}": [
+        "fuct6", 
+        "fuct3"
+      ]
+    }, 
+    "{Fuc:1; Hex:7; HexNAc:6; Neu5Ac:3}": {
+      "{Fuc:1; Hex:7; HexNAc:6; Neu5Ac:4}": [
+        "siat2_6"
+      ], 
+      "{Fuc:1; Hex:7; HexNAc:7; Neu5Ac:3}": [
+        "gntIII"
+      ], 
+      "{Fuc:2; Hex:7; HexNAc:6; Neu5Ac:3}": [
+        "fuct6", 
+        "fuct3"
+      ]
+    }, 
+    "{Fuc:1; Hex:7; HexNAc:6; Neu5Ac:4}": {
+      "{Fuc:1; Hex:7; HexNAc:7; Neu5Ac:4}": [
+        "gntIII"
+      ], 
+      "{Fuc:2; Hex:7; HexNAc:6; Neu5Ac:4}": [
+        "fuct6", 
+        "fuct3"
+      ]
+    }, 
+    "{Fuc:1; Hex:7; HexNAc:6}": {
+      "{Fuc:1; Hex:7; HexNAc:6; Neu5Ac:1}": [
+        "siat2_6"
+      ], 
+      "{Fuc:1; Hex:7; HexNAc:7}": [
+        "gntIII"
+      ], 
+      "{Fuc:2; Hex:7; HexNAc:6}": [
+        "fuct6", 
+        "fuct3"
+      ]
+    }, 
+    "{Fuc:1; Hex:7; HexNAc:7; Neu5Ac:1}": {
+      "{Fuc:1; Hex:7; HexNAc:7; Neu5Ac:2}": [
+        "siat2_6"
+      ], 
+      "{Fuc:1; Hex:7; HexNAc:8; Neu5Ac:1}": [
+        "gntIII"
+      ], 
+      "{Fuc:1; Hex:8; HexNAc:7; Neu5Ac:1}": [
+        "galt"
+      ], 
+      "{Fuc:2; Hex:7; HexNAc:7; Neu5Ac:1}": [
+        "fuct6", 
+        "fuct3"
+      ]
+    }, 
+    "{Fuc:1; Hex:7; HexNAc:7; Neu5Ac:2}": {
+      "{Fuc:1; Hex:7; HexNAc:7; Neu5Ac:3}": [
+        "siat2_6"
+      ], 
+      "{Fuc:1; Hex:7; HexNAc:8; Neu5Ac:2}": [
+        "gntIII"
+      ], 
+      "{Fuc:1; Hex:8; HexNAc:7; Neu5Ac:2}": [
+        "galt"
+      ], 
+      "{Fuc:2; Hex:7; HexNAc:7; Neu5Ac:2}": [
+        "fuct6", 
+        "fuct3"
+      ]
+    }, 
+    "{Fuc:1; Hex:7; HexNAc:7; Neu5Ac:3}": {
+      "{Fuc:1; Hex:7; HexNAc:7; Neu5Ac:4}": [
+        "siat2_6"
+      ], 
+      "{Fuc:1; Hex:7; HexNAc:8; Neu5Ac:3}": [
+        "gntIII"
+      ], 
+      "{Fuc:1; Hex:8; HexNAc:7; Neu5Ac:3}": [
+        "galt"
+      ], 
+      "{Fuc:2; Hex:7; HexNAc:7; Neu5Ac:3}": [
+        "fuct6", 
+        "fuct3"
+      ]
+    }, 
+    "{Fuc:1; Hex:7; HexNAc:7; Neu5Ac:4}": {
+      "{Fuc:1; Hex:7; HexNAc:8; Neu5Ac:4}": [
+        "gntIII"
+      ], 
+      "{Fuc:1; Hex:8; HexNAc:7; Neu5Ac:4}": [
+        "galt"
+      ], 
+      "{Fuc:2; Hex:7; HexNAc:7; Neu5Ac:4}": [
+        "fuct6", 
+        "fuct3"
+      ]
+    }, 
+    "{Fuc:1; Hex:7; HexNAc:7}": {
+      "{Fuc:1; Hex:7; HexNAc:7; Neu5Ac:1}": [
+        "siat2_6"
+      ], 
+      "{Fuc:1; Hex:7; HexNAc:8}": [
+        "gntIII"
+      ], 
+      "{Fuc:1; Hex:8; HexNAc:7}": [
+        "galt"
+      ], 
+      "{Fuc:2; Hex:7; HexNAc:7}": [
+        "fuct6", 
+        "fuct3"
+      ]
+    }, 
+    "{Fuc:1; Hex:7; HexNAc:8; Neu5Ac:1}": {
+      "{Fuc:1; Hex:7; HexNAc:8; Neu5Ac:2}": [
+        "siat2_6"
+      ], 
+      "{Fuc:1; Hex:8; HexNAc:8; Neu5Ac:1}": [
+        "galt"
+      ], 
+      "{Fuc:2; Hex:7; HexNAc:8; Neu5Ac:1}": [
+        "fuct6", 
+        "fuct3"
+      ]
+    }, 
+    "{Fuc:1; Hex:7; HexNAc:8; Neu5Ac:2}": {
+      "{Fuc:1; Hex:7; HexNAc:8; Neu5Ac:3}": [
+        "siat2_6"
+      ], 
+      "{Fuc:1; Hex:8; HexNAc:8; Neu5Ac:2}": [
+        "galt"
+      ], 
+      "{Fuc:2; Hex:7; HexNAc:8; Neu5Ac:2}": [
+        "fuct6", 
+        "fuct3"
+      ]
+    }, 
+    "{Fuc:1; Hex:7; HexNAc:8; Neu5Ac:3}": {
+      "{Fuc:1; Hex:7; HexNAc:8; Neu5Ac:4}": [
+        "siat2_6"
+      ], 
+      "{Fuc:1; Hex:8; HexNAc:8; Neu5Ac:3}": [
+        "galt"
+      ], 
+      "{Fuc:2; Hex:7; HexNAc:8; Neu5Ac:3}": [
+        "fuct6", 
+        "fuct3"
+      ]
+    }, 
+    "{Fuc:1; Hex:7; HexNAc:8; Neu5Ac:4}": {
+      "{Fuc:1; Hex:8; HexNAc:8; Neu5Ac:4}": [
+        "galt"
+      ], 
+      "{Fuc:2; Hex:7; HexNAc:8; Neu5Ac:4}": [
+        "fuct6", 
+        "fuct3"
+      ]
+    }, 
+    "{Fuc:1; Hex:7; HexNAc:8}": {
+      "{Fuc:1; Hex:7; HexNAc:8; Neu5Ac:1}": [
+        "siat2_6"
+      ], 
+      "{Fuc:1; Hex:8; HexNAc:8}": [
+        "galt"
+      ], 
+      "{Fuc:2; Hex:7; HexNAc:8}": [
+        "fuct6", 
+        "fuct3"
+      ]
+    }, 
+    "{Fuc:1; Hex:8; HexNAc:3; Neu5Ac:1}": {
+      "{Fuc:1; Hex:7; HexNAc:3; Neu5Ac:1}": [
+        "manI"
+      ], 
+      "{Fuc:1; Hex:8; HexNAc:4; Neu5Ac:1}": [
+        "gntIII"
+      ]
+    }, 
+    "{Fuc:1; Hex:8; HexNAc:3}": {
+      "{Fuc:1; Hex:7; HexNAc:3}": [
+        "manI"
+      ], 
+      "{Fuc:1; Hex:8; HexNAc:3; Neu5Ac:1}": [
+        "siat2_6"
+      ], 
+      "{Fuc:1; Hex:8; HexNAc:4}": [
+        "gntIII"
+      ]
+    }, 
+    "{Fuc:1; Hex:8; HexNAc:4; Neu5Ac:1}": {
+      "{Fuc:1; Hex:7; HexNAc:4; Neu5Ac:1}": [
+        "manI", 
+        "manII"
+      ], 
+      "{Fuc:1; Hex:8; HexNAc:4; Neu5Ac:2}": [
+        "siat2_6"
+      ], 
+      "{Fuc:1; Hex:8; HexNAc:5; Neu5Ac:1}": [
+        "gntIII"
+      ], 
+      "{Fuc:1; Hex:9; HexNAc:4; Neu5Ac:1}": [
+        "galt"
+      ], 
+      "{Fuc:2; Hex:8; HexNAc:4; Neu5Ac:1}": [
+        "fuct3"
+      ]
+    }, 
+    "{Fuc:1; Hex:8; HexNAc:4; Neu5Ac:2}": {
+      "{Fuc:1; Hex:7; HexNAc:4; Neu5Ac:2}": [
+        "manI", 
+        "manII"
+      ], 
+      "{Fuc:1; Hex:8; HexNAc:5; Neu5Ac:2}": [
+        "gntIII"
+      ], 
+      "{Fuc:2; Hex:8; HexNAc:4; Neu5Ac:2}": [
+        "fuct3"
+      ]
+    }, 
+    "{Fuc:1; Hex:8; HexNAc:4}": {
+      "{Fuc:1; Hex:7; HexNAc:4}": [
+        "manI", 
+        "manII"
+      ], 
+      "{Fuc:1; Hex:8; HexNAc:4; Neu5Ac:1}": [
+        "siat2_6"
+      ], 
+      "{Fuc:1; Hex:8; HexNAc:5}": [
+        "gntIII"
+      ], 
+      "{Fuc:1; Hex:9; HexNAc:4}": [
+        "galt"
+      ], 
+      "{Fuc:2; Hex:8; HexNAc:4}": [
+        "fuct3"
+      ]
+    }, 
+    "{Fuc:1; Hex:8; HexNAc:5; Neu5Ac:1}": {
+      "{Fuc:1; Hex:7; HexNAc:5; Neu5Ac:1}": [
+        "manI"
+      ], 
+      "{Fuc:1; Hex:8; HexNAc:5; Neu5Ac:2}": [
+        "siat2_6"
+      ], 
+      "{Fuc:1; Hex:9; HexNAc:5; Neu5Ac:1}": [
+        "galt"
+      ], 
+      "{Fuc:2; Hex:8; HexNAc:5; Neu5Ac:1}": [
+        "fuct3"
+      ]
+    }, 
+    "{Fuc:1; Hex:8; HexNAc:5; Neu5Ac:2}": {
+      "{Fuc:1; Hex:7; HexNAc:5; Neu5Ac:2}": [
+        "manI"
+      ], 
+      "{Fuc:2; Hex:8; HexNAc:5; Neu5Ac:2}": [
+        "fuct3"
+      ]
+    }, 
+    "{Fuc:1; Hex:8; HexNAc:5}": {
+      "{Fuc:1; Hex:7; HexNAc:5}": [
+        "manI"
+      ], 
+      "{Fuc:1; Hex:8; HexNAc:5; Neu5Ac:1}": [
+        "siat2_6"
+      ], 
+      "{Fuc:1; Hex:9; HexNAc:5}": [
+        "galt"
+      ], 
+      "{Fuc:2; Hex:8; HexNAc:5}": [
+        "fuct3"
+      ]
+    }, 
+    "{Fuc:1; Hex:8; HexNAc:7; Neu5Ac:1}": {
+      "{Fuc:1; Hex:8; HexNAc:7; Neu5Ac:2}": [
+        "siat2_6"
+      ], 
+      "{Fuc:1; Hex:8; HexNAc:8; Neu5Ac:1}": [
+        "gntIII"
+      ], 
+      "{Fuc:2; Hex:8; HexNAc:7; Neu5Ac:1}": [
+        "fuct6", 
+        "fuct3"
+      ]
+    }, 
+    "{Fuc:1; Hex:8; HexNAc:7; Neu5Ac:2}": {
+      "{Fuc:1; Hex:8; HexNAc:7; Neu5Ac:3}": [
+        "siat2_6"
+      ], 
+      "{Fuc:1; Hex:8; HexNAc:8; Neu5Ac:2}": [
+        "gntIII"
+      ], 
+      "{Fuc:2; Hex:8; HexNAc:7; Neu5Ac:2}": [
+        "fuct6", 
+        "fuct3"
+      ]
+    }, 
+    "{Fuc:1; Hex:8; HexNAc:7; Neu5Ac:3}": {
+      "{Fuc:1; Hex:8; HexNAc:7; Neu5Ac:4}": [
+        "siat2_6"
+      ], 
+      "{Fuc:1; Hex:8; HexNAc:8; Neu5Ac:3}": [
+        "gntIII"
+      ], 
+      "{Fuc:2; Hex:8; HexNAc:7; Neu5Ac:3}": [
+        "fuct6", 
+        "fuct3"
+      ]
+    }, 
+    "{Fuc:1; Hex:8; HexNAc:7; Neu5Ac:4}": {
+      "{Fuc:1; Hex:8; HexNAc:7; Neu5Ac:5}": [
+        "siat2_6"
+      ], 
+      "{Fuc:1; Hex:8; HexNAc:8; Neu5Ac:4}": [
+        "gntIII"
+      ], 
+      "{Fuc:2; Hex:8; HexNAc:7; Neu5Ac:4}": [
+        "fuct6", 
+        "fuct3"
+      ]
+    }, 
+    "{Fuc:1; Hex:8; HexNAc:7; Neu5Ac:5}": {
+      "{Fuc:1; Hex:8; HexNAc:8; Neu5Ac:5}": [
+        "gntIII"
+      ], 
+      "{Fuc:2; Hex:8; HexNAc:7; Neu5Ac:5}": [
+        "fuct6", 
+        "fuct3"
+      ]
+    }, 
+    "{Fuc:1; Hex:8; HexNAc:7}": {
+      "{Fuc:1; Hex:8; HexNAc:7; Neu5Ac:1}": [
+        "siat2_6"
+      ], 
+      "{Fuc:1; Hex:8; HexNAc:8}": [
+        "gntIII"
+      ], 
+      "{Fuc:2; Hex:8; HexNAc:7}": [
+        "fuct6", 
+        "fuct3"
+      ]
+    }, 
+    "{Fuc:1; Hex:8; HexNAc:8; Neu5Ac:1}": {
+      "{Fuc:1; Hex:8; HexNAc:8; Neu5Ac:2}": [
+        "siat2_6"
+      ], 
+      "{Fuc:2; Hex:8; HexNAc:8; Neu5Ac:1}": [
+        "fuct6", 
+        "fuct3"
+      ]
+    }, 
+    "{Fuc:1; Hex:8; HexNAc:8; Neu5Ac:2}": {
+      "{Fuc:1; Hex:8; HexNAc:8; Neu5Ac:3}": [
+        "siat2_6"
+      ], 
+      "{Fuc:2; Hex:8; HexNAc:8; Neu5Ac:2}": [
+        "fuct6", 
+        "fuct3"
+      ]
+    }, 
+    "{Fuc:1; Hex:8; HexNAc:8; Neu5Ac:3}": {
+      "{Fuc:1; Hex:8; HexNAc:8; Neu5Ac:4}": [
+        "siat2_6"
+      ], 
+      "{Fuc:2; Hex:8; HexNAc:8; Neu5Ac:3}": [
+        "fuct6", 
+        "fuct3"
+      ]
+    }, 
+    "{Fuc:1; Hex:8; HexNAc:8; Neu5Ac:4}": {
+      "{Fuc:1; Hex:8; HexNAc:8; Neu5Ac:5}": [
+        "siat2_6"
+      ], 
+      "{Fuc:2; Hex:8; HexNAc:8; Neu5Ac:4}": [
+        "fuct6", 
+        "fuct3"
+      ]
+    }, 
+    "{Fuc:1; Hex:8; HexNAc:8; Neu5Ac:5}": {
+      "{Fuc:2; Hex:8; HexNAc:8; Neu5Ac:5}": [
+        "fuct6", 
+        "fuct3"
+      ]
+    }, 
+    "{Fuc:1; Hex:8; HexNAc:8}": {
+      "{Fuc:1; Hex:8; HexNAc:8; Neu5Ac:1}": [
+        "siat2_6"
+      ], 
+      "{Fuc:2; Hex:8; HexNAc:8}": [
+        "fuct6", 
+        "fuct3"
+      ]
+    }, 
+    "{Fuc:1; Hex:9; HexNAc:4; Neu5Ac:1}": {
+      "{Fuc:1; Hex:8; HexNAc:4; Neu5Ac:1}": [
+        "manI"
+      ], 
+      "{Fuc:1; Hex:9; HexNAc:4; Neu5Ac:2}": [
+        "siat2_6"
+      ], 
+      "{Fuc:1; Hex:9; HexNAc:5; Neu5Ac:1}": [
+        "gntIII"
+      ], 
+      "{Fuc:2; Hex:9; HexNAc:4; Neu5Ac:1}": [
+        "fuct3"
+      ]
+    }, 
+    "{Fuc:1; Hex:9; HexNAc:4; Neu5Ac:2}": {
+      "{Fuc:1; Hex:8; HexNAc:4; Neu5Ac:2}": [
+        "manI"
+      ], 
+      "{Fuc:1; Hex:9; HexNAc:5; Neu5Ac:2}": [
+        "gntIII"
+      ], 
+      "{Fuc:2; Hex:9; HexNAc:4; Neu5Ac:2}": [
+        "fuct3"
+      ]
+    }, 
+    "{Fuc:1; Hex:9; HexNAc:4}": {
+      "{Fuc:1; Hex:8; HexNAc:4}": [
+        "manI"
+      ], 
+      "{Fuc:1; Hex:9; HexNAc:4; Neu5Ac:1}": [
+        "siat2_6"
+      ], 
+      "{Fuc:1; Hex:9; HexNAc:5}": [
+        "gntIII"
+      ], 
+      "{Fuc:2; Hex:9; HexNAc:4}": [
+        "fuct3"
+      ]
+    }, 
+    "{Fuc:1; Hex:9; HexNAc:5; Neu5Ac:1}": {
+      "{Fuc:1; Hex:8; HexNAc:5; Neu5Ac:1}": [
+        "manI"
+      ], 
+      "{Fuc:1; Hex:9; HexNAc:5; Neu5Ac:2}": [
+        "siat2_6"
+      ], 
+      "{Fuc:2; Hex:9; HexNAc:5; Neu5Ac:1}": [
+        "fuct3"
+      ]
+    }, 
+    "{Fuc:1; Hex:9; HexNAc:5; Neu5Ac:2}": {
+      "{Fuc:1; Hex:8; HexNAc:5; Neu5Ac:2}": [
+        "manI"
+      ], 
+      "{Fuc:2; Hex:9; HexNAc:5; Neu5Ac:2}": [
+        "fuct3"
+      ]
+    }, 
+    "{Fuc:1; Hex:9; HexNAc:5}": {
+      "{Fuc:1; Hex:8; HexNAc:5}": [
+        "manI"
+      ], 
+      "{Fuc:1; Hex:9; HexNAc:5; Neu5Ac:1}": [
+        "siat2_6"
+      ], 
+      "{Fuc:2; Hex:9; HexNAc:5}": [
+        "fuct3"
+      ]
+    }, 
+    "{Fuc:2; Hex:4; HexNAc:4; Neu5Ac:1}": {
+      "{Fuc:2; Hex:4; HexNAc:5; Neu5Ac:1}": [
+        "gntIII"
+      ], 
+      "{Fuc:2; Hex:5; HexNAc:4; Neu5Ac:1}": [
+        "galt"
+      ]
+    }, 
+    "{Fuc:2; Hex:4; HexNAc:4}": {
+      "{Fuc:2; Hex:4; HexNAc:4; Neu5Ac:1}": [
+        "siat2_6"
+      ], 
+      "{Fuc:2; Hex:4; HexNAc:5}": [
+        "gntIII"
+      ], 
+      "{Fuc:2; Hex:5; HexNAc:4}": [
+        "galt"
+      ]
+    }, 
+    "{Fuc:2; Hex:4; HexNAc:5; Neu5Ac:1}": {
+      "{Fuc:2; Hex:4; HexNAc:6; Neu5Ac:1}": [
+        "gntIII"
+      ], 
+      "{Fuc:2; Hex:5; HexNAc:5; Neu5Ac:1}": [
+        "galt"
+      ]
+    }, 
+    "{Fuc:2; Hex:4; HexNAc:5}": {
+      "{Fuc:2; Hex:4; HexNAc:5; Neu5Ac:1}": [
+        "siat2_6"
+      ], 
+      "{Fuc:2; Hex:4; HexNAc:6}": [
+        "gntIII"
+      ], 
+      "{Fuc:2; Hex:5; HexNAc:5}": [
+        "galt"
+      ]
+    }, 
+    "{Fuc:2; Hex:4; HexNAc:6; Neu5Ac:1}": {
+      "{Fuc:2; Hex:4; HexNAc:7; Neu5Ac:1}": [
+        "gntIII"
+      ], 
+      "{Fuc:2; Hex:5; HexNAc:6; Neu5Ac:1}": [
+        "galt"
+      ]
+    }, 
+    "{Fuc:2; Hex:4; HexNAc:6}": {
+      "{Fuc:2; Hex:4; HexNAc:6; Neu5Ac:1}": [
+        "siat2_6"
+      ], 
+      "{Fuc:2; Hex:4; HexNAc:7}": [
+        "gntIII"
+      ], 
+      "{Fuc:2; Hex:5; HexNAc:6}": [
+        "galt"
+      ]
+    }, 
+    "{Fuc:2; Hex:4; HexNAc:7; Neu5Ac:1}": {
+      "{Fuc:2; Hex:4; HexNAc:8; Neu5Ac:1}": [
+        "gntIII"
+      ], 
+      "{Fuc:2; Hex:5; HexNAc:7; Neu5Ac:1}": [
+        "galt"
+      ]
+    }, 
+    "{Fuc:2; Hex:4; HexNAc:7}": {
+      "{Fuc:2; Hex:4; HexNAc:7; Neu5Ac:1}": [
+        "siat2_6"
+      ], 
+      "{Fuc:2; Hex:4; HexNAc:8}": [
+        "gntIII"
+      ], 
+      "{Fuc:2; Hex:5; HexNAc:7}": [
+        "galt"
+      ]
+    }, 
+    "{Fuc:2; Hex:4; HexNAc:8; Neu5Ac:1}": {
+      "{Fuc:2; Hex:5; HexNAc:8; Neu5Ac:1}": [
+        "galt"
+      ]
+    }, 
+    "{Fuc:2; Hex:4; HexNAc:8}": {
+      "{Fuc:2; Hex:4; HexNAc:8; Neu5Ac:1}": [
+        "siat2_6"
+      ], 
+      "{Fuc:2; Hex:5; HexNAc:8}": [
+        "galt"
+      ]
+    }, 
+    "{Fuc:2; Hex:5; HexNAc:4; Neu5Ac:1}": {
+      "{Fuc:2; Hex:5; HexNAc:4; Neu5Ac:2}": [
+        "siat2_6"
+      ], 
+      "{Fuc:2; Hex:5; HexNAc:5; Neu5Ac:1}": [
+        "gntIII"
+      ], 
+      "{Fuc:3; Hex:5; HexNAc:4; Neu5Ac:1}": [
+        "fuct6", 
+        "fuct3"
+      ]
+    }, 
+    "{Fuc:2; Hex:5; HexNAc:4; Neu5Ac:2}": {
+      "{Fuc:2; Hex:5; HexNAc:5; Neu5Ac:2}": [
+        "gntIII"
+      ], 
+      "{Fuc:3; Hex:5; HexNAc:4; Neu5Ac:2}": [
+        "fuct6", 
+        "fuct3"
+      ]
+    }, 
+    "{Fuc:2; Hex:5; HexNAc:4}": {
+      "{Fuc:2; Hex:5; HexNAc:4; Neu5Ac:1}": [
+        "siat2_6"
+      ], 
+      "{Fuc:2; Hex:5; HexNAc:5}": [
+        "gntIII"
+      ], 
+      "{Fuc:3; Hex:5; HexNAc:4}": [
+        "fuct6", 
+        "fuct3"
+      ]
+    }, 
+    "{Fuc:2; Hex:5; HexNAc:5; Neu5Ac:1}": {
+      "{Fuc:2; Hex:5; HexNAc:5; Neu5Ac:2}": [
+        "siat2_6"
+      ], 
+      "{Fuc:2; Hex:5; HexNAc:6; Neu5Ac:1}": [
+        "gntIII"
+      ], 
+      "{Fuc:2; Hex:6; HexNAc:5; Neu5Ac:1}": [
+        "galt"
+      ], 
+      "{Fuc:3; Hex:5; HexNAc:5; Neu5Ac:1}": [
+        "fuct6", 
+        "fuct3"
+      ]
+    }, 
+    "{Fuc:2; Hex:5; HexNAc:5; Neu5Ac:2}": {
+      "{Fuc:2; Hex:5; HexNAc:6; Neu5Ac:2}": [
+        "gntIII"
+      ], 
+      "{Fuc:2; Hex:6; HexNAc:5; Neu5Ac:2}": [
+        "galt"
+      ], 
+      "{Fuc:3; Hex:5; HexNAc:5; Neu5Ac:2}": [
+        "fuct6", 
+        "fuct3"
+      ]
+    }, 
+    "{Fuc:2; Hex:5; HexNAc:5}": {
+      "{Fuc:2; Hex:5; HexNAc:5; Neu5Ac:1}": [
+        "siat2_6"
+      ], 
+      "{Fuc:2; Hex:5; HexNAc:6}": [
+        "gntIII"
+      ], 
+      "{Fuc:2; Hex:6; HexNAc:5}": [
+        "galt"
+      ], 
+      "{Fuc:3; Hex:5; HexNAc:5}": [
+        "fuct6", 
+        "fuct3"
+      ]
+    }, 
+    "{Fuc:2; Hex:5; HexNAc:6; Neu5Ac:1}": {
+      "{Fuc:2; Hex:5; HexNAc:6; Neu5Ac:2}": [
+        "siat2_6"
+      ], 
+      "{Fuc:2; Hex:5; HexNAc:7; Neu5Ac:1}": [
+        "gntIII"
+      ], 
+      "{Fuc:2; Hex:6; HexNAc:6; Neu5Ac:1}": [
+        "galt"
+      ], 
+      "{Fuc:3; Hex:5; HexNAc:6; Neu5Ac:1}": [
+        "fuct6", 
+        "fuct3"
+      ]
+    }, 
+    "{Fuc:2; Hex:5; HexNAc:6; Neu5Ac:2}": {
+      "{Fuc:2; Hex:5; HexNAc:7; Neu5Ac:2}": [
+        "gntIII"
+      ], 
+      "{Fuc:2; Hex:6; HexNAc:6; Neu5Ac:2}": [
+        "galt"
+      ], 
+      "{Fuc:3; Hex:5; HexNAc:6; Neu5Ac:2}": [
+        "fuct6", 
+        "fuct3"
+      ]
+    }, 
+    "{Fuc:2; Hex:5; HexNAc:6}": {
+      "{Fuc:2; Hex:5; HexNAc:6; Neu5Ac:1}": [
+        "siat2_6"
+      ], 
+      "{Fuc:2; Hex:5; HexNAc:7}": [
+        "gntIII"
+      ], 
+      "{Fuc:2; Hex:6; HexNAc:6}": [
+        "galt"
+      ], 
+      "{Fuc:3; Hex:5; HexNAc:6}": [
+        "fuct6", 
+        "fuct3"
+      ]
+    }, 
+    "{Fuc:2; Hex:5; HexNAc:7; Neu5Ac:1}": {
+      "{Fuc:2; Hex:5; HexNAc:7; Neu5Ac:2}": [
+        "siat2_6"
+      ], 
+      "{Fuc:2; Hex:5; HexNAc:8; Neu5Ac:1}": [
+        "gntIII"
+      ], 
+      "{Fuc:2; Hex:6; HexNAc:7; Neu5Ac:1}": [
+        "galt"
+      ], 
+      "{Fuc:3; Hex:5; HexNAc:7; Neu5Ac:1}": [
+        "fuct6", 
+        "fuct3"
+      ]
+    }, 
+    "{Fuc:2; Hex:5; HexNAc:7; Neu5Ac:2}": {
+      "{Fuc:2; Hex:5; HexNAc:8; Neu5Ac:2}": [
+        "gntIII"
+      ], 
+      "{Fuc:2; Hex:6; HexNAc:7; Neu5Ac:2}": [
+        "galt"
+      ], 
+      "{Fuc:3; Hex:5; HexNAc:7; Neu5Ac:2}": [
+        "fuct6", 
+        "fuct3"
+      ]
+    }, 
+    "{Fuc:2; Hex:5; HexNAc:7}": {
+      "{Fuc:2; Hex:5; HexNAc:7; Neu5Ac:1}": [
+        "siat2_6"
+      ], 
+      "{Fuc:2; Hex:5; HexNAc:8}": [
+        "gntIII"
+      ], 
+      "{Fuc:2; Hex:6; HexNAc:7}": [
+        "galt"
+      ], 
+      "{Fuc:3; Hex:5; HexNAc:7}": [
+        "fuct6", 
+        "fuct3"
+      ]
+    }, 
+    "{Fuc:2; Hex:5; HexNAc:8; Neu5Ac:1}": {
+      "{Fuc:2; Hex:5; HexNAc:8; Neu5Ac:2}": [
+        "siat2_6"
+      ], 
+      "{Fuc:2; Hex:6; HexNAc:8; Neu5Ac:1}": [
+        "galt"
+      ], 
+      "{Fuc:3; Hex:5; HexNAc:8; Neu5Ac:1}": [
+        "fuct6", 
+        "fuct3"
+      ]
+    }, 
+    "{Fuc:2; Hex:5; HexNAc:8; Neu5Ac:2}": {
+      "{Fuc:2; Hex:6; HexNAc:8; Neu5Ac:2}": [
+        "galt"
+      ], 
+      "{Fuc:3; Hex:5; HexNAc:8; Neu5Ac:2}": [
+        "fuct6", 
+        "fuct3"
+      ]
+    }, 
+    "{Fuc:2; Hex:5; HexNAc:8}": {
+      "{Fuc:2; Hex:5; HexNAc:8; Neu5Ac:1}": [
+        "siat2_6"
+      ], 
+      "{Fuc:2; Hex:6; HexNAc:8}": [
+        "galt"
+      ], 
+      "{Fuc:3; Hex:5; HexNAc:8}": [
+        "fuct6", 
+        "fuct3"
+      ]
+    }, 
+    "{Fuc:2; Hex:6; HexNAc:4; Neu5Ac:1}": {
+      "{Fuc:2; Hex:5; HexNAc:4; Neu5Ac:1}": [
+        "manII"
+      ], 
+      "{Fuc:2; Hex:6; HexNAc:4; Neu5Ac:2}": [
+        "siat2_6"
+      ], 
+      "{Fuc:2; Hex:6; HexNAc:5; Neu5Ac:1}": [
+        "gntIII"
+      ]
+    }, 
+    "{Fuc:2; Hex:6; HexNAc:4; Neu5Ac:2}": {
+      "{Fuc:2; Hex:5; HexNAc:4; Neu5Ac:2}": [
+        "manII"
+      ], 
+      "{Fuc:2; Hex:6; HexNAc:5; Neu5Ac:2}": [
+        "gntIII"
+      ]
+    }, 
+    "{Fuc:2; Hex:6; HexNAc:4}": {
+      "{Fuc:2; Hex:5; HexNAc:4}": [
+        "manII"
+      ], 
+      "{Fuc:2; Hex:6; HexNAc:4; Neu5Ac:1}": [
+        "siat2_6"
+      ], 
+      "{Fuc:2; Hex:6; HexNAc:5}": [
+        "gntIII"
+      ]
+    }, 
+    "{Fuc:2; Hex:6; HexNAc:5; Neu5Ac:1}": {
+      "{Fuc:2; Hex:6; HexNAc:5; Neu5Ac:2}": [
+        "siat2_6"
+      ], 
+      "{Fuc:2; Hex:6; HexNAc:6; Neu5Ac:1}": [
+        "gntIII"
+      ], 
+      "{Fuc:3; Hex:6; HexNAc:5; Neu5Ac:1}": [
+        "fuct6", 
+        "fuct3"
+      ]
+    }, 
+    "{Fuc:2; Hex:6; HexNAc:5; Neu5Ac:2}": {
+      "{Fuc:2; Hex:6; HexNAc:5; Neu5Ac:3}": [
+        "siat2_6"
+      ], 
+      "{Fuc:2; Hex:6; HexNAc:6; Neu5Ac:2}": [
+        "gntIII"
+      ], 
+      "{Fuc:3; Hex:6; HexNAc:5; Neu5Ac:2}": [
+        "fuct6", 
+        "fuct3"
+      ]
+    }, 
+    "{Fuc:2; Hex:6; HexNAc:5; Neu5Ac:3}": {
+      "{Fuc:2; Hex:6; HexNAc:6; Neu5Ac:3}": [
+        "gntIII"
+      ], 
+      "{Fuc:3; Hex:6; HexNAc:5; Neu5Ac:3}": [
+        "fuct6", 
+        "fuct3"
+      ]
+    }, 
+    "{Fuc:2; Hex:6; HexNAc:5}": {
+      "{Fuc:2; Hex:6; HexNAc:5; Neu5Ac:1}": [
+        "siat2_6"
+      ], 
+      "{Fuc:2; Hex:6; HexNAc:6}": [
+        "gntIII"
+      ], 
+      "{Fuc:3; Hex:6; HexNAc:5}": [
+        "fuct6", 
+        "fuct3"
+      ]
+    }, 
+    "{Fuc:2; Hex:6; HexNAc:6; Neu5Ac:1}": {
+      "{Fuc:2; Hex:6; HexNAc:6; Neu5Ac:2}": [
+        "siat2_6"
+      ], 
+      "{Fuc:2; Hex:6; HexNAc:7; Neu5Ac:1}": [
+        "gntIII"
+      ], 
+      "{Fuc:2; Hex:7; HexNAc:6; Neu5Ac:1}": [
+        "galt"
+      ], 
+      "{Fuc:3; Hex:6; HexNAc:6; Neu5Ac:1}": [
+        "fuct6", 
+        "fuct3"
+      ]
+    }, 
+    "{Fuc:2; Hex:6; HexNAc:6; Neu5Ac:2}": {
+      "{Fuc:2; Hex:6; HexNAc:6; Neu5Ac:3}": [
+        "siat2_6"
+      ], 
+      "{Fuc:2; Hex:6; HexNAc:7; Neu5Ac:2}": [
+        "gntIII"
+      ], 
+      "{Fuc:2; Hex:7; HexNAc:6; Neu5Ac:2}": [
+        "galt"
+      ], 
+      "{Fuc:3; Hex:6; HexNAc:6; Neu5Ac:2}": [
+        "fuct6", 
+        "fuct3"
+      ]
+    }, 
+    "{Fuc:2; Hex:6; HexNAc:6; Neu5Ac:3}": {
+      "{Fuc:2; Hex:6; HexNAc:7; Neu5Ac:3}": [
+        "gntIII"
+      ], 
+      "{Fuc:2; Hex:7; HexNAc:6; Neu5Ac:3}": [
+        "galt"
+      ], 
+      "{Fuc:3; Hex:6; HexNAc:6; Neu5Ac:3}": [
+        "fuct6", 
+        "fuct3"
+      ]
+    }, 
+    "{Fuc:2; Hex:6; HexNAc:6}": {
+      "{Fuc:2; Hex:6; HexNAc:6; Neu5Ac:1}": [
+        "siat2_6"
+      ], 
+      "{Fuc:2; Hex:6; HexNAc:7}": [
+        "gntIII"
+      ], 
+      "{Fuc:2; Hex:7; HexNAc:6}": [
+        "galt"
+      ], 
+      "{Fuc:3; Hex:6; HexNAc:6}": [
+        "fuct6", 
+        "fuct3"
+      ]
+    }, 
+    "{Fuc:2; Hex:6; HexNAc:7; Neu5Ac:1}": {
+      "{Fuc:2; Hex:6; HexNAc:7; Neu5Ac:2}": [
+        "siat2_6"
+      ], 
+      "{Fuc:2; Hex:6; HexNAc:8; Neu5Ac:1}": [
+        "gntIII"
+      ], 
+      "{Fuc:2; Hex:7; HexNAc:7; Neu5Ac:1}": [
+        "galt"
+      ], 
+      "{Fuc:3; Hex:6; HexNAc:7; Neu5Ac:1}": [
+        "fuct6", 
+        "fuct3"
+      ]
+    }, 
+    "{Fuc:2; Hex:6; HexNAc:7; Neu5Ac:2}": {
+      "{Fuc:2; Hex:6; HexNAc:7; Neu5Ac:3}": [
+        "siat2_6"
+      ], 
+      "{Fuc:2; Hex:6; HexNAc:8; Neu5Ac:2}": [
+        "gntIII"
+      ], 
+      "{Fuc:2; Hex:7; HexNAc:7; Neu5Ac:2}": [
+        "galt"
+      ], 
+      "{Fuc:3; Hex:6; HexNAc:7; Neu5Ac:2}": [
+        "fuct6", 
+        "fuct3"
+      ]
+    }, 
+    "{Fuc:2; Hex:6; HexNAc:7; Neu5Ac:3}": {
+      "{Fuc:2; Hex:6; HexNAc:8; Neu5Ac:3}": [
+        "gntIII"
+      ], 
+      "{Fuc:2; Hex:7; HexNAc:7; Neu5Ac:3}": [
+        "galt"
+      ], 
+      "{Fuc:3; Hex:6; HexNAc:7; Neu5Ac:3}": [
+        "fuct6", 
+        "fuct3"
+      ]
+    }, 
+    "{Fuc:2; Hex:6; HexNAc:7}": {
+      "{Fuc:2; Hex:6; HexNAc:7; Neu5Ac:1}": [
+        "siat2_6"
+      ], 
+      "{Fuc:2; Hex:6; HexNAc:8}": [
+        "gntIII"
+      ], 
+      "{Fuc:2; Hex:7; HexNAc:7}": [
+        "galt"
+      ], 
+      "{Fuc:3; Hex:6; HexNAc:7}": [
+        "fuct6", 
+        "fuct3"
+      ]
+    }, 
+    "{Fuc:2; Hex:6; HexNAc:8; Neu5Ac:1}": {
+      "{Fuc:2; Hex:6; HexNAc:8; Neu5Ac:2}": [
+        "siat2_6"
+      ], 
+      "{Fuc:2; Hex:7; HexNAc:8; Neu5Ac:1}": [
+        "galt"
+      ], 
+      "{Fuc:3; Hex:6; HexNAc:8; Neu5Ac:1}": [
+        "fuct6", 
+        "fuct3"
+      ]
+    }, 
+    "{Fuc:2; Hex:6; HexNAc:8; Neu5Ac:2}": {
+      "{Fuc:2; Hex:6; HexNAc:8; Neu5Ac:3}": [
+        "siat2_6"
+      ], 
+      "{Fuc:2; Hex:7; HexNAc:8; Neu5Ac:2}": [
+        "galt"
+      ], 
+      "{Fuc:3; Hex:6; HexNAc:8; Neu5Ac:2}": [
+        "fuct6", 
+        "fuct3"
+      ]
+    }, 
+    "{Fuc:2; Hex:6; HexNAc:8; Neu5Ac:3}": {
+      "{Fuc:2; Hex:7; HexNAc:8; Neu5Ac:3}": [
+        "galt"
+      ], 
+      "{Fuc:3; Hex:6; HexNAc:8; Neu5Ac:3}": [
+        "fuct6", 
+        "fuct3"
+      ]
+    }, 
+    "{Fuc:2; Hex:6; HexNAc:8}": {
+      "{Fuc:2; Hex:6; HexNAc:8; Neu5Ac:1}": [
+        "siat2_6"
+      ], 
+      "{Fuc:2; Hex:7; HexNAc:8}": [
+        "galt"
+      ], 
+      "{Fuc:3; Hex:6; HexNAc:8}": [
+        "fuct6", 
+        "fuct3"
+      ]
+    }, 
+    "{Fuc:2; Hex:7; HexNAc:4; Neu5Ac:1}": {
+      "{Fuc:2; Hex:6; HexNAc:4; Neu5Ac:1}": [
+        "manI", 
+        "manII"
+      ], 
+      "{Fuc:2; Hex:7; HexNAc:4; Neu5Ac:2}": [
+        "siat2_6"
+      ], 
+      "{Fuc:2; Hex:7; HexNAc:5; Neu5Ac:1}": [
+        "gntIII"
+      ]
+    }, 
+    "{Fuc:2; Hex:7; HexNAc:4; Neu5Ac:2}": {
+      "{Fuc:2; Hex:6; HexNAc:4; Neu5Ac:2}": [
+        "manI", 
+        "manII"
+      ], 
+      "{Fuc:2; Hex:7; HexNAc:5; Neu5Ac:2}": [
+        "gntIII"
+      ]
+    }, 
+    "{Fuc:2; Hex:7; HexNAc:4}": {
+      "{Fuc:2; Hex:6; HexNAc:4}": [
+        "manI", 
+        "manII"
+      ], 
+      "{Fuc:2; Hex:7; HexNAc:4; Neu5Ac:1}": [
+        "siat2_6"
+      ], 
+      "{Fuc:2; Hex:7; HexNAc:5}": [
+        "gntIII"
+      ]
+    }, 
+    "{Fuc:2; Hex:7; HexNAc:5; Neu5Ac:1}": {
+      "{Fuc:2; Hex:6; HexNAc:5; Neu5Ac:1}": [
+        "manI"
+      ], 
+      "{Fuc:2; Hex:7; HexNAc:5; Neu5Ac:2}": [
+        "siat2_6"
+      ]
+    }, 
+    "{Fuc:2; Hex:7; HexNAc:5; Neu5Ac:2}": {
+      "{Fuc:2; Hex:6; HexNAc:5; Neu5Ac:2}": [
+        "manI"
+      ]
+    }, 
+    "{Fuc:2; Hex:7; HexNAc:5}": {
+      "{Fuc:2; Hex:6; HexNAc:5}": [
+        "manI"
+      ], 
+      "{Fuc:2; Hex:7; HexNAc:5; Neu5Ac:1}": [
+        "siat2_6"
+      ]
+    }, 
+    "{Fuc:2; Hex:7; HexNAc:6; Neu5Ac:1}": {
+      "{Fuc:2; Hex:7; HexNAc:6; Neu5Ac:2}": [
+        "siat2_6"
+      ], 
+      "{Fuc:2; Hex:7; HexNAc:7; Neu5Ac:1}": [
+        "gntIII"
+      ], 
+      "{Fuc:3; Hex:7; HexNAc:6; Neu5Ac:1}": [
+        "fuct6", 
+        "fuct3"
+      ]
+    }, 
+    "{Fuc:2; Hex:7; HexNAc:6; Neu5Ac:2}": {
+      "{Fuc:2; Hex:7; HexNAc:6; Neu5Ac:3}": [
+        "siat2_6"
+      ], 
+      "{Fuc:2; Hex:7; HexNAc:7; Neu5Ac:2}": [
+        "gntIII"
+      ], 
+      "{Fuc:3; Hex:7; HexNAc:6; Neu5Ac:2}": [
+        "fuct6", 
+        "fuct3"
+      ]
+    }, 
+    "{Fuc:2; Hex:7; HexNAc:6; Neu5Ac:3}": {
+      "{Fuc:2; Hex:7; HexNAc:6; Neu5Ac:4}": [
+        "siat2_6"
+      ], 
+      "{Fuc:2; Hex:7; HexNAc:7; Neu5Ac:3}": [
+        "gntIII"
+      ], 
+      "{Fuc:3; Hex:7; HexNAc:6; Neu5Ac:3}": [
+        "fuct6", 
+        "fuct3"
+      ]
+    }, 
+    "{Fuc:2; Hex:7; HexNAc:6; Neu5Ac:4}": {
+      "{Fuc:2; Hex:7; HexNAc:7; Neu5Ac:4}": [
+        "gntIII"
+      ], 
+      "{Fuc:3; Hex:7; HexNAc:6; Neu5Ac:4}": [
+        "fuct6", 
+        "fuct3"
+      ]
+    }, 
+    "{Fuc:2; Hex:7; HexNAc:6}": {
+      "{Fuc:2; Hex:7; HexNAc:6; Neu5Ac:1}": [
+        "siat2_6"
+      ], 
+      "{Fuc:2; Hex:7; HexNAc:7}": [
+        "gntIII"
+      ], 
+      "{Fuc:3; Hex:7; HexNAc:6}": [
+        "fuct6", 
+        "fuct3"
+      ]
+    }, 
+    "{Fuc:2; Hex:7; HexNAc:7; Neu5Ac:1}": {
+      "{Fuc:2; Hex:7; HexNAc:7; Neu5Ac:2}": [
+        "siat2_6"
+      ], 
+      "{Fuc:2; Hex:7; HexNAc:8; Neu5Ac:1}": [
+        "gntIII"
+      ], 
+      "{Fuc:2; Hex:8; HexNAc:7; Neu5Ac:1}": [
+        "galt"
+      ], 
+      "{Fuc:3; Hex:7; HexNAc:7; Neu5Ac:1}": [
+        "fuct6", 
+        "fuct3"
+      ]
+    }, 
+    "{Fuc:2; Hex:7; HexNAc:7; Neu5Ac:2}": {
+      "{Fuc:2; Hex:7; HexNAc:7; Neu5Ac:3}": [
+        "siat2_6"
+      ], 
+      "{Fuc:2; Hex:7; HexNAc:8; Neu5Ac:2}": [
+        "gntIII"
+      ], 
+      "{Fuc:2; Hex:8; HexNAc:7; Neu5Ac:2}": [
+        "galt"
+      ], 
+      "{Fuc:3; Hex:7; HexNAc:7; Neu5Ac:2}": [
+        "fuct6", 
+        "fuct3"
+      ]
+    }, 
+    "{Fuc:2; Hex:7; HexNAc:7; Neu5Ac:3}": {
+      "{Fuc:2; Hex:7; HexNAc:7; Neu5Ac:4}": [
+        "siat2_6"
+      ], 
+      "{Fuc:2; Hex:7; HexNAc:8; Neu5Ac:3}": [
+        "gntIII"
+      ], 
+      "{Fuc:2; Hex:8; HexNAc:7; Neu5Ac:3}": [
+        "galt"
+      ], 
+      "{Fuc:3; Hex:7; HexNAc:7; Neu5Ac:3}": [
+        "fuct6", 
+        "fuct3"
+      ]
+    }, 
+    "{Fuc:2; Hex:7; HexNAc:7; Neu5Ac:4}": {
+      "{Fuc:2; Hex:7; HexNAc:8; Neu5Ac:4}": [
+        "gntIII"
+      ], 
+      "{Fuc:2; Hex:8; HexNAc:7; Neu5Ac:4}": [
+        "galt"
+      ], 
+      "{Fuc:3; Hex:7; HexNAc:7; Neu5Ac:4}": [
+        "fuct6", 
+        "fuct3"
+      ]
+    }, 
+    "{Fuc:2; Hex:7; HexNAc:7}": {
+      "{Fuc:2; Hex:7; HexNAc:7; Neu5Ac:1}": [
+        "siat2_6"
+      ], 
+      "{Fuc:2; Hex:7; HexNAc:8}": [
+        "gntIII"
+      ], 
+      "{Fuc:2; Hex:8; HexNAc:7}": [
+        "galt"
+      ], 
+      "{Fuc:3; Hex:7; HexNAc:7}": [
+        "fuct6", 
+        "fuct3"
+      ]
+    }, 
+    "{Fuc:2; Hex:7; HexNAc:8; Neu5Ac:1}": {
+      "{Fuc:2; Hex:7; HexNAc:8; Neu5Ac:2}": [
+        "siat2_6"
+      ], 
+      "{Fuc:2; Hex:8; HexNAc:8; Neu5Ac:1}": [
+        "galt"
+      ], 
+      "{Fuc:3; Hex:7; HexNAc:8; Neu5Ac:1}": [
+        "fuct6", 
+        "fuct3"
+      ]
+    }, 
+    "{Fuc:2; Hex:7; HexNAc:8; Neu5Ac:2}": {
+      "{Fuc:2; Hex:7; HexNAc:8; Neu5Ac:3}": [
+        "siat2_6"
+      ], 
+      "{Fuc:2; Hex:8; HexNAc:8; Neu5Ac:2}": [
+        "galt"
+      ], 
+      "{Fuc:3; Hex:7; HexNAc:8; Neu5Ac:2}": [
+        "fuct6", 
+        "fuct3"
+      ]
+    }, 
+    "{Fuc:2; Hex:7; HexNAc:8; Neu5Ac:3}": {
+      "{Fuc:2; Hex:7; HexNAc:8; Neu5Ac:4}": [
+        "siat2_6"
+      ], 
+      "{Fuc:2; Hex:8; HexNAc:8; Neu5Ac:3}": [
+        "galt"
+      ], 
+      "{Fuc:3; Hex:7; HexNAc:8; Neu5Ac:3}": [
+        "fuct6", 
+        "fuct3"
+      ]
+    }, 
+    "{Fuc:2; Hex:7; HexNAc:8; Neu5Ac:4}": {
+      "{Fuc:2; Hex:8; HexNAc:8; Neu5Ac:4}": [
+        "galt"
+      ], 
+      "{Fuc:3; Hex:7; HexNAc:8; Neu5Ac:4}": [
+        "fuct6", 
+        "fuct3"
+      ]
+    }, 
+    "{Fuc:2; Hex:7; HexNAc:8}": {
+      "{Fuc:2; Hex:7; HexNAc:8; Neu5Ac:1}": [
+        "siat2_6"
+      ], 
+      "{Fuc:2; Hex:8; HexNAc:8}": [
+        "galt"
+      ], 
+      "{Fuc:3; Hex:7; HexNAc:8}": [
+        "fuct6", 
+        "fuct3"
+      ]
+    }, 
+    "{Fuc:2; Hex:8; HexNAc:4; Neu5Ac:1}": {
+      "{Fuc:2; Hex:7; HexNAc:4; Neu5Ac:1}": [
+        "manI", 
+        "manII"
+      ], 
+      "{Fuc:2; Hex:8; HexNAc:4; Neu5Ac:2}": [
+        "siat2_6"
+      ], 
+      "{Fuc:2; Hex:8; HexNAc:5; Neu5Ac:1}": [
+        "gntIII"
+      ]
+    }, 
+    "{Fuc:2; Hex:8; HexNAc:4; Neu5Ac:2}": {
+      "{Fuc:2; Hex:7; HexNAc:4; Neu5Ac:2}": [
+        "manI", 
+        "manII"
+      ], 
+      "{Fuc:2; Hex:8; HexNAc:5; Neu5Ac:2}": [
+        "gntIII"
+      ]
+    }, 
+    "{Fuc:2; Hex:8; HexNAc:4}": {
+      "{Fuc:2; Hex:7; HexNAc:4}": [
+        "manI", 
+        "manII"
+      ], 
+      "{Fuc:2; Hex:8; HexNAc:4; Neu5Ac:1}": [
+        "siat2_6"
+      ], 
+      "{Fuc:2; Hex:8; HexNAc:5}": [
+        "gntIII"
+      ]
+    }, 
+    "{Fuc:2; Hex:8; HexNAc:5; Neu5Ac:1}": {
+      "{Fuc:2; Hex:7; HexNAc:5; Neu5Ac:1}": [
+        "manI"
+      ], 
+      "{Fuc:2; Hex:8; HexNAc:5; Neu5Ac:2}": [
+        "siat2_6"
+      ]
+    }, 
+    "{Fuc:2; Hex:8; HexNAc:5; Neu5Ac:2}": {
+      "{Fuc:2; Hex:7; HexNAc:5; Neu5Ac:2}": [
+        "manI"
+      ]
+    }, 
+    "{Fuc:2; Hex:8; HexNAc:5}": {
+      "{Fuc:2; Hex:7; HexNAc:5}": [
+        "manI"
+      ], 
+      "{Fuc:2; Hex:8; HexNAc:5; Neu5Ac:1}": [
+        "siat2_6"
+      ]
+    }, 
+    "{Fuc:2; Hex:8; HexNAc:7; Neu5Ac:1}": {
+      "{Fuc:2; Hex:8; HexNAc:7; Neu5Ac:2}": [
+        "siat2_6"
+      ], 
+      "{Fuc:2; Hex:8; HexNAc:8; Neu5Ac:1}": [
+        "gntIII"
+      ], 
+      "{Fuc:3; Hex:8; HexNAc:7; Neu5Ac:1}": [
+        "fuct6", 
+        "fuct3"
+      ]
+    }, 
+    "{Fuc:2; Hex:8; HexNAc:7; Neu5Ac:2}": {
+      "{Fuc:2; Hex:8; HexNAc:7; Neu5Ac:3}": [
+        "siat2_6"
+      ], 
+      "{Fuc:2; Hex:8; HexNAc:8; Neu5Ac:2}": [
+        "gntIII"
+      ], 
+      "{Fuc:3; Hex:8; HexNAc:7; Neu5Ac:2}": [
+        "fuct6", 
+        "fuct3"
+      ]
+    }, 
+    "{Fuc:2; Hex:8; HexNAc:7; Neu5Ac:3}": {
+      "{Fuc:2; Hex:8; HexNAc:7; Neu5Ac:4}": [
+        "siat2_6"
+      ], 
+      "{Fuc:2; Hex:8; HexNAc:8; Neu5Ac:3}": [
+        "gntIII"
+      ], 
+      "{Fuc:3; Hex:8; HexNAc:7; Neu5Ac:3}": [
+        "fuct6", 
+        "fuct3"
+      ]
+    }, 
+    "{Fuc:2; Hex:8; HexNAc:7; Neu5Ac:4}": {
+      "{Fuc:2; Hex:8; HexNAc:7; Neu5Ac:5}": [
+        "siat2_6"
+      ], 
+      "{Fuc:2; Hex:8; HexNAc:8; Neu5Ac:4}": [
+        "gntIII"
+      ], 
+      "{Fuc:3; Hex:8; HexNAc:7; Neu5Ac:4}": [
+        "fuct6", 
+        "fuct3"
+      ]
+    }, 
+    "{Fuc:2; Hex:8; HexNAc:7; Neu5Ac:5}": {
+      "{Fuc:2; Hex:8; HexNAc:8; Neu5Ac:5}": [
+        "gntIII"
+      ], 
+      "{Fuc:3; Hex:8; HexNAc:7; Neu5Ac:5}": [
+        "fuct6", 
+        "fuct3"
+      ]
+    }, 
+    "{Fuc:2; Hex:8; HexNAc:7}": {
+      "{Fuc:2; Hex:8; HexNAc:7; Neu5Ac:1}": [
+        "siat2_6"
+      ], 
+      "{Fuc:2; Hex:8; HexNAc:8}": [
+        "gntIII"
+      ], 
+      "{Fuc:3; Hex:8; HexNAc:7}": [
+        "fuct6", 
+        "fuct3"
+      ]
+    }, 
+    "{Fuc:2; Hex:8; HexNAc:8; Neu5Ac:1}": {
+      "{Fuc:2; Hex:8; HexNAc:8; Neu5Ac:2}": [
+        "siat2_6"
+      ], 
+      "{Fuc:3; Hex:8; HexNAc:8; Neu5Ac:1}": [
+        "fuct6", 
+        "fuct3"
+      ]
+    }, 
+    "{Fuc:2; Hex:8; HexNAc:8; Neu5Ac:2}": {
+      "{Fuc:2; Hex:8; HexNAc:8; Neu5Ac:3}": [
+        "siat2_6"
+      ], 
+      "{Fuc:3; Hex:8; HexNAc:8; Neu5Ac:2}": [
+        "fuct6", 
+        "fuct3"
+      ]
+    }, 
+    "{Fuc:2; Hex:8; HexNAc:8; Neu5Ac:3}": {
+      "{Fuc:2; Hex:8; HexNAc:8; Neu5Ac:4}": [
+        "siat2_6"
+      ], 
+      "{Fuc:3; Hex:8; HexNAc:8; Neu5Ac:3}": [
+        "fuct6", 
+        "fuct3"
+      ]
+    }, 
+    "{Fuc:2; Hex:8; HexNAc:8; Neu5Ac:4}": {
+      "{Fuc:2; Hex:8; HexNAc:8; Neu5Ac:5}": [
+        "siat2_6"
+      ], 
+      "{Fuc:3; Hex:8; HexNAc:8; Neu5Ac:4}": [
+        "fuct6", 
+        "fuct3"
+      ]
+    }, 
+    "{Fuc:2; Hex:8; HexNAc:8; Neu5Ac:5}": {
+      "{Fuc:3; Hex:8; HexNAc:8; Neu5Ac:5}": [
+        "fuct6", 
+        "fuct3"
+      ]
+    }, 
+    "{Fuc:2; Hex:8; HexNAc:8}": {
+      "{Fuc:2; Hex:8; HexNAc:8; Neu5Ac:1}": [
+        "siat2_6"
+      ], 
+      "{Fuc:3; Hex:8; HexNAc:8}": [
+        "fuct6", 
+        "fuct3"
+      ]
+    }, 
+    "{Fuc:2; Hex:9; HexNAc:4; Neu5Ac:1}": {
+      "{Fuc:2; Hex:8; HexNAc:4; Neu5Ac:1}": [
+        "manI"
+      ], 
+      "{Fuc:2; Hex:9; HexNAc:4; Neu5Ac:2}": [
+        "siat2_6"
+      ], 
+      "{Fuc:2; Hex:9; HexNAc:5; Neu5Ac:1}": [
+        "gntIII"
+      ]
+    }, 
+    "{Fuc:2; Hex:9; HexNAc:4; Neu5Ac:2}": {
+      "{Fuc:2; Hex:8; HexNAc:4; Neu5Ac:2}": [
+        "manI"
+      ], 
+      "{Fuc:2; Hex:9; HexNAc:5; Neu5Ac:2}": [
+        "gntIII"
+      ]
+    }, 
+    "{Fuc:2; Hex:9; HexNAc:4}": {
+      "{Fuc:2; Hex:8; HexNAc:4}": [
+        "manI"
+      ], 
+      "{Fuc:2; Hex:9; HexNAc:4; Neu5Ac:1}": [
+        "siat2_6"
+      ], 
+      "{Fuc:2; Hex:9; HexNAc:5}": [
+        "gntIII"
+      ]
+    }, 
+    "{Fuc:2; Hex:9; HexNAc:5; Neu5Ac:1}": {
+      "{Fuc:2; Hex:8; HexNAc:5; Neu5Ac:1}": [
+        "manI"
+      ], 
+      "{Fuc:2; Hex:9; HexNAc:5; Neu5Ac:2}": [
+        "siat2_6"
+      ]
+    }, 
+    "{Fuc:2; Hex:9; HexNAc:5; Neu5Ac:2}": {
+      "{Fuc:2; Hex:8; HexNAc:5; Neu5Ac:2}": [
+        "manI"
+      ]
+    }, 
+    "{Fuc:2; Hex:9; HexNAc:5}": {
+      "{Fuc:2; Hex:8; HexNAc:5}": [
+        "manI"
+      ], 
+      "{Fuc:2; Hex:9; HexNAc:5; Neu5Ac:1}": [
+        "siat2_6"
+      ]
+    }, 
+    "{Fuc:3; Hex:5; HexNAc:4; Neu5Ac:1}": {
+      "{Fuc:3; Hex:5; HexNAc:4; Neu5Ac:2}": [
+        "siat2_6"
+      ], 
+      "{Fuc:3; Hex:5; HexNAc:5; Neu5Ac:1}": [
+        "gntIII"
+      ]
+    }, 
+    "{Fuc:3; Hex:5; HexNAc:4; Neu5Ac:2}": {
+      "{Fuc:3; Hex:5; HexNAc:5; Neu5Ac:2}": [
+        "gntIII"
+      ]
+    }, 
+    "{Fuc:3; Hex:5; HexNAc:4}": {
+      "{Fuc:3; Hex:5; HexNAc:4; Neu5Ac:1}": [
+        "siat2_6"
+      ], 
+      "{Fuc:3; Hex:5; HexNAc:5}": [
+        "gntIII"
+      ]
+    }, 
+    "{Fuc:3; Hex:5; HexNAc:5; Neu5Ac:1}": {
+      "{Fuc:3; Hex:5; HexNAc:5; Neu5Ac:2}": [
+        "siat2_6"
+      ], 
+      "{Fuc:3; Hex:5; HexNAc:6; Neu5Ac:1}": [
+        "gntIII"
+      ], 
+      "{Fuc:3; Hex:6; HexNAc:5; Neu5Ac:1}": [
+        "galt"
+      ]
+    }, 
+    "{Fuc:3; Hex:5; HexNAc:5; Neu5Ac:2}": {
+      "{Fuc:3; Hex:5; HexNAc:6; Neu5Ac:2}": [
+        "gntIII"
+      ], 
+      "{Fuc:3; Hex:6; HexNAc:5; Neu5Ac:2}": [
+        "galt"
+      ]
+    }, 
+    "{Fuc:3; Hex:5; HexNAc:5}": {
+      "{Fuc:3; Hex:5; HexNAc:5; Neu5Ac:1}": [
+        "siat2_6"
+      ], 
+      "{Fuc:3; Hex:5; HexNAc:6}": [
+        "gntIII"
+      ], 
+      "{Fuc:3; Hex:6; HexNAc:5}": [
+        "galt"
+      ]
+    }, 
+    "{Fuc:3; Hex:5; HexNAc:6; Neu5Ac:1}": {
+      "{Fuc:3; Hex:5; HexNAc:6; Neu5Ac:2}": [
+        "siat2_6"
+      ], 
+      "{Fuc:3; Hex:5; HexNAc:7; Neu5Ac:1}": [
+        "gntIII"
+      ], 
+      "{Fuc:3; Hex:6; HexNAc:6; Neu5Ac:1}": [
+        "galt"
+      ]
+    }, 
+    "{Fuc:3; Hex:5; HexNAc:6; Neu5Ac:2}": {
+      "{Fuc:3; Hex:5; HexNAc:7; Neu5Ac:2}": [
+        "gntIII"
+      ], 
+      "{Fuc:3; Hex:6; HexNAc:6; Neu5Ac:2}": [
+        "galt"
+      ]
+    }, 
+    "{Fuc:3; Hex:5; HexNAc:6}": {
+      "{Fuc:3; Hex:5; HexNAc:6; Neu5Ac:1}": [
+        "siat2_6"
+      ], 
+      "{Fuc:3; Hex:5; HexNAc:7}": [
+        "gntIII"
+      ], 
+      "{Fuc:3; Hex:6; HexNAc:6}": [
+        "galt"
+      ]
+    }, 
+    "{Fuc:3; Hex:5; HexNAc:7; Neu5Ac:1}": {
+      "{Fuc:3; Hex:5; HexNAc:7; Neu5Ac:2}": [
+        "siat2_6"
+      ], 
+      "{Fuc:3; Hex:5; HexNAc:8; Neu5Ac:1}": [
+        "gntIII"
+      ], 
+      "{Fuc:3; Hex:6; HexNAc:7; Neu5Ac:1}": [
+        "galt"
+      ]
+    }, 
+    "{Fuc:3; Hex:5; HexNAc:7; Neu5Ac:2}": {
+      "{Fuc:3; Hex:5; HexNAc:8; Neu5Ac:2}": [
+        "gntIII"
+      ], 
+      "{Fuc:3; Hex:6; HexNAc:7; Neu5Ac:2}": [
+        "galt"
+      ]
+    }, 
+    "{Fuc:3; Hex:5; HexNAc:7}": {
+      "{Fuc:3; Hex:5; HexNAc:7; Neu5Ac:1}": [
+        "siat2_6"
+      ], 
+      "{Fuc:3; Hex:5; HexNAc:8}": [
+        "gntIII"
+      ], 
+      "{Fuc:3; Hex:6; HexNAc:7}": [
+        "galt"
+      ]
+    }, 
+    "{Fuc:3; Hex:5; HexNAc:8; Neu5Ac:1}": {
+      "{Fuc:3; Hex:5; HexNAc:8; Neu5Ac:2}": [
+        "siat2_6"
+      ], 
+      "{Fuc:3; Hex:6; HexNAc:8; Neu5Ac:1}": [
+        "galt"
+      ]
+    }, 
+    "{Fuc:3; Hex:5; HexNAc:8; Neu5Ac:2}": {
+      "{Fuc:3; Hex:6; HexNAc:8; Neu5Ac:2}": [
+        "galt"
+      ]
+    }, 
+    "{Fuc:3; Hex:5; HexNAc:8}": {
+      "{Fuc:3; Hex:5; HexNAc:8; Neu5Ac:1}": [
+        "siat2_6"
+      ], 
+      "{Fuc:3; Hex:6; HexNAc:8}": [
+        "galt"
+      ]
+    }, 
+    "{Fuc:3; Hex:6; HexNAc:5; Neu5Ac:1}": {
+      "{Fuc:3; Hex:6; HexNAc:5; Neu5Ac:2}": [
+        "siat2_6"
+      ], 
+      "{Fuc:3; Hex:6; HexNAc:6; Neu5Ac:1}": [
+        "gntIII"
+      ], 
+      "{Fuc:4; Hex:6; HexNAc:5; Neu5Ac:1}": [
+        "fuct6", 
+        "fuct3"
+      ]
+    }, 
+    "{Fuc:3; Hex:6; HexNAc:5; Neu5Ac:2}": {
+      "{Fuc:3; Hex:6; HexNAc:5; Neu5Ac:3}": [
+        "siat2_6"
+      ], 
+      "{Fuc:3; Hex:6; HexNAc:6; Neu5Ac:2}": [
+        "gntIII"
+      ], 
+      "{Fuc:4; Hex:6; HexNAc:5; Neu5Ac:2}": [
+        "fuct6", 
+        "fuct3"
+      ]
+    }, 
+    "{Fuc:3; Hex:6; HexNAc:5; Neu5Ac:3}": {
+      "{Fuc:3; Hex:6; HexNAc:6; Neu5Ac:3}": [
+        "gntIII"
+      ], 
+      "{Fuc:4; Hex:6; HexNAc:5; Neu5Ac:3}": [
+        "fuct6", 
+        "fuct3"
+      ]
+    }, 
+    "{Fuc:3; Hex:6; HexNAc:5}": {
+      "{Fuc:3; Hex:6; HexNAc:5; Neu5Ac:1}": [
+        "siat2_6"
+      ], 
+      "{Fuc:3; Hex:6; HexNAc:6}": [
+        "gntIII"
+      ], 
+      "{Fuc:4; Hex:6; HexNAc:5}": [
+        "fuct6", 
+        "fuct3"
+      ]
+    }, 
+    "{Fuc:3; Hex:6; HexNAc:6; Neu5Ac:1}": {
+      "{Fuc:3; Hex:6; HexNAc:6; Neu5Ac:2}": [
+        "siat2_6"
+      ], 
+      "{Fuc:3; Hex:6; HexNAc:7; Neu5Ac:1}": [
+        "gntIII"
+      ], 
+      "{Fuc:3; Hex:7; HexNAc:6; Neu5Ac:1}": [
+        "galt"
+      ], 
+      "{Fuc:4; Hex:6; HexNAc:6; Neu5Ac:1}": [
+        "fuct6", 
+        "fuct3"
+      ]
+    }, 
+    "{Fuc:3; Hex:6; HexNAc:6; Neu5Ac:2}": {
+      "{Fuc:3; Hex:6; HexNAc:6; Neu5Ac:3}": [
+        "siat2_6"
+      ], 
+      "{Fuc:3; Hex:6; HexNAc:7; Neu5Ac:2}": [
+        "gntIII"
+      ], 
+      "{Fuc:3; Hex:7; HexNAc:6; Neu5Ac:2}": [
+        "galt"
+      ], 
+      "{Fuc:4; Hex:6; HexNAc:6; Neu5Ac:2}": [
+        "fuct6", 
+        "fuct3"
+      ]
+    }, 
+    "{Fuc:3; Hex:6; HexNAc:6; Neu5Ac:3}": {
+      "{Fuc:3; Hex:6; HexNAc:7; Neu5Ac:3}": [
+        "gntIII"
+      ], 
+      "{Fuc:3; Hex:7; HexNAc:6; Neu5Ac:3}": [
+        "galt"
+      ], 
+      "{Fuc:4; Hex:6; HexNAc:6; Neu5Ac:3}": [
+        "fuct6", 
+        "fuct3"
+      ]
+    }, 
+    "{Fuc:3; Hex:6; HexNAc:6}": {
+      "{Fuc:3; Hex:6; HexNAc:6; Neu5Ac:1}": [
+        "siat2_6"
+      ], 
+      "{Fuc:3; Hex:6; HexNAc:7}": [
+        "gntIII"
+      ], 
+      "{Fuc:3; Hex:7; HexNAc:6}": [
+        "galt"
+      ], 
+      "{Fuc:4; Hex:6; HexNAc:6}": [
+        "fuct6", 
+        "fuct3"
+      ]
+    }, 
+    "{Fuc:3; Hex:6; HexNAc:7; Neu5Ac:1}": {
+      "{Fuc:3; Hex:6; HexNAc:7; Neu5Ac:2}": [
+        "siat2_6"
+      ], 
+      "{Fuc:3; Hex:6; HexNAc:8; Neu5Ac:1}": [
+        "gntIII"
+      ], 
+      "{Fuc:3; Hex:7; HexNAc:7; Neu5Ac:1}": [
+        "galt"
+      ], 
+      "{Fuc:4; Hex:6; HexNAc:7; Neu5Ac:1}": [
+        "fuct6", 
+        "fuct3"
+      ]
+    }, 
+    "{Fuc:3; Hex:6; HexNAc:7; Neu5Ac:2}": {
+      "{Fuc:3; Hex:6; HexNAc:7; Neu5Ac:3}": [
+        "siat2_6"
+      ], 
+      "{Fuc:3; Hex:6; HexNAc:8; Neu5Ac:2}": [
+        "gntIII"
+      ], 
+      "{Fuc:3; Hex:7; HexNAc:7; Neu5Ac:2}": [
+        "galt"
+      ], 
+      "{Fuc:4; Hex:6; HexNAc:7; Neu5Ac:2}": [
+        "fuct6", 
+        "fuct3"
+      ]
+    }, 
+    "{Fuc:3; Hex:6; HexNAc:7; Neu5Ac:3}": {
+      "{Fuc:3; Hex:6; HexNAc:8; Neu5Ac:3}": [
+        "gntIII"
+      ], 
+      "{Fuc:3; Hex:7; HexNAc:7; Neu5Ac:3}": [
+        "galt"
+      ], 
+      "{Fuc:4; Hex:6; HexNAc:7; Neu5Ac:3}": [
+        "fuct6", 
+        "fuct3"
+      ]
+    }, 
+    "{Fuc:3; Hex:6; HexNAc:7}": {
+      "{Fuc:3; Hex:6; HexNAc:7; Neu5Ac:1}": [
+        "siat2_6"
+      ], 
+      "{Fuc:3; Hex:6; HexNAc:8}": [
+        "gntIII"
+      ], 
+      "{Fuc:3; Hex:7; HexNAc:7}": [
+        "galt"
+      ], 
+      "{Fuc:4; Hex:6; HexNAc:7}": [
+        "fuct6", 
+        "fuct3"
+      ]
+    }, 
+    "{Fuc:3; Hex:6; HexNAc:8; Neu5Ac:1}": {
+      "{Fuc:3; Hex:6; HexNAc:8; Neu5Ac:2}": [
+        "siat2_6"
+      ], 
+      "{Fuc:3; Hex:7; HexNAc:8; Neu5Ac:1}": [
+        "galt"
+      ], 
+      "{Fuc:4; Hex:6; HexNAc:8; Neu5Ac:1}": [
+        "fuct6", 
+        "fuct3"
+      ]
+    }, 
+    "{Fuc:3; Hex:6; HexNAc:8; Neu5Ac:2}": {
+      "{Fuc:3; Hex:6; HexNAc:8; Neu5Ac:3}": [
+        "siat2_6"
+      ], 
+      "{Fuc:3; Hex:7; HexNAc:8; Neu5Ac:2}": [
+        "galt"
+      ], 
+      "{Fuc:4; Hex:6; HexNAc:8; Neu5Ac:2}": [
+        "fuct6", 
+        "fuct3"
+      ]
+    }, 
+    "{Fuc:3; Hex:6; HexNAc:8; Neu5Ac:3}": {
+      "{Fuc:3; Hex:7; HexNAc:8; Neu5Ac:3}": [
+        "galt"
+      ], 
+      "{Fuc:4; Hex:6; HexNAc:8; Neu5Ac:3}": [
+        "fuct6", 
+        "fuct3"
+      ]
+    }, 
+    "{Fuc:3; Hex:6; HexNAc:8}": {
+      "{Fuc:3; Hex:6; HexNAc:8; Neu5Ac:1}": [
+        "siat2_6"
+      ], 
+      "{Fuc:3; Hex:7; HexNAc:8}": [
+        "galt"
+      ], 
+      "{Fuc:4; Hex:6; HexNAc:8}": [
+        "fuct6", 
+        "fuct3"
+      ]
+    }, 
+    "{Fuc:3; Hex:7; HexNAc:6; Neu5Ac:1}": {
+      "{Fuc:3; Hex:7; HexNAc:6; Neu5Ac:2}": [
+        "siat2_6"
+      ], 
+      "{Fuc:3; Hex:7; HexNAc:7; Neu5Ac:1}": [
+        "gntIII"
+      ], 
+      "{Fuc:4; Hex:7; HexNAc:6; Neu5Ac:1}": [
+        "fuct6", 
+        "fuct3"
+      ]
+    }, 
+    "{Fuc:3; Hex:7; HexNAc:6; Neu5Ac:2}": {
+      "{Fuc:3; Hex:7; HexNAc:6; Neu5Ac:3}": [
+        "siat2_6"
+      ], 
+      "{Fuc:3; Hex:7; HexNAc:7; Neu5Ac:2}": [
+        "gntIII"
+      ], 
+      "{Fuc:4; Hex:7; HexNAc:6; Neu5Ac:2}": [
+        "fuct6", 
+        "fuct3"
+      ]
+    }, 
+    "{Fuc:3; Hex:7; HexNAc:6; Neu5Ac:3}": {
+      "{Fuc:3; Hex:7; HexNAc:6; Neu5Ac:4}": [
+        "siat2_6"
+      ], 
+      "{Fuc:3; Hex:7; HexNAc:7; Neu5Ac:3}": [
+        "gntIII"
+      ], 
+      "{Fuc:4; Hex:7; HexNAc:6; Neu5Ac:3}": [
+        "fuct6", 
+        "fuct3"
+      ]
+    }, 
+    "{Fuc:3; Hex:7; HexNAc:6; Neu5Ac:4}": {
+      "{Fuc:3; Hex:7; HexNAc:7; Neu5Ac:4}": [
+        "gntIII"
+      ], 
+      "{Fuc:4; Hex:7; HexNAc:6; Neu5Ac:4}": [
+        "fuct6", 
+        "fuct3"
+      ]
+    }, 
+    "{Fuc:3; Hex:7; HexNAc:6}": {
+      "{Fuc:3; Hex:7; HexNAc:6; Neu5Ac:1}": [
+        "siat2_6"
+      ], 
+      "{Fuc:3; Hex:7; HexNAc:7}": [
+        "gntIII"
+      ], 
+      "{Fuc:4; Hex:7; HexNAc:6}": [
+        "fuct6", 
+        "fuct3"
+      ]
+    }, 
+    "{Fuc:3; Hex:7; HexNAc:7; Neu5Ac:1}": {
+      "{Fuc:3; Hex:7; HexNAc:7; Neu5Ac:2}": [
+        "siat2_6"
+      ], 
+      "{Fuc:3; Hex:7; HexNAc:8; Neu5Ac:1}": [
+        "gntIII"
+      ], 
+      "{Fuc:3; Hex:8; HexNAc:7; Neu5Ac:1}": [
+        "galt"
+      ], 
+      "{Fuc:4; Hex:7; HexNAc:7; Neu5Ac:1}": [
+        "fuct6", 
+        "fuct3"
+      ]
+    }, 
+    "{Fuc:3; Hex:7; HexNAc:7; Neu5Ac:2}": {
+      "{Fuc:3; Hex:7; HexNAc:7; Neu5Ac:3}": [
+        "siat2_6"
+      ], 
+      "{Fuc:3; Hex:7; HexNAc:8; Neu5Ac:2}": [
+        "gntIII"
+      ], 
+      "{Fuc:3; Hex:8; HexNAc:7; Neu5Ac:2}": [
+        "galt"
+      ], 
+      "{Fuc:4; Hex:7; HexNAc:7; Neu5Ac:2}": [
+        "fuct6", 
+        "fuct3"
+      ]
+    }, 
+    "{Fuc:3; Hex:7; HexNAc:7; Neu5Ac:3}": {
+      "{Fuc:3; Hex:7; HexNAc:7; Neu5Ac:4}": [
+        "siat2_6"
+      ], 
+      "{Fuc:3; Hex:7; HexNAc:8; Neu5Ac:3}": [
+        "gntIII"
+      ], 
+      "{Fuc:3; Hex:8; HexNAc:7; Neu5Ac:3}": [
+        "galt"
+      ], 
+      "{Fuc:4; Hex:7; HexNAc:7; Neu5Ac:3}": [
+        "fuct6", 
+        "fuct3"
+      ]
+    }, 
+    "{Fuc:3; Hex:7; HexNAc:7; Neu5Ac:4}": {
+      "{Fuc:3; Hex:7; HexNAc:8; Neu5Ac:4}": [
+        "gntIII"
+      ], 
+      "{Fuc:3; Hex:8; HexNAc:7; Neu5Ac:4}": [
+        "galt"
+      ], 
+      "{Fuc:4; Hex:7; HexNAc:7; Neu5Ac:4}": [
+        "fuct6", 
+        "fuct3"
+      ]
+    }, 
+    "{Fuc:3; Hex:7; HexNAc:7}": {
+      "{Fuc:3; Hex:7; HexNAc:7; Neu5Ac:1}": [
+        "siat2_6"
+      ], 
+      "{Fuc:3; Hex:7; HexNAc:8}": [
+        "gntIII"
+      ], 
+      "{Fuc:3; Hex:8; HexNAc:7}": [
+        "galt"
+      ], 
+      "{Fuc:4; Hex:7; HexNAc:7}": [
+        "fuct6", 
+        "fuct3"
+      ]
+    }, 
+    "{Fuc:3; Hex:7; HexNAc:8; Neu5Ac:1}": {
+      "{Fuc:3; Hex:7; HexNAc:8; Neu5Ac:2}": [
+        "siat2_6"
+      ], 
+      "{Fuc:3; Hex:8; HexNAc:8; Neu5Ac:1}": [
+        "galt"
+      ], 
+      "{Fuc:4; Hex:7; HexNAc:8; Neu5Ac:1}": [
+        "fuct6", 
+        "fuct3"
+      ]
+    }, 
+    "{Fuc:3; Hex:7; HexNAc:8; Neu5Ac:2}": {
+      "{Fuc:3; Hex:7; HexNAc:8; Neu5Ac:3}": [
+        "siat2_6"
+      ], 
+      "{Fuc:3; Hex:8; HexNAc:8; Neu5Ac:2}": [
+        "galt"
+      ], 
+      "{Fuc:4; Hex:7; HexNAc:8; Neu5Ac:2}": [
+        "fuct6", 
+        "fuct3"
+      ]
+    }, 
+    "{Fuc:3; Hex:7; HexNAc:8; Neu5Ac:3}": {
+      "{Fuc:3; Hex:7; HexNAc:8; Neu5Ac:4}": [
+        "siat2_6"
+      ], 
+      "{Fuc:3; Hex:8; HexNAc:8; Neu5Ac:3}": [
+        "galt"
+      ], 
+      "{Fuc:4; Hex:7; HexNAc:8; Neu5Ac:3}": [
+        "fuct6", 
+        "fuct3"
+      ]
+    }, 
+    "{Fuc:3; Hex:7; HexNAc:8; Neu5Ac:4}": {
+      "{Fuc:3; Hex:8; HexNAc:8; Neu5Ac:4}": [
+        "galt"
+      ], 
+      "{Fuc:4; Hex:7; HexNAc:8; Neu5Ac:4}": [
+        "fuct6", 
+        "fuct3"
+      ]
+    }, 
+    "{Fuc:3; Hex:7; HexNAc:8}": {
+      "{Fuc:3; Hex:7; HexNAc:8; Neu5Ac:1}": [
+        "siat2_6"
+      ], 
+      "{Fuc:3; Hex:8; HexNAc:8}": [
+        "galt"
+      ], 
+      "{Fuc:4; Hex:7; HexNAc:8}": [
+        "fuct6", 
+        "fuct3"
+      ]
+    }, 
+    "{Fuc:3; Hex:8; HexNAc:7; Neu5Ac:1}": {
+      "{Fuc:3; Hex:8; HexNAc:7; Neu5Ac:2}": [
+        "siat2_6"
+      ], 
+      "{Fuc:3; Hex:8; HexNAc:8; Neu5Ac:1}": [
+        "gntIII"
+      ], 
+      "{Fuc:4; Hex:8; HexNAc:7; Neu5Ac:1}": [
+        "fuct6", 
+        "fuct3"
+      ]
+    }, 
+    "{Fuc:3; Hex:8; HexNAc:7; Neu5Ac:2}": {
+      "{Fuc:3; Hex:8; HexNAc:7; Neu5Ac:3}": [
+        "siat2_6"
+      ], 
+      "{Fuc:3; Hex:8; HexNAc:8; Neu5Ac:2}": [
+        "gntIII"
+      ], 
+      "{Fuc:4; Hex:8; HexNAc:7; Neu5Ac:2}": [
+        "fuct6", 
+        "fuct3"
+      ]
+    }, 
+    "{Fuc:3; Hex:8; HexNAc:7; Neu5Ac:3}": {
+      "{Fuc:3; Hex:8; HexNAc:7; Neu5Ac:4}": [
+        "siat2_6"
+      ], 
+      "{Fuc:3; Hex:8; HexNAc:8; Neu5Ac:3}": [
+        "gntIII"
+      ], 
+      "{Fuc:4; Hex:8; HexNAc:7; Neu5Ac:3}": [
+        "fuct6", 
+        "fuct3"
+      ]
+    }, 
+    "{Fuc:3; Hex:8; HexNAc:7; Neu5Ac:4}": {
+      "{Fuc:3; Hex:8; HexNAc:7; Neu5Ac:5}": [
+        "siat2_6"
+      ], 
+      "{Fuc:3; Hex:8; HexNAc:8; Neu5Ac:4}": [
+        "gntIII"
+      ], 
+      "{Fuc:4; Hex:8; HexNAc:7; Neu5Ac:4}": [
+        "fuct6", 
+        "fuct3"
+      ]
+    }, 
+    "{Fuc:3; Hex:8; HexNAc:7; Neu5Ac:5}": {
+      "{Fuc:3; Hex:8; HexNAc:8; Neu5Ac:5}": [
+        "gntIII"
+      ], 
+      "{Fuc:4; Hex:8; HexNAc:7; Neu5Ac:5}": [
+        "fuct6", 
+        "fuct3"
+      ]
+    }, 
+    "{Fuc:3; Hex:8; HexNAc:7}": {
+      "{Fuc:3; Hex:8; HexNAc:7; Neu5Ac:1}": [
+        "siat2_6"
+      ], 
+      "{Fuc:3; Hex:8; HexNAc:8}": [
+        "gntIII"
+      ], 
+      "{Fuc:4; Hex:8; HexNAc:7}": [
+        "fuct6", 
+        "fuct3"
+      ]
+    }, 
+    "{Fuc:3; Hex:8; HexNAc:8; Neu5Ac:1}": {
+      "{Fuc:3; Hex:8; HexNAc:8; Neu5Ac:2}": [
+        "siat2_6"
+      ], 
+      "{Fuc:4; Hex:8; HexNAc:8; Neu5Ac:1}": [
+        "fuct6", 
+        "fuct3"
+      ]
+    }, 
+    "{Fuc:3; Hex:8; HexNAc:8; Neu5Ac:2}": {
+      "{Fuc:3; Hex:8; HexNAc:8; Neu5Ac:3}": [
+        "siat2_6"
+      ], 
+      "{Fuc:4; Hex:8; HexNAc:8; Neu5Ac:2}": [
+        "fuct6", 
+        "fuct3"
+      ]
+    }, 
+    "{Fuc:3; Hex:8; HexNAc:8; Neu5Ac:3}": {
+      "{Fuc:3; Hex:8; HexNAc:8; Neu5Ac:4}": [
+        "siat2_6"
+      ], 
+      "{Fuc:4; Hex:8; HexNAc:8; Neu5Ac:3}": [
+        "fuct6", 
+        "fuct3"
+      ]
+    }, 
+    "{Fuc:3; Hex:8; HexNAc:8; Neu5Ac:4}": {
+      "{Fuc:3; Hex:8; HexNAc:8; Neu5Ac:5}": [
+        "siat2_6"
+      ], 
+      "{Fuc:4; Hex:8; HexNAc:8; Neu5Ac:4}": [
+        "fuct6", 
+        "fuct3"
+      ]
+    }, 
+    "{Fuc:3; Hex:8; HexNAc:8; Neu5Ac:5}": {
+      "{Fuc:4; Hex:8; HexNAc:8; Neu5Ac:5}": [
+        "fuct6", 
+        "fuct3"
+      ]
+    }, 
+    "{Fuc:3; Hex:8; HexNAc:8}": {
+      "{Fuc:3; Hex:8; HexNAc:8; Neu5Ac:1}": [
+        "siat2_6"
+      ], 
+      "{Fuc:4; Hex:8; HexNAc:8}": [
+        "fuct6", 
+        "fuct3"
+      ]
+    }, 
+    "{Fuc:4; Hex:6; HexNAc:5; Neu5Ac:1}": {
+      "{Fuc:4; Hex:6; HexNAc:5; Neu5Ac:2}": [
+        "siat2_6"
+      ], 
+      "{Fuc:4; Hex:6; HexNAc:6; Neu5Ac:1}": [
+        "gntIII"
+      ]
+    }, 
+    "{Fuc:4; Hex:6; HexNAc:5; Neu5Ac:2}": {
+      "{Fuc:4; Hex:6; HexNAc:5; Neu5Ac:3}": [
+        "siat2_6"
+      ], 
+      "{Fuc:4; Hex:6; HexNAc:6; Neu5Ac:2}": [
+        "gntIII"
+      ]
+    }, 
+    "{Fuc:4; Hex:6; HexNAc:5; Neu5Ac:3}": {
+      "{Fuc:4; Hex:6; HexNAc:6; Neu5Ac:3}": [
+        "gntIII"
+      ]
+    }, 
+    "{Fuc:4; Hex:6; HexNAc:5}": {
+      "{Fuc:4; Hex:6; HexNAc:5; Neu5Ac:1}": [
+        "siat2_6"
+      ], 
+      "{Fuc:4; Hex:6; HexNAc:6}": [
+        "gntIII"
+      ]
+    }, 
+    "{Fuc:4; Hex:6; HexNAc:6; Neu5Ac:1}": {
+      "{Fuc:4; Hex:6; HexNAc:6; Neu5Ac:2}": [
+        "siat2_6"
+      ], 
+      "{Fuc:4; Hex:6; HexNAc:7; Neu5Ac:1}": [
+        "gntIII"
+      ], 
+      "{Fuc:4; Hex:7; HexNAc:6; Neu5Ac:1}": [
+        "galt"
+      ]
+    }, 
+    "{Fuc:4; Hex:6; HexNAc:6; Neu5Ac:2}": {
+      "{Fuc:4; Hex:6; HexNAc:6; Neu5Ac:3}": [
+        "siat2_6"
+      ], 
+      "{Fuc:4; Hex:6; HexNAc:7; Neu5Ac:2}": [
+        "gntIII"
+      ], 
+      "{Fuc:4; Hex:7; HexNAc:6; Neu5Ac:2}": [
+        "galt"
+      ]
+    }, 
+    "{Fuc:4; Hex:6; HexNAc:6; Neu5Ac:3}": {
+      "{Fuc:4; Hex:6; HexNAc:7; Neu5Ac:3}": [
+        "gntIII"
+      ], 
+      "{Fuc:4; Hex:7; HexNAc:6; Neu5Ac:3}": [
+        "galt"
+      ]
+    }, 
+    "{Fuc:4; Hex:6; HexNAc:6}": {
+      "{Fuc:4; Hex:6; HexNAc:6; Neu5Ac:1}": [
+        "siat2_6"
+      ], 
+      "{Fuc:4; Hex:6; HexNAc:7}": [
+        "gntIII"
+      ], 
+      "{Fuc:4; Hex:7; HexNAc:6}": [
+        "galt"
+      ]
+    }, 
+    "{Fuc:4; Hex:6; HexNAc:7; Neu5Ac:1}": {
+      "{Fuc:4; Hex:6; HexNAc:7; Neu5Ac:2}": [
+        "siat2_6"
+      ], 
+      "{Fuc:4; Hex:6; HexNAc:8; Neu5Ac:1}": [
+        "gntIII"
+      ], 
+      "{Fuc:4; Hex:7; HexNAc:7; Neu5Ac:1}": [
+        "galt"
+      ]
+    }, 
+    "{Fuc:4; Hex:6; HexNAc:7; Neu5Ac:2}": {
+      "{Fuc:4; Hex:6; HexNAc:7; Neu5Ac:3}": [
+        "siat2_6"
+      ], 
+      "{Fuc:4; Hex:6; HexNAc:8; Neu5Ac:2}": [
+        "gntIII"
+      ], 
+      "{Fuc:4; Hex:7; HexNAc:7; Neu5Ac:2}": [
+        "galt"
+      ]
+    }, 
+    "{Fuc:4; Hex:6; HexNAc:7; Neu5Ac:3}": {
+      "{Fuc:4; Hex:6; HexNAc:8; Neu5Ac:3}": [
+        "gntIII"
+      ], 
+      "{Fuc:4; Hex:7; HexNAc:7; Neu5Ac:3}": [
+        "galt"
+      ]
+    }, 
+    "{Fuc:4; Hex:6; HexNAc:7}": {
+      "{Fuc:4; Hex:6; HexNAc:7; Neu5Ac:1}": [
+        "siat2_6"
+      ], 
+      "{Fuc:4; Hex:6; HexNAc:8}": [
+        "gntIII"
+      ], 
+      "{Fuc:4; Hex:7; HexNAc:7}": [
+        "galt"
+      ]
+    }, 
+    "{Fuc:4; Hex:6; HexNAc:8; Neu5Ac:1}": {
+      "{Fuc:4; Hex:6; HexNAc:8; Neu5Ac:2}": [
+        "siat2_6"
+      ], 
+      "{Fuc:4; Hex:7; HexNAc:8; Neu5Ac:1}": [
+        "galt"
+      ]
+    }, 
+    "{Fuc:4; Hex:6; HexNAc:8; Neu5Ac:2}": {
+      "{Fuc:4; Hex:6; HexNAc:8; Neu5Ac:3}": [
+        "siat2_6"
+      ], 
+      "{Fuc:4; Hex:7; HexNAc:8; Neu5Ac:2}": [
+        "galt"
+      ]
+    }, 
+    "{Fuc:4; Hex:6; HexNAc:8; Neu5Ac:3}": {
+      "{Fuc:4; Hex:7; HexNAc:8; Neu5Ac:3}": [
+        "galt"
+      ]
+    }, 
+    "{Fuc:4; Hex:6; HexNAc:8}": {
+      "{Fuc:4; Hex:6; HexNAc:8; Neu5Ac:1}": [
+        "siat2_6"
+      ], 
+      "{Fuc:4; Hex:7; HexNAc:8}": [
+        "galt"
+      ]
+    }, 
+    "{Fuc:4; Hex:7; HexNAc:6; Neu5Ac:1}": {
+      "{Fuc:4; Hex:7; HexNAc:6; Neu5Ac:2}": [
+        "siat2_6"
+      ], 
+      "{Fuc:4; Hex:7; HexNAc:7; Neu5Ac:1}": [
+        "gntIII"
+      ], 
+      "{Fuc:5; Hex:7; HexNAc:6; Neu5Ac:1}": [
+        "fuct6", 
+        "fuct3"
+      ]
+    }, 
+    "{Fuc:4; Hex:7; HexNAc:6; Neu5Ac:2}": {
+      "{Fuc:4; Hex:7; HexNAc:6; Neu5Ac:3}": [
+        "siat2_6"
+      ], 
+      "{Fuc:4; Hex:7; HexNAc:7; Neu5Ac:2}": [
+        "gntIII"
+      ], 
+      "{Fuc:5; Hex:7; HexNAc:6; Neu5Ac:2}": [
+        "fuct6", 
+        "fuct3"
+      ]
+    }, 
+    "{Fuc:4; Hex:7; HexNAc:6; Neu5Ac:3}": {
+      "{Fuc:4; Hex:7; HexNAc:6; Neu5Ac:4}": [
+        "siat2_6"
+      ], 
+      "{Fuc:4; Hex:7; HexNAc:7; Neu5Ac:3}": [
+        "gntIII"
+      ], 
+      "{Fuc:5; Hex:7; HexNAc:6; Neu5Ac:3}": [
+        "fuct6", 
+        "fuct3"
+      ]
+    }, 
+    "{Fuc:4; Hex:7; HexNAc:6; Neu5Ac:4}": {
+      "{Fuc:4; Hex:7; HexNAc:7; Neu5Ac:4}": [
+        "gntIII"
+      ], 
+      "{Fuc:5; Hex:7; HexNAc:6; Neu5Ac:4}": [
+        "fuct6", 
+        "fuct3"
+      ]
+    }, 
+    "{Fuc:4; Hex:7; HexNAc:6}": {
+      "{Fuc:4; Hex:7; HexNAc:6; Neu5Ac:1}": [
+        "siat2_6"
+      ], 
+      "{Fuc:4; Hex:7; HexNAc:7}": [
+        "gntIII"
+      ], 
+      "{Fuc:5; Hex:7; HexNAc:6}": [
+        "fuct6", 
+        "fuct3"
+      ]
+    }, 
+    "{Fuc:4; Hex:7; HexNAc:7; Neu5Ac:1}": {
+      "{Fuc:4; Hex:7; HexNAc:7; Neu5Ac:2}": [
+        "siat2_6"
+      ], 
+      "{Fuc:4; Hex:7; HexNAc:8; Neu5Ac:1}": [
+        "gntIII"
+      ], 
+      "{Fuc:4; Hex:8; HexNAc:7; Neu5Ac:1}": [
+        "galt"
+      ], 
+      "{Fuc:5; Hex:7; HexNAc:7; Neu5Ac:1}": [
+        "fuct6", 
+        "fuct3"
+      ]
+    }, 
+    "{Fuc:4; Hex:7; HexNAc:7; Neu5Ac:2}": {
+      "{Fuc:4; Hex:7; HexNAc:7; Neu5Ac:3}": [
+        "siat2_6"
+      ], 
+      "{Fuc:4; Hex:7; HexNAc:8; Neu5Ac:2}": [
+        "gntIII"
+      ], 
+      "{Fuc:4; Hex:8; HexNAc:7; Neu5Ac:2}": [
+        "galt"
+      ], 
+      "{Fuc:5; Hex:7; HexNAc:7; Neu5Ac:2}": [
+        "fuct6", 
+        "fuct3"
+      ]
+    }, 
+    "{Fuc:4; Hex:7; HexNAc:7; Neu5Ac:3}": {
+      "{Fuc:4; Hex:7; HexNAc:7; Neu5Ac:4}": [
+        "siat2_6"
+      ], 
+      "{Fuc:4; Hex:7; HexNAc:8; Neu5Ac:3}": [
+        "gntIII"
+      ], 
+      "{Fuc:4; Hex:8; HexNAc:7; Neu5Ac:3}": [
+        "galt"
+      ], 
+      "{Fuc:5; Hex:7; HexNAc:7; Neu5Ac:3}": [
+        "fuct6", 
+        "fuct3"
+      ]
+    }, 
+    "{Fuc:4; Hex:7; HexNAc:7; Neu5Ac:4}": {
+      "{Fuc:4; Hex:7; HexNAc:8; Neu5Ac:4}": [
+        "gntIII"
+      ], 
+      "{Fuc:4; Hex:8; HexNAc:7; Neu5Ac:4}": [
+        "galt"
+      ], 
+      "{Fuc:5; Hex:7; HexNAc:7; Neu5Ac:4}": [
+        "fuct6", 
+        "fuct3"
+      ]
+    }, 
+    "{Fuc:4; Hex:7; HexNAc:7}": {
+      "{Fuc:4; Hex:7; HexNAc:7; Neu5Ac:1}": [
+        "siat2_6"
+      ], 
+      "{Fuc:4; Hex:7; HexNAc:8}": [
+        "gntIII"
+      ], 
+      "{Fuc:4; Hex:8; HexNAc:7}": [
+        "galt"
+      ], 
+      "{Fuc:5; Hex:7; HexNAc:7}": [
+        "fuct6", 
+        "fuct3"
+      ]
+    }, 
+    "{Fuc:4; Hex:7; HexNAc:8; Neu5Ac:1}": {
+      "{Fuc:4; Hex:7; HexNAc:8; Neu5Ac:2}": [
+        "siat2_6"
+      ], 
+      "{Fuc:4; Hex:8; HexNAc:8; Neu5Ac:1}": [
+        "galt"
+      ], 
+      "{Fuc:5; Hex:7; HexNAc:8; Neu5Ac:1}": [
+        "fuct6", 
+        "fuct3"
+      ]
+    }, 
+    "{Fuc:4; Hex:7; HexNAc:8; Neu5Ac:2}": {
+      "{Fuc:4; Hex:7; HexNAc:8; Neu5Ac:3}": [
+        "siat2_6"
+      ], 
+      "{Fuc:4; Hex:8; HexNAc:8; Neu5Ac:2}": [
+        "galt"
+      ], 
+      "{Fuc:5; Hex:7; HexNAc:8; Neu5Ac:2}": [
+        "fuct6", 
+        "fuct3"
+      ]
+    }, 
+    "{Fuc:4; Hex:7; HexNAc:8; Neu5Ac:3}": {
+      "{Fuc:4; Hex:7; HexNAc:8; Neu5Ac:4}": [
+        "siat2_6"
+      ], 
+      "{Fuc:4; Hex:8; HexNAc:8; Neu5Ac:3}": [
+        "galt"
+      ], 
+      "{Fuc:5; Hex:7; HexNAc:8; Neu5Ac:3}": [
+        "fuct6", 
+        "fuct3"
+      ]
+    }, 
+    "{Fuc:4; Hex:7; HexNAc:8; Neu5Ac:4}": {
+      "{Fuc:4; Hex:8; HexNAc:8; Neu5Ac:4}": [
+        "galt"
+      ], 
+      "{Fuc:5; Hex:7; HexNAc:8; Neu5Ac:4}": [
+        "fuct6", 
+        "fuct3"
+      ]
+    }, 
+    "{Fuc:4; Hex:7; HexNAc:8}": {
+      "{Fuc:4; Hex:7; HexNAc:8; Neu5Ac:1}": [
+        "siat2_6"
+      ], 
+      "{Fuc:4; Hex:8; HexNAc:8}": [
+        "galt"
+      ], 
+      "{Fuc:5; Hex:7; HexNAc:8}": [
+        "fuct6", 
+        "fuct3"
+      ]
+    }, 
+    "{Fuc:4; Hex:8; HexNAc:7; Neu5Ac:1}": {
+      "{Fuc:4; Hex:8; HexNAc:7; Neu5Ac:2}": [
+        "siat2_6"
+      ], 
+      "{Fuc:4; Hex:8; HexNAc:8; Neu5Ac:1}": [
+        "gntIII"
+      ], 
+      "{Fuc:5; Hex:8; HexNAc:7; Neu5Ac:1}": [
+        "fuct6", 
+        "fuct3"
+      ]
+    }, 
+    "{Fuc:4; Hex:8; HexNAc:7; Neu5Ac:2}": {
+      "{Fuc:4; Hex:8; HexNAc:7; Neu5Ac:3}": [
+        "siat2_6"
+      ], 
+      "{Fuc:4; Hex:8; HexNAc:8; Neu5Ac:2}": [
+        "gntIII"
+      ], 
+      "{Fuc:5; Hex:8; HexNAc:7; Neu5Ac:2}": [
+        "fuct6", 
+        "fuct3"
+      ]
+    }, 
+    "{Fuc:4; Hex:8; HexNAc:7; Neu5Ac:3}": {
+      "{Fuc:4; Hex:8; HexNAc:7; Neu5Ac:4}": [
+        "siat2_6"
+      ], 
+      "{Fuc:4; Hex:8; HexNAc:8; Neu5Ac:3}": [
+        "gntIII"
+      ], 
+      "{Fuc:5; Hex:8; HexNAc:7; Neu5Ac:3}": [
+        "fuct6", 
+        "fuct3"
+      ]
+    }, 
+    "{Fuc:4; Hex:8; HexNAc:7; Neu5Ac:4}": {
+      "{Fuc:4; Hex:8; HexNAc:7; Neu5Ac:5}": [
+        "siat2_6"
+      ], 
+      "{Fuc:4; Hex:8; HexNAc:8; Neu5Ac:4}": [
+        "gntIII"
+      ], 
+      "{Fuc:5; Hex:8; HexNAc:7; Neu5Ac:4}": [
+        "fuct6", 
+        "fuct3"
+      ]
+    }, 
+    "{Fuc:4; Hex:8; HexNAc:7; Neu5Ac:5}": {
+      "{Fuc:4; Hex:8; HexNAc:8; Neu5Ac:5}": [
+        "gntIII"
+      ], 
+      "{Fuc:5; Hex:8; HexNAc:7; Neu5Ac:5}": [
+        "fuct6", 
+        "fuct3"
+      ]
+    }, 
+    "{Fuc:4; Hex:8; HexNAc:7}": {
+      "{Fuc:4; Hex:8; HexNAc:7; Neu5Ac:1}": [
+        "siat2_6"
+      ], 
+      "{Fuc:4; Hex:8; HexNAc:8}": [
+        "gntIII"
+      ], 
+      "{Fuc:5; Hex:8; HexNAc:7}": [
+        "fuct6", 
+        "fuct3"
+      ]
+    }, 
+    "{Fuc:4; Hex:8; HexNAc:8; Neu5Ac:1}": {
+      "{Fuc:4; Hex:8; HexNAc:8; Neu5Ac:2}": [
+        "siat2_6"
+      ], 
+      "{Fuc:5; Hex:8; HexNAc:8; Neu5Ac:1}": [
+        "fuct6", 
+        "fuct3"
+      ]
+    }, 
+    "{Fuc:4; Hex:8; HexNAc:8; Neu5Ac:2}": {
+      "{Fuc:4; Hex:8; HexNAc:8; Neu5Ac:3}": [
+        "siat2_6"
+      ], 
+      "{Fuc:5; Hex:8; HexNAc:8; Neu5Ac:2}": [
+        "fuct6", 
+        "fuct3"
+      ]
+    }, 
+    "{Fuc:4; Hex:8; HexNAc:8; Neu5Ac:3}": {
+      "{Fuc:4; Hex:8; HexNAc:8; Neu5Ac:4}": [
+        "siat2_6"
+      ], 
+      "{Fuc:5; Hex:8; HexNAc:8; Neu5Ac:3}": [
+        "fuct6", 
+        "fuct3"
+      ]
+    }, 
+    "{Fuc:4; Hex:8; HexNAc:8; Neu5Ac:4}": {
+      "{Fuc:4; Hex:8; HexNAc:8; Neu5Ac:5}": [
+        "siat2_6"
+      ], 
+      "{Fuc:5; Hex:8; HexNAc:8; Neu5Ac:4}": [
+        "fuct6", 
+        "fuct3"
+      ]
+    }, 
+    "{Fuc:4; Hex:8; HexNAc:8; Neu5Ac:5}": {
+      "{Fuc:5; Hex:8; HexNAc:8; Neu5Ac:5}": [
+        "fuct6", 
+        "fuct3"
+      ]
+    }, 
+    "{Fuc:4; Hex:8; HexNAc:8}": {
+      "{Fuc:4; Hex:8; HexNAc:8; Neu5Ac:1}": [
+        "siat2_6"
+      ], 
+      "{Fuc:5; Hex:8; HexNAc:8}": [
+        "fuct6", 
+        "fuct3"
+      ]
+    }, 
+    "{Fuc:5; Hex:7; HexNAc:6; Neu5Ac:1}": {
+      "{Fuc:5; Hex:7; HexNAc:6; Neu5Ac:2}": [
+        "siat2_6"
+      ], 
+      "{Fuc:5; Hex:7; HexNAc:7; Neu5Ac:1}": [
+        "gntIII"
+      ]
+    }, 
+    "{Fuc:5; Hex:7; HexNAc:6; Neu5Ac:2}": {
+      "{Fuc:5; Hex:7; HexNAc:6; Neu5Ac:3}": [
+        "siat2_6"
+      ], 
+      "{Fuc:5; Hex:7; HexNAc:7; Neu5Ac:2}": [
+        "gntIII"
+      ]
+    }, 
+    "{Fuc:5; Hex:7; HexNAc:6; Neu5Ac:3}": {
+      "{Fuc:5; Hex:7; HexNAc:6; Neu5Ac:4}": [
+        "siat2_6"
+      ], 
+      "{Fuc:5; Hex:7; HexNAc:7; Neu5Ac:3}": [
+        "gntIII"
+      ]
+    }, 
+    "{Fuc:5; Hex:7; HexNAc:6; Neu5Ac:4}": {
+      "{Fuc:5; Hex:7; HexNAc:7; Neu5Ac:4}": [
+        "gntIII"
+      ]
+    }, 
+    "{Fuc:5; Hex:7; HexNAc:6}": {
+      "{Fuc:5; Hex:7; HexNAc:6; Neu5Ac:1}": [
+        "siat2_6"
+      ], 
+      "{Fuc:5; Hex:7; HexNAc:7}": [
+        "gntIII"
+      ]
+    }, 
+    "{Fuc:5; Hex:7; HexNAc:7; Neu5Ac:1}": {
+      "{Fuc:5; Hex:7; HexNAc:7; Neu5Ac:2}": [
+        "siat2_6"
+      ], 
+      "{Fuc:5; Hex:7; HexNAc:8; Neu5Ac:1}": [
+        "gntIII"
+      ], 
+      "{Fuc:5; Hex:8; HexNAc:7; Neu5Ac:1}": [
+        "galt"
+      ]
+    }, 
+    "{Fuc:5; Hex:7; HexNAc:7; Neu5Ac:2}": {
+      "{Fuc:5; Hex:7; HexNAc:7; Neu5Ac:3}": [
+        "siat2_6"
+      ], 
+      "{Fuc:5; Hex:7; HexNAc:8; Neu5Ac:2}": [
+        "gntIII"
+      ], 
+      "{Fuc:5; Hex:8; HexNAc:7; Neu5Ac:2}": [
+        "galt"
+      ]
+    }, 
+    "{Fuc:5; Hex:7; HexNAc:7; Neu5Ac:3}": {
+      "{Fuc:5; Hex:7; HexNAc:7; Neu5Ac:4}": [
+        "siat2_6"
+      ], 
+      "{Fuc:5; Hex:7; HexNAc:8; Neu5Ac:3}": [
+        "gntIII"
+      ], 
+      "{Fuc:5; Hex:8; HexNAc:7; Neu5Ac:3}": [
+        "galt"
+      ]
+    }, 
+    "{Fuc:5; Hex:7; HexNAc:7; Neu5Ac:4}": {
+      "{Fuc:5; Hex:7; HexNAc:8; Neu5Ac:4}": [
+        "gntIII"
+      ], 
+      "{Fuc:5; Hex:8; HexNAc:7; Neu5Ac:4}": [
+        "galt"
+      ]
+    }, 
+    "{Fuc:5; Hex:7; HexNAc:7}": {
+      "{Fuc:5; Hex:7; HexNAc:7; Neu5Ac:1}": [
+        "siat2_6"
+      ], 
+      "{Fuc:5; Hex:7; HexNAc:8}": [
+        "gntIII"
+      ], 
+      "{Fuc:5; Hex:8; HexNAc:7}": [
+        "galt"
+      ]
+    }, 
+    "{Fuc:5; Hex:7; HexNAc:8; Neu5Ac:1}": {
+      "{Fuc:5; Hex:7; HexNAc:8; Neu5Ac:2}": [
+        "siat2_6"
+      ], 
+      "{Fuc:5; Hex:8; HexNAc:8; Neu5Ac:1}": [
+        "galt"
+      ]
+    }, 
+    "{Fuc:5; Hex:7; HexNAc:8; Neu5Ac:2}": {
+      "{Fuc:5; Hex:7; HexNAc:8; Neu5Ac:3}": [
+        "siat2_6"
+      ], 
+      "{Fuc:5; Hex:8; HexNAc:8; Neu5Ac:2}": [
+        "galt"
+      ]
+    }, 
+    "{Fuc:5; Hex:7; HexNAc:8; Neu5Ac:3}": {
+      "{Fuc:5; Hex:7; HexNAc:8; Neu5Ac:4}": [
+        "siat2_6"
+      ], 
+      "{Fuc:5; Hex:8; HexNAc:8; Neu5Ac:3}": [
+        "galt"
+      ]
+    }, 
+    "{Fuc:5; Hex:7; HexNAc:8; Neu5Ac:4}": {
+      "{Fuc:5; Hex:8; HexNAc:8; Neu5Ac:4}": [
+        "galt"
+      ]
+    }, 
+    "{Fuc:5; Hex:7; HexNAc:8}": {
+      "{Fuc:5; Hex:7; HexNAc:8; Neu5Ac:1}": [
+        "siat2_6"
+      ], 
+      "{Fuc:5; Hex:8; HexNAc:8}": [
+        "galt"
+      ]
+    }, 
+    "{Fuc:5; Hex:8; HexNAc:7; Neu5Ac:1}": {
+      "{Fuc:5; Hex:8; HexNAc:7; Neu5Ac:2}": [
+        "siat2_6"
+      ], 
+      "{Fuc:5; Hex:8; HexNAc:8; Neu5Ac:1}": [
+        "gntIII"
+      ], 
+      "{Fuc:6; Hex:8; HexNAc:7; Neu5Ac:1}": [
+        "fuct6", 
+        "fuct3"
+      ]
+    }, 
+    "{Fuc:5; Hex:8; HexNAc:7; Neu5Ac:2}": {
+      "{Fuc:5; Hex:8; HexNAc:7; Neu5Ac:3}": [
+        "siat2_6"
+      ], 
+      "{Fuc:5; Hex:8; HexNAc:8; Neu5Ac:2}": [
+        "gntIII"
+      ], 
+      "{Fuc:6; Hex:8; HexNAc:7; Neu5Ac:2}": [
+        "fuct6", 
+        "fuct3"
+      ]
+    }, 
+    "{Fuc:5; Hex:8; HexNAc:7; Neu5Ac:3}": {
+      "{Fuc:5; Hex:8; HexNAc:7; Neu5Ac:4}": [
+        "siat2_6"
+      ], 
+      "{Fuc:5; Hex:8; HexNAc:8; Neu5Ac:3}": [
+        "gntIII"
+      ], 
+      "{Fuc:6; Hex:8; HexNAc:7; Neu5Ac:3}": [
+        "fuct6", 
+        "fuct3"
+      ]
+    }, 
+    "{Fuc:5; Hex:8; HexNAc:7; Neu5Ac:4}": {
+      "{Fuc:5; Hex:8; HexNAc:7; Neu5Ac:5}": [
+        "siat2_6"
+      ], 
+      "{Fuc:5; Hex:8; HexNAc:8; Neu5Ac:4}": [
+        "gntIII"
+      ], 
+      "{Fuc:6; Hex:8; HexNAc:7; Neu5Ac:4}": [
+        "fuct6", 
+        "fuct3"
+      ]
+    }, 
+    "{Fuc:5; Hex:8; HexNAc:7; Neu5Ac:5}": {
+      "{Fuc:5; Hex:8; HexNAc:8; Neu5Ac:5}": [
+        "gntIII"
+      ], 
+      "{Fuc:6; Hex:8; HexNAc:7; Neu5Ac:5}": [
+        "fuct6", 
+        "fuct3"
+      ]
+    }, 
+    "{Fuc:5; Hex:8; HexNAc:7}": {
+      "{Fuc:5; Hex:8; HexNAc:7; Neu5Ac:1}": [
+        "siat2_6"
+      ], 
+      "{Fuc:5; Hex:8; HexNAc:8}": [
+        "gntIII"
+      ], 
+      "{Fuc:6; Hex:8; HexNAc:7}": [
+        "fuct6", 
+        "fuct3"
+      ]
+    }, 
+    "{Fuc:5; Hex:8; HexNAc:8; Neu5Ac:1}": {
+      "{Fuc:5; Hex:8; HexNAc:8; Neu5Ac:2}": [
+        "siat2_6"
+      ], 
+      "{Fuc:6; Hex:8; HexNAc:8; Neu5Ac:1}": [
+        "fuct6", 
+        "fuct3"
+      ]
+    }, 
+    "{Fuc:5; Hex:8; HexNAc:8; Neu5Ac:2}": {
+      "{Fuc:5; Hex:8; HexNAc:8; Neu5Ac:3}": [
+        "siat2_6"
+      ], 
+      "{Fuc:6; Hex:8; HexNAc:8; Neu5Ac:2}": [
+        "fuct6", 
+        "fuct3"
+      ]
+    }, 
+    "{Fuc:5; Hex:8; HexNAc:8; Neu5Ac:3}": {
+      "{Fuc:5; Hex:8; HexNAc:8; Neu5Ac:4}": [
+        "siat2_6"
+      ], 
+      "{Fuc:6; Hex:8; HexNAc:8; Neu5Ac:3}": [
+        "fuct6", 
+        "fuct3"
+      ]
+    }, 
+    "{Fuc:5; Hex:8; HexNAc:8; Neu5Ac:4}": {
+      "{Fuc:5; Hex:8; HexNAc:8; Neu5Ac:5}": [
+        "siat2_6"
+      ], 
+      "{Fuc:6; Hex:8; HexNAc:8; Neu5Ac:4}": [
+        "fuct6", 
+        "fuct3"
+      ]
+    }, 
+    "{Fuc:5; Hex:8; HexNAc:8; Neu5Ac:5}": {
+      "{Fuc:6; Hex:8; HexNAc:8; Neu5Ac:5}": [
+        "fuct6", 
+        "fuct3"
+      ]
+    }, 
+    "{Fuc:5; Hex:8; HexNAc:8}": {
+      "{Fuc:5; Hex:8; HexNAc:8; Neu5Ac:1}": [
+        "siat2_6"
+      ], 
+      "{Fuc:6; Hex:8; HexNAc:8}": [
+        "fuct6", 
+        "fuct3"
+      ]
+    }, 
+    "{Fuc:6; Hex:8; HexNAc:7; Neu5Ac:1}": {
+      "{Fuc:6; Hex:8; HexNAc:7; Neu5Ac:2}": [
+        "siat2_6"
+      ], 
+      "{Fuc:6; Hex:8; HexNAc:8; Neu5Ac:1}": [
+        "gntIII"
+      ]
+    }, 
+    "{Fuc:6; Hex:8; HexNAc:7; Neu5Ac:2}": {
+      "{Fuc:6; Hex:8; HexNAc:7; Neu5Ac:3}": [
+        "siat2_6"
+      ], 
+      "{Fuc:6; Hex:8; HexNAc:8; Neu5Ac:2}": [
+        "gntIII"
+      ]
+    }, 
+    "{Fuc:6; Hex:8; HexNAc:7; Neu5Ac:3}": {
+      "{Fuc:6; Hex:8; HexNAc:7; Neu5Ac:4}": [
+        "siat2_6"
+      ], 
+      "{Fuc:6; Hex:8; HexNAc:8; Neu5Ac:3}": [
+        "gntIII"
+      ]
+    }, 
+    "{Fuc:6; Hex:8; HexNAc:7; Neu5Ac:4}": {
+      "{Fuc:6; Hex:8; HexNAc:7; Neu5Ac:5}": [
+        "siat2_6"
+      ], 
+      "{Fuc:6; Hex:8; HexNAc:8; Neu5Ac:4}": [
+        "gntIII"
+      ]
+    }, 
+    "{Fuc:6; Hex:8; HexNAc:7; Neu5Ac:5}": {
+      "{Fuc:6; Hex:8; HexNAc:8; Neu5Ac:5}": [
+        "gntIII"
+      ]
+    }, 
+    "{Fuc:6; Hex:8; HexNAc:7}": {
+      "{Fuc:6; Hex:8; HexNAc:7; Neu5Ac:1}": [
+        "siat2_6"
+      ], 
+      "{Fuc:6; Hex:8; HexNAc:8}": [
+        "gntIII"
+      ]
+    }, 
+    "{Fuc:6; Hex:8; HexNAc:8; Neu5Ac:1}": {
+      "{Fuc:6; Hex:8; HexNAc:8; Neu5Ac:2}": [
+        "siat2_6"
+      ]
+    }, 
+    "{Fuc:6; Hex:8; HexNAc:8; Neu5Ac:2}": {
+      "{Fuc:6; Hex:8; HexNAc:8; Neu5Ac:3}": [
+        "siat2_6"
+      ]
+    }, 
+    "{Fuc:6; Hex:8; HexNAc:8; Neu5Ac:3}": {
+      "{Fuc:6; Hex:8; HexNAc:8; Neu5Ac:4}": [
+        "siat2_6"
+      ]
+    }, 
+    "{Fuc:6; Hex:8; HexNAc:8; Neu5Ac:4}": {
+      "{Fuc:6; Hex:8; HexNAc:8; Neu5Ac:5}": [
+        "siat2_6"
+      ]
+    }, 
+    "{Fuc:6; Hex:8; HexNAc:8}": {
+      "{Fuc:6; Hex:8; HexNAc:8; Neu5Ac:1}": [
+        "siat2_6"
+      ]
+    }, 
+    "{Hex:10; HexNAc:2}": {
+      "{Hex:9; HexNAc:2}": [
+        "manI", 
+        "glucosidaseI", 
+        "manII", 
+        "glucosidaseII"
+      ]
+    }, 
+    "{Hex:11; HexNAc:2}": {
+      "{Hex:10; HexNAc:2}": [
+        "manI", 
+        "manII", 
+        "glucosidaseII"
+      ]
+    }, 
+    "{Hex:12; HexNAc:2}": {
+      "{Hex:11; HexNAc:2}": [
+        "manI", 
+        "glucosidaseII"
+      ]
+    }, 
+    "{Hex:3; HexNAc:2}": {
+      "{Hex:3; HexNAc:3}": [
+        "gntI"
+      ]
+    }, 
+    "{Hex:3; HexNAc:3}": {
+      "{Hex:3; HexNAc:4}": [
+        "gntIV", 
+        "gntII", 
+        "gntIII"
+      ], 
+      "{Hex:4; HexNAc:3}": [
+        "galt"
+      ]
+    }, 
+    "{Hex:3; HexNAc:4}": {
+      "{Fuc:1; Hex:3; HexNAc:4}": [
+        "fuct6"
+      ], 
+      "{Hex:3; HexNAc:5}": [
+        "gntIV", 
+        "gntII", 
+        "gntIII", 
+        "gntV"
+      ], 
+      "{Hex:4; HexNAc:4}": [
+        "galt"
+      ]
+    }, 
+    "{Hex:3; HexNAc:5}": {
+      "{Fuc:1; Hex:3; HexNAc:5}": [
+        "fuct6"
+      ], 
+      "{Hex:3; HexNAc:6}": [
+        "gntIV", 
+        "gntV", 
+        "gntIII", 
+        "gntVI"
+      ], 
+      "{Hex:4; HexNAc:5}": [
+        "galt"
+      ]
+    }, 
+    "{Hex:3; HexNAc:6}": {
+      "{Fuc:1; Hex:3; HexNAc:6}": [
+        "fuct6"
+      ], 
+      "{Hex:3; HexNAc:7}": [
+        "gntIV", 
+        "gntIII", 
+        "gntVI"
+      ], 
+      "{Hex:4; HexNAc:6}": [
+        "galt"
+      ]
+    }, 
+    "{Hex:3; HexNAc:7}": {
+      "{Fuc:1; Hex:3; HexNAc:7}": [
+        "fuct6"
+      ], 
+      "{Hex:3; HexNAc:8}": [
+        "gntIII"
+      ], 
+      "{Hex:4; HexNAc:7}": [
+        "galt"
+      ]
+    }, 
+    "{Hex:3; HexNAc:8}": {
+      "{Fuc:1; Hex:3; HexNAc:8}": [
+        "fuct6"
+      ], 
+      "{Hex:4; HexNAc:8}": [
+        "galt"
+      ]
+    }, 
+    "{Hex:4; HexNAc:2}": {
+      "{Hex:3; HexNAc:2}": [
+        "manI", 
+        "manII"
+      ], 
+      "{Hex:4; HexNAc:3}": [
+        "gntI"
+      ]
+    }, 
+    "{Hex:4; HexNAc:3; Neu5Ac:1}": {
+      "{Fuc:1; Hex:4; HexNAc:3; Neu5Ac:1}": [
+        "fuct3"
+      ], 
+      "{Hex:4; HexNAc:4; Neu5Ac:1}": [
+        "gntIII"
+      ]
+    }, 
+    "{Hex:4; HexNAc:3}": {
+      "{Fuc:1; Hex:4; HexNAc:3}": [
+        "fuct3"
+      ], 
+      "{Hex:3; HexNAc:3}": [
+        "manII"
+      ], 
+      "{Hex:4; HexNAc:3; Neu5Ac:1}": [
+        "siat2_6"
+      ], 
+      "{Hex:4; HexNAc:4}": [
+        "gntIV", 
+        "gntIII"
+      ], 
+      "{Hex:5; HexNAc:3}": [
+        "galt"
+      ]
+    }, 
+    "{Hex:4; HexNAc:4; Neu5Ac:1}": {
+      "{Fuc:1; Hex:4; HexNAc:4; Neu5Ac:1}": [
+        "fuct6", 
+        "fuct3"
+      ], 
+      "{Hex:4; HexNAc:5; Neu5Ac:1}": [
+        "gntIII"
+      ], 
+      "{Hex:5; HexNAc:4; Neu5Ac:1}": [
+        "galt"
+      ]
+    }, 
+    "{Hex:4; HexNAc:4}": {
+      "{Fuc:1; Hex:4; HexNAc:4}": [
+        "fuct6", 
+        "fuct3"
+      ], 
+      "{Hex:3; HexNAc:4}": [
+        "manII"
+      ], 
+      "{Hex:4; HexNAc:4; Neu5Ac:1}": [
+        "siat2_6"
+      ], 
+      "{Hex:4; HexNAc:5}": [
+        "gntIII"
+      ], 
+      "{Hex:5; HexNAc:4}": [
+        "galt"
+      ]
+    }, 
+    "{Hex:4; HexNAc:5; Neu5Ac:1}": {
+      "{Fuc:1; Hex:4; HexNAc:5; Neu5Ac:1}": [
+        "fuct6", 
+        "fuct3"
+      ], 
+      "{Hex:4; HexNAc:6; Neu5Ac:1}": [
+        "gntIII"
+      ], 
+      "{Hex:5; HexNAc:5; Neu5Ac:1}": [
+        "galt"
+      ]
+    }, 
+    "{Hex:4; HexNAc:5}": {
+      "{Fuc:1; Hex:4; HexNAc:5}": [
+        "fuct6", 
+        "fuct3"
+      ], 
+      "{Hex:4; HexNAc:5; Neu5Ac:1}": [
+        "siat2_6"
+      ], 
+      "{Hex:4; HexNAc:6}": [
+        "gntIII"
+      ], 
+      "{Hex:5; HexNAc:5}": [
+        "galt"
+      ]
+    }, 
+    "{Hex:4; HexNAc:6; Neu5Ac:1}": {
+      "{Fuc:1; Hex:4; HexNAc:6; Neu5Ac:1}": [
+        "fuct6", 
+        "fuct3"
+      ], 
+      "{Hex:4; HexNAc:7; Neu5Ac:1}": [
+        "gntIII"
+      ], 
+      "{Hex:5; HexNAc:6; Neu5Ac:1}": [
+        "galt"
+      ]
+    }, 
+    "{Hex:4; HexNAc:6}": {
+      "{Fuc:1; Hex:4; HexNAc:6}": [
+        "fuct6", 
+        "fuct3"
+      ], 
+      "{Hex:4; HexNAc:6; Neu5Ac:1}": [
+        "siat2_6"
+      ], 
+      "{Hex:4; HexNAc:7}": [
+        "gntIII"
+      ], 
+      "{Hex:5; HexNAc:6}": [
+        "galt"
+      ]
+    }, 
+    "{Hex:4; HexNAc:7; Neu5Ac:1}": {
+      "{Fuc:1; Hex:4; HexNAc:7; Neu5Ac:1}": [
+        "fuct6", 
+        "fuct3"
+      ], 
+      "{Hex:4; HexNAc:8; Neu5Ac:1}": [
+        "gntIII"
+      ], 
+      "{Hex:5; HexNAc:7; Neu5Ac:1}": [
+        "galt"
+      ]
+    }, 
+    "{Hex:4; HexNAc:7}": {
+      "{Fuc:1; Hex:4; HexNAc:7}": [
+        "fuct6", 
+        "fuct3"
+      ], 
+      "{Hex:4; HexNAc:7; Neu5Ac:1}": [
+        "siat2_6"
+      ], 
+      "{Hex:4; HexNAc:8}": [
+        "gntIII"
+      ], 
+      "{Hex:5; HexNAc:7}": [
+        "galt"
+      ]
+    }, 
+    "{Hex:4; HexNAc:8; Neu5Ac:1}": {
+      "{Fuc:1; Hex:4; HexNAc:8; Neu5Ac:1}": [
+        "fuct6", 
+        "fuct3"
+      ], 
+      "{Hex:5; HexNAc:8; Neu5Ac:1}": [
+        "galt"
+      ]
+    }, 
+    "{Hex:4; HexNAc:8}": {
+      "{Fuc:1; Hex:4; HexNAc:8}": [
+        "fuct6", 
+        "fuct3"
+      ], 
+      "{Hex:4; HexNAc:8; Neu5Ac:1}": [
+        "siat2_6"
+      ], 
+      "{Hex:5; HexNAc:8}": [
+        "galt"
+      ]
+    }, 
+    "{Hex:5; HexNAc:2}": {
+      "{Hex:4; HexNAc:2}": [
+        "manI", 
+        "manII"
+      ], 
+      "{Hex:5; HexNAc:3}": [
+        "gntI"
+      ]
+    }, 
+    "{Hex:5; HexNAc:3; Neu5Ac:1}": {
+      "{Fuc:1; Hex:5; HexNAc:3; Neu5Ac:1}": [
+        "fuct3"
+      ], 
+      "{Hex:4; HexNAc:3; Neu5Ac:1}": [
+        "manII"
+      ], 
+      "{Hex:5; HexNAc:4; Neu5Ac:1}": [
+        "gntIII"
+      ]
+    }, 
+    "{Hex:5; HexNAc:3}": {
+      "{Fuc:1; Hex:5; HexNAc:3}": [
+        "fuct3"
+      ], 
+      "{Hex:4; HexNAc:3}": [
+        "manI", 
+        "manII"
+      ], 
+      "{Hex:5; HexNAc:3; Neu5Ac:1}": [
+        "siat2_6"
+      ], 
+      "{Hex:5; HexNAc:4}": [
+        "gntIV", 
+        "gntIII"
+      ], 
+      "{Hex:6; HexNAc:3}": [
+        "galt"
+      ]
+    }, 
+    "{Hex:5; HexNAc:4; Neu5Ac:1}": {
+      "{Fuc:1; Hex:5; HexNAc:4; Neu5Ac:1}": [
+        "fuct6", 
+        "fuct3"
+      ], 
+      "{Hex:4; HexNAc:4; Neu5Ac:1}": [
+        "manII"
+      ], 
+      "{Hex:5; HexNAc:4; Neu5Ac:2}": [
+        "siat2_6"
+      ], 
+      "{Hex:5; HexNAc:5; Neu5Ac:1}": [
+        "gntIII"
+      ], 
+      "{Hex:6; HexNAc:4; Neu5Ac:1}": [
+        "galt"
+      ]
+    }, 
+    "{Hex:5; HexNAc:4; Neu5Ac:2}": {
+      "{Fuc:1; Hex:5; HexNAc:4; Neu5Ac:2}": [
+        "fuct6", 
+        "fuct3"
+      ], 
+      "{Hex:5; HexNAc:5; Neu5Ac:2}": [
+        "gntIII"
+      ]
+    }, 
+    "{Hex:5; HexNAc:4}": {
+      "{Fuc:1; Hex:5; HexNAc:4}": [
+        "fuct6", 
+        "fuct3"
+      ], 
+      "{Hex:4; HexNAc:4}": [
+        "manI", 
+        "manII"
+      ], 
+      "{Hex:5; HexNAc:4; Neu5Ac:1}": [
+        "siat2_6"
+      ], 
+      "{Hex:5; HexNAc:5}": [
+        "gntIII"
+      ], 
+      "{Hex:6; HexNAc:4}": [
+        "galt"
+      ]
+    }, 
+    "{Hex:5; HexNAc:5; Neu5Ac:1}": {
+      "{Fuc:1; Hex:5; HexNAc:5; Neu5Ac:1}": [
+        "fuct6", 
+        "fuct3"
+      ], 
+      "{Hex:5; HexNAc:5; Neu5Ac:2}": [
+        "siat2_6"
+      ], 
+      "{Hex:5; HexNAc:6; Neu5Ac:1}": [
+        "gntIII"
+      ], 
+      "{Hex:6; HexNAc:5; Neu5Ac:1}": [
+        "galt"
+      ]
+    }, 
+    "{Hex:5; HexNAc:5; Neu5Ac:2}": {
+      "{Fuc:1; Hex:5; HexNAc:5; Neu5Ac:2}": [
+        "fuct6", 
+        "fuct3"
+      ], 
+      "{Hex:5; HexNAc:6; Neu5Ac:2}": [
+        "gntIII"
+      ], 
+      "{Hex:6; HexNAc:5; Neu5Ac:2}": [
+        "galt"
+      ]
+    }, 
+    "{Hex:5; HexNAc:5}": {
+      "{Fuc:1; Hex:5; HexNAc:5}": [
+        "fuct6", 
+        "fuct3"
+      ], 
+      "{Hex:4; HexNAc:5}": [
+        "manI"
+      ], 
+      "{Hex:5; HexNAc:5; Neu5Ac:1}": [
+        "siat2_6"
+      ], 
+      "{Hex:5; HexNAc:6}": [
+        "gntIII"
+      ], 
+      "{Hex:6; HexNAc:5}": [
+        "galt"
+      ]
+    }, 
+    "{Hex:5; HexNAc:6; Neu5Ac:1}": {
+      "{Fuc:1; Hex:5; HexNAc:6; Neu5Ac:1}": [
+        "fuct6", 
+        "fuct3"
+      ], 
+      "{Hex:5; HexNAc:6; Neu5Ac:2}": [
+        "siat2_6"
+      ], 
+      "{Hex:5; HexNAc:7; Neu5Ac:1}": [
+        "gntIII"
+      ], 
+      "{Hex:6; HexNAc:6; Neu5Ac:1}": [
+        "galt"
+      ]
+    }, 
+    "{Hex:5; HexNAc:6; Neu5Ac:2}": {
+      "{Fuc:1; Hex:5; HexNAc:6; Neu5Ac:2}": [
+        "fuct6", 
+        "fuct3"
+      ], 
+      "{Hex:5; HexNAc:7; Neu5Ac:2}": [
+        "gntIII"
+      ], 
+      "{Hex:6; HexNAc:6; Neu5Ac:2}": [
+        "galt"
+      ]
+    }, 
+    "{Hex:5; HexNAc:6}": {
+      "{Fuc:1; Hex:5; HexNAc:6}": [
+        "fuct6", 
+        "fuct3"
+      ], 
+      "{Hex:5; HexNAc:6; Neu5Ac:1}": [
+        "siat2_6"
+      ], 
+      "{Hex:5; HexNAc:7}": [
+        "gntIII"
+      ], 
+      "{Hex:6; HexNAc:6}": [
+        "galt"
+      ]
+    }, 
+    "{Hex:5; HexNAc:7; Neu5Ac:1}": {
+      "{Fuc:1; Hex:5; HexNAc:7; Neu5Ac:1}": [
+        "fuct6", 
+        "fuct3"
+      ], 
+      "{Hex:5; HexNAc:7; Neu5Ac:2}": [
+        "siat2_6"
+      ], 
+      "{Hex:5; HexNAc:8; Neu5Ac:1}": [
+        "gntIII"
+      ], 
+      "{Hex:6; HexNAc:7; Neu5Ac:1}": [
+        "galt"
+      ]
+    }, 
+    "{Hex:5; HexNAc:7; Neu5Ac:2}": {
+      "{Fuc:1; Hex:5; HexNAc:7; Neu5Ac:2}": [
+        "fuct6", 
+        "fuct3"
+      ], 
+      "{Hex:5; HexNAc:8; Neu5Ac:2}": [
+        "gntIII"
+      ], 
+      "{Hex:6; HexNAc:7; Neu5Ac:2}": [
+        "galt"
+      ]
+    }, 
+    "{Hex:5; HexNAc:7}": {
+      "{Fuc:1; Hex:5; HexNAc:7}": [
+        "fuct6", 
+        "fuct3"
+      ], 
+      "{Hex:5; HexNAc:7; Neu5Ac:1}": [
+        "siat2_6"
+      ], 
+      "{Hex:5; HexNAc:8}": [
+        "gntIII"
+      ], 
+      "{Hex:6; HexNAc:7}": [
+        "galt"
+      ]
+    }, 
+    "{Hex:5; HexNAc:8; Neu5Ac:1}": {
+      "{Fuc:1; Hex:5; HexNAc:8; Neu5Ac:1}": [
+        "fuct6", 
+        "fuct3"
+      ], 
+      "{Hex:5; HexNAc:8; Neu5Ac:2}": [
+        "siat2_6"
+      ], 
+      "{Hex:6; HexNAc:8; Neu5Ac:1}": [
+        "galt"
+      ]
+    }, 
+    "{Hex:5; HexNAc:8; Neu5Ac:2}": {
+      "{Fuc:1; Hex:5; HexNAc:8; Neu5Ac:2}": [
+        "fuct6", 
+        "fuct3"
+      ], 
+      "{Hex:6; HexNAc:8; Neu5Ac:2}": [
+        "galt"
+      ]
+    }, 
+    "{Hex:5; HexNAc:8}": {
+      "{Fuc:1; Hex:5; HexNAc:8}": [
+        "fuct6", 
+        "fuct3"
+      ], 
+      "{Hex:5; HexNAc:8; Neu5Ac:1}": [
+        "siat2_6"
+      ], 
+      "{Hex:6; HexNAc:8}": [
+        "galt"
+      ]
+    }, 
+    "{Hex:6; HexNAc:2}": {
+      "{Hex:5; HexNAc:2}": [
+        "manI", 
+        "glucosidaseI", 
+        "manII"
+      ], 
+      "{Hex:6; HexNAc:3}": [
+        "gntI"
+      ]
+    }, 
+    "{Hex:6; HexNAc:3; Neu5Ac:1}": {
+      "{Fuc:1; Hex:6; HexNAc:3; Neu5Ac:1}": [
+        "fuct3"
+      ], 
+      "{Hex:5; HexNAc:3; Neu5Ac:1}": [
+        "manI", 
+        "manII"
+      ], 
+      "{Hex:6; HexNAc:4; Neu5Ac:1}": [
+        "gntIII"
+      ]
+    }, 
+    "{Hex:6; HexNAc:3}": {
+      "{Fuc:1; Hex:6; HexNAc:3}": [
+        "fuct3"
+      ], 
+      "{Hex:5; HexNAc:3}": [
+        "manI", 
+        "manII"
+      ], 
+      "{Hex:6; HexNAc:3; Neu5Ac:1}": [
+        "siat2_6"
+      ], 
+      "{Hex:6; HexNAc:4}": [
+        "gntIV", 
+        "gntIII"
+      ], 
+      "{Hex:7; HexNAc:3}": [
+        "galt"
+      ]
+    }, 
+    "{Hex:6; HexNAc:4; Neu5Ac:1}": {
+      "{Fuc:1; Hex:6; HexNAc:4; Neu5Ac:1}": [
+        "fuct3"
+      ], 
+      "{Hex:5; HexNAc:4; Neu5Ac:1}": [
+        "manI", 
+        "manII"
+      ], 
+      "{Hex:6; HexNAc:4; Neu5Ac:2}": [
+        "siat2_6"
+      ], 
+      "{Hex:6; HexNAc:5; Neu5Ac:1}": [
+        "gntIII"
+      ], 
+      "{Hex:7; HexNAc:4; Neu5Ac:1}": [
+        "galt"
+      ]
+    }, 
+    "{Hex:6; HexNAc:4; Neu5Ac:2}": {
+      "{Fuc:1; Hex:6; HexNAc:4; Neu5Ac:2}": [
+        "fuct3"
+      ], 
+      "{Hex:5; HexNAc:4; Neu5Ac:2}": [
+        "manII"
+      ], 
+      "{Hex:6; HexNAc:5; Neu5Ac:2}": [
+        "gntIII"
+      ]
+    }, 
+    "{Hex:6; HexNAc:4}": {
+      "{Fuc:1; Hex:6; HexNAc:4}": [
+        "fuct3"
+      ], 
+      "{Hex:5; HexNAc:4}": [
+        "manI", 
+        "manII"
+      ], 
+      "{Hex:6; HexNAc:4; Neu5Ac:1}": [
+        "siat2_6"
+      ], 
+      "{Hex:6; HexNAc:5}": [
+        "gntIII"
+      ], 
+      "{Hex:7; HexNAc:4}": [
+        "galt"
+      ]
+    }, 
+    "{Hex:6; HexNAc:5; Neu5Ac:1}": {
+      "{Fuc:1; Hex:6; HexNAc:5; Neu5Ac:1}": [
+        "fuct6", 
+        "fuct3"
+      ], 
+      "{Hex:5; HexNAc:5; Neu5Ac:1}": [
+        "manI"
+      ], 
+      "{Hex:6; HexNAc:5; Neu5Ac:2}": [
+        "siat2_6"
+      ], 
+      "{Hex:6; HexNAc:6; Neu5Ac:1}": [
+        "gntIII"
+      ], 
+      "{Hex:7; HexNAc:5; Neu5Ac:1}": [
+        "galt"
+      ]
+    }, 
+    "{Hex:6; HexNAc:5; Neu5Ac:2}": {
+      "{Fuc:1; Hex:6; HexNAc:5; Neu5Ac:2}": [
+        "fuct6", 
+        "fuct3"
+      ], 
+      "{Hex:6; HexNAc:5; Neu5Ac:3}": [
+        "siat2_6"
+      ], 
+      "{Hex:6; HexNAc:6; Neu5Ac:2}": [
+        "gntIII"
+      ]
+    }, 
+    "{Hex:6; HexNAc:5; Neu5Ac:3}": {
+      "{Fuc:1; Hex:6; HexNAc:5; Neu5Ac:3}": [
+        "fuct6", 
+        "fuct3"
+      ], 
+      "{Hex:6; HexNAc:6; Neu5Ac:3}": [
+        "gntIII"
+      ]
+    }, 
+    "{Hex:6; HexNAc:5}": {
+      "{Fuc:1; Hex:6; HexNAc:5}": [
+        "fuct6", 
+        "fuct3"
+      ], 
+      "{Hex:5; HexNAc:5}": [
+        "manI"
+      ], 
+      "{Hex:6; HexNAc:5; Neu5Ac:1}": [
+        "siat2_6"
+      ], 
+      "{Hex:6; HexNAc:6}": [
+        "gntIII"
+      ], 
+      "{Hex:7; HexNAc:5}": [
+        "galt"
+      ]
+    }, 
+    "{Hex:6; HexNAc:6; Neu5Ac:1}": {
+      "{Fuc:1; Hex:6; HexNAc:6; Neu5Ac:1}": [
+        "fuct6", 
+        "fuct3"
+      ], 
+      "{Hex:6; HexNAc:6; Neu5Ac:2}": [
+        "siat2_6"
+      ], 
+      "{Hex:6; HexNAc:7; Neu5Ac:1}": [
+        "gntIII"
+      ], 
+      "{Hex:7; HexNAc:6; Neu5Ac:1}": [
+        "galt"
+      ]
+    }, 
+    "{Hex:6; HexNAc:6; Neu5Ac:2}": {
+      "{Fuc:1; Hex:6; HexNAc:6; Neu5Ac:2}": [
+        "fuct6", 
+        "fuct3"
+      ], 
+      "{Hex:6; HexNAc:6; Neu5Ac:3}": [
+        "siat2_6"
+      ], 
+      "{Hex:6; HexNAc:7; Neu5Ac:2}": [
+        "gntIII"
+      ], 
+      "{Hex:7; HexNAc:6; Neu5Ac:2}": [
+        "galt"
+      ]
+    }, 
+    "{Hex:6; HexNAc:6; Neu5Ac:3}": {
+      "{Fuc:1; Hex:6; HexNAc:6; Neu5Ac:3}": [
+        "fuct6", 
+        "fuct3"
+      ], 
+      "{Hex:6; HexNAc:7; Neu5Ac:3}": [
+        "gntIII"
+      ], 
+      "{Hex:7; HexNAc:6; Neu5Ac:3}": [
+        "galt"
+      ]
+    }, 
+    "{Hex:6; HexNAc:6}": {
+      "{Fuc:1; Hex:6; HexNAc:6}": [
+        "fuct6", 
+        "fuct3"
+      ], 
+      "{Hex:6; HexNAc:6; Neu5Ac:1}": [
+        "siat2_6"
+      ], 
+      "{Hex:6; HexNAc:7}": [
+        "gntIII"
+      ], 
+      "{Hex:7; HexNAc:6}": [
+        "galt"
+      ]
+    }, 
+    "{Hex:6; HexNAc:7; Neu5Ac:1}": {
+      "{Fuc:1; Hex:6; HexNAc:7; Neu5Ac:1}": [
+        "fuct6", 
+        "fuct3"
+      ], 
+      "{Hex:6; HexNAc:7; Neu5Ac:2}": [
+        "siat2_6"
+      ], 
+      "{Hex:6; HexNAc:8; Neu5Ac:1}": [
+        "gntIII"
+      ], 
+      "{Hex:7; HexNAc:7; Neu5Ac:1}": [
+        "galt"
+      ]
+    }, 
+    "{Hex:6; HexNAc:7; Neu5Ac:2}": {
+      "{Fuc:1; Hex:6; HexNAc:7; Neu5Ac:2}": [
+        "fuct6", 
+        "fuct3"
+      ], 
+      "{Hex:6; HexNAc:7; Neu5Ac:3}": [
+        "siat2_6"
+      ], 
+      "{Hex:6; HexNAc:8; Neu5Ac:2}": [
+        "gntIII"
+      ], 
+      "{Hex:7; HexNAc:7; Neu5Ac:2}": [
+        "galt"
+      ]
+    }, 
+    "{Hex:6; HexNAc:7; Neu5Ac:3}": {
+      "{Fuc:1; Hex:6; HexNAc:7; Neu5Ac:3}": [
+        "fuct6", 
+        "fuct3"
+      ], 
+      "{Hex:6; HexNAc:8; Neu5Ac:3}": [
+        "gntIII"
+      ], 
+      "{Hex:7; HexNAc:7; Neu5Ac:3}": [
+        "galt"
+      ]
+    }, 
+    "{Hex:6; HexNAc:7}": {
+      "{Fuc:1; Hex:6; HexNAc:7}": [
+        "fuct6", 
+        "fuct3"
+      ], 
+      "{Hex:6; HexNAc:7; Neu5Ac:1}": [
+        "siat2_6"
+      ], 
+      "{Hex:6; HexNAc:8}": [
+        "gntIII"
+      ], 
+      "{Hex:7; HexNAc:7}": [
+        "galt"
+      ]
+    }, 
+    "{Hex:6; HexNAc:8; Neu5Ac:1}": {
+      "{Fuc:1; Hex:6; HexNAc:8; Neu5Ac:1}": [
+        "fuct6", 
+        "fuct3"
+      ], 
+      "{Hex:6; HexNAc:8; Neu5Ac:2}": [
+        "siat2_6"
+      ], 
+      "{Hex:7; HexNAc:8; Neu5Ac:1}": [
+        "galt"
+      ]
+    }, 
+    "{Hex:6; HexNAc:8; Neu5Ac:2}": {
+      "{Fuc:1; Hex:6; HexNAc:8; Neu5Ac:2}": [
+        "fuct6", 
+        "fuct3"
+      ], 
+      "{Hex:6; HexNAc:8; Neu5Ac:3}": [
+        "siat2_6"
+      ], 
+      "{Hex:7; HexNAc:8; Neu5Ac:2}": [
+        "galt"
+      ]
+    }, 
+    "{Hex:6; HexNAc:8; Neu5Ac:3}": {
+      "{Fuc:1; Hex:6; HexNAc:8; Neu5Ac:3}": [
+        "fuct6", 
+        "fuct3"
+      ], 
+      "{Hex:7; HexNAc:8; Neu5Ac:3}": [
+        "galt"
+      ]
+    }, 
+    "{Hex:6; HexNAc:8}": {
+      "{Fuc:1; Hex:6; HexNAc:8}": [
+        "fuct6", 
+        "fuct3"
+      ], 
+      "{Hex:6; HexNAc:8; Neu5Ac:1}": [
+        "siat2_6"
+      ], 
+      "{Hex:7; HexNAc:8}": [
+        "galt"
+      ]
+    }, 
+    "{Hex:7; HexNAc:2}": {
+      "{Hex:6; HexNAc:2}": [
+        "manI", 
+        "glucosidaseI", 
+        "manII", 
+        "glucosidaseII"
+      ], 
+      "{Hex:7; HexNAc:3}": [
+        "gntI"
+      ]
+    }, 
+    "{Hex:7; HexNAc:3; Neu5Ac:1}": {
+      "{Fuc:1; Hex:7; HexNAc:3; Neu5Ac:1}": [
+        "fuct3"
+      ], 
+      "{Hex:6; HexNAc:3; Neu5Ac:1}": [
+        "manI", 
+        "manII"
+      ], 
+      "{Hex:7; HexNAc:4; Neu5Ac:1}": [
+        "gntIII"
+      ]
+    }, 
+    "{Hex:7; HexNAc:3}": {
+      "{Fuc:1; Hex:7; HexNAc:3}": [
+        "fuct3"
+      ], 
+      "{Hex:6; HexNAc:3}": [
+        "manI", 
+        "manII"
+      ], 
+      "{Hex:7; HexNAc:3; Neu5Ac:1}": [
+        "siat2_6"
+      ], 
+      "{Hex:7; HexNAc:4}": [
+        "gntIV", 
+        "gntIII"
+      ], 
+      "{Hex:8; HexNAc:3}": [
+        "galt"
+      ]
+    }, 
+    "{Hex:7; HexNAc:4; Neu5Ac:1}": {
+      "{Fuc:1; Hex:7; HexNAc:4; Neu5Ac:1}": [
+        "fuct3"
+      ], 
+      "{Hex:6; HexNAc:4; Neu5Ac:1}": [
+        "manI", 
+        "manII"
+      ], 
+      "{Hex:7; HexNAc:4; Neu5Ac:2}": [
+        "siat2_6"
+      ], 
+      "{Hex:7; HexNAc:5; Neu5Ac:1}": [
+        "gntIII"
+      ], 
+      "{Hex:8; HexNAc:4; Neu5Ac:1}": [
+        "galt"
+      ]
+    }, 
+    "{Hex:7; HexNAc:4; Neu5Ac:2}": {
+      "{Fuc:1; Hex:7; HexNAc:4; Neu5Ac:2}": [
+        "fuct3"
+      ], 
+      "{Hex:6; HexNAc:4; Neu5Ac:2}": [
+        "manI", 
+        "manII"
+      ], 
+      "{Hex:7; HexNAc:5; Neu5Ac:2}": [
+        "gntIII"
+      ]
+    }, 
+    "{Hex:7; HexNAc:4}": {
+      "{Fuc:1; Hex:7; HexNAc:4}": [
+        "fuct3"
+      ], 
+      "{Hex:6; HexNAc:4}": [
+        "manI", 
+        "manII"
+      ], 
+      "{Hex:7; HexNAc:4; Neu5Ac:1}": [
+        "siat2_6"
+      ], 
+      "{Hex:7; HexNAc:5}": [
+        "gntIII"
+      ], 
+      "{Hex:8; HexNAc:4}": [
+        "galt"
+      ]
+    }, 
+    "{Hex:7; HexNAc:5; Neu5Ac:1}": {
+      "{Fuc:1; Hex:7; HexNAc:5; Neu5Ac:1}": [
+        "fuct3"
+      ], 
+      "{Hex:6; HexNAc:5; Neu5Ac:1}": [
+        "manI"
+      ], 
+      "{Hex:7; HexNAc:5; Neu5Ac:2}": [
+        "siat2_6"
+      ], 
+      "{Hex:8; HexNAc:5; Neu5Ac:1}": [
+        "galt"
+      ]
+    }, 
+    "{Hex:7; HexNAc:5; Neu5Ac:2}": {
+      "{Fuc:1; Hex:7; HexNAc:5; Neu5Ac:2}": [
+        "fuct3"
+      ], 
+      "{Hex:6; HexNAc:5; Neu5Ac:2}": [
+        "manI"
+      ]
+    }, 
+    "{Hex:7; HexNAc:5}": {
+      "{Fuc:1; Hex:7; HexNAc:5}": [
+        "fuct3"
+      ], 
+      "{Hex:6; HexNAc:5}": [
+        "manI"
+      ], 
+      "{Hex:7; HexNAc:5; Neu5Ac:1}": [
+        "siat2_6"
+      ], 
+      "{Hex:8; HexNAc:5}": [
+        "galt"
+      ]
+    }, 
+    "{Hex:7; HexNAc:6; Neu5Ac:1}": {
+      "{Fuc:1; Hex:7; HexNAc:6; Neu5Ac:1}": [
+        "fuct6", 
+        "fuct3"
+      ], 
+      "{Hex:7; HexNAc:6; Neu5Ac:2}": [
+        "siat2_6"
+      ], 
+      "{Hex:7; HexNAc:7; Neu5Ac:1}": [
+        "gntIII"
+      ]
+    }, 
+    "{Hex:7; HexNAc:6; Neu5Ac:2}": {
+      "{Fuc:1; Hex:7; HexNAc:6; Neu5Ac:2}": [
+        "fuct6", 
+        "fuct3"
+      ], 
+      "{Hex:7; HexNAc:6; Neu5Ac:3}": [
+        "siat2_6"
+      ], 
+      "{Hex:7; HexNAc:7; Neu5Ac:2}": [
+        "gntIII"
+      ]
+    }, 
+    "{Hex:7; HexNAc:6; Neu5Ac:3}": {
+      "{Fuc:1; Hex:7; HexNAc:6; Neu5Ac:3}": [
+        "fuct6", 
+        "fuct3"
+      ], 
+      "{Hex:7; HexNAc:6; Neu5Ac:4}": [
+        "siat2_6"
+      ], 
+      "{Hex:7; HexNAc:7; Neu5Ac:3}": [
+        "gntIII"
+      ]
+    }, 
+    "{Hex:7; HexNAc:6; Neu5Ac:4}": {
+      "{Fuc:1; Hex:7; HexNAc:6; Neu5Ac:4}": [
+        "fuct6", 
+        "fuct3"
+      ], 
+      "{Hex:7; HexNAc:7; Neu5Ac:4}": [
+        "gntIII"
+      ]
+    }, 
+    "{Hex:7; HexNAc:6}": {
+      "{Fuc:1; Hex:7; HexNAc:6}": [
+        "fuct6", 
+        "fuct3"
+      ], 
+      "{Hex:7; HexNAc:6; Neu5Ac:1}": [
+        "siat2_6"
+      ], 
+      "{Hex:7; HexNAc:7}": [
+        "gntIII"
+      ]
+    }, 
+    "{Hex:7; HexNAc:7; Neu5Ac:1}": {
+      "{Fuc:1; Hex:7; HexNAc:7; Neu5Ac:1}": [
+        "fuct6", 
+        "fuct3"
+      ], 
+      "{Hex:7; HexNAc:7; Neu5Ac:2}": [
+        "siat2_6"
+      ], 
+      "{Hex:7; HexNAc:8; Neu5Ac:1}": [
+        "gntIII"
+      ], 
+      "{Hex:8; HexNAc:7; Neu5Ac:1}": [
+        "galt"
+      ]
+    }, 
+    "{Hex:7; HexNAc:7; Neu5Ac:2}": {
+      "{Fuc:1; Hex:7; HexNAc:7; Neu5Ac:2}": [
+        "fuct6", 
+        "fuct3"
+      ], 
+      "{Hex:7; HexNAc:7; Neu5Ac:3}": [
+        "siat2_6"
+      ], 
+      "{Hex:7; HexNAc:8; Neu5Ac:2}": [
+        "gntIII"
+      ], 
+      "{Hex:8; HexNAc:7; Neu5Ac:2}": [
+        "galt"
+      ]
+    }, 
+    "{Hex:7; HexNAc:7; Neu5Ac:3}": {
+      "{Fuc:1; Hex:7; HexNAc:7; Neu5Ac:3}": [
+        "fuct6", 
+        "fuct3"
+      ], 
+      "{Hex:7; HexNAc:7; Neu5Ac:4}": [
+        "siat2_6"
+      ], 
+      "{Hex:7; HexNAc:8; Neu5Ac:3}": [
+        "gntIII"
+      ], 
+      "{Hex:8; HexNAc:7; Neu5Ac:3}": [
+        "galt"
+      ]
+    }, 
+    "{Hex:7; HexNAc:7; Neu5Ac:4}": {
+      "{Fuc:1; Hex:7; HexNAc:7; Neu5Ac:4}": [
+        "fuct6", 
+        "fuct3"
+      ], 
+      "{Hex:7; HexNAc:8; Neu5Ac:4}": [
+        "gntIII"
+      ], 
+      "{Hex:8; HexNAc:7; Neu5Ac:4}": [
+        "galt"
+      ]
+    }, 
+    "{Hex:7; HexNAc:7}": {
+      "{Fuc:1; Hex:7; HexNAc:7}": [
+        "fuct6", 
+        "fuct3"
+      ], 
+      "{Hex:7; HexNAc:7; Neu5Ac:1}": [
+        "siat2_6"
+      ], 
+      "{Hex:7; HexNAc:8}": [
+        "gntIII"
+      ], 
+      "{Hex:8; HexNAc:7}": [
+        "galt"
+      ]
+    }, 
+    "{Hex:7; HexNAc:8; Neu5Ac:1}": {
+      "{Fuc:1; Hex:7; HexNAc:8; Neu5Ac:1}": [
+        "fuct6", 
+        "fuct3"
+      ], 
+      "{Hex:7; HexNAc:8; Neu5Ac:2}": [
+        "siat2_6"
+      ], 
+      "{Hex:8; HexNAc:8; Neu5Ac:1}": [
+        "galt"
+      ]
+    }, 
+    "{Hex:7; HexNAc:8; Neu5Ac:2}": {
+      "{Fuc:1; Hex:7; HexNAc:8; Neu5Ac:2}": [
+        "fuct6", 
+        "fuct3"
+      ], 
+      "{Hex:7; HexNAc:8; Neu5Ac:3}": [
+        "siat2_6"
+      ], 
+      "{Hex:8; HexNAc:8; Neu5Ac:2}": [
+        "galt"
+      ]
+    }, 
+    "{Hex:7; HexNAc:8; Neu5Ac:3}": {
+      "{Fuc:1; Hex:7; HexNAc:8; Neu5Ac:3}": [
+        "fuct6", 
+        "fuct3"
+      ], 
+      "{Hex:7; HexNAc:8; Neu5Ac:4}": [
+        "siat2_6"
+      ], 
+      "{Hex:8; HexNAc:8; Neu5Ac:3}": [
+        "galt"
+      ]
+    }, 
+    "{Hex:7; HexNAc:8; Neu5Ac:4}": {
+      "{Fuc:1; Hex:7; HexNAc:8; Neu5Ac:4}": [
+        "fuct6", 
+        "fuct3"
+      ], 
+      "{Hex:8; HexNAc:8; Neu5Ac:4}": [
+        "galt"
+      ]
+    }, 
+    "{Hex:7; HexNAc:8}": {
+      "{Fuc:1; Hex:7; HexNAc:8}": [
+        "fuct6", 
+        "fuct3"
+      ], 
+      "{Hex:7; HexNAc:8; Neu5Ac:1}": [
+        "siat2_6"
+      ], 
+      "{Hex:8; HexNAc:8}": [
+        "galt"
+      ]
+    }, 
+    "{Hex:8; HexNAc:2}": {
+      "{Hex:7; HexNAc:2}": [
+        "manI", 
+        "glucosidaseI", 
+        "manII", 
+        "glucosidaseII"
+      ]
+    }, 
+    "{Hex:8; HexNAc:3; Neu5Ac:1}": {
+      "{Fuc:1; Hex:8; HexNAc:3; Neu5Ac:1}": [
+        "fuct3"
+      ], 
+      "{Hex:7; HexNAc:3; Neu5Ac:1}": [
+        "manI"
+      ], 
+      "{Hex:8; HexNAc:4; Neu5Ac:1}": [
+        "gntIII"
+      ]
+    }, 
+    "{Hex:8; HexNAc:3}": {
+      "{Fuc:1; Hex:8; HexNAc:3}": [
+        "fuct3"
+      ], 
+      "{Hex:7; HexNAc:3}": [
+        "manI"
+      ], 
+      "{Hex:8; HexNAc:3; Neu5Ac:1}": [
+        "siat2_6"
+      ], 
+      "{Hex:8; HexNAc:4}": [
+        "gntIII"
+      ]
+    }, 
+    "{Hex:8; HexNAc:4; Neu5Ac:1}": {
+      "{Fuc:1; Hex:8; HexNAc:4; Neu5Ac:1}": [
+        "fuct3"
+      ], 
+      "{Hex:7; HexNAc:4; Neu5Ac:1}": [
+        "manI", 
+        "manII"
+      ], 
+      "{Hex:8; HexNAc:4; Neu5Ac:2}": [
+        "siat2_6"
+      ], 
+      "{Hex:8; HexNAc:5; Neu5Ac:1}": [
+        "gntIII"
+      ], 
+      "{Hex:9; HexNAc:4; Neu5Ac:1}": [
+        "galt"
+      ]
+    }, 
+    "{Hex:8; HexNAc:4; Neu5Ac:2}": {
+      "{Fuc:1; Hex:8; HexNAc:4; Neu5Ac:2}": [
+        "fuct3"
+      ], 
+      "{Hex:7; HexNAc:4; Neu5Ac:2}": [
+        "manI", 
+        "manII"
+      ], 
+      "{Hex:8; HexNAc:5; Neu5Ac:2}": [
+        "gntIII"
+      ]
+    }, 
+    "{Hex:8; HexNAc:4}": {
+      "{Fuc:1; Hex:8; HexNAc:4}": [
+        "fuct3"
+      ], 
+      "{Hex:7; HexNAc:4}": [
+        "manI", 
+        "manII"
+      ], 
+      "{Hex:8; HexNAc:4; Neu5Ac:1}": [
+        "siat2_6"
+      ], 
+      "{Hex:8; HexNAc:5}": [
+        "gntIII"
+      ], 
+      "{Hex:9; HexNAc:4}": [
+        "galt"
+      ]
+    }, 
+    "{Hex:8; HexNAc:5; Neu5Ac:1}": {
+      "{Fuc:1; Hex:8; HexNAc:5; Neu5Ac:1}": [
+        "fuct3"
+      ], 
+      "{Hex:7; HexNAc:5; Neu5Ac:1}": [
+        "manI"
+      ], 
+      "{Hex:8; HexNAc:5; Neu5Ac:2}": [
+        "siat2_6"
+      ], 
+      "{Hex:9; HexNAc:5; Neu5Ac:1}": [
+        "galt"
+      ]
+    }, 
+    "{Hex:8; HexNAc:5; Neu5Ac:2}": {
+      "{Fuc:1; Hex:8; HexNAc:5; Neu5Ac:2}": [
+        "fuct3"
+      ], 
+      "{Hex:7; HexNAc:5; Neu5Ac:2}": [
+        "manI"
+      ]
+    }, 
+    "{Hex:8; HexNAc:5}": {
+      "{Fuc:1; Hex:8; HexNAc:5}": [
+        "fuct3"
+      ], 
+      "{Hex:7; HexNAc:5}": [
+        "manI"
+      ], 
+      "{Hex:8; HexNAc:5; Neu5Ac:1}": [
+        "siat2_6"
+      ], 
+      "{Hex:9; HexNAc:5}": [
+        "galt"
+      ]
+    }, 
+    "{Hex:8; HexNAc:7; Neu5Ac:1}": {
+      "{Fuc:1; Hex:8; HexNAc:7; Neu5Ac:1}": [
+        "fuct6", 
+        "fuct3"
+      ], 
+      "{Hex:8; HexNAc:7; Neu5Ac:2}": [
+        "siat2_6"
+      ], 
+      "{Hex:8; HexNAc:8; Neu5Ac:1}": [
+        "gntIII"
+      ]
+    }, 
+    "{Hex:8; HexNAc:7; Neu5Ac:2}": {
+      "{Fuc:1; Hex:8; HexNAc:7; Neu5Ac:2}": [
+        "fuct6", 
+        "fuct3"
+      ], 
+      "{Hex:8; HexNAc:7; Neu5Ac:3}": [
+        "siat2_6"
+      ], 
+      "{Hex:8; HexNAc:8; Neu5Ac:2}": [
+        "gntIII"
+      ]
+    }, 
+    "{Hex:8; HexNAc:7; Neu5Ac:3}": {
+      "{Fuc:1; Hex:8; HexNAc:7; Neu5Ac:3}": [
+        "fuct6", 
+        "fuct3"
+      ], 
+      "{Hex:8; HexNAc:7; Neu5Ac:4}": [
+        "siat2_6"
+      ], 
+      "{Hex:8; HexNAc:8; Neu5Ac:3}": [
+        "gntIII"
+      ]
+    }, 
+    "{Hex:8; HexNAc:7; Neu5Ac:4}": {
+      "{Fuc:1; Hex:8; HexNAc:7; Neu5Ac:4}": [
+        "fuct6", 
+        "fuct3"
+      ], 
+      "{Hex:8; HexNAc:7; Neu5Ac:5}": [
+        "siat2_6"
+      ], 
+      "{Hex:8; HexNAc:8; Neu5Ac:4}": [
+        "gntIII"
+      ]
+    }, 
+    "{Hex:8; HexNAc:7; Neu5Ac:5}": {
+      "{Fuc:1; Hex:8; HexNAc:7; Neu5Ac:5}": [
+        "fuct6", 
+        "fuct3"
+      ], 
+      "{Hex:8; HexNAc:8; Neu5Ac:5}": [
+        "gntIII"
+      ]
+    }, 
+    "{Hex:8; HexNAc:7}": {
+      "{Fuc:1; Hex:8; HexNAc:7}": [
+        "fuct6", 
+        "fuct3"
+      ], 
+      "{Hex:8; HexNAc:7; Neu5Ac:1}": [
+        "siat2_6"
+      ], 
+      "{Hex:8; HexNAc:8}": [
+        "gntIII"
+      ]
+    }, 
+    "{Hex:8; HexNAc:8; Neu5Ac:1}": {
+      "{Fuc:1; Hex:8; HexNAc:8; Neu5Ac:1}": [
+        "fuct6", 
+        "fuct3"
+      ], 
+      "{Hex:8; HexNAc:8; Neu5Ac:2}": [
+        "siat2_6"
+      ]
+    }, 
+    "{Hex:8; HexNAc:8; Neu5Ac:2}": {
+      "{Fuc:1; Hex:8; HexNAc:8; Neu5Ac:2}": [
+        "fuct6", 
+        "fuct3"
+      ], 
+      "{Hex:8; HexNAc:8; Neu5Ac:3}": [
+        "siat2_6"
+      ]
+    }, 
+    "{Hex:8; HexNAc:8; Neu5Ac:3}": {
+      "{Fuc:1; Hex:8; HexNAc:8; Neu5Ac:3}": [
+        "fuct6", 
+        "fuct3"
+      ], 
+      "{Hex:8; HexNAc:8; Neu5Ac:4}": [
+        "siat2_6"
+      ]
+    }, 
+    "{Hex:8; HexNAc:8; Neu5Ac:4}": {
+      "{Fuc:1; Hex:8; HexNAc:8; Neu5Ac:4}": [
+        "fuct6", 
+        "fuct3"
+      ], 
+      "{Hex:8; HexNAc:8; Neu5Ac:5}": [
+        "siat2_6"
+      ]
+    }, 
+    "{Hex:8; HexNAc:8; Neu5Ac:5}": {
+      "{Fuc:1; Hex:8; HexNAc:8; Neu5Ac:5}": [
+        "fuct6", 
+        "fuct3"
+      ]
+    }, 
+    "{Hex:8; HexNAc:8}": {
+      "{Fuc:1; Hex:8; HexNAc:8}": [
+        "fuct6", 
+        "fuct3"
+      ], 
+      "{Hex:8; HexNAc:8; Neu5Ac:1}": [
+        "siat2_6"
+      ]
+    }, 
+    "{Hex:9; HexNAc:2}": {
+      "{Hex:8; HexNAc:2}": [
+        "manI", 
+        "glucosidaseI", 
+        "manII", 
+        "glucosidaseII"
+      ]
+    }, 
+    "{Hex:9; HexNAc:4; Neu5Ac:1}": {
+      "{Fuc:1; Hex:9; HexNAc:4; Neu5Ac:1}": [
+        "fuct3"
+      ], 
+      "{Hex:8; HexNAc:4; Neu5Ac:1}": [
+        "manI"
+      ], 
+      "{Hex:9; HexNAc:4; Neu5Ac:2}": [
+        "siat2_6"
+      ], 
+      "{Hex:9; HexNAc:5; Neu5Ac:1}": [
+        "gntIII"
+      ]
+    }, 
+    "{Hex:9; HexNAc:4; Neu5Ac:2}": {
+      "{Fuc:1; Hex:9; HexNAc:4; Neu5Ac:2}": [
+        "fuct3"
+      ], 
+      "{Hex:8; HexNAc:4; Neu5Ac:2}": [
+        "manI"
+      ], 
+      "{Hex:9; HexNAc:5; Neu5Ac:2}": [
+        "gntIII"
+      ]
+    }, 
+    "{Hex:9; HexNAc:4}": {
+      "{Fuc:1; Hex:9; HexNAc:4}": [
+        "fuct3"
+      ], 
+      "{Hex:8; HexNAc:4}": [
+        "manI"
+      ], 
+      "{Hex:9; HexNAc:4; Neu5Ac:1}": [
+        "siat2_6"
+      ], 
+      "{Hex:9; HexNAc:5}": [
+        "gntIII"
+      ]
+    }, 
+    "{Hex:9; HexNAc:5; Neu5Ac:1}": {
+      "{Fuc:1; Hex:9; HexNAc:5; Neu5Ac:1}": [
+        "fuct3"
+      ], 
+      "{Hex:8; HexNAc:5; Neu5Ac:1}": [
+        "manI"
+      ], 
+      "{Hex:9; HexNAc:5; Neu5Ac:2}": [
+        "siat2_6"
+      ]
+    }, 
+    "{Hex:9; HexNAc:5; Neu5Ac:2}": {
+      "{Fuc:1; Hex:9; HexNAc:5; Neu5Ac:2}": [
+        "fuct3"
+      ], 
+      "{Hex:8; HexNAc:5; Neu5Ac:2}": [
+        "manI"
+      ]
+    }, 
+    "{Hex:9; HexNAc:5}": {
+      "{Fuc:1; Hex:9; HexNAc:5}": [
+        "fuct3"
+      ], 
+      "{Hex:8; HexNAc:5}": [
+        "manI"
+      ], 
+      "{Hex:9; HexNAc:5; Neu5Ac:1}": [
+        "siat2_6"
+      ]
+    }
+  }, 
+  "seeds": [
+    "{Hex:12; HexNAc:2}"
+  ]
+}

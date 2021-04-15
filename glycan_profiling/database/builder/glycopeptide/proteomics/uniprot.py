@@ -1,4 +1,5 @@
 import threading
+import multiprocessing
 
 try:
     from Queue import Queue, Empty
@@ -19,55 +20,113 @@ def get_uniprot_accession(name):
         return None
 
 
-class UniprotProteinDownloader(object):
-    def __init__(self, accession_list, n_threads=4):
-        self.accession_list = accession_list
-        self.n_threads = n_threads
-        self.input_queue = Queue()
-        self.output_queue = Queue()
-        self.no_more_work = threading.Event()
-        self.done_event = threading.Event()
-        self.workers = []
+def retry(task, n=5):
+    result = None
+    errs = []
+    for i in range(n):
+        try:
+            result = task()
+            return result, errs
+        except Exception as err:
+            errs.append(err)
+    raise errs[-1]
+
+
+class UniprotSource(TaskBase):
+    def task_handler(self, accession_number):
+        accession = get_uniprot_accession(accession_number)
+        if accession is None:
+            accession = accession_number
+        protein_data, errs = retry(lambda: uniprot.get(accession), 5)
+        self.output_queue.put((accession_number, protein_data))
+        return protein_data
 
     def fetch(self, accession_number):
         try:
-            protein_data = uniprot.get(accession_number)
-            self.output_queue.put((accession_number, protein_data))
+            self.task_handler(accession_number)
         except Exception as e:
-            self.output_queue.put((accession_number, e))
+            self.error_handler(accession_number, e)
 
-    def fetcher_task(self):
-        has_work = True
-        while has_work:
+    def error_handler(self, accession_number, error):
+        self.output_queue.put((accession_number, Exception(str(error))))
+
+
+class UniprotRequestingProcess(multiprocessing.Process, UniprotSource):
+    def __init__(self, input_queue, output_queue, feeder_done_event, done_event):
+        multiprocessing.Process.__init__(self)
+        self.input_queue = input_queue
+        self.output_queue = output_queue
+        self.feeder_done_event = feeder_done_event
+        self.done_event = done_event
+
+    def run(self):
+        while True:
             try:
-                accession_number = self.input_queue.get(True, 5)
-                self.fetch(accession_number)
+                accession = self.input_queue.get(True, 3)
             except Empty:
-                if self.no_more_work.is_set():
-                    has_work = False
-                else:
-                    continue
+                if self.feeder_done_event.is_set():
+                    break
+            self.input_queue.task_done()
+            self.fetch(accession)
+
+        self.done_event.set()
+
+
+class UniprotProteinDownloader(UniprotSource):
+    def __init__(self, accession_list, n_threads=10):
+        self.accession_list = accession_list
+        self.n_threads = n_threads
+        self.input_queue = multiprocessing.JoinableQueue(2000)
+        self.output_queue = multiprocessing.Queue()
+        self.no_more_work = multiprocessing.Event()
+        self.done_event = threading.Event()
+        self.workers = []
+
+    def task_handler(self, accession_number):
+        accession = get_uniprot_accession(accession_number)
+        if accession is None:
+            accession = accession_number
+        protein_data = uniprot.get(accession)
+        self.output_queue.put((accession_number, protein_data))
+        return protein_data
+
+    def fetch(self, accession_number):
+        try:
+            self.task_handler(accession_number)
+        except Exception as e:
+            self.error_handler(accession_number, e)
+
+    def error_handler(self, accession_number, error):
+        self.output_queue.put((accession_number, error))
 
     def feeder_task(self):
-        for item in self.accession_list:
+        for i, item in enumerate(self.accession_list):
+            if i % 100 == 0 and i:
+                self.input_queue.join()
             self.input_queue.put(item)
         self.no_more_work.set()
 
     def run(self):
         feeder = threading.Thread(target=self.feeder_task)
         feeder.start()
-        workers = []
-        for i in range(self.n_threads):
-            t = threading.Thread(target=self.fetcher_task)
+        self.workers = workers = []
+        n = min(self.n_threads, len(self.accession_list))
+        for i in range(n):
+            t = UniprotRequestingProcess(
+                self.input_queue, self.output_queue, self.no_more_work,
+                multiprocessing.Event())
             t.daemon = True
             t.start()
             workers.append(t)
-        self.workers = workers
 
     def join(self):
         for worker in self.workers:
-            worker.join()
-        self.done_event.set()
+            if not worker.done_event.is_set():
+                break
+        else:
+            self.done_event.set()
+            return True
+        return False
 
     def start(self):
         self.run()

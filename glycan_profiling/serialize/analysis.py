@@ -1,18 +1,23 @@
+import re
 from functools import partial
 
 from sqlalchemy import (
     Column, Numeric, Integer, String, ForeignKey, PickleType,
     Boolean, Table, func)
 
-from sqlalchemy.orm import relationship, backref, object_session
+from sqlalchemy.orm import relationship, backref, object_session, deferred
 from sqlalchemy.ext.declarative import declared_attr
-from sqlalchemy.ext.mutable import MutableDict
+from sqlalchemy.ext.mutable import MutableDict, Mutable
 
 import dill
 
 from glycan_profiling.serialize.base import (
-    Base, HasUniqueName, SampleRun)
+    Base, HasUniqueName)
 
+from glycan_profiling.serialize.spectrum import SampleRun
+
+from glycan_profiling.serialize.hypothesis.generic import HasFiles
+from glycan_profiling.serialize.param import LazyMutableMappingWrapper, HasParameters
 from glypy.utils import Enum
 
 
@@ -28,15 +33,19 @@ AnalysisTypeEnum.glycopeptide_lc_msms.add_name("Glycopeptide LC-MS/MS")
 AnalysisTypeEnum.glycan_lc_ms.add_name("Glycan LC-MS")
 
 
-class Analysis(Base, HasUniqueName):
+class Analysis(Base, HasUniqueName, HasFiles, HasParameters):
     __tablename__ = "Analysis"
 
     id = Column(Integer, primary_key=True)
     sample_run_id = Column(Integer, ForeignKey(SampleRun.id, ondelete="CASCADE"), index=True)
     sample_run = relationship(SampleRun)
     analysis_type = Column(String(128))
-    parameters = Column(MutableDict.as_mutable(DillType))
+    # parameters = deferred(Column(MutableDict.as_mutable(DillType), default=LazyMutableMappingWrapper))
     status = Column(String(28))
+
+    def __init__(self, **kwargs):
+        self._init_parameters(kwargs)
+        super(Analysis, self).__init__(**kwargs)
 
     def __repr__(self):
         sample_run = self.sample_run
@@ -89,6 +98,21 @@ class Analysis(Base, HasUniqueName):
 
     hypothesis = property(get_hypothesis)
 
+    def aggregate_identified_glycoproteins(self, glycopeptides=None):
+        from glycan_profiling.tandem.glycopeptide.identified_structure import IdentifiedGlycoprotein
+        from . import Protein
+        if glycopeptides is None:
+            glycopeptides = self.identified_glycopeptides.all()
+
+        protein_index = {}
+        session = object_session(self)
+        proteins = session.query(Protein).all()
+        for p in proteins:
+            protein_index[p.id] = p
+
+        glycoproteome = IdentifiedGlycoprotein.aggregate(glycopeptides, index=protein_index)
+        return glycoproteome
+
 
 class BoundToAnalysis(object):
 
@@ -98,4 +122,11 @@ class BoundToAnalysis(object):
 
     @declared_attr
     def analysis(self):
-        return relationship(Analysis)
+        return relationship(Analysis, backref=backref(self._collection_name(), lazy='dynamic'))
+
+    @classmethod
+    def _collection_name(cls):
+        name = cls.__name__
+        collection_name = re.sub(r"(.+?)([A-Z])", lambda match: match.group(1).lower() +
+               "_" + match.group(2).lower(), name, 0) + 's'
+        return collection_name

@@ -1,6 +1,12 @@
 import os
 import re
 import traceback
+
+try:
+    import cPickle as pickle
+except ImportError:
+    import pickle
+
 from functools import partial
 
 import click
@@ -20,13 +26,15 @@ from glycan_profiling.database.builder.glycan import (
     GlycanCompositionHypothesisMerger,
     named_reductions, named_derivatizations)
 
+from glycan_profiling.database.builder.glycan.synthesis import synthesis_register
 from glycan_profiling.database.builder.glycopeptide.proteomics import mzid_proteome
 from glycan_profiling.chromatogram_tree import (
     MassShift, Formate, Ammonium,
     Sodium, Potassium)
 
 from glycan_profiling.tandem.glycopeptide.scoring import (
-    binomial_score, simple_score, coverage_weighted_binomial, SpectrumMatcherBase)
+    binomial_score, simple_score, coverage_weighted_binomial, intensity_scorer,
+    SpectrumMatcherBase)
 
 from glycan_profiling.models import ms1_model_features
 
@@ -212,8 +220,8 @@ def validate_reduction(context, reduction_string):
     if reduction_string is None:
         return None
     try:
-        if reduction_string in named_reductions:
-            return named_reductions[reduction_string]
+        if str(reduction_string).lower() in named_reductions:
+            return named_reductions[str(reduction_string).lower()]
         else:
             if len(Composition(str(reduction_string))) > 0:
                 return str(reduction_string)
@@ -295,7 +303,7 @@ class SubstituentParamType(click.types.StringParamType):
         return t
 
 
-adducts = {
+mass_shifts = {
     "ammonium": Ammonium,
     "formate": Formate,
     "sodium": Sodium,
@@ -303,26 +311,29 @@ adducts = {
 }
 
 
-def validate_adduct(adduct_string, multiplicity=1):
+def validate_mass_shift(mass_shift_string, multiplicity=1):
     multiplicity = int(multiplicity)
-    if adduct_string.lower() in adducts:
-        return (adducts[adduct_string.lower()], multiplicity)
+    if mass_shift_string.lower() in mass_shifts:
+        return (mass_shifts[mass_shift_string.lower()], multiplicity)
     else:
         try:
-            adduct_string = str(adduct_string)
-            composition = Composition(adduct_string)
-            shift = MassShift(adduct_string, composition)
+            mass_shift_string = str(mass_shift_string)
+            composition = Composition(mass_shift_string)
+            shift = MassShift(mass_shift_string, composition)
             return (shift, multiplicity)
         except Exception as e:
             click.secho("%r" % (e,))
-            click.secho("Could not validate adduct %r" % (adduct_string,), fg='yellow')
-            raise click.Abort("Could not validate adduct %r" % (adduct_string,))
+            click.secho("Could not validate mass_shift %r" % (mass_shift_string,), fg='yellow')
+            raise click.Abort("Could not validate mass_shift %r" % (mass_shift_string,))
 
 
 glycopeptide_tandem_scoring_functions = {
     "binomial": binomial_score.BinomialSpectrumMatcher,
     "simple": simple_score.SimpleCoverageScorer,
-    "coverage_weighted_binomial": coverage_weighted_binomial.CoverageWeightedBinomialScorer
+    "coverage_weighted_binomial": coverage_weighted_binomial.CoverageWeightedBinomialScorer,
+    "log_intensity": intensity_scorer.LogIntensityScorer,
+    "penalized_log_intensty": intensity_scorer.FullSignaturePenalizedLogIntensityScorer,
+    "peptide_only_cw_binomial": coverage_weighted_binomial.StubIgnoringCoverageWeightedBinomialScorer
 }
 
 
@@ -332,7 +343,60 @@ def validate_glycopeptide_tandem_scoring_function(context, name):
     try:
         return glycopeptide_tandem_scoring_functions[name]
     except KeyError:
-        raise click.Abort("Could not recognize scoring function by name %r" % (name,))
+        # Custom scorer loading
+        if name.startswith("model://"):
+            path = name[8:]
+            if not os.path.exists(path):
+                raise click.Abort("Model file at \"%s\" does not exist." % (path, ))
+            with open(path, 'rb') as fh:
+                scorer = pickle.load(fh)
+                return scorer
+        else:
+            raise click.Abort("Could not recognize scoring function by name %r" % (name,))
+
+
+class ChoiceOrURI(click.Choice):
+    def get_metavar(self, param):
+        return "[%s|model://path]" % ('|'.join(self.choices), )
+
+    def get_missing_message(self, param):
+        choice_str = ",\n\t".join(self.choices)
+        return "Choose from:\n\t%s\nor specify a model://path" % choice_str
+
+    def convert(self, value, param, ctx):
+        # Match through normalization and case sensitivity
+        # first do token_normalize_func, then lowercase
+        # preserve original `value` to produce an accurate message in
+        # `self.fail`
+        normed_value = value
+        normed_choices = {choice: choice for choice in self.choices}
+
+        if ctx is not None and ctx.token_normalize_func is not None:
+            normed_value = ctx.token_normalize_func(value)
+            normed_choices = {
+                ctx.token_normalize_func(normed_choice): original
+                for normed_choice, original in normed_choices.items()
+            }
+
+        if not self.case_sensitive:
+            normed_value = normed_value.casefold()
+            normed_choices = {
+                normed_choice.casefold(): original
+                for normed_choice, original in normed_choices.items()
+            }
+
+        if normed_value in normed_choices:
+            return normed_choices[normed_value]
+
+        if value.startswith("model://"):
+            return value
+
+        self.fail(
+            "invalid value: {value}. (choose from {choices} or specify a \"model://path\")".format(
+                value=value, choices=', '.join(self.choices)),
+            param,
+            ctx,
+        )
 
 
 def get_by_name_or_id(session, model_type, name_or_id):
@@ -384,19 +448,16 @@ def strip_site_root(type, value, tb):
 
 
 class RelativeMassErrorParam(click.types.FloatParamType):
-    name = 'NUMBER'
+    name = 'PPM MASS ERR'
 
     def convert(self, value, param, ctx):
         value = super(RelativeMassErrorParam, self).convert(value, param, ctx)
-        if value >= 1:
-            self.fail("mass error value must be less than 1, as "
-                      "in parts-per-million error tolerance (e.g. 1e-5 for "
-                      "10 parts-per-million error tolerance)")
         if value > 1e-3:
             click.secho(
-                "Warning: %r has a relatively large margin, %f" % (
-                    getattr(param, "human_readable_name", param),
-                    value), fg='yellow')
+                "Translating {0} PPM -> {1}".format(param, value, value / 1e-6), fg='yellow')
+            value /= 1e-6
+        if value <= 0:
+            self.fail("mass error value must be greater than 0.")
         return value
 
 
@@ -418,3 +479,31 @@ class DatabaseConnectionParam(click.types.StringParamType):
                     raise self.fail(
                         "Database file {} does not exist.".format(value), param, ctx)
             return value
+
+
+class SmallSampleFDRCorrectionParam(click.ParamType):
+    name = '0-1.0/on/off/auto'
+
+    error_message_template = (
+        "%s is not a valid option for FDR strategy selection. "
+        "If numerical, it must be between 0 and 1.0, otherwise it must "
+        "be one of auto, on, or off."
+    )
+
+    def convert(self, value, param, ctx):
+        value = value.lower()
+        try:
+            threshold = float(value)
+            if threshold > 1 or threshold < 0:
+                self.fail(self.error_message_template % value, param, ctx)
+        except ValueError:
+            value = value.strip()
+            if value == 'auto':
+                threshold = 0.5
+            elif value == 'off':
+                threshold = 0.0
+            elif value == 'on':
+                threshold = 1.0
+            else:
+                self.fail(self.error_message_template % value, param, ctx)
+            return threshold

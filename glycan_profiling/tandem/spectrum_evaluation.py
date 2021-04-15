@@ -1,14 +1,18 @@
-from collections import defaultdict
+import os
 from ms_deisotope import isotopic_shift
 
 from glycan_profiling.task import TaskBase
 from glycan_profiling.chromatogram_tree import Unmodified
 
-from .process_dispatcher import IdentificationProcessDispatcher
-from .workload import WorkloadManager
+from .process_dispatcher import (
+    IdentificationProcessDispatcher,
+    SolutionHandler,
+    MultiScoreSolutionHandler,
+    SequentialIdentificationProcessor)
+from .workload import WorkloadManager, DEFAULT_WORKLOAD_MAX
 from .spectrum_match import (
-    SpectrumSolutionSet,
-    SpectrumMatch)
+    MultiScoreSpectrumSolutionSet,
+    SpectrumSolutionSet)
 
 
 def group_by_precursor_mass(scans, window_size=1.5e-5):
@@ -35,16 +39,14 @@ def group_by_precursor_mass(scans, window_size=1.5e-5):
     return groups
 
 
-DEFAULT_BATCH_SIZE = 25e4
-
-
 class TandemClusterEvaluatorBase(TaskBase):
 
     neutron_offset = isotopic_shift()
+    solution_set_type = SpectrumSolutionSet
 
     def __init__(self, tandem_cluster, scorer_type, structure_database, verbose=False,
                  n_processes=1, ipc_manager=None, probing_range_for_missing_precursors=3,
-                 mass_shifts=None, batch_size=DEFAULT_BATCH_SIZE, trust_precursor_fits=True):
+                 mass_shifts=None, batch_size=DEFAULT_WORKLOAD_MAX, trust_precursor_fits=True):
         if mass_shifts is None:
             mass_shifts = [Unmodified]
         self.tandem_cluster = tandem_cluster
@@ -61,18 +63,25 @@ class TandemClusterEvaluatorBase(TaskBase):
         self.batch_size = batch_size
         self.trust_precursor_fits = trust_precursor_fits
 
+    def _mark_hit(self, match):
+        return self.structure_database.mark_hit(match)
+
+    def _mark_batch(self):
+        return self.structure_database.mark_batch()
+
     def search_database_for_precursors(self, mass, precursor_error_tolerance=1e-5):
         return self.structure_database.search_mass_ppm(mass, precursor_error_tolerance)
 
-    def find_precursor_candidates(self, scan, error_tolerance=1e-5, probing_range=0,
-                                  mass_shift=None):
+    def find_precursor_candidates(self, scan, error_tolerance=1e-5, probing_range=0, mass_shift=None):
         if mass_shift is None:
             mass_shift = Unmodified
         hits = []
         intact_mass = scan.precursor_information.extracted_neutral_mass
         for i in range(probing_range + 1):
             query_mass = intact_mass - (i * self.neutron_offset) - mass_shift.mass
-            hits.extend(self.search_database_for_precursors(query_mass, error_tolerance))
+            hits.extend(
+                map(self._mark_hit,
+                    self.search_database_for_precursors(query_mass, error_tolerance)))
         return hits
 
     def score_one(self, scan, precursor_error_tolerance=1e-5, mass_shifts=None, **kwargs):
@@ -107,13 +116,13 @@ class TandemClusterEvaluatorBase(TaskBase):
             hits.extend(self.find_precursor_candidates(
                 scan, precursor_error_tolerance, probing_range=probe,
                 mass_shift=mass_shift))
+            self._mark_batch()
             for structure in hits:
                 result = self.evaluate(
                     scan, structure, mass_shift=mass_shift, **kwargs)
                 solutions.append(result)
-        out = SpectrumSolutionSet(
-            scan, sorted(
-                solutions, key=lambda x: x.score, reverse=True)).threshold()
+        out = self.solution_set_type(
+            scan, solutions).sort().threshold()
         return out
 
     def score_all(self, precursor_error_tolerance=1e-5, simplify=False, **kwargs):
@@ -137,7 +146,7 @@ class TandemClusterEvaluatorBase(TaskBase):
 
         # loop over mass_shifts so that sequential queries deals with similar masses to
         # make better use of the database's cache
-        for mass_shift in self.mass_shifts:
+        for mass_shift in sorted(self.mass_shifts, key=lambda x: x.mass):
             # make iterable for score_one API
             mass_shift = (mass_shift,)
             for scan in self.tandem_cluster:
@@ -185,10 +194,10 @@ class TandemClusterEvaluatorBase(TaskBase):
 
         i = 0
         n = len(scans)
-        report_interval = 0.1 * n
+        report_interval = 0.25 * n if n < 2000 else 0.1 * n
         last_report = report_interval
         self.log("... Begin Collecting Hits")
-        for mass_shift in self.mass_shifts:
+        for mass_shift in sorted(self.mass_shifts, key=lambda x: x.mass):
             self.log("... Mapping For %s" % (mass_shift.name,))
             i = 0
             last_report = report_interval
@@ -200,14 +209,13 @@ class TandemClusterEvaluatorBase(TaskBase):
                 if i > last_report:
                     report = True
                     self.log(
-                        "... Mapping %0.2f%% of spectra (%d/%d) %0.4f" % (
+                        "...... Mapping %0.2f%% of spectra (%d/%d) %0.4f" % (
                             i * 100. / n, i, n,
                             group[0].precursor_information.extracted_neutral_mass))
                     while last_report < i and report_interval != 0:
                         last_report += report_interval
                 j = 0
                 for scan in group:
-                    # scan_map[scan.id] = scan
                     workload.add_scan(scan)
 
                     # For a sufficiently dense database or large value of probe, this
@@ -224,49 +232,39 @@ class TandemClusterEvaluatorBase(TaskBase):
                     for hit in hits:
                         j += 1
                         workload.add_scan_hit(scan, hit, mass_shift.name)
-                        # hit_to_scan[hit.id].append(scan)
-                        # hit_map[hit.id] = hit
                 if report:
-                    self.log("... Mapping Segment Done. (%d spectrum-pairs)" % (j,))
-        # self.log("... Computing Workload Graph")
-        # try:
-        #     with open("worklog.txt", 'a') as f:
-        #         f.write("\n#GENERATION\n%s\n" % (workload,))
-        #         workload.log_workloads(f)
-        # except IOError as e:
-        #     self.error("An error occurred while trying to write workload log", e)
-        # self.log("... Workload Graph Traversed")
+                    self.log("...... Mapping Segment Done. (%d spectrum-pairs)" % (j,))
+        self._mark_batch()
         return workload
 
-    def _evaluate_hit_groups_single_process(self, workload, *args, **kwargs):
-        batch_size, scan_map, hit_map, hit_to_scan, scan_hit_type_map = workload
-        scan_solution_map = defaultdict(list)
-        self.log("... Searching Hits (%d:%d)" % (
-            len(hit_to_scan),
-            sum(map(len, hit_to_scan.values())))
-        )
-        i = 0
-        n = len(hit_to_scan)
-        for hit_id, scan_list in hit_to_scan.items():
-            i += 1
-            if i % 1000 == 0:
-                self.log("... %0.2f%% of Hits Searched (%d/%d)" %
-                         (i * 100. / n, i, n))
-            hit = hit_map[hit_id]
-            solutions = []
-            for scan_id in scan_list:
-                scan = scan_map[scan_id]
-                mass_shift = self.mass_shift_map[scan_hit_type_map[scan_id, hit_id]]
-                match = SpectrumMatch.from_match_solution(
-                    self.evaluate(scan, hit, mass_shift=mass_shift,
-                                  *args, **kwargs))
-                scan_solution_map[scan.id].append(match)
-                solutions.append(match)
-            # Assumes all matches to the same target structure share a cache
-            match.clear_caches()
-            self.reset_parser()
+    def _get_solution_handler(self):
+        if issubclass(self.solution_set_type, MultiScoreSpectrumSolutionSet):
+            handler_tp = MultiScoreSolutionHandler
+        else:
+            handler_tp = SolutionHandler
+        return handler_tp
 
-        return scan_solution_map
+    def _transform_matched_collection(self, solution_set_collection):
+        '''This helper method can be used to re-write the target
+        attribute of spectrm matches. By default, it is a no-op.
+
+        Returns
+        -------
+        :class:`list` of :class:`SpectrumSolutionSet`
+        '''
+        return solution_set_collection
+
+    def _evaluate_hit_groups_single_process(self, workload, *args, **kwargs):
+        batch_size, scan_map, hit_map, hit_to_scan_map, scan_hit_type_map, hit_group_map = workload
+        handler_tp = self._get_solution_handler()
+        processor = SequentialIdentificationProcessor(
+            self,
+            self.mass_shift_map,
+            evaluation_args=kwargs,
+            solution_handler_type=handler_tp)
+        processor.process(scan_map, hit_map, hit_to_scan_map,
+                          scan_hit_type_map, hit_group_map)
+        return processor.scan_solution_map
 
     def _collect_scan_solutions(self, scan_solution_map, scan_map):
         result_set = []
@@ -274,11 +272,13 @@ class TandemClusterEvaluatorBase(TaskBase):
             if len(solutions) == 0:
                 continue
             scan = scan_map[scan_id]
-            out = SpectrumSolutionSet(scan, sorted(
-                solutions, key=lambda x: x.score, reverse=True)).threshold()
+            out = self.solution_set_type(scan, solutions).sort()
+            # This is necessary to reduce the degree to which junk matches need to have their targets re-built
+            out.threshold()
             if len(out) == 0:
                 continue
             result_set.append(out)
+        self._transform_matched_collection(result_set)
         return result_set
 
     @property
@@ -286,16 +286,17 @@ class TandemClusterEvaluatorBase(TaskBase):
         raise NotImplementedError()
 
     def _evaluate_hit_groups_multiple_processes(self, workload, **kwargs):
-        batch_size, scan_map, hit_map, hit_to_scan, scan_hit_type_map = workload
+        batch_size, scan_map, hit_map, hit_to_scan, scan_hit_type_map, hit_group_map = workload
         worker_type, init_args = self._worker_specification
+        handler_tp = self._get_solution_handler()
         dispatcher = IdentificationProcessDispatcher(
             worker_type, self.scorer_type, evaluation_args=kwargs, init_args=init_args,
             n_processes=self.n_processes, ipc_manager=self.ipc_manager,
-            mass_shift_map=self.mass_shift_map)
-        return dispatcher.process(scan_map, hit_map, hit_to_scan, scan_hit_type_map)
+            mass_shift_map=self.mass_shift_map, solution_handler_type=handler_tp)
+        return dispatcher.process(scan_map, hit_map, hit_to_scan, scan_hit_type_map, hit_group_map)
 
     def _evaluate_hit_groups(self, batch, **kwargs):
-        if self.n_processes == 1 or len(batch.hit_map) < 500:
+        if self.n_processes == 1 or len(batch.hit_map) < 2500:
             return self._evaluate_hit_groups_single_process(
                 batch, **kwargs)
         else:

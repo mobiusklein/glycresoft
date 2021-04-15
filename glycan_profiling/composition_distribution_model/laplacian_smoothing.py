@@ -1,20 +1,41 @@
+# -*- coding: utf-8 -*-
+
 from collections import namedtuple, OrderedDict
+
+from six import string_types as basestring
 
 import numpy as np
 from scipy import linalg
+from matplotlib import pyplot as plt
+
+from glypy import GlycanComposition
+from glycopeptidepy.structure.glycan import GlycanCompositionProxy
 
 from glycan_profiling.database.composition_network import (
-    NeighborhoodWalker, CompositionGraphNode,
-    GlycanComposition, GlycanCompositionProxy)
+    NeighborhoodWalker, CompositionGraphNode)
 
 from .constants import DEFAULT_LAPLACIAN_REGULARIZATION, NORMALIZATION
 from .graph import network_indices, BlockLaplacian
 
 
 class LaplacianSmoothingModel(object):
+    r'''A model that uses a graphical representation of a set of related entities
+    to estimate a connectedness-aware version of a quality score :math:`s`.
+
+    The `Graph Laplacian <https://en.wikipedia.org/wiki/Laplacian_matrix>`_ is used
+    to summarize the connectedness of nodes in the graph.
+
+    Related subgraphs are further organized into neighborhoods, as defined by
+    :attr:`neighborhood_walker`'s rules. These groups are expected to trend together,
+    sharing a parameter :math:`\tau`. A single vertex in the graph can belong to multiple
+    neighborhoods to different extents, having a belongingness weight for each neighborhood
+    encoded in a belongingness matrix :math:`\mathbf{A}`.
+    '''
+
     def __init__(self, network, belongingness_matrix, threshold,
                  regularize=DEFAULT_LAPLACIAN_REGULARIZATION, neighborhood_walker=None,
-                 belongingness_normalization=NORMALIZATION):
+                 belongingness_normalization=NORMALIZATION, variance_matrix=None,
+                 inverse_variance_matrix=None):
         self.network = network
 
         if neighborhood_walker is None:
@@ -29,19 +50,25 @@ class LaplacianSmoothingModel(object):
         self.block_L = BlockLaplacian(
             self.network, threshold, regularize=regularize)
 
-        self.S0 = [node.score for node in self.network[self.obs_ix]]
+        self.S0 = np.array([node.score for node in self.network[self.obs_ix]])
         self.A0 = belongingness_matrix[self.obs_ix, :]
         self.Am = belongingness_matrix[self.miss_ix, :]
         self.C0 = [node for node in self.network[self.obs_ix]]
 
         self._belongingness_normalization = belongingness_normalization
-        self.variance_matrix = np.eye(len(self.S0))
+        if variance_matrix is None:
+            variance_matrix = np.eye(len(self.S0))
+        self.variance_matrix = variance_matrix
+        if inverse_variance_matrix is None:
+            inverse_variance_matrix = np.eye(len(self.S0))
+        self.inverse_variance_matrix = inverse_variance_matrix
 
     def __reduce__(self):
         return self.__class__, (
             self.network, self.belongingness_matrix, self.threshold,
             self.block_L.regularize, self.neighborhood_walker,
-            self._belongingness_normalization)
+            self._belongingness_normalization, self.variance_matrix,
+            self.inverse_variance_matrix)
 
     @property
     def L_mm_inv(self):
@@ -53,8 +80,10 @@ class LaplacianSmoothingModel(object):
 
     def optimize_observed_scores(self, lmda, t0=0):
         blocks = self.block_L
-        L = lmda * (blocks["oo"] - blocks["om"].dot(self.L_mm_inv).dot(blocks["mo"]))
-        B = np.eye(len(self.S0)) + L
+        # Here, V_inv is the inverse of V, which is the inverse of the variance matrix
+        V_inv = self.variance_matrix
+        L = lmda * V_inv.dot(blocks["oo"] - blocks["om"].dot(self.L_mm_inv).dot(blocks["mo"]))
+        B = np.identity(len(self.S0)) + L
         return np.linalg.inv(B).dot(self.S0 - t0) + t0
 
     def compute_missing_scores(self, observed_scores, t0=0., tm=0.):
@@ -77,6 +106,69 @@ class LaplacianSmoothingModel(object):
         X = np.linalg.pinv(X)
         return self.A0.T.dot(X).dot(self.S0)
 
+    def estimate_phi_given_S_parameters(self, lmbda, tau):
+        r"""Estimate the parameters of the conditional distribution :math:`\phi|s`
+        according to [1]_.
+
+        Notes
+        -----
+        According to [1]_, given
+        .. math::
+
+                y | \theta_1 \sim & \mathcal{N}\left(\mathbf{A_1}\theta_1, \mathbf{C_1}\right) \\
+
+                \theta_1 \sim & \mathcal{N}\left(\mathbf{A_2}\theta_2, \mathbf{C_2}\right) \\
+
+                \theta_1 | y \sim & \mathcal{N}\left(\mathbf{B}b, \mathbf{B}\right) \\
+
+                \mathbf{B^{-1}} = & \mathbf{C_2}^{-1} + \mathbf{A_1}^t\mathbf{C_1}^{-1}\mathbf{A_1} \\
+                b = & \mathbf{A_1}^t\mathbf{C_1}^{-1}y + \mathbf{C_2}^{-1}\mathbf{A_2}\theta_2
+
+        In terms of the network smoothing model, this translates to
+
+        .. math::
+
+                \mathbf{B^{-1}} = & \lambda\mathbf{L} + \tilde{A}^t\Sigma^{-1}\tilde{A}\\
+                                = & \lambda \mathbf{L} + \begin{bmatrix} \Sigma_{oo}^{-1} & 0 \\ 0 & 0 \end{bmatrix} \\
+
+                b = & \tilde{A}^t\Sigma^{-1}s + \lambda\mathbf{L}\mathbf{A}\tau \\
+                  = & \begin{bmatrix}\Sigma_{oo}^{-1}s \\ 0\end{bmatrix} + \lambda\begin{bmatrix}L_{oo}A\tau_o +
+                      L_{om}A\tau_m \\L_{mo}A\tau_o + L_{mm}A\tau_m\end{bmatrix}\\\\
+
+        Parameters
+        ----------
+        lmbda : float
+            The smoothing factor
+        tau : np.ndarray
+            The mean of :math:`\phi`, :math:`\mathbf{A}\tau`
+
+        Returns
+        -------
+        Bb: np.ndarray
+            The mean vector of :math:`\phi|s`
+        B: np.ndarray:
+            The variance matrix of :math:`\phi|s`
+
+        References
+        ----------
+        .. [1] Lindley, D. V., & Smith, A. F. M. (1972). Bayes Estimates for the Linear Model.
+               Royal Statistical Society, 34(1), 1–41.
+        """
+        B_inv = lmbda * self.block_L.matrix
+        B_inv[self.obs_ix, self.obs_ix] += np.diag(self.inverse_variance_matrix)
+        B = linalg.inv(B_inv)
+
+        Alts = np.zeros(len(self.network))
+        Alts[self.obs_ix] = self.S0.dot(self.inverse_variance_matrix)
+        lambda_Lw_Atau = lmbda * self.block_L.matrix.dot(self.normalized_belongingness_matrix.dot(tau))
+        b = Alts + lambda_Lw_Atau
+        phi_given_s = np.dot(B, b)
+        return phi_given_s, B
+
+    def build_belongingness_matrix(self):
+        belongingness_matrix = self.neighborhood_walker.build_belongingness_matrix()
+        return belongingness_matrix
+
     def get_belongingness_patch(self):
         updated_belongingness = BelongingnessMatrixPatcher.patch(self)
         updated_belongingness = ProportionMatrixNormalization.normalize(
@@ -89,6 +181,59 @@ class LaplacianSmoothingModel(object):
         self.A0 = self.belongingness_matrix[self.obs_ix, :]
 
 
+class SmoothedScoreSample(object):
+    def __init__(self, model, lmbda, tau, size=10000, random_state=None):
+        if random_state is None:
+            random_state = np.random.RandomState()
+        self.model = model
+        self.lmbda = lmbda
+        self.tau = tau
+        self.size = size
+        self.Bb, self.B = self.model.estimate_phi_given_S_parameters(lmbda, tau)
+        self.B_inv = np.linalg.pinv(self.B)
+        self.random_state = random_state
+        self.samples = np.array([])
+        self.resample()
+
+    def resample(self):
+        self.samples = self.random_state.multivariate_normal(self.Bb, self.B, size=self.size)
+        # alternatively, sample unit variance scaled by the cholesky decomposition of the covariance
+        # matrix to get the sample variance
+        # C = linalg.cholesky(self.B)
+        # self.samples = np.array(
+        #                   [self.Bb + C.T.dot(self.random_state.normal(size=C.shape[0])) for i in range(self.size)])
+        return self
+
+    def _get_index(self, glycan_composition):
+        node = self.model.network[glycan_composition]
+        index = node.index
+        return index
+
+    def _score_index(self, index):
+        return self.Bb[index]
+
+    def _gaussian_pdf(self, x, mu, sigma, sigma_inv):
+        d = (x - mu)
+        e = np.exp((-0.5 * (d) * sigma_inv * d))
+        return e / np.sqrt(2 * np.pi * sigma)
+
+    def score(self, glycan_composition):
+        index = self._get_index(glycan_composition)
+        return self._score_index(index)
+
+    def plot_distribution(self, glycan_composition, ax=None):
+        if ax is None:
+            fig, ax = plt.subplots(1)
+        index = self._get_index(glycan_composition)
+        node = self.model.network[index]
+        s = self.samples[:, index]
+        bins = np.arange(0, self.Bb[index] * 2, .1)
+        ax.hist(s, bins=bins, alpha=0.5, density=True, label="%s (%f)" % (node, self.score(glycan_composition)))
+        ax.set_xlabel(r"Resampled $\phi$", fontsize=24)
+        ax.set_ylabel("Density", fontsize=24)
+        return ax
+
+
 class ProportionMatrixNormalization(object):
     def __init__(self, matrix):
         self.matrix = np.array(matrix)
@@ -97,7 +242,9 @@ class ProportionMatrixNormalization(object):
         self.matrix = self.matrix / self.matrix.sum(axis=0)
 
     def normalize_rows(self):
-        self.matrix = self.matrix / self.matrix.sum(axis=1).reshape((-1, 1))
+        normalizer = self.matrix.sum(axis=1).reshape((-1, 1))
+        normalizer[normalizer == 0] = 1e-6
+        self.matrix = self.matrix / normalizer
 
     def normalize_columns_and_rows(self):
         self.normalize_columns()
@@ -123,7 +270,7 @@ class ProportionMatrixNormalization(object):
             self.normalize_rows()
         elif method == 'colrow':
             self.normalize_columns_and_rows()
-        elif method.startswith("col") and method[3:4].isdigit():
+        elif method is not None and method.startswith("col") and method[3:4].isdigit():
             scale = float(method[3:])
             self.normalize_columns_scaled(scale)
         elif method == 'none' or method is None:

@@ -121,9 +121,13 @@ class SimplifiedGaussianModel(GaussianModel):
 def skewed_gaussian_shape(xs, center, amplitude, sigma, gamma):
     if sigma == 0:
         sigma = SIGMA_EPSILON
-    norm = (amplitude) / (sigma * sqrt(2 * pi)) * \
-        exp(-((xs - center) ** 2) / (2 * sigma ** 2))
-    skew = (1 + erf((gamma * (xs - center)) / (sigma * sqrt(2))))
+    amp_over_sigma_sqrt2pi = (amplitude) / (sigma * sqrt(2 * pi))
+    sigma_squared_2 = 2 * sigma ** 2
+    sigma_sqrt2 = (sigma * sqrt(2))
+
+    norm = amp_over_sigma_sqrt2pi * \
+        exp(-((xs - center) ** 2) / sigma_squared_2)
+    skew = (1 + erf((gamma * (xs - center)) / sigma_sqrt2))
     return norm * skew
 
 
@@ -178,9 +182,9 @@ def bigaussian_shape(xs, center, amplitude, sigma_left, sigma_right):
         sigma_right = SIGMA_EPSILON
     ys = np.zeros_like(xs, dtype=np.float32)
     left_mask = xs < center
-    ys[left_mask] = amplitude * np.exp(-(xs[left_mask] - center) ** 2 / (2 * sigma_left ** 2)) * sqrt(2 * pi)
-    right_mask = xs > center
-    ys[right_mask] = amplitude * np.exp(-(xs[right_mask] - center) ** 2 / (2 * sigma_right ** 2)) * sqrt(2 * pi)
+    ys[left_mask] = amplitude / sqrt(2 * pi) * np.exp(-(xs[left_mask] - center) ** 2 / (2 * sigma_left ** 2))
+    right_mask = xs >= center
+    ys[right_mask] = amplitude / sqrt(2 * pi) * np.exp(-(xs[right_mask] - center) ** 2 / (2 * sigma_right ** 2))
     return ys
 
 
@@ -256,6 +260,10 @@ class FittedPeakShape(object):
     def amplitude(self):
         return self['amplitude']
 
+    @property
+    def spread(self):
+        return self.shape_model.spread(self)
+
 
 class ChromatogramShapeFitterBase(ScoringFeatureBase):
     feature_type = "line_score"
@@ -279,13 +287,13 @@ class ChromatogramShapeFitterBase(ScoringFeatureBase):
     def extract_arrays(self):
         self.xs, self.ys = self.chromatogram.as_arrays()
         if self.smooth:
-            self.ys = gaussian_filter1d(self.ys, 1)
+            self.ys = gaussian_filter1d(self.ys, self.smooth)
         if len(self.xs) > MAX_POINTS:
             new_xs = np.linspace(self.xs.min(), self.xs.max(), MAX_POINTS)
             new_ys = np.interp(new_xs, self.xs, self.ys)
             self.xs = new_xs
             self.ys = new_ys
-            self.ys = gaussian_filter1d(self.ys, 1)
+            self.ys = gaussian_filter1d(self.ys, self.smooth)
 
     def compute_residuals(self):
         return NotImplemented
@@ -362,6 +370,9 @@ class ChromatogramShapeFitter(ChromatogramShapeFitterBase):
 
     def compute_fitted(self):
         return self.shape_fitter.shape(self.xs, **self.params_dict)
+
+    def interpolate(self, x):
+        return self.shape_fitter.shape(x, **self.params_dict)
 
     def peak_shape_fit(self):
         xs, ys = self.xs, self.ys
@@ -452,7 +463,7 @@ class MultimodalChromatogramShapeFitter(ChromatogramShapeFitterBase):
         params_dict['center'] = center
 
         fit = leastsq(self.shape_fitter.fit,
-                      params_dict.values(), (xs, ys))
+                      list(params_dict.values()), (xs, ys))
         params = fit[0]
         params_dict = FittedPeakShape(self.shape_fitter.params_to_dict(params), self.shape_fitter)
         self.params_list.append(params)
@@ -483,6 +494,12 @@ class MultimodalChromatogramShapeFitter(ChromatogramShapeFitterBase):
         fitted = np.zeros_like(xs)
         for params_dict in self.params_dict_list:
             fitted += self.shape_fitter.shape(xs, **params_dict)
+        return fitted
+
+    def interpolate(self, x):
+        fitted = np.zeros_like(x)
+        for params_dict in self.params_dict_list:
+            fitted += self.shape_fitter.shape(x, **params_dict)
         return fitted
 
     def compute_residuals(self):
@@ -546,6 +563,9 @@ class AdaptiveMultimodalChromatogramShapeFitter(ChromatogramShapeFitterBase):
 
     def compute_fitted(self):
         return self.best_fit.compute_fitted()
+
+    def interpolate(self, x):
+        return self.best_fit.interpolate(x)
 
     def compute_residuals(self):
         return self.best_fit.compute_residuals()
@@ -710,7 +730,7 @@ class ProfileSplittingMultimodalChromatogramShapeFitter(ChromatogramShapeFitterB
             return ys, params_dict
 
         fit = leastsq(self.shape_fitter.fit,
-                      params_dict.values(), (xs, ys))
+                      list(params_dict.values()), (xs, ys))
         params = fit[0]
         params_dict = FittedPeakShape(self.shape_fitter.params_to_dict(params), self.shape_fitter)
         self.params_list.append(params)
@@ -730,6 +750,12 @@ class ProfileSplittingMultimodalChromatogramShapeFitter(ChromatogramShapeFitterB
             fitted.append(self.shape_fitter.shape(segment[0], **params_dict))
         return np.concatenate(fitted)
 
+    def interpolate(self, x):
+        fitted = np.zeros_like(x)
+        for params_dict in self.params_dict_list:
+            fitted += self.shape_fitter.shape(x, **params_dict)
+        return fitted
+
     def compute_residuals(self):
         return self.ys - self.compute_fitted()
 
@@ -743,12 +769,19 @@ try:
     _skewed_gaussian_shape = skewed_gaussian_shape
     _gaussian_shape = gaussian_shape
 
-    from ms_deisotope._c.feature_map.profile_transform import (
+    from ms_deisotope._c.feature_map.shape_fitter import (
         bigaussian_shape, skewed_gaussian_shape, gaussian_shape)
 
     has_c = True
 except ImportError:
     has_c = False
+
+try:
+    _plocate_extrema = ProfileSplittingMultimodalChromatogramShapeFitter.locate_extrema
+    from glycan_profiling._c.scoring.shape_fitter import locate_extrema as _clocate_extrema
+    ProfileSplittingMultimodalChromatogramShapeFitter.locate_extrema = _clocate_extrema
+except ImportError:
+    pass
 
 
 class ChromatogramShapeModel(ScoringFeatureBase):

@@ -5,8 +5,9 @@ import logging
 from collections import defaultdict
 from six import string_types as basestring
 
+from glycopeptidepy.io import fasta as glycopeptidepy_fasta
 from glycopeptidepy.structure import sequence, modification, residue
-from glycopeptidepy.enzyme import Protease
+from glycopeptidepy.enzyme import Protease, enzyme_rules
 from glypy.composition import formula
 
 from glycan_profiling.serialize import (
@@ -15,7 +16,9 @@ from glycan_profiling.serialize import (
 from glycan_profiling.task import TaskBase
 
 from .mzid_parser import Parser
-from .peptide_permutation import ProteinDigestor, ProteinSplitter
+from .peptide_permutation import (
+    ProteinDigestor, n_glycan_sequon_sites,
+    o_glycan_sequon_sites, gag_sequon_sites, UniprotProteinAnnotator)
 from .remove_duplicate_peptides import DeduplicatePeptides
 from .share_peptides import PeptideSharer
 from .fasta import FastaProteinSequenceResolver
@@ -27,6 +30,7 @@ PeptideSequence = sequence.PeptideSequence
 Residue = residue.Residue
 Modification = modification.Modification
 ModificationNameResolutionError = modification.ModificationNameResolutionError
+AnonymousModificationRule = modification.AnonymousModificationRule
 
 GT = "greater"
 LT = "lesser"
@@ -35,7 +39,12 @@ PROTEOMICS_SCORE = {
     "PEAKS:peptideScore": GT,
     "mascot:score": GT,
     "PEAKS:proteinScore": GT,
-    "MS-GF:EValue": LT
+    "MS-GF:EValue": LT,
+    "Byonic:Score": GT,
+    "percolator:Q value": LT,
+    r"X\!Tandem:expect": GT,
+    "Morpheus:Morpheus score": GT,
+    "MetaMorpheus:score": GT,
 }
 
 
@@ -99,24 +108,6 @@ def protein_names(mzid_path, pattern=r'.*'):
             yield name
 
 
-def parent_sequence_aware_n_glycan_sequon_sites(peptide, protein):
-    sites = set(sequence.find_n_glycosylation_sequons(
-        peptide.modified_peptide_sequence, WHITELIST_GLYCOSITE_PTMS))
-    sites |= set(site - peptide.start_position for site in protein.n_glycan_sequon_sites
-                 if peptide.start_position <= site < peptide.end_position)
-    return list(sites)
-
-
-def o_glycan_sequon_sites(peptide, protein=None):
-    sites = sequence.find_o_glycosylation_sequons(peptide.modified_peptide_sequence)
-    return sites
-
-
-def gag_sequon_sites(peptide, protein=None):
-    sites = sequence.find_glycosaminoglycan_sequons(peptide.modified_peptide_sequence)
-    return sites
-
-
 def remove_peptide_sequence_alterations(base_sequence, insert_sites, delete_sites):
     """
     Remove all the sequence insertions and deletions in order to reconstruct the
@@ -156,8 +147,22 @@ def remove_peptide_sequence_alterations(base_sequence, insert_sites, delete_site
 
 
 class PeptideGroup(object):
+    """Maps Protein ID to :class:`Peptide`, keeping track of the top scoring example
+    for each :class:`Peptide` instance observed from the set of target Proteins
+
+    Attributes
+    ----------
+    has_target_match: bool
+        Description
+    members: dict
+        Mapping from Protein ID to :class:`Peptide`
+    scores: defaultdict(list)
+        Mapping from Protein ID to score
+    """
+
     def __init__(self):
         self.members = dict()
+        self.scores = defaultdict(list)
         self.has_target_match = False
         self._first = None
         self._last = None
@@ -193,15 +198,30 @@ class PeptideGroup(object):
             for key in list(self.members):
                 if key not in protein_set:
                     self.members.pop(key)
+                    self.scores.pop(key)
         else:
             if self._last.protein_id not in protein_set:
                 try:
                     self.members.pop(self._last.protein_id)
+                    self.scores.pop(self._last.protein_id)
                 except KeyError:
                     pass
 
+    def keys(self):
+        return self.members.keys()
+
     def values(self):
         return self.members.values()
+
+    def items(self):
+        return self.members.items()
+
+    def bind_scores(self):
+        acc = []
+        for key, peptide in self.members.items():
+            peptide.scores = self.scores[key]
+            acc.extend(self.scores[key])
+        return acc
 
     def first(self):
         return self._first
@@ -221,26 +241,38 @@ class PeptideGroup(object):
     def __len__(self):
         return len(self.members)
 
+    def add(self, peptide):
+        comparator = score_comparator(peptide.peptide_score_type)
+        if self:
+            first = self.first()
+            if comparator(peptide.peptide_score, first.peptide_score):
+                self.clear()
+                self[peptide.protein_id] = peptide
+            elif first.peptide_score == peptide.peptide_score:
+                self[peptide.protein_id] = peptide
+        else:
+            self[peptide.protein_id] = peptide
+        self.scores[peptide.protein_id].append(peptide.peptide_score)
+
 
 class PeptideCollection(object):
     def __init__(self, protein_set):
         self.store = defaultdict(PeptideGroup)
         self.protein_set = protein_set
+        self.scores = []
+
+    def bind_scores(self):
+        acc = []
+        for key, value in self.store.items():
+            acc.extend(value.bind_scores())
+        self.scores = acc
+        return acc
 
     def add(self, peptide):
-        comparator = score_comparator(peptide.peptide_score_type)
         group = self.store[peptide.modified_peptide_sequence]
-        if group:
-            first = group.first()
-            if comparator(peptide.peptide_score, first.peptide_score):
-                group.clear()
-                group[peptide.protein_id] = peptide
-                self.store[peptide.modified_peptide_sequence] = group
-            elif first.peptide_score == peptide.peptide_score:
-                group[peptide.protein_id] = peptide
-        else:
-            group[peptide.protein_id] = peptide
+        group.add(peptide)
         group.update_state(self.protein_set)
+        self.store[peptide.modified_peptide_sequence] = group
 
     def items(self):
         for key, mapping in self.store.items():
@@ -250,7 +282,7 @@ class PeptideCollection(object):
         return sum(map(len, self.store.values()))
 
 
-class PeptideIdentification(object):
+class MzIdentMLPeptide(object):
     def __init__(self, peptide_dict, enzyme=None, constant_modifications=None,
                  modification_translation_table=None, process=True):
         if modification_translation_table is None:
@@ -274,6 +306,7 @@ class PeptideIdentification(object):
         self.constant_modifications = constant_modifications
         self.modification_translation_table = modification_translation_table
         self.enzyme = enzyme
+        self.mzid_id = peptide_dict.get('id')
 
         if process:
             self.process()
@@ -293,26 +326,65 @@ class PeptideIdentification(object):
                 self.peptide_sequence.substitute(pos, replace)
                 self.modification_counter += 1
 
+    def add_modification(self, modification, position):
+        if position == -1:
+            targets = modification.rule.n_term_targets
+            for t in targets:
+                if t.position_modifier is not None and t.amino_acid_targets is None:
+                    break
+            else:
+                position += 1
+        if position == len(self.peptide_sequence):
+            targets = modification.rule.c_term_targets
+            for t in targets:
+                if t.position_modifier is not None and t.amino_acid_targets is None:
+                    break
+            else:
+                position -= 1
+        if position == -1:
+            self.peptide_sequence.n_term = modification
+        elif position == len(self.peptide_sequence):
+            self.peptide_sequence.c_term = modification
+        else:
+            self.peptide_sequence.add_modification(position, modification)
+
+    def add_insertion(self, site, symbol=None):
+        self.insert_sites.append((site, symbol))
+
+    def add_deletion(self, site, symbol):
+        self.deleteion_sites.append((site, symbol))
+
     def handle_modifications(self):
         if "Modification" in self.peptide_dict:
             mods = self.peptide_dict["Modification"]
             for mod in mods:
                 pos = mod["location"] - 1
+                accession = None
                 try:
-                    try:
-                        _name = mod["name"]
-                        modification = Modification(_name)
-                    except KeyError as e:
-                        if "unknown modification" in mod:
-                            try:
-                                _name = mod['unknown modification']
-                                if _name in self.modification_translation_table:
-                                    modification = self.modification_translation_table[_name]()
-                                else:
+                    if "unknown modification" in mod:
+                        try:
+                            _name = mod['unknown modification']
+                            if _name in self.modification_translation_table:
+                                modification = self.modification_translation_table[_name]()
+                            else:
+                                modification = Modification(str(_name))
+                        except ModificationNameResolutionError:
+                            raise KeyError("Cannot find key in %r" % (mod,))
+                    else:
+                        try:
+                            _name = mod["name"]
+                            accession = getattr(_name, "accession", None)
+                            _name = str(_name)
+                            if accession is not None:
+                                accession = str(accession)
+                                try:
+                                    modification = Modification(accession)
+                                except ModificationNameResolutionError:
                                     modification = Modification(_name)
-                            except ModificationNameResolutionError:
-                                raise KeyError("Cannot find key %s in %r" % (e, mod))
-                        else:
+                            else:
+                                modification = Modification(_name)
+
+                        except (KeyError, ModificationNameResolutionError) as e:
                             raise KeyError("Cannot find key %s in %r" % (e, mod))
 
                     try:
@@ -323,12 +395,7 @@ class PeptideIdentification(object):
                     except KeyError:
                         self.modification_counter += 1
 
-                    if pos == -1:
-                        self.peptide_sequence.n_term = modification
-                    elif pos == len(self.peptide_sequence):
-                        self.peptide_sequence.c_term = modification
-                    else:
-                        self.peptide_sequence.add_modification(pos, modification)
+                    self.add_modification(modification, pos)
                 except KeyError:
                     if "unknown modification" in mod:
                         mod_description = mod["unknown modification"]
@@ -336,10 +403,14 @@ class PeptideIdentification(object):
                         deletion = re.search(r"(\S{3})\sdeletion", mod_description)
                         self.modification_counter += 1
                         if insertion:
-                            self.insert_sites.append((mod['location'] - 1, None))
+                            self.add_insertion(mod['location'] - 1, None)
                         elif deletion:
                             sym = Residue(deletion.groups()[0]).symbol
-                            self.deleteion_sites.append((mod['location'] - 1, sym))
+                            self.add_deletion(mod['location'] - 1, sym)
+                        elif 'monoisotopicMassDelta' in mod:
+                            mass = float(mod['monoisotopicMassDelta'])
+                            modification = AnonymousModificationRule(_name, mass)()
+                            self.add_modification(modification, pos)
                         else:
                             raise
                     else:
@@ -354,6 +425,19 @@ class PeptideIdentification(object):
         sequence_copy = remove_peptide_sequence_alterations(
             self.base_sequence, self.insert_sites, self.deleteion_sites)
         return sequence_copy
+
+    def __repr__(self):
+        return "%s(%s, %s)" % (
+            self.__class__.__name__, self.peptide_sequence,
+            self.glycosite_candidates)
+
+
+class PeptideIdentification(MzIdentMLPeptide):
+    def __init__(self, peptide_dict, enzyme=None, constant_modifications=None,
+                 modification_translation_table=None, process=True):
+        super(PeptideIdentification, self).__init__(
+            peptide_dict, enzyme, constant_modifications, modification_translation_table,
+            process)
 
     @property
     def score_type(self):
@@ -379,75 +463,124 @@ class PeptideIdentification(object):
 
 
 class ProteinStub(object):
-    def __init__(self, name, id, sequence, n_glycan_sequon_sites):
+    def __init__(self, name, id, sequence, n_glycan_sequon_sites, o_glycan_sequon_sites,
+                 glycosaminoglycan_sequon_sites):
         self.name = name
         self.id = id
         self.protein_sequence = sequence
         self.n_glycan_sequon_sites = n_glycan_sequon_sites
+        self.o_glycan_sequon_sites = o_glycan_sequon_sites
+        self.glycosaminoglycan_sequon_sites = glycosaminoglycan_sequon_sites
 
     @classmethod
     def from_protein(cls, protein):
-        return cls(protein.name, protein.id, protein.protein_sequence, protein.n_glycan_sequon_sites)
+        return cls(
+            str(protein.name),
+            getattr(protein, 'id', None),
+            str(protein),
+            protein.n_glycan_sequon_sites,
+            protein.o_glycan_sequon_sites,
+            protein.glycosaminoglycan_sequon_sites)
+
+    def __repr__(self):
+        trailer = self.protein_sequence[:10] + '...'
+        return "{self.__class__.__name__}({self.name!r}, {self.id}, {trailer!r})".format(self=self, trailer=trailer)
 
 
-class ProteinStubLoader(object):
-    def __init__(self, session, hypothesis_id):
-        self.session = session
-        self.hypothesis_id = hypothesis_id
-        self.store = dict()
+class ProteinStubLoaderBase(object):
+    def __init__(self, store=None):
+        if store is None:
+            store = dict()
+        self.store = store
 
-    def _get_protein_from_db(self, protein_name):
-        protein = self.session.query(Protein).filter(
-            Protein.name == protein_name,
-            Protein.hypothesis_id == self.hypothesis_id).first()
-        return protein
+    def __getitem__(self, key):
+        return self.get_protein_by_name(key)
+
+    def __contains__(self, key):
+        return key in self.store
+
+    def _load_protein(self, protein_name):
+        raise NotImplementedError()
 
     def get_protein_by_name(self, protein_name):
         try:
             return self.store[protein_name]
         except KeyError:
-            db_prot = self._get_protein_from_db(protein_name)
+            protein = self._load_protein(protein_name)
             try:
-                stub = ProteinStub.from_protein(db_prot)
+                stub = ProteinStub.from_protein(protein)
             except AttributeError:
                 logger.error("Failed to load stub for %s" % (protein_name,))
                 raise
             self.store[protein_name] = stub
             return stub
 
+
+class MemoryProteinStubLoader(ProteinStubLoaderBase):
+    def _load_protein(self, protein_name):
+        raise KeyError(protein_name)
+
+
+class DatabaseProteinStubLoader(ProteinStubLoaderBase):
+    def __init__(self, session, hypothesis_id, store=None):
+        self.session = session
+        self.hypothesis_id = hypothesis_id
+        super(DatabaseProteinStubLoader, self).__init__(store)
+
+    def _load_protein(self, protein_name):
+        protein = self.session.query(Protein).filter(
+            Protein.name == protein_name,
+            Protein.hypothesis_id == self.hypothesis_id).first()
+        return protein
+
     def __getitem__(self, key):
         return self.get_protein_by_name(key)
 
 
-class PeptideConverter(object):
-    def __init__(self, session, hypothesis_id, enzyme=None, constant_modifications=None,
-                 modification_translation_table=None, protein_filter=None):
+class FastaProteinStubLoader(ProteinStubLoaderBase):
+    def __init__(self, fasta_path, store=None):
+        super(FastaProteinStubLoader, self).__init__(store)
+        self.parser = glycopeptidepy_fasta.ProteinFastaFileParser(fasta_path, index=True)
+
+    def _load_protein(self, protein_name):
+        return self.parser[protein_name]
+
+
+class PeptideMapperBase(object):
+    def __init__(self, enzyme=None, constant_modifications=None, modification_translation_table=None,
+                 protein_filter=None, peptide_length_range=(5, 60)):
         if protein_filter is None:
             protein_filter = allset()
-        self.session = session
-        self.hypothesis_id = hypothesis_id
-
-        self.protein_loader = ProteinStubLoader(self.session, self.hypothesis_id)
 
         self.enzyme = enzyme
         self.constant_modifications = constant_modifications or []
         self.modification_translation_table = modification_translation_table or {}
 
         self.peptide_grouper = PeptideCollection(protein_filter)
-
-        self.accumulator = []
-        self.chunk_size = 500
         self.counter = 0
+
+        self.protein_loader = self._make_protein_loader()
+        self.peptide_length_range = peptide_length_range
+
+    def _make_protein_loader(self):
+        raise NotImplementedError()
+
+
+class PeptideConverter(PeptideMapperBase):
+    def __init__(self, session, hypothesis_id, enzyme=None, constant_modifications=None,
+                 modification_translation_table=None, protein_filter=None,
+                 peptide_length_range=(5, 60)):
+        self.session = session
+        self.hypothesis_id = hypothesis_id
+        super(PeptideConverter, self).__init__(
+            enzyme, constant_modifications, modification_translation_table,
+            protein_filter, peptide_length_range)
+
+    def _make_protein_loader(self):
+        return DatabaseProteinStubLoader(self.session, self.hypothesis_id)
 
     def get_protein(self, evidence):
         return self.protein_loader[evidence['accession']]
-
-    def sequence_starts_at(self, sequence, parent_protein):
-        found = parent_protein.protein_sequence.find(sequence)
-        if found == -1:
-            print(len(parent_protein.protein_sequence))
-            raise ValueError("Peptide not found in Protein\n%s\n%r\n\n" % (parent_protein.name, sequence))
-        return found
 
     def pack_peptide(self, peptide_ident, start, end, score, score_type, parent_protein):
         match = Peptide(
@@ -465,7 +598,7 @@ class PeptideConverter(object):
             sequence_length=end - start,
             protein_id=parent_protein.id,
             hypothesis_id=self.hypothesis_id)
-        n_glycosites = parent_sequence_aware_n_glycan_sequon_sites(
+        n_glycosites = n_glycan_sequon_sites(
             match, parent_protein)
         o_glycosites = o_glycan_sequon_sites(match, parent_protein)
         gag_glycosites = gag_sequon_sites(match, parent_protein)
@@ -526,6 +659,12 @@ class PeptideConverter(object):
         copy.count_variable_modifications -= len(occupied_sites)
         return copy
 
+    def sequence_starts_at(self, sequence, parent_protein):
+        found = parent_protein.protein_sequence.find(sequence)
+        if found == -1:
+            raise ValueError("Peptide not found in Protein\n%s\n%r\n\n" % (parent_protein.name, sequence))
+        return found
+
     def handle_peptide_dict(self, peptide_dict):
         peptide_ident = PeptideIdentification(
             peptide_dict, self.enzyme, self.constant_modifications,
@@ -537,48 +676,48 @@ class PeptideConverter(object):
         for evidence in evidence_list:
             if "skip" in evidence:
                 continue
-            if evidence["isDecoy"]:
+            if evidence.get("isDecoy", False):
                 continue
 
             parent_protein = self.get_protein(evidence)
-
             if parent_protein is None:
                 continue
+
             start = evidence["start"] - 1
             end = evidence["end"]
+            length = len(peptide_ident.base_sequence)
+            if not (self.peptide_length_range[0] <= length <= self.peptide_length_range[1]):
+                continue
 
             sequence_copy = peptide_ident.original_sequence()
             found = self.sequence_starts_at(sequence_copy, parent_protein)
 
             if found != start:
                 start = found
-                end = start + len(peptide_ident.base_sequence)
-            match = self.pack_peptide(peptide_ident, start, end, score, score_type, parent_protein)
-            self.add_to_save_queue(match)
+                end = start + length
+
+            match = self.pack_peptide(
+                peptide_ident, start, end, score, score_type, parent_protein)
+            self.add_to_group(match)
             if self.has_occupied_glycosites(match):
                 cleared = self.clear_sites(match)
-                self.add_to_save_queue(cleared)
+                self.add_to_group(cleared)
 
-    def add_to_save_queue(self, match):
+    def add_to_group(self, match):
         self.counter += 1
         self.peptide_grouper.add(match)
-        # assert abs(match.calculated_mass - match.convert().mass) < 0.01, abs(
-        #     match.calculated_mass - match.convert().mass)
-        if len(self.accumulator) > self.chunk_size:
-            self.save_accumulation()
 
     def save_accumulation(self):
         acc = []
+        self.peptide_grouper.bind_scores()
         for key, group in self.peptide_grouper.items():
             acc.extend(group)
-        self.accumulator.extend(acc)
-        self.session.bulk_save_objects(self.accumulator)
+        self.session.bulk_save_objects(acc)
         self.session.commit()
-        self.accumulator = []
 
 
 class MzIdentMLProteomeExtraction(TaskBase):
-    def __init__(self, mzid_path, reference_fasta=None):
+    def __init__(self, mzid_path, reference_fasta=None, peptide_length_range=(5, 60)):
         self.mzid_path = mzid_path
         self.reference_fasta = reference_fasta
         self.parser = Parser(mzid_path, retrieve_refs=True, iterative=True, use_index=True)
@@ -589,6 +728,8 @@ class MzIdentMLProteomeExtraction(TaskBase):
         self._protein_resolver = None
         self._ignore_protein_regex = None
         self._used_database_path = None
+
+        self.peptide_length_range = peptide_length_range or (5, 60)
 
     def load_enzyme(self):
         self.parser.reset()
@@ -601,20 +742,33 @@ class MzIdentMLProteomeExtraction(TaskBase):
             # It's a standard enzyme, so we can look it up by name
             if "EnzymeName" in enz:
                 try:
-                    protease = ParameterizedProtease(enz['EnzymeName'].lower(), permitted_missed_cleavages)
+                    enz_name = enz.get('EnzymeName')
+                    if isinstance(enz_name, dict):
+                        if len(enz_name) == 1:
+                            enz_name = list(enz_name)[0]
+                        else:
+                            self.log("Could not interpret Enzyme Name %r" % (enz,))
+                    protease = ParameterizedProtease(enz_name.lower(), permitted_missed_cleavages)
                     processed_enzymes.append(protease)
                 except (KeyError, re.error) as e:
                     self.log("Could not resolve protease from name %r (%s)" % (enz['EnzymeName'].lower(), e))
-            else:
+            elif "SiteRegexp" in enz:
+                pattern = enz['SiteRegexp']
                 try:
-                    pattern = enz['SiteRegexp']
-                    try:
-                        protease = ParameterizedProtease(pattern, permitted_missed_cleavages)
-                        processed_enzymes.append(protease)
-                    except re.error as e:
-                        self.log("Could not resolve protease from name %r (%s)" % (enz['SiteRegexp'].lower(), e))
+                    protease = ParameterizedProtease(pattern, permitted_missed_cleavages)
+                    processed_enzymes.append(protease)
+                except re.error as e:
+                    self.log("Could not resolve protease from name %r (%s)" % (enz['SiteRegexp'].lower(), e))
                 except KeyError:
                     self.log("No protease information available: %r" % (enz,))
+            elif "name" in enz and enz['name'].lower() in enzyme_rules:
+                protease = ParameterizedProtease(enz["name"].lower(), permitted_missed_cleavages)
+                processed_enzymes.append(protease)
+            elif "id" in enz and enz['id'].lower() in enzyme_rules:
+                protease = ParameterizedProtease(enz["id"].lower(), permitted_missed_cleavages)
+                processed_enzymes.append(protease)
+            else:
+                self.log("No protease information available: %r" % (enz,))
         self.enzymes = processed_enzymes
 
     def load_modifications(self):
@@ -630,10 +784,10 @@ class MzIdentMLProteomeExtraction(TaskBase):
                 except KeyError:
                     name = mod['unknown modification']
                     try:
-                        Modification(name)
+                        Modification(str(name))
                     except ModificationNameResolutionError:
                         self.modification_translation_table[name] = modification.AnonymousModificationRule(
-                            name, mod['massDelta'])
+                            str(name), mod['massDelta'])
 
                 residues = mod['residues']
                 if mod.get('fixedMod', False):
@@ -698,15 +852,79 @@ class MzIdentMLProteomeExtraction(TaskBase):
             raise KeyError(name)
         return proteins[0]
 
+    def _load_peptides(self):
+        self.parser.reset()
+        i = 0
+        try:
+            enzyme = self.enzymes[0]
+        except IndexError as e:
+            logger.exception("Enzyme not found.", exc_info=e)
+            enzyme = None
+        for peptide in self.parser.iterfind("Peptide", iterative=True, retrieve_refs=True):
+            i += 1
+            mzid_peptide = MzIdentMLPeptide(
+                peptide, enzyme, self.constant_modifications,
+                self.modification_translation_table)
+            if i % 1000 == 0:
+                self.log("Loaded Peptide %r" % (mzid_peptide,))
+            yield mzid_peptide
+
+    def _map_peptide_to_proteins(self):
+        self.parser.reset()
+        i = 0
+        peptide_to_proteins = defaultdict(set)
+        for evidence in self.parser.iterfind('PeptideEvidence', iterative=True):
+            i += 1
+            peptide_to_proteins[evidence['peptide_ref']].add(
+                evidence['dBSequence_ref'])
+        return peptide_to_proteins
+
+    def _handle_protein(self, name, sequence, data):
+        raise NotImplementedError()
+
+    def load_proteins(self):
+        self.parser.reset()
+        self._find_used_database()
+        protein_map = {}
+        self.parser.reset()
+        for protein in self.parser.iterfind("DBSequence", recursive=True, iterative=True):
+            seq = protein.pop('Seq', None)
+            name = protein.pop('accession')
+            if seq is None:
+                try:
+                    prot = self.resolve_protein(name)
+                    seq = prot.protein_sequence
+                except KeyError:
+                    if self._can_ignore_protein(name):
+                        continue
+                    else:
+                        self.log("Could not resolve protein %r" % (name,))
+            if name in protein_map:
+                if seq != protein_map[name].protein_sequence:
+                    self.log("Multiple proteins with the name %r" % name)
+                continue
+            try:
+                p = self._handle_protein(name, seq, protein)
+                protein_map[name] = p
+            except residue.UnknownAminoAcidException:
+                self.log("Unknown Amino Acid in %r" % (name,))
+                continue
+            except Exception as e:
+                self.log("%r skipped: %r" % (name, e))
+                continue
+        self._clear_protein_resolver()
+        return protein_map
+
 
 class Proteome(DatabaseBoundOperation, MzIdentMLProteomeExtraction):
     def __init__(self, mzid_path, connection, hypothesis_id, include_baseline_peptides=True,
-                 target_proteins=None, reference_fasta=None):
+                 target_proteins=None, reference_fasta=None, peptide_length_range=(5, 60)):
         DatabaseBoundOperation.__init__(self, connection)
         MzIdentMLProteomeExtraction.__init__(self, mzid_path, reference_fasta)
         self.hypothesis_id = hypothesis_id
         self.target_proteins = target_proteins
         self.include_baseline_peptides = include_baseline_peptides
+        self.peptide_length_range = peptide_length_range or (5, 60)
 
     def _can_ignore_protein(self, name):
         if name not in self.target_proteins:
@@ -724,10 +942,8 @@ class Proteome(DatabaseBoundOperation, MzIdentMLProteomeExtraction):
         self.parser.reset()
         for protein in self.parser.iterfind(
                 "DBSequence", retrieve_refs=True, recursive=True, iterative=True):
-            # check = protein.copy()
             seq = protein.pop('Seq', None)
             name = protein.pop('accession')
-            # name += protein.pop("protein description", "")
             if seq is None:
                 try:
                     prot = self.resolve_protein(name)
@@ -748,6 +964,7 @@ class Proteome(DatabaseBoundOperation, MzIdentMLProteomeExtraction):
                     protein_sequence=seq,
                     other=protein,
                     hypothesis_id=self.hypothesis_id)
+                p._init_sites()
                 session.add(p)
                 session.flush()
                 protein_map[name] = p
@@ -814,7 +1031,7 @@ class Proteome(DatabaseBoundOperation, MzIdentMLProteomeExtraction):
             self.build_baseline_peptides()
             self.remove_duplicates()
             self.log("... %d Peptides Total" % (self.count_peptides()))
-        self.split_proteins()
+            self.split_proteins()
         self.log("... Removing Duplicate Peptides")
         self.remove_duplicates()
         self.log("... %d Peptides Total" % (self.count_peptides()))
@@ -857,7 +1074,9 @@ class Proteome(DatabaseBoundOperation, MzIdentMLProteomeExtraction):
         const_modifications = [mod_table[c] for c in self.constant_modifications]
         digestor = ProteinDigestor(
             self.enzymes[0], const_modifications,
-            max_missed_cleavages=self.enzymes[0].used_missed_cleavages)
+            max_missed_cleavages=self.enzymes[0].used_missed_cleavages,
+            min_length=self.peptide_length_range[0],
+            max_length=self.peptide_length_range[1])
         accumulator = []
         i = 0
         for protein in self.get_target_proteins():
@@ -888,37 +1107,14 @@ class Proteome(DatabaseBoundOperation, MzIdentMLProteomeExtraction):
                 self.log("... %0.3f%% Done (%s)" % (i / float(n) * 100., protein.name))
 
     def split_proteins(self):
-        self.log("... Begin Applying Protein Annotations")
         mod_table = modification.RestrictedModificationTable(
             constant_modifications=self.constant_modifications,
             variable_modifications=[])
         const_modifications = [mod_table[c] for c in self.constant_modifications]
-
-        splitter = ProteinSplitter(
-            constant_modifications=const_modifications,
-            variable_modifications=[])
-        i = 0
-        j = 0
         protein_ids = self.retrieve_target_protein_ids()
-        n = len(protein_ids)
-        interval = min(n / 10., 100000)
-        acc = []
-        for protein_id in protein_ids:
-            i += 1
-            protein = self.query(Protein).get(protein_id)
-            if i % interval == 0:
-                self.log("... %0.3f%% Complete (%d/%d). %d Peptides Produced." % (
-                    i * 100. / n, i, n, j))
-            for peptide in splitter.handle_protein(protein):
-                acc.append(peptide)
-                j += 1
-                if len(acc) > 100000:
-                    self.session.bulk_save_objects(acc)
-                    self.session.commit()
-                    acc = []
-        self.session.bulk_save_objects(acc)
-        self.session.commit()
-        acc = []
+
+        annotator = UniprotProteinAnnotator(self, protein_ids, const_modifications, [])
+        annotator.run()
 
     def remove_duplicates(self):
         DeduplicatePeptides(self._original_connection, self.hypothesis_id).run()

@@ -1,3 +1,5 @@
+import operator
+
 import matplotlib
 from matplotlib import font_manager
 from matplotlib import pyplot as plt
@@ -10,7 +12,7 @@ import numpy as np
 from .svg_utils import ET, BytesIO, IDMapper
 from .colors import lighten, darken, get_color
 
-from glycopeptidepy import PeptideSequence
+from glycopeptidepy import PeptideSequence, enzyme
 
 
 font_options = font_manager.FontProperties(family='monospace')
@@ -23,13 +25,13 @@ def span_overlap(a, b):
             b.spans(a.start_position + 1) or b.spans(a.end_position))
 
 
-def layout_layers(gpms):
+def layout_layers(gpms, sort_key=operator.attrgetter("ms2_score")):
     '''
     Produce a non-overlapping stacked layout of individual peptide-like
     identifications across a protein sequence.
     '''
     layers = [[]]
-    gpms.sort(key=lambda x: x.ms2_score, reverse=True)
+    gpms.sort(key=sort_key, reverse=True)
     for gpm in gpms:
         placed = False
         for layer in layers:
@@ -58,17 +60,19 @@ def ndigits(x):
 
 
 class GlycoformLayout(object):
-    def __init__(self, protein, glycopeptides, scale_factor=1.0, ax=None, row_width=50, **kwargs):
+    def __init__(self, protein, glycopeptides, scale_factor=1.0, ax=None, row_width=50,
+                 sort_key=operator.attrgetter('ms2_score'), **kwargs):
         if ax is None:
             figure, ax = plt.subplots(1, 1)
         self.protein = protein
+        self.sort_key = sort_key
         layers = self.layout_layers(glycopeptides)
         for layer in layers:
             layer.sort(key=lambda x: x.start_position)
         self.layers = layers
         self.id_mapper = IDMapper()
         self.ax = ax
-        self.row_width = row_width
+        self.row_width = min(row_width, len(protein))
         self.options = kwargs
         self.layer_height = 0.56 * scale_factor
         self.y_step = (self.layer_height + 0.15) * -scale_factor
@@ -92,7 +96,7 @@ class GlycoformLayout(object):
     def layout_layers(self, glycopeptides):
         layers = [[]]
         glycopeptides = list(glycopeptides)
-        glycopeptides.sort(key=lambda x: x.ms2_score, reverse=True)
+        glycopeptides.sort(key=self.sort_key, reverse=True)
         for gpm in glycopeptides:
             placed = False
             for layer in layers:
@@ -119,7 +123,7 @@ class GlycoformLayout(object):
             (self.protein_pad + i, self.layer_height + .2 + self.cur_y),
             str(current_position + 1), size=self.sequence_font_size / 7.5,
             prop=font_options)
-        patch = mpatches.PathPatch(text_path, facecolor='grey', lw=0.04)
+        patch = mpatches.PathPatch(text_path, facecolor='grey', edgecolor='grey', lw=0.04)
         self.ax.add_patch(patch)
 
         i = self.row_width
@@ -127,27 +131,29 @@ class GlycoformLayout(object):
             (self.protein_pad + i, self.layer_height + .2 + self.cur_y),
             str(next_row), size=self.sequence_font_size / 7.5,
             prop=font_options)
-        patch = mpatches.PathPatch(text_path, facecolor='grey', lw=0.04)
+        patch = mpatches.PathPatch(text_path, facecolor='grey', edgecolor='grey', lw=0.04)
         self.ax.add_patch(patch)
+        self._draw_main_sequence(current_position, next_row)
 
-        for i, aa in enumerate(self.protein.protein_sequence[current_position:next_row]):
+    def _draw_main_sequence(self, start, end):
+        for i, aa in enumerate(self.protein.protein_sequence[start:end]):
             text_path = TextPath(
                 (self.protein_pad + i, self.layer_height + .2 + self.cur_y),
                 aa, size=self.sequence_font_size / 7.5, prop=font_options)
             color = 'red' if any(
-                (((i + current_position) in self.glycosites),
-                 ((i + current_position - 1) in self.glycosites),
-                 ((i + current_position - 2) in self.glycosites))
+                (((i + start) in self.glycosites),
+                 ((i + start - 1) in self.glycosites),
+                 ((i + start - 2) in self.glycosites))
             ) else 'black'
-            patch = mpatches.PathPatch(text_path, facecolor=color, lw=0.04)
+            patch = mpatches.PathPatch(text_path, facecolor=color, edgecolor=color, lw=0.04)
             self.ax.add_patch(patch)
 
     def next_row(self):
-        if self.cur_position > len(self.protein.protein_sequence):
+        if self.cur_position > len(self.protein):
             return False
         self.cur_y += self.y_step * 3
         self.cur_position += self.row_width
-        if self.cur_position >= len(self.protein.protein_sequence):
+        if self.cur_position >= len(self.protein):
             return False
         return True
 
@@ -164,7 +170,10 @@ class GlycoformLayout(object):
         })
 
     def _get_sequence(self, gpm):
-        return gpm.structure
+        try:
+            return gpm.structure
+        except AttributeError:
+            return PeptideSequence(str(gpm))
 
     def draw_peptide_block(self, gpm, current_position, next_row):
         color, alpha = self._compute_sequence_color(gpm)
@@ -193,7 +202,7 @@ class GlycoformLayout(object):
             if gpm.end_position - start_index > self.row_width:
                 end_index = min(
                     self.row_width,
-                    len(gpm.structure))
+                    len(self._get_sequence(gpm)))
             else:
                 end_index = gpm.end_position - start_index
         else:
@@ -205,7 +214,7 @@ class GlycoformLayout(object):
 
     def _compute_sequence_color(self, gpm):
         color = "lightblue"
-        alpha = min(max(gpm.ms2_score * 2, 0.2), 0.8)
+        alpha = min(max(self.sort_key(gpm) * 2, 0.2), 0.8)
         return color, alpha
 
     def _compute_modification_color(self, gpm, modification):
@@ -217,7 +226,7 @@ class GlycoformLayout(object):
 
         # Extract PTMs from the peptide sequence to draw over the
         # peptide rectangle
-        seq = gpm.structure
+        seq = self._get_sequence(gpm)
 
         for i, pos in enumerate(seq[start_index:end_index]):
             if len(pos[1]) > 0:
@@ -240,11 +249,15 @@ class GlycoformLayout(object):
                         "parent": gpm.id
                     })
                 self.ax.add_patch(mod_patch)
+                modification_string = str(modification)
+                modification_symbol = modification_string[0]
+                if modification_symbol == '@':
+                    modification_symbol = modification_string[1]
                 text_path = TextPath(
                     (gpm.start_position - current_position + i -
                      self.mod_text_x_offset + 0.3 + start_index,
                      self.cur_y + self.mod_text_y_offset),
-                    str(modification)[0], size=self.mod_font_size / 4.5, prop=font_options)
+                    modification_symbol, size=self.mod_font_size / 4.5, prop=font_options)
                 patch = mpatches.PathPatch(
                     text_path, facecolor='black', lw=0.04)
                 self.ax.add_patch(patch)
@@ -307,7 +320,8 @@ class GlycoformLayout(object):
         ax.patch.set_visible(False)
         buff = BytesIO()
         fig.savefig(buff, format='svg')
-        root, ids = ET.XMLID(buff.getvalue())
+        parser = ET.XMLParser(huge_tree=True)
+        root, ids = ET.XMLID(buff.getvalue(), parser=parser)
         root.attrib['class'] = 'plot-glycoforms-svg'
         for id, attributes in self.id_mapper.items():
             element = ids[id]
@@ -424,6 +438,31 @@ class CompressedPileupLayout(GlycoformLayout):
     def finalize_axes(self, ax=None, remove_axes=True):
         super(CompressedPileupLayout, self).finalize_axes(ax, remove_axes)
         self.ax.set_xlim(1., self.row_width + 2)
+
+
+class DigestLayout(GlycoformLayout):
+    def __init__(self, *args, **kwargs):
+        super(DigestLayout, self).__init__(*args, **kwargs)
+        protease = enzyme.Protease(kwargs.get("enzyme", "trypsin"))
+        self.cleavage_sites = set(i for c in protease.cleave(str(self.protein)) for i in c[1:3] if i != 0)
+
+    def _draw_main_sequence(self, start, end):
+        for i, aa in enumerate(self.protein.protein_sequence[start:end]):
+            text_path = TextPath(
+                (self.protein_pad + i, self.layer_height + .2 + self.cur_y),
+                aa, size=self.sequence_font_size / 7.5, prop=font_options)
+            color = 'red' if any(
+                (((i + start) in self.glycosites),
+                 ((i + start - 1) in self.glycosites),
+                 ((i + start - 2) in self.glycosites))
+            ) else 'black'
+            patch = mpatches.PathPatch(text_path, facecolor=color, edgecolor=color, lw=0.04)
+            self.ax.add_patch(patch)
+            if i + start in self.cleavage_sites:
+                rect = mpatches.Rectangle(
+                    (self.protein_pad + i - 0.33,
+                     self.layer_height + self.cur_y - 0.25), 0.15, 1.5, fc='black')
+                self.ax.add_patch(rect)
 
 
 def draw_layers(layers, protein, scale_factor=1.0, ax=None, row_width=50, **kwargs):
@@ -582,9 +621,9 @@ def draw_layers(layers, protein, scale_factor=1.0, ax=None, row_width=50, **kwar
 
 
 def plot_glycoforms(protein, identifications, **kwargs):
-    layers = layout_layers(identifications)
-    ax, id_mapper = draw_layers(layers, protein, **kwargs)
-    return ax, id_mapper
+    layout = GlycoformLayout(protein, identifications, **kwargs)
+    layout.draw()
+    return layout.ax, layout.id_mapper
 
 
 def plot_glycoforms_svg(protein, identifications, scale=1.5, ax=None,
@@ -594,6 +633,8 @@ def plot_glycoforms_svg(protein, identifications, scale=1.5, ax=None,
     A specialization of :func:`plot_glycoforms` which adds additional features to SVG images, such as
     adding shape metadata to XML tags and properly configuring the viewport and canvas for the figure's
     dimensions.
+
+    TODO: replace uses of this function with :meth:`GlycoformLayout.to_svg`
     '''
     ax, id_mapper = plot_glycoforms(protein, identifications, ax=ax, **kwargs)
     xlim = ax.get_xlim()
@@ -624,7 +665,7 @@ def plot_glycoforms_svg(protein, identifications, scale=1.5, ax=None,
         element.attrib.update({("data-" + k): str(v)
                                for k, v in attributes.items()})
         element.attrib['class'] = id.rsplit('-')[0]
-    min_x, min_y, max_x, max_y = map(int, root.attrib["viewBox"].split(" "))
+    min_x, min_y, max_x, max_y = map(float, root.attrib["viewBox"].split(" "))
     min_x += margin_left
     min_y += margin_top
     max_x += 200

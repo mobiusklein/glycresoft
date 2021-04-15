@@ -1,3 +1,6 @@
+'''A collection of odds-and-ends that are not heavily used or optimized.
+'''
+
 from collections import OrderedDict
 
 import numpy as np
@@ -5,6 +8,11 @@ from scipy.ndimage import gaussian_filter1d
 
 
 class ChromatogramDeltaNode(object):
+    '''Represent a sub-region of a chromatogram to determine whether to truncate
+    the chromatogram or not based upon whether or not they show large gaps in time
+    or significant change in intensity over time.
+    '''
+
     def __init__(self, retention_times, delta_intensity, start_time, end_time, is_below_threshold=True):
         self.retention_times = retention_times
         self.delta_intensity = delta_intensity
@@ -22,6 +30,7 @@ class ChromatogramDeltaNode(object):
         last_rt = rt[1]
         last_index = 1
         nodes = []
+        i = 0
         for i, rt_i in enumerate(rt[2:]):
             if (rt_i - last_rt) >= window_size:
                 nodes.append(
@@ -86,20 +95,77 @@ def find_truncation_points(rt, signal, sigma=3, pad=3):
 
 
 class SimpleChromatogram(OrderedDict):
-    def __init__(self, time_converter):
-        self.time_converter = time_converter
-        super(SimpleChromatogram, self).__init__()
+    '''A simplified Chromatogram-like object which supports :meth:`as_arrays`
+    and :meth:`get_chromatogram`, but otherwise acts as a mapping from retention
+    time to intensity.
+    '''
+    def __init__(self, *args):
+        super(SimpleChromatogram, self).__init__(*args)
 
     composition = None
     glycan_composition = None
 
     def as_arrays(self):
         return (
-            np.array(map(self.time_converter.scan_id_to_rt, self)),
+            np.array(self.keys()),
             np.array(self.values()))
 
     def get_chromatogram(self):
         return self
+
+    def _new(self):
+        return self.__class__()
+
+    def slice(self, start, end):
+        pairs = []
+        for t, v in self.items():
+            if start <= t <= end:
+                pairs.append((t, v))
+        dup = self._new()
+        dup.update(pairs)
+        return dup
+
+    def split_sparse(self, delta_rt=1.):
+        parts = []
+        start = 0
+        last = None
+        for i, t in enumerate(self.keys()):
+            if last is None:
+                last = t
+                start = t
+            if t - last >= delta_rt:
+                parts.append(self.slice(start, last))
+                start = t
+            last = t
+        if last != start:
+            parts.append(self.slice(start, last))
+        return parts
+
+    @property
+    def start_time(self):
+        return next(iter(self.keys()))
+
+    @property
+    def end_time(self):
+        return list(self.keys())[-1]
+
+    @property
+    def apex_time(self):
+        time, intensity = self.as_arrays()
+        i = np.argmax(intensity)
+        return time[i]
+
+
+class SimpleEntityChromatogram(SimpleChromatogram):
+
+    def __init__(self, entity=None, glycan_composition=None):
+        self.entity = entity
+        self.composition = entity
+        self.glycan_composition = glycan_composition
+        super(SimpleEntityChromatogram, self).__init__()
+
+    def _new(self):
+        return self.__class__(self.entity, self.glycan_composition)
 
 
 class PairedArray(object):

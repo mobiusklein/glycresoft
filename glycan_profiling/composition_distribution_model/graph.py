@@ -20,8 +20,8 @@ def weighted_adjacency_matrix(network):
     A[:] = 1. / float('inf')
     for edge in network.edges:
         i, j = edge.node1.index, edge.node2.index
-        A[i, j] = 1. / edge.order
-        A[j, i] = 1. / edge.order
+        A[i, j] = edge.weight
+        A[j, i] = edge.weight
     for i in range(A.shape[0]):
         A[i, i] = 0
     return A
@@ -33,7 +33,7 @@ def degree_matrix(network):
 
 
 def weighted_degree_matrix(network):
-    degrees = [sum(1. / e.order for e in n.edges) for n in network]
+    degrees = [sum(e.weight for e in n.edges) for n in network]
     return np.diag(degrees)
 
 
@@ -57,13 +57,12 @@ def assign_network(network, observed, copy=True):
             solution_map[case.glycan_composition] = case
 
     for node in network.nodes:
-        node.internal_score = 0
-        node._temp_score = 0
+        node.score = 0
 
     for composition, solution in solution_map.items():
         try:
             node = network[composition]
-            node._temp_score = node.internal_score = solution.internal_score
+            node.score = solution.score
         except KeyError:
             # Not all exact compositions have nodes
             continue
@@ -74,11 +73,11 @@ def network_indices(network, threshold=0.0001):
     missing = []
     observed = []
     for node in network:
-        if node.internal_score < threshold:
+        if node.score < threshold:
             missing.append(node.index)
         else:
             observed.append(node.index)
-    return observed, missing
+    return np.array(observed, dtype=int), np.array(missing, dtype=int)
 
 
 def make_blocks(network, observed, threshold=0.0001, regularize=DEFAULT_LAPLACIAN_REGULARIZATION):

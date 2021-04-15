@@ -3,24 +3,29 @@ from collections import OrderedDict
 
 from sqlalchemy.ext.baked import bakery
 from sqlalchemy.ext.declarative import declared_attr
-from sqlalchemy.orm import relationship, backref, make_transient, Query, validates
+from sqlalchemy.orm import (
+    relationship, backref, Query, validates,
+    deferred, object_session)
+from sqlalchemy.ext.hybrid import hybrid_property, hybrid_method
 from sqlalchemy import (
     Column, Numeric, Integer, String, ForeignKey, PickleType,
-    Boolean, Table, Text, Index)
-from sqlalchemy.ext.mutable import MutableDict
+    Boolean, Table, Text, Index, select)
+from sqlalchemy.ext.mutable import MutableDict, MutableList
 
 from glycan_profiling.serialize.base import (
-    Base, MutableList)
+    Base)
 
 
 from .hypothesis import GlycopeptideHypothesis
 from .glycan import GlycanCombination
+from .generic import JSONType, HasChemicalComposition
 
 from glycopeptidepy.structure import sequence, residue, PeptideSequenceBase
 from glycan_profiling.structure.structure_loader import PeptideProteinRelation, FragmentCachingGlycopeptide
+from glycan_profiling.structure.utils import LRUDict
 
 
-class PeptideSequenceWrapperBase(PeptideSequenceBase):
+class AminoAcidSequenceWrapperBase(PeptideSequenceBase):
     _sequence_obj = None
 
     def _get_sequence_str(self):
@@ -45,7 +50,7 @@ class PeptideSequenceWrapperBase(PeptideSequenceBase):
         return str(self._get_sequence())
 
 
-class Protein(Base, PeptideSequenceWrapperBase):
+class Protein(Base, AminoAcidSequenceWrapperBase):
     __tablename__ = "Protein"
 
     id = Column(Integer, primary_key=True, autoincrement=True)
@@ -64,10 +69,16 @@ class Protein(Base, PeptideSequenceWrapperBase):
     @property
     def n_glycan_sequon_sites(self):
         if self._n_glycan_sequon_sites is None:
-            try:
-                self._n_glycan_sequon_sites = sequence.find_n_glycosylation_sequons(self.protein_sequence)
-            except residue.UnknownAminoAcidException:
-                return []
+            sites = self.sites.filter(ProteinSite.name == ProteinSite.N_GLYCOSYLATION).all()
+            if sites:
+                self._n_glycan_sequon_sites = sorted([int(i) for i in sites])
+            # else:
+            #     try:
+            #         self._n_glycan_sequon_sites = sequence.find_n_glycosylation_sequons(self._get_sequence())
+            #     except residue.UnknownAminoAcidException:
+            #         self._n_glycan_sequon_sites = []
+            else:
+                self._n_glycan_sequon_sites = []
         return self._n_glycan_sequon_sites
 
     _o_glycan_sequon_sites = None
@@ -75,10 +86,14 @@ class Protein(Base, PeptideSequenceWrapperBase):
     @property
     def o_glycan_sequon_sites(self):
         if self._o_glycan_sequon_sites is None:
-            try:
-                self._o_glycan_sequon_sites = sequence.find_o_glycosylation_sequons(self.protein_sequence)
-            except residue.UnknownAminoAcidException:
-                return []
+            sites = self.sites.filter(ProteinSite.name == ProteinSite.O_GLYCOSYLATION).all()
+            if sites:
+                self._o_glycan_sequon_sites = sorted([int(i) for i in sites])
+            else:
+                try:
+                    self._o_glycan_sequon_sites = sequence.find_o_glycosylation_sequons(self._get_sequence())
+                except residue.UnknownAminoAcidException:
+                    self._o_glycan_sequon_sites = []
         return self._o_glycan_sequon_sites
 
     _glycosaminoglycan_sequon_sites = None
@@ -86,10 +101,15 @@ class Protein(Base, PeptideSequenceWrapperBase):
     @property
     def glycosaminoglycan_sequon_sites(self):
         if self._glycosaminoglycan_sequon_sites is None:
-            try:
-                self._glycosaminoglycan_sequon_sites = sequence.find_glycosaminoglycan_sequons(self.protein_sequence)
-            except residue.UnknownAminoAcidException:
-                return []
+            sites = self.sites.filter(ProteinSite.name == ProteinSite.GAGYLATION).all()
+            if sites:
+                self._glycosaminoglycan_sequon_sites = sorted([int(i) for i in sites])
+            else:
+                try:
+                    self._glycosaminoglycan_sequon_sites = sequence.find_glycosaminoglycan_sequons(
+                        self._get_sequence())
+                except residue.UnknownAminoAcidException:
+                    self._glycosaminoglycan_sequon_sites = []
         return self._glycosaminoglycan_sequon_sites
 
     @property
@@ -98,6 +118,41 @@ class Protein(Base, PeptideSequenceWrapperBase):
             return self.n_glycan_sequon_sites  # + self.o_glycan_sequon_sites
         except residue.UnknownAminoAcidException:
             return []
+
+    def _init_sites(self):
+        try:
+            parsed_sequence = self._get_sequence()
+        except residue.UnknownAminoAcidException:
+            return
+        sites = []
+        try:
+            n_glycosites = sequence.find_n_glycosylation_sequons(parsed_sequence)
+            for n_glycosite in n_glycosites:
+                sites.append(
+                    ProteinSite(name=ProteinSite.N_GLYCOSYLATION, location=n_glycosite))
+        except residue.UnknownAminoAcidException:
+            pass
+
+        # The O- and GAG-linker sites are not determined by a multi AA sequon. We don't
+        # need to abstract them away and they are much too common.
+        # try:
+        #     o_glycosites = sequence.find_o_glycosylation_sequons(
+        #         parsed_sequence)
+        #     for o_glycosite in o_glycosites:
+        #         sites.append(
+        #             ProteinSite(name=ProteinSite.O_GLYCOSYLATION, location=o_glycosite))
+        # except residue.UnknownAminoAcidException:
+        #     pass
+
+        # try:
+        #     gag_sites = sequence.find_glycosaminoglycan_sequons(
+        #         parsed_sequence)
+        #     for gag_site in gag_sites:
+        #         sites.append(
+        #             ProteinSite(name=ProteinSite.GAGYLATION, location=gag_site))
+        # except residue.UnknownAminoAcidException:
+        #     pass
+        self.sites.extend(sites)
 
     def __repr__(self):
         return "DBProtein({0}, {1}, {2}, {3}...)".format(
@@ -120,6 +175,24 @@ class Protein(Base, PeptideSequenceWrapperBase):
                     d[k + '_count'] = v.count()
         return d
 
+    def reverse(self, copy_id=False, prefix=None, suffix=None):
+        n = len(self.protein_sequence)
+        sites = []
+        for site in self.sites:  # pylint: disable=access-member-before-definition
+            sites.append(site.__class__(name=site.name, location=n - site.location - 1))
+        name = self.name
+        if name.startswith(">"):
+            if prefix:
+                name = ">" + prefix + name[1:]
+        if suffix:
+            name = name + suffix
+
+        inst = self.__class__(name=name, protein_sequence=self.protein_sequence[::-1])
+        if copy_id:
+            inst.id = self.id
+        inst.sites = sites
+        return inst
+
 
 class ProteinSite(Base):
     __tablename__ = "ProteinSite"
@@ -128,6 +201,43 @@ class ProteinSite(Base):
     name = Column(String(32), index=True)
     location = Column(Integer, index=True)
     protein_id = Column(Integer, ForeignKey(Protein.id, ondelete="CASCADE"), index=True)
+    protein = relationship(Protein, backref=backref("sites", lazy='dynamic'))
+
+    N_GLYCOSYLATION = "N-Glycosylation"
+    O_GLYCOSYLATION = "O-Glycosylation"
+    GAGYLATION = "Glycosaminoglycosylation"
+
+    _hash = None
+
+    def __repr__(self):
+        return ("{self.__class__.__name__}(location={self.location}, "
+                "name={self.name})").format(self=self)
+
+    def __hash__(self):
+        hash_val = self._hash
+        if hash_val is None:
+            hash_val = self._hash = hash((self.name, self.location))
+        return hash_val
+
+    def __index__(self):
+        return self.location
+
+    def __int__(self):
+        return self.location
+
+    def __add__(self, other):
+        return int(self) + int(other)
+
+    def __radd__(self, other):
+        return int(self) + int(other)
+
+    def __eq__(self, other):
+        if isinstance(other, ProteinSite):
+            return self.location == other.location and self.name == other.name
+        return int(self) == int(other)
+
+    def __ne__(self, other):
+        return not (self == other)
 
 
 def _convert_class_name_to_collection_name(name):
@@ -136,7 +246,7 @@ def _convert_class_name_to_collection_name(name):
     return '_'.join(parts) + 's'
 
 
-class PeptideBase(PeptideSequenceWrapperBase):
+class PeptideBase(AminoAcidSequenceWrapperBase):
     @declared_attr
     def protein_id(self):
         return Column(Integer, ForeignKey(
@@ -194,7 +304,7 @@ class PeptideBase(PeptideSequenceWrapperBase):
         return position in self.protein_relation
 
 
-class Peptide(PeptideBase, Base):
+class Peptide(PeptideBase, HasChemicalComposition, Base):
     __tablename__ = 'Peptide'
 
     id = Column(Integer, primary_key=True)
@@ -207,6 +317,7 @@ class Peptide(PeptideBase, Base):
     end_position = Column(Integer)
 
     peptide_score = Column(Numeric(12, 6, asdecimal=False))
+    _scores = deferred(Column("scores", JSONType))
     peptide_score_type = Column(String(56))
 
     base_peptide_sequence = Column(String(512))
@@ -233,7 +344,31 @@ class Peptide(PeptideBase, Base):
         return ("DBPeptideSequence({self.modified_peptide_sequence}, {self.n_glycosylation_sites},"
                 " {self.start_position}, {self.end_position})").format(self=self)
 
-    __table_args__ = (Index("ix_Peptide_mass_search_index", "calculated_mass", "hypothesis_id"),)
+    __table_args__ = (
+        Index("ix_Peptide_mass_search_index", "hypothesis_id", "calculated_mass"),
+        Index("ix_Peptide_coordinate_index", "id", "calculated_mass",
+              "start_position", "end_position"),)
+
+    @hybrid_method
+    def spans(self, position):
+        return position in self.protein_relation
+
+    @spans.expression
+    def spans(self, position):
+        return (self.start_position <= position) & (position <= self.end_position)
+
+    @hybrid_property
+    def scores(self): # pylint: disable=method-hidden
+        try:
+            if self._scores is None:
+                self.scores = []
+            return self._scores
+        except Exception:
+            return []
+
+    @scores.setter
+    def scores(self, value):
+        self._scores = value
 
 
 class Glycopeptide(PeptideBase, Base):
@@ -253,18 +388,38 @@ class Glycopeptide(PeptideBase, Base):
     def _get_sequence_str(self):
         return self.glycopeptide_sequence
 
-    def convert(self):
+    def convert(self, peptide_relation_cache=None):
+        if peptide_relation_cache is None:
+            session = object_session(self)
+            peptide_relation_cache = session.info.get("peptide_relation_cache")
+            if peptide_relation_cache is None:
+                peptide_relation_cache = session.info['peptide_relation_cache'] = LRUDict(maxsize=1024)
         inst = FragmentCachingGlycopeptide(self.glycopeptide_sequence)
         inst.id = self.id
-        peptide = self.peptide
-        inst.protein_relation = PeptideProteinRelation(
-            peptide.start_position, peptide.end_position, peptide.protein_id,
-            peptide.hypothesis_id)
+        try:
+            inst.protein_relation = peptide_relation_cache[self.peptide_id]
+        except KeyError:
+            session = object_session(self)
+            peptide_props = session.query(
+                Peptide.start_position, Peptide.end_position,
+                Peptide.protein_id, Peptide.hypothesis_id).filter(Peptide.id == self.peptide_id).first()
+            peptide_relation_cache[self.peptide_id] = inst.protein_relation = PeptideProteinRelation(*peptide_props)
         return inst
 
     def __repr__(self):
         return "DBGlycopeptideSequence({self.glycopeptide_sequence}, {self.calculated_mass})".format(self=self)
     _protein_relation = None
+
+    @hybrid_method
+    def is_multiply_glycosylated(self):
+        return self.glycan_combination.count > 1
+
+    @is_multiply_glycosylated.expression
+    def is_multiply_glycosylated(self):
+        expr = select([GlycanCombination.count > 1]).where(
+            GlycanCombination.id == Glycopeptide.glycan_combination_id).label(
+            "is_multiply_glycosylated")
+        return expr
 
     @property
     def protein_relation(self):
@@ -279,4 +434,8 @@ class Glycopeptide(PeptideBase, Base):
     def glycan_composition(self):
         return self.glycan_combination.convert()
 
-    __table_args__ = (Index("ix_Glycopeptide_mass_search_index", "calculated_mass", "hypothesis_id"),)
+    __table_args__ = (
+        Index("ix_Glycopeptide_mass_search_index", "hypothesis_id", "calculated_mass"),
+        # Index("ix_Glycopeptide_mass_search_index_full", "calculated_mass", "hypothesis_id",
+        #                                                 "peptide_id", "glycan_combination_id"),
+    )

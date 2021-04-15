@@ -31,26 +31,99 @@ class PeakFragmentPair(object):
         yield self.peak
         yield self.fragment
 
+    def mass_accuracy(self):
+        return (self.peak.neutral_mass - self.fragment.mass) / self.fragment.mass
+
+
+class _FragmentIndexBase(object):
+    def __init__(self, fragment_set):
+        self.fragment_set = fragment_set
+        self._mapping = None
+
+    @property
+    def mapping(self):
+        if self._mapping is None:
+            self._create_mapping()
+        return self._mapping
+
+    def invalidate(self):
+        self._mapping = None
+
+    def __getitem__(self, key):
+        return self.mapping[key]
+
+    def __iter__(self):
+        return iter(self.mapping)
+
+    def items(self):
+        return self.mapping.items()
+
+    def keys(self):
+        return self.mapping.keys()
+
+    def values(self):
+        return self.mapping.values()
+
+    def __len__(self):
+        return len(self.mapping)
+
+    def __contains__(self, key):
+        return key in self.mapping
+
+    def __str__(self):
+        return str(self.mapping)
+
+
+class ByFragmentIndex(_FragmentIndexBase):
+
+    def _create_mapping(self):
+        self._mapping = defaultdict(list)
+        for peak_fragment_pair in self.fragment_set:
+            self._mapping[peak_fragment_pair.fragment].append(
+                peak_fragment_pair.peak)
+
+
+class ByPeakIndex(_FragmentIndexBase):
+
+    def _create_mapping(self):
+        self._mapping = defaultdict(list)
+        for peak_fragment_pair in self.fragment_set:
+            self._mapping[peak_fragment_pair.peak].append(
+                peak_fragment_pair.fragment)
+
 
 class FragmentMatchMap(object):
     def __init__(self):
         self.members = set()
-        self.by_fragment = defaultdict(list)
-        self.by_peak = defaultdict(list)
+        self.by_fragment = ByFragmentIndex(self)
+        self.by_peak = ByPeakIndex(self)
 
     def add(self, peak, fragment=None):
         if fragment is not None:
             peak = PeakFragmentPair(peak, fragment)
         if peak not in self.members:
             self.members.add(peak)
-            self.by_fragment[peak.fragment].append(peak.peak)
-            self.by_peak[peak.peak].append(peak.fragment)
+            self.by_peak.invalidate()
+            self.by_fragment.invalidate()
+
+    def pairs_by_name(self, name):
+        pairs = []
+        for pair in self:
+            if pair.fragment_name == name:
+                pairs.append(pair)
+        return pairs
 
     def fragments_for(self, peak):
         return self.by_peak[peak]
 
     def peaks_for(self, fragment):
         return self.by_fragment[fragment]
+
+    def __eq__(self, other):
+        return self.members == other.members
+
+    def __ne__(self, other):
+        return self.members != other.members
 
     def __iter__(self):
         return iter(self.members)
@@ -67,34 +140,24 @@ class FragmentMatchMap(object):
             yield pair.peak
 
     def fragments(self):
-        frags = set()
-        for peak, fragment in self:
-            frags.add(fragment)
-        return iter(frags)
+        fragments = set()
+        for peak_pair in self:
+            fragments.add(peak_pair.fragment)
+        return fragments
 
     def remove_fragment(self, fragment):
         peaks = self.peaks_for(fragment)
         for peak in peaks:
-            fragments_from_peak = self.by_peak[peak]
-            kept = [f for f in fragments_from_peak if f != fragment]
-            if len(kept) == 0:
-                self.by_peak.pop(peak)
-            else:
-                self.by_peak[peak] = kept
             self.members.remove(PeakFragmentPair(peak, fragment))
-        self.by_fragment.pop(fragment)
+        self.by_fragment.invalidate()
+        self.by_peak.invalidate()
 
     def remove_peak(self, peak):
         fragments = self.fragments_for(peak)
         for fragment in fragments:
-            peaks_from_fragment = self.by_fragment[fragment]
-            kept = [p for p in peaks_from_fragment if p != peak]
-            if len(kept) == 0:
-                self.by_fragment.pop(fragment)
-            else:
-                self.by_fragment[fragment] = kept
             self.members.remove(PeakFragmentPair(peak, fragment))
-        self.by_peak.pop(peak)
+        self.by_peak.invalidate()
+        self.by_fragment.invalidate()
 
     def copy(self):
         inst = self.__class__()
@@ -109,12 +172,18 @@ class FragmentMatchMap(object):
         return "FragmentMatchMap(%s)" % (', '.join(
             f.name for f in self.fragments()),)
 
+    def clear(self):
+        self.members.clear()
+        self.by_fragment.invalidate()
+        self.by_peak.invalidate()
+
 
 class PeakPairTransition(object):
     def __init__(self, start, end, annotation):
         self.start = start
         self.end = end
         self.annotation = annotation
+        # The indices of the start peak and end peak
         self.key = (self.start.index.neutral_mass, self.end.index.neutral_mass)
         self._hash = hash(self.key)
 
@@ -260,17 +329,24 @@ class SpectrumGraph(object):
         return self.transitive_closure(finished_paths)
 
     def transitive_closure(self, paths):
+        # precompute node_sets for each path
         node_sets = {}
         for i, path in enumerate(paths):
+            # track all nodes by index in this path in node_set
             node_set = set()
             for node in path:
+                # add the start node index and end node index to the
+                # set of nodes on this path
                 node_set.update(node.key)
             node_sets[i] = (node_set, len(path))
         keep = []
+        node_sets_items = list(node_sets.items())
         for i, path in enumerate(paths):
             node_set, length = node_sets[i]
             is_enclosed = False
-            for key, value_pair in node_sets.items():
+            for key, value_pair in node_sets_items:
+                # attempting to be clever here seems to cost more
+                # time than it saves.
                 if key == i:
                     continue
                 other_node_set, other_length = value_pair
@@ -281,11 +357,30 @@ class SpectrumGraph(object):
                 keep.append(path)
         return sorted(keep, key=len, reverse=True)
 
-    def longest_paths(self):
+    def longest_paths(self, limit=-1):
         # get all distinct paths
         paths = []
-        for ix in np.nonzero(self.path_lengths())[0]:
-            paths.extend(self.paths_ending_at(ix))
-        # remove redundant paths
-        paths = self.transitive_closure(paths)
+        for ix in np.argsort(self.path_lengths())[::-1]:
+            segment = self.paths_ending_at(ix)
+            paths.extend(segment)
+            # remove redundant paths
+            paths = self.transitive_closure(paths)
+            if limit > 0:
+                if len(paths) > limit:
+                    break
+            elif len(segment) == 0:
+                break
         return paths
+
+
+try:
+    has_c = True
+    _PeakFragmentPair = PeakFragmentPair
+    _PeakPairTransition = PeakPairTransition
+    _SpectrumGraph = SpectrumGraph
+    _FragmentMatchMap = FragmentMatchMap
+
+    from glycan_profiling._c.structure.fragment_match_map import (
+        PeakFragmentPair, PeakPairTransition, SpectrumGraph, FragmentMatchMap)
+except ImportError:
+    has_c = False

@@ -74,11 +74,31 @@ class TrainingMGFExporterBase(TaskBase):
         scan = spectrum_match.scan
         scan = scan.clone()
         scan.annotations['structure'] = spectrum_match.target
+        # try:
+        #     scan.annotations['protein_name'] = spectrum_match.target.protein.name
+        # except AttributeError:
+        #     pass
+        try:
+            scan.annotations['mass_shift'] = spectrum_match.mass_shift.name
+        except AttributeError:
+            pass
         scan.annotations['ms2_score'] = spectrum_match.score
         try:
             scan.annotations['q_value'] = spectrum_match.q_value
         except AttributeError:
             pass
+        try:
+            score_set = spectrum_match.score_set
+            scan.annotations['ms2_peptide_score'] = score_set.peptide_score
+            scan.annotations['ms2_glycan_score'] = score_set.glycan_score
+            scan.annotations['ms2_glycan_coverage'] = score_set.glycan_coverage
+            q_value_set = spectrum_match.q_value_set
+            scan.annotations['q_value'] = q_value_set.total_q_value
+            scan.annotations['glycan_q_value'] = q_value_set.glycan_q_value
+            scan.annotations['peptide_q_value'] = q_value_set.peptide_q_value
+            scan.annotations['glycopeptide_q_value'] = q_value_set.glycopeptide_q_value
+        except AttributeError as err:
+            print(err)
         return scan
 
     def run(self):
@@ -101,24 +121,28 @@ class TrainingMGFExporter(TrainingMGFExporterBase):
         return scan
 
     @classmethod
-    def _from_analysis_id_query(cls, database_connection, analysis_id, threshold=None):
+    def _from_analysis_id_query(cls, database_connection, analysis_id, threshold=0.0):
+
         A = aliased(serialize.GlycopeptideSpectrumMatch)
-        B = aliased(serialize.GlycopeptideSpectrumMatch)
-
-        qinner = database_connection.query(
-            B.id.label('inner_id'), serialize.func.max(B.score).label("inner_score"),
-            B.scan_id.label("inner_scan_id")).group_by(B.scan_id).selectable
-
-        q = database_connection.query(A).join(
-            qinner, qinner.c.inner_id == A.id and A.score == qinner.inner_score).filter(
+        q = database_connection.query(A).filter(
+            A.is_best_match,
             A.analysis_id == analysis_id)
+        # B = aliased(serialize.GlycopeptideSpectrumMatch)
+        # qinner = database_connection.query(
+        #     B.id.label('inner_id'), serialize.func.max(B.score).label("inner_score"),
+        #     B.scan_id.label("inner_scan_id")).group_by(B.scan_id).selectable
+
+        # q = database_connection.query(A).join(
+        #     qinner, qinner.c.inner_id == A.id and A.score == qinner.inner_score).filter(
+        #     A.analysis_id == analysis_id)
+
         if threshold is not None:
-            q = q.filter(A.score > threshold)
+            q = q.filter(A.score >= threshold)
         for gsm in q:
             yield gsm.convert()
 
     @classmethod
-    def from_analysis(cls, database_connection, analysis_id, outstream, scan_loader_path=None, threshold=None):
+    def from_analysis(cls, database_connection, analysis_id, outstream, scan_loader_path=None, threshold=0.0):
         if scan_loader_path is None:
             analysis = database_connection.query(serialize.Analysis).get(analysis_id)
             scan_loader_path = analysis.parameters['sample_path']

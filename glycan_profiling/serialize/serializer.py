@@ -1,14 +1,13 @@
 from collections import defaultdict
 from uuid import uuid4
 
-from ms_deisotope.output.db import (
-    DatabaseScanDeserializer)
-
-
-from .base import MSScan, DatabaseBoundOperation
-
+from ms_deisotope.output.common import (ScanDeserializerBase, ScanBunch)
 
 from glycan_profiling.task import TaskBase
+
+from .connection import DatabaseBoundOperation
+from .spectrum import (
+    MSScan, PrecursorInformation, SampleRun, DeconvolutedPeak)
 
 from .analysis import Analysis
 from .chromatogram import (
@@ -69,7 +68,7 @@ class AnalysisSerializer(DatabaseBoundOperation, TaskBase):
     def _build_scan_id_map(self):
         return dict(self.session.query(
             MSScan.scan_id, MSScan.id).filter(
-            MSScan.sample_run_id == self.sample_run_id))
+                MSScan.sample_run_id == self.sample_run_id))
 
     @property
     def analysis(self):
@@ -149,7 +148,7 @@ class AnalysisSerializer(DatabaseBoundOperation, TaskBase):
             node_peak_map=self._node_peak_map)
         if cluster_id is not None:
             self.session.execute(
-                GlycanCompositionChromatogramToGlycanCompositionSpectrumCluster.insert(), {
+                GlycanCompositionChromatogramToGlycanCompositionSpectrumCluster.insert(), { # pylint: disable=no-value-for-parameter
                     "chromatogram_id": result.id,
                     "cluster_id": cluster_id
                 })
@@ -178,7 +177,7 @@ class AnalysisSerializer(DatabaseBoundOperation, TaskBase):
             node_peak_map=self._node_peak_map)
         if cluster_id is not None:
             self.session.execute(
-                UnidentifiedChromatogramToUnidentifiedSpectrumCluster.insert(), {
+                UnidentifiedChromatogramToUnidentifiedSpectrumCluster.insert(), {  # pylint: disable=no-value-for-parameter
                     "chromatogram_id": result.id,
                     "cluster_id": cluster_id
                 })
@@ -271,6 +270,10 @@ class AnalysisDeserializer(DatabaseBoundOperation):
         self._analysis_name = analysis_name
 
     @property
+    def name(self):
+        return self.analysis_name
+
+    @property
     def chromatogram_scoring_model(self):
         try:
             return self.analysis.parameters["scoring_model"]
@@ -338,21 +341,25 @@ class AnalysisDeserializer(DatabaseBoundOperation):
         return gps
 
     def load_identified_glycopeptides(self):
-        q = self.query(IdentifiedGlycopeptide).join(Glycopeptide).filter(
+        q = self.query(IdentifiedGlycopeptide).filter(
             IdentifiedGlycopeptide.analysis_id == self.analysis_id).yield_per(100)
-        gps = [c.convert() for c in q]
+        gps = IdentifiedGlycopeptide.bulk_convert(q)
         return gps
 
     def load_glycans_from_identified_glycopeptides(self):
         q = self.query(GlycanComposition).join(
-            GlycanCombinationGlycanComposition).join(GlycanCombination).join(
-            Glycopeptide,
-            Glycopeptide.glycan_combination_id == GlycanCombination.id).join(
-            IdentifiedGlycopeptide,
-            IdentifiedGlycopeptide.structure_id == Glycopeptide.id).filter(
-            IdentifiedGlycopeptide.analysis_id == self.analysis_id)
+                GlycanCombinationGlycanComposition).join(GlycanCombination).join(
+                Glycopeptide,
+                Glycopeptide.glycan_combination_id == GlycanCombination.id).join(
+                IdentifiedGlycopeptide,
+                IdentifiedGlycopeptide.structure_id == Glycopeptide.id).filter(
+                IdentifiedGlycopeptide.analysis_id == self.analysis_id)
         gcs = [c for c in q]
         return gcs
+
+    def __repr__(self):
+        template = "{self.__class__.__name__}({self.engine!r}, {self.analysis_name!r})"
+        return template.format(self=self)
 
 
 class AnalysisDestroyer(DatabaseBoundOperation):
@@ -401,3 +408,240 @@ class AnalysisDestroyer(DatabaseBoundOperation):
         self.delete_chromatograms()
         self.delete_analysis()
         self.session.commit()
+
+
+def flatten(iterable):
+    return [y for x in iterable for y in x]
+
+
+class DatabaseScanDeserializer(ScanDeserializerBase, DatabaseBoundOperation):
+
+    def __init__(self, connection, sample_name=None, sample_run_id=None):
+
+        DatabaseBoundOperation.__init__(self, connection)
+
+        self._sample_run = None
+        self._sample_name = sample_name
+        self._sample_run_id = sample_run_id
+        self._iterator = None
+        self._scan_id_to_retention_time_cache = None
+
+    def _intialize_scan_id_to_retention_time_cache(self):
+        self._scan_id_to_retention_time_cache = dict(
+            self.session.query(MSScan.scan_id, MSScan.scan_time).filter(
+                MSScan.sample_run_id == self.sample_run_id))
+
+    def __reduce__(self):
+        return self.__class__, (
+            self._original_connection, self.sample_name, self.sample_run_id)
+
+    # Sample Run Bound Handle API
+
+    @property
+    def sample_run_id(self):
+        if self._sample_run_id is None:
+            self._retrieve_sample_run()
+        return self._sample_run_id
+
+    @property
+    def sample_run(self):
+        if self._sample_run is None:
+            self._retrieve_sample_run()
+        return self._sample_run
+
+    @property
+    def sample_name(self):
+        if self._sample_name is None:
+            self._retrieve_sample_run()
+        return self._sample_name
+
+    def _retrieve_sample_run(self):
+        session = self.session
+        if self._sample_name is not None:
+            sr = session.query(SampleRun).filter(
+                SampleRun.name == self._sample_name).one()
+        elif self._sample_run_id is not None:
+            sr = session.query(SampleRun).filter(
+                SampleRun.id == self._sample_run_id).one()
+        else:
+            sr = session.query(SampleRun).first()
+        self._sample_run = sr
+        self._sample_run_id = sr.id
+        self._sample_name = sr.name
+
+    # Scan Generator Public API
+
+    def get_scan_by_id(self, scan_id):
+        q = self._get_by_scan_id(scan_id)
+        if q is None:
+            raise KeyError(scan_id)
+        mem = q.convert()
+        if mem.precursor_information:
+            mem.precursor_information.source = self
+        return mem
+
+    def convert_scan_id_to_retention_time(self, scan_id):
+        if self._scan_id_to_retention_time_cache is None:
+            self._intialize_scan_id_to_retention_time_cache()
+        try:
+            return self._scan_id_to_retention_time_cache[scan_id]
+        except KeyError:
+            q = self.session.query(MSScan.scan_time).filter(
+                MSScan.scan_id == scan_id, MSScan.sample_run_id == self.sample_run_id).scalar()
+            self._scan_id_to_retention_time_cache[scan_id] = q
+            return q
+
+    def _select_index(self, require_ms1=True):
+        indices_q = self.session.query(MSScan.index).filter(
+            MSScan.sample_run_id == self.sample_run_id).order_by(MSScan.index.asc())
+        if require_ms1:
+            indices_q = indices_q.filter(MSScan.ms_level == 1)
+        indices = flatten(indices_q.all())
+        return indices
+
+    def _iterate_over_index(self, start=0, require_ms1=True):
+        indices = self._select_index(require_ms1)
+        try:
+            i = indices.index(start)
+        except ValueError:
+            lo = 0
+            hi = len(indices)
+
+            while lo != hi:
+                mid = (lo + hi) // 2
+                x = indices[mid]
+                if x == start:
+                    i = mid
+                    break
+                elif lo == (hi - 1):
+                    i = mid
+                    break
+                elif x > start:
+                    hi = mid
+                else:
+                    lo = mid
+        items = indices[i:]
+        i = 0
+        n = len(items)
+        while i < n:
+            index = items[i]
+            scan = self.session.query(MSScan).filter(
+                MSScan.index == index,
+                MSScan.sample_run_id == self.sample_run_id).one()
+            products = [pi.product for pi in scan.product_information]
+            yield ScanBunch(scan.convert(), [p.convert() for p in products])
+            i += 1
+
+    def __iter__(self):
+        return self
+
+    def next(self):
+        if self._iterator is None:
+            self._iterator = self._iterate_over_index()
+        return next(self._iterator)
+
+    def _get_by_scan_id(self, scan_id):
+        q = self.session.query(MSScan).filter(
+            MSScan.scan_id == scan_id, MSScan.sample_run_id == self.sample_run_id).first()
+        return q
+
+    def _get_scan_by_time(self, rt, require_ms1=False):
+        times_q = self.session.query(MSScan.scan_time).filter(
+            MSScan.sample_run_id == self.sample_run_id).order_by(MSScan.scan_time.asc())
+        if require_ms1:
+            times_q = times_q.filter(MSScan.ms_level == 1)
+        times = flatten(times_q.all())
+        try:
+            i = times.index(rt)
+        except ValueError:
+            lo = 0
+            hi = len(times)
+
+            while lo != hi:
+                mid = (lo + hi) // 2
+                x = times[mid]
+                if x == rt:
+                    i = mid
+                    break
+                elif lo == (hi - 1):
+                    i = mid
+                    break
+                elif x > rt:
+                    hi = mid
+                else:
+                    lo = mid
+        scan = self.session.query(MSScan).filter(
+            MSScan.scan_time == times[i],
+            MSScan.sample_run_id == self.sample_run_id).one()
+        return scan
+
+    def reset(self):
+        self._iterator = None
+
+    def get_scan_by_time(self, rt, require_ms1=False):
+        q = self._get_scan_by_time(rt, require_ms1)
+        mem = q.convert()
+        if mem.precursor_information:
+            mem.precursor_information.source = self
+        return mem
+
+    def _get_scan_by_index(self, index):
+        q = self.session.query(MSScan).filter(
+            MSScan.index == index, MSScan.sample_run_id == self.sample_run_id).one()
+        return q
+
+    def get_scan_by_index(self, index):
+        mem = self._get_scan_by_index(index).convert()
+        if mem.precursor_information:
+            mem.precursor_information.source = self
+        return mem
+
+    def _locate_ms1_scan(self, scan):
+        while scan.ms_level != 1:
+            scan = self._get_scan_by_index(scan.index - 1)
+        return scan
+
+    def start_from_scan(self, scan_id=None, rt=None, index=None, require_ms1=True):
+        if scan_id is None:
+            if rt is not None:
+                scan = self._get_scan_by_time(rt)
+            elif index is not None:
+                scan = self._get_scan_by_index(index)
+        else:
+            scan = self._get_by_scan_id(scan_id)
+
+        # We must start at an MS1 scan, so backtrack until we reach one
+        if require_ms1:
+            scan = self._locate_ms1_scan(scan)
+        self._iterator = self._iterate_over_index(scan.index)
+        return self
+
+    # LC-MS/MS Database API
+
+    def msms_for(self, neutral_mass, mass_error_tolerance=1e-5, start_time=None, end_time=None):
+        m = neutral_mass
+        w = neutral_mass * mass_error_tolerance
+        q = self.session.query(PrecursorInformation).join(
+            PrecursorInformation.precursor).filter(
+            PrecursorInformation.neutral_mass.between(m - w, m + w),
+            PrecursorInformation.sample_run_id == self.sample_run_id).order_by(
+            MSScan.scan_time)
+        if start_time is not None:
+            q = q.filter(MSScan.scan_time >= start_time)
+        if end_time is not None:
+            q = q.filter(MSScan.scan_time <= end_time)
+        return q
+
+    def ms1_peaks_above(self, threshold=1000):
+        accumulate = [
+            (x[0], x[1].convert(), x[1].id) for x in self.session.query(MSScan.scan_id, DeconvolutedPeak).join(
+                DeconvolutedPeak).filter(
+                MSScan.ms_level == 1, MSScan.sample_run_id == self.sample_run_id,
+                DeconvolutedPeak.neutral_mass > threshold
+            ).order_by(MSScan.index).yield_per(1000)]
+        return accumulate
+
+    def precursor_information(self):
+        prec_info = self.session.query(PrecursorInformation).filter(
+            PrecursorInformation.sample_run_id == self.sample_run_id).all()
+        return prec_info

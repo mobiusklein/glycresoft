@@ -32,7 +32,7 @@ def binary_search_with_flag(array, mass, error_tolerance=1e-5):
         err = (x.neutral_mass - mass) / mass
         if abs(err) <= error_tolerance:
             best_index = mid
-            best_error = err
+            best_error = abs(err)
             i = mid - 1
             while i >= 0:
                 x = array[i]
@@ -40,6 +40,8 @@ def binary_search_with_flag(array, mass, error_tolerance=1e-5):
                 if err < best_error:
                     best_error = err
                     best_index = i
+                elif err > error_tolerance:
+                    break
                 i -= 1
 
             i = mid + 1
@@ -49,6 +51,8 @@ def binary_search_with_flag(array, mass, error_tolerance=1e-5):
                 if err < best_error:
                     best_error = err
                     best_index = i
+                elif err > error_tolerance:
+                    break
                 i += 1
             return best_index, True
         elif (hi - lo) == 1:
@@ -60,7 +64,113 @@ def binary_search_with_flag(array, mass, error_tolerance=1e-5):
     return 0, False
 
 
-class ChromatogramFilter(object):
+class ChromatogramIndex(object):
+    """An ordered collection of Chromatogram-like objects with fast searching
+    and features. Supports Sequence operations.
+
+    Attributes
+    ----------
+    chromatograms: list of Chromatogram
+        list of chromatogram-like objects, ordered by neutral mass
+    """
+    def __init__(self, chromatograms, sort=True):
+        if sort:
+            self._sort(chromatograms)
+        else:
+            self.chromatograms = list(chromatograms)
+
+    def _sort(self, iterable):
+        self.chromatograms = [c for c in sorted([c for c in iterable if len(c)], key=lambda x: (
+            x.neutral_mass, x.start_time))]
+
+    def add(self, chromatogram, sort=True):
+        self.chromatograms.append(chromatogram)
+        if sort:
+            self._sort(self.chromatograms)
+
+    def __iter__(self):
+        return iter(self.chromatograms)
+
+    def __getitem__(self, i):
+        return self.chromatograms[i]
+
+    def __len__(self):
+        return len(self.chromatograms)
+
+    def find_mass(self, mass, ppm_error_tolerance=1e-5):
+        index, flag = self._binary_search(mass, ppm_error_tolerance)
+        if flag:
+            return self[index]
+        else:
+            return None
+
+    def find_all_by_mass(self, mass, ppm_error_tolerance=1e-5):
+        if len(self) == 0:
+            return self.__class__([], sort=False)
+        center_index, _ = self._binary_search(mass, ppm_error_tolerance)
+        low_index = center_index
+        while low_index > 0:
+            x = self[low_index - 1]
+            if abs((mass - x.neutral_mass) / x.neutral_mass) > ppm_error_tolerance:
+                break
+            low_index -= 1
+
+        n = len(self)
+        high_index = center_index - 1
+        while high_index < n - 1:
+            x = self[high_index + 1]
+            if abs((mass - x.neutral_mass) / x.neutral_mass) > ppm_error_tolerance:
+                break
+            high_index += 1
+        if low_index == high_index == center_index:
+            x = self[center_index]
+            if abs((mass - x.neutral_mass) / x.neutral_mass) > ppm_error_tolerance:
+                return self.__class__([], sort=False)
+        items = self[low_index:high_index + 1]
+        items = [
+            c for c in items if abs(
+                (c.neutral_mass - mass) / mass) < ppm_error_tolerance
+        ]
+        return self.__class__(items, sort=False)
+
+    def mass_between(self, low, high):
+        n = len(self)
+        if n == 0:
+            return self.__class__([])
+        low_index, flag = self._binary_search(low, 1e-5)
+        low_index = max(0, min(low_index, n - 1))
+        if self[low_index].neutral_mass < low:
+            low_index += 1
+        high_index, flag = self._binary_search(high, 1e-5)
+        high_index += 2
+        # high_index = min(n - 1, high_index)
+        if (high_index < n) and (self[high_index].neutral_mass > high):
+            high_index -= 1
+        items = self[low_index:high_index]
+        items = [c for c in items if low <= c.neutral_mass <= high]
+        return self.__class__(items, sort=False)
+
+    def _binary_search(self, mass, error_tolerance=1e-5):
+        return binary_search_with_flag(self, mass, error_tolerance)
+
+    def __repr__(self):
+        return repr(list(self))
+
+    def _repr_pretty_(self, p, cycle):
+        return p.pretty(list(self))
+
+    def __str__(self):
+        return str(list(self))
+
+
+try:
+    _ChromatogramIndex = ChromatogramIndex
+    from glycan_profiling._c.chromatogram_tree.index import ChromatogramIndex
+except ImportError:
+    pass
+
+
+class ChromatogramFilter(ChromatogramIndex):
     """An ordered collection of Chromatogram-like objects with fast searching
     and filtering features. Supports Sequence operations.
 
@@ -76,11 +186,7 @@ class ChromatogramFilter(object):
         :attr:`chromatograms`
     """
     def __init__(self, chromatograms, sort=True):
-        if sort:
-            self.chromatograms = [c for c in sorted([c for c in chromatograms if len(c)], key=lambda x: (
-                x.neutral_mass, x.start_time))]
-        else:
-            self.chromatograms = list(chromatograms)
+        super(ChromatogramFilter, self).__init__(chromatograms, sort=sort)
         self._key_map = None
         self._intervals = None
 
@@ -114,59 +220,11 @@ class ChromatogramFilter(object):
     def find_all_instances(self, key):
         return self.key_map[key]
 
-    def __iter__(self):
-        return iter(self.chromatograms)
-
-    def __getitem__(self, i):
-        return self.chromatograms[i]
-
-    def __len__(self):
-        return len(self.chromatograms)
-
     def find_key(self, key):
         try:
             return self.key_map[key][0]
         except (KeyError, IndexError):
             return None
-
-    def find_mass(self, mass, ppm_error_tolerance=1e-5):
-        index, flag = binary_search_with_flag(self.chromatograms, mass, ppm_error_tolerance)
-        if flag:
-            return self[index]
-        else:
-            return None
-
-    def find_all_by_mass(self, mass, ppm_error_tolerance=1e-5):
-        if len(self) == 0:
-            return ChromatogramFilter([], sort=False)
-        center_index, _ = self._binary_search(mass, ppm_error_tolerance)
-        low_index = center_index
-        while low_index > 0:
-            x = self.chromatograms[low_index - 1]
-            if abs((mass - x.neutral_mass) / x.neutral_mass) > ppm_error_tolerance:
-                break
-            low_index -= 1
-
-        n = len(self.chromatograms)
-        high_index = center_index - 1
-        while high_index < n - 1:
-            x = self.chromatograms[high_index + 1]
-            if abs((mass - x.neutral_mass) / x.neutral_mass) > ppm_error_tolerance:
-                break
-            high_index += 1
-        if low_index == high_index == center_index:
-            x = self.chromatograms[center_index]
-            if abs((mass - x.neutral_mass) / x.neutral_mass) > ppm_error_tolerance:
-                return ChromatogramFilter([], sort=False)
-        items = self[low_index:high_index + 1]
-        items = [
-            c for c in items if abs(
-                (c.neutral_mass - mass) / mass) < ppm_error_tolerance
-        ]
-        return ChromatogramFilter(items, sort=False)
-
-    def _binary_search(self, mass, error_tolerance=1e-5):
-        return binary_search_with_flag(self, mass, error_tolerance)
 
     def min_points(self, n=3, keep_if_msms=True):
         self.chromatograms = [c for c in self if (len(c) >= n) or c.has_msms]
@@ -178,15 +236,6 @@ class ChromatogramFilter(object):
             for seg in c.split_sparse(delta_rt)
         ]
         return self
-
-    def __repr__(self):
-        return repr(list(self))
-
-    def _repr_pretty_(self, p, cycle):
-        return p.pretty(self.chromatograms)
-
-    def __str__(self):
-        return str(list(self))
 
     def spanning(self, rt):
         return self.__class__((c for c in self if c.start_time <= rt <= c.end_time), sort=False)
@@ -216,23 +265,6 @@ class ChromatogramFilter(object):
             if len(c) > 0:
                 out.append(c)
         return self.__class__(out, sort=False)
-
-    def mass_between(self, low, high):
-        n = len(self)
-        if n == 0:
-            return ChromatogramFilter([])
-        low_index, flag = binary_search_with_flag(self.chromatograms, low, 1e-5)
-        low_index = max(0, min(low_index, n - 1))
-        if self[low_index].neutral_mass < low:
-            low_index += 1
-        high_index, flag = binary_search_with_flag(self.chromatograms, high, 1e-5)
-        high_index += 2
-        # high_index = min(n - 1, high_index)
-        if (high_index < n) and (self[high_index].neutral_mass > high):
-            high_index -= 1
-        items = self[low_index:high_index]
-        items = [c for c in items if low <= c.neutral_mass <= high]
-        return ChromatogramFilter(items, sort=False)
 
     def filter(self, filter_fn):
         return self.__class__([x for x in self if filter_fn(x)], sort=False)

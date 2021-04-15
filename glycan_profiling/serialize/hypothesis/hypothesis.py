@@ -11,11 +11,13 @@ from sqlalchemy.ext.mutable import MutableDict
 from glycan_profiling.serialize.base import (
     Base, HasUniqueName)
 
+from .generic import HasFiles
+
 
 from glypy.structure.glycan_composition import FrozenGlycanComposition
 
 
-class HypothesisBase(HasUniqueName):
+class HypothesisBase(HasUniqueName, HasFiles):
     @declared_attr
     def id(self):
         return Column(Integer, primary_key=True, autoincrement=True)

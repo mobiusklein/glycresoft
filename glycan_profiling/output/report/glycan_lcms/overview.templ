@@ -19,7 +19,7 @@
             <div class='flex-item'>
                 <b>Mass Accuracy:</b> {{analysis.parameters.mass_error_tolerance * (10 ** 6)}} PPM<br>
                 <b>Grouping Tolerance:</b> {{analysis.parameters.grouping_error_tolerance * (10 ** 6)}} PPM<br>
-                <b>Adducts:</b> {{analysis.parameters.adducts|join(", ")}}<br>
+                <b>Adducts:</b> {{analysis.parameters.mass_shifts|join(", ")}}<br>
                 {% if analysis.parameters.get("network_parameters") is not none %}
                     <b>Network &lambda;:</b> {{"%0.3g" % analysis.parameters.network_parameters.lmbda}}<br>
                 {% endif %}
@@ -99,7 +99,7 @@
                             <td>{{"%0.5f" % chrom.score}}</td>
                             <td>{{"%0.3e" % chrom.total_signal}}</td>
                             <td>
-                                {{chrom.adducts|join(', ', "name")}}
+                                {{chrom.mass_shifts|join(', ', "name")}}
                             </td>
                             <td>
                                 {{chrom.charge_states|join(', ')}}
@@ -125,18 +125,18 @@
                     <h3>{{chromatogram.glycan_composition}}</h3>
                     <div class='flex-container'>
                         <div class='flex-item'>
-                            <b>Observed Mass</b>: {{chromatogram.weighted_neutral_mass}} ({{
+                            <b>Observed Mass</b>: {{chromatogram.neutral_mass}} ({{
                             
-                            "%0.4e" % ((chromatogram.glycan_composition.mass() - chromatogram.weighted_neutral_mass
-                                       ) / chromatogram.weighted_neutral_mass)
+                            "%0.4e" % ((chromatogram.glycan_composition.mass() - chromatogram.neutral_mass
+                                       ) / chromatogram.neutral_mass)
 
                             }}) <br/>
                             <b>Total Abundance</b>: {{"%0.4e" % chromatogram.total_signal}} <br/>
                             <b>Adduct Signal Fractions</b>
-                            <ul class='adduct-signal-fraction-list' style='margin-top:0px;'>
-                            {% for adduct, fraction in chromatogram.adduct_signal_fractions().items() %}
-                                <li class='adduct-signal-fraction-item' style='margin-left:10px;'>
-                                    <b>{{adduct.name}}</b>: {{"%0.4e" % fraction}}
+                            <ul class='mass-shift-signal-fraction-list' style='margin-top:0px;'>
+                            {% for mass_shift, fraction in chromatogram.mass_shift_signal_fractions().items() %}
+                                <li class='mass-shift-signal-fraction-item' style='margin-left:10px;'>
+                                    <b>{{mass_shift.name}}</b>: {{"%0.4e" % fraction}}
                                 </li>
                             {% endfor %}
                             </ul>
@@ -197,10 +197,10 @@
                                 {% endfor %}
                                 </ul>
                             {% endif %}
-                            {% if chromatogram.used_as_adduct|length > 0 %}
+                            {% if chromatogram.used_as_mass_shift|length > 0 %}
                                 <b>Used As Adduct</b>
                                 <ul>
-                                    {% for pair in chromatogram.used_as_adduct %}
+                                    {% for pair in chromatogram.used_as_mass_shift %}
                                         <li style='margin-bottom: 5px;'>
                                             {{pair[0] | glycan_link}} ~ {{pair[1].name}}
                                             {% set reference = resolve_key(pair[0]) %}

@@ -47,7 +47,7 @@ class FilterTreeNode(object):
     def query(self, key, lo=0, hi=100):
         if str(key) == str(self.splitting_key):
             result_set = []
-            hi = min(self.children.keys(), hi)
+            hi = min(max(self.children.keys()), hi)
             for i in range(lo, hi + 1):
                 result_set.append(self.children[i])
             return QuerySet(result_set)

@@ -16,7 +16,7 @@ else:
     # why importing ipdb which imported IPython which called this fixed
     # the problem)
     import win_unicode_console
-    win_unicode_console.enable()
+    # win_unicode_console.enable()
 app_dir = click.get_app_dir("glycresoft")
 _mpl_cache_dir = os.path.join(app_dir, 'mpl')
 
@@ -30,10 +30,14 @@ try:
 except Exception:
     pass
 
-from rdflib.plugins import stores
+from rdflib.plugins import stores, memory
 from rdflib.plugins.stores import sparqlstore
 
 from glycan_profiling.cli.__main__ import main
+
+from glycopeptide_feature_learning import (peak_relations, multinomial_regression, scoring)
+# from glycopeptide_feature_learning._c import (amino_acid_classification, approximation, model_types, peak_relations)
+
 
 from glycan_profiling.cli.validators import strip_site_root
 

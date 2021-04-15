@@ -25,12 +25,23 @@ class MassShiftBase(object):
     def get(cls, name):
         return mass_shift_index[name]
 
+try:
+    from glycan_profiling._c.chromatogram_tree.mass_shift import MassShiftBase
+    mass_shift_index = MassShiftBase._get_name_registry()
+except ImportError:
+    pass
+
 
 class MassShift(MassShiftBase):
-    def __init__(self, name, composition):
+    def __init__(self, name, composition, tandem_composition=None, charge_carrier=0):
         self.name = name
         self.composition = composition
         self.mass = composition.mass
+        self.charge_carrier = charge_carrier
+        if tandem_composition is None:
+            tandem_composition = self.composition.copy()
+        self.tandem_composition = tandem_composition
+        self.tandem_mass = self.tandem_composition.mass
         self._register_name()
 
     def __repr__(self):
@@ -44,6 +55,36 @@ class MassShift(MassShiftBase):
         else:
             raise TypeError("Cannot multiply MassShift by non-integer")
 
+    def __getstate__(self):
+        return {
+            "tandem_composition": self.tandem_composition,
+            "name": self.name,
+            "mass": self.mass,
+            "charge_carrier": self.charge_carrier,
+            "tandem_mass": self.tandem_mass,
+            "composition": self.composition
+        }
+
+    def __setstate__(self, state):
+        if isinstance(state, tuple):
+            # We're receiving an older Cython pickled state
+            self._hash = state[0]
+            self.composition = state[1]
+            self.mass = state[2]
+            self.name = state[3]
+            self.tandem_composition = state[4]
+            self.tandem_mass = state[5]
+            self.charge_carrier = state[6].get('charge_carrier', 0)
+
+        else:
+            self.name = state['name']
+            self.charge_carrier = state.get('charge_carrier', 0)
+            self.mass = state['mass']
+            self.composition = state['composition']
+            self.tandem_mass = state['tandem_mass']
+            self.tandem_composition = state['tandem_composition']
+            self._hash = hash(self.name)
+
     def __add__(self, other):
         if self.composition == {}:
             return other
@@ -51,7 +92,26 @@ class MassShift(MassShiftBase):
             return self
         name = "(%s) + (%s)" % (self.name, other.name)
         composition = self.composition + other.composition
-        return self.__class__(name, composition)
+        tandem_composition = self.tandem_composition + other.tandem_composition
+        charge_carrier = self.charge_carrier + other.charge_carrier
+        return self.__class__(name, composition, tandem_composition, charge_carrier)
+
+    def __sub__(self, other):
+        if other.composition == {}:
+            return self
+
+        if self.composition == {}:
+            name = "-(%s)" % other.name
+            composition = -other.composition
+            tandem_composition = -other.tandem_composition
+            charge_carrier = -other.charge_carrier
+        else:
+            name = "(%s) - (%s)" % (self.name, other.name)
+            composition = self.composition - other.composition
+            tandem_composition = self.tandem_composition - other.tandem_composition
+            charge_carrier = self.charge_carrier - other.charge_carrier
+
+        return self.__class__(name, composition, tandem_composition, charge_carrier)
 
     def composed_with(self, other):
         return self == other
@@ -63,18 +123,30 @@ class CompoundMassShift(MassShiftBase):
             counts = {}
         self.counts = defaultdict(int, counts)
         self.composition = None
+        self.tandem_composition = None
         self.name = None
-        self.mass = None
-
+        self.mass = 0
+        self.tandem_mass = 0
+        self.charge_carrier = 0
         self._compute_composition()
         self._compute_name()
 
+    def __reduce__(self):
+        return self.__class__, (self.counts, )
+
     def _compute_composition(self):
         composition = Composition()
+        tandem_composition = Composition()
+        charge_carrier = 0
         for k, v in self.counts.items():
             composition += k.composition * v
+            tandem_composition += k.tandem_composition * v
+            charge_carrier += k.charge_carrier * v
         self.composition = composition
         self.mass = composition.mass
+        self.tandem_composition = tandem_composition
+        self.tandem_mass = tandem_composition.mass
+        self.charge_carrier = charge_carrier
 
     def _compute_name(self):
         parts = []
@@ -87,7 +159,7 @@ class CompoundMassShift(MassShiftBase):
 
     def composed_with(self, other):
         if isinstance(other, MassShift):
-            return self.counts.get(other, 0) == 1
+            return self.counts.get(other, 0) >= 1
         elif isinstance(other, CompoundMassShift):
             for key, count in other.counts.items():
                 if self.counts.get(key, 0) != count:
@@ -112,6 +184,24 @@ class CompoundMassShift(MassShiftBase):
         else:
             return NotImplemented
 
+    def __sub__(self, other):
+        if other == Unmodified:
+            return self
+        if not self.composed_with(other):
+            raise ValueError("Cannot subtract %r from %r, not part of the compound" % (other, self))
+
+        if isinstance(other, MassShift):
+            counts = defaultdict(int, self.counts)
+            counts[other] -= 1
+            return self.__class__(counts)
+        elif isinstance(other, CompoundMassShift):
+            counts = defaultdict(int, self.counts)
+            for k, v in other.counts.items():
+                counts[k] -= v
+            return self.__class__(counts)
+        else:
+            return NotImplemented
+
     def __mul__(self, i):
         if self.composition == {}:
             return self
@@ -130,7 +220,29 @@ class CompoundMassShift(MassShiftBase):
 
 
 Unmodified = MassShift("Unmodified", Composition())
-Formate = MassShift("Formate", Composition('HCOOH'))
-Ammonium = MassShift("Ammonium", Composition("NH3"))
-Sodium = MassShift("Sodium", Composition("Na"))
-Potassium = MassShift("Potassium", Composition("K"))
+Formate = MassShift("Formate", Composition('HCOOH'), charge_carrier=1)
+Ammonium = MassShift("Ammonium", Composition("NH3"), Composition())
+Sodium = MassShift("Sodium", Composition("Na1H-1"), charge_carrier=1)
+Potassium = MassShift("Potassium", Composition("K1H-1"), charge_carrier=1)
+
+
+class MassShiftCollection(object):
+    def __init__(self, mass_shifts):
+        self.mass_shifts = list(mass_shifts)
+        self.mass_shift_map = {}
+        self._invalidate()
+
+    def _invalidate(self):
+        self.mass_shift_map = {
+            mass_shift.name: mass_shift for mass_shift in self.mass_shifts
+        }
+
+    def append(self, mass_shift):
+        self.mass_shifts.append(mass_shift)
+        self._invalidate()
+
+    def __getitem__(self, i):
+        try:
+            return self.mass_shifts[i]
+        except (IndexError, TypeError):
+            return self.mass_shift_map[i]

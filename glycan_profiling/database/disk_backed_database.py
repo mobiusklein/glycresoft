@@ -7,18 +7,24 @@ except ImportError:
 
 import logging
 
-from ms_deisotope.peak_dependency_network.intervals import SpanningMixin
-from glycan_profiling.serialize import (
-    GlycanComposition, Glycopeptide, Peptide,
-    func, Protein, GlycopeptideHypothesis, GlycanHypothesis,
-    DatabaseBoundOperation)
 
 from sqlalchemy import select, join
 
+from glycan_profiling.serialize import (
+    GlycanComposition, Glycopeptide, Peptide,
+    func, GlycopeptideHypothesis, GlycanHypothesis,
+    DatabaseBoundOperation, GlycanClass, GlycanTypes,
+    GlycanCompositionToClass, ProteinSite, Protein)
+
 from .mass_collection import SearchableMassCollection, NeutralMassDatabase
-from glycan_profiling.structure.lru import LRUCache
+from .intervals import (
+    PPMQueryInterval, FixedQueryInterval, LRUIntervalSet,
+    IntervalSet, MassIntervalNode)
+from .index import (ProteinIndex, PeptideIndex, GlycopeptideBatchManager, GlycopeptideSequenceCache)
 from glycan_profiling.structure.structure_loader import (
-    CachingGlycanCompositionParser, CachingGlycopeptideParser)
+    CachingGlycanCompositionParser, CachingGlycopeptideParser,
+    CachingPeptideParser,
+    GlycopeptideDatabaseRecord)
 from .composition_network import CompositionGraph, n_glycan_distance
 
 
@@ -31,16 +37,11 @@ _empty_interval = NeutralMassDatabase([])
 # is allowed to hold in memory at once before it must start pruning intervals.
 # This is to prevent the program from running out of memory because it loaded
 # too many large intervals into memory while not exceeding the maximum number of
-# intervals allowed. 200,000 is reasonable given the current memory consumption
-# patterns.
-DEFAULT_THRESHOLD_CACHE_TOTAL_COUNT = 2e5
+# intervals allowed.
+DEFAULT_THRESHOLD_CACHE_TOTAL_COUNT = 6e5
 
 # The maximum number of mass intervals to hold in memory at once.
-# The current algorithms used elsewhere order queries such that this
-# number could even be set to 1 and not suffer runtime penalties becase
-# overlapping intervals are merged and only consume a single slot, but
-# this is retained at >1 for convenience.
-DEFAULT_CACHE_SIZE = 2
+DEFAULT_CACHE_SIZE = 3
 
 # Controls the mass interval loaded from the database when a
 # query misses the alreadly loaded intervals. Uses the assumption
@@ -60,8 +61,33 @@ DEFAULT_LOADING_INTERVAL = 1.
 
 
 class DiskBackedStructureDatabaseBase(SearchableMassCollection, DatabaseBoundOperation):
+    """A disk-backed structure database that implements the :class:`~.SearchableMassCollection`
+    interface. It includes an in-memory caching system to keep recently used mass intervals in memory
+    and optimistically fetches nearby masses around queried masses.
 
-    def __init__(self, connection, hypothesis_id, cache_size=DEFAULT_CACHE_SIZE,
+    Attributes
+    ----------
+    hypothesis_id : int
+        The database id number of the hypothesis
+    loading_interval : float
+        The size of the region around a queried mass (in Daltons) to load when
+        optimistically fetching records from the disk.
+    cache_size : int
+        The maximum number of intervals in-memory mass intervals to cache
+    intervals : :class:`~.LRUIntervalSet`
+        An LRU caching interval collection over masses read from the disk store
+    model_type : type
+        The ORM type to query against. It must provide an attribute called ``calculated_mass``
+    peptides : :class:`~.PeptideIndex`
+        An index for looking up :class:`~.Peptide` ORM objects.
+    proteins : :class:`~.ProteinIndex`
+        An index for looking up :class:`~.Protein` ORM objects.
+    threshold_cache_total_count : int
+        The total number of records to retain in the in-memory cache before pruning entries,
+        independent of the number of loaded intervals
+    """
+
+    def __init__(self, connection, hypothesis_id=1, cache_size=DEFAULT_CACHE_SIZE,
                  loading_interval=DEFAULT_LOADING_INTERVAL,
                  threshold_cache_total_count=DEFAULT_THRESHOLD_CACHE_TOTAL_COUNT,
                  model_type=Glycopeptide):
@@ -72,8 +98,23 @@ class DiskBackedStructureDatabaseBase(SearchableMassCollection, DatabaseBoundOpe
         self.threshold_cache_total_count = threshold_cache_total_count
         self._intervals = LRUIntervalSet([], cache_size)
         self._ignored_intervals = IntervalSet([])
-        self.proteins = _ProteinIndex(self.session, self.hypothesis_id)
-        self.peptides = _PeptideIndex(self.session, self.hypothesis_id)
+        self.proteins = ProteinIndex(self.session, self.hypothesis_id)
+        self.peptides = PeptideIndex(self.session, self.hypothesis_id)
+
+    @property
+    def cache_size(self):
+        return self._intervals.max_size
+
+    @cache_size.setter
+    def cache_size(self, value):
+        self._intervals.max_size = value
+
+    @property
+    def intervals(self):
+        return self._intervals
+
+    def reset(self, **kwargs):
+        self.intervals.clear()
 
     def __reduce__(self):
         return self.__class__, (
@@ -81,7 +122,17 @@ class DiskBackedStructureDatabaseBase(SearchableMassCollection, DatabaseBoundOpe
             self.loading_interval, self.threshold_cache_total_count,
             self.model_type)
 
+    def _make_loading_interval(self, mass, error_tolerance=1e-5):
+        width = mass * error_tolerance
+        if width > self.loading_interval:
+            return FixedQueryInterval(mass, width * 2)
+        else:
+            return FixedQueryInterval(mass, self.loading_interval)
+
     def _upkeep_memory_intervals(self):
+        """Perform routine maintainence of the interval cache, ensuring its size does not
+        exceed the upper limit
+        """
         n = len(self._intervals)
         if n > 1:
             while (len(self._intervals) > 1 and
@@ -103,78 +154,114 @@ class DiskBackedStructureDatabaseBase(SearchableMassCollection, DatabaseBoundOpe
         is_ignored = self._ignored_intervals.find_interval(interval)
         return is_ignored is not None and is_ignored.contains_interval(interval)
 
-    def insert_interval(self, mass):
-        tree = self.make_memory_interval(mass)
-        # We won't insert this node.
-        if len(tree) == 0:
+    def insert_interval(self, mass, ppm_error_tolerance=1e-5):
+        logger.debug("Calling insert_interval with mass %f", mass)
+        node = self.make_memory_interval(mass, ppm_error_tolerance)
+        logger.debug("New Node: %r", node)
+        # We won't insert this node if it is empty.
+        if len(node.group) == 0:
             # Ignore seems to be not-working.
             # self.ignore_interval(FixedQueryInterval(mass))
-            return tree
-        node = MassIntervalNode(tree)
+            return node.group
         nearest_interval = self._intervals.find_interval(node)
         # Should an insert be performed if the query just didn't overlap well
         # with the database?
         if nearest_interval is None:
             # No nearby interval, so we should insert
+            logger.debug("No nearby interval for %r", node)
             self._intervals.insert_interval(node)
             return node.group
+        elif nearest_interval.overlaps(node):
+            logger.debug("Nearest interval %r overlaps this %r", nearest_interval, node)
+            nearest_interval = self._intervals.extend_interval(nearest_interval, node)
+            return nearest_interval.group
         elif not nearest_interval.contains_interval(node):
+            logger.debug("Nearest interval %r didn't contain this %r", nearest_interval, node)
             # Nearby interval didn't contain this interval
             self._intervals.insert_interval(node)
             return node.group
         else:
             # Situation unclear.
             # Not worth inserting, so just return the group
+            logger.info("Unknown Condition Overlap %r / %r", node, nearest_interval)
             return nearest_interval.group
+
+    def clear_cache(self):
+        self._intervals.clear()
 
     def has_interval(self, mass, ppm_error_tolerance):
         q = PPMQueryInterval(mass, ppm_error_tolerance)
         match = self._intervals.find_interval(q)
         if match is not None:
+            q2 = self._make_loading_interval(mass, ppm_error_tolerance)
+            logger.debug("Nearest interval %r", match)
             # We are completely contained in an existing interval, so just
             # use that one.
             if match.contains_interval(q):
+                logger.debug("Query interval %r was completely contained in %r", q, match)
                 return match.group
             # We overlap with an extending interval, so we should populate
             # the new one and merge them.
-            elif match.overlaps(q):
-                self._intervals.extend_interval(
-                    match, self.make_memory_interval(mass))
+            elif match.overlaps(q2):
+                q3 = q2.difference(match).scale(1.05)
+                logger.debug("Query interval partially overlapped, creating disjoint interval %r", q3)
+                match = self._intervals.extend_interval(
+                    match,
+                    self.make_memory_interval_from_mass_interval(q3.start, q3.end)
+                )
                 return match.group
             # We might need to insert a new interval
             else:
+                logger.debug("Query interval %r did not overlap with %r", q, match)
                 if self.is_interval_ignored(q):
                     return match.group
                 else:
-                    return self.insert_interval(mass)
+                    return self.insert_interval(mass, ppm_error_tolerance)
         else:
+            logger.debug("No existing interval contained %r", q)
             is_ignored = self._ignored_intervals.find_interval(q)
             if is_ignored is not None and is_ignored.contains_interval(q):
                 return _empty_interval
             else:
-                return self.insert_interval(mass)
+                return self.insert_interval(mass, ppm_error_tolerance)
 
     def search_mass_ppm(self, mass, error_tolerance):
         self._upkeep_memory_intervals()
         return self.has_interval(mass, error_tolerance).search_mass_ppm(mass, error_tolerance)
 
-    def search_mass(self, mass, error_tolerance):
+    def search_mass(self, mass, error_tolerance):  # pylint: disable=signature-differs
+        return self._search_mass_interval(mass - error_tolerance, mass + error_tolerance)
+
+    def _search_mass_interval(self, start, end):
         model = self.model_type
         return self.session.query(self.model_type).filter(
             model.hypothesis_id == self.hypothesis_id,
             model.calculated_mass.between(
-                mass - error_tolerance, mass + error_tolerance)).all()
+                start, end)).all()
 
     def on_memory_interval(self, mass, interval):
         if len(interval) > self.threshold_cache_total_count:
             logger.info("Interval Length %d for %f", len(interval), mass)
 
-    def make_memory_interval(self, mass, error=None):
-        if error is None:
-            error = self.loading_interval
-        out = self.search_mass(mass, error)
-        self.on_memory_interval(mass, out)
-        return NeutralMassDatabase(out, operator.attrgetter("calculated_mass"))
+    def make_memory_interval(self, mass, error_tolerance=None):
+        interval = self._make_loading_interval(mass, error_tolerance)
+        node = self.make_memory_interval_from_mass_interval(interval.start, interval.end)
+        return node
+
+    def make_memory_interval_from_mass_interval(self, start, end):
+        logger.debug("Querying the database for masses between %f and %f", start, end)
+        out = self._search_mass_interval(start, end)
+        logger.debug("Retrieved %d records", len(out))
+        self.on_memory_interval((start + end) / 2.0, out)
+        mass_db = self._prepare_interval(out)
+        # bind the bounds of the returned dataset to the bounds of the query
+        node = MassIntervalNode(mass_db)
+        node.start = start
+        node.end = end
+        return node
+
+    def _prepare_interval(self, query_results):
+        return NeutralMassDatabase(query_results, operator.attrgetter("calculated_mass"))
 
     @property
     def lowest_mass(self):
@@ -186,66 +273,46 @@ class DiskBackedStructureDatabaseBase(SearchableMassCollection, DatabaseBoundOpe
         return self.session.query(func.max(self.model_type.calculated_mass)).filter(
             self.model_type.hypothesis_id == self.hypothesis_id).first()
 
+    def get_record(self, id):
+        return self.session.query(self.model_type).get(id)
+
     def get_object_by_id(self, id):
         return self.session.query(self.model_type).get(id)
 
     def get_object_by_reference(self, reference):
         return self.session.query(self.model_type).get(reference.id)
 
-
-class _ProteinIndex(object):
-    def __init__(self, session, hypothesis_id):
-        self.session = session
-        self.hypothesis_id = hypothesis_id
-
-    def _get_by_id(self, id):
-        return self.session.query(Protein).get(id)
-
-    def _get_by_name(self, name):
-        return self.session.query(Protein).filter(
-            Protein.hypothesis_id == self.hypothesis_id,
-            Protein.name == name).one()
-
-    def __getitem__(self, key):
-        if isinstance(key, int):
-            return self._get_by_id(key)
-        else:
-            return self._get_by_name(key)
-
-    def __iter__(self):
-        q = self.session.query(Protein).filter(Protein.hypothesis_id == self.hypothesis_id)
-        return iter(q)
-
-
-class _PeptideIndex(object):
-    def __init__(self, session, hypothesis_id):
-        self.session = session
-        self.hypothesis_id = hypothesis_id
-
-    def _get_by_id(self, id):
-        return self.session.query(Peptide).get(id)
-
-    def _get_by_sequence(self, modified_peptide_sequence, protein_id):
-        return self.session.query(Peptide).filter(
-            Peptide.hypothesis_id == self.hypothesis_id,
-            Peptide.modified_peptide_sequence == modified_peptide_sequence,
-            Peptide.protein_id == protein_id).one()
-
-    def __getitem__(self, key):
-        if isinstance(key, int):
-            return self._get_by_id(key)
-        else:
-            return self._get_by_name(*key)
+    def search_between(self, lower, upper):
+        return self.make_memory_interval_from_mass_interval(lower, upper)
 
 
 class DeclarativeDiskBackedDatabase(DiskBackedStructureDatabaseBase):
-    def __init__(self, connection, hypothesis_id, cache_size=DEFAULT_CACHE_SIZE,
+    """A base class for creating :class:`DiskBackedStructureDatabaseBase` that map against
+    ad hoc SQL queries rather than ORM classes
+
+    Attributes
+    ----------
+    identity_field: :class:`sqlalchemy.sql.Selectable`
+        The database column from which the entity identity should be determined
+    mass_field: :class:`sqlalchemy.Column`
+        The column to read the mass from
+    fields: list of :class:`sqlalchemy.ColumnElement`
+        The columns to extract from the database to compose records
+
+    """
+
+    def __init__(self, connection, hypothesis_id=1, cache_size=DEFAULT_CACHE_SIZE,
                  loading_interval=DEFAULT_LOADING_INTERVAL,
                  threshold_cache_total_count=DEFAULT_THRESHOLD_CACHE_TOTAL_COUNT):
         super(DeclarativeDiskBackedDatabase, self).__init__(
             connection, hypothesis_id, cache_size, loading_interval,
             threshold_cache_total_count, None)
         self._glycan_composition_network = None
+
+    def __reduce__(self):
+        return self.__class__, (
+            self._original_connection, self.hypothesis_id, self.cache_size,
+            self.loading_interval, self.threshold_cache_total_count)
 
     @property
     def glycan_composition_network(self):
@@ -281,6 +348,21 @@ class DeclarativeDiskBackedDatabase(DiskBackedStructureDatabaseBase):
             self.mass_field)
         return imap(self._convert, self.session.execute(stmt))
 
+    def __iter__(self):
+        stmt = self._limit_to_hypothesis(
+            select(self._get_record_properties()).select_from(
+                self.selectable)).order_by(
+            self.mass_field)
+        cursor = self.session.execute(stmt)
+        converter = self._convert
+        while True:
+            block_size = 2 ** 16
+            block = cursor.fetchmany(block_size)
+            if not block:
+                break
+            for row in block:
+                yield converter(row)
+
     def __getitem__(self, i):
         stmt = self._limit_to_hypothesis(
             select(self._get_record_properties()).select_from(
@@ -289,26 +371,42 @@ class DeclarativeDiskBackedDatabase(DiskBackedStructureDatabaseBase):
         return self._convert(self.session.execute(stmt).fetchone())
 
     def search_mass(self, mass, error_tolerance):
+        return self._search_mass_interval(mass - error_tolerance, mass + error_tolerance)
+
+    def _search_mass_interval(self, start, end):
         conn = self.session.connection()
         stmt = self._limit_to_hypothesis(
             select(self._get_record_properties()).select_from(self.selectable)).where(
             self.mass_field.between(
-                mass - error_tolerance, mass + error_tolerance))
+                start, end))
         return conn.execute(stmt).fetchall()
 
-    def get_object_by_id(self, id):
-        return self._convert(self.session.execute(select(self._get_record_properties()).select_from(
+    def get_record(self, id):
+        record = self.session.execute(select(self._get_record_properties()).select_from(
             self.selectable).where(
-            self.identity_field == id)).first())
+            self.identity_field == id)).first()
+        return record
+
+    def get_all_records(self):
+        records = self.session.execute(
+            select(
+                self._get_record_properties()).select_from(self.selectable))
+        return list(records)
+
+    def get_object_by_id(self, id):
+        return self._convert(self.get_record(id))
 
     def get_object_by_reference(self, reference):
         return self._convert(self.get_object_by_id(reference.id))
 
     def __len__(self):
-        stmt = select([func.count(self.identity_field)]).select_from(
-            self.selectable)
-        stmt = self._limit_to_hypothesis(stmt)
-        return self.session.execute(stmt).scalar()
+        try:
+            return self.hypothesis.parameters['database_size']
+        except KeyError:
+            stmt = select([func.count(self.identity_field)]).select_from(
+                self.selectable)
+            stmt = self._limit_to_hypothesis(stmt)
+            return self.session.execute(stmt).scalar()
 
 
 class GlycopeptideDiskBackedStructureDatabase(DeclarativeDiskBackedDatabase):
@@ -320,12 +418,13 @@ class GlycopeptideDiskBackedStructureDatabase(DeclarativeDiskBackedDatabase):
         Glycopeptide.__table__.c.protein_id,
         Peptide.__table__.c.start_position,
         Peptide.__table__.c.end_position,
+        Peptide.__table__.c.calculated_mass.label("peptide_mass"),
         Glycopeptide.__table__.c.hypothesis_id,
     ]
     mass_field = Glycopeptide.__table__.c.calculated_mass
     identity_field = Glycopeptide.__table__.c.id
 
-    def __init__(self, connection, hypothesis_id, cache_size=DEFAULT_CACHE_SIZE,
+    def __init__(self, connection, hypothesis_id=1, cache_size=DEFAULT_CACHE_SIZE,
                  loading_interval=DEFAULT_LOADING_INTERVAL,
                  threshold_cache_total_count=DEFAULT_THRESHOLD_CACHE_TOTAL_COUNT):
         super(GlycopeptideDiskBackedStructureDatabase, self).__init__(
@@ -344,6 +443,77 @@ class GlycopeptideDiskBackedStructureDatabase(DeclarativeDiskBackedDatabase):
 
     def _limit_to_hypothesis(self, selectable):
         return selectable.where(Glycopeptide.__table__.c.hypothesis_id == self.hypothesis_id)
+
+
+class InMemoryPeptideStructureDatabase(NeutralMassDatabase):
+    def __init__(self, records, source_database=None, sort=True):
+        super(InMemoryPeptideStructureDatabase, self).__init__(records, sort=sort)
+        self.source_database = source_database
+
+    @property
+    def hypothesis(self):
+        return self.source_database.hypothesis
+
+    @property
+    def hypothesis_id(self):
+        return self.source_database.hypothesis_id
+
+    @property
+    def session(self):
+        return self.source_database.session
+
+    def query(self, *args, **kwargs):
+        return self.source_database.query(*args, **kwargs)
+
+    @property
+    def peptides(self):
+        return self.source_database.peptides
+
+    @property
+    def proteins(self):
+        return self.source_database.proteins
+
+
+
+class LazyLoadingGlycopeptideDiskBackedStructureDatabase(GlycopeptideDiskBackedStructureDatabase):
+    fields = [
+        Glycopeptide.__table__.c.id,
+        Glycopeptide.__table__.c.calculated_mass,
+        # Glycopeptide.__table__.c.glycopeptide_sequence,
+        Glycopeptide.__table__.c.protein_id,
+        Peptide.__table__.c.start_position,
+        Peptide.__table__.c.end_position,
+        Peptide.__table__.c.calculated_mass.label("peptide_mass"),
+        Glycopeptide.__table__.c.hypothesis_id,
+    ]
+
+    def __init__(self, connection, hypothesis_id=1, cache_size=DEFAULT_CACHE_SIZE,
+                 loading_interval=DEFAULT_LOADING_INTERVAL,
+                 threshold_cache_total_count=DEFAULT_THRESHOLD_CACHE_TOTAL_COUNT):
+        super(LazyLoadingGlycopeptideDiskBackedStructureDatabase, self).__init__(
+            connection, hypothesis_id, cache_size, loading_interval,
+            threshold_cache_total_count)
+        self._batch_manager = GlycopeptideBatchManager(GlycopeptideSequenceCache(self.session))
+
+    def _prepare_interval(self, query_results):
+        return NeutralMassDatabase(
+            [GlycopeptideDatabaseRecord(
+                q.id,
+                q.calculated_mass,
+                None,
+                q.protein_id,
+                q.start_position,
+                q.end_position,
+                q.peptide_mass,
+                q.hypothesis_id,) for q in query_results],
+            operator.attrgetter("calculated_mass"))
+
+    def mark_hit(self, match):
+        return self._batch_manager.mark_hit(match)
+
+    def mark_batch(self):
+        self._batch_manager.process_batch()
+        self._batch_manager.clear()
 
 
 class GlycopeptideOnlyDiskBackedStructureDatabase(DeclarativeDiskBackedDatabase):
@@ -377,7 +547,7 @@ class GlycanCompositionDiskBackedStructureDatabase(DeclarativeDiskBackedDatabase
     mass_field = GlycanComposition.__table__.c.calculated_mass
     identity_field = GlycanComposition.__table__.c.id
 
-    def __init__(self, connection, hypothesis_id, cache_size=DEFAULT_CACHE_SIZE,
+    def __init__(self, connection, hypothesis_id=1, cache_size=DEFAULT_CACHE_SIZE,
                  loading_interval=DEFAULT_LOADING_INTERVAL,
                  threshold_cache_total_count=DEFAULT_THRESHOLD_CACHE_TOTAL_COUNT):
         super(GlycanCompositionDiskBackedStructureDatabase, self).__init__(
@@ -401,6 +571,28 @@ class GlycanCompositionDiskBackedStructureDatabase(DeclarativeDiskBackedDatabase
     def hypothesis(self):
         return self.session.query(GlycanHypothesis).get(self.hypothesis_id)
 
+    def glycan_compositions_of_type(self, glycan_type):
+        try:
+            glycan_type = glycan_type.name
+        except AttributeError:
+            glycan_type = str(glycan_type)
+        if glycan_type in GlycanTypes:
+            glycan_type = GlycanTypes[glycan_type]
+        stmt = self._limit_to_hypothesis(
+            select(self._get_record_properties()).select_from(
+                self.selectable.join(GlycanCompositionToClass).join(GlycanClass)).where(
+                GlycanClass.__table__.c.name == glycan_type)).order_by(
+            self.mass_field)
+        return imap(self._convert, self.session.execute(stmt))
+
+    def glycan_composition_network_from(self, query=None):
+        if query is None:
+            query = self.structures
+        compositions = tuple(query)
+        graph = CompositionGraph(compositions)
+        graph.create_edges(1)
+        return graph
+
     def _limit_to_hypothesis(self, selectable):
         return selectable.where(GlycanComposition.__table__.c.hypothesis_id == self.hypothesis_id)
 
@@ -415,256 +607,40 @@ class PeptideDiskBackedStructureDatabase(DeclarativeDiskBackedDatabase):
         Peptide.__table__.c.start_position,
         Peptide.__table__.c.end_position,
         Peptide.__table__.c.hypothesis_id,
+        Peptide.__table__.c.n_glycosylation_sites,
+        Peptide.__table__.c.o_glycosylation_sites,
+        Peptide.__table__.c.gagylation_sites,
     ]
     mass_field = Peptide.__table__.c.calculated_mass
     identity_field = Peptide.__table__.c.id
 
+    def __init__(self, connection, hypothesis_id=1, cache_size=DEFAULT_CACHE_SIZE,
+                 loading_interval=DEFAULT_LOADING_INTERVAL,
+                 threshold_cache_total_count=int(DEFAULT_THRESHOLD_CACHE_TOTAL_COUNT / 5)):
+        super(PeptideDiskBackedStructureDatabase, self).__init__(
+            connection, hypothesis_id, cache_size, loading_interval,
+            threshold_cache_total_count)
+        self._convert_cache = CachingPeptideParser()
+        self.peptides = PeptideIndex(self.session, self.hypothesis_id)
+        self.proteins = ProteinIndex(self.session, self.hypothesis_id)
+
+    # This should exist, but it conflicts with other conversion mechanisms
+    # def _convert(self, bundle):
+    #     inst = self._convert_cache.parse(bundle)
+    #     inst.hypothesis_id = self.hypothesis_id
+    #     return inst
+
     def _limit_to_hypothesis(self, selectable):
         return selectable.where(Peptide.__table__.c.hypothesis_id == self.hypothesis_id)
 
-
-class MassIntervalNode(SpanningMixin):
-    """Contains a NeutralMassDatabase object and provides an interval-like
-    API. Intended for use with IntervalSet.
-
-    Attributes
-    ----------
-    center : float
-        The central point of mass for the interval
-    end : float
-        The upper-most mass in the wrapped collection
-    group : NeutralMassDatabase
-        The collection of massable objects wrapped
-    growth : int
-        The number of times the interval had been expanded
-    size : int
-        The number of items in :attr:`group`
-    start : float
-        The lower-most mass in the wrapped collection
-    """
-    def __init__(self, interval):
-        self.wrap(interval)
-        self.growth = 0
-
-    def __hash__(self):
-        return hash((self.start, self.center, self.end))
-
-    def __eq__(self, other):
-        return (self.start, self.center, self.end) == (other.start, other.center, other.end)
-
-    def wrap(self, interval):
-        """Updates the internal state of the interval to wrap
-
-        Parameters
-        ----------
-        interval : NeutralMassDatabase
-            The new collection to wrap.
-        """
-        self.group = interval
-        self.start = interval.lowest_mass
-        self.end = interval.highest_mass
-        self.center = (self.start + self.end) / 2.
-        self.size = len(self.group)
-
-    def __repr__(self):
-        return "MassIntervalNode(%0.4f, %0.4f)" % (self.start, self.end)
-
-    def extend(self, new_data):
-        """Add the components of `new_data` to `group` and update
-        the interval's internal state
-
-        Parameters
-        ----------
-        new_data : NeutralMassDatabase
-            Iterable of massable objects
-        """
-        new = {x.id: x for x in (self.group)}
-        new.update({x.id: x for x in (new_data)})
-        self.wrap(NeutralMassDatabase(list(new.values()), self.group.mass_getter))
-        self.growth += 1
-
-
-class QueryIntervalBase(SpanningMixin):
-
-    def __hash__(self):
-        return hash((self.start, self.center, self.end))
-
-    def __eq__(self, other):
-        return (self.start, self.center, self.end) == (other.start, other.center, other.end)
-
-    def __repr__(self):
-        return "QueryInterval(%0.4f, %0.4f)" % (self.start, self.end)
-
-    def extend(self, other):
-        self.start = min(self.start, other.start)
-        self.end = max(self.end, other.end)
-        self.center = (self.start + self.end) / 2.
-
-
-class PPMQueryInterval(QueryIntervalBase):
-
-    def __init__(self, mass, error_tolerance=2e-5):
-        self.center = mass
-        self.start = mass - (mass * error_tolerance)
-        self.end = mass + (mass * error_tolerance)
-
-
-class FixedQueryInterval(QueryIntervalBase):
-
-    def __init__(self, mass, width=3):
-        self.center = mass
-        self.start = mass - width
-        self.end = mass + width
-
-
-class IntervalSet(object):
-
-    def __init__(self, intervals=None):
-        if intervals is None:
-            intervals = list()
-        self.intervals = sorted(intervals, key=lambda x: x.center)
-        self._total_count = None
-        self.compute_total_count()
-
-    def _invalidate(self):
-        self._total_count = None
-
     @property
-    def total_count(self):
-        if self._total_count is None:
-            self.compute_total_count()
-        return self._total_count
+    def hypothesis(self):
+        return self.session.query(GlycopeptideHypothesis).get(self.hypothesis_id)
 
-    def compute_total_count(self):
-        self._total_count = 0
-        for interval in self:
-            self._total_count += interval.size
-        return self._total_count
-
-    def __iter__(self):
-        return iter(self.intervals)
-
-    def __len__(self):
-        return len(self.intervals)
-
-    def __getitem__(self, i):
-        return self.intervals[i]
-
-    def __repr__(self):
-        return "%s(%r)" % (self.__class__.__name__, self.intervals)
-
-    def _repr_pretty_(self, p, cycle):
-        return p.pretty(self.intervals)
-
-    def find_insertion_point(self, mass):
-        lo = 0
-        hi = len(self)
-        if hi == 0:
-            return 0, False
-        while hi != lo:
-            mid = (hi + lo) / 2
-            x = self[mid]
-            err = x.center - mass
-            if abs(err) <= 1e-9:
-                return mid, True
-            elif (hi - lo) == 1:
-                return mid, False
-            elif err > 0:
-                hi = mid
-            else:
-                lo = mid
-        raise ValueError((hi, lo, err, len(self)))
-
-    def extend_interval(self, target, expansion):
-        self._invalidate()
-        target.extend(expansion)
-
-    def insert_interval(self, interval):
-        center = interval.center
-        # if interval in self.intervals:
-        #     raise ValueError("Duplicate Insertion")
-        if len(self) != 0:
-            index, matched = self.find_insertion_point(center)
-            index += 1
-            if matched and self[index - 1].overlaps(interval):
-                self.extend_interval(self[index - 1], interval)
-                return
-            if index == 1:
-                if self[index - 1].center > center:
-                    index -= 1
-        else:
-            index = 0
-        self._insert_interval(index, interval)
-
-    def _insert_interval(self, index, interval):
-        self._invalidate()
-        self.intervals.insert(index, interval)
-
-    def find_interval(self, query):
-        lo = 0
-        hi = len(self)
-        while hi != lo:
-            mid = (hi + lo) / 2
-            x = self[mid]
-            err = x.center - query.center
-            if err == 0 or x.contains_interval(query):
-                return x
-            elif (hi - 1) == lo:
-                return x
-            elif err > 0:
-                hi = mid
-            else:
-                lo = mid
-
-    def find(self, mass, ppm_error_tolerance):
-        return self.find_interval(PPMQueryInterval(mass, ppm_error_tolerance))
-
-    def remove_interval(self, center):
-        self._invalidate()
-        ix, match = self.find_insertion_point(center)
-        self.intervals.pop(ix)
-
-
-class LRUIntervalSet(IntervalSet):
-
-    def __init__(self, intervals=None, max_size=1000):
-        super(LRUIntervalSet, self).__init__(intervals)
-        self.max_size = max_size
-        self.current_size = len(self)
-        self.lru = LRUCache()
-        for item in self:
-            self.lru.add_node(item)
-
-    def insert_interval(self, interval):
-        if self.current_size == self.max_size:
-            self.remove_lru_interval()
-        super(LRUIntervalSet, self).insert_interval(interval)
-
-    def _insert_interval(self, index, interval):
-        super(LRUIntervalSet, self)._insert_interval(index, interval)
-        self.lru.add_node(interval)
-        self.current_size += 1
-
-    def extend_interval(self, target, expansion):
-        self.lru.remove_node(target)
-        try:
-            super(LRUIntervalSet, self).extend_interval(target, expansion)
-            self.lru.add_node(target)
-        except Exception:
-            self.lru.add_node(target)
-            raise
-
-    def find_interval(self, query):
-        match = super(LRUIntervalSet, self).find_interval(query)
-        if match is not None:
-            try:
-                self.lru.hit_node(match)
-            except KeyError:
-                self.lru.add_node(match)
-        return match
-
-    def remove_lru_interval(self):
-        lru_interval = self.lru.get_least_recently_used()
-        self.lru.remove_node(lru_interval)
-        self.remove_interval(lru_interval.center)
-        self.current_size -= 1
+    def spanning_n_glycosylation_site(self):
+        q = select(self.fields).select_from(
+            self.selectable.join(Protein.__table__).join(ProteinSite.__table__)).where(
+                Peptide.spans(ProteinSite.location) & (ProteinSite.name == ProteinSite.N_GLYCOSYLATION)
+                & (Protein.hypothesis_id == self.hypothesis_id)).order_by(
+            self.mass_field)
+        return q

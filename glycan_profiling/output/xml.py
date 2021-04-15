@@ -1,70 +1,234 @@
 import os
-from collections import defaultdict, OrderedDict
+import re
+import bisect
 
-from glycan_profiling import task, serialize, version
-
-from glypy.composition import formula
-
-from glycopeptidepy.structure import parser, modification
-from glycan_profiling.chromatogram_tree.chromatogram import group_by
+from collections import defaultdict, OrderedDict, namedtuple, deque
 
 from brainpy import mass_charge_ratio
 
+import glypy
+from glypy.composition import formula
+from glypy.io.nomenclature import identity
+from glypy.structure.glycan_composition import (
+    MonosaccharideResidue,
+    FrozenMonosaccharideResidue, SubstituentResidue, FrozenGlycanComposition)
+
+from glycopeptidepy.structure import parser, modification
+
 from psims.mzid import components
 from psims.mzid.writer import MzIdentMLWriter
+from psims.controlled_vocabulary.controlled_vocabulary import load_gno
 
 from ms_deisotope.output import mzml
 
+from glycan_profiling import task, serialize, version
+from glycan_profiling.chromatogram_tree import Unmodified
+from glycan_profiling.chromatogram_tree.chromatogram import group_by
 
-def convert_to_protein_dict(protein):
+
+class mass_term_pair(namedtuple("mass_term_pair", ('mass', 'term'))):
+    def __lt__(self, other):
+        return self.mass < float(other)
+
+    def __gt__(self, other):
+        return self.mass > float(other)
+
+    def __float__(self):
+        return self.mass
+
+
+valid_monosaccharide_names = [
+    "Hex",
+    "HexNAc",
+    "dHex",
+    "NeuAc",
+    "NeuGc",
+    "Pen",
+    "Fuc",
+    # "HexA",
+    # "HexN",
+]
+
+valid_monosaccharides = {FrozenMonosaccharideResidue.from_iupac_lite(v): v
+                         for v in valid_monosaccharide_names}
+
+
+def monosaccharide_to_term(monosaccharide):
+    try:
+        return valid_monosaccharides[monosaccharide]
+    except KeyError:
+        value = str(monosaccharide)
+        return value
+
+
+substituent_map = {
+    "S": "sulfate",
+    "P": "phosphate",
+    # "Me": "methyl",
+    # "Ac": "acetyl",
+}
+
+inverted_substituent_map = {
+    v: k for k, v in substituent_map.items()
+}
+
+substituent_map['Sulpho'] = "sulfate"
+substituent_map['Phospho'] = "phosphate"
+
+
+def mparam(name, value=None, accession=None, cvRef="PSI-MS", **kwargs):
+    if isinstance(name, dict):
+        value = name.pop('value', None)
+        accession = name.pop('accession')
+        cvRef = name.pop('cvRef', cvRef)
+        name_ = name.pop("name")
+        kwargs.update(kwargs)
+        name = name_
+    return components.CVParam(
+        name=name,
+        value=value,
+        accession=accession,
+        cvRef=cvRef,
+        **kwargs)
+
+
+def parse_glycan_formula(glycan_formula):
+    gc = FrozenGlycanComposition()
+    if glycan_formula.startswith("\""):
+        glycan_formula = glycan_formula[1:-1]
+    for mono, count in re.findall(r"([^0-9]+)\((\d+)\)", glycan_formula):
+        count = int(count)
+        if mono in substituent_map:
+            parsed = SubstituentResidue(substituent_map[mono])
+        elif mono in ("Sia", ):
+            continue
+        elif mono in ("Pent", ):
+            mono = "Pen"
+            parsed = FrozenMonosaccharideResidue.from_iupac_lite(mono)
+        elif mono == 'Xxx':
+            continue
+        elif mono == 'X':
+            continue
+        else:
+            parsed = FrozenMonosaccharideResidue.from_iupac_lite(mono)
+        gc[parsed] += count
+    return gc
+
+
+class GNOmeResolver(object):
+    def __init__(self, cv=None):
+        if cv is None:
+            cv = load_gno()
+        self.cv = cv
+        self.build_mass_search_index()
+        self.add_glycan_compositions()
+
+    def add_glycan_compositions(self):
+        formula_key = "GNO:00000202"
+        for term in self.cv.terms.values():
+            glycan_formula = term.get(formula_key)
+            if glycan_formula:
+                term['glycan_composition'] = parse_glycan_formula(glycan_formula)
+
+    def build_mass_search_index(self):
+        mass_index = []
+
+        for term in self.cv.terms.values():
+            match = re.search(r"weight of (\d+\.\d+) Da", term.definition)
+            if match:
+                mass = float(match.group(1))
+                term['mass'] = mass
+                mass_index.append(mass_term_pair(mass, term))
+
+        mass_index.sort()
+        self.mass_index = mass_index
+
+    def _find_mass_match(self, mass):
+        i = bisect.bisect_left(self.mass_index, mass)
+        lo = self.mass_index[i - 1]
+        lo_err = abs(lo.mass - mass)
+        hi = self.mass_index[i]
+        hi_err = abs(hi.mass - mass)
+        if hi_err < lo_err:
+            term = hi.term
+        elif hi_err > lo_err:
+            term = lo.term
+        else:
+            raise ValueError(
+                "Ambiguous duplicate masses (%0.2f, %0.2f)" % (lo.mass, hi.mass))
+        return term
+
+    def resolve_gnome(self, glycan_composition):
+        mass = glycan_composition.mass()
+        term = self._find_mass_match(mass)
+        recast = glycan_composition.clone().reinterpret(valid_monosaccharides)
+        visit_queue = deque(term.children)
+        while visit_queue:
+            child = visit_queue.popleft()
+            gc = child.get("glycan_composition")
+            if gc is None:
+                visit_queue.extend(child.children)
+            elif gc == recast:
+                return child
+
+    def glycan_composition_to_terms(self, glycan_composition):
+        out = []
+        term = self.resolve_gnome(glycan_composition)
+        if term is not None:
+            out.append({
+                "accession": term.id,
+                "name": term.name,
+                "cvRef": term.vocabulary.name
+            })
+        reinterpreted = glycan_composition.clone().reinterpret(valid_monosaccharides)
+        for mono, count in reinterpreted.items():
+            if isinstance(mono, SubstituentResidue):
+                subst = inverted_substituent_map.get(
+                    mono.name.replace("@", ""))
+                if subst is not None:
+                    out.append({
+                        "name": "monosaccharide count",
+                        "value": ("%s:%d" % (subst, count)),
+                        "accession": "MS:XXXXX2",
+                        "cvRef": "PSI-MS"
+                    })
+                else:
+                    out.append({
+                        "name": "unknown monosaccharide count",
+                        "value": ("%s:%0.3f:%d" % (mono.name.replace("@", ""), mono.mass(), count)),
+                        "accession": "MS:XXXXX3",
+                        "cvRef": "PSI-MS"
+                    })
+            elif isinstance(mono, MonosaccharideResidue):
+                for known in valid_monosaccharides:
+                    if identity.is_a(mono, known):
+                        out.append({
+                            "name": "monosaccharide count",
+                            "value": ("%s:%d" % (monosaccharide_to_term(known), count)),
+                            "accession": "MS:XXXXX2",
+                            "cvRef": "PSI-MS"
+                        })
+                        break
+                else:
+                    out.append({
+                        "name": "unknown monosaccharide count",
+                        "value": ("%s:%0.3f:%d" % (monosaccharide_to_term(mono), mono.mass(), count)),
+                        "accession": "MS:XXXXX3",
+                        "cvRef": "PSI-MS"
+                    })
+            else:
+                raise TypeError("Cannot handle unexpected component of type %s" % (type(mono), ))
+        return out
+
+
+def convert_to_protein_dict(protein, include_sequence=True):
     data = {
         "id": protein.id,
         "accession": protein.name,
         "search_database_id": 1,
-        "sequence": protein.protein_sequence
     }
-    return data
-
-
-def convert_to_peptide_dict(glycopeptide, id_tracker):
-    data = {
-        "id": glycopeptide.id,
-        "peptide_sequence": parser.strip_modifications(glycopeptide),
-        "modifications": [
-
-        ]
-    }
-
-    i = 0
-    # TODO: handle N-terminal and C-terminal modifications
-    for pos, mods in glycopeptide:
-        i += 1
-        if not mods:
-            continue
-        else:
-            mod = mods[0]
-        if mod.rule.is_a("glycosylation"):
-            mod_dict = {
-                "monoisotopic_mass_delta": glycopeptide.glycan_composition.mass(),
-                "location": i,
-                "name": "unknown modification",
-                "params": [
-                    components.UserParam(
-                        name='GlycosylationType', value=str(mod)),
-                    components.UserParam(name='GlycanComposition', value=str(
-                        glycopeptide.glycan_composition)),
-                    components.UserParam(name='Formula', value=formula(
-                        glycopeptide.glycan_composition.total_composition()))
-                ]
-            }
-            data['modifications'].append(mod_dict)
-        else:
-            mod_dict = {
-                "monoisotopic_mass_delta": mod.mass,
-                "location": i,
-                "name": mod.name,
-            }
-            data['modifications'].append(mod_dict)
+    if include_sequence:
+        data["sequence"] = protein.protein_sequence
     return data
 
 
@@ -94,19 +258,64 @@ def convert_to_identification_item_dict(spectrum_match, seen=None, id_tracker=No
             spectrum_match.target.total_mass, charge),
         "peptide_id": id_tracker(spectrum_match.target),
         "peptide_evidence_id": spectrum_match.target.id,
-        "score": {"name": "GlycReSoft:score", "value": spectrum_match.score},
+        "score": mparam({
+            "name": "GlycReSoft:total score",
+            "value": spectrum_match.score,
+            "accession": "MS:XXX10A",
+        }),
         "params": [
-            {"name": "GlycReSoft:q-value", "value": spectrum_match.q_value},
+            components.CVParam(**{
+                "name": "glycan dissociating, peptide preserving",
+                "accession": "MS:XXX111", "cvRef": "PSI-MS"}),
+            components.CVParam(**{
+                "name": "glycan eliminated, peptide dissociating",
+                "accession": "MS:XXX114", "cvRef": "PSI-MS"}),
+            {
+                "name": "scan start time",
+                "value": spectrum_match.scan.scan_time,
+                "unit_name": "minute"
+            }
         ],
         "id": spectrum_match.id
     }
+    if spectrum_match.is_multiscore():
+        score_params = [
+            mparam("GlycReSoft:peptide score",
+                  spectrum_match.score_set.peptide_score, "MS:XXX10C"),
+            mparam("GlycReSoft:glycan score",
+                  spectrum_match.score_set.glycan_score, "MS:XXX10B"),
+            mparam("GlycReSoft:glycan coverage",
+                  spectrum_match.score_set.glycan_coverage, "MS:XXX10H"),
+            mparam("GlycReSoft:joint q-value",
+                  spectrum_match.q_value, "MS:XXX10G"),
+            mparam("GlycReSoft:peptide q-value",
+                  spectrum_match.q_value_set.peptide_q_value,
+                  "MS:XXX10E"),
+            mparam("GlycReSoft:glycan q-value",
+                  spectrum_match.q_value_set.glycan_q_value, "MS:XXX10F"),
+            mparam("GlycReSoft:glycopeptide q-value",
+                  spectrum_match.q_value_set.glycopeptide_q_value, "MS:XXX10D"),
+        ]
+        data['params'].extend(score_params)
+    else:
+        data['params'].extend([
+            mparam("GlycReSoft:glycopeptide q-value",
+                  spectrum_match.q_value, "MS:XXX10D"),
+        ])
+    if spectrum_match.mass_shift.name != Unmodified.name:
+        data['params'].append(
+            mparam("GlycReSoft:mass shift", "%s:%0.3f:%0.3f" % (
+                spectrum_match.mass_shift.name,
+                spectrum_match.mass_shift.mass,
+                spectrum_match.mass_shift.tandem_mass),
+                    "MS:XXX10I"))
     return data
 
 
 def convert_to_spectrum_identification_dict(spectrum_solution_set, seen=None, id_tracker=None):
     data = {
         "spectra_data_id": 1,
-        "spectrum_id": spectrum_solution_set.scan.id,
+        "spectrum_id": spectrum_solution_set.scan.scan_id,
         "id": spectrum_solution_set.id
     }
     idents = []
@@ -206,15 +415,42 @@ class SequenceIdTracker(object):
             print(value, key)
 
 
+glycosylation_type_to_term_map = {
+    "N-Linked": {
+        "name": "N-glycan",
+        "accession": "MS:XXXXX5",
+        "cvRef": "PSI-MS",
+    },
+    "O-Linked": {
+        "name": "mucin O-glycan",
+        "accession": "MS:XXXXX6",
+        "cvRef": "PSI-MS",
+    },
+    "GAG linker": {
+        "name": "glycosaminoglycan",
+        "accession": "MS:XXXXX7",
+        "cvRef": "PSI-MS",
+    },
+}
+
+glycosylation_type_to_term_map["N-Glycan"] = glycosylation_type_to_term_map["N-Linked"]
+glycosylation_type_to_term_map["O-Glycan"] = glycosylation_type_to_term_map["O-Linked"]
+
+
+def glycosylation_type_to_term(glycosylation_type):
+    return glycosylation_type_to_term_map[glycosylation_type]
+
+
 class MzIdentMLSerializer(task.TaskBase):
     def __init__(self, outfile, glycopeptide_list, analysis, database_handle,
                  q_value_threshold=0.05, ms2_score_threshold=0,
                  export_mzml=True, source_mzml_path=None,
-                 output_mzml_path=None):
+                 output_mzml_path=None, embed_protein_sequences=True):
         self.outfile = outfile
         self.database_handle = database_handle
         self._glycopeptide_list = glycopeptide_list
         self.protein_list = None
+        self.glycan_list = None
         self.analysis = analysis
         self.scan_ids = set()
         self._id_tracker = SequenceIdTracker()
@@ -223,15 +459,111 @@ class MzIdentMLSerializer(task.TaskBase):
         self.export_mzml = export_mzml
         self.source_mzml_path = source_mzml_path
         self.output_mzml_path = output_mzml_path
+        self.embed_protein_sequences = embed_protein_sequences
+        self.gnome_resolver = GNOmeResolver()
 
     @property
     def glycopeptide_list(self):
         return self._glycopeptide_list
 
     def extract_proteins(self):
-        self.protein_list = [self.database_handle.query(
-            serialize.Protein).get(i) for i in
-            {gp.protein_relation.protein_id for gp in self.glycopeptide_list}]
+        self.protein_list = self.database_handle.query(serialize.Protein).all()
+
+    def extract_glycans(self):
+        self.glycan_list = self.database_handle.query(serialize.GlycanCombination).all()
+
+    def convert_to_peptide_dict(self, glycopeptide, id_tracker):
+        data = {
+            "id": glycopeptide.id,
+            "peptide_sequence": parser.strip_modifications(glycopeptide),
+            "modifications": []
+        }
+
+        i = 0
+        # TODO: handle N-terminal and C-terminal modifications
+        glycosylation_event_count = len(glycopeptide.convert().glycosylation_manager)
+        glycosylation_events_handled = 0
+        for _pos, mods in glycopeptide:
+            i += 1
+            if not mods:
+                continue
+            else:
+                mod = mods[0]
+            if mod.rule.is_a("glycosylation"):
+                glycosylation_events_handled += 1
+                is_aggregate_stub = False
+                mod_params = [
+                    glycosylation_type_to_term(
+                        str(mod.rule.glycosylation_type))
+                ]
+                if mod.rule.is_core:
+
+                    mod_params.extend(
+                        self.gnome_resolver.glycan_composition_to_terms(glycopeptide.glycan_composition.clone()))
+
+                    mass = glycopeptide.glycan_composition.mass()
+                    if glycosylation_event_count == 1:
+                        mod_params.append({
+                            "name": "glycan composition",
+                            "cvRef": "PSI-MS",
+                            "accession": "MS:XXXX14"
+                        })
+                    else:
+                        mod_params.append({
+                            "name": "glycan aggregate",
+                            "cvRef": "PSI-MS",
+                            "accession": "MS:XXXX15"
+                        })
+                        if glycosylation_events_handled > 1:
+                            mass = 0
+                            is_aggregate_stub = True
+
+                    if not is_aggregate_stub:
+                        mod_params.append({
+                            "accession": 'MS:1000864',
+                            "cvRef": "PSI-MS",
+                            "name": "chemical formula",
+                            "value": formula(glycopeptide.glycan_composition.total_composition()),
+                        })
+
+                else:
+                    mod_params.append({
+                        "accession": 'MS:1000864',
+                        "cvRef": "PSI-MS",
+                        "name": "chemical formula",
+                        "value": formula(mod.rule.composition),
+                    })
+                    if mod.rule.is_composition:
+                        mod_params.extend(self.gnome_resolver.glycan_composition_to_terms(mod.rule.glycan.clone()))
+                        mod_params.append({
+                            "name": "glycan composition",
+                            "cvRef": "PSI-MS",
+                            "accession": "MS:XXXX14"
+                        })
+                    else:
+                        mod_params.append({
+                            "name": "glycan structure",
+                            "cvRef": "PSI-MS",
+                            "accession": "MS:XXXXXXX"
+                        })
+                    mass = mod.mass
+
+                mod_dict = {
+                    "monoisotopic_mass_delta": mass,
+                    "location": i,
+                    # "name": "unknown modification",
+                    "name": "glycosylation modification",
+                    "params": [components.CVParam(**x) for x in mod_params]
+                }
+                data['modifications'].append(mod_dict)
+            else:
+                mod_dict = {
+                    "monoisotopic_mass_delta": mod.mass,
+                    "location": i,
+                    "name": mod.name,
+                }
+                data['modifications'].append(mod_dict)
+        return data
 
     def extract_peptides(self):
         self.log("Extracting Proteins")
@@ -241,7 +573,7 @@ class MzIdentMLSerializer(task.TaskBase):
 
         self.log("Extracting Peptides")
         for gp in self.glycopeptide_list:
-            d = convert_to_peptide_dict(gp.structure, self._id_tracker)
+            d = self.convert_to_peptide_dict(gp.structure, self._id_tracker)
 
             if self._id_tracker(gp.structure) == gp.structure.id:
                 self._peptides.append(d)
@@ -253,15 +585,24 @@ class MzIdentMLSerializer(task.TaskBase):
                 gp.structure, self._id_tracker) for gp in self.glycopeptide_list
         ]
 
-        self._proteins = [convert_to_protein_dict(prot) for prot in self.protein_list]
+        self._proteins = [
+            convert_to_protein_dict(prot, self.embed_protein_sequences)
+            for prot in self.protein_list
+        ]
 
     def extract_spectrum_identifications(self):
         self.log("Extracting SpectrumIdentificationResults")
         spectrum_identifications = []
         seen_scans = set()
         accepted_solution_ids = {gp.structure.id for gp in self.glycopeptide_list}
-        for gp in self.glycopeptide_list:
+        gp_list = self.glycopeptide_list
+        n = len(gp_list)
+        j = 0
+        for i, gp in enumerate(gp_list):
+            if i % 25 == 0:
+                self.log("... Processed %d glycopeptide features with %d spectra matched (%0.2f%%)" % (i, j, i * 100.0 / n))
             for solution in gp.spectrum_matches:
+                j += 1
                 if solution.scan.scan_id in seen_scans:
                     continue
                 if solution.best_solution().q_value > self.q_value_threshold:
@@ -327,7 +668,7 @@ class MzIdentMLSerializer(task.TaskBase):
         def transform_modification(mod):
             if isinstance(mod, basestring):
                 mod_inst = modification.Modification(mod)
-                target = modification.extract_targets_from_string(mod)
+                target = modification.extract_targets_from_rule_string(mod)
                 new_rule = mod_inst.rule.clone({target})
                 return new_rule
             return mod
@@ -344,32 +685,124 @@ class MzIdentMLSerializer(task.TaskBase):
             }
             return mod_spec
 
+        def pack_glycan_modification(glycan_composition, fixed=False):
+            params = self.gnome_resolver.glycan_composition_to_terms(glycan_composition.convert())
+            glycan_types = sorted({str(b) for a in glycan_composition.component_classes for b in a})
+            residues = []
+            for gt in glycan_types:
+                gt = str(gt)
+                if gt == "N-Glycan":
+                    residues.append("N")
+                if gt == "O-Glycan":
+                    residues.extend("ST")
+                if gt == 'GAG-Linker':
+                    residues.append("S")
+                params.append(glycosylation_type_to_term(gt))
+            if glycan_composition.count == 1:
+                params.append({
+                    "name": "glycan composition",
+                    "cvRef": "PSI-MS",
+                    "accession": "MS:XXXX14"
+                })
+            else:
+                params.append({
+                    "name": "glycan aggregate",
+                    "cvRef": "PSI-MS",
+                    "accession": "MS:XXXX15"
+                })
+            mod_spec = {
+                "fixed": fixed,
+                "mass_delta": glycan_composition.dehydrated_mass(),
+                "name": "glycosylation modification",
+                # "accession": "MS:XXXXX1",
+                "residues": residues,
+                "params": [components.CVParam(**x) for x in params]
+            }
+            return mod_spec
+
+
         for mod in hypothesis.parameters.get('constant_modifications', []):
             mod = transform_modification(mod)
             mods.append(pack_modification(mod, True))
         for mod in hypothesis.parameters.get('variable_modifications', []):
             mod = transform_modification(mod)
             mods.append(pack_modification(mod, False))
+
+        for gc in sorted(self.glycan_list, key=lambda x: (x.mass(), x.id)):
+            mods.append(pack_glycan_modification(gc, False))
+
+        strategy = analysis.parameters.get("search_strategy")
+        if strategy == "multipart-target-decoy-competition":
+            fdr_params = [
+                {"name": "glycopeptide false discovery rate control strategy",
+                 "accession": "MS:XXX108", "cvRef": "PSI-MS"},
+                {"name": "peptide glycopeptide false discovery rate control strategy",
+                 "accession": "MS:XXX106", "cvRef": "PSI-MS"},
+                {"name": "glycan glycopeptide false discovery rate control strategy",
+                 "accession": "MS:XXX107", "cvRef": "PSI-MS"},
+                {"name": "joint glycopeptide false discovery rate control strategy",
+                 "accession": "MS:XXX11A", "cvRef": "PSI-MS"},
+            ]
+        else:
+            fdr_params = [
+                {"name": "glycopeptide false discovery rate control strategy",
+                 "accession": "MS:XXX108", "cvRef": "PSI-MS"},
+            ]
         spec = {
             "enzymes": [
                 {"name": getattr(e, 'name', e), "missed_cleavages": hypothesis.parameters.get(
-                    'max_missed_cleavages', None)}
-                for e in hypothesis.parameters.get('enzymes')
+                    'max_missed_cleavages', None), "id": i}
+                for i, e in enumerate(hypothesis.parameters.get('enzymes'))
             ],
             "fragment_tolerance": (analysis.parameters['fragment_error_tolerance'] * 1e6, None, "parts per million"),
             "parent_tolerance": (analysis.parameters['mass_error_tolerance'] * 1e6, None, "parts per million"),
             "modification_params": mods,
-            "id": 1
+            "id": 1,
+            "additional_search_params": [
+                {
+                    "name": "glycopeptide search",
+                    "accession": "MS:XXXX98",
+                    "cvRef": "PSI-MS",
+                }
+            ] + fdr_params + [
+                {
+                    "name": "param: b ion",
+                    "accession": "MS:1001118",
+                    "cvRef": "PSI-MS",
+                },
+                {
+                    "name": "param: y ion",
+                    "accession": "MS:1001262",
+                    "cvRef": "PSI-MS",
+                },
+                {
+                    "name": "param: peptide + glycan Y ion",
+                    "accession": "MS:XXXX17",
+                    "cvRef": "PSI-MS",
+                },
+                {
+                    "name": "param: oxonium ion",
+                    "accession": "MS:XXXX22",
+                    "cvRef": "PSI-MS",
+                },
+            ]
         }
+        spec['additional_search_params'] = [components.CVParam(**x) for x in spec['additional_search_params']]
         return spec
 
     def run(self):
-        f = MzIdentMLWriter(self.outfile)
+        f = MzIdentMLWriter(self.outfile, vocabularies=[
+            components.CV(
+                id='GNO', uri="http://purl.obolibrary.org/obo/gno.obo", full_name='GNO'),
+        ])
+        self.log("Loading Spectra Data")
         spectra_data = self.spectra_data()
+        self.log("Loading Search Database")
         search_database = self.search_database()
+        self.log("Building Protocol")
+        self.extract_glycans()
         protocol = self.protocol()
         source_file = self.source_file()
-
         self.extract_peptides()
         self.extract_spectrum_identifications()
 
@@ -416,7 +849,13 @@ class MzIdentMLSerializer(task.TaskBase):
             f.register("SearchDatabase", search_database['id'])
             f.register("SpectrumIdentificationList", self._spectrum_identification_list['id'])
 
-            f._sequence_collection(self._proteins, self._peptides, self._peptide_evidence)
+            with f.sequence_collection():
+                for prot in self._proteins:
+                    f.write_db_sequence(**prot)
+                for pep in self._peptides:
+                    f.write_peptide(**pep)
+                for pe in self._peptide_evidence:
+                    f.write_peptide_evidence(**pe)
 
             with f.analysis_protocol_collection():
                 f.spectrum_identification_protocol(**protocol)
@@ -427,6 +866,13 @@ class MzIdentMLSerializer(task.TaskBase):
             with f.element("DataCollection"):
                 f.inputs(source_file, search_database, spectra_data)
                 with f.element("AnalysisData"):
-                    f.spectrum_identification_list(**self._spectrum_identification_list)
+                    with f.spectrum_identification_list(id=self._spectrum_identification_list['id']):
+                        for result_ in self._spectrum_identification_list['identification_results']:
+                            result = dict(result_)
+                            identifications = result.pop("identifications")
+                            result = f.spectrum_identification_result(**result)
+                            with result:
+                                for item in identifications:
+                                    f.write_spectrum_identification_item(**item)
+
         f.outfile.close()
-        f.format()

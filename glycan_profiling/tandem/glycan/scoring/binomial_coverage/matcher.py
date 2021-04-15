@@ -1,7 +1,7 @@
 from ms_deisotope import CompositionListPeakDependenceGraphDeconvoluter, DistinctPatternFitter
 
 from glycan_profiling.database.composition_aggregation import Formula, CommonComposition, Composition
-from glycan_profiling.tandem.spectrum_matcher_base import SpectrumMatcher
+from glycan_profiling.tandem.spectrum_match import SpectrumMatcherBase
 
 
 from .score_components import IntensityRankScorer, FragmentScorer
@@ -14,7 +14,7 @@ def get_fragments(assigned_peaks):
     return results
 
 
-class BinomialCoverageSpectrumMatcher(SpectrumMatcher):
+class BinomialCoverageSpectrumMatcher(SpectrumMatcherBase):
     """Encapsulates the process of matching experimental peaks to theoretical peaks.
 
     Given a :class:`ms_peak_picker.PeakIndex` from a :class:`MSMSScan` and a :class:`StructureRecord`

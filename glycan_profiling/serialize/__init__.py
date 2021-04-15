@@ -1,8 +1,9 @@
 from sqlalchemy import exc, func
 from sqlalchemy.orm.session import object_session
 
-from glycan_profiling.serialize.base import (
-    Base,
+from glycan_profiling.serialize.base import Base
+
+from glycan_profiling.serialize.spectrum import (
     SampleRun,
     MSScan,
     PrecursorInformation,
@@ -22,7 +23,7 @@ from glycan_profiling.serialize.chromatogram import (
     CompoundMassShift,
     UnidentifiedChromatogram,
     GlycanCompositionChromatogram,
-    ChromatogramSolutionAdductedToChromatogramSolution)
+    ChromatogramSolutionMassShiftedToChromatogramSolution)
 
 from glycan_profiling.serialize.tandem import (
     GlycopeptideSpectrumCluster,
@@ -52,3 +53,8 @@ from glycan_profiling.serialize.hypothesis import *
 #     GlycopeptideMSMSAnalysisSerializer)
 
 from glycan_profiling.serialize import config
+
+import sys
+from glycan_profiling.serialize import spectrum
+
+sys.modules['ms_deisotope.output.db'] = spectrum

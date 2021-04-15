@@ -17,7 +17,8 @@ from glycan_profiling.cli.validators import (
     validate_mzid_proteins,
     GlycanHypothesisCopier,
     DatabaseConnectionParam,
-    SubstituentParamType)
+    SubstituentParamType,
+    synthesis_register)
 
 from glycan_profiling.cli.utils import ctxstream
 
@@ -43,7 +44,8 @@ from glycan_profiling.database.builder.glycan import (
     OGlycanGlyspaceHypothesisSerializer,
     TaxonomyFilter,
     GlycanAnalysisHypothesisSerializer,
-    GlycopeptideAnalysisGlycanCompositionExtractionHypothesisSerializer)
+    GlycopeptideAnalysisGlycanCompositionExtractionHypothesisSerializer,
+    SynthesisGlycanHypothesisSerializer)
 
 from glycan_profiling.database.prebuilt import hypothesis_register as prebuilt_hypothesis_register
 
@@ -53,8 +55,12 @@ from glycan_profiling.database.composition_network import (
     CompositionRangeRule,
     CompositionRatioRule,
     CompositionRuleClassifier,
-    CompositionExpressionRule, make_n_glycan_neighborhoods)
+    CompositionExpressionRule,
+    make_n_glycan_neighborhoods,
+    make_adjacency_neighborhoods,
+    make_mammalian_n_glycan_neighborhoods)
 
+from glycopeptidepy.enzyme import enzyme_rules
 from glycopeptidepy.utils.collectiontools import decoratordict
 from glycopeptidepy.structure.modification import RestrictedModificationTable
 
@@ -193,6 +199,8 @@ def glycopeptide_hypothesis_common_options(cmd):
                      help="The type of glycan information source to use"),
         click.option("-g", "--glycan-source", required=True,
                      help="The path, identity, or other specifier for the glycan source"),
+        click.option("-z", "--peptide-length-range", type=(int, int), default=(5, 60),
+                     help="The minimum and maximum peptide length to consider")
     ]
     for opt in options:
         cmd = opt(cmd)
@@ -206,19 +214,30 @@ def glycopeptide_hypothesis_common_options(cmd):
 @click.argument("fasta-file", type=click.Path(exists=True), doc_help=(
     "A file containing protein sequences in FASTA format"))
 @database_connection
-@click.option("-e", "--enzyme", default='trypsin', multiple=True,
-              help='The proteolytic enzyme to use during digestion')
+@click.option("-e", "--enzyme", default=['trypsin'], multiple=True,
+              help=(
+                  'The proteolytic enzyme to use during digestion. May be specified multiple'
+                  ' times, generating a co-digestion. May specify an enzyme name or a regular'
+                  ' expression describing the cleavage pattern. Recognized enzyme names are: ' +
+                  ', '.join(sorted(enzyme_rules))))
 @click.option("-m", "--missed-cleavages", type=int, default=1,
               help="The number of missed proteolytic cleavage sites permitted")
 @click.option("-c", "--constant-modification", multiple=True,
               help='Peptide modification rule which will be applied constantly')
 @click.option("-v", "--variable-modification", multiple=True,
               help='Peptide modification rule which will be applied variablely')
-@click.option("--reverse", default=False, is_flag=True, help='Reverse protein sequences', cls=HiddenOption)
+@click.option("-V", "--max-variable-modifications", type=int, default=4, required=False,
+              help=("The maximum number of variable modifications that can be applied to a single peptide"))
+@click.option("-y", "--semispecific-digest", is_flag=True, help=(
+    "Apply a semispecific enzyme digest permitting one peptide terminal to be non-specific"))
+@click.option("-R", "--reverse", default=False, is_flag=True, help='Reverse protein sequences')
 @click.option("--dry-run", default=False, is_flag=True, help="Do not save glycopeptides", cls=HiddenOption)
+@click.option("-F", "--not-full-crossproduct", is_flag=True, help=(
+    "Do not produce full crossproduct. For when the search space is too large to enumerate, store, and load."))
 def glycopeptide_fa(context, fasta_file, database_connection, enzyme, missed_cleavages, occupied_glycosites, name,
                     constant_modification, variable_modification, processes, glycan_source, glycan_source_type,
-                    glycan_source_identifier=None, reverse=False, dry_run=False):
+                    glycan_source_identifier=None, semispecific_digest=False, reverse=False, dry_run=False,
+                    peptide_length_range=(5, 60), not_full_crossproduct=False, max_variable_modifications=4):
     '''Constructs a glycopeptide hypothesis from a FASTA file of proteins and a
     collection of glycans.
     '''
@@ -260,7 +279,11 @@ def glycopeptide_fa(context, fasta_file, database_connection, enzyme, missed_cle
         max_missed_cleavages=missed_cleavages,
         max_glycosylation_events=occupied_glycosites,
         hypothesis_name=name,
-        n_processes=processes)
+        semispecific=semispecific_digest,
+        n_processes=processes,
+        full_cross_product=not not_full_crossproduct,
+        max_variable_modifications=max_variable_modifications,
+        peptide_length_range=peptide_length_range)
     builder.display_header()
     builder.start()
     return builder.hypothesis_id
@@ -282,7 +305,7 @@ def glycopeptide_fa(context, fasta_file, database_connection, enzyme, missed_cle
                     "the FASTA file used is not local."))
 def glycopeptide_mzid(context, mzid_file, database_connection, name, occupied_glycosites, target_protein,
                       target_protein_re, processes, glycan_source, glycan_source_type, glycan_source_identifier,
-                      reference_fasta):
+                      reference_fasta, peptide_length_range=(5, 60)):
     '''Constructs a glycopeptide hypothesis from a MzIdentML file of proteins and a
     collection of glycans.
     '''
@@ -309,7 +332,8 @@ def glycopeptide_mzid(context, mzid_file, database_connection, name, occupied_gl
         target_proteins=proteins,
         max_glycosylation_events=occupied_glycosites,
         reference_fasta=reference_fasta,
-        n_processes=processes)
+        n_processes=processes,
+        peptide_length_range=peptide_length_range)
     builder.display_header()
     builder.start()
     return builder.hypothesis_id
@@ -479,6 +503,40 @@ def prebuilt_glycan(context, database_connection, recipe_name, name, reduction, 
            derivatization=derivatization)
 
 
+@build_hypothesis.command(
+    "glycan-synthesis",
+    short_help='Construct a glycan hypothesis from a set of biosynthetic pathways')
+@click.pass_context
+@database_connection
+@click.option("-n", "--name", default=None, help="The name for the hypothesis to be created")
+@click.option("-r", "--reduction", default=None, help='Reducing end modification')
+@click.option("-d", "--derivatization", default=None, help='Chemical derivatization to apply')
+@click.option("-w", "--pathway-type", default='human-n-glycan', type=click.Choice([
+    'mammalian-n-glycan', 'human-n-glycan',
+    'human-o-glycan', 'mammalian-o-glycan']), help=(
+    'The default pathway template to use, and the glycan class annotation type.'))
+@click.option('-m', '--maximum-size', default=26, type=int,
+              help='The maximum number of residues to allow in a single glycan')
+@click.option('-e', "--remove-enzyme", "removed_enzymes", multiple=True)
+@click.option('-a', "--add-enzyme", "added_enzymes", multiple=True)
+@click.option("-p", "--processes", 'processes', type=click.IntRange(1, multiprocessing.cpu_count()),
+              default=min(multiprocessing.cpu_count(), 4),
+              help=('Number of worker processes to use. Defaults to 4 '
+                    'or the number of CPUs, whichever is lower'))
+def glycan_synthesis(context, database_connection, name, pathway_type, removed_enzymes, added_enzymes,
+                     maximum_size, reduction, derivatization, processes):
+    pathway = synthesis_register[pathway_type](n_processes=processes)
+    pathway.add_limit(pathway.size_limiter_type(maximum_size))
+    for enzyme_to_remove in removed_enzymes:
+        pathway.remove_enzyme(enzyme_to_remove)
+    for enzyme_to_add in added_enzymes:
+        click.echo("Adding enzymes is unsupported at this time")
+    task = SynthesisGlycanHypothesisSerializer(
+        pathway, database_connection,
+        hypothesis_name=name, reduction=reduction, derivatization=derivatization)
+    task.start()
+
+
 @build_hypothesis.group("glycan-network", short_help='Build and manipulate glycan network definitions')
 def glycan_network_tools():
     pass
@@ -521,7 +579,8 @@ def glycan_network(context, database_connection, hypothesis_identifier, edge_str
 @click.option("-i", "--input-path", type=click.Path(dir_okay=False), default=None)
 @click.option("-o", "--output-path", type=click.Path(dir_okay=False, writable=True),
               default=None)
-@click.option("-n", "--name", help='Set the neighborhood name', type=click.Choice(["n-glycan"]), required=True)
+@click.option("-n", "--name", help='Set the neighborhood name', type=click.Choice(
+    ["n-glycan", "mammalian-n-glycan", ]), required=True)
 def add_prebuild_neighborhoods_to_network(context, input_path, output_path, name):
     if input_path is None:
         input_stream = ctxstream(sys.stdin)
@@ -531,6 +590,8 @@ def add_prebuild_neighborhoods_to_network(context, input_path, output_path, name
         graph = GraphReader(input_stream).network
     if name == 'n-glycan':
         neighborhoods = make_n_glycan_neighborhoods()
+    elif name == 'mammalian-n-glycan':
+        neighborhoods = make_mammalian_n_glycan_neighborhoods()
     else:
         raise LookupError(name)
     for n in neighborhoods:
@@ -559,8 +620,7 @@ def add_prebuild_neighborhoods_to_network(context, input_path, output_path, name
 @click.option("-a", "--ratio-rule", nargs=4, multiple=True, help=(
     "Format: <numerator-expr:str> <denominator-expr:str> <threshold:float> <required:bool>"
 ))
-def add_neighborhood_to_network(context, input_path, output_path, name, range_rule, expression_rule,
-                                ratio_rule):
+def add_neighborhood_to_network(context, input_path, output_path, name, range_rule, expression_rule, ratio_rule):
     if input_path is None:
         input_stream = ctxstream(sys.stdin)
     else:

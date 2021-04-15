@@ -26,4 +26,4 @@ GeneralScorer = ChromatogramScorer()
 GeneralScorer.add_feature(GeneralizedChargeScoringModel)
 
 
-register_feature("null_charge", DummyFeature("charge_count", "null_charge_model"))
+register_feature("null_charge", DummyFeature("null_charge_model", "charge_count"))

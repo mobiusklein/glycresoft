@@ -6,8 +6,8 @@ from .glycan import (
     GlycanCompositionToClass, GlycanStructureToClass)
 
 from .peptide import (
-    Protein, Peptide, Glycopeptide)
+    Protein, Peptide, Glycopeptide, ProteinSite)
 
 from .generic import (
     TemplateNumberStore as TemplateNumberStore,
-    ReferenceDatabase, ReferenceAccessionNumber)
+    ReferenceDatabase, ReferenceAccessionNumber, FileBlob)

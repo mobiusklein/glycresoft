@@ -3,9 +3,9 @@ import tempfile
 
 from glycan_profiling.serialize.hypothesis.peptide import Peptide, Protein, Glycopeptide
 from glycan_profiling.database.builder.glycopeptide import naive_glycopeptide
-from glycan_profiling.database.builder.glycopeptide.proteomics import fasta
 from glycan_profiling.database.builder.glycan import (
-    TextFileGlycanHypothesisSerializer, CombinatorialGlycanHypothesisSerializer)
+    TextFileGlycanHypothesisSerializer,
+    CombinatorialGlycanHypothesisSerializer)
 from glycan_profiling import serialize
 from glycan_profiling.test import fixtures
 
@@ -91,6 +91,10 @@ o_glycans = """
 {Hex:1; HexNAc:1; Neu5Ac:2}    O-Glycan
 """
 
+simple_n_glycans = """
+{Hex:5; HexNAc:2}    N-Glycan
+"""
+
 decorin = """
 >sp|P21793|PGS2_BOVIN Decorin
 MKATIIFLLVAQVSWAGPFQQKGLFDFMLEDEASGIGPEEHFPEVPEIEPMGPVCPFRCQ
@@ -116,7 +120,7 @@ constant_modifications = [mt[c] for c in constant_modifications]
 class FastaGlycopeptideTests(unittest.TestCase):
 
     def setup_tempfile(self, source):
-        file_name = tempfile.mktemp()
+        file_name = tempfile.mktemp() + '.tmp'
         open(file_name, 'w').write(source)
         return file_name
 
@@ -218,6 +222,34 @@ class FastaGlycopeptideTests(unittest.TestCase):
         self.clear_file(db_file)
         self.clear_file(fasta_file)
         self.clear_file(glycan_file)
+
+    def test_extract_forward_backward(self):
+        fasta_file = fixtures.get_test_data("yeast_glycoproteins.fa")
+        glycan_file = self.setup_tempfile(simple_n_glycans)
+        forward_db = self.setup_tempfile("")
+        reverse_db = self.setup_tempfile("")
+
+        glycan_builder = TextFileGlycanHypothesisSerializer(glycan_file, forward_db)
+        glycan_builder.start()
+
+        builder = naive_glycopeptide.MultipleProcessFastaGlycopeptideHypothesisSerializer(
+            fasta_file, forward_db, 1)
+        cnt = builder.extract_proteins()
+        assert cnt == 251
+
+        glycan_builder = TextFileGlycanHypothesisSerializer(glycan_file, reverse_db)
+        glycan_builder.start()
+
+        rev_builder = naive_glycopeptide.ReversingMultipleProcessFastaGlycopeptideHypothesisSerializer(
+            fasta_file, reverse_db, 1)
+        cnt = rev_builder.extract_proteins()
+        assert cnt == 251
+        fwd_prots = builder.query(serialize.Protein).all()
+        rev_prots = rev_builder.query(serialize.Protein).all()
+
+        for fx, rx in zip(fwd_prots, rev_prots):
+            assert fx.name == rx.name
+            assert len(fx.glycosylation_sites) == len(rx.glycosylation_sites)
 
 
 if __name__ == '__main__':

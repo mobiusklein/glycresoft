@@ -1,5 +1,5 @@
 {
-    "adduct_types": [
+    "mass_shift_types": [
         {
             "composition": {}, 
             "name": "Unmodified"

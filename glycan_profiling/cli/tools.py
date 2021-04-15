@@ -21,7 +21,7 @@ from .validators import RelativeMassErrorParam, get_by_name_or_id
 
 from glycan_profiling.serialize import (
     DatabaseBoundOperation, GlycanHypothesis, GlycopeptideHypothesis,
-    SampleRun, Analysis)
+    SampleRun, Analysis, Protein, Glycopeptide, func, FileBlob)
 from glycan_profiling.database import (
     GlycopeptideDiskBackedStructureDatabase,
     GlycanCompositionDiskBackedStructureDatabase)
@@ -40,6 +40,14 @@ def database_connection(fn):
         "A connection URI for a database, or a path on the file system"),
         type=DatabaseBoundOperation)
     return arg(fn)
+
+
+def hypothesis_identifier(hypothesis_type):
+    def wrapper(fn):
+        arg = click.argument("hypothesis-identifier", doc_help=(
+            "The ID number or name of the %s hypothesis to use" % (hypothesis_type,)))
+        return arg(fn)
+    return wrapper
 
 
 def analysis_identifier(fn):
@@ -68,6 +76,10 @@ def list_contents(context, database_connection):
     click.echo("\nAnalysis")
     for analysis in database_connection.query(Analysis):
         click.echo("\t%d\t%s\t%s" % (analysis.id, analysis.name, analysis.sample_run.name))
+
+    click.echo("\nFile Blobs")
+    for blob in database_connection.query(FileBlob):
+        click.echo("\t%d\t%s" % (blob.id, blob.name))
 
 
 @tools.command('mzid-proteins', short_help='Extract proteins from mzIdentML files')
@@ -184,7 +196,7 @@ class SQLShellInterpreter(cmd.Cmd):
 @click.option("-s", "--script", default=None)
 def sql_shell(database_connection, script=None):
     db = DatabaseBoundOperation(database_connection)
-    session = db.session()
+    session = db.session()  # pylint: disable=not-callable
     interpreter = SQLShellInterpreter(session)
     if script is None:
         interpreter.cmdloop()
@@ -207,14 +219,20 @@ def validate_fasta(path):
             n_entries += 1
     if n_entries != n_deflines:
         click.secho("%d\">\" prefixed lines found, but %d entries parsed" % (n_deflines, n_entries))
-
+    else:
+        click.echo("%d Protein Sequences" % (n_entries, ))
+    n_glycoprots = 0
+    o_glycoprots = 0
     with open(path, 'r') as handle:
         invalid_sequences = []
         for entry in fasta.FastaFileParser(handle):
             try:
-                fasta.ProteinSequence(entry['name'], entry['sequence'])
+                seq = fasta.ProteinSequence(entry['name'], entry['sequence'])
+                n_glycoprots += bool(seq.n_glycan_sequon_sites)
+                o_glycoprots += bool(seq.o_glycan_sequon_sites)
             except UnknownAminoAcidException as e:
                 invalid_sequences.append((entry['name'], e))
+    click.echo("Proteins with N-Glycosites: %d" % n_glycoprots)
     for name, error in invalid_sequences:
         click.secho("%s had %s" % (name, error), fg='yellow')
 
@@ -265,7 +283,8 @@ def has_known_glycosylation(accession):
     'Checks UniProt to see if a list of proteins contains any known glycoproteins'))
 @click.option("-i", "--file-path", help="Read input from a file instead of STDIN")
 @click.option("-f", "--fasta-format", is_flag=True, help="Indicate input is in FASTA format")
-def known_uniprot_glycoprotein(file_path=None, fasta_format=False):
+@click.option("-o", "--output-path", help="Write output to a file instead of STDOUT")
+def known_uniprot_glycoprotein(file_path=None, output_path=None, fasta_format=False):
     if file_path is not None:
         handle = open(file_path)
     else:
@@ -286,6 +305,11 @@ def known_uniprot_glycoprotein(file_path=None, fasta_format=False):
             except Exception:
                 return header[0]
 
+    if output_path is None:
+        outhandle = sys.stdout
+    else:
+        outhandle = open(output_path, 'w')
+
     def checker_task(inqueue, outqueue, no_more_event):
         has_work = True
         while has_work:
@@ -299,16 +323,16 @@ def known_uniprot_glycoprotein(file_path=None, fasta_format=False):
                 if has_known_glycosylation(name_getter(protein)):
                     outqueue.put(protein)
             except Exception as e:
-                print(e, protein, type(protein), protein)
+                click.secho("%r occurred for %s" % (e, protein), err=True, fg='yellow')
 
     def consumer_task(outqueue, no_more_event):
         has_work = True
         if fasta_format:
-            writer = fasta.ProteinFastaFileWriter(sys.stdout)
+            writer = fasta.ProteinFastaFileWriter(outhandle)
             write_fn = writer.write
         else:
             def write_fn(payload):
-                sys.stdout.write(str(payload).strip() + '\n')
+                outhandle.write(str(payload).strip() + '\n')
         while has_work:
             try:
                 protein = outqueue.get(True, 1)
@@ -317,7 +341,7 @@ def known_uniprot_glycoprotein(file_path=None, fasta_format=False):
                     has_work = False
                 continue
             write_fn(protein)
-        sys.stdout.close()
+        outhandle.close()
 
     producer_done = threading.Event()
     checker_done = threading.Event()
@@ -366,9 +390,9 @@ def download_uniprot(name_file_path=None, output_path=None):
     for line in handle:
         accession_list.append(name_getter(line))
     if output_path is None:
-        outhandle = sys.stdout
+        outhandle = click.get_binary_stream('stdout')
     else:
-        outhandle = open(output_path, 'w')
+        outhandle = open(output_path, 'wb')
     writer = fasta.FastaFileWriter(outhandle)
     downloader = UniprotProteinDownloader(accession_list, 10)
     downloader.start()
@@ -462,8 +486,14 @@ def version_check():
 
 
 @tools.command("interactive-shell")
-def interactive_shell():
-    code.interact()
+@click.option("-s", "--script", default=None)
+@click.argument("script_args", nargs=-1)
+def interactive_shell(script_args, script):
+    if script:
+        with open(script, 'rt') as fh:
+            script = fh.read()
+        exec(script)
+    code.interact(local=locals())
 
 
 @tools.command("update-analysis-parameters")
@@ -479,3 +509,61 @@ def update_analysis_parameters(database_connection, analysis_identifier, paramet
         analysis.parameters[name] = value
     session.add(analysis)
     session.commit()
+
+
+@tools.command("summarize-glycopeptide-hypothesis")
+@database_connection
+@hypothesis_identifier(GlycopeptideHypothesis)
+def summarize_glycopeptide_hypothesis(database_connection, hypothesis_identifier):
+    session = database_connection.session
+    hypothesis = get_by_name_or_id(session, GlycopeptideHypothesis, hypothesis_identifier)
+    counts = session.query(Protein, func.count(Glycopeptide.id)).join(
+        Glycopeptide).group_by(Protein.id).filter(Protein.hypothesis_id == hypothesis.id).all()
+    counts = sorted(counts, key=lambda x: x[1], reverse=1)
+    total = 0
+    for protein, count in counts:
+        click.echo("%s: %d" % (protein.name, count))
+        total += count
+    click.echo("Total: %d" % (total,))
+
+
+@tools.command("extract-blob")
+@database_connection
+@click.argument("blob-identifier")
+@click.option("-o", "--output-path", type=click.File(mode='w'))
+def extract_file_blob(database_connection, blob_identifier, output_path=None):
+    if output_path is None:
+        output_path = click.get_binary_stream('stdout')
+    session = database_connection.session
+    blob = get_by_name_or_id(session, FileBlob, blob_identifier)
+    with blob.open() as fh:
+        chunk_size = 2 ** 16
+        chunk = fh.read(chunk_size)
+        while chunk:
+            output_path.write(chunk)
+            chunk = fh.read(chunk_size)
+
+
+@tools.command("csv-concat")
+@click.argument("csv-paths", type=click.File(mode='rt'), nargs=-1)
+@click.option("-o", "--output-path", type=click.Path(writable=True), help="Path to write output to")
+def csv_concat(csv_paths, output_path=None):
+    if output_path is None:
+        output_path = '-'
+    import csv
+    headers = None
+    with click.open_file(output_path, mode='wt') as outfh:
+        writer = csv.writer(outfh)
+        for infh in csv_paths:
+            reader = csv.reader(infh)
+            _header_line = next(reader)
+            if headers is None:
+                headers = _header_line
+                writer.writerow(headers)
+            elif _header_line != headers:
+                raise click.ClickException("File %s did not have matching headers (%s != %s)" % (
+                    infh.name, _header_line, headers))
+            for row in reader:
+                writer.writerow(row)
+            infh.close()
+            outfh.flush()

@@ -1,8 +1,17 @@
+import os
+import warnings
+
 from collections import defaultdict, namedtuple
 
 from glycan_profiling.chromatogram_tree import Unmodified
 
+
 from .spectrum_graph import ScanGraph
+
+
+# This number is overriden in spectrum_evaluation
+DEFAULT_WORKLOAD_MAX = 25e6
+DEFAULT_WORKLOAD_MAX = float(os.environ.get("GLYCRESOFTDEFAULTWORKLOADMAX", DEFAULT_WORKLOAD_MAX))
 
 
 class WorkloadManager(object):
@@ -36,6 +45,67 @@ class WorkloadManager(object):
         self.scan_to_hit_map = defaultdict(list)
         self.scan_hit_type_map = defaultdict(lambda: Unmodified.name)
         self._scan_graph = None
+        self.hit_group_map = defaultdict(set)
+
+    def clear(self):
+        self.scan_map.clear()
+        self.hit_map.clear()
+        self.hit_to_scan_map.clear()
+        self.scan_to_hit_map.clear()
+        self.scan_hit_type_map.clear()
+        self.hit_group_map.clear()
+        self._scan_graph = None
+
+    def pack(self):
+        unmatched_scans = set(self.scan_map) - set(self.scan_to_hit_map)
+        for k in unmatched_scans:
+            self.scan_map.pop(k, None)
+        return self
+
+    def update(self, other):
+        self.scan_map.update(other.scan_map)
+        self.hit_map.update(other.hit_map)
+        self.merge_hit_to_scan_map(other)
+        self.merge_scan_to_hit_map(other)
+        self.merge_hit_group_map(other)
+        self.scan_hit_type_map.update(other.scan_hit_type_map)
+        self._scan_graph = None
+
+    def merge_hit_to_scan_map(self, other):
+        """Merge the :attr:`hit_to_scan_map` of another :class:`WorkloadManager`
+        object into this one, adding non-redundant pairs.
+
+        Parameters
+        ----------
+        other : :class:`WorkloadManager`
+            The other workload manager to merge in.
+        """
+        for hit_id, scans in other.hit_to_scan_map.items():
+            already_present = {scan.id for scan in self.hit_to_scan_map[hit_id]}
+            for scan in scans:
+                if scan.id not in already_present:
+                    self.hit_to_scan_map[hit_id].append(scan)
+                    self.scan_hit_type_map[scan.id, hit_id] = other.scan_hit_type_map[scan.id, hit_id]
+
+    def merge_scan_to_hit_map(self, other):
+        """Merge the :attr:`scan_to_hit_map` of another :class:`WorkloadManager`
+        object into this one, adding non-redundant pairs.
+
+        Parameters
+        ----------
+        other : :class:`WorkloadManager`
+            The other workload manager to merge in.
+        """
+        for scan_id, hit_ids in other.scan_to_hit_map.items():
+            already_present = set(self.scan_to_hit_map[scan_id])
+            for hit_id in hit_ids:
+                if hit_id not in already_present:
+                    self.scan_to_hit_map[scan_id].append(hit_id)
+                    self.scan_hit_type_map[scan_id, hit_id] = other.scan_hit_type_map[scan_id, hit_id]
+
+    def merge_hit_group_map(self, other):
+        for group_key, members in other.hit_group_map.items():
+            self.hit_group_map[group_key].update(members)
 
     def add_scan(self, scan):
         """Register a Scan-like object for tracking
@@ -120,26 +190,13 @@ class WorkloadManager(object):
         """Compute the total amount of work required to
         resolve this complete workload
 
-        Parameters
-        ----------
-        workloads : list, optional
-            The precomputed workload graph clusters. If None, they will
-            be computed with :meth:`compute_workloads`
-
         Returns
         -------
         int
             The amount of work contained in this load, or 1
             if the workload is empty.
         """
-        if workloads is None:
-            workloads = self.compute_workloads()
-        total = 1
-        for m, w in workloads:
-            total += w
-        if total > 1:
-            total -= 1
-        return total
+        return sum(map(len, self.scan_to_hit_map.values()))
 
     def log_workloads(self, handle, workloads=None):
         """Writes the current workload graph cluster sizes to a text file
@@ -166,24 +223,70 @@ class WorkloadManager(object):
                     len(scan_node.edges)))
 
     def __iter__(self):
+        yield self.total_size
         yield self.scan_map
         yield self.hit_map
         yield self.hit_to_scan_map
+        yield self.scan_hit_type_map
+        yield self.hit_group_map
+
+    def __eq__(self, other):
+        if self.hit_map != other.hit_map:
+            return False
+        elif self.scan_map != other.scan_map:
+            return False
+        elif self.scan_hit_type_map != other.scan_hit_type_map:
+            return False
+        elif self.hit_to_scan_map != other.hit_to_scan_map:
+            return False
+        elif self.hit_group_map != other.hit_group_map:
+            return False
+        return True
+
+    def __ne__(self, other):
+        return not (self == other)
+
+    @property
+    def total_size(self):
+        """Compute the total amount of work required to
+        resolve this complete workload
+
+        Returns
+        -------
+        int
+            The amount of work contained in this load, or 1
+            if the workload is empty.
+        """
+        return sum(map(len, self.scan_to_hit_map.values()))
+
+    @property
+    def scan_count(self):
+        """Return the number of scans in this workload
+
+        Returns
+        -------
+        int
+        """
+        return len(self.scan_map)
+
+    @property
+    def hit_count(self):
+        """Return the number of structures in this workload
+
+        Returns
+        -------
+        int
+        """
+        return len(self.hit_map)
 
     def __repr__(self):
         template = 'WorkloadManager(scan_map_size={}, hit_map_size={}, total_cross_product={})'
         rendered = template.format(
             len(self.scan_map), len(self.hit_map),
-            sum(map(len, self.scan_to_hit_map.values())))
+            self.total_size)
         return rendered
 
-    _workload_batch = staticmethod(
-        namedtuple("WorkloadBatch",
-                   ['batch_size', 'scan_map',
-                    'hit_map', 'hit_to_scan_map',
-                    'scan_hit_type_map']))
-
-    def batches(self, max_size=15e4):
+    def batches(self, max_size=None, ignore_groups=False):
         """Partition the workload into batches of approximately
         ``max_size`` comparisons.
 
@@ -201,40 +304,130 @@ class WorkloadManager(object):
             self-contained work required for a set of related scans
             whose total work is approximately ``max_size``
         """
+        if max_size is None:
+            max_size = DEFAULT_WORKLOAD_MAX
+        elif max_size <= 0:
+            max_size = float('inf')
+
+        if max_size == float('inf'):
+            current_scan_map = self.scan_map.copy()
+            current_hit_map = self.hit_map.copy()
+            current_hit_to_scan_map = {k: [v.id for v in vs] for k, vs in self.hit_to_scan_map.items()}
+            current_scan_hit_type_map = self.scan_hit_type_map.copy()
+            current_hit_group_map = self.hit_group_map.copy()
+            batch = WorkloadBatch(
+                self.total_size, current_scan_map,
+                current_hit_map, current_hit_to_scan_map,
+                current_scan_hit_type_map, current_hit_group_map)
+            yield batch
+            return
+
         current_batch_size = 0
         current_scan_map = dict()
         current_hit_map = dict()
         current_hit_to_scan_map = defaultdict(list)
         current_scan_hit_type_map = defaultdict(lambda: Unmodified.name)
+        current_hit_group_map = defaultdict(set)
 
-        source = sorted(
-            self.scan_map.items(),
-            key=lambda x: x[1].precursor_information.neutral_mass)
+        if self.hit_group_map and not ignore_groups:
+            source = sorted(self.hit_group_map.items())
+            batch_index = 0
+            for group_id, hit_ids in source:
+                current_hit_group_map[group_id] = hit_ids
+                for hit_id in hit_ids:
+                    current_hit_map[hit_id] = self.hit_map[hit_id]
+                    for scan in self.hit_to_scan_map[hit_id]:
+                        scan_id = scan.id
+                        current_scan_map[scan_id] = self.scan_map[scan_id]
+                        current_hit_to_scan_map[hit_id].append(scan_id)
+                        current_scan_hit_type_map[
+                            scan_id, hit_id] = self.scan_hit_type_map[scan_id, hit_id]
+                        current_batch_size += 1
 
-        for scan_id, scan in source:
-            current_scan_map[scan_id] = scan
-            for hit_id in self.scan_to_hit_map[scan_id]:
-                current_hit_map[hit_id] = self.hit_map[hit_id]
-                current_hit_to_scan_map[hit_id].append(scan_id)
-                current_scan_hit_type_map[
-                    scan_id, hit_id] = self.scan_hit_type_map[scan_id, hit_id]
-                current_batch_size += 1
+                if current_batch_size > max_size:
+                    batch = WorkloadBatch(
+                        current_batch_size, current_scan_map,
+                        current_hit_map, current_hit_to_scan_map,
+                        current_scan_hit_type_map, current_hit_group_map)
+                    if batch.batch_size / max_size > 2:
+                        warnings.warn("Batch %d has size %d, %0.3f%% larger than threshold" % (
+                            batch_index, batch.batch_size, batch.batch_size * 100. / max_size))
+                    batch_index += 1
+                    current_batch_size = 0
+                    current_scan_map = dict()
+                    current_hit_map = dict()
+                    current_hit_to_scan_map = defaultdict(list)
+                    current_scan_hit_type_map = defaultdict(
+                        lambda: Unmodified.name)
+                    current_hit_group_map = defaultdict(set)
+                    yield batch
+        else:
+            source = sorted(
+                self.scan_map.items(),
+                key=lambda x: x[1].precursor_information.neutral_mass)
+            batch_index = 0
+            for scan_id, scan in source:
+                current_scan_map[scan_id] = scan
+                for hit_id in self.scan_to_hit_map[scan_id]:
+                    current_hit_map[hit_id] = self.hit_map[hit_id]
+                    current_hit_to_scan_map[hit_id].append(scan_id)
+                    current_scan_hit_type_map[
+                        scan_id, hit_id] = self.scan_hit_type_map[scan_id, hit_id]
+                    current_batch_size += 1
 
-            if current_batch_size > max_size:
-                batch = self._workload_batch(
-                    current_batch_size, current_scan_map,
-                    current_hit_map, current_hit_to_scan_map,
-                    current_scan_hit_type_map)
-                current_batch_size = 0
-                current_scan_map = dict()
-                current_hit_map = dict()
-                current_hit_to_scan_map = defaultdict(list)
-                current_scan_hit_type_map = defaultdict(lambda: Unmodified.name)
-                yield batch
+                if current_batch_size > max_size:
+                    batch = WorkloadBatch(
+                        current_batch_size, current_scan_map,
+                        current_hit_map, current_hit_to_scan_map,
+                        current_scan_hit_type_map, current_hit_group_map)
+                    if batch.batch_size / max_size > 2:
+                        warnings.warn("Batch %d has size %d, %0.3f%% larger than threshold" % (
+                            batch_index, batch.batch_size, batch.batch_size * 100. / max_size))
+                    batch_index += 1
+                    current_batch_size = 0
+                    current_scan_map = dict()
+                    current_hit_map = dict()
+                    current_hit_to_scan_map = defaultdict(list)
+                    current_scan_hit_type_map = defaultdict(lambda: Unmodified.name)
+                    current_hit_group_map = defaultdict(set)
+                    yield batch
 
         if current_batch_size > 0:
-            batch = self._workload_batch(
+            batch = WorkloadBatch(
                 current_batch_size, current_scan_map,
                 current_hit_map, current_hit_to_scan_map,
-                current_scan_hit_type_map)
+                current_scan_hit_type_map, current_hit_group_map)
             yield batch
+
+    @classmethod
+    def merge(cls, workloads):
+        total = cls()
+        for inst in workloads:
+            total.update(inst)
+        return total
+
+    def mass_range(self):
+        lo = float('inf')
+        hi = 0
+        for scan in self.scan_map.values():
+            mass = scan.precursor_information.neutral_mass
+            if mass < lo:
+                lo = mass
+            elif mass > hi:
+                hi = mass
+        return (lo, hi)
+
+
+_WorkloadBatch = namedtuple("WorkloadBatch", [
+    'batch_size', 'scan_map', 'hit_map', 'hit_to_scan_map',
+    'scan_hit_type_map', 'hit_group_map'])
+
+
+class WorkloadBatch(_WorkloadBatch):
+
+    def clear(self):
+        self.scan_map.clear()
+        self.hit_map.clear()
+        self.hit_to_scan_map.clear()
+        self.scan_hit_type_map.clear()
+        self.hit_group_map.clear()

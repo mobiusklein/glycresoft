@@ -5,7 +5,7 @@ from docutils.parsers.rst import directives
 from docutils import statemachine
 
 import click
-from sphinx.util.compat import Directive
+from docutils.parsers.rst import Directive
 
 
 def clean_type_name(typename):
@@ -79,6 +79,7 @@ def _get_help_record(opt):
     if isinstance(opt.type, click.Choice):
         def chunk(iterable, size=3):
             i = 0
+            iterable = tuple(iterable)
             n = len(iterable)
             while i < n:
                 yield iterable[i:i + size]

@@ -1,8 +1,12 @@
+import math
 import numpy as np
 
 
+sqrt2pi = np.sqrt(2 * np.pi)
+
+
 def gauss(x, mu, sigma):
-    return np.exp(-((x - mu) ** 2) / (2 * sigma ** 2)) / (sigma * np.sqrt(2 * np.pi))
+    return np.exp(-((x - mu) ** 2) / (2 * sigma ** 2)) / (sigma * sqrt2pi)
 
 
 class MassAccuracyModel(object):
@@ -31,25 +35,23 @@ class MassAccuracyModel(object):
     def score(self, error):
         return gauss(self.scale * error, self.mu, self.sigma)
 
+    def __call__(self, error):
+        return self.score(error)
+
     def __repr__(self):
         return "MassAccuracyModel(%e, %e)" % (self.mu / self.scale, self.sigma / self.scale)
 
 
-class MassAccuracyScorer(object):
-    def __init__(self, target_model, decoy_model):
-        self.target_model = target_model
-        self.decoy_model = decoy_model
+class MassAccuracyMixin(object):
+    accuracy_bias = MassAccuracyModel(0, 5e-6)
 
-    def score(self, error):
-        target = self.target_model.score(error)
-        decoy = self.decoy_model.score(error)
-        return target / (target + decoy)
+    def _precursor_mass_accuracy_score(self):
+        offset, error = self.determine_precursor_offset(include_error=True)
+        mass_accuracy = -10 * math.log10(1 - self.accuracy_bias(error))
+        return mass_accuracy
 
-    def __repr__(self):
-        return "MassAccuracyScorer(%r, %r)" % (self.target_model, self.decoy_model)
 
-    @classmethod
-    def fit(cls, target_matches, decoy_matches):
-        return cls(
-            MassAccuracyModel.fit(target_matches),
-            MassAccuracyModel.fit(decoy_matches))
+try:
+    from glycan_profiling._c.tandem.tandem_scoring_helpers import gauss
+except ImportError:
+    pass

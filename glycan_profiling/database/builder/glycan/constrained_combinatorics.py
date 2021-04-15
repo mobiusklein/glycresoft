@@ -85,14 +85,9 @@ class CombinatoricCompositionGenerator(object):
         self.rules_table = rules_table
 
     def normalize_symbols(self, expression):
-        symbol_stack = deque([expression])
-        while symbol_stack:
-            node = symbol_stack.popleft()
-            if isinstance(node, ExpressionNode):
-                symbol_stack.append(node.left)
-                symbol_stack.append(node.right)
-            elif isinstance(node, SymbolNode):
-                node.symbol = normalize_iupac_lite(node.symbol)
+        symbols = list(expression.itersymbols())
+        for node in symbols:
+            node.symbol = normalize_iupac_lite(node.symbol)
 
     def _build_rules_table(self):
         rules_table = {}
@@ -194,12 +189,13 @@ def tryopen(obj):
 
 def parse_rules_from_file(path):
     """
-    Summary
+    Parse monosaccharide bounds and constraints from text file-like
+    object
 
     Parameters
     ----------
-    path : TYPE
-        Description
+    path : file-like or str
+        The file to be parsed
 
     Raises
     ------
@@ -208,8 +204,10 @@ def parse_rules_from_file(path):
 
     Returns
     -------
-    name : TYPE
-        Description
+    rules_table: dict
+        A dict mapping Residue Name to (Lower Bound, Upper Bound)
+    constraints: list
+        A list of :class:`~.ConstraintExpression` objects
     """
     ranges = []
     constraints = []

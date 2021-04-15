@@ -139,7 +139,7 @@
 }
 
 .glycopeptide-facet td, .glycopeptide-facet th {
-    padding: 1px;
+    padding: 3px;
     text-align: center;
 }
 
@@ -156,6 +156,10 @@
 }
 
 .glycopeptide-charge-list {
+    padding: 3px;
+}
+
+.mass-shift-signal-fraction-container {
     padding: 3px;
 }
 
@@ -183,14 +187,13 @@ body {
 }
 
 
-
 #display-panel {
     z-index: 999;
     width: 40%;
-    height: 20%;
+    height: 175px;
     position: fixed;
     display: none;
-    background: rgba(255, 255, 255, 0.95);
+    background: rgba(255, 255, 255, 0.75);
     border: solid lightgrey 1px;
     border-radius: 3px;
     bottom: 50px;

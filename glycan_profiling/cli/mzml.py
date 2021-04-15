@@ -5,8 +5,10 @@ import os
 
 import ms_peak_picker
 import ms_deisotope
+import glypy
 
 from ms_deisotope import MSFileLoader
+from ms_deisotope.data_source import RandomAccessScanSource
 from ms_deisotope.output.mzml import ProcessedMzMLDeserializer
 from ms_deisotope.feature_map import quick_index
 
@@ -86,7 +88,7 @@ def rt_to_id(ms_file, rt):
               "Force profile scan configuration."), cls=HiddenOption)
 @click.option("-i", "--isotopic-strictness", default=2.0, type=float, cls=HiddenOption)
 @click.option("-in", "--msn-isotopic-strictness", default=0.0, type=float, cls=HiddenOption)
-@click.option("-n", "--signal-to-noise-threshold", default=1.0, type=float, help=(
+@click.option("-snr", "--signal-to-noise-threshold", default=1.0, type=float, help=(
     "Signal-to-noise ratio threshold to apply when filtering peaks"))
 @click.option("-mo", "--mass-offset", default=0.0, type=float, help=("Shift peak masses by the given amount"))
 def preprocess(ms_file, outfile_path, averagine=None, start_time=None, end_time=None, maximum_charge=None,
@@ -114,19 +116,52 @@ def preprocess(ms_file, outfile_path, averagine=None, start_time=None, end_time=
     charge_range = (minimum_charge, maximum_charge)
 
     loader = MSFileLoader(ms_file)
+    if isinstance(loader, RandomAccessScanSource):
+        last_scan = loader[len(loader) - 1]
+        last_time = last_scan.scan_time
 
-    start_scan_id = loader._locate_ms1_scan(
-        loader.get_scan_by_time(start_time)).id
-    end_scan_id = loader._locate_ms1_scan(
-        loader.get_scan_by_time(end_time)).id
+        if end_time > last_time:
+            end_time = last_time
 
-    loader.reset()
-    loader.start_from_scan(start_scan_id)
-    is_profile = (next(loader).precursor.is_profile or profile)
+        try:
+            start_scan = loader._locate_ms1_scan(loader.get_scan_by_time(start_time))
+        except IndexError:
+            start_scan = loader.get_scan_by_time(start_time)
+
+        try:
+            end_scan = loader._locate_ms1_scan(loader.get_scan_by_time(end_time))
+        except IndexError:
+            end_scan = loader.get_scan_by_time(end_time)
+
+        start_scan_id = start_scan.id
+        end_scan_id = end_scan.id
+
+        start_scan_time = start_scan.scan_time
+        end_scan_time = end_scan.scan_time
+
+        loader.reset()
+        loader.start_from_scan(
+            start_scan_id, require_ms1=loader.has_ms1_scans(), grouped=True)
+    else:
+        click.secho("The file format provided does not support random"
+                    " access, start and end points will be ignored", fg='yellow')
+        start_scan_time = 0
+        start_scan_id = None
+
+        end_scan_time = float('inf')
+        end_scan_id = None
+        loader.make_iterator(grouped=True)
+
+    first_bunch = next(loader)
+    if first_bunch.precursor is not None:
+        is_profile = (first_bunch.precursor.is_profile or profile)
+    elif first_bunch.products:
+        is_profile = (first_bunch.products[0].is_profile or profile)
+
     if is_profile:
         click.secho("Spectra are profile")
     else:
-        click.secho("Spectra are centroided")
+        click.secho("Spectra are centroided", fg='yellow')
 
     if name is None:
         name = os.path.splitext(os.path.basename(ms_file))[0]
@@ -137,7 +172,7 @@ def preprocess(ms_file, outfile_path, averagine=None, start_time=None, end_time=
 
     click.secho("Initializing %s" % name, fg='green')
     click.echo("from %s (%0.2f) to %s (%0.2f)" % (
-        start_scan_id, start_time, end_scan_id, end_time))
+        start_scan_id, start_scan_time, end_scan_id, end_scan_time))
     if deconvolute:
         click.echo("charge range: %s" % (charge_range,))
 
@@ -262,10 +297,40 @@ def msfile_info(ms_file):
     click.echo("Last MSn Scan: %0.2f Minutes" % (last_msn,))
 
     for charge, count in sorted(charges.items()):
+        if not isinstance(charge, int):
+            continue
         click.echo("Precursors with Charge State %d: %d" % (charge, count))
 
     click.echo("Defaulted MSn Scans: %d" % (n_defaulted,))
     click.echo("Orphan MSn Scans: %d" % (n_orphan,))
+
+
+@mzml_cli.command("oxonium-signature", short_help=(
+    'Report Oxonium Ion Signature Score (G-Score) and Glycan Structure Signature Score'
+    ' for each MSn scan in a processed mzML file'))
+@click.argument("ms-file", type=click.Path(exists=True, file_okay=True, dir_okay=False))
+@click.option("-g", "--g-score-threshold", type=float, default=0.05, help="Minimum G-Score to report")
+def oxonium_signature(ms_file, g_score_threshold=0.05):
+    reader = ProcessedMzMLDeserializer(ms_file)
+    if not reader.has_index_file():
+        click.secho("Building temporary index...", fg='yellow')
+        index, intervals = quick_index.index(ms_deisotope.MSFileLoader(ms_file))
+        reader.extended_index = index
+        with open(reader._index_file_name, 'w') as handle:
+            index.serialize(handle)
+
+    from glycan_profiling.tandem.glycan.scoring.signature_ion_scoring import SignatureIonScorer
+    from glycan_profiling.tandem.oxonium_ions import gscore_scanner
+    refcomp = glypy.GlycanComposition.parse("{Fuc:1; Hex:5; HexNAc:4; Neu5Ac:2}")
+    for scan_id in reader.extended_index.msn_ids.keys():
+        scan = reader.get_scan_by_id(scan_id)
+        gscore = gscore_scanner(scan.deconvoluted_peak_set)
+        if gscore >= g_score_threshold:
+            signature_match = SignatureIonScorer.evaluate(scan, refcomp)
+            click.echo("%s\t%f\t%r\t%f\t%f" % (
+                scan_id, scan.precursor_information.neutral_mass,
+                scan.precursor_information.charge, gscore,
+                signature_match.score))
 
 
 @mzml_cli.command("peak-picking", short_help=(
@@ -294,9 +359,12 @@ def msfile_info(ms_file):
 @click.option("-e", "--end-time", type=float, default=float('inf'), help='Scan time to stop processing at')
 @click.option("-n", "--name", default=None,
               help="Name for the sample run to be stored. Defaults to the base name of the input mzML file")
+@click.option("-g", "--ms1-averaging", default=0, type=int, help=(
+    "The number of MS1 scans before and after the current MS1 "
+    "scan to average when picking peaks."))
 @click.pass_context
 def peak_picker(ctx, ms_file, outfile_path, start_time=None, end_time=None,
                 name=None, background_reduction=5., msn_background_reduction=0.,
                 transform=None, msn_transform=None, processes=4, extract_only_tandem_envelopes=False,
-                mzml=True, profile=False,):
+                mzml=True, profile=False, ms1_averaging=0):
     ctx.forward(preprocess, deconvolute=False)

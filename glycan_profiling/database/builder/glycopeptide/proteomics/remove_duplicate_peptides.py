@@ -3,7 +3,7 @@ from glycan_profiling.serialize import (
     Peptide, Protein, DatabaseBoundOperation,
     TemplateNumberStore)
 
-from glycan_profiling.task import log_handle, TaskBase
+from glycan_profiling.task import TaskBase
 
 
 class DeduplicatePeptides(DatabaseBoundOperation, TaskBase):
@@ -21,12 +21,12 @@ class DeduplicatePeptides(DatabaseBoundOperation, TaskBase):
             Protein).filter(Protein.hypothesis_id == self.hypothesis_id).yield_per(10000)
         keepers = dict()
         for id, score, modified_peptide_sequence, protein_id, start_position in q:
-            try:
-                old_id, old_score = keepers[modified_peptide_sequence, protein_id, start_position]
-                if score > old_score:
-                    keepers[modified_peptide_sequence, protein_id, start_position] = id, score
-            except KeyError:
-                keepers[modified_peptide_sequence, protein_id, start_position] = id, score
+            key = (modified_peptide_sequence, protein_id, start_position)
+            result = keepers.get(key)
+            if result is None:
+                keepers[key] = (id, score)
+            elif result[1] < score:
+                keepers[key] = (id, score)
         return keepers
 
     def store_best_peptides(self, keepers):
@@ -41,6 +41,7 @@ class DeduplicatePeptides(DatabaseBoundOperation, TaskBase):
     def remove_duplicates(self):
         self.log("... Extracting Best Peptides")
         keepers = self.find_best_peptides()
+        self.log("... Marking Candidates")
         table = self.store_best_peptides(keepers)
         ids = self.session.query(table.c.value)
         self.log("... Building Mask")

@@ -5,7 +5,7 @@
         <code>
             {{glycoprotein.protein_sequence |
               highlight_sequence_site(glycoprotein.glycosylation_sites, "glycosylation-site") |
-              n_per_row(80)}}        
+              n_per_row(80)}}
         </code>
     </div>
     <div class='flex-item glycosylation-site-list'>
@@ -15,24 +15,24 @@
                 <th>Type</th>
                 <th>Count</th>
             </tr>
-            {% for site, mapped in glycoprotein.site_map['N-Linked'].items() %}
+            {% for site, mapped in (glycoprotein.site_map['N-Linked'].items())|sort %}
                 <tr>
-                    <td>{{site}}</td>
+                    <td>{{site + 1}}</td>
                     <td>N-linked</td>
                     <td>{{mapped|length}}</td>
                 </tr>
             {% endfor %}
-            {% for site, mapped in glycoprotein.site_map['O-Linked'].items() %}
+            {% for site, mapped in (glycoprotein.site_map['O-Linked'].items())|sort %}
                 <tr>
-                    <td>{{site}}</td>
+                    <td>{{site + 1}}</td>
                     <td>O-linked</td>
                     <td>{{mapped|length}}</td>
                 </tr>
             {% endfor %}
-            {% for site, mapped in glycoprotein.site_map['Glycosaminonglycan'].items() %}
+            {% for site, mapped in (glycoprotein.site_map['Glycosaminoglycan'].items())|sort %}
                 <tr>
-                    <td>{{site}}</td>
-                    <td>Glycosaminonglycan</td>
+                    <td>{{site + 1}}</td>
+                    <td>Glycosaminoglycan</td>
                     <td>{{mapped|length}}</td>
                 </tr>
             {% endfor %}

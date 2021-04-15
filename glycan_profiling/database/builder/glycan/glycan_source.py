@@ -13,6 +13,7 @@ from glycan_profiling.database.builder.base import HypothesisSerializerBase
 
 from glypy.composition import composition_transform, formula
 from glypy.structure import glycan_composition
+from glypy.utils import opener
 from glypy import ReducedEnd
 
 
@@ -118,7 +119,8 @@ named_reductions = {
     'reduced': 'H2',
     'deuteroreduced': 'HH[2]',
     '2ab': "C7H8N2",
-    '2aa': "C7H7NO"
+    '2aa': "C7H7NO",
+    'apts': "C16H11N1O8S3",
 }
 
 
@@ -139,7 +141,7 @@ class GlycanTransformer(object):
 
     def _process_composition(self):
         gc, structure_classes = next(self.glycan_source)
-        if self.reduction is not None:
+        if self.reduction is not None and gc.reducing_end is None:
             gc.reducing_end = self.reduction.clone()
         if self.derivatization is not None:
             gc = composition_transform.derivatize(gc, self.derivatization)
@@ -201,8 +203,11 @@ class TextFileGlycanHypothesisSerializer(GlycanHypothesisSerializerBase):
         self.loader = None
         self.transformer = None
 
+    def _make_name(self):
+        return "TextFileGlycanHypothesis-" + self.uuid
+
     def make_pipeline(self):
-        self.loader = TextFileGlycanCompositionLoader(open(self.glycan_file))
+        self.loader = TextFileGlycanCompositionLoader(opener(self.glycan_file, 'r'))
         self.transformer = GlycanTransformer(self.loader, self.reduction, self.derivatization)
 
     def run(self):

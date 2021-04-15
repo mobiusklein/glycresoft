@@ -1,11 +1,11 @@
-from collections import Counter
+from collections import Counter, deque
 
 import numpy as np
 
 from sqlalchemy import (
     Column, Numeric, Integer, String, ForeignKey, PickleType,
     Boolean, Table, func, select, join, alias, bindparam)
-from sqlalchemy.orm import relationship, backref, object_session
+from sqlalchemy.orm import relationship, backref, object_session, deferred
 from sqlalchemy.ext.associationproxy import association_proxy
 from sqlalchemy.orm.collections import attribute_mapped_collection
 from sqlalchemy.ext.declarative import declared_attr
@@ -19,7 +19,7 @@ from glycan_profiling.chromatogram_tree import (
     MassShift as MemoryMassShift,
     CompoundMassShift as MemoryCompoundMassShift,
     GlycanCompositionChromatogram as MemoryGlycanCompositionChromatogram,
-    ChromatogramInterface)
+    ChromatogramInterface, SimpleEntityChromatogram)
 
 from glycan_profiling.chromatogram_tree.chromatogram import MIN_POINTS_FOR_CHARGE_STATE
 from glycan_profiling.chromatogram_tree.utils import ArithmeticMapping
@@ -31,7 +31,7 @@ from glycan_profiling.models import GeneralScorer
 from .analysis import BoundToAnalysis
 from .hypothesis import GlycanComposition
 
-from .base import (
+from .spectrum import (
     Base, DeconvolutedPeak, MSScan, Mass, make_memory_deconvoluted_peak)
 
 from glypy.composition.base import formula
@@ -59,15 +59,18 @@ class SimpleSerializerCacheBase(object):
         self.session = session
         self.store = store
 
+    def extract_key(self, obj):
+        return extract_key(obj)
+
     def serialize(self, obj, *args, **kwargs):
         if obj is None:
             return None
         try:
-            db_obj = self.store[extract_key(obj)]
+            db_obj = self.store[self.extract_key(obj)]
             return db_obj
         except KeyError:
             db_obj = self._model_class.serialize(obj, self.session, *args, **kwargs)
-            self.store[extract_key(db_obj)] = db_obj
+            self.store[self.extract_key(db_obj)] = db_obj
             return db_obj
 
     def __getitem__(self, obj):
@@ -80,11 +83,34 @@ class MassShift(Base):
     id = Column(Integer, primary_key=True, autoincrement=True)
     name = Column(String(64), index=True, unique=True)
     composition = Column(String(128))
+    tandem_composition = deferred(Column(String(128)))
 
     _hash = None
+    _mass = None
+    _tandem_mass = None
+
+    @property
+    def mass(self):
+        if self._mass is None:
+            self._mass = Composition(str(self.composition)).mass
+        return self._mass
+
+    @property
+    def tandem_mass(self):
+        if self._tandem_mass is None:
+            if self.tandem_composition:
+                self._tandem_mass = Composition(str(self.tandem_composition)).mass
+            else:
+                self._tandem_mass = 0.0
+        return self._tandem_mass
 
     def convert(self):
-        return MemoryMassShift(str(self.name), Composition(str(self.composition)))
+        try:
+            tandem_composition = Composition(str(self.tandem_composition))
+        except:
+            tandem_composition = None
+        return MemoryMassShift(
+            str(self.name), Composition(str(self.composition)), tandem_composition)
 
     @classmethod
     def serialize(cls, obj, session, *args, **kwargs):
@@ -92,7 +118,9 @@ class MassShift(Base):
         if shift:
             return shift[0]
         else:
-            db_obj = MassShift(name=obj.name, composition=formula(obj.composition))
+            db_obj = MassShift(
+                name=obj.name, composition=formula(obj.composition),
+                tandem_composition=formula(obj.tandem_composition))
             session.add(db_obj)
             session.flush()
             return db_obj
@@ -120,6 +148,21 @@ class CompoundMassShift(Base):
 
     counts = association_proxy(
         "_counts", "count", creator=lambda k, v: MassShiftToCompoundMassShift(individual_id=k.id, count=v))
+
+    _mass = None
+    _tandem_mass = None
+
+    @property
+    def mass(self):
+        if self._mass is None:
+            self._mass = sum([k.mass * v for k, v in self.counts.items()])
+        return self._mass
+
+    @property
+    def tandem_mass(self):
+        if self._tandem_mass is None:
+            self._tandem_mass = sum([k.tandem_mass * v for k, v in self.counts.items()])
+        return self._tandem_mass
 
     def convert(self):
         return MemoryCompoundMassShift({k.convert(): v for k, v in self.counts.items()})
@@ -166,6 +209,9 @@ class MassShiftToCompoundMassShift(Base):
 
 class MassShiftSerializer(SimpleSerializerCacheBase):
     _model_class = CompoundMassShift
+
+    def extract_key(self, obj):
+        return obj.name
 
 
 def _create_chromatogram_tree_node_branch(x):
@@ -309,7 +355,7 @@ class ChromatogramTreeNode(Base, BoundToAnalysis):
                 member_ids.append(peak_id)
 
             if len(member_ids):
-                session.execute(ChromatogramTreeNodeToDeconvolutedPeak.insert(), [
+                session.execute(ChromatogramTreeNodeToDeconvolutedPeak.insert(), [  # pylint: disable=no-value-for-parameter
                     {'node_id': inst.id, 'peak_id': member_id} for member_id in member_ids])
             elif blocked == 0:
                 raise Exception("No Peaks Saved")
@@ -363,6 +409,8 @@ ChromatogramTreeNodeToDeconvolutedPeak = Table(
 class Chromatogram(Base, BoundToAnalysis):
     __tablename__ = "Chromatogram"
 
+    _total_signal_cache = None
+
     id = Column(Integer, primary_key=True, autoincrement=True)
     neutral_mass = Mass()
 
@@ -376,51 +424,28 @@ class Chromatogram(Base, BoundToAnalysis):
     nodes = relationship(ChromatogramTreeNode, secondary=lambda: ChromatogramToChromatogramTreeNode)
 
     @property
-    def adducts(self):
+    def mass_shifts(self):
         session = object_session(self)
-        return self._adducts_query(session)
+        return self._mass_shifts_query(session)
 
-    def _adducts_query_inner(self, session):
-        anode = alias(ChromatogramTreeNode.__table__)
-        bnode = alias(ChromatogramTreeNode.__table__)
-        apeak = alias(DeconvolutedPeak.__table__)
+    def _mass_shifts_query(self, session):
+        # (root_peaks_join, branch_peaks_join,
+        #  anode, bnode, apeak) = _mass_shifts_query_inner
 
-        peak_join = apeak.join(
-            ChromatogramTreeNodeToDeconvolutedPeak,
-            ChromatogramTreeNodeToDeconvolutedPeak.c.peak_id == apeak.c.id)
+        # branch_node_info = select([anode.c.node_type_id, anode.c.retention_time]).where(
+        #     ChromatogramToChromatogramTreeNode.c.chromatogram_id == self.id
+        # ).select_from(branch_peaks_join)
 
-        root_peaks_join = peak_join.join(
-            anode,
-            ChromatogramTreeNodeToDeconvolutedPeak.c.node_id == anode.c.id).join(
-            ChromatogramToChromatogramTreeNode,
-            ChromatogramToChromatogramTreeNode.c.node_id == anode.c.id)
+        # root_node_info = select([anode.c.node_type_id, anode.c.retention_time]).where(
+        #     ChromatogramToChromatogramTreeNode.c.chromatogram_id == self.id
+        # ).select_from(root_peaks_join)
 
-        branch_peaks_join = peak_join.join(
-            anode,
-            ChromatogramTreeNodeToDeconvolutedPeak.c.node_id == anode.c.id).join(
-            ChromatogramTreeNodeBranch,
-            ChromatogramTreeNodeBranch.child_id == anode.c.id).join(
-            bnode, ChromatogramTreeNodeBranch.parent_id == bnode.c.id).join(
-            ChromatogramToChromatogramTreeNode,
-            ChromatogramToChromatogramTreeNode.c.node_id == bnode.c.id)
-        return root_peaks_join, branch_peaks_join, anode, bnode, apeak
+        # all_node_info_q = root_node_info.union_all(branch_node_info).order_by(
+        #     anode.c.retention_time)
 
-    def _adducts_query(self, session):
-        (root_peaks_join, branch_peaks_join,
-         anode, bnode, apeak) = self._adducts_query_inner(session)
+        # all_node_info = session.execute(all_node_info_q).fetchall()
 
-        branch_node_info = select([anode.c.node_type_id, anode.c.retention_time]).where(
-            ChromatogramToChromatogramTreeNode.c.chromatogram_id == self.id
-        ).select_from(branch_peaks_join)
-
-        root_node_info = select([anode.c.node_type_id, anode.c.retention_time]).where(
-            ChromatogramToChromatogramTreeNode.c.chromatogram_id == self.id
-        ).select_from(root_peaks_join)
-
-        all_node_info_q = root_node_info.union_all(branch_node_info).order_by(
-            anode.c.retention_time)
-
-        all_node_info = session.execute(all_node_info_q).fetchall()
+        all_node_info = session.execute(_mass_shift_query_stmt, dict(id=self.id)).fetchall()
 
         node_type_ids = set()
         for node_type_id, rt in all_node_info:
@@ -431,13 +456,46 @@ class Chromatogram(Base, BoundToAnalysis):
             node_types.append(session.query(CompoundMassShift).get(ntid).convert())
         return node_types
 
-    def adduct_signal_fractions(self):
+    def mass_shift_signal_fractions(self):
         session = object_session(self)
-        return self._adduct_signal_fraction_query(session)
+        return self._mass_shift_signal_fraction_query(session)
 
-    def _adduct_signal_fraction_query(self, session):
+    def bisect_mass_shift(self, mass_shift):
+        session = object_session(self)
+
         (root_peaks_join, branch_peaks_join,
-         anode, bnode, apeak) = self._adducts_query_inner(session)
+         anode, bnode, apeak) = _mass_shifts_query_inner
+        root_node_info = select(
+            [anode.c.node_type_id, anode.c.retention_time, apeak.c.intensity]).where(
+            ChromatogramToChromatogramTreeNode.c.chromatogram_id == self.id
+        ).select_from(root_peaks_join)
+
+        branch_node_info = select(
+            [anode.c.node_type_id, anode.c.retention_time, apeak.c.intensity]).where(
+            ChromatogramToChromatogramTreeNode.c.chromatogram_id == self.id
+        ).select_from(branch_peaks_join)
+
+        all_node_info_q = root_node_info.union_all(branch_node_info).order_by(anode.c.retention_time)
+        mass_shift_id = session.query(CompoundMassShift.id).filter(CompoundMassShift.name == mass_shift.name).scalar()
+
+        new_mass_shift = SimpleEntityChromatogram()
+        new_no_mass_shift = SimpleEntityChromatogram()
+
+        for r in sorted(session.execute(all_node_info_q), key=lambda x: x.retention_time):
+            if r.node_type_id == mass_shift_id:
+                new_mass_shift.setdefault(r.retention_time, 0)
+                new_mass_shift[r.retention_time] += r.intensity
+            else:
+                new_no_mass_shift.setdefault(r.retention_time, 0)
+                new_no_mass_shift[r.retention_time] += r.intensity
+        new_mass_shift.mass_shifts = {mass_shift}
+        new_no_mass_shift.mass_shifts = set(self.mass_shifts) - {mass_shift}
+
+        return new_mass_shift, new_no_mass_shift
+
+    def _mass_shift_signal_fraction_query(self, session):
+        (root_peaks_join, branch_peaks_join,
+         anode, bnode, apeak) = _mass_shifts_query_inner
         root_node_info = select([anode.c.node_type_id, anode.c.retention_time, apeak.c.intensity]).where(
             ChromatogramToChromatogramTreeNode.c.chromatogram_id == self.id
         ).select_from(root_peaks_join)
@@ -563,87 +621,98 @@ class Chromatogram(Base, BoundToAnalysis):
                 scan_lookup_table=scan_lookup_table,
                 node_peak_map=node_peak_map, *args, **kwargs)
             node_ids.append(db_node.id)
-        session.execute(ChromatogramToChromatogramTreeNode.insert(), [
+        session.execute(ChromatogramToChromatogramTreeNode.insert(), [  # pylint: disable=no-value-for-parameter
             {"chromatogram_id": inst.id, "node_id": node_id} for node_id in node_ids])
         return inst
 
     def _weighted_neutral_mass_query(self, session):
-        anode = alias(ChromatogramTreeNode.__table__)
-        bnode = alias(ChromatogramTreeNode.__table__)
-        apeak = alias(DeconvolutedPeak.__table__)
+        # anode = alias(ChromatogramTreeNode.__table__)
+        # bnode = alias(ChromatogramTreeNode.__table__)
+        # apeak = alias(DeconvolutedPeak.__table__)
 
-        peak_join = apeak.join(
-            ChromatogramTreeNodeToDeconvolutedPeak,
-            ChromatogramTreeNodeToDeconvolutedPeak.c.peak_id == apeak.c.id)
+        # peak_join = apeak.join(
+        #     ChromatogramTreeNodeToDeconvolutedPeak,
+        #     ChromatogramTreeNodeToDeconvolutedPeak.c.peak_id == apeak.c.id)
 
-        root_peaks_join = peak_join.join(
-            anode,
-            ChromatogramTreeNodeToDeconvolutedPeak.c.node_id == anode.c.id).join(
-            ChromatogramToChromatogramTreeNode,
-            ChromatogramToChromatogramTreeNode.c.node_id == anode.c.id)
+        # root_peaks_join = peak_join.join(
+        #     anode,
+        #     ChromatogramTreeNodeToDeconvolutedPeak.c.node_id == anode.c.id).join(
+        #     ChromatogramToChromatogramTreeNode,
+        #     ChromatogramToChromatogramTreeNode.c.node_id == anode.c.id)
 
-        branch_peaks_join = peak_join.join(
-            anode,
-            ChromatogramTreeNodeToDeconvolutedPeak.c.node_id == anode.c.id).join(
-            ChromatogramTreeNodeBranch,
-            ChromatogramTreeNodeBranch.child_id == anode.c.id).join(
-            bnode, ChromatogramTreeNodeBranch.parent_id == bnode.c.id).join(
-            ChromatogramToChromatogramTreeNode,
-            ChromatogramToChromatogramTreeNode.c.node_id == bnode.c.id)
+        # branch_peaks_join = peak_join.join(
+        #     anode,
+        #     ChromatogramTreeNodeToDeconvolutedPeak.c.node_id == anode.c.id).join(
+        #     ChromatogramTreeNodeBranch,
+        #     ChromatogramTreeNodeBranch.child_id == anode.c.id).join(
+        #     bnode, ChromatogramTreeNodeBranch.parent_id == bnode.c.id).join(
+        #     ChromatogramToChromatogramTreeNode,
+        #     ChromatogramToChromatogramTreeNode.c.node_id == bnode.c.id)
 
-        branch_intensities = select([apeak.c.intensity, apeak.c.neutral_mass]).where(
-            ChromatogramToChromatogramTreeNode.c.chromatogram_id == self.id
-        ).select_from(branch_peaks_join)
+        # branch_intensities = select([apeak.c.intensity, apeak.c.neutral_mass, anode.c.node_type_id]).where(
+        #     ChromatogramToChromatogramTreeNode.c.chromatogram_id == self.id
+        # ).select_from(branch_peaks_join)
 
-        root_intensities = select([apeak.c.intensity, apeak.c.neutral_mass]).where(
-            ChromatogramToChromatogramTreeNode.c.chromatogram_id == self.id
-        ).select_from(root_peaks_join)
+        # root_intensities = select([apeak.c.intensity, apeak.c.neutral_mass, anode.c.node_type_id]).where(
+        #     ChromatogramToChromatogramTreeNode.c.chromatogram_id == self.id
+        # ).select_from(root_peaks_join)
 
-        all_intensity_mass_q = root_intensities.union_all(branch_intensities)
+        # all_intensity_mass_q = root_intensities.union_all(branch_intensities)
 
-        all_intensity_mass = session.execute(all_intensity_mass_q).fetchall()
+        # all_intensity_mass = session.execute(all_intensity_mass_q).fetchall()
+
+        all_intensity_mass = session.execute(_weighted_neutral_mass_stmt, dict(id=self.id)).fetchall()
 
         arr = np.array(all_intensity_mass)
-        intensity = arr[:, 0]
         mass = arr[:, 1]
+        shift_ids = arr[:, 2].astype(int)
+        distinct_shifts = set(shift_ids)
+        for i in distinct_shifts:
+            shift = session.query(CompoundMassShift).get(i)
+            if shift is None:
+                # Somehow this might still be None?
+                shift = {s.id: s for s in session.query(CompoundMassShift).all()}[i]
+            mass[shift_ids == i] -= shift.convert().mass
+        intensity = arr[:, 0]
         return mass.dot(intensity) / intensity.sum()
 
     def _as_array_query(self, session):
-        anode = alias(ChromatogramTreeNode.__table__)
-        bnode = alias(ChromatogramTreeNode.__table__)
-        apeak = alias(DeconvolutedPeak.__table__)
+        # anode = alias(ChromatogramTreeNode.__table__)
+        # bnode = alias(ChromatogramTreeNode.__table__)
+        # apeak = alias(DeconvolutedPeak.__table__)
 
-        peak_join = apeak.join(
-            ChromatogramTreeNodeToDeconvolutedPeak,
-            ChromatogramTreeNodeToDeconvolutedPeak.c.peak_id == apeak.c.id)
+        # peak_join = apeak.join(
+        #     ChromatogramTreeNodeToDeconvolutedPeak,
+        #     ChromatogramTreeNodeToDeconvolutedPeak.c.peak_id == apeak.c.id)
 
-        root_peaks_join = peak_join.join(
-            anode,
-            ChromatogramTreeNodeToDeconvolutedPeak.c.node_id == anode.c.id).join(
-            ChromatogramToChromatogramTreeNode,
-            ChromatogramToChromatogramTreeNode.c.node_id == anode.c.id)
+        # root_peaks_join = peak_join.join(
+        #     anode,
+        #     ChromatogramTreeNodeToDeconvolutedPeak.c.node_id == anode.c.id).join(
+        #     ChromatogramToChromatogramTreeNode,
+        #     ChromatogramToChromatogramTreeNode.c.node_id == anode.c.id)
 
-        branch_peaks_join = peak_join.join(
-            anode,
-            ChromatogramTreeNodeToDeconvolutedPeak.c.node_id == anode.c.id).join(
-            ChromatogramTreeNodeBranch,
-            ChromatogramTreeNodeBranch.child_id == anode.c.id).join(
-            bnode, ChromatogramTreeNodeBranch.parent_id == bnode.c.id).join(
-            ChromatogramToChromatogramTreeNode,
-            ChromatogramToChromatogramTreeNode.c.node_id == bnode.c.id)
+        # branch_peaks_join = peak_join.join(
+        #     anode,
+        #     ChromatogramTreeNodeToDeconvolutedPeak.c.node_id == anode.c.id).join(
+        #     ChromatogramTreeNodeBranch,
+        #     ChromatogramTreeNodeBranch.child_id == anode.c.id).join(
+        #     bnode, ChromatogramTreeNodeBranch.parent_id == bnode.c.id).join(
+        #     ChromatogramToChromatogramTreeNode,
+        #     ChromatogramToChromatogramTreeNode.c.node_id == bnode.c.id)
 
-        branch_intensities = select([apeak.c.intensity, anode.c.retention_time]).where(
-            ChromatogramToChromatogramTreeNode.c.chromatogram_id == self.id
-        ).select_from(branch_peaks_join)
+        # branch_intensities = select([apeak.c.intensity, anode.c.retention_time]).where(
+        #     ChromatogramToChromatogramTreeNode.c.chromatogram_id == self.id
+        # ).select_from(branch_peaks_join)
 
-        root_intensities = select([apeak.c.intensity, anode.c.retention_time]).where(
-            ChromatogramToChromatogramTreeNode.c.chromatogram_id == self.id
-        ).select_from(root_peaks_join)
+        # root_intensities = select([apeak.c.intensity, anode.c.retention_time]).where(
+        #     ChromatogramToChromatogramTreeNode.c.chromatogram_id == self.id
+        # ).select_from(root_peaks_join)
 
-        all_intensities_q = root_intensities.union_all(branch_intensities).order_by(
-            anode.c.retention_time)
+        # all_intensities_q = root_intensities.union_all(branch_intensities).order_by(
+        #     anode.c.retention_time)
 
-        all_intensities = session.execute(all_intensities_q).fetchall()
+        # all_intensities = session.execute(all_intensities_q).fetchall()
+        all_intensities = session.execute(_as_arrays_stmt, dict(id=self.id)).fetchall()
 
         time = []
         signal = []
@@ -673,8 +742,10 @@ class Chromatogram(Base, BoundToAnalysis):
 
     @property
     def total_signal(self):
-        session = object_session(self)
-        return self._as_array_query(session)[1].sum()
+        if self._total_signal_cache is None:
+            session = object_session(self)
+            self._total_signal_cache = self._as_array_query(session)[1].sum()
+        return self._total_signal_cache
 
     @property
     def apex_time(self):
@@ -719,15 +790,15 @@ class ChromatogramWrapper(object):
         return self._peak_hash.isdisjoint(other._peak_hash)
 
     @property
-    def adducts(self):
+    def mass_shifts(self):
         try:
-            return self._get_chromatogram().adducts
+            return self._get_chromatogram().mass_shifts
         except MissingChromatogramError:
             return []
 
-    def adduct_signal_fractions(self):
+    def mass_shift_signal_fractions(self):
         try:
-            return self._get_chromatogram().adduct_signal_fractions()
+            return self._get_chromatogram().mass_shift_signal_fractions()
         except MissingChromatogramError:
             return ArithmeticMapping()
 
@@ -764,6 +835,9 @@ class ChromatogramWrapper(object):
     @property
     def charge_states(self):
         return self._get_chromatogram().charge_states
+
+    def bisect_mass_shift(self, mass_shift):
+        return self._get_chromatogram().bisect_mass_shift(mass_shift)
 
 
 ChromatogramInterface.register(ChromatogramWrapper)
@@ -850,10 +924,10 @@ class ChromatogramSolution(Base, BoundToAnalysis, ScoredChromatogram, Chromatogr
         chromatogram.composition = composition
         sol = MemoryChromatogramSolution(
             chromatogram, self.score, chromatogram_scoring_model, self.internal_score)
-        used_as_adduct = []
-        for pair in self.used_as_adduct:
-            used_as_adduct.append((pair[0], pair[1].convert()))
-        sol.used_as_adduct = used_as_adduct
+        used_as_mass_shift = []
+        for pair in self.used_as_mass_shift:
+            used_as_mass_shift.append((pair[0], pair[1].convert()))
+        sol.used_as_mass_shift = used_as_mass_shift
 
         ambiguous_with = []
         for pair in self.ambiguous_with:
@@ -862,17 +936,17 @@ class ChromatogramSolution(Base, BoundToAnalysis, ScoredChromatogram, Chromatogr
         return sol
 
     @property
-    def used_as_adduct(self):
+    def used_as_mass_shift(self):
         pairs = []
-        for rel in self._adducted_relationships_adduct:
+        for rel in self._mass_shifted_relationships_mass_shift:
             pairs.append((rel.owner.key, rel.mass_shift))
         return pairs
 
     @property
     def ambiguous_with(self):
         pairs = []
-        for rel in self._adduct_relationships_owned:
-            pairs.append((rel.adducted.key, rel.mass_shift))
+        for rel in self._mass_shift_relationships_owned:
+            pairs.append((rel.mass_shifted.key, rel.mass_shift))
         return pairs
 
     @classmethod
@@ -908,12 +982,22 @@ class ChromatogramSolutionWrapper(ChromatogramWrapper):
         return self.solution
 
     @property
-    def used_as_adduct(self):
-        return self._get_chromatogram().used_as_adduct
+    def used_as_mass_shift(self):
+        return self._get_chromatogram().used_as_mass_shift
 
     @property
     def ambiguous_with(self):
         return self._get_chromatogram().ambiguous_with
+
+    def bisect_mass_shift(self, mass_shift):
+        chromatogram = self._get_chromatogram()
+        new_mass_shift, new_no_mass_shift = chromatogram.bisect_mass_shift(mass_shift)
+
+        for chrom in (new_mass_shift, new_no_mass_shift):
+            chrom.entity = self.entity
+            chrom.composition = self.entity
+            chrom.glycan_composition = self.glycan_composition
+        return new_mass_shift, new_no_mass_shift
 
 
 class GlycanCompositionChromatogram(Base, BoundToAnalysis, ScoredChromatogram, ChromatogramSolutionWrapper):
@@ -1034,10 +1118,10 @@ class UnidentifiedChromatogram(Base, BoundToAnalysis, ScoredChromatogram, Chroma
         return None
 
 
-class ChromatogramSolutionAdductedToChromatogramSolution(Base):
-    __tablename__ = "ChromatogramSolutionAdductedToChromatogramSolution"
+class ChromatogramSolutionMassShiftedToChromatogramSolution(Base):
+    __tablename__ = "ChromatogramSolutionAdductToChromatogramSolution"
 
-    adducted_solution_id = Column(Integer, ForeignKey(
+    mass_shifted_solution_id = Column(Integer, ForeignKey(
         ChromatogramSolution.id, ondelete="CASCADE"), primary_key=True)
     mass_shift_id = Column(Integer, ForeignKey(
         CompoundMassShift.id, ondelete='CASCADE'), primary_key=True)
@@ -1045,13 +1129,149 @@ class ChromatogramSolutionAdductedToChromatogramSolution(Base):
         ChromatogramSolution.id, ondelete="CASCADE"), primary_key=True)
 
     owner = relationship(ChromatogramSolution, backref=backref(
-        "_adduct_relationships_owned"),
+        "_mass_shift_relationships_owned"),
         foreign_keys=[owning_solution_id])
-    adducted = relationship(ChromatogramSolution, backref=backref(
-        "_adducted_relationships_adduct"),
-        foreign_keys=[adducted_solution_id])
+    mass_shifted = relationship(ChromatogramSolution, backref=backref(
+        "_mass_shifted_relationships_mass_shift"),
+        foreign_keys=[mass_shifted_solution_id])
     mass_shift = relationship(CompoundMassShift)
 
     def __repr__(self):
-        template = "{self.__class__.__name__}({self.adducted.key} -{self.mass_shift.name}-> {self.owner.key})"
+        template = "{self.__class__.__name__}({self.mass_shifted.key} -{self.mass_shift.name}-> {self.owner.key})"
         return template.format(self=self)
+
+
+# SQL Operation pre-definition. The Chromatogram table involves several complex joins to load
+# relevant tree-like structure information. To reduce the amount of time SQLAlchemy spends
+# on compiling these queries into strings, we use ``bindparam``-instrumented statements
+# and expressions. These statements are made global.
+
+
+def __build_mass_shifts_query_inner():
+
+    anode = alias(ChromatogramTreeNode.__table__)
+    bnode = alias(ChromatogramTreeNode.__table__)
+    apeak = alias(DeconvolutedPeak.__table__)
+
+    peak_join = apeak.join(
+        ChromatogramTreeNodeToDeconvolutedPeak,
+        ChromatogramTreeNodeToDeconvolutedPeak.c.peak_id == apeak.c.id)
+
+    root_peaks_join = peak_join.join(
+        anode,
+        ChromatogramTreeNodeToDeconvolutedPeak.c.node_id == anode.c.id).join(
+        ChromatogramToChromatogramTreeNode,
+        ChromatogramToChromatogramTreeNode.c.node_id == anode.c.id)
+
+    branch_peaks_join = peak_join.join(
+        anode,
+        ChromatogramTreeNodeToDeconvolutedPeak.c.node_id == anode.c.id).join(
+        ChromatogramTreeNodeBranch,
+        ChromatogramTreeNodeBranch.child_id == anode.c.id).join(
+        bnode, ChromatogramTreeNodeBranch.parent_id == bnode.c.id).join(
+        ChromatogramToChromatogramTreeNode,
+        ChromatogramToChromatogramTreeNode.c.node_id == bnode.c.id)
+    return root_peaks_join, branch_peaks_join, anode, bnode, apeak
+
+
+_mass_shifts_query_inner = __build_mass_shifts_query_inner()
+
+
+def __build_mass_shifts_query():
+    (root_peaks_join, branch_peaks_join,
+        anode, bnode, apeak) = _mass_shifts_query_inner
+
+    branch_node_info = select([anode.c.node_type_id, anode.c.retention_time]).where(
+        ChromatogramToChromatogramTreeNode.c.chromatogram_id == bindparam('id')
+    ).select_from(branch_peaks_join)
+
+    root_node_info = select([anode.c.node_type_id, anode.c.retention_time]).where(
+        ChromatogramToChromatogramTreeNode.c.chromatogram_id == bindparam('id')
+    ).select_from(root_peaks_join)
+
+    all_node_info_q = root_node_info.union_all(branch_node_info).order_by(
+        anode.c.retention_time)
+    return all_node_info_q
+
+
+_mass_shift_query_stmt = __build_mass_shifts_query()
+
+
+def __build_weighted_neutral_mass_query():
+    anode = alias(ChromatogramTreeNode.__table__)
+    bnode = alias(ChromatogramTreeNode.__table__)
+    apeak = alias(DeconvolutedPeak.__table__)
+
+    peak_join = apeak.join(
+        ChromatogramTreeNodeToDeconvolutedPeak,
+        ChromatogramTreeNodeToDeconvolutedPeak.c.peak_id == apeak.c.id)
+
+    root_peaks_join = peak_join.join(
+        anode,
+        ChromatogramTreeNodeToDeconvolutedPeak.c.node_id == anode.c.id).join(
+        ChromatogramToChromatogramTreeNode,
+        ChromatogramToChromatogramTreeNode.c.node_id == anode.c.id)
+
+    branch_peaks_join = peak_join.join(
+        anode,
+        ChromatogramTreeNodeToDeconvolutedPeak.c.node_id == anode.c.id).join(
+        ChromatogramTreeNodeBranch,
+        ChromatogramTreeNodeBranch.child_id == anode.c.id).join(
+        bnode, ChromatogramTreeNodeBranch.parent_id == bnode.c.id).join(
+        ChromatogramToChromatogramTreeNode,
+        ChromatogramToChromatogramTreeNode.c.node_id == bnode.c.id)
+
+    branch_intensities = select([apeak.c.intensity, apeak.c.neutral_mass, anode.c.node_type_id]).where(
+        ChromatogramToChromatogramTreeNode.c.chromatogram_id == bindparam("id")
+    ).select_from(branch_peaks_join)
+
+    root_intensities = select([apeak.c.intensity, apeak.c.neutral_mass, anode.c.node_type_id]).where(
+        ChromatogramToChromatogramTreeNode.c.chromatogram_id == bindparam("id")
+    ).select_from(root_peaks_join)
+
+    all_intensity_mass_q = root_intensities.union_all(branch_intensities)
+    return all_intensity_mass_q
+
+
+_weighted_neutral_mass_stmt = __build_weighted_neutral_mass_query()
+
+
+def __build_as_arrays_query():
+    anode = alias(ChromatogramTreeNode.__table__)
+    bnode = alias(ChromatogramTreeNode.__table__)
+    apeak = alias(DeconvolutedPeak.__table__)
+
+    peak_join = apeak.join(
+        ChromatogramTreeNodeToDeconvolutedPeak,
+        ChromatogramTreeNodeToDeconvolutedPeak.c.peak_id == apeak.c.id)
+
+    root_peaks_join = peak_join.join(
+        anode,
+        ChromatogramTreeNodeToDeconvolutedPeak.c.node_id == anode.c.id).join(
+        ChromatogramToChromatogramTreeNode,
+        ChromatogramToChromatogramTreeNode.c.node_id == anode.c.id)
+
+    branch_peaks_join = peak_join.join(
+        anode,
+        ChromatogramTreeNodeToDeconvolutedPeak.c.node_id == anode.c.id).join(
+        ChromatogramTreeNodeBranch,
+        ChromatogramTreeNodeBranch.child_id == anode.c.id).join(
+        bnode, ChromatogramTreeNodeBranch.parent_id == bnode.c.id).join(
+        ChromatogramToChromatogramTreeNode,
+        ChromatogramToChromatogramTreeNode.c.node_id == bnode.c.id)
+
+    branch_intensities = select([apeak.c.intensity, anode.c.retention_time]).where(
+        ChromatogramToChromatogramTreeNode.c.chromatogram_id == bindparam("id")
+    ).select_from(branch_peaks_join)
+
+    root_intensities = select([apeak.c.intensity, anode.c.retention_time]).where(
+        ChromatogramToChromatogramTreeNode.c.chromatogram_id == bindparam("id")
+    ).select_from(root_peaks_join)
+
+    all_intensities_q = root_intensities.union_all(branch_intensities).order_by(
+        anode.c.retention_time)
+
+    return all_intensities_q
+
+
+_as_arrays_stmt = __build_as_arrays_query()

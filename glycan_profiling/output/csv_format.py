@@ -1,16 +1,52 @@
 import csv
+import logging
+
+from io import TextIOWrapper
+
+from six import PY2
 
 from glycan_profiling.task import TaskBase
+
+
+status_logger = logging.getLogger("glycresoft.status")
+
+
+def csv_stream(outstream):
+    if 'b' in outstream.mode:
+        if not PY2:
+            return TextIOWrapper(outstream, 'utf8', newline="")
+        else:
+            return outstream
+    else:
+        import warnings
+        warnings.warn("Opened CSV stream in text mode!")
+        return outstream
 
 
 class CSVSerializerBase(TaskBase):
     def __init__(self, outstream, entities_iterable, delimiter=','):
         self.outstream = outstream
+        try:
+            self.is_binary = 'b' in self.outstream.mode
+        except AttributeError:
+            self.is_binary = True
+        if self.is_binary:
+            try:
+                self.outstream = TextIOWrapper(outstream, 'utf8', newline="")
+            except AttributeError:
+                # must be Py2
+                pass
         self.writer = csv.writer(self.outstream, delimiter=delimiter)
         self._entities_iterable = entities_iterable
 
+    def status_update(self, message):
+        status_logger.info(message)
+
     def writerows(self, iterable):
         self.writer.writerows(iterable)
+
+    def writerow(self, row):
+        self.writer.writerow(row)
 
     def get_header(self):
         raise NotImplementedError()
@@ -24,9 +60,14 @@ class CSVSerializerBase(TaskBase):
 
     def run(self):
         if self.header:
-            self.writer.writerow(self.header)
+            header = self.header
+            self.writerow(header)
         gen = (self.convert_object(entity) for entity in self._entities_iterable)
-        self.writerows(gen)
+        for i, row in enumerate(gen):
+            if i % 100 == 0 and i != 0:
+                self.status_update("Handled %d Entities" % i)
+                self.outstream.flush()
+            self.writerow(row)
 
 
 class GlycanHypothesisCSVSerializer(CSVSerializerBase):
@@ -47,7 +88,7 @@ class GlycanHypothesisCSVSerializer(CSVSerializerBase):
             obj.calculated_mass,
             ";".join([sc.name for sc in obj.structure_classes])
         ]
-        return map(str, attribs)
+        return list(map(str, attribs))
 
 
 class ImportableGlycanHypothesisCSVSerializer(CSVSerializerBase):
@@ -65,7 +106,7 @@ class ImportableGlycanHypothesisCSVSerializer(CSVSerializerBase):
         # are treated as independent entries not containing whitespace
         # so that they are not quoted
         ] + [sc.name for sc in obj.structure_classes]
-        return map(str, attribs)
+        return list(map(str, attribs))
 
 
 class GlycopeptideHypothesisCSVSerializer(CSVSerializerBase):
@@ -90,7 +131,61 @@ class GlycopeptideHypothesisCSVSerializer(CSVSerializerBase):
             obj.peptide.end_position,
             obj.peptide.protein.name
         ]
+        return list(map(str, attribs))
+
+
+class SimpleChromatogramCSVSerializer(CSVSerializerBase):
+    def __init__(self, outstream, entities_iterable, delimiter=','):
+        super(SimpleChromatogramCSVSerializer, self).__init__(
+            outstream, entities_iterable, delimiter)
+
+    def get_header(self):
+        return [
+            "neutral_mass",
+            "total_signal",
+            "charge_states",
+            "start_time",
+            "apex_time",
+            "end_time"
+        ]
+
+    def convert_object(self, obj):
+        attribs = [
+            obj.weighted_neutral_mass,
+            obj.total_signal,
+            ';'.join(map(str, obj.charge_states)),
+            obj.start_time,
+            obj.apex_time,
+            obj.end_time,
+        ]
         return map(str, attribs)
+
+
+class SimpleScoredChromatogramCSVSerializer(SimpleChromatogramCSVSerializer):
+
+    def get_header(self):
+        headers = super(SimpleScoredChromatogramCSVSerializer, self).get_header()
+        headers += [
+            "score",
+            "line_score",
+            "isotopic_fit",
+            "spacing_fit",
+            "charge_count",
+        ]
+        return headers
+
+    def convert_object(self, obj):
+        attribs = super(SimpleScoredChromatogramCSVSerializer, self).convert_object(obj)
+        scores = obj.score_components()
+        more_attribs = [
+            obj.score,
+            scores.line_score,
+            scores.isotopic_fit,
+            scores.spacing_fit,
+            scores.charge_count,
+        ]
+        attribs = list(attribs) + list(map(str, more_attribs))
+        return attribs
 
 
 class GlycanLCMSAnalysisCSVSerializer(CSVSerializerBase):
@@ -109,13 +204,13 @@ class GlycanLCMSAnalysisCSVSerializer(CSVSerializerBase):
             "end_time",
             "apex_time",
             "charge_states",
-            "adducts",
+            "mass_shifts",
             "line_score",
             "isotopic_fit",
             "spacing_fit",
             "charge_count",
             "ambiguous_with",
-            "used_as_adduct"
+            "used_as_mass_shift"
         ]
 
     def convert_object(self, obj):
@@ -132,15 +227,15 @@ class GlycanLCMSAnalysisCSVSerializer(CSVSerializerBase):
             obj.end_time,
             obj.apex_time,
             ';'.join(map(str, obj.charge_states)),
-            ';'.join([a.name for a in obj.adducts]),
+            ';'.join([a.name for a in obj.mass_shifts]),
             scores.line_score,
             scores.isotopic_fit,
             scores.spacing_fit,
             scores.charge_count,
             ';'.join("%s:%s" % (p[0], p[1].name) for p in obj.ambiguous_with),
-            ';'.join("%s:%s" % (p[0], p[1].name) for p in obj.used_as_adduct)
+            ';'.join("%s:%s" % (p[0], p[1].name) for p in obj.used_as_mass_shift)
         ]
-        return map(str, attribs)
+        return list(map(str, attribs))
 
 
 class GlycopeptideLCMSMSAnalysisCSVSerializer(CSVSerializerBase):
@@ -165,28 +260,70 @@ class GlycopeptideLCMSMSAnalysisCSVSerializer(CSVSerializerBase):
             "peptide_start",
             "peptide_end",
             "protein_name",
+            "mass_shifts",
         ]
 
     def convert_object(self, obj):
+        try:
+            weighted_neutral_mass = obj.weighted_neutral_mass
+        except Exception:
+            weighted_neutral_mass = obj.tandem_solutions[0].scan.precursor_information.neutral_mass
+        try:
+            charge_states = obj.charge_states
+        except Exception:
+            charge_states = (obj.tandem_solutions[0].scan.precursor_information.charge,)
         attribs = [
             str(obj.structure),
-            obj.weighted_neutral_mass,
-            ((obj.structure.total_mass - obj.weighted_neutral_mass
-              ) / obj.weighted_neutral_mass),
+            weighted_neutral_mass,
+            (obj.structure.total_mass - weighted_neutral_mass) / weighted_neutral_mass,
             obj.ms1_score,
             obj.ms2_score,
             obj.q_value,
             obj.total_signal,
-            obj.start_time,
-            obj.end_time,
-            obj.apex_time,
-            ";".join(map(str, obj.charge_states)),
+            obj.start_time if obj.chromatogram else '',
+            obj.end_time if obj.chromatogram else '',
+            obj.apex_time if obj.chromatogram else '',
+            ";".join(map(str, charge_states)),
             len(obj.spectrum_matches),
             obj.protein_relation.start_position,
             obj.protein_relation.end_position,
-            self.protein_name_resolver[obj.protein_relation.protein_id]
+            self.protein_name_resolver[obj.protein_relation.protein_id],
+            ';'.join([a.name for a in obj.mass_shifts]),
         ]
-        return map(str, attribs)
+        return list(map(str, attribs))
+
+
+class MultiScoreGlycopeptideLCMSMSAnalysisCSVSerializer(GlycopeptideLCMSMSAnalysisCSVSerializer):
+    def get_header(self):
+        headers = super(MultiScoreGlycopeptideLCMSMSAnalysisCSVSerializer, self).get_header()
+        headers.extend([
+            "glycopeptide_score",
+            "peptide_score",
+            "glycan_score",
+            "glycan_coverage",
+            "total_q_value",
+            "peptide_q_value",
+            "glycan_q_value",
+            "glycopeptide_q_value",
+        ])
+        return headers
+
+    def convert_object(self, obj):
+        fields = super(MultiScoreGlycopeptideLCMSMSAnalysisCSVSerializer, self).convert_object(obj)
+        score_set = obj.score_set
+        q_value_set = obj.q_value_set
+        new_fields = [
+            score_set.glycopeptide_score,
+            score_set.peptide_score,
+            score_set.glycan_score,
+            score_set.glycan_coverage,
+            q_value_set.total_q_value,
+            q_value_set.peptide_q_value,
+            q_value_set.glycan_q_value,
+            q_value_set.glycopeptide_q_value,
+        ]
+        fields.extend(map(str, new_fields))
+        return fields
 
 
 class GlycopeptideSpectrumMatchAnalysisCSVSerializer(CSVSerializerBase):
@@ -199,6 +336,7 @@ class GlycopeptideSpectrumMatchAnalysisCSVSerializer(CSVSerializerBase):
             "glycopeptide",
             "neutral_mass",
             "mass_accuracy",
+            "mass_shift_name",
             "scan_id",
             "scan_time",
             "charge",
@@ -208,26 +346,39 @@ class GlycopeptideSpectrumMatchAnalysisCSVSerializer(CSVSerializerBase):
             "peptide_start",
             "peptide_end",
             "protein_name",
+            "is_best_match",
         ]
 
     def convert_object(self, obj):
-        precursor_mass = obj.scan.precursor_information.extracted_neutral_mass
+        try:
+            mass_shift = obj.mass_shift
+            mass_shift_mass = mass_shift.mass
+            mass_shift_name = mass_shift.name
+        except Exception:
+            mass_shift_name = "Unmodified"
+            mass_shift_mass = 0
+        target = obj.target
+        scan = obj.scan
+        precursor = scan.precursor_information
+        precursor_mass = precursor.neutral_mass
         attribs = [
             str(obj.target),
             precursor_mass,
-            ((obj.target.total_mass - precursor_mass
-              ) / precursor_mass),
-            obj.scan.scan_id,
-            obj.scan.scan_time,
-            obj.scan.precursor_information.extracted_charge,
+            ((target.total_mass + mass_shift_mass) -
+             precursor_mass) / precursor_mass,
+            mass_shift_name,
+            scan.scan_id,
+            scan.scan_time,
+            scan.precursor_information.extracted_charge,
             obj.score,
             obj.q_value,
-            obj.scan.precursor_information.extracted_intensity,
-            obj.target.protein_relation.start_position,
-            obj.target.protein_relation.end_position,
-            self.protein_name_resolver[obj.target.protein_relation.protein_id]
+            scan.precursor_information.intensity,
+            target.protein_relation.start_position,
+            target.protein_relation.end_position,
+            self.protein_name_resolver[target.protein_relation.protein_id],
+            obj.is_best_match,
         ]
-        return map(str, attribs)
+        return list(map(str, attribs))
 
     def filter(self, iterable):
         seen = set()
@@ -242,3 +393,31 @@ class GlycopeptideSpectrumMatchAnalysisCSVSerializer(CSVSerializerBase):
         self.writer.writerow(self.header)
         gen = (self.convert_object(entity) for entity in self._entities_iterable)
         self.writerows(self.filter(gen))
+
+
+class MultiScoreGlycopeptideSpectrumMatchAnalysisCSVSerializer(GlycopeptideSpectrumMatchAnalysisCSVSerializer):
+    def get_header(self):
+        header = super(MultiScoreGlycopeptideSpectrumMatchAnalysisCSVSerializer, self).get_header()
+        header.extend([
+            "peptide_score",
+            "glycan_score",
+            "glycan_coverage",
+            "peptide_q_value",
+            "glycan_q_value",
+            "glycopeptide_q_value",
+        ])
+        return header
+
+    def convert_object(self, obj):
+        fields = super(MultiScoreGlycopeptideSpectrumMatchAnalysisCSVSerializer, self).convert_object(obj)
+        score_set = obj.score_set
+        fdr_set = obj.q_value_set
+        fields.extend([
+            score_set.peptide_score,
+            score_set.glycan_score,
+            score_set.glycan_coverage,
+            fdr_set.peptide_q_value,
+            fdr_set.glycan_q_value,
+            fdr_set.glycopeptide_q_value,
+        ])
+        return fields

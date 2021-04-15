@@ -1,14 +1,26 @@
+import os
+import gzip
+import json
+
+from io import BytesIO
 from functools import total_ordering
+
+from six import string_types as basestring
+
+import sqlalchemy
 from sqlalchemy import (
     Column, Numeric, Integer, String, ForeignKey,
-    PickleType, Boolean, Table, ForeignKeyConstraint)
+    PickleType, Boolean, Table, ForeignKeyConstraint,
+    BLOB)
 
-from sqlalchemy.orm import relationship, backref
+from sqlalchemy.types import TypeDecorator
+from sqlalchemy.orm import relationship, backref, object_session, deferred
 from sqlalchemy.ext.declarative import declared_attr
 from sqlalchemy.ext.mutable import MutableDict
 
+from glypy import Composition
 
-from ms_deisotope.output.db import (
+from ..base import (
     Base)
 
 from ..utils import get_or_create
@@ -140,3 +152,87 @@ class HasReferenceAccessionNumber(object):
 
 
 TemplateNumberStore = Table("TemplateNumberStore", Base.metadata, Column("value", Integer))
+
+
+class FileBlob(Base):
+    __tablename__ = 'FileBlob'
+
+    id = Column(Integer, primary_key=True)
+    name = Column(String(256), index=True)
+    data = deferred(Column(BLOB))
+    compressed = Column(Boolean)
+
+    def __repr__(self):
+        return "FileBlob({self.name})".format(self=self)
+
+    @classmethod
+    def from_file(cls, fp, compress=False):
+        inst = cls(name=os.path.basename(fp.name), compressed=compress)
+        if compress:
+            buff = BytesIO()
+            with gzip.GzipFile(mode='wb', fileobj=buff) as compressor:
+                compressor.write(fp.read())
+            buff.seek(0)
+            data = buff.read()
+            inst.name += '.gz'
+        else:
+            data = fp.read()
+        inst.data = data
+        return inst
+
+    @classmethod
+    def from_path(cls, path, compress=False):
+        with open(path, 'rb') as fh:
+            inst = cls.from_file(fh, compress)
+        return inst
+
+    def open(self):
+        data_buffer = BytesIO(self.data)
+        if self.compressed:
+            return gzip.GzipFile(fileobj=data_buffer)
+        return data_buffer
+
+
+class HasFiles(object):
+    @declared_attr
+    def files(cls):
+        file_association = Table(
+            "%s_Files" % cls.__tablename__,
+            cls.metadata,
+            Column("file_id", Integer, ForeignKey(FileBlob.id, ondelete="CASCADE"), primary_key=True),
+            Column("entity_id", Integer, ForeignKey(
+                "%s.id" % cls.__tablename__, ondelete="CASCADE"), primary_key=True))
+        cls.FileBlobAssociationTable = file_association
+        return relationship(FileBlob, secondary=file_association)
+
+    def add_file(self, file_obj, compress=False):
+        if isinstance(file_obj, basestring):
+            f = FileBlob.from_path(file_obj, compress)
+        else:
+            f = FileBlob.from_file(file_obj, compress)
+        self.files.append(f)
+
+
+class JSONType(TypeDecorator):
+
+    impl = sqlalchemy.Text()
+
+    def process_bind_param(self, value, dialect):
+        if value is not None:
+            value = json.dumps(value)
+
+        return value
+
+    def process_result_value(self, value, dialect):
+        if value is not None:
+            value = json.loads(value)
+        return value
+
+
+class HasChemicalComposition(object):
+    _total_composition = None
+
+    def total_composition(self):
+        if self._total_composition is None:
+            self._total_composition = Composition(self.formula)
+        return self._total_composition

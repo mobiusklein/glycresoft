@@ -10,17 +10,28 @@ Much of this logic is derived from:
 
 
 import numpy as np
-from scipy.misc import comb
+from scipy.special import comb
+from decimal import Decimal
+import math
 
 from glycopeptidepy.utils.memoize import memoize
 
-from .base import GlycopeptideSpectrumMatcherBase
+from .base import (
+    GlycopeptideSpectrumMatcherBase, ChemicalShift, EXDFragmentationStrategy,
+    HCDFragmentationStrategy, IonSeries)
 from glycan_profiling.structure import FragmentMatchMap
 
 
 @memoize(100000000000)
 def binomial_pmf(n, i, p):
-    return comb(n, i, exact=True) * (p ** i) * ((1 - p) ** (n - i))
+    try:
+        return comb(n, i, exact=True) * (p ** i) * ((1 - p) ** (n - i))
+    except OverflowError:
+        dn = Decimal(n)
+        di = Decimal(i)
+        dp = Decimal(p)
+        x = math.factorial(dn) / (math.factorial(di) * math.factorial(dn - di))
+        return float(x * dp ** di * ((1 - dp) ** (dn - di)))
 
 
 @memoize(100000000000)
@@ -44,11 +55,11 @@ def binomial_fragments_matched(total_product_ion_count, count_product_ion_matche
 def median_sorted(numbers):
     n = len(numbers)
     if n == 0:
-        return (n - 1) / 2, 0
+        return (n - 1) // 2, 0
     elif n % 2 == 0:
-        return (n - 1) / 2, (numbers[(n - 1) / 2] + numbers[((n - 1) / 2) + 1]) / 2.
+        return (n - 1) // 2, (numbers[(n - 1) // 2] + numbers[((n - 1) // 2) + 1]) / 2.
     else:
-        return (n - 1) / 2, numbers[(n - 1) / 2]
+        return (n - 1) // 2, numbers[(n - 1) // 2]
 
 
 def medians(array):
@@ -68,7 +79,7 @@ def _counting_tiers(peak_list, matched_peaks, total_product_ion_count):
     m1, m2, m3, m4 = medians(intensity_list)
 
     matched_intensities = np.array(
-        [p.intensity for match, p in matched_peaks.items()])
+        [p.intensity for p, _ in matched_peaks])
     counts = dict()
     next_count = (matched_intensities > m1).sum()
     counts[1] = next_count
@@ -89,7 +100,7 @@ def _intensity_tiers(peak_list, matched_peaks, total_product_ion_count):
     m1, m2, m3, m4 = medians(intensity_list)
 
     matched_intensities = np.array(
-        [p.intensity for match, p in matched_peaks.items()])
+        [p.intensity for p, _ in matched_peaks])
     counts = dict()
     last_count = total_product_ion_count
     next_count = (matched_intensities > m1).sum()
@@ -198,83 +209,63 @@ class BinomialSpectrumMatcher(GlycopeptideSpectrumMatcherBase):
 
     def __init__(self, scan, target, mass_shift=None):
         super(BinomialSpectrumMatcher, self).__init__(scan, target, mass_shift)
-        self._sanitized_spectrum = set(self.spectrum)
-        self._score = None
         self.solution_map = FragmentMatchMap()
+        self._init_binomial()
+
+    def _init_binomial(self):
+        self._sanitized_spectrum = set(self.spectrum)
         self.n_theoretical = 0
-        self._backbone_mass_series = []
 
-    def match(self, error_tolerance=2e-5, *args, **kwargs):
-        n_theoretical = 0
-        solution_map = FragmentMatchMap()
-        spectrum = self.spectrum
-        backbone_mass_series = []
+    def _match_oxonium_ions(self, error_tolerance=2e-5, masked_peaks=None):
+        if masked_peaks is None:
+            masked_peaks = set()
+        val = super(BinomialSpectrumMatcher, self)._match_oxonium_ions(
+            error_tolerance=error_tolerance, masked_peaks=masked_peaks)
+        self._sanitized_spectrum -= {self.spectrum[i] for i in masked_peaks}
+        return val
 
-        oxonium_ion_matches = set()
-        for frag in self.target.glycan_fragments(
-                all_series=False, allow_ambiguous=False,
-                include_large_glycan_fragments=False,
-                maximum_fragment_size=4):
-            for peak in spectrum.all_peaks_for(frag.mass, error_tolerance):
-                solution_map.add(peak, frag)
-                oxonium_ion_matches.add(peak)
-                try:
-                    self._sanitized_spectrum.remove(peak)
-                except KeyError:
-                    continue
-        for frags in self.target.get_fragments('b'):
+    def _match_backbone_series(self, series, error_tolerance=2e-5, masked_peaks=None, strategy=None,
+                               include_neutral_losses=False):
+        if strategy is None:
+            strategy = HCDFragmentationStrategy
+        for frags in self.get_fragments(series, strategy=strategy, include_neutral_losses=include_neutral_losses):
+            # Should this be on the level of position, or the level of the individual fragment ions?
+            # At the level of position, this makes missing only glycosylated or unglycosylated ions
+            # less punishing, while at the level of the fragment makes more sense by the definition
+            # of the geometric mass accuracy interpretation.
+            #
+            # Using the less severe case to be less pessimistic
+            self.n_theoretical += 1
             for frag in frags:
-                backbone_mass_series.append(frag.mass)
-                n_theoretical += 1
-                for peak in spectrum.all_peaks_for(frag.mass, error_tolerance):
-                    if peak in oxonium_ion_matches:
+                for peak in self.spectrum.all_peaks_for(frag.mass, error_tolerance):
+                    if peak.index.neutral_mass in masked_peaks:
                         continue
-                    solution_map.add(peak, frag)
-                self._backbone_mass_series
-        for frags in self.target.get_fragments('y'):
-            backbone_mass_series.append(frag.mass)
-            for frag in frags:
-                n_theoretical += 1
-                for peak in spectrum.all_peaks_for(frag.mass, error_tolerance):
-                    if peak in oxonium_ion_matches:
-                        continue
-                    solution_map.add(peak, frag)
-        for frag in self.target.stub_fragments(extended=True):
-            for peak in spectrum.all_peaks_for(frag.mass, error_tolerance):
-                    solution_map.add(peak, frag)
-        self.solution_map = solution_map
-        self.n_theoretical = n_theoretical
-        self._backbone_mass_series = backbone_mass_series
-        return solution_map
+                    self.solution_map.add(peak, frag)
 
     def _sanitize_solution_map(self):
-        san = FragmentMatchMap()
+        san = list()
         for pair in self.solution_map:
             if pair.fragment.series != "oxonium_ion":
-                san.add(pair)
+                san.append(pair)
         return san
 
-    def _compute_average_window_size(self, match_tolerance=2e-5):
-        # window_sizes = [
-        #     match_tolerance * frag.mass * 2
-        #     for frag in self._backbone_mass_series
-        # ]
-
-        # average_window_size = sum(window_sizes) / len(window_sizes)
+    def _compute_average_window_size(self, error_tolerance=2e-5):
         average_window_size = (
             (self.target.peptide_composition(
-            ).mass) / 3.) * match_tolerance * 2
+            ).mass) / 3.) * error_tolerance * 2
         return average_window_size
 
-    def _fragment_matched_binomial(self, match_tolerance=2e-5):
+    def _fragment_matched_binomial(self, error_tolerance=2e-5):
         precursor_mass = calculate_precursor_mass(self)
 
         fragment_match_component = binomial_fragments_matched(
             self.n_theoretical,
             len(self._sanitize_solution_map()),
-            self._compute_average_window_size(match_tolerance),
+            self._compute_average_window_size(error_tolerance),
             precursor_mass
         )
+        if fragment_match_component < 1e-170:
+            fragment_match_component = 1e-170
         return fragment_match_component
 
     def _intensity_component_binomial(self):
@@ -283,11 +274,11 @@ class BinomialSpectrumMatcher(GlycopeptideSpectrumMatcherBase):
             self._sanitize_solution_map(),
             self.n_theoretical)
 
-        if intensity_component == 0:
+        if intensity_component < 1e-170:
             intensity_component = 1e-170
         return intensity_component
 
-    def _binomial_score(self, match_tolerance=2e-5, *args, **kwargs):
+    def _binomial_score(self, error_tolerance=2e-5, *args, **kwargs):
         precursor_mass = calculate_precursor_mass(self)
 
         solution_map = self._sanitize_solution_map()
@@ -297,8 +288,8 @@ class BinomialSpectrumMatcher(GlycopeptideSpectrumMatcherBase):
 
         fragment_match_component = binomial_fragments_matched(
             self.n_theoretical,
-            len(self._sanitize_solution_map()),
-            self._compute_average_window_size(match_tolerance),
+            len(solution_map),
+            self._compute_average_window_size(error_tolerance),
             precursor_mass
         )
 
@@ -310,7 +301,7 @@ class BinomialSpectrumMatcher(GlycopeptideSpectrumMatcherBase):
             solution_map,
             self.n_theoretical)
 
-        if intensity_component == 0:
+        if intensity_component < 1e-170:
             intensity_component = 1e-170
         score = -np.log10(intensity_component) + -np.log10(fragment_match_component)
 
@@ -319,7 +310,17 @@ class BinomialSpectrumMatcher(GlycopeptideSpectrumMatcherBase):
 
         return score
 
-    def calculate_score(self, match_tolerance=2e-5, *args, **kwargs):
-        score = self._binomial_score(match_tolerance)
+    def calculate_score(self, error_tolerance=2e-5, *args, **kwargs):
+        score = self._binomial_score(error_tolerance)
         self._score = score
         return score
+
+
+class StubIgnoringBinomialSpectrumMatcher(BinomialSpectrumMatcher):
+
+    def _sanitize_solution_map(self):
+        san = list()
+        for pair in self.solution_map:
+            if pair.fragment.series not in ("oxonium_ion", "stub_glycopeptide"):
+                san.append(pair)
+        return san

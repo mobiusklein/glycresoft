@@ -48,8 +48,11 @@ class TimeOffsetIndex(object):
         i = self.index_for(x)
         if i == 0:
             return self.average_delta
-        y = self.array[i + 1]
-        return y - x
+        try:
+            y = self.array[i + 1]
+            return y - x
+        except IndexError:
+            return self.average_delta
 
 
 def blunt(x):

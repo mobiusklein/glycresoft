@@ -26,6 +26,9 @@ class IdentifiedGlycopeptide(IdentifiedStructure):
     def end_position(self):
         return self.protein_relation.end_position
 
+    def is_multiply_glycosylated(self):
+        return self.structure.is_multiply_glycosylated()
+
     def __repr__(self):
         return "IdentifiedGlycopeptide(%s, %0.3f, %0.3f, %0.3e)" % (
             self.structure, self.ms2_score, self.ms1_score, self.total_signal)
@@ -121,6 +124,9 @@ class GlycopeptideIndex(object):
     def append(self, member):
         self.members.append(member)
 
+    def extend(self, members):
+        self.members.extend(members)
+
     def __iter__(self):
         return iter(self.members)
 
@@ -159,11 +165,23 @@ class SiteMap(object):
     def sites(self):
         return sorted(self.store.keys())
 
+    def get(self, key, default=None):
+        return self.store.get(key, default)
+
     def __iter__(self):
         return iter(self.store.items())
 
     def items(self):
         return self.store.items()
+
+    def keys(self):
+        return sorted(self.store.keys())
+
+    def values(self):
+        return self.store.values()
+
+    def __contains__(self, i):
+        return i in self.store
 
     def __len__(self):
         return len(self.store)
@@ -173,6 +191,18 @@ class SiteMap(object):
 
     def _repr_pretty_(self, p, cycle):
         return p.pretty(self.store)
+
+    def copy(self):
+        dup = self.__class__()
+        for key, values in self.items():
+            dup[key].extend(values)
+        return dup
+
+    def merge(self, other):
+        dup = self.copy()
+        for key, values in other.items():
+            dup[key].extend(values)
+        return dup
 
 
 class HeterogeneityMap(object):
@@ -203,6 +233,19 @@ class HeterogeneityMap(object):
     def pop(self, key):
         return self.store.pop(key)
 
+    def copy(self):
+        dup = self.__class__()
+        for key, value in self.items():
+            dup[key] = value.copy()
+        return dup
+
+    def merge(self, other):
+        dup = self.copy()
+        for site_key, values in other.items():
+            for gc_key, abund in values.items():
+                dup[site_key][gc_key] += abund
+        return dup
+
 
 class IdentifiedGlycoprotein(object):
     glycosylation_types = [
@@ -213,6 +256,10 @@ class IdentifiedGlycoprotein(object):
 
     def __init__(self, protein, identified_glycopeptides):
         self.name = protein.name
+        try:
+            self.id = protein.id
+        except AttributeError:
+            self.id = self.name
         self.protein_sequence = protein.protein_sequence
         self.n_glycan_sequon_sites = protein.n_glycan_sequon_sites
         self.o_glycan_sequon_sites = protein.o_glycan_sequon_sites
@@ -222,10 +269,36 @@ class IdentifiedGlycoprotein(object):
             a for a in AmbiguousGlycopeptideGroup.aggregate(identified_glycopeptides)
             if len(a) > 1
         ]
-        self._site_map = defaultdict(lambda: SiteMap())
+        self._site_map = defaultdict(SiteMap)
         self.microheterogeneity_map = HeterogeneityMap()
         for glycotype in self.glycosylation_types:
             self._map_glycopeptides_to_glycosites(glycotype)
+
+    def __len__(self):
+        return len(self.protein_sequence)
+
+    def __eq__(self, other):
+        if self.name != other.name:
+            return False
+        elif self.protein_sequence != other.protein_sequence:
+            return False
+        elif self.identified_glycopeptides != other.identified_glycopeptides:
+            return False
+        return True
+
+    def __ne__(self, other):
+        return not self == other
+
+    def copy(self):
+        dup = self.__class__(self, self.identified_glycopeptides[:])
+        return dup
+
+    def merge(self, *other):
+        glycopeptides = list(self.identified_glycopeptides)
+        for o in other:
+            glycopeptides.extend(o.identified_glycopeptides)
+        dup = self.__class__(self, glycopeptides)
+        return dup
 
     @property
     def glycosylation_sites(self):
@@ -291,7 +364,7 @@ class IdentifiedGlycoprotein(object):
         for key in site_list:
             prefix_map[key] = self.protein_sequence[key]
 
-        string_form = [":".join(map(lambda x: x.name, self._site_map.keys()))]
+        string_form = []
         for site, observed in sorted(site_list.items()):
             prefix = prefix_map[site]
             components = [observed[k] for k in self._site_map]

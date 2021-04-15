@@ -19,7 +19,9 @@ from .grouping import (
 
 from . import generic
 from .generic import (
-    SimpleChromatogram, find_truncation_points)
+    SimpleChromatogram,
+    SimpleEntityChromatogram,
+    find_truncation_points)
 
 from . import index
 from .index import ChromatogramFilter, DisjointChromatogramSet
@@ -30,7 +32,7 @@ from .relation_graph import ChromatogramGraph
 
 
 from . import mass_shift_tree
-from .mass_shift_tree import (prune_bad_adduct_branches, AdductTreePruner)
+from .mass_shift_tree import (prune_bad_mass_shift_branches, MassShiftTreePruner)
 
 
 from . import utils

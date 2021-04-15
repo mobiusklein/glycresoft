@@ -11,27 +11,10 @@ from .shape_fitter import ChromatogramShapeModel
 from .spacing_fitter import ChromatogramSpacingModel
 from .charge_state import UniformChargeStateScoringModel
 from .isotopic_fit import IsotopicPatternConsistencyModel
-from .base import symbolic_composition
+from .base import symbolic_composition, epsilon
+from .utils import logitsum, prod
 
 from glycan_profiling.chromatogram_tree import ChromatogramInterface
-
-
-epsilon = 1e-6
-
-
-def logit(x):
-    return np.log(x) - np.log(1 - x)
-
-
-def logitsum(xs):
-    total = 0
-    for x in xs:
-        total += logit(x)
-    return total
-
-
-def prod(*x):
-    return reduce(mul, x, 1)
 
 
 class ScorerBase(object):
@@ -190,14 +173,14 @@ class ChromatogramScorer(ScorerBase):
                  isotopic_fitter_model=IsotopicPatternConsistencyModel,
                  charge_scoring_model=UniformChargeStateScoringModel,
                  spacing_fitter_model=ChromatogramSpacingModel,
-                 adduct_scoring_model=None, *models):
+                 mass_shift_scoring_model=None, *models):
         super(ChromatogramScorer, self).__init__()
         self.add_feature(shape_fitter_model())
         self.add_feature(isotopic_fitter_model())
         self.add_feature(spacing_fitter_model())
         self.add_feature(charge_scoring_model())
-        if adduct_scoring_model is not None:
-            self.add_feature(adduct_scoring_model())
+        if mass_shift_scoring_model is not None:
+            self.add_feature(mass_shift_scoring_model())
         for model in models:
             if model is not None:
                 self.add_feature(model())
@@ -306,6 +289,12 @@ class ChromatogramSolution(object):
     def __iter__(self):
         return iter(self.chromatogram)
 
+    def __eq__(self, other):
+        return self.chromatogram.__eq__(other)
+
+    def __hash__(self):
+        return self.chromatogram.__hash__()
+
     def compute_score(self):
         try:
             self.internal_score = self.score = self.scorer.score(self.chromatogram)
@@ -338,6 +327,12 @@ class ChromatogramSolution(object):
 
     def __dir__(self):
         return list(set(('compute_score', 'score_components')) | set(dir(self.chromatogram)))
+
+    def __eq__(self, other):
+        return self.get_chromatogram() == other.get_chromatogram()
+
+    def __ne__(self, other):
+        return self.get_chromatogram() != other.get_chromatogram()
 
 
 ChromatogramInterface.register(ChromatogramSolution)

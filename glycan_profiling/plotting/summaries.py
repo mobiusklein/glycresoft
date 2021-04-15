@@ -30,7 +30,7 @@ class GlycanChromatographySummaryGraphBuilder(object):
         if colorizer is None:
             colorizer = n_glycan_colorizer
 
-        results = [sol for sol in self.solutions if sol.score > min_score and not sol.used_as_adduct]
+        results = [sol for sol in self.solutions if sol.score > min_score and not sol.used_as_mass_shift]
         chrom = SmoothingChromatogramArtist(
             results, ax=ax, colorizer=colorizer).draw(label_function=label_abundant)
 
@@ -53,7 +53,7 @@ class GlycanChromatographySummaryGraphBuilder(object):
             BundledGlycanComposition.aggregate([
                 sol for sol in self.solutions if (sol.score > min_score and
                                                   sol.glycan_composition is not None and
-                                                  not sol.used_as_adduct)]),
+                                                  not sol.used_as_mass_shift)]),
             ax=ax)
         if len(agg) == 0:
             ax = agg.ax

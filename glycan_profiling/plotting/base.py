@@ -1,4 +1,4 @@
-from .utils import figax
+from .utils import figax, figure
 
 
 class ArtistBase(object):

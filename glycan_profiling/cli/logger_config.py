@@ -1,13 +1,18 @@
-import sys
-import logging
-import warnings
-import codecs
-import uuid
-from stat import S_IRUSR, S_IWUSR, S_IXUSR, S_IRGRP, S_IWGRP, S_IROTH, S_IWOTH
+import io
 import os
+import sys
+import uuid
+import codecs
+import logging
 from logging import FileHandler
+import warnings
+import traceback
 import multiprocessing
 from multiprocessing import current_process
+
+from six import PY2
+
+from stat import S_IRUSR, S_IWUSR, S_IXUSR, S_IRGRP, S_IWGRP, S_IROTH, S_IWOTH
 
 from glycan_profiling import task
 from glycan_profiling.config import config_file
@@ -48,17 +53,47 @@ LOG_LEVEL = str(os.environ.get("GLYCRESOFT_LOG_LEVEL", LOG_LEVEL)).upper()
 
 
 log_multiprocessing = False
+try:
+    log_multiprocessing = bool(user_config_data['environment']['log_multiprocessing'])
+except KeyError:
+    pass
+
+
+log_multiprocessing = bool(int(os.environ.get(
+    "GLYCRESOFT_LOG_MULTIPROCESSING", log_multiprocessing)))
+
+
+LOGGING_CONFIGURED = False
+
+
+class ProcessAwareFormatter(logging.Formatter):
+    def format(self, record):
+        d = record.__dict__
+        try:
+            if d['processName'] == "MainProcess":
+                d['maybeproc'] = ''
+            else:
+                d['maybeproc'] = ":%s:" % d['processName']
+        except KeyError:
+            d['maybeproc'] = ''
+        return super(ProcessAwareFormatter, self).format(record)
 
 
 def configure_logging(level=None, log_file_name=None, log_file_mode=None):
+    global LOGGING_CONFIGURED
+    # If we've already called this, don't repeat it
+    if LOGGING_CONFIGURED:
+        return
+    else:
+        LOGGING_CONFIGURED = True
     if level is None:
         level = logging_levels.get(LOG_LEVEL, "INFO")
     if log_file_name is None:
         log_file_name = LOG_FILE_NAME
     if log_file_mode is None:
         log_file_mode = LOG_FILE_MODE
-    file_fmter = logging.Formatter(
-        "%(asctime)s - %(name)s:%(funcName)s:%(lineno)d - %(levelname)s - %(message)s",
+    file_fmter = ProcessAwareFormatter(
+        "%(asctime)s %(name)s:%(filename)s:%(lineno)-4d - %(levelname)s%(maybeproc)s - %(message)s",
         "%H:%M:%S")
     if log_file_mode not in ("w", "a"):
         warnings.warn("File Logger configured with mode %r not applicable, using \"w\" instead" % (
@@ -85,8 +120,8 @@ def configure_logging(level=None, log_file_name=None, log_file_mode=None):
     status_logger.addHandler(handler)
 
     if current_process().name == "MainProcess":
-        fmt = logging.Formatter(
-            "%(asctime)s - %(name)s:%(funcName)s:%(lineno)d - %(levelname)s - %(message)s", "%H:%M:%S")
+        fmt = ProcessAwareFormatter(
+            "%(asctime)s %(name)s:%(filename)s:%(lineno)-4d - %(levelname)s%(maybeproc)s - %(message)s", "%H:%M:%S")
         handler = logging.StreamHandler()
         handler.setFormatter(fmt)
         handler.setLevel(level)
@@ -184,3 +219,59 @@ class LazyFile(object):
             return current_name
         else:
             return "%s.%s" % (basename, uuid.uuid4().hex)
+
+
+if hasattr(sys, '_getframe'):
+    def currentframe():
+        return sys._getframe(3)
+else:
+    def currentframe():
+        """Return the frame object for the caller's stack frame."""
+        try:
+            raise Exception()
+        except Exception:
+            return sys.exc_info()[2].tb_frame.f_back
+
+
+_srcfile = os.path.normcase(currentframe.__code__.co_filename)
+
+
+def find_caller(self, stack_info=False, stacklevel=1):
+    f = currentframe()
+    # On some versions of IronPython, currentframe() returns None if
+    # IronPython isn't run with -X:Frames.
+    orig_f = f
+    stacklevel += 2
+    while f and stacklevel > 1:
+        f = f.f_back
+        stacklevel -= 1
+    if not f:
+        f = orig_f
+    rv = "(unknown file)", 0, "(unknown function)"
+    sinfo = None
+    i = 0
+    while hasattr(f, "f_code"):
+        i += 1
+        co = f.f_code
+        filename = os.path.normcase(co.co_filename)
+        if filename == _srcfile:
+            f = f.f_back
+            continue
+        sinfo = None
+        if stack_info:
+            sio = io.StringIO()
+            sio.write('Stack (most recent call last):\n')
+            traceback.print_stack(f, file=sio)
+            sinfo = sio.getvalue()
+            if sinfo[-1] == '\n':
+                sinfo = sinfo[:-1]
+            sio.close()
+        rv = (os.path.splitext(os.path.basename(co.co_filename))[0].ljust(13)[:13],
+              f.f_lineno, co.co_name.ljust(5)[:5])
+        break
+    if not PY2:
+        rv += (sinfo, )
+    return rv
+
+
+logging.Logger.findCaller = find_caller

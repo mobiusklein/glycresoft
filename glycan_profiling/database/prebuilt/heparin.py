@@ -10,11 +10,15 @@ enHexA  0   1
 
 @acetyl <=  HexN
 @sulfate <= ((HexN * 3 - @acetyl) + (HexA * 2) + (enHexA * 2))
+HexA <= HexN + 1
+HexN <= HexA + 1
 '''
 
 hypothesis_metadata = {
     "name": 'Low Molecular Weight Heparins',
-    "hypothesis_type": 'glycan_composition'
+    "hypothesis_type": 'glycan_composition',
+    "description": 'A database of heparin and heparan sulfate chains covering'
+    ' the combinatorial space of possible saccharides of up to 18 monosaccharides.'
 }
 
 
@@ -30,3 +34,4 @@ class LowMolecularWeightHeparansBuilder(BuildBase):
             StringIO(combinatorial_source), database_connection,
             **kwargs)
         task.start()
+        return task

@@ -1,12 +1,19 @@
-from .features import (ms1_model_features, register_feature, available_features)
+import sys
+
+from .features import (ms1_model_features, register_feature, available_features, get_feature)
 from .charge_models import GeneralScorer
-from .adduct_models import (
-    AmmoniumAdductFeature, MethylLossFeature,
+from . import mass_shift_models
+from .mass_shift_models import (
+    AmmoniumMassShiftFeature, MethylLossFeature,
     PermethylatedAmmoniumAndMethylLossFeature,
-    GeneralizedFormateAdductFeature)
+    GeneralizedFormateMassShiftFeature)
+
+# pickle loading alias
+sys.modules['glycan_profiling.models.adduct_models'] = mass_shift_models
 
 __all__ = [
     "ms1_model_features", "register_feature", "available_features",
-    "GeneralScorer", "AmmoniumAdductFeature", "MethylLossFeature",
-    "PermethylatedAmmoniumAndMethylLossFeature", "GeneralizedFormateAdductFeature"
+    "get_feature",
+    "GeneralScorer", "AmmoniumMassShiftFeature", "MethylLossFeature",
+    "PermethylatedAmmoniumAndMethylLossFeature", "GeneralizedFormateMassShiftFeature"
 ]

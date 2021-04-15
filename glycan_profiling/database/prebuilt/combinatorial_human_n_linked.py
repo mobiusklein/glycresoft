@@ -17,8 +17,8 @@ hypothesis_metadata = {
 }
 
 
-@hypothesis_register(hypothesis_metadata['name'])
-class CombinatorialMammalianNGlycansBuilder(BuildBase):
+# @hypothesis_register(hypothesis_metadata['name'])
+class CombinatorialHumanNGlycansBuilder(BuildBase):
 
     def get_hypothesis_metadata(self):
         return hypothesis_metadata
@@ -29,3 +29,4 @@ class CombinatorialMammalianNGlycansBuilder(BuildBase):
             StringIO(combinatorial_source), database_connection,
             **kwargs)
         task.start()
+        return task
