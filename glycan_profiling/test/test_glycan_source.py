@@ -10,6 +10,17 @@ FILE_SOURCE = '''
 '''
 
 
+GLYCONNECT_SOURCE = '''
+HexNAc:2 Hex:3  N-Glycan  O-Glycan
+dHex:1 Hex:3 HexNAc:2  N-Glycan
+'''
+
+
+BYONIC_SOURCE = '''
+HexNAc(2)Hex(3)  N-Glycan  O-Glycan
+dHex(1)Hex(3)HexNAc(2)  N-Glycan
+'''
+
 class GlycanSourceTests(unittest.TestCase):
 
     def setup_tempfile(self):
@@ -56,6 +67,54 @@ class GlycanSourceTests(unittest.TestCase):
             glycan_source.DBGlycanComposition.hypothesis_id == builder.hypothesis_id,
             glycan_source.DBGlycanComposition.composition == "{Hex^Me:3; HexNAc^Me:2}$C1H4").one()
         self.assertAlmostEqual(inst.calculated_mass, 1164.6251311968801, 3)
+        builder.engine.dispose()
+        self.clear_file(file_name + '.db')
+        self.clear_file(file_name)
+
+
+class GlyconnectGlycanSourceTests(unittest.TestCase):
+    def setup_tempfile(self):
+        file_name = tempfile.mktemp() + ".txt"
+        open(file_name, 'w').write(GLYCONNECT_SOURCE)
+        return file_name
+
+    def clear_file(self, path):
+        open(path, 'wb')
+
+    def test_run(self):
+        file_name = self.setup_tempfile()
+        builder = glycan_source.TextFileGlycanHypothesisSerializer(
+            file_name, file_name + '.db')
+        builder.start()
+        inst = builder.query(glycan_source.DBGlycanComposition).filter(
+            glycan_source.DBGlycanComposition.hypothesis_id == builder.hypothesis_id,
+            glycan_source.DBGlycanComposition.composition == "{Hex:3; HexNAc:2}").one()
+        self.assertAlmostEqual(inst.calculated_mass, 910.32777, 3)
+        self.assertTrue("N-Glycan" in inst.structure_classes)
+        builder.engine.dispose()
+        self.clear_file(file_name + '.db')
+        self.clear_file(file_name)
+
+
+class ByonicGlycanSourceTests(unittest.TestCase):
+    def setup_tempfile(self):
+        file_name = tempfile.mktemp() + ".txt"
+        open(file_name, 'w').write(BYONIC_SOURCE)
+        return file_name
+
+    def clear_file(self, path):
+        open(path, 'wb')
+
+    def test_run(self):
+        file_name = self.setup_tempfile()
+        builder = glycan_source.TextFileGlycanHypothesisSerializer(
+            file_name, file_name + '.db')
+        builder.start()
+        inst = builder.query(glycan_source.DBGlycanComposition).filter(
+            glycan_source.DBGlycanComposition.hypothesis_id == builder.hypothesis_id,
+            glycan_source.DBGlycanComposition.composition == "{Hex:3; HexNAc:2}").one()
+        self.assertAlmostEqual(inst.calculated_mass, 910.32777, 3)
+        self.assertTrue("N-Glycan" in inst.structure_classes)
         builder.engine.dispose()
         self.clear_file(file_name + '.db')
         self.clear_file(file_name)

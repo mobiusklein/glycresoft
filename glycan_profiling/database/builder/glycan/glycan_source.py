@@ -1,6 +1,7 @@
 import re
 
 from uuid import uuid4
+from collections import OrderedDict
 
 from glycan_profiling.serialize.hypothesis import GlycanHypothesis
 from glycan_profiling.serialize.hypothesis.glycan import (
@@ -13,34 +14,21 @@ from glycan_profiling.database.builder.base import HypothesisSerializerBase
 
 from glypy.composition import composition_transform, formula
 from glypy.structure import glycan_composition
+from glypy.io import byonic, glyconnect
 from glypy.utils import opener
 from glypy import ReducedEnd
 
 
 class TextFileGlycanCompositionLoader(object):
-    def __init__(self, file_object):
+    def __init__(self, file_object, dialect=None):
+        if dialect is None:
+            dialect = dispatching_dialect
         self.file_object = file_object
         self.current_line = 0
+        self.dialect = dialect
 
     def _partition_line(self, line):
-        n = len(line)
-        brace_close = line.index("}")
-        parts = []
-        # line is just glycan composition
-        if brace_close == n - 1:
-            parts.append(line)
-            return parts
-
-        offset = brace_close + 1
-        i = 0
-        while (offset + i) < n:
-            c = line[offset + i]
-            if c.isspace():
-                break
-            i += 1
-        parts.append(line[:offset + i])
-        parts.extend(t for t in re.split(r"(?:\t|\s{2,})", line[offset + i:]) if t)
-        return parts
+        return self.dialect.parse_line(line)
 
     def _process_line(self):
         line = next(self.file_object)
@@ -59,7 +47,7 @@ class TextFileGlycanCompositionLoader(object):
             else:
                 composition = tokens[0]
                 structure_classes = tokens[1:]
-            gc = glycan_composition.GlycanComposition.parse(composition)
+            gc = self.dialect.parse_composition(composition)
         except StopIteration:
             raise
         except Exception as e:
@@ -73,6 +61,115 @@ class TextFileGlycanCompositionLoader(object):
 
     def __iter__(self):
         return self
+
+
+class GlycanCompositionDialectError(Exception):
+    pass
+
+
+class GlycanCompositionDialect(object):
+    name = 'iupaclite'
+
+    def parse_line(self, line):
+        parts, offset, n = self.split_line(line)
+        # line is just glycan composition
+        if offset is None:
+            return parts
+        i = 0
+        while (offset + i) < n:
+            c = line[offset + i]
+            if c.isspace():
+                break
+            i += 1
+        parts.append(line[:offset + i])
+        parts.extend(t for t in re.split(
+            r"(?:\t|\s{2,})", line[offset + i:]) if t)
+        return parts
+
+    def split_line(self, line):
+        n = len(line)
+        try:
+            brace_close = line.index("}")
+        except ValueError:
+            raise GlycanCompositionDialectError()
+        parts = []
+        # line is just glycan composition
+        if brace_close == n - 1:
+            parts.append(line)
+            return parts, None, n
+        offset = brace_close + 1
+        return parts, offset, n
+
+    def parse_composition(self, composition):
+        return glycan_composition.GlycanComposition.parse(composition)
+
+
+class SimpleGlycanCompositionDialect(GlycanCompositionDialect):
+
+    def split_line(self, line):
+        n = len(line)
+        sep = re.search(r"(\t+|\s{2,})", line)
+        if sep is None:
+            raise GlycanCompositionDialectError()
+        else:
+            junction = sep.start()
+        parts = []
+        offset = junction
+        return parts, offset, n
+
+    def parse_composition(self, composition):
+        return super(SimpleGlycanCompositionDialect, self).parse_composition(composition)
+
+
+class ByonicGlycanCompositionDialect(SimpleGlycanCompositionDialect):
+    name = 'byonic'
+
+    def parse_composition(self, composition):
+        result = byonic.loads(composition).thaw()
+        if not result:
+            raise Exception()
+        return result
+
+
+class GlyconnectGlycanCompositionDialect(SimpleGlycanCompositionDialect):
+    name = 'glyconnect'
+
+    def parse_composition(self, composition):
+        result = glyconnect.loads(composition).thaw()
+        if not result:
+            raise Exception()
+        return result
+
+
+dialects = OrderedDict([
+    ("iupaclite", GlycanCompositionDialect()),
+    ("byonic", ByonicGlycanCompositionDialect()),
+    ("glyconnect", GlyconnectGlycanCompositionDialect())
+])
+
+
+class DispatchingGlycanCompositionDialect(object):
+    def __init__(self, dialects):
+        self.dialects = dialects
+
+    def parse_line(self, line):
+        for name, dialect in self.dialects.items():
+            try:
+                return dialect.parse_line(line)
+            except GlycanCompositionDialectError:
+                continue
+        raise GlycanCompositionDialectError()
+
+    def parse_composition(self, composition):
+        for name, dialect in self.dialects.items():
+            try:
+                return dialect.parse_composition(composition)
+            except Exception as err:
+                continue
+        raise GlycanCompositionDialectError()
+
+
+dispatching_dialect = DispatchingGlycanCompositionDialect(dialects)
 
 
 _default_label_map = {

@@ -24,7 +24,34 @@ def linearize_composition(glycan_composition):
     return [mr for mr, count in glycan_composition.items() for i in range(count)]
 
 
+INF = float('inf')
+
+
 class GlycanCompositionTransformerRule(object):
+    def __init__(self, modifier, constraints):
+        self.modifier = modifier
+        self.constraints = constraints
+
+    def __repr__(self):
+        return "%s(%r, %r)" % (
+            self.__class__.__name__,
+            self.modifier, self.constraints)
+
+    def test(self, glycan_composition):
+        return self.constraints(glycan_composition)
+
+    def apply(self, glycan_composition, i):
+        glycan_composition[self.modifier] = i
+        return glycan_composition
+
+    def __eq__(self, other):
+        return self.modifier == other.modifier and self.constraints == other.constraints
+
+    def __hash__(self):
+        return hash(self.modifier)
+
+
+class SiteSpecificGlycanCompositionTransformerRule(object):
     def __init__(self, target, modifier):
         self.target = target
         self.modifier = modifier
@@ -33,7 +60,8 @@ class GlycanCompositionTransformerRule(object):
         return [i for i, mr in enumerate(linear) if mr == self.target]
 
     def __repr__(self):
-        return "GlycanCompositionTransformerRule(%r, %r)" % (
+        return "%s(%r, %r)" % (
+            self.__class__.__name__,
             self.target, self.modifier)
 
     def apply(self, glycan_composition, i):
