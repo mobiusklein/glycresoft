@@ -172,10 +172,10 @@ class PeptidePermuter(object):
         n_variable = 0
         result = sequence.clone()
         if n_term is not None:
-            result.n_term = n_term
+            result.n_term = n_term()
             n_variable += 1
         if c_term is not None:
-            result.c_term = c_term
+            result.c_term = c_term()
             n_variable += 1
         for site, mod in assignments:
             if mod is not None:
@@ -279,7 +279,7 @@ class ProteinDigestor(TaskBase):
                 inst.end_position = end
                 yield inst
 
-    def modify_string(self, peptide):
+    def modify_string(self, peptide, is_prot_nterm=False, is_prot_cterm=False):
         for modified_peptide, n_variable_modifications in self.peptide_permuter(peptide):
             inst = Peptide(
                 base_peptide_sequence=str(peptide),
