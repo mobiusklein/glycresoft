@@ -823,6 +823,7 @@ def glycopeptide_retention_time_fit(context, chromatogram_csv_path, output_path=
 @retention_time.command(
     "evaluate-glycopeptide-retention-time",
     short_help="Predict and score the retention time of glycopeptides using an existing model")
+@click.pass_context
 @click.argument("model-path", type=click.Path(readable=True))
 @click.argument("chromatogram-csv-path", type=click.Path(readable=True))
 @click.argument("output-path", type=click.Path(writable=True))
