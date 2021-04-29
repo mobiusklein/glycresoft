@@ -1,5 +1,5 @@
 import csv
-from collections import defaultdict
+from collections import defaultdict, OrderedDict
 
 import numpy as np
 from scipy import stats
@@ -227,6 +227,20 @@ class ElutionTimeFitter(ScoringFeatureBase):
         for fname, value in zip(self.feature_names(), self.parameters):
             writer.writerow([fname, value])
 
+    def to_dict(self):
+        out = OrderedDict()
+        keys = self.feature_names()
+        for k, v in zip(keys, self.parameters):
+            out[k] = v
+        return out
+
+    def _infer_factors(self):
+        keys = set()
+        for record in self.chromatograms:
+            keys.update(record.glycan_composition)
+        keys = sorted(map(str, keys))
+        return keys
+
 
 class AbundanceWeightedElutionTimeFitter(ElutionTimeFitter):
     def build_weight_matrix(self):
@@ -394,6 +408,22 @@ class PeptideFactorElutionTimeFitter(FactorElutionTimeFitter):
                     "Peptide sequence %s not part of the model." % (peptide_key, ))
         return np.array(
             peptides + [chromatogram.glycan_composition[f] for f in self.factors])
+
+    def has_peptide(self, peptide):
+        '''Check if the peptide is included in the model.
+
+        Parameters
+        ----------
+        peptide : str
+            The peptide sequence to check
+
+        Returns
+        -------
+        bool
+        '''
+        if not isinstance(peptide, str):
+            peptide = self._get_peptide_key(peptide)
+        return peptide in self._peptide_to_indicator
 
 
 class AbundanceWeightedPeptideFactorElutionTimeFitter(PeptideFactorElutionTimeFitter):
