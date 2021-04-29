@@ -7,6 +7,7 @@ from glycopeptidepy import PeptideSequence
 from glypy.structure.glycan_composition import HashableGlycanComposition
 
 from glycan_profiling.chromatogram_tree.utils import ArithmeticMapping
+from glycan_profiling.chromatogram_tree.mass_shift import MassShift
 
 
 def _get_apex_time(chromatogram):
@@ -19,13 +20,25 @@ def _get_apex_time(chromatogram):
 
 
 class ChromatogramProxy(object):
-    def __init__(self, weighted_neutral_mass, apex_time, total_signal, glycan_composition, obj=None, **kwargs):
+    def __init__(self, weighted_neutral_mass, apex_time, total_signal, glycan_composition, obj=None, mass_shifts=None, **kwargs):
         self.weighted_neutral_mass = weighted_neutral_mass
         self.apex_time = apex_time
         self.total_signal = total_signal
         self.glycan_composition = glycan_composition
         self.obj = obj
+        self._mass_shifts = None
         self.kwargs = kwargs
+        if mass_shifts:
+            if isinstance(mass_shifts, str):
+                mass_shifts = mass_shifts.split(";")
+            self.kwargs['mass_shifts'] = ';'.join([getattr(m, 'name', m) for m in mass_shifts])
+
+    @property
+    def mass_shifts(self):
+        if self._mass_shifts is None:
+            self._mass_shifts = [
+                MassShift(name, MassShift.get(name)) for name in self.annotations.get("mass_shifts", '').split(";")]
+        return self._mass_shifts
 
     @property
     def annotations(self):
@@ -47,6 +60,8 @@ class ChromatogramProxy(object):
             apex_time = _get_apex_time(chrom)
         except (AttributeError, ValueError, TypeError):
             apex_time = obj.apex_time
+        mass_shifts = getattr(obj, 'mass_shifts')
+        kwargs.setdefault('mass_shifts', mass_shifts)
         inst = cls(
             obj.weighted_neutral_mass, apex_time, obj.total_signal,
             obj.glycan_composition, obj, **kwargs)
@@ -129,7 +144,7 @@ class ChromatogramProxy(object):
 
     def shift_glycan_composition(self, delta):
         inst = self.__class__.from_obj(self)
-        inst.glycan_composition = HashableGlycanComposition(self.glycan_composition) - delta
+        inst.glycan_composition = HashableGlycanComposition(self.glycan_composition) + delta
         return inst
 
 
@@ -150,13 +165,22 @@ class GlycopeptideChromatogramProxy(ChromatogramProxy):
         return self._structure
 
     @structure.setter
-    def structure_setter(self, value):
+    def structure(self, value):
         self._structure = value
+        self.kwargs['structure'] = str(value)
 
     @classmethod
     def from_obj(cls, obj, **kwargs):
         gp = PeptideSequence(str(obj.structure))
         return super(GlycopeptideChromatogramProxy, cls).from_obj(obj, structure=gp, **kwargs)
+
+    def shift_glycan_composition(self, delta):
+        inst = super(GlycopeptideChromatogramProxy, self).shift_glycan_composition(delta)
+        structure = self.structure.clone()
+        structure.glycan = inst.glycan_composition
+        inst.structure = structure
+        inst.kwargs['original_structure'] = str(self.structure)
+        return inst
 
 
 class CommonGlycopeptide(object):

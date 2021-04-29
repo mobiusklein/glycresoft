@@ -519,7 +519,7 @@ def glycopeptide_chromatogram_records(
         obj = GlycopeptideChromatogramProxy.from_obj(
             idgp, ms1_score=idgp.ms1_score, ms2_score=idgp.ms2_score,
             q_value=idgp.q_value, analysis_name=analysis_name,
-            mass_shifts=';'.join([m.name for m in idgp.chromatogram.mass_shifts]))
+            mass_shifts=idgp.chromatogram.mass_shifts)
         if obj.apex_time < start_time or obj.apex_time > stop_time:
             continue
         cases.append(obj)
