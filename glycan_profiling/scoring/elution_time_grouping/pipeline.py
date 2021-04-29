@@ -140,10 +140,6 @@ class GlycopeptideElutionTimeModeler(TaskBase):
                 obs.annotations['score'] = score
                 obs.annotations['predicted_apex_time'] = pred
                 obs.annotations['delta_apex_time'] = delta
-                self.log("\t%s: %0.2f @ %0.2f (%s%0.2f)" % (
-                    obs.structure, score, pred,
-                    "+" if delta > 0 else '-', abs(delta)
-                    ))
 
     def evaluate(self, observations):
         for obs in observations:
