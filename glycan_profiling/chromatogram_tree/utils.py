@@ -12,6 +12,18 @@ class ArithmeticMapping(Counter):
     def __missing__(self, key):
         return 0
 
+    def __add__(self, other):
+        inst = self.copy()
+        for key, value in other.items():
+            inst[key] += value
+        return inst
+
+    def __sub__(self, other):
+        inst = self.copy()
+        for key, value in other.items():
+            inst[key] -= value
+        return inst
+
     def __mul__(self, i):
         inst = self.copy()
         for key, value in self.items():
