@@ -97,7 +97,8 @@ class GlycopeptideHypothesisSerializerBase(DatabaseBoundOperation, HypothesisSer
         return self._hypothesis.n_glycan_only
 
     def peptide_ids_with_n_glycosites(self):
-        q = self.session.query(Peptide.id).join(Protein).join(Protein.sites).filter(
+        # May include the residue beyond the final
+        q = self.session.query(Peptide.id.distinct()).join(Protein).join(Protein.sites).filter(
             Peptide.spans(ProteinSite.location) &
             (ProteinSite.name == ProteinSite.N_GLYCOSYLATION) &
             Protein.hypothesis_id == self._hypothesis_id).all()

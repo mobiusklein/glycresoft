@@ -355,6 +355,8 @@ class Peptide(PeptideBase, HasChemicalComposition, Base):
 
     @spans.expression
     def spans(self, position):
+        # Overhang at the end is for consistency with SpanningMixin, but this is not
+        # ideal
         return (self.start_position <= position) & (position <= self.end_position)
 
     @hybrid_property

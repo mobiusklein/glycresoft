@@ -158,8 +158,12 @@ class PeptideDatabaseProxyLoader(TaskBase):
             iterator = FetchManyIterator(db.session.execute(q))
         else:
             iterator = db
+        seen = set()
         for r in iterator:
             rec = PeptideDatabaseRecord.from_record(r)
+            if rec.id in seen:
+                self.log("Converted Peptide %d more than once!" % rec.id)
+            seen.add(rec.id)
             if filter_level == 1 and rec.n_glycosylation_sites:
                 peptides.append(rec)
             elif filter_level == 2 and rec.o_glycosylation_sites:

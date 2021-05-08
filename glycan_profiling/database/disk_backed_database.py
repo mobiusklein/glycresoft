@@ -642,5 +642,5 @@ class PeptideDiskBackedStructureDatabase(DeclarativeDiskBackedDatabase):
             self.selectable.join(Protein.__table__).join(ProteinSite.__table__)).where(
                 Peptide.spans(ProteinSite.location) & (ProteinSite.name == ProteinSite.N_GLYCOSYLATION)
                 & (Protein.hypothesis_id == self.hypothesis_id)).order_by(
-            self.mass_field)
+            self.mass_field).group_by(Peptide.id)
         return q
