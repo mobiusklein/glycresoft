@@ -2,7 +2,7 @@ from collections import Counter
 
 from sqlalchemy import (
     Column, Numeric, Integer, String, ForeignKey, PickleType,
-    Boolean, Table)
+    Boolean, Table, func)
 
 from sqlalchemy.orm import relationship, object_session
 from sqlalchemy.ext.declarative import declared_attr
@@ -43,6 +43,20 @@ class GlycanHypothesis(HypothesisBase, Base):
                 bounds[residue] = max(bounds[residue], count)
         return {str(k): int(v) for k, v in bounds.items()}
 
+    @property
+    def glycan_class_counts(self):
+        from .glycan import GlycanClass, GlycanComposition
+        session = object_session(self)
+        d = {k: v for k, v in session.query(GlycanClass.name, func.count(GlycanClass.name)).join(
+             GlycanComposition.structure_classes).group_by(GlycanClass.name).all()}
+        return d
+
+    @property
+    def n_glycan_only(self):
+        counts = self.glycan_class_counts
+        k = counts.get('N-Glycan', 0)
+        return len(counts) == 1 and k > 0
+
 
 class GlycopeptideHypothesis(HypothesisBase, Base):
     __tablename__ = "GlycopeptideHypothesis"
@@ -52,3 +66,11 @@ class GlycopeptideHypothesis(HypothesisBase, Base):
 
     def monosaccharide_bounds(self):
         return self.glycan_hypothesis.monosaccharide_bounds()
+
+    @property
+    def glycan_class_counts(self):
+        return self.glycan_hypothesis.glycan_class_counts
+
+    @property
+    def n_glycan_only(self):
+        return self.glycan_hypothesis.n_glycan_only
