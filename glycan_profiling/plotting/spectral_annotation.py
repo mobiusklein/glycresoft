@@ -179,3 +179,98 @@ class TidySpectrumMatchAnnotator(SpectrumMatchAnnotator):
             if peak.intensity < min_intensity:
                 return
         super(TidySpectrumMatchAnnotator, self).label_peak(fragment, peak, fontsize, rotation, **kw)
+
+
+def normalize_scan(scan, factor=None):
+    scan = scan.copy()
+    scan.deconvoluted_peak_set = scan.deconvoluted_peak_set.__class__(
+        p.clone() for p in scan.deconvoluted_peak_set)
+    bp = scan.base_peak().clone()
+    if factor is None:
+        factor = bp.intensity / 1000
+    for peak in scan:
+        peak.intensity /= factor
+    return scan
+
+
+class MirrorSpectrumAnnotatorFacet(TidySpectrumMatchAnnotator):
+
+    def draw_all_peaks(self, color='black', alpha=0.5, mirror=False, **kwargs):
+        draw_peaklist(
+            self.spectrum_match.deconvoluted_peak_set if not mirror else [
+                [p.mz, -p.intensity] for p in self.spectrum_match.deconvoluted_peak_set
+            ],
+            alpha=0.3, color='grey', ax=self.ax, lw=0.75, **kwargs)
+
+    def draw_matched_peaks(self, color='red', alpha=0.8, fontsize=12, ion_series_to_color=None, mirror=False, **kwargs):
+        if ion_series_to_color is None:
+            ion_series_to_color = {}
+        try:
+            solution_map = self.spectrum_match.solution_map
+        except AttributeError:
+            return
+        for peak, fragment in solution_map:
+            try:
+                peak_color = ion_series_to_color.get(fragment.series, color)
+            except AttributeError:
+                peak_color = ion_series_to_color.get(fragment.kind, color)
+            draw_peaklist(
+                [peak] if not mirror else [(peak.mz, -peak.intensity)],
+                alpha=alpha, ax=self.ax, color=peak_color)
+            self.label_peak(fragment, peak, fontsize=fontsize,
+                            mirror=mirror, **kwargs)
+
+    def base_peak_factor(self):
+        return self.spectrum_match.scan.base_peak().intensity / 100
+
+    def label_peak(self, fragment, peak, fontsize=12, rotation=90, mirror=False, **kw):
+        label = "%s" % fragment.name
+        if fragment.series == 'oxonium_ion':
+            return ''
+        if peak.charge > 1:
+            label += "$^{%d}$" % peak.charge
+        y = peak.intensity
+        upshift = 2
+        sign = 1 if y > 0 else -1
+        y = min(y + sign * upshift, self.upper * 0.9)
+
+        if mirror:
+            y = -y
+
+        kw.setdefault("clip_on", self.clip_labels)
+        clip_on = kw['clip_on']
+
+        text = self.ax.text(
+            peak.mz, y, label, rotation=rotation, va='bottom' if not mirror else 'top',
+            ha='center', fontsize=fontsize, fontproperties=font_options,
+            clip_on=clip_on)
+        self.peak_labels.append(text)
+        return text
+
+    def draw(self, mirror=False, **kwargs):
+        fontsize = kwargs.pop('fontsize', 9)
+        rotation = kwargs.pop("rotation", 90)
+        clip_labels = kwargs.pop("clip_labels", self.clip_labels)
+        self.clip_labels = clip_labels
+        ion_series_to_color = kwargs.pop(
+            "ion_series_to_color", default_ion_series_to_color)
+        self.draw_all_peaks(mirror=mirror, **kwargs)
+        self.draw_matched_peaks(
+            fontsize=fontsize, ion_series_to_color=ion_series_to_color,
+            rotation=rotation, mirror=mirror, **kwargs)
+        self.draw_spectrum_graph(fontsize=fontsize, rotation=rotation / 2)
+        self.format_axes()
+        return self
+
+
+def mirror_spectra(psm_a, psm_b):
+    art = MirrorSpectrumAnnotatorFacet(psm_a)
+    art.draw()
+    reflect = MirrorSpectrumAnnotatorFacet(psm_b, ax=art.ax)
+    reflect.draw(mirror=True)
+    reflect.ax.set_ylim(-1500, 1200)
+    ax = art.ax
+    ax.set_yticks(np.arange(-1000, 1000 + 250, 250))
+    ax.set_yticklabels(map(lambda x: str(x) + '%',
+                           list(range(100, -25, -25)) + list(range(25, 125, 25))))
+    return art.ax, art, reflect
