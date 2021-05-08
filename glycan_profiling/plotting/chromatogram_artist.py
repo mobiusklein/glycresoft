@@ -412,5 +412,5 @@ def mass_shift_separating_chromatogram(chroma, ax=None, **kwargs):
     ymin = mass_shift_plot.ax.get_ylim()[0]
     mass_shift_plot.ax.set_ylim(ymin, intens.max() * 1.01)
     mass_shift_plot.ax.set_title(
-        "Mass Shift-Separated\nExtracted Ion Chromatogram", fontsize=24)
+        "Mass Shift-Separated\nExtracted Ion Chromatogram", fontsize=20)
     return mass_shift_plot.ax
