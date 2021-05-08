@@ -16,7 +16,7 @@ from glypy.structure.glycan_composition import FrozenGlycanComposition
 
 from glycan_profiling.serialize import DatabaseBoundOperation, func
 from glycan_profiling.serialize.hypothesis import GlycopeptideHypothesis
-from glycan_profiling.serialize.hypothesis.peptide import Glycopeptide, Peptide, Protein
+from glycan_profiling.serialize.hypothesis.peptide import Glycopeptide, Peptide, Protein, ProteinSite
 from glycan_profiling.serialize.hypothesis.glycan import (
     GlycanCombination, GlycanClass, GlycanComposition,
     GlycanTypes, GlycanCombinationGlycanComposition)
@@ -89,6 +89,25 @@ class GlycopeptideHypothesisSerializerBase(DatabaseBoundOperation, HypothesisSer
         if self._glycan_hypothesis_id is None:
             self._construct_hypothesis()
         return self._glycan_hypothesis_id
+
+    @property
+    def n_glycan_only(self):
+        if self._hypothesis is None:
+            self._construct_hypothesis()
+        return self._hypothesis.n_glycan_only
+
+    def peptide_ids_with_n_glycosites(self):
+        q = self.session.query(Peptide.id).join(Protein).join(Protein.sites).filter(
+            Peptide.spans(ProteinSite.location) &
+            (ProteinSite.name == ProteinSite.N_GLYCOSYLATION) &
+            Protein.hypothesis_id == self._hypothesis_id).all()
+        return [i[0] for i in q]
+
+    def peptide_ids(self):
+        if self.n_glycan_only:
+            return self.peptide_ids_with_n_glycosites()
+        q = self.session.query(Peptide.id).filter(Peptide.hypothesis_id == self._hypothesis_id).all()
+        return [i[0] for i in q]
 
     def combinate_glycans(self, n):
         combinator = glycan_combinator.GlycanCombinationSerializer(

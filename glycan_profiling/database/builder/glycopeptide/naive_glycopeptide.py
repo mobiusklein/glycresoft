@@ -78,9 +78,6 @@ class FastaGlycopeptideHypothesisSerializer(GlycopeptideHypothesisSerializerBase
     def protein_ids(self):
         return [i[0] for i in self.query(Protein.id).filter(Protein.hypothesis_id == self.hypothesis_id).all()]
 
-    def peptide_ids(self):
-        return [i[0] for i in self.query(Peptide.id).filter(Peptide.hypothesis_id == self.hypothesis_id).all()]
-
     def digest_proteins(self):
         digestor = ProteinDigestor(
             self.protease, self.constant_modifications, self.variable_modifications,
