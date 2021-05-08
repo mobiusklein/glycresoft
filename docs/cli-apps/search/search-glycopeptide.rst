@@ -6,18 +6,24 @@ from experimental data. After you've constructed a glycopeptide database
 and deconvoluted an LC-MS/MS data file, you're ready to do just that.
 
 
+Traditional Database Search
+----------------------------
+
 .. click:: glycan_profiling.cli.analyze:search_glycopeptide
     :prog: glycresoft analyze search-glycopeptide
 
 
 Usage Example
--------------
+~~~~~~~~~~~~~
 
 .. code-block:: bash
 
     $ glycresoft analyze search-glycopeptide -m 5e-6 -mn 1e-5 fasta-glycopeptides.db path/to/processed/sample.mzML 1\
          -o "agp-glycopepitdes-in-sample.db"
 
+
+Multi-component Database Search
+-------------------------------
 
 .. click:: glycan_profiling.cli.analyze:search_glycopeptide_multipart
     :prog: glycresoft analyze search-glycopeptide-multipart
