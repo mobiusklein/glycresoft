@@ -66,7 +66,7 @@ class ChromatogramGraphNode(ChromatogramRetentionTimeInterval):
         return self.chromatogram
 
     def __repr__(self):
-        return "ChromatogramGraphNode(%s)" % (self.chromatogram,)
+        return "%s(%s)" % (self.__class__.__name__, self.chromatogram,)
 
     def __index__(self):
         return self.index
@@ -90,14 +90,18 @@ class ChromatogramGraphEdge(object):
         self.node_b.edges.add(self)
 
     def __repr__(self):
-        return "ChromatogramGraphEdge(%s, %s, %s)" % (
-            self.node_a.chromatogram, self.node_b.chromatogram, self.transition)
+        return "%s(%s, %s, %s)" % (
+            self.__class__.__name__, self.node_a.chromatogram, self.node_b.chromatogram,
+            self.transition)
 
     def __hash__(self):
         return hash(frozenset((self.node_a.index, self.node_b.index)))
 
     def __eq__(self, other):
         return frozenset((self.node_a.index, self.node_b.index)) == frozenset((other.node_a.index, other.node_b.index))
+
+    def __ne__(self, other):
+        return not self == other
 
 
 def explode_node(node):
@@ -129,6 +133,9 @@ def chromatograms_from_edge(edge):
 
 
 class ChromatogramGraph(object):
+    node_cls = ChromatogramGraphNode
+    edge_cls = ChromatogramGraphEdge
+
     def __init__(self, chromatograms):
         self.chromatograms = chromatograms
         self.assigned_seed_queue = deque()
@@ -140,10 +147,16 @@ class ChromatogramGraph(object):
     def __len__(self):
         return len(self.nodes)
 
+    def __iter__(self):
+        return iter(self.nodes)
+
+    def __getitem__(self, i):
+        return self.nodes[i]
+
     def _construct_graph_nodes(self, chromatograms):
         nodes = []
         for i, chroma in enumerate(chromatograms):
-            node = (ChromatogramGraphNode(chroma, i))
+            node = (self.node_cls(chroma, i))
             nodes.append(node)
             if node.chromatogram.composition:
                 self.enqueue_seed(node)
@@ -174,7 +187,7 @@ class ChromatogramGraph(object):
             if match:
                 ppm_error = (added - match.neutral_mass) / match.neutral_mass
                 rt_error = (node.center - match.center)
-                self.edges.add(ChromatogramGraphEdge(node, match, transition, mass_error=ppm_error, rt_error=rt_error))
+                self.edges.add(self.edge_cls(node, match, transition, mass_error=ppm_error, rt_error=rt_error))
 
     def find_shared_peaks(self):
         peak_map = defaultdict(set)
