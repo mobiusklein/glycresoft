@@ -1136,10 +1136,10 @@ class GlycopeptideChromatogram(EntityChromatogram):
 def get_chromatogram(instance):
     if isinstance(instance, Chromatogram):
         return instance
-    elif isinstance(instance, ChromatogramWrapper):
-        return instance.chromatogram
     elif isinstance(instance, ChromatogramInterface):
         return instance
+    elif isinstance(instance, ChromatogramWrapper):
+        return instance.chromatogram
     else:
         try:
             return instance.get_chromatogram()
