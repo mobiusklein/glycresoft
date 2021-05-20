@@ -467,11 +467,19 @@ class SpectrumSolutionSet(ScanWrapperBase):
         """
         return self.best_solution().precursor_mass_accuracy()
 
-    def best_solution(self, reject_shifted=False):
+    def best_solution(self, reject_shifted=False, targets_ignored=None):
         """The :class:`SpectrumMatchBase` in :attr:`solutions` which
         is the best match to :attr:`scan`, the match at position 0.
 
         If the collection is not sorted, :meth:`sort` will be called.
+
+        Parameters
+        ----------
+        reject_shifted : bool
+            Whether or not to reject any solution where the mass shift is not :obj:`Unmodified`.
+            Defaults to :const:`False`.
+        targets_ignored : Container
+            A collection of :attr:`~.SpectrumMatch.target` values to ignore
 
         Returns
         -------
@@ -479,16 +487,23 @@ class SpectrumSolutionSet(ScanWrapperBase):
         """
         if not self._is_sorted:
             self.sort()
-        if not reject_shifted:
+        if targets_ignored is None:
+            targets_ignored = ()
+        if not reject_shifted and not targets_ignored:
             return self.solutions[0]
         for solution in self:
-            if solution.mass_shift == Unmodified:
+            if (solution.mass_shift == Unmodified or not reject_shifted) and (solution.target in targets_ignored or not targets_ignored):
                 return solution
 
-    def mark_top_solutions(self, reject_shifted=False):
-        solution = self.best_solution(reject_shifted=reject_shifted)
+    def mark_top_solutions(self, reject_shifted=False, targets_ignored=None):
+        solution = self.best_solution(
+            reject_shifted=reject_shifted, targets_ignored=targets_ignored)
         if solution is None and reject_shifted:
-            return self.mark_top_solutions(reject_shifted=False)
+            return self.mark_top_solutions(reject_shifted=False, targets_ignored=targets_ignored)
+        if solution is None and targets_ignored:
+            return self.mark_top_solutions(
+                reject_shifted=reject_shifted, targets_ignored=None)
+
         solution.best_match = True
         score = solution.score
         for solution in self:
@@ -539,7 +554,7 @@ class SpectrumSolutionSet(ScanWrapperBase):
         self._is_simplified = True
         self._invalidate()
 
-    def get_top_solutions(self, d=3, reject_shifted=False):
+    def get_top_solutions(self, d=3, reject_shifted=False, targets_ignored=None):
         """Get all matches within `d` of the best solution
 
         Parameters
@@ -547,14 +562,22 @@ class SpectrumSolutionSet(ScanWrapperBase):
         d : float, optional
             The delta between the best match and the worst to return
             (the default is 3)
+        reject_shifted : bool
+            Whether or not to reject any solution where the mass shift is not :obj:`Unmodified`.
+            Defaults to :const:`False`.
+        targets_ignored : Container
+            A collection of :attr:`~.SpectrumMatch.target` values to ignore
 
         Returns
         -------
         list
         """
-        best = self.best_solution(reject_shifted=reject_shifted)
+        best = self.best_solution(
+            reject_shifted=reject_shifted, targets_ignored=targets_ignored)
         if best is None and reject_shifted:
-            return self.get_top_solutions(d, reject_shifted=False)
+            return self.get_top_solutions(d, reject_shifted=False, targets_ignored=targets_ignored)
+        if best is None and targets_ignored:
+            return self.get_top_solutions(d, reject_shifted=reject_shifted, targets_ignored=None)
         best_score = best.score
         if reject_shifted:
             return [x for x in self.solutions if (best_score - x.score) < d and x.mass_shift == Unmodified]
@@ -694,9 +717,9 @@ class MultiScoreSpectrumSolutionSet(SpectrumSolutionSet):
     def is_multiscore(self):
         return True
 
-    # note: Sorting by total score is not guaranteed to sort by total
-    # FDR, so a post-FDR estimation re-ranking of spectrum matches will
-    # be necessary.
+    # NOTE: Sorting by total score is not guaranteed to sort by total
+    # FDR, so a post-FDR estimation re-ranking of spectrum matches may
+    # be necessary, albeit less reliable.
 
     def sort(self, maximize=True, method=None):
         """Sort the spectrum matches in this solution set according to their score_set
@@ -718,14 +741,19 @@ class MultiScoreSpectrumSolutionSet(SpectrumSolutionSet):
         self._is_sorted = True
         return self
 
-    def mark_top_solutions(self, reject_shifted=False):
-        solution = self.best_solution(reject_shifted=reject_shifted)
+    def mark_top_solutions(self, reject_shifted=False, targets_ignored=None):
+        solution = self.best_solution(reject_shifted=reject_shifted, targets_ignored=targets_ignored)
         if solution is None and reject_shifted:
-            return self.mark_top_solutions(reject_shifted=False)
+            return self.mark_top_solutions(reject_shifted=False, targets_ignored=targets_ignored)
+        if solution is None and targets_ignored:
+            return self.mark_top_solutions(reject_shifted=reject_shifted, targets_ignored=None)
         solution.best_match = True
         score_set = solution.score_set
         for solution in self:
             if reject_shifted and solution.mass_shift != Unmodified:
+                solution.best_match = False
+                continue
+            if targets_ignored and solution.target in targets_ignored:
                 solution.best_match = False
                 continue
             if ((score_set.glycopeptide_score - solution.score_set.glycopeptide_score)) < 1e-3:
