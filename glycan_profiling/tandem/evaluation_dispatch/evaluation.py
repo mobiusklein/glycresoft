@@ -159,6 +159,9 @@ class LocalSpectrumEvaluator(SpectrumEvaluatorBase, TaskBase):
     :meth:`construct_cache_subgroups` and :meth:`create_evaluation_context` from
     :attr:`evaluator`.
     '''
+
+    log_process_cycle = 2500
+
     def __init__(self, evaluator, scan_map, mass_shift_map, solution_packer, evaluation_args=None):
         if evaluation_args is None:
             evaluation_args = dict()
@@ -195,7 +198,7 @@ class LocalSpectrumEvaluator(SpectrumEvaluatorBase, TaskBase):
             n = len(hit_to_scan_map)
             for target, scan_spec in deque_builder:
                 i += 1
-                if i % 1000 == 0:
+                if i % self.log_process_cycle == 0:
                     self.log("... %0.2f%% of Hits Searched (%d/%d)" %
                             (i * 100. / n, i, n))
                 target_id, result = self.handle_item(target, scan_spec)
@@ -205,7 +208,7 @@ class LocalSpectrumEvaluator(SpectrumEvaluatorBase, TaskBase):
             n = len(hit_group_map)
             for work_order in deque_builder:
                 i += 1
-                if i % 1000 == 0:
+                if i % self.log_process_cycle == 0:
                     self.log("... %0.2f%% of Groups Searched (%d/%d)" %
                              (i * 100. / n, i, n))
                 for target_id, result in self.handle_group(work_order):
@@ -301,9 +304,6 @@ class SolutionHandler(TaskBase):
         for hit_spec, result_pack in score_map.items():
             scan_id, shift_type = hit_spec
             score = self.packer.unpack(result_pack)
-            j += 1
-            if j % 1000 == 0:
-                self.log("...... Mapping match %d for %s on %s with score %r" % (j, target, scan_id, score))
             psm = self._make_spectrum_match(scan_id, target, score, shift_type)
             self.scan_solution_map[scan_id].append(psm)
 
