@@ -203,6 +203,11 @@ class Chromatogram(_TimeIntervalMethods):
             k: self.total_signal_for(k) for k in self.mass_shifts
         })
 
+    def drop_mass_shifts(self):
+        for node in self.nodes.unspool():
+            node.node_type = Unmodified
+        return self
+
     @property
     def integrated_abundance(self):
         spacing = np.array([
@@ -1047,6 +1052,9 @@ class ChromatogramWrapper(_TimeIntervalMethods):
 
     def mass_shift_signal_fractions(self):
         return self.chromatogram.mass_shift_signal_fractions()
+
+    def drop_mass_shifts(self):
+        return self.chromatogram.drop_mass_shifts()
 
 
 ChromatogramInterface.register(ChromatogramWrapper)
