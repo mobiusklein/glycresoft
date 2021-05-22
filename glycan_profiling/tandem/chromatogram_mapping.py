@@ -171,6 +171,10 @@ class RepresenterSelectionStrategy(object):
     def sort_solutions(self, representers):
         return parsimony_sort(representers)
 
+    def get_solutions_for_spectrum(self, solution_set, threshold_fn=lambda x: True, reject_shifted=False, targets_ignored=None):
+        return solution_set.get_top_solutions(
+            d=5, reject_shifted=reject_shifted, targets_ignored=targets_ignored)
+
     def __call__(self, collection, threshold_fn=lambda x: True, reject_shifted=False, targets_ignored=None):
         return self.compute_weights(
             collection, threshold_fn=threshold_fn, reject_shifted=reject_shifted, targets_ignored=targets_ignored)
@@ -183,7 +187,7 @@ class TotalBestRepresenterStrategy(RepresenterSelectionStrategy):
         best_spectrum_match = dict()
         for psm in collection.tandem_solutions:
             if threshold_fn(psm):
-                for sol in psm.get_top_solutions(d=5, reject_shifted=reject_shifted, targets_ignored=targets_ignored):
+                for sol in self.get_solutions_for_spectrum(psm, reject_shifted=reject_shifted, targets_ignored=targets_ignored):
                     if not threshold_fn(sol):
                         continue
                     if reject_shifted and sol.mass_shift != Unmodified:
@@ -209,7 +213,7 @@ class TotalAboveAverageBestRepresenterStrategy(RepresenterSelectionStrategy):
         best_spectrum_match = dict()
         for psm in collection.tandem_solutions:
             if threshold_fn(psm):
-                for sol in psm.get_top_solutions(d=5, reject_shifted=reject_shifted, targets_ignored=targets_ignored):
+                for sol in self.get_solutions_for_spectrum(psm, reject_shifted=reject_shifted, targets_ignored=targets_ignored):
                     if not threshold_fn(sol):
                         continue
                     if reject_shifted and sol.mass_shift != Unmodified:
@@ -607,16 +611,68 @@ class RepresenterDeconvolution(object):
         # If all solutions for a given node have been removed, have to put them back.
         for node, options in list(self.conflicted.items()):
             if not options:
+                alternatives = self.find_alternatives(
+                    node, pruned_solutions)
+                if alternatives:
+                    for alt in alternatives:
+                        solution = alt.target
+                        mass_shift = alt.mass_shift
+                        key = self.key_fn(solution)
+                        q = key, solution, mass_shift
+
+                        self.participants[q].append(node)
+                        self.conflicted[node].append(q)
+                        self.key_to_solutions[key].add(solution)
+                        self.best_scores[key, mass_shift] = max(
+                            alt.score, self.best_scores[key, mass_shift])
+                    continue
+
                 restored.append(node)
                 self.conflicted[node] = conflicts = pruned_conflicts.pop(node)
                 for q in conflicts:
                     (key, solution, mass_shift) = q
                     try:
-                        self.best_scores[key, mass_shift] = pruned_scores.pop((key, mass_shift))
+                        self.best_scores[key, mass_shift] = pruned_scores.pop(
+                            (key, mass_shift))
                     except KeyError:
                         pass
                     self.participants[q].append(node)
         return pruned_conflicts, restored
+
+    def find_alternatives(self, node, pruned_solutions, ratio_threshold=0.9):
+        alternatives = {alt_solution for _,
+                        alt_solution, _ in self.participants}
+        ratios = []
+
+        for solution in pruned_solutions:
+            for sset in node.tandem_solutions:
+                try:
+                    sm = sset.solution_for(solution)
+                    if not self.threshold_fn(sm):
+                        continue
+                    for alt in alternatives:
+                        try:
+                            sm2 = sset.solution_for(alt)
+                            weight1 = sm.score
+                            weight2 = sm2.score / weight1
+                            if weight2 > ratio_threshold:
+                                ratios.append((weight1, weight2, sm, sm2))
+                        except KeyError:
+                            continue
+                except KeyError:
+                    continue
+        ratios.sort(key=lambda x: (x[0], x[1]), reverse=True)
+        if not ratios:
+            return []
+        weight1, weight2, sm, sm2 = ratios[0]
+        kept = []
+        for pair in ratios:
+            if weight1 - pair[0] > 1e-5:
+                break
+            if weight2 - pair[1] > 1e-5:
+                break
+            kept.append(sm2)
+        return kept
 
     def resolve(self):
         '''For each conflicted node, try to assign it to a solution based upon
