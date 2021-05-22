@@ -16,12 +16,20 @@ from glycan_profiling.chromatogram_tree.relation_graph import (
 from .spectrum_match.solution_set import NOParsimonyMixin
 
 
+def always(x):
+    return True
+
+
+def default_threshold(x):
+    return x.q_value < 0.05
+
+
 class MassShiftDeconvolutionGraphNode(ChromatogramGraphNode):
     def __init__(self, chromatogram, index, edges=None):
         super(MassShiftDeconvolutionGraphNode, self).__init__(
             chromatogram, index, edges=edges)
 
-    def most_representative_solutions(self, threshold_fn=lambda x: True, reject_shifted=False, percentile_threshold=1e-5):
+    def most_representative_solutions(self, threshold_fn=always, reject_shifted=False, percentile_threshold=1e-5):
         """Find the most representative solutions, the (very nearly the same, hopefully) structures with
         the highest aggregated score across all MSn events assigned to this collection.
 
@@ -45,7 +53,7 @@ class MassShiftDeconvolutionGraphNode(ChromatogramGraphNode):
             percentile_threshold=percentile_threshold
         )
 
-    def solutions_for(self, structure, threshold_fn=lambda x: True, reject_shifted=False):
+    def solutions_for(self, structure, threshold_fn=always, reject_shifted=False):
         return self.chromatogram.solutions_for(
             structure, threshold_fn=threshold_fn, reject_shifted=reject_shifted)
 
@@ -61,7 +69,7 @@ class MassShiftDeconvolutionGraphNode(ChromatogramGraphNode):
     def total_signal(self):
         return self.chromatogram.total_signal
 
-    def best_match_for(self, structure, threshold_fn=lambda x: True):
+    def best_match_for(self, structure, threshold_fn=always):
         solutions = self.solutions_for(structure, threshold_fn=threshold_fn)
         if not solutions:
             raise KeyError(structure)
@@ -111,7 +119,7 @@ class MassShiftDeconvolutionGraph(ChromatogramGraph):
                 self.assignment_map[node.chromatogram.composition] = node
         return nodes
 
-    def find_edges(self, node, query_width=0.01, threshold_fn=lambda x: True,  **kwargs):
+    def find_edges(self, node, query_width=0.01, threshold_fn=always,  **kwargs):
         query = TimeQuery(node.chromatogram, query_width)
         nodes = self.rt_tree.overlaps(query.start, query.end)
 
@@ -126,7 +134,7 @@ class MassShiftDeconvolutionGraph(ChromatogramGraph):
                 self.edges.add(
                     self.edge_cls(node, other, (frozenset(node.mass_shifts), shifts_in_solutions)))
 
-    def build(self, query_width=0.01, threshold_fn=lambda x: True, **kwargs):
+    def build(self, query_width=0.01, threshold_fn=always, **kwargs):
         for node in self.iterseeds():
             self.find_edges(node, query_width=query_width,
                             threshold_fn=threshold_fn, **kwargs)
@@ -162,7 +170,7 @@ parsimony_sort = NOParsimonyRepresentativeSelector()
 
 
 class RepresenterSelectionStrategy(object):
-    def compute_weights(self, collection, threshold_fn=lambda x: True, reject_shifted=False, targets_ignored=None):
+    def compute_weights(self, collection, threshold_fn=always, reject_shifted=False, targets_ignored=None):
         raise NotImplementedError()
 
     def select(self, representers):
@@ -171,17 +179,17 @@ class RepresenterSelectionStrategy(object):
     def sort_solutions(self, representers):
         return parsimony_sort(representers)
 
-    def get_solutions_for_spectrum(self, solution_set, threshold_fn=lambda x: True, reject_shifted=False, targets_ignored=None):
+    def get_solutions_for_spectrum(self, solution_set, threshold_fn=always, reject_shifted=False, targets_ignored=None):
         return solution_set.get_top_solutions(
             d=5, reject_shifted=reject_shifted, targets_ignored=targets_ignored)
 
-    def __call__(self, collection, threshold_fn=lambda x: True, reject_shifted=False, targets_ignored=None):
+    def __call__(self, collection, threshold_fn=always, reject_shifted=False, targets_ignored=None):
         return self.compute_weights(
             collection, threshold_fn=threshold_fn, reject_shifted=reject_shifted, targets_ignored=targets_ignored)
 
 
 class TotalBestRepresenterStrategy(RepresenterSelectionStrategy):
-    def compute_weights(self, collection, threshold_fn=lambda x: True, reject_shifted=False, targets_ignored=None):
+    def compute_weights(self, collection, threshold_fn=always, reject_shifted=False, targets_ignored=None):
         scores = defaultdict(float)
         best_scores = defaultdict(float)
         best_spectrum_match = dict()
@@ -238,7 +246,7 @@ class TotalAboveAverageBestRepresenterStrategy(RepresenterSelectionStrategy):
 
 
 class SpectrumMatchSolutionCollectionBase(object):
-    def compute_representative_weights(self, threshold_fn=lambda x: True, reject_shifted=False, targets_ignored=None, strategy=None):
+    def compute_representative_weights(self, threshold_fn=always, reject_shifted=False, targets_ignored=None, strategy=None):
         """Calculate a total score for all matched structures across all time points for this
         solution collection, and rank them.
 
@@ -264,7 +272,7 @@ class SpectrumMatchSolutionCollectionBase(object):
 
 
 
-    def most_representative_solutions(self, threshold_fn=lambda x: True, reject_shifted=False, targets_ignored=None,
+    def most_representative_solutions(self, threshold_fn=always, reject_shifted=False, targets_ignored=None,
                                       percentile_threshold=1e-5):
         """Find the most representative solutions, the (very nearly the same, hopefully) structures with
         the highest aggregated score across all MSn events assigned to this collection.
@@ -295,7 +303,7 @@ class SpectrumMatchSolutionCollectionBase(object):
         else:
             return []
 
-    def solutions_for(self, structure, threshold_fn=lambda x: True, reject_shifted=False):
+    def solutions_for(self, structure, threshold_fn=always, reject_shifted=False):
         '''Get all spectrum matches in this collection for a given
         structure.
 
@@ -325,7 +333,7 @@ class SpectrumMatchSolutionCollectionBase(object):
                 continue
         return solutions
 
-    def best_match_for(self, structure, threshold_fn=lambda x: True):
+    def best_match_for(self, structure, threshold_fn=always):
         solutions = self.solutions_for(structure, threshold_fn=threshold_fn)
         if not solutions:
             raise KeyError(structure)
@@ -487,7 +495,7 @@ def drop_mass_shifts(self):
 class RepresenterDeconvolution(object):
     max_depth = 10
 
-    def __init__(self, group, threshold_fn=lambda x: True, key_fn=build_glycopeptide_key):
+    def __init__(self, group, threshold_fn=always, key_fn=build_glycopeptide_key):
         self.group = group
         self.threshold_fn = threshold_fn
         self.key_fn = key_fn
@@ -917,9 +925,44 @@ class RepresenterDeconvolution(object):
         return merged
 
 
+class GraphAnnotatedChromatogramAggregator(TaskBase):
+    def __init__(self, annotated_chromatograms, delta_rt=0.25, require_unmodified=True,
+                 threshold_fn=default_threshold, key_fn=build_glycopeptide_key):
+        self.annotated_chromatograms = sorted(annotated_chromatograms,
+            key=lambda x: (
+                max(sset.best_solution().score for sset in x.tandem_solutions)
+                if x.tandem_solutions else -float('inf'), x.total_signal),
+            reverse=True)
+        self.delta_rt = delta_rt
+        self.require_unmodified = require_unmodified
+        self.threshold_fn = threshold_fn
+        self.key_fn = key_fn
+
+    def build_graph(self):
+        self.log("Constructing chromatogram graph")
+        graph = MassShiftDeconvolutionGraph(self.annotated_chromatograms)
+        graph.build(self.delta_rt, self.threshold_fn)
+        return graph
+
+    def deconvolve(self, graph):
+        components = graph.connected_components()
+        assigned = []
+        for group in components:
+            deconv = RepresenterDeconvolution(
+                group, threshold_fn=self.threshold_fn, key_fn=self.key_fn)
+            deconv.solve()
+            assigned.extend(deconv.assign_representers())
+        return assigned
+
+    def run(self):
+        graph = self.build_graph()
+        solutions = self.deconvolve(graph)
+        return ChromatogramFilter(solutions)
+
+
 class AnnotatedChromatogramAggregator(TaskBase):
     def __init__(self, annotated_chromatograms, delta_rt=0.25, require_unmodified=True,
-                threshold_fn=lambda x: x.q_value < 0.05):
+                 threshold_fn=default_threshold):
         self.annotated_chromatograms = annotated_chromatograms
         self.delta_rt = delta_rt
         self.require_unmodified = require_unmodified
@@ -1031,8 +1074,8 @@ class AnnotatedChromatogramAggregator(TaskBase):
 
 
 def aggregate_by_assigned_entity(annotated_chromatograms, delta_rt=0.25, require_unmodified=True,
-                                 threshold_fn=lambda x: x.q_value < 0.05):
-    job = AnnotatedChromatogramAggregator(
+                                 threshold_fn=default_threshold):
+    job = GraphAnnotatedChromatogramAggregator(
         annotated_chromatograms, delta_rt=delta_rt,
         require_unmodified=require_unmodified, threshold_fn=threshold_fn)
     finished = job.run()
@@ -1082,7 +1125,7 @@ class ChromatogramMSMSMapper(TaskBase):
                 self.log("... %d/%d Solutions Handled (%0.2f%%)" % (i, n, (i * 100.0 / n)))
             self.find_chromatogram_for(solution)
 
-    def distribute_orphans(self, threshold_fn=lambda x: x.q_value < 0.05):
+    def distribute_orphans(self, threshold_fn=default_threshold):
         lost = []
         n = len(self.orphans)
         n_chromatograms = len(self.chromatograms)
@@ -1113,7 +1156,7 @@ class ChromatogramMSMSMapper(TaskBase):
                     lost.append(orphan.solution)
         self.orphans = TandemSolutionsWithoutChromatogram.aggregate(lost)
 
-    def assign_entities(self, threshold_fn=lambda x: x.q_value < 0.05, entity_chromatogram_type=None):
+    def assign_entities(self, threshold_fn=default_threshold, entity_chromatogram_type=None):
         if entity_chromatogram_type is None:
             entity_chromatogram_type = GlycopeptideChromatogram
         for chromatogram in self:
@@ -1127,8 +1170,8 @@ class ChromatogramMSMSMapper(TaskBase):
                 chromatogram.representative_solutions = solutions
 
     def merge_common_entities(self, annotated_chromatograms, delta_rt=0.25, require_unmodified=True,
-                              threshold_fn=lambda x: x.q_value < 0.05):
-        job = AnnotatedChromatogramAggregator(
+                              threshold_fn=default_threshold):
+        job = GraphAnnotatedChromatogramAggregator(
             annotated_chromatograms, delta_rt=delta_rt, require_unmodified=require_unmodified,
             threshold_fn=threshold_fn)
         result = job.run()
