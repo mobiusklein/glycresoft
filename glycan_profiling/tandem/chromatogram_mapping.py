@@ -170,6 +170,11 @@ parsimony_sort = NOParsimonyRepresentativeSelector()
 
 
 class RepresenterSelectionStrategy(object):
+    __slots__ = ()
+
+    def __init__(self, *args, **kwargs):
+        pass
+
     def compute_weights(self, collection, threshold_fn=always, reject_shifted=False, targets_ignored=None):
         raise NotImplementedError()
 
@@ -267,7 +272,9 @@ class SpectrumMatchSolutionCollectionBase(object):
         list
             A list of solutions, ranked by percentile.
         """
-        weights = strategy(self)
+        if strategy is None:
+            strategy = TotalBestRepresenterStrategy()
+        weights = strategy(self, threshold_fn=threshold_fn)
         return weights
 
 
@@ -492,7 +499,7 @@ def drop_mass_shifts(self):
     return self
 
 
-class RepresenterDeconvolution(object):
+class RepresenterDeconvolution(TaskBase):
     max_depth = 10
 
     def __init__(self, group, threshold_fn=always, key_fn=build_glycopeptide_key):
@@ -631,8 +638,11 @@ class RepresenterDeconvolution(object):
                         self.participants[q].append(node)
                         self.conflicted[node].append(q)
                         self.key_to_solutions[key].add(solution)
-                        self.best_scores[key, mass_shift] = max(
-                            alt.score, self.best_scores[key, mass_shift])
+                        if self.threshold_fn(alt):
+                            self.best_scores[key, mass_shift] = max(
+                                alt.score, self.best_scores[key, mass_shift])
+                        else:
+                            self.best_scores[key, mass_shift] = 1e-3
                     continue
 
                 restored.append(node)
@@ -708,7 +718,6 @@ class RepresenterDeconvolution(object):
         for member, conflicts in sorted(
                 self.conflicted.items(),
                 key=lambda x: x[0].chromatogram.total_signal, reverse=True):
-            print("... Resolving %r" % member)
             hits = defaultdict(float)
             for key, solution, mass_shift in conflicts:
                 # Other solved groups' keys to solved mass shifts
@@ -717,12 +726,10 @@ class RepresenterDeconvolution(object):
                     if any(m.overlaps(member) for m in solved_members):
                         hits[key, solution, mass_shift] += self.best_scores[key, solved_mass_shift]
             if not hits:
-                print("... No Hits")
                 continue
             # Select the solution with the greatest total weight.
             ordered_options = sorted(hits.items(), key=lambda x: x[1], reverse=True)
             (best_key, best_solution, best_mass_shift), score = ordered_options[0]
-            print("... Best solution", best_key, best_solution, best_mass_shift)
 
             # Add a new solution to the tracker, and update the tree
             self.solved[best_key, best_solution, best_mass_shift].append(member)
@@ -757,7 +764,8 @@ class RepresenterDeconvolution(object):
         if score_map is None:
             score_map = self.best_scores
         totals = self.total_weight_for_keys(score_map)
-
+        if len(totals) == 0:
+            return None, None
         best_key, _ = max(totals.items(), key=lambda x: x[1])
 
         best_mass_shift = None
@@ -782,16 +790,39 @@ class RepresenterDeconvolution(object):
             The best mass shift for the best solution
         '''
         nominated_key, nominated_mass_shift = self.nominate_key_mass_shift()
+        if nominated_key is None:
+            return None, None, None
         best_node = best_match = None
         assignable = []
 
         for member, conflicts in self.conflicted.items():
             for key, solution, mass_shift in conflicts:
                 if (key == nominated_key) and (mass_shift == nominated_mass_shift):
-                    match = member.best_match_for(solution, threshold_fn=self.threshold_fn)
-                    if match is None:
+                    try:
+                        match = member.best_match_for(solution, threshold_fn=self.threshold_fn)
+                        if match is None:
+                            continue
+                        assignable.append((member, match))
+                    except KeyError:
                         continue
-                    assignable.append((member, match))
+        if not assignable:
+            self.log("Could not find a solution matching %r %r. Trying to drop the mass shift." % (nominated_key, nominated_mass_shift))
+            for member, conflicts in self.conflicted.items():
+                for key, solution, mass_shift in conflicts:
+                    self.log(key)
+                    if (key == nominated_key):
+                        self.log("Key Match %r for %r" % (key, solution))
+                        try:
+                            match = member.best_match_for(solution, threshold_fn=self.threshold_fn)
+                            self.log("Match: %r" % match)
+                            if match is None:
+                                self.log("Match is None, skipping")
+                                continue
+                            assignable.append((member, match))
+                        except KeyError as err:
+                            self.log("KeyError, skipping: %r" % err)
+                            continue
+
 
         if assignable:
             best_node, best_match = max(assignable, key=lambda x: x[1].score)
@@ -838,7 +869,11 @@ class RepresenterDeconvolution(object):
             self.default()
             return self
         if not self.solved:
-            self.find_starting_point()
+            nominated_key, _, _ = self.find_starting_point()
+            if nominated_key is None:
+                self.log("No starting point found in %r, defaulting.", self.group)
+                self.default()
+                return self
 
         i = 0
         while self.conflicted:
@@ -876,9 +911,10 @@ class RepresenterDeconvolution(object):
             for member in members:
                 entries = dict()
                 for sol in solutions:
-                    entries[sol] = member.solutions_for(sol, threshold_fn=self.threshold_fn)
+                    entries[sol] = member.solutions_for(
+                        sol, threshold_fn=self.threshold_fn)
                 scores = {}
-                total = 0.0
+                total = 1e-6
                 best_matches = {}
                 for k, v in entries.items():
                     best_match = None
@@ -890,13 +926,17 @@ class RepresenterDeconvolution(object):
                     best_matches[k] = best_match
                     scores[k] = sk
                     total += sk
-
                 percentiles = {k: v / total for k, v in scores.items()}
                 sols = []
                 for k, v in best_matches.items():
+                    best_match = best_matches[k]
+                    score = scores[k]
+                    if best_match is None:
+                        best_match = member.best_match_for(k)
+                        score = best_match.score
                     sols.append(
                         SolutionEntry(
-                            k, scores[k], percentiles[k], best_matches[k].score, best_matches[k]))
+                            k, score, percentiles[k], best_match.score, best_match))
                 sols = parsimony_sort(sols)
                 if sols:
                     # This difference is not using the absolute value to allow for scenarios where
@@ -940,9 +980,16 @@ class GraphAnnotatedChromatogramAggregator(TaskBase):
 
     def build_graph(self):
         self.log("Constructing chromatogram graph")
-        graph = MassShiftDeconvolutionGraph(self.annotated_chromatograms)
+        assignable = []
+        rest = []
+        for chrom in self.annotated_chromatograms:
+            if chrom.composition is not None:
+                assignable.append(chrom)
+            else:
+                rest.append(chrom)
+        graph = MassShiftDeconvolutionGraph(assignable)
         graph.build(self.delta_rt, self.threshold_fn)
-        return graph
+        return graph, rest
 
     def deconvolve(self, graph):
         components = graph.connected_components()
@@ -955,8 +1002,9 @@ class GraphAnnotatedChromatogramAggregator(TaskBase):
         return assigned
 
     def run(self):
-        graph = self.build_graph()
+        graph, rest = self.build_graph()
         solutions = self.deconvolve(graph)
+        solutions.extend(rest)
         return ChromatogramFilter(solutions)
 
 
@@ -1104,18 +1152,12 @@ class ChromatogramMSMSMapper(TaskBase):
         chromas = overlapping_chroma.find_all_by_mass(
             solution.precursor_information.neutral_mass, self.error_tolerance)
         if len(chromas) == 0:
-            if debug_mode:
-                self.log("... %s is an orphan" % (solution, ))
             self.orphans.append(ScanTimeBundle(solution, precursor_scan_time))
         else:
             if len(chromas) > 1:
                 chroma = max(chromas, key=lambda x: x.total_signal)
             else:
                 chroma = chromas[0]
-            if debug_mode:
-                self.log("... Assigning %s to %s %s (%0.2f -> %0.2f -> %0.2f)" % (
-                    solution, chroma, chroma.spans_time_point(precursor_scan_time),
-                    chroma.start_time, precursor_scan_time, chroma.end_time))
             chroma.tandem_solutions.append(solution)
 
     def assign_solutions_to_chromatograms(self, solutions):
@@ -1163,9 +1205,6 @@ class ChromatogramMSMSMapper(TaskBase):
             solutions = chromatogram.most_representative_solutions(threshold_fn)
             if solutions:
                 solutions = sorted(solutions, key=lambda x: x.score, reverse=True)
-                if debug_mode:
-                    self.log("... Assigning %s to %s out of %r\n" % (
-                        solutions[0], chromatogram, solutions))
                 chromatogram.assign_entity(solutions[0], entity_chromatogram_type=entity_chromatogram_type)
                 chromatogram.representative_solutions = solutions
 
