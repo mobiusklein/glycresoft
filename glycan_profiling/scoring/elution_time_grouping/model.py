@@ -20,22 +20,66 @@ from .structure import _get_apex_time, GlycopeptideChromatogramProxy
 from .linear_regression import (ransac, weighted_linear_regression_fit, prediction_interval, SMALL_ERROR)
 
 
+class AbundanceWeightedMixin(object):
+    def build_weight_matrix(self):
+        W = np.eye(len(self.chromatograms)) * [
+            (x.total_signal) for x in self.chromatograms
+        ]
+        W /= W.max()
+        return W
 
-class ElutionTimeFitter(ScoringFeatureBase):
-    feature_type = 'elution_time'
 
-    def __init__(self, chromatograms, scale=1):
-        self.chromatograms = chromatograms
-        self.neutral_mass_array = None
-        self.data = None
-        self.apex_time_array = None
-        self.weight_matrix = None
-        self.parameters = None
-        self.residuals = None
-        self.estimate = None
-        self.scale = scale
-        self._init_model_data()
+class ChromatgramFeatureizerBase(object):
 
+    transform = None
+
+    def feature_names(self):
+        return ['intercept', 'mass']
+
+    def _get_apex_time(self, chromatogram):
+        t = _get_apex_time(chromatogram)
+        if self.transform is None:
+            return t
+        return t + self.transform(chromatogram)
+
+    def _prepare_data_vector(self, chromatogram):
+        return np.array([1, chromatogram.weighted_neutral_mass, ])
+
+    def _prepare_data_matrix(self, mass_array):
+        return np.vstack((
+            np.ones(len(mass_array)),
+            np.array(mass_array),
+        )).T
+
+    def build_weight_matrix(self):
+        return np.eye(len(self.chromatograms))
+
+
+class PredictorBase(object):
+    transform = None
+
+    def predict(self, chromatogram):
+        t = self._predict(self._prepare_data_vector(chromatogram))
+        if self.transform is None:
+            return t
+        return t + self.transform(chromatogram)
+
+    def _predict(self, x):
+        return x.dot(self.parameters)
+
+    def predict_interval(self, chromatogram):
+        x = self._prepare_data_vector(chromatogram)
+        return self._predict_interval(x)
+
+    def _predict_interval(self, x):
+        y = self._predict(x)
+        return prediction_interval(self.solution, x, y)
+
+    def __call__(self, x):
+        return self.predict(x)
+
+
+class LinearModelBase(PredictorBase):
     def _init_model_data(self):
         self.neutral_mass_array = np.array([
             x.weighted_neutral_mass for x in self.chromatograms
@@ -51,24 +95,6 @@ class ElutionTimeFitter(ScoringFeatureBase):
         self.parameters = None
         self.residuals = None
         self.estimate = None
-
-    def _get_apex_time(self, chromatogram):
-        return _get_apex_time(chromatogram)
-
-    def build_weight_matrix(self):
-        return np.eye(len(self.chromatograms))
-
-    def _prepare_data_vector(self, chromatogram):
-        return np.array([1, chromatogram.weighted_neutral_mass,])
-
-    def feature_names(self):
-        return ['intercept', 'mass']
-
-    def _prepare_data_matrix(self, mass_array):
-        return np.vstack((
-            np.ones(len(mass_array)),
-            np.array(mass_array),
-        )).T
 
     def _fit(self, resample=False):
         if resample:
@@ -148,22 +174,28 @@ class ElutionTimeFitter(ScoringFeatureBase):
         R2 = (1 - adjustment_factor * (rss / tss))
         return R2
 
-    def predict(self, chromatogram):
-        return self._predict(self._prepare_data_vector(chromatogram))
-
-    def _predict(self, x):
-        return x.dot(self.parameters)
-
-    def predict_interval(self, chromatogram):
-        x = self._prepare_data_vector(chromatogram)
-        return self._predict_interval(x)
-
-    def _predict_interval(self, x):
-        y = self._predict(x)
-        return prediction_interval(self.solution, x, y)
-
     def _df(self):
         return max(len(self.chromatograms) - len(self.parameters), 1)
+
+
+class ElutionTimeFitter(LinearModelBase, ChromatgramFeatureizerBase, ScoringFeatureBase):
+    feature_type = 'elution_time'
+
+    def __init__(self, chromatograms, scale=1, transform=None):
+        self.chromatograms = chromatograms
+        self.neutral_mass_array = None
+        self.data = None
+        self.apex_time_array = None
+        self.weight_matrix = None
+        self.parameters = None
+        self.residuals = None
+        self.estimate = None
+        self.scale = scale
+        self.transform = transform
+        self._init_model_data()
+
+    def build_weight_matrix(self):
+        return np.eye(len(self.chromatograms))
 
     def score(self, chromatogram):
         apex = self.predict(chromatogram)
@@ -242,23 +274,11 @@ class ElutionTimeFitter(ScoringFeatureBase):
         return keys
 
 
-class AbundanceWeightedElutionTimeFitter(ElutionTimeFitter):
-    def build_weight_matrix(self):
-        W = np.eye(len(self.chromatograms)) * [
-            np.log10(x.total_signal) for x in self.chromatograms
-        ]
-        W /= W.max()
-        return W
+class AbundanceWeightedElutionTimeFitter(AbundanceWeightedMixin, ElutionTimeFitter):
+    pass
 
 
-class FactorElutionTimeFitter(ElutionTimeFitter):
-    def __init__(self, chromatograms, factors=None, scale=1):
-        if factors is None:
-            factors = ['Hex', 'HexNAc', 'Fuc', 'Neu5Ac']
-        self.factors = list(factors)
-        super(FactorElutionTimeFitter, self).__init__(
-            chromatograms, scale=scale)
-
+class FactorChromatogramFeatureizer(ChromatgramFeatureizerBase):
     def feature_names(self):
         return ['intercept'] + self.factors
 
@@ -272,6 +292,22 @@ class FactorElutionTimeFitter(ElutionTimeFitter):
         return np.array(
             [intercept] + [
                 chromatogram.glycan_composition[f] for f in self.factors])
+
+
+class FactorTransform(PredictorBase, FactorChromatogramFeatureizer):
+    def __init__(self, factors, parameters, intercept=0.0):
+        self.factors = factors
+        # Add a zero intercept
+        self.parameters = np.concatenate([[intercept], parameters])
+
+
+class FactorElutionTimeFitter(FactorChromatogramFeatureizer, ElutionTimeFitter):
+    def __init__(self, chromatograms, factors=None, scale=1, transform=None):
+        if factors is None:
+            factors = ['Hex', 'HexNAc', 'Fuc', 'Neu5Ac']
+        self.factors = list(factors)
+        super(FactorElutionTimeFitter, self).__init__(
+            chromatograms, scale=scale, transform=transform)
 
     def predict_delta_glycan(self, chromatogram, delta_glycan):
         try:
@@ -347,28 +383,14 @@ class FactorElutionTimeFitter(ElutionTimeFitter):
         return self._predict(self._prepare_data_vector(chromatogram, no_intercept=no_intercept))
 
 
-class AbundanceWeightedFactorElutionTimeFitter(FactorElutionTimeFitter):
-    def build_weight_matrix(self):
-        W = np.eye(len(self.chromatograms)) * [
-            (x.total_signal) for x in self.chromatograms
-        ]
-        W /= W.max()
-        return W
+class AbundanceWeightedFactorElutionTimeFitter(AbundanceWeightedMixin, FactorElutionTimeFitter):
+    pass
 
 
-class PeptideFactorElutionTimeFitter(FactorElutionTimeFitter):
-    def __init__(self, chromatograms, factors=None, scale=1):
-        if factors is None:
-            factors = ['Hex', 'HexNAc', 'Fuc', 'Neu5Ac']
-        self._peptide_to_indicator = defaultdict(make_counter(0))
-        # Ensure that _peptide_to_indicator is properly initialized
-        for obs in chromatograms:
-            _ = self._peptide_to_indicator[self._get_peptide_key(obs)]
-        super(PeptideFactorElutionTimeFitter, self).__init__(
-            chromatograms, list(factors), scale)
+class PeptideGroupChromatogramFeatureizer(FactorChromatogramFeatureizer):
 
     def _get_peptide_key(self, chromatogram):
-        return PeptideSequence(str(chromatogram.structure)).deglycosylate()
+        return str(PeptideSequence(str(chromatogram.structure)).deglycosylate())
 
     def _prepare_data_matrix(self, mass_array):
         p = len(self._peptide_to_indicator)
@@ -426,13 +448,20 @@ class PeptideFactorElutionTimeFitter(FactorElutionTimeFitter):
         return peptide in self._peptide_to_indicator
 
 
-class AbundanceWeightedPeptideFactorElutionTimeFitter(PeptideFactorElutionTimeFitter):
-    def build_weight_matrix(self):
-        W = np.eye(len(self.chromatograms)) * [
-            (x.total_signal) for x in self.chromatograms
-        ]
-        W /= W.max()
-        return W
+class PeptideFactorElutionTimeFitter(PeptideGroupChromatogramFeatureizer, FactorElutionTimeFitter):
+    def __init__(self, chromatograms, factors=None, scale=1, transform=None):
+        if factors is None:
+            factors = ['Hex', 'HexNAc', 'Fuc', 'Neu5Ac']
+        self._peptide_to_indicator = defaultdict(make_counter(0))
+        self.by_peptide = defaultdict(list)
+        # Ensure that _peptide_to_indicator is properly initialized
+        for obs in chromatograms:
+            key = self._get_peptide_key(obs)
+            _ = self._peptide_to_indicator[key]
+            self.by_peptide[key].append(obs)
+
+        super(PeptideFactorElutionTimeFitter, self).__init__(
+            chromatograms, list(factors), scale=scale, transform=transform)
 
     def groupwise_R2(self, adjust=True):
         x = self.data
@@ -458,6 +487,10 @@ class AbundanceWeightedPeptideFactorElutionTimeFitter(PeptideFactorElutionTimeFi
             R2 = (1 - adjustment_factor * (rss / tss))
             mapping[key] = R2
         return mapping
+
+
+class AbundanceWeightedPeptideFactorElutionTimeFitter(AbundanceWeightedMixin, PeptideFactorElutionTimeFitter):
+    pass
 
 
 class ElutionTimeModel(ScoringFeatureBase):
