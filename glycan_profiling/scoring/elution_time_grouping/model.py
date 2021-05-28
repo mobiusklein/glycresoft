@@ -427,7 +427,7 @@ class PeptideGroupChromatogramFeatureizer(FactorChromatogramFeatureizer):
             except KeyError:
                 import warnings
                 warnings.warn(
-                    "Peptide sequence %s not part of the model." % (peptide_key, ))
+                    "Peptide sequence of %s not part of the model." % (chromatogram, ))
         return np.array(
             peptides + [chromatogram.glycan_composition[f] for f in self.factors])
 

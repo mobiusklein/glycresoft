@@ -8,6 +8,10 @@ except ImportError:
 
 import numpy as np
 from scipy.ndimage import gaussian_filter1d, median_filter
+try:
+    from matplotlib import pyplot as plt
+except ImportError:
+    pass
 
 from glycopeptidepy import PeptideSequence
 from glypy.structure.glycan_composition import HashableGlycanComposition
