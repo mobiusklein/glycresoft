@@ -236,7 +236,10 @@ class IdentifiedStructure(object):
     def mass_shift_tandem_solutions(self):
         mapping = ArithmeticMapping()
         for sm in self.tandem_solutions:
-            mapping[sm.best_solution().mass_shift] += 1
+            try:
+                mapping[sm.solution_for(self.structure).mass_shift] += 1
+            except KeyError:
+                continue
         return mapping
 
     @property
