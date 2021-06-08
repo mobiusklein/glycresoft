@@ -3,6 +3,7 @@ import re
 import operator
 import logging
 from collections import defaultdict
+from glycopeptidepy.structure.modification import target
 from six import string_types as basestring
 
 from glycopeptidepy.io import fasta as glycopeptidepy_fasta
@@ -409,7 +410,7 @@ class MzIdentMLPeptide(object):
                             self.add_deletion(mod['location'] - 1, sym)
                         elif 'monoisotopicMassDelta' in mod:
                             mass = float(mod['monoisotopicMassDelta'])
-                            modification = AnonymousModificationRule(_name, mass)()
+                            modification = AnonymousModificationRule(str(_name), mass)()
                             self.add_modification(modification, pos)
                         else:
                             raise
@@ -921,6 +922,8 @@ class Proteome(DatabaseBoundOperation, MzIdentMLProteomeExtraction):
                  target_proteins=None, reference_fasta=None, peptide_length_range=(5, 60)):
         DatabaseBoundOperation.__init__(self, connection)
         MzIdentMLProteomeExtraction.__init__(self, mzid_path, reference_fasta)
+        if target_proteins is None:
+            target_proteins = []
         self.hypothesis_id = hypothesis_id
         self.target_proteins = target_proteins
         self.include_baseline_peptides = include_baseline_peptides
@@ -1037,7 +1040,7 @@ class Proteome(DatabaseBoundOperation, MzIdentMLProteomeExtraction):
         self.log("... %d Peptides Total" % (self.count_peptides()))
 
     def retrieve_target_protein_ids(self):
-        if len(self.target_proteins) == 0:
+        if not self.target.proteins:
             return [
                 i[0] for i in
                 self.query(Protein.id).filter(
