@@ -1040,7 +1040,7 @@ class Proteome(DatabaseBoundOperation, MzIdentMLProteomeExtraction):
         self.log("... %d Peptides Total" % (self.count_peptides()))
 
     def retrieve_target_protein_ids(self):
-        if not self.target.proteins:
+        if not self.target_proteins:
             return [
                 i[0] for i in
                 self.query(Protein.id).filter(
