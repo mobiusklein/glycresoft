@@ -1,5 +1,11 @@
 import urllib
 import logging
+import base64
+
+try:
+    from urllib.parse import quote
+except ImportError:
+    from urllib import quote
 
 from io import BytesIO
 
@@ -51,7 +57,7 @@ def render_plot(figure, **kwargs):
 
 
 def xmlattrs(**kwargs):
-    return ' '.join("%s=\"%s\"" % kv for kv in kwargs.items())
+    return ' '.join("%s=\"%s\"" % kv for kv in kwargs.items()).encode('utf8')
 
 
 def png_plot(figure, img_width=None, img_height=None, xattrs=None, **kwargs):
@@ -63,14 +69,15 @@ def png_plot(figure, img_width=None, img_height=None, xattrs=None, **kwargs):
     if img_height is not None:
         xml_attributes['height'] = img_height
     data_buffer = render_plot(figure, format='png', **kwargs)
-    return "<img %s src='data:image/png;base64,%s'>" % (
+    return b"<img %s src='data:image/png;base64,%s'>" % (
         xmlattrs(**xml_attributes),
-        urllib.quote(data_buffer.getvalue().encode("base64")))
+        base64.b64encode(data_buffer.getvalue())
+        ).decode('utf8')
 
 
 def svguri_plot(figure, **kwargs):
     svg_string = svg_plot(figure, **kwargs)
-    return "<img src='data:image/svg+xml;utf-8,%s'>" % urllib.quote(svg_string)
+    return (b"<img src='data:image/svg+xml;utf-8,%s'>" % quote(svg_string)).decode('utf8')
 
 
 def _strip_style(root):
