@@ -368,7 +368,13 @@ def glycan_text(context, text_file, database_connection, reduction, derivatizati
 @click.option("-r", "--reduction", default=None, help='Reducing end modification')
 @click.option("-d", "--derivatization", default=None, help='Chemical derivatization to apply')
 @click.option("-n", "--name", default=None, help="The name for the hypothesis to be created")
-def glycan_combinatorial(context, rule_file, database_connection, reduction, derivatization, name):
+@click.option("-c", "--glycan-type", default=None, required=False,
+              type=click.Choice(['n-glycan', 'o-glycan', 'gag-linker'], case_sensitive=False),
+              help="The glycan classification to apply to all generated glycan compositions."
+                   " If not set, a heuristic will be used to guess if a composition in an N-glycan."
+                   " This is only relevant when building a glycopeptide hypothesis.")
+def glycan_combinatorial(context, rule_file, database_connection, reduction, derivatization, name,
+                         glycan_type=None):
     if name is not None:
         name = validate_glycan_hypothesis_name(context, database_connection, name)
         click.secho("Building Glycan Hypothesis %s" % name, fg='cyan')
@@ -376,7 +382,7 @@ def glycan_combinatorial(context, rule_file, database_connection, reduction, der
     derivatization = validate_derivatization(context, derivatization)
     builder = CombinatorialGlycanHypothesisSerializer(
         rule_file, database_connection, reduction=reduction, derivatization=derivatization,
-        hypothesis_name=name)
+        hypothesis_name=name, glycan_type=glycan_type)
     builder.display_header()
     builder.start()
 

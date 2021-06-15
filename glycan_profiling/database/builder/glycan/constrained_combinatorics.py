@@ -10,7 +10,7 @@ from glycan_profiling.serialize.hypothesis.glycan import GlycanComposition as DB
 from glypy.composition import formula
 
 from .glycan_source import (
-    GlycanTransformer, GlycanHypothesisSerializerBase, GlycanCompositionToClass)
+    GlycanTransformer, GlycanHypothesisSerializerBase, GlycanCompositionToClass, GlycanTypes, normalize_lookup)
 from glycan_profiling.symbolic_expression import (
     ConstraintExpression, SymbolContext, SymbolNode, ExpressionNode,
     ensuretext)
@@ -57,7 +57,7 @@ class CombinatoricCompositionGenerator(object):
     def __init__(self, residue_list=None, lower_bound=None, upper_bound=None, constraints=None, rules_table=None,
                  structure_classifiers=None):
         if structure_classifiers is None:
-            structure_classifiers = {"N-Glycan": is_n_glycan_classifier}
+            structure_classifiers = {GlycanTypes.n_glycan: is_n_glycan_classifier}
         self.residue_list = list(map(normalize_iupac_lite, (residue_list or [])))
         self.lower_bound = lower_bound or []
         self.upper_bound = upper_bound or []
@@ -133,10 +133,11 @@ class CombinatoricCompositionGenerator(object):
 
 class CombinatorialGlycanHypothesisSerializer(GlycanHypothesisSerializerBase):
     def __init__(self, glycan_text_file, database_connection, reduction=None, derivatization=None,
-                 hypothesis_name=None):
+                 hypothesis_name=None, glycan_type=None):
         GlycanHypothesisSerializerBase.__init__(self, database_connection, hypothesis_name)
 
         self.glycan_file = glycan_text_file
+        self.glycan_type = glycan_type
         self.reduction = reduction
         self.derivatization = derivatization
 
@@ -145,7 +146,11 @@ class CombinatorialGlycanHypothesisSerializer(GlycanHypothesisSerializerBase):
 
     def make_pipeline(self):
         rules, constraints = parse_rules_from_file(self.glycan_file)
-        self.loader = CombinatoricCompositionGenerator(rules_table=rules, constraints=constraints)
+        classifiers = None
+        if self.glycan_type:
+            classifiers = {normalize_lookup(self.glycan_type): lambda x: True}
+        self.loader = CombinatoricCompositionGenerator(
+            rules_table=rules, constraints=constraints, structure_classifiers=classifiers)
         self.transformer = GlycanTransformer(self.loader, self.reduction, self.derivatization)
 
     def run(self):
