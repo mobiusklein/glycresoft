@@ -3,6 +3,8 @@ import multiprocessing
 import click
 import textwrap
 
+from traitlets.traitlets import default
+
 from glycan_profiling.cli.base import cli, HiddenOption
 
 from glycan_profiling.cli.validators import (
@@ -234,10 +236,13 @@ def glycopeptide_hypothesis_common_options(cmd):
 @click.option("--dry-run", default=False, is_flag=True, help="Do not save glycopeptides", cls=HiddenOption)
 @click.option("-F", "--not-full-crossproduct", is_flag=True, help=(
     "Do not produce full crossproduct. For when the search space is too large to enumerate, store, and load."))
+@click.option("--retain-all-peptides", is_flag=True, default=False,
+              help=("Do not require a glycosylation site when saving base peptides"))
 def glycopeptide_fa(context, fasta_file, database_connection, enzyme, missed_cleavages, occupied_glycosites, name,
                     constant_modification, variable_modification, processes, glycan_source, glycan_source_type,
                     glycan_source_identifier=None, semispecific_digest=False, reverse=False, dry_run=False,
-                    peptide_length_range=(5, 60), not_full_crossproduct=False, max_variable_modifications=4):
+                    peptide_length_range=(5, 60), not_full_crossproduct=False, max_variable_modifications=4,
+                    retain_all_peptides=False):
     '''Constructs a glycopeptide hypothesis from a FASTA file of proteins and a
     collection of glycans.
     '''
@@ -283,7 +288,8 @@ def glycopeptide_fa(context, fasta_file, database_connection, enzyme, missed_cle
         n_processes=processes,
         full_cross_product=not not_full_crossproduct,
         max_variable_modifications=max_variable_modifications,
-        peptide_length_range=peptide_length_range)
+        peptide_length_range=peptide_length_range,
+        require_glycosylation_sites=not retain_all_peptides)
     builder.display_header()
     builder.start()
     return builder.hypothesis_id
