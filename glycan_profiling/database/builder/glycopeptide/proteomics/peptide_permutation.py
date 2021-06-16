@@ -289,10 +289,13 @@ class ProteinDigestor(TaskBase):
                 yield inst
 
     def modify_string(self, peptide, protein_n_term=False, protein_c_term=False):
+        base_peptide = str(peptide)
         for modified_peptide, n_variable_modifications in self.peptide_permuter(
                 peptide, protein_n_term=protein_n_term, protein_c_term=protein_c_term):
+            formula_string = formula(modified_peptide.total_composition())
+            # formula_string = ""
             inst = Peptide(
-                base_peptide_sequence=str(peptide),
+                base_peptide_sequence=base_peptide,
                 modified_peptide_sequence=str(modified_peptide),
                 count_missed_cleavages=-1,
                 count_variable_modifications=n_variable_modifications,
@@ -300,7 +303,7 @@ class ProteinDigestor(TaskBase):
                 start_position=-1,
                 end_position=-1,
                 calculated_mass=modified_peptide.mass,
-                formula=formula(modified_peptide.total_composition()))
+                formula=formula_string)
             yield inst
 
     def process_protein(self, protein_obj):
