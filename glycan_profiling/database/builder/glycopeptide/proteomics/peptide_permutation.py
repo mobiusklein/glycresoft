@@ -436,7 +436,9 @@ class MultipleProcessProteinDigestor(TaskBase):
         protein_ids = self.protein_ids
         i = 0
         n = len(protein_ids)
-        if n < 100:
+        if n <= self.n_processes:
+            chunk_size = 1
+        elif n < 100:
             chunk_size = 2
         else:
             chunk_size = int(n / 100.0)
