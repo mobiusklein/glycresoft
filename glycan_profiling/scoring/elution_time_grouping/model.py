@@ -12,6 +12,7 @@ try:
 except ImportError:
     pass
 
+from ms_deisotope.peak_dependency_network.intervals import SpanningMixin
 
 from glycan_profiling.scoring.base import (
     ScoringFeatureBase,)
@@ -79,7 +80,7 @@ class PredictorBase(object):
         return self.predict(x)
 
 
-class LinearModelBase(PredictorBase):
+class LinearModelBase(PredictorBase, SpanningMixin):
     def _init_model_data(self):
         self.neutral_mass_array = np.array([
             x.weighted_neutral_mass for x in self.chromatograms
@@ -95,6 +96,16 @@ class LinearModelBase(PredictorBase):
         self.parameters = None
         self.residuals = None
         self.estimate = None
+        self.start = self.apex_time_array.min()
+        self.end = self.apex_time_array.max()
+
+    @property
+    def start_time(self):
+        return self.start
+
+    @property
+    def end_time(self):
+        return self.end
 
     def _fit(self, resample=False):
         if resample:
@@ -272,6 +283,29 @@ class ElutionTimeFitter(LinearModelBase, ChromatgramFeatureizerBase, ScoringFeat
             keys.update(record.glycan_composition)
         keys = sorted(map(str, keys))
         return keys
+
+    def plot_residuals(self, ax=None):
+        if ax is None:
+            _fig, ax = plt.subplots(1)
+        ax.scatter(self.apex_time_array, self.residuals, s=np.diag(self.weight_matrix) * 1000.0, alpha=0.25,
+                   edgecolor='black')
+        return ax
+
+
+class SimpleLinearFitter(LinearModelBase):
+    def __init__(self, x, y):
+        self.x = np.array(x)
+        self.y = self.apex_time_array = np.array(y)
+        self.weight_matrix = np.diag(np.ones_like(y))
+        self.data = np.stack((np.ones_like(x), x)).T
+
+    def predict(self, vx):
+        if not isinstance(vx, (list, tuple, np.ndarray)):
+            vx = [vx]
+        return np.stack((np.ones_like(vx), vx)).T.dot(self.parameters)
+
+    def _prepare_data_vector(self, x):
+        return np.array([1., x])
 
 
 class AbundanceWeightedElutionTimeFitter(AbundanceWeightedMixin, ElutionTimeFitter):
@@ -454,11 +488,13 @@ class PeptideFactorElutionTimeFitter(PeptideGroupChromatogramFeatureizer, Factor
             factors = ['Hex', 'HexNAc', 'Fuc', 'Neu5Ac']
         self._peptide_to_indicator = defaultdict(make_counter(0))
         self.by_peptide = defaultdict(list)
+        self.peptide_groups = []
         # Ensure that _peptide_to_indicator is properly initialized
         for obs in chromatograms:
             key = self._get_peptide_key(obs)
-            _ = self._peptide_to_indicator[key]
+            self.peptide_groups.append(self._peptide_to_indicator[key])
             self.by_peptide[key].append(obs)
+        self.peptide_groups = np.array(self.peptide_groups)
 
         super(PeptideFactorElutionTimeFitter, self).__init__(
             chromatograms, list(factors), scale=scale, transform=transform)
@@ -487,6 +523,71 @@ class PeptideFactorElutionTimeFitter(PeptideGroupChromatogramFeatureizer, Factor
             R2 = (1 - adjustment_factor * (rss / tss))
             mapping[key] = R2
         return mapping
+
+    def plot_residuals(self, ax=None, subset=None):
+        if ax is None:
+            _fig, ax = plt.subplots(1)
+        if subset is not None and subset:
+            if isinstance(subset[0], int):
+                group_ids = subset
+            else:
+                group_ids = [self._peptide_to_indicator[k] for k in subset]
+        else:
+            group_ids = np.unique(self.peptide_groups)
+        group_label_map = {v: k for k, v in self._peptide_to_indicator.items()}
+        preds = np.array(self.estimate)
+        obs = np.array(self.apex_time_array)
+        weights = np.diag(self.weight_matrix)
+        for i in group_ids:
+            mask = self.peptide_groups == i
+            dv = preds[mask] - obs[mask]
+            sub = obs[mask]
+            a = ax.scatter(
+                sub, dv,
+                s=weights[mask] * 500,
+                edgecolors='black',
+                alpha=0.5,
+                label="%s %0.2f" % (group_label_map[i], sub.min()))
+            f = SimpleLinearFitter(obs[mask], dv).fit()
+            x = np.linspace(sub.min(), sub.max())
+            ax.plot(x, f.predict(x), color=a.get_facecolor()[0])
+
+        return ax
+
+    def prediction_plot(self, ax=None, subset=None):
+        if ax is None:
+            _fig, ax = plt.subplots(1)
+        if subset is not None and subset:
+            if isinstance(subset[0], int):
+                group_ids = subset
+            else:
+                group_ids = [self._peptide_to_indicator[k] for k in subset]
+        else:
+            group_ids = np.unique(self.peptide_groups)
+        group_label_map = {v: k for k, v in self._peptide_to_indicator.items()}
+        preds = np.array(self.estimate)
+        obs = np.array(self.apex_time_array)
+        weights = np.diag(self.weight_matrix)
+        for i in group_ids:
+            mask = self.peptide_groups == i
+            ax.scatter(
+                obs[mask], preds[mask],
+                s=weights[mask] * 500,
+                edgecolors='black',
+                alpha=0.5,
+                label="%s %0.2f" % (group_label_map[i], obs[mask].min()))
+
+        lo, hi = min(preds.min(), obs.min()), max(preds.max(), obs.max())
+        lo -= 0.2
+        hi += 0.2
+        ax.set_xlim(lo, hi)
+        ax.set_ylim(lo, hi)
+        ax.plot([lo, hi], [lo, hi], color='black', linestyle='--', lw=0.75)
+        ax.set_xlabel("Experimental RT (Min)", fontsize=14)
+        ax.set_ylabel("Predicted RT (Min)", fontsize=14)
+        ax.figure.text(0.15, 0.8, "$R^2:%0.2f$\nMSE:%0.2f" %
+                       (self.R2(True), self.mse))
+        return ax
 
 
 class AbundanceWeightedPeptideFactorElutionTimeFitter(AbundanceWeightedMixin, PeptideFactorElutionTimeFitter):
