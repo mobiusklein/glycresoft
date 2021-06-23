@@ -101,7 +101,10 @@ class GlycanCompositionDialect(object):
         return parts, offset, n
 
     def parse_composition(self, composition):
-        return glycan_composition.GlycanComposition.parse(composition)
+        result = glycan_composition.GlycanComposition.parse(composition)
+        if not result:
+            raise Exception()
+        return result
 
 
 class SimpleGlycanCompositionDialect(GlycanCompositionDialect):
@@ -118,7 +121,8 @@ class SimpleGlycanCompositionDialect(GlycanCompositionDialect):
         return parts, offset, n
 
     def parse_composition(self, composition):
-        return super(SimpleGlycanCompositionDialect, self).parse_composition(composition)
+        result = super(SimpleGlycanCompositionDialect, self).parse_composition(composition)
+        return result
 
 
 class ByonicGlycanCompositionDialect(SimpleGlycanCompositionDialect):
