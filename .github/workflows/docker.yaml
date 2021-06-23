@@ -21,6 +21,8 @@ jobs:
         uses: docker/build-push-action@v2
         with:
           push: true
+          build-args: |
+            GLYCRESOFT_VERSION=${{ env.RELEASE_VERSION }}
           tags: mobiusklein/glycresoft:latest,mobiusklein/glycresoft:${{ env.RELEASE_VERSION }}
           context: ./docker
 
