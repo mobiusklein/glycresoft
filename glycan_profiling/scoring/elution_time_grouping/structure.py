@@ -1,5 +1,5 @@
 import csv
-
+from itertools import chain
 from collections import defaultdict, OrderedDict
 try:
     from collections.abc import Sequence, Mapping
@@ -255,7 +255,11 @@ class GlycoformAggregator(Mapping):
             except KeyError:
                 group = self.by_peptide[key] = GlycoformGroup([], key)
             group.append(rec)
-        self.factors = self._infer_factors(iterable)
+        self._reindex()
+        return self
+
+    def _reindex(self):
+        self.factors = self._infer_factors(self.glycoforms())
         self._interval_tree = IntervalTreeNode.build(self.values())
         return self
 
