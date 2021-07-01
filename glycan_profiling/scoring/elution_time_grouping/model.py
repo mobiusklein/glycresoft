@@ -1,4 +1,6 @@
 import csv
+
+from numbers import Number
 from collections import defaultdict, OrderedDict
 
 import numpy as np
@@ -594,6 +596,81 @@ class PeptideFactorElutionTimeFitter(PeptideGroupChromatogramFeatureizer, Factor
 
 class AbundanceWeightedPeptideFactorElutionTimeFitter(AbundanceWeightedMixin, PeptideFactorElutionTimeFitter):
     pass
+
+
+class ModelEnsemble(object):
+    def __init__(self, models):
+        self.models = models
+        self._models = list(models.values())
+
+    def _models_for(self, chromatogram):
+        if not isinstance(chromatogram, Number):
+            point = chromatogram.apex_time
+        else:
+            point = chromatogram
+        for model in self._models:
+            if model.contains(point):
+                weight = abs(model.centroid - point) + 1
+                yield model, 1.0 / weight
+
+    def predict_interval(self, chromatogram, merge=True):
+        weights = []
+        preds = []
+        for mod, w in self._models_for(chromatogram):
+            preds.append(mod.predict_interval(chromatogram))
+            weights.append(w)
+        weights = np.array(weights)
+        weights /= weights.max()
+        mask = ~np.isnan(weights)
+        preds = np.array(preds)
+        preds = preds[mask, :]
+        weights = weights[mask]
+        if merge:
+            if len(weights) == 0:
+                return np.array([np.nan, np.nan])
+            avg = np.average(preds, weights=weights, axis=0)
+            return avg
+        return preds, weights
+
+
+    def predict(self, chromatogram, merge=True):
+        weights = []
+        preds = []
+        for mod, w in self._models_for(chromatogram):
+            preds.append(mod.predict(chromatogram))
+            weights.append(w)
+        weights = np.array(weights)
+        weights /= weights.max()
+        if merge:
+            avg = np.average(preds, weights=weights)
+            return avg
+        return np.array(preds), weights
+
+    def score(self, chromatogram, merge=True):
+        weights = []
+        preds = []
+        for mod, w in self._models_for(chromatogram):
+            preds.append(mod.score(chromatogram))
+            weights.append(w)
+        weights = np.array(weights)
+        weights /= weights.max()
+        if merge:
+            avg = np.average(preds, weights=weights)
+            return avg
+        preds = np.array(preds)
+        return preds, weights
+
+    def _get_chromatograms(self):
+        chroma = set()
+        for model in self.models.values():
+            for chrom in model.chromatograms:
+                chroma.add(chrom)
+        return sorted(chroma, key=lambda x: x.apex_time)
+
+    @property
+    def chromatograms(self):
+        return self._get_chromatograms()
+
 
 
 class ElutionTimeModel(ScoringFeatureBase):
