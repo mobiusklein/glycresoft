@@ -98,6 +98,8 @@ class LinearModelBase(PredictorBase, SpanningMixin):
         self.estimate = None
         self.start = self.apex_time_array.min()
         self.end = self.apex_time_array.max()
+        d = np.diag(self.weight_matrix)
+        self.centroid = self.apex_time_array.dot(d) / d.sum()
 
     @property
     def start_time(self):
