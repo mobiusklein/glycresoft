@@ -171,6 +171,26 @@ def ransac(x, y, w=None, max_trials=100):
     return weighted_linear_regression_fit(X_inlier_best, y_inlier_best, w_inlier_best)
 
 
+def fitted_interval(solution, x0, y0, alpha=0.05):
+    n = len(solution.residuals)
+    k = len(solution.parameters)
+    df = n - k
+    sigma2 = solution.rss / df
+    X = solution.data[0]
+    w = solution.weights
+
+    xtx_inv = np.linalg.pinv(X.T.dot(w).dot(X))
+    h = x0.dot(xtx_inv).dot(x0.T)
+    if not np.isscalar(h):
+        h = np.diag(h)
+
+    error_of_fit = np.sqrt(sigma2 * h)
+
+    t = stats.t.isf(alpha / 2., df)
+    width = t * error_of_fit
+    return np.stack([y0 - width, y0 + width])
+
+
 def prediction_interval(solution, x0, y0, alpha=0.05):
     """Calculate the prediction interval around `x0` with response
     `y0` given the `solution`.

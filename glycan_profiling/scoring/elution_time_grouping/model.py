@@ -16,10 +16,11 @@ except ImportError:
 
 from ms_deisotope.peak_dependency_network.intervals import SpanningMixin
 
+from glycan_profiling.chromatogram_tree import Unmodified, Ammonium
 from glycan_profiling.scoring.base import (
     ScoringFeatureBase,)
 
-from .structure import _get_apex_time, GlycopeptideChromatogramProxy
+from .structure import _get_apex_time, GlycopeptideChromatogramProxy, GlycoformAggregator, DeltaOverTimeFilter
 from .linear_regression import (ransac, weighted_linear_regression_fit, prediction_interval, SMALL_ERROR)
 
 
@@ -70,13 +71,13 @@ class PredictorBase(object):
     def _predict(self, x):
         return x.dot(self.parameters)
 
-    def predict_interval(self, chromatogram):
+    def predict_interval(self, chromatogram, alpha=0.05):
         x = self._prepare_data_vector(chromatogram)
-        return self._predict_interval(x)
+        return self._predict_interval(x, alpha=alpha)
 
-    def _predict_interval(self, x):
+    def _predict_interval(self, x, alpha=0.05):
         y = self._predict(x)
-        return prediction_interval(self.solution, x, y)
+        return prediction_interval(self.solution, x, y, alpha=alpha)
 
     def __call__(self, x):
         return self.predict(x)
@@ -613,11 +614,11 @@ class ModelEnsemble(object):
                 weight = abs(model.centroid - point) + 1
                 yield model, 1.0 / weight
 
-    def predict_interval(self, chromatogram, merge=True):
+    def predict_interval(self, chromatogram, alpha=0.05, merge=True):
         weights = []
         preds = []
         for mod, w in self._models_for(chromatogram):
-            preds.append(mod.predict_interval(chromatogram))
+            preds.append(mod.predict_interval(chromatogram, alpha=alpha))
             weights.append(w)
         weights = np.array(weights)
         weights /= weights.max()
@@ -671,6 +672,100 @@ class ModelEnsemble(object):
     def chromatograms(self):
         return self._get_chromatograms()
 
+
+def unmodified_modified_predicate(x):
+    return Unmodified in x.mass_shifts and Ammonium in x.mass_shifts
+
+
+class EnsembleBuilder(object):
+    def __init__(self, aggregator):
+        self.aggregator = aggregator
+        self.points = None
+        self.centers = OrderedDict()
+        self.models = OrderedDict()
+
+    def estimate_width(self):
+        try:
+            width = int(max(np.nanmedian(v) for v in
+                            self.aggregator.deltas().values()
+                            if len(v) > 0)) + 1
+        except ValueError:
+            width = 2.0
+        width *= 2
+        return float(width)
+
+    def generate_points(self, width):
+        points = np.arange(
+            int(self.aggregator.start_time) - 1,
+            int(self.aggregator.end_time) + 1, width / 4.)
+        return points
+
+    def partition(self, width=None, predicate=None):
+        if width is None:
+            width_value = self.estimate_width()
+            width = defaultdict(lambda: width_value)
+        elif isinstance(width, (float, int, np.ndarray)):
+            width_value = width
+            width = defaultdict(lambda: width_value)
+        else:
+            width_value = None
+        if predicate is None:
+            predicate = bool
+        if self.points is None:
+            assert width_value is not None
+            self.points = self.generate_points(width_value)
+        centers = OrderedDict()
+        for point in self.points:
+            w = width[point]
+            centers[point] = GlycoformAggregator(
+                list(filter(predicate,
+                            self.aggregator.overlaps(point - w, point + w))))
+        self.centers = centers
+        return self
+
+    def estimate_delta_widths(self):
+        delta_index = defaultdict(list)
+        time = []
+        for cent, group in self.centers.items():
+            time.append(cent)
+            deltas = group.deltas()
+
+            for factor in self.aggregator.factors:
+                val = np.nanmedian(deltas.get(factor, []))
+                delta_index[factor].append(val)
+
+        delta_index = {
+            k: DeltaOverTimeFilter(k, v, time) for k, v in delta_index.items()
+        }
+
+        group_widths = OrderedDict()
+        for t in time:
+            best = 0
+            for k, v in delta_index.items():
+                val = v[v.search(t)]
+                best = max(abs(val), best)
+            best = round(best) * 2
+            if best < 1:
+                best = 2
+            group_widths[t] = best
+        return group_widths
+
+    def fit(self, predicate=None, model_type=None):
+        if model_type is None:
+            from glycan_profiling.scoring.elution_time_grouping.model import AbundanceWeightedPeptideFactorElutionTimeFitter
+            model_type = AbundanceWeightedPeptideFactorElutionTimeFitter
+        if predicate is None:
+            predicate = bool
+        models = OrderedDict()
+        for point, members in self.centers.items():
+            obs = list(filter(bool, members))
+            m = models[point] = model_type(obs, self.aggregator.factors)
+            m.fit()
+        self.models = models
+        return self
+
+    def merge(self):
+        return ModelEnsemble(self.models)
 
 
 class ElutionTimeModel(ScoringFeatureBase):

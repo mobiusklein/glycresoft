@@ -404,6 +404,7 @@ class DeltaOverTimeFilter(object):
         self.key = key
         self.delta = np.array(delta)
         self.time = np.array(time)
+        self.delta = self.gap_fill()
         self.smoothed = self.smooth()
 
     def smooth(self):
@@ -417,6 +418,14 @@ class DeltaOverTimeFilter(object):
 
     def __len__(self):
         return len(self.time)
+
+    def gap_fill(self, width=2):
+        x = self.delta.copy()
+        for i in range(len(x)):
+            if np.isnan(x[i]):
+                x[i] = np.nanmean(np.concatenate(
+                    (x[max(i - width, 0):i], x[i + 1:i + width])))
+        return x
 
     def plot(self, ax=None):
         if ax is None:
