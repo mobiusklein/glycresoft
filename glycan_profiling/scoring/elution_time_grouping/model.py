@@ -197,7 +197,7 @@ class LinearModelBase(PredictorBase, SpanningMixin):
 class ElutionTimeFitter(LinearModelBase, ChromatgramFeatureizerBase, ScoringFeatureBase):
     feature_type = 'elution_time'
 
-    def __init__(self, chromatograms, scale=1, transform=None):
+    def __init__(self, chromatograms, scale=1, transform=None, default_width=None):
         self.chromatograms = chromatograms
         self.neutral_mass_array = None
         self.data = None
@@ -208,6 +208,7 @@ class ElutionTimeFitter(LinearModelBase, ChromatgramFeatureizerBase, ScoringFeat
         self.estimate = None
         self.scale = scale
         self.transform = transform
+        self.default_width = default_width
         self._init_model_data()
 
     def build_weight_matrix(self):
@@ -223,6 +224,18 @@ class ElutionTimeFitter(LinearModelBase, ChromatgramFeatureizerBase, ScoringFeat
             abs(apex - self._get_apex_time(chromatogram)),
             df=self._df(), scale=self.scale) * 2
         return max((score - SMALL_ERROR), SMALL_ERROR)
+
+    def score_interval(self, chromatogram, alpha=0.05, minimum_width=None):
+        if minimum_width:
+            minimum_width = self.default_width
+        interval = self.predict_interval(chromatogram, alpha=alpha)
+        pred = interval.mean()
+        delta = abs(chromatogram.apex_time - pred)
+        width = (interval[1] - interval[0]) / 2.0
+        if minimum_width is not None:
+            if np.isnan(width) or width < minimum_width:
+                width = minimum_width
+        return max(delta / width, 0.0)
 
     def plot(self, ax=None):
         if ax is None:
@@ -341,12 +354,12 @@ class FactorTransform(PredictorBase, FactorChromatogramFeatureizer):
 
 
 class FactorElutionTimeFitter(FactorChromatogramFeatureizer, ElutionTimeFitter):
-    def __init__(self, chromatograms, factors=None, scale=1, transform=None):
+    def __init__(self, chromatograms, factors=None, scale=1, transform=None, default_width=None):
         if factors is None:
             factors = ['Hex', 'HexNAc', 'Fuc', 'Neu5Ac']
         self.factors = list(factors)
         super(FactorElutionTimeFitter, self).__init__(
-            chromatograms, scale=scale, transform=transform)
+            chromatograms, scale=scale, transform=transform, default_width=default_width)
 
     def predict_delta_glycan(self, chromatogram, delta_glycan):
         try:
@@ -488,7 +501,7 @@ class PeptideGroupChromatogramFeatureizer(FactorChromatogramFeatureizer):
 
 
 class PeptideFactorElutionTimeFitter(PeptideGroupChromatogramFeatureizer, FactorElutionTimeFitter):
-    def __init__(self, chromatograms, factors=None, scale=1, transform=None):
+    def __init__(self, chromatograms, factors=None, scale=1, transform=None, default_width=None):
         if factors is None:
             factors = ['Hex', 'HexNAc', 'Fuc', 'Neu5Ac']
         self._peptide_to_indicator = defaultdict(make_counter(0))
@@ -502,7 +515,8 @@ class PeptideFactorElutionTimeFitter(PeptideGroupChromatogramFeatureizer, Factor
         self.peptide_groups = np.array(self.peptide_groups)
 
         super(PeptideFactorElutionTimeFitter, self).__init__(
-            chromatograms, list(factors), scale=scale, transform=transform)
+            chromatograms, list(factors), scale=scale, transform=transform,
+            default_width=default_width)
 
     def groupwise_R2(self, adjust=True):
         x = self.data
@@ -600,9 +614,11 @@ class AbundanceWeightedPeptideFactorElutionTimeFitter(AbundanceWeightedMixin, Pe
 
 
 class ModelEnsemble(object):
-    def __init__(self, models):
+    def __init__(self, models, default_width=None):
         self.models = models
         self._models = list(models.values())
+        self.default_width = default_width
+        self._chromatograms = None
 
     def _models_for(self, chromatogram):
         if not isinstance(chromatogram, Number):
@@ -621,11 +637,11 @@ class ModelEnsemble(object):
             preds.append(mod.predict_interval(chromatogram, alpha=alpha))
             weights.append(w)
         weights = np.array(weights)
-        weights /= weights.max()
-        mask = ~np.isnan(weights)
+        mask = ~np.isnan(weights) & ~(np.isnan(preds).sum(axis=1).astype(bool))
         preds = np.array(preds)
         preds = preds[mask, :]
         weights = weights[mask]
+        weights /= weights.max()
         if merge:
             if len(weights) == 0:
                 return np.array([np.nan, np.nan])
@@ -633,6 +649,17 @@ class ModelEnsemble(object):
             return avg
         return preds, weights
 
+    def score_interval(self, chromatogram, alpha=0.05, minimum_width=None):
+        if minimum_width:
+            minimum_width = self.default_width
+        interval = self.predict_interval(chromatogram, alpha=alpha)
+        pred = interval.mean()
+        delta = abs(chromatogram.apex_time - pred)
+        width = (interval[1] - interval[0]) / 2.0
+        if minimum_width is not None:
+            if np.isnan(width) or width < minimum_width:
+                width = minimum_width
+        return max(delta / width, 0.0)
 
     def predict(self, chromatogram, merge=True):
         weights = []
@@ -662,11 +689,14 @@ class ModelEnsemble(object):
         return preds, weights
 
     def _get_chromatograms(self):
+        if self._chromatograms:
+            return self._chromatograms
         chroma = set()
         for model in self.models.values():
             for chrom in model.chromatograms:
                 chroma.add(chrom)
-        return sorted(chroma, key=lambda x: x.apex_time)
+        self._chromatograms = sorted(chroma, key=lambda x: x.apex_time)
+        return self._chromatograms
 
     @property
     def chromatograms(self):
