@@ -226,7 +226,7 @@ class ElutionTimeFitter(LinearModelBase, ChromatgramFeatureizerBase, ScoringFeat
         return max((score - SMALL_ERROR), SMALL_ERROR)
 
     def score_interval(self, chromatogram, alpha=0.05, minimum_width=None):
-        if minimum_width:
+        if not minimum_width:
             minimum_width = self.default_width
         interval = self.predict_interval(chromatogram, alpha=alpha)
         pred = interval.mean()
@@ -235,7 +235,7 @@ class ElutionTimeFitter(LinearModelBase, ChromatgramFeatureizerBase, ScoringFeat
         if minimum_width is not None:
             if np.isnan(width) or width < minimum_width:
                 width = minimum_width
-        return max(delta / width, 0.0)
+        return max(1 - delta / width, 0.0)
 
     def plot(self, ax=None):
         if ax is None:
@@ -659,7 +659,7 @@ class ModelEnsemble(object):
         if minimum_width is not None:
             if np.isnan(width) or width < minimum_width:
                 width = minimum_width
-        return max(delta / width, 0.0)
+        return max(1 - delta / width, 0.0)
 
     def predict(self, chromatogram, merge=True):
         weights = []
