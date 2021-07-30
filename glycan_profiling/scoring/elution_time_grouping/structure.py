@@ -32,13 +32,14 @@ def _get_apex_time(chromatogram):
 
 
 class ChromatogramProxy(object):
-    def __init__(self, weighted_neutral_mass, apex_time, total_signal, glycan_composition, obj=None, mass_shifts=None, **kwargs):
+    def __init__(self, weighted_neutral_mass, apex_time, total_signal, glycan_composition, obj=None, mass_shifts=None, weight=1.0, **kwargs):
         self.weighted_neutral_mass = weighted_neutral_mass
         self.apex_time = apex_time
         self.total_signal = total_signal
         self.glycan_composition = glycan_composition
         self.obj = obj
         self._mass_shifts = None
+        self.weight = weight
         self.kwargs = kwargs
         if mass_shifts:
             if isinstance(mass_shifts, str):
@@ -88,6 +89,7 @@ class ChromatogramProxy(object):
             "apex_time": self.apex_time,
             "total_signal": self.total_signal,
             "glycan_composition": self.glycan_composition,
+            "weight": self.weight,
         }
         d.update(self.kwargs)
         return d
@@ -114,9 +116,9 @@ class ChromatogramProxy(object):
 
     @classmethod
     def _csv_keys(cls, keys):
-        return ['glycan_composition', 'apex_time', 'total_signal', 'weighted_neutral_mass'] + \
+        return ['glycan_composition', 'apex_time', 'total_signal', 'weighted_neutral_mass',] + \
             sorted(set(keys) - {'glycan_composition', 'apex_time',
-                                'total_signal', 'weighted_neutral_mass'})
+                                'total_signal', 'weighted_neutral_mass', })
 
     @classmethod
     def to_csv(cls, instances, fh):
