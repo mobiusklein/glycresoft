@@ -1,13 +1,15 @@
 import csv
 
 from numbers import Number
-from collections import defaultdict, OrderedDict
+from collections import defaultdict, OrderedDict, namedtuple
 
 import numpy as np
 from scipy import stats
 
 from glycopeptidepy import PeptideSequence
 from glypy.utils import make_counter
+
+from glycan_profiling import chromatogram_tree
 
 try:
     from matplotlib import pyplot as plt
@@ -24,10 +26,30 @@ from .structure import _get_apex_time, GlycopeptideChromatogramProxy, GlycoformA
 from .linear_regression import (ransac, weighted_linear_regression_fit, prediction_interval, SMALL_ERROR)
 
 
+class IntervalRange(object):
+    def __init__(self, lower=None, upper=None):
+        if isinstance(lower, IntervalRange):
+            self.lower = lower.lower
+            self.upper = lower.upper
+        elif isinstance(lower, (tuple, list)):
+            self.lower, self.upper = lower
+        else:
+            self.lower = lower
+            self.upper = upper
+
+    def clamp(self, value):
+        if self.lower is None:
+            return value
+        if value < self.lower:
+            return self.lower
+        if value > self.upper:
+            return self.upper
+
+
 class AbundanceWeightedMixin(object):
     def build_weight_matrix(self):
         W = np.eye(len(self.chromatograms)) * [
-            (x.total_signal) for x in self.chromatograms
+            (x.total_signal * x.weight) for x in self.chromatograms
         ]
         W /= W.max()
         return W
@@ -56,7 +78,7 @@ class ChromatgramFeatureizerBase(object):
         )).T
 
     def build_weight_matrix(self):
-        return np.eye(len(self.chromatograms))
+        return np.eye([x.weight for x in self.chromatograms])
 
 
 class PredictorBase(object):
@@ -197,7 +219,7 @@ class LinearModelBase(PredictorBase, SpanningMixin):
 class ElutionTimeFitter(LinearModelBase, ChromatgramFeatureizerBase, ScoringFeatureBase):
     feature_type = 'elution_time'
 
-    def __init__(self, chromatograms, scale=1, transform=None, default_width=None):
+    def __init__(self, chromatograms, scale=1, transform=None, width_range=None):
         self.chromatograms = chromatograms
         self.neutral_mass_array = None
         self.data = None
@@ -208,11 +230,11 @@ class ElutionTimeFitter(LinearModelBase, ChromatgramFeatureizerBase, ScoringFeat
         self.estimate = None
         self.scale = scale
         self.transform = transform
-        self.default_width = default_width
+        self.width_range = IntervalRange(width_range)
         self._init_model_data()
 
     def build_weight_matrix(self):
-        return np.eye(len(self.chromatograms))
+        return np.eye([c.weight for c in self.chromatograms])
 
     def score(self, chromatogram):
         apex = self.predict(chromatogram)
@@ -225,17 +247,24 @@ class ElutionTimeFitter(LinearModelBase, ChromatgramFeatureizerBase, ScoringFeat
             df=self._df(), scale=self.scale) * 2
         return max((score - SMALL_ERROR), SMALL_ERROR)
 
-    def score_interval(self, chromatogram, alpha=0.05, minimum_width=None):
-        if not minimum_width:
-            minimum_width = self.default_width
+    def score_interval(self, chromatogram, alpha=0.05):
         interval = self.predict_interval(chromatogram, alpha=alpha)
         pred = interval.mean()
         delta = abs(chromatogram.apex_time - pred)
         width = (interval[1] - interval[0]) / 2.0
-        if minimum_width is not None:
-            if np.isnan(width) or width < minimum_width:
-                width = minimum_width
+        if self.width_range is not None:
+            if np.isnan(width):
+                width = self.width_range.upper
+            else:
+                width = self.width_range.clamp(width)
         return max(1 - delta / width, 0.0)
+
+    def calibrate_prediction_interval(self, chromatograms=None, alpha=0.05):
+        if chromatograms is None:
+            chromatograms = self.chromatograms
+        ivs = np.array([self.predict_interval(c, alpha) for c in chromatograms])
+        widths = (ivs[:, 1] - ivs[:, 0]) / 2.0
+        self.width_range = IntervalRange(*np.quantile(widths, [0.25, 0.75]))
 
     def plot(self, ax=None):
         if ax is None:
@@ -354,12 +383,12 @@ class FactorTransform(PredictorBase, FactorChromatogramFeatureizer):
 
 
 class FactorElutionTimeFitter(FactorChromatogramFeatureizer, ElutionTimeFitter):
-    def __init__(self, chromatograms, factors=None, scale=1, transform=None, default_width=None):
+    def __init__(self, chromatograms, factors=None, scale=1, transform=None, width_range=None):
         if factors is None:
             factors = ['Hex', 'HexNAc', 'Fuc', 'Neu5Ac']
         self.factors = list(factors)
         super(FactorElutionTimeFitter, self).__init__(
-            chromatograms, scale=scale, transform=transform, default_width=default_width)
+            chromatograms, scale=scale, transform=transform, width_range=width_range)
 
     def predict_delta_glycan(self, chromatogram, delta_glycan):
         try:
@@ -501,7 +530,7 @@ class PeptideGroupChromatogramFeatureizer(FactorChromatogramFeatureizer):
 
 
 class PeptideFactorElutionTimeFitter(PeptideGroupChromatogramFeatureizer, FactorElutionTimeFitter):
-    def __init__(self, chromatograms, factors=None, scale=1, transform=None, default_width=None):
+    def __init__(self, chromatograms, factors=None, scale=1, transform=None, width_range=None):
         if factors is None:
             factors = ['Hex', 'HexNAc', 'Fuc', 'Neu5Ac']
         self._peptide_to_indicator = defaultdict(make_counter(0))
@@ -516,7 +545,7 @@ class PeptideFactorElutionTimeFitter(PeptideGroupChromatogramFeatureizer, Factor
 
         super(PeptideFactorElutionTimeFitter, self).__init__(
             chromatograms, list(factors), scale=scale, transform=transform,
-            default_width=default_width)
+            width_range=width_range)
 
     def groupwise_R2(self, adjust=True):
         x = self.data
@@ -614,10 +643,10 @@ class AbundanceWeightedPeptideFactorElutionTimeFitter(AbundanceWeightedMixin, Pe
 
 
 class ModelEnsemble(object):
-    def __init__(self, models, default_width=None):
+    def __init__(self, models, width_range=None):
         self.models = models
         self._models = list(models.values())
-        self.default_width = default_width
+        self.width_range = IntervalRange(width_range)
         self._chromatograms = None
 
     def _models_for(self, chromatogram):
@@ -649,16 +678,16 @@ class ModelEnsemble(object):
             return avg
         return preds, weights
 
-    def score_interval(self, chromatogram, alpha=0.05, minimum_width=None):
-        if minimum_width:
-            minimum_width = self.default_width
+    def score_interval(self, chromatogram, alpha=0.05):
         interval = self.predict_interval(chromatogram, alpha=alpha)
         pred = interval.mean()
         delta = abs(chromatogram.apex_time - pred)
         width = (interval[1] - interval[0]) / 2.0
-        if minimum_width is not None:
-            if np.isnan(width) or width < minimum_width:
-                width = minimum_width
+        if self.width_range is not None:
+            if np.isnan(width):
+                width = self.width_range.upper
+            else:
+                width = self.width_range.clamp(width)
         return max(1 - delta / width, 0.0)
 
     def predict(self, chromatogram, merge=True):
