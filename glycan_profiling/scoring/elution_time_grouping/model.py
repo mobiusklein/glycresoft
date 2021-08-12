@@ -18,12 +18,14 @@ except ImportError:
 
 from ms_deisotope.peak_dependency_network.intervals import SpanningMixin
 
+from glycan_profiling.task import TaskBase
+
 from glycan_profiling.chromatogram_tree import Unmodified, Ammonium
-from glycan_profiling.scoring.base import (
-    ScoringFeatureBase,)
+from glycan_profiling.scoring.base import ScoringFeatureBase
 
 from .structure import _get_apex_time, GlycopeptideChromatogramProxy, GlycoformAggregator, DeltaOverTimeFilter
 from .linear_regression import (ransac, weighted_linear_regression_fit, prediction_interval, SMALL_ERROR)
+from .reviser import (IntervalModelReviser, IsotopeRule, AmmoniumMaskedRule, AmmoniumUnmaskedRule)
 
 
 class IntervalRange(object):
@@ -44,6 +46,16 @@ class IntervalRange(object):
             return self.lower
         if value > self.upper:
             return self.upper
+        return value
+
+    def interval(self, value):
+        center = np.mean(value)
+        lower = center - self.clamp(abs(center - value[0]))
+        upper = center + self.clamp(abs(value[1] - center))
+        return [lower, upper]
+
+    def __repr__(self):
+        return "{self.__class__.__name__}({self.lower}, {self.upper})".format(self=self)
 
 
 class AbundanceWeightedMixin(object):
@@ -265,6 +277,7 @@ class ElutionTimeFitter(LinearModelBase, ChromatgramFeatureizerBase, ScoringFeat
         ivs = np.array([self.predict_interval(c, alpha) for c in chromatograms])
         widths = (ivs[:, 1] - ivs[:, 0]) / 2.0
         self.width_range = IntervalRange(*np.quantile(widths, [0.25, 0.75]))
+        return self
 
     def plot(self, ax=None):
         if ax is None:
@@ -659,6 +672,15 @@ class ModelEnsemble(object):
                 weight = abs(model.centroid - point) + 1
                 yield model, 1.0 / weight
 
+    def coverage_for(self, chromatogram):
+        refs = []
+        weights = []
+        for mod, weight in self._models_for(chromatogram):
+            refs.append(mod.has_peptide(chromatogram))
+            weights.append(weight)
+        coverage = np.dot(refs, weights) / np.sum(weights)
+        return coverage
+
     def predict_interval(self, chromatogram, alpha=0.05, merge=True):
         weights = []
         preds = []
@@ -731,12 +753,21 @@ class ModelEnsemble(object):
     def chromatograms(self):
         return self._get_chromatograms()
 
+    def calibrate_prediction_interval(self, chromatograms=None, alpha=0.05):
+        if chromatograms is None:
+            chromatograms = self.chromatograms
+        ivs = np.array([self.predict_interval(c, alpha)
+                        for c in chromatograms])
+        widths = (ivs[:, 1] - ivs[:, 0]) / 2.0
+        self.width_range = IntervalRange(*np.quantile(widths, [0.25, 0.75]))
+        return self
+
 
 def unmodified_modified_predicate(x):
     return Unmodified in x.mass_shifts and Ammonium in x.mass_shifts
 
 
-class EnsembleBuilder(object):
+class EnsembleBuilder(TaskBase):
     def __init__(self, aggregator):
         self.aggregator = aggregator
         self.points = None
@@ -816,15 +847,171 @@ class EnsembleBuilder(object):
         if predicate is None:
             predicate = bool
         models = OrderedDict()
-        for point, members in self.centers.items():
-            obs = list(filter(bool, members))
+        point_members = list(self.centers.items())
+        n = len(point_members)
+        for i, (point, members) in enumerate(point_members):
+            obs = list(filter(predicate, members))
+            if not obs:
+                continue
             m = models[point] = model_type(obs, self.aggregator.factors)
+            if m.data.shape[0] <= m.data.shape[1]:
+                offset = 1
+                while m.data.shape[0] <= m.data.shape[1] and offset < (len(point_members) // 2 + 1):
+                    extra = set(members)
+                    for j in range(1, offset + 1):
+                        if i > j:
+                            extra.update(list(point_members[i - j][1]))
+                        if i + j < n:
+                            extra.update(list(point_members[i + j][1]))
+                    obs = sorted(filter(predicate, extra), key=lambda x: x.apex_time)
+                    m = models[point] = model_type(obs, self.aggregator.factors)
+                    offset += 1
+                m = models[point]
+
             m.fit()
         self.models = models
         return self
 
     def merge(self):
         return ModelEnsemble(self.models)
+
+
+def mask_in(full_set, incoming):
+    incoming_map = {i.tag: i for i in incoming}
+    out = []
+    for chrom in full_set:
+        if chrom.tag in incoming_map:
+            out.append(incoming_map[chrom.tag])
+        else:
+            out.append(chrom)
+    return out
+
+class ModelBuildingPipeline(TaskBase):
+    def __init__(self, aggregate, calibration_alpha=0.001):
+        self.aggregate = aggregate
+        self.calibration_alpha = calibration_alpha
+        self._current_model = None
+        self.model_history = []
+
+    @property
+    def current_model(self):
+        return self._current_model
+
+    @current_model.setter
+    def current_model(self, value):
+        if self._current_model is not None and value is not self._current_model:
+            self.model_history.append(self._current_model)
+        self._current_model = value
+
+    def fit_first_model(self):
+        model = self.fit_model(self.aggregate, unmodified_modified_predicate)
+        return model
+
+    def fit_model(self, aggregate, predicate):
+        builder = EnsembleBuilder(aggregate)
+        builder.partition()
+        w = builder.estimate_delta_widths()
+        builder.partition(w)
+        builder.fit(predicate)
+        model = builder.merge()
+        model.calibrate_prediction_interval(alpha=self.calibration_alpha)
+        return model
+
+    def fit_model_with_revision(self, source, revision):
+        masked_in_all_recs = mask_in(source, revision)
+        aggregate = GlycoformAggregator(masked_in_all_recs)
+        tags = {t.tag for t in revision}
+        return self.fit_model(aggregate, lambda x: x.tag in tags)
+
+    def revise_with(self, model, chromatograms, delta=0.75):
+        reviser = IntervalModelReviser(
+            model, [
+                AmmoniumMaskedRule,
+                AmmoniumUnmaskedRule,
+                IsotopeRule],
+            chromatograms)
+        reviser.evaluate()
+        revised = reviser.revise(0.2, 0.65)
+        self.log("... Revising Observations")
+        for new, old in zip(revised, chromatograms):
+            if new.structure != old.structure:
+                self.log(
+                    "...... %s: %0.2f %s (%0.2f) => %s (%0.2f) %0.2f/%0.2f" % (
+                        new.tag, new.apex_time,
+                        old.glycan_composition, model.predict(old),
+                        new.glycan_composition, model.predict(new),
+                        model.score_interval(old, alpha=0.01),
+                        model.score_interval(new, alpha=0.01)
+                    )
+                )
+        return revised
+
+    def compute_model_coverage(self, model, aggregate, tag=True):
+        coverages = []
+        not_covered = []
+        for i, chrom in enumerate(aggregate):
+            if tag:
+                chrom.annotations['tag'] = i
+            coverage = model.coverage_for(chrom)
+            coverages.append(coverage)
+        return np.array(coverages)
+
+    def subset_aggregate_by_coverage(self, chromatograms, coverages, threshold):
+        return np.array(list(chromatograms))[np.where((coverages >= threshold) | np.isclose(coverages, threshold))[0]]
+
+    def reweight(self, model, chromatograms, base_weight=0.3):
+        reweighted = []
+        model_weight = 1.0 - base_weight
+        total = 0.0
+        for rec in chromatograms:
+            rec = rec.copy()
+            rec.weight = base_weight + (model_weight * model.score_interval(rec, 0.01))
+            reweighted.append(rec)
+            total += rec.weight
+        self.log("Total Weighting for %d elements = %f" % (len(chromatograms), total))
+        return reweighted
+
+    def run(self, k=10):
+        self.log("Fitting first model...")
+        # The first model is fit on those cases where we have both
+        # the Unmodified form as well as a modified form e.g. Ammonium-adducted
+        self.current_model = self.fit_first_model()
+
+        all_records = list(self.aggregate)
+
+        # Compute the coverage over all the chromatograms, where coverage is defined
+        # as the sum of the weights of all models that span that chromatogram which
+        # have a definition for that peptide divided by the sum of all model weights
+        # that span that chromatogram, regardless of whether they contain the peptide
+        coverages = self.compute_model_coverage(self.current_model, all_records)
+
+        # Select only those chromatograms that have 100% coverage (always defined in the model)
+        # but regardless of modification state.
+        covered_recs = self.subset_aggregate_by_coverage(all_records, coverages, 1.0)
+
+        # Attempt to revise chromatograms which are covered by the current model
+        revised_recs = self.revise_with(self.current_model, covered_recs)
+
+        # Update the list of chromatogram records
+        all_records = mask_in(list(self.aggregate), revised_recs)
+
+        # Fit a new model on the revised data
+        self.current_model = model = self.fit_model_with_revision(all_records, revised_recs)
+
+        for i in range(k):
+            self.log("... Iteration %d" % i)
+            coverages = self.compute_model_coverage(model, all_records)
+            coverage_threshold = (1.0 - (i * 1.0 / (3 * k)))
+            covered_recs = self.subset_aggregate_by_coverage(all_records, coverages, coverage_threshold)
+            self.log("... Covering %d chromatograms at threshold %0.2f" % (len(covered_recs), coverage_threshold))
+            revised_recs = self.revise_with(model, covered_recs)
+            revised_recs = self.reweight(model, revised_recs, 0.1)
+            all_records = mask_in(all_records, revised_recs)
+            self.current_model = model = self.fit_model_with_revision(all_records, revised_recs)
+        return model, revised_recs
+
+
+
 
 
 class ElutionTimeModel(ScoringFeatureBase):

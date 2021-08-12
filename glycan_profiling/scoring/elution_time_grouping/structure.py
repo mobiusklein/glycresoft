@@ -157,7 +157,7 @@ class ChromatogramProxy(object):
         return cases
 
     def shift_glycan_composition(self, delta):
-        inst = self.__class__.from_obj(self)
+        inst = self.copy()
         inst.glycan_composition = HashableGlycanComposition(self.glycan_composition) + delta
         return inst
 

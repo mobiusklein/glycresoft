@@ -1,12 +1,14 @@
 from array import array
 from collections import defaultdict
 
+import numpy as np
+
 from glypy.structure.glycan_composition import HashableGlycanComposition
 
-
 class RevisionRule(object):
-    def __init__(self, delta_glycan):
+    def __init__(self, delta_glycan, mass_shift_rule=None):
         self.delta_glycan = HashableGlycanComposition.parse(delta_glycan)
+        self.mass_shift_rule = mass_shift_rule
 
     def valid(self, record):
         new_record = self(record)
@@ -71,20 +73,22 @@ class ModelReviser(object):
         for rule in self.rules:
             self.process_rule(rule)
 
-    def revise(self, threshold=0.2):
+    def revise(self, threshold=0.2, delta_threshold=0.2):
         chromatograms = self.chromatograms
         original_scores = self.original_scores
         next_round = []
         for i in range(len(chromatograms)):
             best_score = original_scores[i]
+            delta_best_score = float('inf')
             best_record = chromatograms[i]
             for rule in self.rules:
                 a = self.alternative_scores[rule][i]
-                if a > best_score:
+                if a > best_score and not np.isclose(a, 0.0):
+                    delta_best_score = a - original_scores[i]
                     best_score = a
                     best_record = self.alternative_records[rule][i]
 
-            if best_score > threshold:
+            if best_score > threshold and delta_best_score > delta_threshold:
                 next_round.append(best_record)
             else:
                 next_round.append(chromatograms[i])
@@ -99,5 +103,7 @@ AmmoniumUnmaskedRule = RevisionRule(
 
 
 class IntervalModelReviser(ModelReviser):
+    alpha = 0.01
+
     def rescore(self, case):
-        return self.model.score_interval(case)
+        return self.model.score_interval(case, alpha=0.01)
