@@ -30,8 +30,9 @@ def _get_apex_time(chromatogram):
     except AttributeError:
         return chromatogram.apex_time
 
-
 class ChromatogramProxy(object):
+    revised_from = None
+
     def __init__(self, weighted_neutral_mass, apex_time, total_signal, glycan_composition, obj=None, mass_shifts=None, weight=1.0, **kwargs):
         self.weighted_neutral_mass = weighted_neutral_mass
         self.apex_time = apex_time
@@ -45,6 +46,14 @@ class ChromatogramProxy(object):
             if isinstance(mass_shifts, str):
                 mass_shifts = mass_shifts.split(";")
             self.kwargs['mass_shifts'] = ';'.join([getattr(m, 'name', m) for m in mass_shifts])
+
+    @property
+    def revised_from(self):
+        self.kwargs.get("revised_from")
+
+    @revised_from.setter
+    def revised_from(self, value):
+        self.kwargs['revised_from'] = value
 
     @property
     def mass_shifts(self):

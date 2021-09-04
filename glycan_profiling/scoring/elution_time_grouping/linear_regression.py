@@ -10,7 +10,7 @@ from scipy import stats
 
 WLSSolution = namedtuple("WLSSolution", [
     'yhat', 'parameters', 'data', 'weights', 'residuals',
-    'projection_matrix', 'rss', 'press', 'R2'])
+    'projection_matrix', 'rss', 'press', 'R2', 'variance_matrix'])
 
 '''A structured container for :func:`weighted_linear_regression_fit`
 output.
@@ -52,6 +52,30 @@ def prepare_arrays_for_linear_fit(x, y, w=None):
     return X, Y, W
 
 
+def weighted_linear_regression_fit_ridge(x, y, w=None, alpha=None, prepare=False):
+    if prepare:
+        x, y, w = prepare_arrays_for_linear_fit(x, y, w)
+    elif w is None:
+        w = np.eye(y.shape[0])
+    if alpha is None:
+        alpha = 0.0
+    p = x.shape[1]
+    V = np.linalg.pinv(x.T.dot(w).dot(x) + np.eye(p) * alpha)
+    A = V.dot(x.T.dot(w))
+    B = A.dot(y)
+    H = x.dot(A)
+    yhat = x.dot(B)
+    residuals = (y - yhat)
+    leave_one_out_error = residuals / (1 - np.diag(H))
+    press = (np.diag(w) * leave_one_out_error * leave_one_out_error).sum()
+    rss = (np.diag(w) * residuals * residuals).sum()
+    tss = (y - y.mean())
+    tss = (np.diag(w) * tss * tss).sum()
+    return WLSSolution(
+        yhat, B, (x, y), w, residuals, H,
+        rss, press, 1 - (rss / (tss)), V)
+
+
 def weighted_linear_regression_fit(x, y, w=None, prepare=False):
     """Fit a linear model using weighted least squares.
 
@@ -74,7 +98,8 @@ def weighted_linear_regression_fit(x, y, w=None, prepare=False):
         x, y, w = prepare_arrays_for_linear_fit(x, y, w)
     elif w is None:
         w = np.eye(y.shape[0])
-    A = np.linalg.pinv(x.T.dot(w).dot(x)).dot(x.T.dot(w))
+    V = np.linalg.pinv(x.T.dot(w).dot(x))
+    A = V.dot(x.T.dot(w))
     B = A.dot(y)
     H = x.dot(A)
     yhat = x.dot(B)
@@ -86,7 +111,7 @@ def weighted_linear_regression_fit(x, y, w=None, prepare=False):
     tss = (np.diag(w) * tss * tss).sum()
     return WLSSolution(
         yhat, B, (x, y), w, residuals, H,
-        rss, press, 1 - (rss / (tss)))
+        rss, press, 1 - (rss / (tss)), V)
 
 
 def ransac(x, y, w=None, max_trials=100):
@@ -213,12 +238,9 @@ def prediction_interval(solution, x0, y0, alpha=0.05):
     """
     n = len(solution.residuals)
     k = len(solution.parameters)
+    xtx_inv = solution.variance_matrix
     df = n - k
     sigma2 = solution.rss / df
-    X = solution.data[0]
-    w = solution.weights
-
-    xtx_inv = np.linalg.pinv(X.T.dot(w).dot(X))
     h = x0.dot(xtx_inv).dot(x0.T)
     if not np.isscalar(h):
         h = np.diag(h)
