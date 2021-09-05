@@ -25,7 +25,7 @@ from glycan_profiling.chromatogram_tree import Unmodified, Ammonium
 from glycan_profiling.scoring.base import ScoringFeatureBase
 
 from .structure import _get_apex_time, GlycopeptideChromatogramProxy, GlycoformAggregator, DeltaOverTimeFilter
-from .linear_regression import (ransac, weighted_linear_regression_fit, prediction_interval, SMALL_ERROR)
+from .linear_regression import (ransac, weighted_linear_regression_fit, prediction_interval, SMALL_ERROR, weighted_linear_regression_fit_ridge)
 from .reviser import (IntervalModelReviser, IsotopeRule, AmmoniumMaskedRule,
                       AmmoniumUnmaskedRule, HexNAc2Fuc1NeuAc2ToHex7Rule)
 
@@ -153,7 +153,7 @@ class LinearModelBase(PredictorBase, SpanningMixin):
     def end_time(self):
         return self.end
 
-    def _fit(self, resample=False):
+    def _fit(self, resample=False, alpha=None):
         if resample:
             solution = ransac(self.data, self.apex_time_array,
                               self.weight_matrix)
@@ -163,18 +163,36 @@ class LinearModelBase(PredictorBase, SpanningMixin):
                 return alt
             return solution
         else:
-            solution = weighted_linear_regression_fit(
-                self.data, self.apex_time_array, self.weight_matrix)
+            if alpha is None:
+                solution = weighted_linear_regression_fit(
+                    self.data, self.apex_time_array, self.weight_matrix)
+            else:
+                solution = weighted_linear_regression_fit_ridge(self.data, self.apex_time_array, self.weight_matrix, alpha)
         return solution
 
-    def fit(self, resample=False):
-        solution = self._fit(resample=resample)
+    def default_regularization(self):
+        p = self.data.shape[1]
+        return np.ones_like(p) * 0.001
+
+    def fit(self, resample=False, alpha=None):
+        solution = self._fit(resample=resample, alpha=alpha)
         self.estimate = solution.yhat
         self.residuals = solution.residuals
         self.parameters = solution.parameters
         self.projection_matrix = solution.projection_matrix
         self.solution = solution
         return self
+
+    def loglikelihood(self):
+        n = self.data.shape[0]
+        n2 = n / 2.0
+        rss = self.solution.rss
+        # The "concentrated likelihood"
+        likelihood = -np.log(rss) * n2
+        # The likelihood constant
+        likelihood -= (1 + np.log(np.pi / n2)) / n2
+        likelihood += 0.5 * np.sum(np.log(np.diag(self.weight_matrix)))
+        return likelihood
 
     @property
     def rss(self):
@@ -238,7 +256,7 @@ class LinearModelBase(PredictorBase, SpanningMixin):
 class ElutionTimeFitter(LinearModelBase, ChromatgramFeatureizerBase, ScoringFeatureBase):
     feature_type = 'elution_time'
 
-    def __init__(self, chromatograms, scale=1, transform=None, width_range=None):
+    def __init__(self, chromatograms, scale=1, transform=None, width_range=None, regularize=False):
         self.chromatograms = chromatograms
         self.neutral_mass_array = None
         self.data = None
@@ -250,6 +268,7 @@ class ElutionTimeFitter(LinearModelBase, ChromatgramFeatureizerBase, ScoringFeat
         self.scale = scale
         self.transform = transform
         self.width_range = IntervalRange(width_range)
+        self.regularize = regularize
         self._init_model_data()
 
     def build_weight_matrix(self):
@@ -403,12 +422,13 @@ class FactorTransform(PredictorBase, FactorChromatogramFeatureizer):
 
 
 class FactorElutionTimeFitter(FactorChromatogramFeatureizer, ElutionTimeFitter):
-    def __init__(self, chromatograms, factors=None, scale=1, transform=None, width_range=None):
+    def __init__(self, chromatograms, factors=None, scale=1, transform=None, width_range=None, regularize=False):
         if factors is None:
             factors = ['Hex', 'HexNAc', 'Fuc', 'Neu5Ac']
         self.factors = list(factors)
         super(FactorElutionTimeFitter, self).__init__(
-            chromatograms, scale=scale, transform=transform, width_range=width_range)
+            chromatograms, scale=scale, transform=transform,
+            width_range=width_range, regularize=regularize)
 
     def predict_delta_glycan(self, chromatogram, delta_glycan):
         try:
@@ -551,7 +571,7 @@ class PeptideGroupChromatogramFeatureizer(FactorChromatogramFeatureizer, Peptide
 
 
 class PeptideFactorElutionTimeFitter(PeptideGroupChromatogramFeatureizer, FactorElutionTimeFitter):
-    def __init__(self, chromatograms, factors=None, scale=1, transform=None, width_range=None):
+    def __init__(self, chromatograms, factors=None, scale=1, transform=None, width_range=None, regularize=False):
         if factors is None:
             factors = ['Hex', 'HexNAc', 'Fuc', 'Neu5Ac']
         self._peptide_to_indicator = defaultdict(make_counter(0))
@@ -563,10 +583,25 @@ class PeptideFactorElutionTimeFitter(PeptideGroupChromatogramFeatureizer, Factor
             self.peptide_groups.append(self._peptide_to_indicator[key])
             self.by_peptide[key].append(obs)
         self.peptide_groups = np.array(self.peptide_groups)
-
         super(PeptideFactorElutionTimeFitter, self).__init__(
             chromatograms, list(factors), scale=scale, transform=transform,
-            width_range=width_range)
+            width_range=width_range, regularize=regularize)
+
+    @property
+    def peptide_count(self):
+        return len(self.by_peptide)
+
+    def default_regularization(self):
+        alpha = np.concatenate((
+            np.zeros(self.peptide_count),
+            np.ones(len(self.factors)) * 0.001
+        ))
+        return alpha
+
+    def fit(self, resample=False, alpha=None):
+        if alpha is None and self.regularize:
+            alpha = self.default_regularization()
+        return super(PeptideGroupChromatogramFeatureizer, self).fit(resample, alpha)
 
     def groupwise_R2(self, adjust=True):
         x = self.data
@@ -875,7 +910,7 @@ class EnsembleBuilder(TaskBase):
             group_widths[t] = best
         return group_widths
 
-    def fit(self, predicate=None, model_type=None):
+    def fit(self, predicate=None, model_type=None, regularize=False):
         if model_type is None:
             model_type = AbundanceWeightedPeptideFactorElutionTimeFitter
         if predicate is None:
@@ -887,7 +922,8 @@ class EnsembleBuilder(TaskBase):
             obs = list(filter(predicate, members))
             if not obs:
                 continue
-            m = models[point] = model_type(obs, self.aggregator.factors)
+            m = models[point] = model_type(
+                obs, self.aggregator.factors, regularize=regularize)
             if m.data.shape[0] <= m.data.shape[1]:
                 offset = 1
                 while m.data.shape[0] <= m.data.shape[1] and offset < (len(point_members) // 2 + 1):
@@ -898,7 +934,7 @@ class EnsembleBuilder(TaskBase):
                         if i + j < n:
                             extra.update(list(point_members[i + j][1]))
                     obs = sorted(filter(predicate, extra), key=lambda x: x.apex_time)
-                    m = models[point] = model_type(obs, self.aggregator.factors)
+                    m = models[point] = model_type(obs, self.aggregator.factors, regularize=regularize)
                     offset += 1
                 m = models[point]
 
@@ -911,7 +947,7 @@ class EnsembleBuilder(TaskBase):
 
 
 class RelativeShiftFactorChromatogram(AbundanceWeightedPeptideFactorElutionTimeFitter):
-    def __init__(self, chromatograms, factors=None, scale=1, transform=None, width_range=None):
+    def __init__(self, chromatograms, factors=None, scale=1, transform=None, width_range=None, regularize=False):
         recs = []
         groups = GlycoformAggregator(chromatograms)
         for key, group in groups.by_peptide.items():
@@ -929,7 +965,7 @@ class RelativeShiftFactorChromatogram(AbundanceWeightedPeptideFactorElutionTimeF
         self.peptide_offsets = {}
         super(RelativeShiftFactorChromatogram, self).__init__(
             recs, factors, scale=scale, transform=transform,
-            width_range=width_range)
+            width_range=width_range, regularize=regularize)
 
     def fit(self, *args, **kwargs):
         super(RelativeShiftFactorChromatogram, self).fit(*args, **kwargs)
