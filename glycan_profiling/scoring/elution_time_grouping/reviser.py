@@ -6,9 +6,10 @@ import numpy as np
 from glypy.structure.glycan_composition import HashableGlycanComposition
 
 class RevisionRule(object):
-    def __init__(self, delta_glycan, mass_shift_rule=None):
+    def __init__(self, delta_glycan, mass_shift_rule=None, priority=0):
         self.delta_glycan = HashableGlycanComposition.parse(delta_glycan)
         self.mass_shift_rule = mass_shift_rule
+        self.priority = priority
 
     def valid(self, record):
         new_record = self(record)
@@ -35,9 +36,9 @@ class RevisionRule(object):
 
 
 class ValidatingRevisionRule(RevisionRule):
-    def __init__(self, delta_glycan, validator, mass_shift_rule=None):
+    def __init__(self, delta_glycan, validator, mass_shift_rule=None, priority=0):
         super(ValidatingRevisionRule, self).__init__(
-            delta_glycan, mass_shift_rule=mass_shift_rule)
+            delta_glycan, mass_shift_rule=mass_shift_rule, priority=priority)
         self.validator = validator
 
     def valid(self, record):
@@ -119,7 +120,8 @@ class ModelReviser(object):
                     best_record = self.alternative_records[rule][i]
 
             if best_score > threshold and delta_best_score > delta_threshold:
-                best_record.revised_from = (best_rule, chromatograms[i].glycan_composition)
+                if best_rule is not None:
+                    best_record.revised_from = (best_rule, chromatograms[i].glycan_composition)
                 next_round.append(best_record)
             else:
                 next_round.append(chromatograms[i])
@@ -127,12 +129,14 @@ class ModelReviser(object):
 
 
 AmmoniumMaskedRule = RevisionRule(
-    HashableGlycanComposition(Hex=-1, Fuc=-1, Neu5Ac=1))
-IsotopeRule = RevisionRule(HashableGlycanComposition(Fuc=-2, Neu5Ac=1))
+    HashableGlycanComposition(Hex=-1, Fuc=-1, Neu5Ac=1), 1)
 AmmoniumUnmaskedRule = RevisionRule(
-    HashableGlycanComposition(Hex=1, Fuc=1, Neu5Ac=-1))
-HexNAc2Fuc1NeuAc2ToHex7Rule = ValidatingRevisionRule(
-    HashableGlycanComposition(Hex=-7, HexNAc=2, Fuc=1, Neu5Ac=2),
+    HashableGlycanComposition(Hex=1, Fuc=1, Neu5Ac=-1), 1)
+IsotopeRule = RevisionRule(HashableGlycanComposition(Fuc=-2, Neu5Ac=1))
+IsotopeRule2 = RevisionRule(HashableGlycanComposition(Fuc=-4, Neu5Ac=2))
+
+HexNAc2Fuc1NeuAc2ToHex6AmmoniumRule = ValidatingRevisionRule(
+    HashableGlycanComposition(Hex=-6, HexNAc=2, Neu5Ac=2),
     validator=lambda x: x.glycan_composition['Neu5Ac'] == 0 and x.glycan_composition['Fuc'] == 0 and x.glycan_composition['HexNAc'] == 2)
 
 NeuAc1Hex1ToNeuGc1Fuc1Rule = RevisionRule(
