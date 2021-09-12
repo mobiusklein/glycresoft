@@ -114,7 +114,7 @@ def weighted_linear_regression_fit(x, y, w=None, prepare=False):
         rss, press, 1 - (rss / (tss)), V)
 
 
-def ransac(x, y, w=None, max_trials=100):
+def ransac(x, y, w=None, max_trials=100, regularize_alpha=None):
     '''
     RANSAC Regression, inspired heavily by sklearn's
     much more complex implementation
@@ -135,6 +135,8 @@ def ransac(x, y, w=None, max_trials=100):
         min_samples = X.shape[1] + 1
 
     if min_samples > X.shape[0]:
+        if regularize_alpha is not None:
+            return weighted_linear_regression_fit_ridge(X, y, w, regularize_alpha)
         return weighted_linear_regression_fit(X, y, w)
 
     sample_indices = np.arange(n_samples)
@@ -155,7 +157,11 @@ def ransac(x, y, w=None, max_trials=100):
         w_subset = np.diag(np.diag(w)[subset_ix])
 
         # fit parameters on random subset of the data
-        fit = weighted_linear_regression_fit(X_subset, y_subset, w_subset)
+        if regularize_alpha is not None:
+            fit = weighted_linear_regression_fit_ridge(
+                X_subset, y_subset, w_subset, regularize_alpha)
+        else:
+            fit = weighted_linear_regression_fit(X_subset, y_subset, w_subset)
 
         # compute goodness of fit for the fitted parameters with
         # the full dataset
@@ -192,8 +198,12 @@ def ransac(x, y, w=None, max_trials=100):
         y_inlier_best = y_inlier_subset
         w_inlier_best = w_inlier_subset
 
+    if regularize_alpha is None:
+        return weighted_linear_regression_fit_ridge(
+            X_inlier_best, y_inlier_best, w_inlier_best, regularize_alpha)
     # fit the final best inlier set for the final parameters
-    return weighted_linear_regression_fit(X_inlier_best, y_inlier_best, w_inlier_best)
+    return weighted_linear_regression_fit(
+        X_inlier_best, y_inlier_best, w_inlier_best)
 
 
 def fitted_interval(solution, x0, y0, alpha=0.05):
