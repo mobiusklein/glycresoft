@@ -2,7 +2,7 @@ import csv
 import itertools
 
 from numbers import Number
-from collections import defaultdict, OrderedDict, namedtuple
+from collections import defaultdict, OrderedDict
 
 import numpy as np
 from scipy import stats
@@ -11,6 +11,7 @@ from glycopeptidepy import PeptideSequence, parse
 from glypy.utils import make_counter
 
 from glycan_profiling import chromatogram_tree
+from glycan_profiling.database.composition_network.space import composition_distance
 
 try:
     from matplotlib import pyplot as plt
@@ -27,7 +28,7 @@ from glycan_profiling.scoring.base import ScoringFeatureBase
 from .structure import _get_apex_time, GlycopeptideChromatogramProxy, GlycoformAggregator, DeltaOverTimeFilter
 from .linear_regression import (ransac, weighted_linear_regression_fit, prediction_interval, SMALL_ERROR, weighted_linear_regression_fit_ridge)
 from .reviser import (IntervalModelReviser, IsotopeRule, AmmoniumMaskedRule,
-                      AmmoniumUnmaskedRule, HexNAc2Fuc1NeuAc2ToHex7Rule)
+                      AmmoniumUnmaskedRule, HexNAc2Fuc1NeuAc2ToHex6AmmoniumRule)
 
 
 class IntervalRange(object):
@@ -82,7 +83,7 @@ class ChromatgramFeatureizerBase(object):
         t = _get_apex_time(chromatogram)
         if self.transform is None:
             return t
-        return t + self.transform(chromatogram)
+        return t - self.transform(chromatogram)
 
     def _prepare_data_vector(self, chromatogram):
         return np.array([1, chromatogram.weighted_neutral_mass, ])
@@ -94,7 +95,7 @@ class ChromatgramFeatureizerBase(object):
         )).T
 
     def build_weight_matrix(self):
-        return 1.0 / np.eye([x.weight for x in self.chromatograms])
+        return 1.0 / np.diag([x.weight for x in self.chromatograms])
 
 
 class PredictorBase(object):
@@ -156,9 +157,13 @@ class LinearModelBase(PredictorBase, SpanningMixin):
     def _fit(self, resample=False, alpha=None):
         if resample:
             solution = ransac(self.data, self.apex_time_array,
-                              self.weight_matrix)
-            alt = weighted_linear_regression_fit(
-                self.data, self.apex_time_array, self.weight_matrix)
+                              self.weight_matrix, regularize_alpha=alpha)
+            if alpha is None:
+                alt = weighted_linear_regression_fit(
+                    self.data, self.apex_time_array, self.weight_matrix)
+            else:
+                alt = weighted_linear_regression_fit_ridge(
+                    self.data, self.apex_time_array, self.weight_matrix, alpha)
             if alt.R2 > solution.R2:
                 return alt
             return solution
@@ -167,7 +172,8 @@ class LinearModelBase(PredictorBase, SpanningMixin):
                 solution = weighted_linear_regression_fit(
                     self.data, self.apex_time_array, self.weight_matrix)
             else:
-                solution = weighted_linear_regression_fit_ridge(self.data, self.apex_time_array, self.weight_matrix, alpha)
+                solution = weighted_linear_regression_fit_ridge(
+                    self.data, self.apex_time_array, self.weight_matrix, alpha)
         return solution
 
     def default_regularization(self):
@@ -271,8 +277,8 @@ class ElutionTimeFitter(LinearModelBase, ChromatgramFeatureizerBase, ScoringFeat
         self.regularize = regularize
         self._init_model_data()
 
-    def build_weight_matrix(self):
-        return np.eye([c.weight for c in self.chromatograms])
+    def _get_chromatograms(self):
+        return self.chromatograms
 
     def score(self, chromatogram):
         apex = self.predict(chromatogram)
@@ -592,9 +598,10 @@ class PeptideFactorElutionTimeFitter(PeptideGroupChromatogramFeatureizer, Factor
         return len(self.by_peptide)
 
     def default_regularization(self):
+        monosaccharide_alphas = {}
         alpha = np.concatenate((
             np.zeros(self.peptide_count),
-            np.ones(len(self.factors)) * 0.001
+            [monosaccharide_alphas.get(f, 0.01) for f in self.factors]
         ))
         return alpha
 
@@ -807,7 +814,7 @@ class ModelEnsemble(PeptideBackboneKeyedMixin):
             return self._chromatograms
         chroma = set()
         for model in self.models.values():
-            for chrom in model.chromatograms:
+            for chrom in model._get_chromatograms():
                 chroma.add(chrom)
         self._chromatograms = sorted(chroma, key=lambda x: x.apex_time)
         return self._chromatograms
@@ -822,7 +829,10 @@ class ModelEnsemble(PeptideBackboneKeyedMixin):
         ivs = np.array([self.predict_interval(c, alpha)
                         for c in chromatograms])
         widths = (ivs[:, 1] - ivs[:, 0]) / 2.0
+        widths = widths[~np.isnan(widths)]
         self.width_range = IntervalRange(*np.quantile(widths, [0.25, 0.75]))
+        if np.isnan(self.width_range.lower):
+            raise ValueError("Width range cannot be NaN")
         return self
 
 
@@ -947,18 +957,24 @@ class EnsembleBuilder(TaskBase):
 
 
 class RelativeShiftFactorChromatogram(AbundanceWeightedPeptideFactorElutionTimeFitter):
-    def __init__(self, chromatograms, factors=None, scale=1, transform=None, width_range=None, regularize=False):
+    def __init__(self, chromatograms, factors=None, scale=1, transform=None, width_range=None, regularize=False, max_distance=3):
         recs = []
         groups = GlycoformAggregator(chromatograms)
         for key, group in groups.by_peptide.items():
             base_time = 0.0
             for a, b in itertools.permutations(group, 2):
                 delta_comp = a.glycan_composition - b.glycan_composition
+                distance = composition_distance(
+                    a.glycan_composition, b.glycan_composition)[0]
+                if distance > max_distance or distance == 0:
+                    continue
                 structure = parse(key + str(delta_comp))
                 rec = GlycopeptideChromatogramProxy(
                     a.weighted_neutral_mass, base_time + a.apex_time - b.apex_time,
                     np.sqrt(a.total_signal * b.total_signal),
-                    delta_comp, structure=structure)
+                    delta_comp, structure=structure,
+                    weight=float(distance) ** 4
+                )
                 recs.append(rec)
         assert len(recs) > 0
         self.groups = groups
@@ -966,6 +982,9 @@ class RelativeShiftFactorChromatogram(AbundanceWeightedPeptideFactorElutionTimeF
         super(RelativeShiftFactorChromatogram, self).__init__(
             recs, factors, scale=scale, transform=transform,
             width_range=width_range, regularize=regularize)
+
+    def _get_chromatograms(self):
+        return list(self.groups)
 
     def fit(self, *args, **kwargs):
         super(RelativeShiftFactorChromatogram, self).fit(*args, **kwargs)
@@ -993,6 +1012,9 @@ class RelativeShiftFactorChromatogram(AbundanceWeightedPeptideFactorElutionTimeF
         key = self.get_peptide_key(chromatogram)
         iv += self.peptide_offsets.get(key, 0)
         return iv
+
+    def calibrate_prediction_interval(self, chromatograms=None, alpha=0.05):
+        return super(RelativeShiftFactorChromatogram, self).calibrate_prediction_interval(list(self.groups), alpha)
 
     def _update_model_time_range(self):
         apexes = []
@@ -1067,7 +1089,7 @@ class ModelBuildingPipeline(TaskBase):
                 AmmoniumMaskedRule,
                 AmmoniumUnmaskedRule,
                 IsotopeRule,
-                HexNAc2Fuc1NeuAc2ToHex7Rule
+                HexNAc2Fuc1NeuAc2ToHex6AmmoniumRule
             ],
             chromatograms, valid_glycans=self.valid_glycans)
         reviser.evaluate()
