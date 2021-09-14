@@ -296,7 +296,10 @@ class ChromatogramShapeFitterBase(ScoringFeatureBase):
             self.ys = gaussian_filter1d(self.ys, self.smooth)
 
     def compute_residuals(self):
-        return NotImplemented
+        raise NotImplementedError()
+
+    def compute_fitted(self):
+        raise NotImplementedError()
 
     def null_model_residuals(self):
         residuals = linear_regression_residuals(self.xs, self.ys)
@@ -332,6 +335,11 @@ class ChromatogramShapeFitterBase(ScoringFeatureBase):
     @classmethod
     def score(cls, chromatogram, *args, **kwargs):
         return max(1 - cls(chromatogram).line_test, epsilon)
+
+    def integrate(self):
+        time = self.xs
+        smoothed = self.compute_fitted()
+        return np.trapz(smoothed, time)
 
 
 class ChromatogramShapeFitter(ChromatogramShapeFitterBase):

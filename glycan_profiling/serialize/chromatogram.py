@@ -626,41 +626,6 @@ class Chromatogram(Base, BoundToAnalysis):
         return inst
 
     def _weighted_neutral_mass_query(self, session):
-        # anode = alias(ChromatogramTreeNode.__table__)
-        # bnode = alias(ChromatogramTreeNode.__table__)
-        # apeak = alias(DeconvolutedPeak.__table__)
-
-        # peak_join = apeak.join(
-        #     ChromatogramTreeNodeToDeconvolutedPeak,
-        #     ChromatogramTreeNodeToDeconvolutedPeak.c.peak_id == apeak.c.id)
-
-        # root_peaks_join = peak_join.join(
-        #     anode,
-        #     ChromatogramTreeNodeToDeconvolutedPeak.c.node_id == anode.c.id).join(
-        #     ChromatogramToChromatogramTreeNode,
-        #     ChromatogramToChromatogramTreeNode.c.node_id == anode.c.id)
-
-        # branch_peaks_join = peak_join.join(
-        #     anode,
-        #     ChromatogramTreeNodeToDeconvolutedPeak.c.node_id == anode.c.id).join(
-        #     ChromatogramTreeNodeBranch,
-        #     ChromatogramTreeNodeBranch.child_id == anode.c.id).join(
-        #     bnode, ChromatogramTreeNodeBranch.parent_id == bnode.c.id).join(
-        #     ChromatogramToChromatogramTreeNode,
-        #     ChromatogramToChromatogramTreeNode.c.node_id == bnode.c.id)
-
-        # branch_intensities = select([apeak.c.intensity, apeak.c.neutral_mass, anode.c.node_type_id]).where(
-        #     ChromatogramToChromatogramTreeNode.c.chromatogram_id == self.id
-        # ).select_from(branch_peaks_join)
-
-        # root_intensities = select([apeak.c.intensity, apeak.c.neutral_mass, anode.c.node_type_id]).where(
-        #     ChromatogramToChromatogramTreeNode.c.chromatogram_id == self.id
-        # ).select_from(root_peaks_join)
-
-        # all_intensity_mass_q = root_intensities.union_all(branch_intensities)
-
-        # all_intensity_mass = session.execute(all_intensity_mass_q).fetchall()
-
         all_intensity_mass = session.execute(_weighted_neutral_mass_stmt, dict(id=self.id)).fetchall()
 
         arr = np.array(all_intensity_mass)
@@ -677,41 +642,6 @@ class Chromatogram(Base, BoundToAnalysis):
         return mass.dot(intensity) / intensity.sum()
 
     def _as_array_query(self, session):
-        # anode = alias(ChromatogramTreeNode.__table__)
-        # bnode = alias(ChromatogramTreeNode.__table__)
-        # apeak = alias(DeconvolutedPeak.__table__)
-
-        # peak_join = apeak.join(
-        #     ChromatogramTreeNodeToDeconvolutedPeak,
-        #     ChromatogramTreeNodeToDeconvolutedPeak.c.peak_id == apeak.c.id)
-
-        # root_peaks_join = peak_join.join(
-        #     anode,
-        #     ChromatogramTreeNodeToDeconvolutedPeak.c.node_id == anode.c.id).join(
-        #     ChromatogramToChromatogramTreeNode,
-        #     ChromatogramToChromatogramTreeNode.c.node_id == anode.c.id)
-
-        # branch_peaks_join = peak_join.join(
-        #     anode,
-        #     ChromatogramTreeNodeToDeconvolutedPeak.c.node_id == anode.c.id).join(
-        #     ChromatogramTreeNodeBranch,
-        #     ChromatogramTreeNodeBranch.child_id == anode.c.id).join(
-        #     bnode, ChromatogramTreeNodeBranch.parent_id == bnode.c.id).join(
-        #     ChromatogramToChromatogramTreeNode,
-        #     ChromatogramToChromatogramTreeNode.c.node_id == bnode.c.id)
-
-        # branch_intensities = select([apeak.c.intensity, anode.c.retention_time]).where(
-        #     ChromatogramToChromatogramTreeNode.c.chromatogram_id == self.id
-        # ).select_from(branch_peaks_join)
-
-        # root_intensities = select([apeak.c.intensity, anode.c.retention_time]).where(
-        #     ChromatogramToChromatogramTreeNode.c.chromatogram_id == self.id
-        # ).select_from(root_peaks_join)
-
-        # all_intensities_q = root_intensities.union_all(branch_intensities).order_by(
-        #     anode.c.retention_time)
-
-        # all_intensities = session.execute(all_intensities_q).fetchall()
         all_intensities = session.execute(_as_arrays_stmt, dict(id=self.id)).fetchall()
 
         time = []
@@ -739,6 +669,10 @@ class Chromatogram(Base, BoundToAnalysis):
     def weighted_neutral_mass(self):
         session = object_session(self)
         return self._weighted_neutral_mass_query(session)
+
+    def integrate(self):
+        time, intensity = self.as_arrays()
+        return np.trapz(intensity, time)
 
     @property
     def total_signal(self):
@@ -778,6 +712,9 @@ class ChromatogramWrapper(object):
         if self.chromatogram is None:
             raise MissingChromatogramError()
         return self.chromatogram
+
+    def integrate(self):
+        self._get_chromatogram().integrate()
 
     @property
     def _peak_hash(self):

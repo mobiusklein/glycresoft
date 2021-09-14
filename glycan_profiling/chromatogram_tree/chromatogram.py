@@ -590,6 +590,10 @@ class Chromatogram(_TimeIntervalMethods):
     def is_distinct(self, other):
         return not self.nodes.common_peaks(get_chromatogram(other).nodes)
 
+    def integrate(self):
+        time, intensity = self.as_arrays()
+        return np.trapz(intensity, time)
+
 
 class ChromatogramTreeList(object):
     def __init__(self, roots=None):
@@ -1055,6 +1059,9 @@ class ChromatogramWrapper(_TimeIntervalMethods):
 
     def drop_mass_shifts(self):
         return self.chromatogram.drop_mass_shifts()
+
+    def integrate(self):
+        return self.chromatogram.integrate()
 
 
 ChromatogramInterface.register(ChromatogramWrapper)

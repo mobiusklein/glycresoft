@@ -357,6 +357,11 @@ class AnalysisDeserializer(DatabaseBoundOperation):
         gcs = [c for c in q]
         return gcs
 
+    def get_glycopeptide_by_sequence(self, sequence):
+        return self.query(IdentifiedGlycopeptide).join(
+            IdentifiedGlycopeptide.structure).filter(
+                Glycopeptide.glycopeptide_sequence == sequence)
+
     def __repr__(self):
         template = "{self.__class__.__name__}({self.engine!r}, {self.analysis_name!r})"
         return template.format(self=self)
