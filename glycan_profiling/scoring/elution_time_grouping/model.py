@@ -920,7 +920,7 @@ class EnsembleBuilder(TaskBase):
             group_widths[t] = best
         return group_widths
 
-    def fit(self, predicate=None, model_type=None, regularize=False):
+    def fit(self, predicate=None, model_type=None, regularize=False, resample=False):
         if model_type is None:
             model_type = AbundanceWeightedPeptideFactorElutionTimeFitter
         if predicate is None:
@@ -948,7 +948,7 @@ class EnsembleBuilder(TaskBase):
                     offset += 1
                 m = models[point]
 
-            m.fit()
+            m.fit(resample=resample)
         self.models = models
         return self
 
@@ -973,12 +973,13 @@ class RelativeShiftFactorChromatogram(AbundanceWeightedPeptideFactorElutionTimeF
                     a.weighted_neutral_mass, base_time + a.apex_time - b.apex_time,
                     np.sqrt(a.total_signal * b.total_signal),
                     delta_comp, structure=structure,
-                    weight=float(distance) ** 4
+                    weight=float(distance) ** 4 + (a.weight + b.weight)
                 )
                 recs.append(rec)
         assert len(recs) > 0
         self.groups = groups
         self.peptide_offsets = {}
+        self.max_distance = max_distance
         super(RelativeShiftFactorChromatogram, self).__init__(
             recs, factors, scale=scale, transform=transform,
             width_range=width_range, regularize=regularize)
@@ -1028,6 +1029,14 @@ class RelativeShiftFactorChromatogram(AbundanceWeightedPeptideFactorElutionTimeF
         self.start = apexes.min()
         self.end = apexes.max()
         self.centroid = apexes.dot(weights) / np.sum(weights)
+
+    # This omission is by design, it prevents peptide backbones that did
+    # not have a pair from being considered.
+    #
+    # def has_peptide(self, peptide):
+    #     if not isinstance(peptide, str):
+    #         peptide = self.get_peptide_key(peptide)
+    #     return peptide in self.peptide_offsets
 
 
 def mask_in(full_set, incoming):

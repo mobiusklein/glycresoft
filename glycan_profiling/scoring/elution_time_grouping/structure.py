@@ -21,6 +21,17 @@ from ms_deisotope.peak_dependency_network.intervals import SpanningMixin, Interv
 from glycan_profiling.chromatogram_tree.utils import ArithmeticMapping
 from glycan_profiling.chromatogram_tree.mass_shift import MassShift
 
+def _try_parse(value):
+    if isinstance(value, (int, float)):
+        return value
+    try:
+        return int(value)
+    except (ValueError, TypeError):
+        try:
+            return float(value)
+        except (ValueError, TypeError):
+            return value
+
 
 def _get_apex_time(chromatogram):
     try:
@@ -139,15 +150,6 @@ class ChromatogramProxy(object):
 
     @classmethod
     def _from_csv(cls, row):
-
-        def _try_parse(value):
-            try:
-                return int(value)
-            except (ValueError, TypeError):
-                try:
-                    return float(value)
-                except (ValueError, TypeError):
-                    return value
 
         mass = float(row.pop("weighted_neutral_mass"))
         apex_time = float(row.pop("apex_time"))
