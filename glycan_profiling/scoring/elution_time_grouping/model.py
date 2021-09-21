@@ -1,14 +1,17 @@
 import csv
 import itertools
+import warnings
 
 from numbers import Number
-from collections import defaultdict, OrderedDict
+from collections import defaultdict, OrderedDict, namedtuple
 
 import numpy as np
 from scipy import stats
 
 from glycopeptidepy import PeptideSequence, parse
+
 from glypy.utils import make_counter
+from glypy.structure.glycan_composition import HashableGlycanComposition
 
 from glycan_profiling import chromatogram_tree
 from glycan_profiling.database.composition_network.space import composition_distance
@@ -956,8 +959,146 @@ class EnsembleBuilder(TaskBase):
         return ModelEnsemble(self.models)
 
 
+DeltaParam = namedtuple(
+    "DeltaParam", ("mean", "sdev", "size", "values", "weights"))
+
+
+class LocalShiftGraph(object):
+    def __init__(self, chromatograms, max_distance=3):
+        self.chromatograms = chromatograms
+        self.max_distance = max_distance
+        self.edges = defaultdict(list)
+        self.shift_to_delta = defaultdict(list)
+        self.groups = GlycoformAggregator(chromatograms)
+
+        self.build_edges()
+        self.delta_params = self.estimate_delta_distribution()
+
+    def build_edges(self):
+        for key, group in self.groups.by_peptide.items():
+            base_time = 0.0
+            for a, b in itertools.permutations(group, 2):
+                delta_comp = a.glycan_composition - b.glycan_composition
+                distance = composition_distance(
+                    a.glycan_composition, b.glycan_composition)[0]
+                if distance > self.max_distance or distance == 0:
+                    continue
+                structure = parse(key + str(delta_comp))
+                rec = GlycopeptideChromatogramProxy(
+                    a.weighted_neutral_mass, base_time + a.apex_time - b.apex_time,
+                    np.sqrt(a.total_signal * b.total_signal),
+                    delta_comp, structure=structure,
+                    weight=float(distance) ** 4 + (a.weight + b.weight)
+                )
+                edge_key = frozenset((a.structure, b.structure))
+                delta_key = delta_comp
+                # Probably don't need this
+                self.edges[edge_key].append(rec)
+                # Use string form to discard 0-value keys
+                self.shift_to_delta[str(delta_key)].append((rec, edge_key))
+
+    def estimate_delta_distribution(self):
+        params = {}
+        for shift, delta_chroms in self.shift_to_delta.items():
+            apex_times = []
+            weights = []
+            for rec, _key in delta_chroms:
+                apex_times.append(rec.apex_time)
+                weights.append(rec.total_signal)
+
+            apex_times = np.array(apex_times)
+            weights = np.log10(weights)
+
+            weighted_mean = np.dot(apex_times, weights) / weights.sum()
+            weighted_sdev = np.sqrt(weights.dot((apex_times - weighted_mean) ** 2) / (weights.sum() - 1))
+
+            if weighted_sdev > abs(weighted_mean):
+                tmp = weighted_sdev
+                weighted_sdev = max(abs(weighted_mean), 1.0)
+                warnings.warn("Delta parameter {}'s standard deviation was over-dispersed {}/{}. Capping at {}".format(
+                    shift, tmp, weighted_mean, weighted_sdev))
+            upper = weighted_mean + weighted_sdev * 2.5
+            lower = weighted_mean - weighted_sdev * 2.5
+            ii = []
+            for i, x in enumerate(apex_times):
+                if lower < x < upper:
+                    ii.append(i)
+            if len(ii) != len(apex_times):
+                apex_times = apex_times[ii]
+                weights = weights[ii]
+                weighted_mean = np.dot(apex_times, weights) / weights.sum()
+                weighted_sdev = np.sqrt(weights.dot((apex_times - weighted_mean) ** 2) / (weights.sum() - 1))
+
+            params[shift] = DeltaParam(weighted_mean, weighted_sdev, len(apex_times), apex_times, weights)
+        return params
+
+    def is_composite(self, shift):
+        value = HashableGlycanComposition.parse(shift)
+        return sum(map(abs, value.values())) > 1
+
+    def composite_to_individuals(self, shift):
+        shift = HashableGlycanComposition.parse(shift)
+        return [(HashableGlycanComposition({k: v / abs(v)}), v) for k, v in shift.items()]
+
+    def compose_shift(self, shift):
+        parts = self.composite_to_individuals(shift)
+        mean = 0.0
+        variance = 0.0
+        for (part, mult) in parts:
+            param = self.delta_params[part]
+            mean += param.mean * abs(mult)
+            variance += param.sdev ** 2 * abs(mult)
+        return mean, np.sqrt(variance)
+
+    def process_edges(self):
+        bad_edges = set()
+        for shift, delta_chroms in self.shift_to_delta.items():
+            params = self.delta_params[shift]
+
+            spread = params.sdev * 2
+            lo = params.mean - spread
+            hi = params.mean + spread
+
+
+            bad = False
+            if self.is_composite(shift):
+                try:
+                    comp_mean, comp_sdev = self.compose_shift(shift)
+                    maybe_bad = not (comp_mean - (comp_sdev * 1.2) < params.mean < comp_mean + (comp_sdev * 1.2))
+                    if maybe_bad and params.size < 3:
+                        bad = True
+                except KeyError:
+                    pass
+            if bad:
+                for delta_chrom, edge_key in delta_chroms:
+                    bad_edges.add(edge_key)
+            else:
+                for delta_chrom, edge_key in delta_chroms:
+                    if delta_chrom.apex_time < lo or delta_chrom.apex_time > hi:
+                        bad_edges.add(edge_key)
+        pruned = []
+        for e in bad_edges:
+            pruned.extend(self.edges.pop(e))
+        return pruned
+
+    def select_edges(self):
+        edges = []
+        for es in self.edges.values():
+            edges.extend(es)
+        return edges
+
+
 class RelativeShiftFactorChromatogram(AbundanceWeightedPeptideFactorElutionTimeFitter):
     def __init__(self, chromatograms, factors=None, scale=1, transform=None, width_range=None, regularize=False, max_distance=3):
+        recs, groups = self.build_deltas(chromatograms, max_distance=max_distance)
+        self.groups = groups
+        self.peptide_offsets = {}
+        self.max_distance = max_distance
+        super(RelativeShiftFactorChromatogram, self).__init__(
+            recs, factors, scale=scale, transform=transform,
+            width_range=width_range, regularize=regularize)
+
+    def build_deltas(self, chromatograms, max_distance):
         recs = []
         groups = GlycoformAggregator(chromatograms)
         for key, group in groups.by_peptide.items():
@@ -977,12 +1118,7 @@ class RelativeShiftFactorChromatogram(AbundanceWeightedPeptideFactorElutionTimeF
                 )
                 recs.append(rec)
         assert len(recs) > 0
-        self.groups = groups
-        self.peptide_offsets = {}
-        self.max_distance = max_distance
-        super(RelativeShiftFactorChromatogram, self).__init__(
-            recs, factors, scale=scale, transform=transform,
-            width_range=width_range, regularize=regularize)
+        return recs, groups
 
     def _get_chromatograms(self):
         return list(self.groups)
@@ -1037,6 +1173,15 @@ class RelativeShiftFactorChromatogram(AbundanceWeightedPeptideFactorElutionTimeF
     #     if not isinstance(peptide, str):
     #         peptide = self.get_peptide_key(peptide)
     #     return peptide in self.peptide_offsets
+
+
+class LocalOutlierFilteringRelativeShiftFactorChromatogram(RelativeShiftFactorChromatogram):
+    def build_deltas(self, chromatograms, max_distance):
+        graph = LocalShiftGraph(chromatograms, max_distance)
+        graph.process_edges()
+        groups = graph.groups
+        recs = graph.select_edges()
+        return recs, groups
 
 
 def mask_in(full_set, incoming):
