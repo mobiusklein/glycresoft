@@ -38,6 +38,7 @@ class TextFileGlycanCompositionLoader(object):
             while line == '':
                 line = next(self.file_object)
                 line = line.strip()
+                self.current_line += 1
             tokens = self._partition_line(line)
             if len(tokens) == 1:
                 composition, structure_classes = tokens[0], ()
