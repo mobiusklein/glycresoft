@@ -141,7 +141,10 @@ class FastaGlycopeptideTests(unittest.TestCase):
             variable_modifications=variable_modifications, max_missed_cleavages=1)
         glycopeptide_builder.start()
 
-        self.assertEqual(231800, glycopeptide_builder.query(Glycopeptide).count())
+        without_uniprot = 201400
+        with_uniprot = 231800
+
+        assert glycopeptide_builder.query(Glycopeptide).count() in (with_uniprot, without_uniprot)
 
         redundancy = glycopeptide_builder.query(
             Glycopeptide.glycopeptide_sequence,
