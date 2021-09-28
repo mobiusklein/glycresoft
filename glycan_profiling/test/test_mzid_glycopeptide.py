@@ -39,7 +39,9 @@ class MzIdGlycopeptideTests(unittest.TestCase):
         gp_count = glycopeptide_builder.query(Glycopeptide).count()
         with_uniprot = 659300
         without_uniprot = 651700
-        self.assertIn(gp_count, (with_uniprot, without_uniprot))
+        without_any_external = 646000
+        self.assertIn(
+            gp_count, (with_uniprot, without_uniprot, without_any_external))
 
         redundancy = glycopeptide_builder.query(
             Glycopeptide.glycopeptide_sequence,
