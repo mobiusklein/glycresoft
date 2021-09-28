@@ -31,7 +31,7 @@ from glycan_profiling.scoring.base import ScoringFeatureBase
 from .structure import _get_apex_time, GlycopeptideChromatogramProxy, GlycoformAggregator, DeltaOverTimeFilter
 from .linear_regression import (ransac, weighted_linear_regression_fit, prediction_interval, SMALL_ERROR, weighted_linear_regression_fit_ridge)
 from .reviser import (IntervalModelReviser, IsotopeRule, AmmoniumMaskedRule,
-                      AmmoniumUnmaskedRule, HexNAc2Fuc1NeuAc2ToHex6AmmoniumRule)
+                      AmmoniumUnmaskedRule, HexNAc2Fuc1NeuAc2ToHex6AmmoniumRule, IsotopeRule2)
 
 
 class IntervalRange(object):
@@ -1195,14 +1195,34 @@ def mask_in(full_set, incoming):
     return out
 
 
+def model_type_dispatch(self, chromatogams, factors=None, scale=1, transform=None, width_range=None, regularize=False):
+    try:
+        return RelativeShiftFactorChromatogram(
+            chromatogams, factors, scale, transform, width_range, regularize, max_distance=3)
+    except AssertionError:
+        return AbundanceWeightedPeptideFactorElutionTimeFitter(
+            chromatogams, factors, scale, transform, width_range, regularize)
+
+
+def model_type_dispatch_outlier_remove(self, chromatogams, factors=None, scale=1, transform=None, width_range=None, regularize=False):
+    try:
+        return LocalOutlierFilteringRelativeShiftFactorChromatogram(
+            chromatogams, factors, scale, transform, width_range, regularize, max_distance=3)
+    except AssertionError:
+        return AbundanceWeightedPeptideFactorElutionTimeFitter(
+            chromatogams, factors, scale, transform, width_range, regularize)
+
+
+
 class ModelBuildingPipeline(TaskBase):
-    model_type = AbundanceWeightedPeptideFactorElutionTimeFitter
+    model_type = model_type_dispatch_outlier_remove
 
     def __init__(self, aggregate, calibration_alpha=0.001, valid_glycans=None):
         self.aggregate = aggregate
         self.calibration_alpha = calibration_alpha
         self._current_model = None
         self.model_history = []
+        self.revision_history = []
         self.revised_tags = set()
         self.valid_glycans = valid_glycans
 
@@ -1216,51 +1236,66 @@ class ModelBuildingPipeline(TaskBase):
             self.model_history.append(self._current_model)
         self._current_model = value
 
-    def fit_first_model(self):
-        model = self.fit_model(self.aggregate, unmodified_modified_predicate)
+    def fit_first_model(self, regularize=False):
+        model = self.fit_model(
+            self.aggregate,
+            unmodified_modified_predicate,
+            regularize=regularize)
         return model
 
-    def fit_model(self, aggregate, predicate):
+    def fit_model(self, aggregate, predicate, regularize=False, resample=False):
         builder = EnsembleBuilder(aggregate)
         w = builder.estimate_width()
         builder.partition(w)
-        dw = builder.estimate_delta_widths(w)
-        builder.partition(dw)
-        builder.fit(predicate, self.model_type)
+#         builder.partition(w * 2)
+#         dw = builder.estimate_delta_widths(w * 2)
+#         builder.partition(dw)
+        builder.fit(predicate, self.model_type, regularize=regularize, resample=resample)
         model = builder.merge()
         model.calibrate_prediction_interval(alpha=self.calibration_alpha)
         return model
 
-    def fit_model_with_revision(self, source, revision):
+    def fit_model_with_revision(self, source, revision, regularize=False):
         masked_in_all_recs = mask_in(source, revision)
         aggregate = GlycoformAggregator(masked_in_all_recs)
         tags = {t.tag for t in revision}
-        return self.fit_model(aggregate, lambda x: x.tag in tags)
+        return self.fit_model(aggregate, lambda x: x.tag in tags, regularize=regularize)
 
-    def revise_with(self, model, chromatograms, delta=0.65):
+    def revise_with(self, model, chromatograms, delta=0.65, min_time_difference=None):
+        if min_time_difference is None:
+            min_time_difference = max(model.width_range.lower, 0.5)
         reviser = IntervalModelReviser(
             model, [
                 AmmoniumMaskedRule,
                 AmmoniumUnmaskedRule,
                 IsotopeRule,
+                IsotopeRule2,
                 HexNAc2Fuc1NeuAc2ToHex6AmmoniumRule
             ],
             chromatograms, valid_glycans=self.valid_glycans)
         reviser.evaluate()
-        revised = reviser.revise(0.2, delta,  max(model.width_range.lower, 0.5))
+        assert not np.isnan(model.width_range.lower)
+        print(min_time_difference, max(model.width_range.lower, 0.5))
+        revised = reviser.revise(0.2, delta,  min_time_difference)
         self.log("... Revising Observations")
+        k = 0
+        local_aggregate = GlycoformAggregator(chromatograms)
         for new, old in zip(revised, chromatograms):
             if new.structure != old.structure:
                 self.revised_tags.add(new.tag)
+                neighbor_count = len(local_aggregate[old])
+                k += 1
                 self.log(
-                    "...... %s: %0.2f %s (%0.2f) => %s (%0.2f) %0.2f/%0.2f" % (
+                    "...... %s: %0.2f %s (%0.2f) => %s (%0.2f) %0.2f/%0.2f with %d references" % (
                         new.tag, new.apex_time,
                         old.glycan_composition, model.predict(old),
                         new.glycan_composition, model.predict(new),
                         model.score_interval(old, alpha=0.01),
-                        model.score_interval(new, alpha=0.01)
+                        model.score_interval(new, alpha=0.01),
+                        neighbor_count - 1,
                     )
                 )
+        self.log("... Updated %d assignments" % (k, ))
         return revised
 
     def compute_model_coverage(self, model, aggregate, tag=True):
@@ -1288,29 +1323,37 @@ class ModelBuildingPipeline(TaskBase):
         total = 0.0
         for rec in chromatograms:
             rec = rec.copy()
-            rec.weight = base_weight + (model_weight * model.score_interval(rec, 0.01))
+            s = model.score_interval(rec, 0.01)
+            if np.isnan(s):
+                s = 0.0
+            w = (model_weight * s)
+            if w != 0:
+                w **= -1
+#             rec.weight = base_weight + w
+            rec.weight = w
+#             rec.weight = base_weight + (model_weight * model.score_interval(rec, 0.01))
             if np.isnan(rec.weight):
                 rec.weight = base_weight
             reweighted.append(rec)
-            total += rec.weight
-        self.log("Total Weighting for %d elements = %f" % (len(chromatograms), total))
+            total += s
+        self.log("Total Score for %d elements = %f" % (len(chromatograms), total))
         return reweighted
 
     def make_groups_from(self, chromatograms):
         return GlycoformAggregator(chromatograms).by_peptide.values()
 
-    def find_uncovered_group_members(self, chromatograms, coverages, min_size=3):
+    def find_uncovered_group_members(self, chromatograms, coverages, min_size=2):
         recs = []
         for chrom, cov in zip(chromatograms, coverages):
             if not np.isclose(cov, 1.0) and len(self.aggregate[chrom]) > min_size:
                 recs.append(chrom)
         return recs
 
-    def run(self, k=10, base_weight=0.3, final_round=True):
+    def run(self, k=10, base_weight=0.3, revision_threshold=0.35, final_round=True, regularize=False):
         self.log("Fitting first model...")
         # The first model is fit on those cases where we have both
         # the Unmodified form as well as a modified form e.g. Ammonium-adducted
-        self.current_model = self.fit_first_model()
+        self.current_model = self.fit_first_model(regularize=regularize)
 
         all_records = list(self.aggregate)
 
@@ -1325,21 +1368,27 @@ class ModelBuildingPipeline(TaskBase):
         covered_recs = self.subset_aggregate_by_coverage(all_records, coverages, 1.0)
 
         # Attempt to revise chromatograms which are covered by the current model
-        revised_recs = self.revise_with(self.current_model, covered_recs)
+        revised_recs = self.revise_with(
+            self.current_model, covered_recs, 0.35, max(self.current_model.width_range.lower  * 0.5, 0.5))
 
         # Update the list of chromatogram records
         all_records = mask_in(list(self.aggregate), revised_recs)
 
         # Fit a new model on the revised data
-        self.current_model = model = self.fit_model_with_revision(all_records, revised_recs)
+        self.current_model = model = self.fit_model_with_revision(
+            all_records, revised_recs, regularize=regularize)
+        self.revision_history.append((revised_recs, self.revised_tags.copy()))
 
         # Record how many chromatograms were kept last time
+        delta_time_scale = 1.0
+        minimum_delta = 2.0
         last_covered = covered_recs
         for i in range(k):
-            self.log("... Iteration %d" % i)
+            self.log("Iteration %d" % i)
             coverages = self.compute_model_coverage(model, all_records)
             coverage_threshold = (1.0 - (i * 1.0 / (3.0 * k)))
-            covered_recs = self.subset_aggregate_by_coverage(all_records, coverages, coverage_threshold)
+            covered_recs = self.subset_aggregate_by_coverage(
+                all_records, coverages, coverage_threshold)
             new = set()
             if len(covered_recs) == len(last_covered):
                 self.log("No new observations added, skipping")
@@ -1347,27 +1396,93 @@ class ModelBuildingPipeline(TaskBase):
             else:
                 new = {c.tag for c in covered_recs} - {c.tag for c in last_covered}
                 last_covered = covered_recs
-            self.log("... Covering %d chromatograms at threshold %0.2f" % (len(covered_recs), coverage_threshold))
+            self.log("... Covering %d chromatograms at threshold %0.2f" % (
+                len(covered_recs), coverage_threshold))
             self.log("... Added new tags: %r" % sorted(new))
-            revised_recs = self.revise_with(model, covered_recs, 0.65)
+            revised_recs = self.revise_with(
+                model, covered_recs, revision_threshold,
+                max(self.current_model.width_range.lower * delta_time_scale, minimum_delta))
             revised_recs = self.reweight(model, revised_recs, base_weight)
             all_records = mask_in(all_records, revised_recs)
-            self.current_model = model = self.fit_model_with_revision(all_records, revised_recs)
+
+            self.current_model = model = self.fit_model_with_revision(
+                all_records, revised_recs, regularize=regularize)
+
+            self.revision_history.append((revised_recs, self.revised_tags.copy()))
 
         if final_round:
+            self.log("Open Update Round")
             coverages = self.compute_model_coverage(model, all_records)
             coverage_threshold = (1.0 - (i * 1.0 / (3.0 * k)))
-            covered_recs = self.subset_aggregate_by_coverage(all_records, coverages, coverage_threshold)
+            covered_recs = self.subset_aggregate_by_coverage(
+                all_records, coverages, coverage_threshold)
             extra_recs = self.find_uncovered_group_members(all_records, coverages)
+
             self.log("... Added new tags: %r" % sorted({c.tag for c in extra_recs}))
             covered_recs = np.concatenate((covered_recs, extra_recs))
             covered_recs = self.reweight(model, covered_recs, base_weight=0.01)
+
             all_records = mask_in(all_records, covered_recs)
-            self.current_model = model = self.fit_model_with_revision(all_records, covered_recs)
-            revised_recs = self.revise_with(model, covered_recs, 0.65)
+            self.current_model = model = self.fit_model_with_revision(
+                all_records, covered_recs, regularize=regularize)
+            revised_recs = self.revise_with(
+                model, covered_recs, revision_threshold,
+                max(self.current_model.width_range.lower * delta_time_scale, minimum_delta))
+
             all_records = mask_in(all_records, revised_recs)
 
+            for i in range(k):
+                self.log("Iteration %d" % (i + k))
+                coverages = self.compute_model_coverage(model, all_records)
+                coverage_threshold = (1.0 - (i * 1.0 / (3.0 * k)))
+                covered_recs = self.subset_aggregate_by_coverage(
+                    all_records, coverages, coverage_threshold)
+                new = set()
+                if len(covered_recs) == len(last_covered):
+                    self.log("No new observations added, skipping")
+                    continue
+                else:
+                    new = {c.tag for c in covered_recs} - {c.tag for c in last_covered}
+                    last_covered = covered_recs
+                self.log("... Covering %d chromatograms at threshold %0.2f" % (
+                    len(covered_recs), coverage_threshold))
+                self.log("... Added new tags: %r" % sorted(new))
+                revised_recs = self.revise_with(
+                    model, covered_recs, revision_threshold,
+                    max(self.current_model.width_range.lower * delta_time_scale, minimum_delta))
+                revised_recs = self.reweight(model, revised_recs, base_weight)
+                all_records = mask_in(all_records, revised_recs)
+
+                self.current_model = model = self.fit_model_with_revision(
+                    all_records, revised_recs, regularize=regularize)
+
+                self.revision_history.append((revised_recs, self.revised_tags.copy()))
+
+            self.log("Final Update Round")
+            coverages = self.compute_model_coverage(model, all_records)
+            coverage_threshold = (1.0 - (i * 1.0 / (3.0 * k)))
+            covered_recs = self.subset_aggregate_by_coverage(
+                all_records, coverages, coverage_threshold)
+
+            extra_recs = self.find_uncovered_group_members(all_records, coverages)
+
+            self.log("... Added new tags: %r" % sorted({c.tag for c in extra_recs}))
+            covered_recs = np.concatenate((covered_recs, extra_recs))
+            covered_recs = self.reweight(model, covered_recs, base_weight=0.01)
+
+            all_records = mask_in(all_records, covered_recs)
+            self.current_model = model = self.fit_model_with_revision(
+                all_records, covered_recs, regularize=regularize)
+            revised_recs = self.revise_with(
+                model, covered_recs, revision_threshold,
+                max(self.current_model.width_range.lower * delta_time_scale, minimum_delta))
+
+            all_records = mask_in(all_records, revised_recs)
+
+
         return model, all_records
+
+
 
 
 

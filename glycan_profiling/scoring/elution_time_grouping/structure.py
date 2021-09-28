@@ -42,7 +42,6 @@ def _get_apex_time(chromatogram):
         return chromatogram.apex_time
 
 class ChromatogramProxy(object):
-    revised_from = None
 
     def __init__(self, weighted_neutral_mass, apex_time, total_signal, glycan_composition, obj=None, mass_shifts=None, weight=1.0, **kwargs):
         self.weighted_neutral_mass = weighted_neutral_mass

@@ -18,6 +18,9 @@ class RevisionRule(object):
     def __call__(self, record):
         return record.shift_glycan_composition(self.delta_glycan)
 
+    def revert(self, record):
+        return record.shift_glycan_composition(-self.delta_glycan)
+
     def __eq__(self, other):
         try:
             return self.delta_glycan == other.delta_glycan
