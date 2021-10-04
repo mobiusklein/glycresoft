@@ -175,13 +175,14 @@ class SpectrumMatchBase(ScanWrapperBase):
         -------
         bool
         """
-        annotations = self.annotations
+        scan = self.scan
+        annotations = scan.annotations
         try:
             result = annotations['is_hcd']
         except KeyError:
-            activation_info = self.scan.activation
+            activation_info = scan.activation
             if activation_info is None:
-                if self.scan.ms_level == 1:
+                if scan.ms_level == 1:
                     result = False
                 else:
                     warnings.warn("Activation information is missing. Assuming HCD")
@@ -209,14 +210,15 @@ class SpectrumMatchBase(ScanWrapperBase):
         --------
         is_hcd
         """
-        annotations = self.annotations
+        scan = self.scan
+        annotations = scan.annotations
         try:
             result = annotations['is_exd']
         except KeyError:
 
-            activation_info = self.scan.activation
+            activation_info = scan.activation
             if activation_info is None:
-                if self.scan.ms_level == 1:
+                if scan.ms_level == 1:
                     result = False
                 else:
                     warnings.warn("Activation information is missing. Assuming not ExD")
@@ -228,11 +230,12 @@ class SpectrumMatchBase(ScanWrapperBase):
         return result
 
     def mz_range(self):
-        annotations = self.annotations
+        scan = self.scan
+        annotations = scan.annotations
         try:
             result = annotations['mz_range']
         except KeyError:
-            acquisition_info = self.scan.acquisition_information
+            acquisition_info = scan.acquisition_information
             if acquisition_info is None:
                 mz_range = (0, 1e6)
             else:
