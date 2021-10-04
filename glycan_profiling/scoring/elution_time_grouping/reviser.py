@@ -156,3 +156,9 @@ class IntervalModelReviser(ModelReviser):
 
     def rescore(self, case):
         return self.model.score_interval(case, alpha=0.01)
+
+
+# In reviser, combine the score from the absolute coordinate with the
+# score relative to each other glycoform in the group? This might look
+# something like the old recalibrator code, but adapted for the interval_score
+# method
