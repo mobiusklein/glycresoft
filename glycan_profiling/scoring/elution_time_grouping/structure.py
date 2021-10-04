@@ -354,6 +354,25 @@ class GlycoformAggregator(Mapping):
             for member in group:
                 yield member
 
+    def tag(self):
+        i = 0
+        for member in self:
+            member.tag = i
+            i += 1
+        return self
+
+    def get_tag(self, tag):
+        for x in self:
+            if x.tag == tag:
+                return x
+        raise KeyError(tag)
+
+    def has_tag(self, tag):
+        for x in self:
+            if x.tag == tag:
+                return True
+        return False
+
 
 class GlycoformGroup(Sequence, SpanningMixin):
     def __init__(self, members, group_id):
