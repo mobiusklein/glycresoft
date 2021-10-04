@@ -1,6 +1,7 @@
 import csv
 import itertools
 import warnings
+import logging
 
 from numbers import Number
 from collections import defaultdict, OrderedDict, namedtuple
@@ -32,6 +33,9 @@ from .structure import _get_apex_time, GlycopeptideChromatogramProxy, GlycoformA
 from .linear_regression import (ransac, weighted_linear_regression_fit, prediction_interval, SMALL_ERROR, weighted_linear_regression_fit_ridge)
 from .reviser import (IntervalModelReviser, IsotopeRule, AmmoniumMaskedRule,
                       AmmoniumUnmaskedRule, HexNAc2Fuc1NeuAc2ToHex6AmmoniumRule, IsotopeRule2)
+
+logger = logging.getLogger("glycan_profiling.elution_time_model")
+logger.addHandler(logging.NullHandler())
 
 
 class IntervalRange(object):
@@ -1011,12 +1015,14 @@ class LocalShiftGraph(object):
 
             weighted_mean = np.dot(apex_times, weights) / weights.sum()
             weighted_sdev = np.sqrt(weights.dot((apex_times - weighted_mean) ** 2) / (weights.sum() - 1))
-
             if weighted_sdev > abs(weighted_mean):
                 tmp = weighted_sdev
                 weighted_sdev = max(abs(weighted_mean), 1.0)
-                warnings.warn("Delta parameter {}'s standard deviation was over-dispersed {}/{}. Capping at {}".format(
+                logger.debug("Delta parameter {}'s standard deviation was over-dispersed {}/{}. Capping at {}".format(
                     shift, tmp, weighted_mean, weighted_sdev))
+
+            # NOTE: When len(delta_chroms) == 1, weighted_sdev = 0.0, so no observations
+            # are allowed through. This is intentional because we cannot trust singletons here.
             upper = weighted_mean + weighted_sdev * 2.5
             lower = weighted_mean - weighted_sdev * 2.5
             ii = []
@@ -1045,6 +1051,8 @@ class LocalShiftGraph(object):
         mean = 0.0
         variance = 0.0
         for (part, mult) in parts:
+            # Throw a KeyError if we do not have a component edge
+            # to reference.
             param = self.delta_params[part]
             mean += param.mean * abs(mult)
             variance += param.sdev ** 2 * abs(mult)
@@ -1067,8 +1075,13 @@ class LocalShiftGraph(object):
                     maybe_bad = not (comp_mean - (comp_sdev * 1.2) < params.mean < comp_mean + (comp_sdev * 1.2))
                     if maybe_bad and params.size < 3:
                         bad = True
-                except KeyError:
-                    pass
+                except KeyError as err:
+                    # We don't have a component edge to support this composite edge, so we don't
+                    # have enough information in the training data, so we're unable QC these edges.
+                    # This is different from when we have a singular observation of any component,
+                    # which may be a logical failure here.
+                    logger.debug("Missing component key %r", err)
+
             if bad:
                 for delta_chrom, edge_key in delta_chroms:
                     bad_edges.add(edge_key)
@@ -1088,13 +1101,13 @@ class LocalShiftGraph(object):
         return edges
 
 
-class RelativeShiftFactorChromatogram(AbundanceWeightedPeptideFactorElutionTimeFitter):
+class RelativeShiftFactorElutionTimeFitter(AbundanceWeightedPeptideFactorElutionTimeFitter):
     def __init__(self, chromatograms, factors=None, scale=1, transform=None, width_range=None, regularize=False, max_distance=3):
         recs, groups = self.build_deltas(chromatograms, max_distance=max_distance)
         self.groups = groups
         self.peptide_offsets = {}
         self.max_distance = max_distance
-        super(RelativeShiftFactorChromatogram, self).__init__(
+        super(RelativeShiftFactorElutionTimeFitter, self).__init__(
             recs, factors, scale=scale, transform=transform,
             width_range=width_range, regularize=regularize)
 
@@ -1124,7 +1137,7 @@ class RelativeShiftFactorChromatogram(AbundanceWeightedPeptideFactorElutionTimeF
         return list(self.groups)
 
     def fit(self, *args, **kwargs):
-        super(RelativeShiftFactorChromatogram, self).fit(*args, **kwargs)
+        super(RelativeShiftFactorElutionTimeFitter, self).fit(*args, **kwargs)
         for key, group in self.groups.by_peptide.items():
             remainders = []
             weights = []
@@ -1137,21 +1150,21 @@ class RelativeShiftFactorChromatogram(AbundanceWeightedPeptideFactorElutionTimeF
         return self
 
     def predict(self, chromatogram):
-        time = super(RelativeShiftFactorChromatogram,
+        time = super(RelativeShiftFactorElutionTimeFitter,
                      self).predict(chromatogram)
         key = self.get_peptide_key(chromatogram)
         time += self.peptide_offsets.get(key, 0)
         return time
 
     def predict_interval(self, chromatogram, *args, **kwargs):
-        iv = super(RelativeShiftFactorChromatogram,
+        iv = super(RelativeShiftFactorElutionTimeFitter,
                    self).predict_interval(chromatogram)
         key = self.get_peptide_key(chromatogram)
         iv += self.peptide_offsets.get(key, 0)
         return iv
 
     def calibrate_prediction_interval(self, chromatograms=None, alpha=0.05):
-        return super(RelativeShiftFactorChromatogram, self).calibrate_prediction_interval(list(self.groups), alpha)
+        return super(RelativeShiftFactorElutionTimeFitter, self).calibrate_prediction_interval(list(self.groups), alpha)
 
     def _update_model_time_range(self):
         apexes = []
@@ -1175,7 +1188,7 @@ class RelativeShiftFactorChromatogram(AbundanceWeightedPeptideFactorElutionTimeF
     #     return peptide in self.peptide_offsets
 
 
-class LocalOutlierFilteringRelativeShiftFactorChromatogram(RelativeShiftFactorChromatogram):
+class LocalOutlierFilteringRelativeShiftFactorElutionTimeFitter(RelativeShiftFactorElutionTimeFitter):
     def build_deltas(self, chromatograms, max_distance):
         graph = LocalShiftGraph(chromatograms, max_distance)
         graph.process_edges()
@@ -1197,7 +1210,7 @@ def mask_in(full_set, incoming):
 
 def model_type_dispatch(self, chromatogams, factors=None, scale=1, transform=None, width_range=None, regularize=False):
     try:
-        return RelativeShiftFactorChromatogram(
+        return RelativeShiftFactorElutionTimeFitter(
             chromatogams, factors, scale, transform, width_range, regularize, max_distance=3)
     except AssertionError:
         return AbundanceWeightedPeptideFactorElutionTimeFitter(
@@ -1206,15 +1219,18 @@ def model_type_dispatch(self, chromatogams, factors=None, scale=1, transform=Non
 
 def model_type_dispatch_outlier_remove(self, chromatogams, factors=None, scale=1, transform=None, width_range=None, regularize=False):
     try:
-        return LocalOutlierFilteringRelativeShiftFactorChromatogram(
+        return LocalOutlierFilteringRelativeShiftFactorElutionTimeFitter(
             chromatogams, factors, scale, transform, width_range, regularize, max_distance=3)
     except AssertionError:
         return AbundanceWeightedPeptideFactorElutionTimeFitter(
             chromatogams, factors, scale, transform, width_range, regularize)
 
 
-
 class ModelBuildingPipeline(TaskBase):
+    '''A local regression-based ensemble of overlapping
+    retention time models.
+    '''
+
     model_type = model_type_dispatch_outlier_remove
 
     def __init__(self, aggregate, calibration_alpha=0.001, valid_glycans=None):
@@ -1246,10 +1262,10 @@ class ModelBuildingPipeline(TaskBase):
     def fit_model(self, aggregate, predicate, regularize=False, resample=False):
         builder = EnsembleBuilder(aggregate)
         w = builder.estimate_width()
+        # If a delta width is allowed, approximate narrow windows will inevitably produce skewed
+        # results. This is also true of the first and last set of windows, regardless, especially
+        # when sparse.
         builder.partition(w)
-#         builder.partition(w * 2)
-#         dw = builder.estimate_delta_widths(w * 2)
-#         builder.partition(dw)
         builder.fit(predicate, self.model_type, regularize=regularize, resample=resample)
         model = builder.merge()
         model.calibrate_prediction_interval(alpha=self.calibration_alpha)
@@ -1275,7 +1291,6 @@ class ModelBuildingPipeline(TaskBase):
             chromatograms, valid_glycans=self.valid_glycans)
         reviser.evaluate()
         assert not np.isnan(model.width_range.lower)
-        print(min_time_difference, max(model.width_range.lower, 0.5))
         revised = reviser.revise(0.2, delta,  min_time_difference)
         self.log("... Revising Observations")
         k = 0
@@ -1286,7 +1301,7 @@ class ModelBuildingPipeline(TaskBase):
                 neighbor_count = len(local_aggregate[old])
                 k += 1
                 self.log(
-                    "...... %s: %0.2f %s (%0.2f) => %s (%0.2f) %0.2f/%0.2f with %d references" % (
+                    "...... %s: %0.2f %s (%0.2f) => %s (%0.2f) %0.2f/%0.2f with %d neighbors" % (
                         new.tag, new.apex_time,
                         old.glycan_composition, model.predict(old),
                         new.glycan_composition, model.predict(new),
@@ -1300,7 +1315,6 @@ class ModelBuildingPipeline(TaskBase):
 
     def compute_model_coverage(self, model, aggregate, tag=True):
         coverages = []
-        not_covered = []
         for i, chrom in enumerate(aggregate):
             if tag:
                 chrom.annotations['tag'] = i
@@ -1319,23 +1333,21 @@ class ModelBuildingPipeline(TaskBase):
 
     def reweight(self, model, chromatograms, base_weight=0.3):
         reweighted = []
-        model_weight = 1.0 - base_weight
+        # model_weight = 1.0 - base_weight
         total = 0.0
         for rec in chromatograms:
             rec = rec.copy()
-            s = model.score_interval(rec, 0.01)
-            if np.isnan(s):
-                s = 0.0
-            w = (model_weight * s)
+            w = model.score_interval(rec, 0.01)
+            if np.isnan(w):
+                w = 0
             if w != 0:
                 w **= -1
-#             rec.weight = base_weight + w
             rec.weight = w
-#             rec.weight = base_weight + (model_weight * model.score_interval(rec, 0.01))
+            # rec.weight = base_weight + (w * model_weight)
             if np.isnan(rec.weight):
                 rec.weight = base_weight
             reweighted.append(rec)
-            total += s
+            total += w
         self.log("Total Score for %d elements = %f" % (len(chromatograms), total))
         return reweighted
 
@@ -1349,7 +1361,7 @@ class ModelBuildingPipeline(TaskBase):
                 recs.append(chrom)
         return recs
 
-    def run(self, k=10, base_weight=0.3, revision_threshold=0.35, final_round=True, regularize=False):
+    def run(self, k=10, base_weight=0.3, revision_threshold=0.35, final_round=True, regularize=True):
         self.log("Fitting first model...")
         # The first model is fit on those cases where we have both
         # the Unmodified form as well as a modified form e.g. Ammonium-adducted
@@ -1379,14 +1391,16 @@ class ModelBuildingPipeline(TaskBase):
             all_records, revised_recs, regularize=regularize)
         self.revision_history.append((revised_recs, self.revised_tags.copy()))
 
-        # Record how many chromatograms were kept last time
         delta_time_scale = 1.0
         minimum_delta = 2.0
+        k_scale = 2.0
+
+        # Record how many chromatograms were kept last time
         last_covered = covered_recs
         for i in range(k):
             self.log("Iteration %d" % i)
             coverages = self.compute_model_coverage(model, all_records)
-            coverage_threshold = (1.0 - (i * 1.0 / (3.0 * k)))
+            coverage_threshold = (1.0 - (i * 1.0 / (k_scale * k)))
             covered_recs = self.subset_aggregate_by_coverage(
                 all_records, coverages, coverage_threshold)
             new = set()
@@ -1413,7 +1427,7 @@ class ModelBuildingPipeline(TaskBase):
         if final_round:
             self.log("Open Update Round")
             coverages = self.compute_model_coverage(model, all_records)
-            coverage_threshold = (1.0 - (i * 1.0 / (3.0 * k)))
+            coverage_threshold = (1.0 - (i * 1.0 / (k_scale * k)))
             covered_recs = self.subset_aggregate_by_coverage(
                 all_records, coverages, coverage_threshold)
             extra_recs = self.find_uncovered_group_members(all_records, coverages)
@@ -1434,7 +1448,7 @@ class ModelBuildingPipeline(TaskBase):
             for i in range(k):
                 self.log("Iteration %d" % (i + k))
                 coverages = self.compute_model_coverage(model, all_records)
-                coverage_threshold = (1.0 - (i * 1.0 / (3.0 * k)))
+                coverage_threshold = (1.0 - (i * 1.0 / (k_scale * k)))
                 covered_recs = self.subset_aggregate_by_coverage(
                     all_records, coverages, coverage_threshold)
                 new = set()
@@ -1460,7 +1474,7 @@ class ModelBuildingPipeline(TaskBase):
 
             self.log("Final Update Round")
             coverages = self.compute_model_coverage(model, all_records)
-            coverage_threshold = (1.0 - (i * 1.0 / (3.0 * k)))
+            coverage_threshold = (1.0 - (i * 1.0 / (k_scale * k)))
             covered_recs = self.subset_aggregate_by_coverage(
                 all_records, coverages, coverage_threshold)
 
@@ -1481,6 +1495,7 @@ class ModelBuildingPipeline(TaskBase):
 
 
         return model, all_records
+
 
 
 
