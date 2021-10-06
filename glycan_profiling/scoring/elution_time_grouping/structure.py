@@ -69,8 +69,14 @@ class ChromatogramProxy(object):
     def mass_shifts(self):
         if self._mass_shifts is None:
             self._mass_shifts = [
-                MassShift(name, MassShift.get(name)) for name in self.annotations.get("mass_shifts", '').split(";")]
+                MassShift(name, MassShift.get(name)) for name in self.kwargs.get("mass_shifts", '').split(";")]
         return self._mass_shifts
+
+    @mass_shifts.setter
+    def mass_shifts(self, value):
+        self._mass_shifts = value
+        self.kwargs['mass_shifts'] = ';'.join(
+            [getattr(m, 'name', m) for m in value])
 
     @property
     def annotations(self):
@@ -114,7 +120,9 @@ class ChromatogramProxy(object):
         return d
 
     def copy(self):
-        return self._from_csv(self._to_csv())
+        dup = self._from_csv(self._to_csv())
+        dup.obj = self.obj
+        return dup
 
     def __getstate__(self):
         return self._to_csv()

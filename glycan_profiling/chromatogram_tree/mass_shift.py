@@ -90,6 +90,12 @@ class MassShift(MassShiftBase):
             return other
         elif other.composition == {}:
             return self
+
+        if self == other:
+            return self * 2
+        if other.composed_with(self):
+            return other + self
+
         name = "(%s) + (%s)" % (self.name, other.name)
         composition = self.composition + other.composition
         tandem_composition = self.tandem_composition + other.tandem_composition
@@ -99,12 +105,15 @@ class MassShift(MassShiftBase):
     def __sub__(self, other):
         if other.composition == {}:
             return self
-
         if self.composition == {}:
             name = "-(%s)" % other.name
             composition = -other.composition
             tandem_composition = -other.tandem_composition
             charge_carrier = -other.charge_carrier
+        if self == other:
+            return Unmodified
+        if other.composed_with(self):
+            return other - self
         else:
             name = "(%s) - (%s)" % (self.name, other.name)
             composition = self.composition - other.composition
@@ -175,12 +184,21 @@ class CompoundMassShift(MassShiftBase):
         if isinstance(other, MassShift):
             counts = defaultdict(int, self.counts)
             counts[other] += 1
-            return self.__class__(counts)
+            if counts[other] == 0:
+                counts.pop(other)
+            if counts:
+                return self.__class__(counts)
+            return Unmodified
         elif isinstance(other, CompoundMassShift):
             counts = defaultdict(int, self.counts)
             for k, v in other.counts.items():
-                counts[k] += v
-            return self.__class__(counts)
+                if v != 0:
+                    counts[k] += v
+                if counts[k] == 0:
+                    counts.pop(k)
+            if counts:
+                return self.__class__(counts)
+            return Unmodified
         else:
             return NotImplemented
 
@@ -188,17 +206,26 @@ class CompoundMassShift(MassShiftBase):
         if other == Unmodified:
             return self
         if not self.composed_with(other):
-            raise ValueError("Cannot subtract %r from %r, not part of the compound" % (other, self))
+            raise ValueError(
+                "Cannot subtract %r from %r, not part of the compound" % (other, self))
 
         if isinstance(other, MassShift):
             counts = defaultdict(int, self.counts)
             counts[other] -= 1
-            return self.__class__(counts)
+            if counts[other] == 0:
+                counts.pop(other)
+            if counts:
+                return self.__class__(counts)
+            return Unmodified
         elif isinstance(other, CompoundMassShift):
             counts = defaultdict(int, self.counts)
             for k, v in other.counts.items():
                 counts[k] -= v
-            return self.__class__(counts)
+                if counts[k] == 0:
+                    counts.pop(k)
+            if counts:
+                return self.__class__(counts)
+            return Unmodified
         else:
             return NotImplemented
 
@@ -214,6 +241,9 @@ class CompoundMassShift(MassShiftBase):
             return self.__class__(counts)
         else:
             raise TypeError("Cannot multiply MassShift by non-integer")
+
+    def __neg__(self):
+        return self * -1
 
     def __repr__(self):
         return "MassShift(%s, %s)" % (self.name, self.composition)

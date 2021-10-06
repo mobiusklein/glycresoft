@@ -1,6 +1,5 @@
 import csv
 import itertools
-import warnings
 import logging
 
 from numbers import Number
@@ -560,9 +559,8 @@ class PeptideGroupChromatogramFeatureizer(FactorChromatogramFeatureizer, Peptide
                 peptide_key = self.get_peptide_key(chromatogram)
                 peptides[indicator[peptide_key]] = 1
             except KeyError:
-                import warnings
-                warnings.warn(
-                    "Peptide sequence of %s not part of the model." % (chromatogram, ))
+                logger.debug(
+                    "Peptide sequence of %s not part of the model.", chromatogram)
         return np.array(
             peptides + [chromatogram.glycan_composition[f] for f in self.factors])
 

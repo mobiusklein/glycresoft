@@ -4,6 +4,9 @@ from collections import defaultdict
 import numpy as np
 
 from glypy.structure.glycan_composition import HashableGlycanComposition
+from glycan_profiling.chromatogram_tree import mass_shift
+
+from glycan_profiling.chromatogram_tree.mass_shift import Unmodified, Ammonium
 
 class RevisionRule(object):
     def __init__(self, delta_glycan, mass_shift_rule=None, priority=0):
@@ -13,10 +16,17 @@ class RevisionRule(object):
 
     def valid(self, record):
         new_record = self(record)
-        return not any(v < 0 for v in new_record.glycan_composition.values())
+        valid = not any(v < 0 for v in new_record.glycan_composition.values())
+        if valid:
+            if self.mass_shift_rule:
+                return self.mass_shift_rule.valid(record)
+        return valid
 
     def __call__(self, record):
-        return record.shift_glycan_composition(self.delta_glycan)
+        result = record.shift_glycan_composition(self.delta_glycan)
+        if self.mass_shift_rule is not None:
+            return self.mass_shift_rule(result)
+        return result
 
     def revert(self, record):
         return record.shift_glycan_composition(-self.delta_glycan)
@@ -48,6 +58,47 @@ class ValidatingRevisionRule(RevisionRule):
         if super(ValidatingRevisionRule, self).valid(record):
             return self.validator(record)
         return False
+
+
+class MassShiftRule(object):
+    def __init__(self, mass_shift, multiplicity):
+        self.mass_shift = mass_shift
+        self.multiplicity = multiplicity
+
+    def valid(self, record):
+        if self.multiplicity < 0:
+            for shift in record.mass_shifts:
+                if (shift + (self.mass_shift * self.multiplicity)).mass < 0:
+                    return False
+            return True
+        else:
+            return True
+
+    def apply(self, record):
+        new = record.copy()
+        # import pdb
+        # pdb.set_trace()
+        new.mass_shifts = [m + (self.mass_shift * self.multiplicity) for m in new.mass_shifts]
+        return new
+
+    def __call__(self, record):
+        return self.apply(record)
+
+    def __eq__(self, other):
+        if other is None:
+            return False
+        return self.mass_shift == other.mass_shift and self.multiplicity == other.multiplicity
+
+
+    def __ne__(self, other):
+        return not self == other
+
+    def __hash__(self):
+        return hash(self.mass_shift)
+
+    def __repr__(self):
+        template = "{self.__class__.__name__}({self.mass_shift}, {self.multiplicity})"
+        return template.format(self=self)
 
 
 class ModelReviser(object):
@@ -124,7 +175,7 @@ class ModelReviser(object):
 
             if best_score > threshold and delta_best_score > delta_threshold:
                 if best_rule is not None:
-                    best_record.revised_from = (best_rule, chromatograms[i].glycan_composition)
+                    best_record.revised_from = (best_rule, chromatograms[i])
                 next_round.append(best_record)
             else:
                 next_round.append(chromatograms[i])
@@ -132,9 +183,10 @@ class ModelReviser(object):
 
 
 AmmoniumMaskedRule = RevisionRule(
-    HashableGlycanComposition(Hex=-1, Fuc=-1, Neu5Ac=1), 1)
+    HashableGlycanComposition(Hex=-1, Fuc=-1, Neu5Ac=1), mass_shift_rule=MassShiftRule(Ammonium, 1), priority=1)
 AmmoniumUnmaskedRule = RevisionRule(
-    HashableGlycanComposition(Hex=1, Fuc=1, Neu5Ac=-1), 1)
+    HashableGlycanComposition(Hex=1, Fuc=1, Neu5Ac=-1), mass_shift_rule=MassShiftRule(Ammonium, -1), priority=1)
+
 IsotopeRule = RevisionRule(HashableGlycanComposition(Fuc=-2, Neu5Ac=1))
 IsotopeRule2 = RevisionRule(HashableGlycanComposition(Fuc=-4, Neu5Ac=2))
 
