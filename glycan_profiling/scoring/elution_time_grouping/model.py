@@ -1264,7 +1264,8 @@ class ModelBuildingPipeline(TaskBase):
         # results. This is also true of the first and last set of windows, regardless, especially
         # when sparse.
         builder.partition(w)
-        builder.fit(predicate, self.model_type, regularize=regularize, resample=resample)
+        builder.fit(predicate, self.model_type,
+                    regularize=regularize, resample=resample)
         model = builder.merge()
         model.calibrate_prediction_interval(alpha=self.calibration_alpha)
         return model
@@ -1299,7 +1300,7 @@ class ModelBuildingPipeline(TaskBase):
                 neighbor_count = len(local_aggregate[old])
                 k += 1
                 self.log(
-                    "...... %s: %0.2f %s (%0.2f) => %s (%0.2f) %0.2f/%0.2f with %d neighbors" % (
+                    "...... %s: %0.2f %s (%0.2f) => %s (%0.2f) %0.2f/%0.2f with %d references" % (
                         new.tag, new.apex_time,
                         old.glycan_composition, model.predict(old),
                         new.glycan_composition, model.predict(new),
@@ -1331,7 +1332,6 @@ class ModelBuildingPipeline(TaskBase):
 
     def reweight(self, model, chromatograms, base_weight=0.3):
         reweighted = []
-        # model_weight = 1.0 - base_weight
         total = 0.0
         for rec in chromatograms:
             rec = rec.copy()
@@ -1341,12 +1341,12 @@ class ModelBuildingPipeline(TaskBase):
             if w != 0:
                 w **= -1
             rec.weight = w
-            # rec.weight = base_weight + (w * model_weight)
             if np.isnan(rec.weight):
                 rec.weight = base_weight
             reweighted.append(rec)
             total += w
-        self.log("Total Score for %d elements = %f" % (len(chromatograms), total))
+        self.log("Total Score for %d elements = %f" %
+                 (len(chromatograms), total))
         return reweighted
 
     def make_groups_from(self, chromatograms):
@@ -1371,15 +1371,17 @@ class ModelBuildingPipeline(TaskBase):
         # as the sum of the weights of all models that span that chromatogram which
         # have a definition for that peptide divided by the sum of all model weights
         # that span that chromatogram, regardless of whether they contain the peptide
-        coverages = self.compute_model_coverage(self.current_model, all_records)
+        coverages = self.compute_model_coverage(
+            self.current_model, all_records)
 
         # Select only those chromatograms that have 100% coverage (always defined in the model)
         # but regardless of modification state.
-        covered_recs = self.subset_aggregate_by_coverage(all_records, coverages, 1.0)
+        covered_recs = self.subset_aggregate_by_coverage(
+            all_records, coverages, 1.0)
 
         # Attempt to revise chromatograms which are covered by the current model
         revised_recs = self.revise_with(
-            self.current_model, covered_recs, 0.35, max(self.current_model.width_range.lower  * 0.5, 0.5))
+            self.current_model, covered_recs, 0.35, max(self.current_model.width_range.lower * 0.5, 0.5))
 
         # Update the list of chromatogram records
         all_records = mask_in(list(self.aggregate), revised_recs)
@@ -1406,7 +1408,8 @@ class ModelBuildingPipeline(TaskBase):
                 self.log("No new observations added, skipping")
                 continue
             else:
-                new = {c.tag for c in covered_recs} - {c.tag for c in last_covered}
+                new = {c.tag for c in covered_recs} - \
+                    {c.tag for c in last_covered}
                 last_covered = covered_recs
             self.log("... Covering %d chromatograms at threshold %0.2f" % (
                 len(covered_recs), coverage_threshold))
@@ -1420,7 +1423,8 @@ class ModelBuildingPipeline(TaskBase):
             self.current_model = model = self.fit_model_with_revision(
                 all_records, revised_recs, regularize=regularize)
 
-            self.revision_history.append((revised_recs, self.revised_tags.copy()))
+            self.revision_history.append(
+                (revised_recs, self.revised_tags.copy()))
 
         if final_round:
             self.log("Open Update Round")
@@ -1428,9 +1432,11 @@ class ModelBuildingPipeline(TaskBase):
             coverage_threshold = (1.0 - (i * 1.0 / (k_scale * k)))
             covered_recs = self.subset_aggregate_by_coverage(
                 all_records, coverages, coverage_threshold)
-            extra_recs = self.find_uncovered_group_members(all_records, coverages)
+            extra_recs = self.find_uncovered_group_members(
+                all_records, coverages)
 
-            self.log("... Added new tags: %r" % sorted({c.tag for c in extra_recs}))
+            self.log("... Added new tags: %r" %
+                     sorted({c.tag for c in extra_recs}))
             covered_recs = np.concatenate((covered_recs, extra_recs))
             covered_recs = self.reweight(model, covered_recs, base_weight=0.01)
 
@@ -1454,7 +1460,8 @@ class ModelBuildingPipeline(TaskBase):
                     self.log("No new observations added, skipping")
                     continue
                 else:
-                    new = {c.tag for c in covered_recs} - {c.tag for c in last_covered}
+                    new = {c.tag for c in covered_recs} - \
+                        {c.tag for c in last_covered}
                     last_covered = covered_recs
                 self.log("... Covering %d chromatograms at threshold %0.2f" % (
                     len(covered_recs), coverage_threshold))
@@ -1468,7 +1475,8 @@ class ModelBuildingPipeline(TaskBase):
                 self.current_model = model = self.fit_model_with_revision(
                     all_records, revised_recs, regularize=regularize)
 
-                self.revision_history.append((revised_recs, self.revised_tags.copy()))
+                self.revision_history.append(
+                    (revised_recs, self.revised_tags.copy()))
 
             self.log("Final Update Round")
             coverages = self.compute_model_coverage(model, all_records)
@@ -1476,9 +1484,11 @@ class ModelBuildingPipeline(TaskBase):
             covered_recs = self.subset_aggregate_by_coverage(
                 all_records, coverages, coverage_threshold)
 
-            extra_recs = self.find_uncovered_group_members(all_records, coverages)
+            extra_recs = self.find_uncovered_group_members(
+                all_records, coverages)
 
-            self.log("... Added new tags: %r" % sorted({c.tag for c in extra_recs}))
+            self.log("... Added new tags: %r" %
+                     sorted({c.tag for c in extra_recs}))
             covered_recs = np.concatenate((covered_recs, extra_recs))
             covered_recs = self.reweight(model, covered_recs, base_weight=0.01)
 
@@ -1490,7 +1500,6 @@ class ModelBuildingPipeline(TaskBase):
                 max(self.current_model.width_range.lower * delta_time_scale, minimum_delta))
 
             all_records = mask_in(all_records, revised_recs)
-
 
         return model, all_records
 

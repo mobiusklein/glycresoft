@@ -59,7 +59,7 @@ class ChromatogramProxy(object):
 
     @property
     def revised_from(self):
-        self.kwargs.get("revised_from")
+        return self.kwargs.get("revised_from")
 
     @revised_from.setter
     def revised_from(self, value):
