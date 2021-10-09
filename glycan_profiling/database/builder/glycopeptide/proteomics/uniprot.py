@@ -1,6 +1,6 @@
 import threading
 import multiprocessing
-
+import pickle, os
 try:
     from Queue import Queue, Empty
 except ImportError:
@@ -32,6 +32,9 @@ def retry(task, n=5):
     raise errs[-1]
 
 
+HAS_BATCH_HANDLER = hasattr(uniprot, 'get_features_for_many')
+
+
 class UniprotSource(TaskBase):
     def task_handler(self, accession_number):
         accession = get_uniprot_accession(accession_number)
@@ -41,7 +44,27 @@ class UniprotSource(TaskBase):
         self.output_queue.put((accession_number, protein_data))
         return protein_data
 
+    def batch_handler(self, accession_list):
+        idents_map = {}
+        for acc in accession_list:
+            acc_ = get_uniprot_accession(acc)
+            if acc_ is None:
+                acc_ = acc
+            idents_map[acc_] = acc
+        idents = list(idents_map)
+        result, errs = retry(lambda: uniprot.get_features_for_many(idents), 5)
+
+        for (acc, protein_data) in result:
+            name = idents_map[acc]
+            self.output_queue.put((name, protein_data))
+
     def fetch(self, accession_number):
+        if isinstance(accession_number, list) and HAS_BATCH_HANDLER:
+            try:
+                self.batch_handler(accession_number)
+            except Exception as e:
+                self.error_handler(accession_number[0], e)
+            return
         try:
             self.task_handler(accession_number)
         except Exception as e:
@@ -72,6 +95,14 @@ class UniprotRequestingProcess(multiprocessing.Process, UniprotSource):
         self.done_event.set()
 
 
+def chunked(seq, size=128):
+    n = len(seq)
+    for i in range(0, n + size, size):
+        z = seq[i:i + size]
+        if z:
+            yield z
+
+
 class UniprotProteinDownloader(UniprotSource):
     def __init__(self, accession_list, n_threads=10):
         self.accession_list = accession_list
@@ -100,8 +131,12 @@ class UniprotProteinDownloader(UniprotSource):
         self.output_queue.put((accession_number, error))
 
     def feeder_task(self):
-        for i, item in enumerate(self.accession_list):
-            if i % 100 == 0 and i:
+        n = len(self.accession_list)
+        k = n // 100
+        k = max(k, 128)
+
+        for i, item in enumerate(chunked(self.accession_list, k)):
+            if i % 10 == 0 and i:
                 self.input_queue.join()
             self.input_queue.put(item)
         self.no_more_work.set()

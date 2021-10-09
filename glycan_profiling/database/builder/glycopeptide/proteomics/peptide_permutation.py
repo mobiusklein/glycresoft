@@ -647,8 +647,14 @@ class UniprotProteinAnnotator(TaskBase):
                 protein_id = name_to_id[protein_name]
                 seen.add(protein_id)
                 i += 1
+                # Record not found in UniProt
+                if record is None:
+                    continue
                 if isinstance(record, (Exception, str)):
-                    self.log("... Skipping %s: %s" % (protein_name, record))
+                    message = str(record)
+                    # Many, many records that used to exist no longer do. We don't care if they are absent.
+                    if "Document is empty" not in message:
+                        self.log("... Skipping %s: %s" % (protein_name, message))
                     continue
                 protein = self.query(Protein).get(protein_id)
                 if i % interval == 0:

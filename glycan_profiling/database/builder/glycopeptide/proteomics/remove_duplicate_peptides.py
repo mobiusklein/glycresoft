@@ -39,7 +39,7 @@ class DeduplicatePeptides(DatabaseBoundOperation, TaskBase):
         return table
 
     def remove_duplicates(self):
-        self.log("... Extracting Best Peptides")
+        self.log("... Deduplicating Peptides")
         keepers = self.find_best_peptides()
         self.log("... Marking Candidates")
         table = self.store_best_peptides(keepers)
