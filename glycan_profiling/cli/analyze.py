@@ -323,8 +323,6 @@ def search_glycopeptide(context, database_connection, sample_path, hypothesis_id
 @click.option("-o", "--output-path", default=None, type=click.Path(writable=True),
               help=("Path to write resulting analysis to."), required=True)
 @click.option("-w", "--workload-size", default=100, type=int, help="Number of spectra to process at once")
-@click.option("-F", "--durable-fucose", is_flag=True, default=False,
-              help="Expect Fucose/deoxy-Hexose peptide+Y ions to count towards glycan coverage", cls=HiddenOption)
 @click.option("-R", "--rare-signatures", is_flag=True, default=False, help="Look for rare signature ions when scoring glycan oxonium signature")
 @click.option("--save-intermediate-results", default=None, type=click.Path(), required=False,
               help='Save intermediate spectrum matches to a file', cls=HiddenOption)
@@ -341,7 +339,7 @@ def search_glycopeptide_multipart(context, database_connection, decoy_database_c
                                   memory_database_index=False, save_intermediate_results=None, processes=4,
                                   workload_size=100, mass_shifts=None, export=None, maximum_mass=float('inf'),
                                   isotope_probing_range=3, fdr_estimation_strategy=None,
-                                  glycoproteome_smoothing_model=None, durable_fucose=False, rare_signatures=False):
+                                  glycoproteome_smoothing_model=None, rare_signatures=False):
     '''
     '''
     if fdr_estimation_strategy is None:
