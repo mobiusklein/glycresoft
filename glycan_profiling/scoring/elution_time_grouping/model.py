@@ -1224,7 +1224,7 @@ def model_type_dispatch_outlier_remove(self, chromatogams, factors=None, scale=1
             chromatogams, factors, scale, transform, width_range, regularize)
 
 
-class ModelBuildingPipeline(TaskBase):
+class GlycopeptideElutionTimeModelBuildingPipeline(TaskBase):
     '''A local regression-based ensemble of overlapping
     retention time models.
     '''
@@ -1504,9 +1504,7 @@ class ModelBuildingPipeline(TaskBase):
         return model, all_records
 
 
-
-
-
+ModelBuildingPipeline = GlycopeptideElutionTimeModelBuildingPipeline
 
 
 class ElutionTimeModel(ScoringFeatureBase):

@@ -6,7 +6,7 @@ from .model import (
     ElutionTimeFitter, AbundanceWeightedElutionTimeFitter,
     FactorElutionTimeFitter, AbundanceWeightedFactorElutionTimeFitter,
     PeptideFactorElutionTimeFitter, AbundanceWeightedPeptideFactorElutionTimeFitter,
-    ElutionTimeModel)
+    ElutionTimeModel, ModelBuildingPipeline as GlycopeptideElutionTimeModelBuildingPipeline)
 from .cross_run import (
     ReplicatedAbundanceWeightedPeptideFactorElutionTimeFitter, LinearRetentionTimeCorrector,
 )
