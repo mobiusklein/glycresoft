@@ -122,7 +122,7 @@ class TandemClusterEvaluatorBase(TaskBase):
                     scan, structure, mass_shift=mass_shift, **kwargs)
                 solutions.append(result)
         out = self.solution_set_type(
-            scan, solutions).sort().threshold()
+            scan, solutions).sort().select_top()
         return out
 
     def score_all(self, precursor_error_tolerance=1e-5, simplify=False, **kwargs):
@@ -274,7 +274,7 @@ class TandemClusterEvaluatorBase(TaskBase):
             scan = scan_map[scan_id]
             out = self.solution_set_type(scan, solutions).sort()
             # This is necessary to reduce the degree to which junk matches need to have their targets re-built
-            out.threshold()
+            out.select_top()
             if len(out) == 0:
                 continue
             result_set.append(out)

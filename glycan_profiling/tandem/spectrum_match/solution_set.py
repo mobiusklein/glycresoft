@@ -282,6 +282,9 @@ class MultiScoreSpectrumMatchSortingStrategy(SpectrumMatchSortingStrategy):
 
 
 class NOParsimonyMixin(object):
+    '''Provides shared methods for a parsimony step re-ordering solutions
+    when the top solution may be N-linked or O-linked.
+    '''
     def __init__(self, threshold_percentile=0.75):
         self.threshold_percentile = threshold_percentile
 
@@ -689,8 +692,14 @@ class SpectrumSolutionSet(ScanWrapperBase):
             self.select_top()
         return self
 
-    def threshold(self, method=None):
-        return self.select_top(method)
+    def append(self, match):
+        self._invalidate()
+        self.solutions.append(match)
+        self.sort()
+        if self._is_top_only:
+            self._is_top_only = False
+            self.select_top()
+        return self
 
     def clone(self):
         dup = self.__class__(self.scan, [
