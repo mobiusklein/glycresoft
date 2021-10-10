@@ -399,7 +399,7 @@ def CoverageWeightedBinomialScorer_match_backbone_series(self, IonSeriesBase ser
 
 @cython.binding(True)
 @cython.nonecheck(False)
-def _match_oxonium_ions(self, double error_tolerance=2e-5, set masked_peaks=None):
+cpdef _match_oxonium_ions(self, double error_tolerance=2e-5, set masked_peaks=None):
     cdef:
         list fragments
         FragmentBase frag
@@ -432,8 +432,8 @@ def _match_oxonium_ions(self, double error_tolerance=2e-5, set masked_peaks=None
 
 
 @cython.binding(True)
-def _match_stub_glycopeptides(self, double error_tolerance=2e-5, set masked_peaks=None,
-                              ChemicalShiftBase chemical_shift=None, bint extended_glycan_search=False):
+cpdef _match_stub_glycopeptides(self, double error_tolerance=2e-5, set masked_peaks=None,
+                                ChemicalShiftBase chemical_shift=None, bint extended_glycan_search=False):
 
     cdef:
         list fragments
