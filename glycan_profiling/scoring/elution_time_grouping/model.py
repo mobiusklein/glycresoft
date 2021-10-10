@@ -522,7 +522,7 @@ class AbundanceWeightedFactorElutionTimeFitter(AbundanceWeightedMixin, FactorElu
 
 class PeptideBackboneKeyedMixin(object):
     def get_peptide_key(self, chromatogram):
-        return str(PeptideSequence(str(chromatogram.structure)).deglycosylate())
+        return chromatogram.peptide_key
 
 
 class PeptideGroupChromatogramFeatureizer(FactorChromatogramFeatureizer, PeptideBackboneKeyedMixin):

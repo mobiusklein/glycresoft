@@ -16,6 +16,7 @@ except ImportError:
 from glycopeptidepy import PeptideSequence
 from glypy.structure.glycan_composition import HashableGlycanComposition
 
+from glycan_profiling.structure import FragmentCachingGlycopeptide
 from ms_deisotope.peak_dependency_network.intervals import SpanningMixin, IntervalTreeNode
 
 from glycan_profiling.chromatogram_tree.utils import ArithmeticMapping
@@ -43,12 +44,12 @@ def _get_apex_time(chromatogram):
 
 class ChromatogramProxy(object):
 
-    def __init__(self, weighted_neutral_mass, apex_time, total_signal, glycan_composition, obj=None, mass_shifts=None, weight=1.0, **kwargs):
+    def __init__(self, weighted_neutral_mass, apex_time, total_signal, glycan_composition, source=None, mass_shifts=None, weight=1.0, **kwargs):
         self.weighted_neutral_mass = weighted_neutral_mass
         self.apex_time = apex_time
         self.total_signal = total_signal
         self.glycan_composition = glycan_composition
-        self.obj = obj
+        self.source = source
         self._mass_shifts = None
         self.weight = weight
         self.kwargs = kwargs
@@ -89,7 +90,7 @@ class ChromatogramProxy(object):
             self.glycan_composition, self.kwargs)
 
     def pack(self):
-        self.obj = None
+        self.source = None
 
     @classmethod
     def from_obj(cls, obj, **kwargs):
@@ -106,7 +107,7 @@ class ChromatogramProxy(object):
         return inst
 
     def get_chromatogram(self):
-        return self.obj.get_chromatogram()
+        return self.source.get_chromatogram()
 
     def _to_csv(self):
         d = {
@@ -121,7 +122,7 @@ class ChromatogramProxy(object):
 
     def copy(self):
         dup = self._from_csv(self._to_csv())
-        dup.obj = self.obj
+        dup.source = self.source
         return dup
 
     def __getstate__(self):
@@ -191,9 +192,18 @@ class GlycopeptideChromatogramProxy(ChromatogramProxy):
                                 'apex_time', 'total_signal', 'weighted_neutral_mass'})
 
     @property
+    def peptide_key(self):
+        if "peptide_key" in self.kwargs:
+            return self.kwargs["peptide_key"]
+        peptide = str(PeptideSequence(
+            str(self.structure)).deglycosylate())
+        self.kwargs["peptide_key"] = peptide
+        return peptide
+
+    @property
     def structure(self):
         if self._structure is None:
-            self._structure = PeptideSequence(str(self.kwargs["structure"]))
+            self._structure = FragmentCachingGlycopeptide(str(self.kwargs["structure"]))
         return self._structure
 
     @structure.setter
@@ -203,7 +213,7 @@ class GlycopeptideChromatogramProxy(ChromatogramProxy):
 
     @classmethod
     def from_obj(cls, obj, **kwargs):
-        gp = PeptideSequence(str(obj.structure))
+        gp = FragmentCachingGlycopeptide(str(obj.structure))
         return super(GlycopeptideChromatogramProxy, cls).from_obj(obj, structure=gp, **kwargs)
 
     def shift_glycan_composition(self, delta):
