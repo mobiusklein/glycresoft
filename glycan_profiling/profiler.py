@@ -751,26 +751,7 @@ class GlycopeptideLCMSMSAnalyzer(TaskBase):
         return extractor
 
     def prepare_cache_seeds(self, database):
-
-        def flatten(nested):
-            return set([y for x in nested for y in x])
-
-        # gcs = database.query(serialize.GlycanCombination).all()
-        # gcs = [
-        #     (
-        #         gc.convert(),
-        #         # flatten(gc.component_classes)
-        #         set()
-        #     )
-        #     for gc in gcs
-        # ]
-
-        # oxonium_ion_cache.populate([gc for gc, tps in gcs])
-        # CachingStubGlycopeptideStrategy.populate([gc for gc, tps in gcs if "N-Glycan" in tps])
-        seeds = {
-            # "oxonium_ion_cache": pickle.dumps(oxonium_ion_cache, -1),
-            # "n_glycan_stub_cache": pickle.dumps(CachingStubGlycopeptideStrategy.get_cache(), -1)
-        }
+        seeds = {}
         return seeds
 
     def load_msms(self, peak_loader):
