@@ -102,7 +102,7 @@ class ChromatogramProxy(object):
         kwargs.setdefault('mass_shifts', mass_shifts)
         inst = cls(
             obj.weighted_neutral_mass, apex_time, obj.total_signal,
-            obj.glycan_composition, obj, **kwargs)
+            HashableGlycanComposition(obj.glycan_composition), obj, **kwargs)
         return inst
 
     def get_chromatogram(self):
