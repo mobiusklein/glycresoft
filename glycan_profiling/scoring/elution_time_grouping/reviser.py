@@ -76,8 +76,6 @@ class MassShiftRule(object):
 
     def apply(self, record):
         new = record.copy()
-        # import pdb
-        # pdb.set_trace()
         new.mass_shifts = [m + (self.mass_shift * self.multiplicity) for m in new.mass_shifts]
         return new
 
@@ -88,7 +86,6 @@ class MassShiftRule(object):
         if other is None:
             return False
         return self.mass_shift == other.mass_shift and self.multiplicity == other.multiplicity
-
 
     def __ne__(self, other):
         return not self == other
