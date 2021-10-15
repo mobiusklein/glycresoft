@@ -949,7 +949,7 @@ class GlycopeptideLCMSMSAnalyzer(TaskBase):
         filt = QValueRetentionStrategy(max(0.75, self.psm_fdr_threshold * 10.))
         for idgp in identified_glycopeptides:
             for gpsm_set in idgp.tandem_solutions:
-                gpsm_set.threshold(filt)
+                gpsm_set.select_top(filt)
         return identified_glycopeptides
 
     def _build_analysis_saved_parameters(self, identified_glycopeptides, unassigned_chromatograms,
