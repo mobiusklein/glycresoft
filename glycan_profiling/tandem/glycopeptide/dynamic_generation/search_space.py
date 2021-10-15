@@ -722,3 +722,37 @@ def deserialize_workload(buff, scan_loader):
             wm.add_scan(scan)
             wm.add_scan_hit(scan, rec, attrib['hit_type'])
     return wm
+
+
+class IdKeyMaker(object):
+    '''Build an id-key structure for a glycopeptide with a new
+    glycan composition given a glycopeptide of the same peptide
+    backbone.
+    '''
+    def __init__(self, valid_glycans):
+        self.valid_glycans = valid_glycans
+        self.lookup_map = {g: g.id for g in self.valid_glycans}
+
+    def make_id_controlled_structures(self, structure, references):
+        glycan_id = self.lookup_map[structure.glycan_composition]
+        result = []
+        for reference in references:
+            ref_key = reference.id
+            alt_key = glycopeptide_key_t(
+                ref_key.start_position,
+                ref_key.end_position,
+                ref_key.peptide_id,
+                ref_key.protein_id,
+                ref_key.hypothesis_id,
+                glycan_id,
+                ref_key.structure_type,
+                ref_key.site_combination_index,
+            )
+            alt = structure.clone()
+            alt.id = alt_key
+            alt.protein_relation = reference.protein_relation
+            result.append(alt)
+        return result
+
+    def __call__(self, structure, references):
+        return self.make_id_controlled_structures(structure, references)
