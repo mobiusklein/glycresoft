@@ -535,6 +535,12 @@ class TargetDecoyAnalyzer(object):
             spectrum_match.q_value = 0.0
         return spectrum_match
 
+    def score_all(self, solution_set):
+        for spectrum_match in solution_set:
+            self.score(spectrum_match)
+        solution_set.q_value = solution_set.best_solution().q_value
+        return solution_set
+
     @property
     def q_value_map(self):
         return self._q_value_map

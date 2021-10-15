@@ -336,18 +336,24 @@ class GlycopeptideFDREstimator(TaskBase):
             ts.q_value = ts.best_solution().q_value
         return solution_sets
 
-    def fit_total_fdr(self):
+    def fit_total_fdr(self, solution_sets=None):
+        if solution_sets is None:
+            solution_sets = self.grouper.match_type_groups['target_peptide_target_glycan']
         if self.strategy == GlycopeptideFDREstimationStrategy.multipart_gamma_gaussian_mixture:
-            self._assign_joint_fdr(self.grouper.match_type_groups['target_peptide_target_glycan'])
+            self._assign_joint_fdr(solution_sets)
         elif self.strategy == GlycopeptideFDREstimationStrategy.peptide_fdr:
-            self._assign_peptide_fdr(self.grouper.match_type_groups['target_peptide_target_glycan'])
+            self._assign_peptide_fdr(solution_sets)
         elif self.strategy == GlycopeptideFDREstimationStrategy.glycan_fdr:
-            self._assign_glycan_fdr(self.grouper.match_type_groups['target_peptide_target_glycan'])
+            self._assign_glycan_fdr(solution_sets)
         elif self.strategy == GlycopeptideFDREstimationStrategy.peptide_or_glycan:
-            self._assign_minimum_fdr(self.grouper.match_type_groups['target_peptide_target_glycan'])
+            self._assign_minimum_fdr(solution_sets)
         else:
             raise NotImplementedError(self.strategy)
         return self.grouper
+
+    def score_all(self, solution_set):
+        self.fit_total_fdr([solution_set])
+        return solution_set
 
     def run(self):
         if self.strategy in (GlycopeptideFDREstimationStrategy.multipart_gamma_gaussian_mixture,
