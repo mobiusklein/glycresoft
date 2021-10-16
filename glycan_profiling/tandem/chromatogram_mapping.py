@@ -277,8 +277,6 @@ class SpectrumMatchSolutionCollectionBase(object):
         weights = strategy(self, threshold_fn=threshold_fn)
         return weights
 
-
-
     def most_representative_solutions(self, threshold_fn=always, reject_shifted=False, targets_ignored=None,
                                       percentile_threshold=1e-5):
         """Find the most representative solutions, the (very nearly the same, hopefully) structures with
@@ -491,12 +489,6 @@ def build_glycopeptide_key(solution):
     structure = solution
     key = (str(structure.clone().deglycosylate()), str(structure.glycan_composition))
     return key
-
-
-def drop_mass_shifts(self):
-    for node in self.nodes.unspool():
-        node.node_type = Unmodified
-    return self
 
 
 class RepresenterDeconvolution(TaskBase):
@@ -897,7 +889,7 @@ class RepresenterDeconvolution(TaskBase):
         merged : list[ChromatogramWrapper]
             The merged chromatograms
         '''
-        # TODO: Switch to list
+        # Note suggested to switch to list, but reason unclear.
         assigned = defaultdict(set)
 
         # For each (key, mass shift) pair and their members, compute the set of representers for
@@ -947,12 +939,11 @@ class RepresenterDeconvolution(TaskBase):
                     representers = []
 
                 # TODO: Replace this with a method call
-                fresh = drop_mass_shifts(member.chromatogram.clone())
+                fresh = member.chromatogram.clone().drop_mass_shifts()
 
                 fresh.assign_entity(representers[0])
                 fresh.representative_solutions = representers
 
-                # TODO: switch to list.append
                 assigned[key].add(fresh)
 
         merged = []
@@ -1227,3 +1218,120 @@ class ChromatogramMSMSMapper(TaskBase):
             return self.chromatograms[i]
         else:
             return [self.chromatograms[j] for j in i]
+
+
+class SpectrumMatchUpdater(TaskBase):
+    '''Wrap the process of generating updates to :class:`TandemAnnotatedChromatogram` based upon
+    some chromatogram-centric reviser like a retention time predictor.
+
+    This type needs to:
+        1. Generate new spectrum matches using the same scorer if a solution set lacks
+           a match to the suggested target.
+        2. Re-calculate the FDR of the new matches if needed.
+        3. Generate a new unique ID for each source peptide that a glycopeptide matching
+           the revised glycoform could come from, that is consistent with the previous
+           ID space that other glycopeptides used.
+        4. Update the assigned entity of each assigned chromatogram so that the correct
+           structure is the "best match", discarding the :class:`SolutionEntry` for the
+           incorrect assignment *without* deleting the spectrum matches to that themselves.
+    '''
+
+    def __init__(self, scan_loader, scorer, spectrum_match_cls, id_maker, threshold_fn=lambda x: x.q_value < 0.05,
+                 match_args=None, fdr_estimator=None):
+        if match_args is None:
+            match_args = {}
+        self.scan_loader = scan_loader
+        self.scorer = scorer
+        self.match_args = match_args
+        self.spectrum_match_cls = spectrum_match_cls
+        self.id_maker = id_maker
+        self.fdr_estimator = fdr_estimator
+        self.threshold_fn = threshold_fn
+
+    def select_best_mass_shift_for(self, scan, structure, mass_shifts):
+        observed_mass = scan.precursor_information.neutral_mass
+        theoretical_mass = structure.total_mass
+        delta = observed_mass - theoretical_mass
+
+        best_shift = None
+        best_shift_error = float('inf')
+
+        for shift in mass_shifts:
+            err = delta - shift.mass
+            abs_err = abs(err)
+            if abs_err < best_shift_error:
+                best_shift = shift
+                best_shift_error = abs_err
+        return best_shift
+
+    def id_for_structure(self, structure, reference):
+        structure.protein_relation = reference.protein_relation
+        structure.id = self.id_maker(structure, reference)
+        return structure
+
+    def evaluate_spectrum(self, scan_id, structure, mass_shifts):
+        scan = self.scan_loader.get_scan_by_id(scan_id)
+        best_shift = self.select_best_mass_shift_for(scan, structure, mass_shifts)
+        match = self.scorer.evaluate(scan, structure, mass_shift=best_shift, **self.match_args)
+        return match
+
+    def identical_peptides(self, chromatogram, structure):
+        structures = set()
+        key = str(structure)
+        for sset in chromatogram.tandem_solutions:
+            for sm in sset:
+                if str(sm.target) == key:
+                    structures.add(sm.target)
+        return structures
+
+    def process_revision(self, revision, chromatogram=None):
+        if chromatogram is None:
+            chromatogram = revision.source
+        reference = chromatogram.structure
+        mass_shifts = revision.mass_shifts
+        revised_structure = revision.structure
+        reference_peptides = self.identical_peptides(chromatogram, reference)
+
+        revised_solution_sets = self.collect_matches(
+            chromatogram, revised_structure, mass_shifts, reference_peptides)
+
+        if self.fdr_estimator is not None:
+            for sset in chromatogram.tandem_solutions:
+                self.fdr_estimator.score_all(sset)
+
+        representers = chromatogram.compute_representative_weights(self.threshold_fn)
+        keep = []
+        reject = []
+        match = []
+        for r in representers:
+            if str(r.solution) == reference:
+                reject.append(r)
+            elif str(r.solution) == revised_structure:
+                match.append(r)
+            else:
+                keep.append(r)
+
+        assert match
+        representers = match + keep
+        chromatogram.representative_solutions = representers
+        chromatogram.assign_entity(match[0])
+        return chromatogram
+
+    def collect_matches(self, chromatogram, structure, mass_shifts, reference_peptides):
+        new_solutions = []
+        if structure.id is None:
+            instances = self.id_maker(structure, reference_peptides)
+        for sset in chromatogram.tandem_solutions:
+            try:
+                match = sset.solution_for(structure)
+            except KeyError:
+                scan_id = sset.scan_id
+                for inst in instances:
+                    match = self.evaluate_spectrum(scan_id, inst, mass_shifts)
+                    match = self.spectrum_match_cls.from_match_solution(match)
+                    sset.append(match)
+                new_solutions.append(sset)
+        return new_solutions
+
+    def __call__(self, revision, chromatogram=None):
+        return self.process_revision(revision, chromatogram=chromatogram)

@@ -126,7 +126,9 @@ class ChromatogramProxy(object):
         return dup
 
     def __getstate__(self):
-        return self._to_csv()
+        state = self._to_csv()
+        state['weight'] = self.weight
+        return state
 
     def __setstate__(self, state):
         state = dict(state)
@@ -134,6 +136,9 @@ class ChromatogramProxy(object):
         self.apex_time = state.pop("apex_time", None)
         self.total_signal = state.pop("total_signal", None)
         self.weighted_neutral_mass = state.pop("weighted_neutral_mass", None)
+        self.weight = state.pop('weight', 1.0)
+        self.source = None
+        self._mass_shifts = None
         self.kwargs = state
 
     def __getattr__(self, attr):
