@@ -1058,7 +1058,8 @@ class ChromatogramWrapper(_TimeIntervalMethods):
         return self.chromatogram.mass_shift_signal_fractions()
 
     def drop_mass_shifts(self):
-        return self.chromatogram.drop_mass_shifts()
+        self.chromatogram.drop_mass_shifts()
+        return self
 
     def integrate(self):
         return self.chromatogram.integrate()

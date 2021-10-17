@@ -937,8 +937,6 @@ class RepresenterDeconvolution(TaskBase):
                         sols[0].percentile - x.percentile) < percentile_threshold]
                 else:
                     representers = []
-
-                # TODO: Replace this with a method call
                 fresh = member.chromatogram.clone().drop_mass_shifts()
 
                 fresh.assign_entity(representers[0])
@@ -1103,13 +1101,12 @@ class AnnotatedChromatogramAggregator(TaskBase):
         return out
 
     def run(self):
-        # merged_chromatograms = self.aggregate(self.annotated_chromatograms)
-        # if self.require_unmodified:
-        #     spliced = self.reassign_modified_only_cases(merged_chromatograms)
-        #     merged_chromatograms = self.aggregate(spliced)
-        # result = ChromatogramFilter(merged_chromatograms)
-        # return result
-        return ChromatogramFilter(self.annotated_chromatograms)
+        merged_chromatograms = self.aggregate(self.annotated_chromatograms)
+        if self.require_unmodified:
+            spliced = self.reassign_modified_only_cases(merged_chromatograms)
+            merged_chromatograms = self.aggregate(spliced)
+        result = ChromatogramFilter(merged_chromatograms)
+        return result
 
 
 def aggregate_by_assigned_entity(annotated_chromatograms, delta_rt=0.25, require_unmodified=True,
