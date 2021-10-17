@@ -1,7 +1,7 @@
 from .linear_regression import (weighted_linear_regression_fit, prediction_interval, ransac)
 from .structure import (
     ChromatogramProxy, GlycopeptideChromatogramProxy,
-    CommonGlycopeptide, _get_apex_time)
+    CommonGlycopeptide, _get_apex_time, GlycoformAggregator)
 from .model import (
     ElutionTimeFitter, AbundanceWeightedElutionTimeFitter,
     FactorElutionTimeFitter, AbundanceWeightedFactorElutionTimeFitter,
