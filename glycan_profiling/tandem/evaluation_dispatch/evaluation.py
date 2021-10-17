@@ -160,7 +160,7 @@ class LocalSpectrumEvaluator(SpectrumEvaluatorBase, TaskBase):
     :attr:`evaluator`.
     '''
 
-    log_process_cycle = 2500
+    log_process_cycle = 5000
 
     def __init__(self, evaluator, scan_map, mass_shift_map, solution_packer, evaluation_args=None):
         if evaluation_args is None:
