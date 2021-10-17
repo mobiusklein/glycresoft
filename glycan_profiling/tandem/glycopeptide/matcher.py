@@ -160,8 +160,9 @@ class GlycopeptideMatcher(GlycopeptideSpectrumGroupEvaluatorMixin, PeptideMassFi
         matcher = self.scorer_type.evaluate(scan, target, *args, **kwargs)
         return matcher
 
-    def _transform_matched_collection(self, solution_set_collection):
-        cache = {}
+    def _transform_matched_collection(self, solution_set_collection, cache=None, *args, **kwargs):
+        if cache is None:
+            cache = {}
         for solution_set in solution_set_collection:
             for sm in solution_set:
                 target = sm.target
@@ -289,7 +290,7 @@ class TargetDecoyInterleavingGlycopeptideMatcher(GlycopeptideSpectrumGroupEvalua
                 batch, *args, **kwargs)
             running_total_work += batch.batch_size
             # Aggregate and reduce target solutions
-            temp = self.target_evaluator._collect_scan_solutions(target_scan_solution_map, batch.scan_map)
+            temp = self.target_evaluator.collect_scan_solutions(target_scan_solution_map, batch.scan_map)
             if simplify:
                 temp = [case for case in temp if len(case) > 0]
                 for case in temp:
@@ -316,7 +317,7 @@ class TargetDecoyInterleavingGlycopeptideMatcher(GlycopeptideSpectrumGroupEvalua
             decoy_scan_solution_map = self.decoy_evaluator.evaluate_hit_groups(
                 batch, *args, **kwargs)
             # Aggregate and reduce target solutions
-            temp = self.decoy_evaluator._collect_scan_solutions(decoy_scan_solution_map, batch.scan_map)
+            temp = self.decoy_evaluator.collect_scan_solutions(decoy_scan_solution_map, batch.scan_map)
             if simplify:
                 temp = [case for case in temp if len(case) > 0]
                 for case in temp:
@@ -454,7 +455,7 @@ class ComparisonGlycopeptideMatcher(TargetDecoyInterleavingGlycopeptideMatcher):
             target_scan_solution_map = self.target_evaluator.evaluate_hit_groups(
                 batch, *args, **kwargs)
             # Aggregate and reduce target solutions
-            temp = self.target_evaluator._collect_scan_solutions(
+            temp = self.target_evaluator.collect_scan_solutions(
                 target_scan_solution_map, batch.scan_map)
             temp = [case for case in temp if len(case) > 0]
             if simplify:
@@ -486,7 +487,7 @@ class ComparisonGlycopeptideMatcher(TargetDecoyInterleavingGlycopeptideMatcher):
             decoy_scan_solution_map = self.decoy_evaluator.evaluate_hit_groups(
                 batch, *args, **kwargs)
             # Aggregate and reduce decoy solutions
-            temp = self.decoy_evaluator._collect_scan_solutions(decoy_scan_solution_map, batch.scan_map)
+            temp = self.decoy_evaluator.collect_scan_solutions(decoy_scan_solution_map, batch.scan_map)
             temp = [case for case in temp if len(case) > 0]
             if simplify:
                 for case in temp:

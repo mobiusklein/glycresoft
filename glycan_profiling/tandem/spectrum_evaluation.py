@@ -244,7 +244,7 @@ class TandemClusterEvaluatorBase(TaskBase):
             handler_tp = SolutionHandler
         return handler_tp
 
-    def _transform_matched_collection(self, solution_set_collection):
+    def _transform_matched_collection(self, solution_set_collection, *args, **kwargs):
         '''This helper method can be used to re-write the target
         attribute of spectrm matches. By default, it is a no-op.
 
@@ -266,7 +266,7 @@ class TandemClusterEvaluatorBase(TaskBase):
                           scan_hit_type_map, hit_group_map)
         return processor.scan_solution_map
 
-    def _collect_scan_solutions(self, scan_solution_map, scan_map):
+    def collect_scan_solutions(self, scan_solution_map, scan_map, *args, **kwags):
         result_set = []
         for scan_id, solutions in scan_solution_map.items():
             if len(solutions) == 0:
@@ -278,7 +278,7 @@ class TandemClusterEvaluatorBase(TaskBase):
             if len(out) == 0:
                 continue
             result_set.append(out)
-        self._transform_matched_collection(result_set)
+        self._transform_matched_collection(result_set, *args, **kwags)
         return result_set
 
     @property
@@ -309,5 +309,5 @@ class TandemClusterEvaluatorBase(TaskBase):
         solutions = []
         for batch in workload.batches(self.batch_size):
             scan_solution_map = self.evaluate_hit_groups(batch, **kwargs)
-            solutions += self._collect_scan_solutions(scan_solution_map, batch.scan_map)
+            solutions += self.collect_scan_solutions(scan_solution_map, batch.scan_map)
         return solutions

@@ -421,7 +421,7 @@ class SpectrumMatcher(TaskExecutionSequence):
             running_total_work += batch.batch_size
             target_scan_solution_map = matcher.evaluate_hit_groups(
                 batch, **self.evaluation_kwargs)
-            temp = matcher._collect_scan_solutions(
+            temp = matcher.collect_scan_solutions(
                 target_scan_solution_map, batch.scan_map)
             temp = [case for case in temp if len(case) > 0]
             for case in temp:
