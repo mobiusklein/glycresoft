@@ -3,7 +3,7 @@ from .search_space import (
     StructureClassification, glycopeptide_key_t,
     GlycoformGeneratorBase, DynamicGlycopeptideSearchBase,
     PredictiveGlycopeptideSearch, IterativeGlycopeptideSearch,
-    Record, Parser, serialize_workload, deserialize_workload)
+    Record, Parser, IdKeyMaker)
 
 from .multipart_fdr import (GlycopeptideFDREstimationStrategy, GlycopeptideFDREstimator)
 
@@ -17,7 +17,7 @@ __all__ = [
     "StructureClassification", "glycopeptide_key_t",
     "GlycoformGeneratorBase", "DynamicGlycopeptideSearchBase",
     "PredictiveGlycopeptideSearch", "IterativeGlycopeptideSearch",
-    "Record", "Parser", "serialize_workload", "deserialize_workload",
+    "Record", "Parser", 'IdKeyMaker',
 
     "GlycopeptideFDREstimationStrategy", "GlycopeptideFDREstimator",
 
