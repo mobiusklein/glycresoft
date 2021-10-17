@@ -419,7 +419,7 @@ class SpectrumMatcher(TaskExecutionSequence):
                 i + 1, running_total_work + batch.batch_size, total_work,
                 ((running_total_work + batch.batch_size) * 100.) / float(total_work + 1)))
             running_total_work += batch.batch_size
-            target_scan_solution_map = matcher._evaluate_hit_groups(
+            target_scan_solution_map = matcher.evaluate_hit_groups(
                 batch, **self.evaluation_kwargs)
             temp = matcher._collect_scan_solutions(
                 target_scan_solution_map, batch.scan_map)

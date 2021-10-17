@@ -295,7 +295,7 @@ class TandemClusterEvaluatorBase(TaskBase):
             mass_shift_map=self.mass_shift_map, solution_handler_type=handler_tp)
         return dispatcher.process(scan_map, hit_map, hit_to_scan, scan_hit_type_map, hit_group_map)
 
-    def _evaluate_hit_groups(self, batch, **kwargs):
+    def evaluate_hit_groups(self, batch, **kwargs):
         if self.n_processes == 1 or len(batch.hit_map) < 2500:
             return self._evaluate_hit_groups_single_process(
                 batch, **kwargs)
@@ -308,6 +308,6 @@ class TandemClusterEvaluatorBase(TaskBase):
             scans, precursor_error_tolerance)
         solutions = []
         for batch in workload.batches(self.batch_size):
-            scan_solution_map = self._evaluate_hit_groups(batch, **kwargs)
+            scan_solution_map = self.evaluate_hit_groups(batch, **kwargs)
             solutions += self._collect_scan_solutions(scan_solution_map, batch.scan_map)
         return solutions

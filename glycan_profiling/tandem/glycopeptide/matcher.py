@@ -285,7 +285,7 @@ class TargetDecoyInterleavingGlycopeptideMatcher(GlycopeptideSpectrumGroupEvalua
             self.log("... Batch %d (%d/%d) %0.2f%%" % (
                 i + 1, running_total_work + batch.batch_size, total_work,
                 ((running_total_work + batch.batch_size) * 100.) / float(total_work)))
-            target_scan_solution_map = self.target_evaluator._evaluate_hit_groups(
+            target_scan_solution_map = self.target_evaluator.evaluate_hit_groups(
                 batch, *args, **kwargs)
             running_total_work += batch.batch_size
             # Aggregate and reduce target solutions
@@ -313,7 +313,7 @@ class TargetDecoyInterleavingGlycopeptideMatcher(GlycopeptideSpectrumGroupEvalua
                 i + 1, running_total_work + batch.batch_size, total_work,
                 ((running_total_work + batch.batch_size) * 100.) / float(total_work)))
 
-            decoy_scan_solution_map = self.decoy_evaluator._evaluate_hit_groups(
+            decoy_scan_solution_map = self.decoy_evaluator.evaluate_hit_groups(
                 batch, *args, **kwargs)
             # Aggregate and reduce target solutions
             temp = self.decoy_evaluator._collect_scan_solutions(decoy_scan_solution_map, batch.scan_map)
@@ -451,7 +451,7 @@ class ComparisonGlycopeptideMatcher(TargetDecoyInterleavingGlycopeptideMatcher):
                 i + 1, running_total_work, total_work,
                 (100. * running_total_work) / total_work))
 
-            target_scan_solution_map = self.target_evaluator._evaluate_hit_groups(
+            target_scan_solution_map = self.target_evaluator.evaluate_hit_groups(
                 batch, *args, **kwargs)
             # Aggregate and reduce target solutions
             temp = self.target_evaluator._collect_scan_solutions(
@@ -483,7 +483,7 @@ class ComparisonGlycopeptideMatcher(TargetDecoyInterleavingGlycopeptideMatcher):
                 i + 1, running_total_work, total_work,
                 (100. * running_total_work) / total_work))
 
-            decoy_scan_solution_map = self.decoy_evaluator._evaluate_hit_groups(
+            decoy_scan_solution_map = self.decoy_evaluator.evaluate_hit_groups(
                 batch, *args, **kwargs)
             # Aggregate and reduce decoy solutions
             temp = self.decoy_evaluator._collect_scan_solutions(decoy_scan_solution_map, batch.scan_map)
