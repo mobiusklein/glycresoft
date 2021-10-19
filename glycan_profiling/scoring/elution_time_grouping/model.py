@@ -31,7 +31,8 @@ from glycan_profiling.scoring.base import ScoringFeatureBase
 from .structure import _get_apex_time, GlycopeptideChromatogramProxy, GlycoformAggregator, DeltaOverTimeFilter
 from .linear_regression import (ransac, weighted_linear_regression_fit, prediction_interval, SMALL_ERROR, weighted_linear_regression_fit_ridge)
 from .reviser import (IntervalModelReviser, IsotopeRule, AmmoniumMaskedRule,
-                      AmmoniumUnmaskedRule, HexNAc2Fuc1NeuAc2ToHex6AmmoniumRule, IsotopeRule2)
+                      AmmoniumUnmaskedRule, HexNAc2NeuAc2ToHex6AmmoniumRule,
+                      IsotopeRule2, HexNAc2Fuc1NeuAc2ToHex7)
 
 logger = logging.getLogger("glycan_profiling.elution_time_model")
 logger.addHandler(logging.NullHandler())
@@ -1285,7 +1286,8 @@ class GlycopeptideElutionTimeModelBuildingPipeline(TaskBase):
                 AmmoniumUnmaskedRule,
                 IsotopeRule,
                 IsotopeRule2,
-                HexNAc2Fuc1NeuAc2ToHex6AmmoniumRule
+                HexNAc2NeuAc2ToHex6AmmoniumRule,
+                HexNAc2Fuc1NeuAc2ToHex7,
             ],
             chromatograms, valid_glycans=self.valid_glycans)
         reviser.evaluate()
