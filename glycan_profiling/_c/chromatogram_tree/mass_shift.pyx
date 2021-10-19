@@ -68,11 +68,14 @@ cdef class MassShift(MassShiftBase):
 
         if self == other:
             return self * 2
-        if other.composed_with(self):
+        if isinstance(other, CompoundMassShift):
             return other + self
-        name = "(%s) + (%s)" % (self.name, other.name)
-        composition = self.composition + other.composition
-        return self.__class__(name, composition)
+        else:
+            composite = {
+                other: 1,
+                self: 1
+            }
+            return CompoundMassShift(composite)
 
     def __sub__(self, other):
         if other.composition == {}:
@@ -82,12 +85,16 @@ cdef class MassShift(MassShiftBase):
             composition = -other.composition
         if self == other:
             return Unmodified
+        if isinstance(other, CompoundMassShift):
+            return other - self
         if other.composed_with(self):
             return other - self
         else:
-            name = "(%s) - (%s)" % (self.name, other.name)
-            composition = self.composition - other.composition
-        return self.__class__(name, composition)
+            composite = {
+                other: -1,
+                self: 1
+            }
+            return CompoundMassShift(composite)
 
     def composed_with(self, other):
         return self == other

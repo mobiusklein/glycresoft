@@ -1,6 +1,7 @@
 import csv
-from itertools import chain
-from collections import defaultdict, OrderedDict
+
+from collections import defaultdict
+
 try:
     from collections.abc import Sequence, Mapping
 except ImportError:
@@ -8,6 +9,7 @@ except ImportError:
 
 import numpy as np
 from scipy.ndimage import gaussian_filter1d, median_filter
+
 try:
     from matplotlib import pyplot as plt
 except ImportError:
@@ -20,7 +22,8 @@ from glycan_profiling.structure import FragmentCachingGlycopeptide
 from ms_deisotope.peak_dependency_network.intervals import SpanningMixin, IntervalTreeNode
 
 from glycan_profiling.chromatogram_tree.utils import ArithmeticMapping
-from glycan_profiling.chromatogram_tree.mass_shift import MassShift
+from glycan_profiling.chromatogram_tree.mass_shift import MassShift, Unmodified
+
 
 def _try_parse(value):
     if isinstance(value, (int, float)):
@@ -45,18 +48,16 @@ def _get_apex_time(chromatogram):
 class ChromatogramProxy(object):
 
     def __init__(self, weighted_neutral_mass, apex_time, total_signal, glycan_composition, source=None, mass_shifts=None, weight=1.0, **kwargs):
+        if mass_shifts is None:
+            mass_shifts = [Unmodified]
         self.weighted_neutral_mass = weighted_neutral_mass
         self.apex_time = apex_time
         self.total_signal = total_signal
         self.glycan_composition = glycan_composition
         self.source = source
-        self._mass_shifts = None
+        self.mass_shifts = mass_shifts
         self.weight = weight
         self.kwargs = kwargs
-        if mass_shifts:
-            if isinstance(mass_shifts, str):
-                mass_shifts = mass_shifts.split(";")
-            self.kwargs['mass_shifts'] = ';'.join([getattr(m, 'name', m) for m in mass_shifts])
 
     @property
     def revised_from(self):
@@ -67,21 +68,16 @@ class ChromatogramProxy(object):
         self.kwargs['revised_from'] = value
 
     @property
-    def mass_shifts(self):
-        if self._mass_shifts is None:
-            self._mass_shifts = [
-                MassShift(name, MassShift.get(name)) for name in self.kwargs.get("mass_shifts", '').split(";")]
-        return self._mass_shifts
-
-    @mass_shifts.setter
-    def mass_shifts(self, value):
-        self._mass_shifts = value
-        self.kwargs['mass_shifts'] = ';'.join(
-            [getattr(m, 'name', m) for m in value])
-
-    @property
     def annotations(self):
         return self.kwargs
+
+    @property
+    def tag(self):
+        return self.kwargs.get('tag')
+
+    @tag.setter
+    def tag(self, value):
+        self.kwargs['tag'] = value
 
     def __repr__(self):
         return "%s(%f, %f, %f, %s, %s)" % (
@@ -106,27 +102,47 @@ class ChromatogramProxy(object):
             HashableGlycanComposition(obj.glycan_composition), obj, **kwargs)
         return inst
 
+    @classmethod
+    def from_spectrum_match(cls, spectrum_match, source=None, **kwargs):
+        if source is None:
+            source = spectrum_match
+        return cls(
+            spectrum_match.scan.precursor_information.neutral_mass, spectrum_match.scan.scan_time, 0.0,
+            spectrum_match.glycan_composition, source, [spectrum_match.mass_shift], **kwargs)
+
     def get_chromatogram(self):
         return self.source.get_chromatogram()
 
     def _to_csv(self):
+        d = self._prepare_state()
+        d['mass_shifts'] = ';'.join(m.name for m in d['mass_shifts'])
+        return d
+
+    def _prepare_state(self):
         d = {
             "weighted_neutral_mass": self.weighted_neutral_mass,
             "apex_time": self.apex_time,
             "total_signal": self.total_signal,
             "glycan_composition": self.glycan_composition,
             "weight": self.weight,
+            "mass_shifts": [m for m in self.mass_shifts],
         }
         d.update(self.kwargs)
         return d
 
+    @classmethod
+    def _from_state(cls, state):
+        new = cls.__new__(cls)
+        new.__setstate__(state)
+        return new
+
     def copy(self):
-        dup = self._from_csv(self._to_csv())
+        dup = self._from_state(self._prepare_state())
         dup.source = self.source
         return dup
 
     def __getstate__(self):
-        state = self._to_csv()
+        state = self._prepare_state()
         state['weight'] = self.weight
         return state
 
@@ -138,7 +154,7 @@ class ChromatogramProxy(object):
         self.weighted_neutral_mass = state.pop("weighted_neutral_mass", None)
         self.weight = state.pop('weight', 1.0)
         self.source = None
-        self._mass_shifts = None
+        self.mass_shifts = state.pop("mass_shifts", [Unmodified])
         self.kwargs = state
 
     def __getattr__(self, attr):
@@ -220,6 +236,15 @@ class GlycopeptideChromatogramProxy(ChromatogramProxy):
     def from_obj(cls, obj, **kwargs):
         gp = FragmentCachingGlycopeptide(str(obj.structure))
         return super(GlycopeptideChromatogramProxy, cls).from_obj(obj, structure=gp, **kwargs)
+
+    @classmethod
+    def from_spectrum_match(cls, spectrum_match, source=None, **kwargs):
+        if source is None:
+            source = spectrum_match
+        gp = FragmentCachingGlycopeptide(str(spectrum_match.target))
+        return cls(
+            spectrum_match.scan.precursor_information.neutral_mass, spectrum_match.scan.scan_time, 0.0,
+            spectrum_match.glycan_composition, source, [spectrum_match.mass_shift], structure=gp, **kwargs)
 
     def shift_glycan_composition(self, delta):
         inst = super(GlycopeptideChromatogramProxy, self).shift_glycan_composition(delta)

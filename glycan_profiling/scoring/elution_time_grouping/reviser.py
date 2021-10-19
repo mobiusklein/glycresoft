@@ -63,20 +63,30 @@ class ValidatingRevisionRule(RevisionRule):
 class MassShiftRule(object):
     def __init__(self, mass_shift, multiplicity):
         self.mass_shift = mass_shift
-        self.multiplicity = multiplicity
+        self.sign = multiplicity / abs(multiplicity)
+        self.multiplicity = abs(multiplicity)
+        self.single = abs(multiplicity) == 1
 
     def valid(self, record):
-        if self.multiplicity < 0:
+        assert isinstance(self.mass_shift, mass_shift.MassShift)
+        if self.sign < 0:
+            # Can only lose a mass shift if all the mass shifts of the analyte are able to lose self.mass_shift without going
+            # negative
             for shift in record.mass_shifts:
-                if (shift + (self.mass_shift * self.multiplicity)).mass < 0:
+                # The current mass shift is a compound mass shift, potentially having multiple copies of self.mass_shift
+                if isinstance(shift, mass_shift.CompoundMassShift) and shift.counts.get(self.mass_shift, 0) < self.multiplicity:
+                    return False
+                # The current mass shift is a single simple mass shift and it isn't a match for self.mass_shift or self.multiplicity > 1
+                elif isinstance(shift, mass_shift.MassShift) and (shift != self.mass_shift) or (shift == self.mass_shift and not self.single):
                     return False
             return True
         else:
+            # Can always gain a mass shift
             return True
 
     def apply(self, record):
         new = record.copy()
-        new.mass_shifts = [m + (self.mass_shift * self.multiplicity) for m in new.mass_shifts]
+        new.mass_shifts = [m + (self.mass_shift * self.sign * self.multiplicity) for m in new.mass_shifts]
         return new
 
     def __call__(self, record):
@@ -187,8 +197,12 @@ AmmoniumUnmaskedRule = RevisionRule(
 IsotopeRule = RevisionRule(HashableGlycanComposition(Fuc=-2, Neu5Ac=1))
 IsotopeRule2 = RevisionRule(HashableGlycanComposition(Fuc=-4, Neu5Ac=2))
 
-HexNAc2Fuc1NeuAc2ToHex6AmmoniumRule = ValidatingRevisionRule(
+HexNAc2NeuAc2ToHex6AmmoniumRule = ValidatingRevisionRule(
     HashableGlycanComposition(Hex=-6, HexNAc=2, Neu5Ac=2),
+    validator=lambda x: x.glycan_composition['Neu5Ac'] == 0 and x.glycan_composition['Fuc'] == 0 and x.glycan_composition['HexNAc'] == 2)
+
+HexNAc2Fuc1NeuAc2ToHex7 = ValidatingRevisionRule(
+    HashableGlycanComposition(Hex=-7, HexNAc=2, Neu5Ac=2, Fuc=1),
     validator=lambda x: x.glycan_composition['Neu5Ac'] == 0 and x.glycan_composition['Fuc'] == 0 and x.glycan_composition['HexNAc'] == 2)
 
 NeuAc1Hex1ToNeuGc1Fuc1Rule = RevisionRule(

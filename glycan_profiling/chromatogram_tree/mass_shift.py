@@ -55,6 +55,14 @@ class MassShift(MassShiftBase):
         else:
             raise TypeError("Cannot multiply MassShift by non-integer")
 
+    def __rmul__(self, n):
+        if self.composition == {}:
+            return self
+        if isinstance(n, int):
+            return CompoundMassShift({self: n})
+        else:
+            raise TypeError("Cannot multiply MassShift by non-integer")
+
     def __getstate__(self):
         return {
             "tandem_composition": self.tandem_composition,
@@ -93,14 +101,12 @@ class MassShift(MassShiftBase):
 
         if self == other:
             return self * 2
-        if other.composed_with(self):
+        if isinstance(other, CompoundMassShift):
             return other + self
-
-        name = "(%s) + (%s)" % (self.name, other.name)
-        composition = self.composition + other.composition
-        tandem_composition = self.tandem_composition + other.tandem_composition
-        charge_carrier = self.charge_carrier + other.charge_carrier
-        return self.__class__(name, composition, tandem_composition, charge_carrier)
+        return CompoundMassShift({
+            self: 1,
+            other: 1
+        })
 
     def __sub__(self, other):
         if other.composition == {}:
@@ -112,15 +118,13 @@ class MassShift(MassShiftBase):
             charge_carrier = -other.charge_carrier
         if self == other:
             return Unmodified
-        if other.composed_with(self):
+        if isinstance(other, CompoundMassShift):
             return other - self
         else:
-            name = "(%s) - (%s)" % (self.name, other.name)
-            composition = self.composition - other.composition
-            tandem_composition = self.tandem_composition - other.tandem_composition
-            charge_carrier = self.charge_carrier - other.charge_carrier
-
-        return self.__class__(name, composition, tandem_composition, charge_carrier)
+            return CompoundMassShift({
+                self: 1,
+                other: -1
+            })
 
     def composed_with(self, other):
         return self == other
