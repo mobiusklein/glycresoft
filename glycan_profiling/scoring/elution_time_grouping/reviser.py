@@ -125,6 +125,18 @@ class ModelReviser(object):
     def rescore(self, case):
         return self.model.score(case)
 
+    def propose_revisions(self, case):
+        propositions = {
+            None: (case, self.rescore(case)),
+        }
+        for rule in self.rules:
+            if rule.valid(case):
+                rec = rule(case)
+                if self.valid_glycans and rec.structure.glycan_composition not in self.valid_glycans:
+                    continue
+                propositions[rule] = (rec, self.rescore(rec))
+        return propositions
+
     def process_rule(self, rule):
         alts = []
         alt_scores = array('d')
