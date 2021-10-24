@@ -13,7 +13,7 @@ from .ref import SpectrumReference, TargetReference
 class TempFileManager(object):
     def __init__(self, base_directory=None):
         if base_directory is None:
-            base_directory = tempfile.mkdtemp("glycresoft"[::-1])
+            base_directory = tempfile.mkdtemp(prefix="glycresoft_tmp_")
         else:
             try:
                 os.makedirs(base_directory)
