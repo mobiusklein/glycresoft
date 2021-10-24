@@ -213,7 +213,7 @@ class StructureMapper(TaskExecutionSequence):
             solutions = predictive_search.handle_scan_group(
                 group, mass_shifts=self.mass_shifts, precursor_error_tolerance=self.precursor_error_tolerance)
             total_work += solutions.total_work_required()
-            if i % 25 == 0 and i != 0:
+            if i % 100 == 0 and i != 0:
                 self.log('... Mapped Group %d (%0.2f%%) %0.3f-%0.3f with %d Items (%d Total)' % (
                     i + self.group_i, i * 100.0 / len(self.chunk), lo, hi,
                     solutions.total_work_required(), total_work))
