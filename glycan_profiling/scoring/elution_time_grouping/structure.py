@@ -108,7 +108,7 @@ class ChromatogramProxy(object):
             source = spectrum_match
         return cls(
             spectrum_match.scan.precursor_information.neutral_mass, spectrum_match.scan.scan_time, 0.0,
-            spectrum_match.glycan_composition, source, [spectrum_match.mass_shift], **kwargs)
+            spectrum_match.target.glycan_composition, source, [spectrum_match.mass_shift], **kwargs)
 
     def get_chromatogram(self):
         return self.source.get_chromatogram()
@@ -244,7 +244,7 @@ class GlycopeptideChromatogramProxy(ChromatogramProxy):
         gp = FragmentCachingGlycopeptide(str(spectrum_match.target))
         return cls(
             spectrum_match.scan.precursor_information.neutral_mass, spectrum_match.scan.scan_time, 0.0,
-            spectrum_match.glycan_composition, source, [spectrum_match.mass_shift], structure=gp, **kwargs)
+            spectrum_match.target.glycan_composition, source, [spectrum_match.mass_shift], structure=gp, **kwargs)
 
     def shift_glycan_composition(self, delta):
         inst = super(GlycopeptideChromatogramProxy, self).shift_glycan_composition(delta)
