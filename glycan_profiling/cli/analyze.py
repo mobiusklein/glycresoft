@@ -323,7 +323,11 @@ def search_glycopeptide(context, database_connection, sample_path, hypothesis_id
 @click.option("-o", "--output-path", default=None, type=click.Path(writable=True),
               help=("Path to write resulting analysis to."), required=True)
 @click.option("-w", "--workload-size", default=100, type=int, help="Number of spectra to process at once")
-@click.option("-R", "--rare-signatures", is_flag=True, default=False, help="Look for rare signature ions when scoring glycan oxonium signature")
+@click.option("-R", "--rare-signatures", is_flag=True, default=False,
+              help="Look for rare signature ions when scoring glycan oxonium signature")
+@click.option("--retention-time-modeling/--no-retention-time-modeling", is_flag=True, default=True,
+              help=("Whether or not to model relative retention time to correct for common glycan"
+                    " composition errors."))
 @click.option("--save-intermediate-results", default=None, type=click.Path(), required=False,
               help='Save intermediate spectrum matches to a file', cls=HiddenOption)
 @click.option("--maximum-mass", default=float('inf'), type=float, cls=HiddenOption)
@@ -339,7 +343,8 @@ def search_glycopeptide_multipart(context, database_connection, decoy_database_c
                                   memory_database_index=False, save_intermediate_results=None, processes=4,
                                   workload_size=100, mass_shifts=None, export=None, maximum_mass=float('inf'),
                                   isotope_probing_range=3, fdr_estimation_strategy=None,
-                                  glycoproteome_smoothing_model=None, rare_signatures=False):
+                                  glycoproteome_smoothing_model=None, rare_signatures=False,
+                                  retention_time_modeling=True):
     '''
     '''
     if fdr_estimation_strategy is None:
@@ -413,7 +418,8 @@ def search_glycopeptide_multipart(context, database_connection, decoy_database_c
         fdr_estimation_strategy=fdr_estimation_strategy,
         glycosylation_site_models_path=glycoproteome_smoothing_model,
         fragile_fucose=False,
-        rare_signatures=rare_signatures)
+        rare_signatures=rare_signatures,
+        )
     analyzer.display_header()
     result = analyzer.start()
     gps, unassigned, target_decoy_set = result[:3]
