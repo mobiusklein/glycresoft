@@ -1,6 +1,7 @@
 import os
 
 from collections import defaultdict, namedtuple
+
 import array
 import numpy as np
 
@@ -12,6 +13,8 @@ from glycan_profiling.chromatogram_tree import (
 from glycan_profiling.chromatogram_tree.chromatogram import GlycopeptideChromatogram
 from glycan_profiling.chromatogram_tree.relation_graph import (
     ChromatogramGraph, ChromatogramGraphEdge, ChromatogramGraphNode, TimeQuery)
+
+from glycan_profiling.scoring.chromatogram_solution import ChromatogramSolution
 
 from .spectrum_match.solution_set import NOParsimonyMixin
 
@@ -142,7 +145,7 @@ class MassShiftDeconvolutionGraph(ChromatogramGraph):
 
 SolutionEntry = namedtuple("SolutionEntry", "solution, score, percentile, best_score, match")
 
-debug_mode = bool(os.environ.get('GLYCRESOFTDEBUG', False))
+debug_mode = bool(os.environ.get('GLYCRESOFTCHROMATOGRAMDEBUG', False))
 
 
 class NOParsimonyRepresentativeSelector(NOParsimonyMixin):
@@ -274,8 +277,15 @@ class SpectrumMatchSolutionCollectionBase(object):
         """
         if strategy is None:
             strategy = TotalBestRepresenterStrategy()
-        weights = strategy(self, threshold_fn=threshold_fn)
+        weights = strategy(self, threshold_fn=threshold_fn, targets_ignored=targets_ignored)
         return weights
+
+    def filter_entries(self, entries, percentile_threshold=1e-5):
+        # This difference is not using the absolute value to allow for scenarios where
+        # a worse percentile is located at position 0 e.g. when hoisting via parsimony.
+        representers = [x for x in entries if (
+            entries[0].percentile - x.percentile) < percentile_threshold]
+        return representers
 
     def most_representative_solutions(self, threshold_fn=always, reject_shifted=False, targets_ignored=None,
                                       percentile_threshold=1e-5):
@@ -300,10 +310,8 @@ class SpectrumMatchSolutionCollectionBase(object):
         weights = self.compute_representative_weights(
             threshold_fn, reject_shifted=reject_shifted, targets_ignored=targets_ignored)
         if weights:
-            # This difference is not using the absolute value to allow for scenarios where
-            # a worse percentile is located at position 0 e.g. when hoisting via parsimony.
-            representers = [x for x in weights if (
-                weights[0].percentile - x.percentile) < percentile_threshold]
+            representers = self.filter_entries(
+                weights, percentile_threshold=percentile_threshold)
             return representers
         else:
             return []
@@ -446,6 +454,35 @@ class TandemSolutionsWithoutChromatogram(SpectrumMatchSolutionCollectionBase):
         self.entity = entity
         self.composition = entity
         self.tandem_solutions = tandem_solutions
+        self.mass_shift = None
+        self.best_msms_score = None
+        self.update_mass_shift_and_score()
+
+    def update_mass_shift_and_score(self):
+        match = self.best_match_for(self.structure)
+        if match is not None:
+            self.mass_shift = match.mass_shift
+            self.best_msms_score = match.score
+
+    def assign_entity(self, solution_entry):
+        entity = solution_entry.solution
+        mass_shift = solution_entry.match.mass_shift
+        self.structure = entity
+        self.mass_shift = mass_shift
+        self.best_msms_score = solution_entry.best_score
+
+    @property
+    def structure(self):
+        return self.entity
+
+    @structure.setter
+    def structure(self, value):
+        self.entity = value
+        self.composition = value
+
+    def __repr__(self):
+        template = "{self.__class__.__name__}({self.entity!r}, {self.tandem_solutions}, {self.mass_shift})"
+        return template.format(self=self)
 
     @classmethod
     def aggregate(cls, solutions):
@@ -1284,6 +1321,7 @@ class SpectrumMatchUpdater(TaskBase):
     def process_revision(self, revision, chromatogram=None):
         if chromatogram is None:
             chromatogram = revision.source
+
         reference = chromatogram.structure
         mass_shifts = revision.mass_shifts
         revised_structure = revision.structure
@@ -1309,8 +1347,17 @@ class SpectrumMatchUpdater(TaskBase):
                 keep.append(r)
 
         assert match
-        representers = match + keep
-        chromatogram.representative_solutions = representers
+        representers = chromatogram.filter_entries(match + keep)
+        # When the input is a ChromatogramSolution, we have to explicitly
+        # set the attribute on the wrapped chromatogram object, not the wrapper
+        # or else it will be lost during later unwrapping.
+        if isinstance(chromatogram, ChromatogramSolution):
+            chromatogram.chromatogram.representative_solutions = representers
+        else:
+            chromatogram.representative_solutions = representers
+
+        # This mutation is safe to call directly since it passes through the
+        # universal __getattr__ wrapper
         chromatogram.assign_entity(match[0])
         return chromatogram
 
