@@ -1277,9 +1277,7 @@ class GlycopeptideElutionTimeModelBuildingPipeline(TaskBase):
         tags = {t.tag for t in revision}
         return self.fit_model(aggregate, lambda x: x.tag in tags, regularize=regularize)
 
-    def revise_with(self, model, chromatograms, delta=0.65, min_time_difference=None):
-        if min_time_difference is None:
-            min_time_difference = max(model.width_range.lower, 0.5)
+    def _make_reviser(self, model, chromatograms):
         reviser = IntervalModelReviser(
             model, [
                 AmmoniumMaskedRule,
@@ -1290,6 +1288,12 @@ class GlycopeptideElutionTimeModelBuildingPipeline(TaskBase):
                 HexNAc2Fuc1NeuAc2ToHex7,
             ],
             chromatograms, valid_glycans=self.valid_glycans)
+        return reviser
+
+    def revise_with(self, model, chromatograms, delta=0.35, min_time_difference=None):
+        if min_time_difference is None:
+            min_time_difference = max(model.width_range.lower, 0.5)
+        reviser = self._make_reviser(model, chromatograms)
         reviser.evaluate()
         assert not np.isnan(model.width_range.lower)
         revised = reviser.revise(0.2, delta,  min_time_difference)
