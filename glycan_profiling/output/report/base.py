@@ -69,10 +69,10 @@ def png_plot(figure, img_width=None, img_height=None, xattrs=None, **kwargs):
     if img_height is not None:
         xml_attributes['height'] = img_height
     data_buffer = render_plot(figure, format='png', **kwargs)
-    return b"<img %s src='data:image/png;base64,%s'>" % (
+    return (b"<img %s src='data:image/png;base64,%s'>" % (
         xmlattrs(**xml_attributes),
         base64.b64encode(data_buffer.getvalue())
-        ).decode('utf8')
+        )).decode('utf8')
 
 
 def svguri_plot(figure, **kwargs):
