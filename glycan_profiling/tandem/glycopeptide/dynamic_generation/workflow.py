@@ -6,6 +6,7 @@ import ctypes
 import datetime
 import zlib
 from collections import OrderedDict
+
 try:
     import cPickle as pickle
 except ImportError:
@@ -152,10 +153,17 @@ class PeptideDatabaseProxyLoader(TaskBase):
         self.log("... Loading peptides from %r:%r" % (self.path, self.hypothesis_id))
         start = datetime.datetime.now()
         if filter_level == 1:
-            # Fast path for N-glycosylation sites which are marked, but where the bounds
-            # aren't precise so the if statements are still needed.
-            q = db.spanning_n_glycosylation_site()
-            iterator = FetchManyIterator(db.session.execute(q))
+            has_sites = db.query(serialize.ProteinSite).join(serialize.ProteinSite.protein).filter(
+                serialize.Protein.hypothesis_id == self.hypothesis_id,
+                serialize.ProteinSite.name == serialize.ProteinSite.N_GLYCOSYLATION).first()
+            # This is an old database, have to do a full scan.
+            if has_sites is None:
+                iterator = db
+            else:
+                # Fast path for N-glycosylation sites which are marked, but where the bounds
+                # aren't precise so the if statements are still needed.
+                q = db.spanning_n_glycosylation_site()
+                iterator = FetchManyIterator(db.session.execute(q))
         else:
             iterator = db
         seen = set()
@@ -173,7 +181,7 @@ class PeptideDatabaseProxyLoader(TaskBase):
         db.session.remove()
         end = datetime.datetime.now()
         elapsed = (end - start).total_seconds()
-        self.log("... %0.2f seconds elapsed." % elapsed)
+        self.log("... %0.2f seconds elapsed. Loaded %d peptides" % (elapsed, len(peptides)))
         mem_db = disk_backed_database.InMemoryPeptideStructureDatabase(peptides, db)
         return mem_db
 
@@ -539,7 +547,10 @@ class IdentificationWorker(TaskExecutionSequence):
         if isinstance(self.target_predictive_search, (str, bytes)):
             self.target_predictive_search, self.decoy_predictive_search = pickle.loads(zlib.decompress(self.target_predictive_search))
         mapping_executor = SemaphoreBoundMapperExecutor(
-            MultiLock([lock, SectionAnnouncer("%r Matching Precursors" % (self, ))]),
+            MultiLock([
+                lock,
+                # SectionAnnouncer("%r Matching Precursors" % (self, ))
+            ]),
             OrderedDict([
                 ('target', self.target_predictive_search),
                 ('decoy', self.decoy_predictive_search)
@@ -550,7 +561,11 @@ class IdentificationWorker(TaskExecutionSequence):
             self.input_done_event,
         )
         matching_executor = SemaphoreBoundMatcherExecutor(
-            MultiLock([lock, self.branch_semaphore, SectionAnnouncer("%r Matching Spectra" % (self, ))]),
+            MultiLock([
+                lock,
+                self.branch_semaphore,
+                # SectionAnnouncer("%r Matching Spectra" % (self, ))
+            ]),
             mapping_executor.out_queue,
             Queue(5),
             mapping_executor.done_event,
