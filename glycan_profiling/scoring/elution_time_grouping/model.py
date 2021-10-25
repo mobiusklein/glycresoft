@@ -1207,6 +1207,8 @@ def mask_in(full_set, incoming):
     return out
 
 
+# The self paramter is included as this function is later bound to a class directly
+# so it gets made into a method
 def model_type_dispatch(self, chromatogams, factors=None, scale=1, transform=None, width_range=None, regularize=False):
     try:
         return RelativeShiftFactorElutionTimeFitter(
@@ -1216,6 +1218,8 @@ def model_type_dispatch(self, chromatogams, factors=None, scale=1, transform=Non
             chromatogams, factors, scale, transform, width_range, regularize)
 
 
+# The self paramter is included as this function is later bound to a class directly
+# so it gets made into a method
 def model_type_dispatch_outlier_remove(self, chromatogams, factors=None, scale=1, transform=None, width_range=None, regularize=False):
     try:
         return LocalOutlierFilteringRelativeShiftFactorElutionTimeFitter(
@@ -1232,7 +1236,7 @@ class GlycopeptideElutionTimeModelBuildingPipeline(TaskBase):
 
     model_type = model_type_dispatch_outlier_remove
 
-    def __init__(self, aggregate, calibration_alpha=0.001, valid_glycans=None):
+    def __init__(self, aggregate, calibration_alpha=0.001, valid_glycans=None, initial_filter=unmodified_modified_predicate):
         self.aggregate = aggregate
         self.calibration_alpha = calibration_alpha
         self._current_model = None
@@ -1240,6 +1244,7 @@ class GlycopeptideElutionTimeModelBuildingPipeline(TaskBase):
         self.revision_history = []
         self.revised_tags = set()
         self.valid_glycans = valid_glycans
+        self.initial_filter = initial_filter
 
     @property
     def current_model(self):
@@ -1254,7 +1259,7 @@ class GlycopeptideElutionTimeModelBuildingPipeline(TaskBase):
     def fit_first_model(self, regularize=False):
         model = self.fit_model(
             self.aggregate,
-            unmodified_modified_predicate,
+            self.initial_filter,
             regularize=regularize)
         return model
 
