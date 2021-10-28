@@ -18,6 +18,8 @@ from sqlalchemy.orm import relationship, backref, object_session, deferred
 from sqlalchemy.ext.declarative import declared_attr
 from sqlalchemy.ext.mutable import MutableDict
 
+from ms_deisotope.data_source._compression import starts_with_gz_magic, test_gzipped
+
 from glypy import Composition
 
 from ..base import (
@@ -168,15 +170,17 @@ class FileBlob(Base):
     @classmethod
     def from_file(cls, fp, compress=False):
         inst = cls(name=os.path.basename(fp.name), compressed=compress)
-        if compress:
+        data = fp.read()
+        has_gz_magic = starts_with_gz_magic(data)
+        if compress and not has_gz_magic:
             buff = BytesIO()
             with gzip.GzipFile(mode='wb', fileobj=buff) as compressor:
-                compressor.write(fp.read())
+                compressor.write(data)
             buff.seek(0)
             data = buff.read()
             inst.name += '.gz'
-        else:
-            data = fp.read()
+        if not compress and has_gz_magic:
+            inst.compressed = True
         inst.data = data
         return inst
 
