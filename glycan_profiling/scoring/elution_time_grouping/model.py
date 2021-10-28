@@ -33,6 +33,7 @@ from .linear_regression import (ransac, weighted_linear_regression_fit, predicti
 from .reviser import (IntervalModelReviser, IsotopeRule, AmmoniumMaskedRule,
                       AmmoniumUnmaskedRule, HexNAc2NeuAc2ToHex6AmmoniumRule,
                       IsotopeRule2, HexNAc2Fuc1NeuAc2ToHex7)
+from . import reviser as libreviser
 
 logger = logging.getLogger("glycan_profiling.elution_time_model")
 logger.addHandler(logging.NullHandler())
@@ -523,7 +524,10 @@ class AbundanceWeightedFactorElutionTimeFitter(AbundanceWeightedMixin, FactorElu
 
 class PeptideBackboneKeyedMixin(object):
     def get_peptide_key(self, chromatogram):
-        return chromatogram.peptide_key
+        try:
+            return chromatogram.peptide_key
+        except AttributeError:
+            return GlycopeptideChromatogramProxy.from_obj(chromatogram).peptide_key
 
 
 class PeptideGroupChromatogramFeatureizer(FactorChromatogramFeatureizer, PeptideBackboneKeyedMixin):
@@ -840,6 +844,30 @@ class ModelEnsemble(PeptideBackboneKeyedMixin):
         if np.isnan(self.width_range.lower):
             raise ValueError("Width range cannot be NaN")
         return self
+
+    def plot_factor_coefficients(self, ax=None):
+        if ax is None:
+            _fig, ax = plt.subplots(1)
+
+        def local_point(point, factor):
+            val = []
+            weights = []
+            for mod, weight in self._models_for(point):
+                val.append(mod.to_dict()[factor])
+                weights.append(weight)
+            if not weights:
+                return 0.0
+            return np.average(val, weights=weights)
+
+        factors = set()
+        list(map(lambda x: factors.update(x.factors), self.models.values()))
+        for factor in factors:
+            ax.plot(
+                *zip(*[(t, local_point(t, factor)) for t, _mod in self.models.items()]),
+                label=factor, marker='.')
+        ax.legend()
+
+        return ax
 
 
 def unmodified_modified_predicate(x):
@@ -1293,6 +1321,20 @@ class GlycopeptideElutionTimeModelBuildingPipeline(TaskBase):
                 HexNAc2Fuc1NeuAc2ToHex7,
             ],
             chromatograms, valid_glycans=self.valid_glycans)
+        if self.valid_glycans:
+            fucose = 0
+            dhex = 0
+            for gc in self.valid_glycans:
+                fucose += gc['Fuc']
+                dhex += gc['dHex']
+            if fucose == 0 and dhex > 0:
+                reviser.modify_rules({libreviser.fuc: libreviser.dhex})
+            elif dhex == 0 and fucose > 0:
+                # no-op, we don't need to make changes to the current
+                # rules.
+                pass
+            else:
+                self.log("No Fuc or d-Hex detected in valid glycans, no rule modifications inferred")
         return reviser
 
     def revise_with(self, model, chromatograms, delta=0.35, min_time_difference=None):
