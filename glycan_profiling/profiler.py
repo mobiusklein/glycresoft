@@ -1319,7 +1319,14 @@ class MultipartGlycopeptideLCMSMSAnalyzer(MzMLGlycopeptideLCMSMSAnalyzer):
             database.session.query(serialize.GlycanCombination).all()]
 
         proxies = [GlycopeptideChromatogramProxy.from_obj(chrom) for chrom in scored_chromatograms]
-        glycoform_agg = GlycoformAggregator(proxies)
+
+        by_structure = defaultdict(list)
+        for proxy in proxies:
+            by_structure[proxy.structure].append(proxy)
+        best_instances = [max(v, key=lambda x: x.total_signal)
+                          for v in by_structure.values()]
+
+        glycoform_agg = GlycoformAggregator(best_instances)
 
         self.log("... Begin Retention Time Modeling")
 
@@ -1331,6 +1338,14 @@ class MultipartGlycopeptideLCMSMSAnalyzer(MzMLGlycopeptideLCMSMSAnalyzer):
 
         was_updated = []
         for rev in revisions:
+            if rev.revised_from and rev.structure != rev.source.structure:
+                was_updated.append(rev)
+
+        secondary_observations = [
+            runner_up for group in by_structure.values() for runner_up in group[1:]]
+
+        self.log("... Revising Secondary Occurrences")
+        for rev in pipeline.revise_with(result, secondary_observations):
             if rev.revised_from and rev.structure != rev.source.structure:
                 was_updated.append(rev)
 
