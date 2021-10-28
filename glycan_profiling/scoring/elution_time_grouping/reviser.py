@@ -3,7 +3,7 @@ from collections import defaultdict
 
 import numpy as np
 
-from glypy.structure.glycan_composition import HashableGlycanComposition
+from glypy.structure.glycan_composition import HashableGlycanComposition, FrozenMonosaccharideResidue
 from glycan_profiling.chromatogram_tree import mass_shift
 
 from glycan_profiling.chromatogram_tree.mass_shift import Unmodified, Ammonium
@@ -13,6 +13,9 @@ class RevisionRule(object):
         self.delta_glycan = HashableGlycanComposition.parse(delta_glycan)
         self.mass_shift_rule = mass_shift_rule
         self.priority = priority
+
+    def clone(self):
+        return self.__class__(self.delta_glycan.clone(), self.mass_shift_rule.clone(), self.priority)
 
     def valid(self, record):
         new_record = self(record)
@@ -54,6 +57,9 @@ class ValidatingRevisionRule(RevisionRule):
             delta_glycan, mass_shift_rule=mass_shift_rule, priority=priority)
         self.validator = validator
 
+    def clone(self):
+        return self.__class__(self.delta_glycan.clone(), self.validator, self.mass_shift_rule.clone(), self.priority)
+
     def valid(self, record):
         if super(ValidatingRevisionRule, self).valid(record):
             return self.validator(record)
@@ -66,6 +72,9 @@ class MassShiftRule(object):
         self.sign = multiplicity / abs(multiplicity)
         self.multiplicity = abs(multiplicity)
         self.single = abs(multiplicity) == 1
+
+    def clone(self):
+        return self.__class__(self.mass_shift, self.multiplicity * self.sign)
 
     def valid(self, record):
         assert isinstance(self.mass_shift, mass_shift.MassShift)
@@ -124,6 +133,19 @@ class ModelReviser(object):
 
     def rescore(self, case):
         return self.model.score(case)
+
+    def modify_rules(self, symbol_map):
+        rules = list(self.rules)
+        for sym_from, sym_to in symbol_map.items():
+            editted = []
+            for rule in rules:
+                if sym_from in rule.delta_glycan:
+                    rule = rule.clone()
+                    count = rule.delta_glycan.pop(sym_from)
+                    rule.delta_glycan[sym_to] = count
+                editted.append(rule)
+            rules = editted
+        self.rules = rules
 
     def propose_revisions(self, case):
         propositions = {
@@ -200,6 +222,12 @@ class ModelReviser(object):
                 next_round.append(chromatograms[i])
         return next_round
 
+# TODO: Handle situations where Fuc is not present but d-Hex is.
+
+dhex = FrozenMonosaccharideResidue.from_iupac_lite("d-Hex")
+fuc = FrozenMonosaccharideResidue.from_iupac_lite("Fuc")
+neuac = FrozenMonosaccharideResidue.from_iupac_lite("Neu5Ac")
+hexnac = FrozenMonosaccharideResidue.from_iupac_lite("HexNAc")
 
 AmmoniumMaskedRule = RevisionRule(
     HashableGlycanComposition(Hex=-1, Fuc=-1, Neu5Ac=1), mass_shift_rule=MassShiftRule(Ammonium, 1), priority=1)
@@ -211,11 +239,11 @@ IsotopeRule2 = RevisionRule(HashableGlycanComposition(Fuc=-4, Neu5Ac=2))
 
 HexNAc2NeuAc2ToHex6AmmoniumRule = ValidatingRevisionRule(
     HashableGlycanComposition(Hex=-6, HexNAc=2, Neu5Ac=2),
-    validator=lambda x: x.glycan_composition['Neu5Ac'] == 0 and x.glycan_composition['Fuc'] == 0 and x.glycan_composition['HexNAc'] == 2)
+    validator=lambda x: x.glycan_composition[neuac] == 0 and x.glycan_composition.query(dhex) == 0 and x.glycan_composition[hexnac] == 2)
 
 HexNAc2Fuc1NeuAc2ToHex7 = ValidatingRevisionRule(
     HashableGlycanComposition(Hex=-7, HexNAc=2, Neu5Ac=2, Fuc=1),
-    validator=lambda x: x.glycan_composition['Neu5Ac'] == 0 and x.glycan_composition['Fuc'] == 0 and x.glycan_composition['HexNAc'] == 2)
+    validator=lambda x: x.glycan_composition[neuac] == 0 and x.glycan_composition.query(dhex) == 0 and x.glycan_composition[hexnac] == 2)
 
 NeuAc1Hex1ToNeuGc1Fuc1Rule = RevisionRule(
     HashableGlycanComposition(Neu5Ac=1, Hex=1, Neu5Gc=-1, Fuc=-1))
