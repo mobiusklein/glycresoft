@@ -15,7 +15,7 @@ class RevisionRule(object):
         self.priority = priority
 
     def clone(self):
-        return self.__class__(self.delta_glycan.clone(), self.mass_shift_rule.clone(), self.priority)
+        return self.__class__(self.delta_glycan.clone(), self.mass_shift_rule.clone() if self.mass_shift_rule else None, self.priority)
 
     def valid(self, record):
         new_record = self(record)
