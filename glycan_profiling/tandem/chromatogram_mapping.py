@@ -1188,7 +1188,7 @@ class ChromatogramMSMSMapper(TaskBase):
     def assign_solutions_to_chromatograms(self, solutions):
         n = len(solutions)
         for i, solution in enumerate(solutions):
-            if i % 1000 == 0:
+            if i % 5000 == 0:
                 self.log("... %d/%d Solutions Handled (%0.2f%%)" % (i, n, (i * 100.0 / n)))
             self.find_chromatogram_for(solution)
 
@@ -1199,7 +1199,7 @@ class ChromatogramMSMSMapper(TaskBase):
         for j, orphan in enumerate(self.orphans):
             mass = orphan.solution.precursor_ion_mass
             time = orphan.scan_time
-            if j % 100 == 0:
+            if j % 5000 == 0:
                 self.log("... %r %d/%d Orphans Handled (%0.2f%%)" % (orphan, j, n, (j * 100.0 / n)))
             candidates = self.chromatograms.find_all_by_mass(mass, self.error_tolerance)
             if len(candidates) > 0:
@@ -1217,10 +1217,11 @@ class ChromatogramMSMSMapper(TaskBase):
                 new_owner.add_displaced_solution(orphan.solution)
             else:
                 if threshold_fn(orphan.solution):
-                    if n_chromatograms > 0:
+                    if n_chromatograms > 0 and debug_mode:
                         self.log("No chromatogram found for %r, q-value %0.4f (mass: %0.4f, time: %0.4f)" % (
                             orphan, orphan.solution.q_value, mass, time))
                     lost.append(orphan.solution)
+        self.log("Distributed %d orphan identifications, %d did not find a nearby chromatogram" % (n, len(lost)))
         self.orphans = TandemSolutionsWithoutChromatogram.aggregate(lost)
 
     def assign_entities(self, threshold_fn=default_threshold, entity_chromatogram_type=None):
