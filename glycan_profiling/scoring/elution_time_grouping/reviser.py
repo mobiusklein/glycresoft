@@ -58,7 +58,7 @@ class ValidatingRevisionRule(RevisionRule):
         self.validator = validator
 
     def clone(self):
-        return self.__class__(self.delta_glycan.clone(), self.validator, self.mass_shift_rule.clone(), self.priority)
+        return self.__class__(self.delta_glycan.clone(), self.validator, self.mass_shift_rule.clone() if self.mass_shift_rule else None, self.priority)
 
     def valid(self, record):
         if super(ValidatingRevisionRule, self).valid(record):
