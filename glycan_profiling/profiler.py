@@ -1314,9 +1314,13 @@ class MultipartGlycopeptideLCMSMSAnalyzer(MzMLGlycopeptideLCMSMSAnalyzer):
         return searcher.estimate_fdr(target_decoy_set)
 
     def apply_retention_time_model(self, scored_chromatograms, orphans, database, scan_loader):
+        glycan_query = database.query(
+            serialize.GlycanCombination).join(
+                serialize.GlycanCombination.components).join(
+                    serialize.GlycanComposition.structure_classes).group_by(serialize.GlycanCombination.id)
+
         glycan_compositions = [
-            c.convert() for c in
-            database.session.query(serialize.GlycanCombination).all()]
+            c.convert() for c in glycan_query.all()]
 
         proxies = [GlycopeptideChromatogramProxy.from_obj(chrom) for chrom in scored_chromatograms]
 
