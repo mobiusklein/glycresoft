@@ -193,6 +193,8 @@ class StructureMapper(TaskExecutionSequence):
         predictive_search = self.predictive_search
         start = time.time()
         total_work = 0
+        lo_min = float('inf')
+        hi_max = 0
         for i, group in enumerate(self.chunk):
             lo = float('inf')
             hi = 0
@@ -217,10 +219,13 @@ class StructureMapper(TaskExecutionSequence):
                 self.log('... Mapped Group %d (%0.2f%%) %0.3f-%0.3f with %d Items (%d Total)' % (
                     i + self.group_i, i * 100.0 / len(self.chunk), lo, hi,
                     solutions.total_work_required(), total_work))
+            lo_min = min(lo_min, lo)
+            hi_max = max(hi_max, hi)
             workload.update(solutions)
         end = time.time()
         if counter:
-            self.log("... Mapping Completed (%0.2f sec.)" % (end - start))
+            self.log("... Mapping Completed %0.3f-%0.3f (%0.2f sec.)" %
+                     (lo_min, hi_max, end - start))
         self._log_cache()
         predictive_search.reset()
         return workload
