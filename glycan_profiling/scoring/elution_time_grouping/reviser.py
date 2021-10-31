@@ -8,6 +8,7 @@ from glycan_profiling.chromatogram_tree import mass_shift
 
 from glycan_profiling.chromatogram_tree.mass_shift import Unmodified, Ammonium
 
+
 class RevisionRule(object):
     def __init__(self, delta_glycan, mass_shift_rule=None, priority=0):
         self.delta_glycan = HashableGlycanComposition.parse(delta_glycan)
@@ -15,7 +16,8 @@ class RevisionRule(object):
         self.priority = priority
 
     def clone(self):
-        return self.__class__(self.delta_glycan.clone(), self.mass_shift_rule.clone() if self.mass_shift_rule else None, self.priority)
+        return self.__class__(
+            self.delta_glycan.clone(), self.mass_shift_rule.clone() if self.mass_shift_rule else None, self.priority)
 
     def valid(self, record):
         new_record = self(record)
@@ -33,6 +35,10 @@ class RevisionRule(object):
 
     def revert(self, record):
         return record.shift_glycan_composition(-self.delta_glycan)
+
+    def invert_rule(self):
+        return self.__class__(
+            -self.delta_glycan, self.mass_shift_rule.invert() if self.mass_shift_rule else None, self.priority)
 
     def __eq__(self, other):
         try:
@@ -58,7 +64,8 @@ class ValidatingRevisionRule(RevisionRule):
         self.validator = validator
 
     def clone(self):
-        return self.__class__(self.delta_glycan.clone(), self.validator, self.mass_shift_rule.clone() if self.mass_shift_rule else None, self.priority)
+        return self.__class__(
+            self.delta_glycan.clone(), self.validator, self.mass_shift_rule.clone() if self.mass_shift_rule else None, self.priority)
 
     def valid(self, record):
         if super(ValidatingRevisionRule, self).valid(record):
@@ -69,9 +76,12 @@ class ValidatingRevisionRule(RevisionRule):
 class MassShiftRule(object):
     def __init__(self, mass_shift, multiplicity):
         self.mass_shift = mass_shift
-        self.sign = multiplicity / abs(multiplicity)
+        self.sign = int(multiplicity / abs(multiplicity))
         self.multiplicity = abs(multiplicity)
         self.single = abs(multiplicity) == 1
+
+    def invert_rule(self):
+        return self.__class__(self.mass_shift, -self.sign * self.multiplicity)
 
     def clone(self):
         return self.__class__(self.mass_shift, self.multiplicity * self.sign)
@@ -95,7 +105,8 @@ class MassShiftRule(object):
 
     def apply(self, record):
         new = record.copy()
-        new.mass_shifts = [m + (self.mass_shift * self.sign * self.multiplicity) for m in new.mass_shifts]
+        new.mass_shifts = [
+            m + (self.mass_shift * self.sign * self.multiplicity) for m in new.mass_shifts]
         return new
 
     def __call__(self, record):
@@ -224,6 +235,7 @@ class ModelReviser(object):
 
 # TODO: Handle situations where Fuc is not present but d-Hex is.
 
+
 dhex = FrozenMonosaccharideResidue.from_iupac_lite("d-Hex")
 fuc = FrozenMonosaccharideResidue.from_iupac_lite("Fuc")
 neuac = FrozenMonosaccharideResidue.from_iupac_lite("Neu5Ac")
@@ -252,6 +264,11 @@ NeuGc1Fuc1ToNeuAc1Hex1Rule = RevisionRule(
 
 Sulfate1HexNAc2ToHex3Rule = RevisionRule(
     HashableGlycanComposition(HexNAc=2, sulfate=1, Hex=-3))
+
+Hex3ToSulfate1HexNAc2Rule = Sulfate1HexNAc2ToHex3Rule.invert_rule()
+
+SulfateToPhosphateRule = RevisionRule(HashableGlycanComposition(sulfate=-1, phosphate=1))
+PhosphateToSulfateRule = SulfateToPhosphateRule.invert_rule()
 
 
 class IntervalModelReviser(ModelReviser):

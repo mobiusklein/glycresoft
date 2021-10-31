@@ -32,7 +32,10 @@ from .structure import _get_apex_time, GlycopeptideChromatogramProxy, GlycoformA
 from .linear_regression import (ransac, weighted_linear_regression_fit, prediction_interval, SMALL_ERROR, weighted_linear_regression_fit_ridge)
 from .reviser import (IntervalModelReviser, IsotopeRule, AmmoniumMaskedRule,
                       AmmoniumUnmaskedRule, HexNAc2NeuAc2ToHex6AmmoniumRule,
-                      IsotopeRule2, HexNAc2Fuc1NeuAc2ToHex7)
+                      IsotopeRule2, HexNAc2Fuc1NeuAc2ToHex7, PhosphateToSulfateRule,
+                      SulfateToPhosphateRule, Sulfate1HexNAc2ToHex3Rule,
+                      Hex3ToSulfate1HexNAc2Rule)
+
 from . import reviser as libreviser
 
 logger = logging.getLogger("glycan_profiling.elution_time_model")
@@ -1319,6 +1322,10 @@ class GlycopeptideElutionTimeModelBuildingPipeline(TaskBase):
                 IsotopeRule2,
                 HexNAc2NeuAc2ToHex6AmmoniumRule,
                 HexNAc2Fuc1NeuAc2ToHex7,
+                SulfateToPhosphateRule,
+                PhosphateToSulfateRule,
+                Sulfate1HexNAc2ToHex3Rule,
+                Hex3ToSulfate1HexNAc2Rule,
             ],
             chromatograms, valid_glycans=self.valid_glycans)
         if self.valid_glycans:
