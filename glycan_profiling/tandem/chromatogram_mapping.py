@@ -1347,7 +1347,11 @@ class SpectrumMatchUpdater(TaskBase):
             else:
                 keep.append(r)
 
-        assert match
+        if not match:
+            self.log("... Failed to identify alternative %s for %s passing the threshold" % (
+                revised_structure, reference))
+            return chromatogram
+
         representers = chromatogram.filter_entries(match + keep)
         # When the input is a ChromatogramSolution, we have to explicitly
         # set the attribute on the wrapped chromatogram object, not the wrapper
