@@ -410,8 +410,8 @@ class SpectrumMatcher(TaskExecutionSequence):
         self.log("... %0.2f%%" % (max((self.group_i - 1), 0) * 100.0 / self.group_n), self.workload)
         lo, hi = self.workload.mass_range()
         batches = list(self.workload.batches(matcher.batch_size))
-        if len(batches):
-            self.log("... Query Mass Range: %0.2f-%0.2f" % (lo, hi))
+        if batches:
+            self.log("... Identifying Precursor Mass Range: %0.2f-%0.2f" % (lo, hi))
 
         running_total_work = 0
         total_work = self.workload.total_work_required()
@@ -435,7 +435,7 @@ class SpectrumMatcher(TaskExecutionSequence):
                 # influence reproducibility. Possibly because glycan decoys get dropped?
             target_solutions.extend(temp)
             batch.clear()
-        if len(batches):
+        if batches:
             self.log("... Finished %0.2f%% (%0.2f-%0.2f)" % (max((self.group_i - 1), 0)
                                             * 100.0 / self.group_n, lo, hi))
         return target_solutions
