@@ -1284,7 +1284,8 @@ class GlycopeptideElutionTimeModelBuildingPipeline(TaskBase):
     @current_model.setter
     def current_model(self, value):
         if self._current_model is not None and value is not self._current_model:
-            self.model_history.append(self._current_model)
+            pass
+            # self.model_history.append(self._current_model)
         self._current_model = value
 
     def fit_first_model(self, regularize=False):
