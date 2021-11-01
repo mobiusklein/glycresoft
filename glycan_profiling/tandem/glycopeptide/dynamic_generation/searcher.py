@@ -413,6 +413,7 @@ class SpectrumMatcher(TaskExecutionSequence):
         if batches:
             self.log("... Identifying Precursor Mass Range: %0.2f-%0.2f" % (lo, hi))
 
+        n_batches = len(batches)
         running_total_work = 0
         total_work = self.workload.total_work_required()
         self.workload.clear()
@@ -420,9 +421,10 @@ class SpectrumMatcher(TaskExecutionSequence):
             if batch.batch_size == 0:
                 batch.clear()
                 continue
-            self.log("... Batch %d (%d/%d) %0.2f%%" % (
-                i + 1, running_total_work + batch.batch_size, total_work,
-                ((running_total_work + batch.batch_size) * 100.) / float(total_work + 1)))
+            if n_batches > 1:
+                self.log("... Batch %d (%d/%d) %0.2f%%" % (
+                    i + 1, running_total_work + batch.batch_size, total_work,
+                    ((running_total_work + batch.batch_size) * 100.) / float(total_work + 1)))
             running_total_work += batch.batch_size
             target_scan_solution_map = matcher.evaluate_hit_groups(
                 batch, **self.evaluation_kwargs)
