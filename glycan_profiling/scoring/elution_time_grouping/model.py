@@ -1396,16 +1396,16 @@ class GlycopeptideElutionTimeModelBuildingPipeline(TaskBase):
         total = 0.0
         for rec in chromatograms:
             rec = rec.copy()
-            w = model.score_interval(rec, 0.01)
+            s = w = model.score_interval(rec, 0.01)
             if np.isnan(w):
-                w = 0
+                s = w = 0
             if w != 0:
                 w **= -1
             rec.weight = w
             if np.isnan(rec.weight):
                 rec.weight = base_weight
             reweighted.append(rec)
-            total += w
+            total += s
         self.log("Total Score for %d elements = %f" %
                  (len(chromatograms), total))
         return reweighted
@@ -1474,7 +1474,7 @@ class GlycopeptideElutionTimeModelBuildingPipeline(TaskBase):
                 last_covered = covered_recs
             self.log("... Covering %d chromatograms at threshold %0.2f" % (
                 len(covered_recs), coverage_threshold))
-            self.log("... Added new tags: %r" % sorted(new))
+            self.log("... Added %d new tags" % len(new))
             revised_recs = self.revise_with(
                 model, covered_recs, revision_threshold,
                 max(self.current_model.width_range.lower * delta_time_scale, minimum_delta))
