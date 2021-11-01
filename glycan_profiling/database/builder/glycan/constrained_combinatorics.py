@@ -189,7 +189,7 @@ def tryopen(obj):
     if hasattr(obj, "read"):
         return obj
     else:
-        return open(obj)
+        return open(obj, 'rt')
 
 
 def parse_rules_from_file(path):
