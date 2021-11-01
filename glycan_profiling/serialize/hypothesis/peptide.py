@@ -62,7 +62,7 @@ class Protein(Base, AminoAcidSequenceWrapperBase):
     hypothesis = relationship(GlycopeptideHypothesis, backref=backref('proteins', lazy='dynamic'))
 
     def _get_sequence_str(self):
-        return self.protein_sequence
+        return self.protein_sequence.replace("Z", "X")
 
     _n_glycan_sequon_sites = None
 
