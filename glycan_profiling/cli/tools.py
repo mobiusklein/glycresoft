@@ -4,6 +4,8 @@ import csv
 import threading
 import code
 import pprint
+
+from glycan_profiling import serialize
 try:
     from Queue import Queue, Empty
 except ImportError:
@@ -21,7 +23,8 @@ from .validators import RelativeMassErrorParam, get_by_name_or_id
 
 from glycan_profiling.serialize import (
     DatabaseBoundOperation, GlycanHypothesis, GlycopeptideHypothesis,
-    SampleRun, Analysis, Protein, Glycopeptide, func, FileBlob)
+    SampleRun, Analysis, Protein, Peptide, Glycopeptide, GlycanClass,
+    GlycanComposition, func, FileBlob)
 from glycan_profiling.database import (
     GlycopeptideDiskBackedStructureDatabase,
     GlycanCompositionDiskBackedStructureDatabase)
@@ -511,20 +514,43 @@ def update_analysis_parameters(database_connection, analysis_identifier, paramet
     session.commit()
 
 
-@tools.command("summarize-glycopeptide-hypothesis")
+@tools.command("summarize-glycopeptide-hypothesis", short_help="Show summary information about a glycopeptide hypothesis")
 @database_connection
 @hypothesis_identifier(GlycopeptideHypothesis)
 def summarize_glycopeptide_hypothesis(database_connection, hypothesis_identifier):
     session = database_connection.session
     hypothesis = get_by_name_or_id(session, GlycopeptideHypothesis, hypothesis_identifier)
-    counts = session.query(Protein, func.count(Glycopeptide.id)).join(
-        Glycopeptide).group_by(Protein.id).filter(Protein.hypothesis_id == hypothesis.id).all()
-    counts = sorted(counts, key=lambda x: x[1], reverse=1)
-    total = 0
-    for protein, count in counts:
-        click.echo("%s: %d" % (protein.name, count))
-        total += count
-    click.echo("Total: %d" % (total,))
+    gp_counts = session.query(Protein, func.count(Glycopeptide.id)).join(
+        Glycopeptide).group_by(Protein.id).filter(Protein.hypothesis_id == hypothesis.id).order_by(serialize.Protein.id).all()
+    pept_counts = session.query(Protein, func.count(Peptide.id)).join(
+        Peptide).group_by(Protein.id).filter(Protein.hypothesis_id == hypothesis.id).order_by(serialize.Protein.id).all()
+
+    gc_count = session.query(GlycanClass.name, func.count(GlycanClass.id)).join(
+        GlycanComposition.structure_classes).filter(GlycanComposition.hypothesis_id == hypothesis.id).group_by(
+            GlycanClass.id).order_by(GlycanClass.name).all()
+
+    counts = {}
+    for prot, c in gp_counts:
+        counts[prot.id] = [prot, 0, c]
+    for prot, c in pept_counts:
+        try:
+            counts[prot.id][1] = c
+        except KeyError:
+            counts[prot.id] = [prot, c, 0]
+
+    counts = sorted(counts.values(), key=lambda x: x[::-1][:-1], reverse=1)
+    pept_total = 0
+    gp_total = 0
+    for protein, pept_count, gp_count in counts:
+        click.echo("%s: %d" % (protein.name, pept_count))
+        pept_total += pept_count
+        gp_total += gp_count
+
+    click.echo("Total Peptides: %d" % (pept_total, ))
+    click.echo("Total Glycopeptides: %d" % (gp_total, ))
+    for cls_name, count in gc_count:
+        click.echo("%s Glycan Compositions: %d" % (cls_name, count))
+    click.echo(pprint.pformat(hypothesis.parameters))
 
 
 @tools.command("extract-blob")
