@@ -1313,7 +1313,7 @@ class MultipartGlycopeptideLCMSMSAnalyzer(MzMLGlycopeptideLCMSMSAnalyzer):
     def estimate_fdr(self, searcher, target_decoy_set):
         return searcher.estimate_fdr(target_decoy_set)
 
-    def apply_retention_time_model(self, scored_chromatograms, orphans, database, scan_loader):
+    def apply_retention_time_model(self, scored_chromatograms, orphans, database, scan_loader, minimum_ms1_score=6.0):
         glycan_query = database.query(
             serialize.GlycanCombination).join(
                 serialize.GlycanCombination.components).join(
@@ -1327,8 +1327,19 @@ class MultipartGlycopeptideLCMSMSAnalyzer(MzMLGlycopeptideLCMSMSAnalyzer):
         by_structure = defaultdict(list)
         for proxy in proxies:
             by_structure[proxy.structure].append(proxy)
-        best_instances = [max(v, key=lambda x: x.total_signal)
-                          for v in by_structure.values()]
+
+        best_instances = []
+        secondary_observations = []
+        for key, group in by_structure.items():
+            group.sort(key=lambda x: x.total_signal, reverse=True)
+            i = 0
+            for i, member in enumerate(group):
+                if member.source.score > minimum_ms1_score:
+                    best_instances.append(member)
+                    break
+                else:
+                    secondary_observations.append(member)
+            secondary_observations.extend(group[i + 1:])
 
         glycoform_agg = GlycoformAggregator(best_instances)
 
@@ -1344,9 +1355,6 @@ class MultipartGlycopeptideLCMSMSAnalyzer(MzMLGlycopeptideLCMSMSAnalyzer):
         for rev in revisions:
             if rev.revised_from and rev.structure != rev.source.structure:
                 was_updated.append(rev)
-
-        secondary_observations = [
-            runner_up for group in by_structure.values() for runner_up in group[1:]]
 
         self.log("... Revising Secondary Occurrences")
         for rev in pipeline.revise_with(result, secondary_observations):
