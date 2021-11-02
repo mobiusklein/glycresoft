@@ -1,6 +1,8 @@
 import csv
 import itertools
 import logging
+import gzip
+import io
 
 from numbers import Number
 from collections import defaultdict, OrderedDict, namedtuple
@@ -8,7 +10,9 @@ from collections import defaultdict, OrderedDict, namedtuple
 import numpy as np
 from scipy import stats
 
-from glycopeptidepy import PeptideSequence, parse
+import dill
+
+from glycopeptidepy import parse
 
 from glypy.utils import make_counter
 from glypy.structure.glycan_composition import HashableGlycanComposition
@@ -146,9 +150,9 @@ class LinearModelBase(PredictorBase, SpanningMixin):
 
         self.weight_matrix = self.build_weight_matrix()
 
-        self.parameters = None
-        self.residuals = None
-        self.estimate = None
+        # self.parameters = None
+        # self.residuals = None
+        # self.estimate = None
         self._update_model_time_range()
 
     def _update_model_time_range(self):
@@ -191,12 +195,48 @@ class LinearModelBase(PredictorBase, SpanningMixin):
         p = self.data.shape[1]
         return np.ones_like(p) * 0.001
 
+    @property
+    def estimate(self):
+        if self.solution is None:
+            return None
+        return self.solution.yhat
+
+    @estimate.setter
+    def estimate(self, value):
+        pass
+
+    @property
+    def residuals(self):
+        if self.solution is None:
+            return None
+        return self.solution.residuals
+
+    @residuals.setter
+    def residuals(self, value):
+        pass
+
+    @property
+    def parameters(self):
+        if self.solution is None:
+            return None
+        return self.solution.parameters
+
+    @parameters.setter
+    def parameters(self, value):
+        pass
+
+    @property
+    def projection_matrix(self):
+        if self.solution is None:
+            return None
+        return self.solution.projection_matrix
+
+    @projection_matrix.setter
+    def projection_matrix(self, value):
+        pass
+
     def fit(self, resample=False, alpha=None):
         solution = self._fit(resample=resample, alpha=alpha)
-        self.estimate = solution.yhat
-        self.residuals = solution.residuals
-        self.parameters = solution.parameters
-        self.projection_matrix = solution.projection_matrix
         self.solution = solution
         return self
 
@@ -279,9 +319,6 @@ class ElutionTimeFitter(LinearModelBase, ChromatgramFeatureizerBase, ScoringFeat
         self.data = None
         self.apex_time_array = None
         self.weight_matrix = None
-        self.parameters = None
-        self.residuals = None
-        self.estimate = None
         self.scale = scale
         self.transform = transform
         self.width_range = IntervalRange(width_range)
@@ -720,11 +757,41 @@ class AbundanceWeightedPeptideFactorElutionTimeFitter(AbundanceWeightedMixin, Pe
 
 class ModelEnsemble(PeptideBackboneKeyedMixin):
     def __init__(self, models, width_range=None):
-        self.models = models
-        self._models = list(models.values())
+        self._set_models(models)
         self.width_range = IntervalRange(width_range)
         self._chromatograms = None
         self.external_peptide_offsets = {}
+
+    def __reduce__(self):
+        return self.__class__, (OrderedDict(), self.width_range), self.__getstate__()
+
+    def __getstate__(self):
+        state = dict()
+        models = OrderedDict()
+        for key, value in self.models.items():
+            buffer = io.BytesIO()
+            writer = gzip.GzipFile(fileobj=buffer, mode='wb')
+            dill.dump(value, writer, 2)
+            writer.flush()
+            models[key] = buffer.getvalue()
+        state['models'] = models
+        return state
+
+    def __setstate__(self, state):
+        if not state:
+            return
+        models = OrderedDict()
+        for key, buffer in  state.get('models', {}).items():
+            buffer = io.BytesIO(buffer)
+            reader = gzip.GzipFile(fileobj=buffer)
+            model = dill.load(reader)
+            models[key] = model
+        if models:
+            self._set_models(models)
+
+    def _set_models(self, models):
+        self.models = models
+        self._models = list(models.values())
 
     def _models_for(self, chromatogram):
         if not isinstance(chromatogram, Number):
@@ -1496,8 +1563,7 @@ class GlycopeptideElutionTimeModelBuildingPipeline(TaskBase):
             extra_recs = self.find_uncovered_group_members(
                 all_records, coverages)
 
-            self.log("... Added new tags: %r" %
-                     sorted({c.tag for c in extra_recs}))
+            self.log("... Added %d new tags" % len(new))
             covered_recs = np.concatenate((covered_recs, extra_recs))
             covered_recs = self.reweight(model, covered_recs, base_weight=0.01)
 
@@ -1526,7 +1592,7 @@ class GlycopeptideElutionTimeModelBuildingPipeline(TaskBase):
                     last_covered = covered_recs
                 self.log("... Covering %d chromatograms at threshold %0.2f" % (
                     len(covered_recs), coverage_threshold))
-                self.log("... Added new tags: %r" % sorted(new))
+                self.log("... Added %d new tags" % len(new))
                 revised_recs = self.revise_with(
                     model, covered_recs, revision_threshold,
                     max(self.current_model.width_range.lower * delta_time_scale, minimum_delta))
@@ -1548,8 +1614,7 @@ class GlycopeptideElutionTimeModelBuildingPipeline(TaskBase):
             extra_recs = self.find_uncovered_group_members(
                 all_records, coverages)
 
-            self.log("... Added new tags: %r" %
-                     sorted({c.tag for c in extra_recs}))
+            self.log("... Added %d new tags" % len(extra_recs))
             covered_recs = np.concatenate((covered_recs, extra_recs))
             covered_recs = self.reweight(model, covered_recs, base_weight=0.01)
 
