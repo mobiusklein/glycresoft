@@ -1226,7 +1226,8 @@ class RelativeShiftFactorElutionTimeFitter(AbundanceWeightedPeptideFactorElution
                     a.weighted_neutral_mass, base_time + a.apex_time - b.apex_time,
                     np.sqrt(a.total_signal * b.total_signal),
                     delta_comp, structure=structure,
-                    weight=float(distance) ** 4 + (a.weight + b.weight)
+                    weight=float(distance) ** 4 + (a.weight + b.weight),
+                    peptide_key=a.peptide_key
                 )
                 recs.append(rec)
         assert len(recs) > 0
