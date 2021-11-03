@@ -605,6 +605,7 @@ class GlycopeptideMSMSAnalysisSerializer(AnalysisMigrationBase):
             self._analysis_serializer.save_unidentified_chromatogram_solution(
                 chroma)
 
+        self.log("Committing Analysis")
         self._analysis_serializer.commit()
 
 

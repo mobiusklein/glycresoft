@@ -31,6 +31,7 @@ from glycan_profiling.task import TaskBase
 
 from glycan_profiling.chromatogram_tree import Unmodified, Ammonium
 from glycan_profiling.scoring.base import ScoringFeatureBase
+from glycan_profiling.structure import FragmentCachingGlycopeptide
 
 from .structure import _get_apex_time, GlycopeptideChromatogramProxy, GlycoformAggregator, DeltaOverTimeFilter
 from .linear_regression import (ransac, weighted_linear_regression_fit, prediction_interval, SMALL_ERROR, weighted_linear_regression_fit_ridge)
@@ -1084,7 +1085,8 @@ class LocalShiftGraph(object):
                     a.glycan_composition, b.glycan_composition)[0]
                 if distance > self.max_distance or distance == 0:
                     continue
-                structure = parse(key + str(delta_comp))
+                # Using the heavier class for the better hashing and pickling
+                structure = FragmentCachingGlycopeptide(key + str(delta_comp))
                 rec = GlycopeptideChromatogramProxy(
                     a.weighted_neutral_mass, base_time + a.apex_time - b.apex_time,
                     np.sqrt(a.total_signal * b.total_signal),

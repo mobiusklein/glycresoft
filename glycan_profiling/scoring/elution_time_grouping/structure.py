@@ -124,7 +124,7 @@ class ChromatogramProxy(object):
             "apex_time": self.apex_time,
             "total_signal": self.total_signal,
             "glycan_composition": self.glycan_composition,
-            "weight": self.weight,
+            "weight": float(self.weight),
             "mass_shifts": [m for m in self.mass_shifts],
         }
         d.update(self.kwargs)
@@ -143,12 +143,15 @@ class ChromatogramProxy(object):
 
     def __getstate__(self):
         state = self._prepare_state()
+        state['glycan_composition'] = str(state['glycan_composition'])
         state['weight'] = self.weight
         return state
 
     def __setstate__(self, state):
         state = dict(state)
         self.glycan_composition = state.pop("glycan_composition", None)
+        if self.glycan_composition is not None:
+            self.glycan_composition = HashableGlycanComposition.parse(str(self.glycan_composition))
         self.apex_time = state.pop("apex_time", None)
         self.total_signal = state.pop("total_signal", None)
         self.weighted_neutral_mass = state.pop("weighted_neutral_mass", None)
