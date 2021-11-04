@@ -1350,6 +1350,7 @@ class MultipartGlycopeptideLCMSMSAnalyzer(MzMLGlycopeptideLCMSMSAnalyzer):
         result, revisions = pipeline.run()
 
         self.retention_time_model = result
+        result.drop_chromatograms()
 
         was_updated = []
         for rev in revisions:

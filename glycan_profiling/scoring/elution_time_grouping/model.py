@@ -308,7 +308,7 @@ class LinearModelBase(PredictorBase, SpanningMixin):
         return R2
 
     def _df(self):
-        return max(len(self.chromatograms) - len(self.parameters), 1)
+        return max(len(self.apex_time_array) - len(self.parameters), 1)
 
 
 class ElutionTimeFitter(LinearModelBase, ChromatgramFeatureizerBase, ScoringFeatureBase):
@@ -328,6 +328,10 @@ class ElutionTimeFitter(LinearModelBase, ChromatgramFeatureizerBase, ScoringFeat
 
     def _get_chromatograms(self):
         return self.chromatograms
+
+    def drop_chromatograms(self):
+        self.chromatograms = None
+        return self
 
     def score(self, chromatogram):
         apex = self.predict(chromatogram)
@@ -900,6 +904,12 @@ class ModelEnsemble(PeptideBackboneKeyedMixin):
         self._chromatograms = sorted(chroma, key=lambda x: x.apex_time)
         return self._chromatograms
 
+    def drop_chromatograms(self):
+        self._chromatograms = None
+        for model in self._models:
+            model.drop_chromatograms()
+        return self
+
     @property
     def chromatograms(self):
         return self._get_chromatograms()
@@ -1209,6 +1219,11 @@ class RelativeShiftFactorElutionTimeFitter(AbundanceWeightedPeptideFactorElution
         super(RelativeShiftFactorElutionTimeFitter, self).__init__(
             recs, factors, scale=scale, transform=transform,
             width_range=width_range, regularize=regularize)
+
+    def drop_chromatograms(self):
+        super(RelativeShiftFactorElutionTimeFitter, self).drop_chromatograms()
+        self.groups = None
+        return self
 
     def build_deltas(self, chromatograms, max_distance):
         recs = []
