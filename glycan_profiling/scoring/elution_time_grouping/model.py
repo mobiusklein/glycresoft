@@ -1505,6 +1505,14 @@ class GlycopeptideElutionTimeModelBuildingPipeline(TaskBase):
                 recs.append(chrom)
         return recs
 
+    def _step(self, model, all_records, i, k):
+        self.log("Iteration %d" % i)
+        coverages = self.compute_model_coverage(model, all_records)
+        coverage_threshold = (1.0 - (i * 1.0 / (k_scale * k)))
+        covered_recs = self.subset_aggregate_by_coverage(
+            all_records, coverages, coverage_threshold)
+        new = set()
+
     def run(self, k=10, base_weight=0.3, revision_threshold=0.35, final_round=True, regularize=True):
         self.log("Fitting first model...")
         # The first model is fit on those cases where we have both

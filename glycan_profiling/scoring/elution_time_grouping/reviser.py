@@ -177,7 +177,7 @@ class ModelReviser(object):
         for case in self.chromatograms:
             if rule.valid(case):
                 rec = rule(case)
-                if self.valid_glycans and rec.structure.glycan_composition not in self.valid_glycans:
+                if self.valid_glycans and rec.glycan_composition not in self.valid_glycans:
                     alts.append(None)
                     alt_scores.append(0.0)
                     alt_times.append(0.0)
