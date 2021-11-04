@@ -1103,9 +1103,8 @@ class LocalShiftGraph(object):
                     delta_comp, structure=structure,
                     weight=float(distance) ** 4 + (a.weight + b.weight)
                 )
-                edge_key = frozenset((a.structure, b.structure))
+                edge_key = frozenset((str(a.structure), str(b.structure)))
                 delta_key = delta_comp
-                # Probably don't need this
                 self.edges[edge_key].append(rec)
                 # Use string form to discard 0-value keys
                 self.shift_to_delta[str(delta_key)].append((rec, edge_key))
