@@ -6,6 +6,7 @@ import io
 
 from numbers import Number
 from collections import defaultdict, OrderedDict, namedtuple
+from functools import partial
 
 import numpy as np
 from scipy import stats
@@ -79,13 +80,13 @@ class IntervalRange(object):
 
 class AbundanceWeightedMixin(object):
     def build_weight_matrix(self):
-        W = np.eye(len(self.chromatograms)) * [
+        W = np.array([
             1.0 / (x.total_signal * x.weight) for x in self.chromatograms
-        ]
+        ])
         if len(self.chromatograms) == 0:
-            return W
+            return np.diag(W)
         W /= W.max()
-        return W
+        return np.diag(W)
 
 
 class ChromatgramFeatureizerBase(object):
@@ -766,6 +767,7 @@ class ModelEnsemble(PeptideBackboneKeyedMixin):
         self.width_range = IntervalRange(width_range)
         self._chromatograms = None
         self.external_peptide_offsets = {}
+        self._summary_statistics = {}
 
     def __reduce__(self):
         return self.__class__, (OrderedDict(), self.width_range), self.__getstate__()
@@ -780,6 +782,7 @@ class ModelEnsemble(PeptideBackboneKeyedMixin):
             writer.flush()
             models[key] = buffer.getvalue()
         state['models'] = models
+        state['summary_statistics'] = self._summary_statistics
         return state
 
     def __setstate__(self, state):
@@ -793,10 +796,30 @@ class ModelEnsemble(PeptideBackboneKeyedMixin):
             models[key] = model
         if models:
             self._set_models(models)
+        self._summary_statistics = state.get("summary_statistics", {})
 
     def _set_models(self, models):
         self.models = models
         self._models = list(models.values())
+
+    def _compute_summary_statistics(self):
+        chromatograms = self.chromatograms
+        apex_time_array = np.array([
+            c.apex_time for c in chromatograms
+        ])
+        predicted_apex_time_array = np.array([
+            self.predict(c) for c in chromatograms
+        ])
+        confidence_intervals = np.array([
+            self.predict_interval(c, alpha=0.01) for c in chromatograms
+        ])
+        residuals_array = apex_time_array - predicted_apex_time_array
+        self._summary_statistics.update({
+            "apex_time_array": apex_time_array,
+            "predicted_apex_time_array": predicted_apex_time_array,
+            "confidence_intervals": confidence_intervals,
+            "residuals_array": residuals_array,
+        })
 
     def _models_for(self, chromatogram):
         if not isinstance(chromatogram, Number):
@@ -1076,12 +1099,13 @@ DeltaParam = namedtuple(
 
 
 class LocalShiftGraph(object):
-    def __init__(self, chromatograms, max_distance=3):
+    def __init__(self, chromatograms, max_distance=3, key_cache=None):
         self.chromatograms = chromatograms
         self.max_distance = max_distance
         self.edges = defaultdict(list)
         self.shift_to_delta = defaultdict(list)
         self.groups = GlycoformAggregator(chromatograms)
+        self.key_cache = key_cache or {}
 
         self.build_edges()
         self.delta_params = self.estimate_delta_distribution()
@@ -1096,7 +1120,13 @@ class LocalShiftGraph(object):
                 if distance > self.max_distance or distance == 0:
                     continue
                 # Using the heavier class for the better hashing and pickling
-                structure = FragmentCachingGlycopeptide(key + str(delta_comp))
+                structure = (key + str(delta_comp))
+                if structure in self.key_cache:
+                    structure = self.key_cache[structure]
+                else:
+                    structure_key = structure
+                    structure = FragmentCachingGlycopeptide(structure)
+                    self.key_cache[structure_key] = structure
                 rec = GlycopeptideChromatogramProxy(
                     a.weighted_neutral_mass, base_time + a.apex_time - b.apex_time,
                     np.sqrt(a.total_signal * b.total_signal),
@@ -1210,7 +1240,11 @@ class LocalShiftGraph(object):
 
 
 class RelativeShiftFactorElutionTimeFitter(AbundanceWeightedPeptideFactorElutionTimeFitter):
-    def __init__(self, chromatograms, factors=None, scale=1, transform=None, width_range=None, regularize=False, max_distance=3):
+    def __init__(self, chromatograms, factors=None, scale=1, transform=None, width_range=None,
+                 regularize=False, max_distance=3, key_cache=None):
+        if key_cache is None:
+            key_cache = {}
+        self.key_cache = key_cache
         recs, groups = self.build_deltas(chromatograms, max_distance=max_distance)
         self.groups = groups
         self.peptide_offsets = {}
@@ -1235,7 +1269,13 @@ class RelativeShiftFactorElutionTimeFitter(AbundanceWeightedPeptideFactorElution
                     a.glycan_composition, b.glycan_composition)[0]
                 if distance > max_distance or distance == 0:
                     continue
-                structure = parse(key + str(delta_comp))
+                structure = (key + str(delta_comp))
+                if structure in self.key_cache:
+                    structure = self.key_cache[structure]
+                else:
+                    structure_key = structure
+                    structure = FragmentCachingGlycopeptide(structure)
+                    self.key_cache[structure_key] = structure
                 rec = GlycopeptideChromatogramProxy(
                     a.weighted_neutral_mass, base_time + a.apex_time - b.apex_time,
                     np.sqrt(a.total_signal * b.total_signal),
@@ -1304,7 +1344,7 @@ class RelativeShiftFactorElutionTimeFitter(AbundanceWeightedPeptideFactorElution
 
 class LocalOutlierFilteringRelativeShiftFactorElutionTimeFitter(RelativeShiftFactorElutionTimeFitter):
     def build_deltas(self, chromatograms, max_distance):
-        graph = LocalShiftGraph(chromatograms, max_distance)
+        graph = LocalShiftGraph(chromatograms, max_distance, key_cache=self.key_cache)
         graph.process_edges()
         groups = graph.groups
         recs = graph.select_edges()
@@ -1324,10 +1364,12 @@ def mask_in(full_set, incoming):
 
 # The self paramter is included as this function is later bound to a class directly
 # so it gets made into a method
-def model_type_dispatch(self, chromatogams, factors=None, scale=1, transform=None, width_range=None, regularize=False):
+def model_type_dispatch(self, chromatogams, factors=None, scale=1, transform=None, width_range=None,
+                        regularize=False, key_cache=None):
     try:
         return RelativeShiftFactorElutionTimeFitter(
-            chromatogams, factors, scale, transform, width_range, regularize, max_distance=3)
+            chromatogams, factors, scale, transform, width_range, regularize,
+            max_distance=3, key_cache=key_cache)
     except AssertionError:
         return AbundanceWeightedPeptideFactorElutionTimeFitter(
             chromatogams, factors, scale, transform, width_range, regularize)
@@ -1335,10 +1377,10 @@ def model_type_dispatch(self, chromatogams, factors=None, scale=1, transform=Non
 
 # The self paramter is included as this function is later bound to a class directly
 # so it gets made into a method
-def model_type_dispatch_outlier_remove(self, chromatogams, factors=None, scale=1, transform=None, width_range=None, regularize=False):
+def model_type_dispatch_outlier_remove(self, chromatogams, factors=None, scale=1, transform=None, width_range=None, regularize=False, key_cache=None):
     try:
         return LocalOutlierFilteringRelativeShiftFactorElutionTimeFitter(
-            chromatogams, factors, scale, transform, width_range, regularize, max_distance=3)
+            chromatogams, factors, scale, transform, width_range, regularize, max_distance=3, key_cache=key_cache)
     except AssertionError:
         return AbundanceWeightedPeptideFactorElutionTimeFitter(
             chromatogams, factors, scale, transform, width_range, regularize)
@@ -1360,6 +1402,7 @@ class GlycopeptideElutionTimeModelBuildingPipeline(TaskBase):
         self.revised_tags = set()
         self.valid_glycans = valid_glycans
         self.initial_filter = initial_filter
+        self.key_cache = {}
 
     @property
     def current_model(self):
@@ -1386,7 +1429,7 @@ class GlycopeptideElutionTimeModelBuildingPipeline(TaskBase):
         # results. This is also true of the first and last set of windows, regardless, especially
         # when sparse.
         builder.partition(w)
-        builder.fit(predicate, self.model_type,
+        builder.fit(predicate, partial(self.model_type, key_cache=self.key_cache),
                     regularize=regularize, resample=resample)
         model = builder.merge()
         model.calibrate_prediction_interval(alpha=self.calibration_alpha)
@@ -1505,6 +1548,10 @@ class GlycopeptideElutionTimeModelBuildingPipeline(TaskBase):
         return recs
 
     def _step(self, model, all_records, i, k):
+
+        delta_time_scale = 1.0
+        minimum_delta = 2.0
+        k_scale = 2.0
         self.log("Iteration %d" % i)
         coverages = self.compute_model_coverage(model, all_records)
         coverage_threshold = (1.0 - (i * 1.0 / (k_scale * k)))
@@ -1651,6 +1698,9 @@ class GlycopeptideElutionTimeModelBuildingPipeline(TaskBase):
                 max(self.current_model.width_range.lower * delta_time_scale, minimum_delta))
 
             all_records = mask_in(all_records, revised_recs)
+
+        self.log("Estimating summary statistics")
+        model._compute_summary_statistics()
 
         return model, all_records
 
