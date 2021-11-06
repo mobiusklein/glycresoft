@@ -649,6 +649,11 @@ class PeptideFactorElutionTimeFitter(PeptideGroupChromatogramFeatureizer, Factor
             chromatograms, list(factors), scale=scale, transform=transform,
             width_range=width_range, regularize=regularize)
 
+    def drop_chromatograms(self):
+        super(PeptideFactorElutionTimeFitter, self).drop_chromatograms()
+        self.by_peptide = {k: [] for k in self.by_peptide}
+        return self
+
     @property
     def peptide_count(self):
         return len(self.by_peptide)
