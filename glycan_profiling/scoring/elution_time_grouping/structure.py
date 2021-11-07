@@ -222,8 +222,11 @@ class GlycopeptideChromatogramProxy(ChromatogramProxy):
     def peptide_key(self):
         if "peptide_key" in self.kwargs:
             return self.kwargs["peptide_key"]
-        peptide = str(PeptideSequence(
-            str(self.structure)).deglycosylate())
+        structure = self.structure
+        if isinstance(structure, str):
+            peptide = str(PeptideSequence(structure).deglycosylate())
+        else:
+            peptide = str(structure.clone().deglycosylate())
         self.kwargs["peptide_key"] = peptide
         return peptide
 
@@ -241,7 +244,9 @@ class GlycopeptideChromatogramProxy(ChromatogramProxy):
     @classmethod
     def from_obj(cls, obj, **kwargs):
         gp = FragmentCachingGlycopeptide(str(obj.structure))
-        return super(GlycopeptideChromatogramProxy, cls).from_obj(obj, structure=gp, **kwargs)
+        result = super(GlycopeptideChromatogramProxy, cls).from_obj(obj, structure=gp, **kwargs)
+        _key = result.peptide_key
+        return result
 
     @classmethod
     def from_spectrum_match(cls, spectrum_match, source=None, **kwargs):
