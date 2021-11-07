@@ -158,10 +158,15 @@ class LinearModelBase(PredictorBase, SpanningMixin):
         self._update_model_time_range()
 
     def _update_model_time_range(self):
-        self.start = self.apex_time_array.min()
-        self.end = self.apex_time_array.max()
-        d = np.diag(self.weight_matrix)
-        self.centroid = self.apex_time_array.dot(d) / d.sum()
+        if len(self.apex_time_array) == 0:
+            self.start = 0.0
+            self.end = 0.0
+            self.centroid = 0.0
+        else:
+            self.start = self.apex_time_array.min()
+            self.end = self.apex_time_array.max()
+            d = np.diag(self.weight_matrix)
+            self.centroid = self.apex_time_array.dot(d) / d.sum()
 
     @property
     def start_time(self):
@@ -321,11 +326,45 @@ class ElutionTimeFitter(LinearModelBase, ChromatgramFeatureizerBase, ScoringFeat
         self.data = None
         self.apex_time_array = None
         self.weight_matrix = None
+        self.solution = None
         self.scale = scale
         self.transform = transform
         self.width_range = IntervalRange(width_range)
         self.regularize = regularize
         self._init_model_data()
+
+    def __getstate__(self):
+        state = {}
+        state['chromatograms'] = self.chromatograms
+        state['solution'] = self.solution
+        state['scale'] = self.scale
+        state['transform'] = self.transform
+        state['width_range'] = self.width_range
+        state['regularize'] = self.regularize
+        state['start_time'] = self.start
+        state['end_time'] = self.end
+        state['centroid'] = self.centroid
+        return state
+
+    def __setstate__(self, state):
+        self.chromatograms = state['chromatograms']
+        self.solution = state['solution']
+        self.scale = state['scale']
+        self.transform = state['transform']
+        self.width_range = state['width_range']
+        self.regularize = state['regularize']
+        self.start = state['start_time']
+        self.end = state['end_time']
+        self.centroid = state['centroid']
+
+        if self.solution is not None:
+            (self.data, self.apex_time_array) = self.solution.data
+            self.weight_matrix = self.solution.weights
+        if self.chromatograms:
+            self._init_model_data()
+
+    def __reduce__(self):
+        return self.__class__, (self.chromatograms or [], ), self.__getstate__()
 
     def _get_chromatograms(self):
         return self.chromatograms
@@ -490,6 +529,15 @@ class FactorElutionTimeFitter(FactorChromatogramFeatureizer, ElutionTimeFitter):
             chromatograms, scale=scale, transform=transform,
             width_range=width_range, regularize=regularize)
 
+    def __getstate__(self):
+        state = super(FactorElutionTimeFitter, self).__getstate__()
+        state['factors'] = self.factors
+        return state
+
+    def __setstate__(self, state):
+        super(FactorElutionTimeFitter, self).__setstate__(state)
+        self.factors = state['factors']
+
     def predict_delta_glycan(self, chromatogram, delta_glycan):
         try:
             shifted = chromatogram.shift_glycan_composition(delta_glycan)
@@ -648,6 +696,20 @@ class PeptideFactorElutionTimeFitter(PeptideGroupChromatogramFeatureizer, Factor
         super(PeptideFactorElutionTimeFitter, self).__init__(
             chromatograms, list(factors), scale=scale, transform=transform,
             width_range=width_range, regularize=regularize)
+
+    def __getstate__(self):
+        state = super(PeptideFactorElutionTimeFitter, self).__getstate__()
+        state['_peptide_to_indicator'] = self._peptide_to_indicator
+        state['peptide_groups'] = self.peptide_groups
+        state['by_peptide'] = self.by_peptide
+        return state
+
+    def __setstate__(self, state):
+        super(PeptideFactorElutionTimeFitter, self).__setstate__(state)
+        self._peptide_to_indicator = state['_peptide_to_indicator']
+        self.peptide_groups = state['peptide_groups']
+        self.by_peptide = state['by_peptide']
+
 
     def drop_chromatograms(self):
         super(PeptideFactorElutionTimeFitter, self).drop_chromatograms()
@@ -1263,6 +1325,20 @@ class RelativeShiftFactorElutionTimeFitter(AbundanceWeightedPeptideFactorElution
         self.groups = None
         return self
 
+    def __getstate__(self):
+        state = super(RelativeShiftFactorElutionTimeFitter, self).__getstate__()
+        state['groups'] = self.groups
+        state['peptide_offsets'] = self.peptide_offsets
+        state['max_distance'] = self.max_distance
+        return state
+
+    def __setstate__(self, state):
+        super(RelativeShiftFactorElutionTimeFitter, self).__setstate__(state)
+        self.groups = state['groups']
+        self.peptide_offsets = state['peptide_offsets']
+        self.max_distance = state['max_distance']
+        self.key_cache = dict()
+
     def build_deltas(self, chromatograms, max_distance):
         recs = []
         groups = GlycoformAggregator(chromatograms)
@@ -1326,17 +1402,22 @@ class RelativeShiftFactorElutionTimeFitter(AbundanceWeightedPeptideFactorElution
         return super(RelativeShiftFactorElutionTimeFitter, self).calibrate_prediction_interval(list(self.groups), alpha)
 
     def _update_model_time_range(self):
-        apexes = []
-        weights = []
-        for case in self.groups:
-            t = case.apex_time
-            w = case.total_signal
-            apexes.append(t)
-            weights.append(w)
-        apexes = np.array(apexes)
-        self.start = apexes.min()
-        self.end = apexes.max()
-        self.centroid = apexes.dot(weights) / np.sum(weights)
+        if len(self.groups) == 0:
+            self.start = 0.0
+            self.end = 0.0
+            self.centroid = 0.0
+        else:
+            apexes = []
+            weights = []
+            for case in self.groups:
+                t = case.apex_time
+                w = case.total_signal
+                apexes.append(t)
+                weights.append(w)
+            apexes = np.array(apexes)
+            self.start = apexes.min()
+            self.end = apexes.max()
+            self.centroid = apexes.dot(weights) / np.sum(weights)
 
     # This omission is by design, it prevents peptide backbones that did
     # not have a pair from being considered.

@@ -8,13 +8,73 @@ import numpy as np
 from scipy import stats
 
 
-WLSSolution = namedtuple("WLSSolution", [
+_WLSSolution = namedtuple("WLSSolution", [
     'yhat', 'parameters', 'data', 'weights', 'residuals',
     'projection_matrix', 'rss', 'press', 'R2', 'variance_matrix'])
 
 '''A structured container for :func:`weighted_linear_regression_fit`
 output.
 '''
+
+
+class WLSSolution(object):
+    '''A structured container for :func:`weighted_linear_regression_fit`
+    output.
+    '''
+    __slots__ = ('yhat', 'parameters', 'data', 'weights', 'residuals',
+                 'projection_matrix', 'rss', 'press', 'R2', 'variance_matrix')
+
+    def __init__(self, yhat, parameters, data, weights, residuals, projection_matrix, rss, press, R2, variance_matrix):
+        self.yhat = yhat
+        self.parameters = parameters
+        self.data = data
+        self.weights = weights
+        self.residuals = residuals
+        self.projection_matrix = projection_matrix
+        self.rss = rss
+        self.press = press
+        self.R2 = R2
+        self.variance_matrix = variance_matrix
+
+    @property
+    def y(self):
+        return self.data[1]
+
+    @property
+    def X(self):
+        return self.data[0]
+
+    def __getstate__(self):
+        state = {}
+        state['parameters'] = self.parameters
+        state['data'] = self.data
+        state['weights'] = np.diag(self.weights)
+        # state['projection_matrix'] = self.projection_matrix
+        state['projection_matrix'] = None
+        state['rss'] = self.rss
+        state['press'] = self.press
+        state['R2'] = self.R2
+        state['variance_matrix'] = self.variance_matrix
+        return state
+
+    def __setstate__(self, state):
+        X, y = state['data']
+        self.parameters = state['parameters']
+        self.data = state['data']
+        self.weights = np.diag(state['weights'])
+        self.projection_matrix = state['projection_matrix']
+        self.rss = state['rss']
+        self.press = state['press']
+        self.R2 = state['R2']
+        self.variance_matrix = state['variance_matrix']
+        self.yhat = X.dot(self.parameters)
+        self.residuals = y - self.yhat
+
+    def __repr__(self):
+        template = "{self.__class__.__name__}({fields})"
+        fields = ', '.join(["%s=%r" % (k, getattr(self, k)) for k in self.__slots__])
+        return template.format(self=self, fields=fields)
+
 
 SMALL_ERROR = 1e-5
 
