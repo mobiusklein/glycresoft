@@ -151,10 +151,6 @@ class LinearModelBase(PredictorBase, SpanningMixin):
         ])
 
         self.weight_matrix = self.build_weight_matrix()
-
-        # self.parameters = None
-        # self.residuals = None
-        # self.estimate = None
         self._update_model_time_range()
 
     def _update_model_time_range(self):
@@ -1527,7 +1523,7 @@ class GlycopeptideElutionTimeModelBuildingPipeline(TaskBase):
         tags = {t.tag for t in revision}
         return self.fit_model(aggregate, lambda x: x.tag in tags, regularize=regularize)
 
-    def _make_reviser(self, model, chromatograms):
+    def make_reviser(self, model, chromatograms):
         reviser = IntervalModelReviser(
             model, [
                 AmmoniumMaskedRule,
@@ -1558,32 +1554,33 @@ class GlycopeptideElutionTimeModelBuildingPipeline(TaskBase):
                 self.log("No Fuc or d-Hex detected in valid glycans, no rule modifications inferred")
         return reviser
 
-    def revise_with(self, model, chromatograms, delta=0.35, min_time_difference=None):
+    def revise_with(self, model, chromatograms, delta=0.35, min_time_difference=None, verbose=True):
         if min_time_difference is None:
             min_time_difference = max(model.width_range.lower, 0.5)
-        reviser = self._make_reviser(model, chromatograms)
+        reviser = self.make_reviser(model, chromatograms)
         reviser.evaluate()
         assert not np.isnan(model.width_range.lower)
         revised = reviser.revise(0.2, delta,  min_time_difference)
-        self.log("... Revising Observations")
-        k = 0
-        local_aggregate = GlycoformAggregator(chromatograms)
-        for new, old in zip(revised, chromatograms):
-            if new.structure != old.structure:
-                self.revised_tags.add(new.tag)
-                neighbor_count = len(local_aggregate[old])
-                k += 1
-                self.log(
-                    "...... %s: %0.2f %s (%0.2f) => %s (%0.2f) %0.2f/%0.2f with %d references" % (
-                        new.tag, new.apex_time,
-                        old.glycan_composition, model.predict(old),
-                        new.glycan_composition, model.predict(new),
-                        model.score_interval(old, alpha=0.01),
-                        model.score_interval(new, alpha=0.01),
-                        neighbor_count - 1,
+        if verbose:
+            self.log("... Revising Observations")
+            k = 0
+            local_aggregate = GlycoformAggregator(chromatograms)
+            for new, old in zip(revised, chromatograms):
+                if new.structure != old.structure:
+                    self.revised_tags.add(new.tag)
+                    neighbor_count = len(local_aggregate[old])
+                    k += 1
+                    self.log(
+                        "...... %s: %0.2f %s (%0.2f) => %s (%0.2f) %0.2f/%0.2f with %d references" % (
+                            new.tag, new.apex_time,
+                            old.glycan_composition, model.predict(old),
+                            new.glycan_composition, model.predict(new),
+                            model.score_interval(old, alpha=0.01),
+                            model.score_interval(new, alpha=0.01),
+                            neighbor_count - 1,
+                        )
                     )
-                )
-        self.log("... Updated %d assignments" % (k, ))
+            self.log("... Updated %d assignments" % (k, ))
         return revised
 
     def compute_model_coverage(self, model, aggregate, tag=True):
@@ -1633,6 +1630,51 @@ class GlycopeptideElutionTimeModelBuildingPipeline(TaskBase):
                 recs.append(chrom)
         return recs
 
+    def validate_revisions(self, model, revisions, delta=0.35, min_time_difference=None):
+        originals = []
+        for index, revision in revisions:
+            _rule, original = revision.revised_from
+            originals.append(original)
+        self.log("... Validating revisions with final model")
+        recalculated = self.revise_with(
+            model, originals, delta=delta, min_time_difference=min_time_difference, verbose=False)
+
+        result = []
+        for i, checked in enumerate(recalculated):
+            index, revision = revisions[i]
+            _rule, original = revision.revised_from
+
+            checked_rt = model.predict(checked)
+            revision_rt = model.predict(revision)
+            checked_score = model.score_interval(checked, alpha=0.01)
+            revision_score = model.score_interval(revision, alpha=0.01)
+
+            if abs(checked_rt - revision_rt) < min_time_difference:
+                continue
+            if abs(checked_score - revision_score) < delta:
+                continue
+
+            if checked_score == revision_score == 0:
+                if abs(revision_rt - revision.apex_time) / abs(checked_rt - revision.apex_time) < 0.5:
+                    continue
+
+            if revision.glycan_composition != checked.glycan_composition:
+                self.log("...... Rejected Revision: %s" % (revision.structure, ))
+                self.log(
+                   "...... %s: %0.2f %s (%0.2f) => %s (%0.2f) %0.2f/%0.2f" % (
+                       revision.tag, revision.apex_time,
+                       revision.glycan_composition, model.predict(revision),
+                       checked.glycan_composition, model.predict(checked),
+                       model.score_interval(revision, alpha=0.01),
+                       model.score_interval(checked, alpha=0.01),
+                   )
+               )
+            if checked.glycan_composition == original.glycan_composition:
+                checked = original
+
+            result.append((index, checked))
+        return result
+
     def _step(self, model, all_records, i, k):
 
         delta_time_scale = 1.0
@@ -1675,7 +1717,6 @@ class GlycopeptideElutionTimeModelBuildingPipeline(TaskBase):
         # Fit a new model on the revised data
         self.current_model = model = self.fit_model_with_revision(
             all_records, revised_recs, regularize=regularize)
-        self.revision_history.append((revised_recs, self.revised_tags.copy()))
 
         delta_time_scale = 1.0
         minimum_delta = 2.0
@@ -1708,9 +1749,6 @@ class GlycopeptideElutionTimeModelBuildingPipeline(TaskBase):
 
             self.current_model = model = self.fit_model_with_revision(
                 all_records, revised_recs, regularize=regularize)
-
-            self.revision_history.append(
-                (revised_recs, self.revised_tags.copy()))
 
         if final_round:
             self.log("Open Update Round")
@@ -1760,9 +1798,6 @@ class GlycopeptideElutionTimeModelBuildingPipeline(TaskBase):
                 self.current_model = model = self.fit_model_with_revision(
                     all_records, revised_recs, regularize=regularize)
 
-                self.revision_history.append(
-                    (revised_recs, self.revised_tags.copy()))
-
             self.log("Final Update Round")
             coverages = self.compute_model_coverage(model, all_records)
             coverage_threshold = (1.0 - (i * 1.0 / (k_scale * k)))
@@ -1784,6 +1819,12 @@ class GlycopeptideElutionTimeModelBuildingPipeline(TaskBase):
                 max(self.current_model.width_range.lower * delta_time_scale, minimum_delta))
 
             all_records = mask_in(all_records, revised_recs)
+
+        was_revised = [(i, record) for i, record in enumerate(all_records) if record.revised_from]
+        for i, record in self.validate_revisions(model, was_revised, revision_threshold,
+                                                 max(self.current_model.width_range.lower * delta_time_scale,
+                                                     minimum_delta)):
+            all_records[i] = record
 
         self.log("Estimating summary statistics")
         model._compute_summary_statistics()
