@@ -195,7 +195,7 @@ class MultipartGlycopeptideIdentifier(TaskBase):
                  mass_shifts=None, n_processes=6,
                  evaluation_kwargs=None, ipc_manager=None, file_manager=None,
                  probing_range_for_missing_precursors=3, trust_precursor_fits=True,
-                 glycan_score_threshold=1.0, peptide_masses_per_scan=100,
+                 glycan_score_threshold=1.0, peptide_masses_per_scan=60,
                  fdr_estimation_strategy=None, glycosylation_site_models_path=None,
                  cache_seeds=None, n_mapping_workers=1, **kwargs):
         if fdr_estimation_strategy is None:
@@ -564,7 +564,6 @@ class IdentificationWorker(TaskExecutionSequence):
         matching_executor = SemaphoreBoundMatcherExecutor(
             MultiLock([
                 lock,
-                self.branch_semaphore,
                 # SectionAnnouncer("%r Matching Spectra" % (self, ))
             ]),
             mapping_executor.out_queue,
