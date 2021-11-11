@@ -676,6 +676,7 @@ class MultipleProcessPeptideGlycosylator(TaskBase):
                     if all(w.is_work_done() for w in self.workers):
                         has_work = False
                     continue
+
             queue_feeder.join()
             self.ipc_controller.stop()
             for worker in self.workers:
@@ -683,7 +684,7 @@ class MultipleProcessPeptideGlycosylator(TaskBase):
                 worker.join(10)
                 if worker.is_alive():
                     self.log("Failed to join %r" % worker.pid)
-                if worker.exitcode != 0:
+                if worker.exitcode != 0 and worker.exitcode is not None:
                     raise ValueError("One or more workers failed to exit successfully")
 
             self.current_glycan_offset += self.glycan_limit
