@@ -463,6 +463,8 @@ class MultipleProcessProteinDigestor(TaskBase):
         done_event.set()
         for process in processes:
             process.join()
+            if process.exitcode != 0:
+                raise ValueError("One or more worker processes exited with an error.")
         logger.stop()
 
 
