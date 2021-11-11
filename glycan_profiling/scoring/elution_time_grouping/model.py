@@ -1601,23 +1601,23 @@ class GlycopeptideElutionTimeModelBuildingPipeline(TaskBase):
             self.log("Encountered %d missing observations" % nans.sum())
         return np.array(list(chromatograms))[np.where((coverages >= threshold) | nans | np.isclose(coverages, threshold))[0]]
 
-    def reweight(self, model, chromatograms, base_weight=0.3):
+    def reweight(self, model, chromatograms, base_weight=0.2):
         reweighted = []
         total = 0.0
+        total_ignored = 0
         for rec in chromatograms:
             rec = rec.copy()
             s = w = model.score_interval(rec, 0.01)
             if np.isnan(w):
                 s = w = 0
-            if w != 0:
-                w **= -1
-            rec.weight = w
+            total_ignored += w == 0
+            rec.weight = w + 1e-6
             if np.isnan(rec.weight):
                 rec.weight = base_weight
             reweighted.append(rec)
             total += s
-        self.log("Total Score for %d elements = %f" %
-                 (len(chromatograms), total))
+        self.log("Total Score for %d chromatograms = %f (%d ignored)" %
+                 (len(chromatograms), total, total_ignored))
         return reweighted
 
     def make_groups_from(self, chromatograms):
