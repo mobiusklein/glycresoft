@@ -3,8 +3,6 @@ import multiprocessing
 import click
 import textwrap
 
-from traitlets.traitlets import default
-
 from glycan_profiling.cli.base import cli, HiddenOption
 
 from glycan_profiling.cli.validators import (
