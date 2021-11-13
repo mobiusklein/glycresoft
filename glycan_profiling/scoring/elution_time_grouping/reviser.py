@@ -129,7 +129,7 @@ class MassShiftRule(object):
 
 
 class ModelReviser(object):
-    def __init__(self, model, rules, chromatograms=None, valid_glycans=None):
+    def __init__(self, model, rules, chromatograms=None, valid_glycans=None, revision_validator=None):
         if chromatograms is None:
             chromatograms = model.chromatograms
         self.model = model
@@ -141,6 +141,7 @@ class ModelReviser(object):
         self.alternative_scores = defaultdict(lambda: array('d'))
         self.alternative_times = defaultdict(lambda: array('d'))
         self.valid_glycans = valid_glycans
+        self.revision_validator = revision_validator
 
     def rescore(self, case):
         return self.model.score(case)
@@ -220,6 +221,8 @@ class ModelReviser(object):
                 a = self.alternative_scores[rule][i]
                 t = self.alternative_times[rule][i]
                 if a > best_score and not np.isclose(a, 0.0) and abs(t - self.original_times[i]) > minimum_time_difference:
+                    if self.revision_validator and not self.revision_validator(self.alternative_records[rule][i]):
+                        continue
                     delta_best_score = a - original_scores[i]
                     best_score = a
                     best_rule = rule
