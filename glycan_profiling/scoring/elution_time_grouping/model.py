@@ -13,12 +13,9 @@ from scipy import stats
 
 import dill
 
-from glycopeptidepy import parse
-
 from glypy.utils import make_counter
 from glypy.structure.glycan_composition import HashableGlycanComposition
 
-from glycan_profiling import chromatogram_tree
 from glycan_profiling.database.composition_network.space import composition_distance, DistanceCache
 
 try:
@@ -32,7 +29,9 @@ from glycan_profiling.task import TaskBase
 
 from glycan_profiling.chromatogram_tree import Unmodified, Ammonium
 from glycan_profiling.scoring.base import ScoringFeatureBase
+
 from glycan_profiling.structure import FragmentCachingGlycopeptide
+from glycan_profiling.structure.structure_loader import GlycanCompositionDeltaCache
 
 from .structure import _get_apex_time, GlycopeptideChromatogramProxy, GlycoformAggregator, DeltaOverTimeFilter
 from .linear_regression import (ransac, weighted_linear_regression_fit, prediction_interval, SMALL_ERROR, weighted_linear_regression_fit_ridge)
@@ -1162,9 +1161,11 @@ DeltaParam = namedtuple(
 
 
 class LocalShiftGraph(object):
-    def __init__(self, chromatograms, max_distance=3, key_cache=None, distance_cache=None):
+    def __init__(self, chromatograms, max_distance=3, key_cache=None, distance_cache=None, delta_cache=None):
         if distance_cache is None:
             distance_cache = DistanceCache(composition_distance)
+        if delta_cache is None:
+            delta_cache = GlycanCompositionDeltaCache()
         self.chromatograms = chromatograms
         self.max_distance = max_distance
         self.edges = defaultdict(list)
@@ -1172,6 +1173,7 @@ class LocalShiftGraph(object):
         self.groups = GlycoformAggregator(chromatograms)
         self.key_cache = key_cache or {}
         self.distance_cache = distance_cache
+        self.delta_cache = delta_cache
 
         self.build_edges()
         self.delta_params = self.estimate_delta_distribution()
@@ -1184,7 +1186,7 @@ class LocalShiftGraph(object):
                     a.glycan_composition, b.glycan_composition)[0]
                 if distance > self.max_distance or distance == 0:
                     continue
-                delta_comp = a.glycan_composition - b.glycan_composition
+                delta_comp = self.delta_cache(a.glycan_composition, b.glycan_composition)
                 structure = (key + str(delta_comp))
                 if structure in self.key_cache:
                     structure = self.key_cache[structure]
@@ -1306,13 +1308,17 @@ class LocalShiftGraph(object):
 
 class RelativeShiftFactorElutionTimeFitter(AbundanceWeightedPeptideFactorElutionTimeFitter):
     def __init__(self, chromatograms, factors=None, scale=1, transform=None, width_range=None,
-                 regularize=False, max_distance=3, key_cache=None, distance_cache=None):
+                 regularize=False, max_distance=3, key_cache=None, distance_cache=None,
+                 delta_cache=None):
         if key_cache is None:
             key_cache = {}
         if distance_cache is None:
             distance_cache = DistanceCache(composition_distance)
+        if delta_cache is None:
+            delta_cache = GlycanCompositionDeltaCache()
         self.key_cache = key_cache
         self.distance_cache = distance_cache
+        self.delta_cache = delta_cache
         self.max_distance = max_distance
         recs, groups = self.build_deltas(chromatograms, max_distance=max_distance)
         self.groups = groups
@@ -1350,7 +1356,7 @@ class RelativeShiftFactorElutionTimeFitter(AbundanceWeightedPeptideFactorElution
                     a.glycan_composition, b.glycan_composition)[0]
                 if distance > max_distance or distance == 0:
                     continue
-                delta_comp = a.glycan_composition - b.glycan_composition
+                delta_comp = self.delta_cache(a.glycan_composition, b.glycan_composition)
                 structure = (key + str(delta_comp))
                 if structure in self.key_cache:
                     structure = self.key_cache[structure]
@@ -1455,11 +1461,12 @@ def mask_in(full_set, incoming):
 # The self paramter is included as this function is later bound to a class directly
 # so it gets made into a method
 def model_type_dispatch(self, chromatogams, factors=None, scale=1, transform=None, width_range=None,
-                        regularize=False, key_cache=None, distance_cache=None):
+                        regularize=False, key_cache=None, distance_cache=None, delta_cache=None):
     try:
         return RelativeShiftFactorElutionTimeFitter(
             chromatogams, factors, scale, transform, width_range, regularize,
-            max_distance=3, key_cache=key_cache, distance_cache=distance_cache)
+            max_distance=3, key_cache=key_cache, distance_cache=distance_cache,
+            delta_cache=delta_cache)
     except AssertionError:
         return AbundanceWeightedPeptideFactorElutionTimeFitter(
             chromatogams, factors, scale, transform, width_range, regularize)
@@ -1468,11 +1475,12 @@ def model_type_dispatch(self, chromatogams, factors=None, scale=1, transform=Non
 # The self paramter is included as this function is later bound to a class directly
 # so it gets made into a method
 def model_type_dispatch_outlier_remove(self, chromatogams, factors=None, scale=1, transform=None, width_range=None,
-                                       regularize=False, key_cache=None, distance_cache=None):
+                                       regularize=False, key_cache=None, distance_cache=None, delta_cache=None):
     try:
         return LocalOutlierFilteringRelativeShiftFactorElutionTimeFitter(
             chromatogams, factors, scale, transform, width_range, regularize,
-            max_distance=3, key_cache=key_cache, distance_cache=distance_cache)
+            max_distance=3, key_cache=key_cache, distance_cache=distance_cache,
+            delta_cache=delta_cache)
     except AssertionError:
         return AbundanceWeightedPeptideFactorElutionTimeFitter(
             chromatogams, factors, scale, transform, width_range, regularize)
@@ -1496,6 +1504,7 @@ class GlycopeptideElutionTimeModelBuildingPipeline(TaskBase):
         self.initial_filter = initial_filter
         self.key_cache = {}
         self.distance_cache = DistanceCache(composition_distance)
+        self.delta_cache = GlycanCompositionDeltaCache()
 
     @property
     def current_model(self):
@@ -1525,7 +1534,8 @@ class GlycopeptideElutionTimeModelBuildingPipeline(TaskBase):
         model_type = partial(
             self.model_type,
             key_cache=self.key_cache,
-            distance_cache=self.distance_cache)
+            distance_cache=self.distance_cache,
+            delta_cache=self.delta_cache)
         builder.fit(predicate, model_type=model_type,
                     regularize=regularize, resample=resample)
         model = builder.merge()

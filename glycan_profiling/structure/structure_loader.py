@@ -10,7 +10,6 @@ from glycopeptidepy.structure.sequence import PeptideSequence
 from glycopeptidepy.structure.parser import sequence_tokenizer
 from glycopeptidepy.algorithm import reverse_preserve_sequon
 from glycopeptidepy.structure.glycan import HashableGlycanComposition, GlycanCompositionWithOffsetProxy
-from glypy.structure.glycan_composition import FrozenMonosaccharideResidue
 from glycopeptidepy.structure.fragmentation_strategy import StubGlycopeptideStrategy
 
 
@@ -732,3 +731,19 @@ class LazyGlycopeptide(object):
 
     def __hash__(self):
         return hash(self.sequence)
+
+
+class GlycanCompositionDeltaCache(object):
+    def __init__(self, storage=None):
+        if storage is None:
+            storage = {}
+        self.storage = storage
+
+    def __call__(self, x, y):
+        key = (x, y)
+        try:
+            return self.storage[key]
+        except KeyError:
+            delta = (x - y)
+            self.storage[key] = delta
+            return delta
