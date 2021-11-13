@@ -9,32 +9,39 @@ cimport cython
 @cython.freelist(100000)
 @cython.final
 cdef class ScoreSet(object):
-    def __init__(self, glycopeptide_score=0., peptide_score=0., glycan_score=0., glycan_coverage=0.):
+    def __init__(self, glycopeptide_score=0., peptide_score=0., glycan_score=0., glycan_coverage=0., stub_glycopeptide_intensity_utilization=0., n_stub_glycopeptide_matches=0):
         self.glycopeptide_score = glycopeptide_score
         self.peptide_score = peptide_score
         self.glycan_score = glycan_score
         self.glycan_coverage = glycan_coverage
+        self.stub_glycopeptide_intensity_utilization = stub_glycopeptide_intensity_utilization
+        self.n_stub_glycopeptide_matches = n_stub_glycopeptide_matches
 
     cpdef bytearray pack(self):
         cdef:
-            double[4] data
+            float[6] data
         data[0] = self.glycopeptide_score
         data[1] = self.peptide_score
         data[2] = self.glycan_score
         data[3] = self.glycan_coverage
-        return ((<char*>data)[:sizeof(double) * 4])
+        data[4] = self.stub_glycopeptide_intensity_utilization
+        data[5] = self.n_stub_glycopeptide_matches
+        return ((<char*>data)[:sizeof(float) * 6])
 
     @staticmethod
     def unpack(bytearray data):
         cdef:
-            double* buff
+            float* buff
             char* temp
+            int n_stub_glycopeptide_matches
         temp = data
-        buff = <double*>(temp)
-        return ScoreSet._create(buff[0], buff[1], buff[2], buff[3])
+        buff = <float*>(temp)
+        n_stub_glycopeptide_matches = <int>buff[5]
+        return ScoreSet._create(buff[0], buff[1], buff[2], buff[3], buff[4], n_stub_glycopeptide_matches)
 
     @staticmethod
-    cdef ScoreSet _create(double glycopeptide_score, double peptide_score, double glycan_score, double glycan_coverage):
+    cdef ScoreSet _create(float glycopeptide_score, float peptide_score, float glycan_score, float glycan_coverage,
+                          float stub_glycopeptide_intensity_utilization, int n_stub_glycopeptide_matches):
         cdef:
             ScoreSet self
         self = ScoreSet.__new__(ScoreSet)
@@ -42,6 +49,8 @@ cdef class ScoreSet(object):
         self.peptide_score = peptide_score
         self.glycan_score = glycan_score
         self.glycan_coverage = glycan_coverage
+        self.stub_glycopeptide_intensity_utilization = stub_glycopeptide_intensity_utilization
+        self.n_stub_glycopeptide_matches = n_stub_glycopeptide_matches
         return self
 
     def __eq__(self, other):
@@ -82,7 +91,12 @@ cdef class ScoreSet(object):
                                 self.glycan_score, self.glycan_coverage)
     @classmethod
     def from_spectrum_matcher(cls, match):
-        return cls(match.score, match.peptide_score(), match.glycan_score(), match.glycan_coverage())
+        utilization, count = match.count_peptide_Y_ion_utilization()
+        return cls(match.score,
+            match.peptide_score(),
+            match.glycan_score(),
+            match.glycan_coverage(),
+            utilization, count)
 
     cpdef bint _eq(self, ScoreSet other):
         if abs(self.glycopeptide_score - other.glycopeptide_score) > 1e-3:

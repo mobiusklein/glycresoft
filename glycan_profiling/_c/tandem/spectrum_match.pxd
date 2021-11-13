@@ -3,10 +3,12 @@ cimport cython
 
 cdef class ScoreSet(object):
     cdef:
-        public double glycopeptide_score
-        public double peptide_score
-        public double glycan_score
-        public double glycan_coverage
+        public float glycopeptide_score
+        public float peptide_score
+        public float glycan_score
+        public float glycan_coverage
+        public float stub_glycopeptide_intensity_utilization
+        public int n_stub_glycopeptide_matches
 
     cpdef bint _lt(self, ScoreSet other)
     cpdef bint _gt(self, ScoreSet other)
@@ -14,7 +16,8 @@ cdef class ScoreSet(object):
     cpdef bytearray pack(self)
 
     @staticmethod
-    cdef ScoreSet _create(double glycopeptide_score, double peptide_score, double glycan_score, double glycan_coverage)
+    cdef ScoreSet _create(float glycopeptide_score, float peptide_score, float glycan_score, float glycan_coverage,
+                          float stub_glycopeptide_intensity_utilization, int n_stub_glycopeptide_matches)
 
 cdef class FDRSet(object):
     cdef:

@@ -34,7 +34,9 @@ from glycan_profiling.serialize.tandem import (
     GlycanCompositionSpectrumMatch,
     UnidentifiedSpectrumCluster,
     UnidentifiedSpectrumSolutionSet,
-    UnidentifiedSpectrumMatch)
+    UnidentifiedSpectrumMatch,
+    GlycopeptideSpectrumMatchScoreSet,
+    )
 
 from glycan_profiling.serialize.identification import (
     IdentifiedGlycopeptide,

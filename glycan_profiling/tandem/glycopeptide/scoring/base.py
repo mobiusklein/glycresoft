@@ -8,7 +8,7 @@ from ...spectrum_match import SpectrumMatcherBase, ModelTreeNode
 
 
 class GlycopeptideSpectrumMatcherBase(SpectrumMatcherBase):
-
+    _peptide_Y_ion_utilization = None
     _glycan_score = None
     _peptide_score = None
     _glycan_coverage = None
@@ -191,6 +191,18 @@ class GlycopeptideSpectrumMatcherBase(SpectrumMatcherBase):
     def calculate_glycan_score(self, *args, **kwargs):
         return 0
 
+    def count_peptide_Y_ion_utilization(self):
+        if self._peptide_Y_ion_utilization is not None:
+            return self._peptide_Y_ion_utilization
+        weight = 0.0
+        count = 0
+        for pfp in self.solution_map:
+            if pfp.fragment.series == "stub_glycopeptide":
+                count += 1
+                weight += math.log10(pfp.peak.intensity)
+        self._peptide_Y_ion_utilization = weight, count
+        return self._peptide_Y_ion_utilization
+
     def get_auxiliary_data(self):
         data = super(GlycopeptideSpectrumMatcherBase, self).get_auxiliary_data()
         data['score'] = self.score
@@ -199,6 +211,7 @@ class GlycopeptideSpectrumMatcherBase(SpectrumMatcherBase):
         data['glycan_coverage'] = self.glycan_coverage()
         data['n_peaks'] = len(self.spectrum)
         data['n_fragment_matches'] = len(self.solution_map)
+        data['stub_glycopeptide_intensity_utilization'], data['n_stub_glycopeptide_matches'] = self.count_peptide_Y_ion_utilization()
         return data
 
 try:

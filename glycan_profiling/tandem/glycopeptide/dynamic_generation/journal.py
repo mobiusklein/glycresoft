@@ -83,6 +83,8 @@ class JournalFileWriter(TaskBase):
             'peptide_score',
             'glycan_score',
             'glycan_coverage',
+            'stub_glycopeptide_intensity_utilization',
+            'n_stub_glycopeptide_matches',
         ]
         if self.include_fdr:
             names.extend([
@@ -108,6 +110,8 @@ class JournalFileWriter(TaskBase):
             psm.score_set.peptide_score,
             psm.score_set.glycan_score,
             psm.score_set.glycan_coverage,
+            psm.score_set.stub_glycopeptide_intensity_utilization,
+            psm.score_set.n_stub_glycopeptide_matches,
         ])
         if self.include_fdr:
             q_value_set = psm.q_value_set
@@ -234,7 +238,10 @@ class JournalFileReader(TaskBase):
             parse_float(row['total_score']),
             parse_float(row['peptide_score']),
             parse_float(row['glycan_score']),
-            float(row['glycan_coverage']))
+            float(row['glycan_coverage']),
+            float(row['stub_glycopeptide_intensity_utilization']),
+            int(row['n_stub_glycopeptide_matches'])
+        )
         return score_set
 
     def _build_fdr_set(self, row):
@@ -246,7 +253,6 @@ class JournalFileReader(TaskBase):
         return fdr_set
 
     def _make_mass_shift(self, row):
-        # mass_shift = MassShift(row['mass_shift'], MassShift.get(row['mass_shift']))
         mass_shift = self.mass_shift_map[row['mass_shift']]
         return mass_shift
 
