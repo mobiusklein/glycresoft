@@ -22,14 +22,8 @@ def composition_distance(c1, c2):
     return int(distance), 1 / distance if distance > 0 else 1
 
 
-def n_glycan_distance(c1, c2):
-    distance, weight = composition_distance(c1, c2)
-    # if abs(c1[_hexose] - c2[_hexose]) == 1 and abs(c1[_hexnac] - c2[_hexnac]) == 1:
-    #     distance -= 1
-    # else:
-    #     if c1[_hexose] == c1[_hexnac] or c2[_hexose] == c2[_hexnac]:
-    #         weight /= 2.
-    return distance, weight
+# Old alias
+n_glycan_distance = composition_distance
 
 
 class CompositionSpace(object):
@@ -90,3 +84,20 @@ class CompositionSpace(object):
             if self.l1_distance(composition, case) <= window:
                 out.append(case)
         return out
+
+
+class DistanceCache(object):
+    '''A caching wrapper around a distance function (e.g. composition_distance).
+    '''
+    def __init__(self, distance_function):
+        self.distance_function = distance_function
+        self.cache = dict()
+
+    def __call__(self, x, y):
+        key = frozenset((x, y))
+        try:
+            return self.cache[key]
+        except KeyError:
+            d = self.distance_function(x, y)
+            self.cache[key] = d
+            return d
