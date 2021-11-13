@@ -1,6 +1,11 @@
 import numpy as np
+
 from matplotlib import pyplot as plt, font_manager
+
+from six import PY3
+
 from ms_peak_picker.utils import draw_peaklist
+
 from .sequence_fragment_logo import glycopeptide_match_logo
 
 
@@ -17,9 +22,14 @@ default_ion_series_to_color = {
 }
 
 
-font_options = font_manager.FontProperties(
-    family='sans serif',
-    math_fontfamily='dejavusans')
+if PY3:
+    font_options = font_manager.FontProperties(
+        family='sans serif',
+        math_fontfamily='dejavusans')
+else:
+    font_options = font_manager.FontProperties(
+        family='sans serif')
+
 
 
 class SpectrumMatchAnnotator(object):
