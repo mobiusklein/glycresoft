@@ -17,7 +17,9 @@ default_ion_series_to_color = {
 }
 
 
-font_options = font_manager.FontProperties(family='sans serif')
+font_options = font_manager.FontProperties(
+    family='sans serif',
+    math_fontfamily='dejavusans')
 
 
 class SpectrumMatchAnnotator(object):
@@ -57,8 +59,12 @@ class SpectrumMatchAnnotator(object):
         clip_on = kw['clip_on']
 
         text = self.ax.text(
-            peak.mz, y, label, rotation=rotation, va='bottom',
-            ha='center', fontsize=fontsize, fontproperties=font_options,
+            peak.mz, y, label,
+            rotation=rotation,
+            va='bottom',
+            ha='center',
+            fontsize=fontsize,
+            fontproperties=font_options,
             clip_on=clip_on)
         self.peak_labels.append(text)
         return text
