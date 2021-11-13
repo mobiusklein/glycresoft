@@ -4,6 +4,8 @@ from scipy.ndimage import gaussian_filter1d
 import numpy as np
 from matplotlib import pyplot as plt
 
+from six import string_types as basestring
+
 import glypy
 
 from .glycan_visual_classification import (

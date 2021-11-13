@@ -1,6 +1,8 @@
 from collections import defaultdict, Counter
 import itertools
 
+from six import string_types as basestring
+
 import glypy
 from glypy.structure.glycan_composition import FrozenGlycanComposition
 from glypy.composition import formula
