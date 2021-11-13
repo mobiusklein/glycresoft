@@ -50,13 +50,10 @@ class EntitySummaryBarChartArtist(ArtistBase):
 
     def prepare_x_args(self):
         items = self.sort_items()
-        # if len(items) == 0:
-        #     # raise ValueError("Cannot render. Zero items to plot.")
-        #     return [], [], [],
         keys = [c.glycan_composition for c in items]
         include_classes = set(map(self.colorizer.classify, keys))
         xtick_labeler = GlycanLabelTransformer(keys, self.orderer)
-        color = map(self.colorizer, keys)
+        color = list(map(self.colorizer, keys))
         self.indices = indices = np.arange(len(items))
 
         self.xtick_labeler = xtick_labeler
