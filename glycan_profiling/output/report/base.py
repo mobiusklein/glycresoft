@@ -77,7 +77,7 @@ def png_plot(figure, img_width=None, img_height=None, xattrs=None, **kwargs):
 
 def svguri_plot(figure, **kwargs):
     svg_string = svg_plot(figure, **kwargs)
-    return (b"<img src='data:image/svg+xml;utf-8,%s'>" % quote(svg_string)).decode('utf8')
+    return ("<img src='data:image/svg+xml;utf-8,%s'>" % quote(svg_string))
 
 
 def _strip_style(root):

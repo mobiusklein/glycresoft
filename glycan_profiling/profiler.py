@@ -1364,7 +1364,8 @@ class MultipartGlycopeptideLCMSMSAnalyzer(MzMLGlycopeptideLCMSMSAnalyzer):
         self.log("... Begin Retention Time Modeling")
 
         pipeline = GlycopeptideElutionTimeModelBuildingPipeline(
-            glycoform_agg, valid_glycans=glycan_compositions, revision_validator=revision_validator)
+            glycoform_agg, valid_glycans=glycan_compositions,
+            revision_validator=revision_validator)
         result, revisions = pipeline.run()
 
         self.retention_time_model = result
