@@ -128,6 +128,55 @@ class MassShiftRule(object):
         return template.format(self=self)
 
 
+def modify_rules(rules, symbol_map):
+    rules = list(rules)
+    for sym_from, sym_to in symbol_map.items():
+        editted = []
+        for rule in rules:
+            if sym_from in rule.delta_glycan:
+                rule = rule.clone()
+                count = rule.delta_glycan.pop(sym_from)
+                rule.delta_glycan[sym_to] = count
+            editted.append(rule)
+        rules = editted
+    return rules
+
+
+class PeptideYUtilizationPreservingRevisionValidator(object):
+    def __init__(self, threshold=0.9):
+        self.threshold = threshold
+
+    def validate(self, revised, original):
+        source = revised.source
+        if source is None:
+            # Can't validate without a source to read the spectrum match metadata
+            return True
+
+        try:
+            revised_gpsm = source.best_match_for(revised.structure)
+        except KeyError:
+            # Can't find a spectrum match to the revised form, assume we're allowed to
+            # revise.
+            return True
+
+        try:
+            original_gpsm = source.best_match_for(original.structure)
+        except KeyError:
+            # Can't find a spectrum match to the original, assume we're allowed to
+            # revise.
+            return True
+        original_utilization = original_gpsm.score_set.stub_glycopeptide_intensity_utilization
+        if not original_utilization:
+            # Anything is better than or equal to zero
+            return True
+        utilization_ratio = revised_gpsm.score_set.stub_glycopeptide_intensity_utilization / original_utilization
+        return utilization_ratio > self.threshold
+
+    def __call__(self, revised, original):
+        return self.validate(revised, original)
+
+
+
 class ModelReviser(object):
     def __init__(self, model, rules, chromatograms=None, valid_glycans=None, revision_validator=None):
         if chromatograms is None:
@@ -147,17 +196,7 @@ class ModelReviser(object):
         return self.model.score(case)
 
     def modify_rules(self, symbol_map):
-        rules = list(self.rules)
-        for sym_from, sym_to in symbol_map.items():
-            editted = []
-            for rule in rules:
-                if sym_from in rule.delta_glycan:
-                    rule = rule.clone()
-                    count = rule.delta_glycan.pop(sym_from)
-                    rule.delta_glycan[sym_to] = count
-                editted.append(rule)
-            rules = editted
-        self.rules = rules
+        self.rules = modify_rules(self.rules, symbol_map)
 
     def propose_revisions(self, case):
         propositions = {
@@ -216,12 +255,13 @@ class ModelReviser(object):
             best_score = original_scores[i]
             best_rule = None
             delta_best_score = float('inf')
-            best_record = chromatograms[i]
+            original_solution = best_record = chromatograms[i]
+
             for rule in self.rules:
                 a = self.alternative_scores[rule][i]
                 t = self.alternative_times[rule][i]
                 if a > best_score and not np.isclose(a, 0.0) and abs(t - self.original_times[i]) > minimum_time_difference:
-                    if self.revision_validator and not self.revision_validator(self.alternative_records[rule][i]):
+                    if self.revision_validator and not self.revision_validator(self.alternative_records[rule][i], original_solution):
                         continue
                     delta_best_score = a - original_scores[i]
                     best_score = a
@@ -235,8 +275,6 @@ class ModelReviser(object):
             else:
                 next_round.append(chromatograms[i])
         return next_round
-
-# TODO: Handle situations where Fuc is not present but d-Hex is.
 
 
 dhex = FrozenMonosaccharideResidue.from_iupac_lite("d-Hex")

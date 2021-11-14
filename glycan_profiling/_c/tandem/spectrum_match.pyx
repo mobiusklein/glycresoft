@@ -34,10 +34,12 @@ cdef class ScoreSet(object):
             float* buff
             char* temp
             int n_stub_glycopeptide_matches
+            float utilization
         temp = data
         buff = <float*>(temp)
         n_stub_glycopeptide_matches = <int>buff[5]
-        return ScoreSet._create(buff[0], buff[1], buff[2], buff[3], buff[4], n_stub_glycopeptide_matches)
+        utilization = buff[4]
+        return ScoreSet._create(buff[0], buff[1], buff[2], buff[3], utilization, n_stub_glycopeptide_matches)
 
     @staticmethod
     cdef ScoreSet _create(float glycopeptide_score, float peptide_score, float glycan_score, float glycan_coverage,
@@ -68,11 +70,12 @@ cdef class ScoreSet(object):
     def __repr__(self):
         template = (
             "{self.__class__.__name__}({self.glycopeptide_score}, {self.peptide_score},"
-            " {self.glycan_score}, {self.glycan_coverage})")
+            " {self.glycan_score}, {self.glycan_coverage}, {self.stub_glycopeptide_intensity_utilization},"
+            " {self.n_stub_glycopeptide_matches})")
         return template.format(self=self)
 
     def __len__(self):
-        return 4
+        return 6
 
     def __getitem__(self, int i):
         if i == 0:
@@ -83,12 +86,18 @@ cdef class ScoreSet(object):
             return self.glycan_score
         elif i == 3:
             return self.glycan_coverage
+        elif i == 4:
+            return self.stub_glycopeptide_intensity_utilization
+        elif i == 5:
+            return self.n_stub_glycopeptide_matches
         else:
             raise IndexError(i)
 
     def __reduce__(self):
         return self.__class__, (self.glycopeptide_score, self.peptide_score,
-                                self.glycan_score, self.glycan_coverage)
+                                self.glycan_score, self.glycan_coverage, self.stub_glycopeptide_intensity_utilization,
+                                self.n_stub_glycopeptide_matches)
+
     @classmethod
     def from_spectrum_matcher(cls, match):
         utilization, count = match.count_peptide_Y_ion_utilization()

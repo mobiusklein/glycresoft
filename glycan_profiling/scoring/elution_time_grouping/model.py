@@ -39,7 +39,9 @@ from .reviser import (IntervalModelReviser, IsotopeRule, AmmoniumMaskedRule,
                       AmmoniumUnmaskedRule, HexNAc2NeuAc2ToHex6AmmoniumRule,
                       IsotopeRule2, HexNAc2Fuc1NeuAc2ToHex7, PhosphateToSulfateRule,
                       SulfateToPhosphateRule, Sulfate1HexNAc2ToHex3Rule,
-                      Hex3ToSulfate1HexNAc2Rule)
+                      Hex3ToSulfate1HexNAc2Rule,
+                      PeptideYUtilizationPreservingRevisionValidator,
+                      modify_rules)
 
 from . import reviser as libreviser
 
@@ -1503,8 +1505,41 @@ class GlycopeptideElutionTimeModelBuildingPipeline(TaskBase):
         self.valid_glycans = valid_glycans
         self.initial_filter = initial_filter
         self.key_cache = {}
+
         self.distance_cache = DistanceCache(composition_distance)
         self.delta_cache = GlycanCompositionDeltaCache()
+        self.revision_rules = self._default_rules()
+        self._check_rules()
+
+    def _default_rules(self):
+        return [
+            AmmoniumMaskedRule,
+            AmmoniumUnmaskedRule,
+            IsotopeRule,
+            IsotopeRule2,
+            HexNAc2NeuAc2ToHex6AmmoniumRule,
+            HexNAc2Fuc1NeuAc2ToHex7,
+            SulfateToPhosphateRule,
+            PhosphateToSulfateRule,
+            Sulfate1HexNAc2ToHex3Rule,
+            Hex3ToSulfate1HexNAc2Rule,
+        ]
+
+    def _check_rules(self):
+        if self.valid_glycans:
+            fucose = 0
+            dhex = 0
+            for gc in self.valid_glycans:
+                fucose += gc['Fuc']
+                dhex += gc['dHex']
+            if fucose == 0 and dhex > 0:
+                self.revision_rules = modify_rules(self.revision_rules, {libreviser.fuc: libreviser.dhex})
+            elif dhex == 0 and fucose > 0:
+                # no-op, we don't need to make changes to the current
+                # rules.
+                pass
+            else:
+                self.log("No Fuc or d-Hex detected in valid glycans, no rule modifications inferred")
 
     @property
     def current_model(self):
@@ -1550,19 +1585,10 @@ class GlycopeptideElutionTimeModelBuildingPipeline(TaskBase):
 
     def make_reviser(self, model, chromatograms):
         reviser = IntervalModelReviser(
-            model, [
-                AmmoniumMaskedRule,
-                AmmoniumUnmaskedRule,
-                IsotopeRule,
-                IsotopeRule2,
-                HexNAc2NeuAc2ToHex6AmmoniumRule,
-                HexNAc2Fuc1NeuAc2ToHex7,
-                SulfateToPhosphateRule,
-                PhosphateToSulfateRule,
-                Sulfate1HexNAc2ToHex3Rule,
-                Hex3ToSulfate1HexNAc2Rule,
-            ],
-            chromatograms, valid_glycans=self.valid_glycans)
+            model, self.revision_rules,
+            chromatograms,
+            valid_glycans=self.valid_glycans,
+            revision_validator=PeptideYUtilizationPreservingRevisionValidator())
         if self.valid_glycans:
             fucose = 0
             dhex = 0
