@@ -174,11 +174,11 @@ class LocalSpectrumEvaluator(SpectrumEvaluatorBase, TaskBase):
         try:
             self.construct_cache_subgroups = self.evaluator.construct_cache_subgroups
         except AttributeError:
-            pass
+            self.log("Failed to acquire construct_cache_subgroups")
         try:
             self.create_evaluation_context = self.evaluator.create_evaluation_context
         except AttributeError:
-            pass
+            self.log("Failed to acquire create_evaluation_context")
 
     def evaluate(self, scan, structure, *args, **kwargs):
         return self.evaluator.evaluate(scan, structure, *args, **kwargs)

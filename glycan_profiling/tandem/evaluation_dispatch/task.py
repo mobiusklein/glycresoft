@@ -76,6 +76,7 @@ class TaskSourceBase(StructureSpectrumSpecificationBuilder, TaskBase):
         i = 0
         n = len(hit_to_scan)
         seen = dict()
+        log_interval = 10000
         for hit_id, scan_ids in hit_to_scan.items():
             i += 1
             hit = hit_map[hit_id]
@@ -110,11 +111,12 @@ class TaskSourceBase(StructureSpectrumSpecificationBuilder, TaskBase):
                 # important than the processing step. Additionally, as the two threads
                 # run concurrently, the feeding thread can log a short interval before
                 # the entire process has formally logged that it has started.
-                if i % 10000 == 0:
+                if i % log_interval == 0:
                     self.log("...... Dealt %d work items (%0.2f%% Complete)" % (i, i * 100.0 / n))
             except Exception as e:
                 self.log("An exception occurred while feeding %r and %d scan ids: %r" % (hit_id, len(scan_ids), e))
-        self.log("...... Finished dealing %d work items" % (i,))
+        if i > log_interval:
+            self.log("...... Finished dealing %d work items" % (i,))
         self.join()
         return
 
@@ -173,7 +175,6 @@ class TaskSourceBase(StructureSpectrumSpecificationBuilder, TaskBase):
             self.add(hit_group)
             if i % self.batch_size == 0 and i:
                 self.join()
-        self.log("...... Finished dealing %d work items" % (i,))
         self.join()
         return
 

@@ -59,7 +59,8 @@ class GlycopeptideSpectrumGroupEvaluatorMixin(object):
                 subgroups.append([structure])
         subgroups = [
             sorted([record_by_id[structure.id]
-                    for structure in subgroup], key=lambda x: x.id.structure_type)
+                    for structure in subgroup],
+                   key=lambda x: x.id.structure_type)
             if len(subgroup) > 1 else [record_by_id[structure.id] for structure in subgroup]
             for subgroup in subgroups
         ]
@@ -155,8 +156,10 @@ class GlycopeptideMatcher(GlycopeptideSpectrumGroupEvaluatorMixin, PeptideMassFi
     def reset_parser(self):
         self.parser = self.parser_type(sequence_cls=self.sequence_type)
 
-    def evaluate(self, scan, structure, *args, **kwargs):
+    def evaluate(self, scan, structure, evaluation_context=None, *args, **kwargs):
         target = self.parser(structure)
+        if evaluation_context is not None:
+            evaluation_context(target)
         matcher = self.scorer_type.evaluate(scan, target, *args, **kwargs)
         return matcher
 

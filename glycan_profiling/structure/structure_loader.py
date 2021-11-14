@@ -478,14 +478,27 @@ class CachingPeptideParser(CachingGlycopeptideParser):
 
 
 class DecoyFragmentCachingGlycopeptide(FragmentCachingGlycopeptide):
+    _random_shift_cache = dict()
+
+    @classmethod
+    def get_random_shifts_for(cls, mass, n, low=1.0, high=30.0):
+        seed = int(round(mass))
+        key = (seed, n)
+        try:
+            return cls._random_shift_cache[key]
+        except KeyError:
+            rng = np.random.RandomState(seed)
+            rand_deltas = rng.uniform(low, high, n)
+            cls._random_shift_cache[key] = rand_deltas
+            return rand_deltas
 
     def _permute_stub_masses(self, stub_fragments, kwargs):
-        random_state = np.random.RandomState(
-            int(round(self.glycan_composition.mass())))
         random_low = kwargs.get('random_low', 1.0)
         random_high = kwargs.get("random_high", 30.0)
         n = len(stub_fragments)
-        rand_deltas = random_state.uniform(random_low, random_high, n)
+        rand_deltas = self.get_random_shifts_for(
+            self.glycan_composition.mass(),
+            n, random_low, random_high)
         i = 0
         for frag in stub_fragments:
             if frag.glycosylation_size > 1:
