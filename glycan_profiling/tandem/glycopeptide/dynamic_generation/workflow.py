@@ -377,7 +377,7 @@ class MultipartGlycopeptideIdentifier(TaskBase):
             mapping_batcher,
         ] + execution_branches)
         for branch in execution_branches:
-            branch.start(process=True, daemon=False)
+            branch.start(process=True, daemon=True)
         pipeline.start(daemon=True)
         pipeline.join()
         had_error = pipeline.error_occurred()
