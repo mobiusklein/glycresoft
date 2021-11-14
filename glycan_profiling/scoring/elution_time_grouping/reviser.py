@@ -1,3 +1,5 @@
+import logging
+
 from array import array
 from collections import defaultdict
 
@@ -7,6 +9,9 @@ from glypy.structure.glycan_composition import HashableGlycanComposition, Frozen
 from glycan_profiling.chromatogram_tree import mass_shift
 
 from glycan_profiling.chromatogram_tree.mass_shift import Unmodified, Ammonium
+
+logger = logging.getLogger(__name__)
+logger.addHandler(logging.NullHandler())
 
 
 class RevisionRule(object):
@@ -157,6 +162,9 @@ class PeptideYUtilizationPreservingRevisionValidator(object):
         except KeyError:
             # Can't find a spectrum match to the revised form, assume we're allowed to
             # revise.
+            logger.info(
+                "...... Permitting revision for %s (%0.3f) from %s to %s because revision not evaluated",
+                revised.tag, revised.apex_time, original.glycan_composition, revised.glycan_composition)
             return True
 
         try:
@@ -164,12 +172,24 @@ class PeptideYUtilizationPreservingRevisionValidator(object):
         except KeyError:
             # Can't find a spectrum match to the original, assume we're allowed to
             # revise.
+            logger.info(
+                "...... Permitting revision for %s (%0.3f) from %s to %s because original not evaluated",
+                revised.tag, revised.apex_time, original.glycan_composition, revised.glycan_composition)
+
             return True
         original_utilization = original_gpsm.score_set.stub_glycopeptide_intensity_utilization
         if not original_utilization:
             # Anything is better than or equal to zero
+            logger.info(
+                "...... Permitting revision for %s (%0.3f) from %s to %s because original has zero utilization",
+                revised.tag, revised.apex_time, original.glycan_composition, revised.glycan_composition)
             return True
-        utilization_ratio = revised_gpsm.score_set.stub_glycopeptide_intensity_utilization / original_utilization
+        revised_utilization = revised_gpsm.score_set.stub_glycopeptide_intensity_utilization
+        utilization_ratio = revised_utilization / original_utilization
+        logger.info(
+            "...... Checking revision for %s (%0.3f) from %s to %s: %0.3f / %0.3f: %r",
+            revised.tag, revised.apex_time, original.glycan_composition, revised.glycan_composition,
+            revised_utilization, original_utilization, utilization_ratio > self.threshold)
         return utilization_ratio > self.threshold
 
     def __call__(self, revised, original):

@@ -24,8 +24,8 @@ default_ion_series_to_color = {
 
 if PY3:
     font_options = font_manager.FontProperties(
-        family='sans serif',
-        math_fontfamily='dejavusans')
+        family='sans serif')
+    font_options.set_math_fontfamily("dejavusans")
 else:
     font_options = font_manager.FontProperties(
         family='sans serif')
