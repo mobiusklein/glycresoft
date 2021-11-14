@@ -55,9 +55,10 @@ from glycan_profiling import config # pylint: disable=unused-import
 from glycan_profiling.chromatogram_tree import ChromatogramFilter, SimpleChromatogram, Unmodified
 
 from glycan_profiling.models import GeneralScorer, get_feature
+
 from glycan_profiling.scoring.elution_time_grouping import (
     GlycopeptideChromatogramProxy, GlycoformAggregator,
-    GlycopeptideElutionTimeModelBuildingPipeline)
+    GlycopeptideElutionTimeModelBuildingPipeline, PeptideYUtilizationPreservingRevisionValidator)
 
 from glycan_profiling.structure import ScanStub
 
@@ -1343,10 +1344,27 @@ class MultipartGlycopeptideLCMSMSAnalyzer(MzMLGlycopeptideLCMSMSAnalyzer):
 
         glycoform_agg = GlycoformAggregator(best_instances)
 
+        def threshold_fn(x):
+            return x.q_value <= self.psm_fdr_threshold
+
+        msn_match_args = self.make_msn_evaluation_kwargs()
+        msn_match_args['error_tolerance'] = self.msn_mass_error_tolerance
+
+        updater = SpectrumMatchUpdater(
+            scan_loader,
+            self.tandem_scoring_model,
+            spectrum_match_cls=MultiScoreSpectrumMatch,
+            id_maker=IdKeyMaker(glycan_compositions),
+            threshold_fn=threshold_fn,
+            match_args=msn_match_args,
+            fdr_estimator=self.fdr_estimator)
+
+        revision_validator = PeptideYUtilizationPreservingRevisionValidator(spectrum_match_builder=updater)
+
         self.log("... Begin Retention Time Modeling")
 
         pipeline = GlycopeptideElutionTimeModelBuildingPipeline(
-            glycoform_agg, valid_glycans=glycan_compositions)
+            glycoform_agg, valid_glycans=glycan_compositions, revision_validator=revision_validator)
         result, revisions = pipeline.run()
 
         self.retention_time_model = result
@@ -1378,22 +1396,6 @@ class MultipartGlycopeptideLCMSMSAnalyzer(MzMLGlycopeptideLCMSMSAnalyzer):
                 was_updated_orphans.append(rev)
 
         self.log("... Updating best match assignments")
-
-        def threshold_fn(x):
-            return x.q_value <= self.psm_fdr_threshold
-
-        msn_match_args = self.make_msn_evaluation_kwargs()
-        msn_match_args['error_tolerance'] = self.msn_mass_error_tolerance
-
-        updater = SpectrumMatchUpdater(
-            scan_loader,
-            self.tandem_scoring_model,
-            spectrum_match_cls=MultiScoreSpectrumMatch,
-            id_maker=IdKeyMaker(glycan_compositions),
-            threshold_fn=threshold_fn,
-            match_args=msn_match_args,
-            fdr_estimator=self.fdr_estimator)
-
 
         # Use side-effects to update the source chromatogram
         for revision in was_updated:

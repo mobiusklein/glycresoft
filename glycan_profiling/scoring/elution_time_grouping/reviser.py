@@ -148,8 +148,10 @@ def modify_rules(rules, symbol_map):
 
 
 class PeptideYUtilizationPreservingRevisionValidator(object):
-    def __init__(self, threshold=0.9):
+    def __init__(self, threshold=0.9, spectrum_match_builder=None, threshold_fn=lambda x: x.q_value < 0.05):
         self.threshold = threshold
+        self.spectrum_match_builder = spectrum_match_builder
+        self.threshold_fn = threshold_fn
 
     def validate(self, revised, original):
         source = revised.source
@@ -157,9 +159,20 @@ class PeptideYUtilizationPreservingRevisionValidator(object):
             # Can't validate without a source to read the spectrum match metadata
             return True
 
+        found_revision = False
         try:
             revised_gpsm = source.best_match_for(revised.structure)
+            found_revision = True
         except KeyError:
+            if self.spectrum_match_builder is not None:
+                self.spectrum_match_builder.get_spectrum_solution_sets(revised, source)
+                try:
+                    revised_gpsm = source.best_match_for(revised.structure)
+                    found_revision = True
+                except KeyError:
+                    pass
+
+        if not found_revision:
             # Can't find a spectrum match to the revised form, assume we're allowed to
             # revise.
             logger.info(
@@ -175,8 +188,8 @@ class PeptideYUtilizationPreservingRevisionValidator(object):
             logger.info(
                 "...... Permitting revision for %s (%0.3f) from %s to %s because original not evaluated",
                 revised.tag, revised.apex_time, original.glycan_composition, revised.glycan_composition)
-
             return True
+
         original_utilization = original_gpsm.score_set.stub_glycopeptide_intensity_utilization
         if not original_utilization:
             # Anything is better than or equal to zero
@@ -184,6 +197,7 @@ class PeptideYUtilizationPreservingRevisionValidator(object):
                 "...... Permitting revision for %s (%0.3f) from %s to %s because original has zero utilization",
                 revised.tag, revised.apex_time, original.glycan_composition, revised.glycan_composition)
             return True
+
         revised_utilization = revised_gpsm.score_set.stub_glycopeptide_intensity_utilization
         utilization_ratio = revised_utilization / original_utilization
         logger.info(
@@ -194,7 +208,6 @@ class PeptideYUtilizationPreservingRevisionValidator(object):
 
     def __call__(self, revised, original):
         return self.validate(revised, original)
-
 
 
 class ModelReviser(object):

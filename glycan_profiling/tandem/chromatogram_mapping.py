@@ -1319,7 +1319,7 @@ class SpectrumMatchUpdater(TaskBase):
                     structures.add(sm.target)
         return structures
 
-    def process_revision(self, revision, chromatogram=None):
+    def get_spectrum_solution_sets(self, revision, chromatogram=None):
         if chromatogram is None:
             chromatogram = revision.source
 
@@ -1334,6 +1334,16 @@ class SpectrumMatchUpdater(TaskBase):
         if self.fdr_estimator is not None:
             for sset in chromatogram.tandem_solutions:
                 self.fdr_estimator.score_all(sset)
+        return revised_solution_sets
+
+    def process_revision(self, revision, chromatogram=None):
+        if chromatogram is None:
+            chromatogram = revision.source
+
+        reference = chromatogram.structure
+        revised_structure = revision.structure
+
+        revised_solution_sets = self.get_spectrum_solution_sets(revision, chromatogram)
 
         representers = chromatogram.compute_representative_weights(self.threshold_fn)
         keep = []

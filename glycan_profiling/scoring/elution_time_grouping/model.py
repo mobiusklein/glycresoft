@@ -1495,7 +1495,10 @@ class GlycopeptideElutionTimeModelBuildingPipeline(TaskBase):
 
     model_type = model_type_dispatch_outlier_remove
 
-    def __init__(self, aggregate, calibration_alpha=0.001, valid_glycans=None, initial_filter=unmodified_modified_predicate):
+    def __init__(self, aggregate, calibration_alpha=0.001, valid_glycans=None,
+                 initial_filter=unmodified_modified_predicate, revision_validator=None):
+        if revision_validator is None:
+            revision_validator = PeptideYUtilizationPreservingRevisionValidator()
         self.aggregate = aggregate
         self.calibration_alpha = calibration_alpha
         self._current_model = None
@@ -1505,6 +1508,7 @@ class GlycopeptideElutionTimeModelBuildingPipeline(TaskBase):
         self.valid_glycans = valid_glycans
         self.initial_filter = initial_filter
         self.key_cache = {}
+        self.revision_validator = revision_validator
 
         self.distance_cache = DistanceCache(composition_distance)
         self.delta_cache = GlycanCompositionDeltaCache()
@@ -1588,7 +1592,7 @@ class GlycopeptideElutionTimeModelBuildingPipeline(TaskBase):
             model, self.revision_rules,
             chromatograms,
             valid_glycans=self.valid_glycans,
-            revision_validator=PeptideYUtilizationPreservingRevisionValidator())
+            revision_validator=self.revision_validator)
         if self.valid_glycans:
             fucose = 0
             dhex = 0
