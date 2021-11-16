@@ -617,25 +617,22 @@ class SharedCacheAwareDecoyFragmentCachingGlycopeptide(DecoyFragmentCachingGlyco
     def stub_fragments(self, *args, **kwargs):
         kwargs.setdefault("strategy", CachingStubGlycopeptideStrategy)
         key = self.fragment_caches.stub_fragment_key(self, args, kwargs)
-        try:
+        if key in self.fragment_caches:
             return self.fragment_caches[key]
-        except KeyError:
-            target_key = self.fragment_caches._make_target_key(key)
-            try:
-                if target_key is None:
-                    raise KeyError(None)
-                result = self.fragment_caches[target_key]
-                result = [f.clone() for f in result]
-            except KeyError:
-                result = list(
+        target_key = self.fragment_caches._make_target_key(key)
+        if target_key in self.fragment_caches:
+            result = self.fragment_caches[target_key]
+            result = [f.clone() for f in result]
+        else:
+            result = list(
                     # Directly call the superclass method of FragmentCachingGlycopeptide as we
                     # do not need to go through a preliminary round of cache key construction and
                     # querying.
                     super(FragmentCachingGlycopeptide, self).stub_fragments(  # pylint: disable=bad-super-call
                         *args, **kwargs))
-            result = self._permute_stub_masses(result, kwargs)
-            self.fragment_caches[key] = result
-            return result
+        result = self._permute_stub_masses(result, kwargs)
+        self.fragment_caches[key] = result
+        return result
 
 
 class Parser(object):

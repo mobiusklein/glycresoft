@@ -1,6 +1,7 @@
 cimport cython
 from cpython.object cimport PyObject
 from cpython.ref cimport Py_INCREF
+from cpython.dict cimport PyDict_GetItem, PyDict_SetItem
 from cpython.tuple cimport PyTuple_GET_SIZE, PyTuple_GET_ITEM, PyTuple_SET_ITEM, PyTuple_New
 
 from numpy cimport npy_uint32 as uint32_t, npy_uint64 as uint64_t
@@ -216,11 +217,14 @@ cdef class GlycopeptideFragmentCachingContext(object):
         key = ('stub_fragments', args, frozenset(kwargs.items()), )
         return key
 
+    def __contains__(self, key):
+        return PyDict_GetItem(self.store, key) != NULL
+
     def __getitem__(self, key):
         return self.store[key]
 
     def __setitem__(self, key, value):
-        self.store[key] = value
+        PyDict_SetItem(self.store, key, value)
 
     def __reduce__(self):
         return self.__class__, (self.store, )

@@ -147,30 +147,41 @@ def modify_rules(rules, symbol_map):
     return rules
 
 
-class PeptideYUtilizationPreservingRevisionValidator(object):
-    def __init__(self, threshold=0.9, spectrum_match_builder=None, threshold_fn=lambda x: x.q_value < 0.05):
-        self.threshold = threshold
+def always(x):
+    return True
+
+
+class RevisionValidatorBase(object):
+    def __init__(self, spectrum_match_builder, threshold_fn=always):
         self.spectrum_match_builder = spectrum_match_builder
         self.threshold_fn = threshold_fn
 
-    def validate(self, revised, original):
-        source = revised.source
-        if source is None:
-            # Can't validate without a source to read the spectrum match metadata
-            return True
-
+    def find_revision_gpsm(self, chromatogram, revised):
         found_revision = False
+        revised_gpsm = None
         try:
-            revised_gpsm = source.best_match_for(revised.structure)
+            revised_gpsm = chromatogram.best_match_for(revised.structure)
             found_revision = True
         except KeyError:
             if self.spectrum_match_builder is not None:
-                self.spectrum_match_builder.get_spectrum_solution_sets(revised, source)
+                self.spectrum_match_builder.get_spectrum_solution_sets(
+                    revised, chromatogram)
                 try:
-                    revised_gpsm = source.best_match_for(revised.structure)
+                    revised_gpsm = chromatogram.best_match_for(revised.structure)
                     found_revision = True
                 except KeyError:
                     pass
+        return revised_gpsm, found_revision
+
+    def find_gpsms(self, source, revised, original):
+        original_gpsm = None
+        revised_gpsm = None
+
+        if source is None:
+            # Can't validate without a source to read the spectrum match metadata
+            return original_gpsm, revised_gpsm, True
+
+        revised_gpsm, found_revision = self.find_revision_gpsm(source, revised)
 
         if not found_revision:
             # Can't find a spectrum match to the revised form, assume we're allowed to
@@ -178,7 +189,7 @@ class PeptideYUtilizationPreservingRevisionValidator(object):
             logger.info(
                 "...... Permitting revision for %s (%0.3f) from %s to %s because revision not evaluated",
                 revised.tag, revised.apex_time, original.glycan_composition, revised.glycan_composition)
-            return True
+            return original_gpsm, revised_gpsm, True
 
         try:
             original_gpsm = source.best_match_for(original.structure)
@@ -188,23 +199,93 @@ class PeptideYUtilizationPreservingRevisionValidator(object):
             logger.info(
                 "...... Permitting revision for %s (%0.3f) from %s to %s because original not evaluated",
                 revised.tag, revised.apex_time, original.glycan_composition, revised.glycan_composition)
+            return original_gpsm, revised_gpsm, True
+
+        return original_gpsm, revised_gpsm, False
+
+    def validate(self, revised, original):
+        raise NotImplementedError()
+
+    def __call__(self, revised, original):
+        return self.validate(revised, original)
+
+
+class PeptideYUtilizationPreservingRevisionValidator(RevisionValidatorBase):
+    def __init__(self, threshold=0.9, spectrum_match_builder=None, threshold_fn=always):
+        super(PeptideYUtilizationPreservingRevisionValidator, self).__init__(
+            spectrum_match_builder, threshold_fn)
+        self.threshold = threshold
+
+    def validate(self, revised, original):
+        source = revised.source
+        if source is None:
+            # Can't validate without a source to read the spectrum match metadata
+            return True
+
+        original_gpsm, revised_gpsm, skip = self.find_gpsms(
+            source, revised, original)
+        if skip:
             return True
 
         original_utilization = original_gpsm.score_set.stub_glycopeptide_intensity_utilization
         if not original_utilization:
             # Anything is better than or equal to zero
             logger.info(
-                "...... Permitting revision for %s (%0.3f) from %s to %s because original has zero utilization",
+                "...... Permitting revision by peptide+Y ions for %s (%0.3f) from %s to %s because original has zero utilization",
                 revised.tag, revised.apex_time, original.glycan_composition, revised.glycan_composition)
             return True
 
         revised_utilization = revised_gpsm.score_set.stub_glycopeptide_intensity_utilization
         utilization_ratio = revised_utilization / original_utilization
+        valid = utilization_ratio > self.threshold
+
         logger.info(
-            "...... Checking revision for %s (%0.3f) from %s to %s: %0.3f / %0.3f: %r",
+            "...... Checking revision by peptide+Y ions for %s (%0.3f) from %s to %s: %0.3f / %0.3f: %r",
             revised.tag, revised.apex_time, original.glycan_composition, revised.glycan_composition,
-            revised_utilization, original_utilization, utilization_ratio > self.threshold)
-        return utilization_ratio > self.threshold
+            revised_utilization, original_utilization, valid)
+        return valid
+
+
+class OxoniumIonRequiringUtilizationRevisionValidator(RevisionValidatorBase):
+    def __init__(self, scale=0.9, spectrum_match_builder=None, threshold_fn=always):
+        super(OxoniumIonRequiringUtilizationRevisionValidator,
+              self).__init__(spectrum_match_builder, threshold_fn)
+        self.scale = scale
+
+    def validate(self, revised, original):
+        source = revised.source
+        if source is None:
+            # Can't validate without a source to read the spectrum match metadata
+            return True
+
+        original_gpsm, revised_gpsm, skip = self.find_gpsms(
+            source, revised, original)
+        if skip:
+            return True
+
+        original_utilization = original_gpsm.score_set.oxonium_ion_intensity_utilization
+        revised_utilization = revised_gpsm.score_set.oxonium_ion_intensity_utilization
+
+        threshold = original_utilization * self.scale
+        valid = (revised_utilization - threshold) >= 0
+        logger.info(
+            "...... Checking revision by oxonium ions for %s (%0.3f) from %s to %s: %0.3f / %0.3f: %r",
+            revised.tag, revised.apex_time, original.glycan_composition, revised.glycan_composition,
+            revised_utilization, original_utilization, valid)
+        return valid
+
+
+class CompoundRevisionValidator(object):
+    def __init__(self, validators=None):
+        if validators is None:
+            validators = []
+        self.validators = list(validators)
+
+    def validate(self, revised, original):
+        for rule in self.validators:
+            if not rule(revised, original):
+                return False
+        return True
 
     def __call__(self, revised, original):
         return self.validate(revised, original)

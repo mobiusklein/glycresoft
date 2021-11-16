@@ -12,6 +12,7 @@ from .model import (
 
 from .reviser import (
     ModelReviser, IntervalModelReviser, PeptideYUtilizationPreservingRevisionValidator,
+    OxoniumIonRequiringUtilizationRevisionValidator, CompoundRevisionValidator,
     RevisionRule, ValidatingRevisionRule, MassShiftRule)
 
 from .cross_run import (

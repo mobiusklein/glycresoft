@@ -58,7 +58,10 @@ from glycan_profiling.models import GeneralScorer, get_feature
 
 from glycan_profiling.scoring.elution_time_grouping import (
     GlycopeptideChromatogramProxy, GlycoformAggregator,
-    GlycopeptideElutionTimeModelBuildingPipeline, PeptideYUtilizationPreservingRevisionValidator)
+    GlycopeptideElutionTimeModelBuildingPipeline,
+    PeptideYUtilizationPreservingRevisionValidator,
+    OxoniumIonRequiringUtilizationRevisionValidator,
+    CompoundRevisionValidator)
 
 from glycan_profiling.structure import ScanStub
 
@@ -1359,7 +1362,10 @@ class MultipartGlycopeptideLCMSMSAnalyzer(MzMLGlycopeptideLCMSMSAnalyzer):
             match_args=msn_match_args,
             fdr_estimator=self.fdr_estimator)
 
-        revision_validator = PeptideYUtilizationPreservingRevisionValidator(spectrum_match_builder=updater)
+        revision_validator = CompoundRevisionValidator([
+            PeptideYUtilizationPreservingRevisionValidator(spectrum_match_builder=updater),
+            OxoniumIonRequiringUtilizationRevisionValidator(spectrum_match_builder=updater),
+        ])
 
         self.log("... Begin Retention Time Modeling")
 
