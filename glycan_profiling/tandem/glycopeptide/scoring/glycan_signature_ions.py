@@ -95,7 +95,6 @@ class GlycanCompositionSignatureMatcher(GlycopeptideSpectrumMatcherBase):
                 else:
                     self.unexpected_matches[compound] = peak
 
-
     def _find_peak_pairs(self, error_tolerance=2e-5, include_compound=False, *args, **kwargs):
         peak_set = self.spectrum
         if len(peak_set) == 0:
@@ -128,8 +127,8 @@ class GlycanCompositionSignatureMatcher(GlycopeptideSpectrumMatcherBase):
         weight = self.all_signatures[key]
         return min(weight * count, 0.99)
 
-    def _signature_ion_score(self, error_tolerance=2e-5):
-        penalty = 0
+    def _signature_ion_score(self):
+        penalty = 0.0
         for key, peak in self.unexpected_matches.items():
             ratio = peak.intensity / self.maximum_intensity
             if ratio < self.minimum_intensity_ratio_threshold:
@@ -160,6 +159,16 @@ class GlycanCompositionSignatureMatcher(GlycopeptideSpectrumMatcherBase):
                 penalty += component
         return -penalty
 
-    def calculate_score(self, error_tolerance=2e-5, *args, **kwargs):
-        self._score = self._signature_ion_score(error_tolerance)
+    def calculate_score(self, *args, **kwargs):
+        self._score = self._signature_ion_score()
         return self._score
+
+    def oxonium_ion_utilization(self):
+        utilization = 0.0
+        for signature, matched in self.expected_matches.items():
+            if matched is None:
+                comp = 10 * np.log10(1 - self.estimate_missing_ion_importance(signature))
+                if np.isnan(comp):
+                    comp = -20
+                utilization += comp
+        return utilization

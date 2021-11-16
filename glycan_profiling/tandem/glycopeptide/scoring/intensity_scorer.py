@@ -21,7 +21,7 @@ class LogIntensityScorer(SignatureAwareCoverageScorer, MassAccuracyMixin):
         combo_score = self.peptide_score(error_tolerance, *args, **kwargs) * peptide_weight + self.glycan_score(
             error_tolerance, *args, **kwargs) * glycan_weight
         mass_accuracy = self._precursor_mass_accuracy_score()
-        signature_component = self._signature_ion_score(error_tolerance)
+        signature_component = self._signature_ion_score()
         self._score = combo_score + mass_accuracy + signature_component
         return self._score
 
@@ -136,7 +136,7 @@ class FullSignaturePenalizedLogIntensityScorer(LogIntensityScorer):
         score = super(FullSignaturePenalizedLogIntensityScorer, self).calculate_glycan_score(
             error_tolerance, core_weight, coverage_weight, fragile_fucose=fragile_fucose,
             extended_glycan_search=extended_glycan_search, *args, **kwargs)
-        signature_component = self._signature_ion_score(error_tolerance)
+        signature_component = self._signature_ion_score()
         return score + signature_component
 
 
@@ -172,7 +172,7 @@ class HyperscoreScorer(SignatureAwareCoverageScorer, MassAccuracyMixin):
     def calculate_score(self, error_tolerance=2e-5, *args, **kwargs):
         hyperscore = self._calculate_hyperscore(error_tolerance, *args, **kwargs)
         mass_accuracy = self._precursor_mass_accuracy_score()
-        signature_component = self._signature_ion_score(error_tolerance)
+        signature_component = self._signature_ion_score()
         self._score = hyperscore + mass_accuracy + signature_component
 
         return self._score

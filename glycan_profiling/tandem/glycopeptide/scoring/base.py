@@ -203,6 +203,9 @@ class GlycopeptideSpectrumMatcherBase(SpectrumMatcherBase):
         self._peptide_Y_ion_utilization = weight, count
         return self._peptide_Y_ion_utilization
 
+    def oxonium_ion_utilization(self):
+        return 0.0
+
     def get_auxiliary_data(self):
         data = super(GlycopeptideSpectrumMatcherBase, self).get_auxiliary_data()
         data['score'] = self.score
