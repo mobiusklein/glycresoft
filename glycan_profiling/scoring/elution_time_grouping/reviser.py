@@ -10,6 +10,8 @@ from glycan_profiling.chromatogram_tree import mass_shift
 
 from glycan_profiling.chromatogram_tree.mass_shift import Unmodified, Ammonium
 
+from glycan_profiling.task import LoggingMixin
+
 logger = logging.getLogger(__name__)
 logger.addHandler(logging.NullHandler())
 
@@ -151,7 +153,7 @@ def always(x):
     return True
 
 
-class RevisionValidatorBase(object):
+class RevisionValidatorBase(LoggingMixin):
     def __init__(self, spectrum_match_builder, threshold_fn=always):
         self.spectrum_match_builder = spectrum_match_builder
         self.threshold_fn = threshold_fn
@@ -186,7 +188,7 @@ class RevisionValidatorBase(object):
         if not found_revision:
             # Can't find a spectrum match to the revised form, assume we're allowed to
             # revise.
-            logger.info(
+            self.log(
                 "...... Permitting revision for %s (%0.3f) from %s to %s because revision not evaluated",
                 revised.tag, revised.apex_time, original.glycan_composition, revised.glycan_composition)
             return original_gpsm, revised_gpsm, True
@@ -196,7 +198,7 @@ class RevisionValidatorBase(object):
         except KeyError:
             # Can't find a spectrum match to the original, assume we're allowed to
             # revise.
-            logger.info(
+            self.log(
                 "...... Permitting revision for %s (%0.3f) from %s to %s because original not evaluated",
                 revised.tag, revised.apex_time, original.glycan_composition, revised.glycan_composition)
             return original_gpsm, revised_gpsm, True
@@ -230,7 +232,7 @@ class PeptideYUtilizationPreservingRevisionValidator(RevisionValidatorBase):
         original_utilization = original_gpsm.score_set.stub_glycopeptide_intensity_utilization
         if not original_utilization:
             # Anything is better than or equal to zero
-            logger.info(
+            self.log(
                 "...... Permitting revision by peptide+Y ions for %s (%0.3f) from %s to %s because original has zero utilization",
                 revised.tag, revised.apex_time, original.glycan_composition, revised.glycan_composition)
             return True
@@ -239,7 +241,7 @@ class PeptideYUtilizationPreservingRevisionValidator(RevisionValidatorBase):
         utilization_ratio = revised_utilization / original_utilization
         valid = utilization_ratio > self.threshold
 
-        logger.info(
+        self.log(
             "...... Checking revision by peptide+Y ions for %s (%0.3f) from %s to %s: %0.3f / %0.3f: %r",
             revised.tag, revised.apex_time, original.glycan_composition, revised.glycan_composition,
             revised_utilization, original_utilization, valid)
@@ -268,7 +270,7 @@ class OxoniumIonRequiringUtilizationRevisionValidator(RevisionValidatorBase):
 
         threshold = original_utilization * self.scale
         valid = (revised_utilization - threshold) >= 0
-        logger.info(
+        self.log(
             "...... Checking revision by oxonium ions for %s (%0.3f) from %s to %s: %0.3f / %0.3f: %r",
             revised.tag, revised.apex_time, original.glycan_composition, revised.glycan_composition,
             revised_utilization, original_utilization, valid)

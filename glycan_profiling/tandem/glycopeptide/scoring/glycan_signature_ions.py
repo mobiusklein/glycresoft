@@ -59,7 +59,6 @@ class GlycanCompositionSignatureMatcher(GlycopeptideSpectrumMatcherBase):
         if len(self.spectrum) == 0:
             return
         self.maximum_intensity = self.base_peak()
-        water = _WATER
         spectrum = self.spectrum
 
         for mono in self.signatures:
