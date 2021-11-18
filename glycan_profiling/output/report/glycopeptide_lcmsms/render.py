@@ -238,7 +238,7 @@ class GlycopeptideDatabaseSearchReportCreator(ReportCreatorBase, IdentifiedGlyco
         layout = GlycoformLayout(glycoprotein, glycoprotein.identified_glycopeptides, ax=ax)
         layout.draw()
         svg = layout.to_svg(scale=2.0, height_padding_scale=1.1)
-        return svg
+        return svg.decode('utf8')
 
     def chromatogram_plot(self, glycopeptide):
         ax = figax()
