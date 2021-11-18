@@ -54,7 +54,7 @@ def layout_layers(gpms, sort_key=operator.attrgetter("ms2_score")):
 def ndigits(x):
     digits = 0
     while x > 0:
-        x /= 10
+        x //= 10
         digits += 1
     return digits
 
@@ -330,14 +330,14 @@ class GlycoformLayout(object):
             element.attrib['class'] = id.rsplit('-')[0]
         width = float(root.attrib["width"][:-2]) * 1.75
         root.attrib['width'] = '%fpt' % width
-        # root.attrib["width"] = "75%"
         root.attrib.pop("viewBox")
 
         height = width / (aspect_ratio)
 
         root.attrib["height"] = "%dpt" % (height * height_padding_scale)
         root.attrib["preserveAspectRatio"] = "xMinYMin meet"
-        root[1].attrib["transform"] = "scale(%f)" % scale
+        figure_group = root.find("./{http://www.w3.org/2000/svg}g/[@id='figure_1']")
+        figure_group.attrib["transform"] = "scale(%f)" % scale
         svg = ET.tostring(root)
         return svg
 
