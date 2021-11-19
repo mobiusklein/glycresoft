@@ -659,7 +659,9 @@ class Chromatogram(Base, BoundToAnalysis):
                 current_signal = intensity
         time.append(current_time)
         signal.append(current_signal)
-        return np.array(time), np.array(signal)
+        # Make sure intensity dtype doesn't undergo signed overflow by being
+        # sufficiently wide to hold the value (e.g. not int32)
+        return np.array(time), np.array(signal, dtype=np.float64)
 
     def as_arrays(self):
         session = object_session(self)
