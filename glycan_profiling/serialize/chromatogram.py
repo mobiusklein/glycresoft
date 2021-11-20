@@ -716,7 +716,7 @@ class ChromatogramWrapper(object):
         return self.chromatogram
 
     def integrate(self):
-        self._get_chromatogram().integrate()
+        return self._get_chromatogram().integrate()
 
     @property
     def _peak_hash(self):

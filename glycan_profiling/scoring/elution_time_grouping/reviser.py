@@ -188,7 +188,7 @@ class RevisionValidatorBase(LoggingMixin):
         if not found_revision:
             # Can't find a spectrum match to the revised form, assume we're allowed to
             # revise.
-            self.log(
+            self.debug(
                 "...... Permitting revision for %s (%0.3f) from %s to %s because revision not evaluated" %
                 (revised.tag, revised.apex_time, original.glycan_composition, revised.glycan_composition))
             return original_gpsm, revised_gpsm, True
@@ -198,7 +198,7 @@ class RevisionValidatorBase(LoggingMixin):
         except KeyError:
             # Can't find a spectrum match to the original, assume we're allowed to
             # revise.
-            self.log(
+            self.debug(
                 "...... Permitting revision for %s (%0.3f) from %s to %s because original not evaluated" %
                 (revised.tag, revised.apex_time, original.glycan_composition, revised.glycan_composition))
             return original_gpsm, revised_gpsm, True
@@ -238,7 +238,7 @@ class PeptideYUtilizationPreservingRevisionValidator(RevisionValidatorBase):
         utilization_ratio = revised_utilization / original_utilization
         valid = utilization_ratio > self.threshold
 
-        self.log(
+        self.debug(
             "...... Checking revision by peptide+Y ions for %s (%0.3f) from %s to %s: %0.3f / %0.3f: %r" %
             (revised.tag, revised.apex_time, original.glycan_composition, revised.glycan_composition,
              revised_utilization, original_utilization, valid))
@@ -267,7 +267,7 @@ class OxoniumIonRequiringUtilizationRevisionValidator(RevisionValidatorBase):
 
         threshold = original_utilization * self.scale
         valid = (revised_utilization - threshold) >= 0
-        self.log(
+        self.debug(
             "...... Checking revision by oxonium ions for %s (%0.3f) from %s to %s: %0.3f / %0.3f: %r" %
             (revised.tag, revised.apex_time, original.glycan_composition, revised.glycan_composition,
             revised_utilization, original_utilization, valid))
@@ -395,8 +395,10 @@ fuc = FrozenMonosaccharideResidue.from_iupac_lite("Fuc")
 neuac = FrozenMonosaccharideResidue.from_iupac_lite("Neu5Ac")
 hexnac = FrozenMonosaccharideResidue.from_iupac_lite("HexNAc")
 
+# Gain an ammonium adduct and a NeuAc, lose a Hex and Fuc
 AmmoniumMaskedRule = RevisionRule(
-    HashableGlycanComposition(Hex=-1, Fuc=-1, Neu5Ac=1), mass_shift_rule=MassShiftRule(Ammonium, 1), priority=1)
+    HashableGlycanComposition(Hex=-1, Fuc=-1, Neu5Ac=1),
+    mass_shift_rule=MassShiftRule(Ammonium, 1), priority=1)
 AmmoniumUnmaskedRule = RevisionRule(
     HashableGlycanComposition(Hex=1, Fuc=1, Neu5Ac=-1), mass_shift_rule=MassShiftRule(Ammonium, -1), priority=1)
 
@@ -405,6 +407,7 @@ IsotopeRule2 = RevisionRule(HashableGlycanComposition(Fuc=-4, Neu5Ac=2))
 
 HexNAc2NeuAc2ToHex6AmmoniumRule = ValidatingRevisionRule(
     HashableGlycanComposition(Hex=-6, HexNAc=2, Neu5Ac=2),
+    mass_shift_rule=MassShiftRule(Ammonium, 1),
     validator=lambda x: x.glycan_composition[neuac] == 0 and x.glycan_composition.query(dhex) == 0 and x.glycan_composition[hexnac] == 2)
 
 HexNAc2Fuc1NeuAc2ToHex7 = ValidatingRevisionRule(
@@ -429,7 +432,7 @@ class IntervalModelReviser(ModelReviser):
     alpha = 0.01
 
     def rescore(self, case):
-        return self.model.score_interval(case, alpha=0.01)
+        return self.model.score_interval(case, alpha=self.alpha)
 
 
 # In reviser, combine the score from the absolute coordinate with the

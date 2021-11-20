@@ -163,8 +163,10 @@ class FiniteMixtureModelFDREstimator(object):
         at_1_percent = np.where(fdr < 0.01)[0][0]
         line1 = ax.plot(points, target_counts, label='Target', color='blue')
         line2 = ax.plot(points, decoy_counts, label='Decoy', color='orange')
-        ax.vlines(target_scores[at_5_percent], 0, np.max(target_counts), linestyle='--', color='blue', lw=0.75)
-        ax.vlines(target_scores[at_1_percent], 0, np.max(target_counts), linestyle='--', color='blue', lw=0.75)
+        ax.vlines(target_scores[at_5_percent], 0, np.max(
+            target_counts), linestyle='--', color='green', lw=0.75, label='5% FDR')
+        ax.vlines(target_scores[at_1_percent], 0, np.max(
+            target_counts), linestyle='--', color='skyblue', lw=0.75, label='1% FDR')
         ax.set_ylabel("# Matches Retained")
         ax.set_xlabel("Score")
         ax2 = ax.twinx()

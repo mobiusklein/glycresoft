@@ -240,6 +240,8 @@ class GlycopeptideChromatogramProxy(ChromatogramProxy):
     def structure(self, value):
         self._structure = value
         self.kwargs['structure'] = str(value)
+        if value and self.glycan_composition != value.glycan_composition:
+            self.glycan_composition = HashableGlycanComposition(value.glycan_composition)
 
     @classmethod
     def from_obj(cls, obj, **kwargs):

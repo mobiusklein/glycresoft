@@ -188,8 +188,8 @@ class RepresenterSelectionStrategy(object):
         return parsimony_sort(representers)
 
     def get_solutions_for_spectrum(self, solution_set, threshold_fn=always, reject_shifted=False, targets_ignored=None):
-        return solution_set.get_top_solutions(
-            d=5, reject_shifted=reject_shifted, targets_ignored=targets_ignored)
+        return filter(lambda x: x.valid, solution_set.get_top_solutions(
+            d=5, reject_shifted=reject_shifted, targets_ignored=targets_ignored))
 
     def __call__(self, collection, threshold_fn=always, reject_shifted=False, targets_ignored=None):
         return self.compute_weights(
@@ -1272,7 +1272,7 @@ class SpectrumMatchUpdater(TaskBase):
     '''
 
     def __init__(self, scan_loader, scorer, spectrum_match_cls, id_maker, threshold_fn=lambda x: x.q_value < 0.05,
-                 match_args=None, fdr_estimator=None):
+                 match_args=None, fdr_estimator=None, retention_time_model=None, retention_time_delta=0.35):
         if match_args is None:
             match_args = {}
         self.scan_loader = scan_loader
@@ -1281,6 +1281,8 @@ class SpectrumMatchUpdater(TaskBase):
         self.spectrum_match_cls = spectrum_match_cls
         self.id_maker = id_maker
         self.fdr_estimator = fdr_estimator
+        self.retention_time_model = retention_time_model
+        self.retention_time_delta = retention_time_delta
         self.threshold_fn = threshold_fn
 
     def select_best_mass_shift_for(self, scan, structure, mass_shifts):
@@ -1310,13 +1312,14 @@ class SpectrumMatchUpdater(TaskBase):
         match = self.scorer.evaluate(scan, structure, mass_shift=best_shift, **self.match_args)
         return match
 
-    def identical_peptides(self, chromatogram, structure):
+    def find_identical_peptides_and_mark(self, chromatogram, structure):
         structures = set()
         key = str(structure)
         for sset in chromatogram.tandem_solutions:
             for sm in sset:
                 if str(sm.target) == key:
                     structures.add(sm.target)
+                    sm.valid = False
         return structures
 
     def get_spectrum_solution_sets(self, revision, chromatogram=None):
@@ -1326,7 +1329,7 @@ class SpectrumMatchUpdater(TaskBase):
         reference = chromatogram.structure
         mass_shifts = revision.mass_shifts
         revised_structure = revision.structure
-        reference_peptides = self.identical_peptides(chromatogram, reference)
+        reference_peptides = self.find_identical_peptides_and_mark(chromatogram, reference)
 
         revised_solution_sets = self.collect_matches(
             chromatogram, revised_structure, mass_shifts, reference_peptides)
@@ -1346,8 +1349,15 @@ class SpectrumMatchUpdater(TaskBase):
         revised_solution_sets = self.get_spectrum_solution_sets(revision, chromatogram)
 
         representers = chromatogram.compute_representative_weights(self.threshold_fn)
+
+        revised_rt_score = None
+        alternative_rt_scores = {}
+        if self.retention_time_model:
+            revised_rt_score = self.retention_time_model.score_interval(revision, 0.01)
+
         keep = []
         reject = []
+        invalidated = set()
         match = []
         for r in representers:
             if str(r.solution) == reference:
@@ -1355,7 +1365,25 @@ class SpectrumMatchUpdater(TaskBase):
             elif str(r.solution) == revised_structure:
                 match.append(r)
             else:
+                if self.retention_time_model and not isinstance(chromatogram, TandemSolutionsWithoutChromatogram):
+                    from glycan_profiling.scoring.elution_time_grouping import GlycopeptideChromatogramProxy
+                    if r.solution not in alternative_rt_scores:
+                        proxy = GlycopeptideChromatogramProxy.from_obj(chromatogram)
+                        proxy.structure = r.solution
+                        alt_rt_score = alternative_rt_scores[r.solution] = self.retention_time_model.score_interval(
+                            proxy, 0.01)
+                    else:
+                        alt_rt_score = alternative_rt_scores[r.solution]
+                    if (revised_rt_score - alt_rt_score) > self.retention_time_delta:
+                        invalidated.add(r.solution)
+                        continue
                 keep.append(r)
+
+        for invalid in invalidated:
+            self.log("... Invalidated alternative solution %s (%0.2f) for %s (%0.2f)" % (
+                invalid, alternative_rt_scores[invalid], revised_structure,
+                revised_rt_score))
+            self.find_identical_peptides_and_mark(chromatogram, invalid)
 
         if not match:
             self.log("... Failed to identify alternative %s for %s passing the threshold" % (

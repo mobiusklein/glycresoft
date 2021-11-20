@@ -486,6 +486,7 @@ class TargetDecoyAnalyzer(object):
             thresholds[at_1_percent], 0, np.max(target_counts), linestyle='--', color='skyblue',
             lw=0.75, label='1% FDR')
         ax.set_ylabel("# Matches Retained")
+        ax.set_xlabel("Score")
         ax2 = ax.twinx()
         line3 = ax2.plot(thresholds, fdr, label='FDR',
                         color='grey', linestyle='--')

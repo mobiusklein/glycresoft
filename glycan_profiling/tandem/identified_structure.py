@@ -193,6 +193,11 @@ class IdentifiedStructure(object):
             return 0
         return self.chromatogram.integrated_abundance
 
+    def integrate(self):
+        if self.chromatogram is None:
+            return 0
+        return self.chromatogram.integrate()
+
     @property
     def total_signal(self):
         if self.chromatogram is None:

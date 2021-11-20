@@ -402,10 +402,10 @@ class SpectrumMatch(SpectrumMatchBase):
 
     """
 
-    __slots__ = ['score', 'best_match', 'data_bundle', "q_value", 'id']
+    __slots__ = ['score', 'best_match', 'data_bundle', "q_value", 'id', 'valid']
 
     def __init__(self, scan, target, score, best_match=False, data_bundle=None,
-                 q_value=None, id=None, mass_shift=None):
+                 q_value=None, id=None, mass_shift=None, valid=True):
         # if data_bundle is None:
         #     data_bundle = dict()
         super(SpectrumMatch, self).__init__(scan, target, mass_shift)
@@ -415,6 +415,7 @@ class SpectrumMatch(SpectrumMatchBase):
         self.data_bundle = data_bundle
         self.q_value = q_value
         self.id = id
+        self.valid = valid
 
     @property
     def is_best_match(self):
@@ -498,7 +499,8 @@ class SpectrumMatch(SpectrumMatchBase):
 
     def __reduce__(self):
         return self.__class__, (self.scan, self.target, self.score, self.best_match,
-                                self.data_bundle, self.q_value, self.id, self.mass_shift)
+                                self.data_bundle, self.q_value, self.id,
+                                self.mass_shift, self.valid)
 
     def evaluate(self, scorer_type, *args, **kwargs):
         """Re-evaluate this spectrum-structure pair.
@@ -707,7 +709,7 @@ class MultiScoreSpectrumMatch(SpectrumMatch):
     __slots__ = ('score_set', 'match_type', '_q_value_set')
 
     def __init__(self, scan, target, score_set, best_match=False, data_bundle=None,
-                 q_value_set=None, id=None, mass_shift=None, match_type=None):
+                 q_value_set=None, id=None, mass_shift=None, valid=True, match_type=None):
         if q_value_set is None:
             q_value_set = FDRSet.default()
         else:
@@ -715,7 +717,7 @@ class MultiScoreSpectrumMatch(SpectrumMatch):
         self._q_value_set = None
         super(MultiScoreSpectrumMatch, self).__init__(
             scan, target, score_set[0], best_match, data_bundle, q_value_set[0],
-            id, mass_shift)
+            id, mass_shift, valid=valid)
         self.score_set = ScoreSet(*score_set)
         self.q_value_set = q_value_set
         self.match_type = SpectrumMatchClassification[match_type]
@@ -741,12 +743,12 @@ class MultiScoreSpectrumMatch(SpectrumMatch):
         """
         return self.__class__(
             self.scan, self.target, self.score_set, self.best_match, self.data_bundle,
-            self.q_value_set, self.id, self.mass_shift, self.match_type)
+            self.q_value_set, self.id, self.mass_shift, self.valid, self.match_type)
 
     def __reduce__(self):
         return self.__class__, (self.scan, self.target, self.score_set, self.best_match,
                                 self.data_bundle, self.q_value_set, self.id, self.mass_shift,
-                                self.match_type.value)
+                                self.valid, self.match_type.value)
 
     def pack(self):
         return (self.target.id, self.score_set.pack(), int(self.best_match),

@@ -1372,10 +1372,11 @@ class MultipartGlycopeptideLCMSMSAnalyzer(MzMLGlycopeptideLCMSMSAnalyzer):
         pipeline = GlycopeptideElutionTimeModelBuildingPipeline(
             glycoform_agg, valid_glycans=glycan_compositions,
             revision_validator=revision_validator)
-        result, revisions = pipeline.run()
+        rt_model, revisions = pipeline.run()
 
-        self.retention_time_model = result
-        result.drop_chromatograms()
+        self.retention_time_model = rt_model
+        rt_model.drop_chromatograms()
+        updater.retention_time_model = rt_model
 
         was_updated = []
         for rev in revisions:
@@ -1383,7 +1384,7 @@ class MultipartGlycopeptideLCMSMSAnalyzer(MzMLGlycopeptideLCMSMSAnalyzer):
                 was_updated.append(rev)
 
         self.log("... Revising Secondary Occurrences")
-        for rev in pipeline.revise_with(result, secondary_observations):
+        for rev in pipeline.revise_with(rt_model, secondary_observations):
             if rev.revised_from and rev.structure != rev.source.structure:
                 was_updated.append(rev)
 
@@ -1395,7 +1396,7 @@ class MultipartGlycopeptideLCMSMSAnalyzer(MzMLGlycopeptideLCMSMSAnalyzer):
         orphan_proxies = list(GlycoformAggregator(orphan_proxies).tag())
 
         self.log("... Revising Orphans")
-        orphan_proxies = pipeline.revise_with(result, orphan_proxies)
+        orphan_proxies = pipeline.revise_with(rt_model, orphan_proxies)
 
         was_updated_orphans = []
         for rev in orphan_proxies:
