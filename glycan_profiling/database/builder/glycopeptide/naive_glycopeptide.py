@@ -32,9 +32,11 @@ class FastaGlycopeptideHypothesisSerializer(GlycopeptideHypothesisSerializerBase
                  protease='trypsin', constant_modifications=None, variable_modifications=None,
                  max_missed_cleavages=2, max_glycosylation_events=1, semispecific=False,
                  max_variable_modifications=None, full_cross_product=True,
-                 peptide_length_range=(5, 60), require_glycosylation_sites=True):
+                 peptide_length_range=(5, 60), require_glycosylation_sites=True,
+                 use_uniprot=True):
         GlycopeptideHypothesisSerializerBase.__init__(
-            self, connection, hypothesis_name, glycan_hypothesis_id, full_cross_product)
+            self, connection, hypothesis_name, glycan_hypothesis_id, full_cross_product,
+            use_uniprot=use_uniprot)
         self.fasta_file = fasta_file
         self.protease = protease
         self.constant_modifications = constant_modifications
@@ -139,7 +141,8 @@ class FastaGlycopeptideHypothesisSerializer(GlycopeptideHypothesisSerializerBase
         self.digest_proteins()
         self.log("Rebuilding Peptide Index")
         index_toggler.create()
-        self.split_proteins()
+        if self.use_uniprot:
+            self.split_proteins()
         self.log("Combinating Glycans")
         self.combinate_glycans(self.max_glycosylation_events)
         if self.full_cross_product:

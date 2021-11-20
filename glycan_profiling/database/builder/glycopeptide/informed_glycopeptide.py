@@ -16,11 +16,12 @@ class MzIdentMLGlycopeptideHypothesisSerializer(GlycopeptideHypothesisSerializer
 
     def __init__(self, mzid_path, connection, glycan_hypothesis_id, hypothesis_name=None,
                  target_proteins=None, max_glycosylation_events=1, reference_fasta=None,
-                 full_cross_product=True, peptide_length_range=(5, 60)):
+                 full_cross_product=True, peptide_length_range=(5, 60), use_uniprot=True):
         if target_proteins is None:
             target_proteins = []
         GlycopeptideHypothesisSerializerBase.__init__(
-            self, connection, hypothesis_name, glycan_hypothesis_id, full_cross_product)
+            self, connection, hypothesis_name, glycan_hypothesis_id,
+            full_cross_product, use_uniprot=use_uniprot)
         self.mzid_path = mzid_path
         self.reference_fasta = reference_fasta
         self.proteome = mzid_proteome.Proteome(

@@ -475,7 +475,8 @@ class PeptideInterval(Interval):
 
 
 class ProteinSplitter(TaskBase):
-    def __init__(self, constant_modifications=None, variable_modifications=None, min_length=6):
+    def __init__(self, constant_modifications=None, variable_modifications=None,
+                 min_length=6, variable_signal_peptide=10):
         if constant_modifications is None:
             constant_modifications = []
         if variable_modifications is None:
@@ -484,6 +485,7 @@ class ProteinSplitter(TaskBase):
         self.constant_modifications = constant_modifications
         self.variable_modifications = variable_modifications
         self.min_length = min_length
+        self.variable_signal_peptide = variable_signal_peptide
         self.peptide_permuter = PeptidePermuter(
             self.constant_modifications, self.variable_modifications)
 
@@ -520,6 +522,9 @@ class ProteinSplitter(TaskBase):
             if feature.feature_type in splittable_features:
                 split_sites.add(feature.start)
                 split_sites.add(feature.end)
+                if self.variable_signal_peptide and feature.feature_type == "signal peptide":
+                    for i in range(1, self.variable_signal_peptide + 1):
+                        split_sites.add(feature.end + i)
         try:
             split_sites.remove(0)
         except KeyError:
@@ -614,11 +619,13 @@ class ProteinSplitter(TaskBase):
 
 
 class UniprotProteinAnnotator(TaskBase):
-    def __init__(self, hypothesis_builder, protein_ids, constant_modifications, variable_modifications):
+    def __init__(self, hypothesis_builder, protein_ids, constant_modifications,
+                 variable_modifications, variable_signal_peptide=10):
         self.hypothesis_builder = hypothesis_builder
         self.protein_ids = protein_ids
         self.constant_modifications = constant_modifications
         self.variable_modifications = variable_modifications
+        self.variable_signal_peptide = variable_signal_peptide
         self.session = hypothesis_builder.session
 
     def query(self, *args, **kwargs):
@@ -629,7 +636,8 @@ class UniprotProteinAnnotator(TaskBase):
 
     def run(self):
         self.log("Begin Applying Protein Annotations")
-        splitter = ProteinSplitter(self.constant_modifications, self.variable_modifications)
+        splitter = ProteinSplitter(self.constant_modifications, self.variable_modifications,
+                                   variable_signal_peptide=self.variable_signal_peptide)
         i = 0
         j = 0
         protein_ids = self.protein_ids

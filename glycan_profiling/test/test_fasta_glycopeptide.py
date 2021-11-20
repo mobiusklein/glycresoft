@@ -142,9 +142,11 @@ class FastaGlycopeptideTests(unittest.TestCase):
         glycopeptide_builder.start()
 
         without_uniprot = 201400
-        with_uniprot = 231800
+        with_uniprot_without_variable_signal_peptide = 231800
+        with_uniprot = 353400
 
-        assert glycopeptide_builder.query(Glycopeptide).count() in (with_uniprot, without_uniprot)
+        assert glycopeptide_builder.query(Glycopeptide).count() in (
+            with_uniprot, with_uniprot_without_variable_signal_peptide, without_uniprot)
 
         redundancy = glycopeptide_builder.query(
             Glycopeptide.glycopeptide_sequence,

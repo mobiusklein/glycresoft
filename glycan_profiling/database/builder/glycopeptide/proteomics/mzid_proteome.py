@@ -919,7 +919,8 @@ class MzIdentMLProteomeExtraction(TaskBase):
 
 class Proteome(DatabaseBoundOperation, MzIdentMLProteomeExtraction):
     def __init__(self, mzid_path, connection, hypothesis_id, include_baseline_peptides=True,
-                 target_proteins=None, reference_fasta=None, peptide_length_range=(5, 60)):
+                 target_proteins=None, reference_fasta=None,
+                 peptide_length_range=(5, 60), use_uniprot=True):
         DatabaseBoundOperation.__init__(self, connection)
         MzIdentMLProteomeExtraction.__init__(self, mzid_path, reference_fasta)
         if target_proteins is None:
@@ -928,6 +929,7 @@ class Proteome(DatabaseBoundOperation, MzIdentMLProteomeExtraction):
         self.target_proteins = target_proteins
         self.include_baseline_peptides = include_baseline_peptides
         self.peptide_length_range = peptide_length_range or (5, 60)
+        self.use_uniprot = use_uniprot
 
     def _can_ignore_protein(self, name):
         if name not in self.target_proteins:
@@ -1034,7 +1036,8 @@ class Proteome(DatabaseBoundOperation, MzIdentMLProteomeExtraction):
             self.build_baseline_peptides()
             self.remove_duplicates()
             self.log("... %d Peptides Total" % (self.count_peptides()))
-            self.split_proteins()
+            if self.use_uniprot:
+                self.split_proteins()
         self.log("... Removing Duplicate Peptides")
         self.remove_duplicates()
         self.log("... %d Peptides Total" % (self.count_peptides()))

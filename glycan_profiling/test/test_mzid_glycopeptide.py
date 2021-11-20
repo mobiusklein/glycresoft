@@ -37,7 +37,8 @@ class MzIdGlycopeptideTests(unittest.TestCase):
         glycopeptide_builder.run()
 
         gp_count = glycopeptide_builder.query(Glycopeptide).count()
-        with_uniprot = 659300
+        with_uniprot = 769500
+        with_uniprot_without_variable_signal_peptide = 659300
         without_uniprot = 651700
         without_any_external = 646000
         self.assertIn(
