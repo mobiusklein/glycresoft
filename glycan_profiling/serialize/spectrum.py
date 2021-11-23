@@ -196,7 +196,7 @@ class PrecursorInformation(Base):
         conv = MemoryPrecursorInformation(
             mass_charge_ratio(self.neutral_mass, charge), self.intensity, charge,
             precursor_id, data_source, self.neutral_mass, charge,
-            self.intensity, self.defaulted, self.orphan, product_id)
+            self.intensity, self.defaulted, self.orphan, product_scan_id=product_id)
         return conv
 
     @classmethod

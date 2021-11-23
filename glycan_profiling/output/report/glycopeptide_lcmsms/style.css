@@ -19,6 +19,44 @@
     cursor: pointer;
 }
 
+.accordion {
+  background-color: #eee;
+  color: #444;
+  cursor: pointer;
+  padding: 0.5em;
+  margin-bottom: -2px;
+  width: 100%;
+  border: #eee solid 1px;
+  border-radius: 3px;
+  text-align: left;
+  outline: none;
+  font-size: 14px;
+  transition: 0.4s;
+}
+
+.active-accordion, .accordion:hover {
+  background-color: #ccc;
+}
+
+.accordion:after {
+  content: '\002B';
+  color: #777;
+  font-weight: bold;
+  float: right;
+  margin-left: 5px;
+}
+
+.active-accordion:after {
+  content: "\2212";
+}
+
+.accordion-panel {
+  padding: 0 18px;
+  background-color: white;
+  overflow: hidden;
+  transition: max-height 0.2s ease-out;
+}
+
 .centered {
     text-align: center;
 }

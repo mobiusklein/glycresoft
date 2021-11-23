@@ -266,7 +266,7 @@ def glycopeptide_identification(database_connection, analysis_identifier, output
                     yield glycopeptide
                 i += interval
         with output_stream:
-            job = job_type(output_stream, generate(), protein_index)
+            job = job_type(output_stream, generate(), protein_index, analysis)
             job.run()
 
 
@@ -329,7 +329,7 @@ def glycopeptide_spectrum_matches(database_connection, analysis_identifier, outp
     else:
         output_stream = open(output_path, 'wb')
     with output_stream:
-        job = job_type(output_stream, generate(), protein_index)
+        job = job_type(output_stream, generate(), protein_index, analysis)
         job.run()
 
 

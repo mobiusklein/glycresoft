@@ -33,13 +33,13 @@
             </div>
             <table class='glycopeptide-facet'>
                 {% if glycopeptide.is_multiscore() %}
-                    {# <thead> #}
+                    <thead>
                         <tr>
                             <th>Profile</br>Score</th>
                             <th>Tandem</br>Score</th>
                             <th>Peptide</br>Score</th>
                             <th>Glycan</br>Score</th>
-                            <th>Joint&nbsp;&nbsp;&nbsp;&nbsp;</br>
+                            <th>Joint</br>
                                 q-value</th>
                             <th>Peptide</br>
                                 q-value</th>
@@ -47,9 +47,13 @@
                                 q-value</th>
                             <th>Volume</th>
                             <th>Spectrum</br>Matches</th>
+                            <th>{{"MS1</br>Apex Time"|safe if glycopeptide.chromatogram is not none else 'MSn<br/>Event Time'|safe}}</th>
+                            {% if self.retention_time_model is not none %}
+                            <th>RT Score (Interval)</th>
+                            {% endif %}
                         </tr>
-                    {# </thead> #}
-                    {# <tbody> #}
+                    </thead>
+                    <tbody>
                         <tr>
                             <td>{{"%0.4f"|format(glycopeptide.ms1_score)}}</td>
                             <td>{{"%0.4f"|format(glycopeptide.ms2_score)}}</td>
@@ -58,10 +62,22 @@
                             <td>{{"%0.4f"|format(glycopeptide.q_value)}}</td>
                             <td>{{"%0.4f"|format(glycopeptide.q_value_set.peptide_q_value)}}</td>
                             <td>{{"%0.4f"|format(glycopeptide.q_value_set.glycan_q_value)}}</td>
-                            <td>{{"%0.4e"|format(glycopeptide.total_signal)}}</td>
+                            <td>{{"%0.4e"|format(glycopeptide.total_signal) if glycopeptide.total_signal else "-"}}</td>
                             <td>{{glycopeptide.spectrum_matches|length}}</td>
+                            <td>{{"%0.3f"|format(
+                                glycopeptide.apex_time if glycopeptide.chromatogram is not none else spectral_match_info.spectrum_match.scan_time)}}</td>
+                            {% if renderer.retention_time_model is not none %}
+                            <td>
+                                {% if glycopeptide.chromatogram is not none and renderer.retention_time_model.has_peptide(glycopeptide)%}
+                                {{"%0.3f"|format(renderer.retention_time_model.score_interval(glycopeptide, 0.01)) }}
+                                {{"(%0.3f-%0.3f)"| format(*renderer.retention_time_model.predict_interval(glycopeptide, 0.01)) }}
+                                {% else %}
+                                -
+                                {% endif %}
+                            </td>
+                            {% endif %}
                         </tr>
-                    {# </tbody> #}
+                    </tbody>
                 {% else %}
                     <thead>
                         <tr>
@@ -77,14 +93,12 @@
                             <td>{{"%0.4f"|format(glycopeptide.ms1_score)}}</td>
                             <td>{{"%0.4f"|format(glycopeptide.ms2_score)}}</td>
                             <td>{{"%0.4f"|format(glycopeptide.q_value)}}</td>
-                            <td>{{"%0.4e"|format(glycopeptide.total_signal)}}</td>
+                            <td>{{"%0.4e"|format(glycopeptide.total_signal) if glycopeptide.total_signal else "-"}}</td>
                             <td>{{glycopeptide.spectrum_matches|length}}</td>
                         </tr>
                     </tbody>
                 {% endif %}
             </table>
-            {% if glycopeptide.is_multiscore() %}
-            {%- endif %}
             <div class='mass-shift-signal-fraction-container'>
                 {% if glycopeptide.chromatogram is not none %}
                     <b>Adduct Signal Fractions</b>
@@ -96,7 +110,7 @@
                     {% endfor %}
                     </ul>
                 {% else %}
-                    Adduct: {{spectral_match_info.spectrum_match.name}}
+                    <b>Adduct</b>: <b>{{spectral_match_info.spectrum_match.mass_shift.name}}</b>
                 {% endif %}
             </div>
         </div>

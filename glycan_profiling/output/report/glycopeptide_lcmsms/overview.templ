@@ -32,6 +32,26 @@
             <a>{{sample_run.name}}</a>
         </div>
     </section>
+    {% if renderer.fdr_estimator is not none %}
+    <section id='fdr-estimator-figures'>
+        <button class="accordion active-accordion">FDR Estimation</button>
+        <div class="accordion-panel flex-container">
+            {% for panel in renderer.fdr_estimator_plot() %}
+                {{panel | safe}}
+            {% endfor %}
+        </div>
+    </section>
+    {%- endif %}
+    {% if renderer.retention_time_model is not none %}
+    <section id='retention-time-model-figures'>
+        <button class="accordion active-accordion">Retention Time Model</button>
+        <div class="accordion-panel flex-container">
+            {% for panel in renderer.retention_time_model_plot() %}
+                {{panel | safe}}
+            {% endfor %}
+        </div>
+    </section>
+    {%- endif %}
     <section id='protein-table-container' class='flex-container'>
         <table>
             <thead>

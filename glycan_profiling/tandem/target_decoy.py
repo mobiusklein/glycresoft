@@ -477,8 +477,8 @@ class TargetDecoyAnalyzer(object):
             at_1_percent = np.where(fdr < 0.01)[0][0]
         except IndexError:
             at_1_percent = -1
-        line1 = ax.plot(thresholds, target_counts, label='Target', color='blue')
-        line2 = ax.plot(thresholds, decoy_counts, label='Decoy', color='orange')
+        line1 = ax.plot(thresholds, target_counts, label='Target', color='steelblue')
+        line2 = ax.plot(thresholds, decoy_counts, label='Decoy', color='coral')
         tline5 = ax.vlines(
             thresholds[at_5_percent], 0, np.max(target_counts), linestyle='--', color='green',
             lw=0.75, label='5% FDR')

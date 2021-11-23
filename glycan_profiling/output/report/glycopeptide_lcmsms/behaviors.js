@@ -2,7 +2,8 @@
 
 const displayPanelSelector = '#display-panel'
 
-const useDynamicDisplayMode = {{use_dynamic_display_mode}}
+// const useDynamicDisplayMode = {{use_dynamic_display_mode}}
+const useDynamicDisplayMode = true
 
 const observerOptions = {
     "root": null,
@@ -65,6 +66,16 @@ function hideAllEntries() {
     detailEntries[0].style.display = 'block'
 }
 
+function accordionHandler(event) {
+    this.classList.toggle("active-accordion");
+    console.log(this)
+    let panel = this.nextElementSibling;
+    if (panel.style.display !== 'none') {
+        panel.style.display = 'none'
+    } else {
+        panel.style.display = 'flex'
+    }
+}
 
 function initViewer(scope) {
     console.log("Initializing Viewer", useDynamicDisplayMode)
@@ -108,14 +119,14 @@ function initViewer(scope) {
         document.querySelector(selector).scrollIntoView()
     }
 
-    let glycopeptideRects = querySelectorAll("g.glycopeptide");
+    const glycopeptideRects = querySelectorAll("g.glycopeptide");
     for(let glycopeptide of glycopeptideRects) {
         glycopeptide.addEventListener("mouseover", glycopeptidePileUpMouseOverHandler)
         glycopeptide.addEventListener("mouseout", glycopeptidePileUpMouseOutHandler)
         glycopeptide.addEventListener("click", glycopeptidePileUpMouseClick)
     }
 
-    let glycoproteinTableRows = querySelectorAll("tr.protein-table-row")
+    const glycoproteinTableRows = querySelectorAll("tr.protein-table-row")
     function scrollToGlycoproteinEntry(event) {
         let proteinId = this.dataset.proteinId
         let selector = `#detail-glycoprotein-${proteinId}`
@@ -128,7 +139,7 @@ function initViewer(scope) {
         glycoproteinRow.addEventListener("click", scrollToGlycoproteinEntry)
     }
 
-    let glycopeptideTableRows = querySelectorAll("tr.glycopeptide-detail-table-row")
+    const glycopeptideTableRows = querySelectorAll("tr.glycopeptide-detail-table-row")
     function scrollToGlycopeptideEntry(event) {
         let glycopeptideId = this.dataset.glycopeptideId
         let selector = `#detail-glycopeptide-${glycopeptideId}`
@@ -137,6 +148,11 @@ function initViewer(scope) {
 
     for(let glycopeptideRow of glycopeptideTableRows) {
         glycopeptideRow.addEventListener("click", scrollToGlycopeptideEntry)
+    }
+
+    const accordions = querySelectorAll(".accordion")
+    for (let accordion of accordions) {
+        accordion.addEventListener("click", accordionHandler)
     }
 }
 

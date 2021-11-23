@@ -4,6 +4,8 @@ import textwrap
 from collections import OrderedDict
 
 from glycopeptidepy.structure.glycan import GlycosylationType
+from glycan_profiling.tandem.glycopeptide.dynamic_generation.multipart_fdr import (GlycopeptideFDREstimator)
+from glycan_profiling.tandem.target_decoy import GroupwiseTargetDecoyAnalyzer, TargetDecoyAnalyzer
 
 from glycan_profiling import serialize
 from glycan_profiling.serialize import (
@@ -24,7 +26,7 @@ from glycan_profiling.tandem.glycopeptide.scoring import CoverageWeightedBinomia
 from glycan_profiling.plotting.entity_bar_chart import (
     AggregatedAbundanceArtist, BundledGlycanComposition)
 from glycan_profiling.output.report.base import (
-    svguri_plot, png_plot, ReportCreatorBase)
+    svguri_plot, png_plot, ReportCreatorBase, svg_plot)
 
 from ms_deisotope.output.mzml import ProcessedMzMLDeserializer
 
@@ -55,6 +57,7 @@ class IdentifiedGlycopeptideDescriberBase(object):
         self.analysis = self.session.query(serialize.Analysis).get(self.analysis_id)
         self.mzml_path = mzml_path
         self.scan_loader = None
+        self.retention_time_model = None
         self._make_scan_loader()
 
     def spectrum_match_info(self, glycopeptide):
@@ -100,13 +103,13 @@ class IdentifiedGlycopeptideDescriberBase(object):
             width=8 * 1.5,
             img_width="100%",
             patchless=True)
-        logo_plot = png_plot(
+        logo_plot = svg_plot(
             sequence_logo_plot,
             svg_width="100%",
             img_width="100%",
             xml_transform=scale_fix_xml_transform,
             bbox_inches='tight',
-            height=2, width=6 * 1.5, patchless=True)
+            height=2, width=6 * 1.5, patchless=True).decode('utf8')
         return dict(
             spectrum_plot=spectrum_plot, logo_plot=logo_plot,
             precursor_mass_accuracy=match.precursor_mass_accuracy(),
@@ -156,6 +159,8 @@ class GlycopeptideDatabaseSearchReportCreator(ReportCreatorBase, IdentifiedGlyco
         self._glycopeptide_counter = 0
         if len(self.protein_index) > 10:
             self.use_dynamic_display_mode = 1
+        self.fdr_estimator = self.analysis.parameters.get("fdr_estimator")
+        self.retention_time_model = self.analysis.parameters.get("retention_time_model")
 
     def _spawn(self):
         return IdentifiedGlycopeptideDescriberWorker(self.database_connection, self.analysis_id, self.mzml_path)
@@ -251,6 +256,52 @@ class GlycopeptideDatabaseSearchReportCreator(ReportCreatorBase, IdentifiedGlyco
             return png_plot(ax, bbox_inches='tight', img_height='100%')
         except ValueError:
             return "<div style='text-align:center;'>No Chromatogram Found</div>"
+
+    def flex_panel(self, content):
+        wrapper = "<div class='flex-item centered'>{content}</div>"
+        return wrapper.format(content=content)
+
+    def fdr_estimator_plot(self):
+        fdr_estimator = self.fdr_estimator
+        if fdr_estimator is None:
+            return [self.flex_panel("No FDR estimation data")]
+        if isinstance(fdr_estimator, (GroupwiseTargetDecoyAnalyzer, TargetDecoyAnalyzer)):
+            ax = figax()
+            fdr_estimator.plot(ax=ax)
+            svg_figure = svguri_plot(ax.figure)
+            return [
+                self.flex_panel(svg_figure)
+            ]
+        if isinstance(fdr_estimator, GlycopeptideFDREstimator):
+            ax = figax()
+            fdr_estimator.glycan_fdr.plot(ax=ax)
+            ax.set_title("Glycan FDR", size=16)
+            figures = [
+                "<div class='flex-item centered'>%s</div>" % svguri_plot(
+                    ax.figure)
+            ]
+            ax = figax()
+            fdr_estimator.peptide_fdr.plot(ax=ax)
+            ax.set_title("Peptide FDR", size=16)
+            figures.append("<div class='flex-item centered'>%s</div>" %
+                           svguri_plot(ax.figure))
+            return figures
+        return ["<div class='flex-item'>Could not recognize FDR estimation data</div>"]
+
+    def retention_time_model_plot(self):
+        figures = []
+        rt_model = self.retention_time_model
+        if rt_model is None:
+            figures.append(self.flex_panel("No retention time model found"))
+        else:
+            ax = figax()
+            rt_model.plot_factor_coefficients(ax=ax)
+            figures.append(self.flex_panel(svg_plot(ax.figure).decode('utf8')))
+            ax = figax()
+            rt_model.plot_residuals(ax=ax)
+            figures.append(self.flex_panel(svg_plot(ax.figure).decode('utf8')))
+
+        return figures
 
     def track_entry(self, glycopeptide):
         self._glycopeptide_counter += 1

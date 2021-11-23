@@ -239,12 +239,14 @@ class GlycanLCMSAnalysisCSVSerializer(CSVSerializerBase):
 
 
 class GlycopeptideLCMSMSAnalysisCSVSerializer(CSVSerializerBase):
-    def __init__(self, outstream, entities_iterable, protein_name_resolver, delimiter=','):
+    def __init__(self, outstream, entities_iterable, protein_name_resolver, analysis, delimiter=','):
         super(GlycopeptideLCMSMSAnalysisCSVSerializer, self).__init__(outstream, entities_iterable, delimiter)
         self.protein_name_resolver = protein_name_resolver
+        self.analysis = analysis
+        self.retention_time_model = analysis.parameters.get("retention_time_model")
 
     def get_header(self):
-        return [
+        headers = [
             "glycopeptide",
             "neutral_mass",
             "mass_accuracy",
@@ -262,6 +264,13 @@ class GlycopeptideLCMSMSAnalysisCSVSerializer(CSVSerializerBase):
             "protein_name",
             "mass_shifts",
         ]
+        if self.retention_time_model:
+            headers.extend([
+                "predicted_apex_interval_start",
+                "predicted_apex_interval_end",
+                "retention_time_score",
+            ])
+        return headers
 
     def convert_object(self, obj):
         try:
@@ -290,6 +299,12 @@ class GlycopeptideLCMSMSAnalysisCSVSerializer(CSVSerializerBase):
             self.protein_name_resolver[obj.protein_relation.protein_id],
             ';'.join([a.name for a in obj.mass_shifts]),
         ]
+        if self.retention_time_model:
+            rt_start, rt_end = self.retention_time_model.predict_interval(obj, 0.01)
+            rt_score = self.retention_time_model.score_interval(obj, 0.01)
+            attribs.append(rt_start)
+            attribs.append(rt_end)
+            attribs.append(rt_score)
         return list(map(str, attribs))
 
 
@@ -327,9 +342,10 @@ class MultiScoreGlycopeptideLCMSMSAnalysisCSVSerializer(GlycopeptideLCMSMSAnalys
 
 
 class GlycopeptideSpectrumMatchAnalysisCSVSerializer(CSVSerializerBase):
-    def __init__(self, outstream, entities_iterable, protein_name_resolver, delimiter=','):
+    def __init__(self, outstream, entities_iterable, protein_name_resolver, analysis, delimiter=','):
         super(GlycopeptideSpectrumMatchAnalysisCSVSerializer, self).__init__(outstream, entities_iterable, delimiter)
         self.protein_name_resolver = protein_name_resolver
+        self.analysis = analysis
 
     def get_header(self):
         return [

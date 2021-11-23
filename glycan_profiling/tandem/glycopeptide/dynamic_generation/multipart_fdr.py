@@ -161,18 +161,30 @@ class FiniteMixtureModelFDREstimator(object):
         fdr = self.estimate_fdr(target_scores)
         at_5_percent = np.where(fdr < 0.05)[0][0]
         at_1_percent = np.where(fdr < 0.01)[0][0]
-        line1 = ax.plot(points, target_counts, label='Target', color='blue')
-        line2 = ax.plot(points, decoy_counts, label='Decoy', color='orange')
-        ax.vlines(target_scores[at_5_percent], 0, np.max(
+        line1 = ax.plot(points, target_counts,
+                        label='Target', color='steelblue')
+        line2 = ax.plot(points, decoy_counts, label='Decoy', color='coral')
+        line4 = ax.vlines(target_scores[at_5_percent], 0, np.max(
             target_counts), linestyle='--', color='green', lw=0.75, label='5% FDR')
-        ax.vlines(target_scores[at_1_percent], 0, np.max(
+        line5 = ax.vlines(target_scores[at_1_percent], 0, np.max(
             target_counts), linestyle='--', color='skyblue', lw=0.75, label='1% FDR')
         ax.set_ylabel("# Matches Retained")
         ax.set_xlabel("Score")
         ax2 = ax.twinx()
         ax2.set_ylabel("FDR")
         line3 = ax2.plot(target_scores, fdr, label='FDR', color='grey', linestyle='--')
-        ax.legend([line1[0], line2[0], line3[0]], ['Target', 'Decoy', 'FDR'])
+        ax.legend([line1[0], line2[0], line3[0], line4, line5], ['Target', 'Decoy', 'FDR', '5% FDR', '1% FDR'])
+
+        lo, hi = ax.get_ylim()
+        lo = max(lo, 0)
+        ax.set_ylim(lo, hi)
+        lo, hi = ax2.get_ylim()
+        ax2.set_ylim(0, hi)
+
+        lo, hi = ax.get_xlim()
+        ax.set_xlim(-1, hi)
+        lo, hi = ax2.get_xlim()
+        ax2.set_xlim(-1, hi)
         return ax
 
     def fit(self, max_components=10):

@@ -436,7 +436,7 @@ class ElutionTimeFitter(LinearModelBase, ChromatgramFeatureizerBase, ScoringFeat
         sizes = list(map(len, column_labels))
         value_sizes = [max(map(len, col))
                        for col in [feature_names, parameter_values, signif, ci]]
-        sizes = map(max, zip(sizes, value_sizes))
+        sizes = list(map(max, zip(sizes, value_sizes)))
         table = [[formatter(v, sizes[i]) for i, v in enumerate(column_labels)]]
         for row in zip(feature_names, parameter_values, signif, ci):
             table.append([
@@ -871,6 +871,7 @@ class ModelEnsemble(PeptideBackboneKeyedMixin):
         apex_time_array = np.array([
             c.apex_time for c in chromatograms
         ])
+        labels = [(str(c.structure), c.mass_shifts) for c in chromatograms]
         predicted_apex_time_array = np.array([
             self.predict(c) for c in chromatograms
         ])
@@ -883,6 +884,7 @@ class ModelEnsemble(PeptideBackboneKeyedMixin):
             "predicted_apex_time_array": predicted_apex_time_array,
             "confidence_intervals": confidence_intervals,
             "residuals_array": residuals_array,
+            "labels": labels
         })
 
     def _models_for(self, chromatogram):
@@ -903,6 +905,9 @@ class ModelEnsemble(PeptideBackboneKeyedMixin):
             weights.append(weight)
         coverage = np.dot(refs, weights) / np.sum(weights)
         return coverage
+
+    def has_peptide(self, chromatogram):
+        return any(m.has_peptide(chromatogram) for m in self._models)
 
     def predict_interval_external_peptide(self, chromatogram, alpha=0.05, merge=True):
         key = self.get_peptide_key(chromatogram)
@@ -959,7 +964,7 @@ class ModelEnsemble(PeptideBackboneKeyedMixin):
             preds.append(mod.predict(chromatogram))
             weights.append(w)
         if len(weights) == 0:
-            return 0
+            return np.nan
         weights = np.array(weights)
         weights /= weights.max()
         if merge:
@@ -1019,22 +1024,49 @@ class ModelEnsemble(PeptideBackboneKeyedMixin):
 
         def local_point(point, factor):
             val = []
+            ci = []
             weights = []
             for mod, weight in self._models_for(point):
-                val.append(mod.to_dict()[factor])
+                i = mod.feature_names().index(factor)
+                val.append(mod.parameters[i])
+                ci_i = mod.parameter_confidence_interval()[i]
+                d = (ci_i[1] - ci_i[0]) / 2
+                ci.append(d)
                 weights.append(weight)
             if not weights:
-                return 0.0
-            return np.average(val, weights=weights)
+                return 0.0, 0.0
+            return np.average(val, weights=weights), np.average(ci, weights=weights)
 
         factors = set()
         list(map(lambda x: factors.update(x.factors), self.models.values()))
         for factor in factors:
-            ax.plot(
-                *zip(*[(t, local_point(t, factor)) for t, _mod in self.models.items()]),
-                label=factor, marker='.')
+            yval = []
+            xval = []
+            ci_width = []
+            for t, _mod in self.models.items():
+                xval.append(t)
+                y, ci_delta = local_point(t, factor)
+                yval.append(y)
+                ci_width.append(ci_delta)
+            xval = np.array(xval)
+            yval = np.array(yval)
+            ci_width = np.array(ci_width)
+            line = ax.plot(xval, yval, label=factor, marker='.')
+            ax.fill_between(xval, yval - ci_width, yval + ci_width,
+                            color=line[0].get_color(), alpha=0.25)
+        ax.set_xlabel("Chromatographic Apex Time", size=16)
+        ax.set_ylabel("Local Average Factor Coefficient", size=16)
         ax.legend()
+        return ax
 
+    def plot_residuals(self, ax=None):
+        if ax is None:
+            _fig, ax = plt.subplots(1)
+        apex_time = self._summary_statistics['apex_time_array']
+        residuals = self._summary_statistics['residuals_array']
+        ax.scatter(apex_time, residuals)
+        ax.set_xlabel("Chromatographic Apex Time", size=16)
+        ax.set_ylabel("Residuals", size=16)
         return ax
 
 

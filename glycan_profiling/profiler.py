@@ -1241,9 +1241,12 @@ class MultipartGlycopeptideLCMSMSAnalyzer(MzMLGlycopeptideLCMSMSAnalyzer):
             msn_mass_error_tolerance, psm_fdr_threshold, peak_shape_scoring_model,
             tandem_scoring_model, minimum_mass, save_unidentified,
             0, None, mass_shifts,
-            n_processes, spectrum_batch_size, True,
-            maximum_mass, probing_range_for_missing_precursors,
-            trust_precursor_fits,
+            n_processes,
+            spectrum_batch_size=spectrum_batch_size,
+            use_peptide_mass_filter=True,
+            maximum_mass=maximum_mass,
+            probing_range_for_missing_precursors=probing_range_for_missing_precursors,
+            trust_precursor_fits=trust_precursor_fits,
             # The multipart scoring algorithm automatically implies permute_decoy_glycan
             # fragment masses.
             permute_decoy_glycans=True,
