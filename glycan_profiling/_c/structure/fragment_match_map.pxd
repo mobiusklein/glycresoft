@@ -1,6 +1,11 @@
 cimport cython
 
 from ms_deisotope._c.peak_set cimport DeconvolutedPeak
+from glycopeptidepy._c.structure.fragment cimport FragmentBase
+
+ctypedef fused FragmentType:
+    FragmentBase
+    object
 
 
 @cython.final
@@ -14,7 +19,10 @@ cdef class PeakFragmentPair(object):
         public Py_hash_t _hash
 
     @staticmethod
-    cdef PeakFragmentPair _create(DeconvolutedPeak peak, object fragment)
+    cdef PeakFragmentPair _create(DeconvolutedPeak peak, fragment)
+    @staticmethod
+    cdef PeakFragmentPair _create_simple(DeconvolutedPeak peak, FragmentBase fragment)
+
     cpdef double mass_accuracy(self)
 
 
@@ -84,6 +92,7 @@ cdef class FragmentMatchMap(object):
         public ByPeakIndex by_peak
 
     cpdef add(self, peak, fragment=*)
+    cdef void _add_direct(self, PeakFragmentPair pair)
 
     cpdef set fragments(self)
     cpdef FragmentMatchMap copy(self)

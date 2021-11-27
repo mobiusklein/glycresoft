@@ -13,6 +13,9 @@ cimport numpy as np
 
 from ms_deisotope._c.peak_set cimport DeconvolutedPeak
 
+from glycopeptidepy._c.structure.fragment cimport FragmentBase, SimpleFragment, PeptideFragment
+
+
 np.import_array()
 
 @cython.final
@@ -20,19 +23,28 @@ np.import_array()
 cdef class PeakFragmentPair(object):
 
     @staticmethod
-    cdef PeakFragmentPair _create(DeconvolutedPeak peak, object fragment):
+    cdef PeakFragmentPair _create(DeconvolutedPeak peak, fragment):
         cdef PeakFragmentPair self = PeakFragmentPair.__new__(PeakFragmentPair)
         self.peak = peak
         self.fragment = fragment
         self.fragment_name = fragment.name
-        self._hash = hash(peak)
+        self._hash = hash(peak.mz)
+        return self
+
+    @staticmethod
+    cdef PeakFragmentPair _create_simple(DeconvolutedPeak peak, FragmentBase fragment):
+        cdef PeakFragmentPair self = PeakFragmentPair.__new__(PeakFragmentPair)
+        self.peak = peak
+        self.fragment = fragment
+        self.fragment_name = fragment._name
+        self._hash = hash(peak.mz)
         return self
 
     def __init__(self, peak, fragment):
         self.peak = peak
         self.fragment = fragment
         self.fragment_name = fragment.name
-        self._hash = hash(self.peak)
+        self._hash = hash(self.peak.mz)
 
     def __eq__(self, other):
         if other is None:
@@ -461,9 +473,12 @@ cdef class FragmentMatchMap(object):
     cpdef add(self, peak, fragment=None):
         if fragment is not None:
             peak = PeakFragmentPair._create(<DeconvolutedPeak>peak, fragment)
-        self.members.add(peak)
+        PySet_Add(self.members, peak)
         self.by_fragment.invalidate()
         self.by_peak.invalidate()
+
+    cdef void _add_direct(self, PeakFragmentPair pair):
+        PySet_Add(self.members, pair)
 
     def pairs_by_name(self, name):
         pairs = []

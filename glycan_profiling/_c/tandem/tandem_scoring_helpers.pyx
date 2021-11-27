@@ -431,6 +431,9 @@ cpdef _match_oxonium_ions(self, double error_tolerance=2e-5, set masked_peaks=No
     return masked_peaks
 
 
+cdef double INF = float("inf")
+
+
 @cython.binding(True)
 cpdef _match_stub_glycopeptides(self, double error_tolerance=2e-5, set masked_peaks=None,
                                 ChemicalShiftBase chemical_shift=None, bint extended_glycan_search=False):
@@ -442,7 +445,8 @@ cpdef _match_stub_glycopeptides(self, double error_tolerance=2e-5, set masked_pe
         size_t i, n, j, m, k
         DeconvolutedPeakSet spectrum
         FragmentMatchMap solution_map
-
+        StubFragment frag, shifted_frag
+        double max_mass, current_mass
 
     if masked_peaks is None:
         masked_peaks = set()
@@ -459,10 +463,22 @@ cpdef _match_stub_glycopeptides(self, double error_tolerance=2e-5, set masked_pe
     spectrum = <DeconvolutedPeakSet>self.spectrum
     solution_map = <FragmentMatchMap>self.solution_map
 
-    for i in range(PyList_GET_SIZE(fragments)):
-        frag = <FragmentBase>PyList_GET_ITEM(fragments, i)
+    max_mass = INF
+    n = spectrum.get_size()
+    if n > 0:
+        max_mass = spectrum.getitem(n - 1).neutral_mass + 1
+    else:
+        max_mass = 0.0
 
-        peaks = spectrum.all_peaks_for(frag.mass, error_tolerance)
+    n = PyList_GET_SIZE(fragments)
+    for i in range(n):
+        frag = <StubFragment>PyList_GET_ITEM(fragments, i)
+        current_mass = frag.mass
+
+        if current_mass > max_mass:
+            continue
+
+        peaks = spectrum.all_peaks_for(current_mass, error_tolerance)
         for j in range(PyTuple_Size(peaks)):
             peak = <DeconvolutedPeak>PyTuple_GetItem(peaks, j)
             # should we be masking these? peptides which have amino acids which are
@@ -470,14 +486,16 @@ cpdef _match_stub_glycopeptides(self, double error_tolerance=2e-5, set masked_pe
             # can produce cases where a stub ion and a backbone fragment match the
             # same peak.
             #
-            masked_peaks.add(peak._index.neutral_mass)
+            PySet_Add(masked_peaks, peak._index.neutral_mass)
             solution_map.add(peak, frag)
         if chemical_shift is not None:
             shifted_mass = frag.mass + chemical_shift.mass
+            if shifted_mass > max_mass:
+                continue
             shifted_peaks = spectrum.all_peaks_for(shifted_mass, error_tolerance)
             for k in range(PyTuple_Size(shifted_peaks)):
                 peak = <DeconvolutedPeak>PyTuple_GetItem(shifted_peaks, k)
-                masked_peaks.add(peak.index.neutral_mass)
+                PySet_Add(masked_peaks, peak._index.neutral_mass)
 
                 shifted_frag = frag.clone()
                 shifted_frag.set_chemical_shift(chemical_shift)
