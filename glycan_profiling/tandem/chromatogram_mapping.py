@@ -1299,7 +1299,7 @@ class SpectrumMatchUpdater(TaskBase):
             if abs_err < best_shift_error:
                 best_shift = shift
                 best_shift_error = abs_err
-        return best_shift
+        return best_shift, best_shift_error
 
     def id_for_structure(self, structure, reference):
         structure.protein_relation = reference.protein_relation
@@ -1308,7 +1308,8 @@ class SpectrumMatchUpdater(TaskBase):
 
     def evaluate_spectrum(self, scan_id, structure, mass_shifts):
         scan = self.scan_loader.get_scan_by_id(scan_id)
-        best_shift = self.select_best_mass_shift_for(scan, structure, mass_shifts)
+        best_shift, best_shift_error = self.select_best_mass_shift_for(
+            scan, structure, mass_shifts)
         match = self.scorer.evaluate(scan, structure, mass_shift=best_shift, **self.match_args)
         return match
 
