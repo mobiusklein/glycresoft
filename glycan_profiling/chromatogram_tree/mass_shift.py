@@ -258,6 +258,7 @@ Formate = MassShift("Formate", Composition('HCOOH'), charge_carrier=1)
 Ammonium = MassShift("Ammonium", Composition("NH3"), Composition())
 Sodium = MassShift("Sodium", Composition("Na1H-1"), charge_carrier=1)
 Potassium = MassShift("Potassium", Composition("K1H-1"), charge_carrier=1)
+Deoxy = MassShift("Deoxy", Composition("O-1"), Composition())
 
 
 class MassShiftCollection(object):

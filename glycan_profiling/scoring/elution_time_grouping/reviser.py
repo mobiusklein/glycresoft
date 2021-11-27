@@ -8,7 +8,7 @@ import numpy as np
 from glypy.structure.glycan_composition import HashableGlycanComposition, FrozenMonosaccharideResidue
 from glycan_profiling.chromatogram_tree import mass_shift
 
-from glycan_profiling.chromatogram_tree.mass_shift import Unmodified, Ammonium
+from glycan_profiling.chromatogram_tree.mass_shift import Unmodified, Ammonium, Deoxy
 
 from glycan_profiling.task import LoggingMixin
 
@@ -400,10 +400,16 @@ AmmoniumMaskedRule = RevisionRule(
     HashableGlycanComposition(Hex=-1, Fuc=-1, Neu5Ac=1),
     mass_shift_rule=MassShiftRule(Ammonium, 1), priority=1)
 AmmoniumUnmaskedRule = RevisionRule(
-    HashableGlycanComposition(Hex=1, Fuc=1, Neu5Ac=-1), mass_shift_rule=MassShiftRule(Ammonium, -1), priority=1)
+    HashableGlycanComposition(Hex=1, Fuc=1, Neu5Ac=-1),
+    mass_shift_rule=MassShiftRule(Ammonium, -1), priority=1)
 
 IsotopeRule = RevisionRule(HashableGlycanComposition(Fuc=-2, Neu5Ac=1))
 IsotopeRule2 = RevisionRule(HashableGlycanComposition(Fuc=-4, Neu5Ac=2))
+
+HexNAc2NeuAc2ToHex6Deoxy = ValidatingRevisionRule(
+    HashableGlycanComposition(Hex=-6, HexNAc=2, Neu5Ac=2),
+    mass_shift_rule=MassShiftRule(Deoxy, 1),
+    validator=lambda x: x.glycan_composition[neuac] == 0 and x.glycan_composition.query(dhex) == 0 and x.glycan_composition[hexnac] == 2 and x.mass_shifts == [Unmodified])
 
 HexNAc2NeuAc2ToHex6AmmoniumRule = ValidatingRevisionRule(
     HashableGlycanComposition(Hex=-6, HexNAc=2, Neu5Ac=2),

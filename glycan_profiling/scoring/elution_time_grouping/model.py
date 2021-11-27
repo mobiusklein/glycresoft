@@ -39,7 +39,7 @@ from .reviser import (IntervalModelReviser, IsotopeRule, AmmoniumMaskedRule,
                       AmmoniumUnmaskedRule, HexNAc2NeuAc2ToHex6AmmoniumRule,
                       IsotopeRule2, HexNAc2Fuc1NeuAc2ToHex7, PhosphateToSulfateRule,
                       SulfateToPhosphateRule, Sulfate1HexNAc2ToHex3Rule,
-                      Hex3ToSulfate1HexNAc2Rule,
+                      Hex3ToSulfate1HexNAc2Rule, HexNAc2NeuAc2ToHex6Deoxy,
                       PeptideYUtilizationPreservingRevisionValidator,
                       modify_rules)
 
@@ -1554,6 +1554,7 @@ class GlycopeptideElutionTimeModelBuildingPipeline(TaskBase):
             IsotopeRule,
             IsotopeRule2,
             HexNAc2NeuAc2ToHex6AmmoniumRule,
+            HexNAc2NeuAc2ToHex6Deoxy,
             HexNAc2Fuc1NeuAc2ToHex7,
             SulfateToPhosphateRule,
             PhosphateToSulfateRule,
