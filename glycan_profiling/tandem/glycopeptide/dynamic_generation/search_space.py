@@ -612,6 +612,16 @@ class Record(object):
         return inst
 
 
+def clone_stub_fragments(stubs):
+    return [f.clone() for f in stubs]
+
+
+try:
+    from glycan_profiling._c.structure.structure_loader import clone_stub_fragments
+except ImportError:
+    pass
+
+
 class SharedCacheAwareDecoyFragmentCachingGlycopeptide(DecoyFragmentCachingGlycopeptide):
 
     def stub_fragments(self, *args, **kwargs):
@@ -622,7 +632,7 @@ class SharedCacheAwareDecoyFragmentCachingGlycopeptide(DecoyFragmentCachingGlyco
         target_key = self.fragment_caches._make_target_key(key)
         if target_key in self.fragment_caches:
             result = self.fragment_caches[target_key]
-            result = [f.clone() for f in result]
+            result = clone_stub_fragments(result)
         else:
             result = list(
                     # Directly call the superclass method of FragmentCachingGlycopeptide as we

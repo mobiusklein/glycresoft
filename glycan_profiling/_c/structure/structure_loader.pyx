@@ -3,8 +3,11 @@ from cpython.object cimport PyObject
 from cpython.ref cimport Py_INCREF
 from cpython.dict cimport PyDict_GetItem, PyDict_SetItem
 from cpython.tuple cimport PyTuple_GET_SIZE, PyTuple_GET_ITEM, PyTuple_SET_ITEM, PyTuple_New
+from cpython.list cimport PyList_GET_SIZE, PyList_GET_ITEM, PyList_SET_ITEM, PyList_New
 
 from numpy cimport npy_uint32 as uint32_t, npy_uint64 as uint64_t
+
+from glycopeptidepy._c.structure.fragment cimport StubFragment
 
 
 @cython.freelist(1000000)
@@ -281,3 +284,19 @@ cdef class GlycanAwareGlycopeptideFragmentCachingContext(GlycopeptideFragmentCac
         Py_INCREF(as_target_peptide)
         PyTuple_SET_ITEM(new_key, n - 1, as_target_peptide)
         return new_key
+
+
+cpdef list clone_stub_fragments(list stubs):
+    cdef:
+        size_t i, n
+        list result
+        StubFragment frag
+
+    n = PyList_GET_SIZE(stubs)
+    result = PyList_New(n)
+    for i in range(n):
+        frag = <StubFragment>PyList_GET_ITEM(stubs, i)
+        frag = <StubFragment>frag.clone()
+        Py_INCREF(frag)
+        PyList_SET_ITEM(result, i, frag)
+    return result

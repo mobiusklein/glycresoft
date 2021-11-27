@@ -64,3 +64,6 @@ cdef class GlycopeptideFragmentCachingContext(object):
 
 cdef class GlycanAwareGlycopeptideFragmentCachingContext(GlycopeptideFragmentCachingContext):
     pass
+
+
+cpdef list clone_stub_fragments(list stubs)
