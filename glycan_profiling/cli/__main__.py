@@ -25,6 +25,13 @@ def info(type, value, tb):
         ipdb.post_mortem(tb)
 
 
+try:
+    import ipdb
+    sys.breakpointhook = ipdb.set_trace
+except (ImportError, AttributeError):
+    pass
+
+
 def main():
     freeze_support()
     if os.getenv("GLYCRESOFTDEBUG"):
