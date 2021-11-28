@@ -300,11 +300,16 @@ class GlycopeptideLCMSMSAnalysisCSVSerializer(CSVSerializerBase):
             ';'.join([a.name for a in obj.mass_shifts]),
         ]
         if self.retention_time_model:
-            rt_start, rt_end = self.retention_time_model.predict_interval(obj, 0.01)
-            rt_score = self.retention_time_model.score_interval(obj, 0.01)
-            attribs.append(rt_start)
-            attribs.append(rt_end)
-            attribs.append(rt_score)
+            if obj.chromatogram:
+                rt_start, rt_end = self.retention_time_model.predict_interval(obj, 0.01)
+                rt_score = self.retention_time_model.score_interval(obj, 0.01)
+                attribs.append(rt_start)
+                attribs.append(rt_end)
+                attribs.append(rt_score)
+            else:
+                attribs.append("-")
+                attribs.append("-")
+                attribs.append("-")
         return list(map(str, attribs))
 
 
