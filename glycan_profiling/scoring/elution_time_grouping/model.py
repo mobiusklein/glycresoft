@@ -1021,6 +1021,7 @@ class ModelEnsemble(PeptideBackboneKeyedMixin):
     def plot_factor_coefficients(self, ax=None):
         if ax is None:
             _fig, ax = plt.subplots(1)
+        from glycan_profiling.plotting.colors import get_color
 
         def local_point(point, factor):
             val = []
@@ -1048,15 +1049,18 @@ class ModelEnsemble(PeptideBackboneKeyedMixin):
                 y, ci_delta = local_point(t, factor)
                 yval.append(y)
                 ci_width.append(ci_delta)
+            c = get_color(factor)
             xval = np.array(xval)
             yval = np.array(yval)
             ci_width = np.array(ci_width)
-            line = ax.plot(xval, yval, label=factor, marker='.')
+            line = ax.plot(xval, yval, label=factor, marker='.', color=c)
             ax.fill_between(xval, yval - ci_width, yval + ci_width,
-                            color=line[0].get_color(), alpha=0.25)
-        ax.set_xlabel("Chromatographic Apex Time", size=16)
-        ax.set_ylabel("Local Average Factor Coefficient", size=16)
-        ax.legend()
+                            color=c, alpha=0.25)
+        ax.set_xlabel("Chromatographic Apex Time", size=14)
+        ax.set_ylabel("Local Average Factor Coefficient", size=14)
+        ax.legend(loc='upper left', bbox_to_anchor=(1.2, 1.0), frameon=False)
+        ax.spines['top'].set_visible(False)
+        ax.spines['right'].set_visible(False)
         return ax
 
     def plot_residuals(self, ax=None):
@@ -1064,9 +1068,11 @@ class ModelEnsemble(PeptideBackboneKeyedMixin):
             _fig, ax = plt.subplots(1)
         apex_time = self._summary_statistics['apex_time_array']
         residuals = self._summary_statistics['residuals_array']
-        ax.scatter(apex_time, residuals)
-        ax.set_xlabel("Chromatographic Apex Time", size=16)
-        ax.set_ylabel("Residuals", size=16)
+        ax.scatter(apex_time, residuals, s=15, edgecolors='black', alpha=0.5, color='teal')
+        ax.set_xlabel("Chromatographic Apex Time", size=14)
+        ax.set_ylabel("Residuals", size=14)
+        ax.spines['top'].set_visible(False)
+        ax.spines['right'].set_visible(False)
         return ax
 
 
