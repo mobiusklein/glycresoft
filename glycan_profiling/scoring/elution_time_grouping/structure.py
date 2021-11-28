@@ -23,6 +23,9 @@ from ms_deisotope.peak_dependency_network.intervals import SpanningMixin, Interv
 
 from glycan_profiling.chromatogram_tree.utils import ArithmeticMapping
 from glycan_profiling.chromatogram_tree.mass_shift import MassShift, Unmodified
+from glycan_profiling.chromatogram_tree.chromatogram import ChromatogramInterface
+
+from glycan_profiling.tandem.spectrum_match import SpectrumMatchBase
 
 
 def _try_parse(value):
@@ -39,10 +42,13 @@ def _try_parse(value):
 
 def _get_apex_time(chromatogram):
     try:
-        x, y = chromatogram.as_arrays()
+        if hasattr(chromatogram, "as_arrays"):
+            x, y = chromatogram.as_arrays()
+        else:
+            x, y = chromatogram.get_chromatogram().as_arrays()
         y = gaussian_filter1d(y, 1)
         return x[np.argmax(y)]
-    except AttributeError:
+    except (AttributeError, TypeError):
         return chromatogram.apex_time
 
 class ChromatogramProxy(object):
@@ -90,9 +96,19 @@ class ChromatogramProxy(object):
 
     @classmethod
     def from_obj(cls, obj, **kwargs):
+        if isinstance(obj, ChromatogramInterface):
+            return cls.from_chromatogram(obj)
+        elif isinstance(obj, cls):
+            return obj.__class__.from_chromatogram(obj, **kwargs)
+        elif isinstance(obj, SpectrumMatchBase):
+            return cls.from_spectrum_match(obj, **kwargs)
+        else:
+            return cls.from_chromatogram(obj)
+
+    @classmethod
+    def from_chromatogram(cls, obj, **kwargs):
         try:
-            chrom = obj.get_chromatogram()
-            apex_time = _get_apex_time(chrom)
+            apex_time = _get_apex_time(obj)
         except (AttributeError, ValueError, TypeError):
             apex_time = obj.apex_time
         mass_shifts = getattr(obj, 'mass_shifts')
@@ -244,9 +260,9 @@ class GlycopeptideChromatogramProxy(ChromatogramProxy):
             self.glycan_composition = HashableGlycanComposition(value.glycan_composition)
 
     @classmethod
-    def from_obj(cls, obj, **kwargs):
+    def from_chromatogram(cls, obj, **kwargs):
         gp = FragmentCachingGlycopeptide(str(obj.structure))
-        result = super(GlycopeptideChromatogramProxy, cls).from_obj(obj, structure=gp, **kwargs)
+        result = super(GlycopeptideChromatogramProxy, cls).from_chromatogram(obj, structure=gp, **kwargs)
         _key = result.peptide_key
         return result
 

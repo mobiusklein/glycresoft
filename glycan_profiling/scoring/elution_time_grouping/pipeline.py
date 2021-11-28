@@ -28,12 +28,12 @@ class GlycopeptideElutionTimeModeler(TaskBase):
         if test_chromatograms is not None:
             if not isinstance(test_chromatograms[0], GlycopeptideChromatogramProxy):
                 test_chromatograms = [
-                    GlycopeptideChromatogramProxy.from_obj(i) for i in test_chromatograms]
+                    GlycopeptideChromatogramProxy.from_chromatogram(i) for i in test_chromatograms]
 
         self.replicate_key_attr = replicate_key_attr
         if not isinstance(glycopeptide_chromatograms[0], GlycopeptideChromatogramProxy):
             glycopeptide_chromatograms = [
-                GlycopeptideChromatogramProxy.from_obj(i) for i in glycopeptide_chromatograms]
+                GlycopeptideChromatogramProxy.from_chromatogram(i) for i in glycopeptide_chromatograms]
         self.glycopeptide_chromatograms = glycopeptide_chromatograms
         self.test_chromatograms = test_chromatograms
         self.prefer_joint_model = prefer_joint_model

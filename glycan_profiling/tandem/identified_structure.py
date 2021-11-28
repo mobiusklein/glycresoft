@@ -3,7 +3,7 @@ with both MS1 and MSn.
 '''
 import numpy as np
 
-from glycan_profiling.chromatogram_tree import get_chromatogram, ArithmeticMapping
+from glycan_profiling.chromatogram_tree import get_chromatogram, ArithmeticMapping, ChromatogramInterface
 
 from .chromatogram_mapping import TandemSolutionsWithoutChromatogram
 
@@ -285,6 +285,9 @@ class IdentifiedStructure(object):
         if self.chromatogram is None:
             return False
         return self.chromatogram.overlaps_in_time(x)
+
+
+ChromatogramInterface.register(IdentifiedStructure)
 
 
 def extract_identified_structures(tandem_annotated_chromatograms, threshold_fn, result_type=IdentifiedStructure):

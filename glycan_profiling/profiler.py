@@ -1329,7 +1329,7 @@ class MultipartGlycopeptideLCMSMSAnalyzer(MzMLGlycopeptideLCMSMSAnalyzer):
         glycan_compositions = [
             c.convert() for c in glycan_query.all()]
 
-        proxies = [GlycopeptideChromatogramProxy.from_obj(chrom) for chrom in scored_chromatograms]
+        proxies = [GlycopeptideChromatogramProxy.from_chromatogram(chrom) for chrom in scored_chromatograms]
 
         by_structure = defaultdict(list)
         for proxy in proxies:

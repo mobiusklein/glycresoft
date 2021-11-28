@@ -539,7 +539,7 @@ class FactorElutionTimeFitter(FactorChromatogramFeatureizer, ElutionTimeFitter):
         try:
             shifted = chromatogram.shift_glycan_composition(delta_glycan)
         except AttributeError:
-            shifted = GlycopeptideChromatogramProxy.from_obj(
+            shifted = GlycopeptideChromatogramProxy.from_chromatogram(
                 chromatogram).shift_glycan_composition(delta_glycan)
         return self.predict(shifted)
 
@@ -618,7 +618,7 @@ class PeptideBackboneKeyedMixin(object):
         try:
             return chromatogram.peptide_key
         except AttributeError:
-            return GlycopeptideChromatogramProxy.from_obj(chromatogram).peptide_key
+            return GlycopeptideChromatogramProxy.from_chromatogram(chromatogram).peptide_key
 
 
 class PeptideGroupChromatogramFeatureizer(FactorChromatogramFeatureizer, PeptideBackboneKeyedMixin):

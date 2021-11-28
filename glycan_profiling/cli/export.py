@@ -516,7 +516,7 @@ def glycopeptide_chromatogram_records(
             continue
         if idgp.q_value > fdr_threshold:
             continue
-        obj = GlycopeptideChromatogramProxy.from_obj(
+        obj = GlycopeptideChromatogramProxy.from_chromatogram(
             idgp, ms1_score=idgp.ms1_score, ms2_score=idgp.ms2_score,
             q_value=idgp.q_value, analysis_name=analysis_name,
             mass_shifts=idgp.chromatogram.mass_shifts)

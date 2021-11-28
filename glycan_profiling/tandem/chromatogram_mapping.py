@@ -1369,7 +1369,7 @@ class SpectrumMatchUpdater(TaskBase):
                 if self.retention_time_model and not isinstance(chromatogram, TandemSolutionsWithoutChromatogram):
                     from glycan_profiling.scoring.elution_time_grouping import GlycopeptideChromatogramProxy
                     if r.solution not in alternative_rt_scores:
-                        proxy = GlycopeptideChromatogramProxy.from_obj(chromatogram)
+                        proxy = GlycopeptideChromatogramProxy.from_chromatogram(chromatogram)
                         proxy.structure = r.solution
                         alt_rt_score = alternative_rt_scores[r.solution] = self.retention_time_model.score_interval(
                             proxy, 0.01)
