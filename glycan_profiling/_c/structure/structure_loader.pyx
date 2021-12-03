@@ -5,8 +5,12 @@ from cpython.dict cimport PyDict_GetItem, PyDict_SetItem
 from cpython.tuple cimport PyTuple_GET_SIZE, PyTuple_GET_ITEM, PyTuple_SET_ITEM, PyTuple_New
 from cpython.list cimport PyList_GET_SIZE, PyList_GET_ITEM, PyList_SET_ITEM, PyList_New
 
-from numpy cimport npy_uint32 as uint32_t, npy_uint64 as uint64_t
+from numpy cimport npy_uint32 as uint32_t, npy_uint64 as uint64_t, npy_float64 as float64_t
+cimport numpy as np
 
+np.import_array()
+
+from glypy.utils.cenum cimport EnumMeta, EnumValue
 from glycopeptidepy._c.structure.fragment cimport StubFragment
 
 
@@ -259,6 +263,11 @@ cdef class GlycopeptideFragmentCachingContext(object):
         return None
 
 
+from glycan_profiling.structure.enums import SpectrumMatchClassification as _StructureClassification
+
+cdef EnumMeta StructureClassification = _StructureClassification
+
+
 cdef class GlycanAwareGlycopeptideFragmentCachingContext(GlycopeptideFragmentCachingContext):
     cpdef stub_fragment_key(self, target, args, dict kwargs):
         cdef tid = target.id
@@ -271,16 +280,16 @@ cdef class GlycanAwareGlycopeptideFragmentCachingContext(GlycopeptideFragmentCac
             size_t n, i
             tuple new_key
             PyObject* tmp
-            object as_target_peptide, value
-        from glycan_profiling.tandem.glycopeptide.dynamic_generation.search_space import StructureClassification
+            object as_target_peptide
+            EnumValue value
         n = PyTuple_GET_SIZE(key)
-        value = <object>PyTuple_GET_ITEM(key, n - 1)
+        value = <EnumValue>PyTuple_GET_ITEM(key, n - 1)
         new_key = PyTuple_New(n)
         for i in range(n - 1):
             tmp = PyTuple_GET_ITEM(key, i)
             Py_INCREF(<object>tmp)
             PyTuple_SET_ITEM(new_key, i, <object>tmp)
-        as_target_peptide = StructureClassification[int(value) ^ 1]
+        as_target_peptide = StructureClassification[value.value ^ 1]
         Py_INCREF(as_target_peptide)
         PyTuple_SET_ITEM(new_key, n - 1, as_target_peptide)
         return new_key
@@ -296,7 +305,34 @@ cpdef list clone_stub_fragments(list stubs):
     result = PyList_New(n)
     for i in range(n):
         frag = <StubFragment>PyList_GET_ITEM(stubs, i)
-        frag = <StubFragment>frag.clone()
+        frag = <StubFragment>StubFragment.clone(frag)
         Py_INCREF(frag)
         PyList_SET_ITEM(result, i, frag)
     return result
+
+
+cpdef list clone_and_shift_stub_fragments(list stubs, np.ndarray[float64_t, ndim=1] rand_deltas, bint do_clone=True):
+    cdef:
+        size_t i, n, j
+        list result
+        StubFragment frag
+        float64_t delta
+
+    n = PyList_GET_SIZE(stubs)
+    if do_clone:
+        result = PyList_New(n)
+    j = 0
+    for i in range(n):
+        frag = <StubFragment>PyList_GET_ITEM(stubs, i)
+        if do_clone:
+            frag = <StubFragment>StubFragment.clone(frag)
+        if frag.get_glycosylation_size() > 1:
+            delta = rand_deltas[j]
+            j += 1
+            frag.mass += delta
+        if do_clone:
+            Py_INCREF(frag)
+            PyList_SET_ITEM(result, i, frag)
+    if do_clone:
+        return result
+    return stubs

@@ -153,6 +153,11 @@ def always(x):
     return True
 
 
+def get_mass_error(record):
+    observed_mass = record.weighted_neutral_mass
+    theoretical_mass = record.structure.total_mass
+
+
 class RevisionValidatorBase(LoggingMixin):
     def __init__(self, spectrum_match_builder, threshold_fn=always):
         self.spectrum_match_builder = spectrum_match_builder

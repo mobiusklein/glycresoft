@@ -1135,6 +1135,7 @@ class MzMLGlycopeptideLCMSMSAnalyzer(GlycopeptideLCMSMSAnalyzer):
         session = object_session(self.analysis)
         session.add(self.analysis)
         session.commit()
+        self.log("Final Results Written To %s" % (self.output_path, ))
 
 
 class MzMLComparisonGlycopeptideLCMSMSAnalyzer(MzMLGlycopeptideLCMSMSAnalyzer):

@@ -492,7 +492,7 @@ class DecoyFragmentCachingGlycopeptide(FragmentCachingGlycopeptide):
             cls._random_shift_cache[key] = rand_deltas
             return rand_deltas
 
-    def _permute_stub_masses(self, stub_fragments, kwargs):
+    def _permute_stub_masses(self, stub_fragments, kwargs, do_clone=False):
         random_low = kwargs.get('random_low', 1.0)
         random_high = kwargs.get("random_high", 30.0)
         n = len(stub_fragments)
@@ -500,12 +500,27 @@ class DecoyFragmentCachingGlycopeptide(FragmentCachingGlycopeptide):
             self.glycan_composition.mass(),
             n, random_low, random_high)
         i = 0
-        for frag in stub_fragments:
+        stub_fragments = self._clone_and_shift_stub_fragments(
+            stub_fragments, rand_deltas, do_clone)
+        return stub_fragments
+
+    @staticmethod
+    def _clone_and_shift_stub_fragments(stubs, rand_deltas, do_clone=True):
+        i = 0
+        if do_clone:
+            result = []
+        for frag in stubs:
+            if do_clone:
+                frag = frag.clone()
             if frag.glycosylation_size > 1:
                 delta = rand_deltas[i]
                 i += 1
                 frag.mass += delta
-        return stub_fragments
+            if do_clone:
+                result.append(frag)
+        if do_clone:
+            return result
+        return stubs
 
     def stub_fragments(self, *args, **kwargs):
         kwargs.setdefault("strategy", CachingStubGlycopeptideStrategy)
@@ -544,6 +559,14 @@ class DecoyFragmentCachingGlycopeptide(FragmentCachingGlycopeptide):
         inst.fragment_caches = inst.fragment_caches.__class__(
             {k: v for k, v in target.fragment_caches.items() if 'stub_fragments' not in k})
         return inst
+
+
+try:
+    from glycan_profiling._c.structure.structure_loader import clone_and_shift_stub_fragments as _clone_and_shift_stub_fragments
+    DecoyFragmentCachingGlycopeptide._clone_and_shift_stub_fragments = staticmethod(
+        _clone_and_shift_stub_fragments)
+except ImportError:
+    pass
 
 
 class CachingStubGlycopeptideStrategy(StubGlycopeptideStrategy):

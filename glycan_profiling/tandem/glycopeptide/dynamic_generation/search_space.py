@@ -36,7 +36,8 @@ from glycan_profiling.database import intervals
 from glycan_profiling.database.mass_collection import NeutralMassDatabase, SearchableMassCollection
 from glycan_profiling.database.builder.glycopeptide.common import limiting_combinations
 
-from ...spectrum_match import SpectrumMatchClassification as StructureClassification
+from glycan_profiling.structure.enums import SpectrumMatchClassification as StructureClassification
+
 from ...workload import WorkloadManager
 from ..core_search import GlycanCombinationRecord, GlycanFilteringPeptideMassEstimator, IndexedGlycanFilteringPeptideMassEstimator
 
@@ -632,15 +633,16 @@ class SharedCacheAwareDecoyFragmentCachingGlycopeptide(DecoyFragmentCachingGlyco
         target_key = self.fragment_caches._make_target_key(key)
         if target_key in self.fragment_caches:
             result = self.fragment_caches[target_key]
-            result = clone_stub_fragments(result)
+            do_clone = True
         else:
+            do_clone = False
             result = list(
                     # Directly call the superclass method of FragmentCachingGlycopeptide as we
                     # do not need to go through a preliminary round of cache key construction and
                     # querying.
                     super(FragmentCachingGlycopeptide, self).stub_fragments(  # pylint: disable=bad-super-call
                         *args, **kwargs))
-        result = self._permute_stub_masses(result, kwargs)
+        result = self._permute_stub_masses(result, kwargs, do_clone=do_clone)
         self.fragment_caches[key] = result
         return result
 

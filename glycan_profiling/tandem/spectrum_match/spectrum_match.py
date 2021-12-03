@@ -9,6 +9,8 @@ from ms_deisotope.data_source.metadata import activation
 from glycan_profiling.structure import (
     ScanWrapperBase)
 
+from glycan_profiling.structure.enums import SpectrumMatchClassification
+
 from glycan_profiling.chromatogram_tree import Unmodified
 
 from glycan_profiling.tandem.ref import TargetReference, SpectrumReference
@@ -580,11 +582,11 @@ class ModelTreeNode(object):
         return self.model.load_peaks(scan)
 
 
-class SpectrumMatchClassification(Enum):
-    target_peptide_target_glycan = 0
-    target_peptide_decoy_glycan = 1
-    decoy_peptide_target_glycan = 2
-    decoy_peptide_decoy_glycan = decoy_peptide_target_glycan | target_peptide_decoy_glycan
+# class SpectrumMatchClassification(Enum):
+#     target_peptide_target_glycan = 0
+#     target_peptide_decoy_glycan = 1
+#     decoy_peptide_target_glycan = 2
+#     decoy_peptide_decoy_glycan = decoy_peptide_target_glycan | target_peptide_decoy_glycan
 
 
 _ScoreSet = make_struct("ScoreSet", ['glycopeptide_score', 'peptide_score', 'glycan_score', 'glycan_coverage'])

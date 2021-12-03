@@ -49,6 +49,9 @@ logger = logging.getLogger("glycan_profiling.elution_time_model")
 logger.addHandler(logging.NullHandler())
 
 
+CALIBRATION_QUANTILES = [0.25, 0.75]
+
+
 class IntervalRange(object):
     def __init__(self, lower=None, upper=None):
         if isinstance(lower, IntervalRange):
@@ -398,7 +401,7 @@ class ElutionTimeFitter(LinearModelBase, ChromatgramFeatureizerBase, ScoringFeat
             chromatograms = self.chromatograms
         ivs = np.array([self.predict_interval(c, alpha) for c in chromatograms])
         widths = (ivs[:, 1] - ivs[:, 0]) / 2.0
-        self.width_range = IntervalRange(*np.quantile(widths, [0.25, 0.75]))
+        self.width_range = IntervalRange(*np.quantile(widths, CALIBRATION_QUANTILES))
         return self
 
     def plot(self, ax=None):
@@ -1013,7 +1016,7 @@ class ModelEnsemble(PeptideBackboneKeyedMixin):
                         for c in chromatograms])
         widths = (ivs[:, 1] - ivs[:, 0]) / 2.0
         widths = widths[~np.isnan(widths)]
-        self.width_range = IntervalRange(*np.quantile(widths, [0.25, 0.75]))
+        self.width_range = IntervalRange(*np.quantile(widths, CALIBRATION_QUANTILES))
         if np.isnan(self.width_range.lower):
             raise ValueError("Width range cannot be NaN")
         return self
@@ -1039,7 +1042,8 @@ class ModelEnsemble(PeptideBackboneKeyedMixin):
             return np.average(val, weights=weights), np.average(ci, weights=weights)
 
         factors = set()
-        list(map(lambda x: factors.update(x.factors), self.models.values()))
+        for x in self.models.values():
+            factors.update(x.factors)
         for factor in factors:
             yval = []
             xval = []
@@ -1058,7 +1062,7 @@ class ModelEnsemble(PeptideBackboneKeyedMixin):
                             color=c, alpha=0.25)
         ax.set_xlabel("Chromatographic Apex Time", size=14)
         ax.set_ylabel("Local Average Factor Coefficient", size=14)
-        ax.legend(loc='upper left', frameon=False, bbox_to_anchor=(1.0, 1.0))
+        ax.legend(loc='upper left', frameon=False, bbox_to_anchor=(0.8, 1.0))
         ax.spines['top'].set_visible(False)
         ax.spines['right'].set_visible(False)
         return ax
@@ -1073,6 +1077,16 @@ class ModelEnsemble(PeptideBackboneKeyedMixin):
         ax.set_ylabel("Residuals", size=14)
         ax.spines['top'].set_visible(False)
         ax.spines['right'].set_visible(False)
+
+        max_val = np.nanmax(residuals)
+        min_val = np.nanmin(residuals)
+        for t, mod in self.models.items():
+            ax.vlines([mod.start, mod.end], min_val, max_val, colors='gray', lw=0.5, linestyles='--')
+
+        ax.set_ylim(min_val - 1, max_val + 1)
+        ax.hlines([-self.width_range.upper, self.width_range.upper],
+                  apex_time.min(), apex_time.max(), linestyles='--', lw=0.5, color='gray')
+
         return ax
 
 
@@ -1094,8 +1108,9 @@ class EnsembleBuilder(TaskBase):
                             if len(v) > 0)) + 1
         except ValueError:
             width = 2.0
-        width *= 2
-        return float(width)
+        width *= 2.0
+        self.log("... Estimated Region Width: %0.2f" % (width, ))
+        return width
 
     def generate_points(self, width):
         points = np.arange(
@@ -1186,6 +1201,8 @@ class EnsembleBuilder(TaskBase):
                     obs = sorted(filter(predicate, extra), key=lambda x: x.apex_time)
                     m = models[point] = model_type(obs, self.aggregator.factors, regularize=regularize)
                     offset += 1
+                self.log("... Borrowed %d observations from regions %d steps away for region centered on %0.3f (%d members, %r)" % (
+                    len(extra - set(members)), offset, point, len(members), m.data.shape))
                 m = models[point]
 
             m.fit(resample=resample)
@@ -1618,6 +1635,7 @@ class GlycopeptideElutionTimeModelBuildingPipeline(TaskBase):
                     regularize=regularize, resample=resample)
         model = builder.merge()
         model.calibrate_prediction_interval(alpha=self.calibration_alpha)
+        self.log("... Calibrated Prediction Intervals: %0.3f-%0.3f" % (model.width_range.lower, model.width_range.upper))
         return model
 
     def fit_model_with_revision(self, source, revision, regularize=False):
@@ -1667,7 +1685,7 @@ class GlycopeptideElutionTimeModelBuildingPipeline(TaskBase):
                     self.log(
                         "...... %s: %0.2f %s (%0.2f) => %s (%0.2f) %0.2f/%0.2f with %d references" % (
                             new.tag, new.apex_time,
-                            old.glycan_composition, model.predict(old),
+                            old.structure, model.predict(old),
                             new.glycan_composition, model.predict(new),
                             model.score_interval(old, alpha=0.01),
                             model.score_interval(new, alpha=0.01),

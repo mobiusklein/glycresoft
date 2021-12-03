@@ -411,10 +411,15 @@ cpdef _match_oxonium_ions(self, double error_tolerance=2e-5, set masked_peaks=No
     if masked_peaks is None:
         masked_peaks = set()
 
-    fragments = list(self.target.glycan_fragments(
+    obj = (self.target.glycan_fragments(
             all_series=False, allow_ambiguous=False,
             include_large_glycan_fragments=False,
             maximum_fragment_size=4))
+
+    if isinstance(obj, list):
+        fragments = <list>obj
+    else:
+        fragments = list(obj)
 
     spectrum = <DeconvolutedPeakSet>self.spectrum
     solution_map = <FragmentMatchMap>self.solution_map
