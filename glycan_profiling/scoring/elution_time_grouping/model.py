@@ -1062,9 +1062,10 @@ class ModelEnsemble(PeptideBackboneKeyedMixin):
                             color=c, alpha=0.25)
         ax.set_xlabel("Chromatographic Apex Time", size=14)
         ax.set_ylabel("Local Average Factor Coefficient", size=14)
-        ax.legend(loc='upper left', frameon=False, bbox_to_anchor=(0.8, 1.0))
+        ax.legend(loc='upper left', frameon=False, bbox_to_anchor=(1.0, 1.0))
         ax.spines['top'].set_visible(False)
         ax.spines['right'].set_visible(False)
+        ax.figure.tight_layout()
         return ax
 
     def plot_residuals(self, ax=None):
@@ -1086,7 +1087,7 @@ class ModelEnsemble(PeptideBackboneKeyedMixin):
         ax.set_ylim(min_val - 1, max_val + 1)
         ax.hlines([-self.width_range.upper, self.width_range.upper],
                   apex_time.min(), apex_time.max(), linestyles='--', lw=0.5, color='gray')
-
+        ax.figure.tight_layout()
         return ax
 
 

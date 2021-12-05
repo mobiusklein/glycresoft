@@ -173,7 +173,9 @@ class FiniteMixtureModelFDREstimator(object):
         ax2 = ax.twinx()
         ax2.set_ylabel("FDR")
         line3 = ax2.plot(target_scores, fdr, label='FDR', color='grey', linestyle='--')
-        ax.legend([line1[0], line2[0], line3[0], line4, line5], ['Target', 'Decoy', 'FDR', '5% FDR', '1% FDR'])
+        ax.legend(
+            [line1[0], line2[0], line3[0], line4, line5],
+            ['Target', 'Decoy', 'FDR', '5% FDR', '1% FDR'], frameon=False)
 
         lo, hi = ax.get_ylim()
         lo = max(lo, 0)

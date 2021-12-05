@@ -144,6 +144,9 @@ class ChromatogramArtist(ArtistBase):
             chromatograms = [get_chromatogram(c) for c in chromatograms]
         else:
             chromatograms = []
+        self.max_points = float('inf')
+        if chromatograms:
+            self.max_points = max([len(c) for c in chromatograms])
         self.chromatograms = chromatograms
         self.minimum_ident_time = float("inf")
         self.maximum_ident_time = 0
@@ -299,7 +302,7 @@ class ChromatogramArtist(ArtistBase):
 
     def _interpolate_xticks(self, xlo, xhi):
         self.ax.set_xlim(xlo - 0.01, xhi + 0.01)
-        tick_values = np.linspace(xlo, xhi, 5)
+        tick_values = np.linspace(xlo, xhi, min(5, self.max_points))
         self.ax.set_xticks(tick_values)
         self.ax.set_xticklabels(["%0.2f" % v for v in tick_values])
 

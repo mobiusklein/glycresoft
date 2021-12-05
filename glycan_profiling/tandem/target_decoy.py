@@ -492,7 +492,7 @@ class TargetDecoyAnalyzer(object):
                         color='grey', linestyle='--')
         ax2.set_ylabel("FDR")
         ax.legend([line1[0], line2[0], line3[0], tline5, tline1],
-                ['Target', 'Decoy', 'FDR', "5% FDR", "1% FDR"])
+                ['Target', 'Decoy', 'FDR', "5% FDR", "1% FDR"], frameon=False)
 
         lo, hi = ax.get_ylim()
         lo = max(lo, 0)
