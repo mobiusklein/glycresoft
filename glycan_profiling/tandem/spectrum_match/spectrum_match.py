@@ -138,7 +138,15 @@ class SpectrumMatchBase(ScanWrapperBase):
         return best_offset
 
     def __reduce__(self):
-        return self.__class__, (self.scan, self.target)
+        return self.__class__, (self.scan, self.target), self.__getstate__()
+
+    def __getstate__(self):
+        return {
+            "mass_shift": self.mass_shift
+        }
+
+    def __setstate__(self, state):
+        self.mass_shift = state.get("mass_shift")
 
     def get_top_solutions(self):
         return [self]
@@ -342,10 +350,12 @@ class SpectrumMatcherBase(SpectrumMatchBase):
         return inst
 
     def __getstate__(self):
-        return (self.score,)
+        state = super(SpectrumMatcherBase, self).__getstate__()
+        state['score'] = self.score
 
     def __setstate__(self, state):
-        self.score = state[0]
+        super(SpectrumMatcherBase, self).__setstate__(state)
+        self.score = state.get('score')
 
     def __reduce__(self):
         return self.__class__, (self.scan, self.target,)

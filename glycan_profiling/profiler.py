@@ -1373,10 +1373,15 @@ class MultipartGlycopeptideLCMSMSAnalyzer(MzMLGlycopeptideLCMSMSAnalyzer):
 
         self.log("... Begin Retention Time Modeling")
 
+        with open("./aggregate_before.pkl", 'wb') as fh:
+            pickle.dump(glycoform_agg, fh, -1)
         pipeline = GlycopeptideElutionTimeModelBuildingPipeline(
             glycoform_agg, valid_glycans=glycan_compositions,
             revision_validator=revision_validator)
         rt_model, revisions = pipeline.run()
+
+        with open("./aggregate_after.pkl", 'wb') as fh:
+            pickle.dump(revisions, fh, -1)
 
         self.retention_time_model = rt_model
         rt_model.drop_chromatograms()
