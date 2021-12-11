@@ -730,7 +730,10 @@ class MultiScoreSpectrumMatch(SpectrumMatch):
         super(MultiScoreSpectrumMatch, self).__init__(
             scan, target, score_set[0], best_match, data_bundle, q_value_set[0],
             id, mass_shift, valid=valid)
-        self.score_set = ScoreSet(*score_set)
+        if isinstance(score_set, ScoreSet):
+            self.score_set = score_set
+        else:
+            self.score_set = ScoreSet(*score_set)
         self.q_value_set = q_value_set
         self.match_type = SpectrumMatchClassification[match_type]
 
