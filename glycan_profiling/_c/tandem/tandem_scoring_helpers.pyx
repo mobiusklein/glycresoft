@@ -2,7 +2,8 @@ cimport cython
 from cpython cimport (
     PyTuple_GetItem, PyTuple_Size, PyTuple_GET_ITEM, PyTuple_GET_SIZE,
     PyList_GET_ITEM, PyList_GET_SIZE,
-    PySet_Add, PySet_Contains)
+    PySet_Add, PySet_Contains,
+    PyDict_GetItem, PyDict_SetItem, PyObject)
 
 from libc.math cimport log10, log, sqrt, exp
 
@@ -15,6 +16,7 @@ from ms_deisotope._c.peak_set cimport DeconvolutedPeak, DeconvolutedPeakSet
 
 from glycan_profiling._c.structure.fragment_match_map cimport (
     FragmentMatchMap, PeakFragmentPair)
+from glycan_profiling._c.tandem.spectrum_match cimport PeakLabelMap, PeakFoundRecord
 
 from glypy.composition.ccomposition cimport CComposition
 
@@ -22,7 +24,6 @@ from glycopeptidepy._c.structure.sequence_methods cimport _PeptideSequenceCore
 from glycopeptidepy._c.structure.fragment cimport PeptideFragment, FragmentBase, IonSeriesBase, ChemicalShiftBase, SimpleFragment, StubFragment
 from glycopeptidepy.structure.fragment import IonSeries, ChemicalShift
 from glycopeptidepy.structure.fragmentation_strategy import HCDFragmentationStrategy
-
 
 cdef:
     IonSeriesBase IonSeries_b, IonSeries_y, IonSeries_c, IonSeries_z, IonSeries_stub_glycopeptide
@@ -406,7 +407,11 @@ cpdef _match_oxonium_ions(self, double error_tolerance=2e-5, set masked_peaks=No
         DeconvolutedPeak peak
         DeconvolutedPeakSet spectrum
         FragmentMatchMap solution_map
+        PeakLabelMap label_map
         object ix
+        dict scan_annotations
+        PyObject* tmp
+        PeakFoundRecord found
 
     if masked_peaks is None:
         masked_peaks = set()
@@ -423,10 +428,23 @@ cpdef _match_oxonium_ions(self, double error_tolerance=2e-5, set masked_peaks=No
 
     spectrum = <DeconvolutedPeakSet>self.spectrum
     solution_map = <FragmentMatchMap>self.solution_map
+    scan_annotations = <dict>self.scan.annotations
+    tmp = PyDict_GetItem(scan_annotations, 'peak_label_map')
+    if tmp == NULL:
+        peak_label_map = PeakLabelMap._create()
+        PyDict_SetItem(scan_annotations, 'peak_label_map', peak_label_map)
+    else:
+        peak_label_map = <PeakLabelMap>tmp
+
 
     for i in range(len(fragments)):
         frag = <FragmentBase>PyList_GET_ITEM(fragments, i)
-        peak = spectrum.has_peak(frag.mass, error_tolerance)
+        found = peak_label_map.get(frag._name)
+        if not found.checked:
+            peak = spectrum.has_peak(frag.mass, error_tolerance)
+            peak_label_map.add(frag._name, peak)
+        else:
+            peak = found.peak
 
         if peak is not None:
             ix = peak._index.neutral_mass

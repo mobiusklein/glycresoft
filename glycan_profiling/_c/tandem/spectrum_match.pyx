@@ -1,5 +1,8 @@
 cimport cython
 
+from cpython.object cimport PyObject
+from cpython.dict cimport PyDict_GetItem, PyDict_SetItem
+
 
 @cython.freelist(100000)
 @cython.final
@@ -311,3 +314,35 @@ cdef class FDRSet(object):
     def __reduce__(self):
         return self.__class__, (self.total_q_value, self.peptide_q_value,
                                 self.glycan_q_value, self.glycopeptide_q_value)
+
+
+@cython.final
+cdef class PeakLabelMap(object):
+
+    def __init__(self, name_to_peaks=None):
+        if name_to_peaks is None:
+            name_to_peaks = dict()
+        self.name_to_peaks = name_to_peaks
+
+    @staticmethod
+    cdef PeakLabelMap _create():
+        cdef PeakLabelMap self = PeakLabelMap.__new__(PeakLabelMap)
+        self.name_to_peaks = {}
+        return self
+
+    cdef inline void add(self, str name, DeconvolutedPeak peak):
+        cdef:
+            list acc
+        PyDict_SetItem(self.name_to_peaks, name, peak)
+
+    cdef inline PeakFoundRecord get(self, str name):
+        cdef:
+            PyObject* temp
+            DeconvolutedPeak result
+
+        temp = PyDict_GetItem(self.name_to_peaks, name)
+        if temp == NULL:
+            return PeakFoundRecord._create(None, False)
+        else:
+            result = <DeconvolutedPeak>temp
+            return PeakFoundRecord._create(result, True)

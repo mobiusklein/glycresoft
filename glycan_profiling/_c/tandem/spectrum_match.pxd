@@ -1,5 +1,7 @@
 cimport cython
 
+from ms_deisotope._c.peak_set cimport DeconvolutedPeak
+
 
 cdef class ScoreSet(object):
     cdef:
@@ -35,3 +37,30 @@ cdef class FDRSet(object):
 
     @staticmethod
     cdef FDRSet _create(double total_q_value, double peptide_q_value, double glycan_q_value, double glycopeptide_q_value)
+
+
+@cython.final
+@cython.freelist(1000)
+cdef class PeakFoundRecord(object):
+    cdef:
+        public DeconvolutedPeak peak
+        public bint checked
+
+    @staticmethod
+    cdef inline PeakFoundRecord _create(DeconvolutedPeak peak, bint checked):
+        cdef PeakFoundRecord self = PeakFoundRecord.__new__(PeakFoundRecord)
+        self.peak = peak
+        self.checked = checked
+        return self
+
+
+@cython.final
+cdef class PeakLabelMap(object):
+    cdef:
+        public dict name_to_peaks
+
+    @staticmethod
+    cdef PeakLabelMap _create()
+
+    cdef inline void add(self, str name, DeconvolutedPeak peak)
+    cdef inline PeakFoundRecord get(self, str name)
