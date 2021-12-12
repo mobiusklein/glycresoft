@@ -77,6 +77,16 @@ function accordionHandler(event) {
     }
 }
 
+
+function debugEntry(event) {
+    let structure = this.dataset.structure
+    let id = parseInt(this.id.split("-")[2])
+    console.log({
+        structure, id
+    })
+}
+
+
 function initViewer(scope) {
     console.log("Initializing Viewer", useDynamicDisplayMode)
     scope.displayPanel = document.querySelector(displayPanelSelector)

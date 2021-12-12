@@ -317,7 +317,44 @@ class LinearModelBase(PredictorBase, SpanningMixin):
         return max(len(self.apex_time_array) - len(self.parameters), 1)
 
 
-class ElutionTimeFitter(LinearModelBase, ChromatgramFeatureizerBase, ScoringFeatureBase):
+class IntervalScoringMixin(object):
+    def _threshold_interval(self, interval):
+        width = (interval[1] - interval[0]) / 2.0
+        if self.width_range is not None:
+            if np.isnan(width):
+                width = self.width_range.upper
+            else:
+                width = self.width_range.clamp(width)
+        return width
+
+    def has_interval_been_thresholded(self, chromatogram, alpha=0.05):
+        interval = self.predict_interval(chromatogram, alpha=alpha)
+        width = (interval[1] - interval[0]) / 2.0
+        thresholded_width = self._threshold_interval(interval)
+        return width > thresholded_width
+
+    def score_interval(self, chromatogram, alpha=0.05):
+        interval = self.predict_interval(chromatogram, alpha=alpha)
+        pred = interval.mean()
+        delta = abs(chromatogram.apex_time - pred)
+        width = self._threshold_interval(interval)
+        return max(1 - delta / width, 0.0)
+
+    def calibrate_prediction_interval(self, chromatograms=None, alpha=0.05):
+        if chromatograms is None:
+            chromatograms = self.chromatograms
+        ivs = np.array([self.predict_interval(c, alpha)
+                        for c in chromatograms])
+        widths = (ivs[:, 1] - ivs[:, 0]) / 2.0
+        widths = widths[~np.isnan(widths)]
+        self.width_range = IntervalRange(
+            *np.quantile(widths, CALIBRATION_QUANTILES))
+        if np.isnan(self.width_range.lower):
+            raise ValueError("Width range cannot be NaN")
+        return self
+
+
+class ElutionTimeFitter(LinearModelBase, ChromatgramFeatureizerBase, ScoringFeatureBase, IntervalScoringMixin):
     feature_type = 'elution_time'
 
     def __init__(self, chromatograms, scale=1, transform=None, width_range=None, regularize=False):
@@ -383,26 +420,6 @@ class ElutionTimeFitter(LinearModelBase, ChromatgramFeatureizerBase, ScoringFeat
             abs(apex - self._get_apex_time(chromatogram)),
             df=self._df(), scale=self.scale) * 2
         return max((score - SMALL_ERROR), SMALL_ERROR)
-
-    def score_interval(self, chromatogram, alpha=0.05):
-        interval = self.predict_interval(chromatogram, alpha=alpha)
-        pred = interval.mean()
-        delta = abs(chromatogram.apex_time - pred)
-        width = (interval[1] - interval[0]) / 2.0
-        if self.width_range is not None:
-            if np.isnan(width):
-                width = self.width_range.upper
-            else:
-                width = self.width_range.clamp(width)
-        return max(1 - delta / width, 0.0)
-
-    def calibrate_prediction_interval(self, chromatograms=None, alpha=0.05):
-        if chromatograms is None:
-            chromatograms = self.chromatograms
-        ivs = np.array([self.predict_interval(c, alpha) for c in chromatograms])
-        widths = (ivs[:, 1] - ivs[:, 0]) / 2.0
-        self.width_range = IntervalRange(*np.quantile(widths, CALIBRATION_QUANTILES))
-        return self
 
     def plot(self, ax=None):
         if ax is None:
@@ -828,7 +845,7 @@ class AbundanceWeightedPeptideFactorElutionTimeFitter(AbundanceWeightedMixin, Pe
     pass
 
 
-class ModelEnsemble(PeptideBackboneKeyedMixin):
+class ModelEnsemble(PeptideBackboneKeyedMixin, IntervalScoringMixin):
     def __init__(self, models, width_range=None):
         self._set_models(models)
         self.width_range = IntervalRange(width_range)
@@ -946,17 +963,6 @@ class ModelEnsemble(PeptideBackboneKeyedMixin):
             return avg
         return preds, weights
 
-    def score_interval(self, chromatogram, alpha=0.05):
-        interval = self.predict_interval(chromatogram, alpha=alpha)
-        pred = interval.mean()
-        delta = abs(chromatogram.apex_time - pred)
-        width = (interval[1] - interval[0]) / 2.0
-        if self.width_range is not None:
-            if np.isnan(width):
-                width = self.width_range.upper
-            else:
-                width = self.width_range.clamp(width)
-        return max(1 - delta / width, 0.0)
 
     def predict(self, chromatogram, merge=True, check_peptide=True):
         weights = []

@@ -49,7 +49,7 @@ class RevisionRule(object):
 
     def __eq__(self, other):
         try:
-            return self.delta_glycan == other.delta_glycan
+            return self.delta_glycan == other.delta_glycan and self.mass_shift_rule == other.mass_shift_rule
         except AttributeError:
             return self.delta_glycan == other
 
