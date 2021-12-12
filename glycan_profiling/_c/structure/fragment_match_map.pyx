@@ -36,7 +36,7 @@ cdef class PeakFragmentPair(object):
         cdef PeakFragmentPair self = PeakFragmentPair.__new__(PeakFragmentPair)
         self.peak = peak
         self.fragment = fragment
-        self.fragment_name = fragment._name
+        self.fragment_name = fragment.get_name()
         self._hash = hash(peak.mz)
         return self
 
@@ -472,7 +472,11 @@ cdef class FragmentMatchMap(object):
 
     cpdef add(self, peak, fragment=None):
         if fragment is not None:
-            peak = PeakFragmentPair._create(<DeconvolutedPeak>peak, fragment)
+            if isinstance(fragment, FragmentBase):
+                peak = PeakFragmentPair._create_simple(<DeconvolutedPeak>peak, <FragmentBase>fragment)
+            else:
+                peak = PeakFragmentPair._create(<DeconvolutedPeak>peak, fragment)
+        # peak = PeakFragmentPair._create(<DeconvolutedPeak>peak, fragment)
         PySet_Add(self.members, peak)
         self.by_fragment.invalidate()
         self.by_peak.invalidate()

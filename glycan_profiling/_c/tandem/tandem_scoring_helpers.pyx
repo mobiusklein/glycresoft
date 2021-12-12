@@ -436,7 +436,10 @@ cpdef _match_oxonium_ions(self, double error_tolerance=2e-5, set masked_peaks=No
     else:
         peak_label_map = <PeakLabelMap>tmp
 
-
+    # TODO: Instead of looping over all the fragments all the time,
+    # instead use a map from glycan compositions to list of (fragment, peak)
+    # pairs? Really only useful if the thing dominating the runtime isn't the
+    # solution_map.add() call.
     for i in range(len(fragments)):
         frag = <FragmentBase>PyList_GET_ITEM(fragments, i)
         found = peak_label_map.get(frag._name)
