@@ -164,6 +164,11 @@ function initViewer(scope) {
     for (let accordion of accordions) {
         accordion.addEventListener("click", accordionHandler)
     }
+
+    const glycopeptideDetailEntries = querySelectorAll(".glycopeptide-detail-container")
+    for (let entry of glycopeptideDetailEntries) {
+        entry.addEventListener("click", debugEntry)
+    }
 }
 
 
