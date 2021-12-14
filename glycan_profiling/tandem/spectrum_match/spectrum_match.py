@@ -355,7 +355,7 @@ class SpectrumMatcherBase(SpectrumMatchBase):
 
     def __setstate__(self, state):
         super(SpectrumMatcherBase, self).__setstate__(state)
-        self.score = state.get('score')
+        self._score = state.get('score')
 
     def __reduce__(self):
         return self.__class__, (self.scan, self.target,)

@@ -907,6 +907,12 @@ class ModelEnsemble(PeptideBackboneKeyedMixin, IntervalScoringMixin):
             "labels": labels
         })
 
+    def R2(self, adjust=True):
+        apex_time_array = self._summary_statistics['apex_time_array']
+        predicted_apex_time_array = self._summary_statistics['predicted_apex_time_array']
+        mask = ~np.isnan(predicted_apex_time_array)
+        return np.corrcoef(apex_time_array[mask], predicted_apex_time_array[mask])[0, 1] ** 2
+
     def _models_for(self, chromatogram):
         if not isinstance(chromatogram, Number):
             point = chromatogram.apex_time
@@ -1676,9 +1682,9 @@ class GlycopeptideElutionTimeModelBuildingPipeline(TaskBase):
     def revise_with(self, model, chromatograms, delta=0.35, min_time_difference=None, verbose=True):
         if min_time_difference is None:
             min_time_difference = max(model.width_range.lower, 0.5)
+
         reviser = self.make_reviser(model, chromatograms)
         reviser.evaluate()
-        assert not np.isnan(model.width_range.lower)
         revised = reviser.revise(0.2, delta,  min_time_difference)
         if verbose:
             self.log("... Revising Observations")

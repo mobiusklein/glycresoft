@@ -80,9 +80,12 @@ function accordionHandler(event) {
 
 function debugEntry(event) {
     let structure = this.dataset.structure
+    let spectrumContainer = this.querySelector(".annotated-spectrum-container")
     let id = parseInt(this.id.split("-")[2])
+    let spectrumId = spectrumContainer ? spectrumContainer.dataset.scanId : null
+
     console.log({
-        structure, id
+        structure, id, spectrumId
     })
 }
 

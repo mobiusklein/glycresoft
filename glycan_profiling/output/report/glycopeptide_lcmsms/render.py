@@ -80,6 +80,7 @@ class IdentifiedGlycopeptideDescriberBase(object):
             mass_shift=mass_shift)
         specmatch_artist = TidySpectrumMatchAnnotator(match, ax=figax())
         specmatch_artist.draw(fontsize=10, pretty=True)
+        specmatch_artist.add_summary_labels()
         annotated_match_ax = specmatch_artist.ax
 
         scan_title = scan.id

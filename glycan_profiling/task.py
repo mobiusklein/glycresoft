@@ -1,4 +1,5 @@
 from __future__ import print_function
+import os
 import logging
 import pprint
 import traceback
@@ -166,6 +167,8 @@ class LoggingMixin(object):
     debug_print_fn = debug_printer
     error_print_fn = printer
 
+    _debug_enabled = None
+
     @classmethod
     def log_with_logger(cls, logger):
         LoggingMixin.logger_state = logger
@@ -199,6 +202,13 @@ class LoggingMixin(object):
             handler = _default_closure_handler
         return MessageSpooler(handler)
 
+    def in_debug_mode(self):
+        if self._debug_enabled is None:
+            logger_state = self.logger_state
+            if logger_state is not None:
+                self._debug_enabled = logger_state.isEnabledFor("DEBUG")
+        return bool(self._debug_enabled)
+
 
 class TaskBase(LoggingMixin):
     """A base class for a discrete, named step in a pipeline that
@@ -226,7 +236,6 @@ class TaskBase(LoggingMixin):
 
     status = "new"
 
-    _debug_enabled = None
     display_fields = True
 
     _display_name = None
@@ -399,7 +408,13 @@ class TaskExecutionSequence(TaskBase):
         try:
             if self._running_in_process:
                 self.log("%s running on PID %r" % (self, multiprocessing.current_process().pid))
-            result = self.run()
+            if os.getenv("GLYCRESOFTPROFILING"):
+                import cProfile
+                profiler = cProfile.Profile()
+                result = profiler.runcall(self.run, standalone_mode=False)
+                profiler.dump_stats('glycresoft_performance.profile')
+            else:
+                result = self.run()
             self.debug("%r Done" % self)
         except Exception as err:
             self.error("An error occurred while executing %s" %

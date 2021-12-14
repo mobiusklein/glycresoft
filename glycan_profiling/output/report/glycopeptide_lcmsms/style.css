@@ -19,6 +19,17 @@
     cursor: pointer;
 }
 
+#rt-model-metrics-table {
+    width: 75%;
+    margin: 2% auto;
+    border-collapse: collapse;
+}
+
+#rt-model-metrics-table th, td {
+    text-align: center;
+    border: lightgrey 1px solid;
+}
+
 .accordion {
   background-color: #eee;
   color: #444;

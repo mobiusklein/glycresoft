@@ -1,3 +1,4 @@
+from ms_deisotope.data_source.scan.base import ChargeNotProvided
 import numpy as np
 
 from matplotlib import pyplot as plt, font_manager
@@ -56,6 +57,27 @@ class SpectrumMatchAnnotator(object):
                 color='grey', ax=self.ax, alpha=0.5, **kwargs)
         except AttributeError:
             pass
+
+    def add_summary_labels(self):
+        prec_purity = self.spectrum_match.scan.annotations.get(
+            'precursor purity')
+        if prec_purity is not None:
+            prec_purity = "%0.2f" % prec_purity
+        else:
+            prec_purity = '-'
+
+        prec_z = self.spectrum_match.precursor_information.charge
+        if prec_z is None or prec_z == ChargeNotProvided:
+            prec_z = '-'
+        else:
+            prec_z = str(prec_z)
+
+        self.ax.text(
+            0.95, 0.9,
+            "Isolation Purity: %s\nPrec. Z: %s" % (
+                prec_purity,
+                prec_z),
+            transform=self.ax.transAxes, ha='right', color='darkslategrey')
 
     def label_peak(self, fragment, peak, fontsize=12, rotation=90, **kw):
         label = "%s" % fragment.name

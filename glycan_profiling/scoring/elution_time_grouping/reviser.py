@@ -60,7 +60,10 @@ class RevisionRule(object):
         return hash(self.delta_glycan)
 
     def __repr__(self):
-        template = "{self.__class__.__name__}({self.delta_glycan})"
+        if self.mass_shift_rule:
+            template = "{self.__class__.__name__}({self.delta_glycan}, {self.mass_shift_rule})"
+        else:
+            template = "{self.__class__.__name__}({self.delta_glycan})"
         return template.format(self=self)
 
 
@@ -218,7 +221,7 @@ class RevisionValidatorBase(LoggingMixin):
 
 
 class PeptideYUtilizationPreservingRevisionValidator(RevisionValidatorBase):
-    def __init__(self, threshold=0.9, spectrum_match_builder=None, threshold_fn=always):
+    def __init__(self, threshold=0.85, spectrum_match_builder=None, threshold_fn=always):
         super(PeptideYUtilizationPreservingRevisionValidator, self).__init__(
             spectrum_match_builder, threshold_fn)
         self.threshold = threshold
@@ -295,6 +298,11 @@ class CompoundRevisionValidator(object):
         return self.validate(revised, original)
 
 
+
+def _new_array():
+    return array('d')
+
+
 class ModelReviser(object):
     def __init__(self, model, rules, chromatograms=None, valid_glycans=None, revision_validator=None):
         if chromatograms is None:
@@ -305,8 +313,8 @@ class ModelReviser(object):
         self.original_times = array('d')
         self.rules = list(rules)
         self.alternative_records = defaultdict(list)
-        self.alternative_scores = defaultdict(lambda: array('d'))
-        self.alternative_times = defaultdict(lambda: array('d'))
+        self.alternative_scores = defaultdict(_new_array)
+        self.alternative_times = defaultdict(_new_array)
         self.valid_glycans = valid_glycans
         self.revision_validator = revision_validator
 
@@ -368,23 +376,26 @@ class ModelReviser(object):
     def revise(self, threshold=0.2, delta_threshold=0.2, minimum_time_difference=0.5):
         chromatograms = self.chromatograms
         original_scores = self.original_scores
+        original_times = self.original_times
         next_round = []
         for i in range(len(chromatograms)):
-            best_score = original_scores[i]
+            original_score = best_score = original_scores[i]
             best_rule = None
             delta_best_score = float('inf')
             original_solution = best_record = chromatograms[i]
+            original_time = original_times[i]
 
             for rule in self.rules:
-                a = self.alternative_scores[rule][i]
-                t = self.alternative_times[rule][i]
-                if a > best_score and not np.isclose(a, 0.0) and abs(t - self.original_times[i]) > minimum_time_difference:
-                    if self.revision_validator and not self.revision_validator(self.alternative_records[rule][i], original_solution):
+                alt_rec = self.alternative_records[rule][i]
+                alt_score = self.alternative_scores[rule][i]
+                alt_time = self.alternative_times[rule][i]
+                if alt_score > best_score and not np.isclose(alt_score, 0.0) and abs(alt_time - original_time) > minimum_time_difference:
+                    if self.revision_validator and not self.revision_validator(alt_rec, original_solution):
                         continue
-                    delta_best_score = a - original_scores[i]
-                    best_score = a
+                    delta_best_score = alt_score - original_score
+                    best_score = alt_score
                     best_rule = rule
-                    best_record = self.alternative_records[rule][i]
+                    best_record = alt_rec
 
             if best_score > threshold and delta_best_score > delta_threshold:
                 if best_rule is not None:

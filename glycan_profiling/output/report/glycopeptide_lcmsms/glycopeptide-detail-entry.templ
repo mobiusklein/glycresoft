@@ -122,7 +122,7 @@
         <div class='flex-item centered'>
             {{renderer.chromatogram_plot(glycopeptide)|safe}}
         </div>
-        <div class='flex-item centered' data-scan-id="{{spectral_match_info.spectrum_match.scan.scan_id}}"
+        <div class='flex-item centered annotated-spectrum-container' data-scan-id="{{spectral_match_info.spectrum_match.scan.scan_id}}"
              data-scan-time="{{spectral_match_info.spectrum_match.scan.scan_time}}">
             {{spectral_match_info.spectrum_plot|safe}}
         </div>
