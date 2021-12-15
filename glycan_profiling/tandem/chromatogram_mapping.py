@@ -15,6 +15,7 @@ from glycan_profiling.chromatogram_tree.relation_graph import (
     ChromatogramGraph, ChromatogramGraphEdge, ChromatogramGraphNode, TimeQuery)
 
 from glycan_profiling.scoring.chromatogram_solution import ChromatogramSolution
+from glycan_profiling.structure import ScanInformation
 
 from .spectrum_match.solution_set import NOParsimonyMixin
 
@@ -1417,6 +1418,7 @@ class SpectrumMatchUpdater(TaskBase):
                 for inst in instances:
                     match = self.evaluate_spectrum(scan_id, inst, mass_shifts)
                     match = self.spectrum_match_cls.from_match_solution(match)
+                    match.scan = sset.scan
                     sset.append(match)
                 new_solutions.append(sset)
         return new_solutions

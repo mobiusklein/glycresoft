@@ -7,7 +7,7 @@ from ms_deisotope import DeconvolutedPeakSet, isotopic_shift
 from ms_deisotope.data_source.metadata import activation
 
 from glycan_profiling.structure import (
-    ScanWrapperBase)
+    ScanWrapperBase, ScanInformation)
 
 from glycan_profiling.structure.enums import SpectrumMatchClassification
 
@@ -45,6 +45,10 @@ class SpectrumMatchBase(ScanWrapperBase):
         self.target = target
         self._mass_shift = None
         self.mass_shift = mass_shift
+
+    def drop_peaks(self):
+        self.scan = ScanInformation.from_scan(self.scan)
+        return self
 
     @property
     def mass_shift(self):
@@ -280,6 +284,11 @@ class SpectrumMatcherBase(SpectrumMatchBase):
         self._score = 0
         self._mass_shift = None
         self.mass_shift = mass_shift
+
+    def drop_peaks(self):
+        super(SpectrumMatcherBase, self).drop_peaks()
+        self.spectrum = DeconvolutedPeakSet([])
+        return self
 
     @property
     def score(self):

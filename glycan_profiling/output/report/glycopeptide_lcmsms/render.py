@@ -22,7 +22,7 @@ from glycan_profiling.plotting.plot_glycoforms import (
     GlycoformLayout)
 from glycan_profiling.plotting.spectral_annotation import TidySpectrumMatchAnnotator
 from glycan_profiling.tandem.glycopeptide.identified_structure import IdentifiedGlycoprotein
-from glycan_profiling.tandem.glycopeptide.scoring import CoverageWeightedBinomialScorer
+from glycan_profiling.tandem.glycopeptide.scoring import LogIntensityScorer
 from glycan_profiling.plotting.entity_bar_chart import (
     AggregatedAbundanceArtist, BundledGlycanComposition)
 from glycan_profiling.output.report.base import (
@@ -73,7 +73,7 @@ class IdentifiedGlycopeptideDescriberBase(object):
         else:
             mass_shift = Unmodified
 
-        match = CoverageWeightedBinomialScorer.evaluate(
+        match = LogIntensityScorer.evaluate(
             scan,
             glycopeptide.structure.convert(),
             error_tolerance=self.analysis.parameters["fragment_error_tolerance"],
@@ -111,6 +111,7 @@ class IdentifiedGlycopeptideDescriberBase(object):
             xml_transform=scale_fix_xml_transform,
             bbox_inches='tight',
             height=2, width=6 * 1.5, patchless=True).decode('utf8')
+        match.drop_peaks()
         return dict(
             spectrum_plot=spectrum_plot, logo_plot=logo_plot,
             precursor_mass_accuracy=match.precursor_mass_accuracy(),
