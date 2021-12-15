@@ -1349,16 +1349,6 @@ class MultipartGlycopeptideLCMSMSAnalyzer(MzMLGlycopeptideLCMSMSAnalyzer):
                 else:
                     secondary_observations.append(member)
 
-        self.log(f"{len(best_instances)} Best Instances")
-        for proxy in best_instances:
-            self.log(
-                f"... {proxy.structure}: {proxy.apex_time:0.3f}\t{proxy.weighted_neutral_mass:0.3f}")
-
-        self.log(f"{len(secondary_observations)} Secondary Observations")
-        for proxy in secondary_observations:
-            self.log(
-                f"... {proxy.structure}: {proxy.apex_time:0.3f}\t{proxy.weighted_neutral_mass:0.3f}")
-
         glycoform_agg = GlycoformAggregator(best_instances)
 
         def threshold_fn(x):
