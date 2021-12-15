@@ -55,8 +55,8 @@
                 </thead>
                 <tbody>
                     <tr>
-                        <td>{{renderer.retention_time_model.width_range.lower|format("%0.3f")}} - {{renderer.retention_time_model.width_range.upper|format("%0.3f")}} minutes</td>
-                        <td>{{renderer.retention_time_model.R2()|format("%0.3f")}}</dd>
+                        <td>{{"%0.3f" % renderer.retention_time_model.width_range.lower}} - {{"%0.3f" % renderer.retention_time_model.width_range.upper}} minutes</td>
+                        <td>{{"%0.3f" % renderer.retention_time_model.R2()}}</dd>
                     </tr>
                 </tbody>
             </table>
