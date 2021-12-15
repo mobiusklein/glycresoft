@@ -352,7 +352,7 @@ class FragmentCachingGlycopeptide(PeptideSequence):
         try:
             return self.fragment_caches[key]
         except KeyError:
-            result = list(super(FragmentCachingGlycopeptide, self).stub_fragments(*args, **kwargs))
+            result = super(FragmentCachingGlycopeptide, self).stub_fragments(*args, **kwargs).stub_fragments()
             self.fragment_caches[key] = result
             return result
 
