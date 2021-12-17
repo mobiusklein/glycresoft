@@ -63,6 +63,8 @@ class TextFileGlycanCompositionLoader(object):
     def __iter__(self):
         return self
 
+    def close(self):
+        self.file_object.close()
 
 class GlycanCompositionDialectError(Exception):
     pass
@@ -101,10 +103,18 @@ class GlycanCompositionDialect(object):
         offset = brace_close + 1
         return parts, offset, n
 
+    def validate_composition(self, composition):
+        if not composition:
+            raise Exception()
+        for mono in composition:
+            if mono.mass() == 0.0:
+                raise ValueError(
+                    "Invalid glycan composition element %r, no known mass")
+        return composition
+
     def parse_composition(self, composition):
         result = glycan_composition.GlycanComposition.parse(composition)
-        if not result:
-            raise Exception()
+        result = self.validate_composition(result)
         return result
 
 
@@ -131,8 +141,7 @@ class ByonicGlycanCompositionDialect(SimpleGlycanCompositionDialect):
 
     def parse_composition(self, composition):
         result = byonic.loads(composition).thaw()
-        if not result:
-            raise Exception()
+        result = self.validate_composition(result)
         return result
 
 
@@ -141,8 +150,7 @@ class GlyconnectGlycanCompositionDialect(SimpleGlycanCompositionDialect):
 
     def parse_composition(self, composition):
         result = glyconnect.loads(composition).thaw()
-        if not result:
-            raise Exception()
+        result = self.validate_composition(result)
         return result
 
 
@@ -340,6 +348,7 @@ class TextFileGlycanHypothesisSerializer(GlycanHypothesisSerializerBase):
             self.session.execute(GlycanCompositionToClass.insert(), acc)
             acc = []
         self.session.commit()
+        self.loader.close()
         self.log("Generated %d glycan compositions" % counter)
 
 
