@@ -1,6 +1,7 @@
-from abc import ABCMeta, abstractmethod, abstractproperty
-
 import operator
+import logging
+
+from abc import ABCMeta, abstractmethod, abstractproperty
 
 try:
     from itertools import imap
@@ -14,6 +15,9 @@ from six import add_metaclass
 from glycopeptidepy import HashableGlycanComposition
 
 from .composition_network import CompositionGraph, n_glycan_distance
+
+logger = logging.getLogger(__name__)
+logger.addHandler(logging.NullHandler())
 
 
 @add_metaclass(ABCMeta)
@@ -591,20 +595,26 @@ class MassCollectionProxy(SearchableMassCollectionWrapper):
         if self._hypothesis_id is not None:
             return self._hypothesis_id
         else:
-            return self.searchable_mass_collection.hypothesis_id
+            logger.info("Loading hypothesis ID from resolver")
+            self._hypothesis_id = self.searchable_mass_collection.hypothesis_id
+            return self._hypothesis_id
 
     @property
     def session(self):
         if self._session is None and self.session_resolver is not None:
+            logger.info("Loading session from session resolver")
             self._session = self.session_resolver()
         if self._session is not None:
             return self._session
         else:
-            return self.searchable_mass_collection.session
+            logger.info("Loading session from primary resolver")
+            self._session = self.searchable_mass_collection.session
+            return self._session
 
     @property
     def searchable_mass_collection(self):
         if self._searchable_mass_collection is None:
+            logger.info("Loading mass collection")
             self._searchable_mass_collection = self.resolver()
         return self._searchable_mass_collection
 

@@ -25,7 +25,7 @@
     border-collapse: collapse;
 }
 
-#rt-model-metrics-table th, td {
+#rt-model-metrics-table th, #rt-model-metrics-table td {
     text-align: center;
     border: lightgrey 1px solid;
 }
