@@ -1,6 +1,14 @@
 cimport cython
 
 from ms_deisotope._c.peak_set cimport DeconvolutedPeak
+from glycan_profiling._c.chromatogram_tree.mass_shift cimport MassShiftBase
+
+
+cdef class SpectrumMatchBase(object):
+    cdef:
+        public object scan
+        public object target
+        public MassShiftBase mass_shift
 
 
 cdef class ScoreSet(object):

@@ -537,6 +537,13 @@ cpdef base_peak(self):
         DeconvolutedPeak peak
         DeconvolutedPeakSet spectrum
         size_t i, n
+        dict annotations
+        PyObject* tmp
+    scan = self.scan
+    annotations = <dict>scan.annotations
+    tmp = PyDict_GetItem(annotations, "_base_peak_intensity")
+    if tmp != NULL:
+        return <double>tmp
     spectrum = <DeconvolutedPeakSet>self.spectrum
     if spectrum is None:
         return 0
@@ -548,6 +555,7 @@ cpdef base_peak(self):
         if peak.intensity > max_intensity:
             max_intensity = peak.intensity
             max_peak = peak
+    PyDict_SetItem(annotations, "_base_peak_intensity", max_intensity)
     return max_intensity
 
 

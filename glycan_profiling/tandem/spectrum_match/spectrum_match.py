@@ -36,34 +36,33 @@ class SpectrumMatchBase(ScanWrapperBase):
         of the fragment masses.
 
     """
-    __slots__ = ['scan', 'target', "_mass_shift"]
+    __slots__ = ['scan', 'target', "mass_shift"]
 
     def __init__(self, scan, target, mass_shift=None):
         if mass_shift is None:
             mass_shift = Unmodified
         self.scan = scan
         self.target = target
-        self._mass_shift = None
         self.mass_shift = mass_shift
 
     def drop_peaks(self):
         self.scan = ScanInformation.from_scan(self.scan)
         return self
 
-    @property
-    def mass_shift(self):
-        """A mass shifting adduct that alters the precursor mass and optionally some
-        of the fragment masses.
+    # @property
+    # def mass_shift(self):
+    #     """A mass shifting adduct that alters the precursor mass and optionally some
+    #     of the fragment masses.
 
-        Returns
-        -------
-        :class:`~.MassShift`
-        """
-        return self._mass_shift
+    #     Returns
+    #     -------
+    #     :class:`~.MassShift`
+    #     """
+    #     return self._mass_shift
 
-    @mass_shift.setter
-    def mass_shift(self, value):
-        self._mass_shift = value
+    # @mass_shift.setter
+    # def mass_shift(self, value):
+    #     self._mass_shift = value
 
     @staticmethod
     def threshold_peaks(deconvoluted_peak_set, threshold_fn=lambda peak: True):
@@ -150,7 +149,7 @@ class SpectrumMatchBase(ScanWrapperBase):
         }
 
     def __setstate__(self, state):
-        self.mass_shift = state.get("mass_shift")
+        self.mass_shift = state.get("mass_shift", Unmodified)
 
     def get_top_solutions(self):
         return [self]
@@ -300,6 +299,10 @@ class SpectrumMatcherBase(SpectrumMatchBase):
         """
         return self._score
 
+    @score.setter
+    def score(self, value):
+        self._score = value
+
     def match(self, *args, **kwargs):
         """Match theoretical fragments against experimental peaks.
         """
@@ -328,7 +331,7 @@ class SpectrumMatcherBase(SpectrumMatchBase):
         try:
             return self.spectrum.annotations['_base_peak']
         except KeyError:
-            peak = self.spectrum.base_peak()
+            peak = self.scan.base_peak()
             if peak is not None:
                 value = self.spectrum.annotations['_base_peak'] = peak.intensity
             else:
@@ -367,7 +370,7 @@ class SpectrumMatcherBase(SpectrumMatchBase):
         self._score = state.get('score')
 
     def __reduce__(self):
-        return self.__class__, (self.scan, self.target,)
+        return self.__class__, (self.scan, self.target,), self.__getstate__()
 
     @staticmethod
     def load_peaks(scan):

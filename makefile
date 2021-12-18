@@ -2,7 +2,7 @@ all: test
 
 
 dev:
-	python setup.py develop
+	pip install -e . --no-build-isolation -v
 
 
 test:
