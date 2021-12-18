@@ -3,7 +3,7 @@ from cpython cimport (
     PyTuple_GetItem, PyTuple_Size, PyTuple_GET_ITEM, PyTuple_GET_SIZE,
     PyList_GET_ITEM, PyList_GET_SIZE,
     PySet_Add, PySet_Contains,
-    PyDict_GetItem, PyDict_SetItem, PyObject)
+    PyDict_GetItem, PyDict_SetItem, PyObject, PyFloat_FromDouble, PyFloat_AsDouble)
 
 from libc.math cimport log10, log, sqrt, exp
 
@@ -538,12 +538,13 @@ cpdef base_peak(self):
         DeconvolutedPeakSet spectrum
         size_t i, n
         dict annotations
+        double max_intensity
         PyObject* tmp
     scan = self.scan
     annotations = <dict>scan.annotations
     tmp = PyDict_GetItem(annotations, "_base_peak_intensity")
     if tmp != NULL:
-        return <double>tmp
+        return <object>tmp
     spectrum = <DeconvolutedPeakSet>self.spectrum
     if spectrum is None:
         return 0
@@ -555,7 +556,7 @@ cpdef base_peak(self):
         if peak.intensity > max_intensity:
             max_intensity = peak.intensity
             max_peak = peak
-    PyDict_SetItem(annotations, "_base_peak_intensity", max_intensity)
+    PyDict_SetItem(annotations, "_base_peak_intensity", PyFloat_FromDouble(max_intensity))
     return max_intensity
 
 
