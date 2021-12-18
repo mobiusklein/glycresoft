@@ -329,7 +329,7 @@ class SpectrumMatcherBase(SpectrumMatchBase):
 
         """
         try:
-            return self.spectrum.annotations['_base_peak']
+            return self.scan.annotations['_base_peak']
         except KeyError:
             peak = self.scan.base_peak()
             if peak is not None:
