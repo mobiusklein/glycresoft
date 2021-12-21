@@ -255,7 +255,7 @@ class GlycopeptideDatabaseSearchReportCreator(ReportCreatorBase, IdentifiedGlyco
                 colorizer=lambda x: "#48afd0").draw(legend=False)
             ax.set_xlabel("Time (Minutes)", fontsize=16)
             ax.set_ylabel("Relative Abundance", fontsize=16)
-            return png_plot(ax, bbox_inches='tight', img_height='100%')
+            return png_plot(ax, bbox_inches='tight', img_height='100%', width=8)
         except ValueError:
             return "<div style='text-align:center;'>No Chromatogram Found</div>"
 
