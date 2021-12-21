@@ -611,6 +611,9 @@ class MassCollectionProxy(SearchableMassCollectionWrapper):
             self._session = self.searchable_mass_collection.session
             return self._session
 
+    def query(self, *args, **kwargs):
+        return self.session.query(*args, **kwargs)
+
     @property
     def searchable_mass_collection(self):
         if self._searchable_mass_collection is None:
