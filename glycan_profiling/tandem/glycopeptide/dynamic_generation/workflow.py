@@ -393,28 +393,30 @@ class MultipartGlycopeptideIdentifier(TaskBase):
     def _load_identifications_from_journal(self, journal_path, total_solutions_count, accumulator=None):
         if accumulator is None:
             accumulator = []
-        reader = enumerate(JournalFileReader(
-            journal_path,
-            scan_loader=ScanInformationLoader(self.scan_loader),
-            mass_shift_map={m.name: m for m in self.mass_shifts}), len(accumulator))
-        i = float(len(accumulator))
-        try:
-            # Get the nearest progress checkpoint
-            last = round(i / total_solutions_count, 1)
-        except ZeroDivisionError:
-            last = 0.1
-        should_log = False
-        for i, sol in reader:
-            if i * 1.0 / total_solutions_count > last:
-                should_log = True
-                last += 0.1
-            elif i % 100000 == 0 and i > 1:
-                should_log = True
-            if should_log:
-                self.log("... %d/%d Solutions Loaded (%0.2f%%)" % (
-                    i, total_solutions_count, i * 100.0 / total_solutions_count))
-                should_log = False
-            accumulator.append(sol)
+
+        with self.scan_loader.toggle_peak_loading():
+            reader = enumerate(JournalFileReader(
+                journal_path,
+                scan_loader=ScanInformationLoader(self.scan_loader),
+                mass_shift_map={m.name: m for m in self.mass_shifts}), len(accumulator))
+            i = float(len(accumulator))
+            try:
+                # Get the nearest progress checkpoint
+                last = round(i / total_solutions_count, 1)
+            except ZeroDivisionError:
+                last = 0.1
+            should_log = False
+            for i, sol in reader:
+                if i * 1.0 / total_solutions_count > last:
+                    should_log = True
+                    last += 0.1
+                elif i % 100000 == 0 and i > 1:
+                    should_log = True
+                if should_log:
+                    self.log("... %d/%d Solutions Loaded (%0.2f%%)" % (
+                        i, total_solutions_count, i * 100.0 / total_solutions_count))
+                    should_log = False
+                accumulator.append(sol)
         return accumulator
 
     def search(self, precursor_error_tolerance=1e-5, simplify=True, batch_size=500, **kwargs):
