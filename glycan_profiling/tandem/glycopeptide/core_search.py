@@ -5,9 +5,9 @@ import warnings
 from collections import namedtuple, defaultdict
 
 try:
-    from collections import Sequence
-except ImportError:
     from collections.abc import Sequence
+except ImportError:
+    from collections import Sequence
 
 import numpy as np
 

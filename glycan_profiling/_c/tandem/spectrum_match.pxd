@@ -71,4 +71,4 @@ cdef class PeakLabelMap(object):
     cdef PeakLabelMap _create()
 
     cdef inline void add(self, str name, DeconvolutedPeak peak)
-    cdef inline PeakFoundRecord get(self, str name)
+    cdef inline DeconvolutedPeak get(self, str name, bint* found)

@@ -335,14 +335,16 @@ cdef class PeakLabelMap(object):
             list acc
         PyDict_SetItem(self.name_to_peaks, name, peak)
 
-    cdef inline PeakFoundRecord get(self, str name):
+    cdef inline DeconvolutedPeak get(self, str name, bint* found):
         cdef:
             PyObject* temp
             DeconvolutedPeak result
 
         temp = PyDict_GetItem(self.name_to_peaks, name)
         if temp == NULL:
-            return PeakFoundRecord._create(None, False)
+            found[0] = False
+            return None
         else:
             result = <DeconvolutedPeak>temp
-            return PeakFoundRecord._create(result, True)
+            found[0] = True
+            return result

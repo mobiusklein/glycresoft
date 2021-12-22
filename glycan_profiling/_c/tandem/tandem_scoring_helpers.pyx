@@ -411,6 +411,7 @@ cpdef _match_oxonium_ions(self, double error_tolerance=2e-5, set masked_peaks=No
         object ix
         dict scan_annotations
         PyObject* tmp
+        bint checked
         PeakFoundRecord found
 
     if masked_peaks is None:
@@ -435,19 +436,17 @@ cpdef _match_oxonium_ions(self, double error_tolerance=2e-5, set masked_peaks=No
         PyDict_SetItem(scan_annotations, 'peak_label_map', peak_label_map)
     else:
         peak_label_map = <PeakLabelMap>tmp
-
+    checked = False
     # TODO: Instead of looping over all the fragments all the time,
     # instead use a map from glycan compositions to list of (fragment, peak)
     # pairs? Really only useful if the thing dominating the runtime isn't the
     # solution_map.add() call.
     for i in range(len(fragments)):
         frag = <FragmentBase>PyList_GET_ITEM(fragments, i)
-        found = peak_label_map.get(frag._name)
-        if not found.checked:
+        peak = peak_label_map.get(frag._name, &checked)
+        if not checked:
             peak = spectrum.has_peak(frag.mass, error_tolerance)
             peak_label_map.add(frag._name, peak)
-        else:
-            peak = found.peak
 
         if peak is not None:
             ix = peak._index.neutral_mass
