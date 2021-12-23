@@ -533,7 +533,8 @@ class ProteinSplitter(TaskBase):
 
     def get_split_sites(self, accession):
         record = uniprot.get(accession)
-        return self.get_split_sites_from_features(record)
+        sites = self.get_split_sites_from_features(record)
+        return sites
 
     def _make_split_expression(self, sites):
         return [
@@ -700,6 +701,8 @@ class UniprotProteinAnnotator(TaskBase):
                     self.session.bulk_save_objects(acc)
                     self.session.commit()
                     acc = []
+        self.log("... %0.3f%% Complete (%d/%d). %d Peptides Produced." %
+                 (i * 100. / n, i, n, j))
         self.session.bulk_save_objects(acc)
         self.session.commit()
         acc = []

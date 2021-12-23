@@ -223,15 +223,18 @@ class FastaGlycopeptideTests(unittest.TestCase):
 
         peptides_without_uniprot = 80
         peptides_with_uniprot = 88
+        peptides_with_uniprot_and_ragged_signal_peptide = 137
 
         peptides_count = glycopeptide_builder.query(serialize.Peptide).count()
 
-        if peptides_count == peptides_with_uniprot:
+        if peptides_count == peptides_with_uniprot or peptides_count == peptides_with_uniprot_and_ragged_signal_peptide:
             post_cleavage = glycopeptide_builder.query(serialize.Peptide).filter(
                 serialize.Peptide.base_peptide_sequence == "DEASGIGPEEHFPEVPEIEPMGPVCPFR").first()
             self.assertIsNotNone(post_cleavage)
-        else:
+        elif peptides_count == peptides_without_uniprot:
             warnings.warn("Failed to communicate with UniProt, skip this test")
+        else:
+            raise ValueError("Incorrect peptide count: %r" % (peptides_count, ))
 
         self.clear_file(db_file)
         self.clear_file(fasta_file)

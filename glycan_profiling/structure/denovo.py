@@ -1,9 +1,9 @@
 from collections import defaultdict
 
 try:
-    from collections import Sequence
-except ImportError:
     from collections.abc import Sequence
+except ImportError:
+    from collections import Sequence
 
 from glypy.structure.glycan_composition import FrozenMonosaccharideResidue
 
@@ -188,7 +188,7 @@ def collect_paths(paths, error_tolerance=1e-5):
 
 class Path(object):
     '''Represent a single contiguous sequence of :class:`~.PeakPairTransition` objects
-    forming a sequence tag, or a path along the edges of a peak graph. 
+    forming a sequence tag, or a path along the edges of a peak graph.
 
     Attributes
     ----------
