@@ -93,7 +93,10 @@ def make_extensions():
             Extension(name='glycan_profiling._c.structure.structure_loader',
                       sources=[
                           "glycan_profiling/_c/structure/structure_loader.pyx"],
-                      include_dirs=[numpy.get_include()])
+                      include_dirs=[numpy.get_include()]),
+            Extension(name='glycan_profiling._c.tandem.oxonium_ions',
+                      sources=[
+                          "glycan_profiling/_c/tandem/oxonium_ions.pyx"])
         ], compiler_directives=cython_directives, force=force_cythonize)
     except ImportError as err:
         extensions = ([
@@ -146,7 +149,9 @@ def make_extensions():
             Extension(name='glycan_profiling._c.structure.structure_loader',
                       sources=[
                           "glycan_profiling/_c/structure/structure_loader.c"],
-                      include_dirs=[numpy.get_include()])
+                      include_dirs=[numpy.get_include()]),
+            Extension(name='glycan_profiling._c.tandem.oxonium_ions',
+                      sources=["glycan_profiling/_c/tandem/oxonium_ions.c"])
         ])
     return extensions
 

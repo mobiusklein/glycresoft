@@ -111,10 +111,10 @@ class SignatureSpecification(object):
         return "{self.__class__.__name__}({self.components}, {self.masses})".format(self=self)
 
     def is_expected(self, glycan_composition):
-        is_expected = glycan_composition._getitem_fast(self[0]) != 0
+        is_expected = glycan_composition._getitem_fast(self.components[0]) != 0
         if is_expected and self._is_compound:
             is_expected = all(glycan_composition._getitem_fast(
-                k) != 0 for k in self)
+                k) != 0 for k in self.components)
         return is_expected
 
     def count_of(self, glycan_composition):
@@ -124,6 +124,13 @@ class SignatureSpecification(object):
             if cnt < limit:
                 limit = cnt
         return limit
+
+
+try:
+    _has_c = True
+    from glycan_profiling._c.tandem.oxonium_ions import SignatureSpecification
+except ImportError:
+    _has_c = False
 
 
 single_signatures = {
