@@ -125,6 +125,17 @@ class SignatureSpecification(object):
                 limit = cnt
         return limit
 
+    def peak_of(self, spectrum, error_tolerance):
+        best_peak = None
+        best_signal = -1
+        for mass in self.masses:
+            peaks = spectrum.all_peaks_for(mass, error_tolerance)
+            for peak in peaks:
+                if peak.intensity > best_signal:
+                    best_peak = peak
+                    best_signal = peak.intensity
+        return best_peak
+
 
 try:
     _has_c = True

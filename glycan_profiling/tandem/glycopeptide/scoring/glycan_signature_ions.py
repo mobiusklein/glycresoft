@@ -21,19 +21,6 @@ _WATER = Composition("H2O")
 keyfn = attrgetter("intensity")
 
 
-def base_peak_tuple(peaks):
-    if peaks:
-        return max(peaks, key=keyfn)
-    else:
-        return None
-
-
-try:
-    from glycan_profiling._c.tandem.tandem_scoring_helpers import base_peak_tuple
-except ImportError:
-    pass
-
-
 class GlycanCompositionSignatureMatcher(GlycopeptideSpectrumMatcherBase):
     minimum_intensity_ratio_threshold = 0.025
 
@@ -63,12 +50,8 @@ class GlycanCompositionSignatureMatcher(GlycopeptideSpectrumMatcherBase):
 
         for mono in self.signatures:
             is_expected = mono.is_expected(self.glycan_composition)
-            peak = ()
-            for mass in mono.masses:
-                peak += spectrum.all_peaks_for(mass, error_tolerance)
-            if peak:
-                peak = base_peak_tuple(peak)
-            else:
+            peak = mono.peak_of(spectrum, error_tolerance)
+            if peak is None:
                 if is_expected:
                     self.expected_matches[mono] = None
                 continue
@@ -80,12 +63,8 @@ class GlycanCompositionSignatureMatcher(GlycopeptideSpectrumMatcherBase):
         if rare_signatures:
             for compound in self.compound_signatures:
                 is_expected = compound.is_expected(self.glycan_composition)
-                peak = ()
-                for mass in compound.masses:
-                    peak += spectrum.all_peaks_for(mass, error_tolerance)
-                if peak:
-                    peak = base_peak_tuple(peak)
-                else:
+                peak = compound.peak_of(spectrum, error_tolerance)
+                if peak is None:
                     if is_expected:
                         self.expected_matches[compound] = None
                     continue
