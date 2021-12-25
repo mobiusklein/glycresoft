@@ -36,7 +36,8 @@ def align_peak_list(experimental, theoretical):
     retain = []
     for peak in experimental:
         retain.append(theoretical[get_nearest_index(peak.mz, theoretical)])
-    return TheoreticalIsotopicPattern(retain, theoretical[0].mz)
+    # return TheoreticalIsotopicPattern(retain, theoretical[0].mz)
+    return retain
 
 
 def unspool_nodes(node):
