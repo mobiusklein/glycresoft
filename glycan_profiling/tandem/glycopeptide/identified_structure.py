@@ -101,7 +101,7 @@ def indices_of_glycosylation(glycopeptide, glycosylation_type=GlycosylationType.
     core_type = core_type_map[glycosylation_type]
 
     for res, mods in glycopeptide:
-        if core_type in mods:
+        if mods and core_type in mods:
             out.append(i)
         i += 1
     return out

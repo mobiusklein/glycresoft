@@ -155,8 +155,9 @@ def glycopeptide_string(sequence, long=False, include_glycan=True):
         render(sequence.n_term.modification, n_term_template)
     for res, mods in sequence:
         parts.append(res.symbol)
-        for mod in mods:
-            render(mod)
+        if mods:
+            for mod in mods:
+                render(mod)
     if sequence.c_term.modification is not None:
         render(sequence.c_term.modification, c_term_template)
     parts.append((
