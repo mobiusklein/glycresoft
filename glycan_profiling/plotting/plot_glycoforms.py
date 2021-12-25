@@ -229,8 +229,8 @@ class GlycoformLayout(object):
         seq = self._get_sequence(gpm)
 
         for i, pos in enumerate(seq[start_index:end_index]):
-            if len(pos[1]) > 0:
-                modification = pos[1][0]
+            if pos.modifications:
+                modification = pos.modifications[0]
                 color = self._compute_modification_color(gpm, modification)
                 facecolor, edgecolor = lighten(
                     color), darken(color, 0.6)

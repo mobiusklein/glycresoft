@@ -45,7 +45,7 @@ class SequencePositionGlyph(object):
         else:
             self._ax = ax
 
-        symbol = self.position[0].symbol
+        symbol = self.position.amino_acid.symbol
 
         color = self.options.get("color", 'black')
         if self.position.modifications:
