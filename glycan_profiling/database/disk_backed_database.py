@@ -644,3 +644,24 @@ class PeptideDiskBackedStructureDatabase(DeclarativeDiskBackedDatabase):
                 & (Protein.hypothesis_id == self.hypothesis_id)).order_by(
             self.mass_field).group_by(Peptide.id)
         return q
+
+    def having_glycosylation_site(self):
+        pickle_size = func.length(
+            Peptide.__table__.c.o_glycosylation_sites) + \
+            func.length(
+                Peptide.__table__.c.n_glycosylation_sites)
+        min_pickle_size = self.session.query(func.min(pickle_size)).scalar()
+        if min_pickle_size is None:
+            min_pickle_size = 0
+        q = select(self.fields).where(
+            (pickle_size > min_pickle_size) &
+            (Peptide.__table__.c.hypothesis_id == self.hypothesis_id)
+        ).order_by(self.mass_field)
+        return q
+
+    def has_protein_sites(self):
+        has_sites = self.query(ProteinSite).join(ProteinSite.protein).filter(
+            Protein.hypothesis_id == self.hypothesis_id,
+            ProteinSite.name == ProteinSite.N_GLYCOSYLATION).first()
+        return has_sites is None
+

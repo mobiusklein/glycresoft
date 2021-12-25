@@ -318,7 +318,7 @@ class PredictiveGlycopeptideSearch(DynamicGlycopeptideSearchBase):
     def __init__(self, peptide_glycosylator, product_error_tolerance=2e-5, glycan_score_threshold=0.1,
                  min_fragments=2, peptide_masses_per_scan=100,
                  probing_range_for_missing_precursors=3, trust_precursor_fits=True,
-                 fragment_weight=0.56, core_weight=0.42):
+                 fragment_weight=0.56, core_weight=0.42, oxonium_ion_index=None):
         # Intentionally use a larger core_weight here than in the real scoring function to
         # prefer solutions with more core fragments, but not to discard them later?
         if min_fragments is None:
@@ -335,6 +335,7 @@ class PredictiveGlycopeptideSearch(DynamicGlycopeptideSearchBase):
         self.peptide_masses_per_scan = peptide_masses_per_scan
         self.probing_range_for_missing_precursors = probing_range_for_missing_precursors
         self.trust_precursor_fits = trust_precursor_fits
+        self.oxonium_ion_index = oxonium_ion_index
 
     def handle_scan_group(self, group, precursor_error_tolerance=1e-5, mass_shifts=None, workload=None):
         if mass_shifts is None or not mass_shifts:
@@ -349,6 +350,9 @@ class PredictiveGlycopeptideSearch(DynamicGlycopeptideSearchBase):
         peptide_masses_per_scan = self.peptide_masses_per_scan
         for scan in group:
             workload.add_scan(scan)
+            if self.oxonium_ion_index:
+                scan.annotations['oxonium_index_match'] = self.oxonium_ion_index.match(
+                    scan.deconvoluted_peak_set, self.product_error_tolerance)
             n_glycopeptides = 0
             n_peptide_masses = 0
             if (not scan.precursor_information.defaulted and self.trust_precursor_fits):
@@ -570,6 +574,7 @@ class Record(object):
         else:
             structure = FragmentCachingGlycopeptide(self.glycopeptide)
         structure.id = self.id
+        structure.glycan_id = self.id.glycan_combination_id
         structure.glycan_prior = self.glycan_prior
         return structure
 

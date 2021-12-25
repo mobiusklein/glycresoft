@@ -1,3 +1,7 @@
+from collections import defaultdict
+
+from glycopeptidepy import PeptideSequence
+
 from glypy.structure.glycan_composition import FrozenMonosaccharideResidue, Composition
 
 
@@ -166,3 +170,78 @@ compound_signatures = {
         315.09541650647
     ]): 0.5
 }
+
+
+class OxoniumIndex(object):
+    '''An index for quickly matching all oxonium ions against a spectrum and efficiently mapping them
+    back to individual glycan compositions.
+    '''
+    def __init__(self, fragments=None, fragment_index=None, glycan_to_index=None):
+        self.fragments = fragments or []
+        self.fragment_index = defaultdict(list, fragment_index or {})
+        self.glycan_to_index = glycan_to_index or {}
+        self.index_to_glycan = {v: k for k, v in self.glycan_to_index.items()}
+
+    def _make_glycopeptide_stub(self, glycan_composition):
+        p = PeptideSequence("P%s" % glycan_composition)
+        return p
+
+    def build_index(self, glycan_composition_records, **kwargs):
+        fragments = {}
+        fragment_index = defaultdict(list)
+        glycan_index = {}
+        for gc_rec in glycan_composition_records:
+            glycan_index[gc_rec.composition] = gc_rec.id
+
+            p = self._make_glycopeptide_stub(gc_rec.composition)
+            for frag in p.glycan_fragments(**kwargs):
+                fragments[frag.name] = frag
+                fragment_index[frag.name].append(gc_rec.id)
+
+        self.glycan_to_index = glycan_index
+        self.fragment_index = fragment_index
+        self.fragments = sorted(fragments.values(), key=lambda x: x.mass)
+        self.index_to_glycan = {v: k for k, v in self.glycan_to_index.items()}
+        self.simplify()
+
+    def match(self, spectrum, error_tolerance):
+        match_index = defaultdict(list)
+        for fragment in self.fragments:
+            peak = spectrum.has_peak(fragment.mass, error_tolerance)
+            if peak is not None:
+                for key in self.fragment_index[fragment.name]:
+                    match_index[key].append((fragment, peak.index.neutral_mass))
+        return match_index
+
+    def simplify(self):
+        id_to_frag_group = defaultdict(set)
+        for f, members in self.fragment_index.items():
+            for member in members:
+                id_to_frag_group[member].add(f)
+
+        groups = defaultdict(list)
+        for member, group in id_to_frag_group.items():
+            groups[frozenset(group)].append(member)
+
+        counter = 0
+        new_fragment_index = defaultdict(list)
+        new_glycan_index = {}
+        for frag_group, members in groups.items():
+            new_id = counter
+            counter += 1
+            for frag in frag_group:
+                new_fragment_index[frag].append(new_id)
+            for member in members:
+                new_glycan_index[self.index_to_glycan[member]] = new_id
+
+        self.glycan_to_index = new_glycan_index
+        self.fragment_index = new_fragment_index
+        self.index_to_glycan = defaultdict(list)
+        for k, v in self.glycan_to_index.items():
+            self.index_to_glycan[v].append(k)
+
+
+try:
+    from glycan_profiling._c.tandem.oxonium_ions import OxoniumIndex
+except ImportError:
+    pass

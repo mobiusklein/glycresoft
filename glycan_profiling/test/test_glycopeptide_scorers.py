@@ -1,10 +1,15 @@
 import unittest
 
 from glycopeptidepy import PeptideSequence
+from glypy.structure.glycan_composition import HashableGlycanComposition
+
 from ms_deisotope.output import ProcessedMzMLDeserializer
+from glycan_profiling.tandem import oxonium_ions
 
 from glycan_profiling.test.fixtures import get_test_data
 
+from glycan_profiling.tandem.glycopeptide.core_search import GlycanCombinationRecord
+from glycan_profiling.tandem.oxonium_ions import OxoniumIndex
 from glycan_profiling.structure import FragmentCachingGlycopeptide
 from glycan_profiling.tandem.glycopeptide.scoring import (
     base, intensity_scorer, simple_score, binomial_score, coverage_weighted_binomial)
@@ -12,7 +17,9 @@ from glycan_profiling.tandem.glycopeptide.scoring import (
 
 class TestGlycopeptideScorers(unittest.TestCase):
     def load_spectra(self):
-        return list(ProcessedMzMLDeserializer(get_test_data("example_glycopeptide_spectra.mzML")))
+        scan, scan2 = list(ProcessedMzMLDeserializer(get_test_data("example_glycopeptide_spectra.mzML")))
+
+        return scan, scan2
 
     def build_structures(self):
         gp = FragmentCachingGlycopeptide(
@@ -22,6 +29,16 @@ class TestGlycopeptideScorers(unittest.TestCase):
                               ')-?-?-Hexp2NAc-(?-?)-a-D-Manp-(1-3)]b-D-Manp-(1-4)-b-D-Glcp2NA'
                               'c-(1-4)-b-D-Glcp2NAc)ATAIFFLPDEGK')
         return gp, gp2
+
+    def add_oxonium_index(self, scan, gp):
+        gc_rec = GlycanCombinationRecord(
+            0, 1913.6770236770099, HashableGlycanComposition.parse(gp.glycan_composition), 1, [])
+        ox_index = OxoniumIndex()
+        ox_index.build_index([gc_rec], all_series=False, allow_ambiguous=False,
+                             include_large_glycan_fragments=False,
+                             maximum_fragment_size=4)
+        index_match = ox_index.match(scan.deconvoluted_peak_set, 2e-5)
+        scan.annotations['oxonium_index_match'] = index_match
 
     def test_simple_coverage_scorer(self):
         scan, scan2 = self.load_spectra()
@@ -55,6 +72,12 @@ class TestGlycopeptideScorers(unittest.TestCase):
         scan, scan2 = self.load_spectra()
         gp, gp2 = self.build_structures()
 
+        match = coverage_weighted_binomial.CoverageWeightedBinomialScorer.evaluate(scan, gp)
+        self.assertAlmostEqual(match.score, 103.24070700636717, 3)
+        match = coverage_weighted_binomial.CoverageWeightedBinomialScorer.evaluate(scan, gp2)
+        self.assertAlmostEqual(match.score, 103.24070700636717, 3)
+
+        self.add_oxonium_index(scan, gp)
         match = coverage_weighted_binomial.CoverageWeightedBinomialScorer.evaluate(scan, gp)
         self.assertAlmostEqual(match.score, 103.24070700636717, 3)
         match = coverage_weighted_binomial.CoverageWeightedBinomialScorer.evaluate(scan, gp2)

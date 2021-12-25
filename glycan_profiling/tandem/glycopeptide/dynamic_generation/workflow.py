@@ -7,6 +7,8 @@ import datetime
 import zlib
 from collections import OrderedDict
 
+from glycan_profiling.tandem.oxonium_ions import OxoniumIndex
+
 try:
     import cPickle as pickle
 except ImportError:
@@ -151,22 +153,23 @@ class PeptideDatabaseProxyLoader(TaskBase):
         else:
             raise ValueError("Cannot determine how to filter peptides")
         peptides = []
+
         self.log("... Loading peptides from %r:%r" % (self.path, self.hypothesis_id))
         start = datetime.datetime.now()
         if filter_level == 1:
-            has_sites = db.query(serialize.ProteinSite).join(serialize.ProteinSite.protein).filter(
-                serialize.Protein.hypothesis_id == self.hypothesis_id,
-                serialize.ProteinSite.name == serialize.ProteinSite.N_GLYCOSYLATION).first()
+            has_sites = db.has_protein_sites()
             # This is an old database, have to do a full scan.
-            if has_sites is None:
-                iterator = db
+            if not has_sites:
+                q = db.having_glycosylation_site()
+                iterator = FetchManyIterator(db.session.execute(q))
             else:
                 # Fast path for N-glycosylation sites which are marked, but where the bounds
                 # aren't precise so the if statements are still needed.
                 q = db.spanning_n_glycosylation_site()
                 iterator = FetchManyIterator(db.session.execute(q))
         else:
-            iterator = db
+            q = db.having_glycosylation_site()
+            iterator = FetchManyIterator(db.session.execute(q))
         seen = set()
         for r in iterator:
             rec = PeptideDatabaseRecord.from_record(r)
@@ -549,6 +552,15 @@ class IdentificationWorker(TaskExecutionSequence):
             self.scorer_type = pickle.loads(zlib.decompress(self.scorer_type))
         if isinstance(self.target_predictive_search, (str, bytes)):
             self.target_predictive_search, self.decoy_predictive_search = pickle.loads(zlib.decompress(self.target_predictive_search))
+
+        self.log("... Compiling oxonium ion index")
+        oxonium_ion_index = OxoniumIndex()
+        oxonium_ion_index.build_index(
+            self.target_predictive_search.peptide_glycosylator.glycan_combinations, oxonium=True)
+
+        self.target_predictive_search.oxonium_ion_index = oxonium_ion_index
+        self.decoy_predictive_search.oxonium_ion_index = oxonium_ion_index
+
         mapping_executor = SemaphoreBoundMapperExecutor(
             MultiLock([
                 lock,

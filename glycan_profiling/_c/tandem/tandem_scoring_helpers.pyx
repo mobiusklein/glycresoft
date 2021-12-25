@@ -3,7 +3,9 @@ from cpython cimport (
     PyTuple_GetItem, PyTuple_Size, PyTuple_GET_ITEM, PyTuple_GET_SIZE,
     PyList_GET_ITEM, PyList_GET_SIZE,
     PySet_Add, PySet_Contains,
-    PyDict_GetItem, PyDict_SetItem, PyObject, PyFloat_FromDouble, PyFloat_AsDouble)
+    PyDict_GetItem, PyDict_SetItem, PyObject,
+    PyFloat_FromDouble, PyFloat_AsDouble,
+    PyInt_AsLong)
 
 from libc.math cimport log10, log, sqrt, exp
 
@@ -16,12 +18,16 @@ from ms_deisotope._c.peak_set cimport DeconvolutedPeak, DeconvolutedPeakSet
 
 from glycan_profiling._c.structure.fragment_match_map cimport (
     FragmentMatchMap, PeakFragmentPair)
-from glycan_profiling._c.tandem.spectrum_match cimport PeakLabelMap, PeakFoundRecord
+
+from glycan_profiling._c.tandem.spectrum_match cimport PeakLabelMap
+from glycan_profiling._c.tandem.oxonium_ions cimport OxoniumIndexMatch
 
 from glypy.composition.ccomposition cimport CComposition
 
 from glycopeptidepy._c.structure.sequence_methods cimport _PeptideSequenceCore
+from glycopeptidepy._c.structure.glycan cimport GlycosylationManager
 from glycopeptidepy._c.structure.fragment cimport PeptideFragment, FragmentBase, IonSeriesBase, ChemicalShiftBase, SimpleFragment, StubFragment
+
 from glycopeptidepy.structure.fragment import IonSeries, ChemicalShift
 from glycopeptidepy.structure.fragmentation_strategy import HCDFragmentationStrategy
 
@@ -398,6 +404,36 @@ def CoverageWeightedBinomialScorer_match_backbone_series(self, IonSeriesBase ser
         self.glycosylated_c_term_ion_count += glycosylated_term_ions_count
 
 
+cdef set decode_oxonium_index_match(DeconvolutedPeakSet spectrum, _PeptideSequenceCore target, OxoniumIndexMatch index_match, FragmentMatchMap solution_map, set masked_peaks):
+    cdef:
+        size_t i, j, m, n
+        Py_ssize_t last
+        DeconvolutedPeak peak
+        SimpleFragment frag
+        PeakFragmentPair pfp
+        list fragment_index_pairs
+        object frag_index_pair, k, gc
+
+    gc = (<GlycosylationManager>target._glycosylation_manager).get_glycan_composition()
+    fragment_index_pairs = index_match.by_glycan(str(gc))
+    if fragment_index_pairs is None:
+        return None
+
+    n = PyList_GET_SIZE(fragment_index_pairs)
+
+    for i in range(n):
+        frag_index_pair = <object>PyList_GET_ITEM(fragment_index_pairs, i)
+        frag = <SimpleFragment>PyTuple_GET_ITEM(frag_index_pair, 0)
+        k = <object>PyTuple_GET_ITEM(frag_index_pair, 1)
+        if PySet_Contains(masked_peaks, k):
+            continue
+        masked_peaks.add(k)
+        j = PyInt_AsLong(k)
+        peak = spectrum.getitem(j)
+        solution_map.add(peak, frag)
+    return masked_peaks
+
+
 @cython.binding(True)
 @cython.nonecheck(False)
 cpdef _match_oxonium_ions(self, double error_tolerance=2e-5, set masked_peaks=None):
@@ -408,34 +444,42 @@ cpdef _match_oxonium_ions(self, double error_tolerance=2e-5, set masked_peaks=No
         DeconvolutedPeakSet spectrum
         FragmentMatchMap solution_map
         PeakLabelMap label_map
+        _PeptideSequenceCore target
         object ix
         dict scan_annotations
         PyObject* tmp
         bint checked
-        PeakFoundRecord found
+        OxoniumIndexMatch index_match
 
     if masked_peaks is None:
         masked_peaks = set()
 
-    obj = (self.target.glycan_fragments(
-            all_series=False, allow_ambiguous=False,
-            include_large_glycan_fragments=False,
-            maximum_fragment_size=4))
-
-    if isinstance(obj, list):
-        fragments = <list>obj
-    else:
-        fragments = list(obj)
-
+    result = None
+    target = <_PeptideSequenceCore>self.target
     spectrum = <DeconvolutedPeakSet>self.spectrum
     solution_map = <FragmentMatchMap>self.solution_map
     scan_annotations = <dict>self.scan.annotations
+    tmp = PyDict_GetItem(scan_annotations, 'oxonium_index_match')
+    if tmp != NULL:
+        index_match = <OxoniumIndexMatch>tmp
+        result = decode_oxonium_index_match(spectrum, target, index_match, solution_map, masked_peaks)
+        if result is not None:
+            return masked_peaks
+
     tmp = PyDict_GetItem(scan_annotations, 'peak_label_map')
     if tmp == NULL:
         peak_label_map = PeakLabelMap._create()
         PyDict_SetItem(scan_annotations, 'peak_label_map', peak_label_map)
     else:
         peak_label_map = <PeakLabelMap>tmp
+
+    obj = self.target.glycan_fragments()
+
+    if isinstance(obj, list):
+        fragments = <list>obj
+    else:
+        fragments = list(obj)
+
     checked = False
     # TODO: Instead of looping over all the fragments all the time,
     # instead use a map from glycan compositions to list of (fragment, peak)
