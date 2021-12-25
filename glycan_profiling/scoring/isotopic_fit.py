@@ -1,7 +1,7 @@
 import numpy as np
 
 from ms_deisotope.scoring import g_test_scaled
-from ms_deisotope.averagine import glycan, PROTON, mass_charge_ratio
+from ms_deisotope.averagine import glycan, PROTON, mass_charge_ratio, TheoreticalIsotopicPattern
 from ms_peak_picker.peak_set import FittedPeak
 from brainpy import isotopic_variants
 
@@ -36,7 +36,7 @@ def align_peak_list(experimental, theoretical):
     retain = []
     for peak in experimental:
         retain.append(theoretical[get_nearest_index(peak.mz, theoretical)])
-    return retain
+    return TheoreticalIsotopicPattern(retain, theoretical[0].mz)
 
 
 def unspool_nodes(node):
