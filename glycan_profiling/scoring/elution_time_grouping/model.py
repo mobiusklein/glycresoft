@@ -318,6 +318,8 @@ class LinearModelBase(PredictorBase, SpanningMixin):
 
 
 class IntervalScoringMixin(object):
+    _interval_padding = 0.0
+
     def _threshold_interval(self, interval):
         width = (interval[1] - interval[0]) / 2.0
         if self.width_range is not None:
@@ -337,7 +339,7 @@ class IntervalScoringMixin(object):
         interval = self.predict_interval(chromatogram, alpha=alpha)
         pred = interval.mean()
         delta = abs(chromatogram.apex_time - pred)
-        width = self._threshold_interval(interval)
+        width = self._threshold_interval(interval) + self._interval_padding
         return max(1 - delta / width, 0.0)
 
     def calibrate_prediction_interval(self, chromatograms=None, alpha=0.05):
@@ -352,6 +354,16 @@ class IntervalScoringMixin(object):
         if np.isnan(self.width_range.lower):
             raise ValueError("Width range cannot be NaN")
         return self
+
+    @property
+    def interval_padding(self):
+        return self._interval_padding
+
+    @interval_padding.setter
+    def interval_padding(self, value):
+        if value is None:
+            value = 0.0
+        self._interval_padding = value
 
 
 class ElutionTimeFitter(LinearModelBase, ChromatgramFeatureizerBase, ScoringFeatureBase, IntervalScoringMixin):
@@ -867,6 +879,7 @@ class ModelEnsemble(PeptideBackboneKeyedMixin, IntervalScoringMixin):
             models[key] = buffer.getvalue()
         state['models'] = models
         state['summary_statistics'] = self._summary_statistics
+        state['interval_padding'] = self._interval_padding
         return state
 
     def __setstate__(self, state):
@@ -881,6 +894,7 @@ class ModelEnsemble(PeptideBackboneKeyedMixin, IntervalScoringMixin):
         if models:
             self._set_models(models)
         self._summary_statistics = state.get("summary_statistics", {})
+        self._interval_padding = state.get("interval_padding", 0.0)
 
     def _set_models(self, models):
         self.models = models
@@ -904,7 +918,8 @@ class ModelEnsemble(PeptideBackboneKeyedMixin, IntervalScoringMixin):
             "predicted_apex_time_array": predicted_apex_time_array,
             "confidence_intervals": confidence_intervals,
             "residuals_array": residuals_array,
-            "labels": labels
+            "labels": labels,
+            "original_width_range": [self.width_range.lower, self.width_range.upper] if self.width_range else None
         })
 
     def R2(self, adjust=True):
@@ -969,7 +984,6 @@ class ModelEnsemble(PeptideBackboneKeyedMixin, IntervalScoringMixin):
             return avg
         return preds, weights
 
-
     def predict(self, chromatogram, merge=True, check_peptide=True):
         weights = []
         preds = []
@@ -1021,7 +1035,7 @@ class ModelEnsemble(PeptideBackboneKeyedMixin, IntervalScoringMixin):
     def chromatograms(self):
         return self._get_chromatograms()
 
-    def calibrate_prediction_interval(self, chromatograms=None, alpha=0.05):
+    def calibrate_prediction_interval(self, chromatograms=None, alpha=0.01):
         if chromatograms is None:
             chromatograms = self.chromatograms
         ivs = np.array([self.predict_interval(c, alpha)
@@ -1101,6 +1115,16 @@ class ModelEnsemble(PeptideBackboneKeyedMixin, IntervalScoringMixin):
                   apex_time.min(), apex_time.max(), linestyles='--', lw=0.5, color='gray')
         ax.figure.tight_layout()
         return ax
+
+    def estimate_mean_error_from_interval(self):
+        cis = self._summary_statistics['confidence_intervals']
+        ys = self._summary_statistics['apex_time_array']
+        # The widths of each interval
+        widths = (cis[:, 1] - cis[:, 0]) / 2
+        centroid_error = np.abs(cis - ys[:, None])
+        error_from_nearest_interval_edge = np.clip(centroid_error - widths[:, None], 0, np.inf).min(axis=1)
+        mean_error = np.nanmean(error_from_nearest_interval_edge)
+        return mean_error
 
 
 def unmodified_modified_predicate(x):
@@ -1945,15 +1969,23 @@ class GlycopeptideElutionTimeModelBuildingPipeline(TaskBase):
 
             all_records = mask_in(all_records, revised_recs)
 
+        self.log("Estimating summary statistics")
+        model._compute_summary_statistics()
+
+        mean_error_from_interval = model.estimate_mean_error_from_interval()
+        self.log("... Adding padding mean interval error: %0.3f" % (mean_error_from_interval, ))
+        model.interval_padding = mean_error_from_interval
+        self.log("Last revision")
+        revised_recs = self.revise_with(
+            model, revised_recs, revision_threshold,
+            max(self.current_model.width_range.lower * delta_time_scale, minimum_delta))
+        all_records = mask_in(all_records, revised_recs)
+
         was_revised = [(i, record) for i, record in enumerate(all_records) if record.revised_from]
         for i, record in self.validate_revisions(model, was_revised, revision_threshold,
                                                  max(self.current_model.width_range.lower * delta_time_scale,
                                                      minimum_delta)):
             all_records[i] = record
-
-        self.log("Estimating summary statistics")
-        model._compute_summary_statistics()
-
         return model, all_records
 
 
