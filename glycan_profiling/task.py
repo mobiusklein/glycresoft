@@ -485,7 +485,11 @@ class TaskExecutionSequence(TaskBase):
     def join(self, timeout=None):
         if self.error_occurred():
             return True
-        return self._thread.join(timeout)
+        try:
+            return self._thread.join(timeout)
+        except KeyboardInterrupt:
+            self.set_error_occurred()
+            return True
 
     def is_alive(self):
         if self.error_occurred():
@@ -510,12 +514,13 @@ class Pipeline(TaskExecutionSequence):
             for task in self:
                 task.join(timeout)
         else:
-            timeout = max(60 // len(self), 2)
+            timeout = max(30 // len(self), 2)
             while True:
                 has_error = self.error_occurred()
                 if has_error:
-                    for task in self:
-                        task.stop()
+                    self.log("... Detected an error flag. Stopping!")
+                    self.stop()
+                    break
                 alive = 0
                 for task in self:
                     task.join(timeout)
