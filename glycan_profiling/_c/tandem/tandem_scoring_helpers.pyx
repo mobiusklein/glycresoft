@@ -404,7 +404,7 @@ def CoverageWeightedBinomialScorer_match_backbone_series(self, IonSeriesBase ser
         self.glycosylated_c_term_ion_count += glycosylated_term_ions_count
 
 
-cdef set decode_oxonium_index_match(DeconvolutedPeakSet spectrum, _PeptideSequenceCore target, OxoniumIndexMatch index_match, FragmentMatchMap solution_map, set masked_peaks):
+cdef set decode_oxonium_index_match(_PeptideSequenceCore target, OxoniumIndexMatch index_match, FragmentMatchMap solution_map, set masked_peaks):
     cdef:
         size_t i, j, m, n
         Py_ssize_t last
@@ -422,15 +422,18 @@ cdef set decode_oxonium_index_match(DeconvolutedPeakSet spectrum, _PeptideSequen
     n = PyList_GET_SIZE(fragment_index_pairs)
 
     for i in range(n):
-        frag_index_pair = <object>PyList_GET_ITEM(fragment_index_pairs, i)
-        frag = <SimpleFragment>PyTuple_GET_ITEM(frag_index_pair, 0)
-        k = <object>PyTuple_GET_ITEM(frag_index_pair, 1)
+        pfp = <PeakFragmentPair>PyList_GET_ITEM(fragment_index_pairs, i)
+        k = pfp.peak._index.neutral_mass
+        # frag_index_pair = <object>PyList_GET_ITEM(fragment_index_pairs, i)
+        # frag = <SimpleFragment>PyTuple_GET_ITEM(frag_index_pair, 0)
+        # k = <object>PyTuple_GET_ITEM(frag_index_pair, 1)
         if PySet_Contains(masked_peaks, k):
             continue
-        masked_peaks.add(k)
-        j = PyInt_AsLong(k)
-        peak = spectrum.getitem(j)
-        solution_map.add(peak, frag)
+        PySet_Add(masked_peaks, k)
+        # j = PyInt_AsLong(k)
+        # peak = spectrum.getitem(j)
+        # solution_map.add(peak, frag)
+        FragmentMatchMap._add_direct(solution_map, pfp)
     return masked_peaks
 
 
@@ -462,7 +465,7 @@ cpdef _match_oxonium_ions(self, double error_tolerance=2e-5, set masked_peaks=No
     tmp = PyDict_GetItem(scan_annotations, 'oxonium_index_match')
     if tmp != NULL:
         index_match = <OxoniumIndexMatch>tmp
-        result = decode_oxonium_index_match(spectrum, target, index_match, solution_map, masked_peaks)
+        result = decode_oxonium_index_match(target, index_match, solution_map, masked_peaks)
         if result is not None:
             return masked_peaks
 
@@ -516,6 +519,7 @@ cpdef _match_stub_glycopeptides(self, double error_tolerance=2e-5, set masked_pe
         FragmentMatchMap solution_map
         StubFragment frag, shifted_frag
         double max_mass, current_mass
+        PeakFragmentPair pfp
 
     if masked_peaks is None:
         masked_peaks = set()
@@ -556,7 +560,8 @@ cpdef _match_stub_glycopeptides(self, double error_tolerance=2e-5, set masked_pe
             # same peak.
             #
             PySet_Add(masked_peaks, peak._index.neutral_mass)
-            solution_map.add(peak, frag)
+            pfp = PeakFragmentPair._create_simple(peak, frag)
+            FragmentMatchMap._add_direct(solution_map, pfp)
         if chemical_shift is not None:
             shifted_mass = frag.mass + chemical_shift.mass
             if shifted_mass > max_mass:
@@ -568,7 +573,8 @@ cpdef _match_stub_glycopeptides(self, double error_tolerance=2e-5, set masked_pe
 
                 shifted_frag = frag.clone()
                 shifted_frag.set_chemical_shift(chemical_shift)
-                solution_map.add(peak, shifted_frag)
+                pfp = PeakFragmentPair._create_simple(peak, shifted_frag)
+                FragmentMatchMap._add_direct(solution_map, pfp)
     return masked_peaks
 
 

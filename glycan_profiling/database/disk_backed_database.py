@@ -14,7 +14,7 @@ from glycan_profiling.serialize import (
     GlycanComposition, Glycopeptide, Peptide,
     func, GlycopeptideHypothesis, GlycanHypothesis,
     DatabaseBoundOperation, GlycanClass, GlycanTypes,
-    GlycanCompositionToClass, ProteinSite, Protein)
+    GlycanCompositionToClass, ProteinSite, Protein, GlycanCombination)
 
 from .mass_collection import SearchableMassCollection, NeutralMassDatabase
 from .intervals import (
@@ -284,6 +284,17 @@ class DiskBackedStructureDatabaseBase(SearchableMassCollection, DatabaseBoundOpe
 
     def search_between(self, lower, upper):
         return self.make_memory_interval_from_mass_interval(lower, upper)
+
+    def valid_glycan_set(self):
+        glycan_query = self.query(
+            GlycanCombination).join(
+            GlycanCombination.components).join(
+            GlycanComposition.structure_classes).group_by(GlycanCombination.id)
+
+        glycan_compositions = [
+            c.convert() for c in glycan_query.all()]
+
+        return set(glycan_compositions)
 
 
 class DeclarativeDiskBackedDatabase(DiskBackedStructureDatabaseBase):

@@ -380,7 +380,8 @@ class GlycopeptideFDREstimator(TaskBase):
             self.fit_peptide_fdr()
         if self.strategy in (GlycopeptideFDREstimationStrategy.multipart_gamma_gaussian_mixture, GlycopeptideFDREstimationStrategy.peptide_or_glycan):
             self.fit_glycopeptide_fdr()
-        return self.fit_total_fdr()
+        self.fit_total_fdr()
+        return self.grouper
 
     def pack(self):
         self.grouper = SolutionSetGrouper([])

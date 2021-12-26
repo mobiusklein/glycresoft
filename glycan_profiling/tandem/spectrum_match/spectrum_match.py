@@ -21,23 +21,7 @@ neutron_offset = isotopic_shift()
 LowCID = activation.dissociation_methods['low-energy collision-induced dissociation']
 
 
-class SpectrumMatchBase(ScanWrapperBase):
-    """A base class for spectrum matches, a scored pairing between a structure
-    and tandem mass spectrum.
-
-    Attributes
-    ----------
-    scan: :class:`ms_deisotope.ProcessedScan`
-        The processed MSn spectrum to match
-    target: :class:`object`
-        A structure that can be fragmented and scored against.
-    mass_shift: :class:`~.MassShift`
-        A mass shifting adduct that alters the precursor mass and optionally some
-        of the fragment masses.
-
-    """
-    __slots__ = ['scan', 'target', "mass_shift"]
-
+class ScanMatchManagingMixin(ScanWrapperBase):
     def __init__(self, scan, target, mass_shift=None):
         if mass_shift is None:
             mass_shift = Unmodified
@@ -49,20 +33,12 @@ class SpectrumMatchBase(ScanWrapperBase):
         self.scan = ScanInformation.from_scan(self.scan)
         return self
 
-    # @property
-    # def mass_shift(self):
-    #     """A mass shifting adduct that alters the precursor mass and optionally some
-    #     of the fragment masses.
-
-    #     Returns
-    #     -------
-    #     :class:`~.MassShift`
-    #     """
-    #     return self._mass_shift
-
-    # @mass_shift.setter
-    # def mass_shift(self, value):
-    #     self._mass_shift = value
+    @staticmethod
+    def load_peaks(scan):
+        try:
+            return scan.convert(fitted=False, deconvoluted=True)
+        except AttributeError:
+            return scan
 
     @staticmethod
     def threshold_peaks(deconvoluted_peak_set, threshold_fn=lambda peak: True):
@@ -85,6 +61,125 @@ class SpectrumMatchBase(ScanWrapperBase):
         ])
         deconvoluted_peak_set._reindex()
         return deconvoluted_peak_set
+
+    def is_hcd(self):
+        """Check whether the MSn spectrum was fragmented using a collisional dissociation
+        mechanism or not.
+
+        The result is cached on :attr:`scan`, so the interpretation does not need to be repeated.
+
+        .. note:: If no activation information is present, the spectrum will be assumed to be HCD.
+
+        Returns
+        -------
+        bool
+        """
+        scan = self.scan
+        annotations = scan.annotations
+        try:
+            result = annotations['is_hcd']
+        except KeyError:
+            activation_info = scan.activation
+            if activation_info is None:
+                if scan.ms_level == 1:
+                    result = False
+                else:
+                    warnings.warn(
+                        "Activation information is missing. Assuming HCD")
+                    result = True
+            else:
+                result = activation_info.has_dissociation_type(activation.HCD) or\
+                    activation_info.has_dissociation_type(activation.CID) or\
+                    activation_info.has_dissociation_type(LowCID) or\
+                    activation_info.has_dissociation_type(
+                        activation.UnknownDissociation)
+            annotations['is_hcd'] = result
+        return result
+
+    def is_exd(self):
+        """Check if the scan was dissociated using an E*x*D method.
+
+        This checks for ECD and ETD terms.
+
+        This method caches its result in the scan's annotations.
+
+        Returns
+        -------
+        bool
+
+        See Also
+        --------
+        is_hcd
+        """
+        scan = self.scan
+        annotations = scan.annotations
+        try:
+            result = annotations['is_exd']
+        except KeyError:
+
+            activation_info = scan.activation
+            if activation_info is None:
+                if scan.ms_level == 1:
+                    result = False
+                else:
+                    warnings.warn(
+                        "Activation information is missing. Assuming not ExD")
+                    result = False
+            else:
+                result = activation_info.has_dissociation_type(activation.ETD) or\
+                    activation_info.has_dissociation_type(activation.ECD)
+            annotations['is_exd'] = result
+        return result
+
+    def mz_range(self):
+        scan = self.scan
+        annotations = scan.annotations
+        try:
+            result = annotations['mz_range']
+        except KeyError:
+            acquisition_info = scan.acquisition_information
+            if acquisition_info is None:
+                mz_range = (0, 1e6)
+            else:
+                lo = float('inf')
+                hi = 0
+                for event in acquisition_info:
+                    for window in event:
+                        lo = min(window.lower, lo)
+                        hi = max(window.upper, hi)
+                # No events/windows or an error
+                if hi < lo:
+                    mz_range = (0, 1e6)
+                else:
+                    mz_range = (lo, hi)
+            annotations['mz_range'] = mz_range
+            result = mz_range
+        return result
+
+    def get_auxiliary_data(self):
+        return {}
+
+
+class _SpectrumMatchBase(object):
+    __slots__ = ['scan', 'target', "mass_shift"]
+
+
+class SpectrumMatchBase(_SpectrumMatchBase, ScanMatchManagingMixin):
+    """A base class for spectrum matches, a scored pairing between a structure
+    and tandem mass spectrum.
+
+    Attributes
+    ----------
+    scan: :class:`ms_deisotope.ProcessedScan`
+        The processed MSn spectrum to match
+    target: :class:`object`
+        A structure that can be fragmented and scored against.
+    mass_shift: :class:`~.MassShift`
+        A mass shifting adduct that alters the precursor mass and optionally some
+        of the fragment masses.
+
+    """
+    __slots__ = []
 
     def _theoretical_mass(self):
         return self.target.total_composition().mass
@@ -176,100 +271,6 @@ class SpectrumMatchBase(ScanWrapperBase):
             target_id = None
         return hash((self.scan.id, self.target, target_id))
 
-    def is_hcd(self):
-        """Check whether the MSn spectrum was fragmented using a collisional dissociation
-        mechanism or not.
-
-        The result is cached on :attr:`scan`, so the interpretation does not need to be repeated.
-
-        .. note:: If no activation information is present, the spectrum will be assumed to be HCD.
-
-        Returns
-        -------
-        bool
-        """
-        scan = self.scan
-        annotations = scan.annotations
-        try:
-            result = annotations['is_hcd']
-        except KeyError:
-            activation_info = scan.activation
-            if activation_info is None:
-                if scan.ms_level == 1:
-                    result = False
-                else:
-                    warnings.warn("Activation information is missing. Assuming HCD")
-                    result = True
-            else:
-                result = activation_info.has_dissociation_type(activation.HCD) or\
-                    activation_info.has_dissociation_type(activation.CID) or\
-                    activation_info.has_dissociation_type(LowCID) or\
-                    activation_info.has_dissociation_type(activation.UnknownDissociation)
-            annotations['is_hcd'] = result
-        return result
-
-    def is_exd(self):
-        """Check if the scan was dissociated using an E*x*D method.
-
-        This checks for ECD and ETD terms.
-
-        This method caches its result in the scan's annotations.
-
-        Returns
-        -------
-        bool
-
-        See Also
-        --------
-        is_hcd
-        """
-        scan = self.scan
-        annotations = scan.annotations
-        try:
-            result = annotations['is_exd']
-        except KeyError:
-
-            activation_info = scan.activation
-            if activation_info is None:
-                if scan.ms_level == 1:
-                    result = False
-                else:
-                    warnings.warn("Activation information is missing. Assuming not ExD")
-                    result = False
-            else:
-                result = activation_info.has_dissociation_type(activation.ETD) or\
-                    activation_info.has_dissociation_type(activation.ECD)
-            annotations['is_exd'] = result
-        return result
-
-    def mz_range(self):
-        scan = self.scan
-        annotations = scan.annotations
-        try:
-            result = annotations['mz_range']
-        except KeyError:
-            acquisition_info = scan.acquisition_information
-            if acquisition_info is None:
-                mz_range = (0, 1e6)
-            else:
-                lo = float('inf')
-                hi = 0
-                for event in acquisition_info:
-                    for window in event:
-                        lo = min(window.lower, lo)
-                        hi = max(window.upper, hi)
-                # No events/windows or an error
-                if hi < lo:
-                    mz_range = (0, 1e6)
-                else:
-                    mz_range = (lo, hi)
-            annotations['mz_range'] = mz_range
-            result = mz_range
-        return result
-
-    def get_auxiliary_data(self):
-        return {}
-
 
 class SpectrumMatcherBase(SpectrumMatchBase):
     __slots__ = ["spectrum", "_score"]
@@ -281,7 +282,6 @@ class SpectrumMatcherBase(SpectrumMatchBase):
         self.spectrum = scan.deconvoluted_peak_set
         self.target = target
         self._score = 0
-        self._mass_shift = None
         self.mass_shift = mass_shift
 
     def drop_peaks(self):
@@ -371,13 +371,6 @@ class SpectrumMatcherBase(SpectrumMatchBase):
 
     def __reduce__(self):
         return self.__class__, (self.scan, self.target,), self.__getstate__()
-
-    @staticmethod
-    def load_peaks(scan):
-        try:
-            return scan.convert(fitted=False, deconvoluted=True)
-        except AttributeError:
-            return scan
 
     def __repr__(self):
         return "{self.__class__.__name__}({self.scan_id}, {self.spectrum}, {self.target}, {self.score})".format(

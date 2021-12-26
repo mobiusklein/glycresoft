@@ -17,14 +17,15 @@ logger.addHandler(logging.NullHandler())
 
 
 class RevisionRule(object):
-    def __init__(self, delta_glycan, mass_shift_rule=None, priority=0):
+    def __init__(self, delta_glycan, mass_shift_rule=None, priority=0, name=None):
         self.delta_glycan = HashableGlycanComposition.parse(delta_glycan)
         self.mass_shift_rule = mass_shift_rule
         self.priority = priority
+        self.name = name
 
     def clone(self):
         return self.__class__(
-            self.delta_glycan.clone(), self.mass_shift_rule.clone() if self.mass_shift_rule else None, self.priority)
+            self.delta_glycan.clone(), self.mass_shift_rule.clone() if self.mass_shift_rule else None, self.priority, self.name)
 
     def valid(self, record):
         new_record = self(record)
@@ -61,21 +62,21 @@ class RevisionRule(object):
 
     def __repr__(self):
         if self.mass_shift_rule:
-            template = "{self.__class__.__name__}({self.delta_glycan}, {self.mass_shift_rule})"
+            template = "{self.__class__.__name__}({self.delta_glycan}, {self.mass_shift_rule}, {self.name})"
         else:
-            template = "{self.__class__.__name__}({self.delta_glycan})"
+            template = "{self.__class__.__name__}({self.delta_glycan}, {self.name})"
         return template.format(self=self)
 
 
 class ValidatingRevisionRule(RevisionRule):
-    def __init__(self, delta_glycan, validator, mass_shift_rule=None, priority=0):
+    def __init__(self, delta_glycan, validator, mass_shift_rule=None, priority=0, name=None):
         super(ValidatingRevisionRule, self).__init__(
-            delta_glycan, mass_shift_rule=mass_shift_rule, priority=priority)
+            delta_glycan, mass_shift_rule=mass_shift_rule, priority=priority, name=name)
         self.validator = validator
 
     def clone(self):
         return self.__class__(
-            self.delta_glycan.clone(), self.validator, self.mass_shift_rule.clone() if self.mass_shift_rule else None, self.priority)
+            self.delta_glycan.clone(), self.validator, self.mass_shift_rule.clone() if self.mass_shift_rule else None, self.priority, self.name)
 
     def valid(self, record):
         if super(ValidatingRevisionRule, self).valid(record):
@@ -411,43 +412,80 @@ fuc = FrozenMonosaccharideResidue.from_iupac_lite("Fuc")
 neuac = FrozenMonosaccharideResidue.from_iupac_lite("Neu5Ac")
 hexnac = FrozenMonosaccharideResidue.from_iupac_lite("HexNAc")
 
+# The correct glycan was incorrectly assigned as the unadducted form of
+# another glycan.
+#
 # Gain an ammonium adduct and a NeuAc, lose a Hex and Fuc
 AmmoniumMaskedRule = RevisionRule(
     HashableGlycanComposition(Hex=-1, Fuc=-1, Neu5Ac=1),
-    mass_shift_rule=MassShiftRule(Ammonium, 1), priority=1)
+    mass_shift_rule=MassShiftRule(Ammonium, 1), priority=1, name="Ammonium Masked")
+
+# The correct glycan was incorrectly assigned as the ammonium adducted form of another
+# glycan
 AmmoniumUnmaskedRule = RevisionRule(
     HashableGlycanComposition(Hex=1, Fuc=1, Neu5Ac=-1),
-    mass_shift_rule=MassShiftRule(Ammonium, -1), priority=1)
+    mass_shift_rule=MassShiftRule(Ammonium, -1), priority=1, name="Ammonium Unmasked")
 
-IsotopeRule = RevisionRule(HashableGlycanComposition(Fuc=-2, Neu5Ac=1))
-IsotopeRule2 = RevisionRule(HashableGlycanComposition(Fuc=-4, Neu5Ac=2))
+
+# The correct glycan was incorrectly assigned identified because of an error in monoisotopic peak
+# assignment.
+IsotopeRule = RevisionRule(HashableGlycanComposition(Fuc=-2, Neu5Ac=1), name="Isotope Error")
+IsotopeRule2 = RevisionRule(HashableGlycanComposition(Fuc=-4, Neu5Ac=2), name="Isotope Error 2")
 
 HexNAc2NeuAc2ToHex6Deoxy = ValidatingRevisionRule(
     HashableGlycanComposition(Hex=-6, HexNAc=2, Neu5Ac=2),
     mass_shift_rule=MassShiftRule(Deoxy, 1),
-    validator=lambda x: x.glycan_composition[neuac] == 0 and x.glycan_composition.query(dhex) == 0 and x.glycan_composition[hexnac] == 2 and x.mass_shifts == [Unmodified])
+    validator=lambda x: x.glycan_composition[neuac] == 0 and x.glycan_composition.query(dhex) == 0 and x.glycan_composition[hexnac] == 2 and x.mass_shifts == [Unmodified],
+    name="Rare precursor deoxidation followed by large mass ambiguity")
 
 HexNAc2NeuAc2ToHex6AmmoniumRule = ValidatingRevisionRule(
     HashableGlycanComposition(Hex=-6, HexNAc=2, Neu5Ac=2),
     mass_shift_rule=MassShiftRule(Ammonium, 1),
-    validator=lambda x: x.glycan_composition[neuac] == 0 and x.glycan_composition.query(dhex) == 0 and x.glycan_composition[hexnac] == 2)
+    validator=lambda x: x.glycan_composition[neuac] == 0 and x.glycan_composition.query(dhex) == 0 and x.glycan_composition[hexnac] == 2,
+    name="Ammonium Masked followed by Large Mass Ambiguity")
 
 HexNAc2Fuc1NeuAc2ToHex7 = ValidatingRevisionRule(
     HashableGlycanComposition(Hex=-7, HexNAc=2, Neu5Ac=2, Fuc=1),
-    validator=lambda x: x.glycan_composition[neuac] == 0 and x.glycan_composition.query(dhex) == 0 and x.glycan_composition[hexnac] == 2)
+    validator=lambda x: x.glycan_composition[neuac] == 0 and x.glycan_composition.query(dhex) == 0 and x.glycan_composition[hexnac] == 2,
+    name="Large Mass Ambiguity")
 
-NeuAc1Hex1ToNeuGc1Fuc1Rule = RevisionRule(
-    HashableGlycanComposition(Neu5Ac=1, Hex=1, Neu5Gc=-1, Fuc=-1))
+# Moving a hydroxyl group from another monosaccharide onto a Sialic acid or vis-versa obscures their mass identity
 NeuGc1Fuc1ToNeuAc1Hex1Rule = RevisionRule(
-    HashableGlycanComposition(Neu5Ac=-1, Hex=-1, Neu5Gc=1, Fuc=1))
+    HashableGlycanComposition(Neu5Ac=1, Hex=1, Neu5Gc=-1, Fuc=-1), name="NeuAc Masked By NeuGc")
+NeuAc1Hex1ToNeuGc1Fuc1Rule = RevisionRule(
+    HashableGlycanComposition(Neu5Ac=-1, Hex=-1, Neu5Gc=1, Fuc=1), name="NeuGc Masked By NeuAc")
 
 Sulfate1HexNAc2ToHex3Rule = RevisionRule(
-    HashableGlycanComposition(HexNAc=2, sulfate=1, Hex=-3))
-
+    HashableGlycanComposition(HexNAc=2, sulfate=1, Hex=-3), name="Sulfate + 2 HexNAc Masked By 3 Hex")
 Hex3ToSulfate1HexNAc2Rule = Sulfate1HexNAc2ToHex3Rule.invert_rule()
+Hex3ToSulfate1HexNAc2Rule.name = "3 Hex Masked By Sulfate + 2 HexNAc"
 
-SulfateToPhosphateRule = RevisionRule(HashableGlycanComposition(sulfate=-1, phosphate=1))
+SulfateToPhosphateRule = RevisionRule(HashableGlycanComposition(sulfate=-1, phosphate=1), name="Phosphate Masked By Sulfate")
 PhosphateToSulfateRule = SulfateToPhosphateRule.invert_rule()
+PhosphateToSulfateRule.name = "Sulfate Masked By Phosphate"
+
+
+class RevisionRuleList(object):
+    def __init__(self, rules):
+        self.rules = list(rules)
+        self.by_name = {
+            rule.name: rule for rule in self.rules
+            if rule.name
+        }
+
+    def __getitem__(self, i):
+        if i in self.by_name:
+            return self.by_name[i]
+        return self.rules[i]
+
+    def __len__(self):
+        return len(self.rules)
+
+    def __iter__(self):
+        return iter(self.rules)
+
+    def __repr__(self):
+        return "{self.__class__.__name__}({self.rules})".format(self=self)
 
 
 class IntervalModelReviser(ModelReviser):
@@ -461,3 +499,85 @@ class IntervalModelReviser(ModelReviser):
 # score relative to each other glycoform in the group? This might look
 # something like the old recalibrator code, but adapted for the interval_score
 # method
+
+
+class RuleBasedFDREstimator(object):
+    def __init__(self, rule, chromatograms, rt_model, valid_glycans=None):
+        self.rule = rule
+        self.chromatograms = chromatograms
+        self.decoy_chromatograms = []
+        self.rt_model = rt_model
+        self.target_scores = []
+        self.decoy_scores = []
+        self.decoy_is_valid = []
+        self.valid_glycans = valid_glycans
+        self.estimator = None
+
+        self.prepare()
+
+    @property
+    def name(self):
+        return self.rule.name
+
+    def prepare(self):
+        self.target_scores = np.array([self.rt_model.score_interval(p, 0.01) for p in self.chromatograms])
+        decoy_scores = []
+        decoy_is_valid = []
+        for p in self.chromatograms:
+            p = self.rule(p)
+            self.decoy_chromatograms.append(p)
+            decoy_is_valid.append(p.glycan_composition in self.valid_glycans if self.valid_glycans else True)
+            if self.rule.valid(p):
+                decoy_scores.append(self.rt_model.score_interval(p, 0.01))
+            else:
+                decoy_scores.append(np.nan)
+
+        self.decoy_scores = np.array(decoy_scores)
+        self.decoy_is_valid = np.array(decoy_is_valid)
+
+        self.target_scores[np.isnan(self.target_scores)] = 0.0
+        self.decoy_scores[np.isnan(self.decoy_scores)] = 0.0
+        self.chromatograms = np.array(self.chromatograms)
+        self.decoy_chromatograms = np.array(self.decoy_chromatograms)
+
+        self.estimate_fdr()
+
+    def estimate_fdr(self):
+        from glycan_profiling.tandem.target_decoy import TargetDecoyAnalyzer
+        self.estimator = TargetDecoyAnalyzer(
+            self.target_scores.view([('score', np.float64)]).view(np.recarray),
+            self.decoy_scores[self.decoy_is_valid].view([('score', np.float64)]).view(np.recarray))
+
+    @property
+    def q_value_map(self):
+        return self.estimator.q_value_map
+
+    def score_for_fdr(self, fdr_value):
+        return self.estimator.score_for_fdr(fdr_value)
+
+    def plot(self):
+        ax = self.estimator.plot()
+        ax.set_xlim(-0.01, 1)
+        return ax
+
+    def __getstate__(self):
+        state = {
+            "estimator": self.estimator,
+            "target_scores": self.target_scores,
+            "decoy_scores": self.decoy_scores,
+            "decoy_is_valid": self.decoy_is_valid,
+            "rule": self.rule
+        }
+        return state
+
+    def __setstate__(self, state):
+        self.estimator = state['estimator']
+        self.target_scores = state['target_scores']
+        self.decoy_scores = state['decoy_scores']
+        self.decoy_is_valid = state['decoy_is_valid']
+        self.rule = state['rule']
+
+        self.rt_model = None
+        self.chromatograms = None
+        self.decoy_chromatograms = None
+        self.valid_glycans = None

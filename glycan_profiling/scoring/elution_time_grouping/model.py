@@ -41,7 +41,7 @@ from .reviser import (IntervalModelReviser, IsotopeRule, AmmoniumMaskedRule,
                       SulfateToPhosphateRule, Sulfate1HexNAc2ToHex3Rule,
                       Hex3ToSulfate1HexNAc2Rule, HexNAc2NeuAc2ToHex6Deoxy,
                       PeptideYUtilizationPreservingRevisionValidator,
-                      modify_rules)
+                      modify_rules, RevisionRuleList, RuleBasedFDREstimator)
 
 from . import reviser as libreviser
 
@@ -1608,7 +1608,7 @@ class GlycopeptideElutionTimeModelBuildingPipeline(TaskBase):
         self._check_rules()
 
     def _default_rules(self):
-        return [
+        return RevisionRuleList([
             AmmoniumMaskedRule,
             AmmoniumUnmaskedRule,
             IsotopeRule,
@@ -1620,7 +1620,7 @@ class GlycopeptideElutionTimeModelBuildingPipeline(TaskBase):
             PhosphateToSulfateRule,
             Sulfate1HexNAc2ToHex3Rule,
             Hex3ToSulfate1HexNAc2Rule,
-        ]
+        ])
 
     def _check_rules(self):
         if self.valid_glycans:
@@ -1836,6 +1836,29 @@ class GlycopeptideElutionTimeModelBuildingPipeline(TaskBase):
             all_records, coverages, coverage_threshold)
         new = set()
 
+    def estimate_fdr(self, chromatograms, model, rules=None):
+        if rules is None:
+            rules = self.revision_rules
+        estimators = []
+        for rule in rules:
+            self.log("... Estimating FDR for %r" % (rule, ))
+            estimator = RuleBasedFDREstimator(
+                    rule, chromatograms, model, self.valid_glycans)
+            estimators.append(estimator)
+            t05 = estimator.score_for_fdr(0.05)
+            t01 = estimator.score_for_fdr(0.01)
+            self.log("...... 5%: {:0.2f}    1%: {:0.2f}".format(t05, t01))
+
+        return RevisionRuleList(estimators)
+
+    def extract_rules_used(self, chromatograms):
+        rules_used = set()
+        for record in chromatograms:
+            if record.revised_from:
+                rule, _ = record.revised_from
+                rules_used.add(rule)
+        return rules_used
+
     def run(self, k=10, base_weight=0.3, revision_threshold=0.35, final_round=True, regularize=True):
         self.log("Fitting first model...")
         # The first model is fit on those cases where we have both
@@ -1986,6 +2009,9 @@ class GlycopeptideElutionTimeModelBuildingPipeline(TaskBase):
                                                  max(self.current_model.width_range.lower * delta_time_scale,
                                                      minimum_delta)):
             all_records[i] = record
+        rules_used = self.extract_rules_used(all_records)
+        self.log("Estimating FDR for revision rules")
+        model._summary_statistics['fdr_estimates'] = self.estimate_fdr()
         return model, all_records
 
 

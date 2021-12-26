@@ -12,6 +12,8 @@ from glypy._c.structure.glycan_composition cimport _CompositionBase
 from ms_deisotope._c.peak_set cimport DeconvolutedPeak, DeconvolutedPeakSet
 from glycopeptidepy._c.structure.fragment cimport SimpleFragment
 
+from glycan_profiling._c.structure.fragment_match_map cimport PeakFragmentPair
+
 from collections import defaultdict
 
 from glycopeptidepy import PeptideSequence
@@ -251,7 +253,8 @@ cdef class OxoniumIndex(object):
                         PyDict_SetItem(match_index, key, acc)
                     else:
                         acc = <list>tmp
-                    acc.append((fragment, peak.index.neutral_mass))
+                    # acc.append((fragment, peak.index.neutral_mass))
+                    acc.append(PeakFragmentPair._create_simple(peak, fragment))
         return OxoniumIndexMatch._create(match_index, self.glycan_to_index, self.index_to_simplified_index)
 
     cpdef object simplify(self):

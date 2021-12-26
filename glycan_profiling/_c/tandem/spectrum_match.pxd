@@ -1,7 +1,8 @@
 cimport cython
 
-from ms_deisotope._c.peak_set cimport DeconvolutedPeak
+from ms_deisotope._c.peak_set cimport DeconvolutedPeak, DeconvolutedPeakSet
 from glycan_profiling._c.chromatogram_tree.mass_shift cimport MassShiftBase
+from glycan_profiling._c.structure.fragment_match_map cimport FragmentMatchMap
 
 
 cdef class SpectrumMatchBase(object):
@@ -9,6 +10,14 @@ cdef class SpectrumMatchBase(object):
         public object scan
         public object target
         public MassShiftBase mass_shift
+
+
+
+cdef class SpectrumMatcherBase(SpectrumMatchBase):
+    cdef:
+        public DeconvolutedPeakSet spectrum
+        public FragmentMatchMap solution_map
+        public dict annotations
 
 
 cdef class ScoreSet(object):
