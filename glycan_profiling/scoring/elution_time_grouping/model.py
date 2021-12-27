@@ -2011,7 +2011,7 @@ class GlycopeptideElutionTimeModelBuildingPipeline(TaskBase):
             all_records[i] = record
         rules_used = self.extract_rules_used(all_records)
         self.log("Estimating FDR for revision rules")
-        model._summary_statistics['fdr_estimates'] = self.estimate_fdr()
+        model._summary_statistics['fdr_estimates'] = self.estimate_fdr(all_records, model, rules_used)
         return model, all_records
 
 

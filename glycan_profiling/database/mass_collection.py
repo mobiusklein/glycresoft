@@ -617,7 +617,6 @@ class MassCollectionProxy(SearchableMassCollectionWrapper):
     @property
     def searchable_mass_collection(self):
         if self._searchable_mass_collection is None:
-            logger.info("Loading mass collection")
             self._searchable_mass_collection = self.resolver()
         return self._searchable_mass_collection
 

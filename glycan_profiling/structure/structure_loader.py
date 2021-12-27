@@ -302,6 +302,8 @@ except ImportError as err:
 
 
 class FragmentCachingGlycopeptide(PeptideSequence):
+    __slots__ = ('fragment_caches', 'protein_relation', 'id', 'glycan_prior')
+
     def __init__(self, *args, **kwargs):
         kwargs.setdefault('parser_function', hashable_glycan_glycopeptide_parser)
         super(FragmentCachingGlycopeptide, self).__init__(*args, **kwargs)

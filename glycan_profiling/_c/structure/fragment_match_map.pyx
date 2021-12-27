@@ -476,10 +476,7 @@ cdef class FragmentMatchMap(object):
                 peak = PeakFragmentPair._create_simple(<DeconvolutedPeak>peak, <FragmentBase>fragment)
             else:
                 peak = PeakFragmentPair._create(<DeconvolutedPeak>peak, fragment)
-        # peak = PeakFragmentPair._create(<DeconvolutedPeak>peak, fragment)
         PySet_Add(self.members, peak)
-        self.by_fragment.invalidate()
-        self.by_peak.invalidate()
 
     cdef void _add_direct(self, PeakFragmentPair pair):
         PySet_Add(self.members, pair)
@@ -557,5 +554,8 @@ cdef class FragmentMatchMap(object):
 
     cpdef clear(self):
         self.members.clear()
+        self.invalidate()
+
+    cpdef invalidate(self):
         self.by_fragment.invalidate()
         self.by_peak.invalidate()

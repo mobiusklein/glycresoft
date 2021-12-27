@@ -285,8 +285,8 @@ cpdef double _compute_glycan_coverage_from_metrics(self, bint fragile_fucose, si
 @cython.binding(True)
 @cython.cdivision(True)
 @cython.boundscheck(False)
-def SimpleCoverageScorer_match_backbone_series(self, IonSeriesBase series, double error_tolerance=2e-5,
-                                               set masked_peaks=None, strategy=None, bint include_neutral_losses=False):
+cpdef SimpleCoverageScorer_match_backbone_series(self, IonSeriesBase series, double error_tolerance=2e-5,
+                                                 set masked_peaks=None, strategy=None, bint include_neutral_losses=False):
     cdef:
         list frags, fragments
         tuple peaks
@@ -325,11 +325,11 @@ def SimpleCoverageScorer_match_backbone_series(self, IonSeriesBase series, doubl
             if not glycosylated_position:
                 glycosylated_position |= frag._is_glycosylated()
             peaks = <tuple>spectrum.all_peaks_for(frag.mass, error_tolerance)
-            for i_peaks in range(PyTuple_Size(peaks)):
-                peak = <DeconvolutedPeak>PyTuple_GetItem(peaks, i_peaks)
+            for i_peaks in range(PyTuple_GET_SIZE(peaks)):
+                peak = <DeconvolutedPeak>PyTuple_GET_ITEM(peaks, i_peaks)
                 if peak._index.neutral_mass in masked_peaks:
                     continue
-                solution_map.add(peak, frag)
+                FragmentMatchMap._add_direct(solution_map, PeakFragmentPair._create_simple(peak, frag))
         if glycosylated_position:
             glycosylated_term_ions_count += 1
         previous_position_glycosylated = glycosylated_position
@@ -343,9 +343,9 @@ def SimpleCoverageScorer_match_backbone_series(self, IonSeriesBase series, doubl
 @cython.binding(True)
 @cython.cdivision(True)
 @cython.boundscheck(False)
-def CoverageWeightedBinomialScorer_match_backbone_series(self, IonSeriesBase series, double error_tolerance=2e-5,
-                                                         set masked_peaks=None, strategy=None,
-                                                         bint include_neutral_losses=False):
+cpdef CoverageWeightedBinomialScorer_match_backbone_series(self, IonSeriesBase series, double error_tolerance=2e-5,
+                                                           set masked_peaks=None, strategy=None,
+                                                           bint include_neutral_losses=False):
     cdef:
         list frags, fragments
         tuple peaks
@@ -387,9 +387,9 @@ def CoverageWeightedBinomialScorer_match_backbone_series(self, IonSeriesBase ser
             if not glycosylated_position:
                 glycosylated_position |= frag._is_glycosylated()
             peaks = spectrum.all_peaks_for(frag.mass, error_tolerance)
-            n_peaks = PyTuple_Size(peaks)
+            n_peaks = PyTuple_GET_SIZE(peaks)
             for i_peaks in range(n_peaks):
-                peak = <DeconvolutedPeak>PyTuple_GetItem(peaks, i_peaks)
+                peak = <DeconvolutedPeak>PyTuple_GET_ITEM(peaks, i_peaks)
                 if peak._index.neutral_mass in masked_peaks:
                     continue
                 solution_map.add(peak, frag)
