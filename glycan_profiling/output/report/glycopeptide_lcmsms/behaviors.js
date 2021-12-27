@@ -71,8 +71,10 @@ function accordionHandler(event) {
     console.log(this)
     let panel = this.nextElementSibling;
     if (panel.style.display !== 'none') {
+        console.log("Hiding", panel)
         panel.style.display = 'none'
     } else {
+        console.log("Showing", panel)
         panel.style.display = 'flex'
     }
 }

@@ -18,7 +18,18 @@ from sqlalchemy.orm import relationship, backref, object_session, deferred
 from sqlalchemy.ext.declarative import declared_attr
 from sqlalchemy.ext.mutable import MutableDict
 
-from ms_deisotope.data_source._compression import starts_with_gz_magic, test_gzipped
+from ms_deisotope.data_source._compression import starts_with_gz_magic
+
+try:
+    from ms_deisotope.data_source._compression import starts_with_zstd_magic
+except ImportError:
+    starts_with_zstd_magic = None
+
+try:
+    from pyzstd import ZstdFile
+except ImportError:
+    ZstdFile = None
+
 
 from glypy import Composition
 
@@ -172,7 +183,11 @@ class FileBlob(Base):
         inst = cls(name=os.path.basename(fp.name), compressed=compress)
         data = fp.read()
         has_gz_magic = starts_with_gz_magic(data)
-        if compress and not has_gz_magic:
+        if starts_with_zstd_magic is None:
+            has_zstd_magic = False
+        else:
+            has_zstd_magic = starts_with_zstd_magic(data)
+        if compress and not has_gz_magic and not has_zstd_magic:
             buff = BytesIO()
             with gzip.GzipFile(mode='wb', fileobj=buff) as compressor:
                 compressor.write(data)
@@ -180,6 +195,8 @@ class FileBlob(Base):
             data = buff.read()
             inst.name += '.gz'
         if not compress and has_gz_magic:
+            inst.compressed = True
+        if not compress and has_zstd_magic:
             inst.compressed = True
         inst.data = data
         return inst
@@ -193,7 +210,12 @@ class FileBlob(Base):
     def open(self):
         data_buffer = BytesIO(self.data)
         if self.compressed:
-            return gzip.GzipFile(fileobj=data_buffer)
+            if starts_with_gz_magic(self.data[:6]):
+                return gzip.GzipFile(fileobj=data_buffer)
+            elif (starts_with_zstd_magic is not None and ZstdFile is not None) and starts_with_zstd_magic(self.data[:6]):
+                return ZstdFile(data_buffer)
+            else:
+                raise ValueError("Could not infer decompressor for %r" % (self.data[:6], ))
         return data_buffer
 
 

@@ -14,6 +14,11 @@ from six import PY2
 
 import numpy as np
 
+try:
+    from pyzstd import ZstdFile
+except ImportError:
+    ZstdFile = None
+
 from glycopeptidepy.utils import collectiontools
 
 from ms_deisotope.output import ProcessedMzMLDeserializer
@@ -34,17 +39,41 @@ from glycan_profiling.tandem.spectrum_match import (
 from .search_space import glycopeptide_key_t, StructureClassification
 
 
+def _zstdopen(path, mode='w'):
+    handle = ZstdFile(path, mode=mode.replace('t', 'b'))
+    if not PY2:
+        return io.TextIOWrapper(handle, encoding='utf8')
+    return handle
+
+
+def _zstwrap(fh, mode='w'):
+    handle = ZstdFile(fh, mode=mode)
+    if not PY2:
+        return io.TextIOWrapper(handle, encoding='utf8')
+    return handle
+
+
 def _gzopen(path, mode='w'):
     handle = gzip.open(path, mode=mode.replace('t', 'b'))
     if not PY2:
         return io.TextIOWrapper(handle, encoding='utf8')
     return handle
 
+
 def _gzwrap(fh, mode='w'):
     handle = gzip.GzipFile(fileobj=fh, mode=mode)
     if not PY2:
         return io.TextIOWrapper(handle, encoding='utf8')
     return handle
+
+
+if ZstdFile is None:
+    _file_opener = _gzopen
+    _file_wrapper = _gzwrap
+else:
+    _file_opener = _zstdopen
+    _file_wrapper = _zstwrap
+
 
 class JournalFileWriter(TaskBase):
     """A task for writing glycopeptide spectrum matches to a TSV-formatted
@@ -55,9 +84,9 @@ class JournalFileWriter(TaskBase):
     def __init__(self, path, include_fdr=False, include_auxiliary=False):
         self.path = path
         if not hasattr(path, 'write'):
-            self.handle = _gzopen(path, 'wb')
+            self.handle = _file_opener(path, 'wb')
         else:
-            self.handle = _gzwrap(self.path, 'w')
+            self.handle = _file_wrapper(self.path, 'w')
         self.include_fdr = include_fdr
         self.include_auxiliary = include_auxiliary
         self.writer = csv.writer(self.handle, delimiter='\t')
@@ -200,9 +229,9 @@ class JournalFileReader(TaskBase):
             mass_shift_map.setdefault(Unmodified.name, Unmodified)
         self.path = path
         if not hasattr(path, 'read'):
-            self.handle = _gzopen(path, 'rt')
+            self.handle = _file_opener(path, 'rt')
         else:
-            self.handle = _gzwrap(self.path, 'r')
+            self.handle = _file_wrapper(self.path, 'r')
         self.reader = csv.DictReader(self.handle, delimiter='\t')
         self.glycopeptide_cache = LRUMapping(cache_size or 2 ** 12)
         self.mass_shift_map = mass_shift_map
