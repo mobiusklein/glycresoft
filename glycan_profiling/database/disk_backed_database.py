@@ -674,5 +674,5 @@ class PeptideDiskBackedStructureDatabase(DeclarativeDiskBackedDatabase):
         has_sites = self.query(ProteinSite).join(ProteinSite.protein).filter(
             Protein.hypothesis_id == self.hypothesis_id,
             ProteinSite.name == ProteinSite.N_GLYCOSYLATION).first()
-        return has_sites is None
+        return has_sites is not None
 

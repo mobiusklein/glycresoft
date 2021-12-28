@@ -105,7 +105,7 @@ def make_disk_backed_peptide_database(path, hypothesis_id=1, **kwargs):
 
 
 class FetchManyIterator(object):
-    def __init__(self, cursor, batch_size=10000):
+    def __init__(self, cursor, batch_size=1000000):
         self.cursor = cursor
         self.batch_size = batch_size
 
