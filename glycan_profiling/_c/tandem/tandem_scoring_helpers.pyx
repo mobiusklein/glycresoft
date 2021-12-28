@@ -53,6 +53,7 @@ cpdef _compute_coverage_vectors(self):
         int stub_count
         long size
         set glycosylated_n_term_ions, glycosylated_c_term_ions
+        IonSeriesBase series
         FragmentMatchMap solution_map
         FragmentBase frag
         PeptideFragment pep_frag
@@ -72,22 +73,23 @@ cpdef _compute_coverage_vectors(self):
     for obj in solution_map.fragments():
         frag = <FragmentBase>obj
         series = frag.get_series()
-        if series in (IonSeries_b, IonSeries_c):
+        if series.int_code == IonSeries_b.int_code or series.int_code == IonSeries_c.int_code:
             pep_frag = <PeptideFragment>frag
             n_term_ions[pep_frag.position] = 1
             if frag.is_glycosylated:
                 glycosylated_n_term_ions.add((series, pep_frag.position))
-        elif series in (IonSeries_y, IonSeries_z):
+        elif series.int_code == IonSeries_y.int_code or series.int_code == IonSeries_z.int_code:
             pep_frag = <PeptideFragment>frag
             c_term_ions[pep_frag.position] = 1
             if frag.is_glycosylated:
                 glycosylated_c_term_ions.add((series, pep_frag.position))
-        elif series == IonSeries_stub_glycopeptide:
+        elif series.int_code == IonSeries_stub_glycopeptide.int_code:
             stub_count += 1
     return n_term_ions, c_term_ions, stub_count, len(glycosylated_n_term_ions), len(glycosylated_c_term_ions)
 
 
 cdef set peptide_ion_series = {IonSeries_b, IonSeries_y, IonSeries_c, IonSeries_z}
+cdef int peptide_series_number = IonSeries_z.int_code + 1
 
 
 @cython.binding(True)
@@ -114,12 +116,12 @@ def calculate_peptide_score(self, double error_tolerance=2e-5, double coverage_w
     for obj in solution_map.members:
         peak_pair = <PeakFragmentPair>obj
         peak = peak_pair.peak
-        if (<FragmentBase>peak_pair.fragment).get_series() in peptide_ion_series:
+        if (<FragmentBase>peak_pair.fragment).get_series().int_code < peptide_series_number:
             # seen.add(peak._index.neutral_mass)
             total += log10(peak.intensity) * (1 - (abs(peak_pair.mass_accuracy()) / error_tolerance) ** 4)
     coverage_result = <tuple>_compute_coverage_vectors(self)
-    n_term = <np.ndarray[np.float64_t, ndim=1]>PyTuple_GetItem(coverage_result, 0)
-    c_term = <np.ndarray[np.float64_t, ndim=1]>PyTuple_GetItem(coverage_result, 1)
+    n_term = <np.ndarray[np.float64_t, ndim=1]>PyTuple_GET_ITEM(coverage_result, 0)
+    c_term = <np.ndarray[np.float64_t, ndim=1]>PyTuple_GET_ITEM(coverage_result, 1)
     normalizer = float((2 * size - 1))
     coverage_score = 0.0
 
@@ -171,7 +173,7 @@ def calculate_glycan_score(self, double error_tolerance=2e-5, double core_weight
 
     for obj in solution_map.members:
         peak_pair = <PeakFragmentPair>obj
-        if (<FragmentBase>peak_pair.fragment).get_series() != series:
+        if (<FragmentBase>peak_pair.fragment).get_series().int_code != series.int_code:
             continue
         fragment_name = (<FragmentBase>peak_pair.fragment).base_name()
         if fragment_name in core_fragments:
