@@ -46,6 +46,15 @@ class GlycanCompositionSignatureMatcher(GlycopeptideSpectrumMatcherBase):
         if len(self.spectrum) == 0:
             return
         self.maximum_intensity = self.base_peak()
+        gc = self.glycan_composition
+        annotations = self.scan.annotations
+        if "signature_index_match" in annotations:
+            signature_index = annotations['signature_index_match']
+            record = signature_index.record_for(gc)
+            if record is not None:
+                self.expected_matches = record.expected_matches
+                self.unexpected_matches = record.unexpected_matches
+                return
         spectrum = self.spectrum
 
         for mono in self.signatures:

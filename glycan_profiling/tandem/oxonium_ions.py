@@ -242,6 +242,6 @@ class OxoniumIndex(object):
 
 
 try:
-    from glycan_profiling._c.tandem.oxonium_ions import OxoniumIndex
+    from glycan_profiling._c.tandem.oxonium_ions import OxoniumIndex, SignatureIonIndex
 except ImportError:
-    pass
+    SignatureIonIndex = None

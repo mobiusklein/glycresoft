@@ -6,7 +6,7 @@ from cpython cimport (
     PyTuple_GetItem, PyTuple_GET_ITEM, PyTuple_GET_SIZE,
     PyInt_AsLong, PyFloat_AsDouble,
     PyObject, PyDict_GetItem, PyDict_SetItem,
-    PyList_GET_SIZE, PyList_GET_ITEM)
+    PyList_GET_SIZE, PyList_GET_ITEM, PyDict_Next)
 
 from glypy._c.structure.glycan_composition cimport _CompositionBase
 from ms_deisotope._c.peak_set cimport DeconvolutedPeak, DeconvolutedPeakSet
@@ -139,6 +139,115 @@ cdef class SignatureSpecification(object):
                     peak = next_peak
                     best_signal = next_peak.intensity
         return peak
+
+
+@cython.freelist(5000)
+cdef class SignatureIonMatchRecord:
+
+    @staticmethod
+    cdef SignatureIonMatchRecord _create(dict expected_matches, dict unexpected_matches, object glycan_composition):
+        cdef SignatureIonMatchRecord self = SignatureIonMatchRecord.__new__(SignatureIonMatchRecord)
+        self.expected_matches = expected_matches
+        self.unexpected_matches = unexpected_matches
+        self.glycan_composition = glycan_composition
+        self.score = 0
+        return self
+
+    def __init__(self, dict expected_matches, dict unexpected_matches, object glycan_composition, double score=0):
+        self.expected_matches = expected_matches
+        self.unexpected_matches = unexpected_matches
+        self.glycan_composition = glycan_composition
+        self.score = score
+
+    cpdef match(self, list signatures, DeconvolutedPeakSet spectrum, double error_tolerance=2e-5):
+        cdef:
+            size_t i, n
+            SignatureSpecification specification
+            bint is_expected
+            DeconvolutedPeak peak
+
+        n = PyList_GET_SIZE(signatures)
+        for i in range(n):
+            specification = <SignatureSpecification>PyList_GET_ITEM(signatures, i)
+            is_expected = specification.is_expected(self.glycan_composition)
+            peak = specification.peak_of(spectrum, error_tolerance)
+
+            if peak is None:
+                if is_expected:
+                    PyDict_SetItem(self.expected_matches, specification, None)
+                continue
+            if is_expected:
+                PyDict_SetItem(self.expected_matches, specification, peak)
+            else:
+                PyDict_SetItem(self.unexpected_matches, specification, peak)
+
+
+@cython.freelist(5000)
+cdef class SignatureIonIndexMatch:
+    @staticmethod
+    cdef SignatureIonIndexMatch _create(dict glycan_to_key, dict key_to_record):
+        cdef SignatureIonIndexMatch self = SignatureIonIndexMatch.__new__(SignatureIonIndexMatch)
+        self.glycan_to_key = glycan_to_key
+        self.key_to_record = key_to_record
+        return self
+
+    cpdef SignatureIonMatchRecord record_for(self, object glycan_composition):
+        cdef:
+            PyObject* tmp
+
+        tmp = PyDict_GetItem(self.glycan_to_key, str(glycan_composition))
+        if tmp == NULL:
+            return None
+        key = <object>tmp
+        tmp = PyDict_GetItem(self.key_to_record, key)
+        if tmp == NULL:
+            return None
+        return <SignatureIonMatchRecord>tmp
+
+
+cdef class SignatureIonIndex:
+
+    def __init__(self, signatures):
+        self.signatures = signatures
+        self.glycan_to_key = {}
+        self.key_to_representative = {}
+
+    def build_index(self, glycan_composition_records):
+        index = defaultdict(list)
+
+        for gc_rec in glycan_composition_records:
+            key = tuple(sig.count_of(gc_rec.composition) for sig in self.signatures)
+            index[key].append(gc_rec.composition)
+
+        key_to_representative = {}
+        reverse_index = {}
+        for key, gcs in index.items():
+            for gc in gcs:
+                reverse_index[str(gc)] = key
+            key_to_representative[key] = gcs[0]
+        self.glycan_to_key = reverse_index
+        self.key_to_representative = key_to_representative
+
+    cpdef SignatureIonIndexMatch match(self, DeconvolutedPeakSet spectrum, double error_tolerance=2e-5):
+        cdef:
+            PyObject* pkey
+            PyObject* pval
+            Py_ssize_t pos
+            dict result
+            object key, value
+            SignatureIonMatchRecord record
+        result = {}
+        pos = 0
+        while PyDict_Next(self.key_to_representative, &pos, &pkey, &pval):
+            if pkey != NULL:
+                key = <object>pkey
+                value = <object>pval
+                record = SignatureIonMatchRecord._create({}, {}, value)
+                record.match(self.signatures, spectrum, error_tolerance)
+                PyDict_SetItem(result, key, record)
+        return SignatureIonIndexMatch._create(self.glycan_to_key, result)
+
+
 
 
 @cython.freelist(1000)

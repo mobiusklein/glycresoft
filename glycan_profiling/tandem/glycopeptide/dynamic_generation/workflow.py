@@ -7,8 +7,6 @@ import datetime
 import zlib
 from collections import OrderedDict
 
-from glycan_profiling.tandem.oxonium_ions import OxoniumIndex
-
 try:
     import cPickle as pickle
 except ImportError:
@@ -34,6 +32,8 @@ from glycan_profiling.structure.structure_loader import PeptideDatabaseRecord
 from glycan_profiling.structure.scan import ScanInformationLoader
 from glycan_profiling.composition_distribution_model.site_model import (
     GlycoproteomePriorAnnotator)
+
+from glycan_profiling.tandem.oxonium_ions import OxoniumIndex, SignatureIonIndex, single_signatures, compound_signatures
 
 from glycan_profiling.chromatogram_tree.chromatogram import GlycopeptideChromatogram
 from ...chromatogram_mapping import ChromatogramMSMSMapper
@@ -558,8 +558,17 @@ class IdentificationWorker(TaskExecutionSequence):
         oxonium_ion_index.build_index(
             self.target_predictive_search.peptide_glycosylator.glycan_combinations, oxonium=True)
 
+        signatures = list(single_signatures)
+        if self.evaluation_kwargs.get("rare_signatures"):
+            signatures.extend(compound_signatures)
+        signature_index = SignatureIonIndex(signatures)
+        signature_index.build_index(
+            self.target_predictive_search.peptide_glycosylator.glycan_combinations)
+
         self.target_predictive_search.oxonium_ion_index = oxonium_ion_index
+        self.target_predictive_search.signature_index = signature_index
         self.decoy_predictive_search.oxonium_ion_index = oxonium_ion_index
+        self.decoy_predictive_search.signature_index = signature_index
 
         mapping_executor = SemaphoreBoundMapperExecutor(
             MultiLock([

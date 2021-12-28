@@ -14,6 +14,40 @@ cdef class SignatureSpecification(object):
     cpdef int count_of(self, glycan_composition)
     cpdef DeconvolutedPeak peak_of(self, DeconvolutedPeakSet spectrum, double error_tolerance)
 
+
+cdef class SignatureIonMatchRecord:
+    cdef:
+        public dict expected_matches
+        public dict unexpected_matches
+        public object glycan_composition
+        public double score
+
+    @staticmethod
+    cdef SignatureIonMatchRecord _create(dict expected_matches, dict unexpected_matches, object glycan_composition)
+    cpdef match(self, list signatures, DeconvolutedPeakSet spectrum, double error_tolerance=*)
+
+
+cdef class SignatureIonIndexMatch:
+    cdef:
+        public dict glycan_to_key
+        public dict key_to_record
+
+    @staticmethod
+    cdef SignatureIonIndexMatch _create(dict glycan_to_key, dict key_to_record)
+
+    cpdef SignatureIonMatchRecord record_for(self, object glycan_composition)
+
+
+cdef class SignatureIonIndex:
+    cdef:
+        public list signatures
+        public dict glycan_to_key
+        public dict key_to_representative
+
+    cpdef SignatureIonIndexMatch match(self, DeconvolutedPeakSet spectrum, double error_tolerance=*)
+
+
+
 cdef class OxoniumIndexMatch(object):
     cdef:
         public dict index_matches
