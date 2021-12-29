@@ -14,7 +14,10 @@ from glycopeptidepy._c.structure.fragment cimport SimpleFragment
 
 from glycan_profiling._c.structure.fragment_match_map cimport PeakFragmentPair
 
+import warnings
+
 from collections import defaultdict
+
 
 from glycopeptidepy import PeptideSequence
 from glypy.structure.glycan_composition import FrozenMonosaccharideResidue
@@ -22,6 +25,7 @@ from glycopeptidepy.structure.glycan import GlycanCompositionProxy as _GlycanCom
 
 from_iupac_lite = FrozenMonosaccharideResidue.from_iupac_lite
 
+cdef object warn = warnings.warn
 cdef object GlycanCompositionProxy = _GlycanCompositionProxy
 
 cdef class SignatureSpecification(object):
@@ -181,8 +185,12 @@ cdef class SignatureIonMatchRecord:
             else:
                 PyDict_SetItem(self.unexpected_matches, specification, peak)
 
+    def __repr__(self):
+        template = "{self.__class__.__name__}({self.expected_matches}, {self.unexpected_matches}, {self.glycan_composition})"
+        return template.format(self=self)
 
-@cython.freelist(5000)
+
+@cython.freelist(2000)
 cdef class SignatureIonIndexMatch:
     @staticmethod
     cdef SignatureIonIndexMatch _create(dict glycan_to_key, dict key_to_record):
@@ -193,16 +201,22 @@ cdef class SignatureIonIndexMatch:
 
     cpdef SignatureIonMatchRecord record_for(self, object glycan_composition):
         cdef:
+            str key
             PyObject* tmp
-
-        tmp = PyDict_GetItem(self.glycan_to_key, str(glycan_composition))
+        key = str(glycan_composition)
+        tmp = PyDict_GetItem(self.glycan_to_key, key)
         if tmp == NULL:
+            warn("{} not found in signature ion index".format(key))
             return None
         key = <object>tmp
         tmp = PyDict_GetItem(self.key_to_record, key)
         if tmp == NULL:
             return None
         return <SignatureIonMatchRecord>tmp
+
+    def __repr__(self):
+        template = f"{self.__class__.__name__}(<{len(self.key_to_record)}>)"
+        return template
 
 
 cdef class SignatureIonIndex:
@@ -246,8 +260,6 @@ cdef class SignatureIonIndex:
                 record.match(self.signatures, spectrum, error_tolerance)
                 PyDict_SetItem(result, key, record)
         return SignatureIonIndexMatch._create(self.glycan_to_key, result)
-
-
 
 
 @cython.freelist(1000)
@@ -298,12 +310,37 @@ cdef class OxoniumIndex(object):
     back to individual glycan compositions.
     '''
 
-    def __init__(self, fragments=None, fragment_index=None, glycan_to_index=None):
+    def __init__(self, fragments=None, fragment_index=None, glycan_to_index=None, index_to_simplified_index=None):
         self.fragments = fragments or []
         self.fragment_index = fragment_index or {}
         self.glycan_to_index = glycan_to_index or {}
-        self.index_to_glycan = {v: k for k, v in self.glycan_to_index.items()}
-        self.index_to_simplified_index = None
+        self.index_to_glycan = self.invert_glycan_index()
+        self.index_to_simplified_index = index_to_simplified_index or {}
+
+    def invert_glycan_index(self):
+        cdef:
+            PyObject* tmp
+            PyObject* pkey
+            PyObject* pval
+            Py_ssize_t pos
+            list acc
+            list id_bucket
+            dict index_to_glycan
+
+        pos = 0
+        index_to_glycan = {}
+        while PyDict_Next(self.glycan_index, &pos, &pkey, &pval):
+            id_bucket = <list>pval
+            key = <object>pkey
+            for val in id_bucket:
+                tmp = PyDict_GetItem(index_to_glycan, val)
+                if tmp == NULL:
+                    acc = []
+                    PyDict_SetItem(index_to_glycan, val, acc)
+                else:
+                    acc = <list>tmp
+                acc.append(key)
+        return index_to_glycan
 
     def _make_glycopeptide_stub(self, glycan_composition):
         p = PeptideSequence("P%s" % glycan_composition)
@@ -313,13 +350,20 @@ cdef class OxoniumIndex(object):
         cdef:
             PyObject* tmp
             list acc
+            list id_bucket
             dict fragments, fragment_index, glycan_index
 
         fragments = {}
         fragment_index = {}
         glycan_index = {}
         for gc_rec in glycan_composition_records:
-            glycan_index[gc_rec.composition] = gc_rec.id
+            tmp = PyDict_GetItem(glycan_index, gc_rec.composition)
+            if tmp == NULL:
+                id_bucket = []
+                PyDict_SetItem(glycan_index, gc_rec.composition, id_bucket)
+            else:
+                id_bucket = <list>tmp
+            id_bucket.append(gc_rec.id)
 
             p = self._make_glycopeptide_stub(gc_rec.composition)
             for frag in p.glycan_fragments(**kwargs):
@@ -335,7 +379,7 @@ cdef class OxoniumIndex(object):
         self.glycan_to_index = glycan_index
         self.fragment_index = fragment_index
         self.fragments = sorted(fragments.values(), key=lambda x: x.mass)
-        self.index_to_glycan = {v: k for k, v in self.glycan_to_index.items()}
+        self.index_to_glycan = self.invert_glycan_index()
         self.simplify()
 
     cpdef OxoniumIndexMatch match(self, DeconvolutedPeakSet spectrum, double error_tolerance):
@@ -362,7 +406,6 @@ cdef class OxoniumIndex(object):
                         PyDict_SetItem(match_index, key, acc)
                     else:
                         acc = <list>tmp
-                    # acc.append((fragment, peak.index.neutral_mass))
                     acc.append(PeakFragmentPair._create_simple(peak, fragment))
         return OxoniumIndexMatch._create(match_index, self.glycan_to_index, self.index_to_simplified_index)
 
