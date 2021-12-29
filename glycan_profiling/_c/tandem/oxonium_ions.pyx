@@ -18,19 +18,18 @@ import warnings
 
 from collections import defaultdict
 
-
+import glypy
 from glycopeptidepy import PeptideSequence
 from glypy.structure.glycan_composition import FrozenMonosaccharideResidue
 from glycopeptidepy.structure.glycan import GlycanCompositionProxy as _GlycanCompositionProxy
 
-from_iupac_lite = FrozenMonosaccharideResidue.from_iupac_lite
-
+cdef object from_iupac_lite = FrozenMonosaccharideResidue.from_iupac_lite
 cdef object warn = warnings.warn
 cdef object GlycanCompositionProxy = _GlycanCompositionProxy
 
 cdef class SignatureSpecification(object):
     def __init__(self, components, masses):
-        self.components = tuple(from_iupac_lite(k) for k in components)
+        self.components = tuple(FrozenMonosaccharideResidue.from_iupac_lite(k) for k in components)
         self.masses = tuple(masses)
         self._hash = hash(self.components)
         self._is_compound = len(self.masses) > 1
@@ -206,7 +205,7 @@ cdef class SignatureIonIndexMatch:
         key = str(glycan_composition)
         tmp = PyDict_GetItem(self.glycan_to_key, key)
         if tmp == NULL:
-            warn("{} not found in signature ion index".format(key))
+            warnings.warn("{} not found in signature ion index".format(key))
             return None
         key = <object>tmp
         tmp = PyDict_GetItem(self.key_to_record, key)
@@ -329,7 +328,7 @@ cdef class OxoniumIndex(object):
 
         pos = 0
         index_to_glycan = {}
-        while PyDict_Next(self.glycan_index, &pos, &pkey, &pval):
+        while PyDict_Next(self.glycan_to_index, &pos, &pkey, &pval):
             id_bucket = <list>pval
             key = <object>pkey
             for val in id_bucket:
@@ -439,7 +438,8 @@ cdef class OxoniumIndex(object):
                 acc.append(new_id)
 
             for member in members:
-                new_glycan_index[self.index_to_glycan[member]] = new_id
+                for key_for_member in self.index_to_glycan[member]:
+                    new_glycan_index[key_for_member] = new_id
                 secondary_index[member] = new_id
 
         self.index_to_simplified_index = secondary_index
