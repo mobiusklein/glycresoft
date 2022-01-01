@@ -1,3 +1,4 @@
+from array import array
 from collections import Counter, deque
 
 import numpy as np
@@ -627,25 +628,24 @@ class Chromatogram(Base, BoundToAnalysis):
 
     def _weighted_neutral_mass_query(self, session):
         all_intensity_mass = session.execute(_weighted_neutral_mass_stmt, dict(id=self.id)).fetchall()
-
-        arr = np.array(all_intensity_mass)
-        mass = arr[:, 1]
-        shift_ids = arr[:, 2].astype(int)
-        distinct_shifts = set(shift_ids)
-        for i in distinct_shifts:
-            shift = session.query(CompoundMassShift).get(i)
-            if shift is None:
-                # Somehow this might still be None?
-                shift = {s.id: s for s in session.query(CompoundMassShift).all()}[i]
-            mass[shift_ids == i] -= shift.convert().mass
-        intensity = arr[:, 0]
-        return mass.dot(intensity) / intensity.sum()
+        shift_ids = {}
+        acc_mass = 0.0
+        acc_intensity = 0.0
+        shift_ids = {}
+        for intensity, mass, shift_id in all_intensity_mass:
+            try:
+                delta_mass = shift_ids[shift_id]
+            except KeyError:
+                delta_mass = shift_ids[shift_id] = session.query(CompoundMassShift).get(shift_id).convert().mass
+            acc_mass += (mass - delta_mass) * intensity
+            acc_intensity += intensity
+        return acc_mass / acc_intensity
 
     def _as_array_query(self, session):
         all_intensities = session.execute(_as_arrays_stmt, dict(id=self.id)).fetchall()
 
-        time = []
-        signal = []
+        time = array('d')
+        signal = array('d')
         current_signal = all_intensities[0][0]
         current_time = all_intensities[0][1]
 
