@@ -708,6 +708,14 @@ class PeptideGroupChromatogramFeatureizer(FactorChromatogramFeatureizer, Peptide
             peptide = self.get_peptide_key(peptide)
         return peptide in self._peptide_to_indicator
 
+    def predict_component_times(self, chromatogram):
+        y_gp = self.predict(chromatogram)
+        deglyco = chromatogram.copy()
+        deglyco.glycan_composition.clear()
+        y_p = self.predict(deglyco)
+        y_g = y_gp - y_p
+        return y_p, y_g
+
 
 class PeptideFactorElutionTimeFitter(PeptideGroupChromatogramFeatureizer, FactorElutionTimeFitter):
     def __init__(self, chromatograms, factors=None, scale=1, transform=None, width_range=None, regularize=False):
