@@ -521,6 +521,11 @@ class RuleBasedFDREstimator(object):
 
     def prepare(self):
         self.target_scores = np.array([self.rt_model.score_interval(p, 0.01) for p in self.chromatograms])
+        self.target_times = np.array([p.apex_time for p in self.chromatograms])
+        self.target_predictions = np.array([
+            self.rt_model.predict(p) for p in self.chromatograms
+        ])
+        self.target_residuals = self.target_times - self.target_predictions
         decoy_scores = []
         decoy_is_valid = []
         for p in self.chromatograms:
@@ -531,6 +536,13 @@ class RuleBasedFDREstimator(object):
                 decoy_scores.append(self.rt_model.score_interval(p, 0.01))
             else:
                 decoy_scores.append(np.nan)
+
+        self.decoy_times = np.array([p.apex_time for p in self.decoy_chromatograms])
+        self.decoy_predictions = np.array([
+            self.rt_model.predict(p) for p in self.decoy_chromatograms
+        ])
+        self.decoy_residuals = self.decoy_times - self.decoy_predictions
+
 
         self.decoy_scores = np.array(decoy_scores)
         self.decoy_is_valid = np.array(decoy_is_valid)
@@ -564,7 +576,11 @@ class RuleBasedFDREstimator(object):
         state = {
             "estimator": self.estimator,
             "target_scores": self.target_scores,
+            "target_predictions": self.target_predictions,
+            "target_times": self.target_times,
             "decoy_scores": self.decoy_scores,
+            "decoy_predictions": self.decoy_predictions,
+            "decoy_times": self.decoy_times,
             "decoy_is_valid": self.decoy_is_valid,
             "rule": self.rule
         }
@@ -576,6 +592,15 @@ class RuleBasedFDREstimator(object):
         self.decoy_scores = state['decoy_scores']
         self.decoy_is_valid = state['decoy_is_valid']
         self.rule = state['rule']
+
+        self.target_times = state.get("target_times", np.array([]))
+        self.target_predictions = state.get("target_predictions", np.array([]))
+
+        self.decoy_times = state.get("decoy_times", np.array([]))
+        self.decoy_predictions = state.get("decoy_predictions", np.array([]))
+
+        self.target_residuals = self.target_times - self.target_predictions
+        self.decoy_residuals = self.decoy_times - self.decoy_predictions
 
         self.rt_model = None
         self.chromatograms = None
