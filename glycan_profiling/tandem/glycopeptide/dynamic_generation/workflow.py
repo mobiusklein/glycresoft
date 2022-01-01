@@ -387,6 +387,10 @@ class MultipartGlycopeptideIdentifier(TaskBase):
         if had_error:
             message = "%d unrecoverable error%s occured during search!" % (
                 had_error, 's' if had_error > 1 else '')
+            pipeline.stop()
+            common_queue.close()
+            common_queue.cancel_join_thread()
+            self.log("Terminating search pipeline")
             raise Exception(message)
         total = 0
         for branch in execution_branches:
