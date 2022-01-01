@@ -5,6 +5,11 @@ import json
 from io import BytesIO
 from functools import total_ordering
 
+try:
+    import cPickle as pickle
+except ImportError:
+    import pickle
+
 from six import string_types as basestring
 
 import sqlalchemy
@@ -245,13 +250,20 @@ class JSONType(TypeDecorator):
 
     def process_bind_param(self, value, dialect):
         if value is not None:
-            value = json.dumps(value)
+            value = "J" + json.dumps(value)
 
         return value
 
     def process_result_value(self, value, dialect):
         if value is not None:
-            value = json.loads(value)
+            if isinstance(value, bytes):
+                # NOTE: This should only happen when loading a database originally written in Py2?
+                if value.startswith(b"J"):
+                    value = json.loads(value[1:].decode('utf8'))
+                else:
+                    value = pickle.loads(value)
+            else:
+                value = json.loads(value[1:])
         return value
 
 

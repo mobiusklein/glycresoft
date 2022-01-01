@@ -9,7 +9,7 @@ from sqlalchemy.orm import (
 from sqlalchemy.ext.hybrid import hybrid_property, hybrid_method
 from sqlalchemy import (
     Column, Numeric, Integer, String, ForeignKey, PickleType,
-    Boolean, Table, Text, Index, select)
+    Text, Index, select)
 from sqlalchemy.ext.mutable import MutableDict, MutableList
 
 from glycan_profiling.serialize.base import (
@@ -326,9 +326,9 @@ class Peptide(PeptideBase, HasChemicalComposition, Base):
     sequence_length = Column(Integer)
 
     peptide_modifications = Column(String(128))
-    n_glycosylation_sites = Column(MutableList.as_mutable(PickleType))
-    o_glycosylation_sites = Column(MutableList.as_mutable(PickleType))
-    gagylation_sites = Column(MutableList.as_mutable(PickleType))
+    n_glycosylation_sites = Column(MutableList.as_mutable(JSONType))
+    o_glycosylation_sites = Column(MutableList.as_mutable(JSONType))
+    gagylation_sites = Column(MutableList.as_mutable(JSONType))
 
     hypothesis = relationship(GlycopeptideHypothesis, backref=backref('peptides', lazy='dynamic'))
 
