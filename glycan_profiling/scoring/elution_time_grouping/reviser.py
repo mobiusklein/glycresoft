@@ -420,12 +420,19 @@ AmmoniumMaskedRule = RevisionRule(
     HashableGlycanComposition(Hex=-1, Fuc=-1, Neu5Ac=1),
     mass_shift_rule=MassShiftRule(Ammonium, 1), priority=1, name="Ammonium Masked")
 
+AmmoniumMaskedNeuGcRule = RevisionRule(
+    HashableGlycanComposition(Hex=-2, Neu5Gc=1),
+    mass_shift_rule=MassShiftRule(Ammonium, 1), priority=1, name="Ammonium Masked NeuGc")
+
 # The correct glycan was incorrectly assigned as the ammonium adducted form of another
 # glycan
 AmmoniumUnmaskedRule = RevisionRule(
     HashableGlycanComposition(Hex=1, Fuc=1, Neu5Ac=-1),
     mass_shift_rule=MassShiftRule(Ammonium, -1), priority=1, name="Ammonium Unmasked")
 
+AmmoniumUnmaskedNeuGcRule = RevisionRule(
+    HashableGlycanComposition(Hex=2, Neu5Gc=-1),
+    mass_shift_rule=MassShiftRule(Ammonium, -1), priority=1, name="Ammonium Unmasked NeuGc")
 
 # The correct glycan was incorrectly assigned identified because of an error in monoisotopic peak
 # assignment.
@@ -572,6 +579,16 @@ class RuleBasedFDREstimator(object):
         ax.set_xlim(-0.01, 1)
         return ax
 
+    def __repr__(self):
+        template = "{self.__class__.__name__}({self.rule})"
+        return template.format(self=self)
+
+    def get_interval_masks(self):
+        spans = [mod for mod in self.rt_model.models.values()]
+        centers = [s.centroid for s in spans]
+        masks = [list(map(span.contains, self.target_times)) for span in spans]
+        return masks, centers
+
     def __getstate__(self):
         state = {
             "estimator": self.estimator,
@@ -606,3 +623,26 @@ class RuleBasedFDREstimator(object):
         self.chromatograms = None
         self.decoy_chromatograms = None
         self.valid_glycans = None
+
+
+def make_normalized_monotonic_bell(X, Y):
+    center = np.abs(X).argmin()
+    Ynew = np.zeros_like(Y)
+    last_y = None
+    for i in range(center, X.size):
+        if last_y is None:
+            last_y = Y[i]
+        if Y[i] > last_y:
+            last_y = Y[i]
+        Ynew[i] = last_y
+    Ynew[center:][Ynew[center:] == Ynew[center:].max()] /= Ynew[center:].max()
+
+    last_y = None
+    for i in range(center, -1, -1):
+        if last_y is None:
+            last_y = Y[i]
+        if Y[i] > last_y:
+            last_y = Y[i]
+        Ynew[i] = last_y
+    Ynew[:center][Ynew[:center] == Ynew[:center].max()] /= Ynew[:center].max()
+    return Ynew
