@@ -40,6 +40,7 @@ from .reviser import (IntervalModelReviser, IsotopeRule, AmmoniumMaskedRule,
                       IsotopeRule2, HexNAc2Fuc1NeuAc2ToHex7, PhosphateToSulfateRule,
                       SulfateToPhosphateRule, Sulfate1HexNAc2ToHex3Rule,
                       Hex3ToSulfate1HexNAc2Rule, HexNAc2NeuAc2ToHex6Deoxy,
+                      AmmoniumMaskedNeuGcRule, AmmoniumUnmaskedNeuGcRule,
                       PeptideYUtilizationPreservingRevisionValidator,
                       modify_rules, RevisionRuleList, RuleBasedFDREstimator)
 
@@ -1055,6 +1056,30 @@ class ModelEnsemble(PeptideBackboneKeyedMixin, IntervalScoringMixin):
             raise ValueError("Width range cannot be NaN")
         return self
 
+    def plot_number_of_training_points(self, ax=None):
+        if ax is None:
+            _fig, ax = plt.subplots(1)
+        ts, n_pts = zip(*[(k, v.data.shape[0]) for k, v in self.models.items()])
+        ax.plot(ts, n_pts, marker='.', markersize=7,
+                color='teal',
+                markerfacecolor='mediumspringgreen',
+                markeredgecolor='mediumaquamarine')
+
+        def nearest_multiple_of_ten(value):
+            return round(value / 10) * 10
+
+        ax.spines['top'].set_visible(False)
+        ax.spines['right'].set_visible(False)
+
+        tick_multiple = (nearest_multiple_of_ten(max(n_pts)) // 3)
+        if tick_multiple <= 0:
+            tick_multiple = 5
+
+        ax.yaxis.set_major_locator(plt.MultipleLocator(tick_multiple))
+        ax.set_ylabel("# of Data Points", size=14)
+        ax.set_xlabel("Time", size=14)
+        return ax
+
     def plot_factor_coefficients(self, ax=None):
         if ax is None:
             _fig, ax = plt.subplots(1)
@@ -1094,7 +1119,7 @@ class ModelEnsemble(PeptideBackboneKeyedMixin, IntervalScoringMixin):
             line = ax.plot(xval, yval, label=factor, marker='.', color=c)
             ax.fill_between(xval, yval - ci_width, yval + ci_width,
                             color=c, alpha=0.25)
-        ax.set_xlabel("Chromatographic Apex Time", size=14)
+        ax.set_xlabel("Time", size=14)
         ax.set_ylabel("Local Average Factor Coefficient", size=14)
         ax.legend(loc='upper left', frameon=False, bbox_to_anchor=(1.0, 1.0))
         ax.spines['top'].set_visible(False)
@@ -1108,7 +1133,7 @@ class ModelEnsemble(PeptideBackboneKeyedMixin, IntervalScoringMixin):
         apex_time = self._summary_statistics['apex_time_array']
         residuals = self._summary_statistics['residuals_array']
         ax.scatter(apex_time, residuals, s=15, edgecolors='black', alpha=0.5, color='teal')
-        ax.set_xlabel("Chromatographic Apex Time", size=14)
+        ax.set_xlabel("Time", size=14)
         ax.set_ylabel("Residuals", size=14)
         ax.spines['top'].set_visible(False)
         ax.spines['right'].set_visible(False)
@@ -1246,8 +1271,8 @@ class EnsembleBuilder(TaskBase):
                     obs = sorted(filter(predicate, extra), key=lambda x: x.apex_time)
                     m = models[point] = model_type(obs, self.aggregator.factors, regularize=regularize)
                     offset += 1
-                self.log("... Borrowed %d observations from regions %d steps away for region centered on %0.3f (%d members, %r)" % (
-                    len(extra - set(members)), offset, point, len(members), m.data.shape))
+                # self.log("... Borrowed %d observations from regions %d steps away for region centered on %0.3f (%d members, %r)" % (
+                #     len(extra - set(members)), offset, point, len(members), m.data.shape))
                 m = models[point]
 
             m.fit(resample=resample)
@@ -1619,6 +1644,8 @@ class GlycopeptideElutionTimeModelBuildingPipeline(TaskBase):
         return RevisionRuleList([
             AmmoniumMaskedRule,
             AmmoniumUnmaskedRule,
+            AmmoniumMaskedNeuGcRule,
+            AmmoniumUnmaskedNeuGcRule,
             IsotopeRule,
             IsotopeRule2,
             HexNAc2NeuAc2ToHex6AmmoniumRule,
