@@ -7,6 +7,7 @@ import io
 from numbers import Number
 from collections import defaultdict, OrderedDict, namedtuple
 from functools import partial
+from glycopeptidepy.structure.sequence.implementation import PeptideSequence
 
 import numpy as np
 from scipy import stats
@@ -959,6 +960,29 @@ class ModelEnsemble(PeptideBackboneKeyedMixin, IntervalScoringMixin):
     def has_peptide(self, chromatogram):
         return any(m.has_peptide(chromatogram) for m in self._models)
 
+    def estimate_query_point(self, glycopeptide):
+        if isinstance(glycopeptide, str):
+            key = str(PeptideSequence(glycopeptide).deglycosylate())
+            glycopeptide = PeptideSequence(glycopeptide)
+            case = GlycopeptideChromatogramProxy(
+                glycopeptide.total_mass,
+                -1, 1, glycopeptide.glycan_composition, structure=glycopeptide)
+        elif isinstance(glycopeptide, PeptideSequence):
+            key = str(glycopeptide.clone().deglycosylate())
+            case = GlycopeptideChromatogramProxy(
+                glycopeptide.total_mass,
+                -1, 1, glycopeptide.glycan_composition, structure=glycopeptide)
+        else:
+            key = self.get_peptide_key(glycopeptide)
+            case = glycopeptide.clone()
+        preds = []
+        for t, mod in self.models.items():
+            if mod.has_peptide(key):
+                preds.append(mod.predict(case))
+        query_point = np.nanmedian(preds)
+        case.apex_time = query_point
+        return case
+
     def predict_interval_external_peptide(self, chromatogram, alpha=0.05, merge=True):
         key = self.get_peptide_key(chromatogram)
         offset = self.external_peptide_offsets[key]
@@ -1158,6 +1182,20 @@ class ModelEnsemble(PeptideBackboneKeyedMixin, IntervalScoringMixin):
         error_from_nearest_interval_edge = np.clip(centroid_error - widths[:, None], 0, np.inf).min(axis=1)
         mean_error = np.nanmean(error_from_nearest_interval_edge)
         return mean_error
+
+    def _reconstitute_proxies(self):
+        proxies = []
+
+        summary_values = self._summary_statistics
+
+        for i, (label, mass_shifts) in enumerate(summary_values['labels']):
+            gp = FragmentCachingGlycopeptide(label)
+            gc = gp.glycan_composition
+            apex_time = summary_values['apex_time_array'][i]
+            proxies.append(
+                GlycopeptideChromatogramProxy(
+                    gp.total_mass, apex_time, 1.0, gc, mass_shift=mass_shifts, structure=gp))
+        return proxies
 
 
 def unmodified_modified_predicate(x):
