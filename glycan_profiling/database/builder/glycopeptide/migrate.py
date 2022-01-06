@@ -167,7 +167,7 @@ class GlycopeptideHypothesisMigrator(DatabaseBoundOperation, TaskBase):
         reverse_map = {}
         n = len(glycopeptides)
         for i, glycopeptide in enumerate(glycopeptides):
-            if i % 15000 == 0:
+            if i % 50000 == 0:
                 self.log("... Migrating Glycopeptide %d/%d (%0.2f%%)" % (i, n, i * 100.0 / n))
             new_inst = Glycopeptide(
                 calculated_mass=glycopeptide.calculated_mass,

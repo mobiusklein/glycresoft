@@ -1382,9 +1382,9 @@ class SpectrumMatchUpdater(TaskBase):
                 keep.append(r)
 
         for invalid in invalidated:
-            self.log("... Invalidated alternative solution %s (%0.2f) for %s (%0.2f)" % (
-                invalid, alternative_rt_scores[invalid], revised_structure,
-                revised_rt_score))
+            # self.log("... Invalidated alternative solution %s (%0.2f) for %s (%0.2f)" % (
+            #     invalid, alternative_rt_scores[invalid], revised_structure,
+            #     revised_rt_score))
             self.find_identical_peptides_and_mark(chromatogram, invalid)
 
         if not match:

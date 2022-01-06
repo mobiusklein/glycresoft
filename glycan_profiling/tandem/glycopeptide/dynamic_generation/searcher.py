@@ -171,12 +171,13 @@ class StructureMapper(TaskExecutionSequence):
                 return scan.source
 
     def _log_cache(self):
-        predictive_search = self.predictive_search
-        hits = predictive_search.peptide_glycosylator._cache_hit
-        misses = predictive_search.peptide_glycosylator._cache_miss
-        total = hits + misses
-        if total > 5000:
-            self.log("... Cache Performance: %d / %d (%0.2f%%)" % (hits, total, hits / float(total) * 100.0))
+        # predictive_search = self.predictive_search
+        # hits = predictive_search.peptide_glycosylator._cache_hit
+        # misses = predictive_search.peptide_glycosylator._cache_miss
+        # total = hits + misses
+        # if total > 5000:
+        #     self.log("... Cache Performance: %d / %d (%0.2f%%)" % (hits, total, hits / float(total) * 100.0))
+        pass
 
     def _prepare_scan(self, scan):
         try:

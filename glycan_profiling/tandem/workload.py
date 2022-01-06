@@ -413,7 +413,7 @@ class WorkloadManager(object):
             mass = scan.precursor_information.neutral_mass
             if mass < lo:
                 lo = mass
-            elif mass > hi:
+            if mass > hi:
                 hi = mass
         return (lo, hi)
 
