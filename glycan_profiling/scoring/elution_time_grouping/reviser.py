@@ -635,7 +635,12 @@ def make_normalized_monotonic_bell(X, Y):
         if Y[i] > last_y:
             last_y = Y[i]
         Ynew[i] = last_y
-    Ynew[center:][Ynew[center:] == Ynew[center:].max()] /= Ynew[center:].max()
+
+    try:
+        maximum = Ynew[center:].max()
+        Ynew[center:][Ynew[center:] == maximum] /= maximum
+    except ValueError:
+        pass
 
     last_y = None
     for i in range(center, -1, -1):
@@ -644,5 +649,136 @@ def make_normalized_monotonic_bell(X, Y):
         if Y[i] > last_y:
             last_y = Y[i]
         Ynew[i] = last_y
-    Ynew[:center][Ynew[:center] == Ynew[:center].max()] /= Ynew[:center].max()
+
+    try:
+        maximum = Ynew[:center].max()
+        Ynew[:center][Ynew[:center] == maximum] /= maximum
+    except ValueError:
+        pass
     return Ynew
+
+
+class ResidualFDREstimator(object):
+    def __init__(self, rules, rt_model=None, residual_mapper=None):
+        self.rules = rules
+        self.rt_model = rt_model
+        self.residual_mapper = residual_mapper
+        if residual_mapper is None:
+            self.fit()
+
+    def _extract_scores_from_rules(self):
+        rule = self.rules[0]
+        target_scores = rule.target_residuals[
+            ~np.isnan(rule.target_residuals)]
+        all_decoys = []
+        for rule in self.rules:
+            all_decoys.extend(rule.decoy_residuals[
+                ~np.isnan(rule.decoy_residuals) & rule.decoy_is_valid])
+        return target_scores, np.array(all_decoys)
+
+    def _extract_scores_from_model(self, rt_model, seed=1, n_resamples=1):
+        def dropna(array):
+            mask = ~np.isnan(array)
+            return array[mask]
+
+        rng = np.random.RandomState(seed)
+        decoys = np.array([])
+        for i in range(n_resamples):
+            decoys = np.concatenate((
+                decoys,
+                dropna(
+                    rt_model._summary_statistics['apex_time_array'] - rng.permutation(
+                        rt_model._summary_statistics['predicted_apex_time_array'].copy()))))
+
+        targets = dropna(rt_model._summary_statistics['residuals_array'])
+        return targets, decoys
+
+    def fit(self):
+        models = []
+        if self.rules:
+            fit_from_rules = self.fit_from_rules()
+            models.append(fit_from_rules)
+
+        if self.rt_model:
+            fit_from_rt_model = self.fit_from_rt_model()
+            models.append(fit_from_rt_model)
+        models.sort(key=lambda x: x.width_at_half_max())
+        model = models[0]
+        self.residual_mapper = model
+
+    def fit_from_rules(self):
+        from glycan_profiling.tandem.glycopeptide.dynamic_generation.multipart_fdr import FiniteMixtureModelFDREstimatorDecoyGaussian
+        target_scores, all_decoy_scores = self._extract_scores_from_rules()
+        fmm = FiniteMixtureModelFDREstimatorDecoyGaussian(all_decoy_scores, target_scores)
+        fmm.fit(max_target_components=3,
+                max_decoy_components=len(self.rules) * 2)
+        return PosteriorErrorToScore.from_model(fmm)
+
+    def fit_from_rt_model(self):
+        from glycan_profiling.tandem.glycopeptide.dynamic_generation.multipart_fdr import FiniteMixtureModelFDREstimatorDecoyGaussian
+        target_scores, all_decoy_scores = self._extract_scores_from_model(self.rt_model)
+        fmm = FiniteMixtureModelFDREstimatorDecoyGaussian(
+            all_decoy_scores, target_scores)
+        fmm.fit(max_target_components=3)
+        return PosteriorErrorToScore.from_model(fmm)
+
+    def __call__(self, value):
+        return self.residual_mapper(value)
+
+    def __reduce__(self):
+        return self.__class__, (self.rules, None, self.residual_mapper)
+
+    def __getitem__(self, i):
+        return self.rules[i]
+
+    def __len__(self):
+        return len(self.rules)
+
+    def __iter__(self):
+        return iter(self.rules)
+
+
+class PosteriorErrorToScore(object):
+
+    @classmethod
+    def from_model(cls, model, delta=0.1):
+        lo = min(model.target_scores.min(), model.decoy_scores.min())
+        hi = max(model.target_scores.max(), model.decoy_scores.max())
+        domain = np.arange(lo, hi + delta, delta)
+        return cls(model, domain)
+
+    def __init__(self, model, domain):
+        self.model = model
+        self.domain = domain
+        self.normalized_score = None
+        self.mapper = None
+        if self.model is not None:
+            self._create_normalized()
+
+    def _create_normalized(self):
+        from glycan_profiling.tandem.target_decoy import NearestValueLookUp
+        Y = self.model.estimate_posterior_error_probability(self.domain)
+        self.normalized_score = np.clip(1 - make_normalized_monotonic_bell(self.domain, Y), 0, 1)
+        self.mapper = NearestValueLookUp(zip(self.domain, self.normalized_score))
+
+    def __call__(self, value):
+        return self.mapper[value]
+
+    def __getstate__(self):
+        return {
+            "mapper": self.mapper,
+        }
+
+    def __setstate__(self, state):
+        self.mapper = state["mapper"]
+
+    def __reduce__(self):
+        return self.__class__, (None, None), self.__getstate__()
+
+    def at_half_max(self):
+        half_max = self.normalized_score.max() / 2
+        return self.domain[np.where(self.normalized_score > half_max)[0][[0, -1]]]
+
+    def width_at_half_max(self):
+        lo, hi = self.at_half_max()
+        return hi - lo
