@@ -26,7 +26,7 @@ from glycan_profiling.tandem.target_decoy import NearestValueLookUp, TargetDecoy
 from glycan_profiling.tandem.spectrum_match import SpectrumMatch
 from glycan_profiling.tandem.glycopeptide.core_search import approximate_internal_size_of_glycan
 
-from .mixture import GammaMixture, GaussianMixtureWithPriorComponent
+from .mixture import GammaMixture, GaussianMixture, GaussianMixtureWithPriorComponent
 from .journal import SolutionSetGrouper
 
 
@@ -57,61 +57,13 @@ def interpolate_from_zero(nearest_value_map, zero_value=1.0):
     return nearest_value_map.__class__(pairs)
 
 
-class FiniteMixtureModelFDREstimator(object):
-    min_score = 1
-
+class FiniteMixtureModelFDREstimatorBase(TaskBase):
     def __init__(self, decoy_scores, target_scores):
         self.decoy_scores = np.array(decoy_scores)
         self.target_scores = np.array(target_scores)
         self.decoy_mixture = None
         self.target_mixture = None
         self.fdr_map = None
-
-    def log(self, message):
-        print(message)
-
-    def estimate_gamma(self, max_components=10):
-        models = []
-        bics = []
-        n = len(self.decoy_scores)
-        np.random.seed(n)
-        if n < 10:
-            self.log("Too few decoy observations")
-            self.decoy_mixture = GammaMixture([1.0], [1.0], [1.0])
-            return self.decoy_mixture
-        for i in range(1, max_components + 1):
-            self.log("Fitting %d Components" % (i,))
-            model = GammaMixture.fit(self.decoy_scores, i)
-            bic = model.bic(self.decoy_scores)
-            models.append(model)
-            bics.append(bic)
-            self.log("BIC: %g" % (bic,))
-        i = np.argmin(bics)
-        self.log("Selected %d Components" % (i + 1,))
-        self.decoy_mixture = models[i]
-        return self.decoy_mixture
-
-    def estimate_gaussian(self, max_components=10):
-        models = []
-        bics = []
-        n = len(self.target_scores)
-        np.random.seed(n)
-        if n < 10:
-            self.log("Too few target observations")
-            self.target_mixture = GaussianMixtureWithPriorComponent([1.0], [1.0], self.decoy_mixture, [0.5, 0.5])
-            return self.target_mixture
-        for i in range(1, max_components + 1):
-            self.log("Fitting %d Components" % (i,))
-            model = GaussianMixtureWithPriorComponent.fit(
-                self.target_scores, i, self.decoy_mixture, deterministic=True)
-            bic = model.bic(self.target_scores)
-            models.append(model)
-            bics.append(bic)
-            self.log("BIC: %g" % (bic,))
-        i = np.argmin(bics)
-        self.log("Selected %d Components" % (i + 1,))
-        self.target_mixture = models[i]
-        return self.target_mixture
 
     def estimate_posterior_error_probability(self, X):
         return self.target_mixture.prior.score(X) * self.target_mixture.weights[
@@ -172,7 +124,8 @@ class FiniteMixtureModelFDREstimator(object):
         ax.set_xlabel("Score")
         ax2 = ax.twinx()
         ax2.set_ylabel("FDR")
-        line3 = ax2.plot(target_scores, fdr, label='FDR', color='grey', linestyle='--')
+        line3 = ax2.plot(target_scores, fdr, label='FDR',
+                         color='grey', linestyle='--')
         ax.legend(
             [line1[0], line2[0], line3[0], line4, line5],
             ['Target', 'Decoy', 'FDR', '5% FDR', '1% FDR'], frameon=False)
@@ -189,9 +142,13 @@ class FiniteMixtureModelFDREstimator(object):
         ax2.set_xlim(-1, hi)
         return ax
 
-    def fit(self, max_components=10):
-        self.estimate_gamma(max_components)
-        self.estimate_gaussian(max_components)
+    def fit(self, max_components=10, max_target_components=None, max_decoy_components=None):
+        if not max_target_components:
+            max_target_components = max_components
+        if not max_decoy_components:
+            max_decoy_components = max_components
+        self.estimate_decoy_distributions(max_decoy_components)
+        self.estimate_target_distributions(max_target_components)
         fdr = self.estimate_fdr(self.target_scores)
         self.fdr_map = NearestValueLookUp(zip(self.target_scores, fdr))
         # Since 0 is not in the domain of the model, we need to include it by interpolating from 1 to the smallest
@@ -199,6 +156,95 @@ class FiniteMixtureModelFDREstimator(object):
         if self.fdr_map.items[0][0] > 0:
             self.fdr_map = interpolate_from_zero(self.fdr_map)
         return self.fdr_map
+
+    def estimate_fdr(self, X):
+        X_ = np.array(sorted(X, reverse=True))
+        pep = self.estimate_posterior_error_probability(X_)
+        # The FDR is the expected value of PEP, or the average PEP in this case.
+        # The expression below is a cumulative mean (the cumulative sum divided
+        # by the number of elements in the sum)
+        fdr = np.cumsum(pep) / np.arange(1, len(X_) + 1)
+        # Use searchsorted on the ascending ordered version of X_
+        # to find the indices of the origin values of X, then map
+        # those into the ascending ordering of the FDR vector to get
+        # the FDR estimates of the original X
+        fdr[np.isnan(fdr)] = 1.0
+        fdr_descending = fdr[::-1]
+        for i in range(1, fdr_descending.shape[0]):
+            if fdr_descending[i - 1] < fdr_descending[i]:
+                fdr_descending[i] = fdr_descending[i - 1]
+        fdr = fdr_descending[::-1]
+        fdr = fdr[::-1][np.searchsorted(X_[::-1], X)]
+        return fdr
+
+    def _select_best_number_of_components(self, max_components, fitter, scores, **kwargs):
+        models = []
+        bics = []
+        for i in range(1, max_components + 1):
+            self.debug("Fitting %d Components" % (i,))
+            iteration_kwargs = kwargs.copy()
+            iteration_kwargs['n_components'] = i
+            model = fitter(scores, **iteration_kwargs)
+            bic = model.bic(scores)
+            models.append(model)
+            bics.append(bic)
+            self.debug("BIC: %g" % (bic,))
+        i = np.argmin(bics)
+        self.debug("Selected %d Components" % (i + 1,))
+        return models[i]
+
+    def estimate_decoy_distributions(self, max_components=10):
+        raise NotImplementedError()
+
+    def estimate_target_distributions(self, max_components=10):
+        n = len(self.target_scores)
+        np.random.seed(n)
+        if n < 10:
+            self.log("Too few target observations")
+            self.target_mixture = GaussianMixtureWithPriorComponent(
+                [1.0], [1.0], self.decoy_mixture, [0.5, 0.5])
+            return self.target_mixture
+        self.target_mixture = self._select_best_number_of_components(
+            max_components,
+            GaussianMixtureWithPriorComponent.fit,
+            self.target_scores,
+            prior=self.decoy_mixture,
+            deterministic=True)
+        return self.target_mixture
+
+
+class FiniteMixtureModelFDREstimatorDecoyGamma(FiniteMixtureModelFDREstimatorBase):
+
+    def estimate_decoy_distributions(self, max_components=10):
+        n = len(self.decoy_scores)
+        np.random.seed(n)
+        if n < 10:
+            self.log("Too few decoy observations")
+            self.decoy_mixture = GammaMixture([1.0], [1.0], [1.0])
+            return self.decoy_mixture
+
+        self.decoy_mixture = self._select_best_number_of_components(
+            max_components, GammaMixture.fit, self.decoy_scores)
+        return self.decoy_mixture
+
+
+class FiniteMixtureModelFDREstimatorDecoyGaussian(FiniteMixtureModelFDREstimatorBase):
+
+    def estimate_decoy_distributions(self, max_components=10):
+        n = len(self.decoy_scores)
+        np.random.seed(n)
+        if n < 10:
+            self.log("Too few decoy observations")
+            self.decoy_mixture = GaussianMixture([1.0], [1.0], [1.0])
+            return self.decoy_mixture
+
+        self.decoy_mixture = self._select_best_number_of_components(
+            max_components, GaussianMixture.fit, self.decoy_scores)
+        return self.decoy_mixture
+
+
+
+FiniteMixtureModelFDREstimator = FiniteMixtureModelFDREstimatorDecoyGamma
 
 
 class GlycanSizeCalculator(object):
@@ -221,6 +267,7 @@ class GlycanSizeCalculator(object):
 class GlycopeptideFDREstimator(TaskBase):
     display_fields = False
     minimum_glycan_size = 3
+    minimum_score = 1
 
     def __init__(self, groups, strategy=None):
         if strategy is None:
@@ -249,9 +296,9 @@ class GlycopeptideFDREstimator(TaskBase):
 
         glycan_fdr = FiniteMixtureModelFDREstimator(
             decoy_glycan_scores[(size_mask > self.minimum_glycan_size) & (
-                decoy_glycan_scores > FiniteMixtureModelFDREstimator.min_score)],
-            target_scores=target_glycan_scores[target_glycan_scores > FiniteMixtureModelFDREstimator.min_score])
-        glycan_fdr.log = noop
+                decoy_glycan_scores > self.minimum_score)],
+            target_scores=target_glycan_scores[target_glycan_scores > self.minimum_score])
+
         glycan_fdr.fit()
 
         glycan_fdr_mapping = NearestValueLookUp(zip(glycan_fdr.estimate_fdr(glycan_fdr.target_scores),
@@ -291,9 +338,9 @@ class GlycopeptideFDREstimator(TaskBase):
         decoy_total_scores = np.array([t.score_set.glycopeptide_score for t in dd_gpsms])
 
         glycopeptide_fdr = FiniteMixtureModelFDREstimator(
-            decoy_total_scores[decoy_total_scores > 1],
-            target_total_scores[target_total_scores > 1])
-        glycopeptide_fdr.log = noop
+            decoy_total_scores[decoy_total_scores > self.minimum_score],
+            target_total_scores[target_total_scores > self.minimum_score])
+
         glycopeptide_fdr.fit()
 
         glycopeptide_fdr_mapping = NearestValueLookUp(zip(glycopeptide_fdr.estimate_fdr(glycopeptide_fdr.target_scores),
