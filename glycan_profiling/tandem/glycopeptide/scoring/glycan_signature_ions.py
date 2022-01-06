@@ -9,8 +9,9 @@ from glypy.structure.glycan_composition import (
 from glycopeptidepy.structure.glycan import GlycanCompositionProxy
 
 from glycan_profiling.structure import SpectrumGraph
+from glycan_profiling.task import log_handle
 
-from glycan_profiling.tandem.oxonium_ions import SignatureSpecification, single_signatures, compound_signatures
+from glycan_profiling.tandem.oxonium_ions import single_signatures, compound_signatures
 
 from .base import GlycopeptideSpectrumMatcherBase
 
@@ -45,16 +46,20 @@ class GlycanCompositionSignatureMatcher(GlycopeptideSpectrumMatcherBase):
     def match(self, error_tolerance=2e-5, rare_signatures=False, *args, **kwargs):
         if len(self.spectrum) == 0:
             return
-        self.maximum_intensity = self.base_peak()
+
         gc = self.glycan_composition
         annotations = self.scan.annotations
         if "signature_index_match" in annotations:
             signature_index = annotations['signature_index_match']
             record = signature_index.record_for(gc)
             if record is not None:
+                self.maximum_intensity = signature_index.base_peak_intensity
                 self.expected_matches = record.expected_matches
                 self.unexpected_matches = record.unexpected_matches
                 return
+            else:
+                log_handle.log("No signature ion index entry found for %s in %s" % (gc, self.scan_id))
+        self.maximum_intensity = self.base_peak()
         spectrum = self.spectrum
 
         for mono in self.signatures:
@@ -153,7 +158,7 @@ class GlycanCompositionSignatureMatcher(GlycopeptideSpectrumMatcherBase):
     def oxonium_ion_utilization(self):
         utilization = 0.0
         for signature, matched in self.expected_matches.items():
-            if matched is None:
+            if matched is None or ((matched.intensity / self.maximum_intensity) < 0.01):
                 comp = 10 * np.log10(1 - self.estimate_missing_ion_importance(signature))
                 if np.isnan(comp):
                     comp = -20
