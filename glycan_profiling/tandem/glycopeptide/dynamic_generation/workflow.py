@@ -557,7 +557,6 @@ class IdentificationWorker(TaskExecutionSequence):
         if isinstance(self.target_predictive_search, (str, bytes)):
             self.target_predictive_search, self.decoy_predictive_search = pickle.loads(zlib.decompress(self.target_predictive_search))
 
-        self.log("... Compiling oxonium ion index")
         oxonium_ion_index = OxoniumIndex()
         oxonium_ion_index.build_index(
             self.target_predictive_search.peptide_glycosylator.glycan_combinations, oxonium=True)
@@ -570,9 +569,9 @@ class IdentificationWorker(TaskExecutionSequence):
             self.target_predictive_search.peptide_glycosylator.glycan_combinations)
 
         self.target_predictive_search.oxonium_ion_index = oxonium_ion_index
-        self.target_predictive_search.signature_index = signature_index
+        self.target_predictive_search.signature_ion_index = signature_index
         self.decoy_predictive_search.oxonium_ion_index = oxonium_ion_index
-        self.decoy_predictive_search.signature_index = signature_index
+        self.decoy_predictive_search.signature_ion_index = signature_index
 
         mapping_executor = SemaphoreBoundMapperExecutor(
             MultiLock([
