@@ -1,6 +1,7 @@
 import operator
 import logging
 
+from typing import List, TypeVar, Generic, Sequence
 from abc import ABCMeta, abstractmethod, abstractproperty
 
 try:
@@ -20,32 +21,35 @@ logger = logging.getLogger(__name__)
 logger.addHandler(logging.NullHandler())
 
 
+T = TypeVar("T")
+
+
 @add_metaclass(ABCMeta)
-class SearchableMassCollection(object):
+class SearchableMassCollection(Generic[T]):
     def __len__(self):
         return len(self.structures)
 
     def __iter__(self):
         return iter(self.structures)
 
-    def __getitem__(self, index):
+    def __getitem__(self, index) -> T:
         return self.structures[index]
 
     def _convert(self, bundle):
         return bundle
 
     @abstractproperty
-    def lowest_mass(self):
+    def lowest_mass(self) -> float:
         raise NotImplementedError()
 
     def reset(self, **kwargs):
         pass
 
     @abstractproperty
-    def highest_mass(self):
+    def highest_mass(self) -> float:
         raise NotImplementedError()
 
-    def search_mass_ppm(self, mass, error_tolerance):
+    def search_mass_ppm(self, mass: float, error_tolerance: float) -> List[T]:
         """Search for the set of all items in :attr:`structures` within `error_tolerance` PPM
         of the queried `mass`.
 
@@ -65,7 +69,7 @@ class SearchableMassCollection(object):
         return self.search_mass(mass, tol)
 
     @abstractmethod
-    def search_mass(self, mass, error_tolerance=0.1):
+    def search_mass(self, mass: float, error_tolerance: float=0.1) -> List[T]:
         raise NotImplementedError()
 
     def __repr__(self):
@@ -84,7 +88,7 @@ class SearchableMassCollection(object):
         pass
 
 
-class MassDatabase(SearchableMassCollection):
+class MassDatabase(SearchableMassCollection[T]):
     """A quick-to-search database of :class:`HashableGlycanComposition` instances
     stored in memory.
 
@@ -269,7 +273,7 @@ def identity(x):
     return x
 
 
-class _NeutralMassDatabase(SearchableMassCollection):
+class _NeutralMassDatabase(SearchableMassCollection[T]):
     def __init__(self, structures, mass_getter=operator.attrgetter("calculated_mass"), sort=True):
         self.mass_getter = mass_getter
         self.structures = self._prepare(structures, sort)
@@ -445,13 +449,13 @@ try:
     from glycan_profiling._c.database.mass_collection import (
         MassObject, NeutralMassDatabaseImpl as _NeutralMassDatabaseImpl)
 
-    class NeutralMassDatabase(_NeutralMassDatabaseImpl, _NeutralMassDatabase):
+    class NeutralMassDatabase(_NeutralMassDatabaseImpl, _NeutralMassDatabase[T]):
         pass
 except ImportError:
     NeutralMassDatabase = _NeutralMassDatabase
 
 
-class ConcatenatedDatabase(SearchableMassCollection):
+class ConcatenatedDatabase(SearchableMassCollection[T]):
     def __init__(self, databases):
         self.databases = list(databases)
 
@@ -503,7 +507,7 @@ class ConcatenatedDatabase(SearchableMassCollection):
         return sum(map(len, self.databases))
 
 
-class SearchableMassCollectionWrapper(SearchableMassCollection):
+class SearchableMassCollectionWrapper(SearchableMassCollection[T]):
 
     @property
     def highest_mass(self):
@@ -545,12 +549,12 @@ class SearchableMassCollectionWrapper(SearchableMassCollection):
         return self.searchable_mass_collection.query(*args, **kwargs)
 
 
-class TransformingMassCollectionAdapter(SearchableMassCollectionWrapper):
+class TransformingMassCollectionAdapter(SearchableMassCollectionWrapper[T]):
     def __init__(self, searchable_mass_collection, transformer):
         self.searchable_mass_collection = searchable_mass_collection
         self.transformer = transformer
 
-    def search_mass_ppm(self, mass, error_tolerance=1e-5):
+    def search_mass_ppm(self, mass: float, error_tolerance: float=1e-5) -> List[T]:
         result = self.searchable_mass_collection.search_mass_ppm(mass, error_tolerance)
         return [self.transformer(r) for r in result]
 
@@ -580,7 +584,7 @@ class TransformingMassCollectionAdapter(SearchableMassCollectionWrapper):
             self.searchable_mass_collection.search_between(lower, higher), self.transformer)
 
 
-class MassCollectionProxy(SearchableMassCollectionWrapper):
+class MassCollectionProxy(SearchableMassCollectionWrapper[T]):
     def __init__(self, resolver, session_resolver=None, hypothesis_id=None, hypothesis_resolver=None):
         self._searchable_mass_collection = None
         self._session = None
@@ -602,7 +606,6 @@ class MassCollectionProxy(SearchableMassCollectionWrapper):
     @property
     def session(self):
         if self._session is None and self.session_resolver is not None:
-            logger.info("Loading session from session resolver")
             self._session = self.session_resolver()
         if self._session is not None:
             return self._session
@@ -620,7 +623,7 @@ class MassCollectionProxy(SearchableMassCollectionWrapper):
             self._searchable_mass_collection = self.resolver()
         return self._searchable_mass_collection
 
-    def search_mass_ppm(self, mass, error_tolerance=1e-5):
+    def search_mass_ppm(self, mass: float, error_tolerance: float=1e-5) -> List[T]:
         result = self.searchable_mass_collection.search_mass_ppm(mass, error_tolerance)
         return result
 
@@ -651,15 +654,15 @@ class MassCollectionProxy(SearchableMassCollectionWrapper):
         self.hypothesis_resolver = dill.loads(state['hypothesis_resolver'])
         self._hypothesis_id = state['hypothesis_id']
 
-    def search_mass(self, mass, error_tolerance):  # pylint: disable=signature-differs
+    def search_mass(self, mass: float, error_tolerance: float) -> List[T]:  # pylint: disable=signature-differs
         result = self.searchable_mass_collection.search_mass(mass, error_tolerance)
         return result
 
-    def __getitem__(self, i):
+    def __getitem__(self, i) -> T:
         return self.searchable_mass_collection[i]
 
     def __iter__(self):
         return iter(self.searchable_mass_collection)
 
-    def search_between(self, lower, higher):
+    def search_between(self, lower: float, higher: float) -> List[T]:
         return self.searchable_mass_collection.search_between(lower, higher)
