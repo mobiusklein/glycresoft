@@ -31,9 +31,10 @@ cdef class SignatureIonIndexMatch:
     cdef:
         public dict glycan_to_key
         public dict key_to_record
+        public double base_peak_intensity
 
     @staticmethod
-    cdef SignatureIonIndexMatch _create(dict glycan_to_key, dict key_to_record)
+    cdef SignatureIonIndexMatch _create(dict glycan_to_key, dict key_to_record, double base_peak_intensity)
 
     cpdef SignatureIonMatchRecord record_for(self, object glycan_composition)
 

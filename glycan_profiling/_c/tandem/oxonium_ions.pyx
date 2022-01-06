@@ -10,6 +10,8 @@ from cpython cimport (
 
 from glypy._c.structure.glycan_composition cimport _CompositionBase
 from ms_deisotope._c.peak_set cimport DeconvolutedPeak, DeconvolutedPeakSet
+from ms_deisotope._c.utils cimport _peak_sequence_bp
+
 from glycopeptidepy._c.structure.fragment cimport SimpleFragment
 
 from glycan_profiling._c.structure.fragment_match_map cimport PeakFragmentPair
@@ -192,15 +194,16 @@ cdef class SignatureIonMatchRecord:
 @cython.freelist(2000)
 cdef class SignatureIonIndexMatch:
     @staticmethod
-    cdef SignatureIonIndexMatch _create(dict glycan_to_key, dict key_to_record):
+    cdef SignatureIonIndexMatch _create(dict glycan_to_key, dict key_to_record, double base_peak_intensity):
         cdef SignatureIonIndexMatch self = SignatureIonIndexMatch.__new__(SignatureIonIndexMatch)
         self.glycan_to_key = glycan_to_key
         self.key_to_record = key_to_record
+        self.base_peak_intensity = base_peak_intensity
         return self
 
     cpdef SignatureIonMatchRecord record_for(self, object glycan_composition):
         cdef:
-            str key
+            object key
             PyObject* tmp
         key = str(glycan_composition)
         tmp = PyDict_GetItem(self.glycan_to_key, key)
@@ -249,7 +252,10 @@ cdef class SignatureIonIndex:
             dict result
             object key, value
             SignatureIonMatchRecord record
+            DeconvolutedPeak peak
+            double base_peak_intensity
         result = {}
+        base_peak_intensity = 0.0
         pos = 0
         while PyDict_Next(self.key_to_representative, &pos, &pkey, &pval):
             if pkey != NULL:
@@ -258,7 +264,11 @@ cdef class SignatureIonIndex:
                 record = SignatureIonMatchRecord._create({}, {}, value)
                 record.match(self.signatures, spectrum, error_tolerance)
                 PyDict_SetItem(result, key, record)
-        return SignatureIonIndexMatch._create(self.glycan_to_key, result)
+
+        peak = _peak_sequence_bp(None, spectrum)
+        if peak is not None:
+            base_peak_intensity = peak.intensity
+        return SignatureIonIndexMatch._create(self.glycan_to_key, result, base_peak_intensity)
 
 
 @cython.freelist(1000)
