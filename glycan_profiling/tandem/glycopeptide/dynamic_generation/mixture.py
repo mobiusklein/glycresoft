@@ -117,6 +117,20 @@ class GaussianMixture(MixtureBase):
         inst.estimate(X, maxiter=maxiter, tol=tol)
         return inst
 
+    def _update_params_for(self, X, k, responsibility, new_mus, new_sigmas, new_weights):
+        # The expressions for each partial derivative may be useful for understanding
+        # portions of this block.
+        # See http://www.notenoughthoughts.net/posts/normal-log-likelihood-gradient.html
+        g = responsibility[:, k]
+        N_k = g.sum()
+        # Begin specialization for Gaussian distributions
+        diff = X - self.mus[k]
+        mu_k = g.dot(X) / N_k
+        new_mus[k] = mu_k
+        sigma_k = (g * diff).dot(diff.T) / N_k + 1e-6
+        new_sigmas[k] = np.sqrt(sigma_k)
+        new_weights[k] = N_k
+
     def estimate(self, X, maxiter=1000, tol=1e-5):
         for i in range(maxiter):
             # E-step
@@ -127,20 +141,10 @@ class GaussianMixture(MixtureBase):
             new_sigmas = np.zeros_like(self.sigmas)
             prev_loglikelihood = self.loglikelihood(X)
             new_weights = np.zeros_like(self.weights)
+
             for k in range(self.n_components):
-                # The expressions for each partial derivative may be useful for understanding
-                # portions of this block.
-                # See http://www.notenoughthoughts.net/posts/normal-log-likelihood-gradient.html
-                g = responsibility[:, k]
-                N_k = g.sum()
-                # Begin specialization for Gaussian distributions
-                diff = X - self.mus[k]
-                mu_k = g.dot(X) / N_k
-                new_mus[k] = mu_k
-                sigma_k = (g * diff).dot(diff.T) / N_k + 1e-6
-                new_sigmas[k] = np.sqrt(sigma_k)
-                new_weights[k] = N_k
-                #
+                self._update_params_for(X, k, responsibility, new_mus, new_sigmas, new_weights)
+
             new_weights /= new_weights.sum()
             self.mus = new_mus
             self.sigmas = new_sigmas
@@ -152,14 +156,66 @@ class GaussianMixture(MixtureBase):
         else:
             pass
 
+    @property
+    def domain(self):
+        return [
+            self.mus.min() - self.sigmas.max() * 4,
+            self.mus.max() + self.sigmas.max() * 4
+         ]
+
     def plot(self, ax=None, **kwargs):
         if ax is None:
             fig, ax = plt.subplots(1)
-        X = np.arange(self.mus.min() - self.sigmas.max() * 4,
-                      self.mus.max() + self.sigmas.max() * 4, 0.01)
+        X = np.arange(*self.domain, step=0.01)
         Y = np.exp(self.logpdf(X, True))
         ax.plot(X, np.sum(Y, axis=1), **kwargs)
         return ax
+
+
+class _HalfNormalPrefixMixin(object):
+
+    def _logpdf(self, X, k):
+        '''Computes the log-space density for `X` using the `k`th
+        component of the mixture
+        '''
+        result = stats.norm.logpdf(X, self.mus[k], self.sigmas[k])
+        if k == 0:
+            result += np.log(2)
+        return result
+
+    def _update_params_for(self, X, k, responsibility, new_mus, new_sigmas, new_weights):
+        # The expressions for each partial derivative may be useful for understanding
+        # portions of this block.
+        # See http://www.notenoughthoughts.net/posts/normal-log-likelihood-gradient.html
+        g = responsibility[:, k]
+        N_k = g.sum()
+        # Begin specialization for Gaussian distributions
+        diff = X - self.mus[k]
+        if k == 0:
+            mu_k = 0.0
+        else:
+            mu_k = g.dot(X) / N_k
+        sigma_k = (g * diff).dot(diff.T) / N_k + 1e-6
+        new_mus[k] = mu_k
+        new_sigmas[k] = np.sqrt(sigma_k)
+        new_weights[k] = N_k
+
+
+class GaussianMixtureWithHalfPrefix(_HalfNormalPrefixMixin, GaussianMixture):
+    @classmethod
+    def fit(cls, X, n_components, maxiter=1000, tol=1e-5, deterministic=True):
+        if not deterministic:
+            mus = KMeans.fit(X, n_components).means
+        else:
+            mus = (np.max(X) / (n_components + 1)) * \
+                np.arange(0, n_components + 1)
+        mus[0] = 0.0
+        assert not np.any(np.isnan(mus))
+        sigmas = np.var(X) * np.ones_like(mus)
+        weights = np.ones_like(mus) / n_components
+        inst = cls(mus, sigmas, weights)
+        inst.estimate(X, maxiter=maxiter, tol=tol)
+        return inst
 
 
 class GammaMixtureBase(MixtureBase):
@@ -182,10 +238,17 @@ class GammaMixtureBase(MixtureBase):
     def plot(self, ax=None, **kwargs):
         if ax is None:
             fig, ax = plt.subplots(1)
-        X = np.arange(0. + 1e-6, 100., 0.01)
+        X = np.arange(*self.domain, step=0.01)
         Y = np.exp(self.logpdf(X, True))
         ax.plot(X, np.sum(Y, axis=1), **kwargs)
         return ax
+
+    @property
+    def domain(self):
+        return [
+            1e-6,
+            100.0
+        ]
 
     @classmethod
     def fit(cls, X, n_components, maxiter=100, tol=1e-5, deterministic=True):
@@ -279,13 +342,8 @@ class GaussianMixtureWithPriorComponent(GaussianMixture):
             prev_loglikelihood = self.loglikelihood(X)
             new_weights = np.zeros_like(self.weights)
             for k in range(self.n_components - 1):
-                g = responsibility[:, k]
-                N_k = g.sum()
-                diff = X - self.mus[k]
-                mu_k = g.dot(X) / N_k
-                new_mus[k] = mu_k
-                sigma_k = (g * diff).dot(diff.T) / N_k + 1e-6
-                new_sigmas[k] = np.sqrt(sigma_k)
+                self._update_params_for(
+                    X, k, responsibility, new_mus, new_sigmas, new_weights)
 
             new_weights = responsibility.sum(axis=0) / responsibility.sum()
             self.mus = new_mus
@@ -300,7 +358,48 @@ class GaussianMixtureWithPriorComponent(GaussianMixture):
 
     def plot(self, ax=None, **kwargs):
         ax = super(GaussianMixtureWithPriorComponent, self).plot(ax=ax, **kwargs)
-        X = np.arange(0. + 1e-6, self.mus.max() + self.sigmas.max() * 4, 0.01)
+        X = np.arange(self.prior.domain[0], self.mus.max() + self.sigmas.max() * 4, 0.01)
         Y = self.prior.score(X) * self.weights[-1]
         ax.plot(X, Y, **kwargs)
         return ax
+
+
+class GaussianMixtureWithPriorComponentWithHalfPrefix(_HalfNormalPrefixMixin, GaussianMixtureWithPriorComponent):
+
+    @classmethod
+    def fit(cls, X, n_components, prior, maxiter=1000, tol=1e-5, deterministic=True):
+        if not deterministic:
+            mus = KMeans.fit(X, n_components).means
+        else:
+            mus = (np.max(X) / (n_components + 1)) * \
+                np.arange(1, n_components + 1)
+        assert not np.any(np.isnan(mus))
+        mus[0] = 0.0
+        sigmas = np.var(X) * np.ones_like(mus)
+        weights = np.ones(n_components + 1) / (n_components + 1)
+        inst = cls(mus, sigmas, prior, weights)
+        inst.estimate(X, maxiter=maxiter, tol=tol)
+        return inst
+
+    def _logpdf(self, X, k):
+        if k == self.n_components - 1:
+            return np.log(np.exp(self.prior.logpdf(X, weighted=False)).dot(self.prior.weights))
+        else:
+            return _HalfNormalPrefixMixin._logpdf(self, X, k)
+
+    def _update_params_for(self, X, k, responsibility, new_mus, new_sigmas, new_weights):
+        # The expressions for each partial derivative may be useful for understanding
+        # portions of this block.
+        # See http://www.notenoughthoughts.net/posts/normal-log-likelihood-gradient.html
+        g = responsibility[:, k]
+        N_k = g.sum()
+        # Begin specialization for Gaussian distributions
+        diff = X - self.mus[k]
+        if k == 0:
+            mu_k = 0.0
+        else:
+            mu_k = g.dot(X) / N_k
+        new_mus[k] = mu_k
+        sigma_k = (g * diff).dot(diff.T) / N_k + 1e-6
+        new_sigmas[k] = np.sqrt(sigma_k)
+        new_weights[k] = N_k
