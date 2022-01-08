@@ -515,9 +515,9 @@ class RuleBasedFDREstimator(object):
         self.chromatograms = chromatograms
         self.decoy_chromatograms = []
         self.rt_model = rt_model
-        self.target_scores = []
-        self.decoy_scores = []
-        self.decoy_is_valid = []
+        self.target_scores = np.array([])
+        self.decoy_scores = np.array([])
+        self.decoy_is_valid = np.array([])
         self.valid_glycans = valid_glycans
         self.estimator = None
 
@@ -584,10 +584,32 @@ class RuleBasedFDREstimator(object):
         template = "{self.__class__.__name__}({self.rule})"
         return template.format(self=self)
 
+    def get_residuals_from_interval(self, span):
+        target_mask = [span.contains(i) for i in self.target_times]
+        target_residuals = self.target_residuals[target_mask]
+        target_residuals = target_residuals[~np.isnan(target_residuals)]
+
+        decoy_mask = [span.contains(i) for i in self.decoy_times]
+        decoy_residuals = self.decoy_residuals[decoy_mask & self.decoy_is_valid]
+        decoy_residuals = decoy_residuals[~np.isnan(decoy_residuals)]
+        return target_residuals, decoy_residuals
+
+    def get_scores_from_interval(self, span):
+        target_mask = [span.contains(i) for i in self.target_times]
+        target_scores = self.target_scores[target_mask]
+        target_scores = target_scores[~np.isnan(target_scores)]
+
+        decoy_mask = [span.contains(i) for i in self.decoy_times]
+        decoy_scores = self.decoy_scores[decoy_mask &
+                                               self.decoy_is_valid]
+        decoy_scores = decoy_scores[~np.isnan(decoy_scores)]
+        return target_scores, decoy_scores
+
     def get_interval_masks(self):
         spans = [mod for mod in self.rt_model.models.values()]
-        centers = [s.centroid for s in spans]
-        masks = [list(map(span.contains, self.target_times)) for span in spans]
+        centers = np.array([s.centroid for s in spans])
+        masks = [
+            np.fromiter(map(span.contains, self.target_times), bool) for span in spans]
         return masks, centers
 
     def __getstate__(self):
@@ -727,8 +749,8 @@ class ResidualFDREstimator(object):
         fmm.fit(max_target_components=3)
         return PosteriorErrorToScore.from_model(fmm)
 
-    def __call__(self, value):
-        return self.residual_mapper(value)
+    def bounds_for_probability(self, probability):
+        return self.residual_mapper.bounds_for_probability(probability)
 
     def __reduce__(self):
         return self.__class__, (self.rules, None, self.residual_mapper)
@@ -745,18 +767,35 @@ class ResidualFDREstimator(object):
     def plot(self, ax=None, **kwargs):
         return self.residual_mapper.plot(ax, **kwargs)
 
+    def score(self, chromatogram, *args, **kwargs):
+        t_pred = self.rt_model.predict(chromatogram, *args, **kwargs)
+        residual = chromatogram.apex_time - t_pred
+        return self.residual_mapper(residual)
+
+    def __call__(self, chromatogram, *args, **kwds):
+        return self.score(chromatogram, *args, **kwds)
+
+
+def _prepare_domain(target_scores, decoy_scores, delta=0.1):
+    lo = min(target_scores.min(), decoy_scores.min())
+    hi = max(target_scores.max(), decoy_scores.max())
+    sign = np.sign(lo)
+    lo = sign * max(abs(lo), abs(hi))
+    sign = np.sign(hi)
+    hi = sign * max(abs(lo), abs(hi))
+    domain = np.concatenate(
+        (np.arange(lo, 0, delta), np.arange(0.0, hi + delta, delta), ))
+    return domain
+
 
 class PosteriorErrorToScore(object):
 
     @classmethod
-    def from_model(cls, model, delta=0.1, symmetric=False):
-        lo = min(model.target_scores.min(), model.decoy_scores.min())
-        hi = max(model.target_scores.max(), model.decoy_scores.max())
-        domain = np.concatenate(
-            (np.arange(lo, 0, delta), np.arange(0.0, hi, delta), ))
+    def from_model(cls, model, delta=0.1, symmetric=True):
+        domain = _prepare_domain(model.target_scores, model.decoy_scores, delta=delta)
         return cls(model, domain, symmetric=symmetric)
 
-    def __init__(self, model, domain, symmetric=False):
+    def __init__(self, model, domain, symmetric=True):
         self.model = model
         self.domain = domain
         self.normalized_score = None
@@ -764,7 +803,7 @@ class PosteriorErrorToScore(object):
         if self.model is not None:
             self._create_normalized(symmetric=symmetric)
 
-    def _create_normalized(self, symmetric=False):
+    def _create_normalized(self, symmetric=True):
         from glycan_profiling.tandem.target_decoy import NearestValueLookUp
         Y = self.model.estimate_posterior_error_probability(self.domain)
         self.normalized_score = np.clip(
