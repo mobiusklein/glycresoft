@@ -172,15 +172,52 @@ class GaussianMixture(MixtureBase):
         return ax
 
 
-class _HalfNormalPrefixMixin(object):
+a = 0.0
+b = float('inf')
+phi_a = stats.norm.pdf(a)
+phi_b = stats.norm.pdf(b)
+Z = stats.norm.cdf(b) - stats.norm.cdf(a)
+
+
+def _truncnorm_mean(X):
+    mu = X.mean()
+    sigma = np.std(X)
+    return mu + (phi_a / Z) * sigma
+
+
+def _truncnorm_std(X):
+    sigma2 = np.var(X)
+    return np.sqrt(sigma2 * (1 + a * phi_a / Z - (phi_a / Z) ** 2))
+
+
+def truncnorm_pdf(x, mu, sigma):
+    scalar = np.isscalar(x)
+    if scalar:
+        x = np.array([x])
+    mask = (a <= x) & (x <= b)
+    out = np.zeros_like(x)
+
+    numerator = stats.norm.pdf((x[mask] - mu) / sigma)
+    denominator = stats.norm.cdf(
+        (b - mu) / sigma) - stats.norm.cdf((a - mu) / sigma)
+    out[mask] = 1 / sigma * numerator / denominator
+    if scalar:
+        out = out[0]
+    return out
+
+
+def truncnorm_logpdf(x, mu, sigma):
+    return np.log(truncnorm_pdf(x, mu, sigma))
+
+
+class _TruncatedNormalMixin(object):
 
     def _logpdf(self, X, k):
         '''Computes the log-space density for `X` using the `k`th
         component of the mixture
         '''
-        result = stats.norm.logpdf(X, self.mus[k], self.sigmas[k])
-        if k == 0:
-            result += np.log(2)
+        result = truncnorm_logpdf(
+            X, self.mus[k], self.sigmas[k])
         return result
 
     def _update_params_for(self, X, k, responsibility, new_mus, new_sigmas, new_weights):
@@ -189,19 +226,21 @@ class _HalfNormalPrefixMixin(object):
         # See http://www.notenoughthoughts.net/posts/normal-log-likelihood-gradient.html
         g = responsibility[:, k]
         N_k = g.sum()
-        # Begin specialization for Gaussian distributions
+
+        # Begin specialization for the truncated Gaussian distributions
         diff = X - self.mus[k]
-        if k == 0:
-            mu_k = 0.0
-        else:
-            mu_k = g.dot(X) / N_k
-        sigma_k = (g * diff).dot(diff.T) / N_k + 1e-6
+
+        unconstrained_mu_k = g.dot(X) / N_k
+        unconstrained_sigma_k = np.sqrt((g * diff).dot(diff.T) / N_k + 1e-6)
+        mu_k = unconstrained_mu_k + (phi_a / Z) * unconstrained_sigma_k
+        sigma_k = np.sqrt(unconstrained_sigma_k ** 2 * (1 + a * phi_a / Z - (phi_a / Z) ** 2))
+
         new_mus[k] = mu_k
         new_sigmas[k] = np.sqrt(sigma_k)
         new_weights[k] = N_k
 
 
-class GaussianMixtureWithHalfPrefix(_HalfNormalPrefixMixin, GaussianMixture):
+class TruncatedGaussianMixture(_TruncatedNormalMixin, GaussianMixture):
     @classmethod
     def fit(cls, X, n_components, maxiter=1000, tol=1e-5, deterministic=True):
         if not deterministic:
@@ -364,7 +403,7 @@ class GaussianMixtureWithPriorComponent(GaussianMixture):
         return ax
 
 
-class GaussianMixtureWithPriorComponentWithHalfPrefix(_HalfNormalPrefixMixin, GaussianMixtureWithPriorComponent):
+class TruncatedGaussianMixtureWithPriorComponent(_TruncatedNormalMixin, GaussianMixtureWithPriorComponent):
 
     @classmethod
     def fit(cls, X, n_components, prior, maxiter=1000, tol=1e-5, deterministic=True):
@@ -385,7 +424,7 @@ class GaussianMixtureWithPriorComponentWithHalfPrefix(_HalfNormalPrefixMixin, Ga
         if k == self.n_components - 1:
             return np.log(np.exp(self.prior.logpdf(X, weighted=False)).dot(self.prior.weights))
         else:
-            return _HalfNormalPrefixMixin._logpdf(self, X, k)
+            return _TruncatedNormalMixin._logpdf(self, X, k)
 
     def _update_params_for(self, X, k, responsibility, new_mus, new_sigmas, new_weights):
         # The expressions for each partial derivative may be useful for understanding

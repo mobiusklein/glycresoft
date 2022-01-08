@@ -26,7 +26,7 @@ from glycan_profiling.tandem.target_decoy import NearestValueLookUp, TargetDecoy
 from glycan_profiling.tandem.spectrum_match import SpectrumMatch
 from glycan_profiling.tandem.glycopeptide.core_search import approximate_internal_size_of_glycan
 
-from .mixture import GammaMixture, GaussianMixture, GaussianMixtureWithPriorComponent, GaussianMixtureWithHalfPrefix, GaussianMixtureWithPriorComponentWithHalfPrefix
+from .mixture import GammaMixture, GaussianMixture, GaussianMixtureWithPriorComponent, TruncatedGaussianMixture, TruncatedGaussianMixtureWithPriorComponent
 from .journal import SolutionSetGrouper
 
 
@@ -254,11 +254,11 @@ class FiniteMixtureModelFDREstimatorHalfGaussian(FiniteMixtureModelFDREstimatorB
         np.random.seed(n)
         if n < 10:
             self.log("Too few decoy observations")
-            self.decoy_mixture = GaussianMixtureWithHalfPrefix([0], [1.0], [1.0])
+            self.decoy_mixture = TruncatedGaussianMixture([0], [1.0], [1.0])
             return self.decoy_mixture
 
         self.decoy_mixture = self._select_best_number_of_components(
-            max_components, GaussianMixtureWithHalfPrefix.fit, self.decoy_scores)
+            max_components, TruncatedGaussianMixture.fit, self.decoy_scores)
         return self.decoy_mixture
 
     def estimate_target_distributions(self, max_components=10):
@@ -266,12 +266,12 @@ class FiniteMixtureModelFDREstimatorHalfGaussian(FiniteMixtureModelFDREstimatorB
         np.random.seed(n)
         if n < 10:
             self.log("Too few target observations")
-            self.target_mixture = GaussianMixtureWithPriorComponentWithHalfPrefix(
+            self.target_mixture = TruncatedGaussianMixtureWithPriorComponent(
                 [0.0], [1.0], self.decoy_mixture, [0.5, 0.5])
             return self.target_mixture
         self.target_mixture = self._select_best_number_of_components(
             max_components,
-            GaussianMixtureWithPriorComponentWithHalfPrefix.fit,
+            TruncatedGaussianMixtureWithPriorComponent.fit,
             self.target_scores,
             prior=self.decoy_mixture,
             deterministic=True)
