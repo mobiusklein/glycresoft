@@ -286,6 +286,9 @@ class IdentifiedStructure(object):
             return False
         return self.chromatogram.overlaps_in_time(x)
 
+    @property
+    def composition(self):
+        return self.chromatogram.composition
 
 ChromatogramInterface.register(IdentifiedStructure)
 
