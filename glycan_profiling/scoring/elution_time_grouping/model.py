@@ -43,7 +43,9 @@ from .reviser import (IntervalModelReviser, IsotopeRule, AmmoniumMaskedRule,
                       Hex3ToSulfate1HexNAc2Rule, HexNAc2NeuAc2ToHex6Deoxy,
                       AmmoniumMaskedNeuGcRule, AmmoniumUnmaskedNeuGcRule,
                       PeptideYUtilizationPreservingRevisionValidator,
-                      modify_rules, RevisionRuleList, RuleBasedFDREstimator)
+                      modify_rules, RevisionRuleList,
+                      RuleBasedFDREstimator,
+                      ResidualFDREstimator)
 
 from . import reviser as libreviser
 
@@ -874,6 +876,7 @@ class ModelEnsemble(PeptideBackboneKeyedMixin, IntervalScoringMixin):
         self._chromatograms = None
         self.external_peptide_offsets = {}
         self._summary_statistics = {}
+        self.residual_fdr = None
 
     def __reduce__(self):
         return self.__class__, (OrderedDict(), self.width_range), self.__getstate__()
@@ -890,6 +893,7 @@ class ModelEnsemble(PeptideBackboneKeyedMixin, IntervalScoringMixin):
         state['models'] = models
         state['summary_statistics'] = self._summary_statistics
         state['interval_padding'] = self._interval_padding
+        state['residual_fdr'] = self.residual_fdr
         return state
 
     def __setstate__(self, state):
@@ -905,6 +909,7 @@ class ModelEnsemble(PeptideBackboneKeyedMixin, IntervalScoringMixin):
             self._set_models(models)
         self._summary_statistics = state.get("summary_statistics", {})
         self._interval_padding = state.get("interval_padding", 0.0)
+        self.residual_fdr = state.get('residual_fdr')
 
     def _set_models(self, models):
         self.models = models
@@ -1009,6 +1014,8 @@ class ModelEnsemble(PeptideBackboneKeyedMixin, IntervalScoringMixin):
         preds = np.array(preds)
         preds = preds[mask, :]
         weights = weights[mask]
+        if len(weights) == 0:
+            return np.array([np.nan, np.nan])
         weights /= weights.max()
         if merge:
             if len(weights) == 0:
@@ -1075,9 +1082,12 @@ class ModelEnsemble(PeptideBackboneKeyedMixin, IntervalScoringMixin):
                         for c in chromatograms])
         widths = (ivs[:, 1] - ivs[:, 0]) / 2.0
         widths = widths[~np.isnan(widths)]
-        self.width_range = IntervalRange(*np.quantile(widths, CALIBRATION_QUANTILES))
-        if np.isnan(self.width_range.lower):
-            raise ValueError("Width range cannot be NaN")
+        if len(widths) == 0:
+            self.width_range = IntervalRange(0.0, float('inf'))
+        else:
+            self.width_range = IntervalRange(*np.quantile(widths, CALIBRATION_QUANTILES))
+            if np.isnan(self.width_range.lower):
+                raise ValueError("Width range cannot be NaN")
         return self
 
     def plot_number_of_training_points(self, ax=None):
@@ -1240,7 +1250,8 @@ class EnsembleBuilder(TaskBase):
         if predicate is None:
             predicate = bool
         if self.points is None:
-            assert width_value is not None
+            if width_value is None:
+                raise ValueError("width_value was None")
             self.points = self.generate_points(width_value)
         centers = OrderedDict()
         for point in self.points:
@@ -1309,8 +1320,8 @@ class EnsembleBuilder(TaskBase):
                     obs = sorted(filter(predicate, extra), key=lambda x: x.apex_time)
                     m = models[point] = model_type(obs, self.aggregator.factors, regularize=regularize)
                     offset += 1
-                # self.log("... Borrowed %d observations from regions %d steps away for region centered on %0.3f (%d members, %r)" % (
-                #     len(extra - set(members)), offset, point, len(members), m.data.shape))
+                self.debug("... Borrowed %d observations from regions %d steps away for region centered on %0.3f (%d members, %r)" % (
+                    len(extra - set(members)), offset, point, len(members), m.data.shape))
                 m = models[point]
 
             m.fit(resample=resample)
@@ -1485,7 +1496,11 @@ class RelativeShiftFactorElutionTimeFitter(AbundanceWeightedPeptideFactorElution
         self.distance_cache = distance_cache
         self.delta_cache = delta_cache
         self.max_distance = max_distance
-        recs, groups = self.build_deltas(chromatograms, max_distance=max_distance)
+        if chromatograms:
+            recs, groups = self.build_deltas(chromatograms, max_distance=max_distance)
+        else:
+            recs = []
+            groups = GlycoformAggregator()
         self.groups = groups
         self.peptide_offsets = {}
         super(RelativeShiftFactorElutionTimeFitter, self).__init__(
@@ -1537,7 +1552,8 @@ class RelativeShiftFactorElutionTimeFitter(AbundanceWeightedPeptideFactorElution
                     peptide_key=a.peptide_key
                 )
                 recs.append(rec)
-        assert len(recs) > 0
+        if len(recs) == 0:
+            raise ValueError("No deltas constructed")
         return recs, groups
 
     def _get_chromatograms(self):
@@ -1609,6 +1625,8 @@ class LocalOutlierFilteringRelativeShiftFactorElutionTimeFitter(RelativeShiftFac
         graph.process_edges()
         groups = graph.groups
         recs = graph.select_edges()
+        if len(recs) == 0:
+            raise ValueError("No deltas constructed")
         return recs, groups
 
 
@@ -1628,13 +1646,19 @@ def mask_in(full_set, incoming):
 def model_type_dispatch(self, chromatogams, factors=None, scale=1, transform=None, width_range=None,
                         regularize=False, key_cache=None, distance_cache=None, delta_cache=None):
     try:
-        return RelativeShiftFactorElutionTimeFitter(
+        model = RelativeShiftFactorElutionTimeFitter(
             chromatogams, factors, scale, transform, width_range, regularize,
             max_distance=3, key_cache=key_cache, distance_cache=distance_cache,
             delta_cache=delta_cache)
-    except AssertionError:
-        return AbundanceWeightedPeptideFactorElutionTimeFitter(
+        if model.data.shape[0] == 0:
+            raise ValueError("No relative data points")
+        return model
+    except (ValueError, AssertionError) as err:
+        model = AbundanceWeightedPeptideFactorElutionTimeFitter(
             chromatogams, factors, scale, transform, width_range, regularize)
+        logger.info(
+            f"Falling back to direct fit for model centered at {model.centroid}, error: {err}")
+        return model
 
 
 # The self paramter is included as this function is later bound to a class directly
@@ -1642,13 +1666,19 @@ def model_type_dispatch(self, chromatogams, factors=None, scale=1, transform=Non
 def model_type_dispatch_outlier_remove(self, chromatogams, factors=None, scale=1, transform=None, width_range=None,
                                        regularize=False, key_cache=None, distance_cache=None, delta_cache=None):
     try:
-        return LocalOutlierFilteringRelativeShiftFactorElutionTimeFitter(
+        model = LocalOutlierFilteringRelativeShiftFactorElutionTimeFitter(
             chromatogams, factors, scale, transform, width_range, regularize,
             max_distance=3, key_cache=key_cache, distance_cache=distance_cache,
             delta_cache=delta_cache)
-    except AssertionError:
-        return AbundanceWeightedPeptideFactorElutionTimeFitter(
+        if model.data.shape[0] == 0:
+            raise ValueError("No relative data points")
+        return model
+    except (ValueError, AssertionError) as err:
+        model = AbundanceWeightedPeptideFactorElutionTimeFitter(
             chromatogams, factors, scale, transform, width_range, regularize)
+        logger.info(
+            f"Falling back to direct fit for model centered at {model.centroid}, error: {err}")
+        return model
 
 
 class GlycopeptideElutionTimeModelBuildingPipeline(TaskBase):
@@ -2084,7 +2114,9 @@ class GlycopeptideElutionTimeModelBuildingPipeline(TaskBase):
             all_records[i] = record
         rules_used = self.extract_rules_used(all_records)
         self.log("Estimating FDR for revision rules")
-        model._summary_statistics['fdr_estimates'] = self.estimate_fdr(all_records, model, rules_used)
+        fdr_rules = model._summary_statistics['fdr_estimates'] = self.estimate_fdr(all_records, model, rules_used)
+        residual_fdr = ResidualFDREstimator(fdr_rules, model)
+        model.residual_fdr = residual_fdr
         return model, all_records
 
 

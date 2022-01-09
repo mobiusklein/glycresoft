@@ -2,6 +2,7 @@ import logging
 
 from array import array
 from collections import defaultdict
+from collections.abc import Iterable
 from matplotlib import pyplot as plt
 
 import numpy as np
@@ -647,6 +648,17 @@ class RuleBasedFDREstimator(object):
         self.decoy_chromatograms = None
         self.valid_glycans = None
 
+    def copy(self):
+        proto, newargs, state = self.__reduce__()
+        dup = proto(*newargs)
+        dup.__setstate__(state)
+
+        dup.rt_model = self.rt_model
+        dup.chromatograms = self.chromatograms
+        dup.decoy_chromatograms = self.decoy_chromatograms
+        dup.valid_glycans = self.valid_glycans
+        return dup
+
 
 def make_normalized_monotonic_bell(X, Y, symmetric=False):
     center = np.abs(X).argmin()
@@ -808,9 +820,16 @@ class PosteriorErrorToScore(object):
         Y = self.model.estimate_posterior_error_probability(self.domain)
         self.normalized_score = np.clip(
             1 - make_normalized_monotonic_bell(self.domain, Y, symmetric=symmetric), 0, 1)
+        lo, hi = np.where(self.normalized_score != 0)[0][[0, -1]]
+        lo = max(lo - 5, 0)
+        hi += 5
+        self.domain = self.domain[lo:hi]
+        self.normalized_score = self.normalized_score[lo:hi]
         self.mapper = NearestValueLookUp(zip(self.domain, self.normalized_score))
 
     def __call__(self, value):
+        if isinstance(value, (np.ndarray, Iterable)):
+            return np.array([self.mapper[v] for v in value])
         return self.mapper[value]
 
     def __getstate__(self):
@@ -820,9 +839,17 @@ class PosteriorErrorToScore(object):
 
     def __setstate__(self, state):
         self.mapper = state["mapper"]
+        self.domain, self.normalized_score = map(np.array, zip(*self.mapper.items))
 
     def __reduce__(self):
         return self.__class__, (None, None), self.__getstate__()
+
+    def copy(self):
+        proto, newargs, state = self.__reduce__()
+        dup = proto(*newargs)
+        dup.__setstate__(state)
+        dup.model = self.model
+        return dup
 
     def bounds_for_probability(self, probability):
         return self.domain[np.where(self.normalized_score >= probability)[0][[0, -1]]]
