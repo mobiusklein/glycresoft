@@ -17,7 +17,8 @@ except ImportError as e:
 
 
 def info(type, value, tb):
-    if hasattr(sys, 'ps1') or not sys.stderr.isatty():
+    if not sys.stderr.isatty():
+        click.secho("Running interactively, not starting debugger", fg='yellow')
         sys.__excepthook__(type, value, tb)
     else:
         import ipdb
@@ -36,6 +37,7 @@ def main():
     freeze_support()
     if os.getenv("GLYCRESOFTDEBUG"):
         sys.excepthook = info
+        click.secho("Running glycresoft with debugger", fg='yellow')
     if os.getenv("GLYCRESOFTPROFILING"):
         import cProfile
         click.secho("Running glycresoft with profiler", fg='yellow')
