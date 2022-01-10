@@ -537,6 +537,7 @@ class RuleBasedFDREstimator(object):
         self.target_residuals = self.target_times - self.target_predictions
         decoy_scores = []
         decoy_is_valid = []
+        self.decoy_chromatograms = []
         for p in self.chromatograms:
             p = self.rule(p)
             self.decoy_chromatograms.append(p)

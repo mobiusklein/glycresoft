@@ -1656,8 +1656,6 @@ def model_type_dispatch(self, chromatogams, factors=None, scale=1, transform=Non
     except (ValueError, AssertionError) as err:
         model = AbundanceWeightedPeptideFactorElutionTimeFitter(
             chromatogams, factors, scale, transform, width_range, regularize)
-        logger.info(
-            f"Falling back to direct fit for model centered at {model.centroid}, error: {err}")
         return model
 
 
@@ -1676,8 +1674,6 @@ def model_type_dispatch_outlier_remove(self, chromatogams, factors=None, scale=1
     except (ValueError, AssertionError) as err:
         model = AbundanceWeightedPeptideFactorElutionTimeFitter(
             chromatogams, factors, scale, transform, width_range, regularize)
-        logger.info(
-            f"Falling back to direct fit for model centered at {model.centroid}, error: {err}")
         return model
 
 
@@ -1927,32 +1923,36 @@ class GlycopeptideElutionTimeModelBuildingPipeline(TaskBase):
             result.append((index, checked))
         return result
 
-    def _step(self, model, all_records, i, k):
-
-        delta_time_scale = 1.0
-        minimum_delta = 2.0
-        k_scale = 2.0
-        self.log("Iteration %d" % i)
-        coverages = self.compute_model_coverage(model, all_records)
-        coverage_threshold = (1.0 - (i * 1.0 / (k_scale * k)))
-        covered_recs = self.subset_aggregate_by_coverage(
-            all_records, coverages, coverage_threshold)
-        new = set()
-
     def estimate_fdr(self, chromatograms, model, rules=None):
         if rules is None:
             rules = self.revision_rules
         estimators = []
         for rule in rules:
-            self.log("... Estimating FDR for %r" % (rule, ))
+            self.log("... Fitting decoys for %r" % (rule, ))
             estimator = RuleBasedFDREstimator(
                     rule, chromatograms, model, self.valid_glycans)
             estimators.append(estimator)
+
+        fitted_rules = RevisionRuleList(estimators)
+        self.log("... Re-calibrating score from decoy residuals")
+        residual_fdr = ResidualFDREstimator(fitted_rules, model)
+        width = np.abs(residual_fdr.bounds_for_probability(0.95)).max()
+        if model.width_range:
+            delta = width - model.width_range.upper
+            if delta > 0:
+                model.interval_padding = delta
+                self.log("... Setting padding interval from residual FDR: %0.3f" %
+                         (delta, ))
+        model.residual_fdr = residual_fdr
+        for estimator in fitted_rules:
+            estimator.prepare()
             t05 = estimator.score_for_fdr(0.05)
             t01 = estimator.score_for_fdr(0.01)
+            self.log("... FDR for {}".format(estimator.rule))
             self.log("...... 5%: {:0.2f}    1%: {:0.2f}".format(t05, t01))
 
-        return RevisionRuleList(estimators)
+        return fitted_rules
+
 
     def extract_rules_used(self, chromatograms):
         rules_used = set()
@@ -2114,9 +2114,8 @@ class GlycopeptideElutionTimeModelBuildingPipeline(TaskBase):
             all_records[i] = record
         rules_used = self.extract_rules_used(all_records)
         self.log("Estimating FDR for revision rules")
-        fdr_rules = model._summary_statistics['fdr_estimates'] = self.estimate_fdr(all_records, model, rules_used)
-        residual_fdr = ResidualFDREstimator(fdr_rules, model)
-        model.residual_fdr = residual_fdr
+        model._summary_statistics['fdr_estimates'] = self.estimate_fdr(all_records, model, rules_used)
+        self.log("Final Model Variance Explained: %0.3f" % (model.R2(), ))
         return model, all_records
 
 
