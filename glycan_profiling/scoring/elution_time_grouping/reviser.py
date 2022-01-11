@@ -239,20 +239,23 @@ class PeptideYUtilizationPreservingRevisionValidator(RevisionValidatorBase):
             source, revised, original)
         if skip:
             return True
+        if hasattr(original_gpsm, 'score_set'):
+            original_utilization = original_gpsm.score_set.stub_glycopeptide_intensity_utilization
+            if not original_utilization:
+                # Anything is better than or equal to zero
+                return True
 
-        original_utilization = original_gpsm.score_set.stub_glycopeptide_intensity_utilization
-        if not original_utilization:
-            # Anything is better than or equal to zero
-            return True
+            revised_utilization = revised_gpsm.score_set.stub_glycopeptide_intensity_utilization
+            utilization_ratio = revised_utilization / original_utilization
+            valid = utilization_ratio > self.threshold
 
-        revised_utilization = revised_gpsm.score_set.stub_glycopeptide_intensity_utilization
-        utilization_ratio = revised_utilization / original_utilization
-        valid = utilization_ratio > self.threshold
-
-        self.debug(
-            "...... Checking revision by peptide+Y ions for %s (%0.3f) from %s to %s: %0.3f / %0.3f: %r" %
-            (revised.tag, revised.apex_time, original.glycan_composition, revised.glycan_composition,
-             revised_utilization, original_utilization, valid))
+            self.debug(
+                "...... Checking revision by peptide+Y ions for %s (%0.3f) from %s to %s: %0.3f / %0.3f: %r" %
+                (revised.tag, revised.apex_time, original.glycan_composition, revised.glycan_composition,
+                revised_utilization, original_utilization, valid))
+        else:
+            # TODO: Make this check explicit by directly calculating the metric here.
+            valid = True
         return valid
 
 
@@ -272,16 +275,19 @@ class OxoniumIonRequiringUtilizationRevisionValidator(RevisionValidatorBase):
             source, revised, original)
         if skip:
             return True
+        if hasattr(original_gpsm, 'score_set'):
+            original_utilization = original_gpsm.score_set.oxonium_ion_intensity_utilization
+            revised_utilization = revised_gpsm.score_set.oxonium_ion_intensity_utilization
 
-        original_utilization = original_gpsm.score_set.oxonium_ion_intensity_utilization
-        revised_utilization = revised_gpsm.score_set.oxonium_ion_intensity_utilization
-
-        threshold = original_utilization * self.scale
-        valid = (revised_utilization - threshold) >= 0
-        self.debug(
-            "...... Checking revision by oxonium ions for %s (%0.3f) from %s to %s: %0.3f / %0.3f: %r" %
-            (revised.tag, revised.apex_time, original.glycan_composition, revised.glycan_composition,
-            revised_utilization, original_utilization, valid))
+            threshold = original_utilization * self.scale
+            valid = (revised_utilization - threshold) >= 0
+            self.debug(
+                "...... Checking revision by oxonium ions for %s (%0.3f) from %s to %s: %0.3f / %0.3f: %r" %
+                (revised.tag, revised.apex_time, original.glycan_composition, revised.glycan_composition,
+                revised_utilization, original_utilization, valid))
+        else:
+            # TODO: Make this check explicit by directly calculating the metric here.
+            valid = True
         return valid
 
 
