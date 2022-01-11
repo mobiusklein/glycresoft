@@ -1,5 +1,6 @@
 import operator
 
+from collections import defaultdict
 try:
     from itertools import imap
 except ImportError:
@@ -454,6 +455,34 @@ class GlycopeptideDiskBackedStructureDatabase(DeclarativeDiskBackedDatabase):
 
     def _limit_to_hypothesis(self, selectable):
         return selectable.where(Glycopeptide.__table__.c.hypothesis_id == self.hypothesis_id)
+
+    def make_key_maker(self):
+        return GlycopeptideIdKeyMaker(self, self.hypothesis_id)
+
+
+class GlycopeptideIdKeyMaker(object):
+    def __init__(self, database, hypothesis_id):
+        self.database = database
+        self.hypothesis_id = hypothesis_id
+        self.lookup_map = defaultdict(list)
+        for gc in self.database.valid_glycan_set():
+            self.lookup_map[str(gc)].append(gc.id)
+
+    def make_id_controlled_structures(self, structure, references):
+        glycan_ids = self.lookup_map[structure.glycan_composition]
+        result = []
+        for glycan_id in glycan_ids:
+            for ref in references:
+                ref_rec = self.database.query(Glycopeptide).get(ref.id)
+                alts = self.database.query(Glycopeptide).filter(
+                    Glycopeptide.peptide_id == ref_rec.peptide_id,
+                    Glycopeptide.glycan_combination_id == glycan_id).all()
+                for alt in alts:
+                    result.append(alt.convert())
+        return result
+
+    def __call__(self, structure, references):
+        return self.make_id_controlled_structures(structure, references)
 
 
 class InMemoryPeptideStructureDatabase(NeutralMassDatabase):
