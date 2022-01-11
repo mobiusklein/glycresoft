@@ -614,3 +614,9 @@ class GroupwiseTargetDecoyAnalyzer(object):
         i = self.find_group(spectrum_match)
         fit = self.group_fits[i]
         return fit.score(spectrum_match)
+
+    def score_all(self, solution_set):
+        for spectrum_match in solution_set:
+            self.score(spectrum_match)
+        solution_set.q_value = solution_set.best_solution().q_value
+        return solution_set
