@@ -1180,6 +1180,10 @@ class ModelEnsemble(PeptideBackboneKeyedMixin, IntervalScoringMixin):
         ax.set_ylim(min_val - 1, max_val + 1)
         ax.hlines([-self.width_range.upper, self.width_range.upper],
                   apex_time.min(), apex_time.max(), linestyles='--', lw=0.5, color='gray')
+
+        if self.interval_padding:
+            ax.hlines([-self.width_range.upper - self.interval_padding, self.width_range.upper + self.interval_padding],
+                      apex_time.min(), apex_time.max(), linestyles='dotted', lw=0.5, color='black')
         ax.figure.tight_layout()
         return ax
 
@@ -1950,6 +1954,9 @@ class GlycopeptideElutionTimeModelBuildingPipeline(TaskBase):
             t01 = estimator.score_for_fdr(0.01)
             self.log("... FDR for {}".format(estimator.rule))
             self.log("...... 5%: {:0.2f}    1%: {:0.2f}".format(t05, t01))
+            self.log("... Fitting relationship over time")
+            estimator.fit_over_time()
+
 
         return fitted_rules
 

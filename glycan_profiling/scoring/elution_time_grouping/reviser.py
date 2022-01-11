@@ -1,7 +1,7 @@
 import logging
 
 from array import array
-from collections import defaultdict
+from collections import defaultdict, OrderedDict
 from collections.abc import Iterable
 from matplotlib import pyplot as plt
 
@@ -510,7 +510,28 @@ class IntervalModelReviser(ModelReviser):
 # method
 
 
-class RuleBasedFDREstimator(object):
+
+class FDREstimatorBase(object):
+    def estimate_fdr(self):
+        from glycan_profiling.tandem.target_decoy import TargetDecoyAnalyzer
+        self.estimator = TargetDecoyAnalyzer(
+            self.target_scores.view([('score', np.float64)]).view(np.recarray),
+            self.decoy_scores[self.decoy_is_valid].view([('score', np.float64)]).view(np.recarray))
+
+    @property
+    def q_value_map(self):
+        return self.estimator.q_value_map
+
+    def score_for_fdr(self, fdr_value):
+        return self.estimator.score_for_fdr(fdr_value)
+
+    def plot(self):
+        ax = self.estimator.plot()
+        ax.set_xlim(-0.01, 1)
+        return ax
+
+
+class RuleBasedFDREstimator(FDREstimatorBase):
     def __init__(self, rule, chromatograms, rt_model, valid_glycans=None):
         self.rule = rule
         self.chromatograms = chromatograms
@@ -521,6 +542,7 @@ class RuleBasedFDREstimator(object):
         self.decoy_is_valid = np.array([])
         self.valid_glycans = valid_glycans
         self.estimator = None
+        self.over_time = OrderedDict()
 
         self.prepare()
 
@@ -564,24 +586,6 @@ class RuleBasedFDREstimator(object):
 
         self.estimate_fdr()
 
-    def estimate_fdr(self):
-        from glycan_profiling.tandem.target_decoy import TargetDecoyAnalyzer
-        self.estimator = TargetDecoyAnalyzer(
-            self.target_scores.view([('score', np.float64)]).view(np.recarray),
-            self.decoy_scores[self.decoy_is_valid].view([('score', np.float64)]).view(np.recarray))
-
-    @property
-    def q_value_map(self):
-        return self.estimator.q_value_map
-
-    def score_for_fdr(self, fdr_value):
-        return self.estimator.score_for_fdr(fdr_value)
-
-    def plot(self):
-        ax = self.estimator.plot()
-        ax.set_xlim(-0.01, 1)
-        return ax
-
     def __repr__(self):
         template = "{self.__class__.__name__}({self.rule})"
         return template.format(self=self)
@@ -607,12 +611,28 @@ class RuleBasedFDREstimator(object):
         decoy_scores = decoy_scores[~np.isnan(decoy_scores)]
         return target_scores, decoy_scores
 
+    def get_scores_from_mask(self, mask):
+        target_scores = self.target_scores[mask]
+        target_scores = target_scores[~np.isnan(target_scores)]
+
+        decoy_scores = self.decoy_scores[mask &
+                                         self.decoy_is_valid]
+        decoy_scores = decoy_scores[~np.isnan(decoy_scores)]
+        return target_scores, decoy_scores
+
     def get_interval_masks(self):
         spans = [mod for mod in self.rt_model.models.values()]
         centers = np.array([s.centroid for s in spans])
         masks = [
             np.fromiter(map(span.contains, self.target_times), bool) for span in spans]
         return masks, centers
+
+    def fit_over_time(self):
+        masks, centers = self.get_interval_masks()
+        for i, mask in enumerate(masks):
+            target_scores, decoy_scores = self.get_scores_from_mask(mask)
+            facet = FDRFacet(target_scores, decoy_scores)
+            self.over_time[centers[i]] = facet
 
     def __getstate__(self):
         state = {
@@ -624,7 +644,8 @@ class RuleBasedFDREstimator(object):
             "decoy_predictions": self.decoy_predictions,
             "decoy_times": self.decoy_times,
             "decoy_is_valid": self.decoy_is_valid,
-            "rule": self.rule
+            "rule": self.rule,
+            "over_time": self.over_time
         }
         return state
 
@@ -640,6 +661,7 @@ class RuleBasedFDREstimator(object):
 
         self.decoy_times = state.get("decoy_times", np.array([]))
         self.decoy_predictions = state.get("decoy_predictions", np.array([]))
+        self.over_time = state.get("over_time", OrderedDict())
 
         self.target_residuals = self.target_times - self.target_predictions
         self.decoy_residuals = self.decoy_times - self.decoy_predictions
@@ -659,6 +681,33 @@ class RuleBasedFDREstimator(object):
         dup.decoy_chromatograms = self.decoy_chromatograms
         dup.valid_glycans = self.valid_glycans
         return dup
+
+
+class FDRFacet(FDREstimatorBase):
+    def __init__(self, target_scores, decoy_scores):
+        self.target_scores = target_scores
+        self.decoy_scores = decoy_scores
+        if decoy_scores is None:
+            self.decoy_is_valid = np.array([], dtype=bool)
+        else:
+            self.decoy_is_valid = np.ones_like(decoy_scores).astype(bool)
+        if self.target_scores is not None and self.decoy_scores is not None:
+            self.estimate_fdr()
+
+    def __getstate__(self):
+        state = {
+            "estimator": self.estimator
+        }
+        return state
+
+    def __setstate__(self, state):
+        self.estimator = state['estimator']
+        self.target_scores = self.estimator.targets['score']
+        self.decoy_scores = self.estimator.decoys['score']
+        self.decoy_is_valid = np.ones_like(self.decoy_scores).astype(bool)
+
+    def __reduce__(self):
+        return self.__class__, (None, None), self.__getstate__()
 
 
 def make_normalized_monotonic_bell(X, Y, symmetric=False):
