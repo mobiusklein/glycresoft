@@ -1,10 +1,12 @@
-from glypy.utils import uid
-
 from csv import reader, writer
 import os
 import glob
 import tempfile
 import shutil
+
+from glypy.utils import uid
+
+from six import text_type, binary_type, PY3
 
 from .spectrum_match import SpectrumMatch, SpectrumSolutionSet
 from .ref import SpectrumReference, TargetReference
@@ -70,7 +72,10 @@ class SpectrumSolutionSetWriter(FileWrapperBase):
 
     def _init_writer(self):
         try:
-            self.handle = open(self.sink, 'wb')
+            if PY3:
+                self.handle = open(self.sink, 'wt', newline='')
+            else:
+                self.handle = open(self.sink, 'wb')
         except Exception:
             if hasattr(self.sink, 'write'):
                 self.handle = self.sink
@@ -79,13 +84,22 @@ class SpectrumSolutionSetWriter(FileWrapperBase):
         self.writer = writer(self.handle)
 
     def write(self, solution_set):
-        values = [solution_set.scan.id]
         self.manager.put_scan(solution_set.scan)
-        for spectrum_match in solution_set:
-            self.manager.put_mass_shift(spectrum_match.mass_shift)
-            values.extend(spectrum_match.pack())
-
-        self.writer.writerow(list(map(bytes, values)))
+        if PY3:
+            values = [solution_set.scan.id]
+            for spectrum_match in solution_set:
+                self.manager.put_mass_shift(spectrum_match.mass_shift)
+                for val in spectrum_match.pack():
+                    if not isinstance(val, str):
+                        val = str(val)
+                    values.append(val)
+            self.writer.writerow(values)
+        else:
+            values = [solution_set.scan.id]
+            for spectrum_match in solution_set:
+                self.manager.put_mass_shift(spectrum_match.mass_shift)
+                values.extend(spectrum_match.pack())
+            self.writer.writerow(list(map(bytes, values)))
         self.counter += 1
 
     def write_all(self, iterable):
@@ -113,7 +127,10 @@ class SpectrumSolutionSetReader(FileWrapperBase):
 
     def _init_reader(self):
         try:
-            self.handle = open(self.source, 'rb')
+            if PY3:
+                self.handle = open(self.source, 'rt')
+            else:
+                self.handle = open(self.source, 'rb')
         except Exception:
             if hasattr(self.source, 'read'):
                 self.handle = self.source
