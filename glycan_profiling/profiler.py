@@ -63,7 +63,7 @@ from glycan_profiling.scoring.elution_time_grouping import (
     OxoniumIonRequiringUtilizationRevisionValidator,
     CompoundRevisionValidator)
 
-from glycan_profiling.structure import ScanStub
+from glycan_profiling.structure import ScanStub, ScanInformation
 
 from glycan_profiling.tandem.chromatogram_mapping import SpectrumMatchUpdater, AnnotatedChromatogramAggregator
 
@@ -71,7 +71,7 @@ from glycan_profiling.tandem import chromatogram_mapping
 from glycan_profiling.tandem.target_decoy import TargetDecoySet
 from glycan_profiling.tandem.temp_store import TempFileManager
 
-from glycan_profiling.tandem.spectrum_match.spectrum_match import MultiScoreSpectrumMatch
+from glycan_profiling.tandem.spectrum_match.spectrum_match import MultiScoreSpectrumMatch, SpectrumMatch
 from glycan_profiling.tandem.spectrum_match.solution_set import QValueRetentionStrategy
 
 from glycan_profiling.tandem.glycopeptide.scoring import (
@@ -742,6 +742,7 @@ class GlycopeptideLCMSMSAnalyzer(TaskBase):
         self.permute_decoy_glycans = permute_decoy_glycans
         self.rare_signatures = rare_signatures
         self.model_retention_time = model_retention_time
+        self.retention_time_model = None
 
     def make_peak_loader(self):
         peak_loader = DatabaseScanDeserializer(
@@ -768,6 +769,11 @@ class GlycopeptideLCMSMSAnalyzer(TaskBase):
         msms_scans = [o.product for o in prec_info if o.neutral_mass is not None]
         return msms_scans
 
+    def make_msn_evaluation_kwargs(self):
+        return {
+            "rare_signatures": self.rare_signatures,
+        }
+
     def make_search_engine(self, msms_scans, database, peak_loader):
         searcher = GlycopeptideDatabaseSearchIdentifier(
             [scan for scan in msms_scans
@@ -786,11 +792,12 @@ class GlycopeptideLCMSMSAnalyzer(TaskBase):
         return searcher
 
     def do_search(self, searcher):
+        kwargs = self.make_msn_evaluation_kwargs()
         assigned_spectra = searcher.search(
             precursor_error_tolerance=self.mass_error_tolerance,
             error_tolerance=self.msn_mass_error_tolerance,
             batch_size=self.spectrum_batch_size,
-            rare_signatures=self.rare_signatures)
+            **kwargs)
         return assigned_spectra
 
     def estimate_fdr(self, searcher, target_decoy_set):
@@ -958,8 +965,145 @@ class GlycopeptideLCMSMSAnalyzer(TaskBase):
         self.save_solutions(gps, unassigned, extractor, database)
         return gps, unassigned, target_decoy_set
 
-    def apply_retention_time_model(self, scored_chromatograms, orphans, database, scan_loader):
-        # no-op
+    def _get_glycan_compositions_from_database(self, database):
+        glycan_query = database.query(
+            serialize.GlycanCombination).join(
+                serialize.GlycanCombination.components).join(
+                    serialize.GlycanComposition.structure_classes).group_by(serialize.GlycanCombination.id)
+
+        glycan_compositions = [
+            c.convert() for c in glycan_query.all()]
+        return glycan_compositions
+
+    def _split_chromatograms_by_observation_priority(self, scored_chromatograms, minimum_ms1_score):
+        proxies = [GlycopeptideChromatogramProxy.from_chromatogram(
+            chrom) for chrom in scored_chromatograms]
+
+        by_structure = defaultdict(list)
+        for proxy in proxies:
+            by_structure[proxy.structure].append(proxy)
+
+        best_instances = []
+        secondary_observations = []
+        for key, group in by_structure.items():
+            group.sort(key=lambda x: x.total_signal, reverse=True)
+            i = 0
+            for i, member in enumerate(group):
+                if member.source.score > minimum_ms1_score:
+                    best_instances.append(member)
+                    secondary_observations.extend(group[i + 1:])
+                    break
+                else:
+                    secondary_observations.append(member)
+
+        glycoform_agg = GlycoformAggregator(best_instances)
+        return glycoform_agg, secondary_observations
+
+    def _apply_revisions(self, pipeline, rt_model, revisions, secondary_observations, orphans, updater):
+        was_updated = []
+        for rev in revisions:
+            if rev.revised_from and rev.structure != rev.source.structure:
+                was_updated.append(rev)
+
+        self.log("... Revising Secondary Occurrences")
+        for rev in pipeline.revise_with(rt_model, secondary_observations):
+            if rev.revised_from and rev.structure != rev.source.structure:
+                was_updated.append(rev)
+
+        orphan_proxies = []
+        for orphan in orphans:
+            gpsm = orphan.best_match_for(orphan.structure)
+            if not hasattr(gpsm.scan, "scan_time"):
+                gpsm.scan = ScanInformation.from_scan(
+                    updater.scan_loader.get_scan_by_id(
+                        gpsm.scan.id))
+            p = GlycopeptideChromatogramProxy.from_spectrum_match(
+                gpsm, orphan)
+            orphan_proxies.append(p)
+        orphan_proxies = list(GlycoformAggregator(orphan_proxies).tag())
+
+        self.log("... Revising Orphans")
+        orphan_proxies = pipeline.revise_with(rt_model, orphan_proxies)
+
+        was_updated_orphans = []
+        for rev in orphan_proxies:
+            if rev.revised_from and rev.structure != rev.source.structure:
+                was_updated_orphans.append(rev)
+
+        self.log("... Updating best match assignments")
+
+        # Use side-effects to update the source chromatogram
+        for revision in was_updated:
+            updater(revision)
+
+        # Use side-effects to update the source not-chromatogram
+        for revised_orphan in was_updated_orphans:
+            updater(revised_orphan)
+
+    def apply_retention_time_model(self, scored_chromatograms, orphans, database, scan_loader, minimum_ms1_score=6.0):
+
+        glycan_compositions = self._get_glycan_compositions_from_database(database)
+
+        glycoform_agg, secondary_observations = self._split_chromatograms_by_observation_priority(
+            scored_chromatograms, minimum_ms1_score=minimum_ms1_score)
+
+        def threshold_fn(x):
+            return x.q_value <= self.psm_fdr_threshold
+
+        msn_match_args = self.make_msn_evaluation_kwargs()
+        msn_match_args['error_tolerance'] = self.msn_mass_error_tolerance
+
+        updater = SpectrumMatchUpdater(
+            scan_loader,
+            self.tandem_scoring_model,
+            spectrum_match_cls=SpectrumMatch,
+            id_maker=database.make_key_maker(),
+            threshold_fn=threshold_fn,
+            match_args=msn_match_args,
+            fdr_estimator=self.fdr_estimator)
+
+        revision_validator = CompoundRevisionValidator([
+            PeptideYUtilizationPreservingRevisionValidator(
+                spectrum_match_builder=updater),
+            OxoniumIonRequiringUtilizationRevisionValidator(
+                spectrum_match_builder=updater),
+        ])
+
+        self.log("... Begin Retention Time Modeling")
+
+        pipeline = GlycopeptideElutionTimeModelBuildingPipeline(
+            glycoform_agg, valid_glycans=glycan_compositions,
+            revision_validator=revision_validator)
+
+        rt_model, revisions = pipeline.run()
+
+        self.retention_time_model = rt_model
+        rt_model.drop_chromatograms()
+        updater.retention_time_model = rt_model
+
+        self._apply_revisions(
+            pipeline,
+            rt_model,
+            revisions,
+            secondary_observations,
+            orphans,
+            updater)
+
+        self.log("... Re-running chromatogram merge")
+        merger = AnnotatedChromatogramAggregator(
+            scored_chromatograms,
+            require_unmodified=False,
+            threshold_fn=threshold_fn)
+
+        remerged_chromatograms = merger.run()
+
+        out = []
+        for chrom in remerged_chromatograms:
+            if isinstance(chrom, ChromatogramSolution):
+                chrom = chrom.chromatogram
+            out.append(chrom)
+        scored_chromatograms = self.score_chromatograms(out)
+
         return scored_chromatograms, orphans
 
     def _filter_out_poor_matches_before_saving(self, identified_glycopeptides):
@@ -986,6 +1130,7 @@ class GlycopeptideLCMSMSAnalyzer(TaskBase):
             "permute_decoy_glycans": self.permute_decoy_glycans,
             "rare_signatures": self.rare_signatures,
             "model_retention_time": self.model_retention_time,
+            "retention_time_model": self.retention_time_model,
         }
 
     def save_solutions(self, identified_glycopeptides, unassigned_chromatograms,
@@ -1096,6 +1241,7 @@ class MzMLGlycopeptideLCMSMSAnalyzer(GlycopeptideLCMSMSAnalyzer):
             "tandem_scoring_model": self.tandem_scoring_model,
             "rare_signatures": self.rare_signatures,
             "model_retention_time": self.model_retention_time,
+            "retention_time_model": self.retention_time_model,
         }
 
     def make_analysis_serializer(self, output_path, analysis_name, sample_run, identified_glycopeptides,
@@ -1322,34 +1468,11 @@ class MultipartGlycopeptideLCMSMSAnalyzer(MzMLGlycopeptideLCMSMSAnalyzer):
         return searcher.estimate_fdr(target_decoy_set)
 
     def apply_retention_time_model(self, scored_chromatograms, orphans, database, scan_loader, minimum_ms1_score=6.0):
-        glycan_query = database.query(
-            serialize.GlycanCombination).join(
-                serialize.GlycanCombination.components).join(
-                    serialize.GlycanComposition.structure_classes).group_by(serialize.GlycanCombination.id)
+        glycan_compositions = self._get_glycan_compositions_from_database(
+            database)
 
-        glycan_compositions = [
-            c.convert() for c in glycan_query.all()]
-
-        proxies = [GlycopeptideChromatogramProxy.from_chromatogram(chrom) for chrom in scored_chromatograms]
-
-        by_structure = defaultdict(list)
-        for proxy in proxies:
-            by_structure[proxy.structure].append(proxy)
-
-        best_instances = []
-        secondary_observations = []
-        for key, group in by_structure.items():
-            group.sort(key=lambda x: x.total_signal, reverse=True)
-            i = 0
-            for i, member in enumerate(group):
-                if member.source.score > minimum_ms1_score:
-                    best_instances.append(member)
-                    secondary_observations.extend(group[i + 1:])
-                    break
-                else:
-                    secondary_observations.append(member)
-
-        glycoform_agg = GlycoformAggregator(best_instances)
+        glycoform_agg, secondary_observations = self._split_chromatograms_by_observation_priority(
+            scored_chromatograms, minimum_ms1_score=minimum_ms1_score)
 
         def threshold_fn(x):
             return x.q_value <= self.psm_fdr_threshold
@@ -1383,40 +1506,13 @@ class MultipartGlycopeptideLCMSMSAnalyzer(MzMLGlycopeptideLCMSMSAnalyzer):
         rt_model.drop_chromatograms()
         updater.retention_time_model = rt_model
 
-        was_updated = []
-        for rev in revisions:
-            if rev.revised_from and rev.structure != rev.source.structure:
-                was_updated.append(rev)
-
-        self.log("... Revising Secondary Occurrences")
-        for rev in pipeline.revise_with(rt_model, secondary_observations):
-            if rev.revised_from and rev.structure != rev.source.structure:
-                was_updated.append(rev)
-
-        orphan_proxies = []
-        for orphan in orphans:
-            p = GlycopeptideChromatogramProxy.from_spectrum_match(
-                orphan.best_match_for(orphan.structure), orphan)
-            orphan_proxies.append(p)
-        orphan_proxies = list(GlycoformAggregator(orphan_proxies).tag())
-
-        self.log("... Revising Orphans")
-        orphan_proxies = pipeline.revise_with(rt_model, orphan_proxies)
-
-        was_updated_orphans = []
-        for rev in orphan_proxies:
-            if rev.revised_from and rev.structure != rev.source.structure:
-                was_updated_orphans.append(rev)
-
-        self.log("... Updating best match assignments")
-
-        # Use side-effects to update the source chromatogram
-        for revision in was_updated:
-            updater(revision)
-
-        # Use side-effects to update the source not-chromatogram
-        for revised_orphan in was_updated_orphans:
-            updater(revised_orphan)
+        self._apply_revisions(
+            pipeline,
+            rt_model,
+            revisions,
+            secondary_observations,
+            orphans,
+            updater)
 
         self.log("... Re-running chromatogram merge")
         merger = AnnotatedChromatogramAggregator(
