@@ -1080,8 +1080,11 @@ class ModelEnsemble(PeptideBackboneKeyedMixin, IntervalScoringMixin):
             chromatograms = self.chromatograms
         ivs = np.array([self.predict_interval(c, alpha)
                         for c in chromatograms])
-        widths = (ivs[:, 1] - ivs[:, 0]) / 2.0
-        widths = widths[~np.isnan(widths)]
+        if len(ivs) == 0:
+            widths = []
+        else:
+            widths = (ivs[:, 1] - ivs[:, 0]) / 2.0
+            widths = widths[~np.isnan(widths)]
         if len(widths) == 0:
             self.width_range = IntervalRange(0.0, float('inf'))
         else:
