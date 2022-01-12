@@ -11,3 +11,7 @@ except ImportError:
 logger = logging.getLogger("sqlalchemy.pool.NullPool")
 logger.propagate = False
 logger.addHandler(logging.NullHandler())
+
+from dill._dill import _reverse_typemap
+_reverse_typemap['IntType'] = int
+_reverse_typemap['ListType'] = list

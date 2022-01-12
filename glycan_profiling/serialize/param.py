@@ -5,6 +5,7 @@ except ImportError:
 from collections import namedtuple
 
 from functools import partial
+import six
 from sqlalchemy import PickleType, Column
 from sqlalchemy.orm import deferred
 from sqlalchemy.ext.declarative import declared_attr
@@ -147,6 +148,8 @@ class MappingCell(object):
 
     def deserialize(self):
         if self.serialized:
+            if isinstance(self.value, six.text_type):
+                self.value = self.value.encode('latin1')
             self.value = dill.loads(self.value)
             self.serialized = False
         return self
@@ -216,10 +219,33 @@ class AutoLoadPickle(object):
         return self.load()
 
     def load(self):
-        return dill.loads(self.payload)
+        try:
+            return dill.loads(self.payload)
+        except UnicodeDecodeError:
+            if six.PY3:
+                return dill.loads(self.payload, encoding='latin1')
+            else:
+                raise
 
 
-DillType = partial(PickleType, pickler=dill)
+class _crossversion_dill(object):
+
+    @staticmethod
+    def loads(string, *args, **kwargs):
+        try:
+            return dill.loads(string, *args, **kwargs)
+        except UnicodeDecodeError:
+            if six.PY3:
+                return dill.loads(string, encoding='latin1')
+            else:
+                raise
+
+    @staticmethod
+    def dumps(obj, *args, **kwargs):
+        return dill.dumps(obj, *args, **kwargs)
+
+
+DillType = partial(PickleType, pickler=_crossversion_dill)
 
 
 class HasParameters(object):
