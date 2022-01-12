@@ -552,13 +552,18 @@ class TargetDecoyAnalyzer(object):
 
 
 class GroupwiseTargetDecoyAnalyzer(object):
+    _grouping_labels = None
+
     def __init__(self, target_series, decoy_series, with_pit=False, grouping_functions=None, decoy_correction=0,
-                 database_ratio=1.0, target_weight=1.0, decoy_pseudocount=1.0):
+                 database_ratio=1.0, target_weight=1.0, decoy_pseudocount=1.0, grouping_labels=None):
         if grouping_functions is None:
             grouping_functions = [lambda x: True]
+        if grouping_labels is None:
+            grouping_labels = ["Group %d" % i for i in range(1, len(grouping_functions) + 1)]
         self.targets = target_series
         self.decoys = decoy_series
         self.with_pit = with_pit
+        self.grouping_labels = grouping_labels
         self.grouping_functions = []
         self.groups = []
         self.group_fits = []
@@ -571,6 +576,17 @@ class GroupwiseTargetDecoyAnalyzer(object):
             self.add_group(fn)
 
         self.partition()
+
+    @property
+    def grouping_labels(self):
+        if self._grouping_labels is None:
+            self._grouping_labels = [
+                "Group %d" % i for i in range(1, len(self.grouping_functions) + 1)]
+        return self._grouping_labels
+
+    @grouping_labels.setter
+    def grouping_labels(self, labels):
+        self._grouping_labels = labels
 
     def pack(self):
         self.targets = []
@@ -620,3 +636,68 @@ class GroupwiseTargetDecoyAnalyzer(object):
             self.score(spectrum_match)
         solution_set.q_value = solution_set.best_solution().q_value
         return solution_set
+
+    def plot(self, ax=None):
+        if ax is None:
+            fig, ax = plt.subplots(1)
+        ax2 = ax.twinx()
+        lines = []
+        labels = []
+        for i, (group_fit, label) in enumerate(zip(self.group_fits, self.grouping_labels)):
+            thresholds = sorted(group_fit.thresholds, reverse=False)
+            target_counts = np.array(
+                [group_fit.n_targets_above_threshold(i) for i in thresholds])
+            decoy_counts = np.array([group_fit.n_decoys_above_threshold(i)
+                                    for i in thresholds])
+            fdr = np.array([group_fit.q_value_map[i] for i in thresholds])
+            try:
+                at_5_percent = np.where(fdr < 0.05)[0][0]
+            except IndexError:
+                at_5_percent = -1
+            try:
+                at_1_percent = np.where(fdr < 0.01)[0][0]
+            except IndexError:
+                at_1_percent = -1
+            line1 = ax.plot(thresholds, target_counts,
+                            label='%s Target' % label, )
+            lines.append(line1[0])
+            labels.append(line1[0].get_label())
+
+            line2 = ax.plot(thresholds, decoy_counts, label='%s Decoy' % label, )
+            lines.append(line2[0])
+            labels.append(line2[0].get_label())
+
+            tline5 = ax.vlines(
+                thresholds[at_5_percent], 0, np.max(target_counts), linestyle='--',
+                lw=0.75, label='%s 5%% FDR' % label)
+            lines.append(tline5)
+            labels.append(tline5.get_label())
+
+            tline1 = ax.vlines(
+                thresholds[at_1_percent], 0, np.max(target_counts), linestyle='--',
+                lw=0.75, label='%s 1%% FDR' % label)
+            lines.append(tline1)
+            labels.append(tline1.get_label())
+
+            line3 = ax2.plot(thresholds, fdr, label='%s FDR' % label,
+                             linestyle='--')
+            lines.append(line3[0])
+            labels.append(line3[0].get_label())
+
+        ax.set_ylabel("# Matches Retained")
+        ax.set_xlabel("Score")
+
+        ax2.set_ylabel("FDR")
+        ax.legend(lines, labels, frameon=False)
+
+        lo, hi = ax.get_ylim()
+        lo = max(lo, 0)
+        ax.set_ylim(lo, hi)
+        lo, hi = ax2.get_ylim()
+        ax2.set_ylim(0, hi)
+
+        lo, hi = ax.get_xlim()
+        ax.set_xlim(-1, hi)
+        lo, hi = ax2.get_xlim()
+        ax2.set_xlim(-1, hi)
+        return ax
