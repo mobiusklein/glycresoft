@@ -25,4 +25,5 @@ glycopeptidepy
 brain-isotopic-distribution
 ms_peak_picker
 python-idzip>=0.3.2
+pyzstd
 ms_deisotope
