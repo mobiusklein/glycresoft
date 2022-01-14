@@ -275,7 +275,10 @@ class ProteinDigestor(TaskBase):
 
     def digest(self, protein):
         sequence = protein.protein_sequence
-        size = len(protein)
+        try:
+            size = len(protein)
+        except residue.UnknownAminoAcidException:
+            size = len(sequence)
         for peptide, start, end, n_missed_cleavages in self.cleave(sequence):
             if end - start > self.max_length:
                 continue
@@ -459,6 +462,21 @@ class MultipleProcessProteinDigestor(TaskBase):
                 self.log("... Dealt Proteins %d-%d %0.2f%%" % (
                     i - chunk_size, min(i, n), (min(i, n) / float(n)) * 100))
                 last = i
+
+                error_occurred = False
+                for process in processes:
+                    if process.exitcode is not None and process.exitcode != 0:
+                        error_occurred = True
+
+                if error_occurred:
+                    self.error("An error occurred while digesting proteins.")
+                    done_event.set()
+                    for process in processes:
+                        if process.is_alive():
+                            process.terminate()
+                    logger.stop()
+                    raise ValueError(
+                        "One or more worker processes exited with an error.")
 
         done_event.set()
         for process in processes:
