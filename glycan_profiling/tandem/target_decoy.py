@@ -643,21 +643,14 @@ class GroupwiseTargetDecoyAnalyzer(object):
         ax2 = ax.twinx()
         lines = []
         labels = []
-        for i, (group_fit, label) in enumerate(zip(self.group_fits, self.grouping_labels)):
+        for _, (group_fit, label) in enumerate(zip(self.group_fits, self.grouping_labels)):
             thresholds = sorted(group_fit.thresholds, reverse=False)
             target_counts = np.array(
                 [group_fit.n_targets_above_threshold(i) for i in thresholds])
-            decoy_counts = np.array([group_fit.n_decoys_above_threshold(i)
-                                    for i in thresholds])
+            decoy_counts = np.array(
+                [group_fit.n_decoys_above_threshold(i) for i in thresholds])
+
             fdr = np.array([group_fit.q_value_map[i] for i in thresholds])
-            try:
-                at_5_percent = np.where(fdr < 0.05)[0][0]
-            except IndexError:
-                at_5_percent = -1
-            try:
-                at_1_percent = np.where(fdr < 0.01)[0][0]
-            except IndexError:
-                at_1_percent = -1
             line1 = ax.plot(thresholds, target_counts,
                             label='%s Target' % label, )
             lines.append(line1[0])
@@ -666,18 +659,6 @@ class GroupwiseTargetDecoyAnalyzer(object):
             line2 = ax.plot(thresholds, decoy_counts, label='%s Decoy' % label, )
             lines.append(line2[0])
             labels.append(line2[0].get_label())
-
-            tline5 = ax.vlines(
-                thresholds[at_5_percent], 0, np.max(target_counts), linestyle='--',
-                lw=0.75, label='%s 5%% FDR' % label)
-            lines.append(tline5)
-            labels.append(tline5.get_label())
-
-            tline1 = ax.vlines(
-                thresholds[at_1_percent], 0, np.max(target_counts), linestyle='--',
-                lw=0.75, label='%s 1%% FDR' % label)
-            lines.append(tline1)
-            labels.append(tline1.get_label())
 
             line3 = ax2.plot(thresholds, fdr, label='%s FDR' % label,
                              linestyle='--')
