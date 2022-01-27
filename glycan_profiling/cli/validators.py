@@ -9,6 +9,8 @@ except ImportError:
 
 from functools import partial
 
+from six import string_types as basestring
+
 import click
 
 from sqlalchemy.exc import OperationalError, ArgumentError

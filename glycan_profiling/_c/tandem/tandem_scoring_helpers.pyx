@@ -743,6 +743,32 @@ cpdef compute_coverage(self):
     return mean_coverage
 
 
+@cython.binding(True)
+cpdef count_peptide_Y_ion_utilization(self):
+    cdef:
+        double weight
+        size_t count
+        object cached_value, tmp
+        PeakFragmentPair pfp
+        FragmentMatchMap solution_map
+        FragmentBase frag
+
+    cached_value = self._peptide_Y_ion_utilization
+    if cached_value is not None:
+        return cached_value
+    solution_map = <FragmentMatchMap>self.solution_map
+    weight = 0.0
+    count = 0
+    for tmp in solution_map.members:
+        pfp = <PeakFragmentPair>tmp
+        frag = <FragmentBase>pfp.fragment
+        if frag.get_series().int_code == IonSeries_stub_glycopeptide.int_code:
+            count += 1
+            weight += log10(pfp.peak.intensity)
+    self._peptide_Y_ion_utilization = weight, count
+    return self._peptide_Y_ion_utilization
+
+
 cpdef parse_float(str text):
     cdef:
         object value

@@ -80,8 +80,7 @@ class ChromatogramIndex(object):
             self.chromatograms = list(chromatograms)
 
     def _sort(self, iterable):
-        self.chromatograms = [c for c in sorted([c for c in iterable if len(c)], key=lambda x: (
-            x.neutral_mass, x.start_time))]
+        self.chromatograms = sorted([c for c in iterable if len(c)], key=lambda x: (x.neutral_mass, x.start_time))
 
     def add(self, chromatogram, sort=True):
         self.chromatograms.append(chromatogram)

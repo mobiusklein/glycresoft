@@ -394,6 +394,9 @@ class ModelReviser(object):
             original_solution = best_record = chromatograms[i]
             original_time = original_times[i]
 
+            # TODO: Re-write this to generate all alternative solutions, then order them by score,
+            # then apply constraints.
+
             for rule in self.rules:
                 alt_rec = self.alternative_records[rule][i]
                 alt_score = self.alternative_scores[rule][i]

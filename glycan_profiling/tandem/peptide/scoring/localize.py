@@ -152,7 +152,7 @@ class PeptidoformPermuter(object):
         '''
         indices = []
         for i, position in enumerate(self.peptide):
-            if modification_rule in position.modifications:
+            if position.modifications and modification_rule in position.modifications:
                 indices.append(i)
         return indices
 
