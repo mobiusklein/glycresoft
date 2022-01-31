@@ -1093,14 +1093,15 @@ class ModelEnsemble(PeptideBackboneKeyedMixin, IntervalScoringMixin):
                 raise ValueError("Width range cannot be NaN")
         return self
 
-    def plot_number_of_training_points(self, ax=None):
+    def plot_number_of_training_points(self, ax=None, color='teal', markerfacecolor='mediumspringgreen',
+                                       markeredgecolor='mediumaquamarine', markersize=7, marker='.'):
         if ax is None:
             _fig, ax = plt.subplots(1)
         ts, n_pts = zip(*[(k, v.data.shape[0]) for k, v in self.models.items()])
-        ax.plot(ts, n_pts, marker='.', markersize=7,
-                color='teal',
-                markerfacecolor='mediumspringgreen',
-                markeredgecolor='mediumaquamarine')
+        ax.plot(ts, n_pts, marker=marker, markersize=markersize,
+                color=color,
+                markerfacecolor=markerfacecolor,
+                markeredgecolor=markeredgecolor)
 
         def nearest_multiple_of_ten(value):
             return round(value / 10) * 10

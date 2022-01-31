@@ -12,6 +12,7 @@ class GlycopeptideSpectrumMatcherBase(SpectrumMatcherBase):
     _glycan_score = None
     _peptide_score = None
     _glycan_coverage = None
+    _peptide_coverage = None
 
     def _theoretical_mass(self):
         return self.target.total_mass
@@ -220,10 +221,12 @@ class GlycopeptideSpectrumMatcherBase(SpectrumMatcherBase):
 try:
     from glycan_profiling._c.tandem.tandem_scoring_helpers import (
         _match_oxonium_ions, _match_stub_glycopeptides,
-        _calculate_glycan_coverage, _compute_glycan_coverage_from_metrics)
+        _calculate_glycan_coverage, _compute_glycan_coverage_from_metrics,
+        _calculate_peptide_coverage)
     GlycopeptideSpectrumMatcherBase._match_oxonium_ions = _match_oxonium_ions
     GlycopeptideSpectrumMatcherBase._match_stub_glycopeptides = _match_stub_glycopeptides
     GlycopeptideSpectrumMatcherBase._calculate_glycan_coverage = _calculate_glycan_coverage
     GlycopeptideSpectrumMatcherBase._compute_glycan_coverage_from_metrics = _compute_glycan_coverage_from_metrics
+    GlycopeptideSpectrumMatcherBase._calculate_peptide_coverage = _calculate_peptide_coverage
 except ImportError:
     pass

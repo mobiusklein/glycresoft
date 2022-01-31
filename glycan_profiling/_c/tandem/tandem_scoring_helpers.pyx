@@ -89,7 +89,7 @@ cpdef _compute_coverage_vectors(self):
 
 
 cdef set peptide_ion_series = {IonSeries_b, IonSeries_y, IonSeries_c, IonSeries_z}
-cdef int peptide_series_number = IonSeries_z.int_code + 1
+cdef int PEPTIDE_SERIES_NUMBER = IonSeries_z.int_code + 1
 
 
 @cython.binding(True)
@@ -97,42 +97,60 @@ cdef int peptide_series_number = IonSeries_z.int_code + 1
 @cython.boundscheck(False)
 def calculate_peptide_score(self, double error_tolerance=2e-5, double coverage_weight=1.0, *args, **kwargs):
     cdef:
-        double total, score, coverage_score, normalizer
-        # set seen
-        tuple coverage_result
+        double total, score, coverage_score
         PeakFragmentPair peak_pair
         DeconvolutedPeak peak
         FragmentMatchMap solution_map
-        long size
-        np.ndarray[np.float64_t, ndim=1] n_term, c_term
-        size_t i
 
     target = <_PeptideSequenceCore>self.target
     size = target.get_size()
 
     total = 0
-    # seen = set()
     solution_map = <FragmentMatchMap>self.solution_map
     for obj in solution_map.members:
         peak_pair = <PeakFragmentPair>obj
         peak = peak_pair.peak
-        if (<FragmentBase>peak_pair.fragment).get_series().int_code < peptide_series_number:
-            # seen.add(peak._index.neutral_mass)
+        if (<FragmentBase>peak_pair.fragment).get_series().int_code < PEPTIDE_SERIES_NUMBER:
             total += log10(peak.intensity) * (1 - (abs(peak_pair.mass_accuracy()) / error_tolerance) ** 4)
+
+    coverage_score = _calculate_peptide_coverage(self)
+
+    score = total * coverage_score ** coverage_weight
+    if isnan(score):
+        return 0
+    return score
+
+
+@cython.binding(True)
+@cython.cdivision(True)
+@cython.boundscheck(False)
+cpdef double _calculate_peptide_coverage(self):
+    cdef:
+        double coverage_score, normalizer
+        tuple coverage_result
+        long size
+        # np.ndarray[np.float64_t, ndim=1, mode='c'] n_term, c_term
+        np.float64_t[::1] n_term, c_term
+        size_t i
+
+    cache = self._peptide_coverage
+    if cache is not None:
+        return cache
+
+    target = <_PeptideSequenceCore>self.target
+    size = target.get_size()
+
     coverage_result = <tuple>_compute_coverage_vectors(self)
-    n_term = <np.ndarray[np.float64_t, ndim=1]>PyTuple_GET_ITEM(coverage_result, 0)
-    c_term = <np.ndarray[np.float64_t, ndim=1]>PyTuple_GET_ITEM(coverage_result, 1)
+    n_term = <np.ndarray[np.float64_t, ndim=1, mode='c']>PyTuple_GET_ITEM(coverage_result, 0)
+    c_term = <np.ndarray[np.float64_t, ndim=1, mode='c']>PyTuple_GET_ITEM(coverage_result, 1)
     normalizer = float((2 * size - 1))
     coverage_score = 0.0
 
     for i in range(size):
         coverage_score += n_term[i] + c_term[size - i - 1]
     coverage_score /= normalizer
-
-    score = total * coverage_score ** coverage_weight
-    if isnan(score):
-        return 0
-    return score
+    self._peptide_coverage = coverage_score
+    return coverage_score
 
 
 @cython.binding(True)
@@ -723,8 +741,13 @@ cdef double log2_3 = log2l(3)
 @cython.boundscheck(False)
 @cython.cdivision(True)
 cpdef compute_coverage(self):
+    '''Computes log-weighted coverage over the peptide sequence.
+
+    The log-weighting scheme rewards more for the first fragment than
+    the second fragment which may be advantageous for some scenarios.
+    '''
     cdef:
-        np.ndarray[np.float64_t, ndim=1] n_term_ions, c_term_ions
+        np.ndarray[np.float64_t, ndim=1, mode='c'] n_term_ions, c_term_ions
         long size, i
         _PeptideSequenceCore target
         double acc, mean_coverage
