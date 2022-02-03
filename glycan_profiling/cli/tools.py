@@ -556,7 +556,7 @@ def summarize_glycopeptide_hypothesis(database_connection, hypothesis_identifier
 @tools.command("extract-blob")
 @database_connection
 @click.argument("blob-identifier")
-@click.option("-o", "--output-path", type=click.File(mode='w'))
+@click.option("-o", "--output-path", type=click.File(mode='wb'))
 def extract_file_blob(database_connection, blob_identifier, output_path=None):
     if output_path is None:
         output_path = click.get_binary_stream('stdout')
