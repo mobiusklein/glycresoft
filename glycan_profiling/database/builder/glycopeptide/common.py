@@ -575,7 +575,7 @@ class MultipleProcessPeptideGlycosylator(TaskBase):
     def push_work_batches(self, peptide_ids):
         n = len(peptide_ids)
         i = 0
-        chunk_size = min(int(n * 0.05), 1000)
+        chunk_size = max(min(int(n * 0.05), 1000), 5)
         while i < n:
             self.input_queue.put(peptide_ids[i:(i + chunk_size)])
             i += chunk_size
