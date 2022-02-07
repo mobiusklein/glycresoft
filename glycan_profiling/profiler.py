@@ -955,7 +955,7 @@ class GlycopeptideLCMSMSAnalyzer(TaskBase):
         self.log("Scoring chromatograms")
         scored_merged = self.score_chromatograms(merged)
 
-        if self.model_retention_time:
+        if self.model_retention_time and len(scored_merged) > 0:
             scored_merged, orphans = self.apply_retention_time_model(
                 scored_merged, orphans, database, peak_loader)
 
@@ -1046,6 +1046,10 @@ class GlycopeptideLCMSMSAnalyzer(TaskBase):
 
         glycoform_agg, secondary_observations = self._split_chromatograms_by_observation_priority(
             scored_chromatograms, minimum_ms1_score=minimum_ms1_score)
+
+        if len(glycoform_agg) == 0:
+            self.log("... Insufficient identifications for Retention Time Modeling")
+            return scored_chromatograms, orphans
 
         def threshold_fn(x):
             return x.q_value <= self.psm_fdr_threshold
@@ -1473,6 +1477,10 @@ class MultipartGlycopeptideLCMSMSAnalyzer(MzMLGlycopeptideLCMSMSAnalyzer):
 
         glycoform_agg, secondary_observations = self._split_chromatograms_by_observation_priority(
             scored_chromatograms, minimum_ms1_score=minimum_ms1_score)
+
+        if len(glycoform_agg) == 0:
+            self.log("... Insufficient identifications for Retention Time Modeling")
+            return scored_chromatograms, orphans
 
         def threshold_fn(x):
             return x.q_value <= self.psm_fdr_threshold
