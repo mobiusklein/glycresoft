@@ -967,6 +967,7 @@ class RepresenterDeconvolution(TaskBase):
                     sols.append(
                         SolutionEntry(
                             k, score, percentiles[k], best_match.score, best_match))
+
                 sols = parsimony_sort(sols)
                 if sols:
                     # This difference is not using the absolute value to allow for scenarios where

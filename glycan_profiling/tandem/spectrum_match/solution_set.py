@@ -1,9 +1,16 @@
 '''Represent collections of :class:`~SpectrumMatch` instances covering the same
 spectrum, and methods for selecting which are worth keeping for downstream consideration.
 '''
+import logging
+
 from glycan_profiling.chromatogram_tree import Unmodified
 
+from glycan_profiling.task import log_handle
+
 from .spectrum_match import SpectrumMatch, SpectrumReference, ScanWrapperBase, MultiScoreSpectrumMatch
+
+
+logger = logging.getLogger(__name__)
 
 
 class SpectrumMatchRetentionStrategyBase(object):
@@ -285,7 +292,7 @@ class NOParsimonyMixin(object):
     '''Provides shared methods for a parsimony step re-ordering solutions
     when the top solution may be N-linked or O-linked.
     '''
-    def __init__(self, threshold_percentile=0.75):
+    def __init__(self, threshold_percentile=0.5):
         self.threshold_percentile = threshold_percentile
 
     def get_score(self, solution):
@@ -340,9 +347,9 @@ class NOParsimonyMixin(object):
                     rest.append(sm)
                     break
             sm_target = self.get_target(sm)
-            if (best_gp.base_sequence_equality(sm_target) and best_gc == sm_target.glycan_composition \
-                    and sm_target.is_n_glycosylated()):
+            if (best_gp.base_sequence_equality(sm_target) and str(best_gc) == str(sm_target.glycan_composition) and sm_target.is_n_glycosylated()):
                 hoisted.append(sm)
+                log_handle.log(f"Hoisting {sm.target} for scan {sm.scan.scan_id!r}")
             else:
                 rest.append(sm)
         rest.extend(solution_set[i + 1:])
