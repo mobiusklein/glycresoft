@@ -2,7 +2,10 @@
 
 import logging
 import warnings
+
 from collections import namedtuple, defaultdict
+
+from typing import Any, DefaultDict, Dict, Optional, List, Tuple
 
 try:
     from collections.abc import Sequence
@@ -11,9 +14,17 @@ except ImportError:
 
 import numpy as np
 
-from glypy.structure.glycan_composition import FrozenMonosaccharideResidue, HashableGlycanComposition
-from glycopeptidepy.structure.fragmentation_strategy import StubGlycopeptideStrategy, _AccumulatorBag
+from ms_deisotope.data_source import ProcessedScan
+from ms_deisotope.peak_set import DeconvolutedPeak
 
+from glypy.structure.glycan_composition import FrozenMonosaccharideResidue, HashableGlycanComposition, GlycanComposition
+from glypy.utils.enum import EnumValue
+
+from glycopeptidepy.structure.fragmentation_strategy import StubGlycopeptideStrategy, _AccumulatorBag
+from glycopeptidepy.structure.fragment import StubFragment
+
+
+from glycan_profiling.chromatogram_tree.mass_shift import MassShift
 from glycan_profiling.serialize import GlycanCombination, GlycanTypes
 from glycan_profiling.database.disk_backed_database import PPMQueryInterval
 from glycan_profiling.chromatogram_tree import Unmodified
@@ -145,7 +156,7 @@ class CoreMotifFinder(PathFinder):
                         terminals[path[0].start] = max((path, last_path), key=lambda x: x.total_signal)
         return PathSet(terminals.values())
 
-    def estimate_peptide_mass(self, scan, topn=100, mass_shift=Unmodified, query_mass=None):
+    def estimate_peptide_mass(self, scan: ProcessedScan, topn: int=100, mass_shift: MassShift=Unmodified, query_mass: Optional[float]=None):
         graph = self._find_edges(scan, mass_shift=mass_shift)
         paths = self._init_paths(graph)
         groups = self._aggregate_paths(paths)
@@ -240,16 +251,27 @@ class GlycanCombinationRecordBase(object):
                  'size', "_fragment_cache", "internal_size_approximation", "_hash",
                  'fragment_set_properties']
 
-    def is_n_glycan(self):
+    id: int
+    dehydrated_mass: float
+    composition: GlycanComposition
+    count: int
+    glycan_types: List[EnumValue]
+    size: int
+    _fragment_cache: Dict[EnumValue, List]
+    internal_size_approximation: int
+    _hash: int
+    fragment_set_properties: dict
+
+    def is_n_glycan(self) -> bool:
         return GlycanTypes.n_glycan in self.glycan_types
 
-    def is_o_glycan(self):
+    def is_o_glycan(self) -> bool:
         return GlycanTypes.o_glycan in self.glycan_types
 
-    def is_gag_linker(self):
+    def is_gag_linker(self) -> bool:
         return GlycanTypes.gag_linker in self.glycan_types
 
-    def get_n_glycan_fragments(self):
+    def get_n_glycan_fragments(self) -> List[CoarseStubGlycopeptideFragment]:
         if GlycanTypes.n_glycan not in self._fragment_cache:
             strategy = StubGlycopeptideStrategy(None, extended=True)
             shifts = strategy.n_glycan_composition_fragments(
@@ -269,7 +291,7 @@ class GlycanCombinationRecordBase(object):
         else:
             return self._fragment_cache[GlycanTypes.n_glycan]
 
-    def get_o_glycan_fragments(self):
+    def get_o_glycan_fragments(self) -> List[CoarseStubGlycopeptideFragment]:
         if GlycanTypes.o_glycan not in self._fragment_cache:
             strategy = StubGlycopeptideStrategy(None, extended=True)
             shifts = strategy.o_glycan_composition_fragments(
@@ -286,7 +308,7 @@ class GlycanCombinationRecordBase(object):
         else:
             return self._fragment_cache[GlycanTypes.o_glycan]
 
-    def get_gag_linker_glycan_fragments(self):
+    def get_gag_linker_glycan_fragments(self) -> List[CoarseStubGlycopeptideFragment]:
         if GlycanTypes.gag_linker not in self._fragment_cache:
             strategy = StubGlycopeptideStrategy(None, extended=True)
             shifts = strategy.gag_linker_composition_fragments(
@@ -861,6 +883,9 @@ class IndexGlycanCompositionFragment(GlycanCompositionFragment):
 class ComplementFragment(object):
     __slots__ = ('mass', 'keys')
 
+    mass: float
+    keys: List[Tuple[IndexGlycanCompositionFragment, int, Any]]
+
     def __init__(self, mass, keys=None):
         self.mass = mass
         self.keys = keys or []
@@ -931,6 +956,20 @@ class GlycanFragmentIndex(object):
       Comprehensive Analysis of Intact Glycopeptides and Monosaccharide-Modifications with pGlyco3.
       Bioarxiv. https://doi.org/https://doi.org/10.1101/2021.02.06.430063
     '''
+
+    members: List[GlycanCombinationRecord]
+    unique_fragments: DefaultDict[str, Dict[str, IndexGlycanCompositionFragment]]
+    fragment_index: DefaultDict[int, List[ComplementFragment]]
+    counter: int
+
+    core_weight: float
+    fragment_weight: float
+
+    resolution: float
+    lower_bound: float
+    upper_bound: float
+
+
     def __init__(self, members=None, fragment_weight=0.56, core_weight=0.42, resolution=100):
         self.members = members or []
         self.unique_fragments = defaultdict(dict)
@@ -943,7 +982,7 @@ class GlycanFragmentIndex(object):
         self.upper_bound = 0
         self.resolution = resolution
 
-    def _intern(self, fragment, glycosylation_type):
+    def _intern(self, fragment: StubFragment, glycosylation_type: str) -> IndexGlycanCompositionFragment:
         key = str(HashableGlycanComposition(fragment.key))
         try:
             return self.unique_fragments[glycosylation_type][key]
@@ -957,7 +996,7 @@ class GlycanFragmentIndex(object):
             self.counter += 1
             return fragment
 
-    def _get_fragments(self, gcr, glycosylation_type):
+    def _get_fragments(self, gcr: GlycanCombinationRecord, glycosylation_type: str) -> List[StubFragment]:
         if glycosylation_type == GlycanTypes_n_glycan:
             return gcr.get_n_glycan_fragments()
         elif glycosylation_type == GlycanTypes_o_glycan:
@@ -1005,7 +1044,7 @@ class GlycanFragmentIndex(object):
         self.upper_bound = high
         return j
 
-    def _match_fragments(self, delta_mass, peak, error_tolerance, result):
+    def _match_fragments(self, delta_mass: float, peak: DeconvolutedPeak, error_tolerance: float, result: Dict[int, Dict[str, PartialGlycanSolution]]):
         key = int(delta_mass * self.resolution)
         width = int(peak.neutral_mass * error_tolerance * self.resolution) + 1
         for off in range(-width, width + 1):
@@ -1019,16 +1058,16 @@ class GlycanFragmentIndex(object):
                             sol.core_matches.add(frag.index)
                         sol.fragment_matches.add(frag.index)
 
-    def match(self, scan, error_tolerance=1e-5, mass_shift=Unmodified, query_mass=None):
+    def match(self, scan: ProcessedScan, error_tolerance: float=1e-5, mass_shift: MassShift=Unmodified, query_mass: Optional[float]=None) -> List[PartialGlycanSolution]:
         if query_mass is None:
-            precursor_mass = scan.precursor_information.neutral_mass
+            precursor_mass: float = scan.precursor_information.neutral_mass
         else:
             precursor_mass = query_mass
 
         mass_shift_mass = mass_shift.mass
         mass_shift_tandem_mass = mass_shift.tandem_mass
 
-        result = defaultdict(lambda: defaultdict(PartialGlycanSolution))
+        result: DefaultDict[int, DefaultDict[str, PartialGlycanSolution]] = defaultdict(lambda: defaultdict(PartialGlycanSolution))
         for peak in scan.deconvoluted_peak_set:
             d = (precursor_mass - peak.neutral_mass - mass_shift_mass)
             self._match_fragments(d, peak, error_tolerance, result)

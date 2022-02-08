@@ -106,6 +106,7 @@ class JournalFileWriter(TaskBase):
             'glycan_combination_id',
             'match_type',
             'site_combination_index',
+            'glycosylation_type',
             'glycopeptide_sequence',
             'mass_shift',
             'total_score',
@@ -244,7 +245,7 @@ class JournalFileReader(TaskBase):
                 row['peptide_id']), int(row['protein_id']),
             int(row['hypothesis_id']), int(row['glycan_combination_id']),
             StructureClassification[row['match_type']],
-            int(row['site_combination_index']))
+            int(row['site_combination_index']), row.get('glycosylation_type'))
         return glycopeptide_id_key
 
     def _build_protein_relation(self, glycopeptide_id_key):

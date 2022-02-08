@@ -3,9 +3,8 @@ import operator
 import logging
 import struct
 import ctypes
-import gzip
-import io
-from typing import Dict, List
+
+from typing import Dict, List, Optional
 
 from six import iteritems
 
@@ -17,8 +16,13 @@ from glycopeptidepy import PeptideSequence, GlycosylationType
 from glycopeptidepy.structure.glycan import GlycanCompositionWithOffsetProxy
 from glycopeptidepy.structure.sequence import (
     _n_glycosylation, _o_glycosylation, _gag_linker_glycosylation)
+from glypy.utils.enum import EnumValue
 
 from ms_deisotope import isotopic_shift
+from ms_deisotope.data_source import ProcessedScan
+
+from glycan_profiling.chromatogram_tree.mass_shift import MassShift
+from glycan_profiling.serialize.hypothesis.glycan import GlycanTypes
 
 from glycan_profiling.task import LoggingMixin
 
@@ -30,7 +34,7 @@ from glycan_profiling.structure import (
     PeptideProteinRelation, )
 from glycan_profiling.structure.structure_loader import CachingStubGlycopeptideStrategy, PeptideDatabaseRecord
 
-from glycan_profiling.tandem.oxonium_ions import SignatureIonIndexMatch
+from glycan_profiling.tandem.oxonium_ions import OxoniumIndex, SignatureIonIndex, SignatureIonIndexMatch
 
 from glycan_profiling.composition_distribution_model.site_model import (
     GlycoproteomePriorAnnotator)
@@ -54,7 +58,7 @@ debug_mode = bool(os.environ.get("GLYCRESOFTDEBUG"))
 _glycopeptide_key_t = namedtuple(
     'glycopeptide_key', ('start_position', 'end_position', 'peptide_id', 'protein_id',
                          'hypothesis_id', 'glycan_combination_id', 'structure_type',
-                         'site_combination_index'))
+                         'site_combination_index', 'glycosylation_type'))
 
 
 class glycopeptide_key_t_base(_glycopeptide_key_t):
@@ -95,6 +99,16 @@ TT = StructureClassification.target_peptide_target_glycan
 class glycopeptide_key_t(glycopeptide_key_t_base):
     __slots__ = ()
 
+    start_position: int
+    end_position: int
+    peptide_id: int
+    protein_id: int
+    hypothesis_id: int
+    glycan_combination_id: int
+    structure_type: EnumValue
+    site_combination_index: int
+    glycosylation_type: str
+
     struct_spec = struct.Struct('!LLLLLLLL')
 
     def serialize(self):
@@ -104,15 +118,21 @@ class glycopeptide_key_t(glycopeptide_key_t_base):
     def parse(cls, binary):
         return cls(*cls.struct_spec.unpack(binary))
 
-    def to_decoy_glycan(self):
+    def to_decoy_glycan(self) -> 'glycopeptide_key_t':
         structure_type = self.structure_type
         new_tp = StructureClassification[
             structure_type | StructureClassification.target_peptide_decoy_glycan]
         return self.copy(new_tp)
 
-    def is_decoy(self):
+    def is_decoy(self) -> bool:
         return self.structure_type != 0
 
+
+CORE_TO_GLYCOSYLATION_TYPE = {
+    _n_glycosylation: GlycanTypes.n_glycan,
+    _o_glycosylation: GlycanTypes.o_glycan,
+    _gag_linker_glycosylation: GlycanTypes.gag_linker
+}
 
 
 class GlycoformGeneratorBase(LoggingMixin):
@@ -157,7 +177,9 @@ class GlycoformGeneratorBase(LoggingMixin):
 
     def handle_glycan_combination(self, peptide_obj: PeptideSequence, peptide_record: PeptideDatabaseRecord, glycan_combination: GlycanCombinationRecord,
                                   glycosylation_sites: List[int], core_type: GlycosylationType) -> List["Record"]:
-        key = self._make_key(peptide_record, glycan_combination)
+        glycosylation_type = CORE_TO_GLYCOSYLATION_TYPE[core_type]
+        key = self._make_key(
+            peptide_record, glycan_combination, glycosylation_type)
         if key in self._peptide_cache:
             self._cache_hit += 1
             return self._peptide_cache[key]
@@ -184,7 +206,7 @@ class GlycoformGeneratorBase(LoggingMixin):
         self._peptide_cache[key] = result_set
         return result_set
 
-    def _make_key(self, peptide_record: PeptideDatabaseRecord, glycan_combination: GlycanCombinationRecord, structure_type: StructureClassification = None) -> glycopeptide_key_t:
+    def _make_key(self, peptide_record: PeptideDatabaseRecord, glycan_combination: GlycanCombinationRecord, glycosylation_type: str, structure_type: StructureClassification = None) -> glycopeptide_key_t:
         if structure_type is None:
             structure_type = self.default_structure_type
         key = glycopeptide_key_t(
@@ -195,7 +217,8 @@ class GlycoformGeneratorBase(LoggingMixin):
             peptide_record.hypothesis_id,
             glycan_combination.id,
             structure_type,
-            placeholder_permutation)
+            placeholder_permutation,
+            glycosylation_type)
         return key
 
     def handle_n_glycan(self, peptide_obj, peptide_record, glycan_combination):
@@ -284,7 +307,7 @@ class PeptideGlycosylator(GlycoformGeneratorBase):
             self._combinate(peptide, glycan_combinations, result_set)
         return result_set
 
-    def _combinate(self, peptide, glycan_combinations, result_set=None):
+    def _combinate(self, peptide: PeptideDatabaseRecord, glycan_combinations: List[GlycanCombinationRecord], result_set: Optional[List['Record']]=None) -> List['Record']:
         if result_set is None:
             result_set = []
         peptide_obj = peptide.convert()
@@ -328,13 +351,13 @@ class PeptideGlycosylator(GlycoformGeneratorBase):
 class DynamicGlycopeptideSearchBase(LoggingMixin):
     neutron_shift = isotopic_shift()
 
-    def handle_scan_group(self, group, precursor_error_tolerance=1e-5, mass_shifts=None):
+    def handle_scan_group(self, group: List, precursor_error_tolerance: float=1e-5, mass_shifts: Optional[List[MassShift]]=None):
         raise NotImplementedError()
 
     def reset(self, **kwargs):
         self.peptide_glycosylator.reset(**kwargs)
 
-    def construct_peptide_groups(self, workload):
+    def construct_peptide_groups(self, workload: WorkloadManager):
         if self.peptide_glycosylator.peptide_to_group_id is None:
             self.peptide_glycosylator.build_peptide_groups()
         workload.hit_group_map.clear()
@@ -344,6 +367,16 @@ class DynamicGlycopeptideSearchBase(LoggingMixin):
 
 
 class PredictiveGlycopeptideSearch(DynamicGlycopeptideSearchBase):
+    peptide_glycosylator: PeptideGlycosylator
+    product_error_tolerance: float
+    glycan_score_threshold: float
+    min_fragments: int
+    peptide_mass_predictor: IndexedGlycanFilteringPeptideMassEstimator
+    peptide_masses_per_scan: int
+    probing_range_for_missing_precursors: int
+    trust_precursor_fits: bool
+    oxonium_ion_index: OxoniumIndex
+    signature_ion_index: SignatureIonIndex
 
     def __init__(self, peptide_glycosylator, product_error_tolerance=2e-5, glycan_score_threshold=0.1,
                  min_fragments=2, peptide_masses_per_scan=100,
@@ -369,7 +402,7 @@ class PredictiveGlycopeptideSearch(DynamicGlycopeptideSearchBase):
         self.oxonium_ion_index = oxonium_ion_index
         self.signature_ion_index = signature_ion_index
 
-    def handle_scan_group(self, group, precursor_error_tolerance=1e-5, mass_shifts=None, workload=None):
+    def handle_scan_group(self, group: List[ProcessedScan], precursor_error_tolerance: float=1e-5, mass_shifts: Optional[List[MassShift]]=None, workload: Optional[WorkloadManager]=None):
         if mass_shifts is None or not mass_shifts:
             mass_shifts = [Unmodified]
         if workload is None:
@@ -382,7 +415,7 @@ class PredictiveGlycopeptideSearch(DynamicGlycopeptideSearchBase):
         peptide_masses_per_scan = self.peptide_masses_per_scan
         for scan in group:
             workload.add_scan(scan)
-            signature_ion_matches = None
+            signature_ion_matches: SignatureIonIndexMatch = None
 
             if self.oxonium_ion_index:
                 scan.annotations['oxonium_index_match'] = self.oxonium_ion_index.match(
@@ -414,7 +447,7 @@ class PredictiveGlycopeptideSearch(DynamicGlycopeptideSearchBase):
                             key = (candidate.id, mass_shift_name)
                             mass_threshold_passed = (
                                 abs(intact_mass - candidate.total_mass) / intact_mass) <= precursor_error_tolerance
-
+                            # What if it could be an N- or O-glycopeptide? Does this block the same glycan from being treated as both?
                             if key in seen:
                                 continue
                             seen.add(key)
@@ -572,7 +605,12 @@ class CompoundGlycopeptideSearch(object):
 class Record(object):
     __slots__ = ('glycopeptide', 'id', 'total_mass', 'glycan_prior')
 
-    def __init__(self, glycopeptide=None):
+    glycopeptide: str
+    id: glycopeptide_key_t
+    total_mass: float
+    glycan_prior: float
+
+    def __init__(self, glycopeptide: FragmentCachingGlycopeptide=None):
         if glycopeptide is not None:
             self.glycopeptide = str(glycopeptide)
             self.id = glycopeptide.id
@@ -604,7 +642,7 @@ class Record(object):
     def __hash__(self):
         return hash(self.id)
 
-    def convert(self):
+    def convert(self) -> FragmentCachingGlycopeptide:
         if self.id.structure_type.value & StructureClassification.target_peptide_decoy_glycan.value:
             structure = SharedCacheAwareDecoyFragmentCachingGlycopeptide(
                 self.glycopeptide)
@@ -635,10 +673,10 @@ class Record(object):
         return inst
 
     @classmethod
-    def build(cls, glycopeptides):
+    def build(cls, glycopeptides: List[FragmentCachingGlycopeptide]) -> List['Record']:
         return [cls(p) for p in glycopeptides]
 
-    def copy(self, structure_type=None):
+    def copy(self, structure_type=None) -> 'Record':
         if structure_type is None:
             structure_type = self.id.structure_type
         inst = self.__class__()
@@ -647,7 +685,7 @@ class Record(object):
         inst.total_mass = self.total_mass
         return inst
 
-    def to_decoy_glycan(self):
+    def to_decoy_glycan(self) -> 'Record':
         inst = self.__class__()
         inst.id = self.id.to_decoy_glycan()
         inst.glycopeptide = self.glycopeptide
@@ -798,6 +836,10 @@ class IdKeyMaker(object):
                 glycan_id,
                 ref_key.structure_type,
                 ref_key.site_combination_index,
+                # TODO: Does this needs to be generic over all glycosylation types of
+                # glycan_id if it could span multiple, or will we assume that all alternatives
+                # will be in references?
+                ref_key.glycosylation_type,
             )
             alt = structure.clone()
             alt.id = alt_key
