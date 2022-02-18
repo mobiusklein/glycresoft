@@ -559,7 +559,7 @@ cpdef _match_stub_glycopeptides(self, double error_tolerance=2e-5, set masked_pe
     max_mass = INF
     n = spectrum.get_size()
     if n > 0:
-        max_mass = spectrum.getitem(n - 1).neutral_mass + 1
+        max_mass = spectrum.getitem(n - 1).neutral_mass + 2
     else:
         max_mass = 0.0
 
