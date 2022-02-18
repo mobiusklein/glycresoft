@@ -21,8 +21,8 @@ SPARQLWrapper
 ms_deisotope >= 0.0.36
 glypy >= 1.0.6
 glycopeptidepy >= 0.0.15
-brain-isotopic-distribution
-ms_peak_picker
+brain-isotopic-distribution>=1.5.8
+ms_peak_picker >= 0.1.35
 python-idzip>=0.3.2
 
 pyzstd
