@@ -878,6 +878,10 @@ class ModelEnsemble(PeptideBackboneKeyedMixin, IntervalScoringMixin):
         self._summary_statistics = {}
         self.residual_fdr = None
 
+    def model_width(self):
+        points = sorted(self.models)
+        return np.mean(np.diff(points))
+
     def __reduce__(self):
         return self.__class__, (OrderedDict(), self.width_range), self.__getstate__()
 
@@ -1963,7 +1967,6 @@ class GlycopeptideElutionTimeModelBuildingPipeline(TaskBase):
 
 
         return fitted_rules
-
 
     def extract_rules_used(self, chromatograms):
         rules_used = set()

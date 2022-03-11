@@ -21,6 +21,8 @@ authors:
     affiliation: >-
       Department of Biochemistry, Boston University
       School of Medicine
+url: https://www.bumc.bu.edu/msr/glycresoft/
+repository: https://github.com/mobiusklein/glycresoft
 identifiers:
   - type: doi
     value: 10.1021/acs.jproteome.0c00051
