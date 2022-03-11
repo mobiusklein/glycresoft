@@ -16,7 +16,7 @@ class KMeans(object):
 
     @classmethod
     def fit(cls, X, k):
-        mus = np.random.choice(X, k)
+        mus = np.sort(np.random.choice(X, k))
         inst = cls(k, mus)
         inst.estimate(X)
         return inst
@@ -43,6 +43,19 @@ class KMeans(object):
                 break
         else:
             pass
+
+    def score(self, x):
+        x = np.asanyarray(x)
+        if x.ndim < 2:
+            x = x.reshape((-1, 1))
+        delta = np.abs(self.means - x)
+        score = 1 - delta
+        score /= score.sum(axis=1)[:, None]
+        return score
+
+    def predict(self, x):
+        scores = self.score(x)
+        return np.argmax(scores, axis=1)
 
 
 class MixtureBase(object):
