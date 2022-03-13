@@ -1,3 +1,5 @@
+from typing import Dict
+
 import numpy as np
 from scipy import stats
 from scipy.special import logsumexp
@@ -20,6 +22,16 @@ class KMeans(object):
         inst = cls(k, mus)
         inst.estimate(X)
         return inst
+
+    @classmethod
+    def from_json(cls, state: Dict) -> 'KMeans':
+        return cls(state['k'], state['means'])
+
+    def to_json(self) -> Dict:
+        return {
+            "k": int(self.k),
+            "means": [float(m) for m in self.means]
+        }
 
     def estimate(self, X, maxiter=1000, tol=1e-6):
         for i in range(maxiter):
@@ -59,8 +71,17 @@ class KMeans(object):
 
 
 class MixtureBase(object):
+    n_components: int
+
     def __init__(self, n_components):
         self.n_components
+
+    def to_json(self) -> Dict:
+        return {}
+
+    @classmethod
+    def from_json(cls, state) -> 'MixtureBase':
+        raise NotImplementedError()
 
     def loglikelihood(self, X):
         out = logsumexp(self.logpdf(X), axis=1).sum()
@@ -101,11 +122,26 @@ class MixtureBase(object):
 
 
 class GaussianMixture(MixtureBase):
+    mus: np.ndarray
+    sigmas: np.ndarray
+    weights: np.ndarray
+
     def __init__(self, mus, sigmas, weights):
         self.mus = np.array(mus)
         self.sigmas = np.array(sigmas)
         self.weights = np.array(weights)
         self.n_components = len(weights)
+
+    @classmethod
+    def from_json(cls, state: Dict) -> 'GaussianMixture':
+        return cls(state['mus'], state['sigmas'], state['weights'])
+
+    def to_json(self) -> Dict:
+        return {
+            "mus": [float(m) for m in self.mus],
+            "sigmas": [float(m) for m in self.sigmas],
+            "weights": [float(m) for m in self.weights]
+        }
 
     def __repr__(self):
         template = "{self.__class__.__name__}({self.mus}, {self.sigmas}, {self.weights})"
@@ -271,11 +307,26 @@ class TruncatedGaussianMixture(_TruncatedNormalMixin, GaussianMixture):
 
 
 class GammaMixtureBase(MixtureBase):
+    shapes: np.ndarray
+    scales: np.ndarray
+    weights: np.ndarray
+
     def __init__(self, shapes, scales, weights):
         self.shapes = np.array(shapes)
         self.scales = np.array(scales)
         self.weights = np.array(weights)
         self.n_components = len(weights)
+
+    @classmethod
+    def from_json(cls, state: Dict) -> 'GammaMixtureBase':
+        return cls(state['shapes'], state['scales'], state['weights'])
+
+    def to_json(self) -> Dict:
+        return {
+            "shapes": [float(m) for m in self.shapes],
+            "scales": [float(m) for m in self.scales],
+            "weights": [float(m) for m in self.weights]
+        }
 
     def __repr__(self):
         template = "{self.__class__.__name__}({self.shapes}, {self.scales}, {self.weights})"
@@ -357,12 +408,27 @@ GammaMixture = IterativeGammaMixture
 
 
 class GaussianMixtureWithPriorComponent(GaussianMixture):
+    prior: MixtureBase
+
     def __init__(self, mus, sigmas, prior, weights):
         self.mus = np.array(mus)
         self.sigmas = np.array(sigmas)
         self.prior = prior
         self.weights = np.array(weights)
         self.n_components = len(weights)
+
+    def to_json(self) -> Dict:
+        state = super().to_json()
+        state['prior'] = self.prior.to_json()
+        state['prior_type'] = self.prior.__class__.__name__
+        return state
+
+    @classmethod
+    def from_json(cls, state: Dict) -> 'GaussianMixtureWithPriorComponent':
+        # TODO: Need to derive the type object of the prior from its name
+        # prior_type_name = state['prior_type']
+        prior = GammaMixtureBase.from_json(state['prior'])
+        return cls(state['mus'], state['sigmas'], prior, state['weights'])
 
     def _logpdf(self, X, k):
         if k == self.n_components - 1:
