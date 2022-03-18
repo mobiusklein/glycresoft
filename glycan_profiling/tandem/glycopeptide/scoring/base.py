@@ -3,6 +3,8 @@ import math
 
 from glycopeptidepy.structure.fragment import ChemicalShift, IonSeries
 from glycopeptidepy.structure.fragmentation_strategy import EXDFragmentationStrategy, HCDFragmentationStrategy
+
+from glycan_profiling.structure.fragment_match_map import FragmentMatchMap
 from ..core_search import glycan_side_group_count
 from ...spectrum_match import SpectrumMatcherBase, ModelTreeNode
 
@@ -13,6 +15,8 @@ class GlycopeptideSpectrumMatcherBase(SpectrumMatcherBase):
     _peptide_score = None
     _glycan_coverage = None
     _peptide_coverage = None
+
+    solution_map: FragmentMatchMap
 
     def _theoretical_mass(self):
         return self.target.total_mass
@@ -75,7 +79,7 @@ class GlycopeptideSpectrumMatcherBase(SpectrumMatcherBase):
                         continue
                     self.solution_map.add(peak, frag)
 
-    def match(self, error_tolerance=2e-5, *args, **kwargs):
+    def match(self, error_tolerance: float=2e-5, *args, **kwargs):
         masked_peaks = set()
         include_neutral_losses = kwargs.get("include_neutral_losses", False)
         extended_glycan_search = kwargs.get("extended_glycan_search", False)

@@ -1,10 +1,13 @@
+from typing import Union
 import warnings
 import struct
 
 from glypy.utils import Enum, make_struct
 
 from ms_deisotope import DeconvolutedPeakSet, isotopic_shift
+from ms_deisotope.data_source import Scan, ProcessedScan
 from ms_deisotope.data_source.metadata import activation
+from glycan_profiling.chromatogram_tree.mass_shift import MassShiftBase
 
 from glycan_profiling.structure import (
     ScanWrapperBase, ScanInformation)
@@ -274,6 +277,11 @@ class SpectrumMatchBase(_SpectrumMatchBase, ScanMatchManagingMixin):
 
 class SpectrumMatcherBase(SpectrumMatchBase):
     __slots__ = ["spectrum", "_score"]
+
+    spectrum: DeconvolutedPeakSet
+    mass_shift: MassShiftBase
+    _score: float
+    scan: Union[Scan, ProcessedScan]
 
     def __init__(self, scan, target, mass_shift=None):
         if mass_shift is None:
