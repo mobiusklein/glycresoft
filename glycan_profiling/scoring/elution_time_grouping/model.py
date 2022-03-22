@@ -1952,7 +1952,7 @@ class GlycopeptideElutionTimeModelBuildingPipeline(TaskBase):
         width = np.abs(residual_fdr.bounds_for_probability(0.95)).max()
         if model.width_range:
             delta = width - model.width_range.upper
-            max_delta = min(model.model_width() / 2, delta)
+            max_delta = min(model.model_width / 2, delta)
             if max_delta != delta:
                 self.log("... Maximum padding interval exceeded (%0.3f > %0.3f)" % (
                          delta, max_delta))
