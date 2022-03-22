@@ -559,3 +559,16 @@ cdef class FragmentMatchMap(object):
     cpdef invalidate(self):
         self.by_fragment.invalidate()
         self.by_peak.invalidate()
+
+    cpdef set peak_indices(self):
+        cdef:
+            PeakFragmentPair pfp
+            DeconvolutedPeak peak
+            set result
+
+        result = set()
+        for obj in self.members:
+            pfp = <PeakFragmentPair>obj
+            peak = pfp.peak
+            result.add(peak._index.neutral_mass)
+        return result

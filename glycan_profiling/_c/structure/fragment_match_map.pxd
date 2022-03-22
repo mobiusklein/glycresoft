@@ -103,3 +103,4 @@ cdef class FragmentMatchMap(object):
     cpdef list fragments_for(self, peak)
 
     cpdef invalidate(self)
+    cpdef set peak_indices(self)

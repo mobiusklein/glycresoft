@@ -878,9 +878,10 @@ class ModelEnsemble(PeptideBackboneKeyedMixin, IntervalScoringMixin):
         self._summary_statistics = {}
         self.residual_fdr = None
 
+    @property
     def model_width(self):
         points = sorted(self.models)
-        return np.mean(np.diff(points))
+        return np.mean(np.diff(points)) * 4
 
     def __reduce__(self):
         return self.__class__, (OrderedDict(), self.width_range), self.__getstate__()
@@ -1951,6 +1952,11 @@ class GlycopeptideElutionTimeModelBuildingPipeline(TaskBase):
         width = np.abs(residual_fdr.bounds_for_probability(0.95)).max()
         if model.width_range:
             delta = width - model.width_range.upper
+            max_delta = min(model.model_width() / 2, delta)
+            if max_delta != delta:
+                self.log("... Maximum padding interval exceeded (%0.3f > %0.3f)" % (
+                         delta, max_delta))
+                delta = max_delta
             if delta > 0:
                 model.interval_padding = delta
                 self.log("... Setting padding interval from residual FDR: %0.3f" %
