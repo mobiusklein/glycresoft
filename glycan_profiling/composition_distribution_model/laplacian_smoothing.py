@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
 
 from collections import namedtuple, OrderedDict
+from typing import List, Tuple
 
 from six import string_types as basestring
 
@@ -12,7 +13,7 @@ from glypy import GlycanComposition
 from glycopeptidepy.structure.glycan import GlycanCompositionProxy
 
 from glycan_profiling.database.composition_network import (
-    NeighborhoodWalker, CompositionGraphNode)
+    NeighborhoodWalker, CompositionGraphNode, CompositionGraph)
 
 from .constants import DEFAULT_LAPLACIAN_REGULARIZATION, NORMALIZATION
 from .graph import network_indices, BlockLaplacian
@@ -31,6 +32,28 @@ class LaplacianSmoothingModel(object):
     neighborhoods to different extents, having a belongingness weight for each neighborhood
     encoded in a belongingness matrix :math:`\mathbf{A}`.
     '''
+
+    network: CompositionGraph
+    neighborhood_walker: NeighborhoodWalker
+
+    belongingness_matrix: np.ndarray
+    variance_matrix: np.ndarray
+    inverse_variance_matrix: np.ndarray
+
+    block_L: BlockLaplacian
+    obs_ix: np.ndarray
+    miss_ix: np.ndarray
+
+    S0: np.ndarray
+    A0: np.ndarray
+    Am: np.ndarray
+
+    C0: List[CompositionGraphNode]
+
+    threshold: float
+    regularize: float
+
+    _belongingness_normalization: str
 
     def __init__(self, network, belongingness_matrix, threshold,
                  regularize=DEFAULT_LAPLACIAN_REGULARIZATION, neighborhood_walker=None,
@@ -71,14 +94,14 @@ class LaplacianSmoothingModel(object):
             self.inverse_variance_matrix)
 
     @property
-    def L_mm_inv(self):
+    def L_mm_inv(self) -> np.ndarray:
         return self.block_L.L_mm_inv
 
     @property
-    def L_oo_inv(self):
+    def L_oo_inv(self) -> np.ndarray:
         return self.block_L.L_oo_inv
 
-    def optimize_observed_scores(self, lmda, t0=0):
+    def optimize_observed_scores(self, lmda: float, t0: np.ndarray=0) -> np.ndarray:
         blocks = self.block_L
         # Here, V_inv is the inverse of V, which is the inverse of the variance matrix
         V_inv = self.variance_matrix
@@ -86,27 +109,27 @@ class LaplacianSmoothingModel(object):
         B = np.identity(len(self.S0)) + L
         return np.linalg.inv(B).dot(self.S0 - t0) + t0
 
-    def compute_missing_scores(self, observed_scores, t0=0., tm=0.):
+    def compute_missing_scores(self, observed_scores: np.ndarray, t0=0., tm=0.) -> np.ndarray:
         blocks = self.block_L
         return -linalg.inv(blocks['mm']).dot(blocks['mo']).dot(observed_scores - t0) + tm
 
-    def compute_projection_matrix(self, lmbda):
+    def compute_projection_matrix(self, lmbda) -> np.ndarray:
         A = np.eye(self.L_oo_inv.shape[0]) + self.L_oo_inv * (1. / lmbda)
         H = np.linalg.pinv(A)
         return H
 
-    def compute_press(self, observed, updated, projection_matrix):
+    def compute_press(self, observed: np.ndarray, updated: np.ndarray, projection_matrix: np.ndarray) -> np.ndarray:
         press = np.sum(((observed - updated) / (
             1 - (np.diag(projection_matrix) - np.finfo(float).eps))) ** 2) / len(observed)
         return press
 
-    def estimate_tau_from_S0(self, rho, lmda, sigma2=1.0):
+    def estimate_tau_from_S0(self, rho: float, lmda: float, sigma2: float=1.0) -> np.ndarray:
         X = ((rho / sigma2) * self.variance_matrix) + (
             (1. / (lmda * sigma2)) * self.L_oo_inv) + self.A0.dot(self.A0.T)
         X = np.linalg.pinv(X)
         return self.A0.T.dot(X).dot(self.S0)
 
-    def estimate_phi_given_S_parameters(self, lmbda, tau):
+    def estimate_phi_given_S_parameters(self, lmbda: float, tau: np.ndarray) -> Tuple[np.ndarray, np.ndarray]:
         r"""Estimate the parameters of the conditional distribution :math:`\phi|s`
         according to [1]_.
 
@@ -165,11 +188,11 @@ class LaplacianSmoothingModel(object):
         phi_given_s = np.dot(B, b)
         return phi_given_s, B
 
-    def build_belongingness_matrix(self):
+    def build_belongingness_matrix(self) -> np.ndarray:
         belongingness_matrix = self.neighborhood_walker.build_belongingness_matrix()
         return belongingness_matrix
 
-    def get_belongingness_patch(self):
+    def get_belongingness_patch(self) -> np.ndarray:
         updated_belongingness = BelongingnessMatrixPatcher.patch(self)
         updated_belongingness = ProportionMatrixNormalization.normalize(
             updated_belongingness, self._belongingness_normalization)

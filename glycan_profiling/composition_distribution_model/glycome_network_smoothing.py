@@ -30,6 +30,8 @@ from .observation import (
     GlycanCompositionSolutionRecord,
     VariableObservationAggregation)
 
+from .utils import fast_positive_definite_inverse
+
 
 def _has_glycan_composition(x):
     try:
@@ -224,7 +226,8 @@ class GlycomeModel(LaplacianSmoothingModel):
                 tau = np.zeros(self.A0.shape[1])
             T = lum.optimize_observed_scores(lambd, lum.A0.dot(tau))
             A = ident + lambd * wpl
-            H = np.linalg.inv(A)
+            # H = np.linalg.inv(A)
+            H = fast_positive_definite_inverse(A)
             press_value = sum(
                 ((obs - T) / (1 - (np.diag(H) - np.finfo(float).eps))) ** 2) / len(obs)
             press.append(press_value)
@@ -366,7 +369,8 @@ class GlycomeModel(LaplacianSmoothingModel):
                 T = lum.optimize_observed_scores(lambd, lum.A0.dot(tau))
                 A = ident + lambd * wpl
 
-                H = np.linalg.inv(A)
+                # H = np.linalg.inv(A)
+                H = fast_positive_definite_inverse(A)
                 diag_H = np.diag(H)
                 if len(diag_H) != len(T):
                     diag_H = diag_H[lum.obs_ix]

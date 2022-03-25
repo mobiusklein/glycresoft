@@ -1,5 +1,6 @@
 from collections import OrderedDict, namedtuple
 import re
+from typing import Dict, List, Tuple
 
 import numpy as np
 
@@ -8,10 +9,13 @@ from scipy import sparse
 from matplotlib import pyplot as plt
 
 from ms_deisotope.feature_map.profile_transform import peak_indices
+from glycan_profiling.composition_distribution_model.observation import GlycanCompositionSolutionRecord
 
 from glycan_profiling.task import log_handle
+from glycan_profiling.database.composition_network.graph import CompositionGraph
 
 from .constants import DEFAULT_RHO
+from .laplacian_smoothing import LaplacianSmoothingModel
 
 
 class NetworkReduction(object):
@@ -25,6 +29,9 @@ class NetworkReduction(object):
     store : :class:`~.OrderedDict`
         The storage mapping score to solution
     """
+
+    store: OrderedDict
+    _invalidated: bool
 
     def __init__(self, store=None):
         if store is None:
@@ -184,6 +191,24 @@ class NetworkTrimmingSearchSolution(object):
     updated : bool
         Whether or not this model has changed since the last threshold
     """
+
+    threshold: float
+    updated: bool
+    observed: List[GlycanCompositionSolutionRecord]
+
+    minimum_residuals: float
+    press_residuals: np.ndarray
+
+    optimal_lambda: float
+    lambda_values: np.ndarray
+
+    optimal_tau: np.ndarray
+    taus: List[np.ndarray]
+
+    model: LaplacianSmoothingModel
+    network: CompositionGraph
+
+
 
     def __init__(self, threshold, lambda_values, press_residuals, network, observed=None,
                  updated=None, taus=None, model=None):
@@ -350,6 +375,17 @@ class GridPointTextCodec(object):
 
 
 class GridPointSolution(object):
+    threshold: float
+    lmbda: float
+
+    tau: np.ndarray
+    belongingness_matrix: np.ndarray
+    variance_matrix: np.ndarray
+
+    # Label arrays
+    neighborhood_names: np.ndarray
+    node_names: np.ndarray
+
     def __init__(self, threshold, lmbda, tau, belongingness_matrix, neighborhood_names, node_names,
                  variance_matrix=None):
         if variance_matrix is None:
@@ -390,7 +426,7 @@ class GridPointSolution(object):
             self.node_names.copy(),
             self.variance_matrix.copy())
 
-    def reindex(self, model):
+    def reindex(self, model: LaplacianSmoothingModel):
         node_indices, node_names = self._build_node_index_map(model)
         tau_indices = self._build_neighborhood_index_map(model)
 
@@ -401,9 +437,9 @@ class GridPointSolution(object):
         self.neighborhood_names = model.neighborhood_names
         self.node_names = node_names
 
-    def _build_node_index_map(self, model):
-        name_to_new_index = dict()
-        name_to_old_index = dict()
+    def _build_node_index_map(self, model: LaplacianSmoothingModel) -> Tuple[List[int], List[str]]:
+        name_to_new_index: Dict[str, int] = dict()
+        name_to_old_index: Dict[str, int] = dict()
         for i, node_name in enumerate(self.node_names):
             name_to_old_index[node_name] = i
             name_to_new_index[node_name] = model.network[node_name].index
@@ -418,7 +454,7 @@ class GridPointSolution(object):
             assert x is not None
         return ordering, new_name_order
 
-    def _build_neighborhood_index_map(self, model):
+    def _build_neighborhood_index_map(self, model: LaplacianSmoothingModel) -> List[int]:
         tau_indices = [model.neighborhood_names.index(name) for name in self.neighborhood_names]
         return tau_indices
 
