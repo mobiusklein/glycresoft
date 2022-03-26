@@ -18,7 +18,7 @@ from matplotlib import rcParams as mpl_params
 from lxml import etree
 
 import jinja2
-from jinja2 import escape
+from markupsafe import escape
 
 from glypy.structure.glycan_composition import GlycanComposition
 from glycopeptidepy import PeptideSequence

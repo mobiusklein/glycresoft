@@ -4,6 +4,7 @@ import textwrap
 from collections import OrderedDict
 
 from glycopeptidepy.structure.glycan import GlycosylationType
+
 from glycan_profiling.tandem.glycopeptide.dynamic_generation.multipart_fdr import (GlycopeptideFDREstimator)
 from glycan_profiling.tandem.target_decoy import GroupwiseTargetDecoyAnalyzer, TargetDecoyAnalyzer
 
@@ -11,8 +12,9 @@ from glycan_profiling import serialize
 from glycan_profiling.serialize import (
     Protein, Glycopeptide, IdentifiedGlycopeptide,
     func, MSScan, DatabaseBoundOperation)
+
 from glycan_profiling.chromatogram_tree import Unmodified
-from glycan_profiling.tandem.ref import SpectrumReference
+
 from glycan_profiling.plotting.glycan_visual_classification import (
     GlycanCompositionClassifierColorizer,
     NGlycanCompositionColorizer)

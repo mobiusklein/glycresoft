@@ -6,7 +6,8 @@ from glycan_profiling.plotting.chromatogram_artist import ChargeSeparatingSmooth
 from glycan_profiling.scoring.utils import logit
 from glycan_profiling.chromatogram_tree import ChromatogramFilter
 
-from jinja2 import Markup, Template
+from jinja2 import Template
+from markupsafe import Markup
 
 
 from glycan_profiling.output.report.base import (
