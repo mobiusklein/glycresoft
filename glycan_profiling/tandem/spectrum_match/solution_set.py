@@ -2,9 +2,11 @@
 spectrum, and methods for selecting which are worth keeping for downstream consideration.
 '''
 import logging
+from typing import Iterator, List, Tuple, Dict, Generic, Any, Optional, Union
+
+from ms_deisotope.data_source import ProcessedScan
 
 from glycan_profiling.chromatogram_tree import Unmodified
-
 from glycan_profiling.task import log_handle
 
 from .spectrum_match import SpectrumMatch, SpectrumReference, ScanWrapperBase, MultiScoreSpectrumMatch
@@ -395,6 +397,15 @@ class SpectrumSolutionSet(ScanWrapperBase):
     spectrum_match_type = SpectrumMatch
     default_selection_method = default_selection_method
 
+    scan: Union[ProcessedScan, SpectrumReference]
+    solutions: List[SpectrumMatch]
+
+    _target_map: Dict[Any, SpectrumMatch]
+    _is_top_only: bool
+    _is_sorted: bool
+    _is_simplified: bool
+    _q_value: Optional[float]
+
     def __init__(self, scan, solutions=None):
         if solutions is None:
             solutions = []
@@ -477,7 +488,7 @@ class SpectrumSolutionSet(ScanWrapperBase):
         """
         return self.best_solution().precursor_mass_accuracy()
 
-    def best_solution(self, reject_shifted=False, targets_ignored=None):
+    def best_solution(self, reject_shifted=False, targets_ignored=None) -> SpectrumMatch:
         """The :class:`SpectrumMatchBase` in :attr:`solutions` which
         is the best match to :attr:`scan`, the match at position 0.
 
@@ -505,7 +516,7 @@ class SpectrumSolutionSet(ScanWrapperBase):
             if (solution.mass_shift == Unmodified or not reject_shifted) and (solution.target in targets_ignored or not targets_ignored):
                 return solution
 
-    def mark_top_solutions(self, reject_shifted=False, targets_ignored=None):
+    def mark_top_solutions(self, reject_shifted=False, targets_ignored=None) -> 'SpectrumSolutionSet':
         solution = self.best_solution(
             reject_shifted=reject_shifted, targets_ignored=targets_ignored)
         if solution is None and reject_shifted:
@@ -532,7 +543,7 @@ class SpectrumSolutionSet(ScanWrapperBase):
     def __getitem__(self, i):
         return self.solutions[i]
 
-    def __iter__(self):
+    def __iter__(self) -> Iterator[SpectrumMatch]:
         return iter(self.solutions)
 
     def __len__(self):
@@ -564,7 +575,7 @@ class SpectrumSolutionSet(ScanWrapperBase):
         self._is_simplified = True
         self._invalidate()
 
-    def get_top_solutions(self, d=3, reject_shifted=False, targets_ignored=None):
+    def get_top_solutions(self, d=3, reject_shifted=False, targets_ignored=None) -> List[SpectrumMatch]:
         """Get all matches within `d` of the best solution
 
         Parameters
@@ -610,7 +621,7 @@ class SpectrumSolutionSet(ScanWrapperBase):
         if method is None:
             method = self.default_selection_method
         if self._is_top_only:
-            return
+            return self
         if not self._is_sorted:
             self.sort()
         if len(self) > 0:
@@ -724,6 +735,11 @@ class SpectrumSolutionSet(ScanWrapperBase):
 
     def __ne__(self, other):
         return not (self == other)
+
+    @property
+    def key(self) -> frozenset:
+        scan_id = self.scan.id
+        return frozenset([(scan_id, match.target.id) for match in self])
 
 
 class MultiScoreSpectrumSolutionSet(SpectrumSolutionSet):

@@ -111,6 +111,10 @@ class SpectrumClusterBase(object):
         template = "{self.__class__.__name__}(<{size}>)"
         return template.format(self=self, size=len(self))
 
+    @classmethod
+    def compute_key(cls, members) -> frozenset:
+        return frozenset([m.key for m in members])
+
     def convert(self, mass_shift_cache=None, scan_cache=None, structure_cache=None, **kwargs):
         if scan_cache is None:
             scan_cache = dict()
@@ -145,7 +149,7 @@ class SolutionSetBase(object):
     def scan_time(self):
         return self.scan.scan_time
 
-    def best_solution(self):
+    def best_solution(self) -> SpectrumMatchBase:
         best_match = self.spectrum_matches.filter_by(is_best_match=True).first()
         if best_match is not None:
             # If the best match is already marked, return it
@@ -154,6 +158,11 @@ class SolutionSetBase(object):
             return sorted(self.spectrum_matches, key=lambda x: x.score, reverse=True)[0]
         else:
             return sorted(self.spectrum_matches, key=lambda x: (x.score_set.convert()[0]), reverse=True)[0]
+
+    @property
+    def key(self) -> frozenset:
+        scan_id = self.scan.id
+        return frozenset([(scan_id, match.target.id) for match in self])
 
     @property
     def score(self):
@@ -231,19 +240,8 @@ class GlycopeptideSpectrumSolutionSet(Base, SolutionSetBase, BoundToAnalysis):
             cluster_id=cluster_id)
         session.add(inst)
         session.flush()
-        score_sets = []
         GlycopeptideSpectrumMatch.serialize_bulk(
             obj, session, scan_look_up_cache, mass_shift_cache, analysis_id, inst.id)
-        # for solution in obj:
-        #     gpsm = GlycopeptideSpectrumMatch.serialize(
-        #         solution, session, scan_look_up_cache, mass_shift_cache,
-        #         analysis_id, inst.id, is_decoy, save_score_set=False, *args, **kwargs)
-        #     if hasattr(solution, 'score_set'):
-        #         score_sets.append(
-        #             GlycopeptideSpectrumMatchScoreSet.get_fields_from_object(solution, gpsm.id))
-        # if score_sets:
-        #     session.execute(
-        #         GlycopeptideSpectrumMatchScoreSet.__table__.insert(), score_sets)
         return inst
 
     def convert(self, mass_shift_cache=None, scan_cache=None, structure_cache=None, peptide_relation_cache=None):
