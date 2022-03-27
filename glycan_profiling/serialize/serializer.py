@@ -1,5 +1,8 @@
 from collections import defaultdict
+from typing import Any, Dict, FrozenSet, List, Tuple
 from uuid import uuid4
+
+from sqlalchemy.orm import Query
 
 from ms_deisotope.output.common import (ScanDeserializerBase, ScanBunch)
 
@@ -25,6 +28,10 @@ from .hypothesis import (
     Glycopeptide)
 
 from .tandem import (
+    GlycopeptideSpectrumMatch,
+    GlycopeptideSpectrumSolutionSet,
+    SpectrumClusterBase,
+    SolutionSetBase,
     GlycopeptideSpectrumCluster,
     GlycanCompositionSpectrumCluster,
     UnidentifiedSpectrumCluster,
@@ -37,6 +44,19 @@ from .identification import (
 
 
 class AnalysisSerializer(DatabaseBoundOperation, TaskBase):
+    _analysis: Analysis
+    _analysis_id: int
+    _analysis_name: str
+    _seed_analysis_name: str
+    _peak_lookup_table: Dict[Tuple, DeconvolutedPeak]
+    _mass_shift_cache: MassShiftSerializer
+    _composition_cache: CompositionGroupSerializer
+    _node_peak_map: Dict
+    _scan_id_map: Dict[str, int]
+    _chromatogram_solution_id_map: Dict
+    _solution_set_map: Dict[FrozenSet, SolutionSetBase]
+    _tandem_cluster_cache: Dict[FrozenSet, SpectrumClusterBase]
+
     def __init__(self, connection, sample_run_id, analysis_name, analysis_id=None):
         DatabaseBoundOperation.__init__(self, connection)
         session = self.session
@@ -52,11 +72,12 @@ class AnalysisSerializer(DatabaseBoundOperation, TaskBase):
         self._node_peak_map = dict()
         self._scan_id_map = self._build_scan_id_map()
         self._chromatogram_solution_id_map = dict()
+        self._tandem_cluster_cache = dict()
 
     def __repr__(self):
         return "AnalysisSerializer(%s, %d)" % (self.analysis.name, self.analysis_id)
 
-    def set_peak_lookup_table(self, mapping):
+    def set_peak_lookup_table(self, mapping: Dict[Tuple, DeconvolutedPeak]):
         self._peak_lookup_table = mapping
 
     def build_peak_lookup_table(self, minimum_mass=500):
@@ -65,7 +86,7 @@ class AnalysisSerializer(DatabaseBoundOperation, TaskBase):
         peak_mapping = {x[:2]: x[2] for x in accumulated}
         self.set_peak_lookup_table(peak_mapping)
 
-    def _build_scan_id_map(self):
+    def _build_scan_id_map(self) -> Dict[str, int]:
         return dict(self.session.query(
             MSScan.scan_id, MSScan.id).filter(
                 MSScan.sample_run_id == self.sample_run_id))
@@ -93,7 +114,7 @@ class AnalysisSerializer(DatabaseBoundOperation, TaskBase):
         self.session.add(self.analysis)
         self.session.commit()
 
-    def set_parameters(self, parameters):
+    def set_parameters(self, parameters: Dict):
         self.analysis.parameters = parameters
         self.session.add(self.analysis)
         self.commit()
@@ -220,10 +241,19 @@ class AnalysisSerializer(DatabaseBoundOperation, TaskBase):
             chromatogram_solution_id = chromatogram_solution.id
         else:
             chromatogram_solution_id = None
-        cluster = GlycopeptideSpectrumCluster.serialize(
-            identification, self.session, self._scan_id_map, self._mass_shift_cache,
-            analysis_id=self.analysis_id)
+
+        # Compute the cluster key to avoid duplicating the storage of duplicate matches
+        cluster_key = GlycopeptideSpectrumCluster.compute_key(identification.tandem_solutions)
+        if cluster_key in self._tandem_cluster_cache:
+            cluster = self._tandem_cluster_cache[cluster_key]
+        else:
+            cluster = GlycopeptideSpectrumCluster.serialize(
+                identification, self.session, self._scan_id_map, self._mass_shift_cache,
+                analysis_id=self.analysis_id)
+            self._tandem_cluster_cache[cluster_key] = cluster
+
         cluster_id = cluster.id
+
         inst = IdentifiedGlycopeptide.serialize(
             identification, self.session, chromatogram_solution_id, cluster_id, analysis_id=self.analysis_id)
         if commit:
@@ -346,7 +376,7 @@ class AnalysisDeserializer(DatabaseBoundOperation):
         gps = IdentifiedGlycopeptide.bulk_convert(q)
         return gps
 
-    def load_glycans_from_identified_glycopeptides(self):
+    def load_glycans_from_identified_glycopeptides(self) -> List[GlycanComposition]:
         q = self.query(GlycanComposition).join(
                 GlycanCombinationGlycanComposition).join(GlycanCombination).join(
                 Glycopeptide,
@@ -357,10 +387,21 @@ class AnalysisDeserializer(DatabaseBoundOperation):
         gcs = [c for c in q]
         return gcs
 
-    def get_glycopeptide_by_sequence(self, sequence):
+    def get_glycopeptide_by_sequence(self, sequence: str) -> Query:
         return self.query(IdentifiedGlycopeptide).join(
             IdentifiedGlycopeptide.structure).filter(
                 Glycopeptide.glycopeptide_sequence == sequence)
+
+    def get_glycopeptide_spectrum_matches(self, q_value_threshold: float=0.05) -> Query:
+        query = self.query(GlycopeptideSpectrumMatch).join(
+            GlycopeptideSpectrumSolutionSet).join(
+            GlycopeptideSpectrumCluster).join(
+            IdentifiedGlycopeptide).filter(
+            GlycopeptideSpectrumMatch.is_best_match,
+            GlycopeptideSpectrumMatch.structure_id == IdentifiedGlycopeptide.structure_id,
+            GlycopeptideSpectrumMatch.q_value < q_value_threshold,
+            GlycopeptideSpectrumMatch.analysis_id == self.analysis_id)
+        return query
 
     def __repr__(self):
         template = "{self.__class__.__name__}({self.engine!r}, {self.analysis_name!r})"

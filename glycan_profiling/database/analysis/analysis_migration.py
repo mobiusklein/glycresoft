@@ -1,13 +1,16 @@
+from typing import List, Sequence, Set
 import warnings
 from collections import defaultdict
 
 from glypy.composition import formula
 
 from glycan_profiling.task import TaskBase
-from glycan_profiling.chromatogram_tree import ChromatogramFilter, DisjointChromatogramSet
-from glycan_profiling.serialize.utils import toggle_indices
-from glycan_profiling.serialize.hypothesis import GlycanComposition
-from glycan_profiling.serialize import DatabaseBoundOperation
+from glycan_profiling.chromatogram_tree import (
+    ChromatogramFilter,
+    DisjointChromatogramSet,
+    Chromatogram
+)
+
 from glycan_profiling.database.builder.glycan.migrate import (
     GlycanHypothesisMigrator)
 
@@ -22,6 +25,12 @@ from glycan_profiling.serialize import (
     AnalysisTypeEnum,
     ChromatogramSolutionMassShiftedToChromatogramSolution)
 
+from glycan_profiling.tandem.glycopeptide.identified_structure import IdentifiedGlycopeptide as MemoryIdentifiedGlycopeptide
+from glycan_profiling.scoring.chromatogram_solution import ChromatogramSolution
+
+from glycan_profiling.serialize.utils import toggle_indices
+from glycan_profiling.serialize.hypothesis import GlycanComposition
+from glycan_profiling.serialize import DatabaseBoundOperation
 from glycan_profiling.serialize.serializer import AnalysisSerializer
 
 from glycan_profiling.serialize.spectrum import (
@@ -61,7 +70,7 @@ def fetch_scans_used_in_chromatogram(chromatogram_set, extractor):
     return sorted(scans, key=lambda x: (x.ms_level, x.index))
 
 
-def fetch_glycan_compositions_from_chromatograms(chromatogram_set, glycan_db):
+def fetch_glycan_compositions_from_chromatograms(chromatogram_set: Sequence[ChromatogramSolution], glycan_db: DatabaseBoundOperation):
     ids = set()
     for chroma in chromatogram_set:
         if chroma.composition:
@@ -73,7 +82,7 @@ def fetch_glycan_compositions_from_chromatograms(chromatogram_set, glycan_db):
     return glycan_compositions
 
 
-def update_glycan_chromatogram_composition_ids(hypothesis_migration, glycan_chromatograms):
+def update_glycan_chromatogram_composition_ids(hypothesis_migration, glycan_chromatograms: Sequence[ChromatogramSolution]):
     mapping = dict()
     tandem_mapping = defaultdict(list)
     for chromatogram in glycan_chromatograms:
@@ -376,6 +385,15 @@ class GlycanCompositionChromatogramAnalysisSerializer(AnalysisMigrationBase):
 
 
 class GlycopeptideMSMSAnalysisSerializer(AnalysisMigrationBase):
+
+
+    _glycopeptide_hypothesis_migrator: GlycopeptideHypothesisMigrator
+    _glycopeptide_ids: Set[int]
+
+    _identified_glycopeptide_set: List[MemoryIdentifiedGlycopeptide]
+    _unassigned_chromatogram_set: List[Chromatogram]
+
+
     def __init__(self, connection, analysis_name, sample_run,
                  identified_glycopeptide_set, unassigned_chromatogram_set,
                  glycopeptide_db, chromatogram_extractor):
@@ -389,19 +407,8 @@ class GlycopeptideMSMSAnalysisSerializer(AnalysisMigrationBase):
 
         self._unassigned_chromatogram_set = unassigned_chromatogram_set
         self._glycopeptide_ids = None
-        # self.unshare_targets()
+
         self.aggregate_glycopeptide_ids()
-
-    def unshare_targets(self):
-        """Ensure each spectrum match's target refers to a *different* object
-        even if they describe the same structure.
-
-        """
-        for gp in self._identified_glycopeptide_set:
-            gp.structure = gp.structure.clone()
-            for solution_set in gp.spectrum_matches:
-                for match in solution_set:
-                    match.target = match.target.clone()
 
     def aggregate_glycopeptide_ids(self):
         """Accumulate a set of all unique structure IDs over all spectrum matches.
@@ -557,14 +564,12 @@ class GlycopeptideMSMSAnalysisSerializer(AnalysisMigrationBase):
             peptides.add(peptide_id)
 
         return slurp(self.glycopeptide_db, Peptide, peptides)
-        # return [self.glycopeptide_db.query(Peptide).get(i) for i in peptides]
 
     def fetch_proteins(self, peptide_set):
         proteins = set()
         for peptide in peptide_set:
             proteins.add(peptide.protein_id)
         return slurp(self.glycopeptide_db, Protein, proteins)
-        # return [self.glycopeptide_db.query(Protein).get(i) for i in proteins]
 
     def fetch_glycopeptides(self, glycopeptide_ids):
         # return [
