@@ -4,6 +4,7 @@ from collections import defaultdict, namedtuple
 
 import array
 import numpy as np
+from glycan_profiling.chromatogram_tree.mass_shift import MassShiftBase
 
 from glycan_profiling.task import TaskBase, log_handle
 from glycan_profiling.chromatogram_tree import (
@@ -936,7 +937,8 @@ class RepresenterDeconvolution(TaskBase):
         # NOTE: Alternative localizations fall under the same key, so we have to re-do ranking
         # of solutions again here to make sure that the aggregate scores are available to separate
         # different localizations. Alternatively, may need to port in
-        for (key, solution, mass_shift), members in self.solved.items():
+        _mass_shift: MassShiftBase
+        for (key, solution, _mass_shift), members in self.solved.items():
             solutions = self.key_to_solutions[key]
             for member in members:
                 entries = dict()
@@ -962,7 +964,10 @@ class RepresenterDeconvolution(TaskBase):
                     best_match = best_matches[k]
                     score = scores[k]
                     if best_match is None:
-                        best_match = member.best_match_for(k)
+                        try:
+                            best_match = member.best_match_for(k)
+                        except KeyError:
+                            continue
                         score = best_match.score
                     sols.append(
                         SolutionEntry(
