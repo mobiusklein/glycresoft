@@ -1,12 +1,19 @@
 import os
-
-from collections import defaultdict, namedtuple
-
 import array
+
+from collections import defaultdict
+from typing import Any, Callable, Collection, DefaultDict, Dict, Hashable, List, Optional, Set, Tuple, NamedTuple, Type, Union
+
 import numpy as np
+
+from ms_deisotope.data_source.scan import ProcessedScan
+from build.lib.glycan_profiling.chromatogram_tree.chromatogram import Chromatogram
+
 from glycan_profiling.chromatogram_tree.mass_shift import MassShiftBase
 
 from glycan_profiling.task import TaskBase, log_handle
+from glycan_profiling.structure.structure_loader import FragmentCachingGlycopeptide
+
 from glycan_profiling.chromatogram_tree import (
     ChromatogramWrapper, build_rt_interval_tree, ChromatogramFilter,
     Unmodified)
@@ -18,7 +25,11 @@ from glycan_profiling.chromatogram_tree.relation_graph import (
 from glycan_profiling.scoring.chromatogram_solution import ChromatogramSolution
 from glycan_profiling.structure import ScanInformation
 
-from .spectrum_match.solution_set import NOParsimonyMixin
+from .spectrum_match.spectrum_match import SpectrumMatcherBase
+from .spectrum_match.solution_set import NOParsimonyMixin, SpectrumMatch, SpectrumSolutionSet
+
+
+DEBUG_MODE = bool(os.environ.get('GLYCRESOFTCHROMATOGRAMDEBUG', False))
 
 
 def always(x):
@@ -29,12 +40,18 @@ def default_threshold(x):
     return x.q_value < 0.05
 
 
+Predicate = Callable[[Any], bool]
+TargetType = Union[Any, FragmentCachingGlycopeptide]
+
+
 class MassShiftDeconvolutionGraphNode(ChromatogramGraphNode):
+    chromatogram: 'TandemAnnotatedChromatogram'
+
     def __init__(self, chromatogram, index, edges=None):
         super(MassShiftDeconvolutionGraphNode, self).__init__(
             chromatogram, index, edges=edges)
 
-    def most_representative_solutions(self, threshold_fn=always, reject_shifted=False, percentile_threshold=1e-5):
+    def most_representative_solutions(self, threshold_fn: Predicate=always, reject_shifted: bool=False, percentile_threshold: float=1e-5) -> List['SolutionEntry']:
         """Find the most representative solutions, the (very nearly the same, hopefully) structures with
         the highest aggregated score across all MSn events assigned to this collection.
 
@@ -58,7 +75,7 @@ class MassShiftDeconvolutionGraphNode(ChromatogramGraphNode):
             percentile_threshold=percentile_threshold
         )
 
-    def solutions_for(self, structure, threshold_fn=always, reject_shifted=False):
+    def solutions_for(self, structure, threshold_fn: Predicate=always, reject_shifted: bool=False) -> List[SpectrumMatch]:
         return self.chromatogram.solutions_for(
             structure, threshold_fn=threshold_fn, reject_shifted=reject_shifted)
 
@@ -74,7 +91,11 @@ class MassShiftDeconvolutionGraphNode(ChromatogramGraphNode):
     def total_signal(self):
         return self.chromatogram.total_signal
 
-    def best_match_for(self, structure, threshold_fn=always):
+    @property
+    def entity(self):
+        return self.chromatogram.entity
+
+    def best_match_for(self, structure, threshold_fn: Predicate=always) -> SpectrumMatch:
         solutions = self.solutions_for(structure, threshold_fn=threshold_fn)
         if not solutions:
             raise KeyError(structure)
@@ -101,10 +122,12 @@ class MassShiftDeconvolutionGraphEdge(ChromatogramGraphEdge):
 
 
 class MassShiftDeconvolutionGraph(ChromatogramGraph):
-    node_cls = MassShiftDeconvolutionGraphNode
-    edge_cls = MassShiftDeconvolutionGraphEdge
+    node_cls: Type = MassShiftDeconvolutionGraphNode
+    edge_cls: Type = MassShiftDeconvolutionGraphEdge
 
-    def __init__(self, chromatograms):
+    mass_shifts: Set[MassShiftBase]
+
+    def __init__(self, chromatograms: List['TandemAnnotatedChromatogram']):
         super(MassShiftDeconvolutionGraph, self).__init__(chromatograms)
         mass_shifts = set()
         for node in self:
@@ -114,7 +137,7 @@ class MassShiftDeconvolutionGraph(ChromatogramGraph):
     def __iter__(self):
         return iter(self.nodes)
 
-    def _construct_graph_nodes(self, chromatograms):
+    def _construct_graph_nodes(self, chromatograms: 'TandemAnnotatedChromatogram'):
         nodes = []
         for i, chroma in enumerate(chromatograms):
             node = (self.node_cls(chroma, i))
@@ -124,7 +147,7 @@ class MassShiftDeconvolutionGraph(ChromatogramGraph):
                 self.assignment_map[node.chromatogram.composition] = node
         return nodes
 
-    def find_edges(self, node, query_width=0.01, threshold_fn=always,  **kwargs):
+    def find_edges(self, node: MassShiftDeconvolutionGraphNode, query_width: float=0.01, threshold_fn: Predicate=always,  **kwargs):
         query = TimeQuery(node.chromatogram, query_width)
         nodes = self.rt_tree.overlaps(query.start, query.end)
 
@@ -139,25 +162,30 @@ class MassShiftDeconvolutionGraph(ChromatogramGraph):
                 self.edges.add(
                     self.edge_cls(node, other, (frozenset(node.mass_shifts), shifts_in_solutions)))
 
-    def build(self, query_width=0.01, threshold_fn=always, **kwargs):
+    def build(self, query_width: float=0.01, threshold_fn: Predicate=always, **kwargs):
         for node in self.iterseeds():
             self.find_edges(node, query_width=query_width,
                             threshold_fn=threshold_fn, **kwargs)
 
 
-SolutionEntry = namedtuple("SolutionEntry", "solution, score, percentile, best_score, match")
+# SolutionEntry = namedtuple("SolutionEntry", "solution, score, percentile, best_score, match")
 
-debug_mode = bool(os.environ.get('GLYCRESOFTCHROMATOGRAMDEBUG', False))
+class SolutionEntry(NamedTuple):
+    solution: Any
+    score: float
+    percentile: float
+    best_score: float
+    match: SpectrumMatch
 
 
 class NOParsimonyRepresentativeSelector(NOParsimonyMixin):
-    def get_score(self, solution):
+    def get_score(self, solution: SolutionEntry) -> float:
         return solution.percentile
 
-    def get_target(self, solution):
+    def get_target(self, solution: SolutionEntry) -> Any:
         return solution.match.target
 
-    def sort(self, solution_set):
+    def sort(self, solution_set: List[SolutionEntry]) -> List[SolutionEntry]:
         solution_set = sorted(solution_set, key=lambda x: x.percentile, reverse=True)
         try:
             if solution_set and self.get_target(solution_set[0]).is_o_glycosylated():
@@ -167,7 +195,7 @@ class NOParsimonyRepresentativeSelector(NOParsimonyMixin):
             warnings.warn("Could not determine glycosylation state of target of type %r" % type(self.get_target(solution_set[0])))
         return solution_set
 
-    def __call__(self, solution_set):
+    def __call__(self, solution_set: List[SolutionEntry]) -> List[SolutionEntry]:
         return self.sort(solution_set)
 
 
@@ -180,7 +208,8 @@ class RepresenterSelectionStrategy(object):
     def __init__(self, *args, **kwargs):
         pass
 
-    def compute_weights(self, collection, threshold_fn=always, reject_shifted=False, targets_ignored=None):
+    def compute_weights(self, collection: 'SpectrumMatchSolutionCollectionBase', threshold_fn: Callable = always,
+                        reject_shifted: bool = False, targets_ignored: Collection = None) -> List[SolutionEntry]:
         raise NotImplementedError()
 
     def select(self, representers):
@@ -189,17 +218,20 @@ class RepresenterSelectionStrategy(object):
     def sort_solutions(self, representers):
         return parsimony_sort(representers)
 
-    def get_solutions_for_spectrum(self, solution_set, threshold_fn=always, reject_shifted=False, targets_ignored=None):
+    def get_solutions_for_spectrum(self, solution_set: SpectrumSolutionSet, threshold_fn: Callable=always,
+                                   reject_shifted: bool=False, targets_ignored: Collection=None):
         return filter(lambda x: x.valid, solution_set.get_top_solutions(
             d=5, reject_shifted=reject_shifted, targets_ignored=targets_ignored))
 
-    def __call__(self, collection, threshold_fn=always, reject_shifted=False, targets_ignored=None):
+    def __call__(self, collection, threshold_fn: Callable=always, reject_shifted: bool=False,
+                 targets_ignored: Collection = None) -> List[SolutionEntry]:
         return self.compute_weights(
             collection, threshold_fn=threshold_fn, reject_shifted=reject_shifted, targets_ignored=targets_ignored)
 
 
 class TotalBestRepresenterStrategy(RepresenterSelectionStrategy):
-    def compute_weights(self, collection, threshold_fn=always, reject_shifted=False, targets_ignored=None):
+    def compute_weights(self, collection: 'SpectrumMatchSolutionCollectionBase', threshold_fn: Callable = always,
+                        reject_shifted: bool = False, targets_ignored: Collection = None) -> List[SolutionEntry]:
         scores = defaultdict(float)
         best_scores = defaultdict(float)
         best_spectrum_match = dict()
@@ -225,7 +257,8 @@ class TotalBestRepresenterStrategy(RepresenterSelectionStrategy):
 
 
 class TotalAboveAverageBestRepresenterStrategy(RepresenterSelectionStrategy):
-    def compute_weights(self, collection, threshold_fn=lambda x:True, reject_shifted=False, targets_ignored=None):
+    def compute_weights(self, collection: 'SpectrumMatchSolutionCollectionBase', threshold_fn: Callable=always,
+                        reject_shifted: bool=False, targets_ignored: Collection=None) -> List[SolutionEntry]:
         scores = defaultdict(lambda: array.array('d'))
         best_scores = defaultdict(float)
         best_spectrum_match = dict()
@@ -256,7 +289,13 @@ class TotalAboveAverageBestRepresenterStrategy(RepresenterSelectionStrategy):
 
 
 class SpectrumMatchSolutionCollectionBase(object):
-    def compute_representative_weights(self, threshold_fn=always, reject_shifted=False, targets_ignored=None, strategy=None):
+    tandem_solutions: List[SpectrumSolutionSet]
+    best_msms_score: float
+    representative_solutions: List[SolutionEntry]
+
+    def compute_representative_weights(self, threshold_fn: Callable=always, reject_shifted: bool=False,
+                                       targets_ignored: Collection = None,
+                                       strategy: Optional[RepresenterSelectionStrategy] = None) -> List[SolutionEntry]:
         """Calculate a total score for all matched structures across all time points for this
         solution collection, and rank them.
 
@@ -282,15 +321,15 @@ class SpectrumMatchSolutionCollectionBase(object):
         weights = strategy(self, threshold_fn=threshold_fn, targets_ignored=targets_ignored)
         return weights
 
-    def filter_entries(self, entries, percentile_threshold=1e-5):
+    def filter_entries(self, entries: List[SolutionEntry], percentile_threshold: float = 1e-5) -> List[SolutionEntry]:
         # This difference is not using the absolute value to allow for scenarios where
         # a worse percentile is located at position 0 e.g. when hoisting via parsimony.
         representers = [x for x in entries if (
             entries[0].percentile - x.percentile) < percentile_threshold]
         return representers
 
-    def most_representative_solutions(self, threshold_fn=always, reject_shifted=False, targets_ignored=None,
-                                      percentile_threshold=1e-5):
+    def most_representative_solutions(self, threshold_fn: Callable=always, reject_shifted: bool=False, targets_ignored: Collection=None,
+                                      percentile_threshold: float=1e-5) -> List[SolutionEntry]:
         """Find the most representative solutions, the (very nearly the same, hopefully) structures with
         the highest aggregated score across all MSn events assigned to this collection.
 
@@ -318,7 +357,7 @@ class SpectrumMatchSolutionCollectionBase(object):
         else:
             return []
 
-    def solutions_for(self, structure, threshold_fn=always, reject_shifted=False):
+    def solutions_for(self, structure, threshold_fn: Callable=always, reject_shifted: bool=False) -> List[SpectrumMatch]:
         '''Get all spectrum matches in this collection for a given
         structure.
 
@@ -348,7 +387,7 @@ class SpectrumMatchSolutionCollectionBase(object):
                 continue
         return solutions
 
-    def best_match_for(self, structure, threshold_fn=always):
+    def best_match_for(self, structure, threshold_fn: Callable=always) -> SpectrumMatch:
         solutions = self.solutions_for(structure, threshold_fn=threshold_fn)
         if not solutions:
             raise KeyError(structure)
@@ -362,6 +401,8 @@ class SpectrumMatchSolutionCollectionBase(object):
 
 
 class TandemAnnotatedChromatogram(ChromatogramWrapper, SpectrumMatchSolutionCollectionBase):
+    time_displaced_assignments: List[SpectrumSolutionSet]
+
     def __init__(self, chromatogram):
         super(TandemAnnotatedChromatogram, self).__init__(chromatogram)
         self.tandem_solutions = []
@@ -405,29 +446,29 @@ class TandemAnnotatedChromatogram(ChromatogramWrapper, SpectrumMatchSolutionColl
                 nearest.add_solution(hit)
         return parts
 
-    def add_solution(self, item):
+    def add_solution(self, item: SpectrumSolutionSet):
         case_mass = item.precursor_information.neutral_mass
         if abs(case_mass - self.chromatogram.neutral_mass) > 100:
             log_handle.log("Warning, mis-assigned spectrum match to chromatogram %r, %r" % (self, item))
         self.tandem_solutions.append(item)
 
-    def add_displaced_solution(self, item):
+    def add_displaced_solution(self, item: SpectrumSolutionSet):
         self.add_solution(item)
 
-    def clone(self):
+    def clone(self) -> 'TandemAnnotatedChromatogram':
         new = super(TandemAnnotatedChromatogram, self).clone()
         new.tandem_solutions = list(self.tandem_solutions)
         new.time_displaced_assignments = list(self.time_displaced_assignments)
         new.best_msms_score = self.best_msms_score
         return new
 
-    def merge(self, other):
+    def merge(self, other: 'TandemAnnotatedChromatogram') -> 'TandemAnnotatedChromatogram':
         new = self.__class__(self.chromatogram.merge(other.chromatogram))
         new.tandem_solutions = self.tandem_solutions + other.tandem_solutions
         new.time_displaced_assignments = self.time_displaced_assignments + other.time_displaced_assignments
         return new
 
-    def merge_in_place(self, other):
+    def merge_in_place(self, other: 'TandemAnnotatedChromatogram'):
         new = self.chromatogram.merge(other.chromatogram)
         self.chromatogram = new
         self.tandem_solutions = self.tandem_solutions + other.tandem_solutions
@@ -452,6 +493,12 @@ class TandemAnnotatedChromatogram(ChromatogramWrapper, SpectrumMatchSolutionColl
 
 
 class TandemSolutionsWithoutChromatogram(SpectrumMatchSolutionCollectionBase):
+    # For mimicking EntityChromatograms
+    entity: Any
+    composition: Any
+
+    mass_shift: MassShiftBase
+
     def __init__(self, entity, tandem_solutions):
         self.entity = entity
         self.composition = entity
@@ -466,7 +513,7 @@ class TandemSolutionsWithoutChromatogram(SpectrumMatchSolutionCollectionBase):
             self.mass_shift = match.mass_shift
             self.best_msms_score = match.score
 
-    def assign_entity(self, solution_entry):
+    def assign_entity(self, solution_entry: SolutionEntry):
         entity = solution_entry.solution
         mass_shift = solution_entry.match.mass_shift
         self.structure = entity
@@ -487,7 +534,7 @@ class TandemSolutionsWithoutChromatogram(SpectrumMatchSolutionCollectionBase):
         return template.format(self=self)
 
     @classmethod
-    def aggregate(cls, solutions):
+    def aggregate(cls, solutions: List[SpectrumSolutionSet]) -> List['TandemSolutionsWithoutChromatogram']:
         collect = defaultdict(list)
         for solution in solutions:
             best_match = solution.best_solution()
@@ -502,6 +549,9 @@ class TandemSolutionsWithoutChromatogram(SpectrumMatchSolutionCollectionBase):
 
 
 class ScanTimeBundle(object):
+    solution: SpectrumSolutionSet
+    scan_time: float
+
     def __init__(self, solution, scan_time):
         self.solution = solution
         self.scan_time = scan_time
@@ -524,14 +574,28 @@ class ScanTimeBundle(object):
             self.solution.scan.id, self.score, self.scan_time)
 
 
-def build_glycopeptide_key(solution):
+def build_glycopeptide_key(solution) -> Tuple:
     structure = solution
     key = (str(structure.clone().deglycosylate()), str(structure.glycan_composition))
     return key
 
 
+KeyTargetMassShift = Tuple[Hashable, TargetType, MassShiftBase]
+
+
 class RepresenterDeconvolution(TaskBase):
     max_depth = 10
+    threshold_fn: Predicate
+    key_fn: Callable[[TargetType], Hashable]
+
+    group: List[MassShiftDeconvolutionGraphNode]
+
+    conflicted: DefaultDict[MassShiftDeconvolutionGraphNode, List[KeyTargetMassShift]]
+    solved: DefaultDict[KeyTargetMassShift, List[MassShiftDeconvolutionGraphNode]]
+    participants: DefaultDict[KeyTargetMassShift, List[MassShiftDeconvolutionGraphNode]]
+    best_scores: DefaultDict[KeyTargetMassShift, float]
+
+    key_to_solutions: DefaultDict[KeyTargetMassShift, Set[TargetType]]
 
     def __init__(self, group, threshold_fn=always, key_fn=build_glycopeptide_key):
         self.group = group
@@ -605,14 +669,14 @@ class RepresenterDeconvolution(TaskBase):
         self.key_to_solutions = key_to_solutions
         self.prune_unsupported_participants()
 
-    def find_supported_participants(self):
+    def find_supported_participants(self) -> Dict[Tuple, bool]:
         has_unmodified = defaultdict(bool)
         for (key, solution, mass_shift) in self.participants:
             if mass_shift == Unmodified:
                 has_unmodified[key] = True
         return has_unmodified
 
-    def prune_unsupported_participants(self, support_map=None):
+    def prune_unsupported_participants(self, support_map: Dict[Tuple, bool] = None):
         '''Remove solutions that are not supported by an Unmodified
         condition except when there is *no alternative*.
 
@@ -653,7 +717,7 @@ class RepresenterDeconvolution(TaskBase):
             else:
                 kept_solutions.append(solution)
 
-        restored = []
+        restored: List[MassShiftDeconvolutionGraphNode] = []
         # If all solutions for a given node have been removed, have to put them back.
         for node, options in list(self.conflicted.items()):
             if not options:
@@ -931,6 +995,8 @@ class RepresenterDeconvolution(TaskBase):
         # Note suggested to switch to list, but reason unclear.
         assigned = defaultdict(set)
 
+        invalidated_alternatives = defaultdict(set)
+
         # For each (key, mass shift) pair and their members, compute the set of representers for
         # that key from all structures that as subsumed into it (repeated peptide and alternative
         # localization).
@@ -987,13 +1053,32 @@ class RepresenterDeconvolution(TaskBase):
                 fresh.representative_solutions = representers
 
                 assigned[key].add(fresh)
+                if key != self.key_fn(member.chromatogram.entity):
+                    invalidated_alternatives[key].add(member.chromatogram.entity)
 
         merged = []
         for key, members in assigned.items():
-            members = sorted(members, key=lambda x: x.start_time)
+            members: List[TandemAnnotatedChromatogram] = sorted(members, key=lambda x: x.start_time)
+            invalidated_targets = invalidated_alternatives[key]
             sink = members[0]
             for member in members[1:]:
                 sink.merge_in_place(member)
+
+            for sset in sink.tandem_solutions:
+                try:
+                    match = sset.solution_for(sink.entity)
+                    if not match.best_match:
+                        sset.promote_to_best_match(match)
+                except KeyError as err:
+                    # TODO: Fill in missing match against the preferred target
+                    pass
+
+                for invalid_target in invalidated_targets:
+                    try:
+                        match = sset.solution_for(invalid_target)
+                    except KeyError:
+                        continue
+                    match.best_match = False
             merged.append(sink)
         return merged
 
@@ -1014,7 +1099,7 @@ class GraphAnnotatedChromatogramAggregator(TaskBase):
     def build_graph(self):
         self.log("Constructing chromatogram graph")
         assignable = []
-        rest = []
+        rest: List[Chromatogram] = []
         for chrom in self.annotated_chromatograms:
             if chrom.composition is not None:
                 assignable.append(chrom)
@@ -1218,13 +1303,13 @@ class ChromatogramMSMSMapper(TaskBase):
                         best_index = i
                         best_distance = dist
                 new_owner = candidates[best_index]
-                if debug_mode:
+                if DEBUG_MODE:
                     self.log("... Assigning %r to %r with %d existing solutions with distance %0.3f" %
                              (orphan, new_owner, len(new_owner.tandem_solutions), best_distance))
                 new_owner.add_displaced_solution(orphan.solution)
             else:
                 if threshold_fn(orphan.solution):
-                    if n_chromatograms > 0 and debug_mode:
+                    if n_chromatograms > 0 and DEBUG_MODE:
                         self.log("No chromatogram found for %r, q-value %0.4f (mass: %0.4f, time: %0.4f)" % (
                             orphan, orphan.solution.q_value, mass, time))
                     lost.append(orphan.solution)
@@ -1292,7 +1377,7 @@ class SpectrumMatchUpdater(TaskBase):
         self.retention_time_delta = retention_time_delta
         self.threshold_fn = threshold_fn
 
-    def select_best_mass_shift_for(self, scan, structure, mass_shifts):
+    def select_best_mass_shift_for(self, scan: ProcessedScan, structure, mass_shifts: List[MassShiftBase]):
         observed_mass = scan.precursor_information.neutral_mass
         theoretical_mass = structure.total_mass
         delta = observed_mass - theoretical_mass
@@ -1313,21 +1398,22 @@ class SpectrumMatchUpdater(TaskBase):
         structure.id = self.id_maker(structure, reference)
         return structure
 
-    def evaluate_spectrum(self, scan_id, structure, mass_shifts):
+    def evaluate_spectrum(self, scan_id: str, structure: TargetType, mass_shifts: List[MassShiftBase]) -> SpectrumMatcherBase:
         scan = self.scan_loader.get_scan_by_id(scan_id)
         best_shift, best_shift_error = self.select_best_mass_shift_for(
             scan, structure, mass_shifts)
         match = self.scorer.evaluate(scan, structure, mass_shift=best_shift, **self.match_args)
         return match
 
-    def find_identical_peptides_and_mark(self, chromatogram, structure):
+    def find_identical_peptides_and_mark(self, chromatogram, structure, best_match=False, valid=False):
         structures = set()
         key = str(structure)
         for sset in chromatogram.tandem_solutions:
             for sm in sset:
                 if str(sm.target) == key:
                     structures.add(sm.target)
-                    sm.valid = False
+                    sm.valid = valid
+                    sm.best_match = best_match
         return structures
 
     def get_spectrum_solution_sets(self, revision, chromatogram=None):
@@ -1347,7 +1433,10 @@ class SpectrumMatchUpdater(TaskBase):
                 self.fdr_estimator.score_all(sset)
         return revised_solution_sets
 
-    def process_revision(self, revision, chromatogram=None):
+    def process_revision(self, revision, chromatogram: Union[TandemAnnotatedChromatogram, TandemSolutionsWithoutChromatogram] = None):
+        from glycan_profiling.scoring.elution_time_grouping import GlycopeptideChromatogramProxy
+        revision: GlycopeptideChromatogramProxy
+
         if chromatogram is None:
             chromatogram = revision.source
 
@@ -1356,25 +1445,24 @@ class SpectrumMatchUpdater(TaskBase):
 
         revised_solution_sets = self.get_spectrum_solution_sets(revision, chromatogram)
 
-        representers = chromatogram.compute_representative_weights(self.threshold_fn)
+        representers: List[SolutionEntry] = chromatogram.compute_representative_weights(self.threshold_fn)
 
         revised_rt_score = None
         alternative_rt_scores = {}
         if self.retention_time_model:
             revised_rt_score = self.retention_time_model.score_interval(revision, 0.01)
 
-        keep = []
-        reject = []
-        invalidated = set()
-        match = []
+        keep: List[SolutionEntry] = []
+        match: List[SolutionEntry] = []
+        rejected: List[SolutionEntry] = []
+        invalidated: Set[TargetType] = set()
         for r in representers:
             if str(r.solution) == reference:
-                reject.append(r)
+                rejected.append(r)
             elif str(r.solution) == revised_structure:
                 match.append(r)
             else:
                 if self.retention_time_model and not isinstance(chromatogram, TandemSolutionsWithoutChromatogram):
-                    from glycan_profiling.scoring.elution_time_grouping import GlycopeptideChromatogramProxy
                     if r.solution not in alternative_rt_scores:
                         proxy = GlycopeptideChromatogramProxy.from_chromatogram(chromatogram)
                         proxy.structure = r.solution
@@ -1386,6 +1474,9 @@ class SpectrumMatchUpdater(TaskBase):
                         invalidated.add(r.solution)
                         continue
                 keep.append(r)
+
+        for reject in rejected:
+            self.find_identical_peptides_and_mark(chromatogram, reject.solution)
 
         for invalid in invalidated:
             # self.log("... Invalidated alternative solution %s (%0.2f) for %s (%0.2f)" % (
@@ -1412,22 +1503,28 @@ class SpectrumMatchUpdater(TaskBase):
         chromatogram.assign_entity(match[0])
         return chromatogram
 
-    def collect_matches(self, chromatogram, structure, mass_shifts, reference_peptides):
-        new_solutions = []
+    def collect_matches(self, chromatogram: TandemAnnotatedChromatogram, structure, mass_shifts: List[MassShiftBase], reference_peptides) -> List[Tuple[SpectrumSolutionSet, SpectrumMatch, bool]]:
+        solution_set_match_pairs = []
         if structure.id is None:
             instances = self.id_maker(structure, reference_peptides)
+        else:
+            instances = None
         for sset in chromatogram.tandem_solutions:
             try:
                 match = sset.solution_for(structure)
+                if not match.best_match:
+                    sset.promote_to_best_match(match)
+                solution_set_match_pairs.append((sset, match, True))
             except KeyError:
                 scan_id = sset.scan_id
                 for inst in instances:
                     match = self.evaluate_spectrum(scan_id, inst, mass_shifts)
-                    match = self.spectrum_match_cls.from_match_solution(match)
+                    match: SpectrumMatch = self.spectrum_match_cls.from_match_solution(match)
                     match.scan = sset.scan
-                    sset.append(match)
-                new_solutions.append(sset)
-        return new_solutions
+                    sset.insert(0, match)
+                    solution_set_match_pairs.append((sset, match, False))
+                sset.mark_top_solutions()
+        return solution_set_match_pairs
 
     def __call__(self, revision, chromatogram=None):
         return self.process_revision(revision, chromatogram=chromatogram)

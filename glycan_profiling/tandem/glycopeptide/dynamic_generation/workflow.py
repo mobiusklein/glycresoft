@@ -1,20 +1,16 @@
 import os
 import multiprocessing
-from multiprocessing.managers import SyncManager
 import threading
 import ctypes
 import datetime
 import zlib
+import pickle
+
+from typing import List
+from multiprocessing.managers import SyncManager
 from collections import OrderedDict
 
-try:
-    import cPickle as pickle
-except ImportError:
-    import pickle
-try:
-    from Queue import Queue
-except ImportError:
-    from queue import Queue
+from queue import Queue, Empty
 
 from glycan_profiling import serialize
 
@@ -342,7 +338,7 @@ class MultipartGlycopeptideIdentifier(TaskBase):
             mass_shifts=self.mass_shifts)
         mapping_batcher.done_event = multiprocessing.Event()
 
-        execution_branches = []
+        execution_branches: List['IdentificationWorker'] = []
         # approx_num_concurrent = max(int(self.n_processes / 6.0), 1)
         approx_num_concurrent = self.n_processes
         concurrent_branch_controller = multiprocessing.BoundedSemaphore(approx_num_concurrent)
@@ -391,6 +387,8 @@ class MultipartGlycopeptideIdentifier(TaskBase):
             common_queue.close()
             common_queue.cancel_join_thread()
             self.log("Terminating search pipeline")
+            for branch in execution_branches:
+                branch.kill_process()
             raise Exception(message)
         total = 0
         for branch in execution_branches:

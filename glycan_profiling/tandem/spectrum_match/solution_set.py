@@ -710,7 +710,7 @@ class SpectrumSolutionSet(ScanWrapperBase):
             self.select_top()
         return self
 
-    def append(self, match):
+    def append(self, match: SpectrumMatch):
         self._invalidate()
         self.solutions.append(match)
         self.sort()
@@ -718,6 +718,25 @@ class SpectrumSolutionSet(ScanWrapperBase):
             self._is_top_only = False
             self.select_top()
         return self
+
+    def insert(self, position: int, match: SpectrumMatch, is_sorted=True):
+        was_sorted = self._is_sorted
+        self._invalidate()
+        if is_sorted:
+            self._is_sorted = was_sorted
+        self.solutions.insert(position, match)
+
+    def promote_to_best_match(self, match: SpectrumMatch, reject_shifted: bool=False,
+                              targets_ignored: Optional[List[Any]]=None):
+        try:
+            self.solutions.remove(match)
+        except ValueError:
+            pass
+        self.insert(0, match, is_sorted=True)
+        return self.mark_top_solutions(
+            reject_shifted=reject_shifted,
+            targets_ignored=targets_ignored
+        )
 
     def clone(self):
         dup = self.__class__(self.scan, [

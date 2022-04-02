@@ -1,6 +1,7 @@
-from typing import Union
 import warnings
 import struct
+
+from typing import Any, Union, Optional
 
 from glypy.utils import Enum, make_struct
 
@@ -25,6 +26,8 @@ LowCID = activation.dissociation_methods['low-energy collision-induced dissociat
 
 
 class ScanMatchManagingMixin(ScanWrapperBase):
+    __slots__ = ()
+
     def __init__(self, scan, target, mass_shift=None):
         if mass_shift is None:
             mass_shift = Unmodified
@@ -166,6 +169,10 @@ class ScanMatchManagingMixin(ScanWrapperBase):
 class _SpectrumMatchBase(object):
     __slots__ = ['scan', 'target', "mass_shift"]
 
+    scan: ProcessedScan
+    target: Any
+    mass_shift: MassShiftBase
+
 
 class SpectrumMatchBase(_SpectrumMatchBase, ScanMatchManagingMixin):
     """A base class for spectrum matches, a scored pairing between a structure
@@ -183,6 +190,10 @@ class SpectrumMatchBase(_SpectrumMatchBase, ScanMatchManagingMixin):
 
     """
     __slots__ = []
+
+    scan: ProcessedScan
+    target: Any
+    mass_shift: MassShiftBase
 
     def _theoretical_mass(self):
         return self.target.total_composition().mass
@@ -429,6 +440,15 @@ class SpectrumMatch(SpectrumMatchBase):
 
     __slots__ = ['score', 'best_match', 'data_bundle', "q_value", 'id', 'valid']
 
+    score: float
+    q_value: float
+
+    valid: bool
+    best_match: bool
+
+    id: Optional[int]
+    data_bundle: Optional[Any]
+
     def __init__(self, scan, target, score, best_match=False, data_bundle=None,
                  q_value=None, id=None, mass_shift=None, valid=True):
         # if data_bundle is None:
@@ -443,14 +463,14 @@ class SpectrumMatch(SpectrumMatchBase):
         self.valid = valid
 
     @property
-    def is_best_match(self):
+    def is_best_match(self) -> bool:
         return self.best_match
 
     @is_best_match.setter
-    def is_best_match(self, value):
+    def is_best_match(self, value: bool):
         self.best_match = value
 
-    def is_multiscore(self):
+    def is_multiscore(self) -> bool:
         """Check whether this match has been produced by summarizing a multi-score
         match, rather than a single score match.
 

@@ -1,5 +1,6 @@
-from ms_deisotope.utils import Base
 from weakref import WeakValueDictionary
+
+from ms_deisotope.data_source import ProcessedScan, PrecursorInformation, ActivationInformation
 
 
 class ScanStub(object):
@@ -55,6 +56,8 @@ class ScanStub(object):
 
 class ScanWrapperBase(object):
     __slots__ = []
+
+    scan: ProcessedScan
 
     @property
     def scan_id(self):
@@ -127,6 +130,13 @@ class ScanInformation(object):
     __slots__ = ("id", "index", "scan_time", "ms_level",
                  "precursor_information", "activation",
                  "__weakref__")
+
+    id: str
+    index: int
+    scan_time: float
+    ms_level: int
+    precursor_information: PrecursorInformation
+    activation: ActivationInformation
 
     def __init__(self, scan_id, index, scan_time, ms_level, precursor_information, activation=None):
         self.id = scan_id
