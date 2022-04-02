@@ -7,8 +7,8 @@ from typing import Any, Callable, Collection, DefaultDict, Dict, Hashable, List,
 import numpy as np
 
 from ms_deisotope.data_source.scan import ProcessedScan
-from build.lib.glycan_profiling.chromatogram_tree.chromatogram import Chromatogram
 
+from glycan_profiling.chromatogram_tree.chromatogram import Chromatogram
 from glycan_profiling.chromatogram_tree.mass_shift import MassShiftBase
 
 from glycan_profiling.task import TaskBase, log_handle
