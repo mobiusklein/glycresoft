@@ -1,6 +1,8 @@
 from collections import namedtuple
 from functools import partial
 
+from typing import Any, Dict, Iterable, Type, Union, Optional, Tuple, List
+
 import numpy as np
 
 from ms_deisotope.peak_dependency_network.intervals import SpanningMixin
@@ -11,16 +13,21 @@ from glycopeptidepy.structure.parser import sequence_tokenizer
 from glycopeptidepy.algorithm import reverse_preserve_sequon
 from glycopeptidepy.structure.glycan import HashableGlycanComposition, GlycanCompositionWithOffsetProxy
 from glycopeptidepy.structure.fragmentation_strategy import StubGlycopeptideStrategy
+from glycopeptidepy.structure.fragment import SimpleFragment, FragmentBase, PeptideFragment, StubFragment
 
 
 from .lru import LRUCache
 
 
-class GlycanCompositionCache(dict):
+class GlycanCompositionCache(Dict[str, HashableGlycanComposition]):
     pass
 
 
 class CachingGlycanCompositionParser(object):
+    cache: GlycanCompositionCache
+    cache_size: int
+    lru: LRUCache
+
     def __init__(self, cache_size=4000):
         self.cache = GlycanCompositionCache()
         self.cache_size = cache_size
@@ -37,22 +44,22 @@ class CachingGlycanCompositionParser(object):
             except AttributeError:
                 pass
 
-    def _make_new_value(self, struct):
+    def _make_new_value(self, struct) -> HashableGlycanComposition:
         value = HashableGlycanComposition.parse(struct.composition)
         value.id = struct.id
         return value
 
-    def _populate_cache(self, struct, key):
+    def _populate_cache(self, struct, key: str) -> HashableGlycanComposition:
         self._check_cache_valid()
         value = self._make_new_value(struct)
         self.cache[key] = value
         self.lru.add_node(key)
         return value
 
-    def _extract_key(self, struct):
+    def _extract_key(self, struct) -> str:
         return struct.composition
 
-    def parse(self, struct):
+    def parse(self, struct) -> HashableGlycanComposition:
         struct_key = self._extract_key(struct)
         try:
             seq = self.cache[struct_key]
@@ -61,20 +68,23 @@ class CachingGlycanCompositionParser(object):
         except KeyError:
             return self._populate_cache(struct, struct_key)
 
-    def __call__(self, value):
+    def __call__(self, value: str) -> HashableGlycanComposition:
         return self.parse(value)
 
 
 class TextHashableGlycanCompositionParser(object):
+    cache: Dict[str, HashableGlycanComposition]
+    size: int
+
     def __init__(self, size=int(2**16)):
         # self.cache = LRUMapping(size)
         self.cache = {}
         self.size = size
 
-    def _parse(self, text):
+    def _parse(self, text: str) -> HashableGlycanComposition:
         return HashableGlycanComposition.parse(text)
 
-    def parse(self, text):
+    def parse(self, text: str) -> GlycanCompositionWithOffsetProxy:
         try:
             return GlycanCompositionWithOffsetProxy(self.cache[text])
         except KeyError:
@@ -84,7 +94,7 @@ class TextHashableGlycanCompositionParser(object):
             self.cache[text] = inst
             return GlycanCompositionWithOffsetProxy(inst)
 
-    def __call__(self, text):
+    def __call__(self, text: str):
         return self.parse(text)
 
 
@@ -95,10 +105,12 @@ hashable_glycan_glycopeptide_parser = partial(
 
 
 class GlycanFragmentCache(object):
+    cache: Dict[str, List[SimpleFragment]]
+
     def __init__(self):
         self.cache = dict()
 
-    def get_oxonium_ions(self, glycopeptide):
+    def get_oxonium_ions(self, glycopeptide: PeptideSequence) -> List[SimpleFragment]:
         key = str(glycopeptide.glycan)
         try:
             return self.cache[key]
@@ -107,7 +119,7 @@ class GlycanFragmentCache(object):
             self.cache[key] = oxonium_ions
             return oxonium_ions
 
-    def __call__(self, glycopeptide):
+    def __call__(self, glycopeptide: PeptideSequence) -> List[SimpleFragment]:
         return self.get_oxonium_ions(glycopeptide)
 
     def update(self, source):
@@ -116,7 +128,7 @@ class GlycanFragmentCache(object):
         else:
             self.cache.update(source.cache)
 
-    def populate(self, glycan_composition_iterator):
+    def populate(self, glycan_composition_iterator: Iterable[HashableGlycanComposition]):
         # A template peptide sequence which won't matter
         peptide = PeptideSequence("PEPTIDE")
         # Pretend to support the backdoor method
@@ -135,6 +147,11 @@ oxonium_ion_cache = GlycanFragmentCache()
 class PeptideProteinRelation(SpanningMixin):
     __slots__ = ["protein_id", "hypothesis_id"]
 
+    start: float
+    end: float
+    protein_id: int
+    hypothesis_id: int
+
     def __init__(self, start_position, end_position, protein_id, hypothesis_id):  # pylint: disable=super-init-not-called
         self.start = start_position
         self.end = end_position
@@ -142,19 +159,19 @@ class PeptideProteinRelation(SpanningMixin):
         self.hypothesis_id = hypothesis_id
 
     @property
-    def start_position(self):
+    def start_position(self) -> int:
         return int(self.start)
 
     @start_position.setter
-    def start_position(self, value):
+    def start_position(self, value: int):
         self.start = value
 
     @property
-    def end_position(self):
+    def end_position(self) -> int:
         return int(self.end)
 
     @end_position.setter
-    def end_position(self, value):
+    def end_position(self, value: int):
         self.end = value
 
     def __repr__(self):
@@ -185,6 +202,8 @@ class PeptideProteinRelation(SpanningMixin):
 
 class NamedPeptideProteinRelation(PeptideProteinRelation):
     __slots__ = ("protein_name", )
+
+    protein_name: str
 
     def __init__(self, start_position, end_position, protein_id, hypothesis_id, protein_name=None):
         super(NamedPeptideProteinRelation, self).__init__(
@@ -223,6 +242,8 @@ PeptideSequence.glycan_prior = 0.0
 class GlycopeptideFragmentCachingContext(object):
     __slots__ = ('store', )
 
+    store: Dict[Tuple[str, tuple, frozenset], List[FragmentBase]]
+
     def __init__(self, store=None):
         if store is None:
             store = {}
@@ -254,15 +275,15 @@ class GlycopeptideFragmentCachingContext(object):
     def clear(self):
         self.store.clear()
 
-    def bind(self, target):
+    def bind(self, target: 'FragmentCachingGlycopeptide') -> 'FragmentCachingGlycopeptide':
         target.fragment_caches = self
         return target
 
-    def unbind(self, target):
+    def unbind(self, target: 'FragmentCachingGlycopeptide'):
         target.fragment_caches = self.__class__()
         return target
 
-    def __call__(self, target):
+    def __call__(self, target: 'FragmentCachingGlycopeptide') -> 'FragmentCachingGlycopeptide':
         return self.bind(target)
 
     def _make_target_key(self, key):
@@ -304,6 +325,11 @@ except ImportError as err:
 class FragmentCachingGlycopeptide(PeptideSequence):
     __slots__ = ('fragment_caches', 'protein_relation', 'id', 'glycan_prior')
 
+    fragment_caches: GlycopeptideFragmentCachingContext
+    protein_relation: PeptideProteinRelation
+    id: Union[int, Any]
+    glycan_prior: float
+
     def __init__(self, *args, **kwargs):
         kwargs.setdefault('parser_function', hashable_glycan_glycopeptide_parser)
         super(FragmentCachingGlycopeptide, self).__init__(*args, **kwargs)
@@ -339,7 +365,7 @@ class FragmentCachingGlycopeptide(PeptideSequence):
     def __ne__(self, other):
         return not self == other
 
-    def get_fragments(self, *args, **kwargs):  # pylint: disable=arguments-differ
+    def get_fragments(self, *args, **kwargs) -> List[PeptideFragment]:  # pylint: disable=arguments-differ
         key = self.fragment_caches.peptide_backbone_fragment_key(self, args, kwargs)
         try:
             return self.fragment_caches[key]
@@ -348,7 +374,7 @@ class FragmentCachingGlycopeptide(PeptideSequence):
             self.fragment_caches[key] = result
             return result
 
-    def stub_fragments(self, *args, **kwargs):  # pylint: disable=arguments-differ
+    def stub_fragments(self, *args, **kwargs) -> List[StubFragment]:  # pylint: disable=arguments-differ
         kwargs.setdefault("strategy", CachingStubGlycopeptideStrategy)
         key = self.fragment_caches.stub_fragment_key(self, args, kwargs)
         try:
@@ -358,10 +384,10 @@ class FragmentCachingGlycopeptide(PeptideSequence):
             self.fragment_caches[key] = result
             return result
 
-    def _glycan_fragments(self):
+    def _glycan_fragments(self) -> List[SimpleFragment]:
         return list(super(FragmentCachingGlycopeptide, self).glycan_fragments(oxonium=True))
 
-    def glycan_fragments(self, *args, **kwargs):  # pylint: disable=arguments-differ
+    def glycan_fragments(self, *args, **kwargs) -> List[SimpleFragment]:  # pylint: disable=arguments-differ
         return oxonium_ion_cache(self)
 
     def clear_caches(self):
@@ -385,11 +411,14 @@ KeyTuple = namedtuple("KeyTuple", ['id', 'sequence'])
 
 
 class GlycopeptideCache(object):
+    sequence_map: Dict[str, FragmentCachingGlycopeptide]
+    key_map: Dict[KeyTuple, str]
+
     def __init__(self):
         self.sequence_map = dict()
         self.key_map = dict()
 
-    def __getitem__(self, key):
+    def __getitem__(self, key: KeyTuple) -> FragmentCachingGlycopeptide:
         try:
             result = self.key_map[key]
             return result
@@ -399,20 +428,26 @@ class GlycopeptideCache(object):
             self.key_map[key] = value
             return value
 
-    def __setitem__(self, key, value):
+    def __setitem__(self, key: KeyTuple, value: FragmentCachingGlycopeptide):
         self.key_map[key] = value
         self.sequence_map[key.sequence] = value
 
     def __len__(self):
         return len(self.key_map)
 
-    def pop(self, key):
+    def pop(self, key: KeyTuple):
         self.key_map.pop(key)
         self.sequence_map.pop(key.sequence, None)
 
 
 class CachingGlycopeptideParser(object):
     __slots__ = ('cache', 'cache_size', 'lru', 'churn', 'sequence_cls')
+
+    cache: GlycopeptideCache
+    cache_size: int
+    lru: LRUCache
+    churn: int
+    sequence_cls: Type[FragmentCachingGlycopeptide]
 
     def __init__(self, cache_size=4000, sequence_cls=FragmentCachingGlycopeptide):
         self.cache = GlycopeptideCache()
@@ -441,7 +476,7 @@ class CachingGlycopeptideParser(object):
             struct.protein_id, struct.hypothesis_id)
         return value
 
-    def _populate_cache(self, struct, key):
+    def _populate_cache(self, struct, key: KeyTuple):
         self._check_cache_valid()
         value = self._make_new_value(struct)
         self.cache[key] = value
@@ -483,7 +518,7 @@ class DecoyFragmentCachingGlycopeptide(FragmentCachingGlycopeptide):
     _random_shift_cache = dict()
 
     @classmethod
-    def get_random_shifts_for(cls, mass, n, low=1.0, high=30.0):
+    def get_random_shifts_for(cls, mass: float, n: int, low: float=1.0, high: float=30.0) -> np.ndarray:
         seed = int(round(mass))
         key = (seed, n)
         try:
@@ -494,7 +529,7 @@ class DecoyFragmentCachingGlycopeptide(FragmentCachingGlycopeptide):
             cls._random_shift_cache[key] = rand_deltas
             return rand_deltas
 
-    def _permute_stub_masses(self, stub_fragments, kwargs, do_clone=False):
+    def _permute_stub_masses(self, stub_fragments: List[StubFragment], kwargs: Dict, do_clone: bool=False) -> List[StubFragment]:
         random_low = kwargs.get('random_low', 1.0)
         random_high = kwargs.get("random_high", 30.0)
         n = len(stub_fragments)
@@ -507,7 +542,8 @@ class DecoyFragmentCachingGlycopeptide(FragmentCachingGlycopeptide):
         return stub_fragments
 
     @staticmethod
-    def _clone_and_shift_stub_fragments(stubs, rand_deltas, do_clone=True):
+    def _clone_and_shift_stub_fragments(stubs: List[StubFragment], rand_deltas: np.ndarray,
+                                        do_clone: bool=True) -> List[StubFragment]:
         i = 0
         if do_clone:
             result = []
@@ -541,7 +577,7 @@ class DecoyFragmentCachingGlycopeptide(FragmentCachingGlycopeptide):
             return result
 
     @classmethod
-    def from_target(cls, target):
+    def from_target(cls, target: FragmentCachingGlycopeptide):
         inst = cls()
         if target._glycosylation_manager.aggregate is not None:
             glycan = target._glycosylation_manager.aggregate.clone()
@@ -651,6 +687,18 @@ class GlycopeptideDatabaseRecord(object):
 class PeptideDatabaseRecordBase(object):
     __slots__ = ['id', "calculated_mass", "modified_peptide_sequence", "protein_id", "start_position", "end_position",
                  "hypothesis_id", "n_glycosylation_sites", "o_glycosylation_sites", "gagylation_sites"]
+
+    id: int
+    calculated_mass: float
+    modified_peptide_sequence: str
+    protein_id: int
+    start_position: int
+    end_position: int
+    hypothesis_id: int
+
+    n_glycosylation_sites: List[int]
+    o_glycosylation_sites: List[int]
+    gagylation_sites: List[int]
 
     def __hash__(self):
         return hash(self.modified_peptide_sequence)
