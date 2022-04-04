@@ -911,7 +911,11 @@ class PosteriorErrorToScore(object):
         return dup
 
     def bounds_for_probability(self, probability):
-        return self.domain[np.where(self.normalized_score >= probability)[0][[0, -1]]]
+        xbounds = np.where(self.normalized_score >= probability)[0]
+        if len(xbounds) == 0:
+            return np.array([0.0, 0.0])
+        lo, hi = xbounds[[0, -1]]
+        return self.domain[[lo, hi]]
 
     def at_half_max(self):
         half_max = self.normalized_score.max() / 2
