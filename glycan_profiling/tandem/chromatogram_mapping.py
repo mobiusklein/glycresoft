@@ -1363,6 +1363,8 @@ class SpectrumMatchUpdater(TaskBase):
            incorrect assignment *without* deleting the spectrum matches to that themselves.
     '''
 
+    spectrum_match_cls: Type[SpectrumMatch]
+
     def __init__(self, scan_loader, scorer, spectrum_match_cls, id_maker, threshold_fn=lambda x: x.q_value < 0.05,
                  match_args=None, fdr_estimator=None, retention_time_model=None, retention_time_delta=0.35):
         if match_args is None:
@@ -1405,7 +1407,7 @@ class SpectrumMatchUpdater(TaskBase):
         match = self.scorer.evaluate(scan, structure, mass_shift=best_shift, **self.match_args)
         return match
 
-    def find_identical_peptides_and_mark(self, chromatogram, structure, best_match=False, valid=False):
+    def find_identical_peptides_and_mark(self, chromatogram: TandemAnnotatedChromatogram, structure: TargetType, best_match: bool=False, valid: bool=False):
         structures = set()
         key = str(structure)
         for sset in chromatogram.tandem_solutions:
@@ -1475,6 +1477,11 @@ class SpectrumMatchUpdater(TaskBase):
                         continue
                 keep.append(r)
 
+        if not match:
+            self.log("... Failed to identify alternative %s for %s passing the threshold" % (
+                revised_structure, reference))
+            return chromatogram
+
         for reject in rejected:
             self.find_identical_peptides_and_mark(chromatogram, reject.solution)
 
@@ -1484,10 +1491,7 @@ class SpectrumMatchUpdater(TaskBase):
             #     revised_rt_score))
             self.find_identical_peptides_and_mark(chromatogram, invalid)
 
-        if not match:
-            self.log("... Failed to identify alternative %s for %s passing the threshold" % (
-                revised_structure, reference))
-            return chromatogram
+        self.find_identical_peptides_and_mark(chromatogram, reference)
 
         representers = chromatogram.filter_entries(match + keep)
         # When the input is a ChromatogramSolution, we have to explicitly
@@ -1519,7 +1523,7 @@ class SpectrumMatchUpdater(TaskBase):
                 scan_id = sset.scan_id
                 for inst in instances:
                     match = self.evaluate_spectrum(scan_id, inst, mass_shifts)
-                    match: SpectrumMatch = self.spectrum_match_cls.from_match_solution(match)
+                    match = self.spectrum_match_cls.from_match_solution(match)
                     match.scan = sset.scan
                     sset.insert(0, match)
                     solution_set_match_pairs.append((sset, match, False))

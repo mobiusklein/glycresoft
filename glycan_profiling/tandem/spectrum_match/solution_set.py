@@ -2,7 +2,7 @@
 spectrum, and methods for selecting which are worth keeping for downstream consideration.
 '''
 import logging
-from typing import Iterator, List, Tuple, Dict, Generic, Any, Optional, Union
+from typing import Iterable, Iterator, List, Tuple, Dict, Generic, Any, Optional, Union
 
 from ms_deisotope.data_source import ProcessedScan
 
@@ -239,7 +239,7 @@ default_multiscore_selection_method = SpectrumMatchRetentionMethod([
 class SpectrumMatchSortingStrategy(object):
     '''A base strategy for sorting spectrum matches to rank the best solution.
     '''
-    def key_function(self, spectrum_match):
+    def key_function(self, spectrum_match: SpectrumMatch):
         '''Create the sorting key for the spectrum match.
 
         For consistency, the target's ``id`` attribute is used to order
@@ -250,9 +250,9 @@ class SpectrumMatchSortingStrategy(object):
         -------
         tuple
         '''
-        return (spectrum_match.score, spectrum_match.target.id)
+        return (spectrum_match.valid, spectrum_match.score, spectrum_match.target.id)
 
-    def sort(self, solution_set, maximize=True):
+    def sort(self, solution_set: 'SpectrumSolutionSet', maximize: bool = True) -> List[SpectrumMatch]:
         '''Perform the sorting step.
 
         Parameters
@@ -268,7 +268,7 @@ class SpectrumMatchSortingStrategy(object):
         '''
         return sorted(solution_set, key=self.key_function, reverse=maximize)
 
-    def __call__(self, solution_set, maximize=True):
+    def __call__(self, solution_set: 'SpectrumSolutionSet', maximize: bool = True) -> List[SpectrumMatch]:
         '''Perform the sorting step.
 
         Parameters
@@ -282,18 +282,20 @@ class SpectrumMatchSortingStrategy(object):
         -------
         :class:`list` of :class:`~.SpectrumMatch` instances
         '''
-        return self.sort(solution_set)
+        return self.sort(solution_set, maximize=maximize)
 
 
 class MultiScoreSpectrumMatchSortingStrategy(SpectrumMatchSortingStrategy):
-    def key_function(self, spectrum_match):
-        return (spectrum_match.score_set, spectrum_match.target.id)
+    def key_function(self, spectrum_match: MultiScoreSpectrumMatch):
+        return (spectrum_match.valid, spectrum_match.score_set, spectrum_match.target.id)
 
 
 class NOParsimonyMixin(object):
     '''Provides shared methods for a parsimony step re-ordering solutions
     when the top solution may be N-linked or O-linked.
     '''
+    threshold_percentile: float
+
     def __init__(self, threshold_percentile=0.5):
         self.threshold_percentile = threshold_percentile
 
@@ -303,7 +305,7 @@ class NOParsimonyMixin(object):
     def get_target(self, solution):
         return solution.target
 
-    def hoist_equivalent_n_linked_solution(self, solution_set, maximize=True):
+    def hoist_equivalent_n_linked_solution(self, solution_set: Iterable[SpectrumMatch], maximize: bool=True) -> List[SpectrumMatch]:
         '''Apply a parsimony step re-ordering solutions when the top solution
         may be N-linked or O-linked.
 
@@ -364,7 +366,7 @@ class NOParsimonyMultiScoreSpectrumMatchSortingStrategy(NOParsimonyMixin, MultiS
     an N-linked solution is more parsimonious than an O-linked solution.
     '''
 
-    def sort(self, solution_set, maximize=True):
+    def sort(self, solution_set: Iterable[MultiScoreSpectrumMatch], maximize=True) -> List[MultiScoreSpectrumMatch]:
         solution_set = super(NOParsimonyMultiScoreSpectrumMatchSortingStrategy, self).sort(solution_set, maximize)
         if solution_set and solution_set[0].target.is_o_glycosylated():
             solution_set = self.hoist_equivalent_n_linked_solution(solution_set, maximize)
@@ -417,7 +419,7 @@ class SpectrumSolutionSet(ScanWrapperBase):
         self._target_map = None
         self._q_value = None
 
-    def is_multiscore(self):
+    def is_multiscore(self) -> bool:
         """Check whether this match has been produced by summarizing a multi-score
         match, rather than a single score match.
 
@@ -511,14 +513,17 @@ class SpectrumSolutionSet(ScanWrapperBase):
         if targets_ignored is None:
             targets_ignored = ()
         if not reject_shifted and not targets_ignored:
-            return self.solutions[0]
+            for solution in self.solutions:
+                if solution.valid:
+                    return solution
         for solution in self:
-            if (solution.mass_shift == Unmodified or not reject_shifted) and (solution.target in targets_ignored or not targets_ignored):
+            if (solution.mass_shift == Unmodified or not reject_shifted) and (solution.target in targets_ignored or not targets_ignored) and solution.valid:
                 return solution
 
     def mark_top_solutions(self, reject_shifted=False, targets_ignored=None) -> 'SpectrumSolutionSet':
         solution = self.best_solution(
-            reject_shifted=reject_shifted, targets_ignored=targets_ignored)
+            reject_shifted=reject_shifted,
+            targets_ignored=targets_ignored)
         if solution is None and reject_shifted:
             return self.mark_top_solutions(reject_shifted=False, targets_ignored=targets_ignored)
         if solution is None and targets_ignored:
@@ -528,7 +533,7 @@ class SpectrumSolutionSet(ScanWrapperBase):
         solution.best_match = True
         score = solution.score
         for solution in self:
-            if (score - solution.score) < 1e-3:
+            if (score - solution.score) < 1e-3 and solution.valid:
                 solution.best_match = True
             else:
                 solution.best_match = False
@@ -726,10 +731,13 @@ class SpectrumSolutionSet(ScanWrapperBase):
             self._is_sorted = was_sorted
         self.solutions.insert(position, match)
 
+    def remove(self, match: SpectrumMatch):
+        self.solutions.remove(match)
+
     def promote_to_best_match(self, match: SpectrumMatch, reject_shifted: bool=False,
                               targets_ignored: Optional[List[Any]]=None):
         try:
-            self.solutions.remove(match)
+            self.remove(match)
         except ValueError:
             pass
         self.insert(0, match, is_sorted=True)
@@ -801,6 +809,9 @@ class MultiScoreSpectrumSolutionSet(SpectrumSolutionSet):
         solution.best_match = True
         score_set = solution.score_set
         for solution in self:
+            if not solution.valid:
+                solution.best_match = False
+                continue
             if reject_shifted and solution.mass_shift != Unmodified:
                 solution.best_match = False
                 continue
