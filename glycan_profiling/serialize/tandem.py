@@ -266,7 +266,6 @@ class GlycopeptideSpectrumSolutionSet(Base, SolutionSetBase, BoundToAnalysis):
             convert_scan_to_record(self.scan),
             matches
         )
-        inst.sort()
         inst.id = self.id
         return inst
 
