@@ -102,6 +102,7 @@ def configure_logging(level=None, log_file_name=None, log_file_mode=None):
     handler = FlexibleFileHandler(log_file_name, mode=log_file_mode)
     handler.setFormatter(file_fmter)
     handler.setLevel(level)
+
     logging.getLogger().addHandler(handler)
     logging.getLogger().setLevel(level)
 
@@ -114,6 +115,7 @@ def configure_logging(level=None, log_file_name=None, log_file_mode=None):
 
     status_logger = logging.getLogger("glycresoft.status")
     status_logger.propagate = False
+
     handler = logging.StreamHandler(sys.stderr)
     handler.setFormatter(
         logging.Formatter("%(asctime)s - %(name)s: %(message)s", "%H:%M:%S"))

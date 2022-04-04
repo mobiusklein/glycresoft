@@ -2,17 +2,17 @@ from __future__ import print_function
 import os
 import logging
 import pprint
+import queue
 import traceback
 import multiprocessing
 import threading
 import six
+
+from logging.handlers import QueueHandler, QueueListener
 from multiprocessing.managers import SyncManager
 from datetime import datetime
 
-try:
-    from Queue import Empty
-except ImportError:
-    from queue import Empty
+from queue import Empty
 
 from glycan_profiling.version import version
 
@@ -81,6 +81,68 @@ class CallInterval(object):
 
     def stop(self):
         self.stopped.set()
+
+
+class IPCLoggingManager:
+    queue: multiprocessing.Queue
+    listener: QueueListener
+
+    def __init__(self, queue=None, *handlers):
+        if queue is None:
+            queue = multiprocessing.Queue()
+        if not handlers:
+            logger = logging.getLogger()
+            handlers = logger.handlers
+
+        print(handlers)
+        self.queue = queue
+        self.listener = QueueListener(
+            queue, *handlers, respect_handler_level=True)
+        self.listener.start()
+
+    def sender(self, logger_name="glycresoft"):
+        return LoggingHandlerToken(self.queue, logger_name)
+
+    def start(self):
+        self.listener.start()
+
+    def stop(self):
+        self.listener.stop()
+
+
+class LoggingHandlerToken:
+    queue: multiprocessing.Queue
+    name: str
+
+    def __init__(self, queue: multiprocessing.Queue, name: str):
+        self.queue = queue
+        self.name = name
+
+    def get_logger(self) -> logging.Logger:
+        logger = logging.getLogger(self.name)
+        return logger
+
+    def add_handler(self):
+        logger = self.get_logger()
+        for handler in list(logger.handlers):
+            logger.removeHandler(handler)
+        handler = QueueHandler(self.queue)
+        logger.addHandler(handler)
+        logger.setLevel(logging.INFO)
+        TaskBase.log_with_logger(logger)
+
+    def __getstate__(self):
+        return {
+            "queue": self.queue,
+            "name": self.name
+        }
+
+    def __setstate__(self, state):
+        self.queue = state['queue']
+        self.name = state['name']
+        if multiprocessing.current_process().name == "MainProcess":
+            return
+        self.add_handler()
 
 
 class MessageSpooler(object):

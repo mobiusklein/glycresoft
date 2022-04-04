@@ -17,7 +17,7 @@ from glycan_profiling import serialize
 from glycan_profiling.task import (
     TaskBase, Pipeline, MultiEvent,
     TaskExecutionSequence, MultiLock,
-    LoggingMixin, make_shared_memory_manager)
+    LoggingMixin, make_shared_memory_manager, IPCLoggingManager)
 
 from glycan_profiling.chromatogram_tree import Unmodified
 
@@ -324,6 +324,8 @@ class MultipartGlycopeptideIdentifier(TaskBase):
             "decoy": common_queue,
         }
 
+        ipc_logger = IPCLoggingManager()
+
         mapping_batcher = BatchMapper(
             # map labels to be loaded in the mapper executor to avoid repeatedly
             # serializing the databases.
@@ -367,7 +369,9 @@ class MultipartGlycopeptideIdentifier(TaskBase):
                 evaluation_kwargs=self.evaluation_kwargs,
                 error_tolerance=self.product_error_tolerance,
                 cache_seeds=self.cache_seeds,
-                mass_shifts=self.mass_shifts)
+                mass_shifts=self.mass_shifts,
+                log_handler=ipc_logger.sender(),
+            )
             execution_branches.append(branch)
         del scorer_type_payload
         del predictive_search_payload
@@ -379,6 +383,7 @@ class MultipartGlycopeptideIdentifier(TaskBase):
             branch.start(process=True, daemon=True)
         pipeline.start(daemon=True)
         pipeline.join()
+        ipc_logger.stop()
         had_error = pipeline.error_occurred()
         if had_error:
             message = "%d unrecoverable error%s occured during search!" % (
@@ -508,12 +513,14 @@ class SectionAnnouncer(LoggingMixin):
 
 
 class IdentificationWorker(TaskExecutionSequence):
-    def __init__(self, name, ipc_manager_address, input_batch_queue, input_done_event, journal_path, branch_semaphore, done_event,
+    def __init__(self, name, ipc_manager_address, input_batch_queue, input_done_event,
+                 journal_path, branch_semaphore, done_event,
                  # Mapping Executor Parameters
                  scan_loader=None, target_predictive_search=None, decoy_predictive_search=None,
                  # Matching Executor Parameters
-                 n_processes=4, scorer_type=None, evaluation_kwargs=None, error_tolerance=None, cache_seeds=None,
-                 mass_shifts=None, ):
+                 n_processes=4, scorer_type=None, evaluation_kwargs=None, error_tolerance=None,
+                 cache_seeds=None, mass_shifts=None,
+                 log_handler=None):
         self.name = name
         self.ipc_manager_address = ipc_manager_address
         self.input_batch_queue = input_batch_queue
@@ -535,6 +542,7 @@ class IdentificationWorker(TaskExecutionSequence):
         self.cache_seeds = cache_seeds
         self.mass_shifts = mass_shifts
         self.results_processed = multiprocessing.Value(ctypes.c_uint64)
+        self.log_handler = log_handler
 
     def _get_repr_details(self):
         props = ["name=%r" % self.name, "pid=%r" % multiprocessing.current_process().pid]
