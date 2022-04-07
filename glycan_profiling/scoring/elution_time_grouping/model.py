@@ -1156,6 +1156,8 @@ class ModelEnsemble(PeptideBackboneKeyedMixin, IntervalScoringMixin):
             _fig, ax = plt.subplots(1)
         from glycan_profiling.plotting.colors import get_color
 
+        param_cis = {}
+
         def local_point(point, factor):
             val = []
             ci = []
@@ -1163,7 +1165,11 @@ class ModelEnsemble(PeptideBackboneKeyedMixin, IntervalScoringMixin):
             for mod, weight in self._models_for(point):
                 i = mod.feature_names().index(factor)
                 val.append(mod.parameters[i])
-                ci_i = mod.parameter_confidence_interval()[i]
+                try:
+                    param_ci = param_cis[mod.start_time, mod.end_time]
+                except KeyError:
+                    param_cis[mod.start_time, mod.end_time] = param_ci = mod.parameter_confidence_interval()
+                ci_i = param_ci[i]
                 d = (ci_i[1] - ci_i[0]) / 2
                 ci.append(d)
                 weights.append(weight)
