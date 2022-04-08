@@ -529,7 +529,9 @@ class SpectrumSolutionSet(ScanWrapperBase):
         if solution is None and targets_ignored:
             return self.mark_top_solutions(
                 reject_shifted=reject_shifted, targets_ignored=None)
-
+        if solution is None and not reject_shifted and not targets_ignored:
+            logger.warn(f"Could not mark a top solution for {self.scan_id}")
+            return self
         solution.best_match = True
         score = solution.score
         for solution in self:
@@ -806,6 +808,9 @@ class MultiScoreSpectrumSolutionSet(SpectrumSolutionSet):
             return self.mark_top_solutions(reject_shifted=False, targets_ignored=targets_ignored)
         if solution is None and targets_ignored:
             return self.mark_top_solutions(reject_shifted=reject_shifted, targets_ignored=None)
+        if solution is None and not reject_shifted and not targets_ignored:
+            logger.warn(f"Could not mark a top solution for {self.scan_id}")
+            return self
         solution.best_match = True
         score_set = solution.score_set
         for solution in self:
