@@ -231,7 +231,10 @@ class GlycopeptideSpectrumSolutionSet(Base, SolutionSetBase, BoundToAnalysis):
     @classmethod
     def serialize(cls, obj, session, scan_look_up_cache, mass_shift_cache, analysis_id,
                   cluster_id, is_decoy=False, *args, **kwargs):
-        if not obj.best_solution().best_match:
+        gpsm = obj.best_solution()
+        if gpsm is None:
+            gpsm = obj[0]
+        if not gpsm.best_match:
             obj.mark_top_solutions()
         inst = cls(
             scan_id=scan_look_up_cache[obj.scan.id],
