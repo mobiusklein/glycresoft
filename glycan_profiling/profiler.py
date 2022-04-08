@@ -1077,7 +1077,8 @@ class GlycopeptideLCMSMSAnalyzer(TaskBase):
 
         pipeline = GlycopeptideElutionTimeModelBuildingPipeline(
             glycoform_agg, valid_glycans=glycan_compositions,
-            revision_validator=revision_validator)
+            revision_validator=revision_validator,
+            n_workers=self.n_processes)
 
         rt_model, revisions = pipeline.run()
 
@@ -1506,7 +1507,8 @@ class MultipartGlycopeptideLCMSMSAnalyzer(MzMLGlycopeptideLCMSMSAnalyzer):
 
         pipeline = GlycopeptideElutionTimeModelBuildingPipeline(
             glycoform_agg, valid_glycans=glycan_compositions,
-            revision_validator=revision_validator)
+            revision_validator=revision_validator,
+            n_workers=self.n_processes)
 
         rt_model, revisions = pipeline.run()
 

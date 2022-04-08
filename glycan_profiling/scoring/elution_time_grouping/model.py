@@ -5,10 +5,11 @@ import gzip
 import io
 
 from numbers import Number
-from collections import defaultdict, OrderedDict, namedtuple
+from collections import defaultdict, namedtuple
 from functools import partial
-from typing import Any, Callable, DefaultDict, Dict, Iterator, List, Optional, Tuple, Union
-from glycopeptidepy.structure.sequence.implementation import PeptideSequence
+from typing import Any, Callable, DefaultDict, Dict, Iterator, List, Optional, Set, Tuple, Union, OrderedDict
+from multiprocessing import cpu_count
+from concurrent import futures
 
 import numpy as np
 from scipy import stats
@@ -17,6 +18,8 @@ import dill
 
 from glypy.utils import make_counter
 from glypy.structure.glycan_composition import HashableGlycanComposition
+
+from glycopeptidepy.structure.sequence.implementation import PeptideSequence
 
 from glycan_profiling.database.composition_network.space import composition_distance, DistanceCache
 
@@ -39,7 +42,7 @@ from .structure import _get_apex_time, GlycopeptideChromatogramProxy, GlycoformA
 from .linear_regression import (WLSSolution, ransac, weighted_linear_regression_fit, prediction_interval, SMALL_ERROR, weighted_linear_regression_fit_ridge)
 from .reviser import (IntervalModelReviser, IsotopeRule, AmmoniumMaskedRule,
                       AmmoniumUnmaskedRule, HexNAc2NeuAc2ToHex6AmmoniumRule,
-                      IsotopeRule2, HexNAc2Fuc1NeuAc2ToHex7, PhosphateToSulfateRule,
+                      IsotopeRule2, HexNAc2Fuc1NeuAc2ToHex7, PhosphateToSulfateRule, RevisionValidatorBase,
                       SulfateToPhosphateRule, Sulfate1HexNAc2ToHex3Rule,
                       Hex3ToSulfate1HexNAc2Rule, HexNAc2NeuAc2ToHex6Deoxy,
                       AmmoniumMaskedNeuGcRule, AmmoniumUnmaskedNeuGcRule,
@@ -1346,38 +1349,63 @@ class EnsembleBuilder(TaskBase):
             group_widths[t] = best
         return group_widths
 
-    def fit(self, predicate: Optional[Callable[[Any], bool]]=None, model_type: Optional[Callable[..., ElutionTimeFitter]]=None, regularize: bool=False, resample: bool=False):
+    def _fit(self, i: int, point: float, members: List[GlycopeptideChromatogramProxy], point_members: List[List[GlycopeptideChromatogramProxy]],
+             predicate: Callable[[Any], bool], model_type: Callable[..., ElutionTimeFitter], regularize: bool = False,
+             resample: bool = False) -> Tuple[float, ElutionTimeFitter]:
+        n = len(point_members)
+        obs = list(filter(predicate, members))
+        if not obs:
+            return point, None
+
+        m = model_type(
+            obs, self.aggregator.factors, regularize=regularize)
+
+        if m.data.shape[0] <= m.data.shape[1]:
+            offset = 1
+            while m.data.shape[0] <= m.data.shape[1] and offset < (len(point_members) // 2 + 1):
+                extra = set(members)
+                for j in range(1, offset + 1):
+                    if i > j:
+                        extra.update(list(point_members[i - j][1]))
+                    if i + j < n:
+                        extra.update(list(point_members[i + j][1]))
+                obs = sorted(filter(predicate, extra), key=lambda x: x.apex_time)
+                m = model_type(obs, self.aggregator.factors, regularize=regularize)
+                offset += 1
+            self.debug("... Borrowed %d observations from regions %d steps away for region centered on %0.3f (%d members, %r)" % (
+                len(extra - set(members)), offset, point, len(members), m.data.shape))
+
+        m = m.fit(resample=resample)
+        return point, m
+
+    def fit(self, predicate: Optional[Callable[[Any], bool]]=None, model_type: Optional[Callable[..., ElutionTimeFitter]]=None,
+            regularize: bool=False, resample: bool=False, n_workers: Optional[int]=None):
         if model_type is None:
             model_type = AbundanceWeightedPeptideFactorElutionTimeFitter
         if predicate is None:
             predicate = bool
-        models = OrderedDict()
-        point_members = list(self.centers.items())
-        n = len(point_members)
-        m: ElutionTimeFitter
-        for i, (point, members) in enumerate(point_members):
-            obs = list(filter(predicate, members))
-            if not obs:
-                continue
-            m = models[point] = model_type(
-                obs, self.aggregator.factors, regularize=regularize)
-            if m.data.shape[0] <= m.data.shape[1]:
-                offset = 1
-                while m.data.shape[0] <= m.data.shape[1] and offset < (len(point_members) // 2 + 1):
-                    extra = set(members)
-                    for j in range(1, offset + 1):
-                        if i > j:
-                            extra.update(list(point_members[i - j][1]))
-                        if i + j < n:
-                            extra.update(list(point_members[i + j][1]))
-                    obs = sorted(filter(predicate, extra), key=lambda x: x.apex_time)
-                    m = models[point] = model_type(obs, self.aggregator.factors, regularize=regularize)
-                    offset += 1
-                self.debug("... Borrowed %d observations from regions %d steps away for region centered on %0.3f (%d members, %r)" % (
-                    len(extra - set(members)), offset, point, len(members), m.data.shape))
-                m = models[point]
+        if n_workers is None:
+            n_workers = cpu_count()
 
-            m.fit(resample=resample)
+        models: OrderedDict[float, ElutionTimeFitter] = OrderedDict()
+        point_members = list(self.centers.items())
+
+        tasks: OrderedDict[float, futures.Future[Tuple[float,
+                                                       ElutionTimeFitter]]] = OrderedDict()
+        executor = futures.ThreadPoolExecutor(n_workers, thread_name_prefix="ElutionTimeModelFitter")
+        for i, (point, members) in enumerate(point_members):
+            m: ElutionTimeFitter
+
+            result = executor.submit(
+                self._fit, i, point, members, point_members, predicate,
+                model_type, regularize, resample)
+            tasks[point] = result
+
+        for _, result in tasks.items():
+            point, m = result.result()
+            if m is None:
+                continue
+            models[point] = m
         self.models = models
         return self
 
@@ -1747,12 +1775,34 @@ class GlycopeptideElutionTimeModelBuildingPipeline(TaskBase):
 
     model_type = model_type_dispatch_outlier_remove
 
+    aggregate: GlycoformAggregator
+    calibration_alpha: float
+    _current_model: ModelEnsemble
+    model_history: List[ModelEnsemble]
+    n_workers: int
+
+    revised_tags: Set[int]
+    revision_history: List[List[GlycopeptideChromatogramProxy]]
+    revision_rules: RevisionRuleList
+    revision_validator: RevisionValidatorBase
+
+    valid_glycans: Set[HashableGlycanComposition]
+    initial_filter: Callable[..., bool]
+
+    key_cache: Dict
+    distance_cache: DistanceCache
+    delta_cache: GlycanCompositionDeltaCache
+
     def __init__(self, aggregate, calibration_alpha=0.001, valid_glycans=None,
-                 initial_filter=unmodified_modified_predicate, revision_validator=None):
+                 initial_filter=unmodified_modified_predicate, revision_validator=None,
+                 n_workers=None):
+        if n_workers is None:
+            n_workers = cpu_count()
         if revision_validator is None:
             revision_validator = PeptideYUtilizationPreservingRevisionValidator()
         self.aggregate = aggregate
         self.calibration_alpha = calibration_alpha
+        self.n_workers = n_workers
         self._current_model = None
         self.model_history = []
         self.revision_history = []
@@ -1831,7 +1881,8 @@ class GlycopeptideElutionTimeModelBuildingPipeline(TaskBase):
             distance_cache=self.distance_cache,
             delta_cache=self.delta_cache)
         builder.fit(predicate, model_type=model_type,
-                    regularize=regularize, resample=resample)
+                    regularize=regularize, resample=resample,
+                    n_workers=self.n_workers)
         model = builder.merge()
         model.calibrate_prediction_interval(alpha=self.calibration_alpha)
         self.log("... Calibrated Prediction Intervals: %0.3f-%0.3f" % (model.width_range.lower, model.width_range.upper))
