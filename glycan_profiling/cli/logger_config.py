@@ -92,18 +92,23 @@ def configure_logging(level=None, log_file_name=None, log_file_mode=None):
         log_file_name = LOG_FILE_NAME
     if log_file_mode is None:
         log_file_mode = LOG_FILE_MODE
+
     file_fmter = ProcessAwareFormatter(
         "%(asctime)s %(name)s:%(filename)s:%(lineno)-4d - %(levelname)s%(maybeproc)s - %(message)s",
         "%H:%M:%S")
+
     if log_file_mode not in ("w", "a"):
         warnings.warn("File Logger configured with mode %r not applicable, using \"w\" instead" % (
             log_file_mode,))
         log_file_mode = "w"
-    handler = FlexibleFileHandler(log_file_name, mode=log_file_mode)
-    handler.setFormatter(file_fmter)
-    handler.setLevel(level)
 
-    logging.getLogger().addHandler(handler)
+    if log_file_name:
+        handler = FlexibleFileHandler(log_file_name, mode=log_file_mode)
+        handler.setFormatter(file_fmter)
+        handler.setLevel(level)
+
+        logging.getLogger().addHandler(handler)
+
     logging.getLogger().setLevel(level)
 
     logger_to_silence = logging.getLogger("deconvolution_scan_processor")
@@ -123,7 +128,8 @@ def configure_logging(level=None, log_file_name=None, log_file_mode=None):
 
     if current_process().name == "MainProcess":
         fmt = ProcessAwareFormatter(
-            "%(asctime)s %(name)s:%(filename)s:%(lineno)-4d - %(levelname)s%(maybeproc)s - %(message)s", "%H:%M:%S")
+            "%(asctime)s %(name)s:%(filename)s:%(lineno)-4d - %(levelname)s%(maybeproc)s - %(message)s",
+            "%H:%M:%S")
         handler = logging.StreamHandler()
         handler.setFormatter(fmt)
         handler.setLevel(level)
