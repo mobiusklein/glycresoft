@@ -563,8 +563,9 @@ class TaskExecutionSequence(TaskBase):
             self.set_error_occurred()
 
     def kill_process(self):
-        if self._running_in_process and self.is_alive():
-            self._thread.terminate()
+        if self._running_in_process:
+            if self.is_alive():
+                self._thread.terminate()
         else:
             self.log("Cannot kill a process running in a thread")
 
