@@ -1400,7 +1400,7 @@ class EnsembleBuilder(TaskBase):
 
         tasks: OrderedDict[float, futures.Future[Tuple[float,
                                                        ElutionTimeFitter]]] = OrderedDict()
-        executor = futures.ThreadPoolExecutor(n_workers, thread_name_prefix="ElutionTimeModelFitter")
+        executor = futures.ThreadPoolExecutor(min(n_workers, 3), thread_name_prefix="ElutionTimeModelFitter")
         for i, (point, members) in enumerate(point_members):
             m: ElutionTimeFitter
 
