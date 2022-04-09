@@ -901,6 +901,13 @@ class AbundanceWeightedPeptideFactorElutionTimeFitter(AbundanceWeightedMixin, Pe
 
 
 class ModelEnsemble(PeptideBackboneKeyedMixin, IntervalScoringMixin):
+    models: OrderedDict[float, ElutionTimeFitter]
+    _models: List[ElutionTimeFitter]
+    _chromatograms: Optional[List[GlycopeptideChromatogramProxy]]
+    _summary_statistics: Dict[str, Any]
+    width_range: IntervalRange
+    residual_fdr: Optional[ResidualFDREstimator]
+
     def __init__(self, models, width_range=None):
         self._set_models(models)
         self.width_range = IntervalRange(width_range)
@@ -1001,7 +1008,7 @@ class ModelEnsemble(PeptideBackboneKeyedMixin, IntervalScoringMixin):
     def has_peptide(self, chromatogram) -> bool:
         return any(m.has_peptide(chromatogram) for m in self._models)
 
-    def estimate_query_point(self, glycopeptide):
+    def estimate_query_point(self, glycopeptide) -> GlycopeptideChromatogramProxy:
         if isinstance(glycopeptide, str):
             key = str(PeptideSequence(glycopeptide).deglycosylate())
             glycopeptide = PeptideSequence(glycopeptide)
@@ -1111,7 +1118,8 @@ class ModelEnsemble(PeptideBackboneKeyedMixin, IntervalScoringMixin):
     def chromatograms(self):
         return self._get_chromatograms()
 
-    def calibrate_prediction_interval(self, chromatograms=None, alpha=0.01):
+    def calibrate_prediction_interval(self, chromatograms: Optional[List[GlycopeptideChromatogramProxy]]=None,
+                                      alpha: float=0.01):
         if chromatograms is None:
             chromatograms = self.chromatograms
         ivs = np.array([self.predict_interval(c, alpha)

@@ -3,6 +3,8 @@ import logging
 from array import array
 from collections import defaultdict, OrderedDict
 from collections.abc import Iterable
+import types
+from typing import DefaultDict, Dict, List, Optional, Set
 from matplotlib import pyplot as plt
 
 import numpy as np
@@ -11,6 +13,7 @@ from glypy.structure.glycan_composition import HashableGlycanComposition, Frozen
 from glycan_profiling.chromatogram_tree import mass_shift
 
 from glycan_profiling.chromatogram_tree.mass_shift import Unmodified, Ammonium, Deoxy
+from glycan_profiling.scoring.elution_time_grouping.structure import GlycopeptideChromatogramProxy
 
 from glycan_profiling.task import LoggingMixin
 
@@ -313,6 +316,20 @@ def _new_array():
 
 
 class ModelReviser(object):
+    valid_glycans: Optional[Set[HashableGlycanComposition]]
+    revision_validator: Optional[RevisionValidatorBase]
+
+    model: 'ElutionTimeFitter'
+    rules: List[RevisionRule]
+    chromatograms: List[GlycopeptideChromatogramProxy]
+
+    original_scores: array
+    original_times: array
+
+    alternative_records: DefaultDict[RevisionRule, List[GlycopeptideChromatogramProxy]]
+    alternative_scores: DefaultDict[RevisionRule, array]
+    alternative_times: DefaultDict[RevisionRule, array]
+
     def __init__(self, model, rules, chromatograms=None, valid_glycans=None, revision_validator=None):
         if chromatograms is None:
             chromatograms = model.chromatograms
@@ -484,6 +501,9 @@ PhosphateToSulfateRule.name = "Sulfate Masked By Phosphate"
 
 
 class RevisionRuleList(object):
+    rules: List[RevisionRule]
+    by_name: Dict[str, RevisionRule]
+
     def __init__(self, rules):
         self.rules = list(rules)
         self.by_name = {
@@ -507,7 +527,7 @@ class RevisionRuleList(object):
 
 
 class IntervalModelReviser(ModelReviser):
-    alpha = 0.01
+    alpha: float = 0.01
 
     def rescore(self, case):
         return self.model.score_interval(case, alpha=self.alpha)
