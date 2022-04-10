@@ -37,7 +37,7 @@ def IsTask(cls):
     return cls
 
 
-def workload_grouping(chunks: List[ProcessedScan], max_scans_per_workload: int=500, starting_index: int=0) -> List[List[ProcessedScan]]:
+def workload_grouping(chunks: List[ProcessedScan], max_scans_per_workload: int=500, starting_index: int=0) -> Tuple[List[List[ProcessedScan]], int]:
     workload = []
     total_scans_in_workload = 0
     i = starting_index
@@ -128,7 +128,7 @@ class BatchMapper(TaskExecutionSequence):
     def out_queue_for_label(self, label):
         return self.out_queue[label]
 
-    def execute_task(self, task: Tuple[List[List[ProcessedScan], int, int]]):
+    def execute_task(self, task: Tuple[List[List[ProcessedScan]], int, int]):
         chunk, group_i_prev, group_n = task
         for label, search_group in self.search_groups:
             task = StructureMapper(
