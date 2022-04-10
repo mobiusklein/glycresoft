@@ -1,4 +1,4 @@
-from typing import Dict
+from typing import Dict, Union
 
 import numpy as np
 from scipy import stats
@@ -11,6 +11,8 @@ except ImportError:
 
 
 class KMeans(object):
+    k: int
+    means: np.ndarray
 
     def __init__(self, k, means=None):
         self.k = k
@@ -33,7 +35,7 @@ class KMeans(object):
             "means": [float(m) for m in self.means]
         }
 
-    def estimate(self, X, maxiter=1000, tol=1e-6):
+    def estimate(self, X: np.ndarray, maxiter: int=1000, tol: float=1e-6):
         for i in range(maxiter):
             distances = []
             for k in range(self.k):
@@ -56,7 +58,7 @@ class KMeans(object):
         else:
             pass
 
-    def score(self, x):
+    def score(self, x: Union[float, np.ndarray]) -> np.ndarray:
         x = np.asanyarray(x)
         if x.ndim < 2:
             x = x.reshape((-1, 1))
@@ -65,7 +67,7 @@ class KMeans(object):
         score /= score.sum(axis=1)[:, None]
         return score
 
-    def predict(self, x):
+    def predict(self, x: Union[float, np.ndarray]) -> np.ndarray:
         scores = self.score(x)
         return np.argmax(scores, axis=1)
 
@@ -83,17 +85,17 @@ class MixtureBase(object):
     def from_json(cls, state) -> 'MixtureBase':
         raise NotImplementedError()
 
-    def loglikelihood(self, X):
+    def loglikelihood(self, X) -> float:
         out = logsumexp(self.logpdf(X), axis=1).sum()
         return out
 
-    def bic(self, X):
+    def bic(self, X) -> float:
         '''Calculate the Bayesian Information Criterion
         for selecting the most parsimonious number of components.
         '''
         return np.log(X.size) * (self.n_components * 3 - 1) - (2 * (self.loglikelihood(X)))
 
-    def logpdf(self, X, weighted=True):
+    def logpdf(self, X: np.ndarray, weighted: float=True) -> np.ndarray:
         out = np.array(
             [self._logpdf(X, k)
              for k in range(self.n_components)]).T
@@ -101,13 +103,13 @@ class MixtureBase(object):
             out += np.log(self.weights)
         return out
 
-    def pdf(self, X, weighted=True):
+    def pdf(self, X: np.ndarray, weighted: float = True) -> np.ndarray:
         return np.exp(self.logpdf(X, weighted=weighted))
 
-    def score(self, X):
+    def score(self, X: np.ndarray) -> np.ndarray:
         return self.pdf(X).sum(axis=1)
 
-    def responsibility(self, X):
+    def responsibility(self, X: np.ndarray) -> np.ndarray:
         '''Also called the posterior probability, as these are the
         probabilities associating each element of X with each component
         '''
@@ -147,14 +149,14 @@ class GaussianMixture(MixtureBase):
         template = "{self.__class__.__name__}({self.mus}, {self.sigmas}, {self.weights})"
         return template.format(self=self)
 
-    def _logpdf(self, X, k):
+    def _logpdf(self, X: np.ndarray, k: int) -> np.ndarray:
         '''Computes the log-space density for `X` using the `k`th
         component of the mixture
         '''
         return stats.norm.logpdf(X, self.mus[k], self.sigmas[k])
 
     @classmethod
-    def fit(cls, X, n_components, maxiter=1000, tol=1e-5, deterministic=True):
+    def fit(cls, X: np.ndarray, n_components: int, maxiter: int=1000, tol: float=1e-5, deterministic: bool=True):
         if not deterministic:
             mus = KMeans.fit(X, n_components).means
         else:
@@ -166,7 +168,8 @@ class GaussianMixture(MixtureBase):
         inst.estimate(X, maxiter=maxiter, tol=tol)
         return inst
 
-    def _update_params_for(self, X, k, responsibility, new_mus, new_sigmas, new_weights):
+    def _update_params_for(self, X: np.ndarray, k: int, responsibility: np.ndarray, new_mus: np.ndarray,
+                           new_sigmas: np.ndarray, new_weights: np.ndarray):
         # The expressions for each partial derivative may be useful for understanding
         # portions of this block.
         # See http://www.notenoughthoughts.net/posts/normal-log-likelihood-gradient.html
@@ -180,7 +183,7 @@ class GaussianMixture(MixtureBase):
         new_sigmas[k] = np.sqrt(sigma_k)
         new_weights[k] = N_k
 
-    def estimate(self, X, maxiter=1000, tol=1e-5):
+    def estimate(self, X: np.ndarray, maxiter: int=1000, tol: float=1e-5):
         for i in range(maxiter):
             # E-step
             responsibility = self.responsibility(X)
@@ -261,7 +264,7 @@ def truncnorm_logpdf(x, mu, sigma):
 
 class _TruncatedNormalMixin(object):
 
-    def _logpdf(self, X, k):
+    def _logpdf(self, X: np.ndarray, k: int) -> np.ndarray:
         '''Computes the log-space density for `X` using the `k`th
         component of the mixture
         '''
@@ -332,7 +335,7 @@ class GammaMixtureBase(MixtureBase):
         template = "{self.__class__.__name__}({self.shapes}, {self.scales}, {self.weights})"
         return template.format(self=self)
 
-    def _logpdf(self, X, k):
+    def _logpdf(self, X: np.ndarray, k: int) -> np.ndarray:
         '''Computes the log-space density for `X` using the `k`th
         component of the mixture
         '''
@@ -354,7 +357,7 @@ class GammaMixtureBase(MixtureBase):
         ]
 
     @classmethod
-    def fit(cls, X, n_components, maxiter=100, tol=1e-5, deterministic=True):
+    def fit(cls, X: np.ndarray, n_components: int, maxiter: int=100, tol: float=1e-5, deterministic: bool=True):
         shapes, scales, weights = cls.initial_parameters(X, n_components, deterministic=deterministic)
         inst = cls(shapes, scales, weights)
         inst.estimate(X, maxiter=maxiter, tol=tol)
@@ -378,7 +381,7 @@ class IterativeGammaMixture(GammaMixtureBase):
         weights /= weights.sum()
         return shapes, scales, weights
 
-    def estimate(self, X, maxiter=100, tol=1e-5):
+    def estimate(self, X: np.ndarray, maxiter=100, tol=1e-5):
         prev_loglikelihood = self.loglikelihood(X)
         for i in range(maxiter):
             # E-Step
@@ -437,7 +440,7 @@ class GaussianMixtureWithPriorComponent(GaussianMixture):
             return super(GaussianMixtureWithPriorComponent, self)._logpdf(X, k)
 
     @classmethod
-    def fit(cls, X, n_components, prior, maxiter=1000, tol=1e-5, deterministic=True):
+    def fit(cls, X: np.ndarray, n_components: int, prior: MixtureBase, maxiter=1000, tol=1e-5, deterministic=True):
         if not deterministic:
             mus = KMeans.fit(X, n_components).means
         else:
@@ -449,7 +452,7 @@ class GaussianMixtureWithPriorComponent(GaussianMixture):
         inst.estimate(X, maxiter=maxiter, tol=tol)
         return inst
 
-    def estimate(self, X, maxiter=1000, tol=1e-5):
+    def estimate(self, X: np.ndarray, maxiter=1000, tol=1e-5):
         for i in range(maxiter):
             # E-step
             responsibility = self.responsibility(X)

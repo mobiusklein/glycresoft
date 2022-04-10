@@ -454,7 +454,7 @@ class MultipartGlycopeptideIdentifier(TaskBase):
         groups = SolutionSetGrouper(solutions)
         return groups
 
-    def estimate_fdr(self, glycopeptide_spectrum_match_groups, *args, **kwargs):
+    def estimate_fdr(self, glycopeptide_spectrum_match_groups: SolutionSetGrouper, *args, **kwargs):
         keys = [SpectrumMatchClassification[i] for i in range(4)]
         g = glycopeptide_spectrum_match_groups
         self.log("Running Target Decoy Analysis with %d targets and %d/%d/%d decoys" % (

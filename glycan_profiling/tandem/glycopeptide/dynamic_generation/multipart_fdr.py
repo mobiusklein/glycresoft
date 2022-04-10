@@ -10,7 +10,13 @@ FDR estimation procedure described in:
     pGlyco: a pipeline for the identification of intact N-glycopeptides by using HCD-
     and CID-MS/MS and MS3. Scientific Reports, 6(April), 25102. https://doi.org/10.1038/srep25102
 '''
+from typing import Dict, List, Optional, Type
 import numpy as np
+
+from glypy.structure.glycan_composition import GlycanComposition
+from glypy.utils.enum import EnumValue
+
+from glycan_profiling.tandem.spectrum_match.solution_set import MultiScoreSpectrumSolutionSet
 
 try:
     from matplotlib import pyplot as plt
@@ -26,7 +32,7 @@ from glycan_profiling.tandem.target_decoy import NearestValueLookUp, TargetDecoy
 from glycan_profiling.tandem.spectrum_match import SpectrumMatch
 from glycan_profiling.tandem.glycopeptide.core_search import approximate_internal_size_of_glycan
 
-from .mixture import GammaMixture, GaussianMixture, GaussianMixtureWithPriorComponent, TruncatedGaussianMixture, TruncatedGaussianMixtureWithPriorComponent
+from .mixture import GammaMixture, GaussianMixture, GaussianMixtureWithPriorComponent, MixtureBase, TruncatedGaussianMixture, TruncatedGaussianMixtureWithPriorComponent
 from .journal import SolutionSetGrouper
 
 
@@ -48,7 +54,7 @@ GlycopeptideFDREstimationStrategy.glycan_fdr.add_name("glycan")
 GlycopeptideFDREstimationStrategy.peptide_or_glycan.add_name('any')
 
 
-def interpolate_from_zero(nearest_value_map, zero_value=1.0):
+def interpolate_from_zero(nearest_value_map: NearestValueLookUp, zero_value: float=1.0) -> NearestValueLookUp:
     smallest = nearest_value_map.items[0]
     X = np.linspace(0, smallest[0])
     Y = np.interp(X, [0, smallest[0]], [zero_value, smallest[1]])
@@ -58,6 +64,12 @@ def interpolate_from_zero(nearest_value_map, zero_value=1.0):
 
 
 class FiniteMixtureModelFDREstimatorBase(TaskBase):
+    decoy_scores: np.ndarray
+    target_scores: np.ndarray
+    decoy_mixture: Optional[MixtureBase]
+    target_mixture: Optional[MixtureBase]
+    fdr_map: Optional[NearestValueLookUp]
+
     def __init__(self, decoy_scores, target_scores):
         self.decoy_scores = np.array(decoy_scores)
         self.target_scores = np.array(target_scores)
@@ -65,29 +77,9 @@ class FiniteMixtureModelFDREstimatorBase(TaskBase):
         self.target_mixture = None
         self.fdr_map = None
 
-    def estimate_posterior_error_probability(self, X):
+    def estimate_posterior_error_probability(self, X: np.ndarray) -> np.ndarray:
         return self.target_mixture.prior.score(X) * self.target_mixture.weights[
             -1] / self.target_mixture.score(X)
-
-    def estimate_fdr(self, X):
-        X_ = np.array(sorted(X, reverse=True))
-        pep = self.estimate_posterior_error_probability(X_)
-        # The FDR is the expected value of PEP, or the average PEP in this case.
-        # The expression below is a cumulative mean (the cumulative sum divided
-        # by the number of elements in the sum)
-        fdr = np.cumsum(pep) / np.arange(1, len(X_) + 1)
-        # Use searchsorted on the ascending ordered version of X_
-        # to find the indices of the origin values of X, then map
-        # those into the ascending ordering of the FDR vector to get
-        # the FDR estimates of the original X
-        fdr[np.isnan(fdr)] = 1.0
-        fdr_descending = fdr[::-1]
-        for i in range(1, fdr_descending.shape[0]):
-            if fdr_descending[i - 1] < fdr_descending[i]:
-                fdr_descending[i] = fdr_descending[i - 1]
-        fdr = fdr_descending[::-1]
-        fdr = fdr[::-1][np.searchsorted(X_[::-1], X)]
-        return fdr
 
     def plot_mixture(self, ax=None):
         if ax is None:
@@ -142,7 +134,7 @@ class FiniteMixtureModelFDREstimatorBase(TaskBase):
         ax2.set_xlim(-1, hi)
         return ax
 
-    def fit(self, max_components=10, max_target_components=None, max_decoy_components=None):
+    def fit(self, max_components: int=10, max_target_components: Optional[int]=None, max_decoy_components: Optional[int]=None) -> NearestValueLookUp:
         if not max_target_components:
             max_target_components = max_components
         if not max_decoy_components:
@@ -157,7 +149,7 @@ class FiniteMixtureModelFDREstimatorBase(TaskBase):
             self.fdr_map = interpolate_from_zero(self.fdr_map)
         return self.fdr_map
 
-    def estimate_fdr(self, X):
+    def estimate_fdr(self, X: np.ndarray) -> np.ndarray:
         X_ = np.array(sorted(X, reverse=True))
         pep = self.estimate_posterior_error_probability(X_)
         # The FDR is the expected value of PEP, or the average PEP in this case.
@@ -177,7 +169,8 @@ class FiniteMixtureModelFDREstimatorBase(TaskBase):
         fdr = fdr[::-1][np.searchsorted(X_[::-1], X)]
         return fdr
 
-    def _select_best_number_of_components(self, max_components, fitter, scores, **kwargs):
+    def _select_best_number_of_components(self, max_components: int, fitter: Type[MixtureBase],
+                                          scores: np.ndarray, **kwargs) -> MixtureBase:
         models = []
         bics = []
         for i in range(1, max_components + 1):
@@ -193,10 +186,10 @@ class FiniteMixtureModelFDREstimatorBase(TaskBase):
         self.debug("Selected %d Components" % (i + 1,))
         return models[i]
 
-    def estimate_decoy_distributions(self, max_components=10):
+    def estimate_decoy_distributions(self, max_components: int=10):
         raise NotImplementedError()
 
-    def estimate_target_distributions(self, max_components=10):
+    def estimate_target_distributions(self, max_components: int=10) -> MixtureBase:
         n = len(self.target_scores)
         np.random.seed(n)
         if n < 10:
@@ -279,11 +272,12 @@ class FiniteMixtureModelFDREstimatorHalfGaussian(FiniteMixtureModelFDREstimatorB
 
 
 class GlycanSizeCalculator(object):
+    glycan_size_cache: Dict[str, int]
 
     def __init__(self):
         self.glycan_size_cache = dict()
 
-    def get_internal_size(self, glycan_composition):
+    def get_internal_size(self, glycan_composition: GlycanComposition) -> int:
         key = str(glycan_composition)
         if key in self.glycan_size_cache:
             return self.glycan_size_cache[key]
@@ -291,14 +285,21 @@ class GlycanSizeCalculator(object):
         self.glycan_size_cache[key] = n
         return n
 
-    def __call__(self, glycan_composition):
+    def __call__(self, glycan_composition: GlycanComposition) -> int:
         return self.get_internal_size(glycan_composition)
 
 
 class GlycopeptideFDREstimator(TaskBase):
     display_fields = False
-    minimum_glycan_size = 3
-    minimum_score = 1
+    minimum_glycan_size: int = 3
+    minimum_score: float = 1
+
+    strategy: EnumValue
+    grouper: 'SolutionSetGrouper'
+
+    glycan_fdr: FiniteMixtureModelFDREstimator
+    peptide_fdr: TargetDecoyAnalyzer
+    glycopeptide_fdr: FiniteMixtureModelFDREstimator
 
     def __init__(self, groups, strategy=None):
         if strategy is None:
@@ -383,7 +384,7 @@ class GlycopeptideFDREstimator(TaskBase):
         self.glycopeptide_fdr = glycopeptide_fdr
         return self.glycopeptide_fdr
 
-    def _assign_joint_fdr(self, solution_sets):
+    def _assign_joint_fdr(self, solution_sets: List[MultiScoreSpectrumSolutionSet]):
         for ts in solution_sets:
             for t in ts:
                 t.q_value_set.peptide_q_value = self.peptide_fdr.q_value_map[t.score_set.peptide_score]
@@ -396,7 +397,7 @@ class GlycopeptideFDREstimator(TaskBase):
             ts.q_value = ts.best_solution().q_value
         return solution_sets
 
-    def _assign_minimum_fdr(self, solution_sets):
+    def _assign_minimum_fdr(self, solution_sets: List[MultiScoreSpectrumSolutionSet]):
         for ts in solution_sets:
             for t in ts:
                 t.q_value_set.peptide_q_value = self.peptide_fdr.q_value_map[
@@ -409,7 +410,7 @@ class GlycopeptideFDREstimator(TaskBase):
             ts.q_value = ts.best_solution().q_value
         return solution_sets
 
-    def _assign_peptide_fdr(self, solution_sets):
+    def _assign_peptide_fdr(self, solution_sets: List[MultiScoreSpectrumSolutionSet]):
         for ts in solution_sets:
             for t in ts:
                 total = t.q_value_set.peptide_q_value = self.peptide_fdr.q_value_map[
@@ -430,7 +431,7 @@ class GlycopeptideFDREstimator(TaskBase):
             ts.q_value = ts.best_solution().q_value
         return solution_sets
 
-    def fit_total_fdr(self, solution_sets=None):
+    def fit_total_fdr(self, solution_sets: Optional[List[MultiScoreSpectrumSolutionSet]] = None):
         if solution_sets is None:
             solution_sets = self.grouper.match_type_groups['target_peptide_target_glycan']
         if self.strategy == GlycopeptideFDREstimationStrategy.multipart_gamma_gaussian_mixture:
@@ -445,7 +446,7 @@ class GlycopeptideFDREstimator(TaskBase):
             raise NotImplementedError(self.strategy)
         return self.grouper
 
-    def score_all(self, solution_set):
+    def score_all(self, solution_set: MultiScoreSpectrumSolutionSet):
         self.fit_total_fdr([solution_set])
         return solution_set
 

@@ -1,18 +1,23 @@
 '''Implementation for journal file reading and writing to serialize
 glycopeptide spectrum match information to disk during processing.
 '''
+import os
+import io
 import csv
 import json
-
-import io
 import gzip
+
+from multiprocessing import Event, JoinableQueue
 
 from collections import defaultdict
 from operator import attrgetter
+from typing import Any, Callable, DefaultDict, Dict, List, Set, Union
 
 from six import PY2
 
 import numpy as np
+
+from glycan_profiling.chromatogram_tree.mass_shift import MassShiftBase
 
 try:
     from pyzstd import ZstdFile
@@ -28,9 +33,9 @@ from glycan_profiling.task import TaskBase, TaskExecutionSequence, Empty
 from glycan_profiling.structure.structure_loader import (
     FragmentCachingGlycopeptide, DecoyFragmentCachingGlycopeptide,
     PeptideProteinRelation, LazyGlycopeptide)
-from glycan_profiling.structure.scan import ScanInformationLoader
+from glycan_profiling.structure.scan import ScanInformation, ScanInformationLoader
 from glycan_profiling.structure.lru import LRUMapping
-from glycan_profiling.chromatogram_tree import MassShift, Unmodified
+from glycan_profiling.chromatogram_tree import Unmodified
 
 from glycan_profiling.tandem.ref import SpectrumReference
 from glycan_profiling.tandem.spectrum_match import (
@@ -81,6 +86,16 @@ class JournalFileWriter(TaskBase):
     random or non-useful matches.
 
     """
+
+    path: os.PathLike
+    handle: io.TextIOWrapper
+
+    include_auxiliary: bool
+    include_fdr: bool
+    writer: csv.writer
+    spectrum_counter: int
+    solution_counter: int
+
     def __init__(self, path, include_fdr=False, include_auxiliary=False):
         self.path = path
         if not hasattr(path, 'write'):
@@ -131,7 +146,7 @@ class JournalFileWriter(TaskBase):
     def write_header(self):
         self.writer.writerow(self._get_headers())
 
-    def _prepare_fields(self, psm):
+    def _prepare_fields(self, psm: MultiScoreSpectrumMatch) -> List[str]:
         error = (psm.target.total_mass - psm.precursor_information.neutral_mass
                 ) / psm.precursor_information.neutral_mass
         fields = ([psm.scan_id, error, ] + list(psm.target.id) + [
@@ -164,11 +179,11 @@ class JournalFileWriter(TaskBase):
         fields = [str(f) for f in fields]
         return fields
 
-    def write(self, psm):
+    def write(self, psm: MultiScoreSpectrumMatch):
         self.solution_counter += 1
         self.writer.writerow(self._prepare_fields(psm))
 
-    def writeall(self, solution_sets):
+    def writeall(self, solution_sets: List[MultiScoreSpectrumSolutionSet]):
         for solution_set in solution_sets:
             self.spectrum_counter += 1
             for solution in solution_set:
@@ -183,6 +198,11 @@ class JournalFileWriter(TaskBase):
 
 
 class JournalingConsumer(TaskExecutionSequence):
+    journal_file: JournalFileWriter
+    in_queue: JoinableQueue
+    in_done_event: Event
+    done_event: Event
+
     def __init__(self, journal_file, in_queue, in_done_event):
         self.journal_file = journal_file
         self.in_queue = in_queue
@@ -209,7 +229,7 @@ class JournalingConsumer(TaskExecutionSequence):
         self.journal_file.close()
 
 
-def parse_float(value):
+def parse_float(value: str) -> float:
     value = float(value)
     if np.isnan(value):
         return 0
@@ -223,6 +243,15 @@ except ImportError:
 
 
 class JournalFileReader(TaskBase):
+    path: os.PathLike
+    handle: io.TextIOBase
+    reader: csv.DictReader
+
+    glycopeptide_cache: LRUMapping
+    mass_shift_map: Dict[str, MassShiftBase]
+    scan_loader: ScanInformationLoader
+    include_fdr: bool
+
     def __init__(self, path, cache_size=2 ** 16, mass_shift_map=None, scan_loader=None, include_fdr=False):
         if mass_shift_map is None:
             mass_shift_map = {Unmodified.name: Unmodified}
@@ -239,7 +268,7 @@ class JournalFileReader(TaskBase):
         self.scan_loader = scan_loader
         self.include_fdr = include_fdr
 
-    def _build_key(self, row):
+    def _build_key(self, row) -> glycopeptide_key_t:
         glycopeptide_id_key = glycopeptide_key_t(
             int(row['peptide_start']), int(row['peptide_end']), int(
                 row['peptide_id']), int(row['protein_id']),
@@ -248,12 +277,12 @@ class JournalFileReader(TaskBase):
             int(row['site_combination_index']), row.get('glycosylation_type'))
         return glycopeptide_id_key
 
-    def _build_protein_relation(self, glycopeptide_id_key):
+    def _build_protein_relation(self, glycopeptide_id_key: glycopeptide_key_t) -> PeptideProteinRelation:
         return PeptideProteinRelation(
             glycopeptide_id_key.start_position, glycopeptide_id_key.end_position,
             glycopeptide_id_key.protein_id, glycopeptide_id_key.hypothesis_id)
 
-    def glycopeptide_from_row(self, row):
+    def glycopeptide_from_row(self, row: Dict) -> LazyGlycopeptide:
         glycopeptide_id_key = self._build_key(row)
         if glycopeptide_id_key in self.glycopeptide_cache:
             return self.glycopeptide_cache[glycopeptide_id_key]
@@ -265,7 +294,7 @@ class JournalFileReader(TaskBase):
         self.glycopeptide_cache[glycopeptide_id_key] = glycopeptide
         return glycopeptide
 
-    def _build_score_set(self, row):
+    def _build_score_set(self, row) -> ScoreSet:
         score_set = ScoreSet(
             parse_float(row['total_score']),
             parse_float(row['peptide_score']),
@@ -277,7 +306,7 @@ class JournalFileReader(TaskBase):
         )
         return score_set
 
-    def _build_fdr_set(self, row):
+    def _build_fdr_set(self, row) -> FDRSet:
         fdr_set = FDRSet(
             float(row['total_q_value']),
             float(row['peptide_q_value']),
@@ -285,18 +314,18 @@ class JournalFileReader(TaskBase):
             float(row['glycopeptide_q_value']))
         return fdr_set
 
-    def _make_mass_shift(self, row):
+    def _make_mass_shift(self, row) -> MassShiftBase:
         mass_shift = self.mass_shift_map[row['mass_shift']]
         return mass_shift
 
-    def _make_scan(self, row):
+    def _make_scan(self, row) -> Union[SpectrumReference, ScanInformation]:
         if self.scan_loader is None:
             scan = SpectrumReference(row['scan_id'])
         else:
             scan = self.scan_loader.get_scan_by_id(row['scan_id'])
         return scan
 
-    def spectrum_match_from_row(self, row):
+    def spectrum_match_from_row(self, row) -> MultiScoreSpectrumMatch:
         glycopeptide = self.glycopeptide_from_row(row)
         scan = self._make_scan(row)
         fdr_set = None
@@ -313,7 +342,7 @@ class JournalFileReader(TaskBase):
     def __iter__(self):
         return self
 
-    def __next__(self):
+    def __next__(self) -> MultiScoreSpectrumMatch:
         return self.spectrum_match_from_row(next(self.reader))
 
     def next(self):
@@ -333,6 +362,11 @@ class SolutionSetGrouper(TaskBase):
     or by best match to a given scan and target/decoy classification (:attr:`exclusive_match_groups`)
 
     """
+    spectrum_matches: List[MultiScoreSpectrumMatch]
+    spectrum_ids: Set[str]
+    match_type_groups: Dict[Any, List[MultiScoreSpectrumMatch]]
+    exclusive_match_groups: DefaultDict[Any, List[MultiScoreSpectrumMatch]]
+
     def __init__(self, spectrum_matches):
         self.spectrum_matches = list(spectrum_matches)
         self.spectrum_ids = set()
@@ -356,7 +390,7 @@ class SolutionSetGrouper(TaskBase):
         acc.sort(key=lambda x: x.scan.id)
         return acc
 
-    def _collect(self):
+    def _collect(self) -> Dict[Any, List[MultiScoreSpectrumMatch]]:
         match_type_getter = attrgetter('match_type')
         groups = collectiontools.groupby(
             self.spectrum_matches, match_type_getter)
@@ -373,7 +407,7 @@ class SolutionSetGrouper(TaskBase):
             by_scan_groups[group] = acc
         return by_scan_groups
 
-    def _exclusive(self, score_getter=None, min_value=0):
+    def _exclusive(self, score_getter: Callable[[MultiScoreSpectrumMatch], float]=None, min_value: float=0) -> DefaultDict[Any, List[MultiScoreSpectrumMatch]]:
         if score_getter is None:
             score_getter = attrgetter('score')
         groups = collectiontools.groupby(
@@ -392,14 +426,14 @@ class SolutionSetGrouper(TaskBase):
         return by_match_type
 
     @property
-    def target_matches(self):
+    def target_matches(self) -> List[MultiScoreSpectrumMatch]:
         try:
             return self.match_type_groups[StructureClassification.target_peptide_target_glycan]
         except KeyError:
             return []
 
     @property
-    def decoy_matches(self):
+    def decoy_matches(self) -> List[MultiScoreSpectrumMatch]:
         try:
             return self.match_type_groups[StructureClassification.decoy_peptide_target_glycan]
         except KeyError:

@@ -1,17 +1,24 @@
 import os
 import time
-try:
-    from Queue import Empty, Full
-except ImportError:
-    from queue import Empty, Full
+
+from queue import Empty, Full, Queue
+from typing import List, Optional, Tuple, Type, Union, Dict, Set
+
+from multiprocessing import Event, Manager
+from glycan_profiling.chromatogram_tree.mass_shift import MassShiftBase
 
 from ms_deisotope.data_source import ProcessedScan
+from ms_deisotope.output import ProcessedMzMLLoader
+
+from glycan_profiling.structure.scan import ScanStub
+from glycan_profiling.tandem.glycopeptide.scoring.base import GlycopeptideSpectrumMatcherBase
 
 from glycan_profiling.task import TaskExecutionSequence
 from glycan_profiling.chromatogram_tree import Unmodified
 
 from .search_space import (
     Parser,
+    PredictiveGlycopeptideSearch,
     serialize_workload,
     deserialize_workload, iteritems)
 
@@ -30,7 +37,7 @@ def IsTask(cls):
     return cls
 
 
-def workload_grouping(chunks, max_scans_per_workload=500, starting_index=0):
+def workload_grouping(chunks: List[ProcessedScan], max_scans_per_workload: int=500, starting_index: int=0) -> List[List[ProcessedScan]]:
     workload = []
     total_scans_in_workload = 0
     i = starting_index
@@ -52,6 +59,10 @@ class SpectrumBatcher(TaskExecutionSequence):
     spectrum groups with an approximate maximum size. Feeds raw workloads
     into the pipeline.
     '''
+    groups: List
+    out_queue: Queue
+    max_scans_per_workload: int
+
     def __init__(self, groups, out_queue, max_scans_per_workload=250):
         self.groups = groups
         self.max_scans_per_workload = max_scans_per_workload
@@ -89,6 +100,16 @@ class BatchMapper(TaskExecutionSequence):
         The StructureMapper could be applied with or without a database bound to it,
         and for an IPC consumer the database should not be bound, only labeled.
     '''
+
+    search_groups: List[List[ProcessedScan]]
+    precursor_error_tolerance: float
+    mass_shifts: List[MassShiftBase]
+
+    in_queue: Queue
+    out_queue: Dict[str, Queue]
+    in_done_event: Event
+    done_event: Event
+
     def __init__(self, search_groups, in_queue, out_queue, in_done_event,
                  precursor_error_tolerance=5e-6, mass_shifts=None):
         if mass_shifts is None:
@@ -107,7 +128,7 @@ class BatchMapper(TaskExecutionSequence):
     def out_queue_for_label(self, label):
         return self.out_queue[label]
 
-    def execute_task(self, task):
+    def execute_task(self, task: Tuple[List[List[ProcessedScan], int, int]]):
         chunk, group_i_prev, group_n = task
         for label, search_group in self.search_groups:
             task = StructureMapper(
@@ -143,6 +164,15 @@ class StructureMapper(TaskExecutionSequence):
     generating a task graph of spectrum-structure-mass_shift relationships, a
     :class:`~.WorkloadManager` instance.
     """
+
+    chunk: List[List[ProcessedScan]]
+    group_i: int
+    group_n: int
+    predictive_search: Union[PredictiveGlycopeptideSearch, str]
+    precursor_error_tolerance: float
+    mass_shifts: List[MassShiftBase]
+    seen: Set[str]
+
     def __init__(self, chunk, group_i, group_n, predictive_search, precursor_error_tolerance=5e-6,
                  mass_shifts=None):
         if mass_shifts is None:
@@ -171,15 +201,15 @@ class StructureMapper(TaskExecutionSequence):
                 return scan.source
 
     def _log_cache(self):
-        # predictive_search = self.predictive_search
-        # hits = predictive_search.peptide_glycosylator._cache_hit
-        # misses = predictive_search.peptide_glycosylator._cache_miss
-        # total = hits + misses
-        # if total > 5000:
-        #     self.log("... Cache Performance: %d / %d (%0.2f%%)" % (hits, total, hits / float(total) * 100.0))
-        pass
+        if False:
+            predictive_search = self.predictive_search
+            hits = predictive_search.peptide_glycosylator._cache_hit
+            misses = predictive_search.peptide_glycosylator._cache_miss
+            total = hits + misses
+            if total > 5000:
+                self.log("... Cache Performance: %d / %d (%0.2f%%)" % (hits, total, hits / float(total) * 100.0))
 
-    def _prepare_scan(self, scan):
+    def _prepare_scan(self, scan: Union[ScanStub, ProcessedScan]):
         try:
             return scan.convert()
         except AttributeError:
@@ -188,7 +218,7 @@ class StructureMapper(TaskExecutionSequence):
             else:
                 raise
 
-    def map_structures(self):
+    def map_structures(self) -> WorkloadManager:
         counter = 0
         workload = WorkloadManager()
         predictive_search = self.predictive_search
@@ -231,7 +261,7 @@ class StructureMapper(TaskExecutionSequence):
         predictive_search.reset()
         return workload
 
-    def add_decoy_glycans(self, workload):
+    def add_decoy_glycans(self, workload: WorkloadManager) -> WorkloadManager:
         items = list(iteritems(workload.hit_map))
         for hit_id, record in items:
             record = record.to_decoy_glycan()
@@ -240,7 +270,7 @@ class StructureMapper(TaskExecutionSequence):
                 workload.add_scan_hit(scan, record, hit_type)
         return workload
 
-    def run(self):
+    def run(self) -> WorkloadManager:
         workload = self.map_structures()
         workload.pack()
         self.add_decoy_glycans(workload)
@@ -256,6 +286,14 @@ class MapperExecutor(TaskExecutionSequence):
 
     """
 
+    scan_loader: ProcessedMzMLLoader
+    predictive_searchers: Dict[str, PredictiveGlycopeptideSearch]
+
+    in_queue: Queue
+    out_queue: Queue
+    in_done_event: Event
+    done_event: Event
+
     def __init__(self, predictive_searchers, scan_loader, in_queue, out_queue, in_done_event):
         self.in_queue = in_queue
         self.out_queue = out_queue
@@ -264,7 +302,7 @@ class MapperExecutor(TaskExecutionSequence):
         self.scan_loader = scan_loader
         self.predictive_searchers = predictive_searchers
 
-    def execute_task(self, mapper_task):
+    def execute_task(self, mapper_task: StructureMapper) -> 'SpectrumMatcher':
         self.scan_loader.reset()
         # In case this came from a labeled batch mapper and not
         # attached to an actual dynamic glycopeptide generator
@@ -379,6 +417,18 @@ class SpectrumMatcher(TaskExecutionSequence):
         1, but it must be ~4 or better usually to have an appreciable speedup compared to
         a executing the matching in serial. IPC communication is expensive, no matter what.
     """
+
+    workload: WorkloadManager
+    group_i: int
+    group_n: int
+    scorer_type: Type[GlycopeptideSpectrumMatcherBase]
+    ipc_manager: Manager
+
+    n_processes: int
+    mass_shifts: List[MassShiftBase]
+    evaluation_kwargs: Dict
+    cache_seeds: Optional[Dict]
+
     def __init__(self, workload, group_i, group_n, scorer_type=None,
                  ipc_manager=None, n_processes=6, mass_shifts=None,
                  evaluation_kwargs=None, cache_seeds=None, **kwargs):
@@ -399,7 +449,7 @@ class SpectrumMatcher(TaskExecutionSequence):
         self.n_processes = n_processes
         self.cache_seeds = cache_seeds
 
-    def score_spectra(self):
+    def score_spectra(self) -> List[MultiScoreSpectrumSolutionSet]:
         matcher = MultiScoreGlycopeptideMatcher(
             [], self.scorer_type, None, Parser,
             ipc_manager=self.ipc_manager,
@@ -457,6 +507,20 @@ class MatcherExecutor(TaskExecutionSequence):
 
     Its task type is :class:`SpectrumMatcher`
     """
+
+    in_queue: Queue
+    out_queue: Queue
+    in_done_event: Event
+    done_event: Event
+
+    ipc_manager: Manager
+    scorer_type: Type[GlycopeptideSpectrumMatcherBase]
+
+    n_processes: int
+    mass_shifts: List[MassShiftBase]
+    evaluation_kwargs: Dict
+    cache_seeds: Optional[Dict]
+
     def __init__(self, in_queue, out_queue, in_done_event, scorer_type=None, ipc_manager=None,
                  n_processes=6, mass_shifts=None, evaluation_kwargs=None, cache_seeds=None,
                  **kwargs):
