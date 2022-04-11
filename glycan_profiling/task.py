@@ -36,11 +36,11 @@ def fmt_msg(*message):
     return u"%s %s" % (ensure_text(datetime.now().isoformat(' ')), u', '.join(map(ensure_text, message)))
 
 
-def printer(obj, *message):
+def printer(obj, *message, stacklevel=None):
     print(fmt_msg(*message))
 
 
-def debug_printer(obj, *message):
+def debug_printer(obj, *message, stacklevel=None):
     if obj.in_debug_mode():
         print(u"DEBUG:" + fmt_msg(*message))
 
@@ -246,14 +246,15 @@ class LoggingMixin(object):
         cls.error_print_fn = printer
 
     def log(self, *message):
-        self.print_fn(u', '.join(map(ensure_text, message)))
+        self.print_fn(u', '.join(map(ensure_text, message)), stacklevel=2)
 
     def debug(self, *message):
-        self.debug_print_fn(u', '.join(map(ensure_text, message)))
+        self.debug_print_fn(u', '.join(map(ensure_text, message)), stacklevel=2)
 
     def error(self, *message, **kwargs):
         exception = kwargs.get("exception")
-        self.error_print_fn(u', '.join(map(ensure_text, message)))
+        self.error_print_fn(u', '.join(
+            map(ensure_text, message)), stacklevel=2)
         if exception is not None:
             self.error_print_fn(traceback.format_exc())
 

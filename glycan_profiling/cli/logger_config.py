@@ -1,13 +1,16 @@
 import io
 import os
+import re
 import sys
 import uuid
 import codecs
 import logging
-from logging import FileHandler
 import warnings
 import traceback
 import multiprocessing
+
+from typing import Dict
+from logging import FileHandler
 from multiprocessing import current_process
 
 from six import PY2
@@ -67,16 +70,84 @@ LOGGING_CONFIGURED = False
 
 
 class ProcessAwareFormatter(logging.Formatter):
-    def format(self, record):
-        d = record.__dict__
+    def format(self, record: logging.LogRecord) -> str:
+        d: Dict[str, str] = record.__dict__
+        try:
+            d['filename'] = d['filename'].replace(".py", '').ljust(13)[:13]
+        except KeyError:
+            d['filename'] = ''
         try:
             if d['processName'] == "MainProcess":
                 d['maybeproc'] = ''
             else:
-                d['maybeproc'] = ":%s:" % d['processName']
+                d['maybeproc'] = ":%s " % d['processName'].replace(
+                    "Process", '')
         except KeyError:
             d['maybeproc'] = ''
         return super(ProcessAwareFormatter, self).format(record)
+
+
+class LevelAwareColoredLogFormatter(ProcessAwareFormatter):
+    try:
+        from colorama import Fore, Style, init
+        init()
+        GREY = Fore.WHITE
+        BLUE = Fore.BLUE
+        GREEN = Fore.GREEN
+        YELLOW = Fore.YELLOW
+        RED = Fore.RED
+        BRIGHT = Style.BRIGHT
+        DIM = Style.DIM
+        BOLD_RED = Fore.RED + Style.BRIGHT
+        RESET = Style.RESET_ALL
+    except ImportError:
+        GREY = ''
+        BLUE = ''
+        GREEN = ''
+        YELLOW = ''
+        RED = ''
+        BRIGHT = ''
+        DIM = ''
+        BOLD_RED = ''
+        RESET = ''
+
+    def _colorize_field(self, fmt: str, field: str, color: str) -> str:
+        return re.sub("(" + field + ")", color + r"\1" + self.RESET, fmt)
+
+    def _patch_fmt(self, fmt: str, level_color: str) -> str:
+        fmt = self._colorize_field(fmt, r"%\(asctime\)s", self.GREEN)
+        fmt = self._colorize_field(fmt, r"%\(name\).*?s", self.BLUE)
+        fmt = self._colorize_field(fmt, r"%\(message\).*?s", self.GREY)
+        if level_color:
+            fmt = self._colorize_field(fmt, r"%\(levelname\).*?s", level_color)
+        return fmt
+
+    def __init__(self, fmt, level_color=None, **kwargs):
+        fmt = self._patch_fmt(fmt, level_color=level_color)
+        super().__init__(fmt, **kwargs)
+
+
+class ColoringFormatter(logging.Formatter):
+    level_to_color = {
+        logging.INFO: LevelAwareColoredLogFormatter.GREEN,
+        logging.DEBUG: LevelAwareColoredLogFormatter.GREY + LevelAwareColoredLogFormatter.DIM,
+        logging.WARN: LevelAwareColoredLogFormatter.YELLOW + LevelAwareColoredLogFormatter.BRIGHT,
+        logging.ERROR: LevelAwareColoredLogFormatter.BOLD_RED,
+        logging.CRITICAL: LevelAwareColoredLogFormatter.BOLD_RED,
+        logging.FATAL: LevelAwareColoredLogFormatter.RED + LevelAwareColoredLogFormatter.DIM,
+    }
+
+    _formatters: Dict[int, LevelAwareColoredLogFormatter]
+
+    def __init__(self, fmt: str, **kwargs):
+        self._formatters = {}
+        for level, style in self.level_to_color.items():
+            self._formatters[level] = LevelAwareColoredLogFormatter(
+                fmt, level_color=style, **kwargs)
+
+    def format(self, record: logging.LogRecord) -> str:
+        fmtr = self._formatters[record.levelno]
+        return fmtr.format(record)
 
 
 def configure_logging(level=None, log_file_name=None, log_file_mode=None):
@@ -93,22 +164,12 @@ def configure_logging(level=None, log_file_name=None, log_file_mode=None):
     if log_file_mode is None:
         log_file_mode = LOG_FILE_MODE
 
-    file_fmter = ProcessAwareFormatter(
-        "%(asctime)s %(name)s:%(filename)s:%(lineno)-4d - %(levelname)s%(maybeproc)s - %(message)s",
-        "%H:%M:%S")
-
     if log_file_mode not in ("w", "a"):
         warnings.warn("File Logger configured with mode %r not applicable, using \"w\" instead" % (
             log_file_mode,))
         log_file_mode = "w"
 
-    if log_file_name:
-        handler = FlexibleFileHandler(log_file_name, mode=log_file_mode)
-        handler.setFormatter(file_fmter)
-        handler.setLevel(level)
-
-        logging.getLogger().addHandler(handler)
-
+    datefmt = "%H:%M:%S"
     logging.getLogger().setLevel(level)
 
     logger_to_silence = logging.getLogger("deconvolution_scan_processor")
@@ -121,15 +182,26 @@ def configure_logging(level=None, log_file_name=None, log_file_mode=None):
     status_logger = logging.getLogger("glycresoft.status")
     status_logger.propagate = False
 
+    status_terminal_format_string = "%(asctime)s %(levelname).1s- %(name)s: %(message)s"
+
+    if sys.stderr.isatty():
+        terminal_formatter = ColoringFormatter(status_terminal_format_string, datefmt=datefmt)
+    else:
+        terminal_formatter = logging.Formatter(status_terminal_format_string, datefmt=datefmt)
+
     handler = logging.StreamHandler(sys.stderr)
-    handler.setFormatter(
-        logging.Formatter("%(asctime)s - %(name)s: %(message)s", "%H:%M:%S"))
+    handler.setFormatter(terminal_formatter)
     status_logger.addHandler(handler)
 
     if current_process().name == "MainProcess":
-        fmt = ProcessAwareFormatter(
-            "%(asctime)s %(name)s:%(filename)s:%(lineno)-4d - %(levelname)s%(maybeproc)s - %(message)s",
-            "%H:%M:%S")
+        terminal_format_string = "%(asctime)s %(name)s:%(levelname).1s:%(filename)s:%(lineno)-4d %(maybeproc)s- %(message)s"
+        if sys.stderr.isatty():
+            fmt = ColoringFormatter(
+                terminal_format_string, datefmt="%H:%M:%S")
+        else:
+            fmt = ProcessAwareFormatter(
+                terminal_format_string, datefmt="%H:%M:%S")
+
         handler = logging.StreamHandler()
         handler.setFormatter(fmt)
         handler.setLevel(level)
@@ -141,6 +213,15 @@ def configure_logging(level=None, log_file_name=None, log_file_mode=None):
             handler.setFormatter(fmt)
             handler.setLevel(level)
             multilogger.addHandler(handler)
+
+        if log_file_name:
+            file_fmter = ProcessAwareFormatter(
+                "%(asctime)s %(name)s:%(filename)s:%(lineno)-4d - %(levelname)s%(maybeproc)s - %(message)s",
+                "%H:%M:%S")
+            handler = FlexibleFileHandler(log_file_name, mode=log_file_mode)
+            handler.setFormatter(file_fmter)
+            handler.setLevel(level)
+            logging.getLogger().addHandler(handler)
 
     warner = logging.getLogger('py.warnings')
     warner.setLevel("CRITICAL")
@@ -227,59 +308,3 @@ class LazyFile(object):
             return current_name
         else:
             return "%s.%s" % (basename, uuid.uuid4().hex)
-
-
-if hasattr(sys, '_getframe'):
-    def currentframe():
-        return sys._getframe(3)
-else:
-    def currentframe():
-        """Return the frame object for the caller's stack frame."""
-        try:
-            raise Exception()
-        except Exception:
-            return sys.exc_info()[2].tb_frame.f_back
-
-
-_srcfile = os.path.normcase(currentframe.__code__.co_filename)
-
-
-def find_caller(self, stack_info=False, stacklevel=1):
-    f = currentframe()
-    # On some versions of IronPython, currentframe() returns None if
-    # IronPython isn't run with -X:Frames.
-    orig_f = f
-    stacklevel += 2
-    while f and stacklevel > 1:
-        f = f.f_back
-        stacklevel -= 1
-    if not f:
-        f = orig_f
-    rv = "(unknown file)", 0, "(unknown function)"
-    sinfo = None
-    i = 0
-    while hasattr(f, "f_code"):
-        i += 1
-        co = f.f_code
-        filename = os.path.normcase(co.co_filename)
-        if filename == _srcfile:
-            f = f.f_back
-            continue
-        sinfo = None
-        if stack_info:
-            sio = io.StringIO()
-            sio.write('Stack (most recent call last):\n')
-            traceback.print_stack(f, file=sio)
-            sinfo = sio.getvalue()
-            if sinfo[-1] == '\n':
-                sinfo = sinfo[:-1]
-            sio.close()
-        rv = (os.path.splitext(os.path.basename(co.co_filename))[0].ljust(13)[:13],
-              f.f_lineno, co.co_name.ljust(5)[:5])
-        break
-    if not PY2:
-        rv += (sinfo, )
-    return rv
-
-
-logging.Logger.findCaller = find_caller

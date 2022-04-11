@@ -1,5 +1,5 @@
+import logging
 import multiprocessing
-import functools
 
 import click
 
@@ -7,6 +7,8 @@ from glycan_profiling import version
 
 
 CONTEXT_SETTINGS = dict(help_option_names=['-h', '--help'])
+
+logger = logging.getLogger("glycresoft")
 
 
 @click.group(context_settings=CONTEXT_SETTINGS)
