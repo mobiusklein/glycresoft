@@ -622,6 +622,9 @@ class SymbolSpace(object):
     def keys(self):
         return self.context.keys()
 
+    def _ipython_key_completions_(self):
+        return list(self.keys())
+
 
 class SymbolContext(SymbolSpace):
     """

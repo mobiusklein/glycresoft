@@ -44,6 +44,13 @@ from ..base import (
 from ..utils import get_or_create
 
 
+def _ipython_key_completions_(self):
+    return list(self.keys())
+
+
+MutableDict._ipython_key_completions_ = _ipython_key_completions_
+
+
 @total_ordering
 class ApplicationVersion(Base):
     __tablename__ = "ApplicationVersion"

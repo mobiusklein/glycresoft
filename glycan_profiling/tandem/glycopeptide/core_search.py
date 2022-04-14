@@ -5,7 +5,7 @@ import warnings
 
 from collections import namedtuple, defaultdict
 
-from typing import Any, DefaultDict, Dict, Optional, List, Tuple
+from typing import Any, DefaultDict, Dict, Optional, List, Tuple, Union
 
 try:
     from collections.abc import Sequence
@@ -28,7 +28,7 @@ from glycan_profiling.chromatogram_tree.mass_shift import MassShift
 from glycan_profiling.serialize import GlycanCombination, GlycanTypes
 from glycan_profiling.database.disk_backed_database import PPMQueryInterval
 from glycan_profiling.chromatogram_tree import Unmodified
-from glycan_profiling.structure.denovo import MassWrapper, PathSet, PathFinder
+from glycan_profiling.structure.denovo import MassWrapper, PathSet, PathFinder, Path
 
 logger = logging.getLogger("glycresoft.core_search")
 
@@ -74,7 +74,7 @@ class CoreMotifFinder(PathFinder):
         self.product_error_tolerance = product_error_tolerance
         self.minimum_peptide_mass = minimum_peptide_mass
 
-    def find_n_linked_core(self, groups, min_size=1):
+    def find_n_linked_core(self, groups: DefaultDict[Any, List], min_size=1):
         sequence = [hexnac, hexnac, hexose, hexose, hexose]
         expected_n = len(sequence)
         terminals = dict()
@@ -102,7 +102,7 @@ class CoreMotifFinder(PathFinder):
                         terminals[path[0].start] = max((path, last_path), key=lambda x: x.total_signal)
         return PathSet(terminals.values())
 
-    def find_o_linked_core(self, groups, min_size=1):
+    def find_o_linked_core(self, groups: DefaultDict[Any, List], min_size=1):
         sequence = [(hexnac, hexose), (hexnac, hexose, fucose,), (hexnac, hexose, fucose,)]
         expected_n = len(sequence)
         terminals = dict()
@@ -128,7 +128,7 @@ class CoreMotifFinder(PathFinder):
                         terminals[path[0].start] = max((path, last_path), key=lambda x: x.total_signal)
         return PathSet(terminals.values())
 
-    def find_gag_linker_core(self, groups, min_size=1):
+    def find_gag_linker_core(self, groups: DefaultDict[Any, List], min_size=1):
         sequence = [xylose, hexose, hexose, ]
         expected_n = len(sequence)
         terminals = dict()
@@ -156,7 +156,8 @@ class CoreMotifFinder(PathFinder):
                         terminals[path[0].start] = max((path, last_path), key=lambda x: x.total_signal)
         return PathSet(terminals.values())
 
-    def estimate_peptide_mass(self, scan: ProcessedScan, topn: int=100, mass_shift: MassShift=Unmodified, query_mass: Optional[float]=None):
+    def estimate_peptide_mass(self, scan: ProcessedScan, topn: int=100, mass_shift: MassShift=Unmodified,
+                              query_mass: Optional[float] = None, simplify: bool = True) -> Union[List[float], List[Tuple[float, Path]]]:
         graph = self._find_edges(scan, mass_shift=mass_shift)
         paths = self._init_paths(graph)
         groups = self._aggregate_paths(paths)
@@ -173,27 +174,41 @@ class CoreMotifFinder(PathFinder):
         for path in n_linked_paths:
             if path.start_mass < self.minimum_peptide_mass:
                 continue
-            peptide_masses.append(path.start_mass)
+            peptide_masses.append((path.start_mass, path))
             if has_tandem_shift:
-                peptide_masses.append(path.start_mass - mass_shift.tandem_mass)
+                peptide_masses.append((path.start_mass - mass_shift.tandem_mass, path))
         for path in o_linked_paths:
             if path.start_mass < self.minimum_peptide_mass:
                 continue
-            peptide_masses.append(path.start_mass)
+            peptide_masses.append((path.start_mass, path))
             if has_tandem_shift:
-                peptide_masses.append(path.start_mass - mass_shift.tandem_mass)
+                peptide_masses.append((path.start_mass - mass_shift.tandem_mass, path))
         for path in gag_linker_paths:
             if path.start_mass < self.minimum_peptide_mass:
                 continue
-            peptide_masses.append(path.start_mass)
+            peptide_masses.append((path.start_mass, path))
             if has_tandem_shift:
-                peptide_masses.append(path.start_mass - mass_shift.tandem_mass)
-        peptide_masses.sort()
-        return peptide_masses
+                peptide_masses.append((path.start_mass - mass_shift.tandem_mass, path))
+        peptide_masses.sort(key=lambda x: x[0])
+        result = []
+        paths_for = []
+        last = 0
+        for m, path in peptide_masses:
+            if abs(last - m) < 1e-3:
+                if not simplify:
+                    paths_for.append(path)
+                continue
+            if simplify:
+                result.append(m)
+            else:
+                paths_for = [path]
+                result.append((m, paths_for))
+            last = m
+        return result[:topn]
 
     def build_peptide_filter(self, scan, error_tolerance=1e-5, mass_shift=Unmodified, query_mass=None):
         peptide_masses = self.estimate_peptide_mass(
-            scan, mass_shift=mass_shift, query_mass=query_mass)
+            scan, mass_shift=mass_shift, query_mass=query_mass, simplify=True)
 
         out = []
         if len(peptide_masses) == 0:

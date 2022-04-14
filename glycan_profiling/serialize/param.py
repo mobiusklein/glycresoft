@@ -119,6 +119,9 @@ class LazyMutableMappingWrapper(Mutable, MutableMapping):
     def __repr__(self):
         return repr(self._load())
 
+    def _ipython_key_completions_(self):
+        return list(self.keys())
+
 
 class MappingCell(object):
     __slots__ = ("value", "serialized")
@@ -257,5 +260,5 @@ class HasParameters(object):
         kwargs.setdefault('parameters', PartiallySerializedMutableMapping())
 
     @declared_attr
-    def parameters(self):
+    def parameters(self) -> LazyMutableMappingWrapper:
         return deferred(Column(LazyMutableMappingWrapper.as_mutable(DillType), default=LazyMutableMappingWrapper))

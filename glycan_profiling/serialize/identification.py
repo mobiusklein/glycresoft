@@ -106,7 +106,7 @@ class IdentifiedGlycopeptide(Base, IdentifiedStructure):
         ForeignKey(GlycopeptideSpectrumCluster.id, ondelete='CASCADE'),
         index=True)
 
-    spectrum_cluster = relationship(GlycopeptideSpectrumCluster)
+    spectrum_cluster = relationship(GlycopeptideSpectrumCluster, backref=backref("owners", lazy='dynamic'))
 
     ambiguous_id = Column(Integer, ForeignKey(
         AmbiguousGlycopeptideGroup.id, ondelete='CASCADE'), index=True)

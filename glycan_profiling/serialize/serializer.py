@@ -289,7 +289,7 @@ class AnalysisSerializer(DatabaseBoundOperation, TaskBase):
 
 
 class AnalysisDeserializer(DatabaseBoundOperation):
-    def __init__(self, connection, analysis_name=None, analysis_id=None):
+    def __init__(self, connection: str, analysis_name=None, analysis_id=None):
         DatabaseBoundOperation.__init__(self, connection)
 
         if analysis_name is analysis_id is None:
@@ -322,22 +322,26 @@ class AnalysisDeserializer(DatabaseBoundOperation):
             raise ValueError("No Analysis identification information provided")
 
     @property
-    def analysis(self):
+    def analysis(self) -> Analysis:
         if self._analysis is None:
             self._retrieve_analysis()
         return self._analysis
 
     @property
-    def analysis_id(self):
+    def analysis_id(self) -> int:
         if self._analysis_id is None:
             self._retrieve_analysis()
         return self._analysis_id
 
     @property
-    def analysis_name(self):
+    def analysis_name(self) -> str:
         if self._analysis_name is None:
             self._retrieve_analysis()
         return self._analysis_name
+
+    @property
+    def parameters(self):
+        return self.analysis.parameters
 
     def load_unidentified_chromatograms(self):
         from glycan_profiling.chromatogram_tree import ChromatogramFilter
