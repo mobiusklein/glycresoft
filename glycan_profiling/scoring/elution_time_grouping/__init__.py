@@ -8,7 +8,8 @@ from .model import (
     ElutionTimeFitter, AbundanceWeightedElutionTimeFitter,
     FactorElutionTimeFitter, AbundanceWeightedFactorElutionTimeFitter,
     PeptideFactorElutionTimeFitter, AbundanceWeightedPeptideFactorElutionTimeFitter,
-    ElutionTimeModel, ModelBuildingPipeline as GlycopeptideElutionTimeModelBuildingPipeline)
+    ElutionTimeModel, ModelBuildingPipeline as GlycopeptideElutionTimeModelBuildingPipeline,
+    ModelEnsemble)
 
 from .reviser import (
     ModelReviser, IntervalModelReviser, PeptideYUtilizationPreservingRevisionValidator,

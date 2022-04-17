@@ -2,11 +2,9 @@ from __future__ import print_function
 import os
 import logging
 import pprint
-import queue
 import traceback
 import multiprocessing
 import threading
-import six
 
 from logging.handlers import QueueHandler, QueueListener
 from multiprocessing.managers import SyncManager
@@ -14,6 +12,7 @@ from datetime import datetime
 
 from queue import Empty
 
+import six
 from glycan_profiling.version import version
 
 
@@ -27,7 +26,7 @@ def display_version(print_fn):
 
 def ensure_text(obj):
     if six.PY2:
-        return unicode(obj)
+        return six.text_type(obj)
     else:
         return str(obj)
 
@@ -94,7 +93,6 @@ class IPCLoggingManager:
             logger = logging.getLogger()
             handlers = logger.handlers
 
-        print(handlers)
         self.queue = queue
         self.listener = QueueListener(
             queue, *handlers, respect_handler_level=True)

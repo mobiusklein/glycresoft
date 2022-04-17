@@ -521,6 +521,10 @@ class TandemSolutionsWithoutChromatogram(SpectrumMatchSolutionCollectionBase):
         self.best_msms_score = solution_entry.best_score
 
     @property
+    def mass_shifts(self):
+        return [self.mass_shift]
+
+    @property
     def structure(self):
         return self.entity
 
@@ -1407,7 +1411,17 @@ class SpectrumMatchUpdater(TaskBase):
         match = self.scorer.evaluate(scan, structure, mass_shift=best_shift, **self.match_args)
         return match
 
-    def find_identical_peptides_and_mark(self, chromatogram: TandemAnnotatedChromatogram, structure: TargetType, best_match: bool=False, valid: bool=False):
+    def find_identical_peptides(self, chromatogram: SpectrumMatchSolutionCollectionBase, structure: TargetType) -> Set[TargetType]:
+        structures = set()
+        key = str(structure)
+        for sset in chromatogram.tandem_solutions:
+            for sm in sset:
+                if str(sm.target) == key:
+                    structures.add(sm.target)
+        return structures
+
+    def find_identical_peptides_and_mark(self, chromatogram: SpectrumMatchSolutionCollectionBase, structure: TargetType,
+                                         best_match: bool = False, valid: bool = False) -> Set[TargetType]:
         structures = set()
         key = str(structure)
         for sset in chromatogram.tandem_solutions:
@@ -1435,33 +1449,22 @@ class SpectrumMatchUpdater(TaskBase):
                 self.fdr_estimator.score_all(sset)
         return revised_solution_sets
 
-    def process_revision(self, revision, chromatogram: Union[TandemAnnotatedChromatogram, TandemSolutionsWithoutChromatogram] = None):
+    def collect_candidate_solutions_for_rt_validation(self, chromatogram: Union[TandemAnnotatedChromatogram, TandemSolutionsWithoutChromatogram],
+                                                      structure: TargetType, rt_score: Optional[float], overridden: Optional[TargetType]=None):
         from glycan_profiling.scoring.elution_time_grouping import GlycopeptideChromatogramProxy
-        revision: GlycopeptideChromatogramProxy
 
-        if chromatogram is None:
-            chromatogram = revision.source
-
-        reference = chromatogram.structure
-        revised_structure = revision.structure
-
-        revised_solution_sets = self.get_spectrum_solution_sets(revision, chromatogram)
-
-        representers: List[SolutionEntry] = chromatogram.compute_representative_weights(self.threshold_fn)
-
-        revised_rt_score = None
-        alternative_rt_scores = {}
-        if self.retention_time_model:
-            revised_rt_score = self.retention_time_model.score_interval(revision, 0.01)
+        representers: List[SolutionEntry] = chromatogram.compute_representative_weights(
+            self.threshold_fn)
 
         keep: List[SolutionEntry] = []
         match: List[SolutionEntry] = []
         rejected: List[SolutionEntry] = []
         invalidated: Set[TargetType] = set()
+        alternative_rt_scores: Dict[TargetType, float] = {}
         for r in representers:
-            if str(r.solution) == reference:
+            if str(r.solution) == overridden:
                 rejected.append(r)
-            elif str(r.solution) == revised_structure:
+            elif str(r.solution) == structure:
                 match.append(r)
             else:
                 if self.retention_time_model and not isinstance(chromatogram, TandemSolutionsWithoutChromatogram):
@@ -1472,10 +1475,34 @@ class SpectrumMatchUpdater(TaskBase):
                             proxy, 0.01)
                     else:
                         alt_rt_score = alternative_rt_scores[r.solution]
-                    if (revised_rt_score - alt_rt_score) > self.retention_time_delta:
+                    if (rt_score - alt_rt_score) > self.retention_time_delta:
                         invalidated.add(r.solution)
                         continue
                 keep.append(r)
+
+        return match, keep, rejected, invalidated
+
+    def process_revision(self, revision, chromatogram: Union[TandemAnnotatedChromatogram, TandemSolutionsWithoutChromatogram] = None):
+        from glycan_profiling.scoring.elution_time_grouping import GlycopeptideChromatogramProxy
+        revision: GlycopeptideChromatogramProxy
+
+        if chromatogram is None:
+            chromatogram = revision.source
+
+        reference = chromatogram.structure
+        revised_structure = revision.structure
+        assert reference != revised_structure
+
+        revised_solution_sets = self.get_spectrum_solution_sets(revision, chromatogram)
+
+        representers: List[SolutionEntry] = chromatogram.compute_representative_weights(self.threshold_fn)
+
+        revised_rt_score = None
+        if self.retention_time_model:
+            revised_rt_score = self.retention_time_model.score_interval(revision, 0.01)
+
+        match, keep, rejected, invalidated = self.collect_candidate_solutions_for_rt_validation(
+            chromatogram, revised_structure, revised_rt_score, reference)
 
         if not match:
             self.log("... Failed to identify alternative %s for %s passing the threshold" % (
@@ -1486,9 +1513,6 @@ class SpectrumMatchUpdater(TaskBase):
             self.find_identical_peptides_and_mark(chromatogram, reject.solution)
 
         for invalid in invalidated:
-            # self.log("... Invalidated alternative solution %s (%0.2f) for %s (%0.2f)" % (
-            #     invalid, alternative_rt_scores[invalid], revised_structure,
-            #     revised_rt_score))
             self.find_identical_peptides_and_mark(chromatogram, invalid)
 
         self.find_identical_peptides_and_mark(chromatogram, reference)
@@ -1507,12 +1531,30 @@ class SpectrumMatchUpdater(TaskBase):
         chromatogram.assign_entity(match[0])
         return chromatogram
 
-    def collect_matches(self, chromatogram: TandemAnnotatedChromatogram, structure, mass_shifts: List[MassShiftBase], reference_peptides) -> List[Tuple[SpectrumSolutionSet, SpectrumMatch, bool]]:
+    def collect_matches(self, chromatogram: TandemAnnotatedChromatogram, structure: TargetType, mass_shifts: List[MassShiftBase],
+                        reference_peptides: List[TargetType]) -> List[Tuple[SpectrumSolutionSet, SpectrumMatch, bool]]:
+        '''Collect spectrum matches to the new `structure` target, and all identical solutions
+        from different sources for all spectra in `chromatogram`.
+
+        Parameters
+        ----------
+        chromatogram : TandemAnnotatedChromatogram
+            The solution collection being traversed.
+        structure : TargetType
+            The new structure we are going to assign to `chromatogram` and wish to
+            ensure there are spectrum matches for.
+        mass_shifts : :class:`list` of :class:`~.MassShiftBase`
+            The mass shifts which are legal to consider for matching `structure` to spectra
+            with.
+        reference_peptides : :class:`set` of :class:`~.TargetType`
+            Other sources of the peptide for `structure` to ensure that all are reported together.
+            Relies on :attr:`id_maker` to re-create appropriately keyed glycoforms.
+        '''
         solution_set_match_pairs = []
-        if structure.id is None:
+        if structure.id is None or reference_peptides:
             instances = self.id_maker(structure, reference_peptides)
         else:
-            instances = None
+            instances = []
         for sset in chromatogram.tandem_solutions:
             try:
                 match = sset.solution_for(structure)
@@ -1532,3 +1574,28 @@ class SpectrumMatchUpdater(TaskBase):
 
     def __call__(self, revision, chromatogram=None):
         return self.process_revision(revision, chromatogram=chromatogram)
+
+    def affirm_solution(self, chromatogram: TandemAnnotatedChromatogram):
+        reference_peptides = self.find_identical_peptides(chromatogram, chromatogram.entity)
+        self.collect_matches(chromatogram, chromatogram.entity,
+                             chromatogram.mass_shifts, reference_peptides)
+
+        revised_rt_score = None
+        if self.retention_time_model:
+            revised_rt_score = self.retention_time_model.score_interval(
+                chromatogram, 0.01)
+
+        match, _keep, rejected, invalidated = self.collect_candidate_solutions_for_rt_validation(
+            chromatogram, chromatogram.entity, revised_rt_score, None)
+
+        for reject in rejected:
+            self.find_identical_peptides_and_mark(chromatogram, reject.solution)
+
+        for invalid in invalidated:
+            self.find_identical_peptides_and_mark(chromatogram, invalid)
+
+        if not match:
+            self.log("... Failed to affirm %s passing the threshold" % (
+                chromatogram.entity))
+
+        return chromatogram

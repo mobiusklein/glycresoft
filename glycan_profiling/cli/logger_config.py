@@ -150,6 +150,61 @@ class ColoringFormatter(logging.Formatter):
         return fmtr.format(record)
 
 
+DATE_FMT = "%H:%M:%S"
+
+
+def get_status_formatter():
+    status_terminal_format_string = "%(asctime)s %(levelname).1s- %(name)s: %(message)s"
+
+    if sys.stderr.isatty():
+        terminal_formatter = ColoringFormatter(
+            status_terminal_format_string, datefmt=DATE_FMT)
+    else:
+        terminal_formatter = logging.Formatter(
+            status_terminal_format_string, datefmt=DATE_FMT)
+    return terminal_formatter
+
+
+def make_status_logger(name="glycresoft.status"):
+    status_logger = logging.getLogger(name)
+    status_logger.propagate = False
+
+    terminal_formatter = get_status_formatter()
+    handler = logging.StreamHandler(sys.stderr)
+    handler.setFormatter(terminal_formatter)
+    status_logger.addHandler(handler)
+    return status_logger
+
+
+def get_main_process_formatter():
+    terminal_format_string = "%(asctime)s %(name)s:%(levelname).1s:%(filename)s:%(lineno)-4d %(maybeproc)s- %(message)s"
+    if sys.stderr.isatty():
+        fmt = ColoringFormatter(
+            terminal_format_string, datefmt=DATE_FMT)
+    else:
+        fmt = ProcessAwareFormatter(
+            terminal_format_string, datefmt=DATE_FMT)
+    return fmt
+
+
+def make_main_process_logger(name=None, level="INFO"):
+    fmt = get_main_process_formatter()
+    handler = logging.StreamHandler()
+    handler.setFormatter(fmt)
+    handler.setLevel(level)
+    logging.getLogger(name=name).addHandler(handler)
+
+
+def make_log_file_logger(log_file_name, log_file_mode, name=None, level="INFO"):
+    file_fmter = ProcessAwareFormatter(
+        "%(asctime)s %(name)s:%(filename)s:%(lineno)-4d - %(levelname)s%(maybeproc)s - %(message)s",
+        DATE_FMT)
+    handler = FlexibleFileHandler(log_file_name, mode=log_file_mode)
+    handler.setFormatter(file_fmter)
+    handler.setLevel(level)
+    logging.getLogger(name=name).addHandler(handler)
+
+
 def configure_logging(level=None, log_file_name=None, log_file_mode=None):
     global LOGGING_CONFIGURED
     # If we've already called this, don't repeat it
@@ -169,7 +224,6 @@ def configure_logging(level=None, log_file_name=None, log_file_mode=None):
             log_file_mode,))
         log_file_mode = "w"
 
-    datefmt = "%H:%M:%S"
     logging.getLogger().setLevel(level)
 
     logger_to_silence = logging.getLogger("deconvolution_scan_processor")
@@ -179,35 +233,13 @@ def configure_logging(level=None, log_file_name=None, log_file_mode=None):
     logger = logging.getLogger("glycresoft")
     task.TaskBase.log_with_logger(logger)
 
-    status_logger = logging.getLogger("glycresoft.status")
-    status_logger.propagate = False
-
-    status_terminal_format_string = "%(asctime)s %(levelname).1s- %(name)s: %(message)s"
-
-    if sys.stderr.isatty():
-        terminal_formatter = ColoringFormatter(status_terminal_format_string, datefmt=datefmt)
-    else:
-        terminal_formatter = logging.Formatter(status_terminal_format_string, datefmt=datefmt)
-
-    handler = logging.StreamHandler(sys.stderr)
-    handler.setFormatter(terminal_formatter)
-    status_logger.addHandler(handler)
+    make_status_logger()
 
     if current_process().name == "MainProcess":
-        terminal_format_string = "%(asctime)s %(name)s:%(levelname).1s:%(filename)s:%(lineno)-4d %(maybeproc)s- %(message)s"
-        if sys.stderr.isatty():
-            fmt = ColoringFormatter(
-                terminal_format_string, datefmt="%H:%M:%S")
-        else:
-            fmt = ProcessAwareFormatter(
-                terminal_format_string, datefmt="%H:%M:%S")
-
-        handler = logging.StreamHandler()
-        handler.setFormatter(fmt)
-        handler.setLevel(level)
-        logging.getLogger().addHandler(handler)
+        make_main_process_logger(level=level)
 
         if log_multiprocessing:
+            fmt = get_main_process_formatter()
             multilogger = multiprocessing.get_logger()
             handler = logging.StreamHandler()
             handler.setFormatter(fmt)
@@ -215,13 +247,7 @@ def configure_logging(level=None, log_file_name=None, log_file_mode=None):
             multilogger.addHandler(handler)
 
         if log_file_name:
-            file_fmter = ProcessAwareFormatter(
-                "%(asctime)s %(name)s:%(filename)s:%(lineno)-4d - %(levelname)s%(maybeproc)s - %(message)s",
-                "%H:%M:%S")
-            handler = FlexibleFileHandler(log_file_name, mode=log_file_mode)
-            handler.setFormatter(file_fmter)
-            handler.setLevel(level)
-            logging.getLogger().addHandler(handler)
+            make_log_file_logger(log_file_name, log_file_mode, level=level)
 
     warner = logging.getLogger('py.warnings')
     warner.setLevel("CRITICAL")

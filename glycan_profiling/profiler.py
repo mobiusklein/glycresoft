@@ -4,12 +4,12 @@ Each class is designed to encapsulate a single broad task, i.e.
 LC-MS/MS deconvolution or structure identification
 '''
 import os
-from collections import defaultdict
+import pickle
 
-try:
-    import cPickle as pickle
-except ImportError:
-    import pickle
+from collections import defaultdict
+from typing import Any, DefaultDict, List, Tuple
+
+
 
 import numpy as np
 
@@ -22,6 +22,7 @@ import glypy
 from glypy.utils import Enum
 
 from glycopeptidepy.utils.collectiontools import descending_combination_counter
+
 
 
 from glycan_profiling.database.disk_backed_database import (
@@ -61,11 +62,13 @@ from glycan_profiling.scoring.elution_time_grouping import (
     GlycopeptideElutionTimeModelBuildingPipeline,
     PeptideYUtilizationPreservingRevisionValidator,
     OxoniumIonRequiringUtilizationRevisionValidator,
-    CompoundRevisionValidator)
+    CompoundRevisionValidator, ModelEnsemble as GlycopeptideElutionTimeModelEnsemble)
+
+from glycan_profiling.scoring.elution_time_grouping.model import ElutionTimeModel
 
 from glycan_profiling.structure import ScanStub, ScanInformation
 
-from glycan_profiling.tandem.chromatogram_mapping import SpectrumMatchUpdater, AnnotatedChromatogramAggregator
+from glycan_profiling.tandem.chromatogram_mapping import SpectrumMatchUpdater, AnnotatedChromatogramAggregator, TandemAnnotatedChromatogram, TandemSolutionsWithoutChromatogram
 
 from glycan_profiling.tandem import chromatogram_mapping
 from glycan_profiling.tandem.target_decoy import TargetDecoySet
@@ -975,16 +978,19 @@ class GlycopeptideLCMSMSAnalyzer(TaskBase):
             c.convert() for c in glycan_query.all()]
         return glycan_compositions
 
-    def _split_chromatograms_by_observation_priority(self, scored_chromatograms, minimum_ms1_score):
-        proxies = [GlycopeptideChromatogramProxy.from_chromatogram(
-            chrom) for chrom in scored_chromatograms]
+    def _split_chromatograms_by_observation_priority(self, scored_chromatograms: List[TandemAnnotatedChromatogram],
+                                                     minimum_ms1_score: float) -> Tuple[GlycoformAggregator, List[GlycopeptideChromatogramProxy]]:
+        proxies = [
+            GlycopeptideChromatogramProxy.from_chromatogram(chrom)
+            for chrom in scored_chromatograms
+        ]
 
-        by_structure = defaultdict(list)
+        by_structure: DefaultDict[Any, List[GlycopeptideChromatogramProxy]] = defaultdict(list)
         for proxy in proxies:
             by_structure[proxy.structure].append(proxy)
 
-        best_instances = []
-        secondary_observations = []
+        best_instances: List[GlycopeptideChromatogramProxy] = []
+        secondary_observations: List[GlycopeptideChromatogramProxy] = []
         for key, group in by_structure.items():
             group.sort(key=lambda x: x.total_signal, reverse=True)
             i = 0
@@ -999,16 +1005,27 @@ class GlycopeptideLCMSMSAnalyzer(TaskBase):
         glycoform_agg = GlycoformAggregator(best_instances)
         return glycoform_agg, secondary_observations
 
-    def _apply_revisions(self, pipeline, rt_model, revisions, secondary_observations, orphans, updater):
-        was_updated = []
+    def _apply_revisions(self,
+                         pipeline: GlycopeptideElutionTimeModelBuildingPipeline,
+                         rt_model: GlycopeptideElutionTimeModelEnsemble,
+                         revisions: List[GlycopeptideChromatogramProxy],
+                         secondary_observations: List[GlycopeptideChromatogramProxy],
+                         orphans: List[TandemSolutionsWithoutChromatogram],
+                         updater: SpectrumMatchUpdater):
+        was_updated: List[GlycopeptideChromatogramProxy] = []
+        to_affirm: List[GlycopeptideChromatogramProxy] = []
         for rev in revisions:
             if rev.revised_from and rev.structure != rev.source.structure:
                 was_updated.append(rev)
+            else:
+                to_affirm.append(rev)
 
         self.log("... Revising Secondary Occurrences")
         for rev in pipeline.revise_with(rt_model, secondary_observations):
             if rev.revised_from and rev.structure != rev.source.structure:
                 was_updated.append(rev)
+            else:
+                to_affirm.append(rev)
 
         orphan_proxies = []
         for orphan in orphans:
@@ -1023,12 +1040,16 @@ class GlycopeptideLCMSMSAnalyzer(TaskBase):
         orphan_proxies = list(GlycoformAggregator(orphan_proxies).tag())
 
         self.log("... Revising Orphans")
-        orphan_proxies = pipeline.revise_with(rt_model, orphan_proxies)
+        orphan_proxies: List[GlycopeptideChromatogramProxy] = pipeline.revise_with(
+            rt_model, orphan_proxies)
 
-        was_updated_orphans = []
+        was_updated_orphans: List[GlycopeptideChromatogramProxy] = []
+        to_affirm_orphans: List[GlycopeptideChromatogramProxy] = []
         for rev in orphan_proxies:
             if rev.revised_from and rev.structure != rev.source.structure:
                 was_updated_orphans.append(rev)
+            else:
+                to_affirm_orphans.append(rev)
 
         self.log("... Updating best match assignments")
 
@@ -1039,6 +1060,10 @@ class GlycopeptideLCMSMSAnalyzer(TaskBase):
         # Use side-effects to update the source not-chromatogram
         for revised_orphan in was_updated_orphans:
             updater(revised_orphan)
+
+        self.log("... Affirming best match assignments with RT model")
+        for af in to_affirm:
+            updater.affirm_solution(af.source)
 
     def apply_retention_time_model(self, scored_chromatograms, orphans, database, scan_loader, minimum_ms1_score=6.0):
 
