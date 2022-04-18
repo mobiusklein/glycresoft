@@ -704,7 +704,10 @@ class GlycopeptideLCMSMSAnalyzer(TaskBase):
                  oxonium_threshold=0.05, scan_transformer=None, mass_shifts=None, n_processes=5,
                  spectrum_batch_size=1000, use_peptide_mass_filter=False, maximum_mass=float('inf'),
                  probing_range_for_missing_precursors=3, trust_precursor_fits=True,
-                 permute_decoy_glycans=False, rare_signatures=False, model_retention_time=False):
+                 permute_decoy_glycans=False, rare_signatures=False, model_retention_time=False,
+                 evaluation_kwargs=None):
+        if evaluation_kwargs is None:
+            evaluation_kwargs = {}
         if tandem_scoring_model is None:
             tandem_scoring_model = CoverageWeightedBinomialScorer
         if peak_shape_scoring_model is None:
@@ -746,6 +749,7 @@ class GlycopeptideLCMSMSAnalyzer(TaskBase):
         self.rare_signatures = rare_signatures
         self.model_retention_time = model_retention_time
         self.retention_time_model = None
+        self.extra_msn_evaluation_kwargs = evaluation_kwargs
 
     def make_peak_loader(self):
         peak_loader = DatabaseScanDeserializer(
@@ -773,9 +777,11 @@ class GlycopeptideLCMSMSAnalyzer(TaskBase):
         return msms_scans
 
     def make_msn_evaluation_kwargs(self):
-        return {
+        evaluation_kwargs = {
             "rare_signatures": self.rare_signatures,
         }
+        evaluation_kwargs.update(self.extra_msn_evaluation_kwargs)
+        return evaluation_kwargs
 
     def make_search_engine(self, msms_scans, database, peak_loader):
         searcher = GlycopeptideDatabaseSearchIdentifier(
@@ -1161,6 +1167,7 @@ class GlycopeptideLCMSMSAnalyzer(TaskBase):
             "rare_signatures": self.rare_signatures,
             "model_retention_time": self.model_retention_time,
             "retention_time_model": self.retention_time_model,
+            "extra_evaluation_kwargs": self.extra_msn_evaluation_kwargs,
         }
 
     def save_solutions(self, identified_glycopeptides, unassigned_chromatograms,
@@ -1210,7 +1217,7 @@ class MzMLGlycopeptideLCMSMSAnalyzer(GlycopeptideLCMSMSAnalyzer):
                  n_processes=5, spectrum_batch_size=1000, use_peptide_mass_filter=False,
                  maximum_mass=float('inf'), probing_range_for_missing_precursors=3,
                  trust_precursor_fits=True, permute_decoy_glycans=False, rare_signatures=False,
-                 model_retention_time=True):
+                 model_retention_time=True, evaluation_kwargs=None):
         super(MzMLGlycopeptideLCMSMSAnalyzer, self).__init__(
             database_connection,
             hypothesis_id, -1,
@@ -1224,7 +1231,8 @@ class MzMLGlycopeptideLCMSMSAnalyzer(GlycopeptideLCMSMSAnalyzer):
             probing_range_for_missing_precursors=probing_range_for_missing_precursors,
             trust_precursor_fits=trust_precursor_fits, permute_decoy_glycans=permute_decoy_glycans,
             rare_signatures=rare_signatures,
-            model_retention_time=model_retention_time)
+            model_retention_time=model_retention_time,
+            evaluation_kwargs=evaluation_kwargs)
         self.sample_path = sample_path
         self.output_path = output_path
 
@@ -1272,6 +1280,7 @@ class MzMLGlycopeptideLCMSMSAnalyzer(GlycopeptideLCMSMSAnalyzer):
             "rare_signatures": self.rare_signatures,
             "model_retention_time": self.model_retention_time,
             "retention_time_model": self.retention_time_model,
+            "extra_evaluation_kwargs": self.extra_msn_evaluation_kwargs,
         }
 
     def make_analysis_serializer(self, output_path, analysis_name, sample_run, identified_glycopeptides,
@@ -1324,7 +1333,8 @@ class MzMLComparisonGlycopeptideLCMSMSAnalyzer(MzMLGlycopeptideLCMSMSAnalyzer):
                  n_processes=5, spectrum_batch_size=1000, use_peptide_mass_filter=False,
                  maximum_mass=float('inf'), use_decoy_correction_threshold=None,
                  probing_range_for_missing_precursors=3, trust_precursor_fits=True,
-                 permute_decoy_glycans=False, rare_signatures=False, model_retention_time=True):
+                 permute_decoy_glycans=False, rare_signatures=False,
+                 model_retention_time=True, evaluation_kwargs=None):
         if use_decoy_correction_threshold is None:
             use_decoy_correction_threshold = 0.33
         if tandem_scoring_model == CoverageWeightedBinomialScorer:
@@ -1338,7 +1348,8 @@ class MzMLComparisonGlycopeptideLCMSMSAnalyzer(MzMLGlycopeptideLCMSMSAnalyzer):
             n_processes, spectrum_batch_size, use_peptide_mass_filter,
             maximum_mass, probing_range_for_missing_precursors,
             trust_precursor_fits, permute_decoy_glycans=permute_decoy_glycans,
-            rare_signatures=rare_signatures, model_retention_time=model_retention_time)
+            rare_signatures=rare_signatures, model_retention_time=model_retention_time,
+            evaluation_kwargs=evaluation_kwargs)
         self.decoy_database_connection = decoy_database_connection
         self.use_decoy_correction_threshold = use_decoy_correction_threshold
 
@@ -1407,7 +1418,8 @@ class MultipartGlycopeptideLCMSMSAnalyzer(MzMLGlycopeptideLCMSMSAnalyzer):
                  trust_precursor_fits=True, use_memory_database=True,
                  fdr_estimation_strategy=None, glycosylation_site_models_path=None,
                  permute_decoy_glycans=False, fragile_fucose=False, rare_signatures=False,
-                 extended_glycan_search=True, model_retention_time=True):
+                 extended_glycan_search=True, model_retention_time=True,
+                 evaluation_kwargs=None):
         if tandem_scoring_model == CoverageWeightedBinomialScorer:
             tandem_scoring_model = CoverageWeightedBinomialModelTree
         if fdr_estimation_strategy is None:
@@ -1427,7 +1439,8 @@ class MultipartGlycopeptideLCMSMSAnalyzer(MzMLGlycopeptideLCMSMSAnalyzer):
             # The multipart scoring algorithm automatically implies permute_decoy_glycan
             # fragment masses.
             permute_decoy_glycans=True,
-            model_retention_time=model_retention_time)
+            model_retention_time=model_retention_time,
+            evaluation_kwargs=evaluation_kwargs)
 
         self.fragile_fucose = fragile_fucose
         self.rare_signatures = rare_signatures
@@ -1469,11 +1482,13 @@ class MultipartGlycopeptideLCMSMSAnalyzer(MzMLGlycopeptideLCMSMSAnalyzer):
         return database
 
     def make_msn_evaluation_kwargs(self):
-        return {
+        kwargs = {
             "fragile_fucose": self.fragile_fucose,
             "rare_signatures": self.rare_signatures,
             "extended_glycan_search": self.extended_glycan_search,
         }
+        kwargs.update(self.extra_msn_evaluation_kwargs)
+        return kwargs
 
     def make_search_engine(self, msms_scans, database, peak_loader):
         cache_seeds = self.prepare_cache_seeds(

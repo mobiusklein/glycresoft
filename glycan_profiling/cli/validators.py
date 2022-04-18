@@ -1,11 +1,10 @@
 import os
 import re
 import traceback
+from typing import Mapping
 
-try:
-    import cPickle as pickle
-except ImportError:
-    import pickle
+
+import pickle
 
 from functools import partial
 
@@ -335,15 +334,22 @@ glycopeptide_tandem_scoring_functions = {
     "coverage_weighted_binomial": coverage_weighted_binomial.CoverageWeightedBinomialScorer,
     "log_intensity": intensity_scorer.LogIntensityScorer,
     "penalized_log_intensty": intensity_scorer.FullSignaturePenalizedLogIntensityScorer,
-    "peptide_only_cw_binomial": coverage_weighted_binomial.StubIgnoringCoverageWeightedBinomialScorer
+    "peptide_only_cw_binomial": coverage_weighted_binomial.StubIgnoringCoverageWeightedBinomialScorer,
+    "log_intensity_v3": (intensity_scorer.LogIntensityScorer, {
+        "core_weight": 1.4,
+        # "coverage_weight": 0.7
+    }),
 }
 
 
 def validate_glycopeptide_tandem_scoring_function(context, name):
     if isinstance(name, SpectrumMatcherBase):
-        return name
+        return name, {}
     try:
-        return glycopeptide_tandem_scoring_functions[name]
+        scorer = glycopeptide_tandem_scoring_functions[name]
+        if not isinstance(scorer, (tuple, list)):
+            return scorer, {}
+        return scorer
     except KeyError:
         # Custom scorer loading
         if name.startswith("model://"):
@@ -352,7 +358,13 @@ def validate_glycopeptide_tandem_scoring_function(context, name):
                 raise click.Abort("Model file at \"%s\" does not exist." % (path, ))
             with open(path, 'rb') as fh:
                 scorer = pickle.load(fh)
-                return scorer
+                if not isinstance(scorer, (tuple, list)):
+                    return scorer, {}
+                else:
+                    if len(scorer) == 2 and isinstance(scorer[1], Mapping):
+                        return scorer
+                    else:
+                        raise TypeError("Unpickled scorer contained a tuple, but the second value was not a dictionary!")
         else:
             raise click.Abort("Could not recognize scoring function by name %r" % (name,))
 

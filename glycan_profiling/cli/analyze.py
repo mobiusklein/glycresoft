@@ -175,7 +175,7 @@ def search_glycopeptide(context, database_connection, sample_path, hypothesis_id
                     hypothesis_identifier, fg='yellow')
         raise click.Abort()
 
-    tandem_scoring_model = validate_glycopeptide_tandem_scoring_function(
+    tandem_scoring_model, evaluation_kwargs = validate_glycopeptide_tandem_scoring_function(
         context, tandem_scoring_model)
 
     mass_shifts = [validate_mass_shift(mass_shift, multiplicity)
@@ -215,7 +215,8 @@ def search_glycopeptide(context, database_connection, sample_path, hypothesis_id
             maximum_mass=maximum_mass,
             probing_range_for_missing_precursors=isotope_probing_range,
             permute_decoy_glycans=permute_decoy_glycan_fragments,
-            rare_signatures=rare_signatures)
+            rare_signatures=rare_signatures,
+            evaluation_kwargs=evaluation_kwargs)
     else:
         analyzer = MzMLComparisonGlycopeptideLCMSMSAnalyzer(
             database_connection._original_connection,
@@ -239,7 +240,8 @@ def search_glycopeptide(context, database_connection, sample_path, hypothesis_id
             use_decoy_correction_threshold=fdr_correction,
             probing_range_for_missing_precursors=isotope_probing_range,
             permute_decoy_glycans=permute_decoy_glycan_fragments,
-            rare_signatures=rare_signatures)
+            rare_signatures=rare_signatures,
+            evaluation_kwargs=evaluation_kwargs)
     analyzer.display_header()
     result = analyzer.start()
     gps, unassigned, target_decoy_set = result[:3]
@@ -309,8 +311,10 @@ def search_glycopeptide(context, database_connection, sample_path, hypothesis_id
                     "peptide uses only peptide scores, glycan uses only glycan scores, and any uses the smallest "
                     "FDR of the joint, peptide, and glycan estiamtes."))
 @click.option("-s", "--tandem-scoring-model", default='log_intensity',
-              type=ChoiceOrURI(["log_intensity", "simple",
-                                "penalized_log_intensty"]),
+              type=ChoiceOrURI(["log_intensity",
+                                "simple",
+                                "penalized_log_intensty",
+                                "log_intensity_v3"]),
               help="Select a scoring function to use for evaluating glycopeptide-spectrum matches")
 @click.option("-y", "--glycan-score-threshold", default=1.0, type=float,
               help="The minimum glycan score required to consider a peptide mass")
@@ -377,7 +381,7 @@ def search_glycopeptide_multipart(context, database_connection, decoy_database_c
                     decoy_hypothesis_identifier, fg='yellow')
         raise click.Abort()
 
-    tandem_scoring_model = validate_glycopeptide_tandem_scoring_function(
+    tandem_scoring_model, evaluation_kwargs = validate_glycopeptide_tandem_scoring_function(
         context, tandem_scoring_model)
 
     mass_shifts = [validate_mass_shift(mass_shift, multiplicity)
@@ -419,6 +423,7 @@ def search_glycopeptide_multipart(context, database_connection, decoy_database_c
         glycosylation_site_models_path=glycoproteome_smoothing_model,
         fragile_fucose=False,
         rare_signatures=rare_signatures,
+        evaluation_kwargs=evaluation_kwargs,
         )
     analyzer.display_header()
     result = analyzer.start()
