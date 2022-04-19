@@ -381,7 +381,7 @@ class PredictiveGlycopeptideSearch(DynamicGlycopeptideSearchBase):
     def __init__(self, peptide_glycosylator, product_error_tolerance=2e-5, glycan_score_threshold=0.1,
                  min_fragments=2, peptide_masses_per_scan=100,
                  probing_range_for_missing_precursors=3, trust_precursor_fits=True,
-                 fragment_weight=0.56, core_weight=0.42, oxonium_ion_index=None,
+                 fragment_weight=0.56, core_weight=1.42, oxonium_ion_index=None,
                  signature_ion_index=None):
         # Intentionally use a larger core_weight here than in the real scoring function to
         # prefer solutions with more core fragments, but not to discard them later?
