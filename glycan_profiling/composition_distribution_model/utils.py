@@ -32,6 +32,9 @@ def _upper_triangular_to_symmetric(ut: np.ndarray):
 
 
 def fast_positive_definite_inverse(M: np.ndarray) -> np.ndarray:
+    if M.size == 0:
+        return np.zeros_like(M)
+
     # Compute the Cholesky decomposition of a symmetric positive-definite matrix
     cholesky, info = lapack.dpotrf(M)
     if info != 0:

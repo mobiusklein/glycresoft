@@ -1,8 +1,10 @@
 import numpy as np
 from scipy import linalg
 
-from .constants import DEFAULT_LAPLACIAN_REGULARIZATION
+from glycan_profiling.database.composition_network.graph import CompositionGraph
 
+from .constants import DEFAULT_LAPLACIAN_REGULARIZATION
+from .utils import fast_positive_definite_inverse
 
 def adjacency_matrix(network):
     A = np.zeros((len(network), len(network)))
@@ -103,6 +105,10 @@ def scale_network(network, maximum):
     return network
 
 
+def _key_from_memory(data: np.ndarray):
+    return bytes(data.data)
+
+
 class BlockLaplacian(object):
     def __init__(self, network=None, threshold=0.0001, regularize=1.0):
         self.regularize = regularize
@@ -110,7 +116,7 @@ class BlockLaplacian(object):
         if network is not None:
             self._build_from_network(network)
 
-    def _build_from_network(self, network):
+    def _build_from_network(self, network: CompositionGraph):
         structure_matrix = weighted_laplacian_matrix(network)
         structure_matrix = structure_matrix + (np.eye(
             structure_matrix.shape[0]) * self.regularize)
@@ -120,11 +126,25 @@ class BlockLaplacian(object):
         self.miss_ix = missing_indices
 
         self.matrix = structure_matrix
-        self.blocks = self._blocks_from(structure_matrix)
 
-        self.L_mm_inv = np.linalg.inv(self['mm'])
-        self.L_oo_inv = np.linalg.pinv(
-            self["oo"] - (self['om'].dot(self.L_mm_inv).dot(self['mo'])))
+        if network.cache_state:
+            key = _key_from_memory(self.obs_ix)
+            if key in network.cache_state:
+                blocks, L_mm_inv, L_oo_inv = network.cache_state[key]
+                self.blocks = blocks
+                self.L_mm_inv = L_mm_inv
+                self.L_oo_inv = L_oo_inv
+            else:
+                self.blocks = self._blocks_from(self.matrix)
+                self.L_mm_inv = fast_positive_definite_inverse(self['mm'])
+                self.L_oo_inv = np.linalg.pinv(
+                    self["oo"] - (self['om'].dot(self.L_mm_inv).dot(self['mo'])))
+                network.cache_state[key] = self.blocks, self.L_mm_inv, self.L_oo_inv
+        else:
+            self.blocks = self._blocks_from(self.matrix)
+            self.L_mm_inv = fast_positive_definite_inverse(self['mm'])
+            self.L_oo_inv = np.linalg.pinv(
+                self["oo"] - (self['om'].dot(self.L_mm_inv).dot(self['mo'])))
 
     def _blocks_from(self, matrix):
         oo_block = matrix[self.obs_ix, :][:, self.obs_ix]

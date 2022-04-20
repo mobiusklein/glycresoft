@@ -1,16 +1,11 @@
-from collections import defaultdict, deque
 import numbers as abc_numbers
+from io import StringIO
+from collections import defaultdict, deque
+from typing import Callable, Dict, List, Optional, Tuple, Union
+
 import numpy as np
 
-try:
-    from StringIO import StringIO
-except ImportError:
-    from io import StringIO
-
-try:
-    basestring
-except NameError:
-    basestring = (str, bytes)
+basestring = (str, bytes)
 
 from glypy.composition import composition_transform
 from glypy.structure.glycan_composition import FrozenMonosaccharideResidue, GlycanComposition
@@ -31,12 +26,14 @@ _hexnac = FrozenMonosaccharideResidue.from_iupac_lite("HexNAc")
 
 
 class CompositionNormalizer(object):
+    cache: Dict[HashableGlycanComposition, HashableGlycanComposition]
+
     def __init__(self, cache=None):
         if cache is None:
             cache = dict()
         self.cache = cache
 
-    def _normalize_key(self, key):
+    def _normalize_key(self, key: Union[str, GlycanCompositionProxy, GlycanComposition]) -> HashableGlycanComposition:
         if isinstance(key, basestring):
             key = HashableGlycanComposition.parse(key)
         return HashableGlycanComposition(
@@ -48,7 +45,7 @@ class CompositionNormalizer(object):
             key = key.copy_underivatized()
         return key
 
-    def _get_solution(self, key):
+    def _get_solution(self, key: Union[HashableGlycanComposition, str, GlycanComposition, GlycanComposition]) -> HashableGlycanComposition:
         if isinstance(key, (basestring, HashableGlycanComposition)):
             try:
                 return self.cache[key]
@@ -142,6 +139,14 @@ except ImportError:
     _has_c = False
 
 class CompositionGraphNode(object):
+    composition: HashableGlycanComposition
+    index: int
+    _score: float
+    marked: bool
+    edges: 'EdgeSet'
+    _str: str
+    _hash: int
+    internal_score: float
 
     __slots__ = (
         "composition", "index", "_score", "marked", "edges", "_str", "_hash", "internal_score")
@@ -209,6 +214,7 @@ class CompositionGraphNode(object):
 
 
 class EdgeSet(object):
+    store: Dict[Tuple[CompositionGraphNode, CompositionGraphNode], 'CompositionGraphEdge']
 
     def __init__(self, store=None):
         if store is None:
@@ -253,6 +259,13 @@ class EdgeSet(object):
 
 class CompositionGraphEdge(object):
     __slots__ = ["node1", "node2", "order", "weight", "_hash", "_str"]
+
+    node1: CompositionGraphNode
+    node2: CompositionGraphNode
+    order: int
+    weight: float
+    _hash: int
+    _str: str
 
     def __init__(self, node1, node2, order, weight=1.0):
         self.node1 = node1
@@ -330,9 +343,19 @@ except ImportError:
 
 
 class CompositionGraph(CompositionGraphBase):
-    def __init__(self, compositions, distance_fn=n_glycan_distance, neighborhoods=None):
+    neighborhoods: NeighborhoodCollection
+    nodes: List[CompositionGraphNode]
+    node_map: Dict[HashableGlycanComposition, CompositionGraphNode]
+    _composition_normalizer: CompositionNormalizer
+    distance_fn: Callable[[HashableGlycanComposition, HashableGlycanComposition], Tuple[float, float]]
+    edges: EdgeSet
+    cache_state: Dict
+
+    def __init__(self, compositions, distance_fn=n_glycan_distance, neighborhoods=None, cache_state: Optional[Dict]=None):
         if neighborhoods is None:
             neighborhoods = []
+        if cache_state is None:
+            cache_state = {}
         self.nodes = []
         self.node_map = {}
         self._composition_normalizer = CompositionNormalizer()
@@ -340,6 +363,7 @@ class CompositionGraph(CompositionGraphBase):
         self.create_nodes(compositions)
         self.edges = EdgeSet()
         self.neighborhoods = NeighborhoodCollection(neighborhoods)
+        self.cache_state = cache_state
 
     def create_nodes(self, compositions):
         """Given an iterable of GlycanComposition-like or strings encoding GlycanComposition-like
@@ -361,7 +385,7 @@ class CompositionGraph(CompositionGraphBase):
             self.add_node(n)
             i += 1
 
-    def add_node(self, node, reindex=False):
+    def add_node(self, node: CompositionGraphNode, reindex=False):
         """Given a CompositionGraphNode, add it to the graph.
 
         If `reindex` is `True` then a full re-indexing of the graph will
@@ -412,14 +436,14 @@ class CompositionGraph(CompositionGraphBase):
                     self.edges.add(e)
         return self
 
-    def add_edge(self, node1, node2):
+    def add_edge(self, node1: CompositionGraphNode, node2: CompositionGraphNode):
         if node1.index > node2.index:
             node1, node2 = node2, node1
         diff, weight = self.distance_fn(node1.composition, node2.composition)
         e = CompositionGraphEdge(node1, node2, diff, weight)
         self.edges.add(e)
 
-    def remove_node(self, node, bridge=True, limit=5, ignore_marked=True):
+    def remove_node(self, node: CompositionGraphNode, bridge: bool=True, limit: int=5, ignore_marked: bool=True):
         """Removes the Glycan Composition given by `node` from the graph
         and all edges connecting to it. This will reindex the graph.
 
@@ -491,7 +515,7 @@ class CompositionGraph(CompositionGraphBase):
                         self.edges.add_if_shorter(new_edge)
         return subtracted_edges
 
-    def remove_edge(self, edge):
+    def remove_edge(self, edge: CompositionGraphEdge):
         edge.remove()
         self.edges.remove(edge)
 

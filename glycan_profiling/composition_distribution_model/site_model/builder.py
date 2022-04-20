@@ -1,5 +1,6 @@
 import time
 import json
+import logging
 
 from collections import defaultdict, deque, namedtuple
 
@@ -8,17 +9,13 @@ from multiprocessing.pool import ThreadPool
 from multiprocessing import Process, Event, JoinableQueue
 from multiprocessing.managers import RemoteError
 
-try:
-    from Queue import Empty as QueueEmptyException
-except ImportError:
-    from queue import Empty as QueueEmptyException
-
+from queue import Empty as QueueEmptyException
 from threading import RLock, Condition, Thread
 
 import numpy as np
 
 from glycan_profiling import serialize
-from glycan_profiling.task import TaskBase
+from glycan_profiling.task import TaskBase, IPCLoggingManager
 
 from glycan_profiling.database import (
     GlycanCompositionDiskBackedStructureDatabase, GlycopeptideDiskBackedStructureDatabase)
@@ -37,12 +34,23 @@ from .glycoprotein_model import ProteinStub
 _default_chromatogram_scorer = GeneralScorer.clone()
 _default_chromatogram_scorer.add_feature(get_feature("null_charge"))
 
+logger = logging.getLogger("glycresoft.glycosite_model")
+logger.addHandler(logging.NullHandler())
+
 
 def _truncate_name(name, limit=30):
     if len(name) > limit:
         return name[:limit - 3] + '...'
     return name
 
+
+
+class FakeLock:
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *args, **kwargs):
+        pass
 
 
 EmptySite = namedtuple("EmptySite", ("position", "protein_name"))
@@ -78,7 +86,7 @@ class GlycosylationSiteModelBuilder(TaskBase):
 
         self.site_models = []
         self.n_threads = n_threads
-        self._lock = RLock()
+        self._lock = RLock() if self.n_threads > 1 else FakeLock()
         self._concurrent_jobs = 0
         if self.n_threads > 1:
             self.thread_pool = ThreadPool(n_threads)
@@ -296,8 +304,10 @@ class GlycositeModelBuildingProcess(Process):
         message : str
             The message to log
         """
-        if self.log_handler is not None:
-            self.log_handler(message)
+        logger.info(message)
+        # if self.log_handler is not None:
+        #     self.log_handler(message)
+
 
     def debug(self, message):
         """Send a debugging message via :attr:`log_handler`
@@ -307,8 +317,7 @@ class GlycositeModelBuildingProcess(Process):
         message : str
             The message to log
         """
-        if self.verbose:
-            self.log_handler("DEBUG::%s" % message)
+        logger.debug(message)
 
     def handle_item(self, observations, site, glycoprotein):
         model = self.builder.fit_site_model(observations, site, glycoprotein)
@@ -361,7 +370,7 @@ class GlycositeModelBuildingProcess(Process):
         # The task might actually use the same logger from different threads
         # which causes a deadlock. This "fixes" that. by writing directly to STDOUT
         # at the cost of not being able to write to file instead.
-        TaskBase.log_to_stdout()
+        # TaskBase.log_to_stdout()
         self.output_done_event.clear()
         try:
             self.task()
@@ -634,7 +643,8 @@ class MultiprocessingGlycoproteinSiteModelBuildingWorkflow(GlycoproteinSiteModel
         self.n_workers = n_threads
         self.workers = []
         self._has_remote_error = False
-        self.ipc_manager = self.ipc_logger()
+        # self.ipc_manager = self.ipc_logger()
+        self.ipc_manager = IPCLoggingManager()
 
     def prepare_glycoprotein_for_dispatch(self, glycoprotein, builder):
         prepared = builder.prepare_glycoprotein(glycoprotein)

@@ -1,3 +1,5 @@
+import logging
+
 import numpy as np
 
 from glypy import GlycanComposition
@@ -31,6 +33,9 @@ from .observation import (
     VariableObservationAggregation)
 
 from .utils import fast_positive_definite_inverse
+
+logger = logging.getLogger("glycresoft.glycome_network_smoothing")
+logger.addHandler(logging.NullHandler())
 
 
 def _has_glycan_composition(x):
@@ -279,7 +284,7 @@ class GlycomeModel(LaplacianSmoothingModel):
         last_aggregate = None
         for i_threshold, threshold in enumerate(thresholds):
             if i_threshold % 10 == 0:
-                log_handle.log("... Threshold = %r (%0.2f%%)" % (
+                logger.info("... Threshold = %r (%0.2f%%)" % (
                     threshold, (100.0 * i_threshold / len(thresholds))))
             # Aggregate the raw observations into averaged, variance reduced records
             # and annotate the network with these new scores
@@ -404,18 +409,18 @@ def smooth_network(network, observed_compositions, threshold_step=0.5, apex_thre
         belongingness_matrix=belongingness_matrix,
         observation_aggregator=observation_aggregator,
         belongingness_normalization=belongingness_normalization)
-    log_handle.log("... Begin Model Fitting")
+    logger.info("... Begin Model Fitting")
     if model_state is None:
         reduction = model.find_threshold_and_lambda(
             rho=rho, threshold_step=threshold_step,
             lambda_max=lambda_max)
         if len(reduction) == 0:
-            log_handle.log("... No Network Reduction Found")
+            logger.info("... No Network Reduction Found")
             return None, None, None
         search = ThresholdSelectionGridSearch(model, reduction, apex_threshold)
         params = search.average_solution(lmbda=lmbda)
         if params is None:
-            log_handle.log("... No Acceptable Solution. Could not fit model.")
+            logger.info("... No Acceptable Solution. Could not fit model.")
             return None, None, None
     else:
         search = ThresholdSelectionGridSearch(model, None, apex_threshold)
@@ -424,7 +429,7 @@ def smooth_network(network, observed_compositions, threshold_step=0.5, apex_thre
         if lmbda is not None:
             params.lmbda = lmbda
     if annotate_network:
-        log_handle.log("... Projecting Solution Onto Network")
+        logger.info("... Projecting Solution Onto Network")
         annotated_network = search.annotate_network(params, include_missing=include_missing)
     else:
         annotated_network = None
