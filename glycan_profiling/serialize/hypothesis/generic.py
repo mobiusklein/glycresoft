@@ -219,9 +219,9 @@ class FileBlob(Base):
             inst = cls.from_file(fh, compress)
         return inst
 
-    def open(self):
+    def open(self, raw=False):
         data_buffer = BytesIO(self.data)
-        if self.compressed:
+        if self.compressed and not raw:
             if starts_with_gz_magic(self.data[:6]):
                 return gzip.GzipFile(fileobj=data_buffer)
             elif (starts_with_zstd_magic is not None and ZstdFile is not None) and starts_with_zstd_magic(self.data[:6]):
