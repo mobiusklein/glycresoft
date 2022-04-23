@@ -1,3 +1,4 @@
+from typing import Dict
 import numpy as np
 from scipy import linalg
 
@@ -110,6 +111,17 @@ def _key_from_memory(data: np.ndarray):
 
 
 class BlockLaplacian(object):
+    regularize: float
+    threshold: float
+
+    obs_ix: np.ndarray
+    miss_ix: np.ndarray
+
+    matrix: np.ndarray
+    blocks: Dict[str, np.ndarray]
+    L_mm_inv: np.ndarray
+    L_oo_inv: np.ndarray
+
     def __init__(self, network=None, threshold=0.0001, regularize=1.0):
         self.regularize = regularize
         self.threshold = threshold
@@ -126,25 +138,16 @@ class BlockLaplacian(object):
         self.miss_ix = missing_indices
 
         self.matrix = structure_matrix
-
+        # Compute Schur Complement
         if network.cache_state:
             key = _key_from_memory(self.obs_ix)
             if key in network.cache_state:
-                blocks, L_mm_inv, L_oo_inv = network.cache_state[key]
-                self.blocks = blocks
-                self.L_mm_inv = L_mm_inv
-                self.L_oo_inv = L_oo_inv
+                self.blocks, self.L_mm_inv, self.L_oo_inv = network.cache_state[key]
             else:
-                self.blocks = self._blocks_from(self.matrix)
-                self.L_mm_inv = fast_positive_definite_inverse(self['mm'])
-                self.L_oo_inv = np.linalg.pinv(
-                    self["oo"] - (self['om'].dot(self.L_mm_inv).dot(self['mo'])))
+                self._complement()
                 network.cache_state[key] = self.blocks, self.L_mm_inv, self.L_oo_inv
         else:
-            self.blocks = self._blocks_from(self.matrix)
-            self.L_mm_inv = fast_positive_definite_inverse(self['mm'])
-            self.L_oo_inv = np.linalg.pinv(
-                self["oo"] - (self['om'].dot(self.L_mm_inv).dot(self['mo'])))
+            self._complement()
 
     def _blocks_from(self, matrix):
         oo_block = matrix[self.obs_ix, :][:, self.obs_ix]
@@ -152,6 +155,15 @@ class BlockLaplacian(object):
         mo_block = matrix[self.miss_ix, :][:, self.obs_ix]
         mm_block = matrix[self.miss_ix, :][:, self.miss_ix]
         return {"oo": oo_block, "om": om_block, "mo": mo_block, "mm": mm_block}
+
+    def _complement(self):
+        '''Compute the Schur complement of the observed/unobserved blocked Laplacian
+        matrix.
+        '''
+        self.blocks = self._blocks_from(self.matrix)
+        self.L_mm_inv = fast_positive_definite_inverse(self['mm'])
+        self.L_oo_inv = np.linalg.pinv(
+            self["oo"] - (self['om'].dot(self.L_mm_inv).dot(self['mo'])))
 
     def __getitem__(self, k):
         return self.blocks[k]
