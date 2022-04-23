@@ -362,10 +362,16 @@ class SolutionSetGrouper(TaskBase):
     or by best match to a given scan and target/decoy classification (:attr:`exclusive_match_groups`)
 
     """
+    # All the matches of all match types for every spectrum in no particular order
     spectrum_matches: List[MultiScoreSpectrumMatch]
+    # The set of all scan IDs
     spectrum_ids: Set[str]
-    match_type_groups: Dict[Any, List[MultiScoreSpectrumMatch]]
-    exclusive_match_groups: DefaultDict[Any, List[MultiScoreSpectrumMatch]]
+    match_type_groups: Dict[StructureClassification,
+                            List[MultiScoreSpectrumMatch]]
+    # The set of all spectrum matches that are the best scoring match for their scan in a specific
+    # match type. This is used for FDR estimation.
+    exclusive_match_groups: DefaultDict[StructureClassification,
+                                        List[MultiScoreSpectrumMatch]]
 
     def __init__(self, spectrum_matches):
         self.spectrum_matches = list(spectrum_matches)
@@ -390,7 +396,8 @@ class SolutionSetGrouper(TaskBase):
         acc.sort(key=lambda x: x.scan.id)
         return acc
 
-    def _collect(self) -> Dict[Any, List[MultiScoreSpectrumMatch]]:
+    def _collect(self) -> Dict[StructureClassification, List[MultiScoreSpectrumMatch]]:
+
         match_type_getter = attrgetter('match_type')
         groups = collectiontools.groupby(
             self.spectrum_matches, match_type_getter)
@@ -462,7 +469,7 @@ class JournalSetLoader(TaskBase):
             stub_loader = ScanInformationLoader(scan_loader)
         else:
             stub_loader = scan_loader
-        return cls([f.open() for f in analysis.files], stub_loader, mass_shift_map)
+        return cls([f.open(raw=True) for f in analysis.files], stub_loader, mass_shift_map)
 
     def __init__(self, journal_files, scan_loader, mass_shift_map=None):
         if mass_shift_map is None:
