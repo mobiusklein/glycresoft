@@ -395,7 +395,7 @@ class ScanTransformingProcess(Process, ScanTransformMixin):
         transformer = self.make_scan_transformer(loader)
         self.transformer = transformer
 
-        nologs = ["deconvolution_scan_processor"]
+        nologs = ["ms_deisotope.scan_processor"]
         if not self.deconvolute:
             nologs.append("deconvolution")
 
