@@ -328,7 +328,7 @@ def typify(node):
         return node
 
 
-def parse_expression(string):
+def parse_expression(string: str):
     """Parses a str argument into a :class:`ExpressionNode` instance
     containing arbitrarily complex expressions.
 

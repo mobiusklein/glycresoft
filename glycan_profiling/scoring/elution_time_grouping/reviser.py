@@ -4,7 +4,7 @@ from array import array
 from collections import defaultdict, OrderedDict
 from collections.abc import Iterable
 import types
-from typing import DefaultDict, Dict, List, Optional, Set
+from typing import DefaultDict, Dict, List, Optional, Set, TYPE_CHECKING
 from matplotlib import pyplot as plt
 
 import numpy as np
@@ -19,6 +19,10 @@ from glycan_profiling.task import LoggingMixin
 
 logger = logging.getLogger(__name__)
 logger.addHandler(logging.NullHandler())
+
+
+if TYPE_CHECKING:
+    from glycan_profiling.scoring.elution_time_grouping.model import ElutionTimeFitter
 
 
 class RevisionRule(object):
@@ -489,6 +493,11 @@ Sulfate1HexNAc2ToHex3Rule = RevisionRule(
     HashableGlycanComposition(HexNAc=2, sulfate=1, Hex=-3), name="Sulfate + 2 HexNAc Masked By 3 Hex")
 Hex3ToSulfate1HexNAc2Rule = Sulfate1HexNAc2ToHex3Rule.invert_rule()
 Hex3ToSulfate1HexNAc2Rule.name = "3 Hex Masked By Sulfate + 2 HexNAc"
+
+Phosphate1HexNAc2ToHex3Rule = RevisionRule(
+    HashableGlycanComposition(HexNAc=2, phosphate=1, Hex=-3), name="Phosphate + 2 HexNAc Masked By 3 Hex")
+Hex3ToPhosphate1HexNAc2Rule = Phosphate1HexNAc2ToHex3Rule.invert_rule()
+Hex3ToPhosphate1HexNAc2Rule.name = "3 Hex Masked By Phosphate + 2 HexNAc"
 
 SulfateToPhosphateRule = RevisionRule(HashableGlycanComposition(sulfate=-1, phosphate=1), name="Phosphate Masked By Sulfate")
 PhosphateToSulfateRule = SulfateToPhosphateRule.invert_rule()

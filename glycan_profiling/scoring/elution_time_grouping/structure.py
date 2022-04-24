@@ -12,7 +12,8 @@ except ImportError:
     pass
 
 from glycopeptidepy import PeptideSequence
-from glypy.structure.glycan_composition import HashableGlycanComposition
+
+from glypy.structure.glycan_composition import HashableGlycanComposition, FrozenGlycanComposition
 
 from glycan_profiling.structure import FragmentCachingGlycopeptide
 from ms_deisotope.peak_dependency_network.intervals import SpanningMixin, IntervalTreeNode
@@ -46,6 +47,7 @@ def _get_apex_time(chromatogram):
         return x[np.argmax(y)]
     except (AttributeError, TypeError):
         return chromatogram.apex_time
+
 
 class ChromatogramProxy(object):
 
@@ -172,7 +174,8 @@ class ChromatogramProxy(object):
         state = dict(state)
         self.glycan_composition = state.pop("glycan_composition", None)
         if self.glycan_composition is not None:
-            self.glycan_composition = HashableGlycanComposition.parse(str(self.glycan_composition))
+            self.glycan_composition = HashableGlycanComposition.parse(
+                str(self.glycan_composition))
         self.apex_time = state.pop("apex_time", None)
         self.total_signal = state.pop("total_signal", None)
         self.weighted_neutral_mass = state.pop("weighted_neutral_mass", None)
@@ -189,7 +192,7 @@ class ChromatogramProxy(object):
 
     @classmethod
     def _csv_keys(cls, keys):
-        return ['glycan_composition', 'apex_time', 'total_signal', 'weighted_neutral_mass',] + \
+        return ['glycan_composition', 'apex_time', 'total_signal', 'weighted_neutral_mass', ] + \
             sorted(set(keys) - {'glycan_composition', 'apex_time',
                                 'total_signal', 'weighted_neutral_mass', })
 
@@ -224,7 +227,8 @@ class ChromatogramProxy(object):
         if isinstance(self.glycan_composition, HashableGlycanComposition):
             inst.glycan_composition = self.glycan_composition + delta
         else:
-            inst.glycan_composition = HashableGlycanComposition(self.glycan_composition) + delta
+            inst.glycan_composition = HashableGlycanComposition(
+                self.glycan_composition) + delta
         return inst
 
 
@@ -253,7 +257,8 @@ class GlycopeptideChromatogramProxy(ChromatogramProxy):
     @property
     def structure(self) -> FragmentCachingGlycopeptide:
         if self._structure is None:
-            self._structure = FragmentCachingGlycopeptide(str(self.kwargs["structure"]))
+            self._structure = FragmentCachingGlycopeptide(
+                str(self.kwargs["structure"]))
         return self._structure
 
     @structure.setter
@@ -261,12 +266,14 @@ class GlycopeptideChromatogramProxy(ChromatogramProxy):
         self._structure = value
         self.kwargs['structure'] = str(value)
         if value and self.glycan_composition != value.glycan_composition:
-            self.glycan_composition = HashableGlycanComposition(value.glycan_composition)
+            self.glycan_composition = HashableGlycanComposition(
+                value.glycan_composition)
 
     @classmethod
     def from_chromatogram(cls, obj, **kwargs):
         gp = FragmentCachingGlycopeptide(str(obj.structure))
-        result = super(GlycopeptideChromatogramProxy, cls).from_chromatogram(obj, structure=gp, **kwargs)
+        result = super(GlycopeptideChromatogramProxy, cls).from_chromatogram(
+            obj, structure=gp, **kwargs)
         _key = result.peptide_key
         return result
 
@@ -280,7 +287,8 @@ class GlycopeptideChromatogramProxy(ChromatogramProxy):
             spectrum_match.target.glycan_composition, source, [spectrum_match.mass_shift], structure=gp, **kwargs)
 
     def shift_glycan_composition(self, delta):
-        inst = super(GlycopeptideChromatogramProxy, self).shift_glycan_composition(delta)
+        inst = super(GlycopeptideChromatogramProxy,
+                     self).shift_glycan_composition(delta)
         structure = self.structure.clone()
         structure.glycan = inst.glycan_composition
         inst.structure = structure
@@ -407,12 +415,13 @@ class GlycoformAggregator(Mapping):
     def __len__(self):
         return len(self.by_peptide)
 
-    def _deltas_for(self, monosaccharide: str, include_pairs: bool=False):
+    def _deltas_for(self, monosaccharide: str, include_pairs: bool = False):
         deltas = []
         pairs = []
         for _backbone, cases in self.by_peptide.items():
             for target in cases:
-                gc = target.glycan_composition.clone()
+                gc = FrozenGlycanComposition.parse(
+                    str(target.glycan_composition))
                 gc[monosaccharide] += 1
                 for case in cases:
                     if case.glycan_composition == gc:
@@ -431,7 +440,7 @@ class GlycoformAggregator(Mapping):
         keys = sorted(map(str, keys))
         return keys
 
-    def deltas(self, factors: Iterable[str]=None, include_pairs: bool=False):
+    def deltas(self, factors: Iterable[str] = None, include_pairs: bool = False):
         if factors is None:
             factors = self.factors
         return {f: self._deltas_for(f, include_pairs=include_pairs) for f in factors}
@@ -556,7 +565,8 @@ class DeltaOverTimeFilter(object):
             fig, ax = plt.subplots(1)
         ax.plot(self.time, self.delta, label='Raw')
         ax.scatter(self.time, self.delta)
-        ax.plot(self.time, self.smoothed, label="Smoothed", alpha=0.95, ls='--')
+        ax.plot(self.time, self.smoothed,
+                label="Smoothed", alpha=0.95, ls='--')
         return ax
 
     def search(self, time):

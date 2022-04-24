@@ -20,6 +20,7 @@ from glypy.utils import make_counter
 from glypy.structure.glycan_composition import HashableGlycanComposition
 
 from glycopeptidepy.structure.sequence.implementation import PeptideSequence
+from glycan_profiling.chromatogram_tree.chromatogram import Chromatogram, ChromatogramInterface
 
 from glycan_profiling.database.composition_network.space import composition_distance, DistanceCache
 
@@ -38,14 +39,15 @@ from glycan_profiling.scoring.base import ScoringFeatureBase
 from glycan_profiling.structure import FragmentCachingGlycopeptide
 from glycan_profiling.structure.structure_loader import GlycanCompositionDeltaCache
 
-from .structure import _get_apex_time, GlycopeptideChromatogramProxy, GlycoformAggregator, DeltaOverTimeFilter
+from .structure import ChromatogramProxy, _get_apex_time, GlycopeptideChromatogramProxy, GlycoformAggregator, DeltaOverTimeFilter
 from .linear_regression import (WLSSolution, ransac, weighted_linear_regression_fit, prediction_interval, SMALL_ERROR, weighted_linear_regression_fit_ridge)
 from .reviser import (IntervalModelReviser, IsotopeRule, AmmoniumMaskedRule,
                       AmmoniumUnmaskedRule, HexNAc2NeuAc2ToHex6AmmoniumRule,
-                      IsotopeRule2, HexNAc2Fuc1NeuAc2ToHex7, PhosphateToSulfateRule, RevisionValidatorBase,
-                      SulfateToPhosphateRule, Sulfate1HexNAc2ToHex3Rule,
-                      Hex3ToSulfate1HexNAc2Rule, HexNAc2NeuAc2ToHex6Deoxy,
+                      IsotopeRule2, HexNAc2Fuc1NeuAc2ToHex7, PhosphateToSulfateRule,
+                      SulfateToPhosphateRule, Sulfate1HexNAc2ToHex3Rule, Hex3ToSulfate1HexNAc2Rule,
+                      Phosphate1HexNAc2ToHex3Rule, Hex3ToPhosphate1HexNAc2Rule, HexNAc2NeuAc2ToHex6Deoxy,
                       AmmoniumMaskedNeuGcRule, AmmoniumUnmaskedNeuGcRule,
+                      RevisionValidatorBase,
                       PeptideYUtilizationPreservingRevisionValidator,
                       modify_rules, RevisionRuleList,
                       RuleBasedFDREstimator,
@@ -986,7 +988,7 @@ class ModelEnsemble(PeptideBackboneKeyedMixin, IntervalScoringMixin):
         mask = ~np.isnan(predicted_apex_time_array)
         return np.corrcoef(apex_time_array[mask], predicted_apex_time_array[mask])[0, 1] ** 2
 
-    def _models_for(self, chromatogram) -> Iterator[Tuple[ElutionTimeFitter, float]]:
+    def _models_for(self, chromatogram: Union[Number, ChromatogramInterface, ChromatogramProxy]) -> Iterator[Tuple[ElutionTimeFitter, float]]:
         if not isinstance(chromatogram, Number):
             point = chromatogram.apex_time
         else:
@@ -995,6 +997,9 @@ class ModelEnsemble(PeptideBackboneKeyedMixin, IntervalScoringMixin):
             if model.contains(point):
                 weight = abs(model.centroid - point) + 1
                 yield model, 1.0 / weight
+
+    def models_for(self, chromatogram: Union[Number, ChromatogramInterface, ChromatogramProxy]) -> List[Tuple[ElutionTimeFitter, float]]:
+        return list(self._models_for(chromatogram))
 
     def coverage_for(self, chromatogram) -> float:
         refs = []
@@ -1188,6 +1193,8 @@ class ModelEnsemble(PeptideBackboneKeyedMixin, IntervalScoringMixin):
                 return 0.0, 0.0
             return np.average(val, weights=weights), np.average(ci, weights=weights)
 
+        times = np.arange(self._models[0].start_time,
+                          self._models[-1].end_time, 1)
         factors = set()
         for x in self.models.values():
             factors.update(x.factors)
@@ -1195,7 +1202,7 @@ class ModelEnsemble(PeptideBackboneKeyedMixin, IntervalScoringMixin):
             yval = []
             xval = []
             ci_width = []
-            for t, _mod in self.models.items():
+            for t in times:
                 xval.append(t)
                 y, ci_delta = local_point(t, factor)
                 yval.append(y)
@@ -1262,7 +1269,7 @@ class ModelEnsemble(PeptideBackboneKeyedMixin, IntervalScoringMixin):
             apex_time = summary_values['apex_time_array'][i]
             proxies.append(
                 GlycopeptideChromatogramProxy(
-                    gp.total_mass, apex_time, 1.0, gc, mass_shift=mass_shifts, structure=gp))
+                    gp.total_mass, apex_time, 1.0, gc, mass_shifts=mass_shifts, structure=gp))
         return proxies
 
 
@@ -1840,6 +1847,8 @@ class GlycopeptideElutionTimeModelBuildingPipeline(TaskBase):
             PhosphateToSulfateRule,
             Sulfate1HexNAc2ToHex3Rule,
             Hex3ToSulfate1HexNAc2Rule,
+            Phosphate1HexNAc2ToHex3Rule,
+            Hex3ToPhosphate1HexNAc2Rule,
         ])
 
     def _check_rules(self):
