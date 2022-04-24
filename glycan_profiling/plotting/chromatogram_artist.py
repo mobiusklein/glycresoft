@@ -257,7 +257,7 @@ class ChromatogramArtist(ArtistBase):
 
         label = label_function(
             chromatogram, rt=rt, heights=heights, peaks=None)
-        if isinstance(label, basestring):
+        if isinstance(label, (str, glypy.GlycanComposition)):
             label = label
             label_peak = True
         else:
@@ -406,7 +406,7 @@ def mass_shift_separating_chromatogram(chroma, ax=None, **kwargs):
         with_mass_shift, _ = chroma.bisect_mass_shift(mass_shift)
         labels[mass_shift] = with_mass_shift
     mass_shift_plot = SmoothingChromatogramArtist(
-        labels.values(),
+        list(labels.values()),
         colorizer=lambda *a, **k: 'green', ax=ax).draw(
         label_function=lambda *a, **k: tuple(a[0].mass_shifts)[0].name,
         legend=False,
