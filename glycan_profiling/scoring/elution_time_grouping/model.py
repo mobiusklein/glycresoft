@@ -62,6 +62,9 @@ logger.addHandler(logging.NullHandler())
 CALIBRATION_QUANTILES = [0.25, 0.75]
 
 
+ChromatogramType = Union[Chromatogram, ChromatogramProxy, ChromatogramInterface]
+
+
 class IntervalRange(object):
     lower: float
     upper: float
@@ -113,13 +116,13 @@ class ChromatgramFeatureizerBase(object):
     def feature_names(self) -> List[str]:
         return ['intercept', 'mass']
 
-    def _get_apex_time(self, chromatogram) -> float:
+    def _get_apex_time(self, chromatogram: ChromatogramType) -> float:
         t = _get_apex_time(chromatogram)
         if self.transform is None:
             return t
         return t - self.transform(chromatogram)
 
-    def _prepare_data_vector(self, chromatogram) -> np.ndarray:
+    def _prepare_data_vector(self, chromatogram: ChromatogramType) -> np.ndarray:
         return np.array([1, chromatogram.weighted_neutral_mass, ])
 
     def _prepare_data_matrix(self, mass_array) -> np.ndarray:
@@ -135,7 +138,7 @@ class ChromatgramFeatureizerBase(object):
 class PredictorBase(object):
     transform = None
 
-    def predict(self, chromatogram) -> float:
+    def predict(self, chromatogram: ChromatogramType) -> float:
         t = self._predict(self._prepare_data_vector(chromatogram))
         if self.transform is None:
             return t
@@ -144,7 +147,7 @@ class PredictorBase(object):
     def _predict(self, x: np.ndarray) -> float:
         return x.dot(self.parameters)
 
-    def predict_interval(self, chromatogram, alpha: float=0.05) -> np.ndarray:
+    def predict_interval(self, chromatogram: ChromatogramType, alpha: float = 0.05) -> np.ndarray:
         x = self._prepare_data_vector(chromatogram)
         return self._predict_interval(x, alpha=alpha)
 
@@ -152,7 +155,7 @@ class PredictorBase(object):
         y = self._predict(x)
         return prediction_interval(self.solution, x, y, alpha=alpha)
 
-    def __call__(self, x) -> float:
+    def __call__(self, x: ChromatogramType) -> float:
         return self.predict(x)
 
 
@@ -342,13 +345,13 @@ class IntervalScoringMixin(object):
                 width = self.width_range.clamp(width)
         return width
 
-    def has_interval_been_thresholded(self, chromatogram, alpha: float=0.05) -> bool:
+    def has_interval_been_thresholded(self, chromatogram: ChromatogramType, alpha: float = 0.05) -> bool:
         interval = self.predict_interval(chromatogram, alpha=alpha)
         width = (interval[1] - interval[0]) / 2.0
         thresholded_width = self._threshold_interval(interval)
         return width > thresholded_width
 
-    def score_interval(self, chromatogram, alpha: float=0.05) -> float:
+    def score_interval(self, chromatogram: ChromatogramType, alpha: float = 0.05) -> float:
         interval = self.predict_interval(chromatogram, alpha=alpha)
         pred = interval.mean()
         delta = abs(chromatogram.apex_time - pred)
@@ -446,7 +449,7 @@ class ElutionTimeFitter(LinearModelBase, ChromatgramFeatureizerBase, ScoringFeat
         self.chromatograms = None
         return self
 
-    def score(self, chromatogram) -> float:
+    def score(self, chromatogram: ChromatogramType) -> float:
         apex = self.predict(chromatogram)
         # Use heavier tails (scale 2) to be more tolerant of larger chromatographic
         # errors.
@@ -565,7 +568,7 @@ class FactorChromatogramFeatureizer(ChromatgramFeatureizerBase):
             np.array([c.glycan_composition[f] for c in self.chromatograms])
             for f in self.factors]).T
 
-    def _prepare_data_vector(self, chromatogram, no_intercept=False) -> np.ndarray:
+    def _prepare_data_vector(self, chromatogram: ChromatogramType, no_intercept=False) -> np.ndarray:
         intercept = 0 if no_intercept else 1
         return np.array(
             [intercept] + [
@@ -600,7 +603,7 @@ class FactorElutionTimeFitter(FactorChromatogramFeatureizer, ElutionTimeFitter):
         super(FactorElutionTimeFitter, self).__setstate__(state)
         self.factors = state['factors']
 
-    def predict_delta_glycan(self, chromatogram, delta_glycan: HashableGlycanComposition) -> float:
+    def predict_delta_glycan(self, chromatogram: ChromatogramType, delta_glycan: HashableGlycanComposition) -> float:
         try:
             shifted = chromatogram.shift_glycan_composition(delta_glycan)
         except AttributeError:
@@ -670,7 +673,7 @@ class FactorElutionTimeFitter(FactorChromatogramFeatureizer, ElutionTimeFitter):
     def clone(self):
         return self.__class__(self.chromatograms, factors=self.factors, scale=self.scale)
 
-    def predict(self, chromatogram, no_intercept=False) -> float:
+    def predict(self, chromatogram: ChromatogramType, no_intercept=False) -> float:
         return self._predict(self._prepare_data_vector(chromatogram, no_intercept=no_intercept))
 
 
@@ -679,7 +682,7 @@ class AbundanceWeightedFactorElutionTimeFitter(AbundanceWeightedMixin, FactorElu
 
 
 class PeptideBackboneKeyedMixin(object):
-    def get_peptide_key(self, chromatogram) -> str:
+    def get_peptide_key(self, chromatogram: ChromatogramType) -> str:
         try:
             return chromatogram.peptide_key
         except AttributeError:
@@ -711,7 +714,7 @@ class PeptideGroupChromatogramFeatureizer(FactorChromatogramFeatureizer, Peptide
         names.extend(self.factors)
         return names
 
-    def _prepare_data_vector(self, chromatogram, no_intercept=False) -> np.ndarray:
+    def _prepare_data_vector(self, chromatogram: ChromatogramType, no_intercept=False) -> np.ndarray:
         p = len(self._peptide_to_indicator)
         peptides = [0 for _ in range(p)]
         indicator = dict(self._peptide_to_indicator)
@@ -741,7 +744,7 @@ class PeptideGroupChromatogramFeatureizer(FactorChromatogramFeatureizer, Peptide
             peptide = self.get_peptide_key(peptide)
         return peptide in self._peptide_to_indicator
 
-    def predict_component_times(self, chromatogram):
+    def predict_component_times(self, chromatogram: ChromatogramType):
         y_gp = self.predict(chromatogram)
         deglyco = chromatogram.copy()
         deglyco.glycan_composition.clear()
@@ -988,7 +991,7 @@ class ModelEnsemble(PeptideBackboneKeyedMixin, IntervalScoringMixin):
         mask = ~np.isnan(predicted_apex_time_array)
         return np.corrcoef(apex_time_array[mask], predicted_apex_time_array[mask])[0, 1] ** 2
 
-    def _models_for(self, chromatogram: Union[Number, ChromatogramInterface, ChromatogramProxy]) -> Iterator[Tuple[ElutionTimeFitter, float]]:
+    def _models_for(self, chromatogram: Union[Number, ChromatogramType]) -> Iterator[Tuple[ElutionTimeFitter, float]]:
         if not isinstance(chromatogram, Number):
             point = chromatogram.apex_time
         else:
@@ -998,7 +1001,7 @@ class ModelEnsemble(PeptideBackboneKeyedMixin, IntervalScoringMixin):
                 weight = abs(model.centroid - point) + 1
                 yield model, 1.0 / weight
 
-    def models_for(self, chromatogram: Union[Number, ChromatogramInterface, ChromatogramProxy]) -> List[Tuple[ElutionTimeFitter, float]]:
+    def models_for(self, chromatogram: Union[Number, ChromatogramType]) -> List[Tuple[ElutionTimeFitter, float]]:
         return list(self._models_for(chromatogram))
 
     def coverage_for(self, chromatogram) -> float:
@@ -1010,10 +1013,10 @@ class ModelEnsemble(PeptideBackboneKeyedMixin, IntervalScoringMixin):
         coverage = np.dot(refs, weights) / np.sum(weights)
         return coverage
 
-    def has_peptide(self, chromatogram) -> bool:
+    def has_peptide(self, chromatogram: ChromatogramType) -> bool:
         return any(m.has_peptide(chromatogram) for m in self._models)
 
-    def estimate_query_point(self, glycopeptide) -> GlycopeptideChromatogramProxy:
+    def estimate_query_point(self, glycopeptide: Union[str, PeptideSequence, ChromatogramType]) -> GlycopeptideChromatogramProxy:
         if isinstance(glycopeptide, str):
             key = str(PeptideSequence(glycopeptide).deglycosylate())
             glycopeptide = PeptideSequence(glycopeptide)
@@ -1036,7 +1039,7 @@ class ModelEnsemble(PeptideBackboneKeyedMixin, IntervalScoringMixin):
         case.apex_time = query_point
         return case
 
-    def predict_interval_external_peptide(self, chromatogram, alpha=0.05, merge=True) -> List[float]:
+    def predict_interval_external_peptide(self, chromatogram: ChromatogramType, alpha=0.05, merge=True) -> List[float]:
         key = self.get_peptide_key(chromatogram)
         offset = self.external_peptide_offsets[key]
         interval = self.predict_interval(chromatogram, alpha=alpha, merge=merge)
@@ -1046,7 +1049,7 @@ class ModelEnsemble(PeptideBackboneKeyedMixin, IntervalScoringMixin):
             interval = [iv + offset for iv in interval]
         return interval
 
-    def predict_interval(self, chromatogram, alpha=0.05, merge=True, check_peptide=True) -> np.ndarray:
+    def predict_interval(self, chromatogram: ChromatogramType, alpha=0.05, merge=True, check_peptide=True) -> np.ndarray:
         weights = []
         preds = []
         for mod, w in self._models_for(chromatogram):
@@ -1072,7 +1075,7 @@ class ModelEnsemble(PeptideBackboneKeyedMixin, IntervalScoringMixin):
             return avg
         return preds, weights
 
-    def predict(self, chromatogram, merge=True, check_peptide=True) -> Union[float, Tuple[np.ndarray, np.ndarray]]:
+    def predict(self, chromatogram: ChromatogramType, merge=True, check_peptide=True) -> Union[float, Tuple[np.ndarray, np.ndarray]]:
         weights = []
         preds = []
         for mod, w in self._models_for(chromatogram):
@@ -1089,7 +1092,7 @@ class ModelEnsemble(PeptideBackboneKeyedMixin, IntervalScoringMixin):
             return avg
         return np.array(preds), weights
 
-    def score(self, chromatogram, merge=True) -> Union[float, Tuple[np.ndarray, np.ndarray]]:
+    def score(self, chromatogram: ChromatogramType, merge=True) -> Union[float, Tuple[np.ndarray, np.ndarray]]:
         weights = []
         preds = []
         for mod, w in self._models_for(chromatogram):
@@ -1167,7 +1170,7 @@ class ModelEnsemble(PeptideBackboneKeyedMixin, IntervalScoringMixin):
         ax.set_xlabel("Time", size=14)
         return ax
 
-    def plot_factor_coefficients(self, ax=None):
+    def plot_factor_coefficients(self, ax=None, weight_by_obs=False):
         if ax is None:
             _fig, ax = plt.subplots(1)
         from glycan_profiling.plotting.colors import get_color
@@ -1188,13 +1191,12 @@ class ModelEnsemble(PeptideBackboneKeyedMixin, IntervalScoringMixin):
                 ci_i = param_ci[i]
                 d = (ci_i[1] - ci_i[0]) / 2
                 ci.append(d)
-                weights.append(weight)
+                weights.append(weight * len(mod.apex_time_array) if weight_by_obs else weight)
             if not weights:
                 return 0.0, 0.0
             return np.average(val, weights=weights), np.average(ci, weights=weights)
 
-        times = np.arange(self._models[0].start_time,
-                          self._models[-1].end_time, 1)
+        times = np.arange(self._models[0].start_time, self._models[-1].end_time, 1)
         factors = set()
         for x in self.models.values():
             factors.update(x.factors)
@@ -1258,7 +1260,7 @@ class ModelEnsemble(PeptideBackboneKeyedMixin, IntervalScoringMixin):
         mean_error = np.nanmean(error_from_nearest_interval_edge)
         return mean_error
 
-    def _reconstitute_proxies(self):
+    def _reconstitute_proxies(self) -> List[GlycopeptideChromatogramProxy]:
         proxies = []
 
         summary_values = self._summary_statistics
