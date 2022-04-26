@@ -424,7 +424,8 @@ def search_glycopeptide_multipart(context, database_connection, decoy_database_c
         fragile_fucose=False,
         rare_signatures=rare_signatures,
         evaluation_kwargs=evaluation_kwargs,
-        )
+        model_retention_time=retention_time_modeling,
+    )
     analyzer.display_header()
     result = analyzer.start()
     gps, unassigned, target_decoy_set = result[:3]
