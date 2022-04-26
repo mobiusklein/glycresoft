@@ -10,7 +10,8 @@ from .spectrum_graph import ScanGraph
 
 
 # This number is overriden in spectrum_evaluation
-DEFAULT_WORKLOAD_MAX = 25e6
+# DEFAULT_WORKLOAD_MAX = 25e6
+DEFAULT_WORKLOAD_MAX = -1
 DEFAULT_WORKLOAD_MAX = float(os.environ.get("GLYCRESOFTDEFAULTWORKLOADMAX", DEFAULT_WORKLOAD_MAX))
 
 
