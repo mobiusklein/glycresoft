@@ -367,9 +367,9 @@ class FragmentCachingGlycopeptide(PeptideSequence):
 
     def get_fragments(self, *args, **kwargs) -> List[PeptideFragment]:  # pylint: disable=arguments-differ
         key = self.fragment_caches.peptide_backbone_fragment_key(self, args, kwargs)
-        try:
+        if key in self.fragment_caches:
             return self.fragment_caches[key]
-        except KeyError:
+        else:
             result = list(super(FragmentCachingGlycopeptide, self).get_fragments(*args, **kwargs))
             self.fragment_caches[key] = result
             return result
@@ -377,9 +377,9 @@ class FragmentCachingGlycopeptide(PeptideSequence):
     def stub_fragments(self, *args, **kwargs) -> List[StubFragment]:  # pylint: disable=arguments-differ
         kwargs.setdefault("strategy", CachingStubGlycopeptideStrategy)
         key = self.fragment_caches.stub_fragment_key(self, args, kwargs)
-        try:
+        if key in self.fragment_caches:
             return self.fragment_caches[key]
-        except KeyError:
+        else:
             result = super(FragmentCachingGlycopeptide, self).stub_fragments(*args, **kwargs).stub_fragments()
             self.fragment_caches[key] = result
             return result
@@ -563,9 +563,9 @@ class DecoyFragmentCachingGlycopeptide(FragmentCachingGlycopeptide):
     def stub_fragments(self, *args, **kwargs):
         kwargs.setdefault("strategy", CachingStubGlycopeptideStrategy)
         key = self.fragment_caches.stub_fragment_key(self, args, kwargs)
-        try:
+        if key in self.fragment_caches:
             return self.fragment_caches[key]
-        except KeyError:
+        else:
             result = list(
                 # Directly call the superclass method of FragmentCachingGlycopeptide as we
                 # do not need to go through a preliminary round of cache key construction and
