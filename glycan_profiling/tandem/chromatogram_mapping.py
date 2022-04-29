@@ -1,5 +1,6 @@
 import os
 import array
+import logging
 
 from collections import defaultdict
 from typing import Any, Callable, Collection, DefaultDict, Dict, Hashable, List, Optional, Set, Tuple, NamedTuple, Type, Union
@@ -31,6 +32,8 @@ from .spectrum_match.solution_set import NOParsimonyMixin, SpectrumMatch, Spectr
 
 DEBUG_MODE = bool(os.environ.get('GLYCRESOFTCHROMATOGRAMDEBUG', False))
 
+logger = logging.getLogger("glycresoft.chromatogram_mapping")
+logger.addHandler(logging.NullHandler())
 
 def always(x):
     return True
@@ -209,7 +212,7 @@ class RepresenterSelectionStrategy(object):
         pass
 
     def compute_weights(self, collection: 'SpectrumMatchSolutionCollectionBase', threshold_fn: Callable = always,
-                        reject_shifted: bool = False, targets_ignored: Collection = None) -> List[SolutionEntry]:
+                        reject_shifted: bool = False, targets_ignored: Collection = None, require_valid: bool=True) -> List[SolutionEntry]:
         raise NotImplementedError()
 
     def select(self, representers):
@@ -219,25 +222,38 @@ class RepresenterSelectionStrategy(object):
         return parsimony_sort(representers)
 
     def get_solutions_for_spectrum(self, solution_set: SpectrumSolutionSet, threshold_fn: Callable=always,
-                                   reject_shifted: bool=False, targets_ignored: Collection=None):
+                                   reject_shifted: bool=False, targets_ignored: Collection=None, require_valid: bool=True):
         return filter(lambda x: x.valid, solution_set.get_top_solutions(
-            d=5, reject_shifted=reject_shifted, targets_ignored=targets_ignored))
+            d=5,
+            reject_shifted=reject_shifted,
+            targets_ignored=targets_ignored,
+            require_valid=require_valid))
 
     def __call__(self, collection, threshold_fn: Callable=always, reject_shifted: bool=False,
-                 targets_ignored: Collection = None) -> List[SolutionEntry]:
+                 targets_ignored: Collection = None, require_valid: bool=True) -> List[SolutionEntry]:
         return self.compute_weights(
-            collection, threshold_fn=threshold_fn, reject_shifted=reject_shifted, targets_ignored=targets_ignored)
+            collection,
+            threshold_fn=threshold_fn,
+            reject_shifted=reject_shifted,
+            targets_ignored=targets_ignored,
+            require_valid=require_valid)
 
 
 class TotalBestRepresenterStrategy(RepresenterSelectionStrategy):
     def compute_weights(self, collection: 'SpectrumMatchSolutionCollectionBase', threshold_fn: Callable = always,
-                        reject_shifted: bool = False, targets_ignored: Collection = None) -> List[SolutionEntry]:
+                        reject_shifted: bool = False, targets_ignored: Collection = None, require_valid: bool = True) -> List[SolutionEntry]:
         scores = defaultdict(float)
         best_scores = defaultdict(float)
         best_spectrum_match = dict()
         for psm in collection.tandem_solutions:
             if threshold_fn(psm):
-                for sol in self.get_solutions_for_spectrum(psm, reject_shifted=reject_shifted, targets_ignored=targets_ignored):
+                sols = list(self.get_solutions_for_spectrum(
+                    psm,
+                    reject_shifted=reject_shifted,
+                    targets_ignored=targets_ignored,
+                    require_valid=require_valid)
+                )
+                for sol in sols:
                     if not threshold_fn(sol):
                         continue
                     if reject_shifted and sol.mass_shift != Unmodified:
@@ -246,6 +262,18 @@ class TotalBestRepresenterStrategy(RepresenterSelectionStrategy):
                     if best_scores[sol.target] < sol.score:
                         best_scores[sol.target] = sol.score
                         best_spectrum_match[sol.target] = sol
+
+        if len(scores) == 0 and require_valid:
+            logger.warning(
+                f"Failed to find a valid solution for {self}, falling back to previously disqualified solutions")
+            return self.compute_weights(
+                collection,
+                threshold_fn=threshold_fn,
+                reject_shifted=reject_shifted,
+                targets_ignored=targets_ignored,
+                require_valid=False
+            )
+
         total = sum(scores.values())
         weights = [
             SolutionEntry(k, v, v / total, best_scores[k],
@@ -258,13 +286,19 @@ class TotalBestRepresenterStrategy(RepresenterSelectionStrategy):
 
 class TotalAboveAverageBestRepresenterStrategy(RepresenterSelectionStrategy):
     def compute_weights(self, collection: 'SpectrumMatchSolutionCollectionBase', threshold_fn: Callable=always,
-                        reject_shifted: bool=False, targets_ignored: Collection=None) -> List[SolutionEntry]:
+                        reject_shifted: bool = False, targets_ignored: Collection = None, require_valid: bool = True) -> List[SolutionEntry]:
         scores = defaultdict(lambda: array.array('d'))
         best_scores = defaultdict(float)
         best_spectrum_match = dict()
         for psm in collection.tandem_solutions:
             if threshold_fn(psm):
-                for sol in self.get_solutions_for_spectrum(psm, reject_shifted=reject_shifted, targets_ignored=targets_ignored):
+                sols = self.get_solutions_for_spectrum(
+                    psm,
+                    reject_shifted=reject_shifted,
+                    targets_ignored=targets_ignored,
+                    require_valid=require_valid
+                )
+                for sol in sols:
                     if not threshold_fn(sol):
                         continue
                     if reject_shifted and sol.mass_shift != Unmodified:
@@ -273,6 +307,17 @@ class TotalAboveAverageBestRepresenterStrategy(RepresenterSelectionStrategy):
                     if best_scores[sol.target] < sol.score:
                         best_scores[sol.target] = sol.score
                         best_spectrum_match[sol.target] = sol
+
+        if len(scores) == 0 and require_valid:
+            logger.warning(f"Failed to find a valid solution for {self}, falling back to previously disqualified solutions")
+            return self.compute_weights(
+                collection,
+                threshold_fn=threshold_fn,
+                reject_shifted=reject_shifted,
+                targets_ignored=targets_ignored,
+                require_valid=require_valid
+            )
+
         population = np.concatenate(list(scores.values()))
         min_score = np.mean(population) - np.std(population)
         scores = {k: np.array(v) for k, v in scores.items()}

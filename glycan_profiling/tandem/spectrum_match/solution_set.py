@@ -490,7 +490,7 @@ class SpectrumSolutionSet(ScanWrapperBase):
         """
         return self.best_solution().precursor_mass_accuracy()
 
-    def best_solution(self, reject_shifted=False, targets_ignored=None) -> SpectrumMatch:
+    def best_solution(self, reject_shifted=False, targets_ignored=None, require_valid=True) -> SpectrumMatch:
         """The :class:`SpectrumMatchBase` in :attr:`solutions` which
         is the best match to :attr:`scan`, the match at position 0.
 
@@ -517,7 +517,7 @@ class SpectrumSolutionSet(ScanWrapperBase):
                 if solution.valid:
                     return solution
         for solution in self:
-            if (solution.mass_shift == Unmodified or not reject_shifted) and (solution.target in targets_ignored or not targets_ignored) and solution.valid:
+            if (solution.mass_shift == Unmodified or not reject_shifted) and (solution.target in targets_ignored or not targets_ignored) and (solution.valid or not require_valid):
                 return solution
 
     def mark_top_solutions(self, reject_shifted=False, targets_ignored=None) -> 'SpectrumSolutionSet':
@@ -582,7 +582,7 @@ class SpectrumSolutionSet(ScanWrapperBase):
         self._is_simplified = True
         self._invalidate()
 
-    def get_top_solutions(self, d=3, reject_shifted=False, targets_ignored=None) -> List[SpectrumMatch]:
+    def get_top_solutions(self, d=3, reject_shifted=False, targets_ignored=None, require_valid=True) -> List[SpectrumMatch]:
         """Get all matches within `d` of the best solution
 
         Parameters
@@ -601,11 +601,23 @@ class SpectrumSolutionSet(ScanWrapperBase):
         list
         """
         best = self.best_solution(
-            reject_shifted=reject_shifted, targets_ignored=targets_ignored)
+            reject_shifted=reject_shifted, targets_ignored=targets_ignored, require_valid=require_valid)
         if best is None and reject_shifted:
-            return self.get_top_solutions(d, reject_shifted=False, targets_ignored=targets_ignored)
+            return self.get_top_solutions(
+                d,
+                reject_shifted=False,
+                targets_ignored=targets_ignored,
+                require_valid=require_valid
+            )
         if best is None and targets_ignored:
-            return self.get_top_solutions(d, reject_shifted=reject_shifted, targets_ignored=None)
+            return self.get_top_solutions(
+                d,
+                reject_shifted=reject_shifted,
+                targets_ignored=None,
+                require_valid=require_valid
+            )
+        if best is None:
+            return []
         best_score = best.score
         if reject_shifted:
             return [x for x in self.solutions if (best_score - x.score) < d and x.mass_shift == Unmodified]

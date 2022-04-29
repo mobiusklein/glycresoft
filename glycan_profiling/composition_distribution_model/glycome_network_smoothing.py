@@ -409,6 +409,7 @@ def smooth_network(network, observed_compositions, threshold_step=0.5, apex_thre
         belongingness_matrix=belongingness_matrix,
         observation_aggregator=observation_aggregator,
         belongingness_normalization=belongingness_normalization)
+    # Deadlock?
     logger.info("... Begin Model Fitting")
     if model_state is None:
         reduction = model.find_threshold_and_lambda(
