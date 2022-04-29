@@ -263,16 +263,19 @@ class TotalBestRepresenterStrategy(RepresenterSelectionStrategy):
                         best_scores[sol.target] = sol.score
                         best_spectrum_match[sol.target] = sol
 
-        if len(scores) == 0 and require_valid:
-            logger.warning(
-                f"Failed to find a valid solution for {collection}, falling back to previously disqualified solutions")
-            return self.compute_weights(
+        if len(scores) == 0 and require_valid and collection.tandem_solutions:
+            weights = self.compute_weights(
                 collection,
                 threshold_fn=threshold_fn,
                 reject_shifted=reject_shifted,
                 targets_ignored=targets_ignored,
                 require_valid=False
             )
+            if weights:
+                logger.warning(
+                    f"Failed to find a valid solution for {collection.tandem_solutions}, falling back to previously disqualified solutions")
+            return weights
+
 
         total = sum(scores.values())
         weights = [
@@ -308,16 +311,18 @@ class TotalAboveAverageBestRepresenterStrategy(RepresenterSelectionStrategy):
                         best_scores[sol.target] = sol.score
                         best_spectrum_match[sol.target] = sol
 
-        if len(scores) == 0 and require_valid:
-            logger.warning(
-                f"Failed to find a valid solution for {collection}, falling back to previously disqualified solutions")
-            return self.compute_weights(
+        if len(scores) == 0 and require_valid and collection.tandem_solutions:
+            weights = self.compute_weights(
                 collection,
                 threshold_fn=threshold_fn,
                 reject_shifted=reject_shifted,
                 targets_ignored=targets_ignored,
-                require_valid=require_valid
+                require_valid=False
             )
+            if weights:
+                logger.warning(
+                    f"Failed to find a valid solution for {collection.tandem_solutions}, falling back to previously disqualified solutions")
+            return weights
 
         population = np.concatenate(list(scores.values()))
         min_score = np.mean(population) - np.std(population)
@@ -364,7 +369,8 @@ class SpectrumMatchSolutionCollectionBase(object):
         """
         if strategy is None:
             strategy = TotalBestRepresenterStrategy()
-        weights = strategy(self, threshold_fn=threshold_fn, targets_ignored=targets_ignored)
+        weights = strategy(self, threshold_fn=threshold_fn,
+                           reject_shifted=reject_shifted, targets_ignored=targets_ignored)
         return weights
 
     def filter_entries(self, entries: List[SolutionEntry], percentile_threshold: float = 1e-5) -> List[SolutionEntry]:
