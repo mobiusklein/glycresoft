@@ -530,6 +530,9 @@ class SpectrumSolutionSet(ScanWrapperBase):
             return self.mark_top_solutions(
                 reject_shifted=reject_shifted, targets_ignored=None)
         if solution is None and not reject_shifted and not targets_ignored:
+            logger.warn(f"Could not mark a top solution for {self.scan_id} (not reject shifted and not targets ignore)")
+            return self
+        if solution is None:
             logger.warn(f"Could not mark a top solution for {self.scan_id}")
             return self
         solution.best_match = True
