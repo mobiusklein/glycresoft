@@ -265,7 +265,7 @@ class TotalBestRepresenterStrategy(RepresenterSelectionStrategy):
 
         if len(scores) == 0 and require_valid:
             logger.warning(
-                f"Failed to find a valid solution for {self}, falling back to previously disqualified solutions")
+                f"Failed to find a valid solution for {collection}, falling back to previously disqualified solutions")
             return self.compute_weights(
                 collection,
                 threshold_fn=threshold_fn,
@@ -309,7 +309,8 @@ class TotalAboveAverageBestRepresenterStrategy(RepresenterSelectionStrategy):
                         best_spectrum_match[sol.target] = sol
 
         if len(scores) == 0 and require_valid:
-            logger.warning(f"Failed to find a valid solution for {self}, falling back to previously disqualified solutions")
+            logger.warning(
+                f"Failed to find a valid solution for {collection}, falling back to previously disqualified solutions")
             return self.compute_weights(
                 collection,
                 threshold_fn=threshold_fn,
