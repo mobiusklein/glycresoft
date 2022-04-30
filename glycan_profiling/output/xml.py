@@ -1,19 +1,20 @@
+import io
 import os
 import re
 import bisect
 
 from collections import defaultdict, OrderedDict, namedtuple, deque
+from typing import Any, Set, List, Union, Dict, Optional
 
 from brainpy import mass_charge_ratio
 
-import glypy
 from glypy.composition import formula
 from glypy.io.nomenclature import identity
 from glypy.structure.glycan_composition import (
     MonosaccharideResidue,
     FrozenMonosaccharideResidue, SubstituentResidue, FrozenGlycanComposition)
 
-from glycopeptidepy.structure import parser, modification
+from glycopeptidepy.structure import parser, modification, PeptideSequence
 
 from psims.mzid import components
 from psims.mzid.writer import MzIdentMLWriter
@@ -24,6 +25,11 @@ from ms_deisotope.output import mzml
 from glycan_profiling import task, serialize, version
 from glycan_profiling.chromatogram_tree import Unmodified
 from glycan_profiling.chromatogram_tree.chromatogram import group_by
+from glycan_profiling.structure import FragmentCachingGlycopeptide
+
+
+GlycopeptideType = Union[PeptideSequence, FragmentCachingGlycopeptide, serialize.Glycopeptide]
+Props = Dict[str, Any]
 
 
 class mass_term_pair(namedtuple("mass_term_pair", ('mass', 'term'))):
@@ -221,30 +227,31 @@ class GNOmeResolver(object):
         return out
 
 
-def convert_to_protein_dict(protein, include_sequence=True):
-    data = {
-        "id": protein.id,
-        "accession": protein.name,
-        "search_database_id": 1,
-    }
-    if include_sequence:
-        data["sequence"] = protein.protein_sequence
-    return data
+class SequenceIdTracker(object):
+    mapping: Dict[str, int]
+
+    def __init__(self):
+        self.mapping = dict()
+
+    def convert(self, glycopeptide: GlycopeptideType) -> int:
+        s = str(glycopeptide)
+        if s in self.mapping:
+            return self.mapping[s]
+        else:
+            self.mapping[s] = glycopeptide.id
+            return self.mapping[s]
+
+    def __call__(self, glycopeptide: GlycopeptideType) -> int:
+        return self.convert(glycopeptide)
+
+    def dump(self):
+        for key, value in self.mapping.items():
+            print(value, key)
 
 
-def convert_to_peptide_evidence_dict(glycopeptide, id_tracker):
-    data = {
-        "start_position": glycopeptide.protein_relation.start_position,
-        "end_position": glycopeptide.protein_relation.end_position,
-        "peptide_id": id_tracker(glycopeptide),
-        "db_sequence_id": glycopeptide.protein_relation.protein_id,
-        "is_decoy": False,
-        "id": glycopeptide.id
-    }
-    return data
-
-
-def convert_to_identification_item_dict(spectrum_match, seen=None, id_tracker=None):
+def convert_to_identification_item_dict(spectrum_match: serialize.GlycopeptideSpectrumMatch,
+                                        seen: Optional[Set[int]]=None,
+                                        id_tracker: Optional[SequenceIdTracker]=None) -> Props:
     if seen is None:
         seen = set()
     charge = spectrum_match.scan.precursor_information.charge
@@ -312,7 +319,9 @@ def convert_to_identification_item_dict(spectrum_match, seen=None, id_tracker=No
     return data
 
 
-def convert_to_spectrum_identification_dict(spectrum_solution_set, seen=None, id_tracker=None):
+def convert_to_spectrum_identification_dict(spectrum_solution_set: serialize.GlycopeptideSpectrumSolutionSet,
+                                            seen: Optional[Set[int]]=None,
+                                            id_tracker: Optional[SequenceIdTracker]=None) -> Props:
     data = {
         "spectra_data_id": 1,
         "spectrum_id": spectrum_solution_set.scan.scan_id,
@@ -395,26 +404,6 @@ class MzMLExporter(task.TaskBase):
         self.writer.format()
 
 
-class SequenceIdTracker(object):
-    def __init__(self):
-        self.mapping = dict()
-
-    def convert(self, glycopeptide):
-        s = str(glycopeptide)
-        if s in self.mapping:
-            return self.mapping[s]
-        else:
-            self.mapping[s] = glycopeptide.id
-            return self.mapping[s]
-
-    def __call__(self, glycopeptide):
-        return self.convert(glycopeptide)
-
-    def dump(self):
-        for key, value in self.mapping.items():
-            print(value, key)
-
-
 glycosylation_type_to_term_map = {
     "N-Linked": {
         "name": "N-glycan",
@@ -442,25 +431,65 @@ def glycosylation_type_to_term(glycosylation_type):
 
 
 class MzIdentMLSerializer(task.TaskBase):
-    def __init__(self, outfile, glycopeptide_list, analysis, database_handle,
-                 q_value_threshold=0.05, ms2_score_threshold=0,
-                 export_mzml=True, source_mzml_path=None,
-                 output_mzml_path=None, embed_protein_sequences=True):
+    outfile: Union[os.PathLike, io.IOBase]
+
+    analysis: serialize.Analysis
+    database_handle: serialize.DatabaseBoundOperation
+    gnome_resolver: GNOmeResolver
+
+    _id_tracker: SequenceIdTracker
+    _glycopeptide_list: List[serialize.IdentifiedGlycopeptide]
+    _peptide_evidence: List[Props]
+
+    protein_list: List[serialize.Protein]
+    glycan_list: List[serialize.GlycanCombination]
+
+    scan_ids: Set[str]
+
+    q_value_threshold: float
+    ms2_score_threshold: float
+
+    export_mzml: bool
+    source_mzml_path: Optional[os.PathLike]
+    output_mzml_path: Optional[os.PathLike]
+
+    embed_protein_sequences: bool
+    report_top_match_per_glycopeptide: bool
+
+    def __init__(self, outfile: Union[os.PathLike, io.IOBase],
+                 glycopeptide_list: List[serialize.IdentifiedGlycopeptide],
+                 analysis: serialize.Analysis,
+                 database_handle: serialize.DatabaseBoundOperation,
+                 q_value_threshold: float=0.05,
+                 ms2_score_threshold: float=0,
+                 export_mzml: bool=True,
+                 source_mzml_path: Optional[os.PathLike]=None,
+                 output_mzml_path: Optional[os.PathLike]=None,
+                 embed_protein_sequences: bool=True,
+                 report_top_match_per_glycopeptide: bool=True):
+
         self.outfile = outfile
+
         self.database_handle = database_handle
-        self._glycopeptide_list = glycopeptide_list
-        self.protein_list = None
-        self.glycan_list = None
         self.analysis = analysis
+        self.gnome_resolver = GNOmeResolver()
+
+        self._glycopeptide_list = glycopeptide_list
+        self.protein_list = []
+        self.glycan_list = []
+        self._peptide_evidence = []
         self.scan_ids = set()
         self._id_tracker = SequenceIdTracker()
+
         self.q_value_threshold = q_value_threshold
         self.ms2_score_threshold = ms2_score_threshold
+
         self.export_mzml = export_mzml
         self.source_mzml_path = source_mzml_path
         self.output_mzml_path = output_mzml_path
+
+        self.report_top_match_per_glycopeptide = report_top_match_per_glycopeptide
         self.embed_protein_sequences = embed_protein_sequences
-        self.gnome_resolver = GNOmeResolver()
 
     def _coerce_orm(self, obj):
         if isinstance(obj, serialize.Base):
@@ -477,7 +506,7 @@ class MzIdentMLSerializer(task.TaskBase):
     def extract_glycans(self):
         self.glycan_list = self.database_handle.query(serialize.GlycanCombination).all()
 
-    def convert_to_peptide_dict(self, glycopeptide, id_tracker):
+    def convert_to_peptide_dict(self, glycopeptide: GlycopeptideType, id_tracker: SequenceIdTracker) -> Props:
         data = {
             "id": glycopeptide.id,
             "peptide_sequence": parser.strip_modifications(glycopeptide),
@@ -572,6 +601,114 @@ class MzIdentMLSerializer(task.TaskBase):
                 data['modifications'].append(mod_dict)
         return data
 
+    def convert_to_identification_item_dict(self, spectrum_match: serialize.GlycopeptideSpectrumMatch,
+                                            seen_targets: Optional[Set[int]] = None,
+                                            id_tracker: Optional[SequenceIdTracker] = None) -> Props:
+        if seen_targets is None:
+            seen_targets = set()
+        if spectrum_match.target.id not in seen_targets:
+            return None
+        charge = spectrum_match.scan.precursor_information.charge
+        data = {
+            "charge_state": charge,
+            "experimental_mass_to_charge": mass_charge_ratio(
+                spectrum_match.scan.precursor_information.neutral_mass, charge),
+            "calculated_mass_to_charge": mass_charge_ratio(
+                spectrum_match.target.total_mass, charge),
+            "peptide_id": id_tracker(spectrum_match.target),
+            "peptide_evidence_id": spectrum_match.target.id,
+            "score": mparam({
+                "name": "GlycReSoft:total score",
+                "value": spectrum_match.score,
+                "accession": "MS:XXX10A",
+            }),
+            "params": [
+                components.CVParam(**{
+                    "name": "glycan dissociating, peptide preserving",
+                    "accession": "MS:XXX111", "cvRef": "PSI-MS"}),
+                components.CVParam(**{
+                    "name": "glycan eliminated, peptide dissociating",
+                    "accession": "MS:XXX114", "cvRef": "PSI-MS"}),
+                {
+                    "name": "scan start time",
+                    "value": spectrum_match.scan.scan_time,
+                    "unit_name": "minute"
+                }
+            ],
+            "id": spectrum_match.id
+        }
+        if spectrum_match.is_multiscore():
+            score_params = [
+                mparam("GlycReSoft:peptide score",
+                    spectrum_match.score_set.peptide_score, "MS:XXX10C"),
+                mparam("GlycReSoft:glycan score",
+                    spectrum_match.score_set.glycan_score, "MS:XXX10B"),
+                mparam("GlycReSoft:glycan coverage",
+                    spectrum_match.score_set.glycan_coverage, "MS:XXX10H"),
+                mparam("GlycReSoft:joint q-value",
+                    spectrum_match.q_value, "MS:XXX10G"),
+                mparam("GlycReSoft:peptide q-value",
+                    spectrum_match.q_value_set.peptide_q_value,
+                    "MS:XXX10E"),
+                mparam("GlycReSoft:glycan q-value",
+                    spectrum_match.q_value_set.glycan_q_value, "MS:XXX10F"),
+                mparam("GlycReSoft:glycopeptide q-value",
+                    spectrum_match.q_value_set.glycopeptide_q_value, "MS:XXX10D"),
+            ]
+            data['params'].extend(score_params)
+        else:
+            data['params'].extend([
+                mparam("GlycReSoft:glycopeptide q-value",
+                    spectrum_match.q_value, "MS:XXX10D"),
+            ])
+        if spectrum_match.mass_shift.name != Unmodified.name:
+            data['params'].append(
+                mparam("GlycReSoft:mass shift", "%s:%0.3f:%0.3f" % (
+                    spectrum_match.mass_shift.name,
+                    spectrum_match.mass_shift.mass,
+                    spectrum_match.mass_shift.tandem_mass),
+                    "MS:XXX10I"))
+        return data
+
+    def convert_to_spectrum_identification_dict(self, spectrum_solution_set: serialize.GlycopeptideSpectrumSolutionSet,
+                                                seen_targets: Optional[Set[int]] = None,
+                                                id_tracker: Optional[SequenceIdTracker] = None) -> Props:
+        data = {
+            "spectra_data_id": 1,
+            "spectrum_id": spectrum_solution_set.scan.scan_id,
+            "id": spectrum_solution_set.id
+        }
+        idents = []
+        for item in spectrum_solution_set:
+            d = self.convert_to_identification_item_dict(
+                item, seen_targets=seen_targets, id_tracker=id_tracker)
+            if d is None:
+                continue
+            idents.append(d)
+        data['identifications'] = idents
+        return data
+
+    def convert_to_peptide_evidence_dict(glycopeptide: GlycopeptideType, id_tracker: SequenceIdTracker) -> Props:
+        data = {
+            "start_position": glycopeptide.protein_relation.start_position,
+            "end_position": glycopeptide.protein_relation.end_position,
+            "peptide_id": id_tracker(glycopeptide),
+            "db_sequence_id": glycopeptide.protein_relation.protein_id,
+            "is_decoy": False,
+            "id": glycopeptide.id
+        }
+        return data
+
+    def convert_to_protein_dict(self, protein: serialize.Protein, include_sequence: bool = True) -> Props:
+        data = {
+            "id": protein.id,
+            "accession": protein.name,
+            "search_database_id": 1,
+        }
+        if include_sequence:
+            data["sequence"] = protein.protein_sequence
+        return data
+
     def extract_peptides(self):
         self.log("Extracting Proteins")
         self.extract_proteins()
@@ -588,12 +725,12 @@ class MzIdentMLSerializer(task.TaskBase):
 
         self.log("Extracting PeptideEvidence")
         self._peptide_evidence = [
-            convert_to_peptide_evidence_dict(
+            self.convert_to_peptide_evidence_dict(
                 gp.structure, self._id_tracker) for gp in self.glycopeptide_list
         ]
 
         self._proteins = [
-            convert_to_protein_dict(prot, self.embed_protein_sequences)
+            self.convert_to_protein_dict(prot, self.embed_protein_sequences)
             for prot in self.protein_list
         ]
 
@@ -617,18 +754,19 @@ class MzIdentMLSerializer(task.TaskBase):
                 if solution.score < self.ms2_score_threshold:
                     continue
                 seen_scans.add(solution.scan.scan_id)
-                d = convert_to_spectrum_identification_dict(
+                d = self.convert_to_spectrum_identification_dict(
                     solution, seen=accepted_solution_ids,
                     id_tracker=self._id_tracker)
                 if len(d['identifications']):
                     spectrum_identifications.append(d)
+
         self.scan_ids = seen_scans
         self._spectrum_identification_list = {
             "id": 1,
             "identification_results": spectrum_identifications
         }
 
-    def software_entry(self):
+    def software_entry(self) -> List[Props]:
         software = {
             "name": "GlycReSoft",
             "version": version.version,
@@ -636,7 +774,7 @@ class MzIdentMLSerializer(task.TaskBase):
         }
         return [software]
 
-    def search_database(self):
+    def search_database(self) -> Props:
         hypothesis = self.analysis.hypothesis
         spec = {
             "name": hypothesis.name,
@@ -650,7 +788,7 @@ class MzIdentMLSerializer(task.TaskBase):
             spec['file_format'] = 'mzIdentML format'
         return spec
 
-    def source_file(self):
+    def source_file(self) -> Props:
         spec = {
             "location": self.database_handle._original_connection,
             "file_format": "data stored in database",
@@ -658,7 +796,7 @@ class MzIdentMLSerializer(task.TaskBase):
         }
         return spec
 
-    def spectra_data(self):
+    def spectra_data(self) -> Props:
         spec = {
             "location": self.analysis.parameters['sample_path'],
             "file_format": 'mzML format',
@@ -667,7 +805,7 @@ class MzIdentMLSerializer(task.TaskBase):
         }
         return spec
 
-    def protocol(self):
+    def protocol(self) -> Props:
         hypothesis = self.analysis.hypothesis
         analysis = self.analysis
         mods = []
