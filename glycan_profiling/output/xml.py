@@ -462,6 +462,11 @@ class MzIdentMLSerializer(task.TaskBase):
         self.embed_protein_sequences = embed_protein_sequences
         self.gnome_resolver = GNOmeResolver()
 
+    def _coerce_orm(self, obj):
+        if isinstance(obj, serialize.Base):
+            obj = obj.convert()
+        return obj
+
     @property
     def glycopeptide_list(self):
         return self._glycopeptide_list
@@ -479,9 +484,11 @@ class MzIdentMLSerializer(task.TaskBase):
             "modifications": []
         }
 
+        glycopeptide = self._coerce_orm(glycopeptide)
+
         i = 0
         # TODO: handle N-terminal and C-terminal modifications
-        glycosylation_event_count = len(glycopeptide.convert().glycosylation_manager)
+        glycosylation_event_count = len(glycopeptide.glycosylation_manager)
         glycosylation_events_handled = 0
         for _pos, mods in glycopeptide:
             i += 1
@@ -686,7 +693,7 @@ class MzIdentMLSerializer(task.TaskBase):
             return mod_spec
 
         def pack_glycan_modification(glycan_composition, fixed=False):
-            params = self.gnome_resolver.glycan_composition_to_terms(glycan_composition.convert())
+            params = self.gnome_resolver.glycan_composition_to_terms(self._coerce_orm(glycan_composition))
             glycan_types = sorted({str(b) for a in glycan_composition.component_classes for b in a})
             residues = []
             for gt in glycan_types:
