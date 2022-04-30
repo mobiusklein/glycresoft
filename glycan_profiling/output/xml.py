@@ -666,7 +666,7 @@ class MzIdentMLSerializer(task.TaskBase):
         mods = []
 
         def transform_modification(mod):
-            if isinstance(mod, basestring):
+            if isinstance(mod, str):
                 mod_inst = modification.Modification(mod)
                 target = modification.extract_targets_from_rule_string(mod)
                 new_rule = mod_inst.rule.clone({target})

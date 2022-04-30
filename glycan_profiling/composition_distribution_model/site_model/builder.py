@@ -767,7 +767,7 @@ class MultiprocessingGlycoproteinSiteModelBuildingWorkflow(GlycoproteinSiteModel
                             for worker in self.workers:
                                 self.debug("......... %r" % (worker,))
                             self.debug("...... IPC Manager: %r" % (self.ipc_manager,))
-                        if strikes > 1000:
+                        if strikes > 300:
                             self.log("Too much time has elapsed waiting for final results, finishing locally.")
                             self._handle_local(glycoproteins, builder, seen)
                 else:
@@ -785,7 +785,7 @@ class MultiprocessingGlycoproteinSiteModelBuildingWorkflow(GlycoproteinSiteModel
                         is_feeder_done = self.input_done_event.is_set()
                         self.log("...... Input Queue Status: %r. Is Feeder Done? %r" % (
                             input_queue_size, is_feeder_done))
-                    if strikes > 1000:
+                    if strikes > 300:
                         self.log("Too much time has elapsed waiting for workers, finishing locally.")
                         self._handle_local(glycoproteins, builder, seen)
                 continue
