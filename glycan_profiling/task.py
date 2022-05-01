@@ -120,10 +120,15 @@ class LoggingHandlerToken:
         logger = logging.getLogger(self.name)
         return logger
 
-    def add_handler(self):
-        logger = self.get_logger()
+    def clear_handlers(self, logger: logging.Logger):
         for handler in list(logger.handlers):
             logger.removeHandler(handler)
+        if logger.parent is not None and logger.parent is not logger:
+            self.clear_handlers(logger.parent)
+
+    def add_handler(self):
+        logger = self.get_logger()
+        self.clear_handlers(logger)
         handler = QueueHandler(self.queue)
         logger.addHandler(handler)
         logger.setLevel(logging.INFO)
