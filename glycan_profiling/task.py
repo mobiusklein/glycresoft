@@ -111,10 +111,12 @@ class IPCLoggingManager:
 class LoggingHandlerToken:
     queue: multiprocessing.Queue
     name: str
+    configured: bool
 
     def __init__(self, queue: multiprocessing.Queue, name: str):
         self.queue = queue
         self.name = name
+        self.configured = False
 
     def get_logger(self) -> logging.Logger:
         logger = logging.getLogger(self.name)
@@ -128,12 +130,15 @@ class LoggingHandlerToken:
             self.clear_handlers(logger.parent)
 
     def add_handler(self):
+        if self.configured:
+            return
         logger = self.get_logger()
         self.clear_handlers(logger)
         handler = QueueHandler(self.queue)
         logger.addHandler(handler)
         logger.setLevel(logging.INFO)
         TaskBase.log_with_logger(logger)
+        self.configured = True
 
     def __getstate__(self):
         return {
@@ -144,6 +149,7 @@ class LoggingHandlerToken:
     def __setstate__(self, state):
         self.queue = state['queue']
         self.name = state['name']
+        self.configured = False
         if multiprocessing.current_process().name == "MainProcess":
             return
         self.add_handler()

@@ -279,11 +279,12 @@ class GlycositeModelBuildingProcess(Process):
     def __init__(self, builder, input_queue, output_queue, producer_done_event, output_done_event, log_handler):
         Process.__init__(self)
         self.builder = builder
-        builder.log = self.log
+        # builder.log = self.log
         self.input_queue = input_queue
         self.output_queue = output_queue
         self.producer_done_event = producer_done_event
         self.output_done_event = output_done_event
+        print("log_handler", log_handler)
         self.log_handler = log_handler
 
     def all_work_done(self):
@@ -334,6 +335,7 @@ class GlycositeModelBuildingProcess(Process):
         has_work = True
         self.items_handled = 0
         strikes = 0
+        self.log_handler.add_handler()
         while has_work:
             try:
                 observations, site, glycoprotein = self.input_queue.get(True, 5)
