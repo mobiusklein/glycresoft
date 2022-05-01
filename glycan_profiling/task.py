@@ -121,6 +121,7 @@ class LoggingHandlerToken:
         return logger
 
     def clear_handlers(self, logger: logging.Logger):
+        print(f"Removing handlers {logger.handlers} from {os.getpid()} for {logger.name}")
         for handler in list(logger.handlers):
             logger.removeHandler(handler)
         if logger.parent is not None and logger.parent is not logger:
