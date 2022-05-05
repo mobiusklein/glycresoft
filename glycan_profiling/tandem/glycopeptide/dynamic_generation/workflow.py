@@ -6,20 +6,24 @@ import datetime
 import zlib
 import pickle
 
-from typing import List
+from typing import Any, Dict, List, Tuple, Type, Union
 from multiprocessing.managers import SyncManager
 from collections import OrderedDict
 
 from queue import Queue, Empty
+
+import ms_deisotope
+from ms_deisotope.output import ProcessedMzMLLoader
 
 from glycan_profiling import serialize
 
 from glycan_profiling.task import (
     TaskBase, Pipeline, MultiEvent,
     TaskExecutionSequence, MultiLock,
-    LoggingMixin, make_shared_memory_manager, IPCLoggingManager)
+    LoggingMixin, make_shared_memory_manager,
+    IPCLoggingManager, LoggingHandlerToken)
 
-from glycan_profiling.chromatogram_tree import Unmodified
+from glycan_profiling.chromatogram_tree import Unmodified, MassShift
 
 from glycan_profiling.structure import ScanStub
 
@@ -513,6 +517,31 @@ class SectionAnnouncer(LoggingMixin):
 
 
 class IdentificationWorker(TaskExecutionSequence):
+    name: str
+    ipc_manager_address: Union[str, Tuple[str, int]]
+
+    input_batch_queue: multiprocessing.Queue
+    input_done_event: multiprocessing.Event
+
+    branch_semaphore: Any
+    done_event: multiprocessing.Event
+
+    journal_path: os.PathLike
+    scan_loader: ProcessedMzMLLoader
+
+    target_predictive_search: PredictiveGlycopeptideSearch
+    decoy_predictive_search: PredictiveGlycopeptideSearch
+
+    n_processes: int
+    scorer_type: Type
+
+    evaluation_kwargs: Dict[str, Any]
+    error_tolerance: float
+    cache_seeds: Any
+    mass_shifts: List[MassShift]
+
+    log_handler: LoggingHandlerToken
+
     def __init__(self, name, ipc_manager_address, input_batch_queue, input_done_event,
                  journal_path, branch_semaphore, done_event,
                  # Mapping Executor Parameters
@@ -553,6 +582,7 @@ class IdentificationWorker(TaskExecutionSequence):
 
     def run(self):
         self.try_set_process_name("glycresoft-identification")
+        self.log_handler.add_handler()
         ipc_manager = SyncManager(self.ipc_manager_address)
         ipc_manager.connect()
         lock = threading.RLock()
