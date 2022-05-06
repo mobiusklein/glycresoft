@@ -604,7 +604,7 @@ class MzIdentMLSerializer(task.TaskBase):
         data['identifications'] = idents
         return data
 
-    def convert_to_peptide_evidence_dict(glycopeptide: GlycopeptideType, id_tracker: SequenceIdTracker) -> Props:
+    def convert_to_peptide_evidence_dict(self, glycopeptide: GlycopeptideType, id_tracker: SequenceIdTracker) -> Props:
         data = {
             "start_position": glycopeptide.protein_relation.start_position,
             "end_position": glycopeptide.protein_relation.end_position,

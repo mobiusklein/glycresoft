@@ -1,8 +1,14 @@
 from collections import defaultdict
+from typing import Any, DefaultDict, Dict, List, Tuple, Union
 
 from glycopeptidepy import PeptideSequence
+from glycopeptidepy.structure.fragment import SimpleFragment
 
 from glypy.structure.glycan_composition import FrozenMonosaccharideResidue, Composition
+
+from glycan_profiling.tandem.glycopeptide.core_search import GlycanCombinationRecord
+
+from ms_deisotope.peak_set import DeconvolutedPeakSet
 
 
 class _mass_wrapper(object):
@@ -176,17 +182,22 @@ class OxoniumIndex(object):
     '''An index for quickly matching all oxonium ions against a spectrum and efficiently mapping them
     back to individual glycan compositions.
     '''
+    fragments: List[SimpleFragment]
+    fragment_index: DefaultDict[str, List[int]]
+    glycan_to_index: Dict[str, int]
+    index_to_glycan: Dict[int, Union[str, List[str]]]
+
     def __init__(self, fragments=None, fragment_index=None, glycan_to_index=None):
         self.fragments = fragments or []
         self.fragment_index = defaultdict(list, fragment_index or {})
         self.glycan_to_index = glycan_to_index or {}
         self.index_to_glycan = {v: k for k, v in self.glycan_to_index.items()}
 
-    def _make_glycopeptide_stub(self, glycan_composition):
+    def _make_glycopeptide_stub(self, glycan_composition) -> PeptideSequence:
         p = PeptideSequence("P%s" % glycan_composition)
         return p
 
-    def build_index(self, glycan_composition_records, **kwargs):
+    def build_index(self, glycan_composition_records: List[GlycanCombinationRecord], **kwargs):
         fragments = {}
         fragment_index = defaultdict(list)
         glycan_index = {}
@@ -204,7 +215,7 @@ class OxoniumIndex(object):
         self.index_to_glycan = {v: k for k, v in self.glycan_to_index.items()}
         self.simplify()
 
-    def match(self, spectrum, error_tolerance):
+    def match(self, spectrum: DeconvolutedPeakSet, error_tolerance: float) -> DefaultDict[int, List[Tuple[SimpleFragment, float]]]:
         match_index = defaultdict(list)
         for fragment in self.fragments:
             peak = spectrum.has_peak(fragment.mass, error_tolerance)
