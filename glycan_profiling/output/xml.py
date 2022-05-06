@@ -676,7 +676,7 @@ class MzIdentMLSerializer(task.TaskBase):
                     continue
                 seen_scans.add(solution.scan.scan_id)
                 d = self.convert_to_spectrum_identification_dict(
-                    solution, seen=accepted_solution_ids,
+                    solution, seen_targets=accepted_solution_ids,
                     id_tracker=self._id_tracker)
                 if len(d['identifications']):
                     spectrum_identifications.append(d)
