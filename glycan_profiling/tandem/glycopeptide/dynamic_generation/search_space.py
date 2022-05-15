@@ -394,7 +394,8 @@ class PredictiveGlycopeptideSearch(DynamicGlycopeptideSearchBase):
         # self.peptide_mass_predictor = GlycanFilteringPeptideMassEstimator(
         self.peptide_mass_predictor = IndexedGlycanFilteringPeptideMassEstimator(
             self.peptide_glycosylator.glycan_combinations,
-            product_error_tolerance, fragment_weight=fragment_weight,
+            product_error_tolerance=product_error_tolerance,
+            fragment_weight=fragment_weight,
             core_weight=core_weight)
         self.peptide_masses_per_scan = peptide_masses_per_scan
         self.probing_range_for_missing_precursors = probing_range_for_missing_precursors

@@ -238,8 +238,6 @@ class MatchBetweenRunBuilder(TaskBase):
                     if isinstance(entity, IdentifiedStructure):
                         if entity.structure.full_structure_equality(ids.structure):
                             # Then is the protein different? Should already be handled above.
-                            import pdb
-                            pdb.set_trace()
                             warnings.warn("Ambiguous 2 Link Between %r and %r with shift %r in %r\n" % (
                                 ids.structure, entity.structure, shift.name, mbd.label))
                         else:

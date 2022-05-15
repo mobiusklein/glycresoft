@@ -977,7 +977,7 @@ cdef class GlycanFragmentIndex(object):
                     PySet_GET_SIZE(sol.fragment_matches) * 1.0 / n_frag) ** self.fragment_weight
                 sol.score *= coverage
                 sol.peptide_mass = precursor_mass - rec.dehydrated_mass - mass_shift_mass
-                if best_score < sol.score:
+                if best_score < sol.score and sol.peptide_mass > 0:
                     best_score = sol.score
                     best_solution = sol
             if best_solution is not None:

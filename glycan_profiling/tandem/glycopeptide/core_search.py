@@ -502,6 +502,9 @@ class CoarseGlycanMatch(object):
 
 
 class GlycanCoarseScorerBase(object):
+    product_error_tolerance: float
+    fragment_weight: float
+    core_weight: float
 
     def __init__(self, product_error_tolerance=1e-5, fragment_weight=0.56, core_weight=0.42):
         self.product_error_tolerance = product_error_tolerance
@@ -610,6 +613,12 @@ def flatten(groups):
 
 
 class GlycanFilteringPeptideMassEstimatorBase(object):
+    use_denovo_motif: bool
+    motif_finder: CoreMotifFinder
+    glycan_combination_db: List[GlycanCombinationRecord]
+    minimum_peptide_mass: float
+    use_recalibrated_peptide_mass: float
+
     def __init__(self, glycan_combination_db, product_error_tolerance=1e-5,
                  fragment_weight=0.56, core_weight=0.42, minimum_peptide_mass=500.0,
                  use_denovo_motif=False, components=None,
@@ -1102,7 +1111,7 @@ class GlycanFragmentIndex(object):
                 sol.score *= coverage
                 sol.peptide_mass = precursor_mass - rec.dehydrated_mass - mass_shift_mass
                 sol.glycan_index = i
-                if best_score < sol.score:
+                if best_score < sol.score and sol.peptide_mass > 0:
                     best_score = sol.score
                     best_solution = sol
             if best_solution is not None:
@@ -1130,6 +1139,10 @@ class _adapt(object):
 
 
 class IndexedGlycanFilteringPeptideMassEstimator(GlycanFilteringPeptideMassEstimatorBase, _adapt):
+    product_error_tolerance: float
+    fragment_weight: float
+    core_weight: float
+
     def __init__(self, glycan_combination_db, product_error_tolerance=1e-5,
                  fragment_weight=0.56, core_weight=0.42, minimum_peptide_mass=500.0,
                  use_denovo_motif=False, components=None,
@@ -1137,9 +1150,16 @@ class IndexedGlycanFilteringPeptideMassEstimator(GlycanFilteringPeptideMassEstim
         super(IndexedGlycanFilteringPeptideMassEstimator, self).__init__(
             glycan_combination_db, product_error_tolerance, fragment_weight, core_weight,
             minimum_peptide_mass, use_denovo_motif, components, use_recalibrated_peptide_mass)
+        self.product_error_tolerance = product_error_tolerance
+        self.fragment_weight = fragment_weight
+        self.core_weight = core_weight
         self.index = GlycanFragmentIndex(
             self.glycan_combination_db, fragment_weight=fragment_weight, core_weight=core_weight)
         self.index.build()
 
-    def match(self, scan, mass_shift=Unmodified, query_mass=None):
-        return self.index.match(scan, mass_shift=mass_shift, query_mass=query_mass)
+    def match(self, scan: ProcessedScan, mass_shift: MassShift=Unmodified, query_mass: Optional[float]=None):
+        return self.index.match(
+            scan,
+            error_tolerance=self.product_error_tolerance,
+            mass_shift=mass_shift,
+            query_mass=query_mass)
