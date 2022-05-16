@@ -170,10 +170,17 @@ class MultipleProcessFastaGlycopeptideHypothesisSerializer(FastaGlycopeptideHypo
                  n_processes: int=4):
         super(MultipleProcessFastaGlycopeptideHypothesisSerializer, self).__init__(
             fasta_file, connection, glycan_hypothesis_id, hypothesis_name,
-            protease, constant_modifications, variable_modifications,
-            max_missed_cleavages, max_glycosylation_events, semispecific,
-            max_variable_modifications, full_cross_product, peptide_length_range,
-            require_glycosylation_sites, include_cysteine_n_glycosylation)
+            protease=protease,
+            constant_modifications=constant_modifications,
+            variable_modifications=variable_modifications,
+            max_missed_cleavages=max_missed_cleavages,
+            max_glycosylation_events=max_glycosylation_events,
+            semispecific=semispecific,
+            max_variable_modifications=max_variable_modifications,
+            full_cross_product=full_cross_product,
+            peptide_length_range=peptide_length_range,
+            require_glycosylation_sites=require_glycosylation_sites,
+            include_cysteine_n_glycosylation=include_cysteine_n_glycosylation)
         self.n_processes = n_processes
 
     def digest_proteins(self):

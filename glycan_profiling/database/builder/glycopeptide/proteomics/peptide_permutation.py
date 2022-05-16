@@ -627,7 +627,8 @@ class ProteinSplitter(TaskBase):
                             peptide.sequence_length]
                         for j in range(len(adjusted_sites) - 1):
                             # TODO: Cleavage sites may be off by one in the start. Revisit the index math here.
-                            begin, end = adjusted_sites[j], adjusted_sites[j + 1]
+                            begin = adjusted_sites[j]
+                            end = adjusted_sites[j + 1]
                             if end - begin < self.min_length:
                                 continue
                             start_position = begin + peptide_start_position
