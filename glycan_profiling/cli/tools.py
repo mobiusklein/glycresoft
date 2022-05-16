@@ -17,6 +17,7 @@ import pkg_resources
 from glypy.structure.glycan_composition import HashableGlycanComposition
 from glycopeptidepy.io import fasta, uniprot
 from glycopeptidepy.structure.residue import UnknownAminoAcidException
+from glycopeptidepy.structure.sequence import find_n_glycosylation_sequons, find_o_glycosylation_sequons
 
 from .base import cli
 from .validators import RelativeMassErrorParam, get_by_name_or_id

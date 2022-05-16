@@ -1647,7 +1647,7 @@ class SpectrumMatchUpdater(TaskBase):
             self.find_identical_peptides_and_mark(chromatogram, invalid)
 
         if not match:
-            self.log("... Failed to affirm %s passing the threshold" % (
-                chromatogram.entity))
+            self.log("... Failed to affirm %s @ %0.2f passing the threshold" % (
+                chromatogram.entity, getattr(chromatogram, "apex_time", -1)))
 
         return chromatogram

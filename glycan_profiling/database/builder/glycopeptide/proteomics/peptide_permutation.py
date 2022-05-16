@@ -3,6 +3,8 @@ import itertools
 from collections import defaultdict
 from multiprocessing import Process, Queue, Event
 
+from typing import List, Optional
+
 from lxml.etree import XMLSyntaxError
 
 from ms_deisotope.peak_dependency_network.intervals import Interval, IntervalTreeNode
@@ -13,6 +15,7 @@ from .uniprot import (uniprot, get_uniprot_accession, UniprotProteinDownloader, 
 
 from glypy.composition import formula
 from glycopeptidepy.structure import sequence, modification, residue
+from glycopeptidepy.structure.modification import ModificationRule
 from glycopeptidepy.algorithm import ModificationSiteAssignmentCombinator
 from glycopeptidepy import PeptideSequence
 
@@ -43,17 +46,17 @@ def span_test(site_list, start, end):
     return out
 
 
-def n_glycan_sequon_sites(peptide, protein, use_local_sequence=False):
+def n_glycan_sequon_sites(peptide: Peptide, protein: Protein, use_local_sequence: bool=False, include_cysteine: bool = False):
     sites = set()
     sites |= set(site - peptide.start_position for site in span_test(
         protein.n_glycan_sequon_sites, peptide.start_position, peptide.end_position))
     if use_local_sequence:
         sites |= set(sequence.find_n_glycosylation_sequons(
-            peptide.modified_peptide_sequence))
+            peptide.modified_peptide_sequence, include_cysteine=include_cysteine))
     return sorted(sites)
 
 
-def o_glycan_sequon_sites(peptide, protein=None, use_local_sequence=False):
+def o_glycan_sequon_sites(peptide: Peptide, protein: Protein=None, use_local_sequence: bool=False):
     sites = set()
     sites |= set(site - peptide.start_position for site in span_test(
         protein.o_glycan_sequon_sites, peptide.start_position, peptide.end_position))
@@ -238,9 +241,23 @@ def cleave_sequence(sequence, protease, missed_cleavages=2, min_length=6, max_le
 
 class ProteinDigestor(TaskBase):
 
+    protease: enzyme.Protease
+    constant_modifications: List[ModificationRule]
+    variable_modifications: List[ModificationRule]
+    peptide_permuter: PeptidePermuter
+    min_length: int
+    max_length: int
+    max_missed_cleavages: int
+    variable_signal_peptide: int
+    max_variable_modifications: int
+    semispecific: bool
+    include_cysteine_n_glycosylation: bool
+    require_glycosylation_sites: bool
+
     def __init__(self, protease, constant_modifications=None, variable_modifications=None,
-                 max_missed_cleavages=2, min_length=6, max_length=60, semispecific=False,
-                 max_variable_modifications=None, require_glycosylation_sites=False):
+                 max_missed_cleavages: int=2, min_length: int=6, max_length: int=60, semispecific: bool=False,
+                 max_variable_modifications=None, require_glycosylation_sites: bool=False,
+                 include_cysteine_n_glycosylation: bool=False):
         if constant_modifications is None:
             constant_modifications = []
         if variable_modifications is None:
@@ -256,6 +273,7 @@ class ProteinDigestor(TaskBase):
         self.min_length = min_length
         self.max_length = max_length
         self.semispecific = semispecific
+        self.include_cysteine_n_glycosylation = include_cysteine_n_glycosylation
         self.max_variable_modifications = max_variable_modifications
         self.require_glycosylation_sites = require_glycosylation_sites
 
@@ -268,12 +286,12 @@ class ProteinDigestor(TaskBase):
             protease = enzyme.Protease.combine(*protease)
         return protease
 
-    def cleave(self, sequence):
+    def cleave(self, sequence: Protein):
         return cleave_sequence(sequence, self.protease, self.max_missed_cleavages,
                                min_length=self.min_length, max_length=self.max_length,
                                semispecific=self.semispecific)
 
-    def digest(self, protein):
+    def digest(self, protein: Protein):
         sequence = protein.protein_sequence
         try:
             size = len(protein)
@@ -291,7 +309,7 @@ class ProteinDigestor(TaskBase):
                 inst.end_position = end
                 yield inst
 
-    def modify_string(self, peptide, protein_n_term=False, protein_c_term=False):
+    def modify_string(self, peptide: Peptide, protein_n_term: bool=False, protein_c_term: bool=False):
         base_peptide = str(peptide)
         for modified_peptide, n_variable_modifications in self.peptide_permuter(
                 peptide, protein_n_term=protein_n_term, protein_c_term=protein_c_term):
@@ -309,7 +327,7 @@ class ProteinDigestor(TaskBase):
                 formula=formula_string)
             yield inst
 
-    def process_protein(self, protein_obj):
+    def process_protein(self, protein_obj: Protein):
         protein_id = protein_obj.id
         hypothesis_id = protein_obj.hypothesis_id
 
@@ -319,7 +337,7 @@ class ProteinDigestor(TaskBase):
             peptide.peptide_score = 0
             peptide.peptide_score_type = 'null_score'
             n_glycosites = n_glycan_sequon_sites(
-                peptide, protein_obj)
+                peptide, protein_obj, include_cysteine=self.include_cysteine_n_glycosylation)
             o_glycosites = o_glycan_sequon_sites(peptide, protein_obj)
             gag_glycosites = gag_sequon_sites(peptide, protein_obj)
             if self.require_glycosylation_sites:
@@ -493,8 +511,15 @@ class PeptideInterval(Interval):
 
 
 class ProteinSplitter(TaskBase):
+
+    constant_modifications: List[ModificationRule]
+    variable_modifications: List[ModificationRule]
+    min_length: int
+    variable_signal_peptide: int
+    include_cysteine_n_glycosylation: bool
+
     def __init__(self, constant_modifications=None, variable_modifications=None,
-                 min_length=6, variable_signal_peptide=10):
+                 min_length=6, variable_signal_peptide=10, include_cysteine_n_glycosylation: bool=False):
         if constant_modifications is None:
             constant_modifications = []
         if variable_modifications is None:
@@ -506,8 +531,9 @@ class ProteinSplitter(TaskBase):
         self.variable_signal_peptide = variable_signal_peptide
         self.peptide_permuter = PeptidePermuter(
             self.constant_modifications, self.variable_modifications)
+        self.include_cysteine_n_glycosylation = include_cysteine_n_glycosylation
 
-    def handle_protein(self, protein_obj, sites=None):
+    def handle_protein(self, protein_obj: Protein, sites: Optional[List[int]]=None):
         if sites is None:
             try:
                 accession = get_uniprot_accession(protein_obj.name)
@@ -532,7 +558,7 @@ class ProteinSplitter(TaskBase):
             except IOError:
                 return []
 
-    def get_split_sites_from_features(self, record):
+    def get_split_sites_from_features(self, record) -> List[int]:
         splittable_features = ("signal peptide", "propeptide", "initiator methionine",
                                "peptide", "transit peptide")
         split_sites = set()
@@ -549,19 +575,19 @@ class ProteinSplitter(TaskBase):
             pass
         return sorted(split_sites)
 
-    def get_split_sites(self, accession):
+    def get_split_sites(self, accession: str) -> List[int]:
         record = uniprot.get(accession)
         sites = self.get_split_sites_from_features(record)
         return sites
 
-    def _make_split_expression(self, sites):
+    def _make_split_expression(self, sites: List[int]) -> List:
         return [
             (Peptide.start_position < s) & (Peptide.end_position > s) for s in sites]
 
     def _permuted_peptides(self, sequence):
         return self.peptide_permuter(sequence)
 
-    def split_protein(self, protein_obj, sites=None):
+    def split_protein(self, protein_obj: Protein, sites: Optional[List[int]]=None):
         if sites is None:
             sites = []
         if not sites:
@@ -572,7 +598,7 @@ class ProteinSplitter(TaskBase):
         peptide_intervals = IntervalTreeNode.build(map(PeptideInterval, peptides))
         for site in sites:
             overlap_region = peptide_intervals.contains_point(site - 1)
-            spanned_intervals = IntervalTreeNode.build(overlap_region)
+            spanned_intervals: IntervalTreeNode = IntervalTreeNode.build(overlap_region)
             # No spanned peptides. May be caused by regions of protein which digest to peptides
             # of unacceptable size.
             if spanned_intervals is None:
@@ -596,15 +622,16 @@ class ProteinSplitter(TaskBase):
                     for sp in spanning_peptides_query:
                         spanning_peptides.extend(sp)
                     for peptide in spanning_peptides:
-                        adjusted_sites = [0] + [s - peptide.start_position for s in split_sites] + [
+                        peptide_start_position = peptide.start_position
+                        adjusted_sites = [0] + [s - peptide_start_position for s in split_sites] + [
                             peptide.sequence_length]
                         for j in range(len(adjusted_sites) - 1):
                             # TODO: Cleavage sites may be off by one in the start. Revisit the index math here.
                             begin, end = adjusted_sites[j], adjusted_sites[j + 1]
                             if end - begin < self.min_length:
                                 continue
-                            start_position = begin + peptide.start_position
-                            end_position = end + peptide.start_position
+                            start_position = begin + peptide_start_position
+                            end_position = end + peptide_start_position
                             if (start_position, end_position) in seen:
                                 continue
                             else:
@@ -627,7 +654,7 @@ class ProteinSplitter(TaskBase):
                                 inst.peptide_score = 0
                                 inst.peptide_score_type = 'null_score'
                                 n_glycosites = n_glycan_sequon_sites(
-                                    inst, protein_obj)
+                                    inst, protein_obj, include_cysteine=self.include_cysteine_n_glycosylation)
                                 o_glycosites = o_glycan_sequon_sites(inst, protein_obj)
                                 gag_glycosites = gag_sequon_sites(inst, protein_obj)
                                 inst.count_glycosylation_sites = len(n_glycosites)
@@ -638,14 +665,23 @@ class ProteinSplitter(TaskBase):
 
 
 class UniprotProteinAnnotator(TaskBase):
+
+    protein_ids: List[int]
+    constant_modifications: List[ModificationRule]
+    variable_modifications: List[ModificationRule]
+    variable_signal_peptide: int
+    include_cysteine_n_glycosylation: bool
+
     def __init__(self, hypothesis_builder, protein_ids, constant_modifications,
-                 variable_modifications, variable_signal_peptide=10):
+                 variable_modifications, variable_signal_peptide=10,
+                 include_cysteine_n_glycosylation: bool=False):
         self.hypothesis_builder = hypothesis_builder
         self.protein_ids = protein_ids
         self.constant_modifications = constant_modifications
         self.variable_modifications = variable_modifications
         self.variable_signal_peptide = variable_signal_peptide
         self.session = hypothesis_builder.session
+        self.include_cysteine_n_glycosylation = include_cysteine_n_glycosylation
 
     def query(self, *args, **kwargs):
         return self.session.query(*args, **kwargs)
@@ -656,7 +692,8 @@ class UniprotProteinAnnotator(TaskBase):
     def run(self):
         self.log("Begin Applying Protein Annotations")
         splitter = ProteinSplitter(self.constant_modifications, self.variable_modifications,
-                                   variable_signal_peptide=self.variable_signal_peptide)
+                                   variable_signal_peptide=self.variable_signal_peptide,
+                                   include_cysteine_n_glycosylation=self.include_cysteine_n_glycosylation)
         i = 0
         j = 0
         protein_ids = self.protein_ids

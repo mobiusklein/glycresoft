@@ -1,6 +1,7 @@
+from typing import Optional
 from weakref import WeakValueDictionary
 
-from ms_deisotope.data_source import ProcessedScan, PrecursorInformation, ActivationInformation
+from ms_deisotope.data_source import ProcessedScan, PrecursorInformation, ActivationInformation, ScanDataSource
 
 
 class ScanStub(object):
@@ -21,7 +22,12 @@ class ScanStub(object):
     source : :class:`~.RandomAccessScanSource`
         A resource to use to load scans with by scan id.
     """
-    def __init__(self, precursor_information, source):
+
+    id: str
+    precursor_information: PrecursorInformation
+    source: Optional[ScanDataSource]
+
+    def __init__(self, precursor_information: PrecursorInformation, source: ScanDataSource):
         self.id = precursor_information.product_scan_id
         self.precursor_information = precursor_information
         self.source = source

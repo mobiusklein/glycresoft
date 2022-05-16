@@ -154,7 +154,7 @@ DATE_FMT = "%H:%M:%S"
 
 
 def get_status_formatter():
-    status_terminal_format_string = "%(asctime)s %(levelname).1s- %(name)s: %(message)s"
+    status_terminal_format_string = "%(asctime)s %(name)s:%(levelname).1s - %(message)s"
 
     if sys.stderr.isatty():
         terminal_formatter = ColoringFormatter(

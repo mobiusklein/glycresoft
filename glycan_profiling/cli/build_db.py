@@ -236,11 +236,13 @@ def glycopeptide_hypothesis_common_options(cmd):
     "Do not produce full crossproduct. For when the search space is too large to enumerate, store, and load."))
 @click.option("--retain-all-peptides", is_flag=True, default=False,
               help=("Do not require a glycosylation site when saving base peptides"))
+@click.option("-C", "--include-n-x-c-glycosylation", "include_cysteine_n_glycosylation", default=False, is_flag=True,
+              help="Whether to support N-x-C in the N-glycosylation sequon")
 def glycopeptide_fa(context, fasta_file, database_connection, enzyme, missed_cleavages, occupied_glycosites, name,
                     constant_modification, variable_modification, processes, glycan_source, glycan_source_type,
                     glycan_source_identifier=None, semispecific_digest=False, reverse=False, dry_run=False,
                     peptide_length_range=(5, 60), not_full_crossproduct=False, max_variable_modifications=4,
-                    retain_all_peptides=False):
+                    retain_all_peptides=False, include_cysteine_n_glycosylation: bool=False):
     '''Constructs a glycopeptide hypothesis from a FASTA file of proteins and a
     collection of glycans.
     '''
@@ -287,7 +289,8 @@ def glycopeptide_fa(context, fasta_file, database_connection, enzyme, missed_cle
         full_cross_product=not not_full_crossproduct,
         max_variable_modifications=max_variable_modifications,
         peptide_length_range=peptide_length_range,
-        require_glycosylation_sites=not retain_all_peptides)
+        require_glycosylation_sites=not retain_all_peptides,
+        include_cysteine_n_glycosylation=include_cysteine_n_glycosylation)
     builder.display_header()
     builder.start()
     return builder.hypothesis_id

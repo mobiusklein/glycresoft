@@ -119,14 +119,15 @@ class Protein(Base, AminoAcidSequenceWrapperBase):
         except residue.UnknownAminoAcidException:
             return []
 
-    def _init_sites(self):
+    def _init_sites(self, include_cysteine_n_glycosylation: bool = False):
         try:
             parsed_sequence = self._get_sequence()
         except residue.UnknownAminoAcidException:
             return
         sites = []
         try:
-            n_glycosites = sequence.find_n_glycosylation_sequons(parsed_sequence)
+            n_glycosites = sequence.find_n_glycosylation_sequons(
+                parsed_sequence, include_cysteine=include_cysteine_n_glycosylation)
             for n_glycosite in n_glycosites:
                 sites.append(
                     ProteinSite(name=ProteinSite.N_GLYCOSYLATION, location=n_glycosite))

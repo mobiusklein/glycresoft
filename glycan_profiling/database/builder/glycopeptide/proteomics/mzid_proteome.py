@@ -3,6 +3,7 @@ import re
 import operator
 import logging
 from collections import defaultdict
+from typing import List
 from glycopeptidepy.structure.modification import target
 from six import string_types as basestring
 
@@ -464,6 +465,12 @@ class PeptideIdentification(MzIdentMLPeptide):
 
 
 class ProteinStub(object):
+    name: str
+    id: int
+    protein_sequence: str
+    n_glycan_sequon_sites: List[int]
+    o_glycan_sequon_sites: List[int]
+    glycosaminoglycan_sequon_sites: List[int]
     def __init__(self, name, id, sequence, n_glycan_sequon_sites, o_glycan_sequon_sites,
                  glycosaminoglycan_sequon_sites):
         self.name = name
@@ -570,9 +577,10 @@ class PeptideMapperBase(object):
 class PeptideConverter(PeptideMapperBase):
     def __init__(self, session, hypothesis_id, enzyme=None, constant_modifications=None,
                  modification_translation_table=None, protein_filter=None,
-                 peptide_length_range=(5, 60)):
+                 peptide_length_range=(5, 60), include_cysteine_n_glycosylation: bool = False):
         self.session = session
         self.hypothesis_id = hypothesis_id
+        self.include_cysteine_n_glycosylation = include_cysteine_n_glycosylation
         super(PeptideConverter, self).__init__(
             enzyme, constant_modifications, modification_translation_table,
             protein_filter, peptide_length_range)
@@ -600,7 +608,7 @@ class PeptideConverter(PeptideMapperBase):
             protein_id=parent_protein.id,
             hypothesis_id=self.hypothesis_id)
         n_glycosites = n_glycan_sequon_sites(
-            match, parent_protein)
+            match, parent_protein, include_cysteine=self.include_cysteine_n_glycosylation)
         o_glycosites = o_glycan_sequon_sites(match, parent_protein)
         gag_glycosites = gag_sequon_sites(match, parent_protein)
         match.count_glycosylation_sites = len(n_glycosites) + len(o_glycosites)
@@ -920,7 +928,8 @@ class MzIdentMLProteomeExtraction(TaskBase):
 class Proteome(DatabaseBoundOperation, MzIdentMLProteomeExtraction):
     def __init__(self, mzid_path, connection, hypothesis_id, include_baseline_peptides=True,
                  target_proteins=None, reference_fasta=None,
-                 peptide_length_range=(5, 60), use_uniprot=True):
+                 peptide_length_range=(5, 60), use_uniprot=True,
+                 include_cysteine_n_glycosylation: bool=False):
         DatabaseBoundOperation.__init__(self, connection)
         MzIdentMLProteomeExtraction.__init__(self, mzid_path, reference_fasta)
         if target_proteins is None:
@@ -930,6 +939,7 @@ class Proteome(DatabaseBoundOperation, MzIdentMLProteomeExtraction):
         self.include_baseline_peptides = include_baseline_peptides
         self.peptide_length_range = peptide_length_range or (5, 60)
         self.use_uniprot = use_uniprot
+        self.include_cysteine_n_glycosylation = include_cysteine_n_glycosylation
 
     def _can_ignore_protein(self, name):
         if name not in self.target_proteins:
@@ -969,7 +979,7 @@ class Proteome(DatabaseBoundOperation, MzIdentMLProteomeExtraction):
                     protein_sequence=seq,
                     other=protein,
                     hypothesis_id=self.hypothesis_id)
-                p._init_sites()
+                p._init_sites(self.include_cysteine_n_glycosylation)
                 session.add(p)
                 session.flush()
                 protein_map[name] = p

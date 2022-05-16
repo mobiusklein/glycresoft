@@ -33,7 +33,7 @@ class FastaGlycopeptideHypothesisSerializer(GlycopeptideHypothesisSerializerBase
                  max_missed_cleavages=2, max_glycosylation_events=1, semispecific=False,
                  max_variable_modifications=None, full_cross_product=True,
                  peptide_length_range=(5, 60), require_glycosylation_sites=True,
-                 use_uniprot=True):
+                 use_uniprot=True, include_cysteine_n_glycosylation: bool=False):
         GlycopeptideHypothesisSerializerBase.__init__(
             self, connection, hypothesis_name, glycan_hypothesis_id, full_cross_product,
             use_uniprot=use_uniprot)
@@ -47,6 +47,7 @@ class FastaGlycopeptideHypothesisSerializer(GlycopeptideHypothesisSerializerBase
         self.max_variable_modifications = max_variable_modifications
         self.peptide_length_range = peptide_length_range or (5, 60)
         self.require_glycosylation_sites = require_glycosylation_sites
+        self.include_cysteine_n_glycosylation = include_cysteine_n_glycosylation
 
         params = {
             "fasta_file": fasta_file,
@@ -60,6 +61,7 @@ class FastaGlycopeptideHypothesisSerializer(GlycopeptideHypothesisSerializerBase
             "full_cross_product": self.full_cross_product,
             "peptide_length_range": self.peptide_length_range,
             "require_glycosylation_sites": self.require_glycosylation_sites,
+            "include_cysteine_n_glycosylation": self.include_cysteine_n_glycosylation,
         }
         self.set_parameters(params)
 
@@ -67,7 +69,7 @@ class FastaGlycopeptideHypothesisSerializer(GlycopeptideHypothesisSerializerBase
         i = 0
         for protein in ProteinFastaFileParser(self.fasta_file):
             protein.hypothesis_id = self.hypothesis_id
-            protein._init_sites()
+            protein._init_sites(self.include_cysteine_n_glycosylation)
 
             self.session.add(protein)
             i += 1
@@ -87,7 +89,8 @@ class FastaGlycopeptideHypothesisSerializer(GlycopeptideHypothesisSerializerBase
             self.protease, self.constant_modifications, self.variable_modifications,
             self.max_missed_cleavages, min_length=self.peptide_length_range[0],
             max_length=self.peptide_length_range[1], semispecific=self.semispecific,
-            require_glycosylation_sites=self.require_glycosylation_sites)
+            require_glycosylation_sites=self.require_glycosylation_sites,
+            include_cysteine_n_glycosylation=self.include_cysteine_n_glycosylation)
         i = 0
         j = 0
         protein_ids = self.protein_ids()
@@ -112,7 +115,11 @@ class FastaGlycopeptideHypothesisSerializer(GlycopeptideHypothesisSerializerBase
 
     def split_proteins(self):
         annotator = UniprotProteinAnnotator(
-            self, self.protein_ids(), self.constant_modifications, self.variable_modifications)
+            self,
+            self.protein_ids(),
+            self.constant_modifications,
+            self.variable_modifications,
+            include_cysteine_n_glycosylation=self.include_cysteine_n_glycosylation)
         annotator.run()
         DeduplicatePeptides(self._original_connection, self.hypothesis_id).run()
 
@@ -159,21 +166,22 @@ class MultipleProcessFastaGlycopeptideHypothesisSerializer(FastaGlycopeptideHypo
                  protease='trypsin', constant_modifications=None, variable_modifications=None,
                  max_missed_cleavages=2, max_glycosylation_events=1, semispecific=False,
                  max_variable_modifications=None, full_cross_product=True, peptide_length_range=(5, 60),
-                 require_glycosylation_sites=True,
-                 n_processes=4):
+                 require_glycosylation_sites: bool=True, include_cysteine_n_glycosylation: bool=False,
+                 n_processes: int=4):
         super(MultipleProcessFastaGlycopeptideHypothesisSerializer, self).__init__(
             fasta_file, connection, glycan_hypothesis_id, hypothesis_name,
             protease, constant_modifications, variable_modifications,
             max_missed_cleavages, max_glycosylation_events, semispecific,
             max_variable_modifications, full_cross_product, peptide_length_range,
-            require_glycosylation_sites)
+            require_glycosylation_sites, include_cysteine_n_glycosylation)
         self.n_processes = n_processes
 
     def digest_proteins(self):
         digestor = ProteinDigestor(
             self.protease, self.constant_modifications, self.variable_modifications,
             self.max_missed_cleavages, semispecific=self.semispecific,
-            require_glycosylation_sites=self.require_glycosylation_sites)
+            require_glycosylation_sites=self.require_glycosylation_sites,
+            include_cysteine_n_glycosylation=self.include_cysteine_n_glycosylation)
         task = MultipleProcessProteinDigestor(
             self._original_connection,
             self.hypothesis_id,
@@ -220,7 +228,9 @@ class ReversingMultipleProcessFastaGlycopeptideHypothesisSerializer(_MPFGHS):
             except UnknownAminoAcidException:
                 continue
             try:
-                n_glycosites = find_n_glycosylation_sequons(original_sequence)
+                n_glycosites = find_n_glycosylation_sequons(
+                    original_sequence,
+                    include_cysteine=self.include_cysteine_n_glycosylation)
                 for n_glycosite in n_glycosites:
                     sites.append(
                         ProteinSite(name=ProteinSite.N_GLYCOSYLATION, location=n - n_glycosite - 1))
