@@ -35,6 +35,13 @@ cdef class ScoreCell(object):
     def __repr__(self):
         return "{self.__class__.__name__}({self.score}, {self.value})".format(self=self)
 
+    def __reduce__(self):
+        return self.__class__, (self.score, self.value)
+
+
+cpdef __pyx_unpickle_ScoreCell(tp, checksum, state):
+    return tp(*state)
+
 
 cdef class NearestValueLookUp(object):
     '''A mapping-like object which simplifies
@@ -66,7 +73,7 @@ cdef class NearestValueLookUp(object):
 
     def __getstate__(self):
         return {
-            "items": self.items
+            "items": [tuple(i) for i in self.items]
         }
 
     cpdef max_key(self):
