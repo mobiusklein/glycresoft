@@ -107,8 +107,9 @@ class SimpleChromatogram(OrderedDict):
 
     def as_arrays(self):
         return (
-            np.array(self.keys()),
-            np.array(self.values()))
+            np.array(list(self.keys())),
+            np.array(list(self.values()))
+        )
 
     def get_chromatogram(self):
         return self

@@ -1412,7 +1412,7 @@ class MultipartGlycopeptideLCMSMSAnalyzer(MzMLGlycopeptideLCMSMSAnalyzer):
                  msn_mass_error_tolerance=2e-5, psm_fdr_threshold=0.05,
                  peak_shape_scoring_model=None, tandem_scoring_model=LogIntensityScorer,
                  minimum_mass=1000., save_unidentified=False,
-                 glycan_score_threshold=1, mass_shifts=None,
+                 glycan_score_threshold=1.0, mass_shifts=None,
                  n_processes=5, spectrum_batch_size=100,
                  maximum_mass=float('inf'), probing_range_for_missing_precursors=3,
                  trust_precursor_fits=True, use_memory_database=True,

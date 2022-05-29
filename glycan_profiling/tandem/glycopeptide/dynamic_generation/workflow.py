@@ -291,23 +291,29 @@ class MultipartGlycopeptideIdentifier(TaskBase):
                 open(self.glycosylation_site_models_path, 'rt'))
 
         generator = PeptideGlycosylator(
-            self.target_peptide_db, glycan_combinations,
+            self.target_peptide_db,
+            glycan_combinations,
             default_structure_type=StructureClassification.target_peptide_target_glycan,
             glycan_prior_model=glycan_prior_model)
         target_predictive_search = PredictiveGlycopeptideSearch(
-            generator, product_error_tolerance=self.product_error_tolerance,
-            glycan_score_threshold=self.glycan_score_threshold, min_fragments=min_fragments,
+            generator,
+            product_error_tolerance=self.product_error_tolerance,
+            glycan_score_threshold=self.glycan_score_threshold,
+            min_fragments=min_fragments,
             probing_range_for_missing_precursors=self.probing_range_for_missing_precursors,
             trust_precursor_fits=self.trust_precursor_fits,
             peptide_masses_per_scan=self.peptide_masses_per_scan)
 
         generator = PeptideGlycosylator(
-            self.decoy_peptide_db, glycan_combinations,
+            self.decoy_peptide_db,
+            glycan_combinations,
             default_structure_type=StructureClassification.decoy_peptide_target_glycan,
             glycan_prior_model=glycan_prior_model)
         decoy_predictive_search = PredictiveGlycopeptideSearch(
-            generator, product_error_tolerance=self.product_error_tolerance,
-            glycan_score_threshold=self.glycan_score_threshold, min_fragments=min_fragments,
+            generator,
+            product_error_tolerance=self.product_error_tolerance,
+            glycan_score_threshold=self.glycan_score_threshold,
+            min_fragments=min_fragments,
             probing_range_for_missing_precursors=self.probing_range_for_missing_precursors,
             trust_precursor_fits=self.trust_precursor_fits,
             peptide_masses_per_scan=self.peptide_masses_per_scan)
@@ -321,6 +327,8 @@ class MultipartGlycopeptideIdentifier(TaskBase):
             scan_groups,
             Queue(10),
             max_scans_per_workload=self.batch_size)
+
+        spectrum_batcher.start(daemon=True)
 
         common_queue = multiprocessing.Queue(5)
         label_to_batch_queue = {
@@ -343,18 +351,16 @@ class MultipartGlycopeptideIdentifier(TaskBase):
             precursor_error_tolerance=self.precursor_error_tolerance,
             mass_shifts=self.mass_shifts)
         mapping_batcher.done_event = multiprocessing.Event()
+        mapping_batcher.start(daemon=True)
 
         execution_branches: List['IdentificationWorker'] = []
-        # approx_num_concurrent = max(int(self.n_processes / 6.0), 1)
-        approx_num_concurrent = self.n_processes
-        concurrent_branch_controller = multiprocessing.BoundedSemaphore(approx_num_concurrent)
         scorer_type_payload = zlib.compress(pickle.dumps(self.scorer_type, -1), 9)
         predictive_search_payload = zlib.compress(
             pickle.dumps(
                 (target_predictive_search, decoy_predictive_search), -1), 9)
+
         for i in range(self.n_processes):
             journal_path_for = self.file_manager.get('glycopeptide-match-journal-%d' % (i))
-            self.log("... Branch %d Writing To %r" % (i, journal_path_for))
             self.journal_path_collection.append(journal_path_for)
             done_event_for = multiprocessing.Event()
             branch = IdentificationWorker(
@@ -363,12 +369,10 @@ class MultipartGlycopeptideIdentifier(TaskBase):
                 common_queue,
                 mapping_batcher.done_event,
                 journal_path_for,
-                concurrent_branch_controller,
                 done_event_for,
                 self.scan_loader,
-                predictive_search_payload,
-                None,
-                1,
+                target_predictive_search=predictive_search_payload,
+                decoy_predictive_search=None,
                 scorer_type=scorer_type_payload,
                 evaluation_kwargs=self.evaluation_kwargs,
                 error_tolerance=self.product_error_tolerance,
@@ -377,6 +381,7 @@ class MultipartGlycopeptideIdentifier(TaskBase):
                 log_handler=ipc_logger.sender(),
             )
             execution_branches.append(branch)
+        # Clear these big blobs from the parent process, we no longer need them
         del scorer_type_payload
         del predictive_search_payload
         pipeline = Pipeline([
@@ -385,6 +390,9 @@ class MultipartGlycopeptideIdentifier(TaskBase):
         ] + execution_branches)
         for branch in execution_branches:
             branch.start(process=True, daemon=True)
+        # At this point, all the components have started already, but
+        # to let the Pipeline object setup its "started" invariants, call
+        # `start` again, which is a no-op for already-started task sequences.
         pipeline.start(daemon=True)
         pipeline.join()
         ipc_logger.stop()
@@ -523,7 +531,6 @@ class IdentificationWorker(TaskExecutionSequence):
     input_batch_queue: multiprocessing.Queue
     input_done_event: multiprocessing.Event
 
-    branch_semaphore: Any
     done_event: multiprocessing.Event
 
     journal_path: os.PathLike
@@ -543,11 +550,11 @@ class IdentificationWorker(TaskExecutionSequence):
     log_handler: LoggingHandlerToken
 
     def __init__(self, name, ipc_manager_address, input_batch_queue, input_done_event,
-                 journal_path, branch_semaphore, done_event,
+                 journal_path, done_event,
                  # Mapping Executor Parameters
                  scan_loader=None, target_predictive_search=None, decoy_predictive_search=None,
                  # Matching Executor Parameters
-                 n_processes=4, scorer_type=None, evaluation_kwargs=None, error_tolerance=None,
+                 n_processes=1, scorer_type=None, evaluation_kwargs=None, error_tolerance=None,
                  cache_seeds=None, mass_shifts=None,
                  log_handler=None):
         self.name = name
@@ -555,7 +562,6 @@ class IdentificationWorker(TaskExecutionSequence):
         self.input_batch_queue = input_batch_queue
         self.input_done_event = input_done_event
         self.journal_path = journal_path
-        self.branch_semaphore = branch_semaphore
         self.done_event = done_event
 
         # Mapping Executor

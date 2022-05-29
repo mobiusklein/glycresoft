@@ -185,3 +185,12 @@ class ScanInformationLoader(object):
             info = ScanInformation.from_scan(scan)
             self.cache[scan_id] = info
             return info
+
+
+def top_n_peaks(scan: ProcessedScan, n: int=300) -> ProcessedScan:
+    scan = scan.clone(deep=True)
+    peaks = scan.deconvoluted_peak_set.__class__(sorted(
+        scan.deconvoluted_peak_set, key=lambda x: x.intensity, reverse=True)[:n])
+    peaks.reindex()
+    scan.deconvoluted_peak_set = peaks
+    return scan

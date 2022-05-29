@@ -1076,7 +1076,7 @@ class GlycanFragmentIndex(object):
                 if abs(comp_frag.mass - delta_mass) / peak.neutral_mass <= error_tolerance:
                     for frag, i, glycosylation_type in comp_frag.keys:
                         sol = result[i][glycosylation_type]
-                        sol.score += np.log(peak.intensity) * (
+                        sol.score += np.log10(peak.intensity) * (
                             1 - ((abs(delta_mass - comp_frag.mass) / peak.neutral_mass) / error_tolerance) ** 4)
                         if not frag.is_extended:
                             sol.core_matches.add(frag.index)

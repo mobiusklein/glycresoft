@@ -906,7 +906,7 @@ cdef class GlycanFragmentIndex(object):
                                 PyDict_SetItem(sols_for_glycan, glycosylation_type, sol)
                             else:
                                 sol = <PartialGlycanSolution>ptemp
-                            sol.score += math.log(peak.intensity) * (
+                            sol.score += math.log10(peak.intensity) * (
                                 1 - ((abs(delta_mass - comp_frag.mass) / peak.neutral_mass) / error_tolerance) ** 4)
                             if not frag.is_extended:
                                 PySet_Add(sol.core_matches, frag.index)

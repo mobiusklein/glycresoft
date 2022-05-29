@@ -43,7 +43,7 @@ class ChromatogramExtractor(TaskBase):
         return self.peak_loader.convert_scan_id_to_retention_time(scan_id)
 
     def load_peaks(self):
-        self.accumulated = self.peak_loader.ms1_peaks_above(min(500, self.minimum_mass), self.minimum_intensity)
+        self.accumulated = self.peak_loader.ms1_peaks_above(min(500.0, self.minimum_mass), self.minimum_intensity)
         self.annotated_peaks = [x[:2] for x in self.accumulated]
         self.peak_mapping = {x[:2]: x[2] for x in self.accumulated}
         if len(self.accumulated) > 0:

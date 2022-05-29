@@ -76,16 +76,55 @@ cpdef _compute_coverage_vectors(self):
         if series.int_code == IonSeries_b.int_code or series.int_code == IonSeries_c.int_code:
             pep_frag = <PeptideFragment>frag
             n_term_ions[pep_frag.position] = 1
-            if frag.is_glycosylated:
+            if pep_frag._is_glycosylated():
                 glycosylated_n_term_ions.add((series, pep_frag.position))
         elif series.int_code == IonSeries_y.int_code or series.int_code == IonSeries_z.int_code:
             pep_frag = <PeptideFragment>frag
             c_term_ions[pep_frag.position] = 1
-            if frag.is_glycosylated:
+            if pep_frag._is_glycosylated():
                 glycosylated_c_term_ions.add((series, pep_frag.position))
         elif series.int_code == IonSeries_stub_glycopeptide.int_code:
             stub_count += 1
     return n_term_ions, c_term_ions, stub_count, len(glycosylated_n_term_ions), len(glycosylated_c_term_ions)
+
+
+cpdef double compute_coverage_no_glycosylated(self):
+    cdef:
+        np.ndarray[np.float64_t, ndim=1] n_term_ions, c_term_ions
+        int stub_count
+        long size
+        double coverage_score
+        size_t i
+        set glycosylated_n_term_ions, glycosylated_c_term_ions
+        IonSeriesBase series
+        FragmentMatchMap solution_map
+        FragmentBase frag
+        PeptideFragment pep_frag
+        _PeptideSequenceCore target
+        PeakFragmentPair pfp
+
+    target = <_PeptideSequenceCore>self.target
+    solution_map = self.solution_map
+    size = target.get_size()
+
+    n_term_ions = zeros(size, dtype=np_float64)
+    c_term_ions = zeros(size, dtype=np_float64)
+
+    for obj in solution_map.fragments():
+        frag = <FragmentBase>obj
+        series = frag.get_series()
+        if series.int_code == IonSeries_b.int_code or series.int_code == IonSeries_c.int_code:
+            pep_frag = <PeptideFragment>frag
+            if not pep_frag._is_glycosylated():
+                n_term_ions[pep_frag.position] = 1.0
+        if series.int_code == IonSeries_y.int_code or series.int_code == IonSeries_z.int_code:
+            pep_frag = <PeptideFragment>frag
+            if not pep_frag._is_glycosylated():
+                c_term_ions[pep_frag.position] = 1.0
+    coverage_score = 0.0
+    for i in range(size):
+        coverage_score += (n_term_ions[i] or c_term_ions[size - i - 1])
+    return coverage_score / size
 
 
 cdef set peptide_ion_series = {IonSeries_b, IonSeries_y, IonSeries_c, IonSeries_z}
@@ -95,7 +134,7 @@ cdef int PEPTIDE_SERIES_NUMBER = IonSeries_z.int_code + 1
 @cython.binding(True)
 @cython.cdivision(True)
 @cython.boundscheck(False)
-def calculate_peptide_score(self, double error_tolerance=2e-5, double coverage_weight=1.0, *args, **kwargs):
+def calculate_peptide_score(self, double error_tolerance=2e-5, double peptide_coverage_weight=1.0, *args, **kwargs):
     cdef:
         double total, score, coverage_score
         PeakFragmentPair peak_pair
@@ -115,7 +154,37 @@ def calculate_peptide_score(self, double error_tolerance=2e-5, double coverage_w
 
     coverage_score = _calculate_peptide_coverage(self)
 
-    score = total * coverage_score ** coverage_weight
+    score = total * coverage_score ** peptide_coverage_weight
+    if isnan(score):
+        return 0
+    return score
+
+
+@cython.binding(True)
+@cython.cdivision(True)
+@cython.boundscheck(False)
+def calculate_peptide_score_no_glycosylated(self, double error_tolerance=2e-5, double peptide_coverage_weight=0.7, *args, **kwargs):
+    cdef:
+        double total, score, coverage_score
+        PeakFragmentPair peak_pair
+        DeconvolutedPeak peak
+        FragmentMatchMap solution_map
+
+    target = <_PeptideSequenceCore>self.target
+    size = target.get_size()
+
+    total = 0
+    solution_map = <FragmentMatchMap>self.solution_map
+    for obj in solution_map.members:
+        peak_pair = <PeakFragmentPair>obj
+        peak = peak_pair.peak
+        if (<FragmentBase>peak_pair.fragment).get_series().int_code < PEPTIDE_SERIES_NUMBER:
+            if not (<PeptideFragment>peak_pair.fragment)._is_glycosylated():
+                total += log10(peak.intensity) * (1 - (abs(peak_pair.mass_accuracy()) / error_tolerance) ** 4)
+
+    coverage_score = compute_coverage_no_glycosylated(self)
+
+    score = total * coverage_score ** peptide_coverage_weight
     if isnan(score):
         return 0
     return score
@@ -156,7 +225,7 @@ cpdef double _calculate_peptide_coverage(self):
 @cython.binding(True)
 @cython.cdivision(True)
 @cython.boundscheck(False)
-def calculate_glycan_score(self, double error_tolerance=2e-5, double core_weight=0.4, double coverage_weight=0.5,
+def calculate_glycan_score(self, double error_tolerance=2e-5, double glycan_core_weight=0.4, double glycan_coverage_weight=0.5,
                            bint fragile_fucose=False, bint extended_glycan_search=False, *args, **kwargs):
     cdef:
         set seen, core_fragments, core_matches, extended_matches
@@ -206,7 +275,7 @@ def calculate_glycan_score(self, double error_tolerance=2e-5, double core_weight
     m = PyList_GET_SIZE(theoretical_set)
     glycan_coverage = _compute_glycan_coverage_from_metrics(
         self, fragile_fucose, len(core_matches), len(extended_matches),
-        len(core_fragments), m, core_weight, coverage_weight)
+        len(core_fragments), m, glycan_core_weight, glycan_coverage_weight)
     score = total * glycan_coverage
     glycan_prior = 0.0
     self._glycan_coverage = glycan_coverage

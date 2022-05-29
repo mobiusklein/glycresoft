@@ -33,8 +33,9 @@ from glycan_profiling.structure import (
     FragmentCachingGlycopeptide, DecoyFragmentCachingGlycopeptide,
     PeptideProteinRelation, )
 from glycan_profiling.structure.structure_loader import CachingStubGlycopeptideStrategy, PeptideDatabaseRecord
+from glycan_profiling.structure.scan import top_n_peaks
 
-from glycan_profiling.tandem.oxonium_ions import OxoniumIndex, SignatureIonIndex, SignatureIonIndexMatch
+from glycan_profiling.tandem.oxonium_ions import OxoniumIndex, SignatureIonIndex, SignatureIonIndexMatch, gscore_scanner
 
 from glycan_profiling.composition_distribution_model.site_model import (
     GlycoproteomePriorAnnotator)
@@ -222,6 +223,8 @@ class GlycoformGeneratorBase(LoggingMixin):
         return key
 
     def handle_n_glycan(self, peptide_obj, peptide_record, glycan_combination):
+        if glycan_combination.size < 5:
+            return []
         return self.handle_glycan_combination(
             peptide_obj, peptide_record, glycan_combination, peptide_record.n_glycosylation_sites,
             _n_glycosylation)
@@ -415,6 +418,9 @@ class PredictiveGlycopeptideSearch(DynamicGlycopeptideSearchBase):
         handle_peptide_mass = self.peptide_glycosylator.handle_peptide_mass
         peptide_masses_per_scan = self.peptide_masses_per_scan
         for scan in group:
+            # TODO Parameterize this threshold
+            if gscore_scanner(scan) < 0.05:
+                continue
             workload.add_scan(scan)
             signature_ion_matches: SignatureIonIndexMatch = None
 

@@ -320,7 +320,8 @@ class WorkloadManager(object):
                 self.total_size, current_scan_map,
                 current_hit_map, current_hit_to_scan_map,
                 current_scan_hit_type_map, current_hit_group_map)
-            yield batch
+            if batch.batch_size:
+                yield batch
             return
 
         current_batch_size = 0
@@ -361,7 +362,8 @@ class WorkloadManager(object):
                     current_scan_hit_type_map = defaultdict(
                         lambda: Unmodified.name)
                     current_hit_group_map = defaultdict(set)
-                    yield batch
+                    if batch.batch_size:
+                        yield batch
         else:
             source = sorted(
                 self.scan_map.items(),
@@ -391,14 +393,16 @@ class WorkloadManager(object):
                     current_hit_to_scan_map = defaultdict(list)
                     current_scan_hit_type_map = defaultdict(lambda: Unmodified.name)
                     current_hit_group_map = defaultdict(set)
-                    yield batch
+                    if batch.batch_size:
+                        yield batch
 
         if current_batch_size > 0:
             batch = WorkloadBatch(
                 current_batch_size, current_scan_map,
                 current_hit_map, current_hit_to_scan_map,
                 current_scan_hit_type_map, current_hit_group_map)
-            yield batch
+            if batch.batch_size:
+                yield batch
 
     @classmethod
     def merge(cls, workloads):

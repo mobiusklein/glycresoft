@@ -284,6 +284,8 @@ class TargetDecoyInterleavingGlycopeptideMatcher(GlycopeptideSpectrumGroupEvalua
         # Evaluate mapped target hits
         target_solutions = []
         total_work = workload.total_work_required()
+        if total_work == 0:
+            total_work = 1
         running_total_work = 0
         for i, batch in enumerate(workload.batches(self.batch_size)):
             self.log("... Batch %d (%d/%d) %0.2f%%" % (
