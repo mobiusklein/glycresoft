@@ -571,7 +571,7 @@ class SpectrumMatch(SpectrumMatchBase):
             self.scan, self.target, self.score, self.mass_shift)
 
     @classmethod
-    def from_match_solution(cls, match):
+    def from_match_solution(cls, match: SpectrumMatcherBase) -> 'SpectrumMatch':
         """Create a :class:`SpectrumMatch` from another :class:`SpectrumMatcherBase`
 
         Parameters
@@ -583,7 +583,10 @@ class SpectrumMatch(SpectrumMatchBase):
         -------
         :class:`SpectrumMatch`
         """
-        return cls(match.scan, match.target, match.score, mass_shift=match.mass_shift)
+        self = cls(match.scan, match.target, match.score, mass_shift=match.mass_shift)
+        if hasattr(match, 'q_value'):
+            self.q_value = match.q_value
+        return self
 
     def clone(self):
         """Create a shallow copy of this object
@@ -803,9 +806,12 @@ class MultiScoreSpectrumMatch(SpectrumMatch):
                 self.mass_shift.name, self.match_type.value)
 
     @classmethod
-    def from_match_solution(cls, match):
+    def from_match_solution(cls, match: SpectrumMatcherBase) -> 'MultiScoreSpectrumMatch':
         try:
-            return cls(match.scan, match.target, ScoreSet.from_spectrum_matcher(match), mass_shift=match.mass_shift)
+            self = cls(match.scan, match.target, ScoreSet.from_spectrum_matcher(match), mass_shift=match.mass_shift)
+            if hasattr(match, 'q_value_set'):
+                self.q_value_set = match.q_value_set
+            return self
         except AttributeError:
             if isinstance(match, MultiScoreSpectrumMatch):
                 return match

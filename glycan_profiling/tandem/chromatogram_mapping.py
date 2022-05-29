@@ -1616,27 +1616,35 @@ class SpectrumMatchUpdater(TaskBase):
             except KeyError:
                 scan_id = sset.scan_id
                 for inst in instances:
-                    match = self.evaluate_spectrum(scan_id, inst, mass_shifts)
-                    match = self.spectrum_match_cls.from_match_solution(match)
+                    matched = self.evaluate_spectrum(scan_id, inst, mass_shifts)
+                    match = self.spectrum_match_cls.from_match_solution(matched)
                     match.scan = sset.scan
                     sset.insert(0, match)
                     solution_set_match_pairs.append((sset, match, False))
                 sset.mark_top_solutions()
+                if self.fdr_estimator is not None:
+                    self.fdr_estimator.score_all(sset)
         return solution_set_match_pairs
 
     def __call__(self, revision, chromatogram=None):
         return self.process_revision(revision, chromatogram=chromatogram)
 
+    def ensure_q_values(self, chromatogram):
+        for sset in chromatogram.tandem_solutions:
+            for sm in sset:
+                if sm.q_value is None and self.fdr_estimator is not None:
+                    self.debug("... Computing q-value for %s+%s @ %r" % (sm.target, sm.mass_shift.name, sm.scan_id))
+                    self.fdr_estimator.score(sm)
+
     def affirm_solution(self, chromatogram: TandemAnnotatedChromatogram):
         reference_peptides = self.find_identical_peptides(chromatogram, chromatogram.entity)
         self.collect_matches(chromatogram, chromatogram.entity,
                              chromatogram.mass_shifts, reference_peptides)
-
         revised_rt_score = None
         if self.retention_time_model:
             revised_rt_score = self.retention_time_model.score_interval(
                 chromatogram, 0.01)
-
+        self.ensure_q_values(chromatogram)
         match, _keep, rejected, invalidated = self.collect_candidate_solutions_for_rt_validation(
             chromatogram, chromatogram.entity, revised_rt_score, None)
 
