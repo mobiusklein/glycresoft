@@ -4,6 +4,9 @@ from uuid import uuid4
 import dill as pickle
 
 import click
+from glycan_profiling import serialize
+from glycan_profiling.cli.export import analysis_identifier_arg
+from glycan_profiling.cli.tools import analysis_identifier
 
 from glycan_profiling.serialize import (
     DatabaseBoundOperation,
@@ -23,6 +26,7 @@ from glycan_profiling.profiler import (
 
 from glycan_profiling.composition_distribution_model import site_model
 from glycan_profiling.scoring.elution_time_grouping import GlycopeptideChromatogramProxy, GlycopeptideElutionTimeModeler
+from glycan_profiling.serialize.analysis import AnalysisTypeEnum
 from glycan_profiling.tandem.glycopeptide.scoring import CoverageWeightedBinomialScorer
 from glycan_profiling.composition_distribution_model import GridPointSolution
 from glycan_profiling.database.composition_network import GraphReader
@@ -849,3 +853,49 @@ def glycopeptide_retention_time_predict(context, model_path, chromatogram_csv_pa
     modeler.evaluate(chromatograms)
     with open(output_path, 'wt') as fh:
         GlycopeptideChromatogramProxy.to_csv(chromatograms, fh)
+
+
+@analyze.command("summarize-analysis", short_help="Briefly summarize the results of an analysis output file")
+@click.pass_context
+@database_connection_arg()
+@analysis_identifier_arg("glycopeptide")
+def summarize_analysis(context: click.Context, database_connection, analysis_identifier, verbose=False):
+    database_connection = DatabaseBoundOperation(database_connection)
+    session = database_connection.session()  # pylint: disable=not-callable
+
+    analysis = get_by_name_or_id(session, Analysis, analysis_identifier)
+    if not analysis.analysis_type == AnalysisTypeEnum.glycopeptide_lc_msms:
+        click.secho("Analysis %r is of type %r." % (
+            str(analysis.name), str(analysis.analysis_type)), fg='red', err=True)
+        context.abort()
+
+    ads = serialize.AnalysisDeserializer(database_connection._original_connection, analysis_id=analysis.id)
+
+    idgps = ads.query(serialize.IdentifiedGlycopeptide).all()
+    idgp_05 = 0
+    idgp_01 = 0
+
+    for idgp in idgps:
+        q = idgp.q_value
+        if q <= 0.05:
+            idgp_05 += 1
+        if q <= 0.01:
+            idgp_01 += 1
+
+    gpsms = ads.get_glycopeptide_spectrum_matches(0.05).all()
+    gpsm_05 = 0
+    gpsm_01 = 0
+
+    for gpsm in gpsms:
+        q = gpsm.q_value
+        if q <= 0.05:
+            gpsm_05 += 1
+        if q <= 0.01:
+            gpsm_01 += 1
+
+    click.echo(f"Name: {ads.analysis.name}")
+    click.echo(f"Identified Glycopeptides @ 5% FDR: {idgp_05}")
+    click.echo(f"Identified Glycopeptides @ 1% FDR: {idgp_01}")
+
+    click.echo(f"Identified GPSMs @ 5% FDR: {gpsm_05}")
+    click.echo(f"Identified GPSMs @ 1% FDR: {gpsm_01}")
