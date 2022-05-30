@@ -88,7 +88,10 @@ cpdef _compute_coverage_vectors(self):
     return n_term_ions, c_term_ions, stub_count, len(glycosylated_n_term_ions), len(glycosylated_c_term_ions)
 
 
-cpdef double compute_coverage_no_glycosylated(self):
+@cython.binding(True)
+@cython.cdivision(True)
+@cython.boundscheck(False)
+cpdef double _calculate_peptide_coverage_no_glycosylated(self):
     cdef:
         np.ndarray[np.float64_t, ndim=1] n_term_ions, c_term_ions
         int stub_count
@@ -182,7 +185,7 @@ def calculate_peptide_score_no_glycosylated(self, double error_tolerance=2e-5, d
             if not (<PeptideFragment>peak_pair.fragment)._is_glycosylated():
                 total += log10(peak.intensity) * (1 - (abs(peak_pair.mass_accuracy()) / error_tolerance) ** 4)
 
-    coverage_score = compute_coverage_no_glycosylated(self)
+    coverage_score = _calculate_peptide_coverage_no_glycosylated(self)
 
     score = total * coverage_score ** peptide_coverage_weight
     if isnan(score):

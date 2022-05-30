@@ -226,11 +226,12 @@ try:
     from glycan_profiling._c.tandem.tandem_scoring_helpers import (
         _match_oxonium_ions, _match_stub_glycopeptides,
         _calculate_glycan_coverage, _compute_glycan_coverage_from_metrics,
-        _calculate_peptide_coverage)
+        _calculate_peptide_coverage, _calculate_peptide_coverage_no_glycosylated)
     GlycopeptideSpectrumMatcherBase._match_oxonium_ions = _match_oxonium_ions
     GlycopeptideSpectrumMatcherBase._match_stub_glycopeptides = _match_stub_glycopeptides
     GlycopeptideSpectrumMatcherBase._calculate_glycan_coverage = _calculate_glycan_coverage
     GlycopeptideSpectrumMatcherBase._compute_glycan_coverage_from_metrics = _compute_glycan_coverage_from_metrics
     GlycopeptideSpectrumMatcherBase._calculate_peptide_coverage = _calculate_peptide_coverage
+    GlycopeptideSpectrumMatcherBase._calculate_peptide_coverage_no_glycosylated = _calculate_peptide_coverage_no_glycosylated
 except ImportError:
     pass
