@@ -33,7 +33,6 @@ from glycan_profiling.structure import (
     FragmentCachingGlycopeptide, DecoyFragmentCachingGlycopeptide,
     PeptideProteinRelation, )
 from glycan_profiling.structure.structure_loader import CachingStubGlycopeptideStrategy, PeptideDatabaseRecord
-from glycan_profiling.structure.scan import top_n_peaks
 
 from glycan_profiling.tandem.oxonium_ions import OxoniumIndex, SignatureIonIndex, SignatureIonIndexMatch, gscore_scanner
 
