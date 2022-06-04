@@ -319,7 +319,6 @@ try:
     from glycan_profiling._c.structure.structure_loader import GlycopeptideFragmentCachingContext, GlycanAwareGlycopeptideFragmentCachingContext
 except ImportError as err:
     print(err)
-    pass
 
 
 class FragmentCachingGlycopeptide(PeptideSequence):
@@ -437,7 +436,7 @@ class GlycopeptideCache(object):
 
     def pop(self, key: KeyTuple):
         self.key_map.pop(key)
-        self.sequence_map.pop(key.sequence, None)
+        return self.sequence_map.pop(key.sequence, None)
 
 
 class CachingGlycopeptideParser(object):
@@ -536,7 +535,7 @@ class DecoyFragmentCachingGlycopeptide(FragmentCachingGlycopeptide):
         rand_deltas = self.get_random_shifts_for(
             self.glycan_composition.mass(),
             n, random_low, random_high)
-        i = 0
+
         stub_fragments = self._clone_and_shift_stub_fragments(
             stub_fragments, rand_deltas, do_clone)
         return stub_fragments
