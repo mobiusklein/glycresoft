@@ -608,9 +608,10 @@ except ImportError:
 
 class CachingStubGlycopeptideStrategy(StubGlycopeptideStrategy):
     _cache = dict()
+    _o_glycan_cache = dict()
 
     def n_glycan_composition_fragments(self, glycan, core_count=1, iteration_count=0):
-        key = (str(glycan), core_count, iteration_count, self.extended, self.extended_fucosylation)
+        key = (glycan.serialize(), core_count, iteration_count, self.extended | self.extended_fucosylation << 1)
         try:
             value = self._cache[key]
             return value
@@ -618,6 +619,17 @@ class CachingStubGlycopeptideStrategy(StubGlycopeptideStrategy):
             value = super(CachingStubGlycopeptideStrategy, self).n_glycan_composition_fragments(
                 glycan, core_count, iteration_count)
             self._cache[key] = value
+            return value
+
+    def o_glycan_composition_fragments(self, glycan, core_count=1, iteration_count=0):
+        key = (glycan.serialize(), core_count, iteration_count, self.extended | self.extended_fucosylation << 1)
+        try:
+            value = self._o_glycan_cache[key]
+            return value
+        except KeyError:
+            value = super(CachingStubGlycopeptideStrategy, self).o_glycan_composition_fragments(
+                glycan, core_count, iteration_count)
+            self._o_glycan_cache[key] = value
             return value
 
     @classmethod
