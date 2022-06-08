@@ -1471,19 +1471,21 @@ class LocalShiftGraph(object):
                 if distance > self.max_distance or distance == 0:
                     continue
                 delta_comp = self.delta_cache(a.glycan_composition, b.glycan_composition)
-                structure = (key + str(delta_comp))
-                if structure in self.key_cache:
-                    structure = self.key_cache[structure]
+                structure_key = (key + delta_comp.serialize())
+                if structure_key in self.key_cache:
+                    structure = self.key_cache[structure_key]
                 else:
-                    structure_key = structure
-                    structure = FragmentCachingGlycopeptide(structure)
+                    structure = FragmentCachingGlycopeptide(structure_key)
                     self.key_cache[structure_key] = structure
                 rec = GlycopeptideChromatogramProxy(
                     a.weighted_neutral_mass, base_time + a.apex_time - b.apex_time,
                     np.sqrt(a.total_signal * b.total_signal),
-                    delta_comp, structure=structure,
+                    delta_comp,
+                    structure=structure,
+                    peptide_key=key,
                     weight=float(distance) ** 4 + (a.weight + b.weight)
                 )
+                rec._structure = structure
                 edge_key = frozenset((str(a.structure), str(b.structure)))
                 delta_key = delta_comp
                 self.edges[edge_key].append(rec)

@@ -1,7 +1,7 @@
 from collections import namedtuple
 from functools import partial
 
-from typing import Any, Dict, Iterable, Type, Union, Optional, Tuple, List
+from typing import Any, ClassVar, Dict, Iterable, Type, Union, Optional, Tuple, List
 
 import numpy as np
 
@@ -607,8 +607,8 @@ except ImportError:
 
 
 class CachingStubGlycopeptideStrategy(StubGlycopeptideStrategy):
-    _cache = dict()
-    _o_glycan_cache = dict()
+    _cache: ClassVar[Dict[Tuple, List]] = dict()
+    _o_glycan_cache: ClassVar[Dict[Tuple, List]] = dict()
 
     def n_glycan_composition_fragments(self, glycan, core_count=1, iteration_count=0):
         key = (glycan.serialize(), core_count, iteration_count, self.extended | self.extended_fucosylation << 1)
@@ -787,12 +787,16 @@ class PeptideDatabaseRecord(PeptideDatabaseRecordBase):
 class LazyGlycopeptide(object):
     __slots__ = ("sequence", "id", "protein_relation")
 
+    sequence: str
+    id: Any
+    protein_relation: PeptideProteinRelation
+
     def __init__(self, sequence, id, protein_relation=None):
         self.sequence = sequence
         self.id = id
         self.protein_relation = protein_relation
 
-    def convert(self, sequence_cls=None):
+    def convert(self, sequence_cls: Optional[Type]=None) -> FragmentCachingGlycopeptide:
         if sequence_cls is None:
             sequence_cls = FragmentCachingGlycopeptide
         inst = sequence_cls(self.sequence)
@@ -831,12 +835,14 @@ class LazyGlycopeptide(object):
 
 
 class GlycanCompositionDeltaCache(object):
+    storage: Dict[Tuple[HashableGlycanComposition, HashableGlycanComposition], HashableGlycanComposition]
+
     def __init__(self, storage=None):
         if storage is None:
             storage = {}
         self.storage = storage
 
-    def __call__(self, x, y):
+    def __call__(self, x: HashableGlycanComposition, y: HashableGlycanComposition) -> HashableGlycanComposition:
         key = (x, y)
         try:
             return self.storage[key]
