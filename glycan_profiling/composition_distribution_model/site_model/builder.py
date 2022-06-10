@@ -279,12 +279,10 @@ class GlycositeModelBuildingProcess(Process):
     def __init__(self, builder, input_queue, output_queue, producer_done_event, output_done_event, log_handler):
         Process.__init__(self)
         self.builder = builder
-        # builder.log = self.log
         self.input_queue = input_queue
         self.output_queue = output_queue
         self.producer_done_event = producer_done_event
         self.output_done_event = output_done_event
-        print("log_handler", log_handler)
         self.log_handler = log_handler
 
     def all_work_done(self):
@@ -306,9 +304,6 @@ class GlycositeModelBuildingProcess(Process):
             The message to log
         """
         logger.info(message)
-        # if self.log_handler is not None:
-        #     self.log_handler(message)
-
 
     def debug(self, message):
         """Send a debugging message via :attr:`log_handler`
