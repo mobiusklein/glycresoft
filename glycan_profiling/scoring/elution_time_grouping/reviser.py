@@ -818,15 +818,25 @@ class ResidualFDREstimator(object):
     def fit(self):
         models = []
         if self.rules:
-            fit_from_rules = self.fit_from_rules()
-            models.append(fit_from_rules)
+            try:
+                fit_from_rules = self.fit_from_rules()
+                models.append(fit_from_rules)
+            except Exception:
+                logger.error("Failed to fit FDR from delta rules", exc_info=True)
 
         if self.rt_model:
-            fit_from_rt_model = self.fit_from_rt_model()
-            models.append(fit_from_rt_model)
-        models.sort(key=lambda x: x.width_at_half_max())
-        model = models[0]
-        self.residual_mapper = model
+            try:
+                fit_from_rt_model = self.fit_from_rt_model()
+                models.append(fit_from_rt_model)
+            except Exception:
+                logger.error(
+                    "Failed to fit FDR from permutations", exc_info=True)
+        if models:
+            models.sort(key=lambda x: x.width_at_half_max())
+            model = models[0]
+            self.residual_mapper = model
+        else:
+            raise ValueError("Could not fit any FDR model for retention time!")
 
     def fit_from_rules(self):
         from glycan_profiling.tandem.glycopeptide.dynamic_generation.multipart_fdr import FiniteMixtureModelFDREstimatorDecoyGaussian

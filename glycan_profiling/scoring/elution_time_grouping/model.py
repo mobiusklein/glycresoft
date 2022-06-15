@@ -2070,28 +2070,33 @@ class GlycopeptideElutionTimeModelBuildingPipeline(TaskBase):
 
         fitted_rules = RevisionRuleList(estimators)
         self.log("... Re-calibrating score from decoy residuals")
-        residual_fdr = ResidualFDREstimator(fitted_rules, model)
-        width = np.abs(residual_fdr.bounds_for_probability(0.95)).max()
-        if model.width_range:
-            delta = width - model.width_range.upper
-            max_delta = min(model.model_width / 2, delta)
-            if max_delta != delta:
-                self.log("... Maximum padding interval exceeded (%0.3f > %0.3f)" % (
-                         delta, max_delta))
-                delta = max_delta
-            if delta > 0:
-                model.interval_padding = delta
-                self.log("... Setting padding interval from residual FDR: %0.3f" %
-                         (delta, ))
+        try:
+            residual_fdr = ResidualFDREstimator(fitted_rules, model)
+            width = np.abs(residual_fdr.bounds_for_probability(0.95)).max()
+            if model.width_range:
+                delta = width - model.width_range.upper
+                max_delta = min(model.model_width / 2, delta)
+                if max_delta != delta:
+                    self.log("... Maximum padding interval exceeded (%0.3f > %0.3f)" % (
+                            delta, max_delta))
+                    delta = max_delta
+                if delta > 0:
+                    model.interval_padding = delta
+                    self.log("... Setting padding interval from residual FDR: %0.3f" %
+                            (delta, ))
+            for estimator in fitted_rules:
+                estimator.prepare()
+                t05 = estimator.score_for_fdr(0.05)
+                t01 = estimator.score_for_fdr(0.01)
+                self.log("... FDR for {}".format(estimator.rule))
+                self.log("...... 5%: {:0.2f}    1%: {:0.2f}".format(t05, t01))
+                self.log("... Fitting relationship over time")
+                estimator.fit_over_time()
+        except ValueError:
+            logger.error("Unable to fit Residual FDR for RT Model", exc_info=True)
+            residual_fdr = None
         model.residual_fdr = residual_fdr
-        for estimator in fitted_rules:
-            estimator.prepare()
-            t05 = estimator.score_for_fdr(0.05)
-            t01 = estimator.score_for_fdr(0.01)
-            self.log("... FDR for {}".format(estimator.rule))
-            self.log("...... 5%: {:0.2f}    1%: {:0.2f}".format(t05, t01))
-            self.log("... Fitting relationship over time")
-            estimator.fit_over_time()
+
 
 
         return fitted_rules
