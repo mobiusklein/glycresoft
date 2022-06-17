@@ -172,7 +172,9 @@ def calculate_peptide_score_no_glycosylated(self, double error_tolerance=2e-5, d
         PeakFragmentPair peak_pair
         DeconvolutedPeak peak
         FragmentMatchMap solution_map
+        bint is_exd
 
+    is_exd = self.is_exd()
     target = <_PeptideSequenceCore>self.target
     size = target.get_size()
 
@@ -182,7 +184,7 @@ def calculate_peptide_score_no_glycosylated(self, double error_tolerance=2e-5, d
         peak_pair = <PeakFragmentPair>obj
         peak = peak_pair.peak
         if (<FragmentBase>peak_pair.fragment).get_series().int_code < PEPTIDE_SERIES_NUMBER:
-            if not (<PeptideFragment>peak_pair.fragment)._is_glycosylated():
+            if (not (<PeptideFragment>peak_pair.fragment)._is_glycosylated()) or is_exd:
                 total += log10(peak.intensity) * (1 - (abs(peak_pair.mass_accuracy()) / error_tolerance) ** 4)
 
     coverage_score = _calculate_peptide_coverage_no_glycosylated(self)
