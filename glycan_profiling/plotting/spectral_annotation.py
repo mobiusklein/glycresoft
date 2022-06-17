@@ -32,6 +32,25 @@ else:
         family='sans serif')
 
 
+unicode_superscript = {
+    "0": "\u2070",
+    "1": "\u00B9",
+    "2": "\u00B2",
+    "3": "\u00B3",
+    "4": "\u2074",
+    "5": "\u2075",
+    "6": "\u2076",
+    "7": "\u2077",
+    "8": "\u2078",
+    "9": "\u2079",
+    "+": "\u207A",
+    "-": "\u207B"
+}
+
+
+def encode_superscript(number: int) -> str:
+    return ''.join([unicode_superscript[c] for c in str(number)])
+
 
 class SpectrumMatchAnnotator(object):
     def __init__(self, spectrum_match, ax=None, clip_labels=True):
@@ -82,7 +101,7 @@ class SpectrumMatchAnnotator(object):
     def label_peak(self, fragment, peak, fontsize=12, rotation=90, **kw):
         label = "%s" % fragment.name
         if peak.charge > 1:
-            label += "$^{%d}$" % peak.charge
+            label += encode_superscript(peak.charge)
         y = peak.intensity
         upshift = self.upshift
         y = min(y + upshift, self.upper * 0.9)
