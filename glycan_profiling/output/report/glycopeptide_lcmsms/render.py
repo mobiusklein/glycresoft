@@ -119,6 +119,10 @@ class IdentifiedGlycopeptideDescriberBase(object):
             precursor_mass_accuracy=match.precursor_mass_accuracy(),
             spectrum_match=match)
 
+    def format_rt_prediction_interval(self, glycopeptide):
+        iv = self.retention_time_model.predict_interval(glycopeptide, 0.01)
+        return self.retention_time_model._truncate_interval(iv)
+
     def _make_scan_loader(self):
         if self.mzml_path is not None:
             if not os.path.exists(self.mzml_path):

@@ -358,6 +358,11 @@ class IntervalScoringMixin(object):
         width = self._threshold_interval(interval) + self._interval_padding
         return max(1 - delta / width, 0.0)
 
+    def _truncate_interval(self, interval):
+        centroid = interval.mean()
+        width = self._threshold_interval(interval) + self._interval_padding
+        return centroid + np.array([-width, width])
+
     def calibrate_prediction_interval(self, chromatograms=None, alpha: float=0.05):
         if chromatograms is None:
             chromatograms = self.chromatograms

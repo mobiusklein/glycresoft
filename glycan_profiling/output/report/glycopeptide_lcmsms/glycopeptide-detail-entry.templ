@@ -70,7 +70,7 @@
                             <td>
                                 {% if glycopeptide.chromatogram is not none and renderer.retention_time_model.has_peptide(glycopeptide)%}
                                 {{"%0.3f"|format(renderer.retention_time_model.score_interval(glycopeptide, 0.01)) }}
-                                {{"(%0.3f-%0.3f)"| format(*renderer.retention_time_model.predict_interval(glycopeptide, 0.01)) }}
+                                {{"(%0.3f-%0.3f)"| format(*renderer.format_rt_prediction_interval(glycopeptide)) }}
                                 {% else %}
                                 -
                                 {% endif %}
