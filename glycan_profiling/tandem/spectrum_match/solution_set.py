@@ -432,6 +432,7 @@ class SpectrumSolutionSet(ScanWrapperBase):
     def _invalidate(self):
         self._target_map = None
         self._is_sorted = False
+        self._q_value = None
 
     @property
     def score(self):
@@ -536,9 +537,9 @@ class SpectrumSolutionSet(ScanWrapperBase):
             logger.warn(f"Could not mark a top solution for {self.scan_id}")
             return self
         solution.best_match = True
-        score = solution.score
+        best_solution_score = solution.score
         for solution in self:
-            if (score - solution.score) < 1e-3 and solution.valid:
+            if (abs(best_solution_score - solution.score) < 1e-3 or best_solution_score < solution.score) and solution.valid:
                 solution.best_match = True
             else:
                 solution.best_match = False
@@ -784,6 +785,10 @@ class SpectrumSolutionSet(ScanWrapperBase):
     def key(self) -> frozenset:
         scan_id = self.scan.id
         return frozenset([(scan_id, match.target.id) for match in self])
+
+
+def close_to_or_greater_than(value: float, reference: float, delta: float=1e-3):
+    return abs(value - reference) < delta or value > reference
 
 
 class MultiScoreSpectrumSolutionSet(SpectrumSolutionSet):

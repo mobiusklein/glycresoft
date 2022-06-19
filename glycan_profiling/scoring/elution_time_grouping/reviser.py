@@ -15,6 +15,7 @@ from glycan_profiling.chromatogram_tree import mass_shift
 from glycan_profiling.chromatogram_tree.mass_shift import Unmodified, Ammonium, Deoxy
 from glycan_profiling.scoring.elution_time_grouping.structure import GlycopeptideChromatogramProxy
 
+
 from glycan_profiling.task import LoggingMixin
 
 logger = logging.getLogger(__name__)
@@ -23,6 +24,7 @@ logger.addHandler(logging.NullHandler())
 
 if TYPE_CHECKING:
     from glycan_profiling.scoring.elution_time_grouping.model import ElutionTimeFitter
+    from glycan_profiling.tandem.chromatogram_mapping import SpectrumMatchUpdater
 
 
 class RevisionRule(object):
@@ -167,6 +169,8 @@ def always(x):
 
 
 class RevisionValidatorBase(LoggingMixin):
+    spectrum_match_builder: 'SpectrumMatchUpdater'
+
     def __init__(self, spectrum_match_builder, threshold_fn=always):
         self.spectrum_match_builder = spectrum_match_builder
         self.threshold_fn = threshold_fn
@@ -179,8 +183,7 @@ class RevisionValidatorBase(LoggingMixin):
             found_revision = True
         except KeyError:
             if self.spectrum_match_builder is not None:
-                self.spectrum_match_builder.get_spectrum_solution_sets(
-                    revised, chromatogram)
+                self.spectrum_match_builder.get_spectrum_solution_sets(revised, chromatogram, invalidate_reference=False)
                 try:
                     revised_gpsm = chromatogram.best_match_for(revised.structure)
                     found_revision = True

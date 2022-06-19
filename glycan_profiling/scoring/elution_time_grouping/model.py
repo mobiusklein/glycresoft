@@ -7,7 +7,7 @@ import io
 from numbers import Number
 from collections import defaultdict, namedtuple
 from functools import partial
-from typing import Any, Callable, DefaultDict, Dict, Iterator, List, Optional, Set, Tuple, Union, OrderedDict
+from typing import Any, Callable, ClassVar, DefaultDict, Dict, Iterator, List, Optional, Set, Tuple, Type, ClassVar, Union, OrderedDict
 from multiprocessing import cpu_count
 from concurrent import futures
 
@@ -401,6 +401,8 @@ class ElutionTimeFitter(LinearModelBase, ChromatgramFeatureizerBase, ScoringFeat
     width_range: IntervalRange
     regularize: bool
 
+    chromatogram_type: ClassVar[Type] = ChromatogramProxy
+
     def __init__(self, chromatograms, scale=1, transform=None, width_range=None, regularize=False):
         self.chromatograms = chromatograms
         self.neutral_mass_array = None
@@ -762,6 +764,8 @@ class PeptideFactorElutionTimeFitter(PeptideGroupChromatogramFeatureizer, Factor
     _peptide_to_indicator: DefaultDict[str, int]
     by_peptide: DefaultDict[str, List]
     peptide_groups: List
+
+    chromatogram_type: ClassVar[Type] = GlycopeptideChromatogramProxy
 
     def __init__(self, chromatograms, factors=None, scale=1, transform=None, width_range=None, regularize=False):
         if factors is None:

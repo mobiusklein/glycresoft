@@ -2,7 +2,7 @@ from collections import defaultdict
 from typing import Any, Dict, FrozenSet, List, Tuple
 from uuid import uuid4
 
-from sqlalchemy.orm import Query
+from sqlalchemy.orm import Query, aliased
 
 from ms_deisotope.output.common import (ScanDeserializerBase, ScanBunch)
 
@@ -402,10 +402,29 @@ class AnalysisDeserializer(DatabaseBoundOperation):
             GlycopeptideSpectrumCluster).join(
             IdentifiedGlycopeptide).filter(
             GlycopeptideSpectrumMatch.is_best_match,
-            GlycopeptideSpectrumMatch.structure_id == IdentifiedGlycopeptide.structure_id,
+            # GlycopeptideSpectrumMatch.structure_id == IdentifiedGlycopeptide.structure_id,
             GlycopeptideSpectrumMatch.q_value < q_value_threshold,
             GlycopeptideSpectrumMatch.analysis_id == self.analysis_id)
         return query
+
+    def _get_glycopeptide_spectrum_matches_not_matching_owning_structure(self, q_value_threshold: float=0.05) -> Query:
+        GPSM_Glycopeptide = aliased(Glycopeptide)
+        mixed = self.query(GlycopeptideSpectrumMatch, IdentifiedGlycopeptide).join(
+            GlycopeptideSpectrumMatch.solution_set).join(
+                GlycopeptideSpectrumSolutionSet.cluster).join(
+                    GlycopeptideSpectrumCluster.owners).join(
+                        GPSM_Glycopeptide,
+                        GlycopeptideSpectrumMatch.structure_id == GPSM_Glycopeptide.id
+                    ).join(
+                        IdentifiedGlycopeptide.structure
+                    ).filter(
+            GlycopeptideSpectrumMatch.is_best_match,
+            GlycopeptideSpectrumMatch.q_value < q_value_threshold,
+            GPSM_Glycopeptide.glycopeptide_sequence != Glycopeptide.glycopeptide_sequence,
+            GPSM_Glycopeptide.peptide_id != Glycopeptide.peptide_id,
+            GlycopeptideSpectrumMatch.analysis_id == self.analysis_id
+        )
+        return mixed
 
     def __repr__(self):
         template = "{self.__class__.__name__}({self.engine!r}, {self.analysis_name!r})"

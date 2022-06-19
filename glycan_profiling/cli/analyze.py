@@ -886,11 +886,20 @@ def summarize_analysis(context: click.Context, database_connection, analysis_ide
     gpsm_05 = 0
     gpsm_01 = 0
 
+    seen_spectrum_05 = set()
+    seen_spectrum_01 = set()
     for gpsm in gpsms:
+        scan_id = gpsm.scan.scan_id
         q = gpsm.q_value
         if q <= 0.05:
+            if scan_id in seen_spectrum_05:
+                continue
+            seen_spectrum_05.add(scan_id)
             gpsm_05 += 1
         if q <= 0.01:
+            if scan_id in seen_spectrum_01:
+                continue
+            seen_spectrum_01.add(scan_id)
             gpsm_01 += 1
 
     click.echo(f"Name: {ads.analysis.name}")

@@ -1,3 +1,5 @@
+from typing import TYPE_CHECKING, List
+
 from ms_deisotope.data_source.scan.base import ChargeNotProvided
 import numpy as np
 
@@ -7,7 +9,11 @@ from six import PY3
 
 from ms_peak_picker.utils import draw_peaklist
 
+
 from .sequence_fragment_logo import glycopeptide_match_logo
+
+if TYPE_CHECKING:
+    from glycan_profiling.tandem.spectrum_match.spectrum_match import SpectrumMatcherBase
 
 
 default_ion_series_to_color = {
@@ -53,7 +59,15 @@ def encode_superscript(number: int) -> str:
 
 
 class SpectrumMatchAnnotator(object):
-    def __init__(self, spectrum_match, ax=None, clip_labels=True):
+    usemathtext: bool
+    spectrum_match: "SpectrumMatcherBase"
+    ax: plt.Axes
+    clip_labels: bool
+    upper: float
+    upshift: float
+    peak_labels: List[plt.Text]
+
+    def __init__(self, spectrum_match, ax=None, clip_labels=True, usemathtext: bool=False):
         if ax is None:
             _, ax = plt.subplots(1)
         self.spectrum_match = spectrum_match
@@ -65,6 +79,7 @@ class SpectrumMatchAnnotator(object):
         self.peak_labels = []
         self.upshift = 10
         self.sequence_logo = None
+        self.usemathtext = usemathtext
 
     def draw_all_peaks(self, color='black', alpha=0.5, **kwargs):
         draw_peaklist(
@@ -99,9 +114,12 @@ class SpectrumMatchAnnotator(object):
             transform=self.ax.transAxes, ha='right', color='darkslategrey')
 
     def label_peak(self, fragment, peak, fontsize=12, rotation=90, **kw):
-        label = "%s" % fragment.name
+        label = f"{fragment.name}"
         if peak.charge > 1:
-            label += encode_superscript(peak.charge)
+            if self.usemathtext:
+                label += f"$^{peak.charge}$"
+            else:
+                label += encode_superscript(peak.charge)
         y = peak.intensity
         upshift = self.upshift
         y = min(y + upshift, self.upper * 0.9)
@@ -285,7 +303,10 @@ class MirrorSpectrumAnnotatorFacet(TidySpectrumMatchAnnotator):
         if fragment.series == 'oxonium_ion':
             return ''
         if peak.charge > 1:
-            label += "$^{%d}$" % peak.charge
+            if self.usemathtext:
+                label += f"$^{peak.charge}$"
+            else:
+                label += encode_superscript(peak.charge)
         y = peak.intensity
         upshift = 2
         sign = 1 if y > 0 else -1
