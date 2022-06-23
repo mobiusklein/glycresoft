@@ -78,8 +78,11 @@ class FiniteMixtureModelFDREstimatorBase(TaskBase):
         self.fdr_map = None
 
     def estimate_posterior_error_probability(self, X: np.ndarray) -> np.ndarray:
-        return self.target_mixture.prior.score(X) * self.target_mixture.weights[
-            -1] / self.target_mixture.score(X)
+        return self.target_mixture.prior.score(X) * self.pi0 / self.target_mixture.score(X)
+
+    @property
+    def pi0(self):
+        return self.target_mixture.weights[-1]
 
     def plot_mixture(self, ax=None):
         if ax is None:
@@ -149,7 +152,9 @@ class FiniteMixtureModelFDREstimatorBase(TaskBase):
             self.fdr_map = interpolate_from_zero(self.fdr_map)
         return self.fdr_map
 
-    def estimate_fdr(self, X: np.ndarray) -> np.ndarray:
+    def estimate_fdr(self, X: np.ndarray=None) -> np.ndarray:
+        if X is None:
+            X = self.target_scores
         X_ = np.array(sorted(X, reverse=True))
         pep = self.estimate_posterior_error_probability(X_)
         # The FDR is the expected value of PEP, or the average PEP in this case.
@@ -206,6 +211,60 @@ class FiniteMixtureModelFDREstimatorBase(TaskBase):
         return self.target_mixture
 
 
+class FiniteMixtureModelFDREstimatorSeparated(FiniteMixtureModelFDREstimatorBase):
+    decoy_model_type = GammaMixture
+    target_model_type = GaussianMixture
+
+    def estimate_decoy_distributions(self, max_components: int = 10):
+        n = len(self.decoy_scores)
+        np.random.seed(n)
+        if n < 10:
+            self.log("Too few decoy observations")
+            self.decoy_mixture = self.decoy_model_type(
+                [1.0], [1.0], [1.0])
+            return self.decoy_mixture
+
+        self.decoy_mixture = self._select_best_number_of_components(
+            max_components, self.decoy_model_type.fit, self.decoy_scores)
+        return self.decoy_mixture
+
+    def estimate_target_distributions(self, max_components: int = 10):
+        n = len(self.target_scores)
+        np.random.seed(n)
+        if n < 10:
+            self.log("Too few target observations")
+            self.target_mixture = self.target_model_type(
+                [1.0], [1.0], [1.0])
+            return self.target_mixture
+        self.target_mixture = self._select_best_number_of_components(
+            max_components,
+            GaussianMixture.fit,
+            self.target_scores,
+            deterministic=True)
+        return self.target_mixture
+
+    def estimate_posterior_error_probability(self, X: np.ndarray) -> np.ndarray:
+        d = self.decoy_mixture.score(X)
+        t = self.target_mixture.score(X)
+        pi0 = self.pi0
+        return (pi0 * d) / (pi0 * d + (1 - pi0) * t)
+
+    def get_count_at_fdr(self, q_value):
+        target_scores = self.target_scores
+        target_scores = np.sort(target_scores)
+        fdr = np.sort(self.estimate_fdr())[::-1]
+
+        i = np.where(fdr < q_value)[0][0]
+        score_for_fdr = target_scores[i]
+        target_counts = (target_scores >= score_for_fdr).sum()
+        return score_for_fdr, target_counts
+
+    @property
+    def pi0(self):
+        pi0 = len(self.decoy_scores) / len(self.target_scores)
+        return pi0
+
+
 class FiniteMixtureModelFDREstimatorDecoyGamma(FiniteMixtureModelFDREstimatorBase):
 
     def estimate_decoy_distributions(self, max_components=10):
@@ -234,7 +293,6 @@ class FiniteMixtureModelFDREstimatorDecoyGaussian(FiniteMixtureModelFDREstimator
         self.decoy_mixture = self._select_best_number_of_components(
             max_components, GaussianMixture.fit, self.decoy_scores)
         return self.decoy_mixture
-
 
 
 FiniteMixtureModelFDREstimator = FiniteMixtureModelFDREstimatorDecoyGamma
@@ -269,6 +327,126 @@ class FiniteMixtureModelFDREstimatorHalfGaussian(FiniteMixtureModelFDREstimatorB
             prior=self.decoy_mixture,
             deterministic=True)
         return self.target_mixture
+
+
+class MultivariateMixtureModel(object):
+    def __init__(self, models):
+        self.models = models
+
+    def __iter__(self):
+        return iter(self.models)
+
+    def __getitem__(self, i):
+        return self.models[i]
+
+    def __len__(self):
+        return len(self.models)
+
+    def is_combined(self, mixture_model):
+            tm = mixture_model.target_mixture
+            if hasattr(tm, 'prior'):
+                return True
+            return False
+
+    def estimate_pi0(self, X: List[np.ndarray]=None) -> np.ndarray:
+        if X is None:
+            X = [m.target_scores for m in self.models]
+
+        decoy_series = []
+        target_series = []
+        for i, (model, x) in enumerate(zip(self.models, X)):
+            if self.is_combined(model):
+                decoy_p = model.decoy_mixture.score(x)
+                w_decoy = model.target_mixture.weights[-1]
+                target_decoy_p = model.target_mixture.score(x)
+                target_p = (target_decoy_p - w_decoy * decoy_p)
+            else:
+                decoy_p = model.decoy_mixture.score(x)
+                target_p = model.target_mixture.score(x)
+            decoy_series.append(decoy_p)
+            target_series.append(target_p)
+        decoy = np.prod(np.stack(decoy_series, axis=-1), axis=1)
+        target = np.prod(np.stack(target_series, axis=-1), axis=1)
+        return (decoy / (decoy + target)).mean(), decoy, target
+
+    def estimate_posterior_error_probability(self, X: List[np.ndarray]=None) -> np.ndarray:
+        if X is None:
+            X = [m.target_scores for m in self.models]
+
+        pi_0_estimate, decoy, target = self.estimate_pi0(X)
+        if self.is_combined(self.models[0]):
+            tm = self.models[0].target_mixture
+            pi_0 = tm.weights[-1]
+            decoy *= pi_0
+        else:
+            pi_0 = self.models[0].pi0
+            decoy *= pi_0
+            target *= (1 - pi_0)
+        return decoy / (target + decoy)
+
+    def estimate_fdr(self, X: List[np.ndarray]=None):
+        if X is None:
+            X = [m.target_scores for m in self.models]
+        X = np.stack(X, axis=-1)
+        X_ = X[np.lexsort(X[:, ::-1].T)[::-1], :]
+        pep = self.estimate_posterior_error_probability(list(X_.T))
+        fdr = np.cumsum(pep) / np.arange(1, len(X_) + 1)
+        fdr[np.isnan(fdr)] = 1.0
+        fdr_descending = fdr[::-1]
+        for i in range(1, fdr_descending.shape[0]):
+            if fdr_descending[i - 1] < fdr_descending[i]:
+                fdr_descending[i] = fdr_descending[i - 1]
+        fdr = fdr_descending[::-1]
+        fdr = fdr[::-1][np.searchsorted(X_[::-1, 0], X[:, 0])]
+        return fdr
+
+    def plot(self, ax=None):
+        if ax is None:
+            fig, ax = plt.subplots(1)
+        target_scores = self.models[0].target_scores
+        decoy_scores = self.models[0].decoy_scores
+        points = np.linspace(
+            min(target_scores.min(), decoy_scores.min()),
+            max(target_scores.max(), decoy_scores.max()),
+            10000)
+
+        target_scores = np.sort(target_scores)
+        target_counts = [(target_scores >= i).sum() for i in points]
+        decoy_counts = [(decoy_scores >= i).sum() for i in points]
+
+        fdr = np.sort(self.estimate_fdr())[::-1]
+
+        at_5_percent = np.where(fdr < 0.05)[0][0]
+        at_1_percent = np.where(fdr < 0.01)[0][0]
+
+        line1 = ax.plot(points, target_counts,
+                        label='Target', color='steelblue')
+        line2 = ax.plot(points, decoy_counts, label='Decoy', color='coral')
+        line4 = ax.vlines(target_scores[at_5_percent], 0, np.max(
+            target_counts), linestyle='--', color='green', lw=0.75, label='5% FDR')
+        line5 = ax.vlines(target_scores[at_1_percent], 0, np.max(
+            target_counts), linestyle='--', color='skyblue', lw=0.75, label='1% FDR')
+        ax.set_ylabel("# Matches Retained")
+        ax.set_xlabel("Score")
+        ax2 = ax.twinx()
+        ax2.set_ylabel("FDR")
+        line3 = ax2.plot(target_scores, fdr, label='FDR',
+                         color='grey', linestyle='--')
+        ax.legend(
+            [line1[0], line2[0], line3[0], line4, line5],
+            ['Target', 'Decoy', 'FDR', '5% FDR', '1% FDR'], frameon=False)
+
+        lo, hi = ax.get_ylim()
+        lo = max(lo, 0)
+        ax.set_ylim(lo, hi)
+        lo, hi = ax2.get_ylim()
+        ax2.set_ylim(0, hi)
+
+        lo, hi = ax.get_xlim()
+        ax.set_xlim(-1, hi)
+        lo, hi = ax2.get_xlim()
+        ax2.set_xlim(-1, hi)
+        return ax
 
 
 class GlycanSizeCalculator(object):
