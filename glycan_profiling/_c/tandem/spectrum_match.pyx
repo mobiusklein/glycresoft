@@ -9,7 +9,7 @@ from cpython.dict cimport PyDict_GetItem, PyDict_SetItem
 cdef class ScoreSet(object):
     def __init__(self, glycopeptide_score=0., peptide_score=0., glycan_score=0., glycan_coverage=0.,
                  stub_glycopeptide_intensity_utilization=0., oxonium_ion_intensity_utilization=0.,
-                 n_stub_glycopeptide_matches=0):
+                 n_stub_glycopeptide_matches=0, peptide_coverage=0.0):
         self.glycopeptide_score = glycopeptide_score
         self.peptide_score = peptide_score
         self.glycan_score = glycan_score
@@ -17,6 +17,7 @@ cdef class ScoreSet(object):
         self.stub_glycopeptide_intensity_utilization = stub_glycopeptide_intensity_utilization
         self.oxonium_ion_intensity_utilization = oxonium_ion_intensity_utilization
         self.n_stub_glycopeptide_matches = n_stub_glycopeptide_matches
+        self.peptide_coverage = peptide_coverage
 
     cpdef bytearray pack(self):
         cdef:
@@ -28,6 +29,7 @@ cdef class ScoreSet(object):
         data[4] = self.stub_glycopeptide_intensity_utilization
         data[5] = self.oxonium_ion_intensity_utilization
         data[6] = self.n_stub_glycopeptide_matches
+        data[7] = self.peptide_coverage
         return ((<char*>data)[:sizeof(float) * 7])
 
     @staticmethod
@@ -38,18 +40,20 @@ cdef class ScoreSet(object):
             int n_stub_glycopeptide_matches
             float stub_utilization
             float oxonium_utilization
+            float peptide_coverage
         temp = data
         buff = <float*>(temp)
         stub_utilization = buff[4]
         oxonium_utilization = buff[5]
         n_stub_glycopeptide_matches = <int>buff[6]
+        peptide_coverage = buff[7]
         return ScoreSet._create(buff[0], buff[1], buff[2], buff[3], stub_utilization,
-                                oxonium_utilization, n_stub_glycopeptide_matches)
+                                oxonium_utilization, n_stub_glycopeptide_matches, peptide_coverage)
 
     @staticmethod
     cdef ScoreSet _create(float glycopeptide_score, float peptide_score, float glycan_score, float glycan_coverage,
                           float stub_glycopeptide_intensity_utilization, float oxonium_ion_intensity_utilization,
-                          int n_stub_glycopeptide_matches):
+                          int n_stub_glycopeptide_matches, float peptide_coverage):
         cdef:
             ScoreSet self
         self = ScoreSet.__new__(ScoreSet)
@@ -60,6 +64,7 @@ cdef class ScoreSet(object):
         self.stub_glycopeptide_intensity_utilization = stub_glycopeptide_intensity_utilization
         self.oxonium_ion_intensity_utilization = oxonium_ion_intensity_utilization
         self.n_stub_glycopeptide_matches = n_stub_glycopeptide_matches
+        self.peptide_coverage = peptide_coverage
         return self
 
     def __eq__(self, other):
@@ -78,11 +83,11 @@ cdef class ScoreSet(object):
         template = (
             "{self.__class__.__name__}({self.glycopeptide_score}, {self.peptide_score},"
             " {self.glycan_score}, {self.glycan_coverage}, {self.stub_glycopeptide_intensity_utilization},"
-            " {self.oxonium_ion_intensity_utilization}, {self.n_stub_glycopeptide_matches})")
+            " {self.oxonium_ion_intensity_utilization}, {self.n_stub_glycopeptide_matches}, {self.peptide_coverage})")
         return template.format(self=self)
 
     def __len__(self):
-        return 6
+        return 7
 
     def __getitem__(self, int i):
         if i == 0:
@@ -99,6 +104,8 @@ cdef class ScoreSet(object):
             return self.oxonium_ion_intensity_utilization
         elif i == 6:
             return self.n_stub_glycopeptide_matches
+        elif i == 7:
+            return self.peptide_coverage
         else:
             raise IndexError(i)
 
@@ -110,6 +117,7 @@ cdef class ScoreSet(object):
         yield self.stub_glycopeptide_intensity_utilization
         yield self.oxonium_ion_intensity_utilization
         yield self.n_stub_glycopeptide_matches
+        yield self.peptide_coverage
 
     def __reduce__(self):
         return self.__class__, (self.glycopeptide_score, self.peptide_score,

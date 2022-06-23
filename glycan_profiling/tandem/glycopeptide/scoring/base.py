@@ -193,6 +193,9 @@ class GlycopeptideSpectrumMatcherBase(SpectrumMatcherBase):
             extended_glycan_search=extended_glycan_search, *args, **kwargs)
         return self._glycan_coverage
 
+    def peptide_coverage(self):
+        return self._calculate_peptide_coverage()
+
     def calculate_glycan_score(self, *args, **kwargs):
         return 0
 

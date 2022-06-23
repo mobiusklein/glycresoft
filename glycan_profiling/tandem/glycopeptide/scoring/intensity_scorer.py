@@ -116,6 +116,8 @@ class LogIntensityScorerReweighted(LogIntensityScorer):
                 error_tolerance, peptide_coverage_weight, *args, **kwargs)
         return self._peptide_score
 
+    def peptide_coverage(self):
+        return self._calculate_peptide_coverage_no_glycosylated()
 
 try:
     from glycan_profiling._c.tandem.tandem_scoring_helpers import calculate_peptide_score_no_glycosylated

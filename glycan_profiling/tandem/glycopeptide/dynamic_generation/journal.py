@@ -131,6 +131,7 @@ class JournalFileWriter(TaskBase):
             'stub_glycopeptide_intensity_utilization',
             'oxonium_ion_intensity_utilization',
             'n_stub_glycopeptide_matches',
+            "peptide_coverage",
         ]
         if self.include_fdr:
             names.extend([
@@ -159,6 +160,7 @@ class JournalFileWriter(TaskBase):
             psm.score_set.stub_glycopeptide_intensity_utilization,
             psm.score_set.oxonium_ion_intensity_utilization,
             psm.score_set.n_stub_glycopeptide_matches,
+            psm.score_set.peptide_coverage,
         ])
         if self.include_fdr:
             q_value_set = psm.q_value_set
@@ -302,7 +304,8 @@ class JournalFileReader(TaskBase):
             float(row['glycan_coverage']),
             float(row['stub_glycopeptide_intensity_utilization']),
             float(row['oxonium_ion_intensity_utilization']),
-            int(row['n_stub_glycopeptide_matches'])
+            int(row['n_stub_glycopeptide_matches']),
+            float(row.get('peptide_coverage', 0.0))
         )
         return score_set
 
