@@ -202,7 +202,11 @@ def make_log_file_logger(log_file_name, log_file_mode, name=None, level="INFO"):
     handler = FlexibleFileHandler(log_file_name, mode=log_file_mode)
     handler.setFormatter(file_fmter)
     handler.setLevel(level)
-    logging.getLogger(name=name).addHandler(handler)
+    logger = logging.getLogger(name=name)
+    for handler in list(logger.handlers):
+        if isinstance(handler, FlexibleFileHandler):
+            logger.removeHandler(handler)
+    logger.addHandler(handler)
 
 
 def configure_logging(level=None, log_file_name=None, log_file_mode=None):

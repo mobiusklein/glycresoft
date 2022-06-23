@@ -4,7 +4,7 @@ import multiprocessing
 import click
 
 from glycan_profiling import version
-
+from glycan_profiling.cli.logger_config import make_log_file_logger, LOG_FILE_MODE, LOG_LEVEL
 
 CONTEXT_SETTINGS = dict(help_option_names=['-h', '--help'])
 
@@ -13,8 +13,11 @@ logger = logging.getLogger("glycresoft")
 
 @click.group(context_settings=CONTEXT_SETTINGS)
 @click.version_option(version.version)
-def cli():
-    pass
+@click.option("-l", "--log-file", type=click.Path(writable=True), required=False, default=None, help="Path to write the log file to.")
+def cli(log_file=None):
+    if log_file is not None:
+        click.echo(f"Logging to {log_file}")
+        make_log_file_logger(log_file, LOG_FILE_MODE, LOG_LEVEL)
 
 
 class HiddenOption(click.Option):
