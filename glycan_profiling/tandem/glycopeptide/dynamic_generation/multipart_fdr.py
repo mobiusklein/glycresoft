@@ -80,6 +80,16 @@ class FiniteMixtureModelFDREstimatorBase(TaskBase):
     def estimate_posterior_error_probability(self, X: np.ndarray) -> np.ndarray:
         return self.target_mixture.prior.score(X) * self.pi0 / self.target_mixture.score(X)
 
+    def get_count_at_fdr(self, q_value):
+        target_scores = self.target_scores
+        target_scores = np.sort(target_scores)
+        fdr = np.sort(self.estimate_fdr())[::-1]
+
+        i = np.where(fdr < q_value)[0][0]
+        score_for_fdr = target_scores[i]
+        target_counts = (target_scores >= score_for_fdr).sum()
+        return score_for_fdr, target_counts
+
     @property
     def pi0(self):
         return self.target_mixture.weights[-1]
@@ -343,12 +353,12 @@ class MultivariateMixtureModel(object):
         return len(self.models)
 
     def is_combined(self, mixture_model):
-            tm = mixture_model.target_mixture
-            if hasattr(tm, 'prior'):
-                return True
-            return False
+        tm = mixture_model.target_mixture
+        if hasattr(tm, 'prior'):
+            return True
+        return False
 
-    def estimate_pi0(self, X: List[np.ndarray]=None) -> np.ndarray:
+    def estimate_pi0(self, X: List[np.ndarray] = None) -> np.ndarray:
         if X is None:
             X = [m.target_scores for m in self.models]
 
@@ -357,9 +367,10 @@ class MultivariateMixtureModel(object):
         for i, (model, x) in enumerate(zip(self.models, X)):
             if self.is_combined(model):
                 decoy_p = model.decoy_mixture.score(x)
-                w_decoy = model.target_mixture.weights[-1]
+                w_decoy = model.pi0
                 target_decoy_p = model.target_mixture.score(x)
                 target_p = (target_decoy_p - w_decoy * decoy_p)
+                decoy_p *= w_decoy
             else:
                 decoy_p = model.decoy_mixture.score(x)
                 target_p = model.target_mixture.score(x)
@@ -369,22 +380,20 @@ class MultivariateMixtureModel(object):
         target = np.prod(np.stack(target_series, axis=-1), axis=1)
         return (decoy / (decoy + target)).mean(), decoy, target
 
-    def estimate_posterior_error_probability(self, X: List[np.ndarray]=None) -> np.ndarray:
+    def estimate_posterior_error_probability(self, X: List[np.ndarray] = None) -> np.ndarray:
         if X is None:
             X = [m.target_scores for m in self.models]
 
         pi_0_estimate, decoy, target = self.estimate_pi0(X)
         if self.is_combined(self.models[0]):
-            tm = self.models[0].target_mixture
-            pi_0 = tm.weights[-1]
-            decoy *= pi_0
+            pass
         else:
             pi_0 = self.models[0].pi0
             decoy *= pi_0
             target *= (1 - pi_0)
         return decoy / (target + decoy)
 
-    def estimate_fdr(self, X: List[np.ndarray]=None):
+    def estimate_fdr(self, X: List[np.ndarray] = None):
         if X is None:
             X = [m.target_scores for m in self.models]
         X = np.stack(X, axis=-1)
@@ -399,6 +408,26 @@ class MultivariateMixtureModel(object):
         fdr = fdr_descending[::-1]
         fdr = fdr[::-1][np.searchsorted(X_[::-1, 0], X[:, 0])]
         return fdr
+
+    def fit(self, *args, **kwargs) -> NearestValueLookUp:
+        fdr = self.estimate_fdr()
+        self.fdr_map = NearestValueLookUp(
+            zip(self.models[0].target_scores, fdr))
+        # Since 0 is not in the domain of the model, we need to include it by
+        # interpolating from 1 to the smallest fitted value.
+        if self.fdr_map.items[0][0] > 0:
+            self.fdr_map = interpolate_from_zero(self.fdr_map)
+        return self.fdr_map
+
+    def get_count_at_fdr(self, q_value):
+        target_scores = self.models[0].target_scores
+        target_scores = np.sort(target_scores)
+        fdr = np.sort(self.estimate_fdr())[::-1]
+
+        i = np.where(fdr < q_value)[0][0]
+        score_for_fdr = target_scores[i]
+        target_counts = (target_scores >= score_for_fdr).sum()
+        return score_for_fdr, target_counts
 
     def plot(self, ax=None):
         if ax is None:

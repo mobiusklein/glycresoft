@@ -14,14 +14,16 @@ cdef class ScoreSet(object):
         self.peptide_score = peptide_score
         self.glycan_score = glycan_score
         self.glycan_coverage = glycan_coverage
+
         self.stub_glycopeptide_intensity_utilization = stub_glycopeptide_intensity_utilization
         self.oxonium_ion_intensity_utilization = oxonium_ion_intensity_utilization
         self.n_stub_glycopeptide_matches = n_stub_glycopeptide_matches
+
         self.peptide_coverage = peptide_coverage
 
     cpdef bytearray pack(self):
         cdef:
-            float[7] data
+            float[8] data
         data[0] = self.glycopeptide_score
         data[1] = self.peptide_score
         data[2] = self.glycan_score
@@ -30,7 +32,7 @@ cdef class ScoreSet(object):
         data[5] = self.oxonium_ion_intensity_utilization
         data[6] = self.n_stub_glycopeptide_matches
         data[7] = self.peptide_coverage
-        return ((<char*>data)[:sizeof(float) * 7])
+        return ((<char*>data)[:sizeof(float) * 8])
 
     @staticmethod
     def unpack(bytearray data):
@@ -122,7 +124,8 @@ cdef class ScoreSet(object):
     def __reduce__(self):
         return self.__class__, (self.glycopeptide_score, self.peptide_score,
                                 self.glycan_score, self.glycan_coverage, self.stub_glycopeptide_intensity_utilization,
-                                self.oxonium_ion_intensity_utilization, self.n_stub_glycopeptide_matches)
+                                self.oxonium_ion_intensity_utilization, self.n_stub_glycopeptide_matches,
+                                self.peptide_coverage)
 
     @classmethod
     def from_spectrum_matcher(cls, match):
@@ -134,7 +137,9 @@ cdef class ScoreSet(object):
             match.glycan_coverage(),
             stub_utilization,
             oxonium_utilization,
-            count)
+            count,
+            match.peptide_coverage()
+        )
 
     cpdef bint _eq(self, ScoreSet other):
         if abs(self.glycopeptide_score - other.glycopeptide_score) > 1e-3:
