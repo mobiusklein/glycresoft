@@ -323,7 +323,7 @@ class TaskBase(LoggingMixin):
         if self._debug_enabled is None:
             logger_state = self.logger_state
             if logger_state is not None:
-                self._debug_enabled = logger_state.isEnabledFor("DEBUG")
+                self._debug_enabled = logger_state.isEnabledFor(logging.DEBUG)
         return bool(self._debug_enabled)
 
     def _format_fields(self):
