@@ -324,6 +324,7 @@ class ChromatogramArtist(ArtistBase):
         self.ax.xaxis.tick_bottom()
         self.ax.set_xlabel("Retention Time", fontsize=axis_label_font_size)
         self.ax.set_ylabel("Relative Abundance", fontsize=axis_label_font_size)
+        self.ax.ticklabel_format(axis='y', style="scientific", scilimits=(0, 0))
         [t.set(fontsize=axis_font_size) for t in self.ax.get_xticklabels()]
         [t.set(fontsize=axis_font_size) for t in self.ax.get_yticklabels()]
 
