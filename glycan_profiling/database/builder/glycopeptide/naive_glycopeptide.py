@@ -17,7 +17,6 @@ from .proteomics.peptide_permutation import (
     ProteinDigestor,
     MultipleProcessProteinDigestor,
     UniprotProteinAnnotator)
-from .proteomics.remove_duplicate_peptides import DeduplicatePeptides
 
 from .proteomics.fasta import ProteinFastaFileParser
 from .common import (
@@ -121,7 +120,7 @@ class FastaGlycopeptideHypothesisSerializer(GlycopeptideHypothesisSerializerBase
             self.variable_modifications,
             include_cysteine_n_glycosylation=self.include_cysteine_n_glycosylation)
         annotator.run()
-        DeduplicatePeptides(self._original_connection, self.hypothesis_id).run()
+        self.deduplicate_peptides()
 
     def glycosylate_peptides(self):
         glycosylator = PeptideGlycosylator(self.session, self.hypothesis_id)
@@ -166,7 +165,7 @@ class MultipleProcessFastaGlycopeptideHypothesisSerializer(FastaGlycopeptideHypo
                  protease='trypsin', constant_modifications=None, variable_modifications=None,
                  max_missed_cleavages=2, max_glycosylation_events=1, semispecific=False,
                  max_variable_modifications=None, full_cross_product=True, peptide_length_range=(5, 60),
-                 require_glycosylation_sites: bool=True, include_cysteine_n_glycosylation: bool=False,
+                 require_glycosylation_sites: bool=True, use_uniprot: bool=True, include_cysteine_n_glycosylation: bool=False,
                  n_processes: int=4):
         super(MultipleProcessFastaGlycopeptideHypothesisSerializer, self).__init__(
             fasta_file, connection, glycan_hypothesis_id, hypothesis_name,
@@ -180,6 +179,7 @@ class MultipleProcessFastaGlycopeptideHypothesisSerializer(FastaGlycopeptideHypo
             full_cross_product=full_cross_product,
             peptide_length_range=peptide_length_range,
             require_glycosylation_sites=require_glycosylation_sites,
+            use_uniprot=use_uniprot,
             include_cysteine_n_glycosylation=include_cysteine_n_glycosylation)
         self.n_processes = n_processes
 

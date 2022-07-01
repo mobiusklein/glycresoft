@@ -5,10 +5,7 @@ from multiprocessing import Process, Queue, Event, RLock
 from threading import Thread
 from itertools import product
 
-try:
-    from Queue import Empty as QueueEmptyException
-except ImportError:
-    from queue import Empty as QueueEmptyException
+from queue import Empty as QueueEmptyException
 
 from glypy import Composition
 from glypy.composition import formula
@@ -25,6 +22,8 @@ from glycan_profiling.task import TaskBase
 
 from glycan_profiling.database.builder.glycan import glycan_combinator
 from glycan_profiling.database.builder.base import HypothesisSerializerBase
+
+from glycan_profiling.database.builder.glycopeptide.proteomics.remove_duplicate_peptides import DeduplicatePeptides
 
 from glycopeptidepy.structure.sequence import (
     _n_glycosylation, _o_glycosylation, _gag_linker_glycosylation)
@@ -137,6 +136,10 @@ class GlycopeptideHypothesisSerializerBase(DatabaseBoundOperation, HypothesisSer
         if self.is_sqlite():
             self._sqlite_reload_analysis_plan()
         self.log("Done Analyzing Indices")
+
+    def deduplicate_peptides(self):
+        DeduplicatePeptides(self._original_connection,
+                            self.hypothesis_id).run()
 
 
 class GlycopeptideHypothesisDestroyer(DatabaseBoundOperation, TaskBase):

@@ -3,8 +3,8 @@ import re
 import operator
 import logging
 from collections import defaultdict
-from typing import List
-from glycopeptidepy.structure.modification import target
+from typing import Any, Dict, List, Mapping, Optional, Tuple, TYPE_CHECKING
+
 from six import string_types as basestring
 
 from glycopeptidepy.io import fasta as glycopeptidepy_fasta
@@ -285,6 +285,21 @@ class PeptideCollection(object):
 
 
 class MzIdentMLPeptide(object):
+    peptide_dict: Dict[str, Any]
+    insert_sites: List[Tuple[int, str]]
+    deleteion_sites: List[Tuple[int, str]]
+
+    modification_counter: int
+    missed_cleavages: Optional[int]
+
+    base_sequence: str
+    peptide_sequence: PeptideSequence
+    glycosite_candidates: List[int]
+
+    modification_translation_table: Dict[str, Modification]
+    enzyme: Optional[Protease]
+    mzid_id: Optional[str]
+
     def __init__(self, peptide_dict, enzyme=None, constant_modifications=None,
                  modification_translation_table=None, process=True):
         if modification_translation_table is None:
@@ -328,7 +343,7 @@ class MzIdentMLPeptide(object):
                 self.peptide_sequence.substitute(pos, replace)
                 self.modification_counter += 1
 
-    def add_modification(self, modification, position):
+    def add_modification(self, modification: Modification, position: int):
         if position == -1:
             targets = modification.rule.n_term_targets
             for t in targets:
@@ -350,17 +365,17 @@ class MzIdentMLPeptide(object):
         else:
             self.peptide_sequence.add_modification(position, modification)
 
-    def add_insertion(self, site, symbol=None):
+    def add_insertion(self, site: int, symbol=None):
         self.insert_sites.append((site, symbol))
 
-    def add_deletion(self, site, symbol):
+    def add_deletion(self, site: int, symbol):
         self.deleteion_sites.append((site, symbol))
 
     def handle_modifications(self):
         if "Modification" in self.peptide_dict:
-            mods = self.peptide_dict["Modification"]
+            mods: List[Dict[str, Any]] = self.peptide_dict["Modification"]
             for mod in mods:
-                pos = mod["location"] - 1
+                pos: int = mod["location"] - 1
                 accession = None
                 try:
                     if "unknown modification" in mod:
@@ -442,7 +457,7 @@ class PeptideIdentification(MzIdentMLPeptide):
             process)
 
     @property
-    def score_type(self):
+    def score_type(self) -> Tuple[Optional[float], Optional[str]]:
         score = score_type = None
         for k, v in self.peptide_dict.items():
             if k in PROTEOMICS_SCORE:
@@ -452,7 +467,7 @@ class PeptideIdentification(MzIdentMLPeptide):
         return score, score_type
 
     @property
-    def evidence_list(self):
+    def evidence_list(self) -> List[Dict[str, Any]]:
         evidence_list = self.peptide_dict["PeptideEvidenceRef"]
         # Flatten the evidence list if it has extra nesting because of alternative
         # mzid parsing
@@ -471,6 +486,7 @@ class ProteinStub(object):
     n_glycan_sequon_sites: List[int]
     o_glycan_sequon_sites: List[int]
     glycosaminoglycan_sequon_sites: List[int]
+
     def __init__(self, name, id, sequence, n_glycan_sequon_sites, o_glycan_sequon_sites,
                  glycosaminoglycan_sequon_sites):
         self.name = name
@@ -496,21 +512,23 @@ class ProteinStub(object):
 
 
 class ProteinStubLoaderBase(object):
+    store: Mapping[str, ProteinStub]
+
     def __init__(self, store=None):
         if store is None:
             store = dict()
         self.store = store
 
-    def __getitem__(self, key):
+    def __getitem__(self, key: str) -> ProteinStub:
         return self.get_protein_by_name(key)
 
-    def __contains__(self, key):
+    def __contains__(self, key: str):
         return key in self.store
 
-    def _load_protein(self, protein_name):
+    def _load_protein(self, protein_name: str):
         raise NotImplementedError()
 
-    def get_protein_by_name(self, protein_name):
+    def get_protein_by_name(self, protein_name: str) -> ProteinStub:
         try:
             return self.store[protein_name]
         except KeyError:
@@ -555,6 +573,18 @@ class FastaProteinStubLoader(ProteinStubLoaderBase):
 
 
 class PeptideMapperBase(object):
+    enzyme: Protease
+    constant_modifications: Dict[str, Modification]
+    modification_translation_table: Dict[str, Modification]
+
+    peptide_grouper: PeptideCollection
+    protein_loader: ProteinStubLoaderBase
+
+
+    counter: int
+    peptide_length_range: Tuple[int, int]
+
+
     def __init__(self, enzyme=None, constant_modifications=None, modification_translation_table=None,
                  protein_filter=None, peptide_length_range=(5, 60)):
         if protein_filter is None:
@@ -575,6 +605,9 @@ class PeptideMapperBase(object):
 
 
 class PeptideConverter(PeptideMapperBase):
+    hypothesis_id: int
+    include_cysteine_n_glycosylation: bool
+
     def __init__(self, session, hypothesis_id, enzyme=None, constant_modifications=None,
                  modification_translation_table=None, protein_filter=None,
                  peptide_length_range=(5, 60), include_cysteine_n_glycosylation: bool = False):
@@ -674,7 +707,7 @@ class PeptideConverter(PeptideMapperBase):
             raise ValueError("Peptide not found in Protein\n%s\n%r\n\n" % (parent_protein.name, sequence))
         return found
 
-    def handle_peptide_dict(self, peptide_dict):
+    def handle_peptide_dict(self, peptide_dict: Dict[str, Any]):
         peptide_ident = PeptideIdentification(
             peptide_dict, self.enzyme, self.constant_modifications,
             self.modification_translation_table)

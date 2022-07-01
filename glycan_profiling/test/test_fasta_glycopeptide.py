@@ -137,16 +137,26 @@ class FastaGlycopeptideTests(unittest.TestCase):
         glycan_builder.start()
 
         glycopeptide_builder = naive_glycopeptide.MultipleProcessFastaGlycopeptideHypothesisSerializer(
-            fasta_file, db_file, glycan_builder.hypothesis_id, constant_modifications=constant_modifications,
-            variable_modifications=variable_modifications, max_missed_cleavages=1)
+            fasta_file, db_file, glycan_builder.hypothesis_id,
+            use_uniprot=True,
+            constant_modifications=constant_modifications,
+            variable_modifications=variable_modifications,
+            max_missed_cleavages=1)
         glycopeptide_builder.start()
 
         without_uniprot = 201400
         with_uniprot_without_variable_signal_peptide = 231800
         with_uniprot = 353400
 
-        assert glycopeptide_builder.query(Glycopeptide).count() in (
+        observed_count = glycopeptide_builder.query(Glycopeptide).count()
+
+        assert observed_count in (
             with_uniprot, with_uniprot_without_variable_signal_peptide, without_uniprot)
+
+        if observed_count == without_uniprot:
+            warnings.warn("UniProt Annotations Not Used")
+        if observed_count == with_uniprot_without_variable_signal_peptide:
+            warnings.warn("Variable Signal Peptide Was Not Used")
 
         redundancy = glycopeptide_builder.query(
             Glycopeptide.glycopeptide_sequence,
