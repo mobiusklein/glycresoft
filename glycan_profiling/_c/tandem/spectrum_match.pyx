@@ -5,7 +5,6 @@ from cpython.dict cimport PyDict_GetItem, PyDict_SetItem
 
 
 @cython.freelist(100000)
-@cython.final
 cdef class ScoreSet(object):
     def __init__(self, glycopeptide_score=0., peptide_score=0., glycan_score=0., glycan_coverage=0.,
                  stub_glycopeptide_intensity_utilization=0., oxonium_ion_intensity_utilization=0.,
