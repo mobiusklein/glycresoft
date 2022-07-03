@@ -843,8 +843,9 @@ cpdef compute_coverage(self):
 @cython.binding(True)
 cpdef count_peptide_Y_ion_utilization(self):
     cdef:
-        double weight
-        size_t count
+        float weight
+        int stub_count, peptide_backbone_count
+        int series_code
         object cached_value, tmp
         PeakFragmentPair pfp
         FragmentMatchMap solution_map
@@ -855,14 +856,18 @@ cpdef count_peptide_Y_ion_utilization(self):
         return cached_value
     solution_map = <FragmentMatchMap>self.solution_map
     weight = 0.0
-    count = 0
+    stub_count = 0
+    peptide_backbone_count = 0
     for tmp in solution_map.members:
         pfp = <PeakFragmentPair>tmp
         frag = <FragmentBase>pfp.fragment
-        if frag.get_series().int_code == IonSeries_stub_glycopeptide.int_code:
-            count += 1
+        series_code = frag.get_series().int_code
+        if series_code == IonSeries_stub_glycopeptide.int_code:
+            stub_count += 1
             weight += log10(pfp.peak.intensity)
-    self._peptide_Y_ion_utilization = weight, count
+        elif series_code < IonSeries_z.int_code:
+            peptide_backbone_count += 1
+    self._peptide_Y_ion_utilization = (weight, stub_count, peptide_backbone_count)
     return self._peptide_Y_ion_utilization
 
 

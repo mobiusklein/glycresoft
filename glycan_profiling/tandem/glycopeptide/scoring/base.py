@@ -222,7 +222,9 @@ class GlycopeptideSpectrumMatcherBase(SpectrumMatcherBase):
         data['glycan_coverage'] = self.glycan_coverage()
         data['n_peaks'] = len(self.spectrum)
         data['n_fragment_matches'] = len(self.solution_map)
-        data['stub_glycopeptide_intensity_utilization'], data['n_stub_glycopeptide_matches'] = self.count_peptide_Y_ion_utilization()
+        (data['stub_glycopeptide_intensity_utilization'],
+         data['n_stub_glycopeptide_matches'],
+         data['peptide_backbone_matches']) = self.count_peptide_Y_ion_utilization()
         return data
 
 try:

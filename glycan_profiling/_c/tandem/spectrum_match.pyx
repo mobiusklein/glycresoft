@@ -128,7 +128,7 @@ cdef class ScoreSet(object):
 
     @classmethod
     def from_spectrum_matcher(cls, match):
-        stub_utilization, count = match.count_peptide_Y_ion_utilization()
+        stub_utilization, n_stub_glycopeptide_matches, _ = match.count_peptide_Y_ion_utilization()
         oxonium_utilization = match.oxonium_ion_utilization()
         return cls(match.score,
             match.peptide_score(),
@@ -136,7 +136,7 @@ cdef class ScoreSet(object):
             match.glycan_coverage(),
             stub_utilization,
             oxonium_utilization,
-            count,
+            n_stub_glycopeptide_matches,
             match.peptide_coverage()
         )
 
