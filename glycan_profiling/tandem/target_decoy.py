@@ -1,5 +1,8 @@
 # -*- coding: utf-8 -*-
 import logging
+from typing import Tuple
+
+from glycan_profiling.tandem.spectrum_match.spectrum_match import SpectrumMatch, SpectrumMatchBase
 try:
     logger = logging.getLogger("target_decoy")
 except Exception:
@@ -149,7 +152,7 @@ except ImportError:
 
 class ScoreThresholdCounter(object):
     def __init__(self, series, thresholds):
-        self.series = sorted(series, key=lambda x: x.score)
+        self.series = self._prepare_series(series)
         self.thresholds = sorted(set(np.round((thresholds), 10)))
         self.counter = defaultdict(int)
         self.counts_above_threshold = None
@@ -164,6 +167,9 @@ class ScoreThresholdCounter(object):
         self.find_counts()
         self.counts_above_threshold = self.compute_complement()
         self.counter = NearestValueLookUp(self.counter)
+
+    def _prepare_series(self, series):
+        return sorted(series, key=lambda x: x.score)
 
     def advance_threshold(self):
         self.threshold_index += 1
@@ -201,6 +207,27 @@ class ScoreThresholdCounter(object):
         for k, v in self.counter.items():
             complement[k] = n - v
         return NearestValueLookUp(complement)
+
+
+class ArrayScoreThresholdCounter(ScoreThresholdCounter):
+
+    def _prepare_series(self, series):
+        return np.sort(np.array(series))
+
+    def test(self, item):
+        if item < self.current_threshold:
+            self.current_count += 1
+            self._i += 1
+        else:
+            # Rather than using recursion, just invert the condition
+            # being tested and loop here.
+            while self.advance_threshold():
+                if item > self.current_threshold:
+                    continue
+                else:
+                    self.current_count += 1
+                    self._i += 1
+                    break
 
 
 class TargetDecoySet(namedtuple("TargetDecoySet", ['target_matches', 'decoy_matches'])):
@@ -331,6 +358,8 @@ class TargetDecoyAnalyzer(object):
     with_pit : bool
         Whether or not to use the "percent incorrect target" adjustment
     """
+    n_targets_at: NearestValueLookUp
+    n_decoys_at: NearestValueLookUp
 
     def __init__(self, target_series, decoy_series, with_pit=False, decoy_correction=0, database_ratio=1.0,
                  target_weight=1.0, decoy_pseudocount=1.0):
@@ -347,6 +376,12 @@ class TargetDecoyAnalyzer(object):
         self._calculate_thresholds()
         self._q_value_map = self.calculate_q_values()
 
+    def get_score(self, spectrum_match: SpectrumMatch) -> float:
+        return spectrum_match.score
+
+    def has_score(self, spectrum_match: SpectrumMatch) -> bool:
+        return hasattr(spectrum_match, 'score')
+
     def pack(self):
         self.targets = []
         self.decoys = []
@@ -358,16 +393,26 @@ class TargetDecoyAnalyzer(object):
         target_series = self.targets
         decoy_series = self.decoys
 
-        thresholds = np.array(sorted({case.score for case in target_series} |
-                                     {case.score for case in decoy_series}), dtype=float)
+        if self.has_score(target_series[0]):
+            target_series = np.array([self.get_score(t) for t in target_series])
+        else:
+            target_series = np.array(target_series)
+
+        if self.has_score(decoy_series[0]):
+            decoy_series = np.array([self.get_score(t) for t in decoy_series])
+        else:
+            decoy_series = np.array(decoy_series)
+
+        thresholds = np.sort(np.concatenate([target_series, decoy_series]))
+
         self.thresholds = thresholds
         if len(thresholds) > 0:
-            self.n_targets_at = ScoreThresholdCounter(
+            self.n_targets_at = ArrayScoreThresholdCounter(
                 target_series, self.thresholds).counts_above_threshold
-            self.n_decoys_at = ScoreThresholdCounter(
+            self.n_decoys_at = ArrayScoreThresholdCounter(
                 decoy_series, self.thresholds).counts_above_threshold
 
-    def n_decoys_above_threshold(self, threshold):
+    def n_decoys_above_threshold(self, threshold: float) -> int:
         try:
             if threshold > self.n_decoys_at.max_key():
                 return self.decoy_pseudocount + self.decoy_correction
@@ -378,7 +423,7 @@ class TargetDecoyAnalyzer(object):
             else:
                 raise
 
-    def n_targets_above_threshold(self, threshold):
+    def n_targets_above_threshold(self, threshold: float) -> int:
         try:
             return self.n_targets_at[threshold]
         except IndexError:
@@ -387,10 +432,10 @@ class TargetDecoyAnalyzer(object):
             else:
                 raise
 
-    def expectation_correction(self, t, d):
+    def expectation_correction(self, t: int, d: int) -> float:
         return expectation_correction(t, d, self.database_ratio)
 
-    def target_decoy_ratio(self, cutoff):
+    def target_decoy_ratio(self, cutoff: float) -> float:
 
         decoys_at = self.n_decoys_above_threshold(cutoff)
         targets_at = self.n_targets_above_threshold(cutoff)
@@ -407,14 +452,14 @@ class TargetDecoyAnalyzer(object):
             ratio = (decoys_at + decoy_correction)
         return ratio, targets_at, decoys_at
 
-    def estimate_percent_incorrect_targets(self, cutoff):
+    def estimate_percent_incorrect_targets(self, cutoff: float) -> float:
         target_cut = self.target_count - self.n_targets_above_threshold(cutoff)
         decoy_cut = self.decoy_count - self.n_decoys_above_threshold(cutoff)
         percent_incorrect_targets = target_cut / float(decoy_cut)
 
         return percent_incorrect_targets
 
-    def estimate_fdr(self, cutoff):
+    def estimate_fdr(self, cutoff: float) -> float:
         if self.with_pit:
             percent_incorrect_targets = self.estimate_percent_incorrect_targets(cutoff)
         else:
@@ -422,7 +467,8 @@ class TargetDecoyAnalyzer(object):
         return percent_incorrect_targets * self.target_decoy_ratio(cutoff)[0]
 
     def calculate_q_values(self):
-        thresholds = sorted(self.thresholds, reverse=False)
+        # thresholds = sorted(self.thresholds, reverse=False)
+        thresholds = self.thresholds[::-1]
         mapping = {}
         last_score = float('inf')
         last_q_value = 0
@@ -440,9 +486,9 @@ class TargetDecoyAnalyzer(object):
                 mapping[threshold] = 1.
         return NearestValueLookUp(mapping)
 
-    def score_for_fdr(self, fdr_estimate):
+    def score_for_fdr(self, fdr_estimate: float) -> float:
         i = -1
-        for score, fdr in self.q_value_map.items:
+        for _score, fdr in self.q_value_map.items:
             i += 1
             if fdr_estimate >= fdr:
                 cella = self.q_value_map.items[i]
@@ -459,6 +505,11 @@ class TargetDecoyAnalyzer(object):
                 else:
                     return cellc.score
         return float('inf')
+
+    def get_count_for_fdr(self, fdr_estimate: float) -> Tuple[float, int]:
+        threshold = self.score_for_fdr(fdr_estimate)
+        count = self.n_targets_above_threshold(threshold)
+        return threshold, count
 
     def plot(self, ax=None):
         if ax is None:
@@ -518,18 +569,18 @@ class TargetDecoyAnalyzer(object):
             return
         for target in self.targets:
             try:
-                target.q_value = q_map[target.score]
+                target.q_value = q_map[self.get_score(target)]
             except IndexError:
                 target.q_value = 0.0
         for decoy in self.decoys:
             try:
-                decoy.q_value = q_map[decoy.score]
+                decoy.q_value = q_map[self.get_score(decoy)]
             except IndexError:
                 decoy.q_value = 0.0
 
     def score(self, spectrum_match):
         try:
-            spectrum_match.q_value = self._q_value_map[spectrum_match.score]
+            spectrum_match.q_value = self._q_value_map[self.get_score(spectrum_match)]
         except IndexError:
             import warnings
             warnings.warn("Empty q-value mapping. q-value will be 0.")

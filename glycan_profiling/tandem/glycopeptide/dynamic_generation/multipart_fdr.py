@@ -10,7 +10,7 @@ FDR estimation procedure described in:
     pGlyco: a pipeline for the identification of intact N-glycopeptides by using HCD-
     and CID-MS/MS and MS3. Scientific Reports, 6(April), 25102. https://doi.org/10.1038/srep25102
 '''
-from typing import Dict, List, Optional, Type
+from typing import Dict, List, Optional, Tuple, Type
 import numpy as np
 
 from glypy.structure.glycan_composition import GlycanComposition
@@ -340,6 +340,8 @@ class FiniteMixtureModelFDREstimatorHalfGaussian(FiniteMixtureModelFDREstimatorB
 
 
 class MultivariateMixtureModel(object):
+    models: List[FiniteMixtureModelFDREstimatorBase]
+
     def __init__(self, models):
         self.models = models
 
@@ -358,7 +360,7 @@ class MultivariateMixtureModel(object):
             return True
         return False
 
-    def estimate_pi0(self, X: List[np.ndarray] = None) -> np.ndarray:
+    def _compute_per_feature_probabilities(self, X: List[np.ndarray] = None) -> Tuple[np.ndarray, np.ndarray]:
         if X is None:
             X = [m.target_scores for m in self.models]
 
@@ -376,24 +378,44 @@ class MultivariateMixtureModel(object):
                 target_p = model.target_mixture.score(x)
             decoy_series.append(decoy_p)
             target_series.append(target_p)
-        decoy = np.prod(np.stack(decoy_series, axis=-1), axis=1)
-        target = np.prod(np.stack(target_series, axis=-1), axis=1)
+        return decoy_series, target_series
+
+    def estimate_pi0(self, X: List[np.ndarray]=None) -> Tuple[float, np.ndarray, np.ndarray]:
+        decoy_series, target_series = self._compute_per_feature_probabilities(X)
+        decoy = np.prod(decoy_series, axis=0)
+        target = np.prod(target_series, axis=0)
         return (decoy / (decoy + target)).mean(), decoy, target
 
-    def estimate_posterior_error_probability(self, X: List[np.ndarray] = None) -> np.ndarray:
+    def _compute_overlap_probabilities(self, decoy_series: List[np.ndarray], target_series: List[np.ndarray], pi0s: List[float]) -> List[np.ndarray]:
+        mixed_terms = []
+        for i, d in enumerate(decoy_series):
+            for j, t in enumerate(target_series):
+                if i != j:
+                    mixed_terms.append(d * t / (1 - pi0s[j]) * pi0s[j])
+        return mixed_terms
+
+    def estimate_posterior_error_probability(self, X: List[np.ndarray] = None, correlated: bool=False) -> np.ndarray:
         if X is None:
             X = [m.target_scores for m in self.models]
 
-        pi_0_estimate, decoy, target = self.estimate_pi0(X)
+        decoy_series, target_series = self._compute_per_feature_probabilities(X)
+        if correlated:
+            mixed_terms = self._compute_overlap_probabilities(
+                decoy_series, target_series, [m.pi0 for m in self])
+
+        decoy = np.prod(decoy_series, axis=0)
+        target = np.prod(target_series, axis=0)
         if self.is_combined(self.models[0]):
             pass
         else:
             pi_0 = self.models[0].pi0
             decoy *= pi_0
             target *= (1 - pi_0)
-        return decoy / (target + decoy)
+        if not correlated:
+            return decoy / (target + decoy)
+        raise NotImplementedError("Correlated features are not implemented")
 
-    def estimate_fdr(self, X: List[np.ndarray] = None):
+    def estimate_fdr(self, X: List[np.ndarray] = None, correlated: bool=False):
         if X is None:
             X = [m.target_scores for m in self.models]
         X = np.stack(X, axis=-1)
@@ -409,8 +431,8 @@ class MultivariateMixtureModel(object):
         fdr = fdr[::-1][np.searchsorted(X_[::-1, 0], X[:, 0])]
         return fdr
 
-    def fit(self, *args, **kwargs) -> NearestValueLookUp:
-        fdr = self.estimate_fdr()
+    def fit(self, correlated: bool = False, *args, **kwargs) -> NearestValueLookUp:
+        fdr = self.estimate_fdr(correlated=correlated)
         self.fdr_map = NearestValueLookUp(
             zip(self.models[0].target_scores, fdr))
         # Since 0 is not in the domain of the model, we need to include it by
