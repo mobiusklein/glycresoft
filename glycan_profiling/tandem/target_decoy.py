@@ -403,7 +403,9 @@ class TargetDecoyAnalyzer(object):
         else:
             decoy_series = np.array(decoy_series)
 
-        thresholds = np.sort(np.concatenate([target_series, decoy_series]))
+        thresholds = np.unique(
+            np.sort(np.concatenate([target_series, decoy_series]))
+        )
 
         self.thresholds = thresholds
         if len(thresholds) > 0:
@@ -733,3 +735,19 @@ class GroupwiseTargetDecoyAnalyzer(object):
         lo, hi = ax2.get_xlim()
         ax2.set_xlim(-1, hi)
         return ax
+
+
+class PeptideScoreTargetDecoyAnalyzer(TargetDecoyAnalyzer):
+    '''A :class:`TargetDecoyAnalyzer` subclass for directly
+    handling :class:`~.MultiScoreSpectrumMatch` instances.
+    '''
+
+    def get_score(self, spectrum_match):
+        return spectrum_match.score_set.peptide_score
+
+    def has_score(self, spectrum_match):
+        try:
+            spectrum_match.score_set.peptide_score
+            return True
+        except AttributeError:
+            return False
