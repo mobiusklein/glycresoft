@@ -37,6 +37,8 @@ cdef class ScoreSet(object):
     cpdef bint _eq(self, ScoreSet other)
     cpdef bytearray pack(self)
 
+    cpdef list values(self)
+
     @staticmethod
     cdef ScoreSet _create(float glycopeptide_score, float peptide_score, float glycan_score, float glycan_coverage,
                           float stub_glycopeptide_intensity_utilization, float oxonium_ion_intensity_utilization,

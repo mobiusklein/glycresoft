@@ -140,6 +140,31 @@ cdef class ScoreSet(object):
             match.peptide_coverage()
         )
 
+    @classmethod
+    def field_names(cls):
+        return [
+            "total_score",
+            "peptide_score",
+            "glycan_score",
+            "glycan_coverage",
+            "stub_glycopeptide_intensity_utilization",
+            "oxonium_ion_intensity_utilization",
+            "n_stub_glycopeptide_matches",
+            "peptide_coverage",
+        ]
+
+    cpdef list values(self):
+        return [
+            self.glycopeptide_score,
+            self.peptide_score,
+            self.glycan_score,
+            self.glycan_coverage,
+            self.stub_glycopeptide_intensity_utilization,
+            self.oxonium_ion_intensity_utilization,
+            self.n_stub_glycopeptide_matches,
+            self.peptide_coverage,
+        ]
+
     cpdef bint _eq(self, ScoreSet other):
         if abs(self.glycopeptide_score - other.glycopeptide_score) > 1e-3:
             return False

@@ -11,7 +11,7 @@ from multiprocessing import Event, JoinableQueue
 
 from collections import defaultdict
 from operator import attrgetter
-from typing import Any, Callable, DefaultDict, Dict, List, Set, Union
+from typing import Any, Callable, DefaultDict, Dict, List, Set, Type, Union
 
 from six import PY2
 
@@ -96,7 +96,11 @@ class JournalFileWriter(TaskBase):
     spectrum_counter: int
     solution_counter: int
 
-    def __init__(self, path, include_fdr=False, include_auxiliary=False):
+    score_columns: List[str]
+
+    def __init__(self, path, include_fdr=False, include_auxiliary=False, score_columns: List[str]=None):
+        if score_columns is None:
+            score_columns = ScoreSet.field_names()
         self.path = path
         if not hasattr(path, 'write'):
             self.handle = _file_opener(path, 'wb')
@@ -104,10 +108,13 @@ class JournalFileWriter(TaskBase):
             self.handle = _file_wrapper(self.path, 'w')
         self.include_fdr = include_fdr
         self.include_auxiliary = include_auxiliary
-        self.writer = csv.writer(self.handle, delimiter='\t')
-        self.write_header()
         self.spectrum_counter = 0
         self.solution_counter = 0
+
+        self.score_columns = score_columns
+
+        self.writer = csv.writer(self.handle, delimiter='\t')
+        self.write_header()
 
     def _get_headers(self):
         names = [
@@ -124,15 +131,8 @@ class JournalFileWriter(TaskBase):
             'glycosylation_type',
             'glycopeptide_sequence',
             'mass_shift',
-            'total_score',
-            'peptide_score',
-            'glycan_score',
-            'glycan_coverage',
-            'stub_glycopeptide_intensity_utilization',
-            'oxonium_ion_intensity_utilization',
-            'n_stub_glycopeptide_matches',
-            "peptide_coverage",
         ]
+        names.extend(self.score_columns)
         if self.include_fdr:
             names.extend([
                 "peptide_q_value",
@@ -153,15 +153,8 @@ class JournalFileWriter(TaskBase):
         fields = ([psm.scan_id, error, ] + list(psm.target.id) + [
             psm.target,
             psm.mass_shift.name,
-            psm.score,
-            psm.score_set.peptide_score,
-            psm.score_set.glycan_score,
-            psm.score_set.glycan_coverage,
-            psm.score_set.stub_glycopeptide_intensity_utilization,
-            psm.score_set.oxonium_ion_intensity_utilization,
-            psm.score_set.n_stub_glycopeptide_matches,
-            psm.score_set.peptide_coverage,
         ])
+        fields.extend(psm.score_set.values())
         if self.include_fdr:
             q_value_set = psm.q_value_set
             if q_value_set is None:
@@ -254,11 +247,16 @@ class JournalFileReader(TaskBase):
     scan_loader: ScanInformationLoader
     include_fdr: bool
 
-    def __init__(self, path, cache_size=2 ** 16, mass_shift_map=None, scan_loader=None, include_fdr=False):
+    score_set_type: Type
+    score_columns: List[str]
+
+    def __init__(self, path, cache_size=2 ** 16, mass_shift_map=None, scan_loader=None, include_fdr=False, score_set_type=None):
         if mass_shift_map is None:
             mass_shift_map = {Unmodified.name: Unmodified}
         else:
             mass_shift_map.setdefault(Unmodified.name, Unmodified)
+        if score_set_type is None:
+            score_set_type = ScoreSet
         self.path = path
         if not hasattr(path, 'read'):
             self.handle = _file_opener(path, 'rt')
@@ -269,6 +267,11 @@ class JournalFileReader(TaskBase):
         self.mass_shift_map = mass_shift_map
         self.scan_loader = scan_loader
         self.include_fdr = include_fdr
+
+        self.score_set_type = score_set_type
+        self.score_columns = score_set_type.field_names()
+        for name in ScoreSet.field_names():
+            self.score_columns.remove(name)
 
     def _build_key(self, row) -> glycopeptide_key_t:
         glycopeptide_id_key = glycopeptide_key_t(
@@ -297,7 +300,7 @@ class JournalFileReader(TaskBase):
         return glycopeptide
 
     def _build_score_set(self, row) -> ScoreSet:
-        score_set = ScoreSet(
+        score_set_entries = [
             parse_float(row['total_score']),
             parse_float(row['peptide_score']),
             parse_float(row['glycan_score']),
@@ -306,7 +309,11 @@ class JournalFileReader(TaskBase):
             float(row['oxonium_ion_intensity_utilization']),
             int(row['n_stub_glycopeptide_matches']),
             float(row.get('peptide_coverage', 0.0))
-        )
+        ]
+        for name in self.score_columns:
+            score_set_entries.append(parse_float(row.get(name, '0.0')))
+
+        score_set = self.score_set_type(*score_set_entries)
         return score_set
 
     def _build_fdr_set(self, row) -> FDRSet:

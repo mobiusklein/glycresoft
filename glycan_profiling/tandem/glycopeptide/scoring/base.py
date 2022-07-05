@@ -203,12 +203,16 @@ class GlycopeptideSpectrumMatcherBase(SpectrumMatcherBase):
         if self._peptide_Y_ion_utilization is not None:
             return self._peptide_Y_ion_utilization
         weight = 0.0
-        count = 0
+        stub_count = 0
+        peptide_backbone_count = 0
         for pfp in self.solution_map:
-            if pfp.fragment.series == "stub_glycopeptide":
-                count += 1
+            frag_series = pfp.fragment.series
+            if frag_series == "stub_glycopeptide":
+                stub_count += 1
                 weight += math.log10(pfp.peak.intensity)
-        self._peptide_Y_ion_utilization = weight, count
+            elif frag_series.int_code <= IonSeries.z.int_code:
+                peptide_backbone_count += 1
+        self._peptide_Y_ion_utilization = weight, stub_count, peptide_backbone_count
         return self._peptide_Y_ion_utilization
 
     def oxonium_ion_utilization(self):
@@ -231,7 +235,8 @@ try:
     from glycan_profiling._c.tandem.tandem_scoring_helpers import (
         _match_oxonium_ions, _match_stub_glycopeptides,
         _calculate_glycan_coverage, _compute_glycan_coverage_from_metrics,
-        _calculate_peptide_coverage, _calculate_peptide_coverage_no_glycosylated)
+        _calculate_peptide_coverage, _calculate_peptide_coverage_no_glycosylated,
+        count_peptide_Y_ion_utilization)
     GlycopeptideSpectrumMatcherBase._match_oxonium_ions = _match_oxonium_ions
     GlycopeptideSpectrumMatcherBase._match_stub_glycopeptides = _match_stub_glycopeptides
     GlycopeptideSpectrumMatcherBase._calculate_glycan_coverage = _calculate_glycan_coverage

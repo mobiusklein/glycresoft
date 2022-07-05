@@ -320,21 +320,29 @@ class SolutionPacker(object):
 
 
 class MultiScoreSolutionHandler(SolutionHandler):
-    def __init__(self, scan_solution_map, scan_map, mass_shift_map, packer=None):
+    def __init__(self, scan_solution_map, scan_map, mass_shift_map, packer=None, spectrum_match_type=None):
+        if spectrum_match_type is None:
+            spectrum_match_type = MultiScoreSpectrumMatch
         if packer is None:
-            packer = MultiScoreSolutionPacker()
+            packer = MultiScoreSolutionPacker(score_set_tp=spectrum_match_type.score_set_type)
+        self.spectrum_match_type = spectrum_match_type
         super(MultiScoreSolutionHandler, self).__init__(
             scan_solution_map, scan_map, mass_shift_map, packer)
 
     def _make_spectrum_match(self, scan_id, target, score, shift_type):
-        return MultiScoreSpectrumMatch(
+        return self.spectrum_match_type(
             self.scan_map[scan_id], target, score,
             mass_shift=self.mass_shift_map[shift_type])
 
 
 class MultiScoreSolutionPacker(object):
+    def __init__(self, score_set_tp=None):
+        if score_set_tp is None:
+            score_set_tp = ScoreSet
+        self.score_set_tp = score_set_tp
+
     def __call__(self, spectrum_match):
-        return ScoreSet.from_spectrum_matcher(spectrum_match).pack()
+        return self.score_set_tp.from_spectrum_matcher(spectrum_match).pack()
 
     def unpack(self, package):
-        return ScoreSet.unpack(package)
+        return self.score_set_tp.unpack(package)

@@ -393,15 +393,15 @@ class TargetDecoyAnalyzer(object):
         target_series = self.targets
         decoy_series = self.decoys
 
-        if self.has_score(target_series[0]):
-            target_series = np.array([self.get_score(t) for t in target_series])
+        if len(target_series) and self.has_score(target_series[0]):
+            target_series = np.array([self.get_score(t) for t in target_series], dtype=float)
         else:
-            target_series = np.array(target_series)
+            target_series = np.array(target_series, dtype=float)
 
-        if self.has_score(decoy_series[0]):
-            decoy_series = np.array([self.get_score(t) for t in decoy_series])
+        if len(decoy_series) and self.has_score(decoy_series[0]):
+            decoy_series = np.array([self.get_score(t) for t in decoy_series], dtype=float)
         else:
-            decoy_series = np.array(decoy_series)
+            decoy_series = np.array(decoy_series, dtype=float)
 
         thresholds = np.unique(
             np.sort(np.concatenate([target_series, decoy_series]))

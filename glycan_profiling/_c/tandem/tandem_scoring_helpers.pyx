@@ -865,7 +865,7 @@ cpdef count_peptide_Y_ion_utilization(self):
         if series_code == IonSeries_stub_glycopeptide.int_code:
             stub_count += 1
             weight += log10(pfp.peak.intensity)
-        elif series_code < IonSeries_z.int_code:
+        elif series_code <= IonSeries_z.int_code:
             peptide_backbone_count += 1
     self._peptide_Y_ion_utilization = (weight, stub_count, peptide_backbone_count)
     return self._peptide_Y_ion_utilization

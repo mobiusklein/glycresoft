@@ -4,10 +4,13 @@ from ms_deisotope import isotopic_shift
 from glycan_profiling.task import TaskBase
 from glycan_profiling.chromatogram_tree import Unmodified
 
+import functools
+
 from .process_dispatcher import (
     IdentificationProcessDispatcher,
     SolutionHandler,
     MultiScoreSolutionHandler,
+    MultiScoreSolutionPacker,
     SequentialIdentificationProcessor)
 from .workload import WorkloadManager, DEFAULT_WORKLOAD_MAX
 from .spectrum_match import (
@@ -240,6 +243,9 @@ class TandemClusterEvaluatorBase(TaskBase):
     def _get_solution_handler(self):
         if issubclass(self.solution_set_type, MultiScoreSpectrumSolutionSet):
             handler_tp = MultiScoreSolutionHandler
+            score_set_type = self.scorer_type.get_score_set_type()
+            packer = MultiScoreSolutionPacker(score_set_type)
+            handler_tp = functools.partial(handler_tp, packer=packer)
         else:
             handler_tp = SolutionHandler
         return handler_tp

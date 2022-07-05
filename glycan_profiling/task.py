@@ -2,6 +2,7 @@ from __future__ import print_function
 import os
 import logging
 import pprint
+import time
 import traceback
 import multiprocessing
 import threading
@@ -581,8 +582,9 @@ class TaskExecutionSequence(TaskBase):
 
 
 class Pipeline(TaskExecutionSequence):
-    def __init__(self, tasks):
+    def __init__(self, tasks, error_polling_rate=1.0):
         self.tasks = tasks
+        self.error_polling_rate = error_polling_rate
 
     def start(self, *args, **kwargs):
         for task in self:
@@ -593,7 +595,7 @@ class Pipeline(TaskExecutionSequence):
             for task in self:
                 task.join(timeout)
         else:
-            timeout = max(30 // len(self), 2)
+            timeout = self.error_polling_rate
             while True:
                 has_error = self.error_occurred()
                 if has_error:
@@ -602,11 +604,12 @@ class Pipeline(TaskExecutionSequence):
                     break
                 alive = 0
                 for task in self:
-                    task.join(timeout)
+                    task.join(0.01)
                     is_alive = task.is_alive()
                     alive += is_alive
                 if alive == 0:
                     break
+                time.sleep(timeout)
 
     def is_alive(self):
         alive = 0

@@ -21,7 +21,7 @@ from glycan_profiling.profiler import (
     GlycopeptideFDREstimationStrategy,
     MzMLGlycanChromatogramAnalyzer,
     LaplacianRegularizedChromatogramProcessor,
-    ProcessedMzMLDeserializer,
+    ProcessedMSFileLoader,
     ChromatogramSummarizer)
 
 from glycan_profiling.composition_distribution_model import site_model
@@ -168,7 +168,7 @@ def search_glycopeptide(context, database_connection, sample_path, hypothesis_id
         click.secho("Output path '%s' exists, removing..." % output_path, fg='yellow')
         os.remove(output_path)
     database_connection = DatabaseBoundOperation(database_connection)
-    ms_data = ProcessedMzMLDeserializer(sample_path, use_index=False)
+    ms_data = ProcessedMSFileLoader(sample_path, use_index=False)
     sample_run = ms_data.sample_run
 
     try:
@@ -366,7 +366,7 @@ def search_glycopeptide_multipart(context, database_connection, decoy_database_c
         os.remove(output_path)
     database_connection = DatabaseBoundOperation(database_connection)
     decoy_database_connection = DatabaseBoundOperation(decoy_database_connection)
-    ms_data = ProcessedMzMLDeserializer(sample_path, use_index=False)
+    ms_data = ProcessedMSFileLoader(sample_path, use_index=False)
     sample_run = ms_data.sample_run
 
     try:
@@ -674,7 +674,7 @@ def search_glycan(context, database_connection, sample_path,
         network = None
 
     database_connection = DatabaseBoundOperation(database_connection)
-    ms_data = ProcessedMzMLDeserializer(sample_path, use_index=False)
+    ms_data = ProcessedMSFileLoader(sample_path, use_index=False)
     sample_run = ms_data.sample_run
 
     try:

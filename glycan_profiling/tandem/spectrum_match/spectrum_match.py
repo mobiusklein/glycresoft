@@ -1,7 +1,7 @@
 import warnings
 import struct
 
-from typing import Any, Union, Optional
+from typing import Any, ClassVar, Type, TypeVar, Union, Optional
 
 from glypy.utils import Enum, make_struct
 
@@ -414,6 +414,9 @@ class SpectrumMatcherBase(SpectrumMatchBase):
         art.draw(**kwargs)
         return art
 
+    @classmethod
+    def get_score_set_type(cls):
+        return ScoreSet
 
 try:
     from glycan_profiling._c.tandem.tandem_scoring_helpers import base_peak
@@ -696,6 +699,31 @@ class ScoreSet(_ScoreSet):
     def unpack(cls, binary):
         return cls(*cls.packer.unpack(binary))
 
+    @classmethod
+    def field_names(cls):
+        return [
+            "total_score",
+            "peptide_score",
+            "glycan_score",
+            "glycan_coverage",
+            "stub_glycopeptide_intensity_utilization",
+            "oxonium_ion_intensity_utilization",
+            "n_stub_glycopeptide_matches",
+            "peptide_coverage",
+        ]
+
+    def values(self):
+        return [
+            self.glycopeptide_score,
+            self.peptide_score,
+            self.glycan_score,
+            self.glycan_coverage,
+            self.stub_glycopeptide_intensity_utilization,
+            self.oxonium_ion_intensity_utilization,
+            self.n_stub_glycopeptide_matches,
+            self.peptide_coverage,
+        ]
+
 
 class FDRSet(make_struct("FDRSet", ['total_q_value', 'peptide_q_value', 'glycan_q_value', 'glycopeptide_q_value'])):
     __slots__ = ()
@@ -753,8 +781,17 @@ class FDRSet(make_struct("FDRSet", ['total_q_value', 'peptide_q_value', 'glycan_
         return False
 
 
+try:
+    from glycan_profiling._c.tandem.spectrum_match import ScoreSet, FDRSet
+    _has_c = True
+except ImportError:
+    _has_c = False
+
+
 class MultiScoreSpectrumMatch(SpectrumMatch):
     __slots__ = ('score_set', 'match_type', '_q_value_set')
+
+    score_set_type: ClassVar[Type] = ScoreSet
 
     def __init__(self, scan, target, score_set, best_match=False, data_bundle=None,
                  q_value_set=None, id=None, mass_shift=None, valid=True, match_type=None):
@@ -769,7 +806,7 @@ class MultiScoreSpectrumMatch(SpectrumMatch):
         if isinstance(score_set, ScoreSet):
             self.score_set = score_set
         else:
-            self.score_set = ScoreSet(*score_set)
+            self.score_set = self.score_set_type(*score_set)
         self.q_value_set = q_value_set
         self.match_type = SpectrumMatchClassification[match_type]
 
@@ -808,7 +845,11 @@ class MultiScoreSpectrumMatch(SpectrumMatch):
     @classmethod
     def from_match_solution(cls, match: SpectrumMatcherBase) -> 'MultiScoreSpectrumMatch':
         try:
-            self = cls(match.scan, match.target, ScoreSet.from_spectrum_matcher(match), mass_shift=match.mass_shift)
+            self = cls(
+                match.scan, match.target,
+                cls.score_set_type.from_spectrum_matcher(match),
+                mass_shift=match.mass_shift
+            )
             if hasattr(match, 'q_value_set'):
                 self.q_value_set = match.q_value_set
             return self
@@ -817,9 +858,3 @@ class MultiScoreSpectrumMatch(SpectrumMatch):
                 return match
             else:
                 raise
-
-try:
-    from glycan_profiling._c.tandem.spectrum_match import ScoreSet, FDRSet
-    _has_c = True
-except ImportError:
-    _has_c = False

@@ -40,7 +40,7 @@ from ...chromatogram_mapping import ChromatogramMSMSMapper
 from ...temp_store import TempFileManager
 from ...spectrum_evaluation import group_by_precursor_mass
 from ...spectrum_match import SpectrumMatchClassification
-from ..scoring import LogIntensityScorer
+from ..scoring import LogIntensityScorer, GlycopeptideSpectrumMatcherBase
 
 from .journal import (
     JournalFileWriter,
@@ -194,6 +194,8 @@ debug_mode = bool(os.environ.get("GLYCRESOFTDEBUG"))
 
 
 class MultipartGlycopeptideIdentifier(TaskBase):
+    scorer_type: Type[GlycopeptideSpectrumMatcherBase]
+
     def __init__(self, tandem_scans, scorer_type, target_peptide_db, decoy_peptide_db, scan_loader,
                  mass_shifts=None, n_processes=6,
                  evaluation_kwargs=None, ipc_manager=None, file_manager=None,
@@ -420,7 +422,9 @@ class MultipartGlycopeptideIdentifier(TaskBase):
             reader = enumerate(JournalFileReader(
                 journal_path,
                 scan_loader=ScanInformationLoader(self.scan_loader),
-                mass_shift_map={m.name: m for m in self.mass_shifts}), len(accumulator))
+                mass_shift_map={m.name: m for m in self.mass_shifts},
+                score_set_type=self.scorer_type.get_score_set_type()),
+                len(accumulator))
             i = float(len(accumulator))
             try:
                 # Get the nearest progress checkpoint
@@ -542,6 +546,7 @@ class IdentificationWorker(TaskExecutionSequence):
     n_processes: int
     scorer_type: Type
 
+    scorer_type: Type[GlycopeptideSpectrumMatcherBase]
     evaluation_kwargs: Dict[str, Any]
     error_tolerance: float
     cache_seeds: Any
@@ -646,7 +651,8 @@ class IdentificationWorker(TaskExecutionSequence):
             cache_seeds=self.cache_seeds
         )
 
-        journal_writer = JournalFileWriter(self.journal_path)
+        journal_writer = JournalFileWriter(
+            self.journal_path, score_columns=self.scorer_type.get_score_set_type().field_names())
         journal_consumer = JournalingConsumer(
             journal_writer,
             matching_executor.out_queue,
