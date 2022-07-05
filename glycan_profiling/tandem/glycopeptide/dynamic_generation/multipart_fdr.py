@@ -562,12 +562,11 @@ class GlycopeptideFDREstimator(TaskBase):
 
         glycan_fdr.fit()
 
-        glycan_fdr_mapping = NearestValueLookUp(zip(glycan_fdr.estimate_fdr(glycan_fdr.target_scores),
-                                                    glycan_fdr.target_scores))
-        self.log("5%% Glycan FDR = %f (%d)" % (glycan_fdr_mapping[0.05], (
-            glycan_fdr.target_scores > glycan_fdr_mapping[0.05]).sum()))
-        self.log("1%% Glycan FDR = %f (%d)" % (glycan_fdr_mapping[0.01], (
-            glycan_fdr.target_scores > glycan_fdr_mapping[0.01]).sum()))
+        threshold_05, count_05 = glycan_fdr.get_count_at_fdr(0.05)
+        self.log(f"5% Glycan FDR = {threshold_05} ({count_05})")
+
+        threshold_01, count_01 = glycan_fdr.get_count_at_fdr(0.01)
+        self.log(f"1% Glycan FDR = {threshold_01} ({count_01})")
         self.glycan_fdr = glycan_fdr
         return self.glycan_fdr
 
@@ -604,12 +603,11 @@ class GlycopeptideFDREstimator(TaskBase):
 
         glycopeptide_fdr.fit()
 
-        glycopeptide_fdr_mapping = NearestValueLookUp(zip(glycopeptide_fdr.estimate_fdr(glycopeptide_fdr.target_scores),
-                                                          glycopeptide_fdr.target_scores))
-        self.log("5%% Glycopeptide FDR = %f (%d)" % (glycopeptide_fdr_mapping[0.05], (
-            target_total_scores > glycopeptide_fdr_mapping[0.05]).sum()))
-        self.log("1%% Glycopeptide FDR = %f (%d)" % (glycopeptide_fdr_mapping[0.01], (
-            target_total_scores > glycopeptide_fdr_mapping[0.01]).sum()))
+        threshold_05, count_05 = glycopeptide_fdr.get_count_at_fdr(0.05)
+        self.log(f"5% Glycopeptide FDR = {threshold_05} ({count_05})")
+
+        threshold_01, count_01 = glycopeptide_fdr.get_count_at_fdr(0.01)
+        self.log(f"1% Glycopeptide FDR = {threshold_01} ({count_01})")
         self.glycopeptide_fdr = glycopeptide_fdr
         return self.glycopeptide_fdr
 
