@@ -16,7 +16,7 @@ import numpy as np
 import ms_peak_picker
 
 import ms_deisotope
-from ms_deisotope.output.mzml import ProcessedMzMLDeserializer
+from ms_deisotope.output import ProcessedMSFileLoader
 
 import glypy
 from glypy.utils import Enum
@@ -275,7 +275,7 @@ class ChromatogramSummarizer(TaskBase):
     def make_scan_loader(self):
         '''Create a reader for the deconvoluted LC-MS data file
         '''
-        scan_loader = ProcessedMzMLDeserializer(self.mzml_path)
+        scan_loader = ProcessedMSFileLoader(self.mzml_path)
         return scan_loader
 
     def estimate_intensity_threshold(self, scan_loader):
@@ -641,7 +641,7 @@ class MzMLGlycanChromatogramAnalyzer(GlycanChromatogramAnalyzer):
         self.output_path = output_path
 
     def make_peak_loader(self):
-        peak_loader = ProcessedMzMLDeserializer(self.sample_path)
+        peak_loader = ProcessedMSFileLoader(self.sample_path)
         if peak_loader.extended_index is None:
             if not peak_loader.has_index_file():
                 self.log("Index file missing. Rebuilding.")
@@ -1237,7 +1237,7 @@ class MzMLGlycopeptideLCMSMSAnalyzer(GlycopeptideLCMSMSAnalyzer):
         self.output_path = output_path
 
     def make_peak_loader(self):
-        peak_loader = ProcessedMzMLDeserializer(self.sample_path)
+        peak_loader = ProcessedMSFileLoader(self.sample_path)
         if peak_loader.extended_index is None:
             if not peak_loader.has_index_file():
                 self.log("Index file missing. Rebuilding.")
