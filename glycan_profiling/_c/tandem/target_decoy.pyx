@@ -25,6 +25,12 @@ cdef class ScoreCell(object):
         else:
             raise ValueError(i)
 
+    def __eq__(self, other):
+        return abs(self.score - other.score) < 1e-12 and abs(self.value - other.value) < 1e-12
+
+    def __ne__(self, other):
+        return not self == other
+
     def __len__(self):
         return 2
 
@@ -59,6 +65,12 @@ cdef class NearestValueLookUp(object):
         if isinstance(items, dict):
             items = items.items()
         self.items = self._transform_items(items)
+
+    def __eq__(self, other):
+        return self.items == other.items
+
+    def __ne__(self, other):
+        return not self == other
 
     def _transform_items(self, items):
         return sorted([ScoreCell(*x) for x in items if not np.isnan(x[0])], key=lambda x: x[0])
