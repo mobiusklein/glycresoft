@@ -2,7 +2,7 @@ FROM mobiusklein/ms_deisotope
 
 ARG GLYCRESOFT_VERSION=master
 
-RUN pip install sqlalchemy dill jinja2 rdflib requests SPARQLWrapper
+RUN pip install sqlalchemy dill jinja2 rdflib requests SPARQLWrapper scikit-learn
 
 RUN pip install glypy
 RUN pip install git+https://github.com/mobiusklein/glycopeptidepy
