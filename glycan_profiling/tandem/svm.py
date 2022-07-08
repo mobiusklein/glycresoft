@@ -17,6 +17,10 @@ from . import target_decoy
 from .spectrum_match import SpectrumMatch, MultiScoreSpectrumMatch
 
 
+def _transform_fast(self: StandardScaler, X: np.ndarray) -> np.ndarray:
+    return (X - self.mean_) / self.scale_
+
+
 class SVMModelBase(LoggingMixin):
     dataset: target_decoy.TargetDecoyAnalyzer
     proxy_dataset: target_decoy.TargetDecoyAnalyzer
@@ -94,7 +98,7 @@ class SVMModelBase(LoggingMixin):
         return model
 
     def predict(self, X: np.ndarray) -> np.ndarray:
-        X_ = self.scaler.transform(X)
+        X_ = _transform_fast(self.scaler, X)
         return self.model.decision_function(X_)
 
     def _get_psms_labels(
@@ -194,14 +198,14 @@ class SVMModelBase(LoggingMixin):
     def plot(self, ax=None):
         psms, labels, is_target = self._get_psms_labels(self.dataset)
         features = self.extract_features(psms)
-        normalized_features = self.scaler.fit_transform(features)
+        normalized_features = self.scaler.transform(features)
         scores = self.model.decision_function(normalized_features)
         _q_value_map, _q_values, _labels, proxy_tda = self.scores_to_q_values(
             psms, scores, is_target
         )
         ax = proxy_tda.plot(ax=ax)
         lo, hi = ax.get_xlim()
-        lo = self.proxy_dataset.thresholds[0] - 1
+        lo = self.proxy_dataset.thresholds[0] - 0.25
         ax.set_xlim(lo, hi)
         ax.set_xlabel("SVM Score")
         return ax
