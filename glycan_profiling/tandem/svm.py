@@ -21,6 +21,10 @@ def _transform_fast(self: StandardScaler, X: np.ndarray) -> np.ndarray:
     return (X - self.mean_) / self.scale_
 
 
+def _fast_decision_function(self: LinearSVC, X: np.ndarray) -> np.ndarray:
+    return X.dot(self.coef_[0, :]) + self.intercept_
+
+
 class SVMModelBase(LoggingMixin):
     dataset: target_decoy.TargetDecoyAnalyzer
     proxy_dataset: target_decoy.TargetDecoyAnalyzer
@@ -99,7 +103,7 @@ class SVMModelBase(LoggingMixin):
 
     def predict(self, X: np.ndarray) -> np.ndarray:
         X_ = _transform_fast(self.scaler, X)
-        return self.model.decision_function(X_)
+        return _fast_decision_function(self.model, X_)
 
     def _get_psms_labels(
         self, tda: target_decoy.TargetDecoyAnalyzer, fdr_threshold: float = None
