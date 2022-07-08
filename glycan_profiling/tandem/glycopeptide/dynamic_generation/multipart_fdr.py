@@ -10,7 +10,7 @@ FDR estimation procedure described in:
     pGlyco: a pipeline for the identification of intact N-glycopeptides by using HCD-
     and CID-MS/MS and MS3. Scientific Reports, 6(April), 25102. https://doi.org/10.1038/srep25102
 '''
-from typing import Dict, List, Optional, Tuple, Type
+from typing import Dict, List, Optional, Tuple, Type, Union
 import numpy as np
 
 from glypy.structure.glycan_composition import GlycanComposition
@@ -28,11 +28,14 @@ from glypy.utils import Enum
 
 from glycan_profiling.task import TaskBase
 
-from glycan_profiling.tandem.target_decoy import NearestValueLookUp, TargetDecoyAnalyzer, PeptideScoreTargetDecoyAnalyzer
-from glycan_profiling.tandem.spectrum_match import SpectrumMatch
+from glycan_profiling.tandem.target_decoy import NearestValueLookUp, PeptideScoreTargetDecoyAnalyzer
+from glycan_profiling.tandem import svm
 from glycan_profiling.tandem.glycopeptide.core_search import approximate_internal_size_of_glycan
 
-from .mixture import GammaMixture, GaussianMixture, GaussianMixtureWithPriorComponent, MixtureBase, TruncatedGaussianMixture, TruncatedGaussianMixtureWithPriorComponent
+from .mixture import (
+    GammaMixture, GaussianMixture, GaussianMixtureWithPriorComponent,
+    MixtureBase, TruncatedGaussianMixture, TruncatedGaussianMixtureWithPriorComponent)
+
 from .journal import SolutionSetGrouper
 
 
@@ -527,10 +530,10 @@ class GlycopeptideFDREstimator(TaskBase):
     grouper: 'SolutionSetGrouper'
 
     glycan_fdr: FiniteMixtureModelFDREstimator
-    peptide_fdr: PeptideScoreTargetDecoyAnalyzer
+    peptide_fdr: Union[PeptideScoreTargetDecoyAnalyzer, svm.PeptideScoreSVMModel]
     glycopeptide_fdr: FiniteMixtureModelFDREstimator
 
-    _peptide_fdr_estimator_type: Type[TargetDecoyAnalyzer]
+    _peptide_fdr_estimator_type: Type[PeptideScoreTargetDecoyAnalyzer]
 
     def __init__(self, groups, strategy=None, peptide_fdr_estimator=None):
         if peptide_fdr_estimator is None:

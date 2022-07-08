@@ -475,8 +475,11 @@ class MultipartGlycopeptideIdentifier(TaskBase):
         g = glycopeptide_spectrum_match_groups
         self.log("Running Target Decoy Analysis with %d targets and %d/%d/%d decoys" % (
             len(g[keys[0]]), len(g[keys[1]]), len(g[keys[2]]), len(g[keys[3]])))
+        peptide_fdr_estimator = self.scorer_type.get_fdr_model_for_dimension('peptide')
         estimator = GlycopeptideFDREstimator(
-            glycopeptide_spectrum_match_groups, self.fdr_estimation_strategy)
+            glycopeptide_spectrum_match_groups,
+            self.fdr_estimation_strategy,
+            peptide_fdr_estimator=peptide_fdr_estimator)
         groups = estimator.start()
         self.log("Rebuilding Targets")
         cache = {}

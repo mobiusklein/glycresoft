@@ -418,6 +418,12 @@ class SpectrumMatcherBase(SpectrumMatchBase):
     def get_score_set_type(cls):
         return ScoreSet
 
+    @classmethod
+    def get_fdr_model_for_dimension(cls, label: str):
+        if label == 'peptide':
+            from glycan_profiling.tandem.svm import PeptideScoreSVMModel
+            return PeptideScoreSVMModel
+
 try:
     from glycan_profiling._c.tandem.tandem_scoring_helpers import base_peak
     SpectrumMatcherBase.base_peak = base_peak
