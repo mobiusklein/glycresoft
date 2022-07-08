@@ -481,10 +481,11 @@ class JournalSetLoader(TaskBase):
             stub_loader = scan_loader
         return cls([f.open(raw=True) for f in analysis.files], stub_loader, mass_shift_map)
 
-    def __init__(self, journal_files, scan_loader, mass_shift_map=None):
+    def __init__(self, journal_files, scan_loader, mass_shift_map=None, **journal_reader_args):
         if mass_shift_map is None:
             mass_shift_map = {Unmodified.name: Unmodified}
         self.journal_files = journal_files
+        self.journal_reader_args = journal_reader_args
         self.scan_loader = scan_loader
         self.mass_shift_map = mass_shift_map
         self.solutions = []
@@ -508,8 +509,10 @@ class JournalSetLoader(TaskBase):
             accumulator = []
         reader = enumerate(JournalFileReader(
             journal_path,
-            scan_loader=ScanInformationLoader(self.scan_loader),
-            mass_shift_map=self.mass_shift_map), len(accumulator))
+            scan_loader=ScanInformationLoader(
+                self.scan_loader),
+                mass_shift_map=self.mass_shift_map,
+                **self.journal_reader_args), len(accumulator))
         i = float(len(accumulator))
         should_log = False
         for i, sol in reader:
