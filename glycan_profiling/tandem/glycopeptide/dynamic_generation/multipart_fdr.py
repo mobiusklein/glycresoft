@@ -28,7 +28,7 @@ from glypy.utils import Enum
 
 from glycan_profiling.task import TaskBase
 
-from glycan_profiling.tandem.target_decoy import NearestValueLookUp, TargetDecoyAnalyzer
+from glycan_profiling.tandem.target_decoy import NearestValueLookUp, TargetDecoyAnalyzer, PeptideScoreTargetDecoyAnalyzer
 from glycan_profiling.tandem.spectrum_match import SpectrumMatch
 from glycan_profiling.tandem.glycopeptide.core_search import approximate_internal_size_of_glycan
 
@@ -527,10 +527,14 @@ class GlycopeptideFDREstimator(TaskBase):
     grouper: 'SolutionSetGrouper'
 
     glycan_fdr: FiniteMixtureModelFDREstimator
-    peptide_fdr: TargetDecoyAnalyzer
+    peptide_fdr: PeptideScoreTargetDecoyAnalyzer
     glycopeptide_fdr: FiniteMixtureModelFDREstimator
 
-    def __init__(self, groups, strategy=None):
+    _peptide_fdr_estimator_type: Type[TargetDecoyAnalyzer]
+
+    def __init__(self, groups, strategy=None, peptide_fdr_estimator=None):
+        if peptide_fdr_estimator is None:
+            peptide_fdr_estimator = PeptideScoreTargetDecoyAnalyzer
         if strategy is None:
             strategy = GlycopeptideFDREstimationStrategy.multipart_gamma_gaussian_mixture
         else:
@@ -540,6 +544,7 @@ class GlycopeptideFDREstimator(TaskBase):
         self.glycan_fdr = None
         self.peptide_fdr = None
         self.glycopeptide_fdr = None
+        self._peptide_fdr_estimator_type = peptide_fdr_estimator
 
     def fit_glycan_fdr(self):
         tt_gpsms = self.grouper.exclusive_match_groups['target_peptide_target_glycan']
@@ -574,19 +579,17 @@ class GlycopeptideFDREstimator(TaskBase):
         tt_gpsms = self.grouper.exclusive_match_groups['target_peptide_target_glycan']
         dt_gpsms = self.grouper.exclusive_match_groups['decoy_peptide_target_glycan']
 
-        target_peptides = [SpectrumMatch(
-            t.scan, t.target, t.score_set.peptide_score, True) for t in tt_gpsms]
-        decoy_peptides = [SpectrumMatch(
-            t.scan, t.target, t.score_set.peptide_score, True) for t in dt_gpsms]
+        target_peptides = tt_gpsms
+        decoy_peptides = dt_gpsms
 
-        peptide_fdr = TargetDecoyAnalyzer(target_peptides, decoy_peptides)
-        self.log("5%% Peptide FDR = %f (%d)" % (
-            peptide_fdr.score_for_fdr(0.05),
-            peptide_fdr.n_targets_above_threshold(peptide_fdr.score_for_fdr(0.05))))
+        peptide_fdr = self._peptide_fdr_estimator_type(target_peptides, decoy_peptides)
 
-        self.log("1%% Peptide FDR = %f (%d)" % (
-            peptide_fdr.score_for_fdr(0.01),
-            peptide_fdr.n_targets_above_threshold(peptide_fdr.score_for_fdr(0.01))))
+        threshold, count = peptide_fdr.get_count_for_fdr(0.05)
+        self.log(f"5% Peptide FDR = {threshold} ({count})")
+
+        threshold, count = peptide_fdr.get_count_for_fdr(0.01)
+        self.log(f"1% Peptide FDR = {threshold} ({count})")
+
         self.peptide_fdr = peptide_fdr
         return self.peptide_fdr
 
@@ -614,7 +617,7 @@ class GlycopeptideFDREstimator(TaskBase):
     def _assign_joint_fdr(self, solution_sets: List[MultiScoreSpectrumSolutionSet]):
         for ts in solution_sets:
             for t in ts:
-                t.q_value_set.peptide_q_value = self.peptide_fdr.q_value_map[t.score_set.peptide_score]
+                t.q_value_set.peptide_q_value = self.peptide_fdr.score(t, assign=False)
                 t.q_value_set.glycan_q_value = self.glycan_fdr.fdr_map[t.score_set.glycan_score]
                 t.q_value_set.glycopeptide_q_value = self.glycopeptide_fdr.fdr_map[t.score_set.glycopeptide_score]
                 total = (t.q_value_set.peptide_q_value + t.q_value_set.glycan_q_value -
@@ -627,8 +630,7 @@ class GlycopeptideFDREstimator(TaskBase):
     def _assign_minimum_fdr(self, solution_sets: List[MultiScoreSpectrumSolutionSet]):
         for ts in solution_sets:
             for t in ts:
-                t.q_value_set.peptide_q_value = self.peptide_fdr.q_value_map[
-                    t.score_set.peptide_score]
+                t.q_value_set.peptide_q_value = self.peptide_fdr.score(t, assign=False)
                 t.q_value_set.glycan_q_value = self.glycan_fdr.fdr_map[t.score_set.glycan_score]
                 t.q_value_set.glycopeptide_q_value = self.glycopeptide_fdr.fdr_map[
                     t.score_set.glycopeptide_score]
@@ -640,8 +642,7 @@ class GlycopeptideFDREstimator(TaskBase):
     def _assign_peptide_fdr(self, solution_sets: List[MultiScoreSpectrumSolutionSet]):
         for ts in solution_sets:
             for t in ts:
-                total = t.q_value_set.peptide_q_value = self.peptide_fdr.q_value_map[
-                    t.score_set.peptide_score]
+                total = t.q_value_set.peptide_q_value = self.peptide_fdr.score(t, assign=False)
                 t.q_value_set.glycan_q_value = 0
                 t.q_value_set.glycopeptide_q_value = 0
                 t.q_value = t.q_value_set.total_q_value = total

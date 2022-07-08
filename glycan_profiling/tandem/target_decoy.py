@@ -349,7 +349,7 @@ class TargetDecoyAnalyzer(object):
         The number of decoy matches above each threshold
     n_targets_at : dict
         The number of target matches above each threshold
-    target_count : TYPE
+    target_count : int
         The total number of targets
     targets : list
         The target matches to consider
@@ -580,18 +580,20 @@ class TargetDecoyAnalyzer(object):
             except IndexError:
                 decoy.q_value = 0.0
 
-    def score(self, spectrum_match):
+    def score(self, spectrum_match, assign=True):
         try:
-            spectrum_match.q_value = self._q_value_map[self.get_score(spectrum_match)]
+            q_value = self._q_value_map[self.get_score(spectrum_match)]
         except IndexError:
             import warnings
             warnings.warn("Empty q-value mapping. q-value will be 0.")
-            spectrum_match.q_value = 0.0
-        return spectrum_match
+            q_value = 0.0
+        if assign:
+            spectrum_match.q_value = q_value
+        return q_value
 
     def score_all(self, solution_set):
         for spectrum_match in solution_set:
-            self.score(spectrum_match)
+            self.score(spectrum_match, assign=True)
         solution_set.q_value = solution_set.best_solution().q_value
         return solution_set
 
@@ -679,14 +681,14 @@ class GroupwiseTargetDecoyAnalyzer(object):
         for group in self.group_fits:
             group.q_values()
 
-    def score(self, spectrum_match):
+    def score(self, spectrum_match, assign=True):
         i = self.find_group(spectrum_match)
         fit = self.group_fits[i]
-        return fit.score(spectrum_match)
+        return fit.score(spectrum_match, assign=assign)
 
     def score_all(self, solution_set):
         for spectrum_match in solution_set:
-            self.score(spectrum_match)
+            self.score(spectrum_match, assign=True)
         solution_set.q_value = solution_set.best_solution().q_value
         return solution_set
 
