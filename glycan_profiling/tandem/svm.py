@@ -139,7 +139,7 @@ class SVMModelBase(LoggingMixin):
         self.log(
             f"Selected {n_targets} target spectra and {n_decoys} decoy spectra selected for training"
         )
-        return psms, np.frombuffer(labels), np.frombuffer(is_target, dtype=bool)
+        return psms, np.frombuffer(labels, dtype=np.int8), np.frombuffer(is_target, dtype=bool)
 
     def extract_features(self, psms: List[MultiScoreSpectrumMatch]) -> np.ndarray:
         '''Override in subclass to construct feature matrix for SVM model'''
