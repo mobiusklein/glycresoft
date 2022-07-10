@@ -851,9 +851,11 @@ class MultiScoreSpectrumMatch(SpectrumMatch):
     @classmethod
     def from_match_solution(cls, match: SpectrumMatcherBase) -> 'MultiScoreSpectrumMatch':
         try:
+
             self = cls(
-                match.scan, match.target,
-                cls.score_set_type.from_spectrum_matcher(match),
+                match.scan,
+                match.target,
+                match.get_score_set_type().from_spectrum_matcher(match),
                 mass_shift=match.mass_shift
             )
             if hasattr(match, 'q_value_set'):

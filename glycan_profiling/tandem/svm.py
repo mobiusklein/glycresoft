@@ -3,10 +3,13 @@
 # https://pubs.acs.org/doi/10.1021/acs.jproteome.0c01010
 
 
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Tuple
+
 from warnings import warn
+from array import ArrayType as Array
 
 import numpy as np
+from numpy.typing import NDArray
 
 from sklearn.svm import LinearSVC
 from sklearn.preprocessing import StandardScaler
@@ -14,6 +17,7 @@ from sklearn.preprocessing import StandardScaler
 from glycan_profiling.task import LoggingMixin
 
 from . import target_decoy
+from .target_decoy import TargetDecoyAnalyzer, NearestValueLookUp
 from .spectrum_match import SpectrumMatch, MultiScoreSpectrumMatch
 
 
@@ -26,8 +30,8 @@ def _fast_decision_function(self: LinearSVC, X: np.ndarray) -> np.ndarray:
 
 
 class SVMModelBase(LoggingMixin):
-    dataset: target_decoy.TargetDecoyAnalyzer
-    proxy_dataset: target_decoy.TargetDecoyAnalyzer
+    dataset: TargetDecoyAnalyzer
+    proxy_dataset: TargetDecoyAnalyzer
 
     scaler: StandardScaler
     model: LinearSVC
@@ -59,14 +63,17 @@ class SVMModelBase(LoggingMixin):
                       "too few observations to fit a reliable model")
             self.fit(tda)
 
+    def feature_names(self) ->  List[str]:
+        raise NotImplementedError()
+
     def _wrap_dataset(self, target_matches: List[MultiScoreSpectrumMatch],
                       decoy_matches: List[MultiScoreSpectrumMatch]):
-        tda = target_decoy.TargetDecoyAnalyzer(target_matches, decoy_matches, decoy_pseudocount=0.0)
+        tda = TargetDecoyAnalyzer(target_matches, decoy_matches, decoy_pseudocount=0.0)
         return tda
 
     def pack(self):
         if self.worse_than_score:
-            self.dataset = self.dataset.pack()
+            self.dataset.pack()
         else:
             self.dataset = None
         self.proxy_dataset.pack()
@@ -101,17 +108,17 @@ class SVMModelBase(LoggingMixin):
     def prepare_model(self, model, features: np.ndarray, labels: List[bool]):
         return model
 
-    def predict(self, X: np.ndarray) -> np.ndarray:
+    def predict(self, X: NDArray[np.floating]) -> NDArray[np.floating]:
         X_ = _transform_fast(self.scaler, X)
         return _fast_decision_function(self.model, X_)
 
     def _get_psms_labels(
-        self, tda: target_decoy.TargetDecoyAnalyzer, fdr_threshold: float = None
-    ):
+        self, tda: TargetDecoyAnalyzer, fdr_threshold: float = None
+    ) -> Tuple[List[MultiScoreSpectrumMatch], NDArray[np.bool8], NDArray[np.bool8]]:
         if fdr_threshold is None:
             fdr_threshold = self.train_fdr
-        labels = []
-        is_target = []
+        labels = Array('b')
+        is_target = Array('b')
         psms = []
         q_value_map = tda.q_value_map
 
@@ -120,7 +127,7 @@ class SVMModelBase(LoggingMixin):
             psms.append(t)
             is_target.append(True)
 
-        n_targets = sum(labels)
+        n_targets = np.frombuffer(labels, dtype=bool).sum()
 
         for d in tda.decoys:
             labels.append(-1)
@@ -132,7 +139,7 @@ class SVMModelBase(LoggingMixin):
         self.log(
             f"Selected {n_targets} target spectra and {n_decoys} decoy spectra selected for training"
         )
-        return psms, np.array(labels), np.array(is_target)
+        return psms, np.frombuffer(labels), np.frombuffer(is_target, dtype=bool)
 
     def extract_features(self, psms: List[MultiScoreSpectrumMatch]) -> np.ndarray:
         '''Override in subclass to construct feature matrix for SVM model'''
@@ -152,11 +159,11 @@ class SVMModelBase(LoggingMixin):
         return targets, decoys
 
     def scores_to_q_values(
-        self, psms: List[SpectrumMatch], scores: List[float], is_target: List[bool]
-    ) -> target_decoy.NearestValueLookUp:
+        self, psms: List[SpectrumMatch], scores: np.ndarray, is_target: List[bool]
+    ) -> Tuple[NearestValueLookUp, np.ndarray, ]:
 
         targets, decoys = self._wrap_psms_with_score(psms, scores, is_target)
-        tda = target_decoy.TargetDecoyAnalyzer(targets, decoys, decoy_pseudocount=0)
+        tda = TargetDecoyAnalyzer(targets, decoys, decoy_pseudocount=0)
         q_value_map = tda.q_value_map
         q_values = np.array([q_value_map[s] for s in scores])
 
@@ -164,7 +171,7 @@ class SVMModelBase(LoggingMixin):
         updated_labels[~np.asanyarray(is_target)] = -1
         return q_value_map, q_values, updated_labels, tda
 
-    def fit(self, tda: target_decoy.TargetDecoyAnalyzer):
+    def fit(self, tda: TargetDecoyAnalyzer):
         self.dataset = tda
         psms, labels, is_target = self._get_psms_labels(tda, self.train_fdr)
 
@@ -182,7 +189,7 @@ class SVMModelBase(LoggingMixin):
             model.fit(observations, target_labels_i)
 
             scores = self.model.decision_function(normalized_features)
-            q_value_map, q_values, labels, self.proxy_dataset = self.scores_to_q_values(
+            _q_value_map, _q_values, labels, self.proxy_dataset = self.scores_to_q_values(
                 psms, scores, is_target
             )
             self.log(f"... Round {i}: {(labels == 1).sum()}")
@@ -192,6 +199,7 @@ class SVMModelBase(LoggingMixin):
                 f"Model performing worse than initial {(labels == 1).sum()} < {(starting_labels == 1).sum()}"
             )
             self.worse_than_score = True
+            assert self.dataset is not None
         self.model = model
         self.trained = True
 
@@ -229,7 +237,7 @@ class SVMModelBase(LoggingMixin):
         if assign:
             warn("The assign argument is a no-op")
         if self.worse_than_score:
-            return self.dataset.score(spectrum_match, False)
+            return self.dataset.score(spectrum_match, assign=False)
         x = self.extract_features([spectrum_match])
         y = self.predict(x)
         return self.q_value_map[y[0]]
@@ -242,6 +250,12 @@ class PeptideScoreSVMModel(SVMModelBase):
         tda = target_decoy.PeptideScoreTargetDecoyAnalyzer(
             target_matches, decoy_matches, decoy_pseudocount=0.0)
         return tda
+
+    def feature_names(self) -> List[str]:
+        return [
+            "peptide_score",
+            "peptide_coverage",
+        ]
 
     def extract_features(self, psms: List[MultiScoreSpectrumMatch]) -> np.ndarray:
         features = np.zeros((len(psms), 2))

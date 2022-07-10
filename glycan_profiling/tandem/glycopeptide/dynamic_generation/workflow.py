@@ -6,7 +6,7 @@ import datetime
 import zlib
 import pickle
 
-from typing import Any, Dict, List, Tuple, Type, Union
+from typing import Any, Callable, Dict, List, Optional, Tuple, Type, Union
 from multiprocessing.managers import SyncManager
 from collections import OrderedDict
 
@@ -16,6 +16,8 @@ import ms_deisotope
 from ms_deisotope.output import ProcessedMzMLLoader
 
 from glycan_profiling import serialize
+from glycan_profiling.tandem.spectrum_match.solution_set import MultiScoreSpectrumSolutionSet
+from glycan_profiling.tandem.spectrum_match.spectrum_match import MultiScoreSpectrumMatch, SpectrumMatch
 
 from glycan_profiling.task import (
     TaskBase, Pipeline, MultiEvent,
@@ -35,8 +37,8 @@ from glycan_profiling.composition_distribution_model.site_model import (
 
 from glycan_profiling.tandem.oxonium_ions import OxoniumIndex, SignatureIonIndex, single_signatures, compound_signatures
 
-from glycan_profiling.chromatogram_tree.chromatogram import GlycopeptideChromatogram
-from ...chromatogram_mapping import ChromatogramMSMSMapper
+from glycan_profiling.chromatogram_tree.chromatogram import Chromatogram, GlycopeptideChromatogram
+from ...chromatogram_mapping import ChromatogramMSMSMapper, TandemAnnotatedChromatogram, TandemSolutionsWithoutChromatogram
 from ...temp_store import TempFileManager
 from ...spectrum_evaluation import group_by_precursor_mass
 from ...spectrum_match import SpectrumMatchClassification
@@ -55,9 +57,9 @@ from .search_space import (
     StructureClassification)
 
 from .searcher import (
-    SpectrumBatcher, SerializingMapperExecutor,
-    BatchMapper, WorkloadUnpackingMatcherExecutor,
-    MapperExecutor, SemaphoreBoundMatcherExecutor,
+    SpectrumBatcher,
+    BatchMapper,
+    SemaphoreBoundMatcherExecutor,
     SemaphoreBoundMapperExecutor)
 
 from .multipart_fdr import GlycopeptideFDREstimator, GlycopeptideFDREstimationStrategy
@@ -414,7 +416,9 @@ class MultipartGlycopeptideIdentifier(TaskBase):
             total += branch.results_processed.value
         return total
 
-    def _load_identifications_from_journal(self, journal_path, total_solutions_count, accumulator=None):
+    def _load_identifications_from_journal(self, journal_path: os.PathLike,
+                                           total_solutions_count: int,
+                                           accumulator: Optional[List[MultiScoreSpectrumMatch]]=None) -> List[MultiScoreSpectrumMatch]:
         if accumulator is None:
             accumulator = []
 
@@ -445,7 +449,9 @@ class MultipartGlycopeptideIdentifier(TaskBase):
                 accumulator.append(sol)
         return accumulator
 
-    def search(self, precursor_error_tolerance=1e-5, simplify=True, batch_size=500, **kwargs):
+    def search(self, precursor_error_tolerance: float=1e-5,
+               simplify: bool=True,
+               batch_size: int=500, **kwargs) -> SolutionSetGrouper:
         self.evaluation_kwargs.update(kwargs)
         self.product_error_tolerance = self.evaluation_kwargs.pop('error_tolerance', 2e-5)
         self.precursor_error_tolerance = precursor_error_tolerance
@@ -470,7 +476,8 @@ class MultipartGlycopeptideIdentifier(TaskBase):
         groups = SolutionSetGrouper(solutions)
         return groups
 
-    def estimate_fdr(self, glycopeptide_spectrum_match_groups: SolutionSetGrouper, *args, **kwargs):
+    def estimate_fdr(self, glycopeptide_spectrum_match_groups: SolutionSetGrouper,
+                     *args, **kwargs) -> Tuple[SolutionSetGrouper, GlycopeptideFDREstimator]:
         keys = [SpectrumMatchClassification[i] for i in range(4)]
         g = glycopeptide_spectrum_match_groups
         self.log("Running Target Decoy Analysis with %d targets and %d/%d/%d decoys" % (
@@ -480,7 +487,7 @@ class MultipartGlycopeptideIdentifier(TaskBase):
             glycopeptide_spectrum_match_groups,
             self.fdr_estimation_strategy,
             peptide_fdr_estimator=peptide_fdr_estimator)
-        groups = estimator.start()
+        groups: SolutionSetGrouper = estimator.start()
         self.log("Rebuilding Targets")
         cache = {}
         target_match_sets = groups.target_matches
@@ -496,9 +503,13 @@ class MultipartGlycopeptideIdentifier(TaskBase):
         cache.clear()
         return groups, estimator
 
-    def map_to_chromatograms(self, chromatograms, tandem_identifications,
-                             precursor_error_tolerance=1e-5, threshold_fn=lambda x: x.q_value < 0.05,
-                             entity_chromatogram_type=GlycopeptideChromatogram):
+    def map_to_chromatograms(self,
+                             chromatograms: List[Chromatogram],
+                             tandem_identifications: List[MultiScoreSpectrumSolutionSet],
+                             precursor_error_tolerance: float=1e-5,
+                             threshold_fn: Callable[[SpectrumMatch], bool]=lambda x: x.q_value < 0.05,
+                             entity_chromatogram_type: Type[GlycopeptideChromatogram]=GlycopeptideChromatogram) -> Tuple[List[TandemAnnotatedChromatogram],
+                                                                                                                         List[TandemSolutionsWithoutChromatogram]]:
         self.log("Mapping MS/MS Identifications onto Chromatograms")
         self.log("%d Chromatograms" % len(chromatograms))
         mapper = ChromatogramMSMSMapper(
