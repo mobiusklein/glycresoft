@@ -16,9 +16,8 @@ from sklearn.preprocessing import StandardScaler
 
 from glycan_profiling.task import LoggingMixin
 
-from . import target_decoy
-from .target_decoy import TargetDecoyAnalyzer, NearestValueLookUp
-from .spectrum_match import SpectrumMatch, MultiScoreSpectrumMatch
+from . import TargetDecoyAnalyzer, NearestValueLookUp, PeptideScoreTargetDecoyAnalyzer
+from ..spectrum_match import SpectrumMatch, MultiScoreSpectrumMatch
 
 
 def _transform_fast(self: StandardScaler, X: np.ndarray) -> np.ndarray:
@@ -247,7 +246,7 @@ class PeptideScoreSVMModel(SVMModelBase):
 
     def _wrap_dataset(self, target_matches: List[MultiScoreSpectrumMatch],
                       decoy_matches: List[MultiScoreSpectrumMatch]):
-        tda = target_decoy.PeptideScoreTargetDecoyAnalyzer(
+        tda = PeptideScoreTargetDecoyAnalyzer(
             target_matches, decoy_matches, decoy_pseudocount=0.0)
         return tda
 

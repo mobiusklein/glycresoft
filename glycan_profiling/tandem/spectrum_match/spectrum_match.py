@@ -421,7 +421,7 @@ class SpectrumMatcherBase(SpectrumMatchBase):
     @classmethod
     def get_fdr_model_for_dimension(cls, label: str):
         if label == 'peptide':
-            from glycan_profiling.tandem.svm import PeptideScoreSVMModel
+            from glycan_profiling.tandem.target_decoy import PeptideScoreSVMModel
             return PeptideScoreSVMModel
 
 try:

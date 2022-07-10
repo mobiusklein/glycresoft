@@ -29,7 +29,7 @@ from glypy.utils import Enum
 from glycan_profiling.task import TaskBase
 
 from glycan_profiling.tandem.target_decoy import NearestValueLookUp, PeptideScoreTargetDecoyAnalyzer
-from glycan_profiling.tandem import svm
+from glycan_profiling.tandem.target_decoy import svm
 from glycan_profiling.tandem.glycopeptide.core_search import approximate_internal_size_of_glycan
 
 from .mixture import (
