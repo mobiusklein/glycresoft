@@ -1,28 +1,28 @@
 import re
 import warnings
 
-try:
-    from collections.abc import Mapping
-except ImportError:
-    from collections import Mapping
+from typing import Dict, List, Optional, Mapping
 
 from glycopeptidepy.structure.parser import strip_modifications
+from glypy.structure.glycan_composition import HashableGlycanComposition
+
 from glycan_profiling.structure import LRUMapping
 
+from glycan_profiling.structure.structure_loader import FragmentCachingGlycopeptide
 from glycan_profiling.tandem.spectrum_match import SpectrumMatchClassification as StructureClassification
 
-from .glycosite_model import MINIMUM, to_decoy_glycan, parse_glycan_composition, GlycosylationSiteModel
+from .glycosite_model import MINIMUM, GlycosylationSiteModel
 from .glycoprotein_model import GlycoproteinSiteSpecificGlycomeModel, ReversedProteinSiteReflectionGlycoproteinSiteSpecificGlycomeModel
 
 
 class GlycoproteomeModelBase(object):
     __slots__ = ()
-    def score(self, glycopeptide, glycan_composition=None):
+    def score(self, glycopeptide: FragmentCachingGlycopeptide, glycan_composition: Optional[HashableGlycanComposition]=None) -> float:
         raise NotImplementedError()
 
     @classmethod
     def bind_to_hypothesis(cls, session, site_models, hypothesis_id=1, fuzzy=True,
-                           site_model_cls=GlycoproteinSiteSpecificGlycomeModel):
+                           site_model_cls=GlycoproteinSiteSpecificGlycomeModel) -> 'GlycoproteomeModelBase':
         inst = cls(
             site_model_cls.bind_to_hypothesis(
                 session, site_models, hypothesis_id, fuzzy))
@@ -30,6 +30,8 @@ class GlycoproteomeModelBase(object):
 
 
 class GlycoproteomeModel(GlycoproteomeModelBase):
+    glycoprotein_models: Dict[int, GlycoproteinSiteSpecificGlycomeModel]
+
     def __init__(self, glycoprotein_models):
         if isinstance(glycoprotein_models, Mapping):
             self.glycoprotein_models = dict(glycoprotein_models)
@@ -38,7 +40,7 @@ class GlycoproteomeModel(GlycoproteomeModelBase):
                 ggm.id: ggm for ggm in glycoprotein_models
             }
 
-    def relabel_proteins(self, name_to_id_map):
+    def relabel_proteins(self, name_to_id_map: Dict[str, int]):
         remapped = {}
         for ggm in self.glycoprotein_models.values():
             try:
@@ -53,14 +55,14 @@ class GlycoproteomeModel(GlycoproteomeModelBase):
         for model in self.glycoprotein_models.values():
             model.stub_protein()
 
-    def find_model(self, glycopeptide):
+    def find_model(self, glycopeptide: FragmentCachingGlycopeptide):
         if glycopeptide.protein_relation is None:
             return None
         protein_id = glycopeptide.protein_relation.protein_id
         glycoprotein_model = self.glycoprotein_models.get(protein_id)
         return glycoprotein_model
 
-    def score(self, glycopeptide, glycan_composition=None):
+    def score(self, glycopeptide: FragmentCachingGlycopeptide, glycan_composition: Optional[HashableGlycanComposition]=None) -> float:
         glycoprotein_model = self.find_model(glycopeptide)
         if glycoprotein_model is None:
             score = MINIMUM
@@ -76,6 +78,8 @@ class GlycoproteomeModel(GlycoproteomeModelBase):
 
 
 class SubstringGlycoproteomeModel(GlycoproteomeModelBase):
+    sequence_to_model: Dict[str, GlycoproteinSiteSpecificGlycomeModel]
+
     def __init__(self, models, cache_size=2**15):
         self.models = models
         self.sequence_to_model = {
@@ -83,7 +87,7 @@ class SubstringGlycoproteomeModel(GlycoproteomeModelBase):
         }
         self.peptide_to_protein = LRUMapping(cache_size)
 
-    def get_models(self, glycopeptide):
+    def get_models(self, glycopeptide: FragmentCachingGlycopeptide) -> List[GlycoproteinSiteSpecificGlycomeModel]:
         out = []
         seq = strip_modifications(glycopeptide)
         if seq in self.peptide_to_protein:
@@ -100,7 +104,7 @@ class SubstringGlycoproteomeModel(GlycoproteomeModelBase):
         self.peptide_to_protein[seq] = tuple(out)
         return out
 
-    def find_proteins(self, glycopeptide):
+    def find_proteins(self, glycopeptide: FragmentCachingGlycopeptide) -> List[GlycoproteinSiteSpecificGlycomeModel]:
         out = []
         seq = strip_modifications(glycopeptide)
         for case in self.sequence_to_model:
@@ -108,7 +112,7 @@ class SubstringGlycoproteomeModel(GlycoproteomeModelBase):
                 out.append(self.sequence_to_model[case])
         return out
 
-    def score(self, glycopeptide, glycan_composition=None):
+    def score(self, glycopeptide: FragmentCachingGlycopeptide, glycan_composition: Optional[HashableGlycanComposition]=None) -> float:
         if glycan_composition is None:
             glycan_composition = glycopeptide.glycan_composition
         models = self.get_models(glycopeptide)
@@ -134,6 +138,9 @@ class SubstringGlycoproteomeModel(GlycoproteomeModelBase):
 
 
 class GlycoproteomePriorAnnotator(object):
+    target_model: GlycoproteomeModel
+    decoy_model: GlycoproteomeModel
+
     @classmethod
     def load(cls, target_session, decoy_session, fh, hypothesis_id=1, fuzzy=True):
         site_models = GlycosylationSiteModel.load(fh)
@@ -149,18 +156,15 @@ class GlycoproteomePriorAnnotator(object):
         self.target_model = target_model
         self.decoy_model = decoy_model
 
-    def select_model(self, glycopeptide, structure_type):
+    def select_model(self, glycopeptide: FragmentCachingGlycopeptide, structure_type: StructureClassification):
         if structure_type & StructureClassification.decoy_peptide_target_glycan:
             return self.decoy_model
         else:
             return self.target_model
 
     def score_glycan(self, glycopeptide, structure_type, model):
-        if structure_type & StructureClassification.target_peptide_decoy_glycan:
-            # gc = to_decoy_glycan(glycopeptide.glycan_composition)
-            gc = glycopeptide.glycan_composition
-        else:
-            gc = glycopeptide.glycan_composition
+        # Treat decoy glycans identical
+        gc = glycopeptide.glycan_composition
         return model.score(glycopeptide, gc)
 
     def score(self, glycopeptide, structure_type):
