@@ -65,7 +65,7 @@ def interpolate_from_zero(nearest_value_map: NearestValueLookUp, zero_value: flo
     return nearest_value_map.__class__(pairs)
 
 
-class FiniteMixtureModelFDREstimatorBase(TaskBase, FDREstimatorBase):
+class FiniteMixtureModelFDREstimatorBase(FDREstimatorBase):
     decoy_scores: np.ndarray
     target_scores: np.ndarray
     decoy_mixture: Optional[MixtureBase]
