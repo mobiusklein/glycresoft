@@ -332,9 +332,9 @@ class FDREstimatorBase(LoggingMixin):
         if name is None:
             name = "FDR"
 
-        threshold_05, count_05 = self.get_count_at_fdr(0.05)
+        threshold_05, count_05 = self.get_count_for_fdr(0.05)
         self.log(f"5% {name} = {threshold_05:0.3f} ({count_05})")
-        threshold_01, count_01 = self.get_count_at_fdr(0.01)
+        threshold_01, count_01 = self.get_count_for_fdr(0.01)
         self.log(f"1% {name} = {threshold_01:0.3f} ({count_01})")
 
     def score_all(self, solution_set: SpectrumSolutionSet):
@@ -343,7 +343,7 @@ class FDREstimatorBase(LoggingMixin):
     def plot(self, ax=None):
         raise NotImplementedError()
 
-    def get_count_at_fdr(self, threshold: float) -> Tuple[float, int]:
+    def get_count_for_fdr(self, threshold: float) -> Tuple[float, int]:
         raise NotImplementedError()
 
 

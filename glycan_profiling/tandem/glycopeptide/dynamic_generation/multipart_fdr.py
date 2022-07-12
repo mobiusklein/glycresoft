@@ -82,7 +82,7 @@ class FiniteMixtureModelFDREstimatorBase(FDREstimatorBase):
     def estimate_posterior_error_probability(self, X: np.ndarray) -> np.ndarray:
         return self.target_mixture.prior.score(X) * self.pi0 / self.target_mixture.score(X)
 
-    def get_count_at_fdr(self, q_value):
+    def get_count_for_fdr(self, q_value):
         target_scores = self.target_scores
         target_scores = np.sort(target_scores)
         fdr = np.sort(self.estimate_fdr())[::-1]
@@ -261,7 +261,7 @@ class FiniteMixtureModelFDREstimatorSeparated(FiniteMixtureModelFDREstimatorBase
         pi0 = self.pi0
         return (pi0 * d) / (pi0 * d + (1 - pi0) * t)
 
-    def get_count_at_fdr(self, q_value):
+    def get_count_for_fdr(self, q_value):
         target_scores = self.target_scores
         target_scores = np.sort(target_scores)
         fdr = np.sort(self.estimate_fdr())[::-1]
