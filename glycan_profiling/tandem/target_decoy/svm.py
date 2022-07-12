@@ -14,10 +14,9 @@ from numpy.typing import NDArray
 from sklearn.svm import LinearSVC
 from sklearn.preprocessing import StandardScaler
 
-from glycan_profiling.task import LoggingMixin
-
-from . import TargetDecoyAnalyzer, NearestValueLookUp, PeptideScoreTargetDecoyAnalyzer
 from ..spectrum_match import SpectrumMatch, MultiScoreSpectrumMatch
+
+from .base import TargetDecoyAnalyzer, NearestValueLookUp, PeptideScoreTargetDecoyAnalyzer, FDREstimatorBase
 
 
 def _transform_fast(self: StandardScaler, X: np.ndarray) -> np.ndarray:
@@ -28,7 +27,7 @@ def _fast_decision_function(self: LinearSVC, X: np.ndarray) -> np.ndarray:
     return X.dot(self.coef_[0, :]) + self.intercept_
 
 
-class SVMModelBase(LoggingMixin):
+class SVMModelBase(FDREstimatorBase):
     dataset: TargetDecoyAnalyzer
     proxy_dataset: TargetDecoyAnalyzer
 
@@ -240,6 +239,21 @@ class SVMModelBase(LoggingMixin):
         x = self.extract_features([spectrum_match])
         y = self.predict(x)
         return self.q_value_map[y[0]]
+
+    def summarize(self, name: Optional[str]=None):
+        if name is None:
+            name = "FDR"
+
+        self.log("Feature Weights:")
+        feature_names = self.feature_names() + ['intercept']
+        feature_values = list(self.weights) + [self.model.intercept_]
+        for fname, fval in zip(feature_names, feature_values):
+            self.log(f"... {fname}: {fval}")
+
+        threshold_05, count_05 = self.get_count_at_fdr(0.05)
+        self.log(f"5% {name} = {threshold_05:0.3f} ({count_05})")
+        threshold_01, count_01 = self.get_count_at_fdr(0.01)
+        self.log(f"1% {name} = {threshold_01:0.3f} ({count_01})")
 
 
 class PeptideScoreSVMModel(SVMModelBase):

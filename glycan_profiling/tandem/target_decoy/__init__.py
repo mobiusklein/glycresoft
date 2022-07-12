@@ -6,7 +6,8 @@ from .base import (
     TargetDecoyAnalyzer,
     TargetDecoySet,
     GroupwiseTargetDecoyAnalyzer,
-    PeptideScoreTargetDecoyAnalyzer
+    PeptideScoreTargetDecoyAnalyzer,
+    FDREstimatorBase,
 )
 
 from .svm import (
@@ -25,4 +26,5 @@ __all__ = [
     "PeptideScoreTargetDecoyAnalyzer",
     "SVMModelBase",
     "PeptideScoreSVMModel",
+    "FDREstimatorBase",
 ]

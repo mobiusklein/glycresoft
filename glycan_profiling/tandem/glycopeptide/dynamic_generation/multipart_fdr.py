@@ -28,8 +28,7 @@ from glypy.utils import Enum
 
 from glycan_profiling.task import TaskBase
 
-from glycan_profiling.tandem.target_decoy import NearestValueLookUp, PeptideScoreTargetDecoyAnalyzer
-from glycan_profiling.tandem.target_decoy import svm
+from glycan_profiling.tandem.target_decoy import NearestValueLookUp, PeptideScoreTargetDecoyAnalyzer, FDREstimatorBase, PeptideScoreSVMModel
 from glycan_profiling.tandem.glycopeptide.core_search import approximate_internal_size_of_glycan
 
 from .mixture import (
@@ -66,7 +65,7 @@ def interpolate_from_zero(nearest_value_map: NearestValueLookUp, zero_value: flo
     return nearest_value_map.__class__(pairs)
 
 
-class FiniteMixtureModelFDREstimatorBase(TaskBase):
+class FiniteMixtureModelFDREstimatorBase(TaskBase, FDREstimatorBase):
     decoy_scores: np.ndarray
     target_scores: np.ndarray
     decoy_mixture: Optional[MixtureBase]
@@ -530,7 +529,7 @@ class GlycopeptideFDREstimator(TaskBase):
     grouper: 'SolutionSetGrouper'
 
     glycan_fdr: FiniteMixtureModelFDREstimator
-    peptide_fdr: Union[PeptideScoreTargetDecoyAnalyzer, svm.PeptideScoreSVMModel]
+    peptide_fdr: Union[PeptideScoreTargetDecoyAnalyzer, PeptideScoreSVMModel]
     glycopeptide_fdr: FiniteMixtureModelFDREstimator
 
     _peptide_fdr_estimator_type: Type[PeptideScoreTargetDecoyAnalyzer]
@@ -569,12 +568,8 @@ class GlycopeptideFDREstimator(TaskBase):
             target_scores=target_glycan_scores[target_glycan_scores > self.minimum_score])
 
         glycan_fdr.fit()
+        glycan_fdr.summarize("Glycan FDR")
 
-        threshold_05, count_05 = glycan_fdr.get_count_at_fdr(0.05)
-        self.log(f"5% Glycan FDR = {threshold_05} ({count_05})")
-
-        threshold_01, count_01 = glycan_fdr.get_count_at_fdr(0.01)
-        self.log(f"1% Glycan FDR = {threshold_01} ({count_01})")
         self.glycan_fdr = glycan_fdr
         return self.glycan_fdr
 
@@ -586,12 +581,7 @@ class GlycopeptideFDREstimator(TaskBase):
         decoy_peptides = dt_gpsms
 
         peptide_fdr = self._peptide_fdr_estimator_type(target_peptides, decoy_peptides)
-
-        threshold, count = peptide_fdr.get_count_for_fdr(0.05)
-        self.log(f"5% Peptide FDR = {threshold} ({count})")
-
-        threshold, count = peptide_fdr.get_count_for_fdr(0.01)
-        self.log(f"1% Peptide FDR = {threshold} ({count})")
+        peptide_fdr.summarize("Peptide FDR")
 
         self.peptide_fdr = peptide_fdr
         return self.peptide_fdr
@@ -608,12 +598,8 @@ class GlycopeptideFDREstimator(TaskBase):
             target_total_scores[target_total_scores > self.minimum_score])
 
         glycopeptide_fdr.fit()
+        glycopeptide_fdr.summarize("Glycopeptide FDR")
 
-        threshold_05, count_05 = glycopeptide_fdr.get_count_at_fdr(0.05)
-        self.log(f"5% Glycopeptide FDR = {threshold_05} ({count_05})")
-
-        threshold_01, count_01 = glycopeptide_fdr.get_count_at_fdr(0.01)
-        self.log(f"1% Glycopeptide FDR = {threshold_01} ({count_01})")
         self.glycopeptide_fdr = glycopeptide_fdr
         return self.glycopeptide_fdr
 

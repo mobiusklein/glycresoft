@@ -1,14 +1,8 @@
 # -*- coding: utf-8 -*-
-import logging
-from typing import Tuple
-
-from glycan_profiling.tandem.spectrum_match.spectrum_match import SpectrumMatch, SpectrumMatchBase
-try:
-    logger = logging.getLogger("target_decoy")
-except Exception:
-    pass
 import math
+import logging
 
+from typing import Callable, List, Optional, Tuple
 from collections import defaultdict, namedtuple
 
 import numpy as np
@@ -17,7 +11,13 @@ try:
 except (ImportError, RuntimeError):
     plt = None
 
+from glycan_profiling.task import LoggingMixin
+from glycan_profiling.tandem.spectrum_match import SpectrumSolutionSet, SpectrumMatch
+
 ScoreCell = namedtuple('ScoreCell', ['score', 'value'])
+
+logger = logging.getLogger(__name__)
+logger.addHandler(logging.NullHandler())
 
 
 class NearestValueLookUp(object):
@@ -326,7 +326,28 @@ def expectation_correction(targets, decoys, ratio):
     return tfalse
 
 
-class TargetDecoyAnalyzer(object):
+class FDREstimatorBase(LoggingMixin):
+
+    def summarize(self, name: Optional[str] = None):
+        if name is None:
+            name = "FDR"
+
+        threshold_05, count_05 = self.get_count_at_fdr(0.05)
+        self.log(f"5% {name} = {threshold_05:0.3f} ({count_05})")
+        threshold_01, count_01 = self.get_count_at_fdr(0.01)
+        self.log(f"1% {name} = {threshold_01:0.3f} ({count_01})")
+
+    def score_all(self, solution_set: SpectrumSolutionSet):
+        raise NotImplementedError()
+
+    def plot(self, ax=None):
+        raise NotImplementedError()
+
+    def get_count_at_fdr(self, threshold: float) -> Tuple[float, int]:
+        raise NotImplementedError()
+
+
+class TargetDecoyAnalyzer(FDREstimatorBase):
     """Estimate the False Discovery Rate using the Target-Decoy method.
 
     Attributes
@@ -613,8 +634,12 @@ class TargetDecoyAnalyzer(object):
         return self._q_value_map
 
 
-class GroupwiseTargetDecoyAnalyzer(object):
+class GroupwiseTargetDecoyAnalyzer(FDREstimatorBase):
     _grouping_labels = None
+
+    group_fits: List[TargetDecoyAnalyzer]
+    grouping_functions: List[Callable[[SpectrumMatch], bool]]
+    grouping_labels: List[str]
 
     def __init__(self, target_series, decoy_series, with_pit=False, grouping_functions=None, decoy_correction=0,
                  database_ratio=1.0, target_weight=1.0, decoy_pseudocount=1.0, grouping_labels=None):
@@ -746,6 +771,13 @@ class GroupwiseTargetDecoyAnalyzer(object):
         lo, hi = ax2.get_xlim()
         ax2.set_xlim(-1, hi)
         return ax
+
+    def summarize(self, name: Optional[str]=None):
+        if name is None:
+            name = "FDR"
+
+        for group_name, group_fit in zip(self.grouping_labels, self.group_fits):
+            group_fit.summarize(f"{group_name} {name}")
 
 
 class PeptideScoreTargetDecoyAnalyzer(TargetDecoyAnalyzer):
