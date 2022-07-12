@@ -246,7 +246,7 @@ class SVMModelBase(FDREstimatorBase):
 
         self.log("Feature Weights:")
         feature_names = self.feature_names() + ['intercept']
-        feature_values = list(self.weights) + [self.model.intercept_]
+        feature_values = list(self.weights[0]) + [self.model.intercept_]
         for fname, fval in zip(feature_names, feature_values):
             self.log(f"... {fname}: {fval}")
 

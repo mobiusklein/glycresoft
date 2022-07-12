@@ -341,7 +341,7 @@ class FiniteMixtureModelFDREstimatorHalfGaussian(FiniteMixtureModelFDREstimatorB
         return self.target_mixture
 
 
-class MultivariateMixtureModel(object):
+class MultivariateMixtureModel(FDREstimatorBase):
     models: List[FiniteMixtureModelFDREstimatorBase]
 
     def __init__(self, models):
@@ -443,7 +443,7 @@ class MultivariateMixtureModel(object):
             self.fdr_map = interpolate_from_zero(self.fdr_map)
         return self.fdr_map
 
-    def get_count_at_fdr(self, q_value):
+    def get_count_for_fdr(self, q_value):
         target_scores = self.models[0].target_scores
         target_scores = np.sort(target_scores)
         fdr = np.sort(self.estimate_fdr())[::-1]
