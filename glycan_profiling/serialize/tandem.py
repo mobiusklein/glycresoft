@@ -714,3 +714,14 @@ class GlycopeptideSpectrumMatchScoreSet(Base):
 
     def __repr__(self):
         return "DB" + repr(self.convert())
+
+
+class LocalizationScore(Base):
+    __tablename__ = "LocalizationScore"
+
+    id = Column(Integer, ForeignKey(
+        GlycopeptideSpectrumMatch.id), primary_key=True)
+
+    site = Column(Integer)
+    modification = Column(String)
+    score = Column(Numeric(6, 3, asdecimal=False), index=False)

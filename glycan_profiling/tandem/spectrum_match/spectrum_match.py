@@ -1,7 +1,7 @@
 import warnings
 import struct
 
-from typing import Any, ClassVar, Type, TypeVar, Union, Optional
+from typing import Any, ClassVar, List, Type, TypeVar, Union, Optional
 
 from glypy.utils import Enum, make_struct
 
@@ -447,7 +447,8 @@ class SpectrumMatch(SpectrumMatchBase):
 
     """
 
-    __slots__ = ['score', 'best_match', 'data_bundle', "q_value", 'id', 'valid']
+    __slots__ = ['score', 'best_match', 'data_bundle',
+                 "q_value", 'id', 'valid', 'localizations']
 
     score: float
     q_value: float
@@ -456,10 +457,12 @@ class SpectrumMatch(SpectrumMatchBase):
     best_match: bool
 
     id: Optional[int]
+
+    localizations: Optional[List['LocalizationScore']]
     data_bundle: Optional[Any]
 
     def __init__(self, scan, target, score, best_match=False, data_bundle=None,
-                 q_value=None, id=None, mass_shift=None, valid=True):
+                 q_value=None, id=None, mass_shift=None, valid=True, localizations=None):
         # if data_bundle is None:
         #     data_bundle = dict()
         super(SpectrumMatch, self).__init__(scan, target, mass_shift)
@@ -470,6 +473,7 @@ class SpectrumMatch(SpectrumMatchBase):
         self.q_value = q_value
         self.id = id
         self.valid = valid
+        self.localizations = localizations
 
     @property
     def is_best_match(self) -> bool:
@@ -554,7 +558,7 @@ class SpectrumMatch(SpectrumMatchBase):
     def __reduce__(self):
         return self.__class__, (self.scan, self.target, self.score, self.best_match,
                                 self.data_bundle, self.q_value, self.id,
-                                self.mass_shift, self.valid)
+                                self.mass_shift, self.valid, self.localizations)
 
     def evaluate(self, scorer_type, *args, **kwargs):
         """Re-evaluate this spectrum-structure pair.
@@ -606,7 +610,7 @@ class SpectrumMatch(SpectrumMatchBase):
         """
         return self.__class__(
             self.scan, self.target, self.score, self.best_match, self.data_bundle,
-            self.q_value, self.id, self.mass_shift)
+            self.q_value, self.id, self.mass_shift, self.localizations)
 
     def get_auxiliary_data(self):
         return self.data_bundle
@@ -800,7 +804,8 @@ class MultiScoreSpectrumMatch(SpectrumMatch):
     score_set_type: ClassVar[Type] = ScoreSet
 
     def __init__(self, scan, target, score_set, best_match=False, data_bundle=None,
-                 q_value_set=None, id=None, mass_shift=None, valid=True, match_type=None):
+                 q_value_set=None, id=None, mass_shift=None, valid=True, match_type=None,
+                 localizations=None):
         if q_value_set is None:
             q_value_set = FDRSet.default()
         else:
@@ -808,7 +813,7 @@ class MultiScoreSpectrumMatch(SpectrumMatch):
         self._q_value_set = None
         super(MultiScoreSpectrumMatch, self).__init__(
             scan, target, score_set[0], best_match, data_bundle, q_value_set[0],
-            id, mass_shift, valid=valid)
+            id, mass_shift, valid=valid, localizations=localizations)
         if isinstance(score_set, ScoreSet):
             self.score_set = score_set
         else:
@@ -837,12 +842,12 @@ class MultiScoreSpectrumMatch(SpectrumMatch):
         """
         return self.__class__(
             self.scan, self.target, self.score_set, self.best_match, self.data_bundle,
-            self.q_value_set, self.id, self.mass_shift, self.valid, self.match_type)
+            self.q_value_set, self.id, self.mass_shift, self.valid, self.match_type, self.localizations)
 
     def __reduce__(self):
         return self.__class__, (self.scan, self.target, self.score_set, self.best_match,
                                 self.data_bundle, self.q_value_set, self.id, self.mass_shift,
-                                self.valid, self.match_type.value)
+                                self.valid, self.match_type.value, self.localizations)
 
     def pack(self):
         return (self.target.id, self.score_set.pack(), int(self.best_match),
@@ -866,3 +871,25 @@ class MultiScoreSpectrumMatch(SpectrumMatch):
                 return match
             else:
                 raise
+
+
+class LocalizationScore(object):
+    __slots__ = ("position", "modification", "score")
+
+    position: int
+    modification: str
+    score: float
+
+    def __init__(self, position: int, modification: str, score: float):
+        self.position = position
+        self.modification = modification
+        self.score = score
+
+    def __reduce__(self):
+        return self.__class__, (self.position, self.modification, self.score)
+
+    def copy(self):
+        return self.__class__(self.position, self.modification, self.score)
+
+    def __repr__(self):
+        return f"{self.__class__.__name__}({self.position}, {self.modification}, {self.score})"

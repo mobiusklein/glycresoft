@@ -4,7 +4,7 @@ from .spectrum_match import (
     ModelTreeNode,
     Unmodified, TargetReference, SpectrumReference,
     neutron_offset, MultiScoreSpectrumMatch, ScoreSet,
-    FDRSet,
+    FDRSet, LocalizationScore,
     SpectrumMatchClassification)
 
 from .solution_set import (
@@ -32,6 +32,7 @@ __all__ = [
     "default_selection_method",
     'ScoreSet',
     'FDRSet',
+    'LocalizationScore',
     'MultiScoreSpectrumMatch',
     'MultiScoreSpectrumSolutionSet',
     'SpectrumMatchClassification',
