@@ -1,17 +1,26 @@
 # -*- coding: utf-8 -*-
 import itertools
 import math
+import array
 
-from collections import namedtuple, defaultdict
+from collections import defaultdict
 from decimal import Decimal
+from typing import Any, DefaultDict, Dict, List, Optional, Set, Tuple, Union, NamedTuple, Deque
 
 import numpy as np
 from scipy.special import comb
 
+from glycopeptidepy import PeptideSequence, Modification, ModificationRule, IonSeries, PeptideFragment
 from glycopeptidepy.utils.memoize import memoize
 from glycopeptidepy.algorithm import PeptidoformGenerator, ModificationSiteAssignmentCombinator
 
-from ms_deisotope.peak_set import window_peak_set
+from ms_deisotope.data_source import ProcessedScan
+from ms_deisotope.peak_set import window_peak_set, DeconvolutedPeak
+from ms_deisotope.peak_dependency_network.intervals import SpanningMixin
+
+from glycan_profiling.structure import FragmentCachingGlycopeptide
+
+from glycan_profiling.tandem.spectrum_match.spectrum_match import LocalizationScore, ScanMatchManagingMixin
 
 
 MAX_MISSING_A_SCORE = 1e3
@@ -29,10 +38,15 @@ def binomial_pmf(n, i, p):
         return float(x * dp ** di * ((1 - dp) ** (dn - di)))
 
 
-class PeakWindow(object):
+class PeakWindow(SpanningMixin):
+    peaks: List[DeconvolutedPeak]
+    max_mass: float
+
     def __init__(self, peaks):
         self.peaks = list(peaks)
         self.max_mass = 0
+        self.start = 0
+        self.end = 0
         self._calculate()
 
     def __iter__(self):
@@ -46,10 +60,15 @@ class PeakWindow(object):
 
     def _calculate(self):
         self.peaks.sort(key=lambda x: x.intensity, reverse=True)
-        self.max_mass = 0
+        max_mass = 0
+        min_mass = float('inf')
         for peak in self.peaks:
-            if peak.neutral_mass > self.max_mass:
-                self.max_mass = peak.neutral_mass
+            if peak.neutral_mass > max_mass:
+                max_mass = peak.neutral_mass
+            elif peak.neutral_mass < min_mass:
+                min_mass = peak.neutral_mass
+        self.end = self.max_mass = max_mass
+        self.start = min_mass
 
     def __repr__(self):
         template = "{self.__class__.__name__}({self.max_mass}, {size})"
@@ -69,12 +88,9 @@ class BlindPeptidoformGenerator(PeptidoformGenerator):
         return modification_sites
 
 
-ProbableSitePair = namedtuple("ProbableSitePair", ['peptide1', 'peptide2', 'modifications', 'peak_depth'])
-_ModificationAssignment = namedtuple("ModificationAssignment", ["site", "modification"])
-
-
-class ModificationAssignment(_ModificationAssignment):
-    __slots__ = []
+class ModificationAssignment(NamedTuple):
+    site: int
+    modification: Modification
 
     @property
     def is_ambiguous(self):
@@ -91,7 +107,25 @@ class ModificationAssignment(_ModificationAssignment):
             yield self.site
 
 
-class AScoreCandidate(object):
+class ProbableSitePair(NamedTuple):
+    top_solution1: PeptideSequence
+    top_solution2: PeptideSequence
+    modifications: List[Modification]
+    peak_depth: int
+
+
+class AScoreSpec(NamedTuple):
+    site: ModificationAssignment
+    score: float
+    site_determining_ions: np.array
+    alternative_site_ions: np.array
+
+
+class LocalizationCandidate(object):
+    peptide: PeptideSequence
+    modifications: List[Union[ModificationRule, Modification]]
+    fragments: List[PeptideFragment]
+
     def __init__(self, peptide, modifications, fragments=None):
         self.peptide = peptide
         self.modifications = modifications
@@ -103,7 +137,7 @@ class AScoreCandidate(object):
     def __eq__(self, other):
         return self.peptide == other.peptide and self.modifications == other.modifications
 
-    def make_solution(self, a_score, permutations=None):
+    def make_solution(self, a_score: AScoreSpec, permutations: Optional[np.ndarray] = None) -> 'AScoreSolution':
         return AScoreSolution(self.peptide, a_score, self.modifications, permutations, self.fragments)
 
     def __repr__(self):
@@ -123,21 +157,31 @@ class AScoreCandidate(object):
         return template.format(self=self, d=', '.join(d))
 
 
-class AScoreSolution(AScoreCandidate):
-    def __init__(self, peptide, a_score, modifications, permutations, fragments=None):
-        super(AScoreSolution, self).__init__(peptide, modifications, fragments)
+class AScoreSolution(LocalizationCandidate):
+    a_score: List[AScoreSpec]
+    permutations: np.ndarray
+
+    def __init__(self, peptide: PeptideSequence, a_score, modifications: List[Modification], permutations,
+                 fragments: Optional[List[PeptideFragment]]=None):
+        super().__init__(peptide, modifications, fragments)
         self.a_score = a_score
         self.permutations = permutations
 
 
 class PeptidoformPermuter(object):
-    def __init__(self, peptide, modification_rule, modification_count=1, respect_specificity=True):
+    peptide: PeptideSequence
+    modification_rule: ModificationRule
+    modification_count: int
+    respect_specificity: bool
+
+    def __init__(self, peptide: PeptideSequence, modification_rule: ModificationRule,
+                 modification_count: int=1, respect_specificity: bool=True):
         self.peptide = peptide
         self.modification_rule = modification_rule
         self.modification_count = modification_count
         self.respect_specificity = respect_specificity
 
-    def find_existing(self, modification_rule):
+    def find_existing(self, modification_rule: ModificationRule):
         '''Find existing modifications derived from this rule
 
         Parameters
@@ -156,7 +200,7 @@ class PeptidoformPermuter(object):
                 indices.append(i)
         return indices
 
-    def generate_base_peptides(self, modification_rule):
+    def generate_base_peptides(self, modification_rule: ModificationRule) -> List[PeptideSequence]:
         """Generate peptides from :attr:`peptide` which have had combinations of
         modification sites removed.
 
@@ -170,7 +214,7 @@ class PeptidoformPermuter(object):
         list
         """
         existing_indices = self.find_existing(modification_rule)
-        base_peptides = []
+        base_peptides: List[Union[PeptideSequence, FragmentCachingGlycopeptide]] = []
         for indices in itertools.combinations(existing_indices, self.modification_count):
             base_peptide = self.peptide.clone()
             for i in indices:
@@ -179,9 +223,12 @@ class PeptidoformPermuter(object):
         # The target modification was not present, so the unaltered peptide must be the base
         if not base_peptides:
             base_peptides = [self.peptide.clone()]
+        if isinstance(base_peptides[0], FragmentCachingGlycopeptide):
+            for bp in base_peptides:
+                bp.clear_caches()
         return base_peptides
 
-    def generate_peptidoforms(self, modification_rule, base_peptides=None):
+    def generate_peptidoforms(self, modification_rule: ModificationRule, base_peptides: Optional[PeptideSequence]=None):
         if base_peptides is None:
             base_peptides = self.generate_base_peptides(modification_rule)
         if self.respect_specificity:
@@ -192,6 +239,7 @@ class PeptidoformPermuter(object):
             [], [modification_rule], self.modification_count)
         peptidoforms = defaultdict(set)
         for base_peptide in base_peptides:
+            is_caching = isinstance(base_peptide, FragmentCachingGlycopeptide)
             mod_combos = pepgen.modification_sites(base_peptide)
             for mod_combo in mod_combos:
                 if len(mod_combo) != self.modification_count:
@@ -199,12 +247,52 @@ class PeptidoformPermuter(object):
                 mod_combo = [ModificationAssignment(*mc) for mc in mod_combo]
                 peptidoform, _n_mods = pepgen.apply_variable_modifications(
                     base_peptide, mod_combo, None, None)
+                if is_caching:
+                    peptidoform.clear_caches()
                 peptidoforms[peptidoform].update(tuple(mod_combo))
-        return [AScoreCandidate(peptide, sorted(mods), self._generate_fragments(peptide))
+        return [LocalizationCandidate(peptide, sorted(mods), self._generate_fragments(peptide))
                 for peptide, mods in peptidoforms.items()]
 
 
-class AScoreEvaluator(PeptidoformPermuter):
+class LocalizationScorerBase(PeptidoformPermuter, ScanMatchManagingMixin):
+
+    scan: ProcessedScan
+    _fragment_cache: Dict[Union[PeptideSequence, Any], List[PeptideFragment]]
+
+    def __init__(self, scan, peptide: PeptideSequence, modification_rule: ModificationRule,
+                 modification_count: int = 1, respect_specificity: bool = True):
+        super().__init__(peptide, modification_rule, modification_count, respect_specificity)
+        self.scan = scan
+        self._fragment_cache = {}
+
+    def _generate_fragments(self, peptidoform: PeptideSequence) -> List[PeptideFragment]:
+        key = str(peptidoform)
+        if key in self._fragment_cache:
+            return self._fragment_cache[key]
+
+        ion_series = []
+
+        if self.is_hcd():
+            ion_series.append(IonSeries.b)
+            ion_series.append(IonSeries.y)
+        if self.is_exd():
+            ion_series.append(IonSeries.c)
+            ion_series.append(IonSeries.z)
+
+        frags = itertools.chain.from_iterable(
+            itertools.chain.from_iterable(
+                map(peptidoform.get_fragments, ion_series)
+            )
+        )
+        frags = sorted(frags, key=lambda x: x.mass)
+        self._fragment_cache[key] = frags
+        return frags
+
+    def clear_cache(self):
+        self._fragment_cache.clear()
+
+
+class AScoreEvaluator(LocalizationScorerBase):
     '''
     Calculate a localization statistic for given peptidoform and modification rule.
 
@@ -220,15 +308,13 @@ class AScoreEvaluator(PeptidoformPermuter):
         OpenMS: a flexible open-source software platform for mass spectrometry data analysis. Nat Meth, 13(9),
         741–748. https://doi.org/10.1038/nmeth.3959
     '''
+    peak_windows: List[PeakWindow]
+
     def __init__(self, scan, peptide, modification_rule, modification_count=1, respect_specificity=True):
         self._scan = None
-        self.peak_windows = []
-
-        PeptidoformPermuter.__init__(
-            self, peptide, modification_rule, modification_count, respect_specificity)
-        self.scan = scan
+        super().__init__(
+            scan, peptide, modification_rule, modification_count, respect_specificity)
         self.peptidoforms = self.generate_peptidoforms(self.modification_rule)
-        self._fragment_cache = {}
 
     @property
     def scan(self):
@@ -242,16 +328,8 @@ class AScoreEvaluator(PeptidoformPermuter):
         else:
             self.peak_windows = list(map(PeakWindow, window_peak_set(value.deconvoluted_peak_set)))
 
-    def _generate_fragments(self, peptidoform):
-        frags = itertools.chain.from_iterable(
-            itertools.chain(
-                peptidoform.get_fragments("y"),
-                peptidoform.get_fragments("b")))
-        frags = list(frags)
-        frags.sort(key=lambda x: x.mass)
-        return frags
 
-    def match_ions(self, fragments, depth=10, error_tolerance=1e-5):
+    def match_ions(self, fragments: List[PeptideFragment], depth: int=10, error_tolerance: float=1e-5) -> Tuple[int, List[float]]:
         '''Match fragments against the windowed peak set at a given
         peak depth.
 
@@ -274,6 +352,7 @@ class AScoreEvaluator(PeptidoformPermuter):
         window_i = 0
         window_n = len(self.peak_windows)
         current_window = self.peak_windows[window_i]
+        intensities: array.ArrayType[float] = array.array('f')
         for frag in fragments:
             while not current_window or (frag.mass >= (current_window.max_mass + 1)):
                 window_i += 1
@@ -282,10 +361,12 @@ class AScoreEvaluator(PeptidoformPermuter):
                 current_window = self.peak_windows[window_i]
             for peak in current_window[:depth]:
                 if abs(peak.neutral_mass - frag.mass) / frag.mass < error_tolerance:
+                    intensities.append(peak.intensity)
                     n += 1
-        return n
+        return n, np.frombuffer(intensities, dtype=np.float32)
 
-    def permutation_score(self, peptidoform, error_tolerance=1e-5):
+    def permutation_score(self, peptidoform: LocalizationCandidate, error_tolerance: float=1e-5) -> Tuple[np.ndarray,
+                                                                                                    List[List[float]]]:
         '''Calculate the binomial statistic for this peptidoform
         using the top 1 to 10 peaks.
 
@@ -309,12 +390,13 @@ class AScoreEvaluator(PeptidoformPermuter):
         fragments = peptidoform.fragments
         N = len(fragments)
         site_scores = np.zeros(10)
+        intensities = [None for i in range(10)]
         for i in range(1, 11):
-            site_scores[i - 1] = self._score_at_window_depth(
+            site_scores[i - 1], intensities[i - 1] = self._score_at_window_depth(
                 fragments, N, i, error_tolerance)
-        return site_scores
+        return site_scores, intensities
 
-    def _score_at_window_depth(self, fragments, N, i, error_tolerance=1e-5):
+    def _score_at_window_depth(self, fragments: List[PeptideFragment], N: int, i: int, error_tolerance: float=1e-5) -> Tuple[float, List[float]]:
         '''Score a fragment collection at a given peak depth, and
         calculate the binomial score based upon the probability mass
         function.
@@ -332,17 +414,18 @@ class AScoreEvaluator(PeptidoformPermuter):
 
         Returns
         -------
-        float
+        score: float
+        intensities: list[float]
         '''
-        n = self.match_ions(fragments, i, error_tolerance=error_tolerance)
+        n, intensities = self.match_ions(fragments, i, error_tolerance=error_tolerance)
         p = i / 100.0
         # If a fragment matches twice, this count can exceed the theoretical maximum.
         if n > N:
             n = N
         cumulative_score = binomial_pmf(N, n, p)
         if cumulative_score == 0.0:
-            return 1e3
-        return (abs(-10.0 * math.log10(cumulative_score)))
+            return MAX_MISSING_A_SCORE, intensities
+        return abs(-10.0 * math.log10(cumulative_score)), intensities
 
     def rank_permutations(self, permutation_scores):
         """Rank generated peptidoforms by weighted sum of permutation scores
@@ -384,17 +467,17 @@ class AScoreEvaluator(PeptidoformPermuter):
         """
         return self._weight_vector.dot(scores) / 10.0
 
-    def score_solutions(self, error_tolerance=1e-5, peptidoforms=None):
+    def score_solutions(self, error_tolerance: float=1e-5, peptidoforms: Optional[List[LocalizationCandidate]]=None) -> List[AScoreSolution]:
         if peptidoforms is None:
             peptidoforms = self.peptidoforms
-        scores = [self.permutation_score(candidate, error_tolerance=error_tolerance)
-                  for candidate in peptidoforms]
+        scores, _intensities = zip(*[self.permutation_score(candidate, error_tolerance=error_tolerance)
+                  for candidate in peptidoforms])
         ranked = self.rank_permutations(scores)
         solutions = [peptidoforms[i].make_solution(score, scores[i])
                      for score, i in ranked]
         return solutions
 
-    def score_localizations(self, solutions, error_tolerance=1e-5):
+    def score_localizations(self, solutions: List[AScoreSolution], error_tolerance=1e-5):
         """Find pairs of sequence solutions which differ in the localization
         of individual modifications w.r.t. to the best match to compute the final
         per-modification A-score.
@@ -424,25 +507,41 @@ class AScoreEvaluator(PeptidoformPermuter):
         """
         delta_scores = []
         pairs = self.find_highest_scoring_permutations(solutions)
-        peptide = solutions[0]
+        top_solution = solutions[0]
         if not pairs:
-            for mod in peptide.modifications:
-                delta_scores.append((mod, MAX_MISSING_A_SCORE))
-            peptide.a_score = delta_scores
-            return peptide
+            for mod in top_solution.modifications:
+                delta_scores.append(
+                    AScoreSpec(
+                        mod,
+                        MAX_MISSING_A_SCORE,
+                        np.array([], dtype=np.float32),
+                        np.array([], dtype=np.float32)
+                    )
+                )
+            top_solution.a_score = delta_scores
+            return top_solution
         for pair in pairs:
-            delta_score = self.calculate_delta(pair, error_tolerance=error_tolerance)
-            pair.peptide1.a_score = delta_score
-            delta_scores.append((pair.modifications, delta_score))
-        peptide.a_score = delta_scores
-        return peptide
+            delta_score, intensities1, intensities2 = self.calculate_delta(pair, error_tolerance=error_tolerance)
+            pair.top_solution1.a_score = delta_score
+            delta_scores.append(
+                AScoreSpec(
+                    pair.modifications,
+                    delta_score,
+                    intensities1,
+                    intensities2
+                )
+            )
+        top_solution.a_score = delta_scores
+        return top_solution
 
-    def score(self, error_tolerance=1e-5):
+    def score(self, error_tolerance: float=1e-5) -> AScoreSolution:
         solutions = self.score_solutions(error_tolerance)
-        peptide = self.score_localizations(solutions, error_tolerance)
-        return peptide
+        top_solution = self.score_localizations(solutions, error_tolerance)
+        return top_solution
 
-    def find_highest_scoring_permutations(self, solutions, best_solution=None, offset=None):
+    def find_highest_scoring_permutations(self, solutions: List[AScoreSolution],
+                                          best_solution: Optional[AScoreSolution]=None,
+                                          offset: Optional[int] = None) -> List[ProbableSitePair]:
         if best_solution is None:
             best_solution = solutions[0]
             offset = 1
@@ -466,32 +565,200 @@ class AScoreEvaluator(PeptidoformPermuter):
                     break
         return permutation_pairs
 
-    def site_determining_ions(self, solutions):
+    def site_determining_ions(self, solutions: List[LocalizationCandidate]) -> List[List[PeptideFragment]]:
         frag_sets = [set(sol.fragments) for sol in solutions]
-        common = set.intersection(*frag_sets)
-        n = len(solutions)
+        counts = defaultdict(int)
+        for frag_set in frag_sets:
+            for frag in frag_set:
+                counts[frag] += 1
         site_determining = []
-        for i, _solution in enumerate(solutions):
-            cur_frags = frag_sets[i]
-            if i == n - 1:
-                diff = cur_frags - common
-                site_determining.append(sorted(diff, key=lambda x: x.mass))
-            else:
-                diff = cur_frags - common - frag_sets[i + 1]
-                site_determining.append(sorted(diff, key=lambda x: x.mass))
+        for frag_set in frag_sets:
+            acc = []
+            for frag in frag_set:
+                if counts[frag] == 1:
+                    acc.append(frag)
+            site_determining.append(sorted(acc, key=lambda x: x.mass))
         return site_determining
 
-    def calculate_delta(self, candidate_pair, error_tolerance=1e-5):
-        if candidate_pair.peptide1 == candidate_pair.peptide2:
+    def calculate_delta(self, candidate_pair: ProbableSitePair, error_tolerance=1e-5):
+        if candidate_pair.top_solution1 == candidate_pair.top_solution2:
             return 0.0
         site_frags = self.site_determining_ions(
-            [candidate_pair.peptide1, candidate_pair.peptide2])
+            [candidate_pair.top_solution1, candidate_pair.top_solution2])
         site_frags1, site_frags2 = site_frags[0], site_frags[1]
         N1 = len(site_frags1)
         N2 = len(site_frags2)
         peak_depth = candidate_pair.peak_depth
-        P1 = self._score_at_window_depth(
+        score1, intensities1 = self._score_at_window_depth(
             site_frags1, N1, peak_depth, error_tolerance=error_tolerance)
-        P2 = self._score_at_window_depth(
+        score2, intensities2 = self._score_at_window_depth(
             site_frags2, N2, peak_depth, error_tolerance=error_tolerance)
-        return P1 - P2
+        return score1 - score2, intensities1, intensities2
+
+
+class _PeakSet:
+    peaks: Dict[int, float]
+    total: float
+
+    def __init__(self, peaks=None, total=None):
+        if not peaks:
+            peaks = {}
+            total = 0
+        self.peaks = peaks
+        self.total = total
+
+    def add(self, peak: DeconvolutedPeak):
+        self.peaks[peak.index.neutral_mass] = peak.intensity
+        self.total += peak.intensity
+
+    def shared_intensity(self, other: '_PeakSet'):
+        common = self.peaks.keys() & other.peaks.keys()
+        acc = 0
+        for k in common:
+            acc += self.peaks[k]
+        return acc
+
+    def count_partitions(self, other: '_PeakSet'):
+        common = self.peaks.keys() & other.peaks.keys()
+        m = len(common)
+        return len(self.peaks) - m, len(other.peaks) - m, m
+
+
+
+class _PTMProphetMatch(NamedTuple):
+    occupied: _PeakSet
+    unoccupied: _PeakSet
+    normalizer: float
+
+    def o_score(self) -> float:
+        common = self.occupied.shared_intensity(self.unoccupied)
+        occupied_diff = (self.occupied.total - common) / self.normalizer
+        unoccupied_diff = (self.unoccupied.total - common) / self.normalizer
+        return occupied_diff / (occupied_diff + unoccupied_diff + 1e-6)
+
+    def m_score(self) -> float:
+        m_occupied, m_unoccupied, _shared = self.occupied.count_partitions(self.unoccupied)
+        return m_occupied / (m_occupied + m_unoccupied + 1e-6)
+
+    def to_solution(self, occupied_index: int, unoccupied_index: int) -> 'PTMProphetSolution':
+        return PTMProphetSolution(self.o_score(), self.m_score(), occupied_index, unoccupied_index)
+
+
+class PTMProphetSolution(NamedTuple):
+    o_score: float
+    m_score: float
+    occupied_peptidoform_index: int
+    unoccupied_peptidoform_index: int
+
+
+class PTMProphetEvaluator(LocalizationScorerBase):
+    raw_matches: List[_PeakSet]
+    occupied_site_index: DefaultDict[int, Set[int]]
+    solution_for_site: Dict[int, PTMProphetSolution]
+
+    def __init__(self, scan, peptide, modification_rule, modification_count=1, respect_specificity=True):
+        super().__init__(
+            scan, peptide, modification_rule, modification_count, respect_specificity)
+        self.peptidoforms = self.generate_peptidoforms(self.modification_rule)
+        self.raw_matches = []
+        self.occupied_site_index = DefaultDict(set)
+        self.solution_for_site = {}
+
+    def get_normalizer(self) -> float:
+        normalizer = float('inf')
+        for peak in self.scan.deconvoluted_peak_set:
+            if peak.intensity < normalizer:
+                normalizer = peak.intensity
+        return normalizer
+
+    def score_arrangements(self, error_tolerance: float=1e-5):
+        raw_matches = []
+        occupied_site_index = DefaultDict[int, Set[int]](set)
+
+        normalizer = self.get_normalizer()
+
+        for i, peptidoform in enumerate(self.peptidoforms):
+            acc = _PeakSet()
+            for fragment in peptidoform.fragments:
+                for peak in self.scan.deconvoluted_peak_set.all_peaks_for(fragment.mass, error_tolerance):
+                    acc.add(peak)
+            raw_matches.append(acc)
+            for j, pos in enumerate(peptidoform.peptide):
+                if pos.has_modification(self.modification_rule):
+                    occupied_site_index[j].add(i)
+
+        self.raw_matches = raw_matches
+        self.occupied_site_index = occupied_site_index
+
+        for site, occupied_in in self.occupied_site_index.items():
+            best_occupied_match = _PeakSet()
+            best_occupied_index = None
+            best_unoccupied_match = _PeakSet()
+            best_unoccupied_index = None
+            for i in range(len(self.peptidoforms)):
+                if i in occupied_in:
+                    if best_occupied_match.total < self.raw_matches[i].total:
+                        best_occupied_match = self.raw_matches[i]
+                        best_occupied_index = i
+                else:
+                    if best_unoccupied_match.total < self.raw_matches[i].total:
+                        best_unoccupied_match = self.raw_matches[i]
+                        best_unoccupied_index = i
+
+            if best_occupied_index is None:
+                continue
+            self.solution_for_site[site] = _PTMProphetMatch(
+                best_occupied_match, best_unoccupied_match, normalizer).to_solution(
+                    best_occupied_index, best_unoccupied_index)
+
+    def __repr__(self):
+        return f"{self.__class__.__name__}({self.scan}, {self.peptide}, {self.modification_rule}, {self.solution_for_site})"
+
+    def entropy(self, prophet) -> float:
+        m = self.modification_count
+        s = len(self.solution_for_site)
+        log_base = np.log(s / m)
+        acc = 0.0
+        for sol in self.solution_for_site.values():
+            prob = prophet.predict([sol.o_score, sol.m_score])[0]
+            acc += prob * np.log(prob) / log_base
+        return acc
+
+    def site_probabilities(self, prophet) -> Dict[int, float]:
+        position_probs = {}
+        acc = 0.0
+        normalizer = self.modification_count
+        for position, sol in self.solution_for_site.items():
+            prob = prophet.predict([sol.o_score, sol.m_score])[0]
+            position_probs[position] = prob
+            acc += prob
+        acc /= normalizer
+        return {k: min(v / acc, 1.0) for k, v in position_probs.items()}
+
+    def top_isoforms(self, prophet):
+        weights: List[float] = []
+        localizations: List[List[LocalizationScore]] = []
+        sites = self.site_probabilities(prophet)
+
+        for candidate in self.peptidoforms:
+            acc = 0.0
+            parts: List[LocalizationScore] = []
+            for mod_a in candidate.modifications:
+                score = sites[mod_a.site]
+                acc += score
+                parts.append(
+                    LocalizationScore(
+                        mod_a.site,
+                        mod_a.modification,
+                        score
+                    )
+                )
+            localizations.append(parts)
+            weights.append(acc)
+
+        wmax = max(weights)
+        top_isoforms = []
+        for candidate, weight, loc_scores in zip(self.peptidoforms, weights, localizations):
+            if abs(weight - wmax) < 1e-3:
+                top_isoforms.append((candidate, loc_scores))
+        return top_isoforms
