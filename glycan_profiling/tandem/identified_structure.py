@@ -1,9 +1,13 @@
 '''A set of base implementations for summarizing identified structures
 with both MS1 and MSn.
 '''
+from typing import Any, List, Optional, Set
 import numpy as np
 
 from glycan_profiling.chromatogram_tree import get_chromatogram, ArithmeticMapping, ChromatogramInterface
+from glycan_profiling.serialize.chromatogram import ChromatogramSolution
+from glycan_profiling.tandem.spectrum_match.solution_set import SpectrumSolutionSet
+from glycan_profiling.tandem.spectrum_match.spectrum_match import FDRSet, ScoreSet, SpectrumMatch
 
 from .chromatogram_mapping import TandemSolutionsWithoutChromatogram
 
@@ -35,6 +39,21 @@ class IdentifiedStructure(object):
     shared_with: list
         Other :class:`IdentifiedStructure` instances which match the same signal.
     """
+
+    structure: Any
+
+    chromatogram: ChromatogramSolution
+
+    spectrum_matches: List[SpectrumSolutionSet]
+    _best_spectrum_match: Optional[SpectrumMatch]
+
+    ms1_score: float
+    ms2_score: float
+    q_value: float
+
+    charge_states: Set[int]
+    shared_with: List
+
     def __init__(self, structure, spectrum_matches, chromatogram, shared_with=None):
         if shared_with is None:
             shared_with = []
@@ -73,7 +92,7 @@ class IdentifiedStructure(object):
             return False
 
     @property
-    def score_set(self):
+    def score_set(self) -> ScoreSet:
         """The :class:`~.ScoreSet` of the best MS/MS match
 
         Returns
@@ -92,7 +111,7 @@ class IdentifiedStructure(object):
         return self._best_spectrum_match
 
     @property
-    def q_value_set(self):
+    def q_value_set(self) -> FDRSet:
         """The :class:`~.FDRSet` of the best MS/MS match
 
         Returns
@@ -120,11 +139,16 @@ class IdentifiedStructure(object):
                 if is_multiscore:
                     q_value = match.q_value
                     if q_value <= best_q_value:
+                        q_delta = abs(best_q_value - q_value)
                         best_q_value = q_value
-                        score = match.score
-                        if score > best_score:
-                            best_score = score
+                        if q_delta > 0.001:
+                            best_score = match.score
                             best_match = match
+                        else:
+                            score = match.score
+                            if score > best_score:
+                                best_score = score
+                                best_match = match
                 else:
                     score = match.score
                     if score > best_score:
@@ -161,21 +185,21 @@ class IdentifiedStructure(object):
             return self.observed_neutral_mass
 
     @property
-    def start_time(self):
+    def start_time(self) -> float:
         try:
             return self.chromatogram.start_time
         except AttributeError:
             return None
 
     @property
-    def end_time(self):
+    def end_time(self) -> float:
         try:
             return self.chromatogram.end_time
         except AttributeError:
             return None
 
     @property
-    def apex_time(self):
+    def apex_time(self) -> float:
         try:
             return self.chromatogram.apex_time
         except AttributeError:

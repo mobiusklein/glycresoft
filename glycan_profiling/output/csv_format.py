@@ -325,6 +325,7 @@ class MultiScoreGlycopeptideLCMSMSAnalysisCSVSerializer(GlycopeptideLCMSMSAnalys
             "peptide_q_value",
             "glycan_q_value",
             "glycopeptide_q_value",
+            "localizations"
         ])
         return headers
 
@@ -341,6 +342,7 @@ class MultiScoreGlycopeptideLCMSMSAnalysisCSVSerializer(GlycopeptideLCMSMSAnalys
             q_value_set.peptide_q_value,
             q_value_set.glycan_q_value,
             q_value_set.glycopeptide_q_value,
+            ';'.join(map(str, obj.localizations))
         ]
         fields.extend(map(str, new_fields))
         return fields
@@ -426,6 +428,7 @@ class MultiScoreGlycopeptideSpectrumMatchAnalysisCSVSerializer(GlycopeptideSpect
             "peptide_q_value",
             "glycan_q_value",
             "glycopeptide_q_value",
+            "localizations",
         ])
         return header
 
@@ -440,5 +443,6 @@ class MultiScoreGlycopeptideSpectrumMatchAnalysisCSVSerializer(GlycopeptideSpect
             fdr_set.peptide_q_value,
             fdr_set.glycan_q_value,
             fdr_set.glycopeptide_q_value,
+            ';'.join(map(str, obj.localizations))
         ])
         return fields

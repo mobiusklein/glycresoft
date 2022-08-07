@@ -99,6 +99,32 @@
                     </tbody>
                 {% endif %}
             </table>
+            {% if glycopeptide.localizations %}
+            <table class='glycopeptide-facet'>
+                <thead>
+                    <tr>
+                        <th>Position</th>
+                        <th>Modification</th>
+                        <th>Localization<br />Probability</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for loc in glycopeptide.localizations %}
+                    <tr>
+                        <td>
+                            {{loc.position}}
+                        </td>
+                        <td>
+                            {{loc.modification}}
+                        </td>
+                        <td>
+                            {{"%0.3g" % loc.score}}
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+            {% endif %}
             <div class='mass-shift-signal-fraction-container'>
                 {% if glycopeptide.chromatogram is not none %}
                     <b>Adduct Signal Fractions</b>

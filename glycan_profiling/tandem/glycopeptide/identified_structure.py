@@ -10,8 +10,14 @@ from glycopeptidepy.structure.glycan import (
 
 from ..identified_structure import IdentifiedStructure, extract_identified_structures as _extract_identified_structures
 
+from glycan_profiling.structure import FragmentCachingGlycopeptide, PeptideProteinRelation
+
 
 class IdentifiedGlycopeptide(IdentifiedStructure):
+    structure: FragmentCachingGlycopeptide
+    protein_relation: PeptideProteinRelation
+    q_value: float
+
     def __init__(self, structure, spectrum_matches, chromatogram, shared_with=None):
         super(IdentifiedGlycopeptide, self).__init__(
             structure, spectrum_matches, chromatogram, shared_with)
@@ -33,11 +39,15 @@ class IdentifiedGlycopeptide(IdentifiedStructure):
         return "IdentifiedGlycopeptide(%s, %0.3f, %0.3f, %0.3e)" % (
             self.structure, self.ms2_score, self.ms1_score, self.total_signal)
 
-    def overlaps(self, other):
+    def overlaps(self, other) -> bool:
         return self.protein_relation.overlaps(other.protein_relation)
 
-    def spans(self, position):
+    def spans(self, position) -> bool:
         return position in self.protein_relation
+
+    @property
+    def localizations(self):
+        return self.best_spectrum_match.localizations
 
 
 class AmbiguousGlycopeptideGroup(object):

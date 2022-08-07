@@ -1,7 +1,7 @@
 from array import ArrayType as array
 from concurrent.futures import ThreadPoolExecutor
 
-from typing import Dict, Union, List, Optional
+from typing import Dict, Union, List
 
 import numpy as np
 from scipy import stats
@@ -732,12 +732,13 @@ class MultiKDModel:
 
     def fit(self, maxiter: int=10, convergence: float=0.001):
         lastprobsum = self.update()
-
+        delta = float('inf')
         i = 1
         while i < maxiter:
             probsum = self.update()
             i += 1
-            if abs(probsum - lastprobsum) < convergence:
+            delta = abs(probsum - lastprobsum)
+            if delta < convergence:
                 break
             lastprobsum = probsum
-        return i
+        return i, delta

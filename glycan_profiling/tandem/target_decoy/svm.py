@@ -70,10 +70,7 @@ class SVMModelBase(FDREstimatorBase):
         return tda
 
     def pack(self):
-        if self.worse_than_score:
-            self.dataset.pack()
-        else:
-            self.dataset = None
+        self.dataset.pack()
         self.proxy_dataset.pack()
 
     def __getstate__(self):

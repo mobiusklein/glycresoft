@@ -18,9 +18,7 @@ from glycan_profiling.chromatogram_tree import Unmodified
 
 from .search_space import (
     Parser,
-    PredictiveGlycopeptideSearch,
-    serialize_workload,
-    deserialize_workload, iteritems)
+    PredictiveGlycopeptideSearch)
 
 from ...workload import WorkloadManager
 from ...spectrum_match.solution_set import MultiScoreSpectrumSolutionSet
@@ -262,7 +260,7 @@ class StructureMapper(TaskExecutionSequence):
         return workload
 
     def add_decoy_glycans(self, workload: WorkloadManager) -> WorkloadManager:
-        items = list(iteritems(workload.hit_map))
+        items = list(workload.hit_map.items())
         for hit_id, record in items:
             record = record.to_decoy_glycan()
             for scan in workload.hit_to_scan_map[hit_id]:
@@ -355,57 +353,6 @@ class SemaphoreBoundMapperExecutor(MapperExecutor):
         with self.semaphore:
             result = super(SemaphoreBoundMapperExecutor, self).execute_task(mapper_task)
         return result
-
-
-class SerializingMapperExecutor(MapperExecutor):
-    """This task extends :class:`MapperExecutor` to also serialize its mapping to gzipped
-    XML.
-
-    """
-    process_name = 'glycopeptide-db-map'
-
-    def __init__(self, predictive_searchers, scan_loader, in_queue, out_queue,
-                 in_done_event, tracking_directory=None):
-        super(SerializingMapperExecutor, self).__init__(
-            predictive_searchers, scan_loader,
-            in_queue, out_queue, in_done_event)
-        self.predictive_searchers = predictive_searchers
-        self.tracking_directory = tracking_directory
-
-    def execute_task(self, mapper_task):
-        self.scan_loader.reset()
-        label = mapper_task.predictive_search
-        mapper_task.predictive_search = self.predictive_searchers[label]
-        if debug_mode:
-            self.log("... Running %s Mapping with Mass Shifts %r" % (label, mapper_task.mass_shifts))
-        mapper_task.bind_scans(self.scan_loader)
-        workload = mapper_task()
-        self.scan_loader.reset()
-        workload.pack()
-        start_serializing_workload = time.time()
-        workload = serialize_workload(workload)
-        end_serializing_workload = time.time()
-        self.log("... Serializing Workload Took %0.2f sec." % (
-            end_serializing_workload - start_serializing_workload))
-        matcher_task = SpectrumMatcher(
-            workload, mapper_task.group_i, mapper_task.group_n)
-
-        matcher_task.label = label
-        matcher_task.group_i = mapper_task.group_i
-        matcher_task.group_n = mapper_task.group_n
-        if self.tracking_directory is not None:
-            if not os.path.exists(self.tracking_directory):
-                os.mkdir(self.tracking_directory)
-            track_file = os.path.join(
-                self.tracking_directory, "%s_%s_%s.xml" % (
-                    label, mapper_task.group_i, mapper_task.group_n))
-            with open(track_file, 'wb') as fh:
-                fh.write(workload)
-        return matcher_task
-
-    def run(self):
-        self.try_set_process_name()
-        return super(SerializingMapperExecutor, self).run()
 
 
 @IsTask
@@ -589,55 +536,3 @@ class SemaphoreBoundMatcherExecutor(MatcherExecutor):
         with self.semaphore:
             result = super(SemaphoreBoundMatcherExecutor, self).execute_task(matcher_task)
         return result
-
-
-class WorkloadUnpackingMatcherExecutor(MatcherExecutor):
-    """This task executor extends :class:`MatcherExecutor` by also deserializing the
-    mapping from gzipped XML packaging.
-
-    This type complements :class:`SerializingMapperExecutor`
-
-    """
-    def __init__(self, scan_loader, in_queue, out_queue, in_done_event, scorer_type=None,
-                 ipc_manager=None, n_processes=6, mass_shifts=None, evaluation_kwargs=None,
-                 cache_seeds=None, **kwargs):
-        super(WorkloadUnpackingMatcherExecutor, self).__init__(
-            in_queue, out_queue, in_done_event, scorer_type, ipc_manager,
-            n_processes, mass_shifts, evaluation_kwargs, cache_seeds=cache_seeds, **kwargs)
-        self.scan_loader = scan_loader
-
-    def execute_task(self, matcher_task):
-        workload = matcher_task.workload
-        start = time.time()
-        matcher_task.workload = deserialize_workload(
-            workload,
-            self.scan_loader)
-        end = time.time()
-        self.log("... Deserializing Workload Took %0.2f sec." % (end - start, ))
-        return super(WorkloadUnpackingMatcherExecutor, self).execute_task(matcher_task)
-
-
-class MappingSerializer(TaskExecutionSequence):
-    def __init__(self, storage_directory, in_queue, in_done_event):
-        self.storage_directory = storage_directory
-        self.in_queue = in_queue
-        self.in_done_event = in_done_event
-        self.done_event = self._make_event()
-
-    def run(self):
-        if not os.path.exists(self.storage_directory):
-            os.makedirs(self.storage_directory)
-        has_work = True
-        while has_work and not self.error_occurred():
-            try:
-                package = self.in_queue.get(True, 5)
-                data = package.workload
-                label = package.label
-                name = '%s_%s.xml.gz' % (label, package.group_i)
-                with open(os.path.join(self.storage_directory, name), 'wb') as fh:
-                    fh.write(data)
-            except Empty:
-                if self.in_done_event.is_set():
-                    has_work = False
-                    break
-        self.done_event.set()

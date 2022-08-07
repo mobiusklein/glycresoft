@@ -614,6 +614,16 @@ class MassCollectionProxy(SearchableMassCollectionWrapper[T]):
             self._session = self.searchable_mass_collection.session
             return self._session
 
+    @property
+    def hypothesis(self):
+        if self._hypothesis is not None:
+            return self._hypothesis
+        elif self.hypothesis_resolver:
+            self._hypothesis = self.hypothesis_resolver()
+            return self._hypothesis
+        else:
+            return super().hypothesis
+
     def query(self, *args, **kwargs):
         return self.session.query(*args, **kwargs)
 

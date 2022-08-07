@@ -1,4 +1,5 @@
 import itertools
+from typing import Iterable
 from uuid import uuid4
 from collections import defaultdict, Counter
 from multiprocessing import Process, Queue, Event, RLock
@@ -251,7 +252,7 @@ class GlycanCombinationPartitionTable(TaskBase):
         return self.get_entries(size, mapping)
 
 
-def limiting_combinations(iterable, n, limit=100):
+def limiting_combinations(iterable: Iterable, n: int, limit: int=100):
     i = 0
     for result in itertools.combinations(iterable, n):
         i += 1
@@ -264,6 +265,15 @@ class GlycanCombinationRecord(object):
     __slots__ = [
         'id', 'calculated_mass', 'formula', 'count', 'glycan_composition_string',
         '_composition', '_dehydrated_composition']
+
+    id: int
+    calculated_mass: float
+    formula: str
+    count: int
+    glycan_composition_string: str
+
+    _composition: Composition
+    _dehydrated_composition: Composition
 
     def __init__(self, combination):
         self.id = combination.id

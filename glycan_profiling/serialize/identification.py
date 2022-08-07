@@ -11,7 +11,8 @@ from glycan_profiling.serialize.chromatogram import (
     ChromatogramWrapper)
 
 from glycan_profiling.serialize.tandem import (
-    GlycopeptideSpectrumCluster)
+    GlycopeptideSpectrumCluster,
+    GlycopeptideSpectrumMatch)
 
 from glycan_profiling.serialize.hypothesis import Glycopeptide
 
@@ -131,7 +132,11 @@ class IdentifiedGlycopeptide(Base, IdentifiedStructure):
         return best_match.score_set
 
     @property
-    def best_spectrum_match(self):
+    def localizations(self):
+        return self.best_spectrum_match.localizations
+
+    @property
+    def best_spectrum_match(self) -> GlycopeptideSpectrumMatch:
         return self._best_spectrum_match
 
     @property
@@ -174,14 +179,16 @@ class IdentifiedGlycopeptide(Base, IdentifiedStructure):
                 if is_multiscore:
                     q_value = match.q_value
                     if q_value <= best_q_value:
-                        delta_q_value = best_q_value - q_value
+                        q_delta = abs(best_q_value - q_value)
                         best_q_value = q_value
-                        score = match.score
-                        if score > best_score:
-                            best_score = score
+                        if q_delta > 0.001:
+                            best_score = match.score
                             best_match = match
-                        elif delta_q_value > 0.001:
-                            best_match = match
+                        else:
+                            score = match.score
+                            if score > best_score:
+                                best_score = score
+                                best_match = match
                 else:
                     score = match.score
                     if score > best_score:

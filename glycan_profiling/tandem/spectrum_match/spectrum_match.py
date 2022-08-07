@@ -893,3 +893,13 @@ class LocalizationScore(object):
 
     def __repr__(self):
         return f"{self.__class__.__name__}({self.position}, {self.modification}, {self.score})"
+
+    def __str__(self):
+        return f"{self.modification}:{self.position}:{self.score}"
+
+    @classmethod
+    def parse(cls, text: str):
+        mod, pos, score = text.rsplit(":", 2)
+        pos = int(pos)
+        score = float(score)
+        return cls(pos, mod, score)

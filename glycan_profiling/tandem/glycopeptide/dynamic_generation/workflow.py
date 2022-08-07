@@ -94,7 +94,7 @@ def make_memory_database_proxy_resolver(path, n_glycan=None, o_glycan=None, hypo
             n_glycan = config['n_glycan']
     loader = PeptideDatabaseProxyLoader(path, n_glycan, o_glycan, hypothesis_id)
     # Make it possible to load the session here without loading the peptides
-    proxy = mass_collection.MassCollectionProxy(loader, loader.session_resolver, hypothesis_id)
+    proxy = mass_collection.MassCollectionProxy(loader, loader.session_resolver, hypothesis_id, loader.hypothesis_resolver)
     return proxy
 
 
@@ -137,7 +137,7 @@ class PeptideDatabaseProxyLoader(TaskBase):
     def session_resolver(self):
         return self.source_database.session
 
-    def hypothesis(self):
+    def hypothesis_resolver(self):
         return self.source_database.hypothesis
 
     def __reduce__(self):

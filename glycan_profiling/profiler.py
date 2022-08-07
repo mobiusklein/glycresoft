@@ -3,11 +3,12 @@
 Each class is designed to encapsulate a single broad task, i.e.
 LC-MS/MS deconvolution or structure identification
 '''
+from asyncio import constants
 import os
 import pickle
 
 from collections import defaultdict
-from typing import Any, DefaultDict, List, Tuple
+from typing import Any, DefaultDict, Dict, List, Tuple
 
 
 
@@ -22,10 +23,10 @@ import glypy
 from glypy.utils import Enum
 
 from glycopeptidepy.utils.collectiontools import descending_combination_counter
-
-
+from glycopeptidepy.structure.modification import rule_string_to_specialized_rule
 
 from glycan_profiling.database.disk_backed_database import (
+    DiskBackedStructureDatabaseBase,
     GlycanCompositionDiskBackedStructureDatabase,
     GlycopeptideDiskBackedStructureDatabase)
 
@@ -43,6 +44,7 @@ from glycan_profiling.piped_deconvolve import (
 
 from glycan_profiling.scoring import (
     ChromatogramSolution)
+from glycan_profiling.tandem.target_decoy.base import TargetDecoyAnalyzer
 
 from glycan_profiling.trace import (
     ScanSink,
@@ -64,8 +66,6 @@ from glycan_profiling.scoring.elution_time_grouping import (
     OxoniumIonRequiringUtilizationRevisionValidator,
     CompoundRevisionValidator, ModelEnsemble as GlycopeptideElutionTimeModelEnsemble)
 
-from glycan_profiling.scoring.elution_time_grouping.model import ElutionTimeModel
-
 from glycan_profiling.structure import ScanStub, ScanInformation
 
 from glycan_profiling.tandem.chromatogram_mapping import SpectrumMatchUpdater, AnnotatedChromatogramAggregator, TandemAnnotatedChromatogram, TandemSolutionsWithoutChromatogram
@@ -75,7 +75,7 @@ from glycan_profiling.tandem.target_decoy import TargetDecoySet
 from glycan_profiling.tandem.temp_store import TempFileManager
 
 from glycan_profiling.tandem.spectrum_match.spectrum_match import MultiScoreSpectrumMatch, SpectrumMatch
-from glycan_profiling.tandem.spectrum_match.solution_set import QValueRetentionStrategy
+from glycan_profiling.tandem.spectrum_match.solution_set import QValueRetentionStrategy, SpectrumSolutionSet
 
 from glycan_profiling.tandem.glycopeptide.scoring import (
     LogIntensityScorer,
@@ -95,6 +95,7 @@ from glycan_profiling.tandem.glycopeptide import (
 from glycan_profiling.tandem.glycan.composition_matching import SignatureIonMapper
 from glycan_profiling.tandem.glycan.scoring.signature_ion_scoring import SignatureIonScorer
 
+from glycan_profiling.tandem.localize import EvaluatedSolutionBins, ScanLoadingModificationLocalizationSearcher
 
 from glycan_profiling.scan_cache import (
     ThreadedMzMLScanCacheHandler)
@@ -893,7 +894,7 @@ class GlycopeptideLCMSMSAnalyzer(TaskBase):
             assigned_list, lambda x: x.q_value <= self.psm_fdr_threshold)
         return gps, unassigned
 
-    def rank_target_hits(self, searcher, target_decoy_set):
+    def rank_target_hits(self, searcher, target_decoy_set: TargetDecoySet):
         '''Estimate the FDR using the searcher's method, and
         count the number of acceptable target matches. Return
         the full set of target matches for downstream use.
@@ -909,7 +910,7 @@ class GlycopeptideLCMSMSAnalyzer(TaskBase):
         Iterable of SpectrumMatch-like objects
         '''
         self.log("Estimating FDR")
-        tda = self.estimate_fdr(searcher, target_decoy_set)
+        tda: TargetDecoyAnalyzer = self.estimate_fdr(searcher, target_decoy_set)
         if tda is not None:
             tda.pack()
         self.fdr_estimator = tda
@@ -930,6 +931,15 @@ class GlycopeptideLCMSMSAnalyzer(TaskBase):
         if self.psm_fdr_threshold != 0.01:
             self.log("%d spectra matched passing 1%% FDR" % n_below_1)
         return target_hits
+
+    def localize_modifications(self,
+                               solution_sets: List[SpectrumSolutionSet],
+                               scan_loader,
+                               database: DiskBackedStructureDatabaseBase):
+        pass
+
+    def finalize_solutions(self, identifications: List[identified_glycopeptide.IdentifiedGlycopeptide]):
+        pass
 
     def run(self):
         peak_loader = self.make_peak_loader()
@@ -953,6 +963,8 @@ class GlycopeptideLCMSMSAnalyzer(TaskBase):
 
         target_hits = self.rank_target_hits(searcher, target_decoy_set)
 
+        self.localize_modifications(target_hits, peak_loader, database)
+
         # Map MS/MS solutions to chromatograms.
         self.log("Building and Mapping Chromatograms")
         merged, orphans = self.map_chromatograms(searcher, extractor, target_hits)
@@ -969,6 +981,8 @@ class GlycopeptideLCMSMSAnalyzer(TaskBase):
                 scored_merged, orphans, database, peak_loader)
 
         gps, unassigned = self.assign_consensus(scored_merged, orphans)
+
+        self.finalize_solutions(gps)
 
         self.log("Saving solutions (%d identified glycopeptides)" % (len(gps),))
         self.save_solutions(gps, unassigned, extractor, database)
@@ -1454,6 +1468,7 @@ class MultipartGlycopeptideLCMSMSAnalyzer(MzMLGlycopeptideLCMSMSAnalyzer):
         self.fdr_estimator = None
         self.retention_time_model = None
         self.precursor_mass_error_distribution = None
+        self.localization_model = None
 
     @property
     def target_hypothesis_id(self):
@@ -1511,6 +1526,48 @@ class MultipartGlycopeptideLCMSMSAnalyzer(MzMLGlycopeptideLCMSMSAnalyzer):
 
     def estimate_fdr(self, searcher, target_decoy_set):
         return searcher.estimate_fdr(target_decoy_set)
+
+    def localize_modifications(self,
+                               solution_sets: List[SpectrumSolutionSet],
+                               scan_loader,
+                               database: DiskBackedStructureDatabaseBase):
+
+        hyp_parameters: Dict[str, Any] = database.hypothesis.parameters
+        rules_by_name = {}
+        table = None
+
+        for rule in hyp_parameters.get('constant_modifications', []):
+            if isinstance(rule, str):
+                rule = rule_string_to_specialized_rule(rule)
+            rules_by_name[rule.name] = rule
+        for rule in hyp_parameters.get('variable_modifications', []):
+            if table is not None:
+                rule = table[rule]
+            rules_by_name[rule.name] = rule
+
+        self.log("Begin Modifications Localization")
+        task = ScanLoadingModificationLocalizationSearcher(
+            scan_loader,
+            threshold_fn=lambda x: x.q_value <= self.psm_fdr_threshold,
+            error_tolerance=self.msn_mass_error_tolerance,
+            restricted_modifications=rules_by_name
+        )
+
+        solution_bins: List[EvaluatedSolutionBins] = []
+        for i, sset in enumerate(solution_sets):
+            if i % 1000 == 0 and i:
+                self.log(f"... Processed {i} solution sets")
+            solution_bin_set = task.process_solution_set(sset)
+            solution_bins.append(solution_bin_set)
+
+        training_examples = task.get_training_instances(solution_bins)
+        self.log(f"{len(training_examples)} training examples for localization")
+
+        ptm_prophet = task.train_ptm_prophet(training_examples)
+        self.localization_model = task
+
+        self.log("Scoring Site Localizations")
+        task.select_top_isoforms(solution_bins, ptm_prophet)
 
     def apply_retention_time_model(self, scored_chromatograms, orphans, database, scan_loader, minimum_ms1_score=6.0):
         glycan_compositions = self._get_glycan_compositions_from_database(
@@ -1581,6 +1638,18 @@ class MultipartGlycopeptideLCMSMSAnalyzer(MzMLGlycopeptideLCMSMSAnalyzer):
 
         return scored_chromatograms, orphans
 
+    def finalize_solutions(self, identifications: List[identified_glycopeptide.IdentifiedGlycopeptide]):
+        self.log("Back-filling localization information")
+        k = 0
+        for idgp in identifications:
+            if not idgp.localizations:
+                for sset in idgp.tandem_solutions:
+                    k += 1
+                    bins = self.localization_model.process_solution_set(sset)
+                    self.localization_model.select_top_isoforms([bins])
+        if k:
+            self.log(f'Back-filled {k} spectra')
+
     def rank_target_hits(self, searcher, target_decoy_set):
         '''Estimate the FDR using the searcher's method, and
         count the number of acceptable target matches. Return
@@ -1643,5 +1712,6 @@ class MultipartGlycopeptideLCMSMSAnalyzer(MzMLGlycopeptideLCMSMSAnalyzer):
             "extended_glycan_search": self.extended_glycan_search,
             "glycosylation_site_models_path": self.glycosylation_site_models_path,
             "retention_time_model": self.retention_time_model,
+            "localization_model": self.localization_model.simplify(),
         })
         return result

@@ -1,3 +1,5 @@
+from turtle import position
+from typing import Any, Dict
 import warnings
 from weakref import WeakValueDictionary
 
@@ -12,7 +14,8 @@ from sqlalchemy.exc import OperationalError
 from glycan_profiling.tandem.spectrum_match import (
     SpectrumMatch as MemorySpectrumMatch,
     SpectrumSolutionSet as MemorySpectrumSolutionSet,
-    ScoreSet, FDRSet, MultiScoreSpectrumMatch, MultiScoreSpectrumSolutionSet)
+    ScoreSet, FDRSet, MultiScoreSpectrumMatch,
+    MultiScoreSpectrumSolutionSet, LocalizationScore as MemoryLocalizationScore)
 
 from glycan_profiling.structure import ScanInformation
 
@@ -334,13 +337,18 @@ class GlycopeptideSpectrumMatch(Base, SpectrumMatchBase):
         if hasattr(obj, 'score_set') and save_score_set:
             assert inst.id is not None
             GlycopeptideSpectrumMatchScoreSet.serialize_from_spectrum_match(obj, session, inst.id)
+            if obj.localizations:
+                locs = (LocalizationScore.get_fields_from_object(obj, inst.id))
+                if locs:
+                    session.bulk_insert_mappings(LocalizationScore, locs)
+
         return inst
 
     @classmethod
     def serialize_bulk(cls, objs, session, scan_look_up_cache, mass_shift_cache, analysis_id,
                        solution_set_id, is_decoy=False, save_score_set=True, *args, **kwargs):
         acc = []
-        revmap = {}
+        revmap: Dict[Any, MemorySpectrumMatch] = {}
         for obj in objs:
             scan_id = scan_look_up_cache[obj.scan.id]
             target_id = obj.target.id
@@ -365,13 +373,22 @@ class GlycopeptideSpectrumMatch(Base, SpectrumMatchBase):
             fwd = session.query(cls.id, cls.scan_id, cls.structure_id, cls.mass_shift_id).filter(
                 cls.solution_set_id == solution_set_id).all()
             acc = []
+            loc_acc = []
             for inst in fwd:
                 obj = revmap[inst.scan_id, inst.structure_id, inst.mass_shift_id]
                 if hasattr(obj, 'score_set'):
                     fields = GlycopeptideSpectrumMatchScoreSet.get_fields_from_object(obj, inst.id)
                     acc.append(fields)
+                if obj.localizations:
+                    loc_acc.extend(LocalizationScore.get_fields_from_object(obj, inst.id))
             if acc:
                 session.bulk_insert_mappings(GlycopeptideSpectrumMatchScoreSet, acc)
+            if loc_acc:
+                session.bulk_insert_mappings(
+                    LocalizationScore,
+                    loc_acc
+                )
+
         return revmap
 
     def convert(self, mass_shift_cache=None, scan_cache=None, structure_cache=None, peptide_relation_cache=None):
@@ -394,15 +411,23 @@ class GlycopeptideSpectrumMatch(Base, SpectrumMatchBase):
             except KeyError:
                 target = structure_cache[key] = self.structure.convert(peptide_relation_cache=peptide_relation_cache)
 
-        mass_shift = self._resolve_mass_shift(session, mass_shift_cache)
-        if self.score_set is None:
-            inst = MemorySpectrumMatch(scan, target, self.score, self.is_best_match,
-                                       mass_shift=mass_shift)
+        orm_locs = self.localizations
+        if orm_locs:
+            locs = [loc.convert() for loc in orm_locs]
         else:
-            score_set, fdr_set = self.score_set.convert()
+            locs = []
+        mass_shift = self._resolve_mass_shift(session, mass_shift_cache)
+        orm_score_set = self.score_set
+        if orm_score_set is None:
+            inst = MemorySpectrumMatch(scan, target, self.score, self.is_best_match,
+                                       mass_shift=mass_shift, localizations=locs)
+        else:
+            score_set, fdr_set = orm_score_set.convert()
             inst = MultiScoreSpectrumMatch(
                 scan, target, score_set, self.is_best_match,
-                mass_shift=mass_shift, q_value_set=fdr_set, match_type=0)
+                mass_shift=mass_shift, q_value_set=fdr_set, match_type=0,
+                localizations=locs)
+
         inst.q_value = self.q_value
         inst.id = self.id
         return inst
@@ -722,6 +747,31 @@ class LocalizationScore(Base):
     id = Column(Integer, ForeignKey(
         GlycopeptideSpectrumMatch.id), primary_key=True)
 
-    site = Column(Integer)
+    position = Column(Integer, primary_key=True)
     modification = Column(String)
-    score = Column(Numeric(6, 3, asdecimal=False), index=False)
+    score = Column(Numeric(6, 3, asdecimal=False))
+
+    spectrum_match = relationship(
+        GlycopeptideSpectrumMatch, backref=backref("localizations", lazy='joined'))
+
+    @classmethod
+    def get_fields_from_object(cls, obj: MemorySpectrumMatch, db_id=None):
+        instances = []
+        for loc in obj.localizations:
+            inst = dict(
+                id=db_id,
+                position=loc.position,
+                modification=loc.modification,
+                score=loc.score
+            )
+            instances.append(inst)
+        return instances
+
+    def convert(self):
+        return MemoryLocalizationScore(self.position, self.modification, self.score)
+
+    def __repr__(self):
+        return f"DB{self.__class__.__name__}({self.id}, {self.position}, {self.modification}, {self.score})"
+
+    def __str__(self):
+        return f"{self.modification}:{self.position}:{self.score}"

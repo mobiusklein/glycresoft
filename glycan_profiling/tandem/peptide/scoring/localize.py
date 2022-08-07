@@ -651,6 +651,12 @@ class PTMProphetSolution(NamedTuple):
     unoccupied_peptidoform_index: int
 
 
+class ScoredIsoform(NamedTuple):
+    isoform: LocalizationCandidate
+    localizations: List[LocalizationScore]
+    score: float
+
+
 class PTMProphetEvaluator(LocalizationScorerBase):
     raw_matches: List[_PeakSet]
     occupied_site_index: DefaultDict[int, Set[int]]
@@ -727,15 +733,14 @@ class PTMProphetEvaluator(LocalizationScorerBase):
     def site_probabilities(self, prophet) -> Dict[int, float]:
         position_probs = {}
         acc = 0.0
-        normalizer = self.modification_count
         for position, sol in self.solution_for_site.items():
             prob = prophet.predict([sol.o_score, sol.m_score])[0]
             position_probs[position] = prob
             acc += prob
-        acc /= normalizer
+        acc /= self.modification_count
         return {k: min(v / acc, 1.0) for k, v in position_probs.items()}
 
-    def top_isoforms(self, prophet):
+    def score_isoforms(self, prophet) -> List[ScoredIsoform]:
         weights: List[float] = []
         localizations: List[List[LocalizationScore]] = []
         sites = self.site_probabilities(prophet)
@@ -744,7 +749,20 @@ class PTMProphetEvaluator(LocalizationScorerBase):
             acc = 0.0
             parts: List[LocalizationScore] = []
             for mod_a in candidate.modifications:
-                score = sites[mod_a.site]
+                try:
+                    score = sites[mod_a.site]
+                except KeyError:
+                    if not isinstance(mod_a.site, int):
+                        # TODO: This needs to handle terminal modifications
+                        # which requires a change to the core algorithm.
+                        # Ignore them for now.
+                        score = 0.0
+                    else:
+                        # The position was never observed. Ignore it.
+                        # May happen when sites are not restricted during
+                        # peptidoform generation here but not during the original
+                        # search.
+                        score = 0.0
                 acc += score
                 parts.append(
                     LocalizationScore(
@@ -756,9 +774,8 @@ class PTMProphetEvaluator(LocalizationScorerBase):
             localizations.append(parts)
             weights.append(acc)
 
-        wmax = max(weights)
-        top_isoforms = []
+        scored_isoforms = []
         for candidate, weight, loc_scores in zip(self.peptidoforms, weights, localizations):
-            if abs(weight - wmax) < 1e-3:
-                top_isoforms.append((candidate, loc_scores))
-        return top_isoforms
+            scored_isoforms.append(ScoredIsoform(
+                candidate, loc_scores, weight))
+        return scored_isoforms

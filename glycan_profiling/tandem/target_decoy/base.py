@@ -2,7 +2,7 @@
 import math
 import logging
 
-from typing import Callable, List, Optional, Tuple
+from typing import Any, Callable, List, NamedTuple, Optional, Tuple
 from collections import defaultdict, namedtuple
 
 import numpy as np
@@ -232,7 +232,10 @@ class ArrayScoreThresholdCounter(ScoreThresholdCounter):
                     break
 
 
-class TargetDecoySet(namedtuple("TargetDecoySet", ['target_matches', 'decoy_matches'])):
+class TargetDecoySet(NamedTuple):
+    target_matches: List[SpectrumSolutionSet]
+    decoy_matches: List[SpectrumSolutionSet]
+
     def target_count(self):
         return len(self.target_matches)
 

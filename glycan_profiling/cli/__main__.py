@@ -26,8 +26,17 @@ def info(type, value, tb):
         ipdb.post_mortem(tb)
 
 
+def set_breakpoint_hook():
+    try:
+        import ipdb
+        sys.breakpointhook = ipdb.set_trace
+    except ImportError:
+        pass
+
+
 def main():
     freeze_support()
+    set_breakpoint_hook()
     if os.getenv("GLYCRESOFTDEBUG"):
         sys.excepthook = info
         click.secho("Running glycresoft with debugger", fg='yellow')

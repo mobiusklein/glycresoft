@@ -1,6 +1,7 @@
 from abc import ABCMeta
 from collections import defaultdict, Counter
 from operator import attrgetter
+from typing import List, Set
 
 from six import add_metaclass
 
@@ -10,7 +11,7 @@ from glypy.utils import uid
 from glypy.structure.glycan_composition import HashableGlycanComposition
 
 
-from .mass_shift import Unmodified
+from .mass_shift import MassShiftBase, Unmodified
 from .utils import ArithmeticMapping
 
 
@@ -113,6 +114,19 @@ class _TimeIntervalMethods(object):
 class Chromatogram(_TimeIntervalMethods):
     created_at = "new"
     glycan_composition = None
+
+    nodes: 'ChromatogramTreeList'
+    mass_shifts: List[MassShiftBase]
+    used_as_mass_shift: List
+
+    _total_intensity: float
+    _neutral_mass: float
+    _weighted_neutral_mass: float
+    _last_neutral_mass: float
+    _charge_states: Set[int]
+
+    _start_time: float
+    _end_time: float
 
     def __init__(self, composition, nodes=None, mass_shifts=None, used_as_mass_shift=None):
         if nodes is None:
