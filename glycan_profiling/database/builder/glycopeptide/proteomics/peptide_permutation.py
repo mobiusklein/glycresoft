@@ -66,7 +66,7 @@ def o_glycan_sequon_sites(peptide: Peptide, protein: Protein=None, use_local_seq
     return sorted(sites)
 
 
-def gag_sequon_sites(peptide, protein=None, use_local_sequence=False):
+def gag_sequon_sites(peptide: Peptide, protein: Protein = None, use_local_sequence: bool = False):
     sites = set()
     sites |= set(site - peptide.start_position for site in span_test(
         protein.glycosaminoglycan_sequon_sites, peptide.start_position, peptide.end_position))
@@ -84,9 +84,17 @@ def get_base_peptide(peptide_obj):
 
 
 class PeptidePermuter(object):
+    constant_modifications: List[ModificationRule]
+    variable_modifications: List[ModificationRule]
+    max_variable_modifications: int
+
+    n_term_modifications: List[ModificationRule]
+    c_term_modifications: List[ModificationRule]
+
     def __init__(self, constant_modifications, variable_modifications, max_variable_modifications=None):
         if max_variable_modifications is None:
             max_variable_modifications = 4
+
         self.constant_modifications = list(constant_modifications)
         self.variable_modifications = list(variable_modifications)
         self.max_variable_modifications = max_variable_modifications
@@ -96,7 +104,7 @@ class PeptidePermuter(object):
          self.variable_modifications) = self.split_terminal_modifications(self.variable_modifications)
 
     @staticmethod
-    def split_terminal_modifications(modifications):
+    def split_terminal_modifications(modifications: List[ModificationRule]):
         """Group modification rules into three classes, N-terminal,
         C-terminal, and Internal modifications.
 
@@ -117,9 +125,9 @@ class PeptidePermuter(object):
         internal: list
             list of Internal modification rules
         """
-        n_terminal = []
-        c_terminal = []
-        internal = []
+        n_terminal: List[ModificationRule] = []
+        c_terminal: List[ModificationRule] = []
+        internal: List[ModificationRule] = []
 
         for mod in modifications:
             n_term = mod.n_term_targets
@@ -140,7 +148,7 @@ class PeptidePermuter(object):
     def prepare_peptide(self, sequence):
         return get_base_peptide(sequence)
 
-    def terminal_modifications(self, sequence, protein_n_term=False, protein_c_term=False):
+    def terminal_modifications(self, sequence, protein_n_term: bool=False, protein_c_term: bool=False):
         n_term_modifications = [
             mod for mod in self.n_term_modifications if mod.find_valid_sites(
                 sequence, protein_n_term=protein_n_term)]
@@ -153,7 +161,7 @@ class PeptidePermuter(object):
 
         return n_term_modifications, c_term_modifications
 
-    def apply_fixed_modifications(self, sequence, protein_n_term=False, protein_c_term=False):
+    def apply_fixed_modifications(self, sequence, protein_n_term: bool=False, protein_c_term: bool=False):
         has_fixed_n_term = False
         has_fixed_c_term = False
 
@@ -173,7 +181,7 @@ class PeptidePermuter(object):
         modification_sites = ModificationSiteAssignmentCombinator(variable_sites)
         return modification_sites
 
-    def apply_variable_modifications(self, sequence, assignments, n_term, c_term):
+    def apply_variable_modifications(self, sequence, assignments, n_term: ModificationRule, c_term: ModificationRule):
         n_variable = 0
         result = sequence.clone()
         if n_term is not None:
@@ -188,7 +196,7 @@ class PeptidePermuter(object):
                 n_variable += 1
         return result, n_variable
 
-    def permute_peptide(self, sequence, protein_n_term=False, protein_c_term=False):
+    def permute_peptide(self, sequence, protein_n_term: bool=False, protein_c_term: bool=False):
         try:
             sequence = self.prepare_peptide(sequence)
         except residue.UnknownAminoAcidException:
@@ -215,13 +223,16 @@ class PeptidePermuter(object):
                 yield self.apply_variable_modifications(
                     sequence, assignments, n_term, c_term)
 
-    def __call__(self, peptide, protein_n_term=False, protein_c_term=False):
+    def __call__(self, peptide, protein_n_term: bool=False, protein_c_term: bool=False):
         return self.permute_peptide(
             peptide, protein_n_term=protein_n_term, protein_c_term=protein_c_term)
 
     @classmethod
-    def peptide_permutations(cls, sequence, constant_modifications, variable_modifications,
-                             max_variable_modifications=4):
+    def peptide_permutations(cls,
+                             sequence,
+                             constant_modifications: List[ModificationRule],
+                             variable_modifications: List[ModificationRule],
+                             max_variable_modifications: int=4):
         inst = cls(constant_modifications, variable_modifications,
                    max_variable_modifications)
         return inst.permute_peptide(sequence)
@@ -230,7 +241,16 @@ class PeptidePermuter(object):
 peptide_permutations = PeptidePermuter.peptide_permutations
 
 
-def cleave_sequence(sequence, protease, missed_cleavages=2, min_length=6, max_length=60, semispecific=False):
+def cleave_sequence(sequence,
+                    protease: enzyme.Protease,
+                    missed_cleavages: int=2,
+                    min_length: int=6,
+                    max_length: int=60,
+                    semispecific: bool=False):
+    peptide: str
+    start: int
+    end: int
+    missed: int
     for peptide, start, end, missed in protease.cleave(sequence, missed_cleavages=missed_cleavages,
                                                        min_length=min_length, max_length=max_length,
                                                        semispecific=semispecific):
@@ -353,9 +373,9 @@ class ProteinDigestor(TaskBase):
         return self.process_protein(protein_obj)
 
     @classmethod
-    def digest_protein(cls, sequence, protease, constant_modifications=None,
-                       variable_modifications=None, max_missed_cleavages=2,
-                       min_length=6, max_length=60, semispecific=False):
+    def digest_protein(cls, sequence, protease: enzyme.Protease, constant_modifications: List[ModificationRule] = None,
+                       variable_modifications: List[ModificationRule] = None, max_missed_cleavages: int=2,
+                       min_length: int=6, max_length: int=60, semispecific: bool=False):
         inst = cls(
             protease, constant_modifications, variable_modifications,
             max_missed_cleavages, min_length, max_length, semispecific)
