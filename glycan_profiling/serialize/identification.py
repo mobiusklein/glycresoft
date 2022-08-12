@@ -307,6 +307,7 @@ class IdentifiedGlycopeptide(Base, IdentifiedStructure):
             peptide_relation_cache = dict()
         if expand_shared_with and self.shared_with:
             stored = list(self.shared_with)
+            # TODO don't create duplicate IDGPs, cache these.
             converted = [
                 x.convert(expand_shared_with=False, mass_shift_cache=mass_shift_cache,
                           scan_cache=scan_cache, structure_cache=structure_cache,

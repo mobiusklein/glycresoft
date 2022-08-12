@@ -348,7 +348,7 @@ class AnalysisDeserializer(DatabaseBoundOperation):
         node_type_cache = dict()
         scan_id_cache = dict()
         q = self.query(UnidentifiedChromatogram).filter(
-            UnidentifiedChromatogram.analysis_id == self.analysis_id).yield_per(100)
+            UnidentifiedChromatogram.analysis_id == self.analysis_id).all()
         chroma = ChromatogramFilter([c.convert(
             chromatogram_scoring_model=self.chromatogram_scoring_model,
             node_type_cache=node_type_cache,
@@ -360,7 +360,7 @@ class AnalysisDeserializer(DatabaseBoundOperation):
         node_type_cache = dict()
         scan_id_cache = dict()
         q = self.query(GlycanCompositionChromatogram).filter(
-            GlycanCompositionChromatogram.analysis_id == self.analysis_id).yield_per(100)
+            GlycanCompositionChromatogram.analysis_id == self.analysis_id).all()
         chroma = ChromatogramFilter([c.convert(
             chromatogram_scoring_model=self.chromatogram_scoring_model,
             node_type_cache=node_type_cache,
@@ -370,13 +370,13 @@ class AnalysisDeserializer(DatabaseBoundOperation):
     def load_identified_glycopeptides_for_protein(self, protein_id):
         q = self.query(IdentifiedGlycopeptide).join(Glycopeptide).filter(
             IdentifiedGlycopeptide.analysis_id == self.analysis_id,
-            Glycopeptide.protein_id == protein_id).yield_per(100)
+            Glycopeptide.protein_id == protein_id)
         gps = [c.convert() for c in q]
         return gps
 
     def load_identified_glycopeptides(self):
         q = self.query(IdentifiedGlycopeptide).filter(
-            IdentifiedGlycopeptide.analysis_id == self.analysis_id).yield_per(100)
+            IdentifiedGlycopeptide.analysis_id == self.analysis_id).all()
         gps = IdentifiedGlycopeptide.bulk_convert(q)
         return gps
 

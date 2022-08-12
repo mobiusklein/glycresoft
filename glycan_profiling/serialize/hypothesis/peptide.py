@@ -399,14 +399,15 @@ class Glycopeptide(PeptideBase, Base):
                 peptide_relation_cache = session.info['peptide_relation_cache'] = LRUDict(maxsize=1024)
         inst = FragmentCachingGlycopeptide(self.glycopeptide_sequence)
         inst.id = self.id
-        try:
+        peptide_id = self.peptide_id
+        if peptide_id in peptide_relation_cache:
             inst.protein_relation = peptide_relation_cache[self.peptide_id]
-        except KeyError:
+        else:
             session = object_session(self)
             peptide_props = session.query(
                 Peptide.start_position, Peptide.end_position,
-                Peptide.protein_id, Peptide.hypothesis_id).filter(Peptide.id == self.peptide_id).first()
-            peptide_relation_cache[self.peptide_id] = inst.protein_relation = PeptideProteinRelation(*peptide_props)
+                Peptide.protein_id, Peptide.hypothesis_id).filter(Peptide.id == peptide_id).first()
+            peptide_relation_cache[peptide_id] = inst.protein_relation = PeptideProteinRelation(*peptide_props)
         return inst
 
     def __repr__(self):
