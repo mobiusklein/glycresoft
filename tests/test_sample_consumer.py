@@ -9,9 +9,9 @@ from ms_deisotope.output.mzml import ProcessedMzMLDeserializer
 
 import numpy as np
 
-from glycan_profiling.test import fixtures
 from glycan_profiling.profiler import SampleConsumer
 
+from . import fixtures
 
 agp_glycomics_mzml = fixtures.get_test_data("AGP_Glycomics_20150930_06.centroid.mzML")
 agp_glycproteomics_mzml = fixtures.get_test_data("20150710_3um_AGP_001_29_30.mzML")

@@ -3,8 +3,8 @@ import tempfile
 import os
 
 
-from glycan_profiling.test import fixtures
-from glycan_profiling.test.test_constrained_combinatorics import (
+from . import fixtures
+from .test_constrained_combinatorics import (
     FILE_SOURCE)
 from glycan_profiling.profiler import MzMLGlycanChromatogramAnalyzer, GeneralScorer
 from glycan_profiling.database.builder.glycan import CombinatorialGlycanHypothesisSerializer

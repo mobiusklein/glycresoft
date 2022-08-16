@@ -6,7 +6,7 @@ from glypy.structure.glycan_composition import HashableGlycanComposition
 from ms_deisotope.output import ProcessedMzMLDeserializer
 from glycan_profiling.tandem import oxonium_ions
 
-from glycan_profiling.test.fixtures import get_test_data
+from .fixtures import get_test_data
 
 from glycan_profiling.tandem.glycopeptide.core_search import GlycanCombinationRecord
 from glycan_profiling.tandem.oxonium_ions import OxoniumIndex

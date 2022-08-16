@@ -4,11 +4,11 @@ import glypy
 from glycopeptidepy import PeptideSequence
 from ms_deisotope.output import ProcessedMzMLDeserializer
 
-from glycan_profiling.test.fixtures import get_test_data
-
 from glycan_profiling.tandem.glycopeptide import core_search
 from glycan_profiling.tandem.glycopeptide.core_search import (
     GlycanCombinationRecord, GlycanTypes, GlycanFilteringPeptideMassEstimator)
+
+from .fixtures import get_test_data
 
 
 peptide_mass = PeptideSequence("YLGNATAIFFLPDEGK").mass

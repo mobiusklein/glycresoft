@@ -45,122 +45,122 @@ def make_extensions():
             cython_directives['linetrace'] = True
         extensions = cythonize([
             Extension(name='glycan_profiling._c.structure.fragment_match_map',
-                      sources=["glycan_profiling/_c/structure/fragment_match_map.pyx"],
+                      sources=["src/glycan_profiling/_c/structure/fragment_match_map.pyx"],
                       include_dirs=[numpy.get_include()]),
             Extension(name='glycan_profiling._c.structure.intervals',
-                      sources=["glycan_profiling/_c/structure/intervals.pyx"],
+                      sources=["src/glycan_profiling/_c/structure/intervals.pyx"],
                       include_dirs=[numpy.get_include()]),
             Extension(name='glycan_profiling._c.scoring.shape_fitter',
-                      sources=["glycan_profiling/_c/scoring/shape_fitter.pyx"],
+                      sources=["src/glycan_profiling/_c/scoring/shape_fitter.pyx"],
                       include_dirs=[numpy.get_include()]),
             Extension(name='glycan_profiling._c.chromatogram_tree.mass_shift',
-                      sources=["glycan_profiling/_c/chromatogram_tree/mass_shift.pyx"],
+                      sources=["src/glycan_profiling/_c/chromatogram_tree/mass_shift.pyx"],
                       include_dirs=[numpy.get_include()]),
             Extension(name='glycan_profiling._c.chromatogram_tree.index',
-                      sources=["glycan_profiling/_c/chromatogram_tree/index.pyx"],
+                      sources=["src/glycan_profiling/_c/chromatogram_tree/index.pyx"],
                       include_dirs=[numpy.get_include()]),
             Extension(name='glycan_profiling._c.tandem.core_search',
-                      sources=["glycan_profiling/_c/tandem/core_search.pyx"],
+                      sources=["src/glycan_profiling/_c/tandem/core_search.pyx"],
                       include_dirs=[numpy.get_include()]),
             Extension(name='glycan_profiling._c.database.mass_collection',
-                      sources=["glycan_profiling/_c/database/mass_collection.pyx"],
+                      sources=["src/glycan_profiling/_c/database/mass_collection.pyx"],
                       include_dirs=[numpy.get_include()]),
             Extension(name='glycan_profiling._c.tandem.tandem_scoring_helpers',
                       libraries=['npymath'],
                       library_dirs=[os.path.join(
                           os.path.dirname(numpy.get_include()), 'lib')],
-                      sources=["glycan_profiling/_c/tandem/tandem_scoring_helpers.pyx"],
+                      sources=["src/glycan_profiling/_c/tandem/tandem_scoring_helpers.pyx"],
                       include_dirs=[numpy.get_include()]),
             Extension(name='glycan_profiling._c.tandem.spectrum_match',
                       sources=[
-                          "glycan_profiling/_c/tandem/spectrum_match.pyx"],
+                          "src/glycan_profiling/_c/tandem/spectrum_match.pyx"],
                       include_dirs=[numpy.get_include()]),
             Extension(name='glycan_profiling._c.composition_network.graph',
                       sources=[
-                          "glycan_profiling/_c/composition_network/graph.pyx"],
+                          "src/glycan_profiling/_c/composition_network/graph.pyx"],
                       include_dirs=[numpy.get_include()]),
             Extension(name='glycan_profiling._c.composition_distribution_model.utils',
                       sources=[
-                          "glycan_profiling/_c/composition_distribution_model/utils.pyx"],
+                          "src/glycan_profiling/_c/composition_distribution_model/utils.pyx"],
                       include_dirs=[numpy.get_include()]),
             Extension(name='glycan_profiling._c.structure.lru',
                       sources=[
-                          "glycan_profiling/_c/structure/lru.pyx"]),
+                          "src/glycan_profiling/_c/structure/lru.pyx"]),
             Extension(name='glycan_profiling._c.tandem.target_decoy',
                       sources=[
-                          "glycan_profiling/_c/tandem/target_decoy.pyx"],
+                          "src/glycan_profiling/_c/tandem/target_decoy.pyx"],
                       include_dirs=[numpy.get_include()]),
             Extension(name='glycan_profiling._c.structure.structure_loader',
                       sources=[
-                          "glycan_profiling/_c/structure/structure_loader.pyx"],
+                          "src/glycan_profiling/_c/structure/structure_loader.pyx"],
                       include_dirs=[numpy.get_include()]),
             Extension(name='glycan_profiling._c.tandem.oxonium_ions',
                       sources=[
-                          "glycan_profiling/_c/tandem/oxonium_ions.pyx"],
+                          "src/glycan_profiling/_c/tandem/oxonium_ions.pyx"],
                       include_dirs=[numpy.get_include()]),
             Extension(name='glycan_profiling._c.structure.probability',
                       sources=[
-                          "glycan_profiling/_c/structure/probability.pyx"],
+                          "src/glycan_profiling/_c/structure/probability.pyx"],
                       include_dirs=[numpy.get_include()])
         ], compiler_directives=cython_directives, force=force_cythonize)
     except ImportError as err:
         extensions = ([
             Extension(name='glycan_profiling._c.structure.fragment_match_map',
-                      sources=["glycan_profiling/_c/structure/fragment_match_map.c"],
+                      sources=["src/glycan_profiling/_c/structure/fragment_match_map.c"],
                       include_dirs=[numpy.get_include()]),
             Extension(name='glycan_profiling._c.structure.intervals',
-                      sources=["glycan_profiling/_c/structure/intervals.c"],
+                      sources=["src/glycan_profiling/_c/structure/intervals.c"],
                       include_dirs=[numpy.get_include()]),
             Extension(name='glycan_profiling._c.scoring.shape_fitter',
-                      sources=["glycan_profiling/_c/scoring/shape_fitter.c"],
+                      sources=["src/glycan_profiling/_c/scoring/shape_fitter.c"],
                       include_dirs=[numpy.get_include()]),
             Extension(name='glycan_profiling._c.chromatogram_tree.mass_shift',
-                      sources=["glycan_profiling/_c/chromatogram_tree/mass_shift.c"],
+                      sources=["src/glycan_profiling/_c/chromatogram_tree/mass_shift.c"],
                       include_dirs=[numpy.get_include()]),
             Extension(name='glycan_profiling._c.chromatogram_tree.index',
-                      sources=["glycan_profiling/_c/chromatogram_tree/index.c"],
+                      sources=["src/glycan_profiling/_c/chromatogram_tree/index.c"],
                       include_dirs=[numpy.get_include()]),
             Extension(name='glycan_profiling._c.tandem.core_search',
-                      sources=["glycan_profiling/_c/tandem/core_search.c"],
+                      sources=["src/glycan_profiling/_c/tandem/core_search.c"],
                       include_dirs=[numpy.get_include()]),
             Extension(name='glycan_profiling._c.database.mass_collection',
-                      sources=["glycan_profiling/_c/database/mass_collection.c"],
+                      sources=["src/glycan_profiling/_c/database/mass_collection.c"],
                       include_dirs=[numpy.get_include()]),
             Extension(name='glycan_profiling._c.tandem.tandem_scoring_helpers',
                       libraries=['npymath'],
                       library_dirs=[os.path.join(
                           os.path.dirname(numpy.get_include()), 'lib')],
-                      sources=["glycan_profiling/_c/tandem/tandem_scoring_helpers.c"],
+                      sources=["src/glycan_profiling/_c/tandem/tandem_scoring_helpers.c"],
                       include_dirs=[numpy.get_include()]),
             Extension(name='glycan_profiling._c.tandem.spectrum_match',
                       sources=[
-                          "glycan_profiling/_c/tandem/spectrum_match.c"],
+                          "src/glycan_profiling/_c/tandem/spectrum_match.c"],
                       include_dirs=[numpy.get_include()]),
             Extension(name='glycan_profiling._c.composition_network.graph',
                       sources=[
-                          "glycan_profiling/_c/composition_network/graph.c"],
+                          "src/glycan_profiling/_c/composition_network/graph.c"],
                       include_dirs=[numpy.get_include()]),
             Extension(name='glycan_profiling._c.composition_distribution_model.utils',
                       sources=[
-                          "glycan_profiling/_c/composition_distribution_model/utils.c"],
+                          "src/glycan_profiling/_c/composition_distribution_model/utils.c"],
                       include_dirs=[numpy.get_include()]),
             Extension(name='glycan_profiling._c.structure.lru',
                       sources=[
-                          "glycan_profiling/_c/structure/lru.c"]),
+                          "src/glycan_profiling/_c/structure/lru.c"]),
             Extension(name='glycan_profiling._c.tandem.target_decoy',
                       sources=[
-                          "glycan_profiling/_c/tandem/target_decoy.c"],
+                          "src/glycan_profiling/_c/tandem/target_decoy.c"],
                       include_dirs=[numpy.get_include()]),
             Extension(name='glycan_profiling._c.structure.structure_loader',
                       sources=[
-                          "glycan_profiling/_c/structure/structure_loader.c"],
+                          "src/glycan_profiling/_c/structure/structure_loader.c"],
                       include_dirs=[numpy.get_include()]),
             Extension(name='glycan_profiling._c.tandem.oxonium_ions',
-                      sources=["glycan_profiling/_c/tandem/oxonium_ions.c"],
+                      sources=["src/glycan_profiling/_c/tandem/oxonium_ions.c"],
                       include_dirs=[numpy.get_include()]),
             Extension(name='glycan_profiling._c.structure.probability',
                       sources=[
-                          "glycan_profiling/_c/structure/probability.c"],
+                          "src/glycan_profiling/_c/structure/probability.c"],
                       include_dirs=[numpy.get_include()])
         ])
     return extensions
@@ -218,7 +218,7 @@ def status_msgs(*msgs):
     print('*' * 75)
 
 
-with open("glycan_profiling/version.py") as version_file:
+with open("src/glycan_profiling/version.py") as version_file:
     version = None
     for line in version_file.readlines():
         if "version = " in line:
@@ -238,7 +238,8 @@ def run_setup(include_cext=True):
     setup(
         name='glycan_profiling',
         version=version,
-        packages=find_packages(),
+        packages=find_packages(where='src'),
+        package_dir={"": "src"},
         include_package_data=True,
         author=', '.join(["Joshua Klein"]),
         author_email=["jaklein@bu.edu"],
@@ -248,11 +249,11 @@ def run_setup(include_cext=True):
             ],
         },
         package_data={
-            "glycan_profiling.models": ["glycan_profiling/models/data/*"],
-            "glycan_profiling.database.prebuilt": ["glycan_profiling/database/prebuilt/data/*"],
-            "glycan_profiling.output.report.glycan_lcms": ["glycan_profiling/output/report/glycan_lcms/*"],
+            "glycan_profiling.models": ["src/glycan_profiling/models/data/*"],
+            "glycan_profiling.database.prebuilt": ["src/glycan_profiling/database/prebuilt/data/*"],
+            "glycan_profiling.output.report.glycan_lcms": ["src/glycan_profiling/output/report/glycan_lcms/*"],
             "glycan_profiling.output.report.glycopeptide_lcmsms": [
-                "glycan_profiling/output/report/glycopeptide_lcmsms/*"]
+                "src/glycan_profiling/output/report/glycopeptide_lcmsms/*"]
         },
         ext_modules=make_extensions() if include_cext else None,
         cmdclass=cmdclass,

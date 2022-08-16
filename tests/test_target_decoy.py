@@ -4,7 +4,7 @@ import unittest
 import numpy as np
 
 from glycan_profiling.tandem import target_decoy
-from glycan_profiling.test import fixtures
+from . import fixtures
 
 
 class TestNearestValueLookup(unittest.TestCase):

@@ -4,7 +4,7 @@ from glycan_profiling.structure.structure_loader import (
     FragmentCachingGlycopeptide, hashable_glycan_glycopeptide_parser,
     HashableGlycanComposition, GlycanCompositionWithOffsetProxy)
 
-from glycopeptidepy.test.test_sequence import PeptideSequenceSuiteBase
+from glycopeptidepy.test.sequence_test_suite import PeptideSequenceSuiteBase
 
 glycopeptide = "YPVLN(N-Glycosylation)VTMPN(Deamidation)NGKFDK{Hex:9; HexNAc:2}"
 

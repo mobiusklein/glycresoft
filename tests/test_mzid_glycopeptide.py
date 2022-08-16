@@ -7,8 +7,8 @@ from glycan_profiling.database.builder.glycan import (
     CombinatorialGlycanHypothesisSerializer)
 from glycan_profiling import serialize
 
-from glycan_profiling.test import fixtures
-from glycan_profiling.test.test_constrained_combinatorics import FILE_SOURCE as GLYCAN_RULE_FILE_SOURCE
+from . import fixtures
+from .test_constrained_combinatorics import FILE_SOURCE as GLYCAN_RULE_FILE_SOURCE
 
 
 MZID_PATH = fixtures.get_test_data("AGP_Proteomics2.mzid")
