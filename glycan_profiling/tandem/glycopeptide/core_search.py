@@ -158,7 +158,7 @@ class CoreMotifFinder(PathFinder):
 
     def estimate_peptide_mass(self, scan: ProcessedScan, topn: int=100, mass_shift: MassShift=Unmodified,
                               query_mass: Optional[float] = None, simplify: bool = True) -> Union[List[float], List[Tuple[float, Path]]]:
-        graph = self._find_edges(scan, mass_shift=mass_shift)
+        graph = self.build_graph(scan, mass_shift=mass_shift)
         paths = self._init_paths(graph)
         groups = self._aggregate_paths(paths)
 

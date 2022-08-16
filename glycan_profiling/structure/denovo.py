@@ -326,7 +326,7 @@ class PathFinder(object):
         self.components = list(map(MassWrapper, components))
         self.product_error_tolerance = product_error_tolerance
 
-    def _find_edges(self, scan, mass_shift=Unmodified):
+    def build_graph(self, scan, mass_shift=Unmodified):
         graph = SpectrumGraph()
         has_tandem_shift = abs(mass_shift.tandem_mass) > 0
         for peak in scan.deconvoluted_peak_set:
@@ -359,6 +359,6 @@ class PathFinder(object):
         return groups
 
     def paths(self, scan, mass_shift=Unmodified, limit=200):
-        graph = self._find_edges(scan, mass_shift)
+        graph = self.build_graph(scan, mass_shift)
         paths = self._init_paths(graph, limit)
         return paths
