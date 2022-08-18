@@ -110,9 +110,20 @@ class FiniteMixtureModelFDREstimatorBase(FDREstimatorBase):
     def plot(self, ax=None):
         if ax is None:
             fig, ax = plt.subplots(1)
+
+        dmin = 0
+        dmax = float('inf')
+        tmin = 0
+        tmax = float('inf')
+        if len(self.target_scores):
+            tmin = self.target_scores.min()
+            tmax = self.target_scores.max()
+        if len(self.decoy_scores):
+            dmin = self.decoy_scores.min()
+            dmax = self.decoy_scores.max()
         points = np.linspace(
-            min(self.target_scores.min(), self.decoy_scores.min()),
-            max(self.target_scores.max(), self.decoy_scores.max()),
+            min(tmin, dmin),
+            max(tmax, dmax),
             10000)
         target_scores = np.sort(self.target_scores)
         target_counts = [(self.target_scores >= i).sum() for i in points]
@@ -458,9 +469,20 @@ class MultivariateMixtureModel(FDREstimatorBase):
             fig, ax = plt.subplots(1)
         target_scores = self.models[0].target_scores
         decoy_scores = self.models[0].decoy_scores
+
+        dmin = 0
+        dmax = float('inf')
+        tmin = 0
+        tmax = float('inf')
+        if len(target_scores):
+            tmin = target_scores.min()
+            tmax = target_scores.max()
+        if len(decoy_scores):
+            dmin = decoy_scores.min()
+            dmax = decoy_scores.max()
         points = np.linspace(
-            min(target_scores.min(), decoy_scores.min()),
-            max(target_scores.max(), decoy_scores.max()),
+            min(tmin, dmin),
+            max(tmax, dmax),
             10000)
 
         target_scores = np.sort(target_scores)

@@ -284,6 +284,7 @@ class GlycopeptideDatabaseSearchReportCreator(ReportCreatorBase, IdentifiedGlyco
             ax = figax()
             fdr_estimator.glycan_fdr.plot(ax=ax)
             ax.set_title("Glycan FDR", size=16)
+            ax.figure.tight_layout()
             figures = [
                 "<div class='flex-item centered'>%s</div>" % svguri_plot(
                     ax.figure)
@@ -291,6 +292,7 @@ class GlycopeptideDatabaseSearchReportCreator(ReportCreatorBase, IdentifiedGlyco
             ax = figax()
             fdr_estimator.peptide_fdr.plot(ax=ax)
             ax.set_title("Peptide FDR", size=16)
+            ax.figure.tight_layout()
             figures.append("<div class='flex-item centered'>%s</div>" %
                            svguri_plot(ax.figure))
             return figures

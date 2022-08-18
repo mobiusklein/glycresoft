@@ -197,20 +197,16 @@ class SVMModelBase(FDREstimatorBase):
             assert self.dataset is not None
         self.model = model
         self.trained = True
+        self._normalized_features = normalized_features
 
     @property
     def weights(self):
         return self.model.coef_
 
     def plot(self, ax=None):
-        psms, labels, is_target = self._get_psms_labels(self.dataset)
-        features = self.extract_features(psms)
-        normalized_features = self.scaler.transform(features)
-        scores = self.model.decision_function(normalized_features)
-        _q_value_map, _q_values, _labels, proxy_tda = self.scores_to_q_values(
-            psms, scores, is_target
-        )
-        ax = proxy_tda.plot(ax=ax)
+        if self.worse_than_score:
+            return self.dataset.plot(ax=ax)
+        ax = self.proxy_dataset.plot(ax=ax)
         lo, hi = ax.get_xlim()
         lo = self.proxy_dataset.thresholds[0] - 0.25
         ax.set_xlim(lo, hi)
