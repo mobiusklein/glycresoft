@@ -1433,7 +1433,7 @@ class MultipartGlycopeptideLCMSMSAnalyzer(MzMLGlycopeptideLCMSMSAnalyzer):
                  fdr_estimation_strategy=None, glycosylation_site_models_path=None,
                  permute_decoy_glycans=False, fragile_fucose=False, rare_signatures=False,
                  extended_glycan_search=True, model_retention_time=True,
-                 evaluation_kwargs=None):
+                 evaluation_kwargs=None, oxonium_threshold=0.05):
         if tandem_scoring_model == CoverageWeightedBinomialScorer:
             tandem_scoring_model = CoverageWeightedBinomialModelTree
         if fdr_estimation_strategy is None:
@@ -1443,7 +1443,7 @@ class MultipartGlycopeptideLCMSMSAnalyzer(MzMLGlycopeptideLCMSMSAnalyzer):
             analysis_name, grouping_error_tolerance, mass_error_tolerance,
             msn_mass_error_tolerance, psm_fdr_threshold, peak_shape_scoring_model,
             tandem_scoring_model, minimum_mass, save_unidentified,
-            0, None, mass_shifts,
+            oxonium_threshold, None, mass_shifts,
             n_processes,
             spectrum_batch_size=spectrum_batch_size,
             use_peptide_mass_filter=True,
@@ -1521,7 +1521,8 @@ class MultipartGlycopeptideLCMSMSAnalyzer(MzMLGlycopeptideLCMSMSAnalyzer):
             trust_precursor_fits=self.trust_precursor_fits,
             fdr_estimation_strategy=self.fdr_estimation_strategy,
             glycosylation_site_models_path=self.glycosylation_site_models_path,
-            cache_seeds=cache_seeds, evaluation_kwargs=self.make_msn_evaluation_kwargs())
+            cache_seeds=cache_seeds, evaluation_kwargs=self.make_msn_evaluation_kwargs(),
+            oxonium_threshold=self.minimum_oxonium_ratio)
         return searcher
 
     def estimate_fdr(self, searcher, target_decoy_set):

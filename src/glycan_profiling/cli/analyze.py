@@ -343,6 +343,9 @@ def search_glycopeptide(context, database_connection, sample_path, hypothesis_id
     "The maximum number of isotopic peak errors to allow when searching for untrusted precursor masses"))
 @click.option("-S", "--glycoproteome-smoothing-model", type=click.Path(readable=True), help=(
     "Path to a glycoproteome site-specific glycome model"), default=None)
+@click.option("-x", "--oxonium-threshold", default=0.05, type=float,
+              help=('Minimum HexNAc-derived oxonium ion abundance '
+                    'ratio to filter MS/MS scans. Defaults to 0.05.'))
 def search_glycopeptide_multipart(context, database_connection, decoy_database_connection, sample_path,
                                   target_hypothesis_identifier=1, decoy_hypothesis_identifier=1,
                                   analysis_name=None, output_path=None, grouping_error_tolerance=1.5e-5,
@@ -352,7 +355,7 @@ def search_glycopeptide_multipart(context, database_connection, decoy_database_c
                                   workload_size=100, mass_shifts=None, export=None, maximum_mass=float('inf'),
                                   isotope_probing_range=3, fdr_estimation_strategy=None,
                                   glycoproteome_smoothing_model=None, rare_signatures=False,
-                                  retention_time_modeling=True):
+                                  retention_time_modeling=True, oxonium_threshold: float=0.05):
     '''
     '''
     if fdr_estimation_strategy is None:
@@ -429,6 +432,7 @@ def search_glycopeptide_multipart(context, database_connection, decoy_database_c
         rare_signatures=rare_signatures,
         evaluation_kwargs=evaluation_kwargs,
         model_retention_time=retention_time_modeling,
+        oxonium_threshold=oxonium_threshold
     )
     analyzer.display_header()
     result = analyzer.start()

@@ -489,6 +489,7 @@ class PredictiveGlycopeptideSearch(DynamicGlycopeptideSearchBase):
     trust_precursor_fits: bool
     oxonium_ion_index: OxoniumIndex
     signature_ion_index: SignatureIonIndex
+    oxonium_ion_threshold: float
 
     def __init__(
         self,
@@ -503,6 +504,7 @@ class PredictiveGlycopeptideSearch(DynamicGlycopeptideSearchBase):
         core_weight=1.42,
         oxonium_ion_index=None,
         signature_ion_index=None,
+        oxonium_ion_threshold: float=0.05
     ):
         # Intentionally use a larger core_weight here than in the real scoring function to
         # prefer solutions with more core fragments, but not to discard them later?
@@ -524,6 +526,7 @@ class PredictiveGlycopeptideSearch(DynamicGlycopeptideSearchBase):
         self.trust_precursor_fits = trust_precursor_fits
         self.oxonium_ion_index = oxonium_ion_index
         self.signature_ion_index = signature_ion_index
+        self.oxonium_ion_threshold = oxonium_ion_threshold
 
     def handle_scan_group(
         self,
@@ -543,8 +546,7 @@ class PredictiveGlycopeptideSearch(DynamicGlycopeptideSearchBase):
         handle_peptide_mass = self.peptide_glycosylator.handle_peptide_mass
         peptide_masses_per_scan = self.peptide_masses_per_scan
         for scan in group:
-            # TODO Parameterize this threshold
-            if gscore_scanner(scan) < 0.05:
+            if gscore_scanner(scan) < self.oxonium_ion_threshold:
                 continue
             workload.add_scan(scan)
             signature_ion_matches: SignatureIonIndexMatch = None

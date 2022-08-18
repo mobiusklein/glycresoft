@@ -204,7 +204,7 @@ class MultipartGlycopeptideIdentifier(TaskBase):
                  probing_range_for_missing_precursors=3, trust_precursor_fits=True,
                  glycan_score_threshold=1.0, peptide_masses_per_scan=60,
                  fdr_estimation_strategy=None, glycosylation_site_models_path=None,
-                 cache_seeds=None, n_mapping_workers=1, **kwargs):
+                 cache_seeds=None, n_mapping_workers=1, oxonium_threshold: float=0.05, **kwargs):
         if fdr_estimation_strategy is None:
             fdr_estimation_strategy = GlycopeptideFDREstimationStrategy.multipart_gamma_gaussian_mixture
         if scorer_type is None:
@@ -260,6 +260,8 @@ class MultipartGlycopeptideIdentifier(TaskBase):
         self.journal_path_collection = []
         self.glycosylation_site_models_path = glycosylation_site_models_path
 
+        self.oxonium_threshold = oxonium_threshold
+
     @classmethod
     def build_default_disk_backed_db_wrapper(cls, path, **kwargs):
         peptide_db = make_disk_backed_peptide_database(path, **kwargs)
@@ -306,7 +308,8 @@ class MultipartGlycopeptideIdentifier(TaskBase):
             min_fragments=min_fragments,
             probing_range_for_missing_precursors=self.probing_range_for_missing_precursors,
             trust_precursor_fits=self.trust_precursor_fits,
-            peptide_masses_per_scan=self.peptide_masses_per_scan)
+            peptide_masses_per_scan=self.peptide_masses_per_scan,
+            oxonium_ion_threshold=self.oxonium_threshold)
 
         generator = PeptideGlycosylator(
             self.decoy_peptide_db,
@@ -320,7 +323,8 @@ class MultipartGlycopeptideIdentifier(TaskBase):
             min_fragments=min_fragments,
             probing_range_for_missing_precursors=self.probing_range_for_missing_precursors,
             trust_precursor_fits=self.trust_precursor_fits,
-            peptide_masses_per_scan=self.peptide_masses_per_scan)
+            peptide_masses_per_scan=self.peptide_masses_per_scan,
+            oxonium_ion_threshold=self.oxonium_threshold)
         return target_predictive_search, decoy_predictive_search
 
     def run_branching_identification_pipeline(self, scan_groups):
