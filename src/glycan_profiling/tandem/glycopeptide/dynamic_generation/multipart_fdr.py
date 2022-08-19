@@ -112,9 +112,9 @@ class FiniteMixtureModelFDREstimatorBase(FDREstimatorBase):
             fig, ax = plt.subplots(1)
 
         dmin = 0
-        dmax = float('inf')
+        dmax = 1
         tmin = 0
-        tmax = float('inf')
+        tmax = 1
         if len(self.target_scores):
             tmin = self.target_scores.min()
             tmax = self.target_scores.max()
