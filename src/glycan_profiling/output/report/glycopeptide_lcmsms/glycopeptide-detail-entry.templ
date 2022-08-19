@@ -118,7 +118,7 @@
                             {{loc.modification}}
                         </td>
                         <td>
-                            {{"%0.3g" % loc.score}}
+                            {{("%0.3g" % loc.score) if loc.score is not none else "-"}}
                         </td>
                     </tr>
                     {% endfor %}
