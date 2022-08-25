@@ -1,3 +1,5 @@
+import math
+
 from array import array
 from typing import Any, DefaultDict, List, Tuple, Callable, NamedTuple, Union, Dict, Optional, Counter
 
@@ -152,6 +154,8 @@ class ModificationLocalizationSearcher(TaskBase):
         m_scores = array('d')
         for inst in training_instances:
             for scores in inst.solution_for_site.values():
+                if not math.isfinite(scores.o_score) or not math.isfinite(scores.m_score):
+                    continue
                 o_scores.append(scores.o_score)
                 m_scores.append(scores.m_score)
 
@@ -166,7 +170,12 @@ class ModificationLocalizationSearcher(TaskBase):
             prophet.add(o, [o, m])
 
         self.log("Begin fitting localization score model")
-        it, delta = prophet.fit(maxiter)
+        try:
+            it, delta = prophet.fit(maxiter)
+        except ValueError as err:
+            self.log(f"Failed to fit localization model: {err}")
+            self.model = None
+            return None
         if it < maxiter:
             self.log(
                 f"Localization score model converged after {it} iterations")
@@ -176,13 +185,13 @@ class ModificationLocalizationSearcher(TaskBase):
         self.model = prophet
         return prophet
 
-    def _select_top_isoform_in_bin(self, sol: LocalizationGroup, prophet: MultiKDModel):
+    def _select_top_isoform_in_bin(self, sol: LocalizationGroup, prophet: Optional[MultiKDModel]=None):
         isoform_scores: DefaultDict[str,
                                     List[LocalizationScore]] = DefaultDict(list)
         isoform_weights: DefaultDict[str, float] = DefaultDict(float)
         for loc in sol.localization_matches:
             seen = set()
-            for iso, scores, weight in loc.score_isoforms(prophet):
+            for iso, scores, weight in loc.score_isoforms(prophet=prophet):
                 key = str(iso.peptide)
                 if key in seen:
                     continue
@@ -202,7 +211,7 @@ class ModificationLocalizationSearcher(TaskBase):
             prophet = self.model
         for sset_bin in solutions:
             for sol in sset_bin.groups:
-                self._select_top_isoform_in_bin(sol, prophet)
+                self._select_top_isoform_in_bin(sol, prophet=prophet)
 
     def process_solution_set(self, solution_set: SpectrumSolutionSet) -> EvaluatedSolutionBins:
         solution_bins = self.find_overlapping_localization_solutions(

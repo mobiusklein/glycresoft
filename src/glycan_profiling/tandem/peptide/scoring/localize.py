@@ -734,7 +734,10 @@ class PTMProphetEvaluator(LocalizationScorerBase):
         position_probs = {}
         acc = 0.0
         for position, sol in self.solution_for_site.items():
-            prob = prophet.predict([sol.o_score, sol.m_score])[0]
+            if prophet is not None:
+                prob = prophet.predict([sol.o_score, sol.m_score])[0]
+            else:
+                prob = sol.o_score
             position_probs[position] = prob
             acc += prob
         acc /= self.modification_count
