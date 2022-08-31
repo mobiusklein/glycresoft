@@ -20,6 +20,12 @@ cdef class ScoreSet(object):
 
         self.peptide_coverage = peptide_coverage
 
+    def to_dict(self):
+        store = {}
+        for name in self.field_names():
+            store[name] = getattr(self, name)
+        return store
+
     cpdef bytearray pack(self):
         cdef:
             float[8] data
@@ -351,6 +357,15 @@ cdef class FDRSet(object):
     def __reduce__(self):
         return self.__class__, (self.total_q_value, self.peptide_q_value,
                                 self.glycan_q_value, self.glycopeptide_q_value)
+
+    def to_dict(self):
+        store = {
+            "total_q_value": self.total_q_value,
+            "peptide_q_value": self.peptide_q_value,
+            "glycan_q_value": self.glycan_q_value,
+            "glycopeptide_q_value": self.glycopeptide_q_value
+        }
+        return store
 
 
 @cython.final

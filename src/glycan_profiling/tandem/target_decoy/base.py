@@ -340,6 +340,9 @@ class FDREstimatorBase(LoggingMixin):
         threshold_01, count_01 = self.get_count_for_fdr(0.01)
         self.log(f"1% {name} = {threshold_01:0.3f} ({count_01})")
 
+    def score(self, spectrum_match: SpectrumMatch, assign: bool=False) -> float:
+        raise NotImplementedError()
+
     def score_all(self, solution_set: SpectrumSolutionSet):
         raise NotImplementedError()
 

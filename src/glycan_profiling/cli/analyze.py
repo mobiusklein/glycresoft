@@ -511,12 +511,13 @@ def fit_glycoproteome_model(context, analysis_path, output_path, glycopeptide_hy
     if require_multiple_observations and len(analysis_path_set) == 1:
         click.secho("Requested multiple observations required but only one analysis provided"
                     " discarding multiple observation requirement.", fg='yellow')
+    click.echo(f"Collecting {len(analysis_path_set)} analyses")
     for analysis_path, analysis_id in analysis_path_set:
         database_connection = DatabaseBoundOperation(analysis_path)
         try:
             click.echo("Checking analysis %s:%s" %
                        (analysis_path, analysis_id))
-            # analysis = get_by_name_or_id(database_connection, Analysis, analysis_id)
+            analysis = get_by_name_or_id(database_connection, Analysis, analysis_id)
         except Exception:
             click.secho("Could not locate an Analysis in %r with identifier %r" %
                         (analysis_path, analysis_id), fg='yellow')
@@ -541,6 +542,7 @@ def fit_glycoproteome_model(context, analysis_path, output_path, glycopeptide_hy
         click.secho("Could not locate a Glycopeptide Hypothesis with identifier %r" %
                     hypothesis_identifier, fg='yellow')
         raise click.Abort()
+
     glycan_database_connection_path, hypothesis_identifier = glycan_hypothesis
     glycan_database_connection = DatabaseBoundOperation(
         glycan_database_connection_path)

@@ -14,20 +14,18 @@ from typing import Dict, List, Optional, Tuple, Type, Union
 import numpy as np
 
 from glypy.structure.glycan_composition import GlycanComposition
+from glypy.utils import Enum
 from glypy.utils.enum import EnumValue
-
-from glycan_profiling.tandem.spectrum_match.solution_set import MultiScoreSpectrumSolutionSet
 
 try:
     from matplotlib import pyplot as plt
 except ImportError:
     pass
 
-
-from glypy.utils import Enum
-
 from glycan_profiling.task import TaskBase
 
+from glycan_profiling.tandem.spectrum_match.spectrum_match import SpectrumMatch
+from glycan_profiling.tandem.spectrum_match.solution_set import MultiScoreSpectrumSolutionSet
 from glycan_profiling.tandem.target_decoy import NearestValueLookUp, PeptideScoreTargetDecoyAnalyzer, FDREstimatorBase, PeptideScoreSVMModel
 from glycan_profiling.tandem.glycopeptide.core_search import approximate_internal_size_of_glycan
 
@@ -232,6 +230,12 @@ class FiniteMixtureModelFDREstimatorBase(FDREstimatorBase):
             prior=self.decoy_mixture,
             deterministic=True)
         return self.target_mixture
+
+    def score(self, spectrum_match: Union[SpectrumMatch, float], assign: bool = False) -> float:
+        return self.fdr_map[
+            spectrum_match.score
+            if isinstance(spectrum_match, SpectrumMatch)
+            else spectrum_match]
 
 
 class FiniteMixtureModelFDREstimatorSeparated(FiniteMixtureModelFDREstimatorBase):

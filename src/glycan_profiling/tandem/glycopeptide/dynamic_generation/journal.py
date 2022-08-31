@@ -237,6 +237,48 @@ except ImportError:
     pass
 
 
+class JournalFileIndex(TaskBase):
+    def __init__(self, path):
+        self.path = path
+        self.scan_ids = set()
+        self.glycopeptides = set()
+        self.build_index()
+
+    def build_index(self):
+        reader = self.open()
+        for row in reader:
+            self.scan_ids.add(row['scan_id'])
+            self.glycopeptides.add(row['glycopeptide_sequence'])
+
+    def has_scan(self, scan_id: str) -> bool:
+        return scan_id in self.scan_ids
+
+    def has_glycopeptide(self, glycopeptide: str) -> bool:
+        return glycopeptide in self.glycopeptides
+
+    def __repr__(self):
+        return f"{self.__class__.__name__}({self.path})"
+
+    def __contains__(self, key: str):
+        return self.has_glycopeptide(key) or self.has_scan(key)
+
+    def open(self):
+        if not hasattr(self.path, 'read') and not hasattr(self.path, 'open'):
+            handle = _file_opener(self.path, 'rt')
+        elif hasattr(self.path, 'open'):
+            handle = _file_wrapper(self.path.open(raw=True), 'r')
+        else:
+            handle = _file_wrapper(self.path, 'r')
+        reader = csv.DictReader(handle, delimiter='\t')
+        return reader
+
+    def collect_for_scan_id(self, scan_id: str):
+        reader = self.open()
+        for row in reader:
+            if scan_id == row['scan_id']:
+                yield row
+
+
 class JournalFileReader(TaskBase):
     path: os.PathLike
     handle: io.TextIOBase
