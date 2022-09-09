@@ -19,6 +19,7 @@ from ms_deisotope.peak_set import window_peak_set, DeconvolutedPeak
 from ms_deisotope.peak_dependency_network.intervals import SpanningMixin
 
 from glycan_profiling.structure import FragmentCachingGlycopeptide
+from glycan_profiling.structure.probability import PredictorBase
 
 from glycan_profiling.tandem.spectrum_match.spectrum_match import LocalizationScore, ScanMatchManagingMixin
 
@@ -720,7 +721,7 @@ class PTMProphetEvaluator(LocalizationScorerBase):
     def __repr__(self):
         return f"{self.__class__.__name__}({self.scan}, {self.peptide}, {self.modification_rule}, {self.solution_for_site})"
 
-    def entropy(self, prophet) -> float:
+    def entropy(self, prophet: Optional[PredictorBase]) -> float:
         m = self.modification_count
         s = len(self.solution_for_site)
         log_base = np.log(s / m)
@@ -730,7 +731,7 @@ class PTMProphetEvaluator(LocalizationScorerBase):
             acc += prob * np.log(prob) / log_base
         return acc
 
-    def site_probabilities(self, prophet) -> Dict[int, float]:
+    def site_probabilities(self, prophet: Optional[PredictorBase]) -> Dict[int, float]:
         position_probs = {}
         acc = 0.0
         for position, sol in self.solution_for_site.items():
@@ -743,7 +744,7 @@ class PTMProphetEvaluator(LocalizationScorerBase):
         acc /= self.modification_count
         return {k: min(v / acc, 1.0) for k, v in position_probs.items()}
 
-    def score_isoforms(self, prophet) -> List[ScoredIsoform]:
+    def score_isoforms(self, prophet: Optional[PredictorBase]) -> List[ScoredIsoform]:
         weights: List[float] = []
         localizations: List[List[LocalizationScore]] = []
         sites = self.site_probabilities(prophet)

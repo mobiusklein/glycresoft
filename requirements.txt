@@ -1,11 +1,11 @@
-dill
+dill>=0.3.5.1
 six
 
 sqlalchemy < 1.4.0
 
-numpy
+numpy>=1.22.0
 scipy
-matplotlib
+matplotlib>=3.4.3
 scikit-learn
 
 pyteomics

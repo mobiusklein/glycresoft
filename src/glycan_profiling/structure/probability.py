@@ -1,9 +1,11 @@
 from array import ArrayType as array
 from concurrent.futures import ThreadPoolExecutor
 
-from typing import Dict, Union, List
+from typing import Dict, Protocol, Union, List
 
 import numpy as np
+from numpy.typing import ArrayLike
+
 from scipy import stats
 from scipy.special import logsumexp
 
@@ -529,8 +531,12 @@ class TruncatedGaussianMixtureWithPriorComponent(_TruncatedNormalMixin, Gaussian
         new_weights[k] = N_k
 
 
+class PredictorBase(Protocol):
+    def predict(self, value: Union[float, ArrayLike]) -> Union[float, ArrayLike]:
+        ...
 
-class KDModel:
+
+class KDModel(PredictorBase):
     positive_probabilities: array
     negative_probabilities: array
     values: array
@@ -580,8 +586,9 @@ class KDModel:
             lastprobsum = probsum
 
     def update_fits(self):
-        self.positive_kernel_fit = stats.gaussian_kde(self.values, weights=self.positive_probabilities)
-        self.negative_kernel_fit = stats.gaussian_kde(
+        self.positive_kernel_fit = GaussianKDE(
+            self.values, weights=self.positive_probabilities)
+        self.negative_kernel_fit = GaussianKDE(
             self.values, weights=self.negative_probabilities)
 
     def update(self):
@@ -612,15 +619,22 @@ class KDModel:
         return self.negative_kernel_fit.pdf(value)
 
 
+class GaussianKDE(stats.gaussian_kde):
+    '''To control overriding methods, use a derived class
+    '''
+    pass
+
+
 KDE_USE_THREADS = True
 try:
     from glycan_profiling._c.structure.probability import evaluate_gaussian_kde
-    stats.gaussian_kde.evaluate = evaluate_gaussian_kde
+    GaussianKDE.evaluate = evaluate_gaussian_kde
 except ImportError as err:
     print(err)
     KDE_USE_THREADS = False
 
-class MultiKDModel:
+
+class MultiKDModel(PredictorBase):
     models: List[KDModel]
     values: List[array]
     positive_prior: float

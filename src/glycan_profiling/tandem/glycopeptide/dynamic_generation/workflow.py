@@ -11,6 +11,7 @@ from multiprocessing.managers import SyncManager
 from collections import OrderedDict
 
 from queue import Queue, Empty
+from glycan_profiling.serialize.hypothesis.hypothesis import GlycopeptideHypothesis
 
 import ms_deisotope
 from ms_deisotope.output import ProcessedMzMLLoader
@@ -65,26 +66,6 @@ from .searcher import (
 from .multipart_fdr import GlycopeptideFDREstimator, GlycopeptideFDREstimationStrategy
 
 
-def _determine_database_contents(path, hypothesis_id=1):
-    db = disk_backed_database.PeptideDiskBackedStructureDatabase(path, hypothesis_id=hypothesis_id)
-    glycan_classes = db.query(
-        serialize.GlycanCombination,
-        serialize.GlycanClass.name).join(
-            serialize.GlycanCombination.components).join(
-            serialize.GlycanComposition.structure_classes).group_by(
-            serialize.GlycanClass.name).all()
-    glycan_classes = {
-        pair[1] for pair in glycan_classes
-    }
-    n_glycan = serialize.GlycanTypes.n_glycan in glycan_classes
-    o_glycan = (serialize.GlycanTypes.o_glycan in glycan_classes or
-                serialize.GlycanTypes.gag_linker in glycan_classes)
-    return {
-        'n_glycan': n_glycan,
-        'o_glycan': o_glycan
-    }
-
-
 def make_memory_database_proxy_resolver(path, n_glycan=None, o_glycan=None, hypothesis_id=1):
     if n_glycan is None or o_glycan is None:
         config = _determine_database_contents(path, hypothesis_id)
@@ -126,6 +107,10 @@ class PeptideDatabaseProxyLoader(TaskBase):
         self.o_glycan = o_glycan
         self.hypothesis_id = hypothesis_id
         self._source_database = None
+
+    @staticmethod
+    def determine_database_glycan_types(path, hypothesis_id=1):
+        return _determine_database_contents(path, hypothesis_id=hypothesis_id)
 
     @property
     def source_database(self):
@@ -190,6 +175,70 @@ class PeptideDatabaseProxyLoader(TaskBase):
         self.log("... %0.2f seconds elapsed. Loaded %d peptides" % (elapsed, len(peptides)))
         mem_db = disk_backed_database.InMemoryPeptideStructureDatabase(peptides, db)
         return mem_db
+
+
+def _determine_database_contents(path, hypothesis_id=1):
+    db = disk_backed_database.PeptideDiskBackedStructureDatabase(
+        path, hypothesis_id=hypothesis_id)
+    glycan_classes = db.query(
+        serialize.GlycanCombination,
+        serialize.GlycanClass.name).join(
+            serialize.GlycanCombination.components).join(
+            serialize.GlycanComposition.structure_classes).group_by(
+            serialize.GlycanClass.name).all()
+    glycan_classes = {
+        pair[1] for pair in glycan_classes
+    }
+    n_glycan = serialize.GlycanTypes.n_glycan in glycan_classes
+    o_glycan = (serialize.GlycanTypes.o_glycan in glycan_classes or
+                serialize.GlycanTypes.gag_linker in glycan_classes)
+    return {
+        'n_glycan': n_glycan,
+        'o_glycan': o_glycan
+    }
+
+
+def make_peptide_glycosylator(path, hypothesis_id: int = 1, target_peptide: bool=True) -> PeptideGlycosylator:
+    peptide_db = make_memory_database_proxy_resolver(path, hypothesis_id=hypothesis_id)
+    gp_hypothesis: GlycopeptideHypothesis = peptide_db.session.query(GlycopeptideHypothesis).get(hypothesis_id)
+
+    glycan_recs = GlycanCombinationRecord.from_hypothesis(peptide_db.session, gp_hypothesis.glycan_hypothesis_id)
+
+    generator = PeptideGlycosylator(
+        peptide_db,
+        glycan_recs,
+        default_structure_type=StructureClassification.target_peptide_target_glycan if target_peptide else
+                               StructureClassification.decoy_peptide_target_glycan)
+    return generator
+
+
+def make_predictive_glycopeptide_search(path, hypothesis_id: int=1,
+                                        target_peptide: bool=True,
+                                        product_error_tolerance: float=2e-5,
+                                        glycan_score_threshold: float=1.0,
+                                        probing_range_for_missing_precursors: int=3,
+                                        peptide_masses_per_scan: int=100,
+                                        oxonium_ion_threshold: float=0.05) -> PredictiveGlycopeptideSearch:
+
+    generator = make_peptide_glycosylator(
+        path, hypothesis_id=hypothesis_id, target_peptide=target_peptide)
+
+    if glycan_score_threshold > 0:
+        min_fragments = 2
+    else:
+        min_fragments = 0
+
+    predictive_search = PredictiveGlycopeptideSearch(
+        generator,
+        product_error_tolerance=product_error_tolerance,
+        glycan_score_threshold=glycan_score_threshold,
+        min_fragments=min_fragments,
+        probing_range_for_missing_precursors=probing_range_for_missing_precursors,
+        trust_precursor_fits=True,
+        peptide_masses_per_scan=peptide_masses_per_scan,
+        oxonium_ion_threshold=oxonium_ion_threshold)
+
+    return predictive_search
 
 
 debug_mode = bool(os.environ.get("GLYCRESOFTDEBUG"))

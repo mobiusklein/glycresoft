@@ -3,6 +3,8 @@ from sqlalchemy.orm.session import object_session
 
 from glycan_profiling.serialize.base import Base
 
+from glycan_profiling.serialize.connection import DatabaseBoundOperation, ConnectFrom
+
 from glycan_profiling.serialize.spectrum import (
     SampleRun,
     MSScan,

@@ -6,11 +6,7 @@ import ctypes
 
 from typing import Dict, List, Optional
 
-from six import iteritems
-
 from collections import namedtuple, defaultdict
-
-from lxml import etree
 
 from glycopeptidepy import PeptideSequence, GlycosylationType
 from glycopeptidepy.structure.glycan import GlycanCompositionWithOffsetProxy

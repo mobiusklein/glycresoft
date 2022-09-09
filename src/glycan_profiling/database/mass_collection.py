@@ -1,7 +1,7 @@
 import operator
 import logging
 
-from typing import List, TypeVar, Generic, Sequence
+from typing import Callable, List, Optional, TypeVar, Generic, Sequence
 from abc import ABCMeta, abstractmethod, abstractproperty
 
 try:
@@ -12,6 +12,8 @@ except ImportError:
 import dill
 
 from six import add_metaclass
+
+from sqlalchemy.orm.session import Session
 
 from glycopeptidepy import HashableGlycanComposition
 
@@ -508,6 +510,7 @@ class ConcatenatedDatabase(SearchableMassCollection[T]):
 
 
 class SearchableMassCollectionWrapper(SearchableMassCollection[T]):
+    searchable_mass_collection: SearchableMassCollection
 
     @property
     def highest_mass(self):
@@ -523,7 +526,7 @@ class SearchableMassCollectionWrapper(SearchableMassCollection[T]):
     # Fake the disk-backed interface
 
     @property
-    def session(self):
+    def session(self) -> Session:
         return self.searchable_mass_collection.session
 
     @property
@@ -585,6 +588,9 @@ class TransformingMassCollectionAdapter(SearchableMassCollectionWrapper[T]):
 
 
 class MassCollectionProxy(SearchableMassCollectionWrapper[T]):
+    _session: Optional[Session]
+    session_resolver: Callable[[], Session]
+
     def __init__(self, resolver, session_resolver=None, hypothesis_id=None, hypothesis_resolver=None):
         self._searchable_mass_collection = None
         self._session = None
@@ -604,7 +610,7 @@ class MassCollectionProxy(SearchableMassCollectionWrapper[T]):
             return self._hypothesis_id
 
     @property
-    def session(self):
+    def session(self) -> Session:
         if self._session is None and self.session_resolver is not None:
             self._session = self.session_resolver()
         if self._session is not None:

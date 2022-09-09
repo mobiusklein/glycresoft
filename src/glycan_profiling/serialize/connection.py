@@ -1,4 +1,5 @@
 import os
+from typing import Callable, Union, Protocol, runtime_checkable
 
 from six import string_types as basestring
 
@@ -7,11 +8,26 @@ from sqlalchemy.orm import sessionmaker, scoped_session
 from sqlalchemy.engine import Connectable
 
 from sqlalchemy import exc
+from sqlalchemy.engine import Engine
+from sqlalchemy.orm.session import Session
+from sqlalchemy.orm import Query
 
 from .base import Base
 
 
-def configure_connection(connection, create_tables=True):
+ConnectFrom = Union[str,
+                    Connectable,
+                    'ConnectionRecipe',
+                    scoped_session,
+                    Session]
+
+
+@runtime_checkable
+class HasSession(Protocol):
+    session: Union[Session, scoped_session]
+
+
+def configure_connection(connection: ConnectFrom, create_tables=True):
     if isinstance(connection, basestring):
         try:
             eng = create_engine(connection)
@@ -21,8 +37,11 @@ def configure_connection(connection, create_tables=True):
         eng = connection
     elif isinstance(connection, ConnectionRecipe):
         eng = connection()
-    elif isinstance(connection, scoped_session):
+    elif isinstance(connection, (scoped_session, Session)):
         eng = connection.get_bind()
+    elif isinstance(connection, HasSession):
+        eng = connection.session.get_bind()
+        create_tables = False
     else:
         raise ValueError(
             "Could not determine how to get a database connection from %r" % connection)
@@ -38,8 +57,12 @@ def _noop_on_connect(connection, connection_record):
 
 
 class ConnectionRecipe(object):
+    connection_url: str
+    connect_args: dict
+    on_connect: Callable
+    engine_args: dict
 
-    def __init__(self, connection_url, connect_args=None, on_connect=None, **engine_args):
+    def __init__(self, connection_url: str, connect_args=None, on_connect=None, **engine_args):
         if connect_args is None:
             connect_args = {}
         if on_connect is None:
@@ -50,7 +73,7 @@ class ConnectionRecipe(object):
         self.on_connect = on_connect
         self.engine_args = engine_args
 
-    def __call__(self):
+    def __call__(self) -> Engine:
         connection = create_engine(
             self.connection_url, connect_args=self.connect_args,
             **self.engine_args)
@@ -95,6 +118,9 @@ class SQLiteConnectionRecipe(ConnectionRecipe):
 
 
 class DatabaseBoundOperation(object):
+    engine: Engine
+    _original_connection: ConnectFrom
+    _sessionmaker: scoped_session
 
     def __init__(self, connection):
         self.engine = self._configure_connection(connection)
@@ -102,14 +128,12 @@ class DatabaseBoundOperation(object):
         self._original_connection = connection
         self._sessionmaker = scoped_session(
             sessionmaker(bind=self.engine, autoflush=False))
-        self._session = None
 
-    def bridge(self, other):
+    def bridge(self, other: 'DatabaseBoundOperation'):
         self.engine = other.engine
         self._sessionmaker = other._sessionmaker
-        self._session = other._session
 
-    def _configure_connection(self, connection):
+    def _configure_connection(self, connection: ConnectFrom):
         eng = configure_connection(connection, create_tables=True)
         return eng
 
@@ -130,7 +154,7 @@ class DatabaseBoundOperation(object):
     def session(self):
         return self._sessionmaker
 
-    def query(self, *args):
+    def query(self, *args) -> Query:
         return self.session.query(*args)
 
     def _analyze_database(self):
