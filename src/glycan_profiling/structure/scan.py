@@ -1,7 +1,7 @@
-from typing import Optional
+from typing import Optional, Union
 from weakref import WeakValueDictionary
 
-from ms_deisotope.data_source import ProcessedScan, PrecursorInformation, ActivationInformation, ScanDataSource
+from ms_deisotope.data_source import ProcessedScan, PrecursorInformation, ActivationInformation, ScanDataSource, Scan
 
 
 class ScanStub(object):
@@ -32,7 +32,7 @@ class ScanStub(object):
         self.precursor_information = precursor_information
         self.source = source
 
-    def detatch(self):
+    def detatch(self) -> 'ScanStub':
         self.source = None
         self.precursor_information.source = None
         return self
@@ -49,7 +49,7 @@ class ScanStub(object):
     def scan_id(self):
         return self.id
 
-    def convert(self, *args, **kwargs):
+    def convert(self, *args, **kwargs) -> Union[ProcessedScan, Scan]:
         try:
             return self.source.get_scan_by_id(self.id)
         except AttributeError:
@@ -63,7 +63,7 @@ class ScanStub(object):
 class ScanWrapperBase(object):
     __slots__ = []
 
-    scan: ProcessedScan
+    scan: Union[ProcessedScan, Scan]
 
     @property
     def scan_id(self):
