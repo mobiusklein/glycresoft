@@ -4,7 +4,7 @@ import logging
 import struct
 import ctypes
 
-from typing import Dict, List, Optional
+from typing import Dict, List, Optional, Set
 
 from collections import namedtuple, defaultdict
 
@@ -15,6 +15,8 @@ from glycopeptidepy.structure.sequence import (
     _o_glycosylation,
     _gag_linker_glycosylation,
 )
+
+from glypy.structure.glycan_composition import FrozenMonosaccharideResidue
 from glypy.utils.enum import EnumValue
 
 from ms_deisotope import isotopic_shift
@@ -474,7 +476,7 @@ class DynamicGlycopeptideSearchBase(LoggingMixin):
             ].add(hit.id)
 
 
-class PredictiveGlycopeptideSearch(DynamicGlycopeptideSearchBase):
+class PeptideMassFilterBase:
     peptide_glycosylator: PeptideGlycosylator
     product_error_tolerance: float
     glycan_score_threshold: float
@@ -486,6 +488,56 @@ class PredictiveGlycopeptideSearch(DynamicGlycopeptideSearchBase):
     oxonium_ion_index: OxoniumIndex
     signature_ion_index: SignatureIonIndex
     oxonium_ion_threshold: float
+
+    monosaccharides: Set[FrozenMonosaccharideResidue]
+
+    neutron_shift: float = isotopic_shift()
+
+    def __init__(
+        self,
+        glycan_compositions: List[GlycanCombinationRecord],
+        product_error_tolerance: float=2e-5,
+        glycan_score_threshold: float=0.1,
+        min_fragments: int=2,
+        peptide_masses_per_scan: int=100,
+        probing_range_for_missing_precursors: int=3,
+        trust_precursor_fits: bool=True,
+        fragment_weight: float=0.56,
+        core_weight: float = 1.42,
+        oxonium_ion_index: Optional[OxoniumIndex]=None,
+        signature_ion_index: Optional[SignatureIonIndex]=None,
+        oxonium_ion_threshold: float = 0.05
+    ):
+        # Intentionally use a larger core_weight here than in the real scoring function to
+        # prefer solutions with more core fragments, but not to discard them later?
+        if min_fragments is None:
+            min_fragments = 2
+        self.product_error_tolerance = product_error_tolerance
+        self.glycan_score_threshold = glycan_score_threshold
+        self.min_fragments = int(min_fragments)
+        self.peptide_mass_predictor = IndexedGlycanFilteringPeptideMassEstimator(
+            glycan_compositions,
+            product_error_tolerance=product_error_tolerance,
+            fragment_weight=fragment_weight,
+            core_weight=core_weight,
+        )
+        self.monosaccharides = self._monosaccharides_from_records(glycan_compositions)
+        self.peptide_masses_per_scan = peptide_masses_per_scan
+        self.probing_range_for_missing_precursors = probing_range_for_missing_precursors
+        self.trust_precursor_fits = trust_precursor_fits
+        self.oxonium_ion_index = oxonium_ion_index
+        self.signature_ion_index = signature_ion_index
+        self.oxonium_ion_threshold = oxonium_ion_threshold
+
+    def _monosaccharides_from_records(self, glycan_combinations: List[GlycanCombinationRecord]) -> Set[FrozenMonosaccharideResidue]:
+        residues = set()
+        for rec in glycan_combinations:
+            residues.update(rec.composition)
+        return {FrozenMonosaccharideResidue.from_iupac_lite(str(x)) for x in residues}
+
+
+class PredictiveGlycopeptideSearch(PeptideMassFilterBase, DynamicGlycopeptideSearchBase):
+    peptide_glycosylator: PeptideGlycosylator
 
     def __init__(
         self,
@@ -502,27 +554,20 @@ class PredictiveGlycopeptideSearch(DynamicGlycopeptideSearchBase):
         signature_ion_index=None,
         oxonium_ion_threshold: float=0.05
     ):
-        # Intentionally use a larger core_weight here than in the real scoring function to
-        # prefer solutions with more core fragments, but not to discard them later?
-        if min_fragments is None:
-            min_fragments = 2
         self.peptide_glycosylator = peptide_glycosylator
-        self.product_error_tolerance = product_error_tolerance
-        self.glycan_score_threshold = glycan_score_threshold
-        self.min_fragments = int(min_fragments)
-        # self.peptide_mass_predictor = GlycanFilteringPeptideMassEstimator(
-        self.peptide_mass_predictor = IndexedGlycanFilteringPeptideMassEstimator(
+        super().__init__(
             self.peptide_glycosylator.glycan_combinations,
             product_error_tolerance=product_error_tolerance,
+            glycan_score_threshold=glycan_score_threshold,
+            min_fragments=min_fragments,
+            peptide_masses_per_scan=peptide_masses_per_scan,
+            probing_range_for_missing_precursors=probing_range_for_missing_precursors,
+            trust_precursor_fits=trust_precursor_fits,
             fragment_weight=fragment_weight,
             core_weight=core_weight,
-        )
-        self.peptide_masses_per_scan = peptide_masses_per_scan
-        self.probing_range_for_missing_precursors = probing_range_for_missing_precursors
-        self.trust_precursor_fits = trust_precursor_fits
-        self.oxonium_ion_index = oxonium_ion_index
-        self.signature_ion_index = signature_ion_index
-        self.oxonium_ion_threshold = oxonium_ion_threshold
+            oxonium_ion_index=oxonium_ion_index,
+            signature_ion_index=signature_ion_index,
+            oxonium_ion_threshold=oxonium_ion_threshold)
 
     def handle_scan_group(
         self,
