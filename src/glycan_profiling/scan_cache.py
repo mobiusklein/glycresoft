@@ -2,11 +2,7 @@ import os
 import threading
 
 import logging
-
-try:
-    from Queue import Queue, Empty as QueueEmptyException
-except ImportError:
-    from queue import Queue, Empty as QueueEmptyException
+from queue import Queue, Empty as QueueEmptyException
 
 from ms_deisotope.data_source import MSFileLoader, ScanBunch
 from ms_deisotope.data_source.metadata.file_information import (
@@ -20,7 +16,7 @@ from glycan_profiling.task import log_handle
 
 DONE = b'---NO-MORE---'
 
-logger = logging.getLogger("glycan_profiler.scan_cache")
+logger = logging.getLogger("glycresoft.scan_cache")
 
 
 class ScanCacheHandlerBase(object):
@@ -113,6 +109,7 @@ class MzMLScanCacheHandler(ScanCacheHandlerBase):
                 sample_name = name
         else:
             path = "processed.mzML"
+            logger.warn("Could not infer output file name, defaulting to %r", path)
         if source is not None:
             reader = MSFileLoader(source.scan_source)
             n_spectra = len(reader.index)
@@ -136,8 +133,8 @@ class MzMLScanCacheHandler(ScanCacheHandlerBase):
                 for config in instrument_configs:
                     inst.serializer.add_instrument_configuration(config)
             except Exception as e:
-                log_handle.error(
-                    "An error occurred while writing instrument configuration", e)
+                logger.error(
+                    "An error occurred while writing instrument configuration", exc_info=True)
             for trans in source.ms1_peak_picking_args.get("transforms"):
                 inst.register_parameter("parameter: ms1-%s" % trans.__class__.__name__, repr(trans))
             if deconvoluting:
@@ -183,7 +180,7 @@ class MzMLScanCacheHandler(ScanCacheHandlerBase):
             self.serializer.format()
         except OSError as e:
             if e.errno == 32:
-                log_handle.log("Could not reformat the file in-place")
+                logger.error("Could not reformat the file in-place")
         except Exception:
             import traceback
             traceback.print_exc()
@@ -221,7 +218,8 @@ class ThreadedMzMLScanCacheHandler(MzMLScanCacheHandler):
             except QueueEmptyException:
                 pass
             if len(current_work) > 5:
-                log_handle.log("Drained Write Queue of %d items" % (len(current_work),))
+                logger.info("Drained Write Queue of %d items" %
+                            (len(current_work),))
             return current_work
 
         while has_work:
@@ -244,7 +242,8 @@ class ThreadedMzMLScanCacheHandler(MzMLScanCacheHandler):
             except QueueEmptyException:
                 continue
             except Exception as e:
-                log_handle.error("An error occurred while writing scans to disk", e)
+                logger.exception(
+                    "An error occurred while writing scans to disk", exc_info=True)
 
     def sync(self):
         self._end_thread()
