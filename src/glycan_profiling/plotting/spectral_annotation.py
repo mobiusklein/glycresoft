@@ -3,7 +3,7 @@ from typing import TYPE_CHECKING, List
 from ms_deisotope.data_source.scan.base import ChargeNotProvided
 import numpy as np
 
-from matplotlib import pyplot as plt, font_manager
+from matplotlib import pyplot as plt, font_manager, axes
 
 from six import PY3
 
@@ -61,7 +61,7 @@ def encode_superscript(number: int) -> str:
 class SpectrumMatchAnnotator(object):
     usemathtext: bool
     spectrum_match: "SpectrumMatcherBase"
-    ax: plt.Axes
+    ax: axes.Axes
     clip_labels: bool
     upper: float
     upshift: float
@@ -134,7 +134,9 @@ class SpectrumMatchAnnotator(object):
             ha='center',
             fontsize=fontsize,
             fontproperties=font_options,
-            clip_on=clip_on)
+            clip_on=clip_on,
+            parse_math=self.usemathtext
+            )
         self.peak_labels.append(text)
         return text
 

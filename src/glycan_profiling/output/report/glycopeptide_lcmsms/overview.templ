@@ -24,10 +24,49 @@
             <b>Grouping Tolerance:</b> {{analysis.parameters.grouping_error_tolerance * (10 ** 6)}} PPM<br>
             <b>MS<sup>n</sup> Mass Accuracy:</b> {{analysis.parameters.fragment_error_tolerance * (10 ** 6)}} PPM<br>
             <b>Minimum <code>q</code>-Value For Clustering:</b> {{analysis.parameters.psm_fdr_threshold}}<br>
+            <b>MS<sup>n</sup> Scoring Model:</b>
+            {%- if analysis.parameters.tandem_scoring_model is is_type %}
+                {{analysis.parameters.tandem_scoring_model.__name__}}
+            {%- else %}
+                {{analysis.parameters.tandem_scoring_model.__class__.__name__}}
+            {%- endif %}<br>
+            {% if 'fdr_estimation_strategy' in analysis.parameters %}
+                <b>FDR Strategy:</b> {{analysis.parameters.fdr_estimation_strategy.name}}
+            {% endif %}
         </div>
         <div class='flex-item flex-padding'>
             <b>Glycopeptide Hypothesis:</b>
             <a>{{hypothesis.name}}</a><br>
+            <ul>
+                {% if "fasta_file" in hypothesis.parameters %}
+                    <li><b>FASTA File:</b> {{hypothesis.parameters['fasta_file']}}</li>
+                {% elif "mzid_file" in hypothesis.parameters %}
+                    <li><b>mzIdentML File:</b> {{hypothesis.parameters['mzid_file']}}</li>
+                {% endif %}
+                {% if "enzymes" in hypothesis.parameters %}
+                    <li><b>Enzymes:</b> {{hypothesis.parameters['enzymes'] | unique | join(", ")}}</li>
+                {% endif %}
+                {% if 'constant_modifications' in hypothesis.parameters%}
+                    <li><b>Constant Modifications</b></li>
+                    <ul>
+                    {% for modrule in hypothesis.parameters['constant_modifications'] %}
+                        {% for rule_text in modrule.as_spec_strings() %}
+                            <li>{{rule_text}}</li>
+                        {% endfor %}
+                    {% endfor %}
+                    </ul>
+                {% endif %}
+                {% if 'variable_modifications' in hypothesis.parameters%}
+                    <li><b>Variable Modifications</b></li>
+                    <ul>
+                    {% for modrule in hypothesis.parameters['variable_modifications'] %}
+                        {% for rule_text in modrule.as_spec_strings() %}
+                            <li>{{rule_text}}</li>
+                        {% endfor %}
+                    {% endfor %}
+                    </ul>
+                {% endif %}
+            </ul>
             <b>Sample Searched:</b>
             <a>{{sample_run.name}}</a>
         </div>

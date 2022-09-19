@@ -186,7 +186,14 @@ def n_per_row(sequence, n=60):
     return '<br>'.join(row_buffer)
 
 
+def is_type(x):
+    return isinstance(x, type)
+
+
 class ReportCreatorBase(TaskBase):
+    database_connection: DatabaseBoundOperation
+    env: jinja2.Environment
+
     def __init__(self, database_connection, analysis_id, stream=None):
         self.database_connection = DatabaseBoundOperation(database_connection)
         self.analysis_id = analysis_id
@@ -210,6 +217,7 @@ class ReportCreatorBase(TaskBase):
         self.env.filters['glycopeptide_string'] = glycopeptide_string
         self.env.filters['glycan_composition_string'] = glycan_composition_string
         self.env.filters["formula"] = formula
+        self.env.tests['is_type'] = is_type
 
     def set_template_loader(self, path):
         self.env.loader = jinja2.FileSystemLoader(path)
