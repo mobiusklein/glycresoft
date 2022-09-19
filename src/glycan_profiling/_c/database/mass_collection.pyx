@@ -8,9 +8,6 @@ from cpython.list cimport PyList_Append, PyList_Size, PyList_GetItem
 
 @cython.freelist(1000000)
 cdef class MassObject(object):
-    cdef:
-        public object obj
-        public double mass
 
     def __init__(self, obj, mass):
         self.obj = obj
@@ -37,9 +34,6 @@ def identity(x):
 
 
 cdef class NeutralMassDatabaseImpl(object):
-    cdef:
-        public list structures
-        public object mass_getter
 
     def __init__(self, structures, mass_getter=operator.attrgetter("calculated_mass"), sort=True):
         self.mass_getter = mass_getter
@@ -221,6 +215,7 @@ cdef class NeutralMassDatabaseImpl(object):
             size_t lo, hi, i
             list result
             MassObject mo
+            NeutralMassDatabaseImpl inst
 
         if self.get_size() == 0:
             return []
@@ -231,7 +226,9 @@ cdef class NeutralMassDatabaseImpl(object):
         for i in range(lo, hi):
             mo = <MassObject>PyList_GetItem(self.structures, i)
             if lower <= mo.mass <= higher:
-                result.append(mo.obj)
-        return self.__class__(
-            result,
+                result.append(mo)
+        inst = self.__class__(
+            [],
             self.mass_getter, sort=False)
+        inst.structures = result
+        return inst
