@@ -1,3 +1,4 @@
+from email.policy import default
 import os
 from uuid import uuid4
 
@@ -346,16 +347,34 @@ def search_glycopeptide(context, database_connection, sample_path, hypothesis_id
 @click.option("-x", "--oxonium-threshold", default=0.05, type=float,
               help=('Minimum HexNAc-derived oxonium ion abundance '
                     'ratio to filter MS/MS scans. Defaults to 0.05.'))
+@click.option("-P", "--peptide-masses-per-scan", type=int, default=60,
+              help="The maximum number of peptide masses to consider per scan")
 def search_glycopeptide_multipart(context, database_connection, decoy_database_connection, sample_path,
-                                  target_hypothesis_identifier=1, decoy_hypothesis_identifier=1,
-                                  analysis_name=None, output_path=None, grouping_error_tolerance=1.5e-5,
-                                  mass_error_tolerance=1e-5, msn_mass_error_tolerance=2e-5, psm_fdr_threshold=0.05,
-                                  peak_shape_scoring_model=None, tandem_scoring_model=None, glycan_score_threshold=1.0,
-                                  memory_database_index=False, save_intermediate_results=None, processes=4,
-                                  workload_size=100, mass_shifts=None, export=None, maximum_mass=float('inf'),
-                                  isotope_probing_range=3, fdr_estimation_strategy=None,
-                                  glycoproteome_smoothing_model=None, rare_signatures=False,
-                                  retention_time_modeling=True, oxonium_threshold: float=0.05):
+                                  target_hypothesis_identifier=1,
+                                  decoy_hypothesis_identifier=1,
+                                  analysis_name=None,
+                                  output_path=None,
+                                  grouping_error_tolerance=1.5e-5,
+                                  mass_error_tolerance=1e-5,
+                                  msn_mass_error_tolerance=2e-5,
+                                  psm_fdr_threshold=0.05,
+                                  peak_shape_scoring_model=None,
+                                  tandem_scoring_model=None,
+                                  glycan_score_threshold=1.0,
+                                  memory_database_index=False,
+                                  save_intermediate_results=None,
+                                  processes=4,
+                                  workload_size=100,
+                                  mass_shifts=None,
+                                  export=None,
+                                  maximum_mass=float('inf'),
+                                  isotope_probing_range=3,
+                                  fdr_estimation_strategy=None,
+                                  glycoproteome_smoothing_model=None,
+                                  rare_signatures=False,
+                                  retention_time_modeling=True,
+                                  oxonium_threshold: float=0.05,
+                                  peptide_masses_per_scan: int=60):
     '''
     '''
     if fdr_estimation_strategy is None:
@@ -432,7 +451,8 @@ def search_glycopeptide_multipart(context, database_connection, decoy_database_c
         rare_signatures=rare_signatures,
         evaluation_kwargs=evaluation_kwargs,
         model_retention_time=retention_time_modeling,
-        oxonium_threshold=oxonium_threshold
+        oxonium_threshold=oxonium_threshold,
+        peptide_masses_per_scan=peptide_masses_per_scan
     )
     analyzer.display_header()
     result = analyzer.start()

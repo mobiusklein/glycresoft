@@ -11,14 +11,19 @@ from multiprocessing.managers import SyncManager
 from collections import OrderedDict
 
 from queue import Queue, Empty
-from glycan_profiling.serialize.hypothesis.hypothesis import GlycopeptideHypothesis
 
 import ms_deisotope
 from ms_deisotope.output import ProcessedMzMLLoader
+from ms_deisotope.output.common import LCMSMSQueryInterfaceMixin
+from ms_deisotope.data_source import RandomAccessScanSource
 
 from glycan_profiling import serialize
+from glycan_profiling.serialize.hypothesis.hypothesis import GlycopeptideHypothesis
+
+from glycan_profiling.config import DEBUG_MODE as debug_mode
+
 from glycan_profiling.tandem.spectrum_match.solution_set import MultiScoreSpectrumSolutionSet
-from glycan_profiling.tandem.spectrum_match.spectrum_match import MultiScoreSpectrumMatch, SpectrumMatch
+from glycan_profiling.tandem.spectrum_match.spectrum_match import MultiScoreSpectrumMatch, SpectrumMatch, SpectrumMatcherBase
 
 from glycan_profiling.task import (
     TaskBase, Pipeline, MultiEvent,
@@ -101,6 +106,11 @@ class FetchManyIterator(object):
 
 
 class PeptideDatabaseProxyLoader(TaskBase):
+    path: os.PathLike
+    n_glycan: bool
+    o_glycan: bool
+    hypothesis_id: int
+
     def __init__(self, path, n_glycan=True, o_glycan=True, hypothesis_id=1):
         self.path = path
         self.n_glycan = n_glycan
@@ -122,7 +132,7 @@ class PeptideDatabaseProxyLoader(TaskBase):
     def session_resolver(self):
         return self.source_database.session
 
-    def hypothesis_resolver(self):
+    def hypothesis_resolver(self) -> GlycopeptideHypothesis:
         return self.source_database.hypothesis
 
     def __reduce__(self):
@@ -241,19 +251,58 @@ def make_predictive_glycopeptide_search(path, hypothesis_id: int=1,
     return predictive_search
 
 
-debug_mode = bool(os.environ.get("GLYCRESOFTDEBUG"))
-
-
 class MultipartGlycopeptideIdentifier(TaskBase):
+    precursor_error_tolerance: float
+    product_error_tolerance: float
+    batch_size: int
+    fdr_estimation_strategy: GlycopeptideFDREstimationStrategy
     scorer_type: Type[GlycopeptideSpectrumMatcherBase]
+    evaluation_kwargs: Dict[str, Any]
+    mass_shifts: List[MassShift]
+    probing_range_for_missing_precursors: int
+    trust_precursor_fits: bool
+    glycan_score_threshold: float
+    oxonium_threshold: float
+    peptide_masses_per_scan: int
 
-    def __init__(self, tandem_scans, scorer_type, target_peptide_db, decoy_peptide_db, scan_loader,
-                 mass_shifts=None, n_processes=6,
-                 evaluation_kwargs=None, ipc_manager=None, file_manager=None,
-                 probing_range_for_missing_precursors=3, trust_precursor_fits=True,
-                 glycan_score_threshold=1.0, peptide_masses_per_scan=60,
-                 fdr_estimation_strategy=None, glycosylation_site_models_path=None,
-                 cache_seeds=None, n_mapping_workers=1, oxonium_threshold: float=0.05, **kwargs):
+    ipc_manager: SyncManager
+    file_manager: TempFileManager
+    journal_path: str
+    journal_path_collection: List[str]
+
+    target_peptide_db: mass_collection.SearchableMassCollectionWrapper
+    decoy_peptide_db: mass_collection.SearchableMassCollectionWrapper
+    glycosylation_site_models_path: str
+
+    cache_seeds: Any
+
+    tandem_scans: List[ScanStub]
+    scan_loader: Union[RandomAccessScanSource, LCMSMSQueryInterfaceMixin]
+
+    n_processes: int
+    n_mapping_workers: int # DEPRECATED
+
+    def __init__(self,
+                 tandem_scans,
+                 scorer_type,
+                 target_peptide_db,
+                 decoy_peptide_db,
+                 scan_loader,
+                 mass_shifts=None,
+                 n_processes=6,
+                 evaluation_kwargs=None,
+                 ipc_manager=None,
+                 file_manager=None,
+                 probing_range_for_missing_precursors=3,
+                 trust_precursor_fits=True,
+                 glycan_score_threshold=1.0,
+                 peptide_masses_per_scan=60,
+                 fdr_estimation_strategy=None,
+                 glycosylation_site_models_path=None,
+                 cache_seeds=None,
+                 n_mapping_workers=1,
+                 oxonium_threshold: float=0.05,
+                 **kwargs):
         if fdr_estimation_strategy is None:
             fdr_estimation_strategy = GlycopeptideFDREstimationStrategy.multipart_gamma_gaussian_mixture
         if scorer_type is None:
@@ -605,13 +654,13 @@ class IdentificationWorker(TaskExecutionSequence):
     done_event: multiprocessing.Event
 
     journal_path: os.PathLike
-    scan_loader: ProcessedMzMLLoader
+    scan_loader: Union[RandomAccessScanSource, LCMSMSQueryInterfaceMixin]
 
     target_predictive_search: PredictiveGlycopeptideSearch
     decoy_predictive_search: PredictiveGlycopeptideSearch
 
     n_processes: int
-    scorer_type: Type
+    scorer_type: Type[GlycopeptideSpectrumMatcherBase]
 
     scorer_type: Type[GlycopeptideSpectrumMatcherBase]
     evaluation_kwargs: Dict[str, Any]

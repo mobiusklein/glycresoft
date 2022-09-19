@@ -1433,7 +1433,9 @@ class MultipartGlycopeptideLCMSMSAnalyzer(MzMLGlycopeptideLCMSMSAnalyzer):
                  fdr_estimation_strategy=None, glycosylation_site_models_path=None,
                  permute_decoy_glycans=False, fragile_fucose=False, rare_signatures=False,
                  extended_glycan_search=True, model_retention_time=True,
-                 evaluation_kwargs=None, oxonium_threshold=0.05):
+                 evaluation_kwargs=None,
+                 oxonium_threshold=0.05,
+                 peptide_masses_per_scan=60):
         if tandem_scoring_model == CoverageWeightedBinomialScorer:
             tandem_scoring_model = CoverageWeightedBinomialModelTree
         if fdr_estimation_strategy is None:
@@ -1456,6 +1458,7 @@ class MultipartGlycopeptideLCMSMSAnalyzer(MzMLGlycopeptideLCMSMSAnalyzer):
             model_retention_time=model_retention_time,
             evaluation_kwargs=evaluation_kwargs)
 
+        self.peptide_masses_per_scan = peptide_masses_per_scan
         self.fragile_fucose = fragile_fucose
         self.rare_signatures = rare_signatures
         self.extended_glycan_search = extended_glycan_search
@@ -1522,7 +1525,8 @@ class MultipartGlycopeptideLCMSMSAnalyzer(MzMLGlycopeptideLCMSMSAnalyzer):
             fdr_estimation_strategy=self.fdr_estimation_strategy,
             glycosylation_site_models_path=self.glycosylation_site_models_path,
             cache_seeds=cache_seeds, evaluation_kwargs=self.make_msn_evaluation_kwargs(),
-            oxonium_threshold=self.minimum_oxonium_ratio)
+            oxonium_threshold=self.minimum_oxonium_ratio,
+            peptide_masses_per_scan=self.peptide_masses_per_scan)
         return searcher
 
     def estimate_fdr(self, searcher, target_decoy_set):
@@ -1714,5 +1718,6 @@ class MultipartGlycopeptideLCMSMSAnalyzer(MzMLGlycopeptideLCMSMSAnalyzer):
             "glycosylation_site_models_path": self.glycosylation_site_models_path,
             "retention_time_model": self.retention_time_model,
             "localization_model": self.localization_model.simplify(),
+            "peptide_masses_per_scan": self.peptide_masses_per_scan,
         })
         return result

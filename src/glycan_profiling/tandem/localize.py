@@ -241,9 +241,14 @@ class ScanLoadingModificationLocalizationSearcher(ModificationLocalizationSearch
         self.scan_loader = scan_loader
         super().__init__(threshold_fn, error_tolerance, restricted_modifications)
 
+    def __reduce__(self):
+        return self.__class__, (None, self.threshold_fn, self.error_tolerance, self.restricted_modifications)
+
     def resolve_spectrum(self, scan_ref) -> ProcessedScan:
         if isinstance(scan_ref, ProcessedScan):
             return scan_ref
+        if self.scan_loader is None:
+            raise TypeError("Cannot load spectrum by reference when the `scan_loader` attribute is not set")
         return self.scan_loader.get_scan_by_id(scan_ref.scan_id)
 
     def simplify(self):
