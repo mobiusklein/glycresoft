@@ -132,3 +132,6 @@ try:
     get_configuration()
 except Exception:
     set_configuration(DEFAULT_CONFIG)
+
+
+DEBUG_MODE = bool(os.environ.get("GLYCRESOFTDEBUG"))
