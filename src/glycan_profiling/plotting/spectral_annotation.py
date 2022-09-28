@@ -1,6 +1,5 @@
-from typing import TYPE_CHECKING, List
+from typing import TYPE_CHECKING, List, Optional
 
-from ms_deisotope.data_source.scan.base import ChargeNotProvided
 import numpy as np
 
 from matplotlib import pyplot as plt, font_manager, axes
@@ -9,6 +8,8 @@ from six import PY3
 
 from ms_peak_picker.utils import draw_peaklist
 
+from ms_deisotope.data_source.scan.base import ChargeNotProvided
+from ms_deisotope.data_source import ProcessedScan
 
 from .sequence_fragment_logo import glycopeptide_match_logo
 
@@ -66,8 +67,10 @@ class SpectrumMatchAnnotator(object):
     upper: float
     upshift: float
     peak_labels: List[plt.Text]
+    intensity_scale: float
 
-    def __init__(self, spectrum_match, ax=None, clip_labels=True, usemathtext: bool=False):
+    def __init__(self, spectrum_match: "SpectrumMatcherBase", ax: Optional[axes.Axes]=None,
+                 clip_labels: bool=True, usemathtext: bool=False, normalize: bool=False):
         if ax is None:
             _, ax = plt.subplots(1)
         self.spectrum_match = spectrum_match
@@ -80,6 +83,12 @@ class SpectrumMatchAnnotator(object):
         self.upshift = 10
         self.sequence_logo = None
         self.usemathtext = usemathtext
+        self.normalize = normalize
+        self.intensity_scale = 1.0
+        if self.normalize:
+            self.intensity_scale = max(
+                spectrum_match.spectrum, key=lambda x: x.intensity
+            ).intensity
 
     def draw_all_peaks(self, color='black', alpha=0.5, **kwargs):
         draw_peaklist(
@@ -128,7 +137,7 @@ class SpectrumMatchAnnotator(object):
         clip_on = kw['clip_on']
 
         text = self.ax.text(
-            peak.mz, y, label,
+            peak.mz, y if not self.normalize else y / self.intensity_scale, label,
             rotation=rotation,
             va='bottom',
             ha='center',
@@ -156,6 +165,8 @@ class SpectrumMatchAnnotator(object):
                 peak_color = ion_series_to_color.get(fragment.series, color)
             except AttributeError:
                 peak_color = ion_series_to_color.get(fragment.kind, color)
+            if self.normalize:
+                peak = (peak.mz, peak.intensity / self.intensity_scale)
             draw_peaklist([peak], alpha=alpha, ax=self.ax, color=peak_color)
             self.label_peak(fragment, peak, fontsize=fontsize, **kwargs)
 
@@ -258,11 +269,12 @@ class TidySpectrumMatchAnnotator(SpectrumMatchAnnotator):
         super(TidySpectrumMatchAnnotator, self).label_peak(fragment, peak, fontsize, rotation, **kw)
 
 
-def normalize_scan(scan, factor=None):
+def normalize_scan(scan: ProcessedScan, factor=None):
     scan = scan.copy()
+    scan.annotations.pop("peak_label_map", None)
     scan.deconvoluted_peak_set = scan.deconvoluted_peak_set.__class__(
         p.clone() for p in scan.deconvoluted_peak_set)
-    bp = scan.base_peak().clone()
+    bp = scan.base_peak()
     if factor is None:
         factor = bp.intensity / 1000
     for peak in scan:
