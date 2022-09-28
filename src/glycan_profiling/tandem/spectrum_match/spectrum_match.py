@@ -1,7 +1,7 @@
 import warnings
 import struct
 
-from typing import Any, ClassVar, List, Type, TypeVar, Union, Optional
+from typing import Any, ClassVar, List, Tuple, Type, TypeVar, Union, Optional
 
 from glypy.utils import Enum, make_struct
 
@@ -11,7 +11,7 @@ from ms_deisotope.data_source.metadata import activation
 from glycan_profiling.chromatogram_tree.mass_shift import MassShiftBase
 
 from glycan_profiling.structure import (
-    ScanWrapperBase, ScanInformation)
+    ScanWrapperBase, ScanInformation, FragmentCachingGlycopeptide)
 
 from glycan_profiling.structure.enums import SpectrumMatchClassification
 
@@ -28,6 +28,9 @@ LowCID = activation.dissociation_methods['low-energy collision-induced dissociat
 class ScanMatchManagingMixin(ScanWrapperBase):
     __slots__ = ()
 
+    target: Union[FragmentCachingGlycopeptide, Any]
+    mass_shift: MassShiftBase
+
     def __init__(self, scan, target, mass_shift=None):
         if mass_shift is None:
             mass_shift = Unmodified
@@ -40,7 +43,7 @@ class ScanMatchManagingMixin(ScanWrapperBase):
         return self
 
     @staticmethod
-    def load_peaks(scan):
+    def load_peaks(scan) -> ProcessedScan:
         try:
             return scan.convert(fitted=False, deconvoluted=True)
         except AttributeError:
@@ -68,7 +71,7 @@ class ScanMatchManagingMixin(ScanWrapperBase):
         deconvoluted_peak_set._reindex()
         return deconvoluted_peak_set
 
-    def is_hcd(self):
+    def is_hcd(self) -> bool:
         """Check whether the MSn spectrum was fragmented using a collisional dissociation
         mechanism or not.
 
@@ -102,7 +105,7 @@ class ScanMatchManagingMixin(ScanWrapperBase):
             annotations['is_hcd'] = result
         return result
 
-    def is_exd(self):
+    def is_exd(self) -> bool:
         """Check if the scan was dissociated using an E*x*D method.
 
         This checks for ECD and ETD terms.
@@ -137,7 +140,7 @@ class ScanMatchManagingMixin(ScanWrapperBase):
             annotations['is_exd'] = result
         return result
 
-    def mz_range(self):
+    def mz_range(self) -> Tuple[float, float]:
         scan = self.scan
         annotations = scan.annotations
         try:
@@ -170,7 +173,7 @@ class _SpectrumMatchBase(object):
     __slots__ = ['scan', 'target', "mass_shift"]
 
     scan: ProcessedScan
-    target: Any
+    target: Union[FragmentCachingGlycopeptide, Any]
     mass_shift: MassShiftBase
 
 
@@ -290,11 +293,9 @@ class SpectrumMatcherBase(SpectrumMatchBase):
     __slots__ = ["spectrum", "_score"]
 
     spectrum: DeconvolutedPeakSet
-    mass_shift: MassShiftBase
     _score: float
-    scan: Union[Scan, ProcessedScan]
 
-    def __init__(self, scan, target, mass_shift=None):
+    def __init__(self, scan: ProcessedScan, target: Union[FragmentCachingGlycopeptide, Any], mass_shift: Optional[MassShiftBase]=None):
         if mass_shift is None:
             mass_shift = Unmodified
         self.scan = scan
@@ -338,7 +339,7 @@ class SpectrumMatcherBase(SpectrumMatchBase):
         """
         raise NotImplementedError()
 
-    def base_peak(self):
+    def base_peak(self) -> float:
         """Find the base peak intensity of the spectrum, the
         most intense peak's intensity.
 
@@ -383,6 +384,7 @@ class SpectrumMatcherBase(SpectrumMatchBase):
     def __getstate__(self):
         state = super(SpectrumMatcherBase, self).__getstate__()
         state['score'] = self.score
+        return state
 
     def __setstate__(self, state):
         super(SpectrumMatcherBase, self).__setstate__(state)
@@ -415,7 +417,7 @@ class SpectrumMatcherBase(SpectrumMatchBase):
         return art
 
     @classmethod
-    def get_score_set_type(cls):
+    def get_score_set_type(cls) -> Type['ScoreSet']:
         return ScoreSet
 
     @classmethod
