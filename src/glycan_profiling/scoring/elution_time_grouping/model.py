@@ -1013,7 +1013,7 @@ class ModelEnsemble(PeptideBackboneKeyedMixin, IntervalScoringMixin):
     def models_for(self, chromatogram: Union[Number, ChromatogramType]) -> List[Tuple[ElutionTimeFitter, float]]:
         return list(self._models_for(chromatogram))
 
-    def coverage_for(self, chromatogram) -> float:
+    def coverage_for(self, chromatogram: GlycopeptideChromatogramProxy) -> float:
         refs = []
         weights = []
         for mod, weight in self._models_for(chromatogram):
