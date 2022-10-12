@@ -1,10 +1,8 @@
 import logging
 
 from array import array
-from collections import defaultdict, OrderedDict
 from collections.abc import Iterable
-import types
-from typing import DefaultDict, Dict, List, Optional, Set, TYPE_CHECKING
+from typing import DefaultDict, Dict, List, Optional, Set, TYPE_CHECKING, Tuple, Union, OrderedDict
 from matplotlib import pyplot as plt
 
 import numpy as np
@@ -25,6 +23,7 @@ logger.addHandler(logging.NullHandler())
 if TYPE_CHECKING:
     from glycan_profiling.scoring.elution_time_grouping.model import ElutionTimeFitter
     from glycan_profiling.tandem.chromatogram_mapping import SpectrumMatchUpdater
+    from glycan_profiling.tandem.target_decoy import NearestValueLookUp
 
 
 class RevisionRule(object):
@@ -340,9 +339,9 @@ class ModelReviser(object):
         self.original_scores = array('d')
         self.original_times = array('d')
         self.rules = list(rules)
-        self.alternative_records = defaultdict(list)
-        self.alternative_scores = defaultdict(_new_array)
-        self.alternative_times = defaultdict(_new_array)
+        self.alternative_records = DefaultDict(list)
+        self.alternative_scores = DefaultDict(_new_array)
+        self.alternative_times = DefaultDict(_new_array)
         self.valid_glycans = valid_glycans
         self.revision_validator = revision_validator
 
@@ -558,7 +557,7 @@ class FDREstimatorBase(object):
     def q_value_map(self):
         return self.estimator.q_value_map
 
-    def score_for_fdr(self, fdr_value):
+    def score_for_fdr(self, fdr_value: float) -> float:
         return self.estimator.score_for_fdr(fdr_value)
 
     def plot(self):
@@ -568,6 +567,21 @@ class FDREstimatorBase(object):
 
 
 class RuleBasedFDREstimator(FDREstimatorBase):
+    rule: RevisionRule
+
+    chromatograms: Union[List[GlycopeptideChromatogramProxy], np.ndarray]
+    decoy_chromatograms: Union[List[GlycopeptideChromatogramProxy], np.ndarray]
+
+    target_scores: np.ndarray
+    decoy_scores: np.ndarray
+
+    target_predictions: np.ndarray
+    decoy_predictions: np.ndarray
+    decoy_residuals: np.ndarray
+
+    decoy_is_valid: np.ndarray
+    over_time: OrderedDict
+
     def __init__(self, rule, chromatograms, rt_model, valid_glycans=None):
         self.rule = rule
         self.chromatograms = chromatograms
@@ -746,7 +760,7 @@ class FDRFacet(FDREstimatorBase):
         return self.__class__, (None, None), self.__getstate__()
 
 
-def make_normalized_monotonic_bell(X, Y, symmetric=False):
+def make_normalized_monotonic_bell(X: np.ndarray, Y: np.ndarray, symmetric: bool=False) -> np.ndarray:
     center = np.abs(X).argmin()
     Ynew = np.zeros_like(Y)
     last_y = None
@@ -783,7 +797,15 @@ def make_normalized_monotonic_bell(X, Y, symmetric=False):
     return Ynew
 
 
+def dropna(array: np.ndarray) -> np.ndarray:
+    mask = ~np.isnan(array)
+    return array[mask]
+
+
 class ResidualFDREstimator(object):
+    rules: RevisionRuleList
+    residual_mapper: 'PosteriorErrorToScore'
+
     def __init__(self, rules, rt_model=None, residual_mapper=None):
         self.rules = rules
         self.rt_model = rt_model
@@ -791,7 +813,7 @@ class ResidualFDREstimator(object):
         if residual_mapper is None:
             self.fit()
 
-    def _extract_scores_from_rules(self):
+    def _extract_scores_from_rules(self) -> Tuple[np.ndarray, np.ndarray]:
         rule = self.rules[0]
         target_scores = rule.target_residuals[
             ~np.isnan(rule.target_residuals)]
@@ -801,11 +823,7 @@ class ResidualFDREstimator(object):
                 ~np.isnan(rule.decoy_residuals) & rule.decoy_is_valid])
         return target_scores, np.array(all_decoys)
 
-    def _extract_scores_from_model(self, rt_model, seed=1, n_resamples=1):
-        def dropna(array):
-            mask = ~np.isnan(array)
-            return array[mask]
-
+    def _extract_scores_from_model(self, rt_model, seed=1, n_resamples=1) -> Tuple[np.ndarray, np.ndarray]:
         rng = np.random.RandomState(seed)
         decoys = np.array([])
         for i in range(n_resamples):
@@ -819,7 +837,7 @@ class ResidualFDREstimator(object):
         return targets, decoys
 
     def fit(self):
-        models = []
+        models: List[PosteriorErrorToScore] = []
         if self.rules:
             try:
                 fit_from_rules = self.fit_from_rules()
@@ -857,7 +875,7 @@ class ResidualFDREstimator(object):
         fmm.fit(max_target_components=3)
         return PosteriorErrorToScore.from_model(fmm)
 
-    def bounds_for_probability(self, probability):
+    def bounds_for_probability(self, probability: float) -> np.ndarray:
         return self.residual_mapper.bounds_for_probability(probability)
 
     def __reduce__(self):
@@ -875,12 +893,12 @@ class ResidualFDREstimator(object):
     def plot(self, ax=None, **kwargs):
         return self.residual_mapper.plot(ax, **kwargs)
 
-    def score(self, chromatogram, *args, **kwargs):
+    def score(self, chromatogram: GlycopeptideChromatogramProxy, *args, **kwargs) -> float:
         t_pred = self.rt_model.predict(chromatogram, *args, **kwargs)
         residual = chromatogram.apex_time - t_pred
         return self.residual_mapper(residual)
 
-    def __call__(self, chromatogram, *args, **kwds):
+    def __call__(self, chromatogram: GlycopeptideChromatogramProxy, *args, **kwds) -> float:
         return self.score(chromatogram, *args, **kwds)
 
 
@@ -897,6 +915,9 @@ def _prepare_domain(target_scores, decoy_scores, delta=0.1):
 
 
 class PosteriorErrorToScore(object):
+    mapper: 'NearestValueLookUp'
+    domain: np.ndarray
+    normalized_score: np.ndarray
 
     @classmethod
     def from_model(cls, model, delta=0.1, symmetric=True):
@@ -947,7 +968,7 @@ class PosteriorErrorToScore(object):
         dup.model = self.model
         return dup
 
-    def bounds_for_probability(self, probability):
+    def bounds_for_probability(self, probability: float) -> np.ndarray:
         xbounds = np.where(self.normalized_score >= probability)[0]
         if len(xbounds) == 0:
             return np.array([0.0, 0.0])
@@ -958,7 +979,7 @@ class PosteriorErrorToScore(object):
         half_max = self.normalized_score.max() / 2
         return self.bounds_for_probability(half_max)
 
-    def width_at_half_max(self):
+    def width_at_half_max(self) -> float:
         lo, hi = self.at_half_max()
         return hi - lo
 
