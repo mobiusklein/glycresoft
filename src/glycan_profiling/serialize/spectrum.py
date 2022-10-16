@@ -224,9 +224,6 @@ class PrecursorInformation(Base):
 
     @classmethod
     def bulk_convert_from_product_ids(cls, session, ids, chunk_size: int=512, data_source=None) -> Dict[int, MemoryPrecursorInformation]:
-        if scan_cache is None:
-            scan_cache = {}
-
         out = {}
 
         for chunk in chunkiter(ids, chunk_size):
