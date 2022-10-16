@@ -1,10 +1,10 @@
-from typing import Any, DefaultDict, Dict, List, Optional, Tuple
 import warnings
-from weakref import WeakValueDictionary
+
+from typing import Any, DefaultDict, Dict, List, Optional, Tuple
 
 from sqlalchemy import (
     Column, Numeric, Integer, String, ForeignKey, PickleType,
-    Boolean, Table)
+    Boolean, Table, select)
 from sqlalchemy.ext.declarative import declared_attr
 from sqlalchemy.orm import (
     relationship, backref, object_session, deferred, synonym, Load)
@@ -279,8 +279,57 @@ class GlycopeptideSpectrumSolutionSet(Base, SolutionSetBase, BoundToAnalysis):
         return "DB" + repr(self.convert())
 
     @classmethod
-    def bulk_load(
+    def bulk_load(cls, session,
+                  ids,
+                  chunk_size: int=512,
+                  mass_shift_cache=None,
+                  scan_cache=None,
+                  structure_cache=None,
+                  peptide_relation_cache=None,
+                  flatten=True):
+        return cls._inner_bulk_load(
+            cls.id.in_,
+            session,
+            ids,
+            chunk_size,
+            mass_shift_cache,
+            scan_cache,
+            structure_cache,
+            peptide_relation_cache,
+            flatten
+        )
+
+    @classmethod
+    def bulk_load_from_clusters(cls, session,
+                                ids,
+                                chunk_size: int = 512,
+                                mass_shift_cache=None,
+                                scan_cache=None,
+                                structure_cache=None,
+                                peptide_relation_cache=None,
+                            ):
+        by_id = cls._inner_bulk_load(
+            cls.cluster_id.in_,
+            session,
+            ids,
+            chunk_size,
+            mass_shift_cache,
+            scan_cache,
+            structure_cache,
+            peptide_relation_cache,
+            flatten=False
+        )
+        groups = DefaultDict(list)
+        for chunk in chunkiter(ids, chunk_size):
+            res = session.execute(select([cls.id, cls.cluster_id]).where(cls.cluster_id.in_(chunk)))
+            for (sset_id, cluster_id) in res.fetchall():
+                groups[cluster_id].append(by_id[sset_id])
+        return groups
+
+    @classmethod
+    def _inner_bulk_load(
         cls,
+        selector,
         session,
         ids,
         chunk_size: int = 512,
@@ -288,17 +337,20 @@ class GlycopeptideSpectrumSolutionSet(Base, SolutionSetBase, BoundToAnalysis):
         scan_cache=None,
         structure_cache=None,
         peptide_relation_cache=None,
+        flatten=True
     ):
+        if selector is None:
+            selector = cls.id.in_
         if scan_cache is None:
             scan_cache = {}
         if mass_shift_cache is None:
             mass_shift_cache = {
-                m.id: m for m in session.query(CompoundMassShift).all()
+                m.id: m.convert() for m in session.query(CompoundMassShift).all()
             }
         out = {}
         for chunk in chunkiter(ids, chunk_size):
             res = session.execute(cls.__table__.select().where(
-                cls.id.in_(chunk)))
+                selector(chunk)))
             for self in res.fetchall():
                 gpsm_ids = [
                     i[0] for i in session.query(GlycopeptideSpectrumMatch.id).filter(
@@ -322,7 +374,9 @@ class GlycopeptideSpectrumSolutionSet(Base, SolutionSetBase, BoundToAnalysis):
                 inst._is_sorted = True
                 inst.id = self.id
                 out[self.id] = inst
-        return [out[i] for i in ids]
+        if flatten:
+            return [out[i] for i in ids]
+        return out
 
 
 class GlycopeptideSpectrumMatch(Base, SpectrumMatchBase):
@@ -447,7 +501,7 @@ class GlycopeptideSpectrumMatch(Base, SpectrumMatchBase):
         if structure_cache is None:
             structure_cache = {}
         if mass_shift_cache is None:
-            mass_shift_cache = {m.id: m for m in session.query(CompoundMassShift).all()}
+            mass_shift_cache = {m.id: m.convert() for m in session.query(CompoundMassShift).all()}
         if scan_cache is None:
             scan_cache = {}
 

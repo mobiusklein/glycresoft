@@ -1,6 +1,6 @@
 from sqlalchemy import (
     Column, Numeric, Integer, ForeignKey, select)
-from sqlalchemy.orm import relationship, backref
+from sqlalchemy.orm import relationship, backref, object_session
 from sqlalchemy.ext.declarative import declared_attr
 from sqlalchemy.ext.hybrid import hybrid_property, hybrid_method
 
@@ -12,7 +12,8 @@ from glycan_profiling.serialize.chromatogram import (
 
 from glycan_profiling.serialize.tandem import (
     GlycopeptideSpectrumCluster,
-    GlycopeptideSpectrumMatch)
+    GlycopeptideSpectrumMatch,
+    GlycopeptideSpectrumSolutionSet)
 
 from glycan_profiling.serialize.hypothesis import Glycopeptide
 
@@ -297,6 +298,7 @@ class IdentifiedGlycopeptide(Base, IdentifiedStructure):
         from glycan_profiling.tandem.glycopeptide.identified_structure import (
             IdentifiedGlycopeptide as MemoryIdentifiedGlycopeptide)
 
+        session = object_session(self)
         if mass_shift_cache is None:
             mass_shift_cache = dict()
         if scan_cache is None:
@@ -305,7 +307,7 @@ class IdentifiedGlycopeptide(Base, IdentifiedStructure):
             structure_cache = dict()
         if peptide_relation_cache is None:
             peptide_relation_cache = dict()
-        if expand_shared_with and self.shared_with:
+        if expand_shared_with and self.shared_with.members.count() > 1:
             stored = list(self.shared_with)
             # TODO don't create duplicate IDGPs, cache these.
             converted = [
@@ -318,14 +320,21 @@ class IdentifiedGlycopeptide(Base, IdentifiedStructure):
                 if member.id == self.id:
                     return converted[i]
         else:
-            spectrum_matches = self.spectrum_cluster.convert(
-                mass_shift_cache=mass_shift_cache, scan_cache=scan_cache,
-                structure_cache=structure_cache, peptide_relation_cache=peptide_relation_cache)
+            spectrum_matches = GlycopeptideSpectrumSolutionSet.bulk_load_from_clusters(
+                session, [self.spectrum_cluster_id],
+                mass_shift_cache=mass_shift_cache,
+                scan_cache=scan_cache,
+                structure_cache=structure_cache,
+                peptide_relation_cache=peptide_relation_cache
+            )[self.spectrum_cluster_id]
             if structure_cache is not None:
-                try:
-                    structure = structure_cache[self.structure_id]
-                except KeyError:
-                    structure = structure_cache[self.structure_id] = self.structure.convert()
+                if self.structure_id in structure_cache:
+                    structure, _ = structure_cache[self.structure_id]
+                else:
+                    structure = Glycopeptide.bulk_load(
+                        session, [self.structure_id],
+                        peptide_relation_cache=peptide_relation_cache,
+                        structure_cache=structure_cache)[0]
             else:
                 structure = self.structure.convert()
 
