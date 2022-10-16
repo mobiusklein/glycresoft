@@ -278,6 +278,52 @@ class GlycopeptideSpectrumSolutionSet(Base, SolutionSetBase, BoundToAnalysis):
     def __repr__(self):
         return "DB" + repr(self.convert())
 
+    @classmethod
+    def bulk_load(
+        cls,
+        session,
+        ids,
+        chunk_size: int = 512,
+        mass_shift_cache=None,
+        scan_cache=None,
+        structure_cache=None,
+        peptide_relation_cache=None,
+    ):
+        if scan_cache is None:
+            scan_cache = {}
+        if mass_shift_cache is None:
+            mass_shift_cache = {
+                m.id: m for m in session.query(CompoundMassShift).all()
+            }
+        out = {}
+        for chunk in chunkiter(ids, chunk_size):
+            res = session.execute(cls.__table__.select().where(
+                cls.id.in_(chunk)))
+            for self in res.fetchall():
+                gpsm_ids = [
+                    i[0] for i in session.query(GlycopeptideSpectrumMatch.id).filter(
+                        GlycopeptideSpectrumMatch.solution_set_id == self.id).all()
+                ]
+                matches = GlycopeptideSpectrumMatch.bulk_load(
+                    session,
+                    gpsm_ids,
+                    chunk_size,
+                    mass_shift_cache=mass_shift_cache,
+                    scan_cache=scan_cache,
+                    structure_cache=structure_cache,
+                    peptide_relation_cache=peptide_relation_cache
+                )
+                matches = [matches[k] for k in gpsm_ids]
+                solution_set_tp = MemorySpectrumSolutionSet
+                if matches and matches[0].is_multiscore():
+                    solution_set_tp = MultiScoreSpectrumSolutionSet
+
+                inst = solution_set_tp(scan_cache[self.scan_id], matches)
+                inst._is_sorted = True
+                inst.id = self.id
+                out[self.id] = inst
+        return [out[i] for i in ids]
+
 
 class GlycopeptideSpectrumMatch(Base, SpectrumMatchBase):
     __tablename__ = "GlycopeptideSpectrumMatch"
@@ -430,7 +476,9 @@ class GlycopeptideSpectrumMatch(Base, SpectrumMatchBase):
 
         structure_objects = Glycopeptide.bulk_load(
             session, structure_series,
-            chunk_size=chunk_size, peptide_relation_cache=peptide_relation_cache)
+            chunk_size=chunk_size,
+            peptide_relation_cache=peptide_relation_cache,
+            structure_cache=structure_cache)
 
         score_sets_map = GlycopeptideSpectrumMatchScoreSet.bulk_load(
             session, ids, chunk_size=chunk_size)

@@ -393,15 +393,18 @@ class Glycopeptide(PeptideBase, Base):
         return self.glycopeptide_sequence
 
     @classmethod
-    def bulk_load(cls, session, ids, chunk_size: int=512, peptide_relation_cache=None):
+    def bulk_load(cls, session, ids, chunk_size: int=512, peptide_relation_cache=None, structure_cache=None):
         if peptide_relation_cache is None:
             peptide_relation_cache = session.info.get("peptide_relation_cache")
             if peptide_relation_cache is None:
                 peptide_relation_cache = session.info['peptide_relation_cache'] = LRUDict(
                     maxsize=1024)
-        out = {}
+        if structure_cache is None:
+            structure_cache = {}
+        out = structure_cache
         peptide_ids = []
         for chunk in chunkiter(ids, chunk_size):
+            chunk = list(filter(lambda x: x not in structure_cache, chunk))
             res = session.execute(cls.__table__.select().where(
                 cls.id.in_(chunk)
                 )

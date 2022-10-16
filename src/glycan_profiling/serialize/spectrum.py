@@ -20,6 +20,7 @@ from ms_deisotope.data_source.common import (
 
 
 from .base import (Base, Mass, HasUniqueName)
+from .utils import chunkiter
 
 
 class SampleRun(Base, HasUniqueName):
@@ -123,12 +124,7 @@ class MSScan(Base):
                                    ids[i:i + chunk_size]))
             res = session.execute(cls.__table__.select().where(
                 cls.id.in_(id_slice)))
-            pinfos = session.query(PrecursorInformation).filter(
-                PrecursorInformation.product_id.in_(id_slice)
-            )
-            pinfos = {
-                p.product_id: p for p in pinfos
-            }
+            pinfos = PrecursorInformation.bulk_convert_from_product_ids(id_slice)
             for self in res.fetchall():
                 peak_index = None
                 deconvoluted_peak_set = DeconvolutedPeakSet([])
@@ -225,6 +221,37 @@ class PrecursorInformation(Base):
             precursor_id, data_source, self.neutral_mass, charge,
             self.intensity, self.defaulted, self.orphan, product_scan_id=product_id)
         return conv
+
+    @classmethod
+    def bulk_convert_from_product_ids(cls, session, ids, chunk_size: int=512, data_source=None) -> Dict[int, MemoryPrecursorInformation]:
+        if scan_cache is None:
+            scan_cache = {}
+
+        out = {}
+
+        for chunk in chunkiter(ids, chunk_size):
+            res = session.execute(cls.__table__.select().where(cls.product_id.in_(chunk)))
+            for self in res.fetchall():
+                precursor_id = None
+                if self.precursor_id is not None:
+                    precursor_id = session.execute(select([MSScan.scan_id]).where(
+                        MSScan.id == self.precursor_id)).scalar()
+
+                product_id = None
+                if self.product is not None:
+                    product_id = session.execute(select([MSScan.scan_id]).where(
+                        MSScan.id == self.product_id)).scalar()
+
+                charge = self.charge
+                if charge == 0:
+                    charge = ChargeNotProvided
+
+                conv = MemoryPrecursorInformation(
+                    mass_charge_ratio(self.neutral_mass, charge), self.intensity, charge,
+                    precursor_id, data_source, self.neutral_mass, charge,
+                    self.intensity, self.defaulted, self.orphan, product_scan_id=product_id)
+                out[self.product_id] = conv
+        return out
 
     @classmethod
     def serialize(cls, inst, precursor, product, sample_run_id):
