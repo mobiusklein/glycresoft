@@ -1445,7 +1445,7 @@ class SpectrumMatchUpdater(TaskBase):
     match_args: Dict[str, Any]
 
     retention_time_delta: float
-    retention_time_model: RetentionTimeModelEnsemble
+    retention_time_model: 'RetentionTimeModelEnsemble'
 
     def __init__(self, scan_loader, scorer, spectrum_match_cls, id_maker, threshold_fn=lambda x: x.q_value < 0.05,
                  match_args=None, fdr_estimator=None, retention_time_model=None, retention_time_delta=0.35):
