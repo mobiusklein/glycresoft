@@ -299,8 +299,8 @@ class IdentifiedGlycopeptide(Base, IdentifiedStructure):
             IdentifiedGlycopeptide as MemoryIdentifiedGlycopeptide)
 
         session = object_session(self)
-        if mass_shift_cache is None:
-            mass_shift_cache = dict()
+        # if mass_shift_cache is None:
+        #     mass_shift_cache = dict()
         if scan_cache is None:
             scan_cache = dict()
         if structure_cache is None:
