@@ -8,7 +8,8 @@ from glycan_profiling.serialize.analysis import BoundToAnalysis
 
 from glycan_profiling.serialize.chromatogram import (
     ChromatogramSolution,
-    ChromatogramWrapper)
+    ChromatogramWrapper,
+    CompoundMassShift)
 
 from glycan_profiling.serialize.tandem import (
     GlycopeptideSpectrumCluster,
@@ -273,8 +274,10 @@ class IdentifiedGlycopeptide(Base, IdentifiedStructure):
     @classmethod
     def bulk_convert(cls, iterable, expand_shared_with=True, mass_shift_cache=None, scan_cache=None,
                      structure_cache=None, peptide_relation_cache=None, *args, **kwargs):
+        session = object_session(iterable[0])
         if mass_shift_cache is None:
-            mass_shift_cache = {}
+            mass_shift_cache = {m.id: m.convert()
+                                for m in session.query(CompoundMassShift).all()}
         if scan_cache is None:
             scan_cache = {}
         if structure_cache is None:
@@ -299,8 +302,9 @@ class IdentifiedGlycopeptide(Base, IdentifiedStructure):
             IdentifiedGlycopeptide as MemoryIdentifiedGlycopeptide)
 
         session = object_session(self)
-        # if mass_shift_cache is None:
-        #     mass_shift_cache = dict()
+        if mass_shift_cache is None:
+            mass_shift_cache = {m.id: m.convert()
+                                for m in session.query(CompoundMassShift).all()}
         if scan_cache is None:
             scan_cache = dict()
         if structure_cache is None:
