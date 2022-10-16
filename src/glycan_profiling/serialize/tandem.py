@@ -1,4 +1,4 @@
-from typing import Any, Dict
+from typing import Any, DefaultDict, Dict, List, Optional, Tuple
 import warnings
 from weakref import WeakValueDictionary
 
@@ -23,7 +23,7 @@ from .hypothesis import Glycopeptide, GlycanComposition
 from .chromatogram import CompoundMassShift
 from .spectrum import (
     Base, MSScan)
-
+from .utils import chunkiter
 
 def convert_scan_to_record(scan):
     return ScanInformation(
@@ -390,6 +390,77 @@ class GlycopeptideSpectrumMatch(Base, SpectrumMatchBase):
 
         return revmap
 
+    @classmethod
+    def bulk_load(cls, session, ids, chunk_size: int = 512,
+                  mass_shift_cache: Optional[Dict] = None,
+                  scan_cache: Optional[Dict] = None,
+                  structure_cache: Optional[Dict] = None,
+                  peptide_relation_cache: Optional[Dict] = None) -> Dict[int, MemorySpectrumMatch]:
+        if peptide_relation_cache is None:
+            peptide_relation_cache = {}
+        if structure_cache is None:
+            structure_cache = {}
+        if mass_shift_cache is None:
+            mass_shift_cache = {m.id: m for m in session.query(CompoundMassShift).all()}
+        if scan_cache is None:
+            scan_cache = {}
+
+        out = {}
+        id_series = []
+        scan_series = []
+        mass_shift_series = []
+        structure_series = []
+        is_best_match_series = []
+        score_map = {}
+
+        for chunk in chunkiter(ids, chunk_size):
+            res = session.execute(cls.__table__.select().where(
+                cls.id.in_(chunk)))
+            for self in res.fetchall():
+                id_series.append(self.id)
+                scan_series.append(self.scan_id)
+                mass_shift_series.append(mass_shift_cache[self.mass_shift_id])
+                structure_series.append(self.structure_id)
+                is_best_match_series.append(self.is_best_match)
+                score_map[self.id] = (self.score, self.q_value)
+
+        scan_objects = MSScan.bulk_load(
+            session, scan_series,
+            chunk_size=chunk_size, scan_cache=scan_cache)
+
+        structure_objects = Glycopeptide.bulk_load(
+            session, structure_series,
+            chunk_size=chunk_size, peptide_relation_cache=peptide_relation_cache)
+
+        score_sets_map = GlycopeptideSpectrumMatchScoreSet.bulk_load(
+            session, ids, chunk_size=chunk_size)
+
+        localization_map = LocalizationScore.bulk_load(session, ids, chunk_size=chunk_size)
+
+        for id, scan, structure, mass_shift, best_match in zip(id_series,
+                                                               scan_objects,
+                                                               structure_objects,
+                                                               mass_shift_series,
+                                                               is_best_match_series):
+            localizations = localization_map[id]
+            if id in score_sets_map:
+                score_set, fdr_set = score_sets_map[id]
+                out[id] = MultiScoreSpectrumMatch(
+                    scan, structure,
+                    id=id,
+                    score_set=score_set,
+                    best_match=best_match,
+                    q_value_set=fdr_set,
+                    mass_shift=mass_shift,
+                    localizations=localizations)
+            else:
+                score, q_value = score_map[id]
+                out[id] = MemorySpectrumMatch(
+                    scan, structure, score, best_match,
+                    q_value=q_value, id=id, mass_shift=mass_shift,
+                    localizations=localizations)
+        return out
+
     def convert(self, mass_shift_cache=None, scan_cache=None, structure_cache=None, peptide_relation_cache=None):
         session = object_session(self)
         key = self.scan_id
@@ -739,6 +810,25 @@ class GlycopeptideSpectrumMatchScoreSet(Base):
     def __repr__(self):
         return "DB" + repr(self.convert())
 
+    @classmethod
+    def bulk_load(cls, session, ids, chunk_size: int=512) -> Dict[int, Tuple[ScoreSet, FDRSet]]:
+        out = {}
+        for chunk in chunkiter(ids, chunk_size):
+            res = session.execute(cls.__table__.select().where(cls.id.in_(chunk)))
+            for self in res.fetchall():
+                score_set = ScoreSet(
+                    peptide_score=self.peptide_score,
+                    glycan_score=self.glycan_score,
+                    glycopeptide_score=self.glycopeptide_score,
+                    glycan_coverage=self.glycan_coverage)
+                fdr_set = FDRSet(
+                    total_q_value=self.total_q_value,
+                    peptide_q_value=self.peptide_q_value,
+                    glycan_q_value=self.glycan_q_value,
+                    glycopeptide_q_value=self.glycopeptide_q_value)
+                out[self.id] = (score_set, fdr_set)
+        return out
+
 
 class LocalizationScore(Base):
     __tablename__ = "LocalizationScore"
@@ -774,3 +864,14 @@ class LocalizationScore(Base):
 
     def __str__(self):
         return f"{self.modification}:{self.position}:{self.score}"
+
+    @classmethod
+    def bulk_load(cls, session, ids, chunk_size: int = 512) -> DefaultDict[int, List[MemoryLocalizationScore]]:
+        out = DefaultDict(list)
+        for chunk in chunkiter(ids, chunk_size):
+            res = session.execute(
+                cls.__table__.select().where(cls.id.in_(chunk)))
+            for self in res.fetchall():
+                out[self.id].append(MemoryLocalizationScore(
+                    self.position, self.modification, self.score))
+        return out

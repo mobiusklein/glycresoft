@@ -19,6 +19,7 @@ from glycan_profiling.serialize.base import (
 from .hypothesis import GlycopeptideHypothesis
 from .glycan import GlycanCombination
 from .generic import JSONType, HasChemicalComposition
+from ..utils import chunkiter
 
 from glycopeptidepy.structure import sequence, residue, PeptideSequenceBase
 from glycan_profiling.structure.structure_loader import PeptideProteinRelation, FragmentCachingGlycopeptide
@@ -390,6 +391,51 @@ class Glycopeptide(PeptideBase, Base):
 
     def _get_sequence_str(self):
         return self.glycopeptide_sequence
+
+    @classmethod
+    def bulk_load(cls, session, ids, chunk_size: int=512, peptide_relation_cache=None):
+        if peptide_relation_cache is None:
+            peptide_relation_cache = session.info.get("peptide_relation_cache")
+            if peptide_relation_cache is None:
+                peptide_relation_cache = session.info['peptide_relation_cache'] = LRUDict(
+                    maxsize=1024)
+        out = {}
+        peptide_ids = []
+        for chunk in chunkiter(ids, chunk_size):
+            res = session.execute(cls.__table__.select().where(
+                cls.id.in_(chunk)
+                )
+            )
+
+            for self in res.fetchall():
+                inst = FragmentCachingGlycopeptide(self.glycopeptide_sequence)
+                inst.id = self.id
+
+                peptide_id = self.peptide_id
+                out[self.id] = (inst, peptide_id)
+                if peptide_id not in peptide_relation_cache:
+                    peptide_ids.append(peptide_id)
+
+        for chunk in chunkiter(peptide_ids, chunk_size):
+            res = session.execute(Peptide.__table__.select().where(
+                Peptide.id.in_(
+                    list(filter(lambda x: x not in peptide_relation_cache,
+                                chunk)))))
+
+            for self in res.fetchall():
+                peptide_relation_cache[self.id] = PeptideProteinRelation(
+                    self.start_position,
+                    self.end_position,
+                    self.protein_id,
+                    self.hypothesis_id
+                )
+
+        result = []
+        for i in ids:
+            inst, peptide_id = out[i]
+            inst.protein_relation = peptide_relation_cache[peptide_id]
+            result.append(inst)
+        return result
 
     def convert(self, peptide_relation_cache=None):
         if peptide_relation_cache is None:

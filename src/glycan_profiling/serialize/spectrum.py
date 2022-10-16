@@ -1,3 +1,4 @@
+from typing import Dict, Optional
 from sqlalchemy.orm.session import object_session
 
 from sqlalchemy import (
@@ -111,6 +112,32 @@ class MSScan(Base):
             float(scan_time), scan_index, peak_index, deconvoluted_peak_set,
             activation=info.get('activation'))
         return scan
+
+    @classmethod
+    def bulk_load(cls, session, ids, chunk_size: int=512, scan_cache: Optional[Dict]=None):
+        if scan_cache is None:
+            scan_cache = {}
+        out = scan_cache
+        for i in range(0, len(ids) + chunk_size, chunk_size):
+            id_slice = list(filter(lambda x: x not in scan_cache,
+                                   ids[i:i + chunk_size]))
+            res = session.execute(cls.__table__.select().where(
+                cls.id.in_(id_slice)))
+            pinfos = session.query(PrecursorInformation).filter(
+                PrecursorInformation.product_id.in_(id_slice)
+            )
+            pinfos = {
+                p.product_id: p for p in pinfos
+            }
+            for self in res.fetchall():
+                peak_index = None
+                deconvoluted_peak_set = DeconvolutedPeakSet([])
+                scan = ProcessedScan(
+                    self.scan_id, self.scan_id, pinfos.get(self.id), int(self.ms_level),
+                    float(self.scan_time), self.index, peak_index, deconvoluted_peak_set,
+                    activation=self.info.get('activation'))
+                out[self.id] = scan
+        return [out[i] for i in ids]
 
     @classmethod
     def _serialize_scan(cls, scan, sample_run_id=None):

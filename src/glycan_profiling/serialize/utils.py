@@ -1,5 +1,6 @@
 import os
 from copy import copy
+from typing import Sequence
 from uuid import uuid4
 from sqlalchemy import create_engine, Table
 from sqlalchemy.exc import OperationalError, ProgrammingError
@@ -304,3 +305,8 @@ def get_index(table, col_name):
     for i in table.indexes:
         if col_name in i.columns:
             return i
+
+
+def chunkiter(ids: Sequence, chunk_size: int=512):
+    for i in range(0, len(ids) + chunk_size, chunk_size):
+        yield ids[i:i + chunk_size]
