@@ -124,7 +124,7 @@ class MSScan(Base):
                                    ids[i:i + chunk_size]))
             res = session.execute(cls.__table__.select().where(
                 cls.id.in_(id_slice)))
-            pinfos = PrecursorInformation.bulk_convert_from_product_ids(id_slice)
+            pinfos = PrecursorInformation.bulk_convert_from_product_ids(session, id_slice, chunk_size=chunk_size)
             for self in res.fetchall():
                 peak_index = None
                 deconvoluted_peak_set = DeconvolutedPeakSet([])
