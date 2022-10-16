@@ -3,14 +3,9 @@
 Each class is designed to encapsulate a single broad task, i.e.
 LC-MS/MS deconvolution or structure identification
 '''
-from asyncio import constants
 import os
-import pickle
-
 from collections import defaultdict
-from typing import Any, DefaultDict, Dict, List, Tuple
-
-
+from typing import Any, DefaultDict, Dict, List, Tuple, TYPE_CHECKING
 
 import numpy as np
 

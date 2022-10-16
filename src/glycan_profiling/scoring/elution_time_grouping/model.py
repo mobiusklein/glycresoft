@@ -2105,9 +2105,6 @@ class GlycopeptideElutionTimeModelBuildingPipeline(TaskBase):
             logger.error("Unable to fit Residual FDR for RT Model", exc_info=True)
             residual_fdr = None
         model.residual_fdr = residual_fdr
-
-
-
         return fitted_rules
 
     def extract_rules_used(self, chromatograms):

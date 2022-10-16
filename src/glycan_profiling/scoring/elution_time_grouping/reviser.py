@@ -23,7 +23,7 @@ logger.addHandler(logging.NullHandler())
 if TYPE_CHECKING:
     from glycan_profiling.scoring.elution_time_grouping.model import ElutionTimeFitter
     from glycan_profiling.tandem.chromatogram_mapping import SpectrumMatchUpdater
-    from glycan_profiling.tandem.target_decoy import NearestValueLookUp
+    from glycan_profiling.tandem.target_decoy import NearestValueLookUp, TargetDecoyAnalyzer
 
 
 class RevisionRule(object):
@@ -547,6 +547,8 @@ class IntervalModelReviser(ModelReviser):
 
 
 class FDREstimatorBase(object):
+    estimator: 'TargetDecoyAnalyzer'
+
     def estimate_fdr(self):
         from glycan_profiling.tandem.target_decoy import TargetDecoyAnalyzer
         self.estimator = TargetDecoyAnalyzer(
@@ -827,11 +829,15 @@ class ResidualFDREstimator(object):
         rng = np.random.RandomState(seed)
         decoys = np.array([])
         for i in range(n_resamples):
-            decoys = np.concatenate((
-                decoys,
-                dropna(
-                    rt_model._summary_statistics['apex_time_array'] - rng.permutation(
-                        rt_model._summary_statistics['predicted_apex_time_array'].copy()))))
+            decoys = np.concatenate(
+                (
+                    decoys,
+                    dropna(
+                        rt_model._summary_statistics['apex_time_array'] - rng.permutation(
+                            rt_model._summary_statistics['predicted_apex_time_array'].copy())
+                    )
+                )
+            )
 
         targets = dropna(rt_model._summary_statistics['residuals_array'])
         return targets, decoys

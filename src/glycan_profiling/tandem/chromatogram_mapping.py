@@ -27,6 +27,7 @@ from glycan_profiling.chromatogram_tree.relation_graph import (
 from glycan_profiling.scoring.chromatogram_solution import ChromatogramSolution
 from glycan_profiling.structure import ScanInformation
 
+from glycan_profiling.tandem.target_decoy.base import FDREstimatorBase
 from .spectrum_match.spectrum_match import SpectrumMatcherBase
 from .spectrum_match.solution_set import NOParsimonyMixin, SpectrumMatch, SpectrumSolutionSet
 
@@ -49,6 +50,7 @@ TargetType = Union[Any, FragmentCachingGlycopeptide]
 
 if TYPE_CHECKING:
     from glycan_profiling.scoring.elution_time_grouping.structure import ChromatogramProxy
+    from glycan_profiling.scoring.elution_time_grouping.model import ModelEnsemble as RetentionTimeModelEnsemble
 
 
 class MassShiftDeconvolutionGraphNode(ChromatogramGraphNode):
@@ -1438,6 +1440,12 @@ class SpectrumMatchUpdater(TaskBase):
     '''
 
     spectrum_match_cls: Type[SpectrumMatch]
+    threshold_fn: Callable[[SpectrumMatch], bool]
+    fdr_estimator: FDREstimatorBase
+    match_args: Dict[str, Any]
+
+    retention_time_delta: float
+    retention_time_model: RetentionTimeModelEnsemble
 
     def __init__(self, scan_loader, scorer, spectrum_match_cls, id_maker, threshold_fn=lambda x: x.q_value < 0.05,
                  match_args=None, fdr_estimator=None, retention_time_model=None, retention_time_delta=0.35):
