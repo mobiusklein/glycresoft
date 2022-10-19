@@ -22,8 +22,8 @@ cdef class ScoreSet(object):
 
     def to_dict(self):
         store = {}
-        for name in self.field_names():
-            store[name] = getattr(self, name)
+        for name, value in zip(self.field_names(), self.values()):
+            store[name] = value
         return store
 
     cpdef bytearray pack(self):
