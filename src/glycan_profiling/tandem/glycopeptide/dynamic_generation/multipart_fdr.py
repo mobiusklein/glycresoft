@@ -24,8 +24,8 @@ except ImportError:
 
 from glycan_profiling.task import TaskBase
 
-from glycan_profiling.tandem.spectrum_match.spectrum_match import SpectrumMatch
-from glycan_profiling.tandem.spectrum_match.solution_set import MultiScoreSpectrumSolutionSet
+from glycan_profiling.tandem.spectrum_match.spectrum_match import FDRSet, MultiScoreSpectrumMatch, SpectrumMatch
+from glycan_profiling.tandem.spectrum_match.solution_set import MultiScoreSpectrumSolutionSet, SpectrumSolutionSet
 from glycan_profiling.tandem.target_decoy import NearestValueLookUp, PeptideScoreTargetDecoyAnalyzer, FDREstimatorBase, PeptideScoreSVMModel
 from glycan_profiling.tandem.glycopeptide.core_search import approximate_internal_size_of_glycan
 
@@ -639,7 +639,8 @@ class GlycopeptideFDREstimator(TaskBase):
                          t.q_value_set.glycopeptide_q_value)
                 total = max(t.q_value_set.peptide_q_value, t.q_value_set.glycan_q_value, total)
                 t.q_value = t.q_value_set.total_q_value = total
-            ts.q_value = ts.best_solution().q_value
+            if isinstance(ts, SpectrumSolutionSet):
+                ts.q_value = ts.best_solution().q_value
         return solution_sets
 
     def _assign_minimum_fdr(self, solution_sets: List[MultiScoreSpectrumSolutionSet]):
@@ -692,6 +693,19 @@ class GlycopeptideFDREstimator(TaskBase):
     def score_all(self, solution_set: MultiScoreSpectrumSolutionSet):
         self.fit_total_fdr([solution_set])
         return solution_set
+
+    def score(self, gpsm: MultiScoreSpectrumMatch, assign: bool=False):
+        q_value = gpsm.q_value
+        q_value_set = gpsm.q_value_set
+        placeholder = FDRSet.default()
+        gpsm.q_value_set = placeholder
+        self.score_all(MultiScoreSpectrumSolutionSet(gpsm.scan, [gpsm]))
+        result_q_value_set = placeholder
+        if not assign:
+            gpsm.q_value = q_value
+            gpsm.q_value_set = q_value_set
+        return result_q_value_set
+
 
     def run(self):
         if self.strategy in (GlycopeptideFDREstimationStrategy.multipart_gamma_gaussian_mixture,
