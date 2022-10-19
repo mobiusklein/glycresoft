@@ -286,7 +286,8 @@ class GlycopeptideSpectrumSolutionSet(Base, SolutionSetBase, BoundToAnalysis):
                   scan_cache=None,
                   structure_cache=None,
                   peptide_relation_cache=None,
-                  flatten=True):
+                  flatten=True,
+                  min_q_value=0.2):
         return cls._inner_bulk_load(
             cls.id.in_,
             session,
@@ -296,7 +297,8 @@ class GlycopeptideSpectrumSolutionSet(Base, SolutionSetBase, BoundToAnalysis):
             scan_cache,
             structure_cache,
             peptide_relation_cache,
-            flatten
+            flatten,
+            min_q_value=min_q_value
         )
 
     @classmethod
@@ -307,6 +309,7 @@ class GlycopeptideSpectrumSolutionSet(Base, SolutionSetBase, BoundToAnalysis):
                                 scan_cache=None,
                                 structure_cache=None,
                                 peptide_relation_cache=None,
+                                min_q_value=0.2
                             ):
         by_id = cls._inner_bulk_load(
             cls.cluster_id.in_,
@@ -317,7 +320,8 @@ class GlycopeptideSpectrumSolutionSet(Base, SolutionSetBase, BoundToAnalysis):
             scan_cache,
             structure_cache,
             peptide_relation_cache,
-            flatten=False
+            flatten=False,
+            min_q_value=min_q_value
         )
         groups = DefaultDict(list)
         for chunk in chunkiter(ids, chunk_size):
@@ -337,7 +341,8 @@ class GlycopeptideSpectrumSolutionSet(Base, SolutionSetBase, BoundToAnalysis):
         scan_cache=None,
         structure_cache=None,
         peptide_relation_cache=None,
-        flatten=True
+        flatten=True,
+        min_q_value=0.2
     ):
         if selector is None:
             selector = cls.id.in_
@@ -354,7 +359,9 @@ class GlycopeptideSpectrumSolutionSet(Base, SolutionSetBase, BoundToAnalysis):
             for self in res.fetchall():
                 gpsm_ids = [
                     i[0] for i in session.query(GlycopeptideSpectrumMatch.id).filter(
-                        GlycopeptideSpectrumMatch.solution_set_id == self.id).all()
+                        GlycopeptideSpectrumMatch.solution_set_id == self.id,
+                        GlycopeptideSpectrumMatch.q_value <= min_q_value
+                    ).all()
                 ]
                 matches = GlycopeptideSpectrumMatch.bulk_load(
                     session,

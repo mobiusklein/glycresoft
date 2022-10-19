@@ -1,3 +1,4 @@
+from typing import Dict, Optional
 from sqlalchemy import (
     Column, Numeric, Integer, ForeignKey, select)
 from sqlalchemy.orm import relationship, backref, object_session
@@ -272,8 +273,15 @@ class IdentifiedGlycopeptide(Base, IdentifiedStructure):
         return chromatogram
 
     @classmethod
-    def bulk_convert(cls, iterable, expand_shared_with=True, mass_shift_cache=None, scan_cache=None,
-                     structure_cache=None, peptide_relation_cache=None, *args, **kwargs):
+    def bulk_convert(cls, iterable,
+                     expand_shared_with: bool=True,
+                     mass_shift_cache: Optional[Dict]=None,
+                     scan_cache: Optional[Dict]=None,
+                     structure_cache: Optional[Dict] = None,
+                     peptide_relation_cache: Optional[Dict] = None,
+                     shared_identification_cache: Optional[Dict] = None,
+                     min_q_value: float=0.2,
+                     *args, **kwargs):
         session = object_session(iterable[0])
         if mass_shift_cache is None:
             mass_shift_cache = {m.id: m.convert()
@@ -284,19 +292,27 @@ class IdentifiedGlycopeptide(Base, IdentifiedStructure):
             structure_cache = {}
         if peptide_relation_cache is None:
             peptide_relation_cache = {}
+        if shared_identification_cache is None:
+            shared_identification_cache = {}
         result = [
             obj.convert(expand_shared_with=expand_shared_with,
                         mass_shift_cache=mass_shift_cache,
                         scan_cache=scan_cache,
                         structure_cache=structure_cache,
                         peptide_relation_cache=peptide_relation_cache,
+                        min_q_value=min_q_value,
                         *args, **kwargs)
             for obj in iterable]
         return result
 
-
-    def convert(self, expand_shared_with=True, mass_shift_cache=None, scan_cache=None, structure_cache=None,
-                peptide_relation_cache=None, *args, **kwargs):
+    def convert(self, expand_shared_with: bool =True,
+                mass_shift_cache: Optional[Dict]=None,
+                scan_cache: Optional[Dict]=None,
+                structure_cache: Optional[Dict]=None,
+                peptide_relation_cache: Optional[Dict] = None,
+                shared_identification_cache: Optional[Dict] = None,
+                min_q_value: float = 0.2,
+                *args, **kwargs):
         # bind this name late to avoid circular import error
         from glycan_profiling.tandem.glycopeptide.identified_structure import (
             IdentifiedGlycopeptide as MemoryIdentifiedGlycopeptide)
@@ -305,6 +321,8 @@ class IdentifiedGlycopeptide(Base, IdentifiedStructure):
         if mass_shift_cache is None:
             mass_shift_cache = {m.id: m.convert()
                                 for m in session.query(CompoundMassShift).all()}
+        if shared_identification_cache is None:
+            shared_identification_cache = dict()
         if scan_cache is None:
             scan_cache = dict()
         if structure_cache is None:
@@ -313,11 +331,20 @@ class IdentifiedGlycopeptide(Base, IdentifiedStructure):
             peptide_relation_cache = dict()
         if expand_shared_with and self.shared_with.members.count() > 1:
             stored = list(self.shared_with)
-            # TODO don't create duplicate IDGPs, cache these.
-            converted = [
-                x.convert(expand_shared_with=False, mass_shift_cache=mass_shift_cache,
-                          scan_cache=scan_cache, structure_cache=structure_cache,
-                          peptide_relation_cache=peptide_relation_cache, * args, **kwargs) for x in stored]
+            converted = []
+            for idgp in stored:
+                if idgp.id in shared_identification_cache:
+                    converted.append(shared_identification_cache[idgp.id])
+                else:
+                    tmp = idgp.convert(expand_shared_with=False,
+                                       mass_shift_cache=mass_shift_cache,
+                                       scan_cache=scan_cache,
+                                       structure_cache=structure_cache,
+                                       peptide_relation_cache=peptide_relation_cache,
+                                       shared_identification_cache=shared_identification_cache,
+                                       min_q_value=min_q_value, *args, **kwargs)
+                    shared_identification_cache[idgp.id] = tmp
+                    converted.append(tmp)
             for i in range(len(stored)):
                 converted[i].shared_with = converted[:i] + converted[i + 1:]
             for i, member in enumerate(stored):
@@ -329,7 +356,8 @@ class IdentifiedGlycopeptide(Base, IdentifiedStructure):
                 mass_shift_cache=mass_shift_cache,
                 scan_cache=scan_cache,
                 structure_cache=structure_cache,
-                peptide_relation_cache=peptide_relation_cache
+                peptide_relation_cache=peptide_relation_cache,
+                min_q_value=min_q_value,
             )[self.spectrum_cluster_id]
             if structure_cache is not None:
                 if self.structure_id in structure_cache:
@@ -352,6 +380,7 @@ class IdentifiedGlycopeptide(Base, IdentifiedStructure):
 
             inst = MemoryIdentifiedGlycopeptide(structure, spectrum_matches, chromatogram)
             inst.id = self.id
+            shared_identification_cache[self.id] = inst
             return inst
 
     @property
