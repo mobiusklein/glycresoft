@@ -119,9 +119,10 @@ class MSScan(Base):
         if scan_cache is None:
             scan_cache = {}
         out = scan_cache
-        for i in range(0, len(ids) + chunk_size, chunk_size):
+
+        for chunk in chunkiter(ids, chunk_size):
             id_slice = list(filter(lambda x: x not in scan_cache,
-                                   ids[i:i + chunk_size]))
+                                   set(chunk)))
             res = session.execute(cls.__table__.select().where(
                 cls.id.in_(id_slice)))
             pinfos = PrecursorInformation.bulk_load_from_product_ids(
