@@ -331,10 +331,10 @@ cpdef double _calculate_glycan_coverage(self, double core_weight=0.4, double cov
         peak_pair = <PeakFragmentPair>obj
         if (<FragmentBase>peak_pair.fragment).get_series().int_code != series.int_code:
             continue
-        elif peak_pair.fragment_name in core_fragments:
-            core_matches.add(peak_pair.fragment_name)
+        elif peak_pair.fragment._name in core_fragments:
+            core_matches.add(peak_pair.fragment._name)
         else:
-            extended_matches.add(peak_pair.fragment_name)
+            extended_matches.add(peak_pair.fragment._name)
 
     coverage = self._compute_glycan_coverage_from_metrics(
         fragile_fucose, len(core_matches), len(extended_matches),
