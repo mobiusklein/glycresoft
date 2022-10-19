@@ -332,7 +332,7 @@ cpdef double _calculate_glycan_coverage(self, double core_weight=0.4, double cov
         peak_pair = <PeakFragmentPair>obj
         if (<FragmentBase>peak_pair.fragment).get_series().int_code != series.int_code:
             continue
-        frag_name = peak_pair.fragmet.base_name()
+        frag_name = peak_pair.fragment.base_name()
         if frag_name in core_fragments:
             core_matches.add(frag_name)
         else:
