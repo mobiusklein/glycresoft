@@ -363,6 +363,15 @@ class GlycopeptideSpectrumSolutionSet(Base, SolutionSetBase, BoundToAnalysis):
                         GlycopeptideSpectrumMatch.q_value <= min_q_value
                     ).all()
                 ]
+                if not gpsm_ids:
+                    gpsm_ids = [
+                        i[0] for i in session.query(GlycopeptideSpectrumMatch.id).filter(
+                            GlycopeptideSpectrumMatch.solution_set_id == self.id,
+                        ).order_by(
+                            GlycopeptideSpectrumMatch.q_value.asc(),
+                            GlycopeptideSpectrumMatch.score.desc()
+                        ).limit(5)
+                    ]
                 matches = GlycopeptideSpectrumMatch.bulk_load(
                     session,
                     gpsm_ids,
@@ -377,6 +386,8 @@ class GlycopeptideSpectrumSolutionSet(Base, SolutionSetBase, BoundToAnalysis):
                 if matches and matches[0].is_multiscore():
                     solution_set_tp = MultiScoreSpectrumSolutionSet
 
+                if self.scan_id not in scan_cache:
+                    MSScan.bulk_load(session, [self.scan_id], scan_cache=scan_cache)
                 inst = solution_set_tp(scan_cache[self.scan_id], matches)
                 inst._is_sorted = True
                 inst.id = self.id
