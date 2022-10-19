@@ -1,15 +1,24 @@
-from collections import defaultdict
+
+from typing import Any, Iterable, List, DefaultDict, Optional, Tuple, Union
+from glycan_profiling.serialize.chromatogram import MassShift
+from glycan_profiling.structure.structure_loader import FragmentCachingGlycopeptide
+
+
+from ms_deisotope.data_source import RandomAccessScanSource, ProcessedScan
 
 from glycan_profiling import serialize
 
 from glycan_profiling.chromatogram_tree import (
     Chromatogram, GlycopeptideChromatogram, ChromatogramTreeList,
     ChromatogramFilter)
+
 from glycan_profiling.trace import ChromatogramExtractor
 from glycan_profiling.scoring import ChromatogramSolution
 from glycan_profiling.tandem.chromatogram_mapping import TandemAnnotatedChromatogram
+
 from glycan_profiling.tandem.spectrum_match import (
     ScoreSet, FDRSet, MultiScoreSpectrumMatch, MultiScoreSpectrumSolutionSet)
+
 from glycan_profiling.tandem.glycopeptide.identified_structure import IdentifiedGlycopeptide
 
 
@@ -22,23 +31,54 @@ class FakeSpectrumMatch(MultiScoreSpectrumMatch):
 
 
 class MatchBetweenDataset(object):
+    chromatograms: ChromatogramFilter
+    identified_structures: List[IdentifiedGlycopeptide]
+    label: str
+
+    scan_loader: RandomAccessScanSource[Any, ProcessedScan]
+    analysis_loader: Optional[serialize.AnalysisDeserializer]
+
+    _find_by_structure: DefaultDict[Union[str, FragmentCachingGlycopeptide], List[IdentifiedGlycopeptide]]
+
     def __init__(self, analysis_loader, scan_loader, label=None):
-        if label is None:
+        if label is None and analysis_loader is not None:
             label = analysis_loader.analysis.name
+
+        self.chromatograms = ChromatogramFilter([])
+        self.identified_structures = []
+        self._find_by_structure = DefaultDict(list)
+
         self.analysis_loader = analysis_loader
         self.scan_loader = scan_loader
-        self._load_chromatograms()
+        if self.scan_loader is not None:
+            self._load_chromatograms()
         self._prepare_structure_map()
         self.label = label
 
-    def _load_chromatograms(self):
-        extractor = ChromatogramExtractor(
-            self.scan_loader, minimum_mass=1000.0, grouping_tolerance=1.5e-5)
-        chromatograms = extractor.run()
+    @classmethod
+    def from_chromatograms_and_identifications(cls, chromatograms: Iterable[Chromatogram],
+                                               identifications: List[IdentifiedGlycopeptide],
+                                               analysis_loader: Optional[serialize.AnalysisDeserializer]=None,
+                                               scan_loader: Optional[RandomAccessScanSource]=None,
+                                               label: Optional[str]=None):
+        if label is None and analysis_loader is not None:
+            label = analysis_loader.analysis.name
+        self = cls(None, None, label=label)
+        self.analysis_loader = analysis_loader
+        self.scan_loader = scan_loader
+        self.label = None if analysis_loader is None else analysis_loader.analysis.name
+
+        self.identified_structures = identifications
+        self.chromatograms = self._map_chromatograms(chromatograms, identifications)
+
+        self._prepare_structure_map()
+        return self
+
+    def _map_chromatograms(self, chromatograms: Iterable[Chromatogram],
+                           identifications: Iterable[IdentifiedGlycopeptide]):
         for chrom in chromatograms:
             chrom.mark = False
-        idgps = self.analysis_loader.load_identified_glycopeptides()
-        for idgp in idgps:
+        for idgp in identifications:
             if idgp.chromatogram is None:
                 continue
             for mshift in idgp.mass_shifts:
@@ -47,15 +87,29 @@ class MatchBetweenDataset(object):
                 for chrom in chroma:
                     if idgp.chromatogram.overlaps_in_time(chrom):
                         chrom.mark = True
-        chromatograms = ChromatogramFilter([chrom for chrom in chromatograms if not chrom.mark] + list(idgps))
-        self.identified_structures = idgps
-        self.chromatograms = chromatograms
+
+        chromatograms = ChromatogramFilter(
+            [chrom for chrom in chromatograms if not chrom.mark] + list(identifications))
+        return chromatograms
+
+    def _load_chromatograms(self):
+        extractor = ChromatogramExtractor(
+            self.scan_loader, minimum_mass=1000.0, grouping_tolerance=1.5e-5)
+        chromatograms = extractor.run()
+        for chrom in chromatograms:
+            chrom.mark = False
+        if self.analysis_loader is not None:
+            idgps = self.analysis_loader.load_identified_glycopeptides()
+            self.identified_structures = idgps
+            self.chromatograms = self._map_chromatograms(chromatograms, idgps)
 
     @property
     def ms1_scoring_model(self):
         return self.analysis_loader.analysis.parameters.get('scoring_model')
 
-    def find(self, ids, mass_error_tolerance=1e-5, time_error_tolerance=2.0):
+    def find(self, ids: IdentifiedGlycopeptide,
+             mass_error_tolerance: float=1e-5,
+             time_error_tolerance: float=2.0) -> List[Tuple[Union[Chromatogram, IdentifiedGlycopeptide], Optional[MassShift]]]:
         key = ids.structure
         out = []
         id_out = []
@@ -143,12 +197,16 @@ class MatchBetweenDataset(object):
         return name_map
 
     def _prepare_structure_map(self):
-        self._find_by_structure = defaultdict(list)
-        name_map = self._protein_name_label_map()
+        self._find_by_structure = DefaultDict(list)
+        if self.analysis_loader is not None:
+            name_map = self._protein_name_label_map()
+        else:
+            name_map = None
         for ids in self.identified_structures:
             try:
-                pr = ids.protein_relation
-                pr.protein_id = name_map.get(pr.protein_id, pr.protein_id)
+                if name_map is not None:
+                    pr = ids.protein_relation
+                    pr.protein_id = name_map.get(pr.protein_id, pr.protein_id)
             except AttributeError:
                 pass
             self._find_by_structure[(ids.structure)].append(ids)
