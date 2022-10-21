@@ -9,7 +9,7 @@ import warnings
 import traceback
 import multiprocessing
 
-from typing import Dict
+from typing import Dict, Optional
 from logging import FileHandler
 from multiprocessing import current_process
 
@@ -199,14 +199,16 @@ def make_log_file_logger(log_file_name, log_file_mode, name=None, level="INFO"):
     file_fmter = ProcessAwareFormatter(
         "%(asctime)s %(name)s:%(filename)s:%(lineno)-4d - %(levelname)s%(maybeproc)s - %(message)s",
         DATE_FMT)
-    handler = FlexibleFileHandler(log_file_name, mode=log_file_mode)
-    handler.setFormatter(file_fmter)
-    handler.setLevel(level)
+    flex_handler = FlexibleFileHandler(log_file_name, mode=log_file_mode)
+    flex_handler.setFormatter(file_fmter)
+    flex_handler.setLevel(level)
     logger = logging.getLogger(name=name)
     for handler in list(logger.handlers):
         if isinstance(handler, FlexibleFileHandler):
             logger.removeHandler(handler)
-    logger.addHandler(handler)
+    logger.addHandler(flex_handler)
+    print(flex_handler)
+    breakpoint()
 
 
 def configure_logging(level=None, log_file_name=None, log_file_mode=None):
@@ -227,7 +229,6 @@ def configure_logging(level=None, log_file_name=None, log_file_mode=None):
         warnings.warn("File Logger configured with mode %r not applicable, using \"w\" instead" % (
             log_file_mode,))
         log_file_mode = "w"
-
     logging.getLogger().setLevel(level)
 
     logger_to_silence = logging.getLogger("deconvolution_scan_processor")
@@ -251,7 +252,7 @@ def configure_logging(level=None, log_file_name=None, log_file_mode=None):
             multilogger.addHandler(handler)
 
         if log_file_name:
-            make_log_file_logger(log_file_name, log_file_mode, level=level)
+            make_log_file_logger(log_file_name, log_file_mode, name='glycresoft', level=level)
 
     warner = logging.getLogger('py.warnings')
     warner.setLevel("CRITICAL")

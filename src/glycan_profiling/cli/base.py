@@ -17,7 +17,8 @@ logger = logging.getLogger("glycresoft")
 def cli(log_file=None):
     if log_file is not None:
         click.echo(f"Logging to {log_file}")
-        make_log_file_logger(log_file, LOG_FILE_MODE, LOG_LEVEL)
+        make_log_file_logger(log_file_name=log_file, log_file_mode=LOG_FILE_MODE,
+                             level=LOG_LEVEL, name='glycresoft')
 
 
 class HiddenOption(click.Option):

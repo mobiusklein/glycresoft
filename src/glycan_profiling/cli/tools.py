@@ -6,10 +6,7 @@ import code
 import pprint
 
 from glycan_profiling import serialize
-try:
-    from Queue import Queue, Empty
-except ImportError:
-    from queue import Queue, Empty
+from queue import Queue, Empty
 
 import click
 import pkg_resources
@@ -26,6 +23,7 @@ from glycan_profiling.serialize import (
     DatabaseBoundOperation, GlycanHypothesis, GlycopeptideHypothesis,
     SampleRun, Analysis, Protein, Peptide, Glycopeptide, GlycanClass,
     GlycanComposition, func, FileBlob)
+
 from glycan_profiling.database import (
     GlycopeptideDiskBackedStructureDatabase,
     GlycanCompositionDiskBackedStructureDatabase)
