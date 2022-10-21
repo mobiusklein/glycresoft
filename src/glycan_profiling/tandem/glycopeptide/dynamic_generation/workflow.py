@@ -394,11 +394,15 @@ class MultipartGlycopeptideIdentifier(TaskBase):
                 self.decoy_peptide_db.session,
                 open(self.glycosylation_site_models_path, 'rt'))
 
+        expand_combinatorics = True
+
         generator = PeptideGlycosylator(
             self.target_peptide_db,
             glycan_combinations,
             default_structure_type=StructureClassification.target_peptide_target_glycan,
-            glycan_prior_model=glycan_prior_model)
+            glycan_prior_model=glycan_prior_model,
+            expand_combinatorics=expand_combinatorics
+        )
         target_predictive_search = PredictiveGlycopeptideSearch(
             generator,
             product_error_tolerance=self.product_error_tolerance,
@@ -413,7 +417,9 @@ class MultipartGlycopeptideIdentifier(TaskBase):
             self.decoy_peptide_db,
             glycan_combinations,
             default_structure_type=StructureClassification.decoy_peptide_target_glycan,
-            glycan_prior_model=glycan_prior_model)
+            glycan_prior_model=glycan_prior_model,
+            expand_combinatorics=expand_combinatorics
+        )
         decoy_predictive_search = PredictiveGlycopeptideSearch(
             generator,
             product_error_tolerance=self.product_error_tolerance,
