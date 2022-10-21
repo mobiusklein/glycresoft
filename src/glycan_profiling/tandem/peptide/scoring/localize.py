@@ -742,7 +742,8 @@ class PTMProphetEvaluator(LocalizationScorerBase):
             position_probs[position] = prob
             acc += prob
         acc /= self.modification_count
-        return {k: min(v / acc, 1.0) for k, v in position_probs.items()}
+        factor = 1 / acc if acc > 0 else 0
+        return {k: min(v * factor, 1.0) for k, v in position_probs.items()}
 
     def score_isoforms(self, prophet: Optional[PredictorBase]) -> List[ScoredIsoform]:
         weights: List[float] = []
