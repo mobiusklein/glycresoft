@@ -34,11 +34,12 @@ def is_dhex(residue):
 
 
 class SignatureIonScorer(SpectrumMatcherBase):
-    def __init__(self, scan, glycan_composition, mass_shift=None):
+    def __init__(self, scan, glycan_composition, mass_shift=None, use_oxonium=True):
         super(SignatureIonScorer, self).__init__(scan, glycan_composition, mass_shift)
         self.fragments_searched = 0
         self.fragments_matched = 0
         self.minimum_intensity_threshold = 0.01
+        self.use_oxonium = use_oxonium
 
     def _get_matched_peaks(self):
         peaks = set()
@@ -189,10 +190,18 @@ class SignatureIonScorer(SpectrumMatcherBase):
         if len(self.spectrum) == 0:
             self._score = 0
             return self._score
-        try:
-            oxonium_ratio, n = self.oxonium_ratio()
-        except ValueError:
-            oxonium_ratio, n = 0, 0
+
+        use_oxonium = kwargs.get("use_oxonium")
+        if use_oxonium is not None:
+            self.use_oxonium = use_oxonium
+
+        if self.use_oxonium:
+            try:
+                oxonium_ratio, n = self.oxonium_ratio()
+            except ValueError:
+                oxonium_ratio, n = 0, 0
+        else:
+            oxonium_ratio = n = 0
         if n == 0:
             self._score = 0
         else:

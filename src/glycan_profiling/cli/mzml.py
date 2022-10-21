@@ -321,12 +321,16 @@ def oxonium_signature(ms_file, g_score_threshold=0.05):
 
     from glycan_profiling.tandem.glycan.scoring.signature_ion_scoring import SignatureIonScorer
     from glycan_profiling.tandem.oxonium_ions import gscore_scanner
-    refcomp = glypy.GlycanComposition.parse("{Fuc:1; Hex:5; HexNAc:4; Neu5Ac:2}")
+
+    refcomp = glypy.GlycanComposition.parse("{Fuc:1; Hex:5; HexNAc:4; Neu5Ac:1; NeuGc:1}")
+    headers = ["scan_id", "precursor_mass", "precursor_charge", "g_score", "signature_score"]
+    click.echo("\t".join(headers))
     for scan_id in reader.extended_index.msn_ids.keys():
         scan = reader.get_scan_by_id(scan_id)
         gscore = gscore_scanner(scan.deconvoluted_peak_set)
         if gscore >= g_score_threshold:
-            signature_match = SignatureIonScorer.evaluate(scan, refcomp)
+            signature_match = SignatureIonScorer.evaluate(
+                scan, refcomp, use_oxonium=False)
             click.echo("%s\t%f\t%r\t%f\t%f" % (
                 scan_id, scan.precursor_information.neutral_mass,
                 scan.precursor_information.charge, gscore,
