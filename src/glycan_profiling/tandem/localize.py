@@ -205,6 +205,7 @@ class ModificationLocalizationSearcher(TaskBase):
                 psm.localizations = isoform_scores[key]
             if abs(isoform_weights[key] - max_weight) > 1e-2 and psm.is_best_match:
                 psm.is_best_match = False
+                # self.log(f"... Invalidating {psm.target}@{psm.scan_id}")
 
     def select_top_isoforms(self, solutions: List[List[EvaluatedSolutionBins]], prophet: Optional[MultiKDModel]=None):
         if prophet is None:
@@ -226,20 +227,24 @@ class ModificationLocalizationSearcher(TaskBase):
             return scan_ref
         raise TypeError(type(scan_ref))
 
+    def with_scan_loader(self, scan_loader):
+        dup = ScanLoadingModificationLocalizationSearcher(
+            scan_loader, self.threshold_fn, self.error_tolerance, self.restricted_modifications)
+        dup.model = self.model
+        return dup
+
 
 
 class ScanLoadingModificationLocalizationSearcher(ModificationLocalizationSearcher):
     scan_loader: ProcessedMzMLLoader
-    error_tolerance: float
-    threshold_fn: Callable[[SpectrumMatch], bool]
-    restricted_modifications: Dict[str, ModificationRule]
 
     def __init__(self, scan_loader: ProcessedMzMLLoader,
                  threshold_fn: Callable[[SpectrumMatch], bool]=lambda x: x.q_value < 0.05,
                  error_tolerance: float = 2e-5,
-                 restricted_modifications: Optional[Dict[str, ModificationRule]] = None):
+                 restricted_modifications: Optional[Dict[str, ModificationRule]] = None,
+                 model: Optional[MultiKDModel]=None):
         self.scan_loader = scan_loader
-        super().__init__(threshold_fn, error_tolerance, restricted_modifications)
+        super().__init__(threshold_fn, error_tolerance, restricted_modifications, model)
 
     def __reduce__(self):
         return self.__class__, (None, self.threshold_fn, self.error_tolerance, self.restricted_modifications)
@@ -255,4 +260,5 @@ class ScanLoadingModificationLocalizationSearcher(ModificationLocalizationSearch
         return ModificationLocalizationSearcher(
             self.threshold_fn,
             self.error_tolerance,
-            self.restricted_modifications)
+            self.restricted_modifications,
+            self.model)
