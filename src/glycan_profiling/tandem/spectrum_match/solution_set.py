@@ -465,7 +465,7 @@ class SpectrumSolutionSet(ScanWrapperBase):
             sol.target: sol for sol in self
         }
 
-    def solution_for(self, target):
+    def solution_for(self, target) -> SpectrumMatch:
         """Find the spectrum match from this set which corresponds
         to the provided `target` structure
 
@@ -627,7 +627,7 @@ class SpectrumSolutionSet(ScanWrapperBase):
             return [x for x in self.solutions if (best_score - x.score) < d and x.mass_shift == Unmodified]
         return [x for x in self.solutions if (best_score - x.score) < d]
 
-    def select_top(self, method=None):
+    def select_top(self, method=None) -> 'SpectrumSolutionSet':
         """Filter spectrum matches in this collection in-place.
 
         If all the solutions would be filtered out, only the best solution
@@ -657,7 +657,7 @@ class SpectrumSolutionSet(ScanWrapperBase):
         self._invalidate()
         return self
 
-    def sort(self, maximize=True, method=None):
+    def sort(self, maximize=True, method=None) -> 'SpectrumSolutionSet':
         """Sort the spectrum matches in this solution set according to their score
         attribute.
 
@@ -682,7 +682,7 @@ class SpectrumSolutionSet(ScanWrapperBase):
         self._is_sorted = True
         return self
 
-    def sort_by(self, sort_fn=None, maximize=True):
+    def sort_by(self, sort_fn=None, maximize=True) -> 'SpectrumSolutionSet':
         """Sort the spectrum matches in this solution set according to `sort_fn`.
 
         This method behaves the same way :meth:`sort` does, except instead of
@@ -706,7 +706,7 @@ class SpectrumSolutionSet(ScanWrapperBase):
         self._is_sorted = True
         return self
 
-    def sort_q_value(self):
+    def sort_q_value(self) -> 'SpectrumSolutionSet':
         """Sort the spectrum matches in this solution set according to their q_value
         attribute.
 
@@ -724,7 +724,7 @@ class SpectrumSolutionSet(ScanWrapperBase):
         self._is_sorted = True
         return self
 
-    def merge(self, other):
+    def merge(self, other) -> 'SpectrumSolutionSet':
         self._invalidate()
         self.solutions.extend(other)
         self.sort()
@@ -733,7 +733,7 @@ class SpectrumSolutionSet(ScanWrapperBase):
             self.select_top()
         return self
 
-    def append(self, match: SpectrumMatch):
+    def append(self, match: SpectrumMatch) -> 'SpectrumSolutionSet':
         self._invalidate()
         self.solutions.append(match)
         self.sort()
@@ -799,8 +799,8 @@ class MultiScoreSpectrumSolutionSet(SpectrumSolutionSet):
         return True
 
     # NOTE: Sorting by total score is not guaranteed to sort by total
-    # FDR, so a post-FDR estimation re-ranking of spectrum matches may
-    # be necessary, albeit less reliable.
+    # FDR. Sorting by FDR after-the-fact is cheating though because we
+    # don't count next-best decoys.
 
     def sort(self, maximize=True, method=None):
         """Sort the spectrum matches in this solution set according to their score_set

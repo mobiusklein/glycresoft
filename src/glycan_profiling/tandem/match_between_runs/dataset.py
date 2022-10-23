@@ -109,7 +109,8 @@ class MatchBetweenDataset(object):
 
     def find(self, ids: IdentifiedGlycopeptide,
              mass_error_tolerance: float=1e-5,
-             time_error_tolerance: float=2.0) -> List[Tuple[Union[Chromatogram, IdentifiedGlycopeptide], Optional[MassShift]]]:
+             time_error_tolerance: float=2.0) -> List[Tuple[Union[Chromatogram, IdentifiedGlycopeptide],
+                                                      Optional[MassShift]]]:
         key = ids.structure
         out = []
         id_out = []

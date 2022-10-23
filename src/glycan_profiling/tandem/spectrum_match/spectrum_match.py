@@ -1,7 +1,8 @@
 import warnings
 import struct
 
-from typing import Any, ClassVar, List, Tuple, Type, TypeVar, Union, Optional
+from typing import Any, ClassVar, List, Tuple, Type,  Union, Optional, TYPE_CHECKING
+
 
 from glypy.utils import Enum, make_struct
 
@@ -19,6 +20,8 @@ from glycan_profiling.chromatogram_tree import Unmodified
 
 from glycan_profiling.tandem.ref import TargetReference, SpectrumReference
 
+if TYPE_CHECKING:
+    from glycan_profiling.tandem.target_decoy.base import FDREstimatorBase
 
 neutron_offset = isotopic_shift()
 
@@ -201,7 +204,7 @@ class SpectrumMatchBase(_SpectrumMatchBase, ScanMatchManagingMixin):
     def _theoretical_mass(self):
         return self.target.total_composition().mass
 
-    def precursor_mass_accuracy(self, offset=0):
+    def precursor_mass_accuracy(self, offset: int=0) -> float:
         """Calculate the precursor mass accuracy in PPM, accounting for neutron offset
         and mass shift.
 
@@ -220,7 +223,7 @@ class SpectrumMatchBase(_SpectrumMatchBase, ScanMatchManagingMixin):
             offset * neutron_offset) + self.mass_shift.mass
         return (observed - theoretical) / theoretical
 
-    def determine_precursor_offset(self, probing_range=3, include_error=False):
+    def determine_precursor_offset(self, probing_range: int=3, include_error: bool=False) -> Union[int, Tuple[int, float]]:
         """Iteratively re-estimate what the actual offset to the precursor mass was.
 
         Parameters
@@ -328,7 +331,7 @@ class SpectrumMatcherBase(SpectrumMatchBase):
         """
         raise NotImplementedError()
 
-    def calculate_score(self, *args, **kwargs):
+    def calculate_score(self, *args, **kwargs) -> float:
         """Calculate a score given the fragment-peak matching.
 
         This method should populate :attr:`_score`.
@@ -421,7 +424,7 @@ class SpectrumMatcherBase(SpectrumMatchBase):
         return ScoreSet
 
     @classmethod
-    def get_fdr_model_for_dimension(cls, label: str):
+    def get_fdr_model_for_dimension(cls, label: str) -> 'FDREstimatorBase':
         if label == 'peptide':
             from glycan_profiling.tandem.target_decoy import PeptideScoreSVMModel
             return PeptideScoreSVMModel
@@ -562,7 +565,7 @@ class SpectrumMatch(SpectrumMatchBase):
                                 self.data_bundle, self.q_value, self.id,
                                 self.mass_shift, self.valid, self.localizations)
 
-    def evaluate(self, scorer_type, *args, **kwargs):
+    def evaluate(self, scorer_type: Type[SpectrumMatcherBase], *args, **kwargs):
         """Re-evaluate this spectrum-structure pair.
 
         Parameters
@@ -650,12 +653,25 @@ class ModelTreeNode(object):
 #     decoy_peptide_decoy_glycan = decoy_peptide_target_glycan | target_peptide_decoy_glycan
 
 
-_ScoreSet = make_struct("ScoreSet", ['glycopeptide_score', 'peptide_score', 'glycan_score', 'glycan_coverage'])
+_ScoreSet = make_struct("ScoreSet", ['glycopeptide_score', 'peptide_score', 'glycan_score', 'glycan_coverage',
+                                     "stub_glycopeptide_intensity_utilization",
+                                     "oxonium_ion_intensity_utilization",
+                                     "n_stub_glycopeptide_matches",
+                                     "peptide_coverage", ])
 
 
 class ScoreSet(_ScoreSet):
     __slots__ = ()
-    packer = struct.Struct("!ffff")
+    packer = struct.Struct("!ffffffff")
+
+    glycopeptide_score: float
+    peptide_score: float
+    glycan_score: float
+    glycan_coverage: float
+    stub_glycopeptide_intensity_utilization: float
+    oxonium_ion_intensity_utilization: float
+    n_stub_glycopeptide_matches: float
+    peptide_coverag: float
 
     def __len__(self):
         return 4
@@ -740,6 +756,11 @@ class ScoreSet(_ScoreSet):
 class FDRSet(make_struct("FDRSet", ['total_q_value', 'peptide_q_value', 'glycan_q_value', 'glycopeptide_q_value'])):
     __slots__ = ()
     packer = struct.Struct("!ffff")
+
+    total_q_value: float
+    peptide_q_value: float
+    glycan_q_value: float
+    glycopeptide_q_value: float
 
     def pack(self):
         return self.packer.pack(*self)

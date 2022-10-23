@@ -3,7 +3,9 @@ import array
 import logging
 
 from collections import defaultdict
-from typing import Any, Callable, Collection, DefaultDict, Dict, Hashable, List, Optional, Set, Tuple, NamedTuple, Type, Union, TYPE_CHECKING
+from typing import (Any, Callable, Collection, DefaultDict, Dict, Hashable,
+                    List, Optional, Set, Tuple, NamedTuple, Type, Union,
+                    TYPE_CHECKING)
 
 import numpy as np
 
@@ -520,14 +522,14 @@ class TandemAnnotatedChromatogram(ChromatogramWrapper, SpectrumMatchSolutionColl
         new.best_msms_score = self.best_msms_score
         return new
 
-    def merge(self, other: 'TandemAnnotatedChromatogram') -> 'TandemAnnotatedChromatogram':
-        new = self.__class__(self.chromatogram.merge(other.chromatogram))
+    def merge(self, other: 'TandemAnnotatedChromatogram', node_type: MassShiftBase = Unmodified) -> 'TandemAnnotatedChromatogram':
+        new = self.__class__(self.chromatogram.merge(other.chromatogram, node_type=node_type))
         new.tandem_solutions = self.tandem_solutions + other.tandem_solutions
         new.time_displaced_assignments = self.time_displaced_assignments + other.time_displaced_assignments
         return new
 
-    def merge_in_place(self, other: 'TandemAnnotatedChromatogram'):
-        new = self.chromatogram.merge(other.chromatogram)
+    def merge_in_place(self, other: 'TandemAnnotatedChromatogram', node_type: MassShiftBase = Unmodified):
+        new = self.chromatogram.merge(other.chromatogram, node_type=node_type)
         self.chromatogram = new
         self.tandem_solutions = self.tandem_solutions + other.tandem_solutions
         self.time_displaced_assignments = self.time_displaced_assignments + other.time_displaced_assignments
