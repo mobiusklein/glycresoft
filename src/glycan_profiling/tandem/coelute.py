@@ -25,12 +25,14 @@ class CoElutionCandidate(NamedTuple):
         ssets = []
         to_drop = []
         for gpsm in self.ms2_spectra:
+            sset = None
             if gpsm.scan_id in scan_id_to_solution_set:
                 sset = scan_id_to_solution_set[gpsm.scan_id]
                 sset.append(gpsm)
-                ssets.append(sset)
             else:
-                ssets.append(MultiScoreSpectrumSolutionSet(gpsm.scan, [gpsm]))
+                sset = MultiScoreSpectrumSolutionSet(gpsm.scan, [gpsm])
+                scan_id_to_solution_set[gpsm.scan_id] = sset
+            ssets.append(sset)
 
         for part in self.extensions:
             if not isinstance(part, IdentifiedGlycopeptide):
@@ -39,7 +41,7 @@ class CoElutionCandidate(NamedTuple):
                 to_drop.append(part)
                 self.reference.chromatogram.merge_in_place(
                     part.chromatogram, node_type=self.mass_shift)
-
+        self.reference.tandem_solutions += ssets
         return self.reference, to_drop
 
 
@@ -129,6 +131,20 @@ class CoElutionAdductFinder(TaskBase):
                 acc.append(match)
         return acc
 
+    def process_candidates(self, identified_structures: List[IdentifiedGlycopeptide],
+                           candidate_updates: List[CoElutionCandidate]) -> List[IdentifiedGlycopeptide]:
+        to_remove = []
+        updated_identifications = []
+
+        for update_candidate in candidate_updates:
+            updated, dropped = update_candidate.merge(self.scan_id_to_solution_set)
+            to_remove.extend(dropped)
+            updated_identifications.append(updated)
+
+        for idgp_to_remove in to_remove:
+            identified_structures.remove(idgp_to_remove)
+        return identified_structures
+
     def coeluting_adduction_candidates(
         self,
         identified_structures: List[IdentifiedGlycopeptide],
@@ -140,6 +156,8 @@ class CoElutionAdductFinder(TaskBase):
         for i, ref in enumerate(identified_structures):
             if i % 250 == 0:
                 self.log(f"{i}/{n} ({i / n * 100.0:0.2f}%) {len(results)} cases found")
+            if ref.chromatogram is None:
+                continue
             alts = self.find_coeluting(
                 ref,
                 ref.weighted_neutral_mass + adduct.mass,
@@ -154,3 +172,12 @@ class CoElutionAdductFinder(TaskBase):
                 results.append(
                     CoElutionCandidate(ref, alts, acc, adduct))
         return results
+
+    def handle_adduct(self, identified_structures: List[IdentifiedGlycopeptide],
+                      adduct: MassShift,
+                      error_tolerance: float = 1e-5) -> List[IdentifiedGlycopeptide]:
+        candidates = self.coeluting_adduction_candidates(
+            identified_structures, adduct, error_tolerance)
+        identified_structures = self.process_candidates(
+            identified_structures, candidates)
+        return identified_structures

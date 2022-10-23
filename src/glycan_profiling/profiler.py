@@ -5,7 +5,8 @@ LC-MS/MS deconvolution or structure identification
 '''
 import os
 from collections import defaultdict
-from typing import Any, DefaultDict, Dict, List, Tuple, TYPE_CHECKING
+from typing import Any, DefaultDict, Dict, List, Optional, Tuple, TYPE_CHECKING
+from glycan_profiling.chromatogram_tree.mass_shift import MassShiftBase
 
 import numpy as np
 
@@ -97,6 +98,8 @@ from glycan_profiling.scan_cache import (
 
 from glycan_profiling.task import TaskBase
 from glycan_profiling import serialize
+
+from glycan_profiling.tandem.coelute import CoElutionAdductFinder
 
 
 debug_mode = bool(os.environ.get('GLYCRESOFTDEBUG', False))
@@ -716,36 +719,43 @@ class GlycopeptideLCMSMSAnalyzer(TaskBase):
             mass_shifts = []
         if Unmodified not in mass_shifts:
             mass_shifts = [Unmodified] + list(mass_shifts)
+
         self.database_connection = database_connection
         self.hypothesis_id = hypothesis_id
         self.sample_run_id = sample_run_id
+
         self.analysis_name = analysis_name
+        self.analysis = None
+        self.analysis_id = None
+
         self.mass_error_tolerance = mass_error_tolerance
         self.msn_mass_error_tolerance = msn_mass_error_tolerance
         self.grouping_error_tolerance = grouping_error_tolerance
-        self.psm_fdr_threshold = psm_fdr_threshold
-        self.peak_shape_scoring_model = peak_shape_scoring_model
-        self.tandem_scoring_model = tandem_scoring_model
-        self.mass_shifts = mass_shifts
-        self.analysis = None
-        self.analysis_id = None
-        self.minimum_mass = minimum_mass
-        self.save_unidentified = save_unidentified
-        self.minimum_oxonium_ratio = oxonium_threshold
-        self.scan_transformer = scan_transformer
-        self.n_processes = n_processes
-        self.spectrum_batch_size = spectrum_batch_size
-        self.use_peptide_mass_filter = use_peptide_mass_filter
-        self.maximum_mass = maximum_mass
         self.probing_range_for_missing_precursors = probing_range_for_missing_precursors
         self.trust_precursor_fits = trust_precursor_fits
-        self.file_manager = TempFileManager()
+        self.minimum_mass = minimum_mass
+        self.maximum_mass = maximum_mass
+        self.minimum_oxonium_ratio = oxonium_threshold
+        self.use_peptide_mass_filter = use_peptide_mass_filter
+
+        self.peak_shape_scoring_model = peak_shape_scoring_model
+        self.psm_fdr_threshold = psm_fdr_threshold
+        self.tandem_scoring_model = tandem_scoring_model
         self.fdr_estimator = None
-        self.permute_decoy_glycans = permute_decoy_glycans
+        self.extra_msn_evaluation_kwargs = evaluation_kwargs
+        self.retention_time_model = None
+
+        self.mass_shifts = mass_shifts
+
         self.rare_signatures = rare_signatures
         self.model_retention_time = model_retention_time
-        self.retention_time_model = None
-        self.extra_msn_evaluation_kwargs = evaluation_kwargs
+        self.permute_decoy_glycans = permute_decoy_glycans
+        self.save_unidentified = save_unidentified
+        self.spectrum_batch_size = spectrum_batch_size
+        self.scan_transformer = scan_transformer
+
+        self.n_processes = n_processes
+        self.file_manager = TempFileManager()
 
     def make_peak_loader(self):
         peak_loader = DatabaseScanDeserializer(
@@ -935,6 +945,41 @@ class GlycopeptideLCMSMSAnalyzer(TaskBase):
 
     def finalize_solutions(self, identifications: List[identified_glycopeptide.IdentifiedGlycopeptide]):
         pass
+
+    def handle_adducts(self, peak_loader,
+                       identifications: List[identified_glycopeptide.IdentifiedGlycopeptide],
+                       chromatograms: ChromatogramFilter,
+                       mass_shifts: Optional[List[MassShiftBase]]=None) -> List[identified_glycopeptide.IdentifiedGlycopeptide]:
+        if not mass_shifts:
+            return identifications
+        augmented_chromatograms = list(chromatograms)
+        augmented_chromatograms.extend(identifications)
+        augmented_chromatograms = ChromatogramFilter(augmented_chromatograms)
+
+        msn_evaluation_kwargs = {"error_tolerance": self.msn_mass_error_tolerance}
+        msn_evaluation_kwargs.update(self.extra_msn_evaluation_kwargs)
+
+        scan_id_to_solution_set = {}
+        for ident in identifications:
+            for sset in ident.tandem_solutions:
+                scan_id_to_solution_set[sset.scan.scan_id] = sset
+
+        adduct_finder = CoElutionAdductFinder(
+            scan_loader=peak_loader,
+            chromatograms=augmented_chromatograms,
+            msn_scoring_model=self.tandem_scoring_model,
+            msn_evaluation_args=msn_evaluation_kwargs,
+            fdr_estimator=self.fdr_estimator,
+            scan_id_to_solution_set=scan_id_to_solution_set,
+            threshold_fn=lambda x: x.q_value <= self.psm_fdr_threshold
+        )
+
+        for adduct in mass_shifts:
+            self.log(f"... Handling {adduct.name}")
+            identifications = adduct_finder.handle_adduct(
+                identifications, adduct, self.mass_error_tolerance)
+
+        return identifications
 
     def run(self):
         peak_loader = self.make_peak_loader()

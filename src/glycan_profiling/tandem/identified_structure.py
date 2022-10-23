@@ -125,6 +125,10 @@ class IdentifiedStructure(object):
             return None
         return best_match.q_value_set
 
+    @property
+    def key(self):
+        return self.chromatogram.key
+
     def _find_best_spectrum_match(self):
         is_multiscore = self.is_multiscore()
         best_match = None
