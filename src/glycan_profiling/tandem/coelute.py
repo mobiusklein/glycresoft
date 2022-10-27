@@ -22,8 +22,9 @@ class CoElutionCandidate(NamedTuple):
     mass_shift: MassShift
 
     def merge(self, scan_id_to_solution_set: Dict[str, SpectrumSolutionSet]) -> Tuple[IdentifiedGlycopeptide, List[IdentifiedGlycopeptide]]:
-        ssets = []
+        ssets = {}
         to_drop = []
+        existing_matches = {sset.scan.scan_id for sset in self.reference.spectrum_matches}
         for gpsm in self.ms2_spectra:
             sset = None
             if gpsm.scan_id in scan_id_to_solution_set:
@@ -32,7 +33,8 @@ class CoElutionCandidate(NamedTuple):
             else:
                 sset = MultiScoreSpectrumSolutionSet(gpsm.scan, [gpsm])
                 scan_id_to_solution_set[gpsm.scan_id] = sset
-            ssets.append(sset)
+            if gpsm.scan_id not in existing_matches:
+                ssets[gpsm.scan.scan_id] = sset
 
         for part in self.extensions:
             if not isinstance(part, IdentifiedGlycopeptide):
@@ -41,7 +43,7 @@ class CoElutionCandidate(NamedTuple):
                 to_drop.append(part)
                 self.reference.chromatogram.merge_in_place(
                     part.chromatogram, node_type=self.mass_shift)
-        self.reference.tandem_solutions += ssets
+        self.reference.tandem_solutions.extend(ssets.values())
         return self.reference, to_drop
 
 
@@ -133,12 +135,12 @@ class CoElutionAdductFinder(TaskBase):
 
     def process_candidates(self, identified_structures: List[IdentifiedGlycopeptide],
                            candidate_updates: List[CoElutionCandidate]) -> List[IdentifiedGlycopeptide]:
-        to_remove = []
+        to_remove = set()
         updated_identifications = []
 
         for update_candidate in candidate_updates:
             updated, dropped = update_candidate.merge(self.scan_id_to_solution_set)
-            to_remove.extend(dropped)
+            to_remove.update(dropped)
             updated_identifications.append(updated)
 
         for idgp_to_remove in to_remove:

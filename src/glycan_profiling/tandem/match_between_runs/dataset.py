@@ -1,3 +1,4 @@
+import logging
 
 from typing import Any, Iterable, List, DefaultDict, Optional, Tuple, Union
 from glycan_profiling.serialize.chromatogram import MassShift
@@ -20,6 +21,10 @@ from glycan_profiling.tandem.spectrum_match import (
     ScoreSet, FDRSet, MultiScoreSpectrumMatch, MultiScoreSpectrumSolutionSet)
 
 from glycan_profiling.tandem.glycopeptide.identified_structure import IdentifiedGlycopeptide
+
+
+logger = logging.getLogger(__name__)
+logger.addHandler(logging.NullHandler())
 
 
 class FakeSpectrumMatch(MultiScoreSpectrumMatch):
@@ -93,13 +98,15 @@ class MatchBetweenDataset(object):
         return chromatograms
 
     def _load_chromatograms(self):
+        logger.info(f"Loading chromatograms from {self.scan_loader.source_file_name}")
         extractor = ChromatogramExtractor(
             self.scan_loader, minimum_mass=1000.0, grouping_tolerance=1.5e-5)
         chromatograms = extractor.run()
         for chrom in chromatograms:
             chrom.mark = False
         if self.analysis_loader is not None:
-            idgps = self.analysis_loader.load_identified_glycopeptides()
+            logger.info(f"Loading identified glycopeptides from {self.analysis_loader.analysis.name}")
+            idgps = self.analysis_loader.load_identified_glycopeptides(0.1)
             self.identified_structures = idgps
             self.chromatograms = self._map_chromatograms(chromatograms, idgps)
 

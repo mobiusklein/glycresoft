@@ -266,6 +266,10 @@ class IdentifiedStructure(object):
     def tandem_solutions(self):
         return self.spectrum_matches
 
+    @tandem_solutions.setter
+    def tandem_solutions(self, value):
+        self.spectrum_matches = value
+
     def mass_shift_tandem_solutions(self):
         mapping = ArithmeticMapping()
         for sm in self.tandem_solutions:
