@@ -21,7 +21,7 @@ from glycan_profiling.plotting import figure
 from glycan_profiling.plotting.sequence_fragment_logo import glycopeptide_match_logo
 from glycan_profiling.plotting.spectral_annotation import TidySpectrumMatchAnnotator
 
-from ms_deisotope.output.mzml import ProcessedMzMLDeserializer
+from ms_deisotope.output import ProcessedMSFileLoader
 
 from matplotlib import pyplot as plt, style
 from matplotlib import rcParams as mpl_params
@@ -61,7 +61,7 @@ class SpectrumAnnotatorExport(TaskBase, DatabaseBoundOperation):
         if self.mzml_path is not None:
             if not os.path.exists(self.mzml_path):
                 raise IOError("No such file {}".format(self.mzml_path))
-            self.scan_loader = ProcessedMzMLDeserializer(self.mzml_path)
+            self.scan_loader = ProcessedMSFileLoader(self.mzml_path)
         else:
             self.mzml_path = self.analysis.parameters['sample_path']
             if not os.path.exists(self.mzml_path):
@@ -70,7 +70,7 @@ class SpectrumAnnotatorExport(TaskBase, DatabaseBoundOperation):
                     " corrected file path.").format(
                     self.mzml_path,
                     self.database_connection._original_connection))
-            self.scan_loader = ProcessedMzMLDeserializer(self.mzml_path)
+            self.scan_loader = ProcessedMSFileLoader(self.mzml_path)
         return self.scan_loader
 
     def _load_spectrum_matches(self):

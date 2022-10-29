@@ -26,7 +26,7 @@ except ImportError:
 
 from glycopeptidepy.utils import collectiontools
 
-from ms_deisotope.output import ProcessedMzMLDeserializer
+from ms_deisotope.output import ProcessedMSFileLoader
 
 from glycan_profiling.task import TaskBase, TaskExecutionSequence, Empty
 
@@ -516,7 +516,8 @@ class JournalSetLoader(TaskBase):
         mass_shift_map = {
             m.name: m for m in analysis.parameters['mass_shifts']}
         if scan_loader is None:
-            scan_loader = ProcessedMzMLDeserializer(analysis.parameters['sample_path'])
+            scan_loader = ProcessedMSFileLoader(
+                analysis.parameters['sample_path'])
         if stub_wrapping:
             stub_loader = ScanInformationLoader(scan_loader)
         else:

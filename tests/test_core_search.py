@@ -2,7 +2,7 @@ import unittest
 
 import glypy
 from glycopeptidepy import PeptideSequence
-from ms_deisotope.output import ProcessedMzMLDeserializer
+from ms_deisotope.output import ProcessedMSFileLoader
 
 from glycan_profiling.tandem.glycopeptide import core_search
 from glycan_profiling.tandem.glycopeptide.core_search import (
@@ -31,7 +31,7 @@ for i, gc in enumerate(glycan_compositions):
 
 class TestGlycanFilteringPeptideMassEstimator(unittest.TestCase):
     def load_spectra(self):
-        return list(ProcessedMzMLDeserializer(get_test_data("example_glycopeptide_spectra.mzML")))
+        return list(ProcessedMSFileLoader(get_test_data("example_glycopeptide_spectra.mzML")))
 
     def make_estimator(self):
         return GlycanFilteringPeptideMassEstimator(glycan_database)

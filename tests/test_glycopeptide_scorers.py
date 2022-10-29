@@ -3,7 +3,7 @@ import unittest
 from glycopeptidepy import PeptideSequence
 from glypy.structure.glycan_composition import HashableGlycanComposition
 
-from ms_deisotope.output import ProcessedMzMLDeserializer
+from ms_deisotope.output import ProcessedMSFileLoader
 from glycan_profiling.tandem import oxonium_ions
 
 from .fixtures import get_test_data
@@ -17,7 +17,7 @@ from glycan_profiling.tandem.glycopeptide.scoring import (
 
 class TestGlycopeptideScorers(unittest.TestCase):
     def load_spectra(self):
-        scan, scan2 = list(ProcessedMzMLDeserializer(get_test_data("example_glycopeptide_spectra.mzML")))
+        scan, scan2 = list(ProcessedMSFileLoader(get_test_data("example_glycopeptide_spectra.mzML")))
 
         return scan, scan2
 

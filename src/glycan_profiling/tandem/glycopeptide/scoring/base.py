@@ -1,8 +1,9 @@
 import math
+from typing import List, Mapping, Optional, Set, Tuple, Type
 
 
-from glycopeptidepy.structure.fragment import ChemicalShift, IonSeries
-from glycopeptidepy.structure.fragmentation_strategy import EXDFragmentationStrategy, HCDFragmentationStrategy
+from glycopeptidepy.structure.fragment import ChemicalShift, IonSeries, FragmentBase
+from glycopeptidepy.structure.fragmentation_strategy import EXDFragmentationStrategy, HCDFragmentationStrategy, PeptideFragmentationStrategyBase
 
 from glycan_profiling.structure.fragment_match_map import FragmentMatchMap
 from ..core_search import glycan_side_group_count
@@ -10,18 +11,18 @@ from ...spectrum_match import SpectrumMatcherBase, ModelTreeNode
 
 
 class GlycopeptideSpectrumMatcherBase(SpectrumMatcherBase):
-    _peptide_Y_ion_utilization = None
-    _glycan_score = None
-    _peptide_score = None
-    _glycan_coverage = None
-    _peptide_coverage = None
+    _peptide_Y_ion_utilization: Optional[Tuple[float, int, int]] = None
+    _glycan_score: Optional[float] = None
+    _peptide_score: Optional[float] = None
+    _glycan_coverage: Optional[float] = None
+    _peptide_coverage: Optional[float] = None
 
     solution_map: FragmentMatchMap
 
-    def _theoretical_mass(self):
+    def _theoretical_mass(self) -> float:
         return self.target.total_mass
 
-    def _match_oxonium_ions(self, error_tolerance=2e-5, masked_peaks=None):
+    def _match_oxonium_ions(self, error_tolerance: float=2e-5, masked_peaks: Optional[Set[int]]=None) -> Set[int]:
         '''Note: This method is masked by a Cython implementation
         '''
         if masked_peaks is None:
@@ -36,7 +37,10 @@ class GlycopeptideSpectrumMatcherBase(SpectrumMatcherBase):
                 masked_peaks.add(peak.index.neutral_mass)
         return masked_peaks
 
-    def _match_stub_glycopeptides(self, error_tolerance=2e-5, masked_peaks=None, chemical_shift=None, extended_glycan_search=False):
+    def _match_stub_glycopeptides(self, error_tolerance: float=2e-5,
+                                  masked_peaks: Optional[Set[int]]=None,
+                                  chemical_shift: Optional[ChemicalShift]=None,
+                                  extended_glycan_search: bool=False) -> Set[int]:
         if masked_peaks is None:
             masked_peaks = set()
         if not extended_glycan_search:
@@ -62,12 +66,16 @@ class GlycopeptideSpectrumMatcherBase(SpectrumMatcherBase):
                     self.solution_map.add(peak, shifted_frag)
         return masked_peaks
 
-    def get_fragments(self, series, strategy=None, **kwargs):
+    def get_fragments(self, series: IonSeries,
+                      strategy: Optional[Type[PeptideFragmentationStrategyBase]]=None,
+                      **kwargs) -> List[List[FragmentBase]]:
         fragments = self.target.get_fragments(series, strategy=strategy)
         return fragments
 
-    def _match_backbone_series(self, series, error_tolerance=2e-5, masked_peaks=None, strategy=None,
-                               include_neutral_losses=False):
+    def _match_backbone_series(self, series: IonSeries, error_tolerance: float=2e-5,
+                               masked_peaks: Optional[Set[int]]=None,
+                               strategy: Optional[Type[PeptideFragmentationStrategyBase]] = None,
+                               include_neutral_losses: bool=False):
         if strategy is None:
             strategy = HCDFragmentationStrategy
         if masked_peaks is None:
@@ -127,23 +135,26 @@ class GlycopeptideSpectrumMatcherBase(SpectrumMatcherBase):
 
         return self
 
-    def peptide_score(self, *args, **kwargs):
+    def peptide_score(self, *args, **kwargs) -> float:
         if self._peptide_score is None:
             self._peptide_score = self.calculate_peptide_score(*args, **kwargs)
         return self._peptide_score
 
-    def calculate_peptide_score(self, *args, **kwargs):
+    def calculate_peptide_score(self, *args, **kwargs) -> float:
         return 0
 
-    def glycan_score(self, *args, **kwargs):
+    def glycan_score(self, *args, **kwargs) -> float:
         if self._glycan_score is None:
             self._glycan_score = self.calculate_glycan_score(*args, **kwargs)
         return self._glycan_score
 
-    def _glycan_side_group_count(self, glycan_composition):
+    def _glycan_side_group_count(self, glycan_composition: Mapping) -> int:
         return glycan_side_group_count(glycan_composition)
 
-    def _calculate_glycan_coverage(self, core_weight=0.4, coverage_weight=0.5, fragile_fucose=False, extended_glycan_search=False):
+    def _calculate_glycan_coverage(self, core_weight: float=0.4,
+                                   coverage_weight: float=0.5,
+                                   fragile_fucose: bool=False,
+                                   extended_glycan_search: bool=False) -> float:
         seen = set()
         series = IonSeries.stub_glycopeptide
         if not extended_glycan_search:
@@ -185,7 +196,11 @@ class GlycopeptideSpectrumMatcherBase(SpectrumMatcherBase):
         self._glycan_coverage = coverage
         return coverage
 
-    def glycan_coverage(self, core_weight=0.4, coverage_weight=0.5, fragile_fucose=False, extended_glycan_search=False, * args, **kwargs):
+    def glycan_coverage(self, core_weight: float=0.4,
+                        coverage_weight: float=0.5,
+                        fragile_fucose:bool=False,
+                        extended_glycan_search:bool=False,
+                        *args, **kwargs) -> float:
         if self._glycan_coverage is not None:
             return self._glycan_coverage
         self._glycan_coverage = self._calculate_glycan_coverage(
@@ -193,13 +208,13 @@ class GlycopeptideSpectrumMatcherBase(SpectrumMatcherBase):
             extended_glycan_search=extended_glycan_search, *args, **kwargs)
         return self._glycan_coverage
 
-    def peptide_coverage(self):
+    def peptide_coverage(self) -> float:
         return self._calculate_peptide_coverage()
 
-    def calculate_glycan_score(self, *args, **kwargs):
+    def calculate_glycan_score(self, *args, **kwargs) -> float:
         return 0
 
-    def count_peptide_Y_ion_utilization(self):
+    def count_peptide_Y_ion_utilization(self) -> Tuple[float, int, int]:
         if self._peptide_Y_ion_utilization is not None:
             return self._peptide_Y_ion_utilization
         weight = 0.0

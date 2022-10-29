@@ -1,7 +1,7 @@
 from glypy.io import iupac, glycoct
 from glypy import Glycan
 
-from ms_deisotope.output import mgf, mzml
+from ms_deisotope.output import mgf, mzml, ProcessedMSFileLoader
 from ms_deisotope.data_source import ScanBunch
 
 from  sqlalchemy.orm import aliased
@@ -112,7 +112,7 @@ class TrainingMGFExporterBase(TaskBase):
 class TrainingMGFExporter(TrainingMGFExporterBase):
     def __init__(self, outstream, spectrum_match_iterable, mzml_path):
         super(TrainingMGFExporter, self).__init__(outstream, spectrum_match_iterable)
-        self.scan_loader = mzml.ProcessedMzMLDeserializer(mzml_path)
+        self.scan_loader = ProcessedMSFileLoader(mzml_path)
 
     def prepare_scan(self, spectrum_match):
         scan = self.scan_loader.get_scan_by_id(spectrum_match.scan.scan_id)

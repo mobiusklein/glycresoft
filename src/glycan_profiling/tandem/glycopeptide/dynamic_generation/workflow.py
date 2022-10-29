@@ -12,8 +12,7 @@ from collections import OrderedDict
 
 from queue import Queue, Empty
 
-import ms_deisotope
-from ms_deisotope.output import ProcessedMzMLLoader
+
 from ms_deisotope.output.common import LCMSMSQueryInterfaceMixin
 from ms_deisotope.data_source import RandomAccessScanSource
 

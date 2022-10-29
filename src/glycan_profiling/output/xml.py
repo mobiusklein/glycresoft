@@ -20,7 +20,7 @@ from psims.mzid import components
 from psims.mzid.writer import MzIdentMLWriter
 from psims.controlled_vocabulary.controlled_vocabulary import load_gno
 
-from ms_deisotope.output import mzml
+from ms_deisotope.output import mzml, ProcessedMSFileLoader
 
 from glycan_profiling import task, serialize, version
 from glycan_profiling.chromatogram_tree import Unmodified
@@ -251,7 +251,7 @@ class SequenceIdTracker(object):
 
 class MzMLExporter(task.TaskBase):
     def __init__(self, source, outfile):
-        self.reader = mzml.ProcessedMzMLDeserializer(source)
+        self.reader = ProcessedMSFileLoader(source)
         self.outfile = outfile
         self.writer = None
         self.n_spectra = None

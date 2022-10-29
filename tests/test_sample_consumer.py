@@ -5,7 +5,7 @@ import glob
 
 import ms_peak_picker
 import ms_deisotope
-from ms_deisotope.output.mzml import ProcessedMzMLDeserializer
+from ms_deisotope.output import ProcessedMSFileLoader
 
 import numpy as np
 
@@ -87,8 +87,8 @@ class MSMSSampleConsumerTest(unittest.TestCase, SampleConsumerBase):
             ms1_averaging=1)
         consumer.start()
 
-        reader = ProcessedMzMLDeserializer(outpath)
-        reference = ProcessedMzMLDeserializer(agp_glycproteomics_mzml_reference)
+        reader = ProcessedMSFileLoader(outpath)
+        reference = ProcessedMSFileLoader(agp_glycproteomics_mzml_reference)
 
         for a_bunch, b_bunch in zip(reader, reference):
             assert a_bunch.precursor.id == b_bunch.precursor.id
@@ -165,7 +165,7 @@ class SampleConsumerTest(unittest.TestCase, SampleConsumerBase):
             extract_only_tandem_envelopes=False)
         consumer.start()
 
-        reader = ProcessedMzMLDeserializer(outpath)
+        reader = ProcessedMSFileLoader(outpath)
 
         scan = reader.get_scan_by_id("scanId=1601016")
         self.assertIsNotNone(scan.deconvoluted_peak_set.has_peak(958.66, use_mz=1))

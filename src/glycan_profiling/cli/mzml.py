@@ -9,7 +9,7 @@ import glypy
 
 from ms_deisotope import MSFileLoader
 from ms_deisotope.data_source import RandomAccessScanSource
-from ms_deisotope.output.mzml import ProcessedMzMLDeserializer
+from ms_deisotope.output import ProcessedMSFileLoader
 from ms_deisotope.feature_map import quick_index
 
 from glycan_profiling.cli.base import cli, HiddenOption, processes_option
@@ -267,7 +267,7 @@ def preprocess(ms_file, outfile_path, averagine=None, start_time=None, end_time=
 @mzml_cli.command("info", short_help='Summary information describing a processed mzML file')
 @click.argument("ms-file", type=click.Path(exists=True, file_okay=True, dir_okay=False))
 def msfile_info(ms_file):
-    reader = ProcessedMzMLDeserializer(ms_file)
+    reader = ProcessedMSFileLoader(ms_file)
     if not reader.has_index_file():
         index, intervals = quick_index.index(ms_deisotope.MSFileLoader(ms_file))
         reader.extended_index = index
@@ -311,7 +311,7 @@ def msfile_info(ms_file):
 @click.argument("ms-file", type=click.Path(exists=True, file_okay=True, dir_okay=False))
 @click.option("-g", "--g-score-threshold", type=float, default=0.05, help="Minimum G-Score to report")
 def oxonium_signature(ms_file, g_score_threshold=0.05):
-    reader = ProcessedMzMLDeserializer(ms_file)
+    reader = ProcessedMSFileLoader(ms_file)
     if not reader.has_index_file():
         click.secho("Building temporary index...", fg='yellow')
         index, intervals = quick_index.index(ms_deisotope.MSFileLoader(ms_file))
