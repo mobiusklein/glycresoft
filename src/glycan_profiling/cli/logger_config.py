@@ -207,8 +207,6 @@ def make_log_file_logger(log_file_name, log_file_mode, name=None, level="INFO"):
         if isinstance(handler, FlexibleFileHandler):
             logger.removeHandler(handler)
     logger.addHandler(flex_handler)
-    print(flex_handler)
-    breakpoint()
 
 
 def configure_logging(level=None, log_file_name=None, log_file_mode=None):
