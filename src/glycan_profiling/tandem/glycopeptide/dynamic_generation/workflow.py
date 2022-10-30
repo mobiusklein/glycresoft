@@ -6,11 +6,10 @@ import datetime
 import zlib
 import pickle
 
-from typing import Any, Callable, Dict, List, Optional, Tuple, Type, Union
+from typing import Any, Callable, Dict, List, Optional, Tuple, Type, Union, OrderedDict
 from multiprocessing.managers import SyncManager
-from collections import OrderedDict
+from queue import Queue
 
-from queue import Queue, Empty
 
 
 from ms_deisotope.output.common import LCMSMSQueryInterfaceMixin
@@ -19,7 +18,6 @@ from ms_deisotope.data_source import RandomAccessScanSource
 from glycan_profiling import serialize
 from glycan_profiling.serialize.hypothesis.hypothesis import GlycopeptideHypothesis
 
-from glycan_profiling.config import DEBUG_MODE as debug_mode
 
 from glycan_profiling.tandem.spectrum_match.solution_set import MultiScoreSpectrumSolutionSet
 from glycan_profiling.tandem.spectrum_match.spectrum_match import MultiScoreSpectrumMatch, SpectrumMatch, SpectrumMatcherBase

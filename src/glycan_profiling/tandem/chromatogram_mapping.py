@@ -523,16 +523,22 @@ class TandemAnnotatedChromatogram(ChromatogramWrapper, SpectrumMatchSolutionColl
         return new
 
     def merge(self, other: 'TandemAnnotatedChromatogram', node_type: MassShiftBase = Unmodified) -> 'TandemAnnotatedChromatogram':
-        new = self.__class__(self.chromatogram.merge(other.chromatogram, node_type=node_type))
-        new.tandem_solutions = self.tandem_solutions + other.tandem_solutions
-        new.time_displaced_assignments = self.time_displaced_assignments + other.time_displaced_assignments
+        if isinstance(other, TandemAnnotatedChromatogram) or hasattr(other, 'tandem_solutions'):
+            new = self.__class__(self.chromatogram.merge(other.chromatogram, node_type=node_type))
+            new.tandem_solutions = self.tandem_solutions + other.tandem_solutions
+            new.time_displaced_assignments = self.time_displaced_assignments + other.time_displaced_assignments
+        else:
+            new = self.chromatogram.merge(other, node_type=node_type)
         return new
 
     def merge_in_place(self, other: 'TandemAnnotatedChromatogram', node_type: MassShiftBase = Unmodified):
-        new = self.chromatogram.merge(other.chromatogram, node_type=node_type)
+        if isinstance(other, TandemAnnotatedChromatogram) or hasattr(other, 'tandem_solutions'):
+            new = self.chromatogram.merge(other.chromatogram, node_type=node_type)
+            self.tandem_solutions = self.tandem_solutions + other.tandem_solutions
+            self.time_displaced_assignments = self.time_displaced_assignments + other.time_displaced_assignments
+        else:
+            new = self.chromatogram.merge(other, node_type=node_type)
         self.chromatogram = new
-        self.tandem_solutions = self.tandem_solutions + other.tandem_solutions
-        self.time_displaced_assignments = self.time_displaced_assignments + other.time_displaced_assignments
 
     def assign_entity(self, solution_entry, entity_chromatogram_type=GlycopeptideChromatogram):
         entity_chroma = entity_chromatogram_type(
