@@ -152,6 +152,9 @@ cdef class NeutralMassDatabaseImpl(object):
     def __getitem__(self, i):
         if isinstance(i, slice):
             return [mo.obj for mo in self.structures[i]]
+
+        if i < 0:
+            i = self.get_size() + i
         return self.get_item(i)
 
     def __reduce__(self):

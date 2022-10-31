@@ -21,11 +21,10 @@ from .mass_collection import SearchableMassCollection, NeutralMassDatabase
 from .intervals import (
     PPMQueryInterval, FixedQueryInterval, LRUIntervalSet,
     IntervalSet, MassIntervalNode)
-from .index import (ProteinIndex, PeptideIndex, GlycopeptideBatchManager, GlycopeptideSequenceCache)
+from .index import (ProteinIndex, PeptideIndex, )
 from glycan_profiling.structure.structure_loader import (
     CachingGlycanCompositionParser, CachingGlycopeptideParser,
-    CachingPeptideParser,
-    GlycopeptideDatabaseRecord)
+    CachingPeptideParser)
 from .composition_network import CompositionGraph, n_glycan_distance
 
 
@@ -512,69 +511,6 @@ class InMemoryPeptideStructureDatabase(NeutralMassDatabase):
     @property
     def proteins(self):
         return self.source_database.proteins
-
-
-
-class LazyLoadingGlycopeptideDiskBackedStructureDatabase(GlycopeptideDiskBackedStructureDatabase):
-    fields = [
-        Glycopeptide.__table__.c.id,
-        Glycopeptide.__table__.c.calculated_mass,
-        # Glycopeptide.__table__.c.glycopeptide_sequence,
-        Glycopeptide.__table__.c.protein_id,
-        Peptide.__table__.c.start_position,
-        Peptide.__table__.c.end_position,
-        Peptide.__table__.c.calculated_mass.label("peptide_mass"),
-        Glycopeptide.__table__.c.hypothesis_id,
-    ]
-
-    def __init__(self, connection, hypothesis_id=1, cache_size=DEFAULT_CACHE_SIZE,
-                 loading_interval=DEFAULT_LOADING_INTERVAL,
-                 threshold_cache_total_count=DEFAULT_THRESHOLD_CACHE_TOTAL_COUNT):
-        super(LazyLoadingGlycopeptideDiskBackedStructureDatabase, self).__init__(
-            connection, hypothesis_id, cache_size, loading_interval,
-            threshold_cache_total_count)
-        self._batch_manager = GlycopeptideBatchManager(GlycopeptideSequenceCache(self.session))
-
-    def _prepare_interval(self, query_results):
-        return NeutralMassDatabase(
-            [GlycopeptideDatabaseRecord(
-                q.id,
-                q.calculated_mass,
-                None,
-                q.protein_id,
-                q.start_position,
-                q.end_position,
-                q.peptide_mass,
-                q.hypothesis_id,) for q in query_results],
-            operator.attrgetter("calculated_mass"))
-
-    def mark_hit(self, match):
-        return self._batch_manager.mark_hit(match)
-
-    def mark_batch(self):
-        self._batch_manager.process_batch()
-        self._batch_manager.clear()
-
-
-class GlycopeptideOnlyDiskBackedStructureDatabase(DeclarativeDiskBackedDatabase):
-    selectable = Glycopeptide.__table__
-    fields = [
-        Glycopeptide.__table__.c.id,
-        Glycopeptide.__table__.c.calculated_mass,
-        Glycopeptide.__table__.c.glycopeptide_sequence,
-        Glycopeptide.__table__.c.peptide_id,
-        Glycopeptide.__table__.c.protein_id,
-        Glycopeptide.__table__.c.hypothesis_id,
-    ]
-    mass_field = Glycopeptide.__table__.c.calculated_mass
-    identity_field = Glycopeptide.__table__.c.id
-
-    @property
-    def hypothesis(self):
-        return self.session.query(GlycopeptideHypothesis).get(self.hypothesis_id)
-
-    def _limit_to_hypothesis(self, selectable):
-        return selectable.where(Glycopeptide.__table__.c.hypothesis_id == self.hypothesis_id)
 
 
 class GlycanCompositionDiskBackedStructureDatabase(DeclarativeDiskBackedDatabase):
