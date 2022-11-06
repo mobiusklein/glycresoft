@@ -2,6 +2,8 @@ import math
 
 from array import array
 from typing import Any, DefaultDict, List, Tuple, Callable, NamedTuple, Union, Dict, Optional, Counter
+from glycan_profiling.structure.scan import ScanStub, ScanWrapperBase
+from glycan_profiling.tandem.ref import SpectrumReference
 
 from ms_deisotope.data_source import ProcessedScan
 from ms_deisotope.output import ProcessedMzMLLoader
@@ -46,6 +48,8 @@ class PeptideGroupToken(NamedTuple):
 SolutionsBin = Tuple[List[SpectrumMatch], PeptideGroupToken]
 EvaluatedSolutionBins = Tuple[List[SpectrumMatch],
                               List[localize.PTMProphetEvaluator]]
+
+ScanOrRef = Union[ProcessedScan, ScanStub, SpectrumReference, ScanWrapperBase]
 
 
 class LocalizationGroup(NamedTuple):
@@ -99,6 +103,8 @@ class ModificationLocalizationSearcher(TaskBase):
 
     def find_overlapping_localization_solutions(self, solution_set: SpectrumSolutionSet) -> List[Tuple[List[SpectrumMatch],
                                                                                                        PeptideGroupToken]]:
+        if isinstance(solution_set, SpectrumMatch):
+            solution_set = [solution_set]
         bins: List[Tuple[List[SpectrumMatch],
                          PeptideGroupToken]] = []
         for sm in solution_set:
@@ -114,14 +120,6 @@ class ModificationLocalizationSearcher(TaskBase):
             else:
                 bins.append(([sm], token))
         return bins
-
-    def process_solution_set(self, solution_set: SpectrumSolutionSet) -> List[Tuple[List[SpectrumMatch], List[localize.PTMProphetEvaluator]]]:
-        solution_bins = self.find_overlapping_localization_solutions(
-            solution_set)
-        scan = self.resolve_spectrum(solution_set)
-        solutions = [(solution_bin, self.process_localization_bin(scan, signature))
-                     for solution_bin, signature in solution_bins]
-        return solutions
 
     def process_localization_bin(self,
                                  scan: ProcessedScan,
@@ -205,7 +203,7 @@ class ModificationLocalizationSearcher(TaskBase):
                 psm.localizations = isoform_scores[key]
             if abs(isoform_weights[key] - max_weight) > 1e-2 and psm.is_best_match:
                 psm.is_best_match = False
-                # self.log(f"... Invalidating {psm.target}@{psm.scan_id}")
+                self.log(f"... Invalidating {psm.target}@{psm.scan_id}")
 
     def select_top_isoforms(self, solutions: List[List[EvaluatedSolutionBins]], prophet: Optional[MultiKDModel]=None):
         if prophet is None:
@@ -222,7 +220,9 @@ class ModificationLocalizationSearcher(TaskBase):
                      for solution_bin, signature in solution_bins]
         return EvaluatedSolutionBins(solution_set, solutions)
 
-    def resolve_spectrum(self, scan_ref) -> ProcessedScan:
+    def resolve_spectrum(self, scan_ref: ScanOrRef) -> ProcessedScan:
+        if isinstance(scan_ref, ScanWrapperBase):
+            scan_ref = scan_ref.scan
         if isinstance(scan_ref, ProcessedScan):
             return scan_ref
         raise TypeError(type(scan_ref))
@@ -249,7 +249,9 @@ class ScanLoadingModificationLocalizationSearcher(ModificationLocalizationSearch
     def __reduce__(self):
         return self.__class__, (None, self.threshold_fn, self.error_tolerance, self.restricted_modifications)
 
-    def resolve_spectrum(self, scan_ref) -> ProcessedScan:
+    def resolve_spectrum(self, scan_ref: ScanOrRef) -> ProcessedScan:
+        if isinstance(scan_ref, ScanWrapperBase):
+            scan_ref = scan_ref.scan
         if isinstance(scan_ref, ProcessedScan):
             return scan_ref
         if self.scan_loader is None:
