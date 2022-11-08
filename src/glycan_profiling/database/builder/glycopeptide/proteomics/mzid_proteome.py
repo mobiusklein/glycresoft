@@ -941,6 +941,13 @@ class MzIdentMLProteomeExtraction(TaskBase):
                         continue
                     else:
                         self.log("Could not resolve protein %r" % (name,))
+
+            if "protein description" in protein:
+                name = " ".join(
+                    (name,
+                     protein.pop("protein description"))
+                )
+
             if name in protein_map:
                 if seq != protein_map[name].protein_sequence:
                     self.log("Multiple proteins with the name %r" % name)
@@ -1001,6 +1008,12 @@ class Proteome(DatabaseBoundOperation, MzIdentMLProteomeExtraction):
                         continue
                     else:
                         self.log("Could not resolve protein %r" % (name,))
+
+            if "protein description" in protein:
+                name = " ".join(
+                    (name,
+                     protein.pop("protein description"))
+                )
 
             if name in protein_map:
                 if seq != protein_map[name].protein_sequence:
