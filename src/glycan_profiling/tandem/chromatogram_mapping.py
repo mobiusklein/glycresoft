@@ -764,12 +764,16 @@ class RepresenterDeconvolution(TaskBase):
         if support_map is None:
             support_map = self.find_supported_participants()
 
-        pruned_participants = {}
-        pruned_scores = {}
-        pruned_conflicts = defaultdict(list)
-        pruned_solutions = []
+        pruned_participants: Dict[KeyTargetMassShift, List[MassShiftDeconvolutionGraphNode]] = {}
+        pruned_scores: Dict[Tuple[Hashable, MassShiftBase], float] = {}
+        pruned_conflicts: DefaultDict[MassShiftDeconvolutionGraphNode,
+                                      List[Tuple[Hashable, TargetType, MassShiftBase]]] = defaultdict(list)
+        pruned_solutions: List[TargetType] = []
         kept_solutions = []
 
+        key: Hashable
+        solution: TargetType
+        mass_shift: MassShiftBase
         # Loop through the participants, removing links to unsupported solutions
         # and their metadata.
         for (key, solution, mass_shift), nodes in list(self.participants.items()):
@@ -822,7 +826,7 @@ class RepresenterDeconvolution(TaskBase):
                     self.participants[q].append(node)
         return pruned_conflicts, restored
 
-    def find_alternatives(self, node, pruned_solutions, ratio_threshold=0.9):
+    def find_alternatives(self, node: MassShiftDeconvolutionGraphNode, pruned_solutions, ratio_threshold=0.9):
         alternatives = {alt_solution for _,
                         alt_solution, _ in self.participants}
         ratios = []
@@ -1148,6 +1152,9 @@ class RepresenterDeconvolution(TaskBase):
                         match = sset.solution_for(invalid_target)
                     except KeyError:
                         continue
+                    # TODO: Is this really the right way to handle cases with totally
+                    # different peptide backbones? This should require a minimum of MS2 score/FDR
+                    # threshold passing
                     match.best_match = False
             merged.append(sink)
         return merged
@@ -1469,7 +1476,9 @@ class SpectrumMatchUpdater(TaskBase):
         self.retention_time_delta = retention_time_delta
         self.threshold_fn = threshold_fn
 
-    def select_best_mass_shift_for(self, scan: ProcessedScan, structure, mass_shifts: List[MassShiftBase]):
+    def select_best_mass_shift_for(self, scan: ProcessedScan,
+                                   structure: TargetType,
+                                   mass_shifts: List[MassShiftBase]) -> Tuple[Optional[MassShiftBase], float]:
         observed_mass = scan.precursor_information.neutral_mass
         theoretical_mass = structure.total_mass
         delta = observed_mass - theoretical_mass
@@ -1485,7 +1494,7 @@ class SpectrumMatchUpdater(TaskBase):
                 best_shift_error = abs_err
         return best_shift, best_shift_error
 
-    def id_for_structure(self, structure, reference):
+    def id_for_structure(self, structure: TargetType, reference: TargetType):
         structure.protein_relation = reference.protein_relation
         structure.id = self.id_maker(structure, reference)
         return structure

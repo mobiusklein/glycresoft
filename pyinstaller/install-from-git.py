@@ -4,10 +4,10 @@ import os
 import shutil
 
 repos = [
-    "https://github.com/mobiusklein/pysqlite.git",
-    "https://github.com/mobiusklein/glypy.git",
-    "https://github.com/mobiusklein/glycopeptidepy.git",
-    "https://github.com/mobiusklein/ms_deisotope.git",
+    "https://github.com/mobiusklein/pysqlite",
+    "https://github.com/mobiusklein/glypy",
+    "https://github.com/mobiusklein/glycopeptidepy",
+    "https://github.com/mobiusklein/ms_deisotope",
 ]
 
 clone_dir = ospath.join(ospath.dirname(__file__), "gitsrc")
