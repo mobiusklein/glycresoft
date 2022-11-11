@@ -105,6 +105,13 @@ def formula(composition):
     return ''.join("<b>%s</b><sub>%d</sub>" % (k, v) for k, v in sorted(composition.items()))
 
 
+def modification_specs(modification_rule):
+    if isinstance(modification_rule, str):
+        yield modification_rule
+    else:
+        yield from modification_rule.as_spec_strings()
+
+
 def glycan_composition_string(composition):
     try:
         composition = GlycanComposition.parse(
@@ -217,6 +224,7 @@ class ReportCreatorBase(TaskBase):
         self.env.filters['glycopeptide_string'] = glycopeptide_string
         self.env.filters['glycan_composition_string'] = glycan_composition_string
         self.env.filters["formula"] = formula
+        self.env.filters["modification_specs"] = modification_specs
         self.env.tests['is_type'] = is_type
 
     def set_template_loader(self, path):

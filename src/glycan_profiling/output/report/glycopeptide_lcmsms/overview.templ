@@ -60,7 +60,7 @@
                     <li><b>Variable Modifications</b></li>
                     <ul>
                     {% for modrule in hypothesis.parameters['variable_modifications'] %}
-                        {% for rule_text in modrule.as_spec_strings() %}
+                        {% for rule_text in modrule | modification_specs %}
                             <li>{{rule_text}}</li>
                         {% endfor %}
                     {% endfor %}
