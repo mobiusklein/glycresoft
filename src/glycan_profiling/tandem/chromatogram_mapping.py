@@ -418,7 +418,7 @@ class SpectrumMatchSolutionCollectionBase(object):
         else:
             return []
 
-    def solutions_for(self, structure, threshold_fn: Callable=always, reject_shifted: bool=False) -> List[SpectrumMatch]:
+    def solutions_for(self, structure: TargetType, threshold_fn: Callable = always, reject_shifted: bool = False) -> List[SpectrumMatch]:
         '''Get all spectrum matches in this collection for a given
         structure.
 
@@ -448,7 +448,7 @@ class SpectrumMatchSolutionCollectionBase(object):
                 continue
         return solutions
 
-    def best_match_for(self, structure, threshold_fn: Callable=always) -> SpectrumMatch:
+    def best_match_for(self, structure: TargetType, threshold_fn: Callable=always) -> SpectrumMatch:
         solutions = self.solutions_for(structure, threshold_fn=threshold_fn)
         if not solutions:
             raise KeyError(structure)
@@ -459,6 +459,9 @@ class SpectrumMatchSolutionCollectionBase(object):
                 best_score = sol.score
                 best_match = sol
         return best_match
+
+    def has_scan(self, scan_id: str) -> bool:
+        return any([sset.scan_id == scan_id for sset in self.tandem_solutions])
 
 
 class TandemAnnotatedChromatogram(ChromatogramWrapper, SpectrumMatchSolutionCollectionBase):
@@ -1138,6 +1141,9 @@ class RepresenterDeconvolution(TaskBase):
             sink = members[0]
             for member in members[1:]:
                 sink.merge_in_place(member)
+
+            if DEBUG_MODE:
+                breakpoint()
 
             for sset in sink.tandem_solutions:
                 try:
