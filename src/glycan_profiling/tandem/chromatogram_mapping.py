@@ -10,6 +10,7 @@ from typing import (Any, Callable, Collection, DefaultDict, Dict, Hashable,
 import numpy as np
 
 from ms_deisotope.data_source.scan import ProcessedScan
+from ms_deisotope.data_source import ProcessedRandomAccessScanSource
 from ms_deisotope.peak_dependency_network.intervals import IntervalTreeNode
 
 from glycan_profiling.chromatogram_tree.chromatogram import Chromatogram
@@ -1141,8 +1142,11 @@ class RepresenterDeconvolution(TaskBase):
             for sset in sink.tandem_solutions:
                 try:
                     match = sset.solution_for(sink.entity)
-                    if not match.best_match:
-                        sset.promote_to_best_match(match)
+                    if self.threshold_fn(match):
+                        if not match.best_match:
+                            sset.promote_to_best_match(match)
+                    else:
+                        continue
                 except KeyError as err:
                     # TODO: Fill in missing match against the preferred target
                     pass
@@ -1161,6 +1165,12 @@ class RepresenterDeconvolution(TaskBase):
 
 
 class GraphAnnotatedChromatogramAggregator(TaskBase):
+    annotated_chromatograms: List[TandemAnnotatedChromatogram]
+    delta_rt: float
+    require_unmodified: bool
+    threshold_fn: Predicate
+    key_fn: Callable[[TargetType], Hashable]
+
     def __init__(self, annotated_chromatograms, delta_rt=0.25, require_unmodified=True,
                  threshold_fn=default_threshold, key_fn=build_glycopeptide_key):
         self.annotated_chromatograms = sorted(annotated_chromatograms,
@@ -1315,11 +1325,15 @@ class AnnotatedChromatogramAggregator(TaskBase):
         return result
 
 
-def aggregate_by_assigned_entity(annotated_chromatograms, delta_rt=0.25, require_unmodified=True,
-                                 threshold_fn=default_threshold):
+def aggregate_by_assigned_entity(annotated_chromatograms: List[TandemAnnotatedChromatogram],
+                                 delta_rt: float=0.25,
+                                 require_unmodified: bool=True,
+                                 threshold_fn: Predicate=default_threshold):
     job = GraphAnnotatedChromatogramAggregator(
-        annotated_chromatograms, delta_rt=delta_rt,
-        require_unmodified=require_unmodified, threshold_fn=threshold_fn)
+        annotated_chromatograms,
+        delta_rt=delta_rt,
+        require_unmodified=require_unmodified,
+        threshold_fn=threshold_fn)
     finished = job.run()
     return finished
 
@@ -1417,8 +1431,10 @@ class ChromatogramMSMSMapper(TaskBase):
                 chromatogram.assign_entity(solutions[0], entity_chromatogram_type=entity_chromatogram_type)
                 chromatogram.representative_solutions = solutions
 
-    def merge_common_entities(self, annotated_chromatograms, delta_rt=0.25, require_unmodified=True,
-                              threshold_fn=default_threshold):
+    def merge_common_entities(self, annotated_chromatograms: List[TandemAnnotatedChromatogram],
+                              delta_rt: float=0.25,
+                              require_unmodified: bool=True,
+                              threshold_fn: Predicate=default_threshold):
         job = GraphAnnotatedChromatogramAggregator(
             annotated_chromatograms, delta_rt=delta_rt, require_unmodified=require_unmodified,
             threshold_fn=threshold_fn)
@@ -1438,32 +1454,23 @@ class ChromatogramMSMSMapper(TaskBase):
             return [self.chromatograms[j] for j in i]
 
 
-class SpectrumMatchUpdater(TaskBase):
-    '''Wrap the process of generating updates to :class:`TandemAnnotatedChromatogram` based upon
-    some chromatogram-centric reviser like a retention time predictor.
-
-    This type needs to:
-        1. Generate new spectrum matches using the same scorer if a solution set lacks
-           a match to the suggested target.
-        2. Re-calculate the FDR of the new matches if needed.
-        3. Generate a new unique ID for each source peptide that a glycopeptide matching
-           the revised glycoform could come from, that is consistent with the previous
-           ID space that other glycopeptides used.
-        4. Update the assigned entity of each assigned chromatogram so that the correct
-           structure is the "best match", discarding the :class:`SolutionEntry` for the
-           incorrect assignment *without* deleting the spectrum matches to that themselves.
-    '''
-
-    spectrum_match_cls: Type[SpectrumMatch]
-    threshold_fn: Callable[[SpectrumMatch], bool]
-    fdr_estimator: FDREstimatorBase
+class SpectrumMatchBackFiller(TaskBase):
+    scorer: Type[SpectrumMatcherBase]
     match_args: Dict[str, Any]
 
-    retention_time_delta: float
-    retention_time_model: 'RetentionTimeModelEnsemble'
+    spectrum_match_cls: Type[SpectrumMatch]
+    fdr_estimator: Optional[FDREstimatorBase]
+    threshold_fn: Predicate
 
-    def __init__(self, scan_loader, scorer, spectrum_match_cls, id_maker, threshold_fn=lambda x: x.q_value < 0.05,
-                 match_args=None, fdr_estimator=None, retention_time_model=None, retention_time_delta=0.35):
+    scan_loader: ProcessedRandomAccessScanSource
+
+    def __init__(self, scan_loader: ProcessedRandomAccessScanSource,
+                 scorer: Type[SpectrumMatcherBase],
+                 spectrum_match_cls: Type[SpectrumMatch],
+                 id_maker,
+                 threshold_fn: Predicate=lambda x: x.q_value < 0.05,
+                 match_args=None,
+                 fdr_estimator: Optional[FDREstimatorBase] = None):
         if match_args is None:
             match_args = {}
         self.scan_loader = scan_loader
@@ -1472,8 +1479,6 @@ class SpectrumMatchUpdater(TaskBase):
         self.spectrum_match_cls = spectrum_match_cls
         self.id_maker = id_maker
         self.fdr_estimator = fdr_estimator
-        self.retention_time_model = retention_time_model
-        self.retention_time_delta = retention_time_delta
         self.threshold_fn = threshold_fn
 
     def select_best_mass_shift_for(self, scan: ProcessedScan,
@@ -1503,8 +1508,76 @@ class SpectrumMatchUpdater(TaskBase):
         scan = self.scan_loader.get_scan_by_id(scan_id)
         best_shift, best_shift_error = self.select_best_mass_shift_for(
             scan, structure, mass_shifts)
-        match = self.scorer.evaluate(scan, structure, mass_shift=best_shift, **self.match_args)
+        match = self.scorer.evaluate(
+            scan, structure, mass_shift=best_shift, **self.match_args)
         return match
+
+    def add_matches_to_solution_set(self, sset: SpectrumSolutionSet,
+                                    targets: List[TargetType],
+                                    mass_shifts: Optional[List[MassShiftBase]]=None) -> List[Tuple[SpectrumSolutionSet, SpectrumMatch, bool]]:
+        if mass_shifts is None:
+            mass_shifts = [Unmodified]
+
+        solution_set_match_pairs = []
+
+        scan_id = sset.scan_id
+        for inst in targets:
+            matched = self.evaluate_spectrum(
+                scan_id, inst, mass_shifts)
+            match = self.spectrum_match_cls.from_match_solution(
+                matched)
+            match.scan = sset.scan
+            sset.insert(0, match)
+            solution_set_match_pairs.append((sset, match, False))
+
+        sset.sort()
+        sset.mark_top_solutions()
+        if self.fdr_estimator is not None:
+            self.fdr_estimator.score_all(sset)
+
+        return solution_set_match_pairs
+
+
+class SpectrumMatchUpdater(SpectrumMatchBackFiller):
+    '''Wrap the process of generating updates to :class:`TandemAnnotatedChromatogram` based upon
+    some chromatogram-centric reviser like a retention time predictor.
+
+    This type needs to:
+        1. Generate new spectrum matches using the same scorer if a solution set lacks
+           a match to the suggested target.
+        2. Re-calculate the FDR of the new matches if needed.
+        3. Generate a new unique ID for each source peptide that a glycopeptide matching
+           the revised glycoform could come from, that is consistent with the previous
+           ID space that other glycopeptides used.
+        4. Update the assigned entity of each assigned chromatogram so that the correct
+           structure is the "best match", discarding the :class:`SolutionEntry` for the
+           incorrect assignment *without* deleting the spectrum matches to that themselves.
+    '''
+
+    spectrum_match_cls: Type[SpectrumMatch]
+    threshold_fn: Callable[[SpectrumMatch], bool]
+    fdr_estimator: FDREstimatorBase
+    match_args: Dict[str, Any]
+
+    retention_time_delta: float
+    retention_time_model: 'RetentionTimeModelEnsemble'
+
+    def __init__(self, scan_loader, scorer, spectrum_match_cls, id_maker, threshold_fn=lambda x: x.q_value < 0.05,
+                 match_args=None, fdr_estimator=None, retention_time_model=None, retention_time_delta=0.35):
+        if match_args is None:
+            match_args = {}
+
+        super().__init__(
+            scan_loader,
+            scorer,
+            spectrum_match_cls,
+            id_maker,
+            threshold_fn,
+            match_args,
+            fdr_estimator)
+
+        self.retention_time_model = retention_time_model
+        self.retention_time_delta = retention_time_delta
 
     def find_identical_peptides(self, chromatogram: SpectrumMatchSolutionCollectionBase, structure: TargetType) -> Set[TargetType]:
         structures = set()
@@ -1530,17 +1603,37 @@ class SpectrumMatchUpdater(TaskBase):
         structures, spectrum_matches = self._find_identical_keys_and_matches(chromatogram, structure)
         return structures
 
-    def find_identical_peptides_and_mark(self, chromatogram: SpectrumMatchSolutionCollectionBase, structure: TargetType,
-                                         best_match: bool = False, valid: bool = False,
-                                         reason: Any=None) -> Set[TargetType]:
+    def find_identical_peptides_and_mark(self, chromatogram: SpectrumMatchSolutionCollectionBase,
+                                         structure: TargetType,
+                                         best_match: bool = False,
+                                         valid: bool = False,
+                                         reason: Optional[str]=None,
+                                         filter_fn: Optional[Callable[[SpectrumSolutionSet, SpectrumMatch], bool]]=None) -> Set[TargetType]:
 
         structures, spectrum_matches = self._find_identical_keys_and_matches(chromatogram, structure)
         for sset, sm in spectrum_matches:
+            if filter_fn and filter_fn(sset, sm):
+                self.debug(
+                    f"... NOT Marking {sm.scan_id} -> {sm.target} Valid = {valid}, Best Match = {best_match}; Reason: {reason}")
+                continue
             self.debug(f"... Marking {sm.scan_id} -> {sm.target} Valid = {valid}, Best Match = {best_match}; Reason: {reason}")
             sm.valid = valid
             sm.best_match = best_match
             sset._invalidate()
         return structures
+
+    def make_target_filter(self, target_to_find: TargetType) -> Callable[[SpectrumSolutionSet, SpectrumMatch], bool]:
+
+        def filter_fn(sset: SpectrumSolutionSet, sm: SpectrumMatch) -> bool:
+            try:
+                preferred_sm = sset.solution_for(target_to_find)
+                if not self.threshold_fn(preferred_sm):
+                    return True
+                return False
+            except KeyError:
+                return True
+
+        return filter_fn
 
     def get_spectrum_solution_sets(self, revision: Union[TandemAnnotatedChromatogram, TandemSolutionsWithoutChromatogram, 'ChromatogramProxy'],
                                          chromatogram: Optional[SpectrumMatchSolutionCollectionBase]=None,
@@ -1633,17 +1726,21 @@ class SpectrumMatchUpdater(TaskBase):
                 revised_structure, reference))
             return chromatogram
 
+        alternative_filter_fn = self.make_target_filter(revised_structure)
+
         for reject in rejected:
             self.find_identical_peptides_and_mark(
                 chromatogram,
                 reject.solution,
-                reason=f"Rejecting {reject} in favor of {revised_structure}")
+                reason=f"Rejecting {reject} in favor of {revised_structure}",
+                filter_fn=alternative_filter_fn)
 
         for invalid in invalidated:
             self.find_identical_peptides_and_mark(
                 chromatogram,
                 invalid,
-                reason=f"... Invalidating {invalid} in favor of {revised_structure}")
+                reason=f"... Invalidating {invalid} in favor of {revised_structure}",
+                filter_fn=alternative_filter_fn)
 
         self.find_identical_peptides_and_mark(
             chromatogram,
@@ -1698,17 +1795,9 @@ class SpectrumMatchUpdater(TaskBase):
                     sset.promote_to_best_match(match)
                 solution_set_match_pairs.append((sset, match, True))
             except KeyError:
-                scan_id = sset.scan_id
-                for inst in instances:
-                    matched = self.evaluate_spectrum(scan_id, inst, mass_shifts)
-                    match = self.spectrum_match_cls.from_match_solution(matched)
-                    match.scan = sset.scan
-                    sset.insert(0, match)
-                    solution_set_match_pairs.append((sset, match, False))
-                sset.sort()
-                sset.mark_top_solutions()
-                if self.fdr_estimator is not None:
-                    self.fdr_estimator.score_all(sset)
+                solution_set_match_pairs.extend(
+                    self.add_matches_to_solution_set(
+                        sset, instances, mass_shifts))
         return solution_set_match_pairs
 
     def __call__(self, revision, chromatogram=None):
