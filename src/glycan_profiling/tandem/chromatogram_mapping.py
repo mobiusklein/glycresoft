@@ -671,10 +671,13 @@ class RepresenterDeconvolution(TaskBase):
 
     key_to_solutions: DefaultDict[KeyTargetMassShift, Set[TargetType]]
 
-    def __init__(self, group, threshold_fn=always, key_fn=build_glycopeptide_key):
+    spectrum_match_backfiller: Optional["SpectrumMatchBackFiller"]
+
+    def __init__(self, group, threshold_fn=always, key_fn=build_glycopeptide_key, spectrum_match_backfiller=None):
         self.group = group
         self.threshold_fn = threshold_fn
         self.key_fn = key_fn
+        self.spectrum_match_backfiller = spectrum_match_backfiller
 
         self.participants = None
         self.key_to_solutions = None
@@ -1080,7 +1083,8 @@ class RepresenterDeconvolution(TaskBase):
         # localization).
         # NOTE: Alternative localizations fall under the same key, so we have to re-do ranking
         # of solutions again here to make sure that the aggregate scores are available to separate
-        # different localizations. Alternatively, may need to port in
+        # different localizations. Alternatively, may need to port in localization-separating key
+        # logic.
         _mass_shift: MassShiftBase
         for (key, solution, _mass_shift), members in self.solved.items():
             solutions = self.key_to_solutions[key]
@@ -1138,11 +1142,14 @@ class RepresenterDeconvolution(TaskBase):
         for key, members in assigned.items():
             members: List[TandemAnnotatedChromatogram] = sorted(members, key=lambda x: x.start_time)
             invalidated_targets = invalidated_alternatives[key]
+
+            # TODO: This construction doesn't leave room for match rejection to prevent
+            # chromatogram merging. Need to push this logic up earlier in the process.
             sink = members[0]
             for member in members[1:]:
                 sink.merge_in_place(member)
 
-            if DEBUG_MODE:
+            if DEBUG_MODE and invalidated_targets:
                 breakpoint()
 
             for sset in sink.tandem_solutions:
@@ -1152,11 +1159,13 @@ class RepresenterDeconvolution(TaskBase):
                         if not match.best_match:
                             sset.promote_to_best_match(match)
                     else:
-                        self.debug(f"... Skipping invalidation of {sset.scan_id!r}")
+                        self.debug(f"... Skipping invalidation of {sset.scan_id!r}, alternative {sink.entity} did not pass threshold.")
                         continue
                 except KeyError as err:
                     # TODO: Fill in missing match against the preferred target
-                    pass
+                    self.debug(
+                        f"... Skipping invalidation of {sset.scan_id!r}, alternative {sink.entity} was not matched.")
+                    continue
 
                 for invalid_target in invalidated_targets:
                     try:
@@ -1470,6 +1479,7 @@ class SpectrumMatchBackFiller(TaskBase):
     spectrum_match_cls: Type[SpectrumMatch]
     fdr_estimator: Optional[FDREstimatorBase]
     threshold_fn: Predicate
+    mass_shifts: Optional[List[MassShiftBase]]
 
     scan_loader: ProcessedRandomAccessScanSource
 
@@ -1479,7 +1489,8 @@ class SpectrumMatchBackFiller(TaskBase):
                  id_maker,
                  threshold_fn: Predicate=lambda x: x.q_value < 0.05,
                  match_args=None,
-                 fdr_estimator: Optional[FDREstimatorBase] = None):
+                 fdr_estimator: Optional[FDREstimatorBase] = None,
+                 mass_shifts: Optional[List[MassShiftBase]]=None):
         if match_args is None:
             match_args = {}
         self.scan_loader = scan_loader
@@ -1489,6 +1500,7 @@ class SpectrumMatchBackFiller(TaskBase):
         self.id_maker = id_maker
         self.fdr_estimator = fdr_estimator
         self.threshold_fn = threshold_fn
+        self.mass_shifts = mass_shifts
 
     def select_best_mass_shift_for(self, scan: ProcessedScan,
                                    structure: TargetType,
@@ -1525,7 +1537,7 @@ class SpectrumMatchBackFiller(TaskBase):
                                     targets: List[TargetType],
                                     mass_shifts: Optional[List[MassShiftBase]]=None) -> List[Tuple[SpectrumSolutionSet, SpectrumMatch, bool]]:
         if mass_shifts is None:
-            mass_shifts = [Unmodified]
+            mass_shifts = self.mass_shifts
 
         solution_set_match_pairs = []
 
