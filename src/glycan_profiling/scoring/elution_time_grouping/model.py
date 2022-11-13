@@ -1580,7 +1580,8 @@ class LocalShiftGraph(object):
                     # have enough information in the training data, so we're unable QC these edges.
                     # This is different from when we have a singular observation of any component,
                     # which may be a logical failure here.
-                    logger.debug("Missing component key %r", err)
+                    # logger.debug("Missing component key %r", err)
+                    pass
 
             if bad:
                 for delta_chrom, edge_key in delta_chroms:
