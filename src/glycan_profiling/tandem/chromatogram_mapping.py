@@ -1152,6 +1152,7 @@ class RepresenterDeconvolution(TaskBase):
                         if not match.best_match:
                             sset.promote_to_best_match(match)
                     else:
+                        self.debug(f"... Skipping invalidation of {sset.scan_id!r}")
                         continue
                 except KeyError as err:
                     # TODO: Fill in missing match against the preferred target
@@ -1165,6 +1166,8 @@ class RepresenterDeconvolution(TaskBase):
                     # TODO: Is this really the right way to handle cases with totally
                     # different peptide backbones? This should require a minimum of MS2 score/FDR
                     # threshold passing
+                    if match.best_match:
+                        self.debug(f"... Revoking best match status of {match.target} for scan {match.scan_id!r}")
                     match.best_match = False
             merged.append(sink)
         return merged
