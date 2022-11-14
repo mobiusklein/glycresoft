@@ -1149,9 +1149,6 @@ class RepresenterDeconvolution(TaskBase):
             for member in members[1:]:
                 sink.merge_in_place(member)
 
-            if DEBUG_MODE and invalidated_targets:
-                breakpoint()
-
             for sset in sink.tandem_solutions:
                 try:
                     match = sset.solution_for(sink.entity)
