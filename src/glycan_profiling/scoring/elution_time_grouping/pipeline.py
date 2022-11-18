@@ -17,6 +17,7 @@ from .structure import GlycopeptideChromatogramProxy
 from .cross_run import ReplicatedAbundanceWeightedPeptideFactorElutionTimeFitter
 
 
+# Deprecated. Adapt to model.GlycopeptideElutionTimeModelBuildingPipeline
 class GlycopeptideElutionTimeModeler(TaskBase):
     _model_class = ReplicatedAbundanceWeightedPeptideFactorElutionTimeFitter
 

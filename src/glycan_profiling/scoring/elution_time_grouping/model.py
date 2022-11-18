@@ -1955,7 +1955,7 @@ class GlycopeptideElutionTimeModelBuildingPipeline(TaskBase):
         reviser.evaluate()
         revised = reviser.revise(0.2, delta,  min_time_difference)
         if verbose:
-            self.log("... Revising Observations")
+            self.debug("... Revising Observations")
             k = 0
             local_aggregate = GlycoformAggregator(chromatograms)
             for new, old in zip(revised, chromatograms):
@@ -1973,7 +1973,7 @@ class GlycopeptideElutionTimeModelBuildingPipeline(TaskBase):
                             neighbor_count - 1,
                         )
                     )
-            self.log("... Updated %d assignments" % (k, ))
+            self.debug("... Updated %d assignments" % (k, ))
         return revised
 
     def compute_model_coverage(self, model, aggregate, tag=True):
@@ -2009,7 +2009,7 @@ class GlycopeptideElutionTimeModelBuildingPipeline(TaskBase):
                 rec.weight = base_weight
             reweighted.append(rec)
             total += s
-        self.log("Total Score for %d chromatograms = %f (%d ignored)" %
+        self.log("... Total Score for %d chromatograms = %f (%d ignored)" %
                  (len(chromatograms), total, total_ignored))
         return reweighted
 
@@ -2169,7 +2169,7 @@ class GlycopeptideElutionTimeModelBuildingPipeline(TaskBase):
                 last_covered = covered_recs
             self.log("... Covering %d chromatograms at threshold %0.2f" % (
                 len(covered_recs), coverage_threshold))
-            self.log("... Added %d new tags" % len(new))
+            self.debug("... Added %d new tags" % len(new))
             revised_recs = self.revise_with(
                 model, covered_recs, revision_threshold,
                 max(self.current_model.width_range.lower * delta_time_scale, minimum_delta))
@@ -2188,7 +2188,7 @@ class GlycopeptideElutionTimeModelBuildingPipeline(TaskBase):
             extra_recs = self.find_uncovered_group_members(
                 all_records, coverages)
 
-            self.log("... Added %d new tags" % len(new))
+            self.debug("... Added %d new tags" % len(new))
             covered_recs = np.concatenate((covered_recs, extra_recs))
             covered_recs = self.reweight(model, covered_recs, base_weight=0.01)
 
