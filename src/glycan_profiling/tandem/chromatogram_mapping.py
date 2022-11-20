@@ -1573,6 +1573,24 @@ class SpectrumMatchBackFiller(TaskBase):
         return solution_set_match_pairs
 
 
+class SpectrumMatchInvalidatinCallback:
+    target_to_find: TargetType
+    threshold_fn: Callable[[SpectrumMatch], bool]
+
+    def __init__(self, target_to_find: TargetType, threshold_fn: Callable[[SpectrumMatch], bool]):
+        self.target_to_find = target_to_find
+        self.threshold_fn = threshold_fn
+
+    def __call__(self, sset: SpectrumSolutionSet, sm: SpectrumMatch) -> bool:
+        try:
+            preferred_sm = sset.solution_for(target_to_find)
+            if not self.threshold_fn(preferred_sm):
+                return True
+            return False
+        except KeyError:
+            return True
+
+
 class SpectrumMatchUpdater(SpectrumMatchBackFiller):
     '''Wrap the process of generating updates to :class:`TandemAnnotatedChromatogram` based upon
     some chromatogram-centric reviser like a retention time predictor.
@@ -1624,9 +1642,9 @@ class SpectrumMatchUpdater(SpectrumMatchBackFiller):
         return structures
 
     def _find_identical_keys_and_matches(self, chromatogram: SpectrumMatchSolutionCollectionBase, structure: TargetType) -> Tuple[Set[TargetType], List[Tuple[SpectrumSolutionSet, SpectrumMatch]]]:
-        structures = set()
+        structures: Set[TargetType] = set()
         key = str(structure)
-        spectrum_matches = []
+        spectrum_matches: List[Tuple[SpectrumSolutionSet, SpectrumMatch]] = []
         for sset in chromatogram.tandem_solutions:
             for sm in sset:
                 if str(sm.target) == key:
@@ -1659,14 +1677,7 @@ class SpectrumMatchUpdater(SpectrumMatchBackFiller):
 
     def make_target_filter(self, target_to_find: TargetType) -> Callable[[SpectrumSolutionSet, SpectrumMatch], bool]:
 
-        def filter_fn(sset: SpectrumSolutionSet, sm: SpectrumMatch) -> bool:
-            try:
-                preferred_sm = sset.solution_for(target_to_find)
-                if not self.threshold_fn(preferred_sm):
-                    return True
-                return False
-            except KeyError:
-                return True
+        filter_fn = SpectrumMatchInvalidatinCallback(target_to_find, self.threshold_fn)
 
         return filter_fn
 
@@ -1709,6 +1720,7 @@ class SpectrumMatchUpdater(SpectrumMatchBackFiller):
         rejected: List[SolutionEntry] = []
         invalidated: Set[TargetType] = set()
         alternative_rt_scores: Dict[TargetType, float] = {}
+
         for r in representers:
             if str(r.solution) == overridden:
                 rejected.append(r)
@@ -1858,11 +1870,14 @@ class SpectrumMatchUpdater(SpectrumMatchBackFiller):
         match, _keep, rejected, invalidated = self.collect_candidate_solutions_for_rt_validation(
             chromatogram, chromatogram.entity, revised_rt_score, None)
 
+        filter_fn = self.make_target_filter(chromatogram.entity)
+
         for reject in rejected:
             self.find_identical_peptides_and_mark(
                 chromatogram,
                 reject.solution,
-                reason=f"Rejecting {reject} in favor of {chromatogram.entity}"
+                reason=f"Rejecting {reject} in favor of {chromatogram.entity}",
+                filter_fn=filter_fn
             )
 
         for invalid in invalidated:
@@ -1870,6 +1885,7 @@ class SpectrumMatchUpdater(SpectrumMatchBackFiller):
                 chromatogram,
                 invalid,
                 reason=f"Invalidating {invalid} in favor of {chromatogram.entity}",
+                filter_fn=filter_fn
             )
 
         if not match:
