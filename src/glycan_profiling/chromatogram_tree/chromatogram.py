@@ -610,6 +610,8 @@ class Chromatogram(_TimeIntervalMethods):
 
 
 class ChromatogramTreeList(object):
+    roots: List['ChromatogramTreeNode']
+
     def __init__(self, roots=None):
         if roots is None:
             roots = []

@@ -48,3 +48,12 @@ cdef class CompositionGraphBase(object):
     cpdef CompositionGraphBase copy(self)
 
 cpdef reindex_graph(self)
+
+
+cdef struct glycan_composition_vector:
+    int* counts
+    size_t size
+
+
+cdef int initialize_glycan_composition_vector(size_t size, glycan_composition_vector* self) nogil
+cdef double glycan_composition_vector_distance(glycan_composition_vector* self, glycan_composition_vector* other) nogil

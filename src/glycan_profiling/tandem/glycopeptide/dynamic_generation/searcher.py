@@ -253,8 +253,8 @@ class StructureMapper(TaskExecutionSequence):
             workload.update(solutions)
         end = time.time()
         if counter:
-            self.log("... Mapping Completed %0.3f-%0.3f (%0.2f sec.)" %
-                     (lo_min, hi_max, end - start))
+            self.debug("... Mapping Completed %0.3f-%0.3f (%0.2f sec.)" %
+                       (lo_min, hi_max, end - start))
         self._log_cache()
         predictive_search.reset()
         return workload
@@ -405,7 +405,8 @@ class SpectrumMatcher(TaskExecutionSequence):
             cache_seeds=self.cache_seeds)
 
         target_solutions = []
-        self.log("... %0.2f%%" % (max((self.group_i - 1), 0) * 100.0 / self.group_n), self.workload)
+        if self.workload.total_size > 0:
+            self.log("... %0.2f%%" % (max((self.group_i - 1), 0) * 100.0 / self.group_n), self.workload)
         lo, hi = self.workload.mass_range()
         batches = list(self.workload.batches(matcher.batch_size))
         if batches:

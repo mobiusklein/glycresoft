@@ -1,5 +1,7 @@
-from collections import OrderedDict
 from operator import mul
+
+from typing import Generic, TypeVar, Optional, OrderedDict, Dict, Any
+
 try:
     reduce
 except NameError:
@@ -11,13 +13,16 @@ from .shape_fitter import ChromatogramShapeModel
 from .spacing_fitter import ChromatogramSpacingModel
 from .charge_state import UniformChargeStateScoringModel
 from .isotopic_fit import IsotopicPatternConsistencyModel
-from .base import symbolic_composition, epsilon
+from .base import symbolic_composition, epsilon, ScoringFeatureBase
 from .utils import logitsum, prod
 
-from glycan_profiling.chromatogram_tree import ChromatogramInterface
+from glycan_profiling.chromatogram_tree import ChromatogramInterface, Chromatogram
 
 
 class ScorerBase(object):
+    feature_set: OrderedDict[str, ScoringFeatureBase]
+    configuration: Dict[str, Any]
+
     def __init__(self, *args, **kwargs):
         self.feature_set = OrderedDict()
         self.configuration = dict()
@@ -49,18 +54,18 @@ class ScorerBase(object):
         for feature in self.feature_set.values():
             yield feature
 
-    def compute_scores(self, chromatogram):
+    def compute_scores(self, chromatogram: ChromatogramInterface) -> 'ChromatogramScoreSet':
         raise NotImplementedError()
 
-    def logitscore(self, chromatogram):
+    def logitscore(self, chromatogram: ChromatogramInterface) -> float:
         score = logitsum(self.compute_scores(chromatogram))
         return score
 
-    def score(self, chromatogram):
+    def score(self, chromatogram: ChromatogramInterface) -> float:
         score = reduce(mul, self.compute_scores(chromatogram), 1.0)
         return score
 
-    def accept(self, solution):
+    def accept(self, solution: 'ChromatogramSolution') -> bool:
         scored_features = solution.score_components()
         for feature in self.features():
             if feature.reject(scored_features, solution):
@@ -74,6 +79,8 @@ class ScorerBase(object):
 
 
 class ChromatogramScoreSet(object):
+    scores: OrderedDict[str, float]
+
     def __init__(self, scores):
         self.scores = OrderedDict(scores)
 
@@ -127,10 +134,10 @@ class ChromatogramScoreSet(object):
                 new[key] = value
         return new
 
-    def product(self):
+    def product(self) -> float:
         return prod(*self)
 
-    def logitsum(self):
+    def logitsum(self) -> float:
         return logitsum(self)
 
 
@@ -261,8 +268,18 @@ class CompositionDispatchScorer(ScorerBase):
         return model.accept(solution)
 
 
-class ChromatogramSolution(object):
+C = TypeVar("C", bound=ChromatogramInterface)
+
+
+class ChromatogramSolution(Generic[C]):
     _temp_score = 0.0
+
+    chromatogram: C
+    scorer: Optional[ScorerBase]
+    score: Optional[float]
+    internal_score: Optional[float]
+    _temp_score: float
+    score_set: Optional[ChromatogramScoreSet]
 
     def __init__(self, chromatogram, score=None, scorer=ChromatogramScorer(), internal_score=None,
                  score_set=None):
@@ -307,7 +324,7 @@ class ChromatogramSolution(object):
         return self.score_set
 
     @property
-    def logitscore(self):
+    def logitscore(self) -> float:
         return self.scorer.logitscore(self.chromatogram)
 
     def get_chromatogram(self):

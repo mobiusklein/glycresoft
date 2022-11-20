@@ -161,7 +161,7 @@ class MassShiftDeconvolutionGraph(ChromatogramGraph):
 
     def find_edges(self, node: MassShiftDeconvolutionGraphNode, query_width: float=0.01, threshold_fn: Predicate=always,  **kwargs):
         query = TimeQuery(node.chromatogram, query_width)
-        nodes = self.rt_tree.overlaps(query.start, query.end)
+        nodes: List[MassShiftDeconvolutionGraphNode] = self.rt_tree.overlaps(query.start, query.end)
 
         structure = node.chromatogram.structure
 
@@ -179,8 +179,6 @@ class MassShiftDeconvolutionGraph(ChromatogramGraph):
             self.find_edges(node, query_width=query_width,
                             threshold_fn=threshold_fn, **kwargs)
 
-
-# SolutionEntry = namedtuple("SolutionEntry", "solution, score, percentile, best_score, match")
 
 class SolutionEntry(NamedTuple):
     solution: Any
@@ -1074,9 +1072,9 @@ class RepresenterDeconvolution(TaskBase):
             The merged chromatograms
         '''
         # Note suggested to switch to list, but reason unclear.
-        assigned = defaultdict(set)
+        assigned: DefaultDict[Any, Set[TandemAnnotatedChromatogram]] = defaultdict(set)
 
-        invalidated_alternatives = defaultdict(set)
+        invalidated_alternatives: DefaultDict[Any, Set[TargetType]] = defaultdict(set)
 
         # For each (key, mass shift) pair and their members, compute the set of representers for
         # that key from all structures that as subsumed into it (repeated peptide and alternative
@@ -1142,40 +1140,59 @@ class RepresenterDeconvolution(TaskBase):
         for key, members in assigned.items():
             members: List[TandemAnnotatedChromatogram] = sorted(members, key=lambda x: x.start_time)
             invalidated_targets = invalidated_alternatives[key]
+            retained: List[TandemAnnotatedChromatogram] = []
 
-            # TODO: This construction doesn't leave room for match rejection to prevent
-            # chromatogram merging. Need to push this logic up earlier in the process.
-            sink = members[0]
-            for member in members[1:]:
-                sink.merge_in_place(member)
+            member_targets: Set[TargetType] = set()
+            for chrom in members:
+                member_targets.add(chrom.entity)
 
-            for sset in sink.tandem_solutions:
-                try:
-                    match = sset.solution_for(sink.entity)
-                    if self.threshold_fn(match):
-                        if not match.best_match:
-                            sset.promote_to_best_match(match)
-                    else:
-                        self.debug(f"... Skipping invalidation of {sset.scan_id!r}, alternative {sink.entity} did not pass threshold.")
-                        continue
-                except KeyError as err:
-                    # TODO: Fill in missing match against the preferred target
-                    self.debug(
-                        f"... Skipping invalidation of {sset.scan_id!r}, alternative {sink.entity} was not matched.")
-                    continue
+            member_targets -= invalidated_targets
 
-                for invalid_target in invalidated_targets:
+            can_merge = []
+
+            for member in members:
+                if any([member.solutions_for(target, threshold_fn=self.threshold_fn) for target in member_targets]):
+                    can_merge.append(member)
+                    # sink.merge_in_place(member)
+                else:
+                    retained.append(member)
+
+            sink = None
+            if can_merge:
+                sink = can_merge[0]
+                for member in can_merge[1:]:
+                    sink.merge_in_place(member)
+
+            if sink is not None:
+                for sset in sink.tandem_solutions:
                     try:
-                        match = sset.solution_for(invalid_target)
-                    except KeyError:
+                        match = sset.solution_for(sink.entity)
+                        if self.threshold_fn(match):
+                            if not match.best_match:
+                                sset.promote_to_best_match(match)
+                        else:
+                            self.debug(f"... Skipping invalidation of {sset.scan_id!r}, alternative {sink.entity} did not pass threshold.")
+                            continue
+                    except KeyError as err:
+                        # TODO: Fill in missing match against the preferred target
+                        self.debug(
+                            f"... Skipping invalidation of {sset.scan_id!r}, alternative {sink.entity} was not matched.")
                         continue
-                    # TODO: Is this really the right way to handle cases with totally
-                    # different peptide backbones? This should require a minimum of MS2 score/FDR
-                    # threshold passing
-                    if match.best_match:
-                        self.debug(f"... Revoking best match status of {match.target} for scan {match.scan_id!r}")
-                    match.best_match = False
-            merged.append(sink)
+
+                    for invalid_target in invalidated_targets:
+                        try:
+                            match = sset.solution_for(invalid_target)
+                        except KeyError:
+                            continue
+                        # TODO: Is this really the right way to handle cases with totally
+                        # different peptide backbones? This should require a minimum of MS2 score/FDR
+                        # threshold passing
+                        if match.best_match:
+                            self.debug(f"... Revoking best match status of {match.target} for scan {match.scan_id!r}")
+                        match.best_match = False
+                merged.append(sink)
+            if retained:
+                merged.extend(retained)
         return merged
 
 
@@ -1842,10 +1859,18 @@ class SpectrumMatchUpdater(SpectrumMatchBackFiller):
             chromatogram, chromatogram.entity, revised_rt_score, None)
 
         for reject in rejected:
-            self.find_identical_peptides_and_mark(chromatogram, reject.solution)
+            self.find_identical_peptides_and_mark(
+                chromatogram,
+                reject.solution,
+                reason=f"Rejecting {reject} in favor of {chromatogram.entity}"
+            )
 
         for invalid in invalidated:
-            self.find_identical_peptides_and_mark(chromatogram, invalid)
+            self.find_identical_peptides_and_mark(
+                chromatogram,
+                invalid,
+                reason=f"Invalidating {invalid} in favor of {chromatogram.entity}",
+            )
 
         if not match:
             self.log("... Failed to affirm %s @ %0.2f passing the threshold" % (

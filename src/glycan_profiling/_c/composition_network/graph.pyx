@@ -1,5 +1,7 @@
 cimport cython
 
+from libc.stdlib cimport malloc, free, abs as labs
+
 from collections import deque
 
 from cpython.object cimport PyObject
@@ -372,3 +374,24 @@ cdef class DijkstraPathFinder(object):
             return INF
         else:
             return <object>(ptemp)
+
+
+cdef int initialize_glycan_composition_vector(size_t size, glycan_composition_vector* self) nogil:
+    self.size = size
+    self.counts = <int*>malloc(sizeof(int) * size)
+    if self.counts == NULL:
+        return 1
+    return 0
+
+
+cdef double glycan_composition_vector_distance(glycan_composition_vector* self, glycan_composition_vector* other) nogil:
+    cdef:
+        size_t i, n
+        double distance
+    distance = 0
+    n = self.size
+    if other.size != n:
+        return INF
+    for i in range(n):
+        distance += labs(self.counts[i] - other.counts[i])
+    return distance

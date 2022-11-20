@@ -9,7 +9,7 @@ from glycan_profiling.serialize.chromatogram import ChromatogramSolution
 from glycan_profiling.tandem.spectrum_match.solution_set import SpectrumSolutionSet
 from glycan_profiling.tandem.spectrum_match.spectrum_match import FDRSet, ScoreSet, SpectrumMatch
 
-from .chromatogram_mapping import TandemSolutionsWithoutChromatogram
+from .chromatogram_mapping import TandemSolutionsWithoutChromatogram, TargetType
 
 
 class IdentifiedStructure(object):
@@ -40,7 +40,7 @@ class IdentifiedStructure(object):
         Other :class:`IdentifiedStructure` instances which match the same signal.
     """
 
-    structure: Any
+    structure: TargetType
 
     chromatogram: ChromatogramSolution
 
@@ -321,6 +321,10 @@ class IdentifiedStructure(object):
     @property
     def composition(self):
         return self.chromatogram.composition
+
+    def has_scan(self, scan_id: str) -> bool:
+        return any([sset.scan_id == scan_id for sset in self.tandem_solutions])
+
 
 ChromatogramInterface.register(IdentifiedStructure)
 

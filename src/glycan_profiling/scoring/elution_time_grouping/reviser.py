@@ -1,3 +1,4 @@
+from dataclasses import dataclass
 import logging
 
 from array import array
@@ -22,8 +23,9 @@ logger.addHandler(logging.NullHandler())
 
 if TYPE_CHECKING:
     from glycan_profiling.scoring.elution_time_grouping.model import ElutionTimeFitter
-    from glycan_profiling.tandem.chromatogram_mapping import SpectrumMatchUpdater
+    from glycan_profiling.tandem.chromatogram_mapping import SpectrumMatchUpdater, TandemAnnotatedChromatogram
     from glycan_profiling.tandem.target_decoy import NearestValueLookUp, TargetDecoyAnalyzer
+    from glycan_profiling.tandem.spectrum_match import SpectrumMatch, MultiScoreSpectrumMatch, ScoreSet
 
 
 class RevisionRule(object):
@@ -174,7 +176,7 @@ class RevisionValidatorBase(LoggingMixin):
         self.spectrum_match_builder = spectrum_match_builder
         self.threshold_fn = threshold_fn
 
-    def find_revision_gpsm(self, chromatogram, revised):
+    def find_revision_gpsm(self, chromatogram: 'TandemAnnotatedChromatogram', revised) -> Optional[Union['SpectrumMatch', 'MultiScoreSpectrumMatch']]:
         found_revision = False
         revised_gpsm = None
         try:
@@ -190,7 +192,11 @@ class RevisionValidatorBase(LoggingMixin):
                     pass
         return revised_gpsm, found_revision
 
-    def find_gpsms(self, source, revised, original):
+    def find_gpsms(self, source: 'TandemAnnotatedChromatogram',
+                   revised: GlycopeptideChromatogramProxy,
+                   original: GlycopeptideChromatogramProxy) -> Tuple[Optional[Union['SpectrumMatch', 'MultiScoreSpectrumMatch']],
+                                                                     Optional[Union['SpectrumMatch', 'MultiScoreSpectrumMatch']],
+                                                                     bool]:
         original_gpsm = None
         revised_gpsm = None
 
@@ -220,14 +226,20 @@ class RevisionValidatorBase(LoggingMixin):
 
         return original_gpsm, revised_gpsm, False
 
-    def validate(self, revised, original):
+    def validate(self, revised: GlycopeptideChromatogramProxy, original: GlycopeptideChromatogramProxy) -> bool:
         raise NotImplementedError()
 
-    def __call__(self, revised, original):
+    def __call__(self, revised: GlycopeptideChromatogramProxy, original: GlycopeptideChromatogramProxy) -> bool:
         return self.validate(revised, original)
+
+    def msn_score_for(self, source: 'TandemAnnotatedChromatogram', solution: GlycopeptideChromatogramProxy) -> float:
+        gpsm, _ = self.find_revision_gpsm(source, solution)
+        return gpsm.score
 
 
 class PeptideYUtilizationPreservingRevisionValidator(RevisionValidatorBase):
+    threshold: float
+
     def __init__(self, threshold=0.85, spectrum_match_builder=None, threshold_fn=always):
         super(PeptideYUtilizationPreservingRevisionValidator, self).__init__(
             spectrum_match_builder, threshold_fn)
@@ -264,12 +276,14 @@ class PeptideYUtilizationPreservingRevisionValidator(RevisionValidatorBase):
 
 
 class OxoniumIonRequiringUtilizationRevisionValidator(RevisionValidatorBase):
+    scale: float
+
     def __init__(self, scale=0.9, spectrum_match_builder=None, threshold_fn=always):
         super(OxoniumIonRequiringUtilizationRevisionValidator,
               self).__init__(spectrum_match_builder, threshold_fn)
         self.scale = scale
 
-    def validate(self, revised, original):
+    def validate(self, revised: GlycopeptideChromatogramProxy, original: GlycopeptideChromatogramProxy) -> bool:
         source = revised.source
         if source is None:
             # Can't validate without a source to read the spectrum match metadata
@@ -280,8 +294,8 @@ class OxoniumIonRequiringUtilizationRevisionValidator(RevisionValidatorBase):
         if skip:
             return True
         if hasattr(original_gpsm, 'score_set'):
-            original_utilization = original_gpsm.score_set.oxonium_ion_intensity_utilization
-            revised_utilization = revised_gpsm.score_set.oxonium_ion_intensity_utilization
+            original_utilization: float = original_gpsm.score_set.oxonium_ion_intensity_utilization
+            revised_utilization: float = revised_gpsm.score_set.oxonium_ion_intensity_utilization
 
             threshold = original_utilization * self.scale
             valid = (revised_utilization - threshold) >= 0
@@ -296,10 +310,16 @@ class OxoniumIonRequiringUtilizationRevisionValidator(RevisionValidatorBase):
 
 
 class CompoundRevisionValidator(object):
+    validators: List[RevisionValidatorBase]
+
     def __init__(self, validators=None):
         if validators is None:
             validators = []
         self.validators = list(validators)
+
+    @property
+    def spectrum_match_builder(self):
+        return self.validators[0].spectrum_match_builder
 
     def validate(self, revised, original):
         for rule in self.validators:
@@ -310,13 +330,39 @@ class CompoundRevisionValidator(object):
     def __call__(self, revised, original):
         return self.validate(revised, original)
 
+    def msn_score_for(self, source, solution: GlycopeptideChromatogramProxy) -> float:
+        return self.validators[0].msn_score_for(source, solution)
 
 
 def _new_array():
     return array('d')
 
 
-class ModelReviser(object):
+def display_table(rows: List[str], headers: List[str]) -> str:
+    rows = [headers] + rows
+    widths = list(map(lambda col: max(map(len, col)), zip(*rows)))
+
+    buffer = []
+    for i, row in enumerate(rows):
+        buffer.append(' | '.join(col.center(w) for col, w in zip(row, widths)))
+        if i == 0:
+            buffer.append(
+                '|'.join('-' * (w + 2 if j > 0 else w + 1)
+                         for j, (col, w) in enumerate(zip(row, widths)))
+            )
+
+    return '\n'.join(buffer)
+
+
+@dataclass
+class RevisionEvent:
+    rt_score: float
+    chromatogram_record: GlycopeptideChromatogramProxy
+    rule: Optional[RevisionRule]
+    msn_score: float
+
+
+class ModelReviser(LoggingMixin):
     valid_glycans: Optional[Set[HashableGlycanComposition]]
     revision_validator: Optional[RevisionValidatorBase]
 
@@ -400,6 +446,36 @@ class ModelReviser(object):
         for rule in self.rules:
             self.process_rule(rule)
 
+    def select_revision_atlernative(self, alternatives: List[RevisionEvent],
+                                    original: GlycopeptideChromatogramProxy,
+                                    minimum_rt_score: float) -> GlycopeptideChromatogramProxy:
+        alternatives = [alt for alt in alternatives if alt.rt_score > minimum_rt_score]
+        alternatives.sort(key=lambda x: x.msn_score, reverse=True)
+
+        table = [
+            (str(alt.chromatogram_record.glycan_composition),
+            (','.join(map(lambda x: x.name, alt.chromatogram_record.mass_shifts))),
+            (alt.rule.name if alt.rule is not None else '-'),
+             '%0.3f' % alt.rt_score, '%0.3f' % alt.msn_score)
+            for alt in alternatives
+        ]
+
+        if len({alt.chromatogram_record.glycan_composition for alt in alternatives}) > 1:
+            self.log('\n' + display_table(table, ['Glycan Composition', 'Mass Shifts',
+                                                  'Revision Rule', 'RT Score', 'MSn Score']))
+
+        best_event = alternatives[0]
+        best_record = best_event.chromatogram_record
+        best_rule = best_event.rule
+        if best_rule is not None: # If *somehow* the best solution at the time this is called is still unchanged?
+            best_record.revised_from = (best_rule, original)
+        return best_record
+
+    def _msn_score_if_available(self, source, solution: GlycopeptideChromatogramProxy) -> float:
+        if self.revision_validator is None:
+            return 0.0
+        return self.revision_validator.msn_score_for(source, solution)
+
     def revise(self, threshold=0.2, delta_threshold=0.2, minimum_time_difference=0.5):
         chromatograms = self.chromatograms
         original_scores = self.original_scores
@@ -412,24 +488,37 @@ class ModelReviser(object):
             original_solution = best_record = chromatograms[i]
             original_time = original_times[i]
 
-            # TODO: Re-write this to generate all alternative solutions, then order them by score,
-            # then apply constraints.
+            alternative_solutions = [
+                RevisionEvent(original_score, original_solution, None,
+                              self._msn_score_if_available(
+                                original_solution.source,
+                                original_solution)
+                )
+            ]
 
             for rule in self.rules:
                 alt_rec = self.alternative_records[rule][i]
                 alt_score = self.alternative_scores[rule][i]
                 alt_time = self.alternative_times[rule][i]
-                if alt_score > best_score and not np.isclose(alt_score, 0.0) and abs(alt_time - original_time) > minimum_time_difference:
+                if not np.isclose(alt_score, 0.0) and abs(alt_time - original_time) > minimum_time_difference:
                     if self.revision_validator and not self.revision_validator(alt_rec, original_solution):
                         continue
-                    delta_best_score = alt_score - original_score
-                    best_score = alt_score
-                    best_rule = rule
-                    best_record = alt_rec
+                    alternative_solutions.append(
+                        RevisionEvent(
+                            alt_score, alt_rec, rule,
+                            self._msn_score_if_available(
+                                original_solution.source, alt_rec)))
+                    if alt_score > best_score:
+                        delta_best_score = alt_score - original_score
+                        best_score = alt_score
+                        best_rule = rule
+                        best_record = alt_rec
+
 
             if best_score > threshold and delta_best_score > delta_threshold:
                 if best_rule is not None:
-                    best_record.revised_from = (best_rule, chromatograms[i])
+                    best_record = self.select_revision_atlernative(
+                        alternative_solutions, original_solution, best_score * 0.9)
                 next_round.append(best_record)
             else:
                 next_round.append(chromatograms[i])
