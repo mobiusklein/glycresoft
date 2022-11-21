@@ -1583,7 +1583,7 @@ class SpectrumMatchInvalidatinCallback:
 
     def __call__(self, sset: SpectrumSolutionSet, sm: SpectrumMatch) -> bool:
         try:
-            preferred_sm = sset.solution_for(target_to_find)
+            preferred_sm = sset.solution_for(self.target_to_find)
             if not self.threshold_fn(preferred_sm):
                 return True
             return False
