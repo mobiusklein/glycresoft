@@ -238,6 +238,12 @@ class RevisionValidatorBase(LoggingMixin):
 
 
 class PeptideYUtilizationPreservingRevisionValidator(RevisionValidatorBase):
+    '''Prevent a revision that leads to substantial loss of peptide+Y ion-explainable
+    signal.
+
+    This does not use peptide backbone fragments because they are by definition the
+    revision algorithm only updates the glycan composition, not the peptide backbone.
+    '''
     threshold: float
 
     def __init__(self, threshold=0.85, spectrum_match_builder=None, threshold_fn=always):
