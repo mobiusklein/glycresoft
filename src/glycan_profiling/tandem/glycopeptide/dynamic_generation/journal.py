@@ -350,7 +350,8 @@ class JournalFileReader(TaskBase):
             float(row['stub_glycopeptide_intensity_utilization']),
             float(row['oxonium_ion_intensity_utilization']),
             int(row['n_stub_glycopeptide_matches']),
-            float(row.get('peptide_coverage', 0.0))
+            float(row.get('peptide_coverage', 0.0)),
+            float(row.get('total_signal_utilization', 0.0))
         ]
         for name in self.score_columns:
             score_set_entries.append(parse_float(row.get(name, '0.0')))

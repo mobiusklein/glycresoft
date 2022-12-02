@@ -214,20 +214,23 @@ class GlycopeptideSpectrumMatcherBase(SpectrumMatcherBase):
     def calculate_glycan_score(self, *args, **kwargs) -> float:
         return 0
 
-    def count_peptide_Y_ion_utilization(self) -> Tuple[float, int, int]:
+    def count_peptide_Y_ion_utilization(self) -> Tuple[float, int, int, float]:
         if self._peptide_Y_ion_utilization is not None:
             return self._peptide_Y_ion_utilization
         weight = 0.0
         stub_count = 0
         peptide_backbone_count = 0
+        total_utilization = 0.0
         for pfp in self.solution_map:
             frag_series = pfp.fragment.series
+            if frag_series != "oxonium_ion":
+                total_utilization += pfp.peak.intensity
             if frag_series == "stub_glycopeptide":
                 stub_count += 1
                 weight += math.log10(pfp.peak.intensity)
             elif frag_series.int_code <= IonSeries.z.int_code:
                 peptide_backbone_count += 1
-        self._peptide_Y_ion_utilization = weight, stub_count, peptide_backbone_count
+        self._peptide_Y_ion_utilization = weight, stub_count, peptide_backbone_count, total_utilization
         return self._peptide_Y_ion_utilization
 
     def oxonium_ion_utilization(self):
