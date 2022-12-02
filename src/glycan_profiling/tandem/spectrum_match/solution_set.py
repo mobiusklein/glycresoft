@@ -465,6 +465,11 @@ class SpectrumSolutionSet(ScanWrapperBase):
             sol.target: sol for sol in self
         }
 
+    def has_solution(self, target) -> bool:
+        if self._target_map is None:
+            self._make_target_map()
+        return target in self._target_map
+
     def solution_for(self, target) -> SpectrumMatch:
         """Find the spectrum match from this set which corresponds
         to the provided `target` structure

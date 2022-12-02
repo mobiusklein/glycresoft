@@ -31,8 +31,8 @@ from glycan_profiling.scoring.chromatogram_solution import ChromatogramSolution
 from glycan_profiling.structure import ScanInformation
 
 from glycan_profiling.tandem.target_decoy.base import FDREstimatorBase
-from .spectrum_match.spectrum_match import SpectrumMatcherBase
-from .spectrum_match.solution_set import NOParsimonyMixin, SpectrumMatch, SpectrumSolutionSet
+from .spectrum_match.spectrum_match import SpectrumMatcherBase, SpectrumMatch, ScoreSet, MultiScoreSpectrumMatch
+from .spectrum_match.solution_set import NOParsimonyMixin, SpectrumSolutionSet
 
 
 DEBUG_MODE = bool(os.environ.get('GLYCRESOFTCHROMATOGRAMDEBUG', False))
@@ -653,6 +653,109 @@ def build_glycopeptide_key(solution) -> Tuple:
 
 
 KeyTargetMassShift = Tuple[Hashable, TargetType, MassShiftBase]
+KeyMassShift = Tuple[Hashable, MassShiftBase]
+
+
+class MS2RevisionValidator(TaskBase):
+    threshold_fn: Predicate
+
+    def __init__(self, threshold_fn: Predicate):
+        self.threshold_fn = threshold_fn
+
+    def has_valid_matches(self, chromatogram: TandemAnnotatedChromatogram, member_targets: Set[TargetType]) -> bool:
+        has_matches = any([chromatogram.solutions_for(target, threshold_fn=self.threshold_fn)
+             for target in member_targets])
+        return has_matches
+
+    def validate_spectrum_match(self, spectrum_match: Union[SpectrumMatch, MultiScoreSpectrumMatch], solution_set: SpectrumSolutionSet) -> bool:
+        return True
+
+    def can_rewrite_best_matches(self, chromatogram: TandemAnnotatedChromatogram, target: TargetType) -> bool:
+        ssets_to_convert = len(chromatogram.tandem_solutions)
+        ssets_could_convert = 0
+        for sset in chromatogram.tandem_solutions:
+            try:
+                match = sset.solution_for(target)
+                if self.threshold_fn(match) and self.validate_spectrum_match(match, sset):
+                    if not match.best_match:
+                        ssets_could_convert += 1
+            except KeyError as err:
+                continue
+        return (ssets_could_convert / ssets_could_convert) >= 0.5
+
+    def do_rewrite_best_matches(self, chromatogram: TandemAnnotatedChromatogram, target: TargetType):
+        for sset in chromatogram.tandem_solutions:
+            try:
+                match = sset.solution_for(target)
+                if self.threshold_fn(match) and self.validate_spectrum_match(match, sset):
+                    if not match.best_match:
+                        sset.promote_to_best_match(match)
+                else:
+                    self.debug(
+                        f"... Skipping invalidation of {sset.scan_id!r}, alternative {target} did not pass threshold.")
+                    continue
+            except KeyError as err:
+                # TODO: Fill in missing match against the preferred target
+                self.debug(
+                    f"... Skipping invalidation of {sset.scan_id!r}, alternative {target} was not matched.")
+                continue
+
+            for invalid_target in invalidated_targets:
+                try:
+                    match = sset.solution_for(invalid_target)
+                except KeyError:
+                    continue
+                # TODO: Is this really the right way to handle cases with totally
+                # different peptide backbones? This should require a minimum of MS2 score/FDR
+                # threshold passing
+                if match.best_match:
+                    self.debug(
+                        f"... Revoking best match status of {match.target} for scan {match.scan_id!r}")
+                match.best_match = False
+
+
+
+class SignalUtilizationMS2RevisionValidator(MS2RevisionValidator):
+    utilization_ratio_threshold: float = 0.6
+
+    def __init__(self, threshold_fn: Predicate, utilization_ratio_threshold: float=0.6):
+        super().__init__(threshold_fn)
+        self.utilization_ratio_threshold = utilization_ratio_threshold
+
+    def validate_spectrum_match(self, spectrum_match: Union[SpectrumMatch, MultiScoreSpectrumMatch], solution_set: SpectrumSolutionSet) -> bool:
+        best_solution: MultiScoreSpectrumMatch = solution_set.best_solution()
+        ratio = spectrum_match.score_set.total_signal_utilization / best_solution.score_set.total_signal_utilization
+        return ratio >= self.utilization_ratio_threshold
+
+    def has_valid_matches(self, chromatogram: TandemAnnotatedChromatogram, targets: Set[TargetType]) -> bool:
+        has_passing_case = False
+        # Loop over all targets and check if any of them manage to pass the ratio threshold,
+        # preventing
+        for target in targets:
+            for sset in chromatogram.tandem_solutions:
+                try:
+                    solution: MultiScoreSpectrumMatch = sset.solution_for(
+                        target)
+                except KeyError:
+                    continue
+
+                # Don't bother checking solutions that don't pass FDR threshold predicate
+                if not self.threshold_fn(solution):
+                    continue
+
+                if self.validate_spectrum_match(solution, sset):
+                    # If a match passes the threshold, then something in this solution set is valid
+                    has_passing_case = True
+                    break
+                else:
+                    # Otherwise keep checking solution sets
+                    continue
+
+            # If we found a valid match, we're done.
+            if has_passing_case:
+                break
+
+        return has_passing_case
 
 
 class RepresenterDeconvolution(TaskBase):
@@ -665,17 +768,22 @@ class RepresenterDeconvolution(TaskBase):
     conflicted: DefaultDict[MassShiftDeconvolutionGraphNode, List[KeyTargetMassShift]]
     solved: DefaultDict[KeyTargetMassShift, List[MassShiftDeconvolutionGraphNode]]
     participants: DefaultDict[KeyTargetMassShift, List[MassShiftDeconvolutionGraphNode]]
-    best_scores: DefaultDict[KeyTargetMassShift, float]
+    best_scores: DefaultDict[KeyMassShift, float]
 
     key_to_solutions: DefaultDict[KeyTargetMassShift, Set[TargetType]]
 
     spectrum_match_backfiller: Optional["SpectrumMatchBackFiller"]
 
-    def __init__(self, group, threshold_fn=always, key_fn=build_glycopeptide_key, spectrum_match_backfiller=None):
+    def __init__(self, group, threshold_fn=always, key_fn=build_glycopeptide_key,
+                 spectrum_match_backfiller: Optional["SpectrumMatchBackFiller"]=None,
+                 revision_validator: Optional[MS2RevisionValidator]=None):
+        if revision_validator is None:
+            revision_validator = MS2RevisionValidator(threshold_fn)
         self.group = group
         self.threshold_fn = threshold_fn
         self.key_fn = key_fn
         self.spectrum_match_backfiller = spectrum_match_backfiller
+        self.revision_validator = revision_validator
 
         self.participants = None
         self.key_to_solutions = None
@@ -875,7 +983,7 @@ class RepresenterDeconvolution(TaskBase):
         changes : int
             The number of nodes assigned during this execution.
         '''
-        tree = defaultdict(dict)
+        tree: DefaultDict[Hashable, Dict[MassShiftBase, List[MassShiftDeconvolutionGraphNode]]] = defaultdict(dict)
         # Build a tree of key->mass_shift->members
         for (key, solution, mass_shift), members in self.solved.items():
             tree[key][mass_shift] = list(members)
@@ -892,7 +1000,7 @@ class RepresenterDeconvolution(TaskBase):
         for member, conflicts in sorted(
                 self.conflicted.items(),
                 key=lambda x: x[0].chromatogram.total_signal, reverse=True):
-            hits = defaultdict(float)
+            hits: DefaultDict[KeyTargetMassShift, float] = defaultdict(float)
             for key, solution, mass_shift in conflicts:
                 # Other solved groups' keys to solved mass shifts
                 shifts_to_solved = tree[key]
@@ -1151,9 +1259,8 @@ class RepresenterDeconvolution(TaskBase):
             can_merge = []
 
             for member in members:
-                if any([member.solutions_for(target, threshold_fn=self.threshold_fn) for target in member_targets]):
+                if self.revision_validator.has_valid_matches(member, member_targets):
                     can_merge.append(member)
-                    # sink.merge_in_place(member)
                 else:
                     retained.append(member)
 
@@ -1161,7 +1268,10 @@ class RepresenterDeconvolution(TaskBase):
             if can_merge:
                 sink = can_merge[0]
                 for member in can_merge[1:]:
-                    sink.merge_in_place(member)
+                    if self.revision_validator.can_rewrite_best_matches(member, sink.entity):
+                        sink.merge_in_place(member)
+                    else:
+                        retained.append(member)
 
             if sink is not None:
                 for sset in sink.tandem_solutions:
