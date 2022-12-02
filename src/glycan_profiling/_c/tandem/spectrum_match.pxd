@@ -30,6 +30,7 @@ cdef class ScoreSet(object):
         public float oxonium_ion_intensity_utilization
         public int n_stub_glycopeptide_matches
         public float peptide_coverage
+        public float total_signal_utilization
 
 
     cpdef bint _lt(self, ScoreSet other)
@@ -42,7 +43,7 @@ cdef class ScoreSet(object):
     @staticmethod
     cdef ScoreSet _create(float glycopeptide_score, float peptide_score, float glycan_score, float glycan_coverage,
                           float stub_glycopeptide_intensity_utilization, float oxonium_ion_intensity_utilization,
-                          int n_stub_glycopeptide_matches, float peptide_coverage)
+                          int n_stub_glycopeptide_matches, float peptide_coverage, float total_signal_utilization)
 
 cdef class FDRSet(object):
     cdef:

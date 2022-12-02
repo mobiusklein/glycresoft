@@ -657,12 +657,12 @@ _ScoreSet = make_struct("ScoreSet", ['glycopeptide_score', 'peptide_score', 'gly
                                      "stub_glycopeptide_intensity_utilization",
                                      "oxonium_ion_intensity_utilization",
                                      "n_stub_glycopeptide_matches",
-                                     "peptide_coverage", ])
+                                     "peptide_coverage", "total_signal_utilization"])
 
 
 class ScoreSet(_ScoreSet):
     __slots__ = ()
-    packer = struct.Struct("!ffffffff")
+    packer = struct.Struct("!ffffffffff")
 
     glycopeptide_score: float
     peptide_score: float
@@ -672,6 +672,7 @@ class ScoreSet(_ScoreSet):
     oxonium_ion_intensity_utilization: float
     n_stub_glycopeptide_matches: float
     peptide_coverag: float
+    total_signal_utilization: float
 
     def __len__(self):
         return 4
@@ -718,6 +719,7 @@ class ScoreSet(_ScoreSet):
 
     @classmethod
     def from_spectrum_matcher(cls, match):
+        # Outdated, see Cython implementation
         return cls(match.score, match.peptide_score(), match.glycan_score(), match.glycan_coverage())
 
     def pack(self):
@@ -738,6 +740,7 @@ class ScoreSet(_ScoreSet):
             "oxonium_ion_intensity_utilization",
             "n_stub_glycopeptide_matches",
             "peptide_coverage",
+            "total_signal_utilization",
         ]
 
     def values(self):
@@ -750,6 +753,7 @@ class ScoreSet(_ScoreSet):
             self.oxonium_ion_intensity_utilization,
             self.n_stub_glycopeptide_matches,
             self.peptide_coverage,
+            self.total_signal_utilization
         ]
 
 

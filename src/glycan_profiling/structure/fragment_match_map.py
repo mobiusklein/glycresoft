@@ -1,10 +1,25 @@
+from typing import Any, List, Optional, Sequence, Set, Tuple, Union, Generic, TypeVar, DefaultDict, Iterable
+
 from collections import defaultdict
 
 import numpy as np
 
+import ms_deisotope
+from glycopeptidepy.structure.fragment import FragmentBase, IonSeries
+
+
+K = TypeVar("K")
+V = TypeVar("V")
+
+
 
 class PeakFragmentPair(object):
     __slots__ = ["peak", "fragment", "fragment_name", "_hash"]
+
+    peak: ms_deisotope.DeconvolutedPeak
+    fragment: Union[FragmentBase, Any]
+    fragment_name: str
+    _hash: int
 
     def __init__(self, peak, fragment):
         self.peak = peak
@@ -35,7 +50,10 @@ class PeakFragmentPair(object):
         return (self.peak.neutral_mass - self.fragment.mass) / self.fragment.mass
 
 
-class _FragmentIndexBase(object):
+class _FragmentIndexBase(Generic[K, V]):
+    _mapping: DefaultDict[K, List[V]]
+    fragment_set: Iterable[PeakFragmentPair]
+
     def __init__(self, fragment_set):
         self.fragment_set = fragment_set
         self._mapping = None
@@ -74,7 +92,7 @@ class _FragmentIndexBase(object):
         return str(self.mapping)
 
 
-class ByFragmentIndex(_FragmentIndexBase):
+class ByFragmentIndex(_FragmentIndexBase[Union[FragmentBase, Any], ms_deisotope.DeconvolutedPeak]):
 
     def _create_mapping(self):
         self._mapping = defaultdict(list)
@@ -83,7 +101,7 @@ class ByFragmentIndex(_FragmentIndexBase):
                 peak_fragment_pair.peak)
 
 
-class ByPeakIndex(_FragmentIndexBase):
+class ByPeakIndex(_FragmentIndexBase[ms_deisotope.DeconvolutedPeak, Union[FragmentBase, Any]]):
 
     def _create_mapping(self):
         self._mapping = defaultdict(list)
@@ -93,12 +111,17 @@ class ByPeakIndex(_FragmentIndexBase):
 
 
 class FragmentMatchMap(object):
+    members: Set[PeakFragmentPair]
+    by_fragment: ByFragmentIndex
+    by_peak: ByPeakIndex
+
     def __init__(self):
         self.members = set()
         self.by_fragment = ByFragmentIndex(self)
         self.by_peak = ByPeakIndex(self)
 
-    def add(self, peak, fragment=None):
+    def add(self, peak: Union[ms_deisotope.DeconvolutedPeak, PeakFragmentPair],
+            fragment: Optional[Union[FragmentBase, Any]]=None):
         if fragment is not None:
             peak = PeakFragmentPair(peak, fragment)
         if peak not in self.members:
@@ -106,7 +129,7 @@ class FragmentMatchMap(object):
             self.by_peak.invalidate()
             self.by_fragment.invalidate()
 
-    def pairs_by_name(self, name):
+    def pairs_by_name(self, name: str) -> List[PeakFragmentPair]:
         pairs = []
         for pair in self:
             if pair.fragment_name == name:
@@ -176,6 +199,22 @@ class FragmentMatchMap(object):
         self.members.clear()
         self.by_fragment.invalidate()
         self.by_peak.invalidate()
+
+
+def count_peaks_shared(reference: FragmentMatchMap, alternate: FragmentMatchMap) -> Tuple[Set[int], Set[int], Set[int]]:
+    ref_peaks = {p.index.neutral_mass for p in reference.by_peak.keys()}
+    alt_peaks = {p.index.neutral_mass for p in alternate.by_peak.keys()}
+
+    shared = ref_peaks & alt_peaks
+
+    ref_peaks_ = ref_peaks - alt_peaks
+    alt_peaks_ = alt_peaks - ref_peaks
+
+    return shared, ref_peaks_, alt_peaks_
+
+
+def intensity_from_peak_indices(spectrum: Sequence[ms_deisotope.DeconvolutedPeak], indices: Iterable[int]) -> float:
+    return sum([spectrum[i].intensity for i in indices])
 
 
 class PeakPairTransition(object):

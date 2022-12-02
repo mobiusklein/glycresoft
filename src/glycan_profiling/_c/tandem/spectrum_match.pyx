@@ -8,7 +8,7 @@ from cpython.dict cimport PyDict_GetItem, PyDict_SetItem
 cdef class ScoreSet(object):
     def __init__(self, glycopeptide_score=0., peptide_score=0., glycan_score=0., glycan_coverage=0.,
                  stub_glycopeptide_intensity_utilization=0., oxonium_ion_intensity_utilization=0.,
-                 n_stub_glycopeptide_matches=0, peptide_coverage=0.0):
+                 n_stub_glycopeptide_matches=0, peptide_coverage=0.0, total_signal_utilization=0.0):
         self.glycopeptide_score = glycopeptide_score
         self.peptide_score = peptide_score
         self.glycan_score = glycan_score
@@ -19,6 +19,7 @@ cdef class ScoreSet(object):
         self.n_stub_glycopeptide_matches = n_stub_glycopeptide_matches
 
         self.peptide_coverage = peptide_coverage
+        self.total_signal_utilization = total_signal_utilization
 
     def to_dict(self):
         store = {}
@@ -48,19 +49,22 @@ cdef class ScoreSet(object):
             float stub_utilization
             float oxonium_utilization
             float peptide_coverage
+            float total_signal_utilization
         temp = data
         buff = <float*>(temp)
         stub_utilization = buff[4]
         oxonium_utilization = buff[5]
         n_stub_glycopeptide_matches = <int>buff[6]
         peptide_coverage = buff[7]
+        total_signal_utilization = buff[8]
         return ScoreSet._create(buff[0], buff[1], buff[2], buff[3], stub_utilization,
-                                oxonium_utilization, n_stub_glycopeptide_matches, peptide_coverage)
+                                oxonium_utilization, n_stub_glycopeptide_matches, peptide_coverage,
+                                total_signal_utilization)
 
     @staticmethod
     cdef ScoreSet _create(float glycopeptide_score, float peptide_score, float glycan_score, float glycan_coverage,
                           float stub_glycopeptide_intensity_utilization, float oxonium_ion_intensity_utilization,
-                          int n_stub_glycopeptide_matches, float peptide_coverage):
+                          int n_stub_glycopeptide_matches, float peptide_coverage, float total_signal_utilization):
         cdef:
             ScoreSet self
         self = ScoreSet.__new__(ScoreSet)
@@ -72,6 +76,7 @@ cdef class ScoreSet(object):
         self.oxonium_ion_intensity_utilization = oxonium_ion_intensity_utilization
         self.n_stub_glycopeptide_matches = n_stub_glycopeptide_matches
         self.peptide_coverage = peptide_coverage
+        self.total_signal_utilization = total_signal_utilization
         return self
 
     def __eq__(self, other):
@@ -90,7 +95,8 @@ cdef class ScoreSet(object):
         template = (
             "{self.__class__.__name__}({self.glycopeptide_score}, {self.peptide_score},"
             " {self.glycan_score}, {self.glycan_coverage}, {self.stub_glycopeptide_intensity_utilization},"
-            " {self.oxonium_ion_intensity_utilization}, {self.n_stub_glycopeptide_matches}, {self.peptide_coverage})")
+            " {self.oxonium_ion_intensity_utilization}, {self.n_stub_glycopeptide_matches}, {self.peptide_coverage},"
+            " {self.total_signal_utilization})")
         return template.format(self=self)
 
     def __len__(self):
@@ -113,6 +119,8 @@ cdef class ScoreSet(object):
             return self.n_stub_glycopeptide_matches
         elif i == 7:
             return self.peptide_coverage
+        elif i == 8:
+            return self.total_signal_utilization
         else:
             raise IndexError(i)
 
@@ -125,16 +133,17 @@ cdef class ScoreSet(object):
         yield self.oxonium_ion_intensity_utilization
         yield self.n_stub_glycopeptide_matches
         yield self.peptide_coverage
+        yield self.total_signal_utilization
 
     def __reduce__(self):
         return self.__class__, (self.glycopeptide_score, self.peptide_score,
                                 self.glycan_score, self.glycan_coverage, self.stub_glycopeptide_intensity_utilization,
                                 self.oxonium_ion_intensity_utilization, self.n_stub_glycopeptide_matches,
-                                self.peptide_coverage)
+                                self.peptide_coverage, self.total_signal_utilization)
 
     @classmethod
     def from_spectrum_matcher(cls, match):
-        stub_utilization, n_stub_glycopeptide_matches, _ = match.count_peptide_Y_ion_utilization()
+        stub_utilization, n_stub_glycopeptide_matches, _, total_signal_utilization = match.count_peptide_Y_ion_utilization()
         oxonium_utilization = match.oxonium_ion_utilization()
         return cls(match.score,
             match.peptide_score(),
@@ -143,7 +152,8 @@ cdef class ScoreSet(object):
             stub_utilization,
             oxonium_utilization,
             n_stub_glycopeptide_matches,
-            match.peptide_coverage()
+            match.peptide_coverage(),
+            total_signal_utilization,
         )
 
     @classmethod
@@ -157,6 +167,7 @@ cdef class ScoreSet(object):
             "oxonium_ion_intensity_utilization",
             "n_stub_glycopeptide_matches",
             "peptide_coverage",
+            "total_signal_utilization",
         ]
 
     cpdef list values(self):
@@ -169,6 +180,7 @@ cdef class ScoreSet(object):
             self.oxonium_ion_intensity_utilization,
             self.n_stub_glycopeptide_matches,
             self.peptide_coverage,
+            self.total_signal_utilization,
         ]
 
     cpdef bint _eq(self, ScoreSet other):
