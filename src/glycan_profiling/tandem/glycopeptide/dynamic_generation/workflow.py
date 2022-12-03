@@ -41,7 +41,11 @@ from glycan_profiling.composition_distribution_model.site_model import (
 from glycan_profiling.tandem.oxonium_ions import OxoniumIndex, SignatureIonIndex, single_signatures, compound_signatures
 
 from glycan_profiling.chromatogram_tree.chromatogram import Chromatogram, GlycopeptideChromatogram
-from ...chromatogram_mapping import ChromatogramMSMSMapper, TandemAnnotatedChromatogram, TandemSolutionsWithoutChromatogram
+from ...chromatogram_mapping import (
+    ChromatogramMSMSMapper,
+    TandemAnnotatedChromatogram,
+    TandemSolutionsWithoutChromatogram
+)
 from ...temp_store import TempFileManager
 from ...spectrum_evaluation import group_by_precursor_mass
 from ...spectrum_match import SpectrumMatchClassification

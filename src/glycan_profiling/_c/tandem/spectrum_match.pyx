@@ -4,6 +4,9 @@ from cpython.object cimport PyObject
 from cpython.dict cimport PyDict_GetItem, PyDict_SetItem
 
 
+DEF NUM_SCORES = 9
+
+
 @cython.freelist(100000)
 cdef class ScoreSet(object):
     def __init__(self, glycopeptide_score=0., peptide_score=0., glycan_score=0., glycan_coverage=0.,
@@ -29,7 +32,7 @@ cdef class ScoreSet(object):
 
     cpdef bytearray pack(self):
         cdef:
-            float[8] data
+            float[NUM_SCORES] data
         data[0] = self.glycopeptide_score
         data[1] = self.peptide_score
         data[2] = self.glycan_score
@@ -38,7 +41,8 @@ cdef class ScoreSet(object):
         data[5] = self.oxonium_ion_intensity_utilization
         data[6] = self.n_stub_glycopeptide_matches
         data[7] = self.peptide_coverage
-        return ((<char*>data)[:sizeof(float) * 8])
+        data[8] = self.total_signal_utilization
+        return ((<char*>data)[:sizeof(float) * NUM_SCORES])
 
     @staticmethod
     def unpack(bytearray data):

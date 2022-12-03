@@ -681,9 +681,9 @@ class MS2RevisionValidator(TaskBase):
                         ssets_could_convert += 1
             except KeyError as err:
                 continue
-        return (ssets_could_convert / ssets_could_convert) >= 0.5
+        return (ssets_could_convert / ssets_to_convert) >= 0.5
 
-    def do_rewrite_best_matches(self, chromatogram: TandemAnnotatedChromatogram, target: TargetType):
+    def do_rewrite_best_matches(self, chromatogram: TandemAnnotatedChromatogram, target: TargetType, invalidated_targets: Set[TargetType]):
         for sset in chromatogram.tandem_solutions:
             try:
                 match = sset.solution_for(target)
@@ -723,9 +723,15 @@ class SignalUtilizationMS2RevisionValidator(MS2RevisionValidator):
         self.utilization_ratio_threshold = utilization_ratio_threshold
 
     def validate_spectrum_match(self, spectrum_match: Union[SpectrumMatch, MultiScoreSpectrumMatch], solution_set: SpectrumSolutionSet) -> bool:
+        baseline = super().validate_spectrum_match(spectrum_match, solution_set)
         best_solution: MultiScoreSpectrumMatch = solution_set.best_solution()
+        if not self.threshold_fn(best_solution):
+            return True
         ratio = spectrum_match.score_set.total_signal_utilization / best_solution.score_set.total_signal_utilization
-        return ratio >= self.utilization_ratio_threshold
+        pass_threshold = ratio >= self.utilization_ratio_threshold
+        if baseline and not pass_threshold:
+            self.log(f"... Rejecting revision of {spectrum_match.scan.id} from {best_solution.target} to {spectrum_match.target} due to signal ratio failing to pass threshold {ratio:0.3f}")
+        return pass_threshold
 
     def has_valid_matches(self, chromatogram: TandemAnnotatedChromatogram, targets: Set[TargetType]) -> bool:
         has_passing_case = False
@@ -773,6 +779,7 @@ class RepresenterDeconvolution(TaskBase):
     key_to_solutions: DefaultDict[KeyTargetMassShift, Set[TargetType]]
 
     spectrum_match_backfiller: Optional["SpectrumMatchBackFiller"]
+    revision_validator: MS2RevisionValidator
 
     def __init__(self, group, threshold_fn=always, key_fn=build_glycopeptide_key,
                  spectrum_match_backfiller: Optional["SpectrumMatchBackFiller"]=None,
@@ -1268,38 +1275,15 @@ class RepresenterDeconvolution(TaskBase):
             if can_merge:
                 sink = can_merge[0]
                 for member in can_merge[1:]:
+                    # Might this obscure the "best localization"? Perhaps, but localization is already getting
+                    # mowed down at the aggregate level.
                     if self.revision_validator.can_rewrite_best_matches(member, sink.entity):
+                        self.revision_validator.do_rewrite_best_matches(member, sink.entity, invalidated_targets)
                         sink.merge_in_place(member)
                     else:
                         retained.append(member)
 
             if sink is not None:
-                for sset in sink.tandem_solutions:
-                    try:
-                        match = sset.solution_for(sink.entity)
-                        if self.threshold_fn(match):
-                            if not match.best_match:
-                                sset.promote_to_best_match(match)
-                        else:
-                            self.debug(f"... Skipping invalidation of {sset.scan_id!r}, alternative {sink.entity} did not pass threshold.")
-                            continue
-                    except KeyError as err:
-                        # TODO: Fill in missing match against the preferred target
-                        self.debug(
-                            f"... Skipping invalidation of {sset.scan_id!r}, alternative {sink.entity} was not matched.")
-                        continue
-
-                    for invalid_target in invalidated_targets:
-                        try:
-                            match = sset.solution_for(invalid_target)
-                        except KeyError:
-                            continue
-                        # TODO: Is this really the right way to handle cases with totally
-                        # different peptide backbones? This should require a minimum of MS2 score/FDR
-                        # threshold passing
-                        if match.best_match:
-                            self.debug(f"... Revoking best match status of {match.target} for scan {match.scan_id!r}")
-                        match.best_match = False
                 merged.append(sink)
             if retained:
                 merged.extend(retained)
@@ -1313,8 +1297,13 @@ class GraphAnnotatedChromatogramAggregator(TaskBase):
     threshold_fn: Predicate
     key_fn: Callable[[TargetType], Hashable]
 
+    revision_validator: MS2RevisionValidator
+
     def __init__(self, annotated_chromatograms, delta_rt=0.25, require_unmodified=True,
-                 threshold_fn=default_threshold, key_fn=build_glycopeptide_key):
+                 threshold_fn=default_threshold, key_fn=build_glycopeptide_key,
+                 revision_validator: Optional[MS2RevisionValidator]=None):
+        if revision_validator is None:
+            revision_validator = MS2RevisionValidator(threshold_fn)
         self.annotated_chromatograms = sorted(annotated_chromatograms,
             key=lambda x: (
                 max(sset.best_solution().score for sset in x.tandem_solutions)
@@ -1324,6 +1313,7 @@ class GraphAnnotatedChromatogramAggregator(TaskBase):
         self.require_unmodified = require_unmodified
         self.threshold_fn = threshold_fn
         self.key_fn = key_fn
+        self.revision_validator = revision_validator
 
     def build_graph(self):
         self.log("Constructing chromatogram graph")
@@ -1343,7 +1333,11 @@ class GraphAnnotatedChromatogramAggregator(TaskBase):
         assigned = []
         for group in components:
             deconv = RepresenterDeconvolution(
-                group, threshold_fn=self.threshold_fn, key_fn=self.key_fn)
+                group,
+                threshold_fn=self.threshold_fn,
+                key_fn=self.key_fn,
+                revision_validator=self.revision_validator,
+            )
             deconv.solve()
             assigned.extend(deconv.assign_representers())
         return assigned
@@ -1470,12 +1464,15 @@ class AnnotatedChromatogramAggregator(TaskBase):
 def aggregate_by_assigned_entity(annotated_chromatograms: List[TandemAnnotatedChromatogram],
                                  delta_rt: float=0.25,
                                  require_unmodified: bool=True,
-                                 threshold_fn: Predicate=default_threshold):
+                                 threshold_fn: Predicate=default_threshold,
+                                 revision_validator: Optional[MS2RevisionValidator]=None):
     job = GraphAnnotatedChromatogramAggregator(
         annotated_chromatograms,
         delta_rt=delta_rt,
         require_unmodified=require_unmodified,
-        threshold_fn=threshold_fn)
+        threshold_fn=threshold_fn,
+        revision_validator=revision_validator
+    )
     finished = job.run()
     return finished
 
@@ -1576,10 +1573,15 @@ class ChromatogramMSMSMapper(TaskBase):
     def merge_common_entities(self, annotated_chromatograms: List[TandemAnnotatedChromatogram],
                               delta_rt: float=0.25,
                               require_unmodified: bool=True,
-                              threshold_fn: Predicate=default_threshold):
+                              threshold_fn: Predicate=default_threshold,
+                              revision_validator: Optional[MS2RevisionValidator]=None):
         job = GraphAnnotatedChromatogramAggregator(
-            annotated_chromatograms, delta_rt=delta_rt, require_unmodified=require_unmodified,
-            threshold_fn=threshold_fn)
+            annotated_chromatograms,
+            delta_rt=delta_rt,
+            require_unmodified=require_unmodified,
+            threshold_fn=threshold_fn,
+            revision_validator=revision_validator
+        )
         result = job.run()
         return result
 
