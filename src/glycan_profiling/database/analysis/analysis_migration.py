@@ -1,6 +1,7 @@
-from typing import List, Sequence, Set
+from typing import DefaultDict, List, Sequence, Set, Tuple
 import warnings
 from collections import defaultdict
+from glycan_profiling.structure.scan import ScanInformation
 
 from glypy.composition import formula
 
@@ -54,7 +55,7 @@ def slurp(session, model, ids):
     return results
 
 
-def fetch_scans_used_in_chromatogram(chromatogram_set, extractor):
+def fetch_scans_used_in_chromatogram(chromatogram_set: List[Chromatogram], extractor) -> List[ScanInformation]:
     scan_ids = set()
     for chroma in chromatogram_set:
         scan_ids.update(chroma.scan_ids)
@@ -70,7 +71,7 @@ def fetch_scans_used_in_chromatogram(chromatogram_set, extractor):
     return sorted(scans, key=lambda x: (x.ms_level, x.index))
 
 
-def fetch_glycan_compositions_from_chromatograms(chromatogram_set: Sequence[ChromatogramSolution], glycan_db: DatabaseBoundOperation):
+def fetch_glycan_compositions_from_chromatograms(chromatogram_set: Sequence[ChromatogramSolution], glycan_db: DatabaseBoundOperation) -> List[GlycanComposition]:
     ids = set()
     for chroma in chromatogram_set:
         if chroma.composition:
@@ -129,7 +130,7 @@ class SampleMigrator(DatabaseBoundOperation, TaskBase):
         new_id = self._migrate(new_sample_run)
         self.sample_run_id = new_id
 
-    def scan_id(self, ms_scan):
+    def scan_id(self, ms_scan) -> str:
         if ms_scan is None:
             return None
         try:
@@ -138,7 +139,7 @@ class SampleMigrator(DatabaseBoundOperation, TaskBase):
             scan_id = ms_scan.id
         return scan_id
 
-    def peak_id(self, peak, scan_id):
+    def peak_id(self, peak, scan_id) -> Tuple[str, DeconvolutedPeak]:
         try:
             if peak.id:
                 peak_id = (scan_id, peak.convert())
@@ -217,7 +218,7 @@ class AnalysisMigrationBase(DatabaseBoundOperation, TaskBase):
         self._analysis_serializer.session.add(self.analysis)
         self._analysis_serializer.commit()
 
-    def fetch_peaks(self, chromatogram_set):
+    def fetch_peaks(self, chromatogram_set: Sequence[Chromatogram]) -> DefaultDict[str, Set[DeconvolutedPeak]]:
         scan_peak_map = defaultdict(set)
         for chroma in chromatogram_set:
             if chroma is None:
@@ -227,7 +228,7 @@ class AnalysisMigrationBase(DatabaseBoundOperation, TaskBase):
                     scan_peak_map[node.scan_id].add(peak)
         return scan_peak_map
 
-    def fetch_scans(self):
+    def fetch_scans(self) -> List[ScanInformation]:
         raise NotImplementedError()
 
     def migrate_sample(self):

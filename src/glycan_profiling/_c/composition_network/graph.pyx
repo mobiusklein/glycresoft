@@ -395,3 +395,27 @@ cdef double glycan_composition_vector_distance(glycan_composition_vector* self, 
     for i in range(n):
         distance += labs(self.counts[i] - other.counts[i])
     return distance
+
+
+cdef int glycan_composition_vector_difference(glycan_composition_vector* self, glycan_composition_vector* other, glycan_composition_vector* into) nogil
+    cdef:
+        size_t i, n
+
+    n = self.size
+    if other.size != n:
+        return 1
+
+    if into.counts == NULL:
+        into.counts = <int*>malloc(sizeof(int) * n)
+        into.size = n
+        if into.counts == NULL:
+            return 2
+
+    for i in range(n):
+        into.counts[i] = self.counts[i] - other.counts[i]
+    return 0
+
+
+cdef int destroy_glycan_composition_vector(glycan_composition_vector* self) nogil:
+    free(self.counts)
+    return 0

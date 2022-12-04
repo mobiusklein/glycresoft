@@ -56,4 +56,21 @@ cdef struct glycan_composition_vector:
 
 
 cdef int initialize_glycan_composition_vector(size_t size, glycan_composition_vector* self) nogil
+cdef int destroy_glycan_composition_vector(glycan_composition_vector* self) nogil
+
 cdef double glycan_composition_vector_distance(glycan_composition_vector* self, glycan_composition_vector* other) nogil
+cdef int glycan_composition_vector_difference(glycan_composition_vector* self, glycan_composition_vector* other, glycan_composition_vector* into) nogil
+
+cdef struct glycan_composition_point:
+    glycan_composition_vector composition
+    double value
+    double weight
+
+
+
+
+cdef class GlycanCompositionVectorContext:
+    cdef:
+        public list components
+        public size_t component_count
+

@@ -1263,7 +1263,7 @@ class RepresenterDeconvolution(TaskBase):
 
             member_targets -= invalidated_targets
 
-            can_merge = []
+            can_merge: List[TandemAnnotatedChromatogram] = []
 
             for member in members:
                 if self.revision_validator.has_valid_matches(member, member_targets):
@@ -1274,6 +1274,25 @@ class RepresenterDeconvolution(TaskBase):
             sink = None
             if can_merge:
                 sink = can_merge[0]
+                did_update_sink_id = False
+                if sink.entity not in member_targets:
+                    self.error(f"... While deconvolving mass shifts, sink node {sink}'s label not in valid list {member_targets}")
+                    options = sorted(
+                        filter(
+                            lambda x: x.solution in member_targets,
+                            sink.compute_representative_weights(
+                                self.threshold_fn)
+                        ),
+                        key=lambda x: x.score,
+                        reverse=True
+                    )
+                    if options:
+                        self.error(f"... Failed to re-assign {sink} to a valid target")
+                        sink.assign_entity(options[0])
+                    # May not be exhaustive enough, search for "best" case in `can_merge` matching
+                    # to a `member_targets` before assigning `sink` role to a chromatogram?
+                    did_update_sink_id = True
+
                 for member in can_merge[1:]:
                     # Might this obscure the "best localization"? Perhaps, but localization is already getting
                     # mowed down at the aggregate level.
@@ -1281,7 +1300,22 @@ class RepresenterDeconvolution(TaskBase):
                         self.revision_validator.do_rewrite_best_matches(member, sink.entity, invalidated_targets)
                         sink.merge_in_place(member)
                     else:
+                        retained_solution = member.most_representative_solutions(self.threshold_fn, {sink.entity})
+                        member.assign_entity(retained_solution)
                         retained.append(member)
+                if did_update_sink_id:
+                    options = sorted(
+                        filter(
+                            lambda x: x.solution in member_targets,
+                            sink.compute_representative_weights(
+                                self.threshold_fn)
+                        ),
+                        key=lambda x: x.score,
+                        reverse=True
+                    )
+                    if options:
+                        self.error(f"... Failed to re-assign {sink} to a valid target after merging!")
+                        sink.assign_entity(options[0])
 
             if sink is not None:
                 merged.append(sink)
