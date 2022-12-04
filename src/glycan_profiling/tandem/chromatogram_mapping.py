@@ -1269,6 +1269,9 @@ class RepresenterDeconvolution(TaskBase):
                 if self.revision_validator.has_valid_matches(member, member_targets):
                     can_merge.append(member)
                 else:
+                    retained_solutions = member.most_representative_solutions(self.threshold_fn)
+                    member.representative_solutions = retained_solutions
+                    member.assign_entity(retained_solutions[0])
                     retained.append(member)
 
             sink = None
@@ -1300,9 +1303,10 @@ class RepresenterDeconvolution(TaskBase):
                         self.revision_validator.do_rewrite_best_matches(member, sink.entity, invalidated_targets)
                         sink.merge_in_place(member)
                     else:
-                        retained_solution = member.most_representative_solutions(self.threshold_fn, {sink.entity})
-                        member.assign_entity(retained_solution)
-                        retained.append(member)
+                        retained_solutions = member.most_representative_solutions(self.threshold_fn)
+                        member.representative_solutions = retained_solutions
+                        member.assign_entity(retained_solutions[0])
+
                 if did_update_sink_id:
                     options = sorted(
                         filter(

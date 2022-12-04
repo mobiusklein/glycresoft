@@ -5,7 +5,7 @@ Software for analyzing glycomics and glycoproteomics LC-MS/MS data
 Usage
 =====
 
-This package provides several command line tools, available under the name `glycresoft`. 
+This package provides several command line tools, available under the name `glycresoft`.
 
 ```
 $ glycresoft -h
@@ -21,7 +21,7 @@ Commands:
 Installing
 ==========
 
-This program requires Python 2.7. The simplest way to perform the installation is to use a virtual environment to isolate its dependencies. To install from source after cloning this repository:
+This program requires Python 3.8 or newer. The simplest way to perform the installation is to use a virtual environment to isolate its dependencies. To install from source after cloning this repository:
 
 ```bash
 make install-dependencies
