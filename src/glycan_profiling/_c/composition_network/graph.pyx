@@ -397,7 +397,7 @@ cdef double glycan_composition_vector_distance(glycan_composition_vector* self, 
     return distance
 
 
-cdef int glycan_composition_vector_difference(glycan_composition_vector* self, glycan_composition_vector* other, glycan_composition_vector* into) nogil
+cdef int glycan_composition_vector_difference(glycan_composition_vector* self, glycan_composition_vector* other, glycan_composition_vector* into) nogil:
     cdef:
         size_t i, n
 
