@@ -9,6 +9,7 @@ from cpython.list cimport PyList_Size, PyList_GetItem, PyList_GET_ITEM
 from cpython.set cimport PySet_Discard, PySet_Add
 from cpython.dict cimport PyDict_GetItem, PyDict_SetItem, PyDict_DelItem, PyDict_Items, PyDict_Values
 from cpython.float cimport PyFloat_AsDouble
+from cpython.int cimport PyInt_AsLong
 
 from glypy.structure.glycan_composition import HashableGlycanComposition, FrozenMonosaccharideResidue
 
@@ -430,6 +431,9 @@ cdef class GlycanCompositionVectorContext:
         self.components = list(components)
         self.component_count = len(self.components)
 
+    def __reduce__(self):
+        return self.__class__, (self.components, )
+
     cdef glycan_composition_vector* encode_raw(self, glycan_composition):
         cdef glycan_composition_vector* ptr = <glycan_composition_vector*>malloc(sizeof(glycan_composition_vector))
         if initialize_glycan_composition_vector(self.component_count, ptr) == 1:
@@ -455,6 +459,21 @@ cdef class GlycanCompositionVectorContext:
         return gc
 
 
+cpdef _reconstruct_GlycanCompositionVector(state):
+    cdef:
+        glycan_composition_vector* ptr
+        size_t i, n
+        list counts
+    counts = state[0]
+    n = len(counts)
+    ptr = <glycan_composition_vector*>malloc(sizeof(glycan_composition_vector))
+    initialize_glycan_composition_vector(n, ptr)
+    for i in range(n):
+        ptr.counts[i] = PyInt_AsLong(counts[i])
+    return GlycanCompositionVector._create(ptr)
+
+
+
 @cython.no_gc
 @cython.final
 @cython.freelist(2000)
@@ -465,6 +484,9 @@ cdef class GlycanCompositionVector:
         cdef GlycanCompositionVector self = GlycanCompositionVector.__new__(GlycanCompositionVector)
         self.ptr = ptr
         return self
+
+    def __reduce__(self):
+        return _reconstruct_GlycanCompositionVector, (list(self), )
 
     def __dealloc__(self):
         if self.ptr != NULL:
