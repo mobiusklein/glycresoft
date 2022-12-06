@@ -10,6 +10,8 @@ from cpython.set cimport PySet_Discard, PySet_Add
 from cpython.dict cimport PyDict_GetItem, PyDict_SetItem, PyDict_DelItem, PyDict_Items, PyDict_Values
 from cpython.float cimport PyFloat_AsDouble
 
+from glypy.structure.glycan_composition import HashableGlycanComposition, FrozenMonosaccharideResidue
+
 
 @cython.freelist(5000)
 cdef class CompositionGraphNode(object):
@@ -419,3 +421,129 @@ cdef int glycan_composition_vector_difference(glycan_composition_vector* self, g
 cdef int destroy_glycan_composition_vector(glycan_composition_vector* self) nogil:
     free(self.counts)
     return 0
+
+
+
+cdef class GlycanCompositionVectorContext:
+
+    def __init__(self, components):
+        self.components = list(components)
+        self.component_count = len(self.components)
+
+    cdef glycan_composition_vector* encode_raw(self, glycan_composition):
+        cdef glycan_composition_vector* ptr = <glycan_composition_vector*>malloc(sizeof(glycan_composition_vector))
+        if initialize_glycan_composition_vector(self.component_count, ptr) == 1:
+            raise MemoryError()
+        for i in range(self.component_count):
+            ptr.counts[i] = glycan_composition[self.components[i]]
+        return ptr
+
+    cpdef GlycanCompositionVector encode(self, glycan_composition):
+        return GlycanCompositionVector._create(self.encode_raw(glycan_composition))
+
+    cpdef decode(self, GlycanCompositionVector gcvec):
+        cdef:
+            size_t i
+            int value
+        gc = HashableGlycanComposition()
+        if self.component_count != gcvec.ptr.size:
+            raise ValueError("Dimensionality does not match")
+        for i in range(self.component_count):
+            value = gcvec.ptr.counts[i]
+            if value != 0:
+                gc[self.components[i]] = value
+        return gc
+
+
+@cython.no_gc
+@cython.final
+@cython.freelist(2000)
+cdef class GlycanCompositionVector:
+
+    @staticmethod
+    cdef GlycanCompositionVector _create(glycan_composition_vector* ptr):
+        cdef GlycanCompositionVector self = GlycanCompositionVector.__new__(GlycanCompositionVector)
+        self.ptr = ptr
+        return self
+
+    def __dealloc__(self):
+        if self.ptr != NULL:
+            destroy_glycan_composition_vector(self.ptr)
+            free(self.ptr)
+            self.ptr = NULL
+
+    def __getitem__(self, int i):
+        if self.ptr == NULL:
+            raise ValueError("Object in invalid state")
+        if i >= self.ptr.size or i < 0:
+            raise IndexError(i)
+        return self.ptr.counts[i]
+
+    def __len__(self):
+        if self.ptr == NULL:
+            raise ValueError("Object in invalid state")
+        return self.ptr.size
+
+    def __repr__(self):
+        return f"{self.__class__.__name__}({[self[i] for i in range(len(self))]})"
+
+    cpdef double distance(self, GlycanCompositionVector other) except -1:
+        if other is None:
+            return INF
+        if self.ptr == NULL:
+            raise ValueError("Object in invalid state")
+        return glycan_composition_vector_distance(self.ptr, other.ptr)
+
+    def __eq__(self, GlycanCompositionVector other):
+        if other is None:
+            return False
+        return self.distance(other) == 0
+
+    def __ne__(self, GlycanCompositionVector other):
+        return not self == other
+
+    cpdef GlycanCompositionVector difference(self, GlycanCompositionVector other):
+        cdef:
+             glycan_composition_vector* new
+        if self.ptr == NULL:
+            raise ValueError("Object in invalid state")
+        if other is None:
+            raise TypeError("Cannot compute difference from `None`")
+
+        new = <glycan_composition_vector*>malloc(sizeof(glycan_composition_vector))
+        initialize_glycan_composition_vector(self.ptr.size, new)
+        if new == NULL:
+            raise MemoryError()
+        if glycan_composition_vector_difference(self.ptr, other.ptr, new) == 2:
+            raise MemoryError()
+        return GlycanCompositionVector._create(new)
+
+    def __sub__(self, GlycanCompositionVector other):
+        return self.difference(other)
+
+    def __neg__(self):
+        cdef:
+             glycan_composition_vector* new
+
+        if self.ptr == NULL:
+            raise ValueError("Object in invalid state")
+        new = <glycan_composition_vector*>malloc(sizeof(glycan_composition_vector))
+        initialize_glycan_composition_vector(self.ptr.size, new)
+
+        for i in range(self.ptr.size):
+            new.counts[i] = -self.ptr.counts[i]
+        return GlycanCompositionVector._create(new)
+
+    def __hash__(self):
+        cdef:
+            size_t i, n
+            Py_hash_t hash_val
+
+        if self.ptr == NULL:
+            raise ValueError("Object in invalid state")
+        hash_val = 0
+        n = self.ptr.size
+        for i in range(n):
+            hash_val = (hash_val ^ self.ptr.counts[i]) * 82520UL
+        return hash_val
+

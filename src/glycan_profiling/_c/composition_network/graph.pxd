@@ -74,3 +74,18 @@ cdef class GlycanCompositionVectorContext:
         public list components
         public size_t component_count
 
+    cdef glycan_composition_vector* encode_raw(self, glycan_composition)
+    cpdef GlycanCompositionVector encode(self, glycan_composition)
+    cpdef decode(self, GlycanCompositionVector gcvec)
+
+
+cdef class GlycanCompositionVector:
+    cdef:
+        glycan_composition_vector* ptr
+
+    @staticmethod
+    cdef GlycanCompositionVector _create(glycan_composition_vector* ptr)
+
+    cpdef double distance(self, GlycanCompositionVector other) except -1
+
+    cpdef GlycanCompositionVector difference(self, GlycanCompositionVector other)
