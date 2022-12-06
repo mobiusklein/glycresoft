@@ -658,6 +658,7 @@ KeyMassShift = Tuple[Hashable, MassShiftBase]
 
 class MS2RevisionValidator(TaskBase):
     threshold_fn: Predicate
+    q_value_ratio_threshold: float = 1e9
 
     def __init__(self, threshold_fn: Predicate):
         self.threshold_fn = threshold_fn
@@ -668,12 +669,30 @@ class MS2RevisionValidator(TaskBase):
         return has_matches
 
     def validate_spectrum_match(self, spectrum_match: Union[SpectrumMatch, MultiScoreSpectrumMatch], solution_set: SpectrumSolutionSet) -> bool:
+        ## It would be desirable to be able to detect when the difference in explanations are of such radically different quality that
+        ## any consideration of revision is a waste, but this can't be done reliably as a function of q-value. It might be feasible to do
+        ## with score, but such a modification would be difficult to tune for different scoring algorithms simultaneously. Perhaps if we
+        ## had a multidimensional threshold instead of a cascading threshold, but such a thresholding scheme would need to be estimated
+        ## on the fly.
+        # best_solution: MultiScoreSpectrumMatch = solution_set.best_solution()
+        # if not self.threshold_fn(best_solution):
+        #     return True
+        # ratio = spectrum_match.q_value / best_solution.q_value
+        # pass_threshold = ratio <= self.q_value_ratio_threshold
+        # if not pass_threshold:
+        #     self.log(
+        #         f"... Rejecting revision of {spectrum_match.scan.id} from {best_solution.target} to {spectrum_match.target} due to ID confidence {spectrum_match.q_value}/{best_solution.q_value}")
+        # return pass_threshold
         return True
 
     def can_rewrite_best_matches(self, chromatogram: TandemAnnotatedChromatogram, target: TargetType) -> bool:
-        ssets_to_convert = len(chromatogram.tandem_solutions)
+        # The count of spectra we are able to actually interpret the best spectrum match of
+        ssets_to_convert = 0
+        # The count of spectra where we can reasonably revise the best match
         ssets_could_convert = 0
         for sset in chromatogram.tandem_solutions:
+            if self.threshold_fn(sset.best_solution()):
+                ssets_to_convert += 1
             try:
                 match = sset.solution_for(target)
                 if self.threshold_fn(match) and self.validate_spectrum_match(match, sset):
@@ -681,6 +700,8 @@ class MS2RevisionValidator(TaskBase):
                         ssets_could_convert += 1
             except KeyError as err:
                 continue
+        if ssets_to_convert == 0:
+            return True
         return (ssets_could_convert / ssets_to_convert) >= 0.5
 
     def do_rewrite_best_matches(self, chromatogram: TandemAnnotatedChromatogram, target: TargetType, invalidated_targets: Set[TargetType]):
@@ -714,7 +735,6 @@ class MS2RevisionValidator(TaskBase):
                 match.best_match = False
 
 
-
 class SignalUtilizationMS2RevisionValidator(MS2RevisionValidator):
     utilization_ratio_threshold: float = 0.6
 
@@ -724,6 +744,8 @@ class SignalUtilizationMS2RevisionValidator(MS2RevisionValidator):
 
     def validate_spectrum_match(self, spectrum_match: Union[SpectrumMatch, MultiScoreSpectrumMatch], solution_set: SpectrumSolutionSet) -> bool:
         baseline = super().validate_spectrum_match(spectrum_match, solution_set)
+        if not baseline:
+            return baseline
         best_solution: MultiScoreSpectrumMatch = solution_set.best_solution()
         if not self.threshold_fn(best_solution):
             return True
@@ -1859,7 +1881,7 @@ class SpectrumMatchUpdater(SpectrumMatchBackFiller):
         return revised_solution_sets
 
     def collect_candidate_solutions_for_rt_validation(self, chromatogram: Union[TandemAnnotatedChromatogram, TandemSolutionsWithoutChromatogram],
-                                                      structure: TargetType, rt_score: Optional[float], overridden: Optional[TargetType]=None):
+                                                      structure: TargetType, rt_score: float, overridden: Optional[TargetType]=None):
         from glycan_profiling.scoring.elution_time_grouping import GlycopeptideChromatogramProxy
 
         representers: List[SolutionEntry] = chromatogram.compute_representative_weights(
@@ -1885,6 +1907,7 @@ class SpectrumMatchUpdater(SpectrumMatchBackFiller):
                             proxy, 0.01)
                     else:
                         alt_rt_score = alternative_rt_scores[r.solution]
+                    # If either is NaN, this is always false, so we never invalidate a NaN-predicted case.
                     if (rt_score - alt_rt_score) > self.retention_time_delta:
                         invalidated.add(r.solution)
                         continue
