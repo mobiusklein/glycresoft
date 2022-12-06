@@ -21,7 +21,8 @@ def split_charge_states(chromatogram):
     last = chromatogram
     for charge_state in charge_states:
         a, b = last.bisect_charge(charge_state)
-        versions[charge_state] = a
+        if len(a):
+            versions[charge_state] = a
         last = b
     return versions
 
@@ -405,7 +406,8 @@ def mass_shift_separating_chromatogram(chroma, ax=None, **kwargs):
     labels = {}
     for mass_shift in mass_shifts:
         with_mass_shift, _ = chroma.bisect_mass_shift(mass_shift)
-        labels[mass_shift] = with_mass_shift
+        if len(with_mass_shift):
+            labels[mass_shift] = with_mass_shift
     mass_shift_plot = SmoothingChromatogramArtist(
         list(labels.values()),
         colorizer=lambda *a, **k: 'green', ax=ax).draw(
