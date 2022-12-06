@@ -405,12 +405,12 @@ class SpectrumMatcher(TaskExecutionSequence):
             cache_seeds=self.cache_seeds)
 
         target_solutions = []
-        if self.workload.total_size > 0:
-            self.log("... %0.2f%%" % (max((self.group_i - 1), 0) * 100.0 / self.group_n), self.workload)
         lo, hi = self.workload.mass_range()
         batches = list(self.workload.batches(matcher.batch_size))
-        if batches:
-            self.log("... Identifying Precursor Mass Range: %0.2f-%0.2f" % (lo, hi))
+        if self.workload.total_size:
+            self.log(
+                f"... {max((self.group_i - 1), 0) * 100.0 / self.group_n:0.2f}% ({lo:0.2f}-{hi:0.2f}) {self.workload}")
+
 
         n_batches = len(batches)
         running_total_work = 0
