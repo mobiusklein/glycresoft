@@ -419,10 +419,49 @@ cdef int glycan_composition_vector_difference(glycan_composition_vector* self, g
     return 0
 
 
+cdef int glycan_composition_vector_addition(glycan_composition_vector* self, glycan_composition_vector* other, glycan_composition_vector* into) nogil:
+    cdef:
+        size_t i, n
+
+    n = self.size
+    if other.size != n:
+        return 1
+
+    if into.counts == NULL:
+        into.counts = <int*>malloc(sizeof(int) * n)
+        into.size = n
+        if into.counts == NULL:
+            return 2
+
+    for i in range(n):
+        into.counts[i] = self.counts[i] + other.counts[i]
+    return 0
+
+
 cdef int destroy_glycan_composition_vector(glycan_composition_vector* self) nogil:
     free(self.counts)
     return 0
 
+
+cdef int copy_glycan_composition_vector(glycan_composition_vector* self, glycan_composition_vector* into) nogil:
+    cdef:
+        size_t i, n
+
+    n = self.size
+    if into.size != self.size:
+        free(into.counts)
+        into.counts = NULL
+
+    if into.counts == NULL:
+        into.counts = <int*>malloc(sizeof(int) * n)
+        into.size = n
+        if into.counts == NULL:
+            return 1
+
+    for i in range(n):
+        into.counts[i] = self.counts[i]
+
+    return 0
 
 
 cdef class GlycanCompositionVectorContext:
@@ -501,6 +540,13 @@ cdef class GlycanCompositionVector:
             raise IndexError(i)
         return self.ptr.counts[i]
 
+    def __setitem__(self, int i, int value):
+        if self.ptr == NULL:
+            raise ValueError("Object in invalid state")
+        if i >= self.ptr.size or i < 0:
+            raise IndexError(i)
+        self.ptr.counts[i] = value
+
     def __len__(self):
         if self.ptr == NULL:
             raise ValueError("Object in invalid state")
@@ -540,8 +586,27 @@ cdef class GlycanCompositionVector:
             raise MemoryError()
         return GlycanCompositionVector._create(new)
 
+    cpdef GlycanCompositionVector addition(self, GlycanCompositionVector other):
+        cdef:
+             glycan_composition_vector* new
+        if self.ptr == NULL:
+            raise ValueError("Object in invalid state")
+        if other is None:
+            raise TypeError("Cannot compute addition from `None`")
+
+        new = <glycan_composition_vector*>malloc(sizeof(glycan_composition_vector))
+        initialize_glycan_composition_vector(self.ptr.size, new)
+        if new == NULL:
+            raise MemoryError()
+        if glycan_composition_vector_addition(self.ptr, other.ptr, new) == 2:
+            raise MemoryError()
+        return GlycanCompositionVector._create(new)
+
     def __sub__(self, GlycanCompositionVector other):
         return self.difference(other)
+
+    def __add__(self, GlycanCompositionVector other):
+        return self.addition(other)
 
     def __neg__(self):
         cdef:
@@ -550,6 +615,8 @@ cdef class GlycanCompositionVector:
         if self.ptr == NULL:
             raise ValueError("Object in invalid state")
         new = <glycan_composition_vector*>malloc(sizeof(glycan_composition_vector))
+        if new == NULL:
+            raise MemoryError()
         initialize_glycan_composition_vector(self.ptr.size, new)
 
         for i in range(self.ptr.size):
@@ -569,3 +636,49 @@ cdef class GlycanCompositionVector:
             hash_val = (hash_val ^ self.ptr.counts[i]) * 82520UL
         return hash_val
 
+    cpdef GlycanCompositionVector clone(self):
+        cdef:
+            glycan_composition_vector* new
+        if self.ptr == NULL:
+            raise ValueError("Object in invalid state")
+        new = <glycan_composition_vector*>malloc(sizeof(glycan_composition_vector))
+        if new == NULL:
+            raise MemoryError()
+        new.counts = NULL
+        new.size = 0
+        if copy_glycan_composition_vector(self.ptr, new) != 0:
+            raise MemoryError()
+        return GlycanCompositionVector._create(new)
+
+
+cdef class CachingGlycanCompositionVectorContext(GlycanCompositionVectorContext):
+
+    def __init__(self, components):
+        super().__init__(components)
+        self.encode_cache = {}
+        self.decode_cache = {}
+
+    cpdef GlycanCompositionVector encode(self, gc):
+        cdef:
+            PyObject* ptemp
+            GlycanCompositionVector value
+
+        ptemp = PyDict_GetItem(self.encode_cache, gc)
+        if ptemp != NULL:
+            return <GlycanCompositionVector>ptemp
+        value = GlycanCompositionVector._create(self.encode_raw(gc))
+        PyDict_SetItem(self.encode_cache, gc, value)
+        PyDict_SetItem(self.decode_cache, value, gc)
+        return value
+
+    cpdef decode(self, GlycanCompositionVector gcvec):
+        cdef:
+            PyObject* ptemp
+        ptemp = PyDict_GetItem(self.decode_cache, gcvec)
+        if ptemp != NULL:
+            return <object>ptemp
+
+        value = super(CachingGlycanCompositionVectorContext, self).decode(gcvec)
+        self.encode_cache[value] = gcvec
+        self.decode_cache[gcvec] = value
+        return value
