@@ -3,6 +3,7 @@ import itertools
 import logging
 import gzip
 import io
+import array
 
 from numbers import Number
 from collections import defaultdict, namedtuple
@@ -17,7 +18,7 @@ from scipy import stats
 import dill
 
 from glypy.utils import make_counter
-from glypy.structure.glycan_composition import HashableGlycanComposition
+from glypy.structure.glycan_composition import HashableGlycanComposition, FrozenMonosaccharideResidue
 
 from glycopeptidepy.structure.sequence.implementation import PeptideSequence
 from glycan_profiling.chromatogram_tree.chromatogram import Chromatogram, ChromatogramInterface
@@ -597,6 +598,10 @@ class FactorElutionTimeFitter(FactorChromatogramFeatureizer, ElutionTimeFitter):
         if factors is None:
             factors = ['Hex', 'HexNAc', 'Fuc', 'Neu5Ac']
         self.factors = list(factors)
+        self._coerced_factors = [
+            FrozenMonosaccharideResidue.from_iupac_lite(f)
+            for f in self.factors
+        ]
         super(FactorElutionTimeFitter, self).__init__(
             chromatograms, scale=scale, transform=transform,
             width_range=width_range, regularize=regularize)
@@ -609,6 +614,10 @@ class FactorElutionTimeFitter(FactorChromatogramFeatureizer, ElutionTimeFitter):
     def __setstate__(self, state):
         super(FactorElutionTimeFitter, self).__setstate__(state)
         self.factors = state['factors']
+        self._coerced_factors = [
+            FrozenMonosaccharideResidue.from_iupac_lite(f)
+            for f in self.factors
+        ]
 
     def predict_delta_glycan(self, chromatogram: ChromatogramType, delta_glycan: HashableGlycanComposition) -> float:
         try:
@@ -697,20 +706,22 @@ class PeptideBackboneKeyedMixin(object):
 
 
 class PeptideGroupChromatogramFeatureizer(FactorChromatogramFeatureizer, PeptideBackboneKeyedMixin):
+
     def _prepare_data_matrix(self, mass_array: np.ndarray) -> np.ndarray:
         p = len(self._peptide_to_indicator)
         n = len(self.chromatograms)
-        peptides = np.zeros((p, n))
-        indicator = dict(self._peptide_to_indicator)
+        peptides = np.zeros((n, p + len(self.factors)))
         for i, c in enumerate(self.chromatograms):
-            try:
-                j = indicator[self.get_peptide_key(c)]
-                peptides[j, i] = 1
-            except KeyError:
-                pass
+            peptide_key = self.get_peptide_key(c)
+            if peptide_key in self._peptide_to_indicator:
+                j = self._peptide_to_indicator[peptide_key]
+                peptides[i, j] = 1
+            gc = c.glycan_composition
+            for j, f in enumerate(self._coerced_factors, p):
+                peptides[i, j] = gc._getitem_fast(f)
+
         # Omit the intercept, so that all peptide levels are used without inducing linear dependence.
-        return np.vstack([peptides, ] +
-                         [np.array([c.glycan_composition[f] for c in self.chromatograms]) for f in self.factors]).T
+        return peptides
 
     def feature_names(self) -> List[str]:
         names = []
@@ -722,18 +733,20 @@ class PeptideGroupChromatogramFeatureizer(FactorChromatogramFeatureizer, Peptide
         return names
 
     def _prepare_data_vector(self, chromatogram: ChromatogramType, no_intercept=False) -> np.ndarray:
-        p = len(self._peptide_to_indicator)
-        peptides = [0 for _ in range(p)]
-        indicator = dict(self._peptide_to_indicator)
+        k = len(self._peptide_to_indicator)
+        feature_vector = np.zeros(k + len(self.factors))
+        max_peptide_i = k - 1
         if not no_intercept:
-            try:
-                peptide_key = self.get_peptide_key(chromatogram)
-                peptides[indicator[peptide_key]] = 1
-            except KeyError:
+            peptide_key = self.get_peptide_key(chromatogram)
+            if peptide_key in self._peptide_to_indicator:
+                feature_vector[self._peptide_to_indicator[peptide_key]] = 1
+            else:
                 logger.debug(
                     "Peptide sequence of %s not part of the model.", chromatogram)
-        return np.array(
-            peptides + [chromatogram.glycan_composition[f] for f in self.factors])
+        gc = chromatogram.glycan_composition
+        for i, f in enumerate(self._coerced_factors, 1 + max_peptide_i):
+            feature_vector[i] = gc._getitem_fast(f)
+        return feature_vector
 
     def has_peptide(self, peptide) -> bool:
         '''Check if the peptide is included in the model.
@@ -817,7 +830,7 @@ class PeptideFactorElutionTimeFitter(PeptideGroupChromatogramFeatureizer, Factor
     def fit(self, resample=False, alpha=None):
         if alpha is None and self.regularize:
             alpha = self.default_regularization()
-        return super(PeptideGroupChromatogramFeatureizer, self).fit(resample, alpha)
+        return super().fit(resample, alpha)
 
     def groupwise_R2(self, adjust=True):
         x = self.data
