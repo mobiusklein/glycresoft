@@ -174,8 +174,10 @@ class ChromatogramProxy(object):
         state = dict(state)
         self.glycan_composition = state.pop("glycan_composition", None)
         if self.glycan_composition is not None:
-            self.glycan_composition = HashableGlycanComposition.parse(
-                str(self.glycan_composition))
+            if isinstance(self.glycan_composition, HashableGlycanComposition):
+                pass
+            else:
+                self.glycan_composition = HashableGlycanComposition.parse(str(self.glycan_composition))
         self.apex_time = state.pop("apex_time", None)
         self.total_signal = state.pop("total_signal", None)
         self.weighted_neutral_mass = state.pop("weighted_neutral_mass", None)
