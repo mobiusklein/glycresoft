@@ -2,19 +2,12 @@
 a RANSAC-wrapper of it.
 '''
 import random
+import functools
+
 from collections import namedtuple
 
 import numpy as np
 from scipy import stats
-
-
-_WLSSolution = namedtuple("WLSSolution", [
-    'yhat', 'parameters', 'data', 'weights', 'residuals',
-    'projection_matrix', 'rss', 'press', 'R2', 'variance_matrix'])
-
-'''A structured container for :func:`weighted_linear_regression_fit`
-output.
-'''
 
 
 class WLSSolution(object):
@@ -77,6 +70,8 @@ class WLSSolution(object):
 
 
 SMALL_ERROR = 1e-5
+
+T_ISF = functools.lru_cache(None)(stats.t.isf)
 
 
 def prepare_arrays_for_linear_fit(x, y, w=None):
@@ -281,7 +276,7 @@ def fitted_interval(solution, x0, y0, alpha=0.05):
 
     error_of_fit = np.sqrt(sigma2 * h)
 
-    t = stats.t.isf(alpha / 2., df)
+    t = T_ISF(alpha / 2., df)
     width = t * error_of_fit
     return np.stack([y0 - width, y0 + width])
 
@@ -316,6 +311,6 @@ def prediction_interval(solution, x0, y0, alpha=0.05):
         h = np.diag(h)
     error_of_prediction = np.sqrt(sigma2 * (1 + h))
 
-    t = stats.t.isf(alpha / 2., df)
+    t = T_ISF(alpha / 2., df)
     width = t * error_of_prediction
     return np.stack([y0 - width, y0 + width])
