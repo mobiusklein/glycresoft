@@ -501,8 +501,13 @@ class MultipartGlycopeptideIdentifier(TaskBase):
             spectrum_batcher,
             mapping_batcher,
         ] + execution_branches)
+
         for branch in execution_branches:
-            branch.start(process=True, daemon=True)
+            try:
+                branch.start(process=True, daemon=True)
+            except Exception as err:
+                self.log(f"... Error {err} occurred during worker startup")
+
         # At this point, all the components have started already, but
         # to let the Pipeline object setup its "started" invariants, call
         # `start` again, which is a no-op for already-started task sequences.

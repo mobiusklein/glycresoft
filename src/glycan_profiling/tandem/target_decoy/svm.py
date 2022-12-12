@@ -236,6 +236,9 @@ class SVMModelBase(FDREstimatorBase):
     def summarize(self, name: Optional[str]=None):
         if name is None:
             name = "FDR"
+        if self.worse_than_score:
+            self.dataset.summarize(name)
+            return
 
         self.log("Feature Weights:")
         feature_names = self.feature_names() + ['intercept']

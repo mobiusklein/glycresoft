@@ -304,14 +304,20 @@ class MapperExecutor(TaskExecutionSequence):
         self.scan_loader.reset()
         # In case this came from a labeled batch mapper and not
         # attached to an actual dynamic glycopeptide generator
+        batch_label = None
         label = mapper_task.predictive_search
         if isinstance(label, str):
+            batch_label = label
             mapper_task.predictive_search = self.predictive_searchers[label]
+
         mapper_task.bind_scans(self.scan_loader)
         workload = mapper_task()
         self.scan_loader.reset()
         matcher_task = SpectrumMatcher(
-            workload, mapper_task.group_i, mapper_task.group_n)
+            workload,
+            mapper_task.group_i,
+            mapper_task.group_n,
+            batch_label=batch_label)
         return matcher_task
 
     def run(self):
@@ -370,6 +376,7 @@ class SpectrumMatcher(TaskExecutionSequence):
     group_n: int
     scorer_type: Type[GlycopeptideSpectrumMatcherBase]
     ipc_manager: Manager
+    batch_label: Optional[str]
 
     n_processes: int
     mass_shifts: List[MassShiftBase]
@@ -378,7 +385,9 @@ class SpectrumMatcher(TaskExecutionSequence):
 
     def __init__(self, workload, group_i, group_n, scorer_type=None,
                  ipc_manager=None, n_processes=6, mass_shifts=None,
-                 evaluation_kwargs=None, cache_seeds=None, **kwargs):
+                 evaluation_kwargs=None, cache_seeds=None,
+                 batch_label: Optional[str]=None,
+                 **kwargs):
         if scorer_type is None:
             scorer_type = LogIntensityScorer
         if evaluation_kwargs is None:
@@ -386,6 +395,7 @@ class SpectrumMatcher(TaskExecutionSequence):
         self.workload = workload
         self.group_i = group_i
         self.group_n = group_n
+        self.batch_label = batch_label
 
         self.mass_shifts = mass_shifts
         self.scorer_type = scorer_type
@@ -408,8 +418,11 @@ class SpectrumMatcher(TaskExecutionSequence):
         lo, hi = self.workload.mass_range()
         batches = list(self.workload.batches(matcher.batch_size))
         if self.workload.total_size:
+            label = ''
+            if self.batch_label:
+                label = self.batch_label.title() + ' '
             self.log(
-                f"... {max((self.group_i - 1), 0) * 100.0 / self.group_n:0.2f}% ({lo:0.2f}-{hi:0.2f}) {self.workload}")
+                f"... {label}{max((self.group_i - 1), 0) * 100.0 / self.group_n:0.2f}% ({lo:0.2f}-{hi:0.2f}) {self.workload}")
 
 
         n_batches = len(batches)
@@ -436,9 +449,12 @@ class SpectrumMatcher(TaskExecutionSequence):
                 # influence reproducibility. Possibly because glycan decoys get dropped?
             target_solutions.extend(temp)
             batch.clear()
+
         if batches:
-            self.log("... Finished %0.2f%% (%0.2f-%0.2f)" % (max((self.group_i - 1), 0)
-                                            * 100.0 / self.group_n, lo, hi))
+            label = ''
+            if self.batch_label:
+                label = self.batch_label.title() + ' '
+            self.log(f"... Finished {label}{max(self.group_i - 1, 0) * 100.0 / self.group_n:0.2f} ({lo:0.2f}-{hi:0.2f})")
         return target_solutions
 
     def run(self):
