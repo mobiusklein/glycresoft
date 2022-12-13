@@ -304,6 +304,9 @@ cdef class DijkstraPathFinder(object):
         smallest_distance = INF
         smallest_node = None
 
+        if not unvisited:
+            raise ValueError("The unvisited set must not be empty")
+
         if not self.unvisited_finite_distance:
             for key in unvisited:
                 ptemp = PyDict_GetItem(self.distance, key)
@@ -312,12 +315,16 @@ cdef class DijkstraPathFinder(object):
                 if distance <= smallest_distance:
                     smallest_node = key
                     smallest_distance = distance
+            if smallest_node is None:
+                raise ValueError(f"Failed to select a destination from unvisited set of size {len(unvisited)}")
         else:
             iterable = PyDict_Items(self.unvisited_finite_distance)
             for node, distance in iterable:
                 if distance <= smallest_distance:
                     smallest_distance = distance
                     smallest_node = node
+            if smallest_node is None:
+                raise ValueError(f"Failed to select a destination from unvisited set of size {len(unvisited)}")
         return self.graph[smallest_node]
 
     cpdef find_path(self):
@@ -329,6 +336,7 @@ cdef class DijkstraPathFinder(object):
             PyObject* ptemp
             double path_length, terminal_distance
             long n
+            int tmp
 
         unvisited = self._build_initial_key_set()
 
@@ -341,7 +349,10 @@ cdef class DijkstraPathFinder(object):
             else:
                 current_node = self.find_smallest_unvisited(unvisited)
 
-            if PySet_Discard(unvisited, current_node._str) != 1:
+            tmp = PySet_Discard(unvisited, current_node._str)
+            if tmp == -1:
+                raise KeyError(current_node._str)
+            elif tmp == 0:
                 continue
             if PyDict_GetItem(self.unvisited_finite_distance, current_node._str) != NULL:
                 PyDict_DelItem(self.unvisited_finite_distance, current_node._str)

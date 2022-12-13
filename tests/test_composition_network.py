@@ -163,6 +163,7 @@ class CompositionGraphTest(unittest.TestCase):
         node_to_remove = g["{Hex:5; HexNAc:2}"]
         removed_edges = g.remove_node(node_to_remove)
         neighbors = [e[node_to_remove] for e in removed_edges]
+        assert len(neighbors) == 3
         n_order_2_edges = 0
         for edge in g.edges:
             if edge.order == 2:
@@ -173,6 +174,7 @@ class CompositionGraphTest(unittest.TestCase):
         node_to_remove = g["{Hex:6; HexNAc:2}"]
         removed_edges = g.remove_node(node_to_remove)
         neighbors = [e[node_to_remove] for e in removed_edges]
+        assert len(neighbors) == 3
         for edge in g.edges:
             if edge.order == 3:
                 self.assertTrue(
