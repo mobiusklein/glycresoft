@@ -454,7 +454,7 @@ class SpectrumMatcher(TaskExecutionSequence):
             label = ''
             if self.batch_label:
                 label = self.batch_label.title() + ' '
-            self.log(f"... Finished {label}{max(self.group_i - 1, 0) * 100.0 / self.group_n:0.2f} ({lo:0.2f}-{hi:0.2f})")
+            self.log(f"... Finished {label}{max(self.group_i - 1, 0) * 100.0 / self.group_n:0.2f}% ({lo:0.2f}-{hi:0.2f})")
         return target_solutions
 
     def run(self):

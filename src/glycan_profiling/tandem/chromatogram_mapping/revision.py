@@ -395,6 +395,7 @@ class SpectrumMatchUpdater(SpectrumMatchBackFiller):
     def collect_candidate_solutions_for_rt_validation(self, chromatogram: Union['TandemAnnotatedChromatogram', 'TandemSolutionsWithoutChromatogram'],
                                                       structure: TargetType, rt_score: float, overridden: Optional[TargetType] = None):
         from glycan_profiling.scoring.elution_time_grouping import GlycopeptideChromatogramProxy
+        from .chromatogram import TandemSolutionsWithoutChromatogram
 
         representers: List[SolutionEntry] = chromatogram.compute_representative_weights(
             self.threshold_fn)
@@ -411,7 +412,7 @@ class SpectrumMatchUpdater(SpectrumMatchBackFiller):
             elif str(r.solution) == structure:
                 match.append(r)
             else:
-                if self.retention_time_model and not isinstance(chromatogram, 'TandemSolutionsWithoutChromatogram'):
+                if self.retention_time_model and not isinstance(chromatogram, TandemSolutionsWithoutChromatogram):
                     if r.solution not in alternative_rt_scores:
                         proxy = GlycopeptideChromatogramProxy.from_chromatogram(
                             chromatogram)
@@ -423,6 +424,8 @@ class SpectrumMatchUpdater(SpectrumMatchBackFiller):
                     if np.isnan(alt_rt_score) and not np.isnan(rt_score):
                         self.log(
                             f"RT score for alternative {r.solution} is NaN, reference {structure} RT score is {rt_score:0.3f}")
+                    elif not np.isnan(alt_rt_score) and np.isnan(rt_score):
+                        self.log(f"RT score alternateive {r.solution} is {alt_rt_score:0.3f}, reference {structure} RT score is NaN")
                     # If either is NaN, this is always false, so we never invalidate a NaN-predicted case.
                     if (rt_score - alt_rt_score) > self.retention_time_delta:
                         invalidated.add(r.solution)
