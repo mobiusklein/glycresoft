@@ -1742,6 +1742,11 @@ class SpectrumMatchBackFiller(TaskBase):
         if self.fdr_estimator is not None:
             self.fdr_estimator.score_all(sset)
 
+        for inst in targets:
+            match = sset.solution_for(inst)
+            if self.threshold_fn(match):
+                match.best_match = True
+                sset.promote_to_best_match(match)
         return solution_set_match_pairs
 
 
@@ -1787,8 +1792,14 @@ class SpectrumMatchUpdater(SpectrumMatchBackFiller):
     retention_time_delta: float
     retention_time_model: 'RetentionTimeModelEnsemble'
 
-    def __init__(self, scan_loader, scorer, spectrum_match_cls, id_maker, threshold_fn=lambda x: x.q_value < 0.05,
-                 match_args=None, fdr_estimator=None, retention_time_model=None, retention_time_delta=0.35):
+    def __init__(self, scan_loader,
+                 scorer,
+                 spectrum_match_cls,
+                 id_maker,
+                 threshold_fn=lambda x: x.q_value < 0.05,
+                 match_args=None,
+                 fdr_estimator=None, retention_time_model=None,
+                 retention_time_delta=0.35):
         if match_args is None:
             match_args = {}
 
@@ -1848,7 +1859,6 @@ class SpectrumMatchUpdater(SpectrumMatchBackFiller):
         return structures
 
     def make_target_filter(self, target_to_find: TargetType) -> Callable[[SpectrumSolutionSet, SpectrumMatch], bool]:
-
         filter_fn = SpectrumMatchInvalidatinCallback(target_to_find, self.threshold_fn)
 
         return filter_fn
@@ -1907,6 +1917,8 @@ class SpectrumMatchUpdater(SpectrumMatchBackFiller):
                             proxy, 0.01)
                     else:
                         alt_rt_score = alternative_rt_scores[r.solution]
+                    if np.isnan(alt_rt_score) and not np.isnan(rt_score):
+                        self.log(f"RT score for alternative {r.solution} is NaN, reference {structure} RT score is {rt_score:0.3f}")
                     # If either is NaN, this is always false, so we never invalidate a NaN-predicted case.
                     if (rt_score - alt_rt_score) > self.retention_time_delta:
                         invalidated.add(r.solution)
@@ -2017,7 +2029,9 @@ class SpectrumMatchUpdater(SpectrumMatchBackFiller):
             except KeyError:
                 solution_set_match_pairs.extend(
                     self.add_matches_to_solution_set(
-                        sset, instances, mass_shifts))
+                        sset, instances, mass_shifts
+                    )
+                )
         return solution_set_match_pairs
 
     def __call__(self, revision, chromatogram=None):
@@ -2032,8 +2046,12 @@ class SpectrumMatchUpdater(SpectrumMatchBackFiller):
 
     def affirm_solution(self, chromatogram: TandemAnnotatedChromatogram):
         reference_peptides = self.find_identical_peptides(chromatogram, chromatogram.entity)
-        _matches = self.collect_matches(chromatogram, chromatogram.entity,
-                             chromatogram.mass_shifts, reference_peptides)
+        _matches = self.collect_matches(
+            chromatogram,
+            chromatogram.entity,
+            chromatogram.mass_shifts,
+            reference_peptides
+        )
         revised_rt_score = None
         if self.retention_time_model:
             revised_rt_score = self.retention_time_model.score_interval(
