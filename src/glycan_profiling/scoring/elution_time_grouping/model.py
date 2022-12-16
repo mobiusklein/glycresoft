@@ -1431,20 +1431,20 @@ class EnsembleBuilder(TaskBase):
 
         tasks: OrderedDict[float, futures.Future[Tuple[float,
                                                        ElutionTimeFitter]]] = OrderedDict()
-        executor = futures.ThreadPoolExecutor(min(n_workers, 3), thread_name_prefix="ElutionTimeModelFitter")
-        for i, (point, members) in enumerate(point_members):
-            m: ElutionTimeFitter
+        with futures.ThreadPoolExecutor(min(n_workers, 3), thread_name_prefix="ElutionTimeModelFitter") as executor:
+            for i, (point, members) in enumerate(point_members):
+                m: ElutionTimeFitter
 
-            result = executor.submit(
-                self._fit, i, point, members, point_members, predicate,
-                model_type, regularize, resample)
-            tasks[point] = result
+                result = executor.submit(
+                    self._fit, i, point, members, point_members, predicate,
+                    model_type, regularize, resample)
+                tasks[point] = result
 
-        for _, result in tasks.items():
-            point, m = result.result()
-            if m is None:
-                continue
-            models[point] = m
+            for _, result in tasks.items():
+                point, m = result.result()
+                if m is None:
+                    continue
+                models[point] = m
         self.models = models
         return self
 
@@ -1531,8 +1531,10 @@ class LocalShiftGraph(object):
             if weighted_sdev > abs(weighted_mean):
                 tmp = weighted_sdev
                 weighted_sdev = max(abs(weighted_mean), 1.0)
-                logger.debug("Delta parameter {}'s standard deviation was over-dispersed {}/{}. Capping at {}".format(
-                    shift, tmp, weighted_mean, weighted_sdev))
+                logger.debug(
+                    "Delta parameter %r's standard deviation was over-dispersed %r/%r. Capping at %r",
+                    shift, tmp, weighted_mean, weighted_sdev
+                )
 
             # NOTE: When len(delta_chroms) == 1, weighted_sdev = 0.0, so no observations
             # are allowed through. This is intentional because we cannot trust singletons here.
