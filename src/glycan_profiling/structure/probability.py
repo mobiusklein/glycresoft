@@ -1,7 +1,7 @@
 from array import ArrayType as array
 from concurrent.futures import ThreadPoolExecutor
 
-from typing import Dict, Protocol, Union, List
+from typing import Dict, Optional, Protocol, Union, List
 
 import numpy as np
 from numpy.typing import ArrayLike
@@ -640,7 +640,7 @@ class MultiKDModel(PredictorBase):
     positive_prior: float
 
     use_threads: bool
-    thread_pool: ThreadPoolExecutor
+    thread_pool: Optional[ThreadPoolExecutor]
 
     def __init__(self,
                  positive_prior: float=None,
@@ -689,6 +689,15 @@ class MultiKDModel(PredictorBase):
     def update_fits(self):
         for model in self.models:
             model.update_fits()
+
+    def close_thread_pool(self):
+        if self.use_threads:
+            self.thread_pool.shutdown()
+            self.use_threads = False
+
+    def create_thread_pool(self):
+        self.use_threads = True
+        self.thread_pool = ThreadPoolExecutor()
 
     def update(self):
         self.update_fits()

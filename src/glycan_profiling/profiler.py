@@ -1632,6 +1632,7 @@ class MultipartGlycopeptideLCMSMSAnalyzer(MzMLGlycopeptideLCMSMSAnalyzer):
         self.log(f"{len(training_examples)} training examples for localization")
 
         ptm_prophet = task.train_ptm_prophet(training_examples)
+        ptm_prophet.close_thread_pool()
         self.localization_model = task
 
         self.log("Scoring Site Localizations")
