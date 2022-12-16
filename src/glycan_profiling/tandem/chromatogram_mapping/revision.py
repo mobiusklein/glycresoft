@@ -356,7 +356,10 @@ class SpectrumMatchUpdater(SpectrumMatchBackFiller):
                 f"... Marking {sm.scan_id} -> {sm.target} Valid = {valid}, Best Match = {best_match}; Reason: {reason}")
             sm.valid = valid
             sm.best_match = best_match
-            sset._invalidate()
+            # Do not want to invalidate order as that would force re-sorting
+            # and that would break any "promoted" solution whose score isn't
+            # the top one.
+            sset._invalidate(invalidate_order=False)
         return structures
 
     def make_target_filter(self, target_to_find: TargetType) -> Callable[[SpectrumSolutionSet, SpectrumMatch], bool]:

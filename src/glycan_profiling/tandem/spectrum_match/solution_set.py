@@ -429,9 +429,10 @@ class SpectrumSolutionSet(ScanWrapperBase):
         """
         return False
 
-    def _invalidate(self):
+    def _invalidate(self, invalidate_order: bool):
+        if invalidate_order:
+            self._is_sorted = False
         self._target_map = None
-        self._is_sorted = False
         self._q_value = None
 
     @property
@@ -589,7 +590,7 @@ class SpectrumSolutionSet(ScanWrapperBase):
                 solutions.append(sm)
             self.solutions = solutions
         self._is_simplified = True
-        self._invalidate()
+        self._invalidate(False)
 
     def get_top_solutions(self, d=3, reject_shifted=False, targets_ignored=None, require_valid=True) -> List[SpectrumMatch]:
         """Get all matches within `d` of the best solution
@@ -659,7 +660,7 @@ class SpectrumSolutionSet(ScanWrapperBase):
             if len(self) == 0:
                 self.solutions = [best_solution]
         self._is_top_only = True
-        self._invalidate()
+        self._invalidate(False)
         return self
 
     def sort(self, maximize=True, method=None) -> 'SpectrumSolutionSet':
@@ -730,7 +731,7 @@ class SpectrumSolutionSet(ScanWrapperBase):
         return self
 
     def merge(self, other) -> 'SpectrumSolutionSet':
-        self._invalidate()
+        self._invalidate(True)
         self.solutions.extend(other)
         self.sort()
         if self._is_top_only:
@@ -739,7 +740,7 @@ class SpectrumSolutionSet(ScanWrapperBase):
         return self
 
     def append(self, match: SpectrumMatch) -> 'SpectrumSolutionSet':
-        self._invalidate()
+        self._invalidate(True)
         self.solutions.append(match)
         self.sort()
         if self._is_top_only:
@@ -749,7 +750,7 @@ class SpectrumSolutionSet(ScanWrapperBase):
 
     def insert(self, position: int, match: SpectrumMatch, is_sorted=True):
         was_sorted = self._is_sorted
-        self._invalidate()
+        self._invalidate(True)
         if is_sorted:
             self._is_sorted = was_sorted
         self.solutions.insert(position, match)
