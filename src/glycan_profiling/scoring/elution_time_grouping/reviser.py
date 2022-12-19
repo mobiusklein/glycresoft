@@ -16,6 +16,8 @@ from glycan_profiling.chromatogram_tree.mass_shift import Unmodified, Ammonium, 
 from glycan_profiling.scoring.elution_time_grouping.structure import GlycopeptideChromatogramProxy
 from glycan_profiling.structure.structure_loader import GlycanCompositionDeltaCache
 
+from glycan_profiling._c.composition_network.graph import CachingGlycanCompositionVectorContext, GlycanCompositionVector
+
 from glycan_profiling.task import LoggingMixin
 
 logger = logging.getLogger(__name__)
@@ -43,6 +45,9 @@ class RevisionRule(object):
         self.name = name
         self.delta_cache = None
 
+    def monosaccharides(self) -> Set[FrozenMonosaccharideResidue]:
+        return set(self.delta_glycan)
+
     def clone(self):
         return self.__class__(
             self.delta_glycan.clone(),
@@ -50,12 +55,16 @@ class RevisionRule(object):
             self.priority,
             self.name)
 
-    def valid(self, record):
-        new_record = self(record)
+    def is_valid_revision(self, record: GlycopeptideChromatogramProxy, new_record: GlycopeptideChromatogramProxy) -> bool:
         valid = not any(v < 0 for v in new_record.glycan_composition.values())
         if valid:
             if self.mass_shift_rule:
                 return self.mass_shift_rule.valid(record)
+        return valid
+
+    def valid(self, record: GlycopeptideChromatogramProxy) -> bool:
+        new_record = self(record)
+        valid = self.is_valid_revision(record, new_record)
         return valid
 
     def with_cache(self):
@@ -119,8 +128,8 @@ class ValidatingRevisionRule(RevisionRule):
         return self.__class__(
             self.delta_glycan.clone(), self.validator, self.mass_shift_rule.clone() if self.mass_shift_rule else None, self.priority, self.name)
 
-    def valid(self, record):
-        if super(ValidatingRevisionRule, self).valid(record):
+    def is_valid_revision(self, record: GlycopeptideChromatogramProxy, new_record: GlycopeptideChromatogramProxy) -> bool:
+        if super().is_valid_revision(record, new_record):
             return self.validator(record)
         return False
 
@@ -400,8 +409,64 @@ class RevisionEvent:
     msn_score: float
 
 
+class ValidatedGlycome:
+    valid_glycans: Set[HashableGlycanComposition]
+    monosaccharides: Set[FrozenMonosaccharideResidue]
+
+    def __init__(self, valid_glycans):
+        self.valid_glycans = valid_glycans
+        self.monosaccharides = self._collect_monosaccharides()
+
+    def _collect_monosaccharides(self):
+        keys = set()
+        for gc in self.valid_glycans:
+            keys.update(gc)
+        return keys
+
+    def __contains__(self, glycan_composition: HashableGlycanComposition) -> bool:
+        return glycan_composition in self.valid_glycans
+
+    def __bool__(self):
+        return bool(self.valid_glycans)
+
+    def __nonzero__(self):
+        return bool(self.valid_glycans)
+
+    def __iter__(self):
+        return iter(self.valid_glycans)
+
+    def __len__(self):
+        return len(self.valid_glycans)
+
+    def check(self, record: GlycopeptideChromatogramProxy) -> bool:
+        return record.glycan_composition in self.valid_glycans
+
+
+class IndexedValidatedGlycome(ValidatedGlycome):
+    indexer: CachingGlycanCompositionVectorContext
+    indexed_valid_glycans: Set[GlycanCompositionVector]
+
+    def __init__(self, valid_glycans):
+        super().__init__(valid_glycans)
+        self.indexer = CachingGlycanCompositionVectorContext(self.monosaccharides)
+        self.indexed_valid_glycans = {
+            self.indexer.encode(gc) for gc in self.valid_glycans
+        }
+
+    def encode(self, record: GlycopeptideChromatogramProxy):
+        if "_indexed_glycan_composition" in record.kwargs:
+            return record.kwargs["_indexed_glycan_composition"]
+        vec = self.indexer.encode(record.glycan_composition)
+        record.kwargs["_indexed_glycan_composition"] = vec
+        return vec
+
+    def check(self, record: GlycopeptideChromatogramProxy) -> bool:
+        return self.encode(record) in self.indexed_valid_glycans
+
+
+
 class ModelReviser(LoggingMixin):
-    valid_glycans: Optional[Set[HashableGlycanComposition]]
+    valid_glycans: Optional[ValidatedGlycome]
     revision_validator: Optional[RevisionValidatorBase]
 
     model: 'ElutionTimeFitter'
@@ -426,6 +491,9 @@ class ModelReviser(LoggingMixin):
         self.alternative_records = DefaultDict(list)
         self.alternative_scores = DefaultDict(_new_array)
         self.alternative_times = DefaultDict(_new_array)
+        if valid_glycans is not None:
+            if isinstance(valid_glycans, set):
+                valid_glycans = ValidatedGlycome(valid_glycans)
         self.valid_glycans = valid_glycans
         self.revision_validator = revision_validator
 
@@ -443,19 +511,19 @@ class ModelReviser(LoggingMixin):
         for rule in self.rules:
             if rule.valid(case):
                 rec = rule(case)
-                if self.valid_glycans and rec.structure.glycan_composition not in self.valid_glycans:
+                if self.valid_glycans and not self.valid_glycans.check(rec):
                     continue
                 propositions[rule] = (rec, self.rescore(rec))
         return propositions
 
-    def process_rule(self, rule):
+    def process_rule(self, rule: RevisionRule):
         alts = []
         alt_scores = array('d')
         alt_times = array('d')
         for case in self.chromatograms:
-            if rule.valid(case):
-                rec = rule(case)
-                if self.valid_glycans and rec.glycan_composition not in self.valid_glycans:
+            rec = rule(case)
+            if rule.is_valid_revision(case, rec):
+                if self.valid_glycans and not self.valid_glycans.check(rec):
                     alts.append(None)
                     alt_scores.append(0.0)
                     alt_times.append(0.0)
@@ -596,6 +664,8 @@ AmmoniumUnmaskedNeuGcRule = RevisionRule(
 IsotopeRule = RevisionRule(HashableGlycanComposition(Fuc=-2, Neu5Ac=1), name="Isotope Error")
 IsotopeRule2 = RevisionRule(HashableGlycanComposition(Fuc=-4, Neu5Ac=2), name="Isotope Error 2")
 
+IsotopeRuleNeuGc = RevisionRule(HashableGlycanComposition(Fuc=-1, Hex=-1, NeuGc=1), name="Isotope Error NeuGc")
+
 HexNAc2NeuAc2ToHex6Deoxy = ValidatingRevisionRule(
     HashableGlycanComposition(Hex=-6, HexNAc=2, Neu5Ac=2),
     mass_shift_rule=MassShiftRule(Deoxy, 1),
@@ -653,6 +723,15 @@ class RevisionRuleList(object):
         return self.__class__([
             rule.with_cache() for rule in self.rules
         ])
+
+    def filter_defined(self, valid_glycans: ValidatedGlycome):
+        acc = []
+        for rule in self.rules:
+            keys = rule.monosaccharides()
+            if keys == (keys & valid_glycans.monosaccharides):
+                acc.append(rule)
+        self.rules = acc
+        return self
 
     def __getitem__(self, i):
         if i in self.by_name:

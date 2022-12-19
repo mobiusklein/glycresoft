@@ -1669,7 +1669,7 @@ class MultipartGlycopeptideLCMSMSAnalyzer(MzMLGlycopeptideLCMSMSAnalyzer):
             OxoniumIonRequiringUtilizationRevisionValidator(spectrum_match_builder=updater),
         ])
 
-        self.log("... Begin Retention Time Modeling")
+        self.log("Begin Retention Time Modeling")
 
         pipeline = GlycopeptideElutionTimeModelBuildingPipeline(
             glycoform_agg, valid_glycans=glycan_compositions,

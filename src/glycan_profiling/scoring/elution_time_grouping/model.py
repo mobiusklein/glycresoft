@@ -47,12 +47,13 @@ from .reviser import (IntervalModelReviser, IsotopeRule, AmmoniumMaskedRule,
                       IsotopeRule2, HexNAc2Fuc1NeuAc2ToHex7, PhosphateToSulfateRule,
                       SulfateToPhosphateRule, Sulfate1HexNAc2ToHex3Rule, Hex3ToSulfate1HexNAc2Rule,
                       Phosphate1HexNAc2ToHex3Rule, Hex3ToPhosphate1HexNAc2Rule, HexNAc2NeuAc2ToHex6Deoxy,
-                      AmmoniumMaskedNeuGcRule, AmmoniumUnmaskedNeuGcRule,
+                      AmmoniumMaskedNeuGcRule, AmmoniumUnmaskedNeuGcRule, IsotopeRuleNeuGc,
                       RevisionValidatorBase,
                       PeptideYUtilizationPreservingRevisionValidator,
-                      modify_rules, RevisionRuleList,
+                      RevisionRuleList,
                       RuleBasedFDREstimator,
-                      ResidualFDREstimator)
+                      ResidualFDREstimator,
+                      ValidatedGlycome, IndexedValidatedGlycome)
 
 from . import reviser as libreviser
 
@@ -1487,12 +1488,15 @@ class LocalShiftGraph(object):
     def build_edges(self):
         for key, group in self.groups.by_peptide.items():
             base_time = 0.0
+            a: GlycopeptideChromatogramProxy
+            b: GlycopeptideChromatogramProxy
             for a, b in itertools.permutations(group, 2):
                 distance = self.distance_cache(
                     a.glycan_composition, b.glycan_composition)[0]
                 if distance > self.max_distance or distance == 0:
                     continue
                 delta_comp = self.delta_cache(a.glycan_composition, b.glycan_composition)
+                # Construct the structure property directly without paying property overhead
                 structure_key = (key + delta_comp.serialize())
                 if structure_key in self.key_cache:
                     structure = self.key_cache[structure_key]
@@ -1508,7 +1512,13 @@ class LocalShiftGraph(object):
                     weight=float(distance) ** 4 + (a.weight + b.weight)
                 )
                 rec._structure = structure
-                edge_key = frozenset((str(a.structure), str(b.structure)))
+
+                a_tag = a.tag
+                b_tag = b.tag
+                if a_tag is not None and b_tag is not None:
+                    edge_key = frozenset((a_tag, b_tag))
+                else:
+                    edge_key = frozenset((str(a.structure), str(b.structure)))
                 delta_key = delta_comp
                 self.edges[edge_key].append(rec)
                 # Use string form to discard 0-value keys
@@ -1830,7 +1840,7 @@ class GlycopeptideElutionTimeModelBuildingPipeline(TaskBase):
     revision_rules: RevisionRuleList
     revision_validator: RevisionValidatorBase
 
-    valid_glycans: Set[HashableGlycanComposition]
+    valid_glycans: Optional[Set[HashableGlycanComposition]]
     initial_filter: Callable[..., bool]
 
     key_cache: Dict
@@ -1851,7 +1861,10 @@ class GlycopeptideElutionTimeModelBuildingPipeline(TaskBase):
         self.model_history = []
         self.revision_history = []
         self.revised_tags = set()
-        self.valid_glycans = valid_glycans
+        # The indexed variant doesn't work well without expanding the space to also
+        # include revision rules and requires that the chromatogram proxies need to
+        # have special copy logic
+        self.valid_glycans = ValidatedGlycome(valid_glycans) if valid_glycans else None
         self.initial_filter = initial_filter
         self.key_cache = {}
         self.revision_validator = revision_validator
@@ -1869,6 +1882,7 @@ class GlycopeptideElutionTimeModelBuildingPipeline(TaskBase):
             AmmoniumUnmaskedNeuGcRule,
             IsotopeRule,
             IsotopeRule2,
+            IsotopeRuleNeuGc,
             HexNAc2NeuAc2ToHex6AmmoniumRule,
             HexNAc2NeuAc2ToHex6Deoxy,
             HexNAc2Fuc1NeuAc2ToHex7,
@@ -1895,6 +1909,10 @@ class GlycopeptideElutionTimeModelBuildingPipeline(TaskBase):
                 pass
             else:
                 self.log("No Fuc or d-Hex detected in valid glycans, no rule modifications inferred")
+            n_rules_before = len(self.revision_rules)
+            self.revision_rules = self.revision_rules.filter_defined(self.valid_glycans)
+            n_rules_after = len(self.revision_rules)
+            self.log(f"Using {n_rules_after} revision rules.")
 
     @property
     def current_model(self):
