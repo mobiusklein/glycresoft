@@ -1,3 +1,6 @@
+from typing import Callable, List, Optional, Tuple
+
+from ms_deisotope.peak_set import DeconvolutedPeak
 from ms_deisotope.peak_dependency_network.intervals import Interval, IntervalTreeNode
 
 from glycan_profiling.task import TaskBase
@@ -33,7 +36,14 @@ class ChromatogramForest(TaskBase):
         The mass error tolerance between peaks and possible chromatograms (in ppm)
     scan_id_to_rt : callable
         A callable object to convert scan ids to retention time.
+    count : int
+        The number of peaks handled
     """
+    chromatograms: List[Chromatogram]
+    error_tolerance: float
+    scan_id_to_rt: Callable[[str], float]
+    count: int
+
     def __init__(self, chromatograms=None, error_tolerance=1e-5, scan_id_to_rt=lambda x: x):
         if chromatograms is None:
             chromatograms = []
@@ -54,12 +64,12 @@ class ChromatogramForest(TaskBase):
         else:
             return [self.chromatograms[j] for j in i]
 
-    def find_insertion_point(self, peak):
+    def find_insertion_point(self, peak: DeconvolutedPeak) -> Tuple[List[int], bool]:
         index, matched = binary_search_with_flag(
             self.chromatograms, peak.neutral_mass, self.error_tolerance)
         return index, matched
 
-    def find_minimizing_index(self, peak, indices):
+    def find_minimizing_index(self, peak: DeconvolutedPeak, indices: List[int]) -> int:
         best_index = None
         best_error = float('inf')
         for index_case in indices:
@@ -70,7 +80,7 @@ class ChromatogramForest(TaskBase):
                 best_error = err
         return best_index
 
-    def handle_peak(self, scan_id, peak):
+    def handle_peak(self, scan_id: str, peak: DeconvolutedPeak):
         if len(self) == 0:
             index = [0]
             matched = False
@@ -89,7 +99,7 @@ class ChromatogramForest(TaskBase):
             self.insert_chromatogram(chroma, index)
         self.count += 1
 
-    def insert_chromatogram(self, chromatogram, index):
+    def insert_chromatogram(self, chromatogram: Chromatogram, index: Tuple[int, bool]):
         # TODO: Review this index arithmetic, the output isn't sorted.
         index = index[0] # index is (index, matched) from binary_search_with_flag
         if index != 0:
@@ -139,12 +149,12 @@ class ChromatogramMerger(TaskBase):
         else:
             return [self.chromatograms[j] for j in i]
 
-    def find_candidates(self, new_chromatogram):
+    def find_candidates(self, new_chromatogram: Chromatogram) -> Tuple[List[int], bool]:
         index, matched = binary_search_with_flag(
             self.chromatograms, new_chromatogram.neutral_mass, self.error_tolerance)
         return index, matched
 
-    def merge_overlaps(self, new_chromatogram, chromatogram_range):
+    def merge_overlaps(self, new_chromatogram: Chromatogram, chromatogram_range: List[Chromatogram]) -> bool:
         has_merged = False
         query_mass = new_chromatogram.neutral_mass
         for chroma in chromatogram_range:
@@ -157,11 +167,11 @@ class ChromatogramMerger(TaskBase):
                 break
         return has_merged
 
-    def find_insertion_point(self, new_chromatogram):
+    def find_insertion_point(self, new_chromatogram: Chromatogram) -> Optional[int]:
         return binary_search_exact(
             self.chromatograms, new_chromatogram.neutral_mass)
 
-    def handle_new_chromatogram(self, new_chromatogram):
+    def handle_new_chromatogram(self, new_chromatogram: Chromatogram):
         if len(self) == 0:
             index = [0]
             matched = False
@@ -178,7 +188,7 @@ class ChromatogramMerger(TaskBase):
             self.insert_chromatogram(new_chromatogram, index)
         self.count += 1
 
-    def insert_chromatogram(self, chromatogram, index):
+    def insert_chromatogram(self, chromatogram: Chromatogram, index: List[int]):
         if index[0] != 0:
             self.chromatograms.insert(index[0] + 1, chromatogram)
         else:
