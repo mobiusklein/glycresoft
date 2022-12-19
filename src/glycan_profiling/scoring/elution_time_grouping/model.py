@@ -1878,7 +1878,7 @@ class GlycopeptideElutionTimeModelBuildingPipeline(TaskBase):
             Hex3ToSulfate1HexNAc2Rule,
             Phosphate1HexNAc2ToHex3Rule,
             Hex3ToPhosphate1HexNAc2Rule,
-        ])
+        ]).with_cache()
 
     def _check_rules(self):
         if self.valid_glycans:
@@ -1888,7 +1888,7 @@ class GlycopeptideElutionTimeModelBuildingPipeline(TaskBase):
                 fucose += gc['Fuc']
                 dhex += gc['dHex']
             if fucose == 0 and dhex > 0:
-                self.revision_rules = modify_rules(self.revision_rules, {libreviser.fuc: libreviser.dhex})
+                self.revision_rules = self.revision_rules.modify_rules({libreviser.fuc: libreviser.dhex})
             elif dhex == 0 and fucose > 0:
                 # no-op, we don't need to make changes to the current
                 # rules.
@@ -1946,20 +1946,6 @@ class GlycopeptideElutionTimeModelBuildingPipeline(TaskBase):
             chromatograms,
             valid_glycans=self.valid_glycans,
             revision_validator=self.revision_validator)
-        if self.valid_glycans:
-            fucose = 0
-            dhex = 0
-            for gc in self.valid_glycans:
-                fucose += gc['Fuc']
-                dhex += gc['dHex']
-            if fucose == 0 and dhex > 0:
-                reviser.modify_rules({libreviser.fuc: libreviser.dhex})
-            elif dhex == 0 and fucose > 0:
-                # no-op, we don't need to make changes to the current
-                # rules.
-                pass
-            else:
-                self.log("No Fuc or d-Hex detected in valid glycans, no rule modifications inferred")
         return reviser
 
     def revise_with(self, model, chromatograms, delta=0.35, min_time_difference=None, verbose=True):
