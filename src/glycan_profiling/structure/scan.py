@@ -1,7 +1,8 @@
 from typing import Optional, Union
 from weakref import WeakValueDictionary
 
-from ms_deisotope.data_source import ProcessedScan, PrecursorInformation, ActivationInformation, ScanDataSource, Scan
+from ms_deisotope.data_source import ProcessedScan, PrecursorInformation, ActivationInformation, Scan
+from ms_deisotope.data_source import ProcessedRandomAccessScanSource
 
 
 class ScanStub(object):
@@ -25,9 +26,9 @@ class ScanStub(object):
 
     id: str
     precursor_information: PrecursorInformation
-    source: Optional[ScanDataSource]
+    source: Optional[ProcessedRandomAccessScanSource]
 
-    def __init__(self, precursor_information: PrecursorInformation, source: ScanDataSource):
+    def __init__(self, precursor_information: PrecursorInformation, source: ProcessedRandomAccessScanSource):
         self.id = precursor_information.product_scan_id
         self.precursor_information = precursor_information
         self.source = source
@@ -173,6 +174,8 @@ class ScanInformation(object):
 
 
 class ScanInformationLoader(object):
+    scan_loader: ProcessedRandomAccessScanSource
+
     def __init__(self, scan_loader):
         self.scan_loader = scan_loader
         self.cache = WeakValueDictionary()

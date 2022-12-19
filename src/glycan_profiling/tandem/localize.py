@@ -2,7 +2,7 @@ import math
 
 from array import array
 from typing import Any, DefaultDict, List, Tuple, Callable, NamedTuple, Union, Dict, Optional, Counter
-from glycan_profiling.structure.scan import ScanStub, ScanWrapperBase
+from glycan_profiling.structure.scan import ScanStub, ScanWrapperBase, ScanInformation
 from glycan_profiling.tandem.ref import SpectrumReference
 
 from ms_deisotope.data_source import ProcessedScan
@@ -49,7 +49,8 @@ SolutionsBin = Tuple[List[SpectrumMatch], PeptideGroupToken]
 EvaluatedSolutionBins = Tuple[List[SpectrumMatch],
                               List[localize.PTMProphetEvaluator]]
 
-ScanOrRef = Union[ProcessedScan, ScanStub, SpectrumReference, ScanWrapperBase]
+ScanOrRef = Union[ProcessedScan, ScanStub,
+                  SpectrumReference, ScanWrapperBase, ScanInformation]
 
 
 class LocalizationGroup(NamedTuple):
@@ -125,6 +126,7 @@ class ModificationLocalizationSearcher(TaskBase):
                                  scan: ProcessedScan,
                                  modification_group_token: PeptideGroupToken) -> List[localize.PTMProphetEvaluator]:
         solutions = []
+        scan_description = ScanInformation.from_scan(scan)
         for mod_sig, count in modification_group_token.modifications:
             el = localize.PTMProphetEvaluator(
                 scan,
@@ -135,6 +137,9 @@ class ModificationLocalizationSearcher(TaskBase):
             el.score_arrangements(
                 error_tolerance=self.error_tolerance
             )
+            # At this point we don't need the full scan representation anymore,
+            # so we can drop the peaks later.
+            el.scan = scan_description
             solutions.append(el)
         return solutions
 
@@ -201,8 +206,8 @@ class ModificationLocalizationSearcher(TaskBase):
             key = str(psm.target)
             if key in isoform_scores:
                 psm.localizations = isoform_scores[key]
-            if abs(isoform_weights[key] - max_weight) > 1e-2 and psm.is_best_match:
-                psm.is_best_match = False
+            if abs(isoform_weights[key] - max_weight) > 1e-2 and psm.best_match:
+                psm.best_match = False
                 self.log(f"... Invalidating {psm.target}@{psm.scan_id}")
 
     def select_top_isoforms(self, solutions: List[List[EvaluatedSolutionBins]], prophet: Optional[MultiKDModel]=None):
