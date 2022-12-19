@@ -1,7 +1,8 @@
 import csv
 
 import io
-from typing import Any, Dict, Iterable, Iterator, List, Optional, Sequence, Mapping
+from typing import Any, Dict, Iterable, Iterator, List, Optional, Sequence, Mapping, Type
+from glycan_profiling.structure.structure_loader import GlycanCompositionDeltaCache
 
 import numpy as np
 from scipy.ndimage import gaussian_filter1d, median_filter
@@ -164,6 +165,27 @@ class ChromatogramProxy(object):
         dup.source = self.source
         return dup
 
+    def __eq__(self, other: 'ChromatogramProxy'):
+        if other is None:
+            return False
+        if self.glycan_composition != other.glycan_composition:
+            return False
+        if not np.isclose(self.apex_time, other.apex_time):
+            return False
+        if not np.isclose(self.total_signal, other.total_signal):
+            return False
+        if self.mass_shifts != other.mass_shifts:
+            return False
+        if not np.isclose(self.weighted_neutral_mass, other.weighted_neutral_mass):
+            return False
+        return True
+
+    def __ne__(self, other: 'ChromatogramProxy'):
+        return not self == other
+
+    def __hash__(self):
+        return hash(self.glycan_composition)
+
     def __getstate__(self):
         state = self._prepare_state()
         state['glycan_composition'] = str(state['glycan_composition'])
@@ -224,13 +246,16 @@ class ChromatogramProxy(object):
             cases.append(cls._from_csv(row))
         return cases
 
+    def update_glycan_composition(self, glycan_composition: HashableGlycanComposition) -> 'ChromatogramProxy':
+        self.glycan_composition = glycan_composition
+
     def shift_glycan_composition(self, delta: HashableGlycanComposition):
         inst = self.copy()
         if isinstance(self.glycan_composition, HashableGlycanComposition):
-            inst.glycan_composition = self.glycan_composition + delta
+            new_gc = self.glycan_composition + delta
         else:
-            inst.glycan_composition = HashableGlycanComposition(
-                self.glycan_composition) + delta
+            new_gc = HashableGlycanComposition(self.glycan_composition) + delta
+        inst.update_glycan_composition(new_gc)
         return inst
 
 
@@ -291,11 +316,24 @@ class GlycopeptideChromatogramProxy(ChromatogramProxy):
     def shift_glycan_composition(self, delta):
         inst = super(GlycopeptideChromatogramProxy,
                      self).shift_glycan_composition(delta)
-        structure = self.structure.clone()
-        structure.glycan = inst.glycan_composition
-        inst.structure = structure
-        inst.kwargs['original_structure'] = str(self.structure)
         return inst
+
+    def update_glycan_composition(self, glycan_composition: HashableGlycanComposition) -> 'GlycopeptideChromatogramProxy':
+        original_structure = str(self.structure)
+        super().update_glycan_composition(glycan_composition)
+        structure = self.structure.clone()
+        structure.glycan = self.glycan_composition
+        self.structure = structure
+        self.kwargs['original_structure'] = original_structure
+
+    def __eq__(self, other: 'GlycopeptideChromatogramProxy'):
+        result = super().__eq__(other)
+        if not result:
+            return result
+        return self.structure == other.structure
+
+    def __hash__(self):
+        return hash(self.structure)
 
 
 class CommonGlycopeptide(object):
