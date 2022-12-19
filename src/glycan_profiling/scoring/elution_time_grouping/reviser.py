@@ -1,9 +1,10 @@
-from dataclasses import dataclass
 import logging
+import operator
 
+from typing import DefaultDict, Dict, List, Mapping, Optional, Set, TYPE_CHECKING, Tuple, Union, OrderedDict, Iterable
 from array import array
-from collections.abc import Iterable
-from typing import DefaultDict, Dict, List, Optional, Set, TYPE_CHECKING, Tuple, Union, OrderedDict
+from dataclasses import dataclass
+
 from matplotlib import pyplot as plt
 
 import numpy as np
@@ -13,7 +14,7 @@ from glycan_profiling.chromatogram_tree import mass_shift
 
 from glycan_profiling.chromatogram_tree.mass_shift import Unmodified, Ammonium, Deoxy
 from glycan_profiling.scoring.elution_time_grouping.structure import GlycopeptideChromatogramProxy
-
+from glycan_profiling.structure.structure_loader import GlycanCompositionDeltaCache
 
 from glycan_profiling.task import LoggingMixin
 
@@ -29,15 +30,25 @@ if TYPE_CHECKING:
 
 
 class RevisionRule(object):
+    delta_glycan: HashableGlycanComposition
+    mass_shift_rule: Optional['MassShiftRule']
+    priority: int
+    name: Optional[str]
+    delta_cache: Optional[GlycanCompositionDeltaCache]
+
     def __init__(self, delta_glycan, mass_shift_rule=None, priority=0, name=None):
         self.delta_glycan = HashableGlycanComposition.parse(delta_glycan)
         self.mass_shift_rule = mass_shift_rule
         self.priority = priority
         self.name = name
+        self.delta_cache = None
 
     def clone(self):
         return self.__class__(
-            self.delta_glycan.clone(), self.mass_shift_rule.clone() if self.mass_shift_rule else None, self.priority, self.name)
+            self.delta_glycan.clone(),
+            self.mass_shift_rule.clone() if self.mass_shift_rule else None,
+            self.priority,
+            self.name)
 
     def valid(self, record):
         new_record = self(record)
@@ -47,8 +58,26 @@ class RevisionRule(object):
                 return self.mass_shift_rule.valid(record)
         return valid
 
+    def with_cache(self):
+        new = self.clone()
+        new.delta_cache = GlycanCompositionDeltaCache(op=operator.add)
+        return new
+
+    def without_cache(self):
+        return self.clone()
+
+    def _apply(self, record: 'GlycopeptideChromatogramProxy') -> 'GlycopeptideChromatogramProxy':
+        if self.delta_cache:
+            new_gc = self.delta_cache(record.glycan_composition, self.delta_glycan)
+            new_record = record.copy()
+            new_record.update_glycan_composition(new_gc)
+            return new_record
+        else:
+            # Re-compute the new glycan every time
+            return record.shift_glycan_composition(self.delta_glycan)
+
     def __call__(self, record):
-        result = record.shift_glycan_composition(self.delta_glycan)
+        result = self._apply(record)
         if self.mass_shift_rule is not None:
             return self.mass_shift_rule(result)
         return result
@@ -151,13 +180,16 @@ class MassShiftRule(object):
         return template.format(self=self)
 
 
-def modify_rules(rules, symbol_map):
+def modify_rules(rules: Iterable[RevisionRule], symbol_map: Mapping[str, str]):
     rules = list(rules)
     for sym_from, sym_to in symbol_map.items():
-        editted = []
+        editted: List[RevisionRule] = []
         for rule in rules:
             if sym_from in rule.delta_glycan:
-                rule = rule.clone()
+                if rule.delta_cache is not None:
+                    rule = rule.with_cache()
+                else:
+                    rule = rule.clone()
                 count = rule.delta_glycan.pop(sym_from)
                 rule.delta_glycan[sym_to] = count
             editted.append(rule)
@@ -373,7 +405,7 @@ class ModelReviser(LoggingMixin):
     revision_validator: Optional[RevisionValidatorBase]
 
     model: 'ElutionTimeFitter'
-    rules: List[RevisionRule]
+    rules: 'RevisionRuleList'
     chromatograms: List[GlycopeptideChromatogramProxy]
 
     original_scores: array
@@ -401,7 +433,8 @@ class ModelReviser(LoggingMixin):
         return self.model.score(case)
 
     def modify_rules(self, symbol_map):
-        self.rules = modify_rules(self.rules, symbol_map)
+        self.rules = self.rules.modify_rules(symbol_map)
+        return self
 
     def propose_revisions(self, case):
         propositions = {
@@ -611,6 +644,15 @@ class RevisionRuleList(object):
             rule.name: rule for rule in self.rules
             if rule.name
         }
+
+    def modify_rules(self, symbol_map):
+        self.rules = modify_rules(self.rules, symbol_map)
+        return self
+
+    def with_cache(self):
+        return self.__class__([
+            rule.with_cache() for rule in self.rules
+        ])
 
     def __getitem__(self, i):
         if i in self.by_name:
