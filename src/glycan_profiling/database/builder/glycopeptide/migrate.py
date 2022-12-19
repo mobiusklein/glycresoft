@@ -95,10 +95,13 @@ class GlycopeptideHypothesisMigrator(DatabaseBoundOperation, TaskBase):
     def migrate_peptides_bulk(self, peptides):
         reverse_map = {}
         n = len(peptides)
+        buffer = []
         for i, peptide in enumerate(peptides):
-            if i % 15000 == 0:
+            if i % 15000 == 0 and i:
                 self.log("... Migrating Peptides %d/%d (%0.2f%%)" %
                          (i, n, i * 100.0 / n))
+                self.session.bulk_save_objects(buffer)
+                buffer = []
             new_inst = Peptide(
                 calculated_mass=peptide.calculated_mass,
                 base_peptide_sequence=peptide.base_peptide_sequence,
@@ -119,17 +122,21 @@ class GlycopeptideHypothesisMigrator(DatabaseBoundOperation, TaskBase):
                 n_glycosylation_sites=peptide.n_glycosylation_sites,
                 o_glycosylation_sites=peptide.o_glycosylation_sites,
                 gagylation_sites=peptide.gagylation_sites)
-            self.session.add(new_inst)
+            buffer.append(new_inst)
             reverse_map[(peptide.modified_peptide_sequence,
                          self.protein_id_map[peptide.protein_id],
                          peptide.start_position, )] = peptide.id
+
+        if buffer:
+            self.session.bulk_save_objects(buffer)
+            buffer = []
 
         self.session.flush()
         self.log("... Reconstructing Reverse Mapping")
         migrated = self.session.query(
             Peptide.id, Peptide.modified_peptide_sequence,
             Peptide.protein_id, Peptide.start_position).filter(
-                Peptide.hypothesis_id == self.hypothesis_id).all()
+                Peptide.hypothesis_id == self.hypothesis_id).yield_per(10000)
         m = 0
         for peptide in migrated:
             m += 1
@@ -166,9 +173,12 @@ class GlycopeptideHypothesisMigrator(DatabaseBoundOperation, TaskBase):
     def migrate_glycopeptide_bulk(self, glycopeptides):
         reverse_map = {}
         n = len(glycopeptides)
+        buffer = []
         for i, glycopeptide in enumerate(glycopeptides):
-            if i % 50000 == 0:
+            if i % 50000 == 0 and i:
                 self.log("... Migrating Glycopeptide %d/%d (%0.2f%%)" % (i, n, i * 100.0 / n))
+                self.session.bulk_save_objects(buffer)
+                buffer = []
             new_inst = Glycopeptide(
                 calculated_mass=glycopeptide.calculated_mass,
                 formula=glycopeptide.formula,
@@ -177,17 +187,21 @@ class GlycopeptideHypothesisMigrator(DatabaseBoundOperation, TaskBase):
                 protein_id=self.protein_id_map[glycopeptide.protein_id],
                 hypothesis_id=self.hypothesis_id,
                 glycan_combination_id=self.glycan_combination_id_map[glycopeptide.glycan_combination_id])
-            self.session.add(new_inst)
+            buffer.append(new_inst)
             reverse_map[(glycopeptide.glycopeptide_sequence,
                          self.peptide_id_map[glycopeptide.peptide_id],
                          self.glycan_combination_id_map[glycopeptide.glycan_combination_id], )] = glycopeptide.id
+
+        if buffer:
+            self.session.bulk_save_objects(buffer)
+            buffer = []
 
         self.session.flush()
         self.log("... Reconstructing Reverse Mapping")
         migrated = self.session.query(
             Glycopeptide.id, Glycopeptide.glycopeptide_sequence,
             Glycopeptide.peptide_id, Glycopeptide.glycan_combination_id).filter(
-                Glycopeptide.hypothesis_id == self.hypothesis_id).all()
+                Glycopeptide.hypothesis_id == self.hypothesis_id).yield_per(10000)
 
         m = 0
         for glycopeptide in migrated:
