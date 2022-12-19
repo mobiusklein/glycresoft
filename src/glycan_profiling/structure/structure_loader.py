@@ -1,7 +1,9 @@
+import operator
+
 from collections import namedtuple
 from functools import partial
 
-from typing import Any, ClassVar, Dict, Iterable, Type, Union, Optional, Tuple, List
+from typing import Any, Callable, ClassVar, Dict, Iterable, Type, Union, Optional, Tuple, List
 
 import numpy as np
 
@@ -837,16 +839,21 @@ class LazyGlycopeptide(object):
 class GlycanCompositionDeltaCache(object):
     storage: Dict[Tuple[HashableGlycanComposition, HashableGlycanComposition], HashableGlycanComposition]
 
-    def __init__(self, storage=None):
+    op: Callable[[HashableGlycanComposition, HashableGlycanComposition], HashableGlycanComposition]
+
+    def __init__(self, storage=None, op=None):
+        if op is None:
+            op = operator.sub
         if storage is None:
             storage = {}
         self.storage = storage
+        self.op = op
 
     def __call__(self, x: HashableGlycanComposition, y: HashableGlycanComposition) -> HashableGlycanComposition:
         key = (x, y)
         try:
             return self.storage[key]
         except KeyError:
-            delta = (x - y)
+            delta = self.op(x, y)
             self.storage[key] = delta
             return delta
