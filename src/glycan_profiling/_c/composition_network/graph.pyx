@@ -274,6 +274,8 @@ cdef class DijkstraPathFinder(object):
         self.graph = graph
         self.start = start
         self.end = end
+        assert start._str is not None
+        assert end._str is not None
         self.distance = dict()
         self.distance[start._str] = 0
         self.unvisited_finite_distance = dict()
@@ -290,6 +292,7 @@ cdef class DijkstraPathFinder(object):
         n = PyList_Size(nodes)
         for i in range(n):
             node = <CompositionGraphNode>PyList_GetItem(nodes, i)
+            assert node._str is not None
             result.add(node._str)
         return result
 
@@ -316,7 +319,8 @@ cdef class DijkstraPathFinder(object):
                     smallest_node = key
                     smallest_distance = distance
             if smallest_node is None:
-                raise ValueError(f"Failed to select a destination from unvisited set of size {len(unvisited)}")
+                raise ValueError(f"Failed to select a destination from unvisited set of size {len(unvisited)} "
+                                 f"with smallest distance {smallest_distance}:\n{unvisited}\nlooking for {self.start._str}->{self.end._str}")
         else:
             iterable = PyDict_Items(self.unvisited_finite_distance)
             for node, distance in iterable:
@@ -324,7 +328,8 @@ cdef class DijkstraPathFinder(object):
                     smallest_distance = distance
                     smallest_node = node
             if smallest_node is None:
-                raise ValueError(f"Failed to select a destination from unvisited set of size {len(unvisited)}")
+                raise ValueError(f"Failed to select a destination from unvisited set of size {len(unvisited)} "
+                                 f"with smallest distance {smallest_distance}:\n{unvisited}\nlooking for {self.start._str}->{self.end._str}")
         return self.graph[smallest_node]
 
     cpdef find_path(self):
