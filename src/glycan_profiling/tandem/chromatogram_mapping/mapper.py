@@ -61,6 +61,8 @@ class ChromatogramMSMSMapper(TaskBase):
                 self.log("... %d/%d Solutions Handled (%0.2f%%)" %
                          (i, n, (i * 100.0 / n)))
             self.find_chromatogram_for(solution)
+        if DEBUG_MODE:
+            breakpoint()
 
     def distribute_orphans(self, threshold_fn: Predicate=default_threshold):
         lost = []
@@ -118,6 +120,8 @@ class ChromatogramMSMSMapper(TaskBase):
                 chromatogram.assign_entity(
                     solutions[0], entity_chromatogram_type=entity_chromatogram_type)
                 chromatogram.representative_solutions = solutions
+        if DEBUG_MODE:
+            breakpoint()
 
     def merge_common_entities(self, annotated_chromatograms: List[TandemAnnotatedChromatogram],
                               delta_rt: float = 0.25,
