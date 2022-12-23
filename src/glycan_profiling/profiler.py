@@ -867,6 +867,8 @@ class GlycopeptideLCMSMSAnalyzer(TaskBase):
 
         chromatograms = tuple(extractor)
 
+        identified_spectrum_ids = {sset.scan.id for sset in target_hits}
+
         chroma_with_sols, orphans = searcher.map_to_chromatograms(
             chromatograms,
             target_hits,
@@ -874,12 +876,45 @@ class GlycopeptideLCMSMSAnalyzer(TaskBase):
             threshold_fn=threshold_fn
         )
 
+        mapped_spectrum_ids = {sset.scan.id for chrom in chroma_with_sols for sset in chrom.tandem_solutions}
+        orphan_spectrum_ids = {sset.scan.id for orph in orphans for sset in orph.tandem_solutions}
+
+        mapping_lost_spectrum_ids = identified_spectrum_ids - (mapped_spectrum_ids | orphan_spectrum_ids)
+
+        mapping_leaked_ssets = [
+            sset for sset in target_hits
+            if sset.scan.id in mapping_lost_spectrum_ids and
+            threshold_fn(sset.best_solution())
+        ]
+
+        if mapping_leaked_ssets:
+            self.log(f"Leaked {len(mapping_leaked_ssets)} spectra after mapping")
+            if debug_mode:
+                breakpoint()
+
+        # TODO: Detect leaked spectrum matches between here and after aggregate_by_assigned_entity
+
         self.log("Aggregating Assigned Entities")
         merged = chromatogram_mapping.aggregate_by_assigned_entity(
             chroma_with_sols,
             threshold_fn=threshold_fn,
             revision_validator=revision_validator_type(threshold_fn),
         )
+
+        aggregated_spectrum_ids = {sset.scan.id for chrom in merged for sset in chrom.tandem_solutions}
+        aggregated_lost_spectrum_ids = identified_spectrum_ids - (aggregated_spectrum_ids | orphan_spectrum_ids)
+
+        aggregated_leaked_ssets = [
+            sset for sset in target_hits
+            if sset.scan.id in aggregated_lost_spectrum_ids and
+            threshold_fn(sset.best_solution())
+        ]
+
+        if aggregated_leaked_ssets:
+            self.log(
+                f"Leaked {len(aggregated_leaked_ssets)} spectra after aggregating")
+            if debug_mode:
+                breakpoint()
 
         return merged, orphans
 
