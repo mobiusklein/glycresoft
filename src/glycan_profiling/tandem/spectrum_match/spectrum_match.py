@@ -1,5 +1,6 @@
 import warnings
 import struct
+import logging
 
 from typing import Any, ClassVar, List, Tuple, Type,  Union, Optional, TYPE_CHECKING
 
@@ -26,6 +27,9 @@ if TYPE_CHECKING:
 neutron_offset = isotopic_shift()
 
 LowCID = activation.dissociation_methods['low-energy collision-induced dissociation']
+
+logger = logging.getLogger("glycresoft.spectrum_match")
+logger.addHandler(logging.NullHandler())
 
 
 class ScanMatchManagingMixin(ScanWrapperBase):
@@ -452,7 +456,7 @@ class SpectrumMatch(SpectrumMatchBase):
 
     """
 
-    __slots__ = ['score', 'best_match', 'data_bundle',
+    __slots__ = ['score', '_best_match', 'data_bundle',
                  "q_value", 'id', 'valid', 'localizations']
 
     score: float
@@ -473,12 +477,22 @@ class SpectrumMatch(SpectrumMatchBase):
         super(SpectrumMatch, self).__init__(scan, target, mass_shift)
 
         self.score = score
-        self.best_match = best_match
+        self._best_match = best_match
         self.data_bundle = data_bundle
         self.q_value = q_value
         self.id = id
         self.valid = valid
         self.localizations = localizations
+
+    @property
+    def best_match(self) -> bool:
+        return self._best_match
+
+    @best_match.setter
+    def best_match(self, value: bool):
+        if logger.isEnabledFor(logging.DEBUG):
+            logger.debug(f"... Setting {self.target}@{self.scan.id} best match to {value}")
+        self._best_match = value
 
     @property
     def is_best_match(self) -> bool:

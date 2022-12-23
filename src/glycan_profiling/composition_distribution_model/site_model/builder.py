@@ -640,7 +640,6 @@ class MultiprocessingGlycoproteinSiteModelBuildingWorkflow(GlycoproteinSiteModel
         self.n_workers = n_threads
         self.workers = []
         self._has_remote_error = False
-        # self.ipc_manager = self.ipc_logger()
         self.ipc_manager = IPCLoggingManager()
 
     def prepare_glycoprotein_for_dispatch(self, glycoprotein, builder):
