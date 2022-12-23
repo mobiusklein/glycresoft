@@ -10,8 +10,7 @@ from glycan_profiling.task import TaskBase
 from .base import Predicate, TargetType, default_threshold, DEBUG_MODE
 from .chromatogram import TandemAnnotatedChromatogram
 from .revision import MS2RevisionValidator
-from .graph import build_glycopeptide_key, MassShiftDeconvolutionGraph
-from .representer import RepresenterDeconvolution
+from .graph import build_glycopeptide_key, MassShiftDeconvolutionGraph, RepresenterDeconvolution
 
 
 class GraphAnnotatedChromatogramAggregator(TaskBase):
