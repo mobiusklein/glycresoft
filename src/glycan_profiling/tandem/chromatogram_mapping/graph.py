@@ -562,6 +562,47 @@ class RepresenterDeconvolution(TaskBase):
                 break
         return self
 
+    def _representer_best_scores_percentiles(self, member: 'TandemAnnotatedChromatogram', solutions: Set[TargetType]) -> Tuple[Dict[TargetType, SpectrumMatch], Dict[TargetType, float], Dict[TargetType, float]]:
+        entries: Dict[TargetType, List[SpectrumMatch]] = dict()
+        for sol in solutions:
+            entries[sol] = member.solutions_for(
+                sol, threshold_fn=self.threshold_fn)
+        scores: Dict[TargetType, float] = {}
+        total = 1e-6
+        best_matches: Dict[TargetType, SpectrumMatch] = {}
+        for k, v in entries.items():
+            best_match: Optional[SpectrumMatch] = None
+            sk: float = 0
+            for match in v:
+                if best_match is None or best_match.score < match.score:
+                    best_match = match
+                sk += match.score
+            best_matches[k] = best_match
+            scores[k] = sk
+            total += sk
+        percentiles = {k: v / total for k, v in scores.items()}
+        return best_matches, scores, percentiles
+
+    def _representer_solution_entries(self, member: 'TandemAnnotatedChromatogram',
+                                      best_matches: Dict[TargetType, SpectrumMatch],
+                                      scores: Dict[TargetType, float],
+                                      percentiles: Dict[TargetType, float]) -> List[SolutionEntry]:
+        sols = []
+        for k, best_match in best_matches.items():
+            score = scores[k]
+            if best_match is None:
+                try:
+                    best_match = member.best_match_for(k)
+                except KeyError:
+                    continue
+                score = best_match.score
+            sols.append(
+                SolutionEntry(
+                    k, score, percentiles[k], best_match.score, best_match))
+
+        sols = parsimony_sort(sols)
+        return sols
+
     def assign_representers(self, percentile_threshold=1e-5):
         '''Apply solutions to solved graph nodes, constructing new chromatograms with
         corrected mass shifts, entities, and representative_solution attributes and then
@@ -585,42 +626,19 @@ class RepresenterDeconvolution(TaskBase):
         # different localizations. Alternatively, may need to port in localization-separating key
         # logic.
         _mass_shift: MassShiftBase
-        for (key, solution, _mass_shift), members in self.solved.items():
+        for (key, _solution, _mass_shift), members in self.solved.items():
+            # We do not use _mass_shift here because it will be inferred from the best solution
+            # for `key` on the chromatogram anyway, we only needed it keep the hash distinct
+            #
+            # We look up solutions instead of using _solution from the loop here because
+            # shared peptides between proteins need to be tracked separately.
             solutions = self.key_to_solutions[key]
             for member in members:
-                entries = dict()
-                for sol in solutions:
-                    entries[sol] = member.solutions_for(
-                        sol, threshold_fn=self.threshold_fn)
-                scores = {}
-                total = 1e-6
-                best_matches = {}
-                for k, v in entries.items():
-                    best_match = None
-                    sk = 0
-                    for match in v:
-                        if best_match is None or best_match.score < match.score:
-                            best_match = match
-                        sk += match.score
-                    best_matches[k] = best_match
-                    scores[k] = sk
-                    total += sk
-                percentiles = {k: v / total for k, v in scores.items()}
-                sols = []
-                for k, v in best_matches.items():
-                    best_match = best_matches[k]
-                    score = scores[k]
-                    if best_match is None:
-                        try:
-                            best_match = member.best_match_for(k)
-                        except KeyError:
-                            continue
-                        score = best_match.score
-                    sols.append(
-                        SolutionEntry(
-                            k, score, percentiles[k], best_match.score, best_match))
+                # Summarize each explainer
+                best_matches, scores, percentiles = self._representer_best_scores_percentiles(member, solutions)
 
-                sols = parsimony_sort(sols)
+                # Pack each explainer into a SolutionEntry instance
+                sols = self._representer_solution_entries(member, best_matches, scores, percentiles)
                 if sols:
                     # This difference is not using the absolute value to allow for scenarios where
                     # a worse percentile is located at position 0 e.g. when hoisting via parsimony.
@@ -628,6 +646,8 @@ class RepresenterDeconvolution(TaskBase):
                         sols[0].percentile - x.percentile) < percentile_threshold]
                 else:
                     representers = []
+
+                # Mass shifts will be applied when we assign the representer
                 fresh = member.chromatogram.clone().drop_mass_shifts()
 
                 fresh.assign_entity(representers[0])
@@ -692,6 +712,7 @@ class RepresenterDeconvolution(TaskBase):
                         retained_solutions = member.most_representative_solutions(self.threshold_fn)
                         member.representative_solutions = retained_solutions
                         member.assign_entity(retained_solutions[0])
+                        retained.append(member)
 
                 if did_update_sink_id:
                     options = sorted(
