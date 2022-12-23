@@ -95,9 +95,9 @@ class MassShiftDeconvolutionGraphEdge(ChromatogramGraphEdge):
         return not self == other
 
 
-class MassShiftDeconvolutionGraph(ChromatogramGraph):
-    node_cls: Type = MassShiftDeconvolutionGraphNode
-    edge_cls: Type = MassShiftDeconvolutionGraphEdge
+class MassShiftDeconvolutionGraph(ChromatogramGraph[MassShiftDeconvolutionGraphNode, MassShiftDeconvolutionGraphEdge]):
+    node_cls = MassShiftDeconvolutionGraphNode
+    edge_cls = MassShiftDeconvolutionGraphEdge
 
     mass_shifts: Set[MassShiftBase]
 
@@ -108,10 +108,17 @@ class MassShiftDeconvolutionGraph(ChromatogramGraph):
             mass_shifts.update(node.mass_shifts)
         self.mass_shifts = mass_shifts
 
+    @property
+    def tandem_solutions(self):
+        solution_sets = []
+        for node in self.nodes:
+            solution_sets.extend(node.tandem_solutions)
+        return solution_sets
+
     def __iter__(self):
         return iter(self.nodes)
 
-    def _construct_graph_nodes(self, chromatograms: 'TandemAnnotatedChromatogram'):
+    def _construct_graph_nodes(self, chromatograms: List['TandemAnnotatedChromatogram']):
         nodes = []
         for i, chroma in enumerate(chromatograms):
             node = (self.node_cls(chroma, i))

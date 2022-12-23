@@ -7,7 +7,7 @@ from glycan_profiling.chromatogram_tree.mass_shift import MassShiftBase, Unmodif
 
 from glycan_profiling.task import TaskBase
 
-from .base import Predicate, TargetType, default_threshold
+from .base import Predicate, TargetType, default_threshold, DEBUG_MODE
 from .chromatogram import TandemAnnotatedChromatogram
 from .revision import MS2RevisionValidator
 from .graph import build_glycopeptide_key, MassShiftDeconvolutionGraph
@@ -40,7 +40,7 @@ class GraphAnnotatedChromatogramAggregator(TaskBase):
         self.key_fn = key_fn
         self.revision_validator = revision_validator
 
-    def build_graph(self):
+    def build_graph(self) -> MassShiftDeconvolutionGraph:
         self.log("Constructing chromatogram graph")
         assignable = []
         rest: List[Chromatogram] = []
@@ -53,10 +53,18 @@ class GraphAnnotatedChromatogramAggregator(TaskBase):
         graph.build(self.delta_rt, self.threshold_fn)
         return graph, rest
 
-    def deconvolve(self, graph):
+    def deconvolve(self, graph: MassShiftDeconvolutionGraph):
         components = graph.connected_components()
         assigned = []
+        if DEBUG_MODE:
+            breakpoint()
+
         for group in components:
+            spectra_in = set()
+            for node in group:
+                for sset in node.tandem_solutions:
+                    spectra_in.add(sset.scan.id)
+
             deconv = RepresenterDeconvolution(
                 group,
                 threshold_fn=self.threshold_fn,
@@ -64,7 +72,17 @@ class GraphAnnotatedChromatogramAggregator(TaskBase):
                 revision_validator=self.revision_validator,
             )
             deconv.solve()
-            assigned.extend(deconv.assign_representers())
+            reps = deconv.assign_representers()
+            spectra_out = set()
+            for node in reps:
+                for sset in node.tandem_solutions:
+                    spectra_out.add(sset.scan.id)
+            if spectra_out != spectra_in:
+                self.error(
+                    f"{len(spectra_in - spectra_out)} spectra lost while solving this component")
+            if DEBUG_MODE and spectra_out != spectra_in:
+                breakpoint()
+            assigned.extend(reps)
         return assigned
 
     def run(self):

@@ -556,7 +556,7 @@ class RepresenterDeconvolution(TaskBase):
                         entry.match.mass_shift].append(member)
             self.conflicted.pop(member)
 
-    def solve(self, depth=0):
+    def solve(self, depth: int=0):
         '''Deconvolve the graph, removing conflicts and adding nodes to the
         solved set.
 
@@ -588,7 +588,7 @@ class RepresenterDeconvolution(TaskBase):
                 break
         return self
 
-    def assign_representers(self, percentile_threshold=1e-5):
+    def assign_representers(self, percentile_threshold: float = 1e-5) -> List['TandemAnnotatedChromatogram']:
         '''Apply solutions to solved graph nodes, constructing new chromatograms with
         corrected mass shifts, entities, and representative_solution attributes and then
         merge within keys as appropriate.

@@ -1,13 +1,17 @@
-import numpy as np
-
-from collections import deque, defaultdict
 import itertools
 
-from .grouping import ChromatogramRetentionTimeInterval, IntervalTreeNode
-from ms_deisotope.peak_dependency_network.intervals import SpanningMixin
-from .index import ChromatogramFilter
+from collections import deque, defaultdict
+from typing import List, Set, Optional, Dict, DefaultDict, Type, ClassVar, Generic, TypeVar, Deque, Any
+
+import numpy as np
 
 from glypy.structure.glycan_composition import FrozenMonosaccharideResidue
+from ms_deisotope.peak_dependency_network.intervals import SpanningMixin
+
+from .grouping import ChromatogramRetentionTimeInterval, IntervalTreeNode
+from .index import ChromatogramFilter
+from .chromatogram import Chromatogram
+
 
 _standard_transitions = [
     FrozenMonosaccharideResidue.from_iupac_lite("HexNAc"),
@@ -46,6 +50,11 @@ class TimeQuery(SpanningMixin):
 
 
 class ChromatogramGraphNode(ChromatogramRetentionTimeInterval):
+    chromatogram: Chromatogram
+    edges: Set['ChromatogramGraphEdge']
+    index: int
+    center: float
+
     def __init__(self, chromatogram, index, edges=None):
         super(ChromatogramGraphNode, self).__init__(chromatogram)
         if edges is None:
@@ -79,6 +88,12 @@ class ChromatogramGraphNode(ChromatogramRetentionTimeInterval):
 
 
 class ChromatogramGraphEdge(object):
+    node_a: ChromatogramGraphNode
+    node_b: ChromatogramGraphNode
+    weight: float
+    mass_error: float
+    rt_error: float
+
     def __init__(self, node_a, node_b, transition, weight=1, mass_error=0, rt_error=0):
         self.node_a = node_a
         self.node_b = node_b
@@ -132,9 +147,21 @@ def chromatograms_from_edge(edge):
     return edge.node_a.chromatogram, edge.node_b.chromatogram
 
 
-class ChromatogramGraph(object):
-    node_cls = ChromatogramGraphNode
-    edge_cls = ChromatogramGraphEdge
+V = TypeVar("V", bound=ChromatogramGraphNode)
+E = TypeVar("E", bound=ChromatogramGraphEdge)
+
+class ChromatogramGraph(Generic[V, E]):
+    node_cls: ClassVar[Type[V]] = ChromatogramGraphNode
+    edge_cls: ClassVar[Type[E]] = ChromatogramGraphEdge
+
+    chromatograms: List[Chromatogram]
+    assigned_seed_queue: Deque[V]
+    assignment_map: Dict[Any, V]
+
+    nodes: List[V]
+    edges: Set[E]
+
+    rt_tree: IntervalTreeNode
 
     def __init__(self, chromatograms):
         self.chromatograms = chromatograms
@@ -153,7 +180,7 @@ class ChromatogramGraph(object):
     def __getitem__(self, i):
         return self.nodes[i]
 
-    def _construct_graph_nodes(self, chromatograms):
+    def _construct_graph_nodes(self, chromatograms) -> List[V]:
         nodes = []
         for i, chroma in enumerate(chromatograms):
             node = (self.node_cls(chroma, i))
@@ -173,7 +200,7 @@ class ChromatogramGraph(object):
         while self.assigned_seed_queue:
             yield self.pop_seed()
 
-    def find_edges(self, node, query_width=2., transitions=None, **kwargs):
+    def find_edges(self, node: V, query_width: float=2., transitions=None, **kwargs):
         if transitions is None:
             transitions = _standard_transitions
         query = TimeQuery(node.chromatogram, query_width)
@@ -210,11 +237,11 @@ class ChromatogramGraph(object):
             self.edges.add(chromatogram_edge)
         return result
 
-    def build(self, query_width=2., transitions=None, **kwargs):
+    def build(self, query_width: float=2., transitions=None, **kwargs):
         for node in self.iterseeds():
             self.find_edges(node, query_width=query_width, transitions=transitions, **kwargs)
 
-    def adjacency_matrix(self):
+    def adjacency_matrix(self) -> np.ndarray:
         adjmat = np.zeros((len(self), len(self)))
         nodes = self.nodes
         for node in nodes:
@@ -222,7 +249,7 @@ class ChromatogramGraph(object):
                 adjmat[edge.node_a.index, edge.node_b.index] = 1
         return adjmat
 
-    def connected_components(self):
+    def connected_components(self) -> List[List[V]]:
         pool = set(self.nodes)
         components = []
 
