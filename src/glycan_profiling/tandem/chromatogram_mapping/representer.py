@@ -1,27 +1,21 @@
 import array
 
-from typing import (Any, Callable, Collection, DefaultDict, Dict, Hashable,
-                    List, Optional, Set, Tuple, NamedTuple, Type, Union,
-                    TYPE_CHECKING)
+from typing import (Callable, Collection, DefaultDict,
+                    List, TYPE_CHECKING)
 
 import numpy as np
 
-from glycan_profiling.chromatogram_tree.mass_shift import MassShiftBase
 from glycan_profiling.chromatogram_tree import (
     Unmodified)
 
-from glycan_profiling.task import TaskBase
-
 from ..spectrum_match import SpectrumMatch, SpectrumSolutionSet
-from ..spectrum_match.solution_set import NOParsimonyMixin
 
-from .base import SolutionEntry, logger, Predicate, always, TargetType, parsimony_sort, KeyTargetMassShift, KeyMassShift, build_glycopeptide_key
-from .revision import MS2RevisionValidator
+from .base import SolutionEntry, logger, Predicate, always, TargetType, parsimony_sort
 
 if TYPE_CHECKING:
-    from .chromatogram import SpectrumMatchSolutionCollectionBase, TandemAnnotatedChromatogram
-    from .revision import SpectrumMatchBackFiller
-    from .graph import MassShiftDeconvolutionGraphNode
+    from .chromatogram import SpectrumMatchSolutionCollectionBase
+
+
 
 class RepresenterSelectionStrategy(object):
     __slots__ = ()
