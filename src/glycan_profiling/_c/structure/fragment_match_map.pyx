@@ -462,6 +462,38 @@ cdef class ByPeakIndex(_FragmentIndexBase):
         return 0
 
 
+cdef class ByPeakIndexIndex(_FragmentIndexBase):
+
+    @staticmethod
+    cdef ByPeakIndexIndex _create(FragmentMatchMap fragment_set):
+        cdef ByPeakIndexIndex self = ByPeakIndexIndex.__new__(ByPeakIndexIndex)
+        self.fragment_set = fragment_set
+        self._mapping = None
+        return self
+
+    cdef int _create_mapping(self):
+        cdef:
+            object obj
+            PyObject* ptemp
+            PeakFragmentPair pair
+            DeconvolutedPeak peak
+            list bucket
+            dict mapping
+        mapping = self._mapping = {}
+        for obj in self.fragment_set.members:
+            pair = <PeakFragmentPair>obj
+            peak = pair.peak
+            ptemp = PyDict_GetItem(mapping, peak._index.neutral_mass)
+            if ptemp == NULL:
+                bucket = [pair.fragment]
+                PyDict_SetItem(mapping, peak._index.neutral_mass, bucket)
+            else:
+                bucket = <list>ptemp
+                PyList_Append(bucket, pair.fragment)
+        return 0
+
+
+
 @cython.final
 @cython.freelist(1000000)
 cdef class FragmentMatchMap(object):
@@ -469,6 +501,7 @@ cdef class FragmentMatchMap(object):
         self.members = set()
         self.by_fragment = ByFragmentIndex._create(self)
         self.by_peak = ByPeakIndex._create(self)
+        self.by_peak_index = ByPeakIndexIndex._create(self)
 
     cpdef add(self, peak, fragment=None):
         if fragment is not None:
@@ -483,7 +516,7 @@ cdef class FragmentMatchMap(object):
 
     def pairs_by_name(self, name):
         pairs = []
-        for pair in self:
+        for pair in self.members:
             if pair.fragment_name == name:
                 pairs.append(pair)
         return pairs

@@ -83,6 +83,12 @@ cdef class ByPeakIndex(_FragmentIndexBase):
     cdef ByPeakIndex _create(FragmentMatchMap fragment_set)
 
 
+cdef class ByPeakIndexIndex(_FragmentIndexBase):
+
+    @staticmethod
+    cdef ByPeakIndexIndex _create(FragmentMatchMap fragment_set)
+
+
 @cython.final
 @cython.freelist(1000000)
 cdef class FragmentMatchMap(object):
@@ -90,6 +96,7 @@ cdef class FragmentMatchMap(object):
         public set members
         public ByFragmentIndex by_fragment
         public ByPeakIndex by_peak
+        public ByPeakIndexIndex by_peak_index
 
     cpdef add(self, peak, fragment=*)
     cdef void _add_direct(self, PeakFragmentPair pair)
