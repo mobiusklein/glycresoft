@@ -22,8 +22,8 @@ class ChromatogramExtractor(TaskBase):
         self.min_points = min_points
         self.delta_rt = delta_rt
 
-        self.accumulated = None
-        self.annotated_peaks = None
+        # self.accumulated = None
+        # self.annotated_peaks = None
         self.peak_mapping = None
 
         self.chromatograms = None
@@ -43,23 +43,24 @@ class ChromatogramExtractor(TaskBase):
         return self.peak_loader.convert_scan_id_to_retention_time(scan_id)
 
     def load_peaks(self):
-        self.accumulated = self.peak_loader.ms1_peaks_above(min(500.0, self.minimum_mass), self.minimum_intensity)
-        self.annotated_peaks = [x[:2] for x in self.accumulated]
-        self.peak_mapping = {x[:2]: x[2] for x in self.accumulated}
-        if len(self.accumulated) > 0:
-            self.minimum_intensity = np.percentile([p[1].intensity for p in self.accumulated], 5)
+        accumulated = self.peak_loader.ms1_peaks_above(min(500.0, self.minimum_mass), self.minimum_intensity)
+        annotated_peaks = [x[:2] for x in accumulated]
+        self.peak_mapping = {x[:2]: x[2] for x in accumulated}
+        if len(accumulated) > 0:
+            self.minimum_intensity = np.percentile([p[1].intensity for p in accumulated], 5)
+        return annotated_peaks
 
-    def aggregate_chromatograms(self):
+    def aggregate_chromatograms(self, annotated_peaks):
         forest = ChromatogramForest([], self.grouping_tolerance, self.scan_id_to_rt)
-        forest.aggregate_peaks(self.annotated_peaks, self.minimum_mass, self.minimum_intensity)
+        forest.aggregate_peaks(annotated_peaks, self.minimum_mass, self.minimum_intensity)
         chroma = list(forest)
-        self.log("... %d Chromatograms Extracted." % (len(chroma),))
+        self.log("...... %d Chromatograms Extracted." % (len(chroma),))
         self.chromatograms = ChromatogramFilter.process(
             chroma, min_points=self.min_points, delta_rt=self.delta_rt)
 
-    def summary_chromatograms(self):
+    def summary_chromatograms(self, annotated_peaks):
         mapping = defaultdict(list)
-        for scan_id, peak in self.annotated_peaks:
+        for scan_id, peak in annotated_peaks:
             mapping[scan_id].append(peak.intensity)
         bpc = SimpleChromatogram()
         tic = SimpleChromatogram()
@@ -73,10 +74,10 @@ class ChromatogramExtractor(TaskBase):
 
     def run(self):
         self.log("... Begin Extracting Chromatograms")
-        self.load_peaks()
+        annotated_peaks = self.load_peaks()
         self.log("...... Aggregating Chromatograms")
-        self.aggregate_chromatograms()
-        self.summary_chromatograms()
+        self.aggregate_chromatograms(annotated_peaks)
+        self.summary_chromatograms(annotated_peaks)
         # Ensure chromatograms are wrapped and sorted.
         if self.truncate:
             self.chromatograms = ChromatogramFilter(
