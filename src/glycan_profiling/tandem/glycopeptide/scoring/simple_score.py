@@ -82,6 +82,8 @@ class SimpleCoverageScorer(GlycopeptideSpectrumMatcherBase):
                     glycosylated_c_term_ions.add((series, frag.position))
             elif series == IonSeries.stub_glycopeptide:
                 stub_count += 1
+
+        n_term_ions[0] = 0
         return n_term_ions, c_term_ions, stub_count, len(glycosylated_n_term_ions), len(glycosylated_c_term_ions)
 
     def _compute_glycosylated_coverage(self, glycosylated_n_term_ions, glycosylated_c_term_ions):

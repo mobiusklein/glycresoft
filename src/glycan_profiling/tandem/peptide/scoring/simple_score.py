@@ -33,6 +33,7 @@ class SimpleCoverageScorer(PeptideSpectrumMatcherBase):
                 n_term_ions[frag.position] = 1
             elif frag.series in (IonSeries.y, IonSeries.z):
                 c_term_ions[frag.position] = 1
+        n_term_ions[0] = 0
         return n_term_ions, c_term_ions
 
     def compute_coverage(self):

@@ -85,6 +85,11 @@ cpdef _compute_coverage_vectors(self):
                 glycosylated_c_term_ions.add((series, pep_frag.position))
         elif series.int_code == IonSeries_stub_glycopeptide.int_code:
             stub_count += 1
+
+    # Ignore b1 ions. They are indistinguishable from immonium ions and
+    # are not meaningful
+    if size > 0:
+        n_term_ions[0] = 0
     return n_term_ions, c_term_ions, stub_count, len(glycosylated_n_term_ions), len(glycosylated_c_term_ions)
 
 
@@ -124,6 +129,11 @@ cpdef double _calculate_peptide_coverage_no_glycosylated(self):
             pep_frag = <PeptideFragment>frag
             if not pep_frag._is_glycosylated():
                 c_term_ions[pep_frag.position] = 1.0
+
+    # Ignore b1 ions. They are indistinguishable from immonium ions and
+    # are not meaningful
+    if size > 0:
+        n_term_ions[0] = 0
     coverage_score = 0.0
     for i in range(size):
         coverage_score += (n_term_ions[i] or c_term_ions[size - i - 1])
@@ -220,6 +230,10 @@ cpdef double _calculate_peptide_coverage(self):
     normalizer = float((2 * size - 1))
     coverage_score = 0.0
 
+    # Ignore b1 ions. They are indistinguishable from immonium ions and
+    # are not meaningful
+    if size > 0:
+        n_term[0] = 0
     for i in range(size):
         coverage_score += n_term[i] + c_term[size - i - 1]
     coverage_score /= normalizer
