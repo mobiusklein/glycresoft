@@ -208,6 +208,7 @@ class ModificationLocalizationSearcher(TaskBase):
                 psm.localizations = isoform_scores[key]
             if abs(isoform_weights[key] - max_weight) > 1e-2 and psm.best_match:
                 psm.best_match = False
+                psm.valid = False
                 self.log(f"... Invalidating {psm.target}@{psm.scan_id}")
 
     def select_top_isoforms(self, solutions: List[List[EvaluatedSolutionBins]], prophet: Optional[MultiKDModel]=None):
