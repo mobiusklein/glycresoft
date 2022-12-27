@@ -48,7 +48,7 @@ class AnalysisSerializer(DatabaseBoundOperation, TaskBase):
     _analysis_id: int
     _analysis_name: str
     _seed_analysis_name: str
-    _peak_lookup_table: Dict[Tuple, DeconvolutedPeak]
+    _peak_lookup_table: Dict[Tuple[str, DeconvolutedPeak], int]
     _mass_shift_cache: MassShiftSerializer
     _composition_cache: CompositionGroupSerializer
     _node_peak_map: Dict
