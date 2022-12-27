@@ -210,6 +210,9 @@ def always(x):
     return True
 
 
+SpectrumMatchType = Union['SpectrumMatch', 'MultiScoreSpectrumMatch']
+
+
 class RevisionValidatorBase(LoggingMixin):
     spectrum_match_builder: 'SpectrumMatchUpdater'
 
@@ -217,7 +220,7 @@ class RevisionValidatorBase(LoggingMixin):
         self.spectrum_match_builder = spectrum_match_builder
         self.threshold_fn = threshold_fn
 
-    def find_revision_gpsm(self, chromatogram: 'TandemAnnotatedChromatogram', revised) -> Optional[Union['SpectrumMatch', 'MultiScoreSpectrumMatch']]:
+    def find_revision_gpsm(self, chromatogram: 'TandemAnnotatedChromatogram', revised) -> Optional[SpectrumMatchType]:
         found_revision = False
         revised_gpsm = None
         try:
@@ -235,8 +238,8 @@ class RevisionValidatorBase(LoggingMixin):
 
     def find_gpsms(self, source: 'TandemAnnotatedChromatogram',
                    revised: GlycopeptideChromatogramProxy,
-                   original: GlycopeptideChromatogramProxy) -> Tuple[Optional[Union['SpectrumMatch', 'MultiScoreSpectrumMatch']],
-                                                                     Optional[Union['SpectrumMatch', 'MultiScoreSpectrumMatch']],
+                   original: GlycopeptideChromatogramProxy) -> Tuple[Optional[SpectrumMatchType],
+                                                                     Optional[SpectrumMatchType],
                                                                      bool]:
         original_gpsm = None
         revised_gpsm = None

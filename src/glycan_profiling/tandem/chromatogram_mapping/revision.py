@@ -219,7 +219,8 @@ class SpectrumMatchBackFiller(TaskBase):
 
     def add_matches_to_solution_set(self, sset: SpectrumSolutionSet,
                                     targets: List[TargetType],
-                                    mass_shifts: Optional[List[MassShiftBase]] = None) -> List[Tuple[SpectrumSolutionSet, SpectrumMatch, bool]]:
+                                    mass_shifts: Optional[List[MassShiftBase]] = None,
+                                    should_promote: bool=False) -> List[Tuple[SpectrumSolutionSet, SpectrumMatch, bool]]:
         if mass_shifts is None:
             mass_shifts = self.mass_shifts
 
@@ -242,7 +243,7 @@ class SpectrumMatchBackFiller(TaskBase):
 
         for inst in targets:
             match = sset.solution_for(inst)
-            if self.threshold_fn(match):
+            if self.threshold_fn(match) and should_promote:
                 match.best_match = True
                 sset.promote_to_best_match(match)
         return solution_set_match_pairs
@@ -388,7 +389,11 @@ class SpectrumMatchUpdater(SpectrumMatchBackFiller):
                 chromatogram, reference)
 
         revised_solution_sets = self.collect_matches(
-            chromatogram, revised_structure, mass_shifts, reference_peptides)
+            chromatogram,
+            revised_structure,
+            mass_shifts,
+            reference_peptides,
+            should_promote=invalidate_reference)
 
         if self.fdr_estimator is not None:
             for sset in chromatogram.tandem_solutions:
@@ -509,15 +514,16 @@ class SpectrumMatchUpdater(SpectrumMatchBackFiller):
                         chromatogram: 'TandemAnnotatedChromatogram',
                         structure: TargetType,
                         mass_shifts: List[MassShiftBase],
-                        reference_peptides: List[TargetType]) -> List[Tuple[SpectrumSolutionSet, SpectrumMatch, bool]]:
+                        reference_peptides: List[TargetType],
+                        should_promote: bool=False) -> List[Tuple[SpectrumSolutionSet, SpectrumMatch, bool]]:
         '''Collect spectrum matches to the new `structure` target, and all identical solutions
         from different sources for all spectra in `chromatogram`.
 
         Parameters
         ----------
-        chromatogram : TandemAnnotatedChromatogram
+        chromatogram : :class:`~.TandemAnnotatedChromatogram`
             The solution collection being traversed.
-        structure : TargetType
+        structure : :class:`~.TargetType`
             The new structure we are going to assign to `chromatogram` and wish to
             ensure there are spectrum matches for.
         mass_shifts : :class:`list` of :class:`~.MassShiftBase`
@@ -526,6 +532,9 @@ class SpectrumMatchUpdater(SpectrumMatchBackFiller):
         reference_peptides : :class:`set` of :class:`~.TargetType`
             Other sources of the peptide for `structure` to ensure that all are reported together.
             Relies on :attr:`id_maker` to re-create appropriately keyed glycoforms.
+        should_promote : :class:`bool`
+            When :const:`True`, matches to ``structure`` are promoted to best-match status if they
+            pass the :attr:`threshold_fn`.
         '''
         solution_set_match_pairs = []
         if structure.id is None or reference_peptides:
@@ -535,13 +544,16 @@ class SpectrumMatchUpdater(SpectrumMatchBackFiller):
         for sset in chromatogram.tandem_solutions:
             try:
                 match = sset.solution_for(structure)
-                if not match.best_match:
+                if not match.best_match and self.threshold_fn(match) and should_promote:
                     sset.promote_to_best_match(match)
                 solution_set_match_pairs.append((sset, match, True))
             except KeyError:
                 solution_set_match_pairs.extend(
                     self.add_matches_to_solution_set(
-                        sset, instances, mass_shifts
+                        sset,
+                        instances,
+                        mass_shifts,
+                        should_promote=should_promote
                     )
                 )
         return solution_set_match_pairs
@@ -560,11 +572,13 @@ class SpectrumMatchUpdater(SpectrumMatchBackFiller):
     def affirm_solution(self, chromatogram: 'TandemAnnotatedChromatogram'):
         reference_peptides = self.find_identical_peptides(
             chromatogram, chromatogram.entity)
+
         _matches = self.collect_matches(
             chromatogram,
             chromatogram.entity,
             chromatogram.mass_shifts,
-            reference_peptides
+            reference_peptides,
+            should_promote=True
         )
         revised_rt_score = None
         if self.retention_time_model:

@@ -24,7 +24,7 @@ class SpectrumMatchSolutionCollectionBase(object):
 
     def compute_representative_weights(self, threshold_fn: Predicate = always, reject_shifted: bool = False,
                                        targets_ignored: Collection = None,
-                                       strategy: Optional[RepresenterSelectionStrategy] = None) -> List[SolutionEntry]:
+                                       strategy: Optional[RepresenterSelectionStrategy] = None, **kwargs) -> List[SolutionEntry]:
         """Calculate a total score for all matched structures across all time points for this
         solution collection, and rank them.
 
@@ -48,7 +48,7 @@ class SpectrumMatchSolutionCollectionBase(object):
         if strategy is None:
             strategy = TotalBestRepresenterStrategy()
         weights = strategy(self, threshold_fn=threshold_fn,
-                           reject_shifted=reject_shifted, targets_ignored=targets_ignored)
+                           reject_shifted=reject_shifted, targets_ignored=targets_ignored, **kwargs)
         return weights
 
     def filter_entries(self, entries: List[SolutionEntry], percentile_threshold: float = 1e-5) -> List[SolutionEntry]:

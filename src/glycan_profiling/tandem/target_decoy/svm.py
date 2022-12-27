@@ -20,11 +20,15 @@ from .base import TargetDecoyAnalyzer, NearestValueLookUp, PeptideScoreTargetDec
 
 
 def _transform_fast(self: StandardScaler, X: np.ndarray) -> np.ndarray:
-    return (X - self.mean_) / self.scale_
+    Y = (X - self.mean_)
+    Y /= self.scale_
+    return  Y
 
 
 def _fast_decision_function(self: LinearSVC, X: np.ndarray) -> np.ndarray:
-    return X.dot(self.coef_[0, :]) + self.intercept_
+    Y = X.dot(self.coef_[0, :])
+    Y += self.intercept_
+    return Y
 
 
 class SVMModelBase(FDREstimatorBase):

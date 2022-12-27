@@ -231,7 +231,7 @@ class GlycopeptideSpectrumSolutionSet(Base, SolutionSetBase, BoundToAnalysis):
     is_decoy = Column(Boolean, index=True)
 
     @classmethod
-    def serialize(cls, obj, session, scan_look_up_cache, mass_shift_cache, analysis_id,
+    def serialize(cls, obj: MemorySpectrumSolutionSet, session, scan_look_up_cache, mass_shift_cache, analysis_id,
                   cluster_id, is_decoy=False, *args, **kwargs):
         gpsm = obj.best_solution()
         if gpsm is None:

@@ -491,7 +491,10 @@ class SpectrumMatch(SpectrumMatchBase):
     @best_match.setter
     def best_match(self, value: bool):
         if logger.isEnabledFor(logging.DEBUG):
-            logger.debug(f"... Setting {self.target}@{self.scan.id} best match to {value}")
+            logger.debug(
+                f"... Setting {self.target}@{self.scan.id} best match to {value}",
+                stacklevel=2
+            )
         self._best_match = value
 
     @property
