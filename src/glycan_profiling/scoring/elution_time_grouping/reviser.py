@@ -220,7 +220,7 @@ class RevisionValidatorBase(LoggingMixin):
         self.spectrum_match_builder = spectrum_match_builder
         self.threshold_fn = threshold_fn
 
-    def find_revision_gpsm(self, chromatogram: 'TandemAnnotatedChromatogram', revised) -> Optional[SpectrumMatchType]:
+    def find_revision_gpsm(self, chromatogram: 'TandemAnnotatedChromatogram', revised) -> Tuple[Optional[SpectrumMatchType], bool]:
         found_revision = False
         revised_gpsm = None
         try:
@@ -244,6 +244,28 @@ class RevisionValidatorBase(LoggingMixin):
                    original: GlycopeptideChromatogramProxy) -> Tuple[Optional[SpectrumMatchType],
                                                                      Optional[SpectrumMatchType],
                                                                      bool]:
+        '''Find spectrum matches in ``source`` for the pair of alternative interpretations
+        for this feature.
+
+        Parameters
+        ----------
+        source : :class:`~.TandemAnnotatedChromatogram`
+            The chromatogram with MS2 spectra to find spectrum matches from
+        revised : :class:`~.GlycopeptideChromatogramProxy`
+            The revised structure
+        original : :class:`~.GlycopeptideChromatogramProxy`
+            The original structure
+
+        Returns
+        -------
+        original_gpsm : :class:`~.SpectrumMatchType`
+            The best spectrum match for the original structure
+        revised_gpsm : :class:`~.SpectrumMatchType`
+            The best spectrum match for the revised structure
+        skip : :class:`bool`
+            Whether there were any failures to find a revised solution, telling
+            the caller to skip over this one.
+        '''
         original_gpsm = None
         revised_gpsm = None
         skip = False
@@ -258,8 +280,8 @@ class RevisionValidatorBase(LoggingMixin):
             # Can't find a spectrum match to the revised form, assume we're allowed to
             # revise.
             self.debug(
-                "...... Permitting revision for %s (%0.3f) from %s to %s because revision not evaluated" %
-                (revised.tag, revised.apex_time, original.glycan_composition, revised.glycan_composition))
+                "...... Permitting revision for %s (%0.3f) from %s to %s because revision not evaluated",
+                revised.tag, revised.apex_time, original.glycan_composition, revised.glycan_composition)
             skip = True
             return original_gpsm, revised_gpsm, skip
 
@@ -283,7 +305,9 @@ class RevisionValidatorBase(LoggingMixin):
         return self.validate(revised, original)
 
     def msn_score_for(self, source: 'TandemAnnotatedChromatogram', solution: GlycopeptideChromatogramProxy) -> float:
-        gpsm, _ = self.find_revision_gpsm(source, solution)
+        gpsm, skip = self.find_revision_gpsm(source, solution)
+        if skip or gpsm is None:
+            return 0
         return gpsm.score
 
 
