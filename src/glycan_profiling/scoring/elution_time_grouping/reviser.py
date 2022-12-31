@@ -233,7 +233,10 @@ class RevisionValidatorBase(LoggingMixin):
                     revised_gpsm = chromatogram.best_match_for(revised.structure)
                     found_revision = True
                 except KeyError:
-                    pass
+                    logger.debug(
+                        "Failed to find revised spectrum match for %s in %r",
+                        revised.structure,
+                        chromatogram)
         return revised_gpsm, found_revision
 
     def find_gpsms(self, source: 'TandemAnnotatedChromatogram',
@@ -243,10 +246,11 @@ class RevisionValidatorBase(LoggingMixin):
                                                                      bool]:
         original_gpsm = None
         revised_gpsm = None
-
+        skip = False
         if source is None:
             # Can't validate without a source to read the spectrum match metadata
-            return original_gpsm, revised_gpsm, True
+            skip = True
+            return original_gpsm, revised_gpsm, skip
 
         revised_gpsm, found_revision = self.find_revision_gpsm(source, revised)
 
@@ -256,7 +260,8 @@ class RevisionValidatorBase(LoggingMixin):
             self.debug(
                 "...... Permitting revision for %s (%0.3f) from %s to %s because revision not evaluated" %
                 (revised.tag, revised.apex_time, original.glycan_composition, revised.glycan_composition))
-            return original_gpsm, revised_gpsm, True
+            skip = True
+            return original_gpsm, revised_gpsm, skip
 
         try:
             original_gpsm = source.best_match_for(original.structure)
@@ -266,9 +271,10 @@ class RevisionValidatorBase(LoggingMixin):
             self.debug(
                 "...... Permitting revision for %s (%0.3f) from %s to %s because original not evaluated" %
                 (revised.tag, revised.apex_time, original.glycan_composition, revised.glycan_composition))
-            return original_gpsm, revised_gpsm, True
-
-        return original_gpsm, revised_gpsm, False
+            skip = True
+            return original_gpsm, revised_gpsm, skip
+        skip = revised_gpsm is None or original_gpsm is None
+        return original_gpsm, revised_gpsm, skip
 
     def validate(self, revised: GlycopeptideChromatogramProxy, original: GlycopeptideChromatogramProxy) -> bool:
         raise NotImplementedError()

@@ -24,7 +24,7 @@ class KMeans(object):
         self.means = np.array(means) if means is not None else None
 
     @classmethod
-    def fit(cls, X, k, initial_mus: Optional[np.ndarray]=None):
+    def fit(cls, X: np.ndarray, k: int, initial_mus: Optional[np.ndarray]=None):
         if initial_mus is not None:
             mus = initial_mus
         else:
