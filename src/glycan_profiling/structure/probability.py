@@ -24,8 +24,11 @@ class KMeans(object):
         self.means = np.array(means) if means is not None else None
 
     @classmethod
-    def fit(cls, X, k):
-        mus = np.sort(np.random.choice(X, k))
+    def fit(cls, X, k, initial_mus: Optional[np.ndarray]=None):
+        if initial_mus is not None:
+            mus = initial_mus
+        else:
+            mus = np.sort(np.random.choice(X, k))
         inst = cls(k, mus)
         inst.estimate(X)
         return inst
