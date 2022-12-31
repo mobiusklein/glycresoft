@@ -58,6 +58,8 @@ class KMeans(object):
             diff = (self.means - new_means)
             dist = np.sqrt((diff * diff).sum()) / self.k
             self.means = new_means
+            # Always sort the means so that ordering is consistent
+            self.means.sort()
             if dist < tol:
                 break
         else:
