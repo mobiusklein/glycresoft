@@ -281,7 +281,6 @@ class MultipartGlycopeptideIdentifier(TaskBase):
     scan_loader: Union[RandomAccessScanSource, LCMSMSQueryInterfaceMixin]
 
     n_processes: int
-    n_mapping_workers: int # DEPRECATED
 
     def __init__(self,
                  tandem_scans,
@@ -350,7 +349,6 @@ class MultipartGlycopeptideIdentifier(TaskBase):
         self.evaluation_kwargs.update(kwargs)
 
         self.n_processes = n_processes
-        self.n_mapping_workers = n_mapping_workers
         self.ipc_manager = ipc_manager
         self.cache_seeds = cache_seeds
 

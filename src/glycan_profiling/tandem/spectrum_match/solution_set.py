@@ -639,6 +639,11 @@ class SpectrumSolutionSet(ScanWrapperBase):
         If all the solutions would be filtered out, only the best solution
         will be kept.
 
+        .. warning::
+            This method is dangerous to use when spectrum matches in the same
+            list are part of different groups (e.g. different decoy sets). Use
+            it with caution.
+
         Parameters
         ----------
         method : :class:`SpectrumRetentionStrategyBase`, optional
@@ -850,6 +855,13 @@ class MultiScoreSpectrumSolutionSet(SpectrumSolutionSet):
                 solution.best_match = False
                 continue
             if ((score_set.glycopeptide_score - solution.score_set.glycopeptide_score)) < 1e-3:
+                # NOTE: This requires that both the peptide portion and the glycan portion be as
+                # good or better than the "best" match. When the "best match" is better in one
+                # dimension and worse in another dimension, this becomes more ambiguous. It's
+                # possible to query the FDR of the cases, but :meth:`mark_top_solutions` may
+                # be called before FDR estimation. Furthermore, a "best match" ranked by FDR
+                # potentially introduces all sorts of issues of re-ranking, and could introduce
+                # an undesirable number of "alternative" best matches.
                 if (score_set.peptide_score - solution.score_set.peptide_score) < 1e-3 and (
                     score_set.glycan_score - solution.score_set.glycan_score) < 1e-3:
                     solution.best_match = True

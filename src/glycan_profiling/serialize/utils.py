@@ -308,5 +308,6 @@ def get_index(table, col_name):
 
 
 def chunkiter(ids: Sequence, chunk_size: int=512):
-    for i in range(0, len(ids) + chunk_size, chunk_size):
+    n = len(ids)
+    for i in range(0, n + chunk_size, chunk_size):
         yield ids[i:i + chunk_size]
