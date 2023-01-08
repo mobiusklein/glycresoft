@@ -325,6 +325,11 @@ class IdentifiedStructure(object):
     def has_scan(self, scan_id: str) -> bool:
         return any([sset.scan_id == scan_id for sset in self.tandem_solutions])
 
+    def get_scan(self, scan_id: str) -> SpectrumMatch:
+        for sset in self.tandem_solutions:
+            if sset.scan_id == scan_id:
+                return sset
+        raise KeyError(scan_id)
 
 ChromatogramInterface.register(IdentifiedStructure)
 
