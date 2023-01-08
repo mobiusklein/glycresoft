@@ -1,11 +1,14 @@
 import os
 import sys
+import time
+import logging
 
 import click
 
 from glycan_profiling.cli.base import cli
 from glycan_profiling.cli.validators import get_by_name_or_id, DatabaseConnectionParam
 
+from glycan_profiling import serialize
 from glycan_profiling.serialize import (
     DatabaseBoundOperation, GlycanHypothesis, GlycopeptideHypothesis,
     Analysis,
@@ -38,6 +41,9 @@ from glycan_profiling.output import (
 from glycan_profiling.output.csv_format import csv_stream
 
 from glycan_profiling.cli.utils import ctxstream
+
+
+status_logger = logging.getLogger('glycresoft.status')
 
 
 def database_connection_arg(fn):
@@ -289,48 +295,74 @@ def glycopeptide_spectrum_matches(database_connection, analysis_identifier, outp
             str(analysis.name), str(analysis.analysis_type)), fg='red', err=True)
         raise click.Abort()
     analysis_id = analysis.id
-    query = session.query(Protein.id, Protein.name).join(Protein.glycopeptides).join(
+    start = time.monotonic()
+    protein_query = session.query(Protein.id, Protein.name).join(Protein.glycopeptides).join(
         GlycopeptideSpectrumMatch).filter(
             GlycopeptideSpectrumMatch.analysis_id == analysis.id)
-    protein_index = dict(query)
+    status_logger.info("Loading protein index")
+    protein_index = dict(protein_query.all())
 
     def generate():
         i = 0
         interval = 100000
-        query = session.query(GlycopeptideSpectrumMatch).filter(
+        gpsm_query = session.query(GlycopeptideSpectrumMatch.id).filter(
             GlycopeptideSpectrumMatch.analysis_id == analysis_id).order_by(
                 GlycopeptideSpectrumMatch.scan_id)
         if threshold != 0:
-            query = query.filter(GlycopeptideSpectrumMatch.score >= threshold)
-        if fdr_threshold > 1:
-            query = query.filter(GlycopeptideSpectrumMatch.q_value <= fdr_threshold)
-        mass_shift_cache = {}
+            gpsm_query = gpsm_query.filter(GlycopeptideSpectrumMatch.score >= threshold)
+        if fdr_threshold < 1:
+            gpsm_query = gpsm_query.filter(GlycopeptideSpectrumMatch.q_value <= fdr_threshold)
+
+        mass_shift_cache = {
+            m.id: m.convert()
+            for m in session.query(serialize.CompoundMassShift).all()
+        }
         scan_cache = {}
         structure_cache = {}
         peptide_relation_cache = {}
+
+        status_logger.info("Reading spectrum matches")
+        j = 0
         while True:
             session.expire_all()
-            chunk = query.slice(i, i + interval).all()
-            if len(chunk) == 0:
+            chunk = gpsm_query.slice(i, i + interval).all()
+            chunk = [x[0] for x in chunk]
+            chunk = GlycopeptideSpectrumMatch.bulk_load(
+                session,
+                chunk,
+                mass_shift_cache=mass_shift_cache,
+                scan_cache=scan_cache,
+                structure_cache=structure_cache,
+                peptide_relation_cache=peptide_relation_cache
+            )
+            if not chunk:
                 break
+            chunk = [x[1] for x in sorted(chunk.items())]
             for glycopeptide in chunk:
-                yield glycopeptide.convert(
-                    mass_shift_cache, scan_cache, structure_cache, peptide_relation_cache)
+                j += 1
+                yield glycopeptide
             i += interval
 
     gpsm = session.query(GlycopeptideSpectrumMatch).filter(
         GlycopeptideSpectrumMatch.analysis_id == analysis_id).first()
+
     if gpsm.is_multiscore():
         job_type = MultiScoreGlycopeptideSpectrumMatchAnalysisCSVSerializer
     else:
         job_type = GlycopeptideSpectrumMatchAnalysisCSVSerializer
+
     if output_path is None:
         output_stream = ctxstream(click.get_binary_stream('stdout'))
     else:
         output_stream = open(output_path, 'wb')
+
     with output_stream:
         job = job_type(output_stream, generate(), protein_index, analysis)
         job.run()
+
+    end = time.monotonic()
+    elapsed = end - start
+    status_logger.info(f"{elapsed:03f} seconds elapsed")
 
 
 @export.command("mzid", short_help="Export a Glycopeptide Analysis as MzIdentML")
@@ -369,7 +401,7 @@ def glycopeptide_mzidentml(database_connection, analysis_identifier, output_path
         writer.run()
 
 
-@export.command("glycopeptide-training-mgf")
+@export.command("glycopeptide-training-mgf", short_help="Export identified MS2 spectra as MGF with matched glycopeptide as metadata")
 @database_connection_arg
 @analysis_identifier_arg("glycopeptide")
 @click.option("-o", "--output-path", type=click.Path(), default=None, help='Path to write to instead of stdout')
@@ -423,7 +455,7 @@ def export_identified_glycans_from_glycopeptides(database_connection, analysis_i
 
 
 @export.command("annotate-matched-spectra",
-                short_help="Exports individual MS/MS assignments of glycopeptides to PDF")
+                short_help="Exports graphical renderings of individual MS/MS assignments of glycopeptides to PDF")
 @database_connection_arg
 @analysis_identifier_arg("glycopeptide")
 @click.option("-o", "--output-path", type=click.Path(), default=None, help='Path to write to instead of stdout')
@@ -447,7 +479,7 @@ def annotate_matched_spectra(database_connection, analysis_identifier, output_pa
     task.start()
 
 
-@export.command("write-csv-spectrum-library")
+@export.command("write-csv-spectrum-library", short_help="Exports individual MS/MS assignments of glycopeptides to CSV")
 @database_connection_arg
 @analysis_identifier_arg("glycopeptide")
 @click.option("-o", "--output-path", type=click.Path(), default=None, help='Path to write to instead of stdout')

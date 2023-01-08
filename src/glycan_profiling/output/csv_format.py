@@ -24,6 +24,9 @@ def csv_stream(outstream):
 
 
 class CSVSerializerBase(TaskBase):
+    entity_label: str = "entities"
+    log_interval: int = 100
+
     def __init__(self, outstream, entities_iterable, delimiter=','):
         self.outstream = outstream
         try:
@@ -62,12 +65,15 @@ class CSVSerializerBase(TaskBase):
         if self.header:
             header = self.header
             self.writerow(header)
+        entity_label = self.entity_label
+        log_interval = self.log_interval
         gen = (self.convert_object(entity) for entity in self._entities_iterable)
         for i, row in enumerate(gen):
-            if i % 100 == 0 and i != 0:
-                self.status_update("Handled %d Entities" % i)
+            if i % log_interval == 0 and i != 0:
+                self.status_update(f"Handled {i + 1} {entity_label}")
                 self.outstream.flush()
             self.writerow(row)
+        self.status_update(f"Handled {i + 1} {entity_label}")
 
 
 class GlycanHypothesisCSVSerializer(CSVSerializerBase):
@@ -349,6 +355,9 @@ class MultiScoreGlycopeptideLCMSMSAnalysisCSVSerializer(GlycopeptideLCMSMSAnalys
 
 
 class GlycopeptideSpectrumMatchAnalysisCSVSerializer(CSVSerializerBase):
+    entity_label = "glycopeptide spectrum matches"
+    log_interval = 10000
+
     def __init__(self, outstream, entities_iterable, protein_name_resolver, analysis, delimiter=','):
         super(GlycopeptideSpectrumMatchAnalysisCSVSerializer, self).__init__(outstream, entities_iterable, delimiter)
         self.protein_name_resolver = protein_name_resolver
@@ -403,22 +412,9 @@ class GlycopeptideSpectrumMatchAnalysisCSVSerializer(CSVSerializerBase):
         ]
         return list(map(str, attribs))
 
-    def filter(self, iterable):
-        seen = set()
-        for row in iterable:
-            key = (row[0], row[2])
-            if key in seen:
-                continue
-            seen.add(key)
-            yield row
-
-    def run(self):
-        self.writer.writerow(self.header)
-        gen = (self.convert_object(entity) for entity in self._entities_iterable)
-        self.writerows(self.filter(gen))
-
 
 class MultiScoreGlycopeptideSpectrumMatchAnalysisCSVSerializer(GlycopeptideSpectrumMatchAnalysisCSVSerializer):
+
     def get_header(self):
         header = super(MultiScoreGlycopeptideSpectrumMatchAnalysisCSVSerializer, self).get_header()
         header.extend([
