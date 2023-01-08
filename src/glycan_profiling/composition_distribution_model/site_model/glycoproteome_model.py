@@ -1,4 +1,5 @@
 import re
+import io
 import warnings
 
 from typing import Dict, List, Optional, Mapping
@@ -142,11 +143,18 @@ class GlycoproteomePriorAnnotator(object):
     decoy_model: GlycoproteomeModel
 
     @classmethod
-    def load(cls, target_session, decoy_session, fh, hypothesis_id=1, fuzzy=True):
+    def load(cls, target_session, decoy_session, fh: io.TextIOBase, hypothesis_id=1, fuzzy=True):
         site_models = GlycosylationSiteModel.load(fh)
-        target_model = GlycoproteomeModel.bind_to_hypothesis(target_session, site_models)
+        target_model = GlycoproteomeModel.bind_to_hypothesis(
+            target_session,
+            site_models,
+            hypothesis_id=hypothesis_id,
+            fuzzy=fuzzy)
         decoy_model = GlycoproteomeModel.bind_to_hypothesis(
-            decoy_session, site_models,
+            decoy_session,
+            site_models,
+            hypothesis_id=hypothesis_id,
+            fuzzy=fuzzy,
             site_model_cls=ReversedProteinSiteReflectionGlycoproteinSiteSpecificGlycomeModel)
         target_model.stub_proteins()
         decoy_model.stub_proteins()

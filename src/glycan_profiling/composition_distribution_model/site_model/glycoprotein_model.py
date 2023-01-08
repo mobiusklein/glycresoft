@@ -1,12 +1,17 @@
 import warnings
-from collections import defaultdict, namedtuple
+import io
+
+from collections import defaultdict
+from typing import Dict, Iterable, List, Optional, Union
 
 
 from glycopeptidepy.structure.parser import strip_modifications
 from glycopeptidepy.utils.collectiontools import groupby
 
+from glypy.structure.glycan_composition import HashableGlycanComposition
+
 from glycan_profiling import serialize
-from glycan_profiling.structure import PeptideProteinRelation
+from glycan_profiling.structure import PeptideProteinRelation, FragmentCachingGlycopeptide
 from glycan_profiling.database.builder.glycopeptide.proteomics.fasta import DeflineSuffix
 from glycan_profiling.database.builder.glycopeptide.proteomics.sequence_tree import SuffixTree
 
@@ -16,6 +21,10 @@ from .glycosite_model import MINIMUM, GlycosylationSiteModel
 
 class ProteinStub(object):
     __slots__ = ('name', 'id', 'glycosylation_sites')
+
+    name: str
+    id: int
+    glycosylation_sites: List[int]
 
     def __init__(self, name, id=None, glycosylation_sites=None):
         self.name = name
@@ -43,7 +52,7 @@ class ProteinStub(object):
         return cls(protein.name, protein.id)
 
 
-def _make_name_suffix_lookup(proteins):
+def _make_name_suffix_lookup(proteins: Iterable[ProteinStub]):
     tree = SuffixTree()
     for prot in proteins:
         name = prot.name
@@ -53,6 +62,9 @@ def _make_name_suffix_lookup(proteins):
 
 class GlycoproteinSiteSpecificGlycomeModel(object):
     __slots__ = ('protein', '_glycosylation_sites')
+
+    protein: ProteinStub
+    _glycosylation_sites: List[GlycosylationSiteModel]
 
     def __init__(self, protein, glycosylation_sites=None):
         self.protein = protein
@@ -100,7 +112,7 @@ class GlycoproteinSiteSpecificGlycomeModel(object):
     def name(self):
         return self.protein.name
 
-    def find_sites_in(self, start, end):
+    def find_sites_in(self, start: int, end: int) -> List[GlycosylationSiteModel]:
         spans = []
         for site in self.glycosylation_sites:
             if start <= site.position <= end:
@@ -109,7 +121,7 @@ class GlycoproteinSiteSpecificGlycomeModel(object):
                 break
         return spans
 
-    def _guess_sites_from_sequence(self, sequence):
+    def _guess_sites_from_sequence(self, sequence: str):
         prot_seq = str(self.protein)
         query_seq = strip_modifications(sequence)
         try:
@@ -119,7 +131,7 @@ class GlycoproteinSiteSpecificGlycomeModel(object):
         except ValueError:
             return None
 
-    def score(self, glycopeptide, glycan_composition=None):
+    def score(self, glycopeptide: FragmentCachingGlycopeptide, glycan_composition: Optional[HashableGlycanComposition]=None) -> float:
         if glycan_composition is None:
             glycan_composition = glycopeptide.glycan_composition
         pr = glycopeptide.protein_relation
@@ -146,7 +158,7 @@ class GlycoproteinSiteSpecificGlycomeModel(object):
             return MINIMUM
 
     @classmethod
-    def bind_to_hypothesis(cls, session, site_models, hypothesis_id=1, fuzzy=True):
+    def bind_to_hypothesis(cls, session, site_models: List[GlycosylationSiteModel], hypothesis_id: int=1, fuzzy: bool=True) -> Dict[int, 'GlycoproteinSiteSpecificGlycomeModel']:
         by_protein_name = defaultdict(list)
         for site in site_models:
             by_protein_name[site.protein_name].append(site)
@@ -154,10 +166,6 @@ class GlycoproteinSiteSpecificGlycomeModel(object):
         proteins = session.query(serialize.Protein).filter(
             serialize.Protein.hypothesis_id == hypothesis_id).all()
         protein_name_map = {prot.name: prot for prot in proteins}
-        # if fuzzy:
-        #     tree = SuffixTree()
-        #     for prot in proteins:
-        #         tree.add_ngram(DeflineSuffix(prot.name, prot.name))
         tree = None
         for protein_name, sites in by_protein_name.items():
             try:
@@ -181,7 +189,8 @@ class GlycoproteinSiteSpecificGlycomeModel(object):
         return template.format(self=self)
 
     @classmethod
-    def load(cls, fh, session=None, hypothesis_id=1, fuzzy=True):
+    def load(cls, fh: io.TextIOBase, session=None, hypothesis_id: int = 1, fuzzy: bool = True) -> Union[List['GlycoproteinSiteSpecificGlycomeModel'],
+                                                                                                        Dict[int, 'GlycoproteinSiteSpecificGlycomeModel']]:
         site_models = GlycosylationSiteModel.load(fh)
         if session is not None:
             return cls.bind_to_hypothesis(session, site_models, hypothesis_id, fuzzy)
@@ -204,7 +213,7 @@ class ReversedProteinSiteReflectionGlycoproteinSiteSpecificGlycomeModel(Glycopro
         return self._glycosylation_sites
 
     @glycosylation_sites.setter
-    def glycosylation_sites(self, glycosylation_sites):
+    def glycosylation_sites(self, glycosylation_sites: List[GlycosylationSiteModel]):
         temp = []
         if isinstance(self.protein, ProteinStub):
             raise TypeError("Cannot create a reflected glycosite model with a ProteinStub")

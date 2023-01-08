@@ -1,5 +1,7 @@
 import json
-from collections import namedtuple
+import io
+
+from typing import Dict, List, NamedTuple
 
 import numpy as np
 
@@ -11,7 +13,7 @@ MINIMUM = 1e-4
 glycan_composition_cache = dict()
 decoy_glycan_cache = dict()
 
-def parse_glycan_composition(string):
+def parse_glycan_composition(string: str) -> HashableGlycanComposition:
     try:
         return glycan_composition_cache[string]
     except KeyError:
@@ -20,7 +22,7 @@ def parse_glycan_composition(string):
         return gc
 
 
-def to_decoy_glycan(string):
+def to_decoy_glycan(string: str) -> HashableGlycanComposition:
     try:
         return decoy_glycan_cache[string]
     except KeyError:
@@ -34,7 +36,10 @@ def is_decoy_glycan(string):
     return "#decoy#" in string
 
 
-GlycanPriorRecord = namedtuple("GlycanPriorRecord", ("score", "matched"))
+class GlycanPriorRecord(NamedTuple):
+    score: float
+    matched: bool
+
 
 try:
     from glycan_profiling._c.composition_distribution_model.utils import GlycanPriorRecord
@@ -43,6 +48,11 @@ except ImportError:
 
 
 class GlycosylationSiteModel(object):
+    protein_name: str
+    position: int
+    site_distribution: Dict[str, float]
+    lmbda: float
+    glycan_map: Dict[HashableGlycanComposition, GlycanPriorRecord]
 
     def __init__(self, protein_name, position, site_distribution, lmbda, glycan_map):
         self.protein_name = protein_name
@@ -51,10 +61,10 @@ class GlycosylationSiteModel(object):
         self.lmbda = lmbda
         self.glycan_map = glycan_map
 
-    def __getitem__(self, key):
+    def __getitem__(self, key: HashableGlycanComposition) -> float:
         return self.glycan_map[key][0]
 
-    def get_record(self, key):
+    def get_record(self, key: HashableGlycanComposition) -> GlycanPriorRecord:
         try:
             return self.glycan_map[key]
         except KeyError:
@@ -88,7 +98,7 @@ class GlycosylationSiteModel(object):
         return d
 
     @classmethod
-    def from_dict(cls, d):
+    def from_dict(cls, d: dict):
         name = d['protein_name']
         position = d['position']
         lmbda = d['lmbda']
@@ -141,13 +151,13 @@ class GlycosylationSiteModel(object):
         return {k: v.score for k, v in self.glycan_map.items() if v.matched and v.score > threshold}
 
     @classmethod
-    def load(cls, fh):
+    def load(cls, fh: io.TextIOBase) -> List['GlycosylationSiteModel']:
         site_dicts = json.load(fh)
         site_models = [cls.from_dict(d) for d in site_dicts]
         return site_models
 
     @classmethod
-    def dump(cls, instances, fh):
+    def dump(cls, instances, fh: io.TextIOBase):
         site_dicts = [d.to_dict() for d in instances]
         json.dump(site_dicts, fh)
 
