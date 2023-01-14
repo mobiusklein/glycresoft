@@ -14,7 +14,7 @@ requires = ["setuptools",
 [tool.ruff]
 target-version = "py38"
 line-length = 120
-extend-select = ["D"]
+extend-select = []
 
 [tool.ruff.pydocstyle]
 convention = "numpy"
