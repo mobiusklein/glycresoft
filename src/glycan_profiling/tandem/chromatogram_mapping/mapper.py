@@ -1,10 +1,10 @@
-from typing import (Any, Callable, Collection, DefaultDict, Dict, Hashable,
-                    List, Optional, Set, Tuple, NamedTuple, Type, Union,
-                    TYPE_CHECKING)
+from typing import (Callable, Collection,
+                    List, Optional, Type, Union)
 
 from ms_deisotope.peak_dependency_network.intervals import IntervalTreeNode
 
-from glycan_profiling.chromatogram_tree import ChromatogramFilter, Chromatogram, build_rt_interval_tree, GlycopeptideChromatogram
+from glycan_profiling.chromatogram_tree import (
+    ChromatogramFilter, Chromatogram, build_rt_interval_tree, GlycopeptideChromatogram)
 
 from glycan_profiling.task import TaskBase
 
@@ -108,7 +108,8 @@ class ChromatogramMSMSMapper(TaskBase):
             n, len(lost)))
         self.orphans = TandemSolutionsWithoutChromatogram.aggregate(lost)
 
-    def assign_entities(self, threshold_fn: Predicate=default_threshold, entity_chromatogram_type: Type[Chromatogram]=None):
+    def assign_entities(self, threshold_fn: Predicate=default_threshold,
+                        entity_chromatogram_type: Type[Chromatogram]=None):
         if entity_chromatogram_type is None:
             entity_chromatogram_type = GlycopeptideChromatogram
         for chromatogram in self:

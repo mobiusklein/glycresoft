@@ -1,8 +1,7 @@
 import os
 import logging
-from typing import (Any, Callable, Collection, DefaultDict, Dict, Hashable,
-                    List, Optional, Set, Tuple, NamedTuple, Type, Union,
-                    TYPE_CHECKING)
+from typing import (Any, Callable, Hashable,
+                    List, Tuple, NamedTuple, Union)
 
 from glycan_profiling.chromatogram_tree.mass_shift import MassShiftBase
 

@@ -1,5 +1,4 @@
-from typing import (Any, Callable, Collection, DefaultDict, Dict, Hashable,
-                    List, Optional, Set, Tuple, NamedTuple, Type, Union,
+from typing import (Any, Callable, Dict, List, Optional, Set, Tuple, Type, Union,
                     TYPE_CHECKING)
 
 import numpy as np
@@ -14,13 +13,25 @@ from glycan_profiling.scoring import ChromatogramSolution
 
 from glycan_profiling.tandem.target_decoy.base import FDREstimatorBase
 
-from ..spectrum_match import SpectrumMatch, SpectrumSolutionSet, MultiScoreSpectrumMatch, SpectrumMatcherBase
+from ..spectrum_match import (
+    SpectrumMatch,
+    SpectrumSolutionSet,
+    MultiScoreSpectrumMatch,
+    SpectrumMatcherBase
+)
 
 from .base import Predicate, TargetType, SolutionEntry
 
 if TYPE_CHECKING:
-    from .chromatogram import TandemAnnotatedChromatogram, SpectrumMatchSolutionCollectionBase, TandemSolutionsWithoutChromatogram
-    from glycan_profiling.scoring.elution_time_grouping.structure import ChromatogramProxy
+    from .chromatogram import (
+        TandemAnnotatedChromatogram,
+        SpectrumMatchSolutionCollectionBase,
+        TandemSolutionsWithoutChromatogram
+    )
+    from glycan_profiling.scoring.elution_time_grouping.structure import (
+        ChromatogramProxy,
+        GlycopeptideChromatogramProxy
+    )
     from glycan_profiling.scoring.elution_time_grouping.model import ModelEnsemble as RetentionTimeModelEnsemble
 
 
@@ -36,11 +47,16 @@ class MS2RevisionValidator(TaskBase):
                            for target in member_targets])
         return has_matches
 
-    def validate_spectrum_match(self, spectrum_match: Union[SpectrumMatch, MultiScoreSpectrumMatch], solution_set: SpectrumSolutionSet) -> bool:
-        ## It would be desirable to be able to detect when the difference in explanations are of such radically different quality that
-        ## any consideration of revision is a waste, but this can't be done reliably as a function of q-value. It might be feasible to do
-        ## with score, but such a modification would be difficult to tune for different scoring algorithms simultaneously. Perhaps if we
-        ## had a multidimensional threshold instead of a cascading threshold, but such a thresholding scheme would need to be estimated
+    def validate_spectrum_match(self, spectrum_match: Union[SpectrumMatch, MultiScoreSpectrumMatch],
+                                solution_set: SpectrumSolutionSet) -> bool:
+        ## It would be desirable to be able to detect when the difference
+        ## in explanations are of such radically different quality that
+        ## any consideration of revision is a waste, but this can't be
+        ## done reliably as a function of q-value. It might be feasible to do
+        ## with score, but such a modification would be difficult to tune for
+        ## different scoring algorithms simultaneously. Perhaps if we
+        ## had a multidimensional threshold instead of a cascading threshold,
+        ## but such a thresholding scheme would need to be estimated
         ## on the fly.
         # best_solution: MultiScoreSpectrumMatch = solution_set.best_solution()
         # if not self.threshold_fn(best_solution):
@@ -66,13 +82,15 @@ class MS2RevisionValidator(TaskBase):
                 if self.threshold_fn(match) and self.validate_spectrum_match(match, sset):
                     if not match.best_match:
                         ssets_could_convert += 1
-            except KeyError as err:
+            except KeyError:
                 continue
         if ssets_to_convert == 0:
             return True
         return (ssets_could_convert / ssets_to_convert) >= 0.5
 
-    def do_rewrite_best_matches(self, chromatogram: 'TandemAnnotatedChromatogram', target: TargetType, invalidated_targets: Set[TargetType]):
+    def do_rewrite_best_matches(self, chromatogram: 'TandemAnnotatedChromatogram',
+                                target: TargetType,
+                                invalidated_targets: Set[TargetType]):
         for sset in chromatogram.tandem_solutions:
             try:
                 match = sset.solution_for(target)
@@ -83,7 +101,7 @@ class MS2RevisionValidator(TaskBase):
                     self.debug(
                         f"... Skipping invalidation of {sset.scan_id!r}, alternative {target} did not pass threshold.")
                     continue
-            except KeyError as err:
+            except KeyError:
                 # TODO: Fill in missing match against the preferred target
                 self.debug(
                     f"... Skipping invalidation of {sset.scan_id!r}, alternative {target} was not matched.")
@@ -268,8 +286,7 @@ class SpectrumMatchInvalidatinCallback:
 
 
 class SpectrumMatchUpdater(SpectrumMatchBackFiller):
-    '''Wrap the process of generating updates to :class:`TandemAnnotatedChromatogram` based upon
-    some chromatogram-centric reviser like a retention time predictor.
+    """Generate updates to :class:`TandemAnnotatedChromatogram` from chromatogram reviser like an RT predictor.
 
     This type needs to:
         1. Generate new spectrum matches using the same scorer if a solution set lacks
@@ -281,7 +298,7 @@ class SpectrumMatchUpdater(SpectrumMatchBackFiller):
         4. Update the assigned entity of each assigned chromatogram so that the correct
            structure is the "best match", discarding the :class:`SolutionEntry` for the
            incorrect assignment *without* deleting the spectrum matches to that themselves.
-    '''
+    """
 
     spectrum_match_cls: Type[SpectrumMatch]
     threshold_fn: Callable[[SpectrumMatch], bool]
@@ -314,16 +331,8 @@ class SpectrumMatchUpdater(SpectrumMatchBackFiller):
         self.retention_time_model = retention_time_model
         self.retention_time_delta = retention_time_delta
 
-    def find_identical_peptides(self, chromatogram: 'SpectrumMatchSolutionCollectionBase', structure: TargetType) -> Set[TargetType]:
-        structures = set()
-        key = str(structure)
-        for sset in chromatogram.tandem_solutions:
-            for sm in sset:
-                if str(sm.target) == key:
-                    structures.add(sm.target)
-        return structures
-
-    def _find_identical_keys_and_matches(self, chromatogram: 'SpectrumMatchSolutionCollectionBase', structure: TargetType) -> Tuple[Set[TargetType], List[Tuple[SpectrumSolutionSet, SpectrumMatch]]]:
+    def _find_identical_keys_and_matches(self, chromatogram: 'SpectrumMatchSolutionCollectionBase',
+                                         structure: TargetType) -> Tuple[Set[TargetType], List[Tuple[SpectrumSolutionSet, SpectrumMatch]]]:
         structures: Set[TargetType] = set()
         key = str(structure)
         spectrum_matches: List[Tuple[SpectrumSolutionSet, SpectrumMatch]] = []
@@ -334,8 +343,9 @@ class SpectrumMatchUpdater(SpectrumMatchBackFiller):
                     spectrum_matches.append((sset, sm))
         return structures, spectrum_matches
 
-    def find_identical_peptides(self, chromatogram: 'SpectrumMatchSolutionCollectionBase', structure: TargetType) -> Set[TargetType]:
-        structures, spectrum_matches = self._find_identical_keys_and_matches(
+    def find_identical_peptides(self, chromatogram: 'SpectrumMatchSolutionCollectionBase',
+                                structure: TargetType) -> Set[TargetType]:
+        structures, _spectrum_matches = self._find_identical_keys_and_matches(
             chromatogram, structure)
         return structures
 
@@ -400,8 +410,16 @@ class SpectrumMatchUpdater(SpectrumMatchBackFiller):
                 self.fdr_estimator.score_all(sset)
         return revised_solution_sets
 
-    def collect_candidate_solutions_for_rt_validation(self, chromatogram: Union['TandemAnnotatedChromatogram', 'TandemSolutionsWithoutChromatogram'],
-                                                      structure: TargetType, rt_score: float, overridden: Optional[TargetType] = None):
+    def collect_candidate_solutions_for_rt_validation(self, chromatogram: Union['TandemAnnotatedChromatogram',
+                                                                                'TandemSolutionsWithoutChromatogram'],
+                                                      structure: TargetType,
+                                                      rt_score: float,
+                                                      overridden: Optional[TargetType] = None) -> Tuple[
+                                                        List[SolutionEntry],
+                                                        List[SolutionEntry],
+                                                        List[SolutionEntry],
+                                                        Set[TargetType]
+                                                    ]:
         from glycan_profiling.scoring.elution_time_grouping import GlycopeptideChromatogramProxy
         from .chromatogram import TandemSolutionsWithoutChromatogram
 
@@ -431,9 +449,12 @@ class SpectrumMatchUpdater(SpectrumMatchBackFiller):
                         alt_rt_score = alternative_rt_scores[r.solution]
                     if np.isnan(alt_rt_score) and not np.isnan(rt_score):
                         self.log(
-                            f"RT score for alternative {r.solution} is NaN, reference {structure} RT score is {rt_score:0.3f}")
+                            f"RT score for alternative {r.solution} is NaN, reference {structure}"
+                            f" RT score is {rt_score:0.3f}")
                     elif not np.isnan(alt_rt_score) and np.isnan(rt_score):
-                        self.log(f"RT score alternateive {r.solution} is {alt_rt_score:0.3f}, reference {structure} RT score is NaN")
+                        self.log(
+                            f"RT score alternateive {r.solution} is {alt_rt_score:0.3f}, reference"
+                            f" {structure} RT score is NaN")
                     # If either is NaN, this is always false, so we never invalidate a NaN-predicted case.
                     if (rt_score - alt_rt_score) > self.retention_time_delta:
                         invalidated.add(r.solution)
@@ -442,9 +463,10 @@ class SpectrumMatchUpdater(SpectrumMatchBackFiller):
 
         return match, keep, rejected, invalidated
 
-    def process_revision(self, revision, chromatogram: Union['TandemAnnotatedChromatogram', 'TandemSolutionsWithoutChromatogram'] = None):
-        from glycan_profiling.scoring.elution_time_grouping import GlycopeptideChromatogramProxy
-        revision: GlycopeptideChromatogramProxy
+    def process_revision(self, revision: 'GlycopeptideChromatogramProxy',
+                         chromatogram: Union[
+                            'TandemAnnotatedChromatogram',
+                            'TandemSolutionsWithoutChromatogram'] = None) -> 'TandemAnnotatedChromatogram':
 
         if chromatogram is None:
             chromatogram = revision.source
@@ -516,8 +538,7 @@ class SpectrumMatchUpdater(SpectrumMatchBackFiller):
                         mass_shifts: List[MassShiftBase],
                         reference_peptides: List[TargetType],
                         should_promote: bool=False) -> List[Tuple[SpectrumSolutionSet, SpectrumMatch, bool]]:
-        '''Collect spectrum matches to the new `structure` target, and all identical solutions
-        from different sources for all spectra in `chromatogram`.
+        """Collect spectrum matches to the new `structure` target, and all identical solutions from different sources for all spectra in `chromatogram`.
 
         Parameters
         ----------
@@ -535,7 +556,7 @@ class SpectrumMatchUpdater(SpectrumMatchBackFiller):
         should_promote : :class:`bool`
             When :const:`True`, matches to ``structure`` are promoted to best-match status if they
             pass the :attr:`threshold_fn`.
-        '''
+        """
         solution_set_match_pairs = []
         if structure.id is None or reference_peptides:
             instances = self.id_maker(structure, reference_peptides)
@@ -569,7 +590,7 @@ class SpectrumMatchUpdater(SpectrumMatchBackFiller):
                                (sm.target, sm.mass_shift.name, sm.scan_id))
                     self.fdr_estimator.score(sm)
 
-    def affirm_solution(self, chromatogram: 'TandemAnnotatedChromatogram'):
+    def affirm_solution(self, chromatogram: 'TandemAnnotatedChromatogram') -> 'TandemAnnotatedChromatogram':
         reference_peptides = self.find_identical_peptides(
             chromatogram, chromatogram.entity)
 

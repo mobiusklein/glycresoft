@@ -58,7 +58,8 @@ class SpectrumMatchSolutionCollectionBase(object):
             entries[0].percentile - x.percentile) < percentile_threshold]
         return representers
 
-    def most_representative_solutions(self, threshold_fn: Callable = always, reject_shifted: bool = False, targets_ignored: Collection = None,
+    def most_representative_solutions(self, threshold_fn: Predicate = always, reject_shifted: bool = False,
+                                      targets_ignored: Collection = None,
                                       percentile_threshold: float = 1e-5) -> List[SolutionEntry]:
         """Find the most representative solutions, the (very nearly the same, hopefully) structures with
         the highest aggregated score across all MSn events assigned to this collection.
@@ -87,7 +88,8 @@ class SpectrumMatchSolutionCollectionBase(object):
         else:
             return []
 
-    def solutions_for(self, structure: TargetType, threshold_fn: Callable = always, reject_shifted: bool = False) -> List[SpectrumMatch]:
+    def solutions_for(self, structure: TargetType, threshold_fn: Predicate = always,
+                      reject_shifted: bool = False) -> List[SpectrumMatch]:
         '''Get all spectrum matches in this collection for a given
         structure.
 
@@ -117,7 +119,7 @@ class SpectrumMatchSolutionCollectionBase(object):
                 continue
         return solutions
 
-    def best_match_for(self, structure: TargetType, threshold_fn: Callable = always) -> SpectrumMatch:
+    def best_match_for(self, structure: TargetType, threshold_fn: Predicate = always) -> SpectrumMatch:
         solutions = self.solutions_for(structure, threshold_fn=threshold_fn)
         if not solutions:
             raise KeyError(structure)

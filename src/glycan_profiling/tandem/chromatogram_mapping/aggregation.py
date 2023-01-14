@@ -3,11 +3,11 @@ from typing import (Any, Callable, Collection, DefaultDict, Dict, Hashable,
                     TYPE_CHECKING)
 
 from glycan_profiling.chromatogram_tree import Chromatogram, ChromatogramFilter
-from glycan_profiling.chromatogram_tree.mass_shift import MassShiftBase, Unmodified
+from glycan_profiling.chromatogram_tree.mass_shift import Unmodified
 
 from glycan_profiling.task import TaskBase
 
-from .base import Predicate, TargetType, default_threshold, DEBUG_MODE
+from .base import Predicate, SolutionEntry, TargetType, default_threshold, DEBUG_MODE
 from .chromatogram import TandemAnnotatedChromatogram
 from .revision import MS2RevisionValidator
 from .graph import build_glycopeptide_key, MassShiftDeconvolutionGraph, RepresenterDeconvolution
@@ -92,6 +92,16 @@ class GraphAnnotatedChromatogramAggregator(TaskBase):
 
 
 class AnnotatedChromatogramAggregator(TaskBase):
+    """A basic chromatogram merger that groups chromatograms according to their best analyte.
+
+    This algorithm looks for RT proximity.
+    """
+
+    annotated_chromatograms: ChromatogramFilter
+    delta_rt: float
+    require_unmodified: bool
+    threshold_fn: Predicate
+
     def __init__(self, annotated_chromatograms, delta_rt=0.25, require_unmodified=True,
                  threshold_fn=default_threshold):
         self.annotated_chromatograms = annotated_chromatograms
@@ -116,7 +126,14 @@ class AnnotatedChromatogramAggregator(TaskBase):
             merged.extend(out)
         return merged
 
-    def aggregate_by_annotation(self, annotated_chromatograms):
+    def aggregate_by_annotation(self, annotated_chromatograms: ChromatogramFilter) -> Tuple[
+                                                                                            List[TandemAnnotatedChromatogram],
+                                                                                            DefaultDict[
+                                                                                                str,
+                                                                                                List[TandemAnnotatedChromatogram]
+                                                                                            ]
+                                                                                        ]:
+        """Group chromatograms by their assigned entity."""
         finished = []
         aggregated = DefaultDict(list)
         for chroma in annotated_chromatograms:
@@ -131,7 +148,8 @@ class AnnotatedChromatogramAggregator(TaskBase):
                 finished.append(chroma)
         return finished, aggregated
 
-    def aggregate(self, annotated_chromatograms):
+    def aggregate(self, annotated_chromatograms: ChromatogramFilter) -> List[TandemAnnotatedChromatogram]:
+        """Drives the aggregation process."""
         self.log("Aggregating Common Entities: %d chromatograms" %
                  (len(annotated_chromatograms,)))
         finished, aggregated = self.aggregate_by_annotation(
@@ -140,7 +158,7 @@ class AnnotatedChromatogramAggregator(TaskBase):
         self.log("After Merging: %d chromatograms" % (len(finished),))
         return finished
 
-    def replace_solution(self, chromatogram, solutions):
+    def replace_solution(self, chromatogram: TandemAnnotatedChromatogram, solutions: List[SolutionEntry]):
         # select the best solution
         solutions = sorted(
             solutions, key=lambda x: x.score, reverse=True)
@@ -170,7 +188,7 @@ class AnnotatedChromatogramAggregator(TaskBase):
 
         # update the tandem annotations
         for solution_set in chromatogram.tandem_solutions:
-            solution_set.mark_top_solutions(reject_shifted=True)
+            solution_set.mark_top_solutions(reject_shifted=self.require_unmodified)
         chromatogram.assign_entity(
             solutions[0],
             entity_chromatogram_type=chromatogram.chromatogram.__class__)
