@@ -1,7 +1,8 @@
 import os
 import re
 import traceback
-from typing import Mapping
+
+from typing import Mapping, Generic, TypeVar, Type, Union
 
 
 import pickle
@@ -45,6 +46,9 @@ from glycopeptidepy.structure.modification import ModificationTable
 from glypy import Substituent, Composition
 
 glycan_source_validators = decoratordict()
+
+
+T = TypeVar('T')
 
 
 class ModificationValidator(object):
@@ -410,7 +414,7 @@ class ChoiceOrURI(click.Choice):
         )
 
 
-def get_by_name_or_id(session, model_type, name_or_id):
+def get_by_name_or_id(session, model_type: Type[T], name_or_id: Union[str, int]) -> T:
     try:
         object_id = int(name_or_id)
         inst = session.query(model_type).get(object_id)
