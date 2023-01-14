@@ -362,7 +362,7 @@ def glycopeptide_spectrum_matches(database_connection, analysis_identifier, outp
 
     end = time.monotonic()
     elapsed = end - start
-    status_logger.info(f"{elapsed:03f} seconds elapsed")
+    status_logger.info(f"{elapsed:0.2f} seconds elapsed")
 
 
 @export.command("mzid", short_help="Export a Glycopeptide Analysis as MzIdentML")
