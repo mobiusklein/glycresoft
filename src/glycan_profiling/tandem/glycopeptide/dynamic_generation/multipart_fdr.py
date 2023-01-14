@@ -84,8 +84,12 @@ class FiniteMixtureModelFDREstimatorBase(FDREstimatorBase):
         target_scores = self.target_scores
         target_scores = np.sort(target_scores)
         fdr = np.sort(self.estimate_fdr())[::-1]
-
-        i = np.where(fdr < q_value)[0][0]
+        if len(fdr) == 0:
+            return 0, 0
+        ii = np.where(fdr < q_value)[0]
+        if len(ii) == 0:
+            return float('inf'), 0
+        i = ii[0]
         score_for_fdr = target_scores[i]
         target_counts = (target_scores >= score_for_fdr).sum()
         return score_for_fdr, target_counts
