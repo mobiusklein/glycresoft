@@ -7,8 +7,7 @@ from .matcher import GlycopeptideMatcher
 from .glycopeptide_matcher import (
     GlycopeptideDatabaseSearchIdentifier,
     ExclusiveGlycopeptideDatabaseSearchComparer,
-    GlycopeptideDatabaseSearchComparer,
-    GlycopeptideIdentificationWorker)
+    GlycopeptideDatabaseSearchComparer)
 
 
 from .dynamic_generation import (
@@ -23,7 +22,7 @@ __all__ = [
     "GlycopeptideDatabaseSearchIdentifier",
     "ExclusiveGlycopeptideDatabaseSearchComparer",
     "GlycopeptideDatabaseSearchComparer",
-    "GlycopeptideMatcher", "GlycopeptideIdentificationWorker",
+    "GlycopeptideMatcher",
 
     "MultipartGlycopeptideIdentifier", "PeptideDatabaseProxyLoader",
     "make_memory_database_proxy_resolver",
