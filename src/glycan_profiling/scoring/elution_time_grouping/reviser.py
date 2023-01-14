@@ -1,7 +1,7 @@
 import logging
 import operator
 
-from typing import DefaultDict, Dict, List, Mapping, Optional, Set, TYPE_CHECKING, Tuple, Union, OrderedDict, Iterable
+from typing import Callable, DefaultDict, Dict, List, Mapping, Optional, Set, TYPE_CHECKING, Tuple, Union, OrderedDict, Iterable
 from array import array
 from dataclasses import dataclass
 
@@ -29,6 +29,13 @@ if TYPE_CHECKING:
     from glycan_profiling.tandem.chromatogram_mapping import SpectrumMatchUpdater, TandemAnnotatedChromatogram
     from glycan_profiling.tandem.target_decoy import NearestValueLookUp, TargetDecoyAnalyzer
     from glycan_profiling.tandem.spectrum_match import SpectrumMatch, MultiScoreSpectrumMatch, ScoreSet
+
+
+def _invert_fn(fn):
+    def wrapper(*args, **kwargs):
+        value = fn(*args, **kwargs)
+        return not value
+    return wrapper
 
 
 class RevisionRule(object):
@@ -132,6 +139,12 @@ class ValidatingRevisionRule(RevisionRule):
         if super().is_valid_revision(record, new_record):
             return self.validator(record)
         return False
+
+    def invert_rule(self, validator: Optional[Callable[['GlycopeptideChromatogramProxy'], bool]]=None):
+        if validator is None:
+            validator = _invert_fn(self.validator)
+        return self.__class__(
+            -self.delta_glycan, validator, self.mass_shift_rule.invert() if self.mass_shift_rule else None, self.priority)
 
 
 class MassShiftRule(object):
@@ -710,6 +723,16 @@ HexNAc2NeuAc2ToHex6AmmoniumRule = ValidatingRevisionRule(
     mass_shift_rule=MassShiftRule(Ammonium, 1),
     validator=lambda x: x.glycan_composition[neuac] == 0 and x.glycan_composition.query(dhex) == 0 and x.glycan_composition[hexnac] == 2,
     name="Ammonium Masked followed by Large Mass Ambiguity")
+
+
+# Not yet in use, needs to be explored more
+dHex2HexNAc2NeuAc1ToHex6AmmoniumRule = ValidatingRevisionRule(
+    HashableGlycanComposition(Fuc=2, Hex=-6, HexNAc=2, Neu5Ac=1),
+    mass_shift_rule=MassShiftRule(Ammonium, 1),
+    validator=lambda x: x.glycan_composition[neuac] == 0 and x.glycan_composition.query(
+        dhex) == 0 and x.glycan_composition[hexnac] == 1,
+    name="Ammonium Masked followed by Large Mass Ambiguity II")
+
 
 HexNAc2Fuc1NeuAc2ToHex7 = ValidatingRevisionRule(
     HashableGlycanComposition(Hex=-7, HexNAc=2, Neu5Ac=2, Fuc=1),
