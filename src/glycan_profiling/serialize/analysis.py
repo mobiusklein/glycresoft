@@ -1,13 +1,15 @@
 import re
+import os
 from functools import partial
+
+from typing import Optional
 
 from sqlalchemy import (
     Column, Numeric, Integer, String, ForeignKey, PickleType,
     Boolean, Table, func)
 
-from sqlalchemy.orm import relationship, backref, object_session, deferred
+from sqlalchemy.orm import relationship, backref, object_session
 from sqlalchemy.ext.declarative import declared_attr
-from sqlalchemy.ext.mutable import MutableDict, Mutable
 
 import dill
 
@@ -17,8 +19,11 @@ from glycan_profiling.serialize.base import (
 from glycan_profiling.serialize.spectrum import SampleRun
 
 from glycan_profiling.serialize.hypothesis.generic import HasFiles
-from glycan_profiling.serialize.param import LazyMutableMappingWrapper, HasParameters
+from glycan_profiling.serialize.param import HasParameters
 from glypy.utils import Enum
+
+from ms_deisotope.data_source import ProcessedRandomAccessScanSource
+from ms_deisotope.output import ProcessedMSFileLoader
 
 
 DillType = partial(PickleType, pickler=dill)
@@ -33,15 +38,41 @@ AnalysisTypeEnum.glycopeptide_lc_msms.add_name("Glycopeptide LC-MS/MS")
 AnalysisTypeEnum.glycan_lc_ms.add_name("Glycan LC-MS")
 
 
-class Analysis(Base, HasUniqueName, HasFiles, HasParameters):
+class _AnalysisParametersProps:
+    def open_ms_file(self) -> Optional[ProcessedRandomAccessScanSource]:
+        path = self.parameters.get("sample_path")
+        if not path:
+            return None
+        if os.path.exists(path):
+            return ProcessedMSFileLoader(path)
+        return None
+
+    @property
+    def mass_shifts(self):
+        return self.parameters.get('mass_shifts', [])
+
+    @property
+    def ms1_scoring_model(self):
+        return self.parameters.get('scoring_model')
+
+    @property
+    def msn_scoring_model(self):
+        return self.parameters.get('tandem_scoring_model')
+
+    @property
+    def retention_time_model(self):
+        return self.parameters.get('retention_time_model')
+
+
+class Analysis(Base, HasUniqueName, HasFiles, HasParameters, _AnalysisParametersProps):
     __tablename__ = "Analysis"
 
-    id = Column(Integer, primary_key=True)
-    sample_run_id = Column(Integer, ForeignKey(SampleRun.id, ondelete="CASCADE"), index=True)
-    sample_run = relationship(SampleRun)
-    analysis_type = Column(String(128))
+    id: int = Column(Integer, primary_key=True)
+    sample_run_id: int = Column(Integer, ForeignKey(SampleRun.id, ondelete="CASCADE"), index=True)
+    sample_run: SampleRun = relationship(SampleRun)
+    analysis_type: str = Column(String(128))
     # parameters = deferred(Column(MutableDict.as_mutable(DillType), default=LazyMutableMappingWrapper))
-    status = Column(String(28))
+    status: str = Column(String(28))
 
     def __init__(self, **kwargs):
         self._init_parameters(kwargs)
@@ -112,6 +143,7 @@ class Analysis(Base, HasUniqueName, HasFiles, HasParameters):
 
         glycoproteome = IdentifiedGlycoprotein.aggregate(glycopeptides, index=protein_index)
         return glycoproteome
+
 
 
 class BoundToAnalysis(object):

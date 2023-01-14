@@ -12,7 +12,7 @@ from .connection import DatabaseBoundOperation
 from .spectrum import (
     MSScan, PrecursorInformation, SampleRun, DeconvolutedPeak)
 
-from .analysis import Analysis
+from .analysis import Analysis, _AnalysisParametersProps
 from .chromatogram import (
     Chromatogram,
     MassShiftSerializer,
@@ -288,7 +288,7 @@ class AnalysisSerializer(DatabaseBoundOperation, TaskBase):
         self.session.commit()
 
 
-class AnalysisDeserializer(DatabaseBoundOperation):
+class AnalysisDeserializer(DatabaseBoundOperation, _AnalysisParametersProps):
     def __init__(self, connection: str, analysis_name=None, analysis_id=None):
         DatabaseBoundOperation.__init__(self, connection)
 
