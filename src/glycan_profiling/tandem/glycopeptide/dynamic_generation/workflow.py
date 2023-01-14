@@ -20,10 +20,10 @@ from glycan_profiling.serialize.hypothesis.hypothesis import GlycopeptideHypothe
 
 
 from glycan_profiling.tandem.spectrum_match.solution_set import MultiScoreSpectrumSolutionSet
-from glycan_profiling.tandem.spectrum_match.spectrum_match import MultiScoreSpectrumMatch, SpectrumMatch, SpectrumMatcherBase
+from glycan_profiling.tandem.spectrum_match.spectrum_match import MultiScoreSpectrumMatch, SpectrumMatch
 
 from glycan_profiling.task import (
-    TaskBase, Pipeline, MultiEvent,
+    TaskBase, Pipeline,
     TaskExecutionSequence, MultiLock,
     LoggingMixin, make_shared_memory_manager,
     IPCLoggingManager, LoggingHandlerToken)
@@ -49,6 +49,8 @@ from ...chromatogram_mapping import (
 from ...temp_store import TempFileManager
 from ...spectrum_evaluation import group_by_precursor_mass
 from ...spectrum_match import SpectrumMatchClassification
+from ...workflow import SearchEngineBase
+
 from ..scoring import LogIntensityScorer, GlycopeptideSpectrumMatcherBase
 
 from .journal import (
@@ -252,7 +254,7 @@ def make_predictive_glycopeptide_search(path, hypothesis_id: int=1,
     return predictive_search
 
 
-class MultipartGlycopeptideIdentifier(TaskBase):
+class MultipartGlycopeptideIdentifier(SearchEngineBase):
     precursor_error_tolerance: float
     product_error_tolerance: float
     batch_size: int

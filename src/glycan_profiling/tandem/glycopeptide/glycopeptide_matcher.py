@@ -14,10 +14,9 @@ from .core_search import GlycanCombinationRecord, GlycanFilteringPeptideMassEsti
 
 from ..temp_store import TempFileManager, SpectrumMatchStore
 from ..chromatogram_mapping import ChromatogramMSMSMapper
-from ..workflow import (format_identification_batch, chunkiter)
+from ..workflow import (format_identification_batch, chunkiter, SearchEngineBase)
 
 from .matcher import (
-    GlycopeptideIdentificationWorker,
     TargetDecoyInterleavingGlycopeptideMatcher,
     ComparisonGlycopeptideMatcher)
 
@@ -43,7 +42,7 @@ class GlycopeptideResolver(object):
         return self.resolve(id)
 
 
-class GlycopeptideDatabaseSearchIdentifier(TaskBase):
+class GlycopeptideDatabaseSearchIdentifier(SearchEngineBase):
     def __init__(self, tandem_scans, scorer_type, structure_database, scan_id_to_rt=lambda x: x,
                  minimum_oxonium_ratio=0.05, scan_transformer=lambda x: x, mass_shifts=None,
                  n_processes=5, file_manager=None, use_peptide_mass_filter=True,

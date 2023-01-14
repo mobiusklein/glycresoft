@@ -5,8 +5,9 @@ LC-MS/MS deconvolution or structure identification
 '''
 import os
 from collections import defaultdict
-from typing import Any, DefaultDict, Dict, List, Optional, Tuple, TYPE_CHECKING, Type
+from typing import Any, DefaultDict, Dict, List, Optional, Tuple, Type, Sequence
 from glycan_profiling.chromatogram_tree.mass_shift import MassShiftBase
+from glycan_profiling.tandem.glycopeptide.dynamic_generation.journal import SolutionSetGrouper
 
 import numpy as np
 
@@ -14,6 +15,7 @@ import ms_peak_picker
 
 import ms_deisotope
 from ms_deisotope.output import ProcessedMSFileLoader
+from ms_deisotope.data_source import ProcessedRandomAccessScanSource
 
 import glypy
 from glypy.utils import Enum
@@ -49,7 +51,6 @@ from glycan_profiling.trace import (
     LaplacianRegularizedChromatogramProcessor,
     ChromatogramEvaluator)
 
-from glycan_profiling import config # pylint: disable=unused-import
 
 from glycan_profiling.chromatogram_tree import ChromatogramFilter, SimpleChromatogram, Unmodified
 
@@ -76,6 +77,7 @@ from glycan_profiling.tandem.chromatogram_mapping import (
 from glycan_profiling.tandem import chromatogram_mapping
 from glycan_profiling.tandem.target_decoy import TargetDecoySet
 from glycan_profiling.tandem.temp_store import TempFileManager
+from glycan_profiling.tandem.workflow import SearchEngineBase
 
 from glycan_profiling.tandem.spectrum_match.spectrum_match import MultiScoreSpectrumMatch, SpectrumMatch
 from glycan_profiling.tandem.spectrum_match.solution_set import QValueRetentionStrategy, SpectrumSolutionSet
@@ -94,6 +96,8 @@ from glycan_profiling.tandem.glycopeptide.dynamic_generation import (
 
 from glycan_profiling.tandem.glycopeptide import (
     identified_structure as identified_glycopeptide)
+
+from glycan_profiling.tandem.glycopeptide.identified_structure import IdentifiedGlycopeptide
 
 from glycan_profiling.tandem.glycan.composition_matching import SignatureIonMapper
 from glycan_profiling.tandem.glycan.scoring.signature_ion_scoring import SignatureIonScorer
@@ -197,7 +201,6 @@ class SampleConsumer(TaskBase):
         -------
         :class:`tuple` of 4 :class:`dict`
         """
-
         if msn_averagine is None:
             msn_averagine = averagine
 
@@ -259,13 +262,16 @@ class SampleConsumer(TaskBase):
 
 
 class ChromatogramSummarizer(TaskBase):
-    """Implement the simple diagnostic chromatogram extraction pipeline which
-    given a deconvoluted mzML file produced by :class:`SampleConsumer` will build
+    """
+    Implement the simple diagnostic chromatogram extraction pipeline.
+
+    Given a deconvoluted mzML file produced by :class:`SampleConsumer` this will build
     aggregated extracted ion chromatograms for each distinct mass over time.
 
     Unlike most of the pipelines here, this task does not currently save its own output,
     instead returning it to the caller of it's :meth:`run` method.
     """
+
     def __init__(self, mzml_path, threshold_percentile=90, minimum_mass=300.0, extract_signatures=True, evaluate=False,
                  chromatogram_scoring_model=None):
         if chromatogram_scoring_model is None:
@@ -279,16 +285,15 @@ class ChromatogramSummarizer(TaskBase):
         self.should_evaluate = evaluate
 
     def make_scan_loader(self):
-        '''Create a reader for the deconvoluted LC-MS data file
-        '''
+        """Create a reader for the deconvoluted LC-MS data file."""
         scan_loader = ProcessedMSFileLoader(self.mzml_path)
         return scan_loader
 
     def estimate_intensity_threshold(self, scan_loader):
-        '''Given a reader with an extended index, build the MS1 peak
-        intensity distribution to estimate the global intensity threshold
-        to use when extracting chromatograms.
-        '''
+        """Build the MS1 peak intensity distribution to estimate the global intensity threshold.
+
+        This threshold is then used when extracting chromatograms.
+        """
         acc = []
         for scan_id in scan_loader.extended_index.ms1_ids:
             header = scan_loader.get_scan_header_by_id(scan_id)
@@ -297,8 +302,7 @@ class ChromatogramSummarizer(TaskBase):
         return self.intensity_threshold
 
     def extract_chromatograms(self, scan_loader):
-        '''Perform the chromatogram extraction process.
-        '''
+        """Perform the chromatogram extraction process."""
         extractor = ChromatogramExtractor(
             scan_loader, minimum_intensity=self.intensity_threshold,
             minimum_mass=self.minimum_mass)
@@ -306,9 +310,7 @@ class ChromatogramSummarizer(TaskBase):
         return chroma, extractor.total_ion_chromatogram, extractor.base_peak_chromatogram
 
     def extract_signature_ion_traces(self, scan_loader):
-        '''Skim the MSn spectra to look for oxonium ion signatures over
-        time.
-        '''
+        """Skim the MSn spectra to look for oxonium ion signatures over time."""
         from glycan_profiling.tandem.oxonium_ions import standard_oxonium_ions
         window_width = 0.01
         ox_time = []
@@ -350,8 +352,7 @@ class ChromatogramSummarizer(TaskBase):
 
 
 class GlycanChromatogramAnalyzer(TaskBase):
-    """Analyze glycan LC-MS profiling data, assigning glycan compositions
-    to extracted chromatograms.
+    """Analyze glycan LC-MS profiling data, assigning glycan compositions to extracted chromatograms.
 
     The base implementation targets the legacy deconvoluted spectrum
     database format. See :class:`MzMLGlycanChromatogramAnalyzer` for the
@@ -506,8 +507,7 @@ class GlycanChromatogramAnalyzer(TaskBase):
         return mapper
 
     def annotate_matches_with_msms(self, chromatograms, peak_loader, msms_scans, database):
-        """Map MSn scans to chromatograms matched by precursor mass, and
-        evaluate each glycan compostion-spectrum match
+        """Map MSn scans to chromatograms matched by precursor mass, and evaluate each glycan compostion-spectrum match.
 
         Parameters
         ----------
@@ -784,7 +784,7 @@ class GlycopeptideLCMSMSAnalyzer(TaskBase):
         seeds = {}
         return seeds
 
-    def load_msms(self, peak_loader):
+    def load_msms(self, peak_loader: ProcessedRandomAccessScanSource):
         prec_info = peak_loader.precursor_information()
         msms_scans = [o.product for o in prec_info if o.neutral_mass is not None]
         return msms_scans
@@ -796,7 +796,9 @@ class GlycopeptideLCMSMSAnalyzer(TaskBase):
         evaluation_kwargs.update(self.extra_msn_evaluation_kwargs)
         return evaluation_kwargs
 
-    def make_search_engine(self, msms_scans, database, peak_loader):
+    def make_search_engine(self, msms_scans: List[ScanStub],
+                           database,
+                           peak_loader: ProcessedRandomAccessScanSource) -> SearchEngineBase:
         searcher = GlycopeptideDatabaseSearchIdentifier(
             [scan for scan in msms_scans
              if scan.precursor_information.neutral_mass < self.maximum_mass],
@@ -813,7 +815,7 @@ class GlycopeptideLCMSMSAnalyzer(TaskBase):
             permute_decoy_glycans=self.permute_decoy_glycans)
         return searcher
 
-    def do_search(self, searcher):
+    def do_search(self, searcher: SearchEngineBase) -> TargetDecoySet:
         kwargs = self.make_msn_evaluation_kwargs()
         assigned_spectra = searcher.search(
             precursor_error_tolerance=self.mass_error_tolerance,
@@ -822,17 +824,22 @@ class GlycopeptideLCMSMSAnalyzer(TaskBase):
             **kwargs)
         return assigned_spectra
 
-    def estimate_fdr(self, searcher, target_decoy_set):
+    def estimate_fdr(self, searcher: SearchEngineBase, target_decoy_set: TargetDecoySet) -> TargetDecoySet:
         return searcher.estimate_fdr(*target_decoy_set, decoy_pseudocount=0.0)
 
     def map_chromatograms(self,
-                          searcher,
+                          searcher: SearchEngineBase,
                           extractor: ChromatogramExtractor,
                           target_hits: List[SpectrumSolutionSet],
-                          revision_validator_type: Optional[Type[MS2RevisionValidator]]=None) -> Tuple[ChromatogramFilter, TandemSolutionsWithoutChromatogram]:
-        """Map identified spectrum matches onto extracted chromatogram groups, selecting the
-        best overall structure for each chromatogram group and merging disjoint chromatograms
-        which are assigned the same structure.
+                          revision_validator_type: Optional[Type[MS2RevisionValidator]]=None) -> Tuple[
+                                                                                                    ChromatogramFilter,
+                                                                                                    Sequence[TandemSolutionsWithoutChromatogram]
+                                                                                                ]:
+        """
+        Map identified spectrum matches onto extracted chromatogram groups.
+
+        It selects the best overall structure for each chromatogram group and merging disjoint
+        chromatograms which are assigned the same structure.
 
         The structure assigned to a chromatogram group is not necessarily the only structure that
         is reasonable and there may be ambiguity. When the same exact structure with different source
@@ -892,7 +899,7 @@ class GlycopeptideLCMSMSAnalyzer(TaskBase):
             if debug_mode:
                 breakpoint()
 
-        # TODO: Detect leaked spectrum matches between here and after aggregate_by_assigned_entity
+        # Detect leaked spectrum matches between here and after aggregate_by_assigned_entity
 
         self.log("Aggregating Assigned Entities")
         merged = chromatogram_mapping.aggregate_by_assigned_entity(
@@ -948,7 +955,9 @@ class GlycopeptideLCMSMSAnalyzer(TaskBase):
                 scored_merged.append(ChromatogramSolution(c, score=0.0))
         return scored_merged
 
-    def assign_consensus(self, scored_merged, orphans):
+    def assign_consensus(self, scored_merged: ChromatogramFilter,
+                         orphans: Sequence[TandemSolutionsWithoutChromatogram]) -> Tuple[List[IdentifiedGlycopeptide],
+                                                                                         List[ChromatogramSolution]]:
         self.log("Assigning consensus glycopeptides to spectrum clusters")
         assigned_list = list(scored_merged)
         assigned_list.extend(orphans)
@@ -956,9 +965,11 @@ class GlycopeptideLCMSMSAnalyzer(TaskBase):
             assigned_list, lambda x: x.q_value <= self.psm_fdr_threshold)
         return gps, unassigned
 
-    def rank_target_hits(self, searcher, target_decoy_set: TargetDecoySet) -> List[SpectrumSolutionSet]:
-        '''Estimate the FDR using the searcher's method, and
-        count the number of acceptable target matches. Return
+    def rank_target_hits(self, searcher: SearchEngineBase,
+                         target_decoy_set: TargetDecoySet) -> List[SpectrumSolutionSet]:
+        """Estimate the FDR using the searcher's method.
+
+        Also count the number of acceptable target matches. Return
         the full set of target matches for downstream use.
 
         Parameters
@@ -970,7 +981,7 @@ class GlycopeptideLCMSMSAnalyzer(TaskBase):
         Returns
         -------
         Iterable of SpectrumMatch-like objects
-        '''
+        """
         self.log("Estimating FDR")
         tda: TargetDecoyAnalyzer = self.estimate_fdr(searcher, target_decoy_set)
         if tda is not None:
@@ -996,18 +1007,18 @@ class GlycopeptideLCMSMSAnalyzer(TaskBase):
 
     def localize_modifications(self,
                                solution_sets: List[SpectrumSolutionSet],
-                               scan_loader,
+                               scan_loader: ProcessedRandomAccessScanSource,
                                database: DiskBackedStructureDatabaseBase):
         pass
 
-    def finalize_solutions(self, identifications: List[identified_glycopeptide.IdentifiedGlycopeptide]):
+    def finalize_solutions(self, identifications: List[IdentifiedGlycopeptide]):
         pass
 
     def handle_adducts(self,
-                       peak_loader,
-                       identifications: List[identified_glycopeptide.IdentifiedGlycopeptide],
+                       peak_loader: ProcessedRandomAccessScanSource,
+                       identifications: List[IdentifiedGlycopeptide],
                        chromatograms: ChromatogramFilter,
-                       mass_shifts: Optional[List[MassShiftBase]]=None) -> List[identified_glycopeptide.IdentifiedGlycopeptide]:
+                       mass_shifts: Optional[List[MassShiftBase]]=None) -> List[IdentifiedGlycopeptide]:
         if not mass_shifts:
             return identifications
         augmented_chromatograms = list(chromatograms)
@@ -1097,7 +1108,10 @@ class GlycopeptideLCMSMSAnalyzer(TaskBase):
         return glycan_compositions
 
     def _split_chromatograms_by_observation_priority(self, scored_chromatograms: List[TandemAnnotatedChromatogram],
-                                                     minimum_ms1_score: float) -> Tuple[GlycoformAggregator, List[GlycopeptideChromatogramProxy]]:
+                                                     minimum_ms1_score: float) -> Tuple[
+                                                                                    GlycoformAggregator,
+                                                                                    List[GlycopeptideChromatogramProxy]
+                                                                                ]:
         proxies = [
             GlycopeptideChromatogramProxy.from_chromatogram(chrom)
             for chrom in scored_chromatograms
@@ -1183,7 +1197,13 @@ class GlycopeptideLCMSMSAnalyzer(TaskBase):
         for af in to_affirm:
             updater.affirm_solution(af.source)
 
-    def apply_retention_time_model(self, scored_chromatograms, orphans, database, scan_loader, minimum_ms1_score=6.0):
+    def apply_retention_time_model(self, scored_chromatograms: Sequence[ChromatogramSolution],
+                                   orphans: List[TandemSolutionsWithoutChromatogram],
+                                   database, scan_loader: ProcessedRandomAccessScanSource,
+                                   minimum_ms1_score: float=6.0) -> Tuple[
+                                                                        List[ChromatogramSolution],
+                                                                        List[TandemSolutionsWithoutChromatogram]
+                                                                    ]:
 
         glycan_compositions = self._get_glycan_compositions_from_database(database)
 
@@ -1254,15 +1274,20 @@ class GlycopeptideLCMSMSAnalyzer(TaskBase):
 
         return scored_chromatograms, orphans
 
-    def _filter_out_poor_matches_before_saving(self, identified_glycopeptides):
+    def _filter_out_poor_matches_before_saving(self,
+                                               identified_glycopeptides: Sequence[IdentifiedGlycopeptide]) -> Sequence[
+                                                                                                                IdentifiedGlycopeptide
+                                                                                                            ]:
         filt = QValueRetentionStrategy(max(0.75, self.psm_fdr_threshold * 10.))
         for idgp in identified_glycopeptides:
             for gpsm_set in idgp.tandem_solutions:
                 gpsm_set.select_top(filt)
         return identified_glycopeptides
 
-    def _build_analysis_saved_parameters(self, identified_glycopeptides, unassigned_chromatograms,
-                                         chromatogram_extractor, database):
+    def _build_analysis_saved_parameters(self, identified_glycopeptides: Sequence[IdentifiedGlycopeptide],
+                                         unassigned_chromatograms: ChromatogramFilter,
+                                         chromatogram_extractor: ChromatogramExtractor,
+                                         database):
         return {
             "hypothesis_id": self.hypothesis_id,
             "sample_run_id": self.sample_run_id,
@@ -1282,8 +1307,10 @@ class GlycopeptideLCMSMSAnalyzer(TaskBase):
             "extra_evaluation_kwargs": self.extra_msn_evaluation_kwargs,
         }
 
-    def save_solutions(self, identified_glycopeptides, unassigned_chromatograms,
-                       chromatogram_extractor, database):
+    def save_solutions(self, identified_glycopeptides: List[IdentifiedGlycopeptide],
+                       unassigned_chromatograms: ChromatogramFilter,
+                       chromatogram_extractor: ChromatogramExtractor,
+                       database):
         if self.analysis_name is None:
             return
         self.log("Saving Results To \"%s\"" % (self.database_connection,))
@@ -1348,7 +1375,7 @@ class MzMLGlycopeptideLCMSMSAnalyzer(GlycopeptideLCMSMSAnalyzer):
         self.sample_path = sample_path
         self.output_path = output_path
 
-    def make_peak_loader(self):
+    def make_peak_loader(self) -> ProcessedRandomAccessScanSource:
         peak_loader = ProcessedMSFileLoader(self.sample_path)
         if peak_loader.extended_index is None:
             if not peak_loader.has_index_file():
@@ -1360,13 +1387,16 @@ class MzMLGlycopeptideLCMSMSAnalyzer(GlycopeptideLCMSMSAnalyzer):
                 raise ValueError("Sample Data Invalid: Could not validate MS/MS Index")
         return peak_loader
 
-    def load_msms(self, peak_loader):
+    def load_msms(self, peak_loader: ProcessedRandomAccessScanSource) -> List[ScanStub]:
         prec_info = peak_loader.precursor_information()
         msms_scans = [ScanStub(o, peak_loader) for o in prec_info if o.neutral_mass is not None]
         return msms_scans
 
-    def _build_analysis_saved_parameters(self, identified_glycopeptides, unassigned_chromatograms,
-                                         chromatogram_extractor, database):
+    def _build_analysis_saved_parameters(self,
+                                         identified_glycopeptides: List[IdentifiedGlycopeptide],
+                                         unassigned_chromatograms: ChromatogramFilter,
+                                         chromatogram_extractor: ChromatogramExtractor,
+                                         database):
         return {
             "hypothesis_id": self.hypothesis_id,
             "sample_run_id": self.sample_run_id,
@@ -1395,14 +1425,20 @@ class MzMLGlycopeptideLCMSMSAnalyzer(GlycopeptideLCMSMSAnalyzer):
             "extra_evaluation_kwargs": self.extra_msn_evaluation_kwargs,
         }
 
-    def make_analysis_serializer(self, output_path, analysis_name, sample_run, identified_glycopeptides,
-                                 unassigned_chromatograms, database, chromatogram_extractor):
+    def make_analysis_serializer(self, output_path, analysis_name: str,
+                                 sample_run,
+                                 identified_glycopeptides: List[IdentifiedGlycopeptide],
+                                 unassigned_chromatograms: ChromatogramFilter,
+                                 database,
+                                 chromatogram_extractor: ChromatogramExtractor):
         return GlycopeptideMSMSAnalysisSerializer(
             output_path, analysis_name, sample_run, identified_glycopeptides,
             unassigned_chromatograms, database, chromatogram_extractor)
 
-    def save_solutions(self, identified_glycopeptides, unassigned_chromatograms,
-                       chromatogram_extractor, database):
+    def save_solutions(self, identified_glycopeptides: List[IdentifiedGlycopeptide],
+                       unassigned_chromatograms: ChromatogramFilter,
+                       chromatogram_extractor: ChromatogramExtractor,
+                       database):
         if self.analysis_name is None:
             return
         self.log("Saving Results To \"%s\"" % (self.output_path,))
@@ -1465,7 +1501,9 @@ class MzMLComparisonGlycopeptideLCMSMSAnalyzer(MzMLGlycopeptideLCMSMSAnalyzer):
         self.decoy_database_connection = decoy_database_connection
         self.use_decoy_correction_threshold = use_decoy_correction_threshold
 
-    def make_search_engine(self, msms_scans, database, peak_loader):
+    def make_search_engine(self, msms_scans: List[ScanStub],
+                           database,
+                           peak_loader: ProcessedRandomAccessScanSource):
         searcher = ExclusiveGlycopeptideDatabaseSearchComparer(
             [scan for scan in msms_scans
              if scan.precursor_information.neutral_mass < self.maximum_mass],
@@ -1487,8 +1525,10 @@ class MzMLComparisonGlycopeptideLCMSMSAnalyzer(MzMLGlycopeptideLCMSMSAnalyzer):
             self.decoy_database_connection, self.hypothesis_id)
         return database
 
-    def _build_analysis_saved_parameters(self, identified_glycopeptides, unassigned_chromatograms,
-                                         chromatogram_extractor, database):
+    def _build_analysis_saved_parameters(self, identified_glycopeptides,
+                                         unassigned_chromatograms,
+                                         chromatogram_extractor,
+                                         database):
         result = super(MzMLComparisonGlycopeptideLCMSMSAnalyzer, self)._build_analysis_saved_parameters(
             identified_glycopeptides, unassigned_chromatograms,
             chromatogram_extractor, database)
@@ -1504,7 +1544,7 @@ class MzMLComparisonGlycopeptideLCMSMSAnalyzer(MzMLGlycopeptideLCMSMSAnalyzer):
         })
         return result
 
-    def estimate_fdr(self, searcher, target_decoy_set):
+    def estimate_fdr(self, searcher: SearchEngineBase, target_decoy_set: TargetDecoySet):
         if target_decoy_set.decoy_count() / float(
                 target_decoy_set.target_count()) < self.use_decoy_correction_threshold:
             targets_per_decoy = 0.5
@@ -1606,7 +1646,9 @@ class MultipartGlycopeptideLCMSMSAnalyzer(MzMLGlycopeptideLCMSMSAnalyzer):
         kwargs.update(self.extra_msn_evaluation_kwargs)
         return kwargs
 
-    def make_search_engine(self, msms_scans, database, peak_loader):
+    def make_search_engine(self, msms_scans: List[ScanStub],
+                           database,
+                           peak_loader: ProcessedRandomAccessScanSource):
         cache_seeds = self.prepare_cache_seeds(
             serialize.DatabaseBoundOperation(self.database_connection))
         searcher = MultipartGlycopeptideIdentifier(
@@ -1627,12 +1669,12 @@ class MultipartGlycopeptideLCMSMSAnalyzer(MzMLGlycopeptideLCMSMSAnalyzer):
             peptide_masses_per_scan=self.peptide_masses_per_scan)
         return searcher
 
-    def estimate_fdr(self, searcher, target_decoy_set):
+    def estimate_fdr(self, searcher: SearchEngineBase, target_decoy_set: SolutionSetGrouper):
         return searcher.estimate_fdr(target_decoy_set)
 
     def localize_modifications(self,
                                solution_sets: List[SpectrumSolutionSet],
-                               scan_loader,
+                               scan_loader: ProcessedRandomAccessScanSource,
                                database: DiskBackedStructureDatabaseBase):
 
         hyp_parameters: Dict[str, Any] = database.hypothesis.parameters
@@ -1673,7 +1715,11 @@ class MultipartGlycopeptideLCMSMSAnalyzer(MzMLGlycopeptideLCMSMSAnalyzer):
         self.log("Scoring Site Localizations")
         task.select_top_isoforms(solution_bins, ptm_prophet)
 
-    def apply_retention_time_model(self, scored_chromatograms, orphans, database, scan_loader, minimum_ms1_score=6.0):
+    def apply_retention_time_model(self, scored_chromatograms: List[ChromatogramSolution],
+                                   orphans: List[TandemSolutionsWithoutChromatogram],
+                                   database,
+                                   scan_loader: ProcessedRandomAccessScanSource,
+                                   minimum_ms1_score=6.0):
         glycan_compositions = self._get_glycan_compositions_from_database(
             database)
 
@@ -1754,7 +1800,7 @@ class MultipartGlycopeptideLCMSMSAnalyzer(MzMLGlycopeptideLCMSMSAnalyzer):
         if k:
             self.log(f'Back-filled {k} spectra')
 
-    def rank_target_hits(self, searcher, target_decoy_set):
+    def rank_target_hits(self, searcher: SearchEngineBase, target_decoy_set: TargetDecoySet):
         '''Estimate the FDR using the searcher's method, and
         count the number of acceptable target matches. Return
         the full set of target matches for downstream use.
@@ -1799,7 +1845,7 @@ class MultipartGlycopeptideLCMSMSAnalyzer(MzMLGlycopeptideLCMSMSAnalyzer):
             identified_glycopeptides,
             unassigned_chromatograms, database, chromatogram_extractor)
 
-    def map_chromatograms(self, searcher,
+    def map_chromatograms(self, searcher: SearchEngineBase,
                           extractor: ChromatogramExtractor,
                           target_hits: List[SpectrumSolutionSet],
                           revision_validator_type: Optional[Type[MS2RevisionValidator]] = None) -> Tuple[
