@@ -396,3 +396,12 @@ class IdentifiedGlycopeptide(Base, IdentifiedStructure):
 
     def __str__(self):
         return str(self.structure)
+
+    def has_scan(self, scan_id: str) -> bool:
+        return any([sset.scan.scan_id == scan_id for sset in self.tandem_solutions])
+
+    def get_scan(self, scan_id: str):
+        for sset in self.tandem_solutions:
+            if sset.scan.scan_id == scan_id:
+                return sset
+        raise KeyError(scan_id)
