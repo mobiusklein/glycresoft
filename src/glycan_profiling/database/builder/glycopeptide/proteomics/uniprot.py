@@ -1,11 +1,10 @@
 import threading
 import multiprocessing
-import pickle, os
-try:
-    from Queue import Queue, Empty
-except ImportError:
-    from queue import Queue, Empty
 
+from queue import Empty
+from typing import List
+
+import urllib3
 from glycopeptidepy.io import uniprot, fasta
 # from glycopeptidepy.structure.residue import UnknownAminoAcidException
 
@@ -53,6 +52,8 @@ class UniprotSource(TaskBase):
             idents_map[acc_] = acc
         idents = list(idents_map)
         result, errs = retry(lambda: uniprot.get_features_for_many(idents), 5)
+        if errs:
+            self.log(f"... Handled batch of size {len(accession_list)} and encountered {len(errs)} errors")
 
         for (acc, protein_data) in result:
             name = idents_map[acc]
@@ -64,11 +65,11 @@ class UniprotSource(TaskBase):
                 self.batch_handler(accession_number)
             except Exception as e:
                 self.error_handler(accession_number[0], e)
-            return
-        try:
-            self.task_handler(accession_number)
-        except Exception as e:
-            self.error_handler(accession_number, e)
+        else:
+            try:
+                self.task_handler(accession_number)
+            except Exception as e:
+                self.error_handler(accession_number, e)
 
     def error_handler(self, accession_number, error):
         self.output_queue.put((accession_number, Exception(str(error))))
@@ -83,6 +84,7 @@ class UniprotRequestingProcess(multiprocessing.Process, UniprotSource):
         self.done_event = done_event
 
     def run(self):
+        urllib3.disable_warnings()
         while True:
             try:
                 accession = self.input_queue.get(True, 3)
@@ -104,13 +106,20 @@ def chunked(seq, size=128):
 
 
 class UniprotProteinDownloader(UniprotSource):
+    accession_list: List[str]
+    input_queue: multiprocessing.JoinableQueue
+    output_queue: multiprocessing.Queue
+    no_more_work: multiprocessing.Event
+    done_event: multiprocessing.Event
+    workers: List[UniprotRequestingProcess]
+
     def __init__(self, accession_list, n_threads=10):
         self.accession_list = accession_list
         self.n_threads = n_threads
         self.input_queue = multiprocessing.JoinableQueue(2000)
         self.output_queue = multiprocessing.Queue()
         self.no_more_work = multiprocessing.Event()
-        self.done_event = threading.Event()
+        self.done_event = multiprocessing.Event()
         self.workers = []
 
     def task_handler(self, accession_number):
@@ -133,10 +142,11 @@ class UniprotProteinDownloader(UniprotSource):
     def feeder_task(self):
         n = len(self.accession_list)
         k = n // 100
-        k = max(k, 128)
+        k = min(k, 100)
+        self.log(f"... Submitting UniProt queries in batches of size {k} ({n // 100}|100)")
 
         for i, item in enumerate(chunked(self.accession_list, k)):
-            if i % 10 == 0 and i:
+            if i % 1000 == 0 and i:
                 self.input_queue.join()
             self.input_queue.put(item)
         self.no_more_work.set()
@@ -158,6 +168,8 @@ class UniprotProteinDownloader(UniprotSource):
         for worker in self.workers:
             if not worker.done_event.is_set():
                 break
+            else:
+                worker.join()
         else:
             self.done_event.set()
             return True

@@ -1,6 +1,6 @@
 import bisect
 import itertools
-from collections import defaultdict
+
 from multiprocessing import Process, Queue, Event
 
 from typing import List, Optional
@@ -553,6 +553,13 @@ class ProteinSplitter(TaskBase):
             self.constant_modifications, self.variable_modifications)
         self.include_cysteine_n_glycosylation = include_cysteine_n_glycosylation
 
+    def __reduce__(self):
+        return self.__class__, (self.constant_modifications,
+                                self.variable_modifications,
+                                self.min_length,
+                                self.variable_signal_peptide,
+                                self.include_cysteine_n_glycosylation)
+
     def handle_protein(self, protein_obj: Protein, sites: Optional[List[int]]=None):
         if sites is None:
             try:
@@ -596,7 +603,14 @@ class ProteinSplitter(TaskBase):
         return sorted(split_sites)
 
     def get_split_sites(self, accession: str) -> List[int]:
-        record = uniprot.get(accession)
+        try:
+            record = uniprot.get(accession)
+        except Exception as err:
+            self.error(f"Failed to obtain Uniprot Record for {accession!r}: {err.__class__}:{str(err)}")
+            return []
+        if record is None:
+            self.error(f"Failed to obtain Uniprot Record for {accession!r}")
+            return []
         sites = self.get_split_sites_from_features(record)
         return sites
 
@@ -686,7 +700,7 @@ class ProteinSplitter(TaskBase):
 
 
 class UniprotProteinAnnotator(TaskBase):
-
+    hypothesis_builder: DatabaseBoundOperation
     protein_ids: List[int]
     constant_modifications: List[ModificationRule]
     variable_modifications: List[ModificationRule]
@@ -721,7 +735,9 @@ class UniprotProteinAnnotator(TaskBase):
         protein_names = [self.query(Protein.name).filter(
             Protein.id == protein_id).first()[0] for protein_id in protein_ids]
         name_to_id = {n: i for n, i in zip(protein_names, protein_ids)}
-        uniprot_queue = UniprotProteinDownloader(protein_names)
+        uniprot_queue = UniprotProteinDownloader(
+            protein_names,
+            n_threads=self.hypothesis_builder.n_processes * 4)
         uniprot_queue.start()
         n = len(protein_ids)
         interval = int(min((n * 0.1) + 1, 1000))
@@ -735,13 +751,14 @@ class UniprotProteinAnnotator(TaskBase):
                 seen.add(protein_id)
                 i += 1
                 # Record not found in UniProt
-                if record is None:
-                    continue
                 if isinstance(record, (Exception, str)):
                     message = str(record)
                     # Many, many records that used to exist no longer do. We don't care if they are absent.
-                    if "Document is empty" not in message:
-                        self.log("... Skipping %s: %s" % (protein_name, message))
+                    # if "Document is empty" not in message:
+                    self.log("... Skipping %s: %s" % (protein_name, message))
+                    continue
+                if record is None:
+                    self.log("... Skipping %s: no record found" % (protein_name, ))
                     continue
                 protein = self.query(Protein).get(protein_id)
                 if i % interval == 0:
