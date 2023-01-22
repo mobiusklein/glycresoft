@@ -1,7 +1,11 @@
 import logging
 import operator
 
-from typing import Callable, DefaultDict, Dict, List, Mapping, Optional, Set, TYPE_CHECKING, Tuple, Union, OrderedDict, Iterable
+from typing import (
+    Callable, DefaultDict, Dict,
+    List, Mapping, Optional, Set,
+    TYPE_CHECKING, Tuple, Union,
+    OrderedDict, Iterable, NamedTuple)
 from array import array
 from dataclasses import dataclass
 
@@ -28,7 +32,7 @@ if TYPE_CHECKING:
     from glycan_profiling.scoring.elution_time_grouping.model import ElutionTimeFitter
     from glycan_profiling.tandem.chromatogram_mapping import SpectrumMatchUpdater, TandemAnnotatedChromatogram
     from glycan_profiling.tandem.target_decoy import NearestValueLookUp, TargetDecoyAnalyzer
-    from glycan_profiling.tandem.spectrum_match import SpectrumMatch, MultiScoreSpectrumMatch, ScoreSet
+    from glycan_profiling.tandem.spectrum_match import SpectrumMatch, MultiScoreSpectrumMatch
 
 
 def _invert_fn(fn):
@@ -62,7 +66,8 @@ class RevisionRule(object):
             self.priority,
             self.name)
 
-    def is_valid_revision(self, record: GlycopeptideChromatogramProxy, new_record: GlycopeptideChromatogramProxy) -> bool:
+    def is_valid_revision(self, record: GlycopeptideChromatogramProxy,
+                          new_record: GlycopeptideChromatogramProxy) -> bool:
         valid = not any(v < 0 for v in new_record.glycan_composition.values())
         if valid:
             if self.mass_shift_rule:
@@ -133,9 +138,11 @@ class ValidatingRevisionRule(RevisionRule):
 
     def clone(self):
         return self.__class__(
-            self.delta_glycan.clone(), self.validator, self.mass_shift_rule.clone() if self.mass_shift_rule else None, self.priority, self.name)
+            self.delta_glycan.clone(), self.validator, self.mass_shift_rule.clone() if self.mass_shift_rule else None,
+            self.priority, self.name)
 
-    def is_valid_revision(self, record: GlycopeptideChromatogramProxy, new_record: GlycopeptideChromatogramProxy) -> bool:
+    def is_valid_revision(self, record: GlycopeptideChromatogramProxy,
+                          new_record: GlycopeptideChromatogramProxy) -> bool:
         if super().is_valid_revision(record, new_record):
             return self.validator(record)
         return False
@@ -144,7 +151,8 @@ class ValidatingRevisionRule(RevisionRule):
         if validator is None:
             validator = _invert_fn(self.validator)
         return self.__class__(
-            -self.delta_glycan, validator, self.mass_shift_rule.invert() if self.mass_shift_rule else None, self.priority)
+            -self.delta_glycan, validator, self.mass_shift_rule.invert() if self.mass_shift_rule else None,
+            self.priority)
 
 
 class MassShiftRule(object):
@@ -163,14 +171,17 @@ class MassShiftRule(object):
     def valid(self, record):
         assert isinstance(self.mass_shift, mass_shift.MassShift)
         if self.sign < 0:
-            # Can only lose a mass shift if all the mass shifts of the analyte are able to lose self.mass_shift without going
-            # negative
+            # Can only lose a mass shift if all the mass shifts of the analyte are able to lose
+            # self.mass_shift without going negative
             for shift in record.mass_shifts:
                 # The current mass shift is a compound mass shift, potentially having multiple copies of self.mass_shift
-                if isinstance(shift, mass_shift.CompoundMassShift) and shift.counts.get(self.mass_shift, 0) < self.multiplicity:
+                if isinstance(shift, mass_shift.CompoundMassShift) and \
+                        shift.counts.get(self.mass_shift, 0) < self.multiplicity:
                     return False
-                # The current mass shift is a single simple mass shift and it isn't a match for self.mass_shift or self.multiplicity > 1
-                elif isinstance(shift, mass_shift.MassShift) and (shift != self.mass_shift) or (shift == self.mass_shift and not self.single):
+                # The current mass shift is a single simple mass shift and it isn't a match for self.mass_shift
+                # or self.multiplicity > 1
+                elif isinstance(shift, mass_shift.MassShift) and (shift != self.mass_shift) or \
+                        (shift == self.mass_shift and not self.single):
                     return False
             return True
         else:
@@ -225,6 +236,16 @@ def always(x):
 
 SpectrumMatchType = Union['SpectrumMatch', 'MultiScoreSpectrumMatch']
 
+class RevisionQueryResult(NamedTuple):
+    spectrum_match: Optional[SpectrumMatchType]
+    found: bool
+
+
+class OriginalRevisionQueryResult(NamedTuple):
+    original_spectrum_match: Optional[SpectrumMatchType]
+    revision_spectrum_match: Optional[SpectrumMatchType]
+    skip: bool
+
 
 class RevisionValidatorBase(LoggingMixin):
     spectrum_match_builder: 'SpectrumMatchUpdater'
@@ -233,7 +254,7 @@ class RevisionValidatorBase(LoggingMixin):
         self.spectrum_match_builder = spectrum_match_builder
         self.threshold_fn = threshold_fn
 
-    def find_revision_gpsm(self, chromatogram: 'TandemAnnotatedChromatogram', revised) -> Tuple[Optional[SpectrumMatchType], bool]:
+    def find_revision_gpsm(self, chromatogram: 'TandemAnnotatedChromatogram', revised) -> RevisionQueryResult:
         found_revision = False
         revised_gpsm = None
         try:
@@ -241,7 +262,11 @@ class RevisionValidatorBase(LoggingMixin):
             found_revision = True
         except KeyError:
             if self.spectrum_match_builder is not None:
-                self.spectrum_match_builder.get_spectrum_solution_sets(revised, chromatogram, invalidate_reference=False)
+                self.spectrum_match_builder.get_spectrum_solution_sets(
+                    revised,
+                    chromatogram,
+                    invalidate_reference=False
+                )
                 try:
                     revised_gpsm = chromatogram.best_match_for(revised.structure)
                     found_revision = True
@@ -250,13 +275,11 @@ class RevisionValidatorBase(LoggingMixin):
                         "Failed to find revised spectrum match for %s in %r",
                         revised.structure,
                         chromatogram)
-        return revised_gpsm, found_revision
+        return RevisionQueryResult(revised_gpsm, found_revision)
 
     def find_gpsms(self, source: 'TandemAnnotatedChromatogram',
                    revised: GlycopeptideChromatogramProxy,
-                   original: GlycopeptideChromatogramProxy) -> Tuple[Optional[SpectrumMatchType],
-                                                                     Optional[SpectrumMatchType],
-                                                                     bool]:
+                   original: GlycopeptideChromatogramProxy) -> OriginalRevisionQueryResult:
         '''Find spectrum matches in ``source`` for the pair of alternative interpretations
         for this feature.
 
@@ -285,7 +308,7 @@ class RevisionValidatorBase(LoggingMixin):
         if source is None:
             # Can't validate without a source to read the spectrum match metadata
             skip = True
-            return original_gpsm, revised_gpsm, skip
+            return OriginalRevisionQueryResult(original_gpsm, revised_gpsm, skip)
 
         revised_gpsm, found_revision = self.find_revision_gpsm(source, revised)
 
@@ -296,7 +319,7 @@ class RevisionValidatorBase(LoggingMixin):
                 "...... Permitting revision for %s (%0.3f) from %s to %s because revision not evaluated",
                 revised.tag, revised.apex_time, original.glycan_composition, revised.glycan_composition)
             skip = True
-            return original_gpsm, revised_gpsm, skip
+            return OriginalRevisionQueryResult(original_gpsm, revised_gpsm, skip)
 
         try:
             original_gpsm = source.best_match_for(original.structure)
@@ -307,9 +330,9 @@ class RevisionValidatorBase(LoggingMixin):
                 "...... Permitting revision for %s (%0.3f) from %s to %s because original not evaluated" %
                 (revised.tag, revised.apex_time, original.glycan_composition, revised.glycan_composition))
             skip = True
-            return original_gpsm, revised_gpsm, skip
+            return OriginalRevisionQueryResult(original_gpsm, revised_gpsm, skip)
         skip = revised_gpsm is None or original_gpsm is None
-        return original_gpsm, revised_gpsm, skip
+        return OriginalRevisionQueryResult(original_gpsm, revised_gpsm, skip)
 
     def validate(self, revised: GlycopeptideChromatogramProxy, original: GlycopeptideChromatogramProxy) -> bool:
         raise NotImplementedError()
@@ -318,8 +341,8 @@ class RevisionValidatorBase(LoggingMixin):
         return self.validate(revised, original)
 
     def msn_score_for(self, source: 'TandemAnnotatedChromatogram', solution: GlycopeptideChromatogramProxy) -> float:
-        gpsm, skip = self.find_revision_gpsm(source, solution)
-        if skip or gpsm is None:
+        gpsm, found = self.find_revision_gpsm(source, solution)
+        if not found or gpsm is None:
             return 0
         return gpsm.score
 
@@ -715,13 +738,15 @@ IsotopeRuleNeuGc = RevisionRule(HashableGlycanComposition(Fuc=-1, Hex=-1, NeuGc=
 HexNAc2NeuAc2ToHex6Deoxy = ValidatingRevisionRule(
     HashableGlycanComposition(Hex=-6, HexNAc=2, Neu5Ac=2),
     mass_shift_rule=MassShiftRule(Deoxy, 1),
-    validator=lambda x: x.glycan_composition[neuac] == 0 and x.glycan_composition.query(dhex) == 0 and x.glycan_composition[hexnac] == 2 and x.mass_shifts == [Unmodified],
+    validator=lambda x: x.glycan_composition[neuac] == 0 and x.glycan_composition.query(dhex) == 0 and \
+            x.glycan_composition[hexnac] == 2 and x.mass_shifts == [Unmodified],
     name="Rare precursor deoxidation followed by large mass ambiguity")
 
 HexNAc2NeuAc2ToHex6AmmoniumRule = ValidatingRevisionRule(
     HashableGlycanComposition(Hex=-6, HexNAc=2, Neu5Ac=2),
     mass_shift_rule=MassShiftRule(Ammonium, 1),
-    validator=lambda x: x.glycan_composition[neuac] == 0 and x.glycan_composition.query(dhex) == 0 and x.glycan_composition[hexnac] == 2,
+    validator=lambda x: x.glycan_composition[neuac] == 0 and x.glycan_composition.query(dhex) == 0 and \
+            x.glycan_composition[hexnac] == 2,
     name="Ammonium Masked followed by Large Mass Ambiguity")
 
 
@@ -736,7 +761,8 @@ dHex2HexNAc2NeuAc1ToHex6AmmoniumRule = ValidatingRevisionRule(
 
 HexNAc2Fuc1NeuAc2ToHex7 = ValidatingRevisionRule(
     HashableGlycanComposition(Hex=-7, HexNAc=2, Neu5Ac=2, Fuc=1),
-    validator=lambda x: x.glycan_composition[neuac] == 0 and x.glycan_composition.query(dhex) == 0 and x.glycan_composition[hexnac] == 2,
+    validator=lambda x: x.glycan_composition[neuac] == 0 and x.glycan_composition.query(dhex) == 0 and \
+            x.glycan_composition[hexnac] == 2,
     name="Large Mass Ambiguity")
 
 # Moving a hydroxyl group from another monosaccharide onto a Sialic acid or vis-versa obscures their mass identity
@@ -755,7 +781,9 @@ Phosphate1HexNAc2ToHex3Rule = RevisionRule(
 Hex3ToPhosphate1HexNAc2Rule = Phosphate1HexNAc2ToHex3Rule.invert_rule()
 Hex3ToPhosphate1HexNAc2Rule.name = "3 Hex Masked By Phosphate + 2 HexNAc"
 
-SulfateToPhosphateRule = RevisionRule(HashableGlycanComposition(sulfate=-1, phosphate=1), name="Phosphate Masked By Sulfate")
+SulfateToPhosphateRule = RevisionRule(
+    HashableGlycanComposition(sulfate=-1, phosphate=1),
+    name="Phosphate Masked By Sulfate")
 PhosphateToSulfateRule = SulfateToPhosphateRule.invert_rule()
 PhosphateToSulfateRule.name = "Sulfate Masked By Phosphate"
 
@@ -815,7 +843,6 @@ class IntervalModelReviser(ModelReviser):
 # score relative to each other glycoform in the group? This might look
 # something like the old recalibrator code, but adapted for the interval_score
 # method
-
 
 
 class FDREstimatorBase(object):
@@ -1138,7 +1165,9 @@ class ResidualFDREstimator(object):
             raise ValueError("Could not fit any FDR model for retention time!")
 
     def fit_from_rules(self):
-        from glycan_profiling.tandem.glycopeptide.dynamic_generation.multipart_fdr import FiniteMixtureModelFDREstimatorDecoyGaussian
+        from glycan_profiling.tandem.glycopeptide.dynamic_generation.multipart_fdr import (
+            FiniteMixtureModelFDREstimatorDecoyGaussian
+        )
         target_scores, all_decoy_scores = self._extract_scores_from_rules()
         fmm = FiniteMixtureModelFDREstimatorDecoyGaussian(all_decoy_scores, target_scores)
         fmm.fit(max_target_components=3,
@@ -1146,7 +1175,9 @@ class ResidualFDREstimator(object):
         return PosteriorErrorToScore.from_model(fmm)
 
     def fit_from_rt_model(self):
-        from glycan_profiling.tandem.glycopeptide.dynamic_generation.multipart_fdr import FiniteMixtureModelFDREstimatorDecoyGaussian
+        from glycan_profiling.tandem.glycopeptide.dynamic_generation.multipart_fdr import (
+            FiniteMixtureModelFDREstimatorDecoyGaussian
+        )
         target_scores, all_decoy_scores = self._extract_scores_from_model(self.rt_model)
         fmm = FiniteMixtureModelFDREstimatorDecoyGaussian(
             all_decoy_scores, target_scores)
