@@ -46,7 +46,8 @@ def span_test(site_list, start, end):
     return out
 
 
-def n_glycan_sequon_sites(peptide: Peptide, protein: Protein, use_local_sequence: bool=False, include_cysteine: bool = False):
+def n_glycan_sequon_sites(peptide: Peptide, protein: Protein, use_local_sequence: bool=False,
+                          include_cysteine: bool = False):
     sites = set()
     sites |= set(site - peptide.start_position for site in span_test(
         protein.n_glycan_sequon_sites, peptide.start_position, peptide.end_position))

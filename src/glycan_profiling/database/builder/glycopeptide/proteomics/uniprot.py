@@ -76,6 +76,8 @@ class UniprotSource(TaskBase):
 
 
 class UniprotRequestingProcess(multiprocessing.Process, UniprotSource):
+    process_name = "glycresoft-annotation-worker"
+
     def __init__(self, input_queue, output_queue, feeder_done_event, done_event):
         multiprocessing.Process.__init__(self)
         self.input_queue = input_queue
@@ -84,6 +86,9 @@ class UniprotRequestingProcess(multiprocessing.Process, UniprotSource):
         self.done_event = done_event
 
     def run(self):
+        new_name = getattr(self, 'process_name', None)
+        if new_name is not None:
+            TaskBase().try_set_process_name(new_name)
         urllib3.disable_warnings()
         while True:
             try:
@@ -141,9 +146,9 @@ class UniprotProteinDownloader(UniprotSource):
 
     def feeder_task(self):
         n = len(self.accession_list)
-        k = n // 100
-        k = min(k, 100)
-        self.log(f"... Submitting UniProt queries in batches of size {k} ({n // 100}|100)")
+        k = n // max(100, self.n_threads)
+        k = max(min(k, 100), 1)
+        self.log(f"... Submitting UniProt queries in batches of size {k}")
 
         for i, item in enumerate(chunked(self.accession_list, k)):
             if i % 1000 == 0 and i:

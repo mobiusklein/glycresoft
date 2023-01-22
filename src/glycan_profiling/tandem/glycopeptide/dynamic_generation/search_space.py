@@ -638,7 +638,8 @@ class PredictiveGlycopeptideSearch(PeptideMassFilterBase, DynamicGlycopeptideSea
                             mass_threshold_passed = (
                                 abs(intact_mass - candidate.total_mass) / intact_mass
                             ) <= precursor_error_tolerance
-                            # What if it could be an N- or O-glycopeptide? Does this block the same glycan from being treated as both?
+                            # What if it could be an N- or O-glycopeptide? Does this block the
+                            # same glycan from being treated as both?
                             if key in seen:
                                 continue
                             seen.add(key)
