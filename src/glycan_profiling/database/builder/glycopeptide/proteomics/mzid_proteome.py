@@ -3,7 +3,7 @@ import re
 import operator
 import logging
 from collections import defaultdict
-from typing import Any, Dict, List, Mapping, Optional, Tuple, TYPE_CHECKING
+from typing import Any, Dict, List, Mapping, Optional, Tuple
 
 from six import string_types as basestring
 

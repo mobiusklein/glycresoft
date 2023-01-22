@@ -1,10 +1,9 @@
 import os
-from multiprocessing import Queue, Event
 from glycan_profiling.serialize.hypothesis.peptide import (Peptide, Protein, Glycopeptide)
 
 from .common import (
     GlycopeptideHypothesisSerializerBase, PeptideGlycosylator,
-    PeptideGlycosylatingProcess, MultipleProcessPeptideGlycosylator)
+    MultipleProcessPeptideGlycosylator)
 from .proteomics import mzid_proteome
 
 
@@ -117,6 +116,7 @@ class MultipleProcessMzIdentMLGlycopeptideHypothesisSerializer(MzIdentMLGlycopep
             max_glycosylation_events, reference_fasta, full_cross_product,
             peptide_length_range)
         self.n_processes = n_processes
+        self.proteome.n_processes = n_processes
 
     def glycosylate_peptides(self):
         dispatcher = MultipleProcessPeptideGlycosylator(

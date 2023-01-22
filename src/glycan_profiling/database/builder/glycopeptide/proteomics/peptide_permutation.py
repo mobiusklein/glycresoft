@@ -1,7 +1,7 @@
 import bisect
 import itertools
 
-from multiprocessing import Process, Queue, Event
+from multiprocessing import Process, Queue, Event, cpu_count
 
 from typing import List, Optional
 
@@ -738,7 +738,7 @@ class UniprotProteinAnnotator(TaskBase):
         name_to_id = {n: i for n, i in zip(protein_names, protein_ids)}
         uniprot_queue = UniprotProteinDownloader(
             protein_names,
-            n_threads=self.hypothesis_builder.n_processes * 4)
+            n_threads=getattr(self.hypothesis_builder, "n_processes", cpu_count() // 2) * 4)
         uniprot_queue.start()
         n = len(protein_ids)
         interval = int(min((n * 0.1) + 1, 1000))

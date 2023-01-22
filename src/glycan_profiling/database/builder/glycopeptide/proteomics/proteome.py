@@ -27,7 +27,7 @@ class ProteomeBase(DatabaseBoundOperation):
         else:
             result = []
             for target in self.target_proteins:
-                if isinstance(target, basestring):
+                if isinstance(target, str):
                     match = self.query(Protein.id).filter(
                         Protein.name == target,
                         Protein.hypothesis_id == self.hypothesis_id).first()
