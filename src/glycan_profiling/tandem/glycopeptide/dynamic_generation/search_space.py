@@ -96,6 +96,9 @@ class glycopeptide_key_t_base(_glycopeptide_key_t):
         return d
 
 
+MonosaccharideResidues = Set[FrozenMonosaccharideResidue]
+GlycanCombinationRecords = List[GlycanCombinationRecord]
+
 # try:
 #     from glycan_profiling._c.structure.structure_loader import glycopeptide_key as glycopeptide_key_t_base
 # except ImportError:
@@ -359,9 +362,9 @@ class PeptideGlycosylator(GlycoformGeneratorBase):
 
     def filter_glycan_proposals_by_signature_ions(
         self,
-        glycan_combinations: List[GlycanCombinationRecord],
+        glycan_combinations: GlycanCombinationRecords,
         signature_ion_match_index: SignatureIonIndexMatch,
-    ) -> List[GlycanCombinationRecord]:
+    ) -> GlycanCombinationRecords:
         """Remove any glycans for which an expected signature ion is absent (or where the best matching peak is
         less than 1% of the base peak). Requires the signature ion index is initialized.
         """
@@ -402,7 +405,7 @@ class PeptideGlycosylator(GlycoformGeneratorBase):
     def _combinate(
         self,
         peptide: PeptideDatabaseRecord,
-        glycan_combinations: List[GlycanCombinationRecord],
+        glycan_combinations: GlycanCombinationRecords,
         result_set: Optional[List["Record"]] = None,
     ) -> List["Record"]:
         if result_set is None:
@@ -489,13 +492,13 @@ class PeptideMassFilterBase:
     signature_ion_index: SignatureIonIndex
     oxonium_ion_threshold: float
 
-    monosaccharides: Set[FrozenMonosaccharideResidue]
+    monosaccharides: MonosaccharideResidues
 
     neutron_shift: float = isotopic_shift()
 
     def __init__(
         self,
-        glycan_compositions: List[GlycanCombinationRecord],
+        glycan_compositions: GlycanCombinationRecords,
         product_error_tolerance: float=2e-5,
         glycan_score_threshold: float=0.1,
         min_fragments: int=2,
@@ -529,7 +532,7 @@ class PeptideMassFilterBase:
         self.signature_ion_index = signature_ion_index
         self.oxonium_ion_threshold = oxonium_ion_threshold
 
-    def _monosaccharides_from_records(self, glycan_combinations: List[GlycanCombinationRecord]) -> Set[FrozenMonosaccharideResidue]:
+    def _monosaccharides_from_records(self, glycan_combinations: GlycanCombinationRecords) -> MonosaccharideResidues:
         residues = set()
         for rec in glycan_combinations:
             residues.update(rec.composition)
@@ -903,16 +906,6 @@ class Record(object):
         inst.glycopeptide = self.glycopeptide
         inst.total_mass = self.total_mass
         return inst
-
-
-def clone_stub_fragments(stubs):
-    return [f.clone() for f in stubs]
-
-
-try:
-    from glycan_profiling._c.structure.structure_loader import clone_stub_fragments
-except ImportError:
-    pass
 
 
 class SharedCacheAwareDecoyFragmentCachingGlycopeptide(DecoyFragmentCachingGlycopeptide):

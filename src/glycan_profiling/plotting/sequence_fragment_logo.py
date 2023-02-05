@@ -1,10 +1,15 @@
 from collections import defaultdict
+from typing import Any, Dict, List
+
+import glypy
 
 import glycopeptidepy
-from glycopeptidepy.structure import sequence, modification
+from glycopeptidepy.structure import sequence, modification, SequencePosition
 from glycopeptidepy.structure.fragment import IonSeries
 from glycopeptidepy.utils import simple_repr
+
 from glypy.plot import plot as draw_tree, SNFGNomenclature
+from glypy.plot.common import MonosaccharidePatch
 
 from .colors import darken, cnames, hex2color, get_color
 
@@ -27,6 +32,12 @@ def bbox_path(path):
 
 
 class SequencePositionGlyph(object):
+    position: SequencePosition
+    index: int
+    _ax: plt.Axes
+    x: float
+    y: float
+    options: Dict[str, Any]
 
     def __init__(self, position, index, x, y, patch=None, ax=None, **kwargs):
         self.position = position
@@ -79,6 +90,15 @@ class SequencePositionGlyph(object):
 
 
 class GlycanCompositionGlyphs(object):
+    glycan_composition: glypy.GlycanComposition
+    ax: plt.Axes
+    x: float
+    xend: float
+    y: float
+    options: Dict[str, Any]
+
+    _patches: List[MonosaccharidePatch]
+
     def __init__(self, glycan_composition, x, y, ax, **kwargs):
         self.glycan_composition = glycan_composition
         self.ax = ax
