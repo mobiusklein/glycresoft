@@ -4,7 +4,8 @@ from io import BytesIO, TextIOWrapper
 
 from collections import OrderedDict
 
-from glycopeptidepy.io.fasta import FastaFileParser, FastaFileWriter
+from glycopeptidepy.io.fasta import FastaFileParser, FastaFileWriter, PEFFReader
+from glycopeptidepy.io.annotation import from_peff
 
 from glycan_profiling.serialize.hypothesis.peptide import Protein
 from .sequence_tree import SuffixTree
@@ -17,6 +18,24 @@ class ProteinFastaFileParser(FastaFileParser):
     def process_result(self, d):
         p = Protein(name=str(d['name']), protein_sequence=d['sequence'])
         return p
+
+
+class PEFFProteinFastaFileParser(PEFFReader):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+
+    def process_result(self, d):
+        p = Protein(name=str(d['name']), protein_sequence=d['sequence'])
+        p.annotations = from_peff(d['name'])
+        return p
+
+
+def open_fasta(path: str):
+    if path.endswith(".peff") or path.endswith(".peff.gz"):
+        return PEFFProteinFastaFileParser(path)
+    else:
+        return ProteinFastaFileParser(path)
+
 
 
 class ProteinFastaFileWriter(FastaFileWriter):
