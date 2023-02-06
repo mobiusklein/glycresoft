@@ -567,7 +567,6 @@ class ProteinSplitter(TaskBase):
         if sites is None:
             try:
                 accession = get_uniprot_accession(protein_obj.name)
-                print("Accession", accession, protein_obj.name)
                 if accession:
                     try:
                         annot_sites |= self.get_split_sites_from_uniprot(accession)
