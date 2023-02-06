@@ -14,6 +14,14 @@ from glycan_profiling.serialize import Protein
 
 def get_uniprot_accession(name):
     try:
+        peff_header = fasta.peff_parser(name)
+        # Don't bother UniProt over PEFF specifications, they won't parse correctly
+        # with the partial UniProt parser
+        if peff_header:
+            return None
+    except fasta.UnparsableDeflineError:
+        pass
+    try:
         return fasta.partial_uniprot_parser(name).accession
     except (AttributeError, fasta.UnparsableDeflineError):
         return None

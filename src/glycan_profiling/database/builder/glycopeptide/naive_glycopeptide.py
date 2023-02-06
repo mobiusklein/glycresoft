@@ -18,7 +18,7 @@ from .proteomics.peptide_permutation import (
     MultipleProcessProteinDigestor,
     UniprotProteinAnnotator)
 
-from .proteomics.fasta import ProteinFastaFileParser
+from .proteomics.fasta import open_fasta
 from .common import (
     GlycopeptideHypothesisSerializerBase,
     PeptideGlycosylator, PeptideGlycosylatingProcess,
@@ -66,9 +66,11 @@ class FastaGlycopeptideHypothesisSerializer(GlycopeptideHypothesisSerializerBase
 
     def extract_proteins(self):
         i = 0
-        for protein in ProteinFastaFileParser(self.fasta_file):
+        protein: Protein
+        for protein in open_fasta(self.fasta_file):
             protein.hypothesis_id = self.hypothesis_id
-            protein._init_sites(self.include_cysteine_n_glycosylation)
+            protein._init_sites(
+                include_cysteine_n_glycosylation=self.include_cysteine_n_glycosylation)
 
             self.session.add(protein)
             i += 1

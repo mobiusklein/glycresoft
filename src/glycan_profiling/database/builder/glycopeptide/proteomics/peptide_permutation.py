@@ -3,7 +3,7 @@ import itertools
 
 from multiprocessing import Process, Queue, Event, cpu_count
 
-from typing import List, Optional
+from typing import List, Optional, Set
 
 from lxml.etree import XMLSyntaxError
 
@@ -14,6 +14,7 @@ from .utils import slurp
 from .uniprot import (uniprot, get_uniprot_accession, UniprotProteinDownloader, Empty)
 
 from glypy.composition import formula
+from glycopeptidepy.io import annotation
 from glycopeptidepy.structure import sequence, modification, residue
 from glycopeptidepy.structure.modification import ModificationRule
 from glycopeptidepy.algorithm import ModificationSiteAssignmentCombinator
@@ -561,30 +562,50 @@ class ProteinSplitter(TaskBase):
                                 self.variable_signal_peptide,
                                 self.include_cysteine_n_glycosylation)
 
-    def handle_protein(self, protein_obj: Protein, sites: Optional[List[int]]=None):
+    def handle_protein(self, protein_obj: Protein, sites: Optional[Set[int]]=None):
+        annot_sites = self.get_split_sites_from_annotations(protein_obj)
         if sites is None:
             try:
                 accession = get_uniprot_accession(protein_obj.name)
+                print("Accession", accession, protein_obj.name)
                 if accession:
                     try:
-                        sites = self.get_split_sites(accession)
-                        return self.split_protein(protein_obj, sites)
+                        annot_sites |= self.get_split_sites_from_uniprot(accession)
+                        return self.split_protein(protein_obj, sorted(annot_sites))
                     except IOError:
-                        return []
+                        return self.split_protein(protein_obj, annot_sites)
                 else:
-                    return []
+                    return self.split_protein(protein_obj, annot_sites)
             except XMLSyntaxError:
-                return []
+                return self.split_protein(protein_obj, annot_sites)
             except Exception as e:
                 self.error(
                     ("An unhandled error occurred while retrieving"
                      " non-proteolytic cleavage sites"), e)
-                return []
+                return self.split_protein(protein_obj, annot_sites)
         else:
+            if not isinstance(sites, set):
+                sites = set(sites)
             try:
-                return self.split_protein(protein_obj, sites)
+                return self.split_protein(protein_obj, sorted(sites | annot_sites))
             except IOError:
                 return []
+
+    def get_split_sites_from_annotations(self, protein: Protein) -> Set[int]:
+        annots = protein.annotations
+        if not annots:
+            return set()
+        cleavable_annots = annots.cleavable()
+        split_sites = set()
+        for annot in cleavable_annots:
+            split_sites.add(annot.start)
+            split_sites.add(annot.end)
+            if self.variable_signal_peptide and annot.feature_type == annotation.SignalPeptide.feature_type:
+                for i in range(1, self.variable_signal_peptide + 1):
+                    split_sites.add(annot.end + i)
+        if 0 in split_sites:
+            split_sites.remove(0)
+        return split_sites
 
     def get_split_sites_from_features(self, record) -> List[int]:
         splittable_features = ("signal peptide", "propeptide", "initiator methionine",
@@ -597,23 +618,22 @@ class ProteinSplitter(TaskBase):
                 if self.variable_signal_peptide and feature.feature_type == "signal peptide":
                     for i in range(1, self.variable_signal_peptide + 1):
                         split_sites.add(feature.end + i)
-        try:
+
+        if 0 in split_sites:
             split_sites.remove(0)
-        except KeyError:
-            pass
         return sorted(split_sites)
 
-    def get_split_sites(self, accession: str) -> List[int]:
+    def get_split_sites_from_uniprot(self, accession: str) -> Set[int]:
         try:
             record = uniprot.get(accession)
         except Exception as err:
             self.error(f"Failed to obtain Uniprot Record for {accession!r}: {err.__class__}:{str(err)}")
-            return []
+            return set()
         if record is None:
             self.error(f"Failed to obtain Uniprot Record for {accession!r}")
-            return []
+            return set()
         sites = self.get_split_sites_from_features(record)
-        return sites
+        return set(sites)
 
     def _make_split_expression(self, sites: List[int]) -> List:
         return [
@@ -623,6 +643,8 @@ class ProteinSplitter(TaskBase):
         return self.peptide_permuter(sequence)
 
     def split_protein(self, protein_obj: Protein, sites: Optional[List[int]]=None):
+        if isinstance(sites, set):
+            sites = sorted(sites)
         if sites is None:
             sites = []
         if not sites:
@@ -750,21 +772,25 @@ class UniprotProteinAnnotator(TaskBase):
                 protein_name, record = uniprot_queue.get()
                 protein_id = name_to_id[protein_name]
                 seen.add(protein_id)
+                protein = self.query(Protein).get(protein_id)
                 i += 1
                 # Record not found in UniProt
-                if isinstance(record, (Exception, str)):
+                if isinstance(record, (Exception, str)) and not protein.annotations:
                     message = str(record)
                     # Many, many records that used to exist no longer do. We don't care if they are absent.
                     # if "Document is empty" not in message:
                     self.log("... Skipping %s: %s" % (protein_name, message))
                     continue
-                if record is None:
+                if record is None and not protein.annotations:
                     self.log("... Skipping %s: no record found" % (protein_name, ))
                     continue
-                protein = self.query(Protein).get(protein_id)
                 if i % interval == 0:
                     self.log("... %0.3f%% Complete (%d/%d). %d Peptides Produced." % (i * 100. / n, i, n, j))
-                sites = splitter.get_split_sites_from_features(record)
+
+                if not isinstance(record, uniprot.UniProtProtein):
+                    sites = None
+                else:
+                    sites = splitter.get_split_sites_from_features(record)
                 for peptide in splitter.handle_protein(protein, sites):
                     acc.append(peptide)
                     j += 1
