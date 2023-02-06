@@ -1,5 +1,8 @@
 import re
+
 from collections import OrderedDict
+
+from typing import Any
 
 from sqlalchemy.ext.baked import bakery
 from sqlalchemy.ext.declarative import declared_attr
@@ -22,6 +25,7 @@ from .generic import JSONType, HasChemicalComposition
 from ..utils import chunkiter
 
 from glycopeptidepy.structure import sequence, residue, PeptideSequenceBase
+from glycopeptidepy.io.annotation import AnnotationCollection, GlycosylationSite, GlycosylationType
 from glycan_profiling.structure.structure_loader import PeptideProteinRelation, FragmentCachingGlycopeptide
 from glycan_profiling.structure.utils import LRUDict
 
@@ -61,6 +65,12 @@ class Protein(Base, AminoAcidSequenceWrapperBase):
     hypothesis_id = Column(Integer, ForeignKey(
         GlycopeptideHypothesis.id, ondelete="CASCADE"))
     hypothesis = relationship(GlycopeptideHypothesis, backref=backref('proteins', lazy='dynamic'))
+
+    def __init__(self, *args: Any, **kwargs: Any) -> None:
+        annotations = kwargs.pop("annotations", AnnotationCollection([]))
+        self.other = MutableDict()
+        super().__init__(*args, **kwargs)
+        self.annotations = annotations
 
     def _get_sequence_str(self):
         return self.protein_sequence.replace("Z", "X")
@@ -134,6 +144,21 @@ class Protein(Base, AminoAcidSequenceWrapperBase):
                     ProteinSite(name=ProteinSite.N_GLYCOSYLATION, location=n_glycosite))
         except residue.UnknownAminoAcidException:
             pass
+        if self.annotations is not None:
+            for modsite in self.annotations.modifications():
+                if isinstance(modsite, GlycosylationSite):
+                    if modsite.glycosylation_type == GlycosylationType.n_linked:
+                        sites.append(
+                            ProteinSite(name=ProteinSite.N_GLYCOSYLATION, location=modsite.position)
+                        )
+                    elif modsite.glycosylation_type == GlycosylationType.o_linked:
+                        sites.append(
+                            ProteinSite(name=ProteinSite.O_GLYCOSYLATION, location=modsite.position)
+                        )
+                    elif modsite.glycosylation_type == GlycosylationType.glycosaminoglycan:
+                        sites.append(
+                            ProteinSite(name=ProteinSite.GAGYLATION, location=modsite.position)
+                        )
 
         # The O- and GAG-linker sites are not determined by a multi AA sequon. We don't
         # need to abstract them away and they are much too common.
@@ -154,7 +179,7 @@ class Protein(Base, AminoAcidSequenceWrapperBase):
         #             ProteinSite(name=ProteinSite.GAGYLATION, location=gag_site))
         # except residue.UnknownAminoAcidException:
         #     pass
-        self.sites.extend(sites)
+        self.sites.extend(sorted(set(sites)))
 
     def __repr__(self):
         return "DBProtein({0}, {1}, {2}, {3}...)".format(
@@ -195,6 +220,18 @@ class Protein(Base, AminoAcidSequenceWrapperBase):
         inst.sites = sites
         return inst
 
+    @property
+    def annotations(self) -> AnnotationCollection:
+        return self.other.get('annotations', AnnotationCollection([]))
+
+    @annotations.setter
+    def annotations(self, value):
+        if not isinstance(value, AnnotationCollection) and value is not None:
+            value = AnnotationCollection(value)
+        elif value is None:
+            value = AnnotationCollection([])
+        self.other['annotations'] = value
+
 
 class ProteinSite(Base):
     __tablename__ = "ProteinSite"
@@ -232,6 +269,12 @@ class ProteinSite(Base):
 
     def __radd__(self, other):
         return int(self) + int(other)
+
+    def __lt__(self, other):
+        return int(self) < int(other)
+
+    def __gt__(self, other):
+        return int(self) > int(other)
 
     def __eq__(self, other):
         if isinstance(other, ProteinSite):
