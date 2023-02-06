@@ -6,8 +6,9 @@ from glycan_profiling.serialize.utils import toggle_indices
 
 from glycopeptidepy.algorithm import reverse_sequence
 from glycopeptidepy.structure.sequence import (
-    find_n_glycosylation_sequons, find_o_glycosylation_sequons,
-    find_glycosaminoglycan_sequons, PeptideSequence)
+    find_n_glycosylation_sequons,
+    PeptideSequence
+)
 
 from glycopeptidepy.structure.residue import UnknownAminoAcidException
 
@@ -167,7 +168,8 @@ class MultipleProcessFastaGlycopeptideHypothesisSerializer(FastaGlycopeptideHypo
                  protease='trypsin', constant_modifications=None, variable_modifications=None,
                  max_missed_cleavages=2, max_glycosylation_events=1, semispecific=False,
                  max_variable_modifications=None, full_cross_product=True, peptide_length_range=(5, 60),
-                 require_glycosylation_sites: bool=True, use_uniprot: bool=True, include_cysteine_n_glycosylation: bool=False,
+                 require_glycosylation_sites: bool=True, use_uniprot: bool=True,
+                 include_cysteine_n_glycosylation: bool=False,
                  n_processes: int=4):
         super(MultipleProcessFastaGlycopeptideHypothesisSerializer, self).__init__(
             fasta_file, connection, glycan_hypothesis_id, hypothesis_name,
@@ -220,7 +222,7 @@ _MPFGHS = MultipleProcessFastaGlycopeptideHypothesisSerializer
 class ReversingMultipleProcessFastaGlycopeptideHypothesisSerializer(_MPFGHS):
     def extract_proteins(self):
         i = 0
-        for protein in ProteinFastaFileParser(self.fasta_file):
+        for protein in open_fasta(self.fasta_file):
             original_sequence = protein.protein_sequence
             n = len(original_sequence)
             if "(" in protein.protein_sequence:
