@@ -6,7 +6,7 @@ from typing import List
 
 import urllib3
 from glycopeptidepy.io import uniprot, fasta
-# from glycopeptidepy.structure.residue import UnknownAminoAcidException
+from glycopeptidepy.io.utils import UniprotToPeffConverter
 
 from glycan_profiling.task import TaskBase
 from glycan_profiling.serialize import Protein
@@ -266,3 +266,51 @@ class UniprotProteinSource(TaskBase):
                 # arrive and we can stop iterating
                 else:
                     has_work = False
+
+
+class UniprotToPEFFTranslator(TaskBase):
+    input_fasta_path: str
+    output_path: str
+    n_processes: int
+
+    def __init__(self, input_fasta_path, output_path, n_processes: int=12) -> None:
+        super().__init__()
+        self.input_fasta_path = input_fasta_path
+        self.output_path = output_path
+        self.n_processes = n_processes
+
+    def run(self):
+        reader = fasta.ProteinFastaFileReader(self.input_fasta_path, index=True)
+
+        accessions = []
+        for key in reader.index.keys():
+            acc = key.get("accession")
+            if acc:
+                accessions.append(acc)
+
+        queue = UniprotProteinDownloader(accessions, self.n_processes)
+
+        queue.start()
+
+        header_block = fasta.PEFFHeaderBlock()
+        header_block['Prefix'] = 'sp'
+        header_block['SequenceType'] = 'AA'
+
+        converter = UniprotToPeffConverter()
+
+        with open(self.output_path, 'wb') as fh:
+            writer = fasta.PEFFWriter(fh)
+            writer.write_header([header_block])
+            while True:
+                try:
+                    name, rec = queue.get()
+                    try:
+                        prot = converter(rec)
+                        writer.write(prot)
+                    except fasta.UnknownAminoAcidException as err:
+                        self.log(f"Skipping {name}, failed to convert to PEFF: {err}")
+
+                except Empty:
+                    queue.join()
+                    if queue.done_event.is_set():
+                        break
