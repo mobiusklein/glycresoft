@@ -3,7 +3,7 @@ import re
 import operator
 import logging
 from collections import defaultdict
-from typing import Any, Dict, List, Mapping, Optional, Tuple
+from typing import Any, DefaultDict, Dict, List, Mapping, Optional, Set, Tuple
 
 from six import string_types as basestring
 
@@ -162,6 +162,10 @@ class PeptideGroup(object):
         Mapping from Protein ID to score
     """
 
+    members: Dict
+    scores: DefaultDict[str, List[float]]
+    has_target_match: bool
+
     def __init__(self):
         self.members = dict()
         self.scores = defaultdict(list)
@@ -184,13 +188,13 @@ class PeptideGroup(object):
         self._first = None
         self._last = None
 
-    def _update_has_target_match(self, protein_set):
+    def _update_has_target_match(self, protein_set: Set[str]) -> bool:
         for key in self.members:
             if key in protein_set:
                 return True
         return False
 
-    def update_state(self, protein_set):
+    def update_state(self, protein_set: Set[str]):
         had = self.has_target_match
         if not had:
             has = self.has_target_match = self._update_has_target_match(protein_set)
@@ -258,6 +262,10 @@ class PeptideGroup(object):
 
 
 class PeptideCollection(object):
+    store: DefaultDict[str, PeptideGroup]
+    protein_set: Set[str]
+    scores: List[float]
+
     def __init__(self, protein_set):
         self.store = defaultdict(PeptideGroup)
         self.protein_set = protein_set
@@ -548,19 +556,27 @@ class MemoryProteinStubLoader(ProteinStubLoaderBase):
 
 
 class DatabaseProteinStubLoader(ProteinStubLoaderBase):
-    def __init__(self, session, hypothesis_id, store=None):
+    hypothesis_id: int
+    alias_map: Dict[str, str]
+
+    def __init__(self, session, hypothesis_id, store=None, alias_map: Optional[Dict[str, str]]=None):
+        if alias_map is None:
+            alias_map = {}
         self.session = session
         self.hypothesis_id = hypothesis_id
+        self.alias_map = alias_map
         super(DatabaseProteinStubLoader, self).__init__(store)
 
-    def _load_protein(self, protein_name):
+    def _load_protein(self, protein_name: str) -> Protein:
+        if protein_name in self.alias_map:
+            protein_name = self.alias_map[protein_name]
         protein = self.session.query(Protein).filter(
             Protein.name == protein_name,
             Protein.hypothesis_id == self.hypothesis_id).first()
+        if protein is None:
+            breakpoint()
+            raise KeyError(protein_name)
         return protein
-
-    def __getitem__(self, key):
-        return self.get_protein_by_name(key)
 
 
 class FastaProteinStubLoader(ProteinStubLoaderBase):
@@ -568,7 +584,7 @@ class FastaProteinStubLoader(ProteinStubLoaderBase):
         super(FastaProteinStubLoader, self).__init__(store)
         self.parser = glycopeptidepy_fasta.ProteinFastaFileParser(fasta_path, index=True)
 
-    def _load_protein(self, protein_name):
+    def _load_protein(self, protein_name: str):
         return self.parser[protein_name]
 
 
@@ -610,16 +626,19 @@ class PeptideConverter(PeptideMapperBase):
 
     def __init__(self, session, hypothesis_id, enzyme=None, constant_modifications=None,
                  modification_translation_table=None, protein_filter=None,
-                 peptide_length_range=(5, 60), include_cysteine_n_glycosylation: bool = False):
+                 peptide_length_range=(5, 60),
+                 include_cysteine_n_glycosylation: bool = False,
+                 protein_alias_map: Optional[Dict[str, str]]=None):
         self.session = session
         self.hypothesis_id = hypothesis_id
         self.include_cysteine_n_glycosylation = include_cysteine_n_glycosylation
+        self.protein_alias_map = protein_alias_map
         super(PeptideConverter, self).__init__(
             enzyme, constant_modifications, modification_translation_table,
             protein_filter, peptide_length_range)
 
     def _make_protein_loader(self):
-        return DatabaseProteinStubLoader(self.session, self.hypothesis_id)
+        return DatabaseProteinStubLoader(self.session, self.hypothesis_id, alias_map=self.protein_alias_map)
 
     def get_protein(self, evidence):
         return self.protein_loader[evidence['accession']]
@@ -650,7 +669,7 @@ class PeptideConverter(PeptideMapperBase):
         match.gagylation_sites = sorted(gag_glycosites)
         return match
 
-    def copy_db_peptide(self, db_peptide):
+    def copy_db_peptide(self, db_peptide: Peptide):
         dup = Peptide(
             calculated_mass=db_peptide.calculated_mass,
             base_peptide_sequence=db_peptide.base_peptide_sequence,
@@ -671,7 +690,7 @@ class PeptideConverter(PeptideMapperBase):
             gagylation_sites=db_peptide.gagylation_sites)
         return dup
 
-    def has_occupied_glycosites(self, db_peptide):
+    def has_occupied_glycosites(self, db_peptide: Peptide):
         occupied_sites = []
         n_glycosylation_sites = db_peptide.n_glycosylation_sites
         peptide_obj = PeptideSequence(db_peptide.modified_peptide_sequence)
@@ -681,7 +700,7 @@ class PeptideConverter(PeptideMapperBase):
                 occupied_sites.append(site)
         return len(occupied_sites) > 0
 
-    def clear_sites(self, db_peptide):
+    def clear_sites(self, db_peptide: Peptide):
         # TODO: Make this a combinatorial generator so that it optionally clears each
         # putative combination of glycosites across N/O forms.
         occupied_sites = []
@@ -701,7 +720,7 @@ class PeptideConverter(PeptideMapperBase):
         copy.count_variable_modifications -= len(occupied_sites)
         return copy
 
-    def sequence_starts_at(self, sequence, parent_protein):
+    def sequence_starts_at(self, sequence: str, parent_protein: Protein) -> int:
         found = parent_protein.protein_sequence.find(sequence)
         if found == -1:
             raise ValueError("Peptide not found in Protein\n%s\n%r\n\n" % (parent_protein.name, sequence))
@@ -979,6 +998,7 @@ class Proteome(DatabaseBoundOperation, MzIdentMLProteomeExtraction):
         self.include_baseline_peptides = include_baseline_peptides
         self.peptide_length_range = peptide_length_range or (5, 60)
         self.use_uniprot = use_uniprot
+        self.accession_map = {}
         self.include_cysteine_n_glycosylation = include_cysteine_n_glycosylation
 
     def _can_ignore_protein(self, name):
@@ -994,11 +1014,12 @@ class Proteome(DatabaseBoundOperation, MzIdentMLProteomeExtraction):
         self._find_used_database()
         session = self.session
         protein_map = {}
+        self.accession_map = {}
         self.parser.reset()
         for protein in self.parser.iterfind(
                 "DBSequence", retrieve_refs=True, recursive=True, iterative=True):
             seq = protein.pop('Seq', None)
-            name = protein.pop('accession')
+            accession = name = protein.pop('accession')
             if seq is None:
                 try:
                     prot = self.resolve_protein(name)
@@ -1029,6 +1050,7 @@ class Proteome(DatabaseBoundOperation, MzIdentMLProteomeExtraction):
                 session.add(p)
                 session.flush()
                 protein_map[name] = p
+                self.accession_map[accession] = name
             except residue.UnknownAminoAcidException:
                 self.log("Unknown Amino Acid in %r" % (name,))
                 continue
@@ -1055,7 +1077,8 @@ class Proteome(DatabaseBoundOperation, MzIdentMLProteomeExtraction):
             session, self.hypothesis_id, enzyme,
             self.constant_modifications,
             self.modification_translation_table,
-            protein_filter=protein_filter)
+            protein_filter=protein_filter,
+            protein_alias_map=self.accession_map)
 
         for spectrum_identification in self.parser.iterfind(
                 "SpectrumIdentificationItem", retrieve_refs=True, iterative=True):
@@ -1109,6 +1132,8 @@ class Proteome(DatabaseBoundOperation, MzIdentMLProteomeExtraction):
             result = []
             for target in self.target_proteins:
                 if isinstance(target, basestring):
+                    if target in self.accession_map:
+                        target = self.accession_map[target]
                     match = self.query(Protein.id).filter(
                         Protein.name == target,
                         Protein.hypothesis_id == self.hypothesis_id).first()
@@ -1129,11 +1154,32 @@ class Proteome(DatabaseBoundOperation, MzIdentMLProteomeExtraction):
             Peptide.hypothesis_id == self.hypothesis_id).count()
         return peptide_count
 
-    def build_baseline_peptides(self):
+    def make_restricted_modification_rules(self, rule_strings: List[str]):
+        standard_rules = []
+        alternative_rules: DefaultDict[str, List[str]] = DefaultDict(list)
+        for rule_str in rule_strings:
+            name = modification.RestrictedModificationTable.extract_name(rule_str)
+            if name in self.modification_translation_table:
+                if isinstance(self.modification_translation_table[name], AnonymousModificationRule):
+                    alternative_rules[name].append(rule_str)
+                else:
+                    standard_rules.append(rule_str)
+            else:
+                standard_rules.append(rule_str)
+
         mod_table = modification.RestrictedModificationTable(
-            constant_modifications=self.constant_modifications,
+            constant_modifications=standard_rules,
             variable_modifications=[])
-        const_modifications = [mod_table[c] for c in self.constant_modifications]
+        rules = [mod_table[c] for c in standard_rules]
+        if alternative_rules:
+            for name, rule_strs in alternative_rules.items():
+                rule: AnonymousModificationRule = self.modification_translation_table[name].clone()
+                rule.targets = {modification.RestrictedModificationTable.extract_target(s) for s in rule_strs}
+                rules.append(rule)
+        return rules
+
+    def build_baseline_peptides(self):
+        const_modifications = self.make_restricted_modification_rules(self.constant_modifications)
         digestor = ProteinDigestor(
             self.enzymes[0], const_modifications,
             max_missed_cleavages=self.enzymes[0].used_missed_cleavages,
@@ -1169,10 +1215,7 @@ class Proteome(DatabaseBoundOperation, MzIdentMLProteomeExtraction):
                 self.log("... %0.3f%% Done (%s)" % (i / float(n) * 100., protein.name))
 
     def split_proteins(self):
-        mod_table = modification.RestrictedModificationTable(
-            constant_modifications=self.constant_modifications,
-            variable_modifications=[])
-        const_modifications = [mod_table[c] for c in self.constant_modifications]
+        const_modifications = self.make_restricted_modification_rules(self.constant_modifications)
         protein_ids = self.retrieve_target_protein_ids()
 
         annotator = UniprotProteinAnnotator(self, protein_ids, const_modifications, [])

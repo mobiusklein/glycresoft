@@ -1,3 +1,4 @@
+import re
 import threading
 import multiprocessing
 
@@ -12,6 +13,17 @@ from glycan_profiling.task import TaskBase
 from glycan_profiling.serialize import Protein
 
 
+uniprot_accession_pattern = re.compile(
+    r"""(([OPQ]\d[A-Z0-9][A-Z0-9][A-Z0-9]\d)|
+        ([A-Z0-9]\d[A-Z][A-Z0-9][A-Z0-9]\d)|
+        ([A-NR-Z]\d[A-Z][A-Z0-9][A-Z0-9]\d[A-Z][A-Z0-9][A-Z0-9]\d))""",
+        re.X)
+
+
+def is_uniprot_accession(accession: str) -> bool:
+    return bool(uniprot_accession_pattern.match(accession))
+
+
 def get_uniprot_accession(name):
     try:
         peff_header = fasta.peff_parser(name)
@@ -24,6 +36,12 @@ def get_uniprot_accession(name):
     try:
         return fasta.partial_uniprot_parser(name).accession
     except (AttributeError, fasta.UnparsableDeflineError):
+        # Some programs will just put the accession number into the mzIdentML
+        # identifier, so we'll check if the first word looks like an accession
+        # number and try it if so.
+        accession = str(name).split(" ")[0]
+        if is_uniprot_accession(accession):
+            return accession
         return None
 
 

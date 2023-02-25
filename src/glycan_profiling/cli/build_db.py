@@ -303,7 +303,8 @@ def glycopeptide_fa(context, fasta_file, database_connection, enzyme, missed_cle
 @database_connection
 @glycopeptide_hypothesis_common_options
 @click.option("-t", "--target-protein", multiple=True,
-              help='Specifies the name of a protein to include in the hypothesis. May be used many times.')
+              help='Specifies the name of a protein to include in the hypothesis, or a file containing such'
+                   ', one per line. May be used many times.')
 @click.option('-r', '--target-protein-re', multiple=True,
               help=('Specifies a regular expression to select proteins'
                     ' to be included by name. May be used many times.'))

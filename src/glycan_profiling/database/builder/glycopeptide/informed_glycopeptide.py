@@ -42,26 +42,27 @@ class MzIdentMLGlycopeptideHypothesisSerializer(GlycopeptideHypothesisSerializer
         })
 
     def retrieve_target_protein_ids(self):
-        if len(self.target_proteins) == 0:
-            return [
-                i[0] for i in
-                self.query(Protein.id).filter(
-                    Protein.hypothesis_id == self.hypothesis_id).all()
-            ]
-        else:
-            result = []
-            for target in self.target_proteins:
-                if isinstance(target, basestring):
-                    match = self.query(Protein.id).filter(
-                        Protein.name == target,
-                        Protein.hypothesis_id == self.hypothesis_id).first()
-                    if match:
-                        result.append(match[0])
-                    else:
-                        self.log("Could not locate protein '%s'" % target)
-                elif isinstance(target, int):
-                    result.append(target)
-            return result
+        # if len(self.target_proteins) == 0:
+        #     return [
+        #         i[0] for i in
+        #         self.query(Protein.id).filter(
+        #             Protein.hypothesis_id == self.hypothesis_id).all()
+        #     ]
+        # else:
+        #     result = []
+        #     for target in self.target_proteins:
+        #         if isinstance(target, basestring):
+        #             match = self.query(Protein.id).filter(
+        #                 Protein.name == target,
+        #                 Protein.hypothesis_id == self.hypothesis_id).first()
+        #             if match:
+        #                 result.append(match[0])
+        #             else:
+        #                 self.log("Could not locate protein '%s'" % target)
+        #         elif isinstance(target, int):
+        #             result.append(target)
+        #     return result
+        return self.proteome.retrieve_target_protein_ids()
 
     def peptide_ids(self):
         out = []
@@ -150,26 +151,29 @@ class MzIdentMLPeptideHypothesisSerializer(GlycopeptideHypothesisSerializerBase)
         })
 
     def retrieve_target_protein_ids(self):
-        if len(self.target_proteins) == 0:
-            return [
-                i[0] for i in
-                self.query(Protein.id).filter(
-                    Protein.hypothesis_id == self.hypothesis_id).all()
-            ]
-        else:
-            result = []
-            for target in self.target_proteins:
-                if isinstance(target, basestring):
-                    match = self.query(Protein.id).filter(
-                        Protein.name == target,
-                        Protein.hypothesis_id == self.hypothesis_id).first()
-                    if match:
-                        result.append(match[0])
-                    else:
-                        self.log("Could not locate protein '%s'" % target)
-                elif isinstance(target, int):
-                    result.append(target)
-            return result
+        # if len(self.target_proteins) == 0:
+        #     return [
+        #         i[0] for i in
+        #         self.query(Protein.id).filter(
+        #             Protein.hypothesis_id == self.hypothesis_id).all()
+        #     ]
+        # else:
+        #     result = []
+        #     for target in self.target_proteins:
+        #         if isinstance(target, basestring):
+        #             if target in self.proteome.accession_map:
+        #                 target = self.proteome.accession_map[target]
+        #             match = self.query(Protein.id).filter(
+        #                 Protein.name == target,
+        #                 Protein.hypothesis_id == self.hypothesis_id).first()
+        #             if match:
+        #                 result.append(match[0])
+        #             else:
+        #                 self.log("Could not locate protein '%s'" % target)
+        #         elif isinstance(target, int):
+        #             result.append(target)
+        #     return result
+        return self.proteome.retrieve_target_protein_ids()
 
     def peptide_ids(self):
         out = []

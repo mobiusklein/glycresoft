@@ -17,7 +17,7 @@ from glypy.composition import formula
 from glycopeptidepy.io import annotation
 from glycopeptidepy.structure import sequence, modification, residue
 from glycopeptidepy.structure.modification import ModificationRule
-from glycopeptidepy.algorithm import ModificationSiteAssignmentCombinator
+from glycopeptidepy.algorithm import ModificationSiteAssignmentCombinator, PeptidoformGenerator
 from glycopeptidepy import PeptideSequence
 
 from glycan_profiling.task import TaskBase
@@ -85,7 +85,7 @@ def get_base_peptide(peptide_obj):
         return PeptideSequence(str(peptide_obj))
 
 
-class PeptidePermuter(object):
+class PeptidePermuter(PeptidoformGenerator):
     constant_modifications: List[ModificationRule]
     variable_modifications: List[ModificationRule]
     max_variable_modifications: int
@@ -93,141 +93,8 @@ class PeptidePermuter(object):
     n_term_modifications: List[ModificationRule]
     c_term_modifications: List[ModificationRule]
 
-    def __init__(self, constant_modifications, variable_modifications, max_variable_modifications=None):
-        if max_variable_modifications is None:
-            max_variable_modifications = 4
-
-        self.constant_modifications = list(constant_modifications)
-        self.variable_modifications = list(variable_modifications)
-        self.max_variable_modifications = max_variable_modifications
-
-        (self.n_term_modifications,
-         self.c_term_modifications,
-         self.variable_modifications) = self.split_terminal_modifications(self.variable_modifications)
-
-    @staticmethod
-    def split_terminal_modifications(modifications: List[ModificationRule]):
-        """Group modification rules into three classes, N-terminal,
-        C-terminal, and Internal modifications.
-
-        A modification rule can be assigned to multiple groups if it
-        is valid at multiple sites.
-
-        Parameters
-        ----------
-        modifications : Iterable of ModificationRule
-            The modification rules
-
-        Returns
-        -------
-        n_terminal: list
-            list of N-terminal modification rules
-        c_terminal: list
-            list of C-terminal modification rules
-        internal: list
-            list of Internal modification rules
-        """
-        n_terminal: List[ModificationRule] = []
-        c_terminal: List[ModificationRule] = []
-        internal: List[ModificationRule] = []
-
-        for mod in modifications:
-            n_term = mod.n_term_targets
-            if n_term and all([t.amino_acid_targets is None for t in n_term]):
-                n_term_rule = mod.clone(n_term)
-                mod = mod - n_term_rule
-                n_terminal.append(n_term_rule)
-            c_term = mod.c_term_targets
-            if c_term and all([t.amino_acid_targets is None for t in c_term]):
-                c_term_rule = mod.clone(c_term)
-                mod = mod - c_term_rule
-                c_terminal.append(c_term_rule)
-            if (mod.targets):
-                internal.append(mod)
-
-        return n_terminal, c_terminal, internal
-
     def prepare_peptide(self, sequence):
         return get_base_peptide(sequence)
-
-    def terminal_modifications(self, sequence, protein_n_term: bool=False, protein_c_term: bool=False):
-        n_term_modifications = [
-            mod for mod in self.n_term_modifications if mod.find_valid_sites(
-                sequence, protein_n_term=protein_n_term)]
-        c_term_modifications = [
-            mod for mod in self.c_term_modifications if mod.find_valid_sites(
-                sequence, protein_c_term=protein_c_term)]
-        # the case with unmodified termini
-        n_term_modifications.append(None)
-        c_term_modifications.append(None)
-
-        return n_term_modifications, c_term_modifications
-
-    def apply_fixed_modifications(self, sequence, protein_n_term: bool=False, protein_c_term: bool=False):
-        has_fixed_n_term = False
-        has_fixed_c_term = False
-
-        for mod in self.constant_modifications:
-            for site in mod.find_valid_sites(sequence, protein_n_term=protein_n_term, protein_c_term=protein_c_term):
-                if site == SequenceLocation.n_term or site == SequenceLocation.protein_n_term:
-                    has_fixed_n_term = True
-                elif site == SequenceLocation.c_term or site == SequenceLocation.protein_c_term:
-                    has_fixed_c_term = True
-                sequence.add_modification(site, mod.name)
-        return has_fixed_n_term, has_fixed_c_term
-
-    def modification_sites(self, sequence):
-        variable_sites = {
-            mod.name: set(
-                mod.find_valid_sites(sequence)) for mod in self.variable_modifications}
-        modification_sites = ModificationSiteAssignmentCombinator(variable_sites)
-        return modification_sites
-
-    def apply_variable_modifications(self, sequence, assignments, n_term: ModificationRule, c_term: ModificationRule):
-        n_variable = 0
-        result = sequence.clone()
-        if n_term is not None:
-            result.n_term = n_term()
-            n_variable += 1
-        if c_term is not None:
-            result.c_term = c_term()
-            n_variable += 1
-        for site, mod in assignments:
-            if mod is not None:
-                result.add_modification(site, mod)
-                n_variable += 1
-        return result, n_variable
-
-    def permute_peptide(self, sequence, protein_n_term: bool=False, protein_c_term: bool=False):
-        try:
-            sequence = self.prepare_peptide(sequence)
-        except residue.UnknownAminoAcidException:
-            return
-        (n_term_modifications,
-         c_term_modifications) = self.terminal_modifications(
-             sequence, protein_n_term=protein_n_term, protein_c_term=protein_c_term)
-
-        (has_fixed_n_term,
-         has_fixed_c_term) = self.apply_fixed_modifications(
-             sequence, protein_n_term=protein_n_term, protein_c_term=protein_c_term)
-
-        if has_fixed_n_term:
-            n_term_modifications = [None]
-        if has_fixed_c_term:
-            c_term_modifications = [None]
-
-        modification_sites = self.modification_sites(sequence)
-
-        for n_term, c_term in itertools.product(n_term_modifications, c_term_modifications):
-            for assignments in modification_sites:
-                if len(assignments) > self.max_variable_modifications:
-                    continue
-                yield self.apply_variable_modifications(
-                    sequence, assignments, n_term, c_term)
-
-    def __call__(self, peptide, protein_n_term: bool=False, protein_c_term: bool=False):
-        return self.permute_peptide(
-            peptide, protein_n_term=protein_n_term, protein_c_term=protein_c_term)
 
     @classmethod
     def peptide_permutations(cls,
@@ -237,7 +104,7 @@ class PeptidePermuter(object):
                              max_variable_modifications: int=4):
         inst = cls(constant_modifications, variable_modifications,
                    max_variable_modifications)
-        return inst.permute_peptide(sequence)
+        return inst(sequence)
 
 
 peptide_permutations = PeptidePermuter.peptide_permutations
