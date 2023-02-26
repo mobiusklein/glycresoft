@@ -81,11 +81,11 @@ class BlindPeptidoformGenerator(PeptidoformGenerator):
     """A sub-class of the :class:`~.PeptidoformGenerator` type that ignores
     site-specificities.
     """
-    def modification_sites(self, sequence):
+    def modification_sites_for(self, sequence, rules: List[ModificationRule], include_empty: bool=True):
         variable_sites = {
-            mod.name: set(range(len(sequence))) for mod in self.variable_modifications}
+            mod: set(range(len(sequence))) for mod in rules}
         modification_sites = ModificationSiteAssignmentCombinator(
-            variable_sites)
+            variable_sites, include_empty=include_empty)
         return modification_sites
 
 
@@ -241,7 +241,7 @@ class PeptidoformPermuter(object):
         peptidoforms = defaultdict(set)
         for base_peptide in base_peptides:
             is_caching = isinstance(base_peptide, FragmentCachingGlycopeptide)
-            mod_combos = pepgen.modification_sites(base_peptide)
+            mod_combos = pepgen.modification_sites_for(base_peptide, pepgen.variable_modifications)
             for mod_combo in mod_combos:
                 if len(mod_combo) != self.modification_count:
                     continue

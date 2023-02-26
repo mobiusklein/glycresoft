@@ -1,6 +1,6 @@
 import unittest
 
-from glycopeptidepy import PeptideSequence
+from glycopeptidepy import Modification
 from glypy.structure.glycan_composition import HashableGlycanComposition
 
 from ms_deisotope.output import ProcessedMSFileLoader
@@ -11,8 +11,11 @@ from .fixtures import get_test_data
 from glycan_profiling.tandem.glycopeptide.core_search import GlycanCombinationRecord
 from glycan_profiling.tandem.oxonium_ions import OxoniumIndex
 from glycan_profiling.structure import FragmentCachingGlycopeptide
+
 from glycan_profiling.tandem.glycopeptide.scoring import (
     base, intensity_scorer, simple_score, binomial_score, coverage_weighted_binomial)
+
+from glycan_profiling.tandem.peptide.scoring.localize import PTMProphetEvaluator
 
 
 class TestGlycopeptideScorers(unittest.TestCase):
@@ -117,3 +120,21 @@ class TestGlycopeptideScorers(unittest.TestCase):
         match = intensity_scorer.LogIntensityScorerReweighted.evaluate(
             scan2, gp2)
         self.assertAlmostEqual(match.score, 149.86761396041246, 3)
+
+    def test_ptm_prophet(self):
+        scan, _scan2 = self.load_spectra()
+        gp, _gp2 = self.build_structures()
+
+        match = PTMProphetEvaluator(
+            scan, gp, modification_rule=Modification("N-Glycosylation").rule,
+            respect_specificity=False
+        )
+
+        match.score_arrangements()
+
+        match = PTMProphetEvaluator(
+            scan, gp, modification_rule=Modification("N-Glycosylation").rule,
+            respect_specificity=True
+        )
+
+        match.score_arrangements()
