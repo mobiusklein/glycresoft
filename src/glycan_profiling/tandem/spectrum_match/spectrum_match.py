@@ -3,6 +3,7 @@ import struct
 import logging
 
 from typing import Any, ClassVar, List, Tuple, Type,  Union, Optional, TYPE_CHECKING
+import glycopeptidepy
 
 
 from glypy.utils import Enum, make_struct
@@ -925,6 +926,11 @@ class LocalizationScore(object):
     score: float
 
     def __init__(self, position: int, modification: str, score: float):
+        if isinstance(modification, (glycopeptidepy.Modification, glycopeptidepy.ModificationRule)):
+            modification = modification.name
+        elif not isinstance(modification, str):
+            modification = str(modification)
+
         self.position = position
         self.modification = modification
         self.score = score

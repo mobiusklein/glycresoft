@@ -772,7 +772,7 @@ class PTMProphetEvaluator(LocalizationScorerBase):
                 parts.append(
                     LocalizationScore(
                         mod_a.site,
-                        mod_a.modification,
+                        mod_a.modification.name,
                         score
                     )
                 )
