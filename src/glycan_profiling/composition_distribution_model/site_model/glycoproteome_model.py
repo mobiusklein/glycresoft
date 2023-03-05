@@ -71,12 +71,6 @@ class GlycoproteomeModel(GlycoproteomeModelBase):
             score = glycoprotein_model.score(glycopeptide, glycan_composition)
         return score
 
-    def equalize_decoys(self):
-        for protein_model in self.glycoprotein_models.values():
-            for site_model in protein_model.glycosylation_sites:
-                site_model.equalize_decoys()
-        return self
-
 
 class SubstringGlycoproteomeModel(GlycoproteomeModelBase):
     sequence_to_model: Dict[str, GlycoproteinSiteSpecificGlycomeModel]

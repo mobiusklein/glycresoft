@@ -160,11 +160,3 @@ class GlycosylationSiteModel(object):
     def dump(cls, instances, fh: io.TextIOBase):
         site_dicts = [d.to_dict() for d in instances]
         json.dump(site_dicts, fh)
-
-    def equalize_decoys(self):
-        for glycan in self.glycan_map.keys():
-            if not is_decoy_glycan(glycan):
-                record = self.get_record(glycan)
-                new_key = to_decoy_glycan(glycan)
-                self.glycan_map[new_key] = record
-        return self
