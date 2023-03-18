@@ -1,18 +1,18 @@
 from itertools import cycle
+from typing import List
 
 from scipy.ndimage import gaussian_filter1d
 import numpy as np
 from matplotlib import pyplot as plt
-
-from six import string_types as basestring
 
 import glypy
 
 from .glycan_visual_classification import (
     NGlycanCompositionColorizer, NGlycanCompositionOrderer,
     GlycanLabelTransformer)
+
 from .base import ArtistBase
-from ..chromatogram_tree import get_chromatogram
+from ..chromatogram_tree import get_chromatogram, Chromatogram, ChromatogramInterface
 
 
 def split_charge_states(chromatogram):
@@ -40,7 +40,7 @@ def default_label_extractor(chromatogram, **kwargs):
         return "%0.3f %r" % (chromatogram.neutral_mass, tuple(chromatogram.charge_states))
 
 
-def binsearch(array, x):
+def binsearch(array: np.ndarray, x: float) -> int:
     lo = 0
     hi = len(array)
 
@@ -132,9 +132,10 @@ class AbundantLabeler(LabelProducer):
 
 class ChromatogramArtist(ArtistBase):
     default_label_function = staticmethod(default_label_extractor)
-    include_points = True
+    include_points: bool = True
 
-    def __init__(self, chromatograms, ax=None, colorizer=None, label_peaks=True, clip_labels=True):
+    def __init__(self, chromatograms, ax=None, colorizer=None, label_peaks: bool=True, clip_labels: bool=True,
+                 should_draw_tandem_points: bool = True):
         if colorizer is None:
             colorizer = ColorCycler()
         if ax is None:
@@ -157,6 +158,7 @@ class ChromatogramArtist(ArtistBase):
         self.legend = None
         self.label_peaks = label_peaks
         self.clip_labels = clip_labels
+        self.should_draw_tandem_points = should_draw_tandem_points
 
     def __iter__(self):
         return iter(self.chromatograms)
@@ -167,7 +169,7 @@ class ChromatogramArtist(ArtistBase):
     def __len__(self):
         return len(self.chromatograms)
 
-    def _resolve_chromatograms_from_argument(self, chromatograms):
+    def _resolve_chromatograms_from_argument(self, chromatograms: List[ChromatogramInterface]) -> List[Chromatogram]:
         try:
             # if not hasattr(chromatograms[0], "get_chromatogram"):
             if not get_chromatogram(chromatograms[0]):
@@ -176,7 +178,8 @@ class ChromatogramArtist(ArtistBase):
             chromatograms = [chromatograms]
         return chromatograms
 
-    def draw_generic_chromatogram(self, label, rt, heights, color, fill=False, label_font_size=10):
+    def draw_generic_chromatogram(self, label, rt: np.ndarray, heights: np.ndarray, color: str,
+                                  fill: bool=False, label_font_size: int=10):
         if fill:
             s = self.ax.fill_between(
                 rt,
@@ -204,7 +207,9 @@ class ChromatogramArtist(ArtistBase):
         if label is not None:
             self.ax.text(rt_apex, apex + 1200, label, ha='center', fontsize=label_font_size, clip_on=self.clip_labels)
 
-    def draw_group(self, label, rt, heights, color, label_peak=True, chromatogram=None, label_font_size=10):
+    def draw_group(self, label: str, rt: np.ndarray, heights: np.ndarray, color: str,
+                   label_peak: bool = True, chromatogram: Chromatogram = None,
+                   label_font_size: int=10):
         if chromatogram is not None:
             try:
                 key = str(chromatogram.id)
@@ -243,34 +248,9 @@ class ChromatogramArtist(ArtistBase):
     def transform_group(self, rt, heights):
         return rt, heights
 
-    def process_group(self, composition, chromatogram, label_function=None, **kwargs):
-        if label_function is None:
-            label_function = self.default_label_function
-
-        color = self.default_colorizer(chromatogram)
-
-        rt, heights = self.transform_group(*chromatogram.as_arrays())
-
-        self.maximum_ident_time = max(max(rt), self.maximum_ident_time)
-        self.minimum_ident_time = min(min(rt), self.minimum_ident_time)
-
-        self.maximum_intensity = max(max(heights), self.maximum_intensity)
-
-        label = label_function(
-            chromatogram, rt=rt, heights=heights, peaks=None)
-        if isinstance(label, (str, glypy.GlycanComposition)):
-            label = label
-            label_peak = True
-        else:
-            label, label_peak = label
-        label_peak = label_peak & self.label_peaks
-
-        self.draw_group(label, rt, heights, color, label_peak, chromatogram, **kwargs)
-
-        try:
-            tandem_solutions = chromatogram.tandem_solutions
-        except AttributeError:
-            tandem_solutions = []
+    def draw_tandem_points(self, rt: np.ndarray, heights: np.ndarray, tandem_solutions: list, color: str):
+        xs = []
+        ys = []
         for tandem in tandem_solutions:
             try:
                 x = tandem.scan_time
@@ -299,7 +279,41 @@ class ChromatogramArtist(ArtistBase):
                     y0 = heights[i]
             # interpolate the height at the time coordinate
             y = (y0 * (x1 - x) + y1 * (x - x0)) / (x1 - x0)
-            self.ax.scatter(x, y, marker='X', s=35, color=color)
+            xs.append(x)
+            ys.append(y)
+        self.ax.scatter(xs, ys, marker='X', s=35, color=color)
+
+    def process_group(self, composition, chromatogram: Chromatogram, label_function=None, **kwargs):
+        if label_function is None:
+            label_function = self.default_label_function
+
+        color = self.default_colorizer(chromatogram)
+
+        rt, heights = self.transform_group(*chromatogram.as_arrays())
+
+        self.maximum_ident_time = max(max(rt), self.maximum_ident_time)
+        self.minimum_ident_time = min(min(rt), self.minimum_ident_time)
+
+        self.maximum_intensity = max(max(heights), self.maximum_intensity)
+
+        label = label_function(
+            chromatogram, rt=rt, heights=heights, peaks=None)
+        if isinstance(label, (str, glypy.GlycanComposition)):
+            label = label
+            label_peak = True
+        else:
+            label, label_peak = label
+        label_peak = label_peak & self.label_peaks
+
+        self.draw_group(label, rt, heights, color, label_peak, chromatogram, **kwargs)
+
+        try:
+            tandem_solutions = chromatogram.tandem_solutions
+        except AttributeError:
+            tandem_solutions = []
+
+        if self.should_draw_tandem_points:
+            self.draw_tandem_points(rt, heights, tandem_solutions, color)
 
     def _interpolate_xticks(self, xlo, xhi):
         self.ax.set_xlim(xlo - 0.01, xhi + 0.01)
@@ -307,7 +321,8 @@ class ChromatogramArtist(ArtistBase):
         self.ax.set_xticks(tick_values)
         self.ax.set_xticklabels(["%0.2f" % v for v in tick_values])
 
-    def layout_axes(self, legend=True, axis_font_size=18, axis_label_font_size=16, legend_cols=2):
+    def layout_axes(self, legend: bool=True, axis_font_size: int=18, axis_label_font_size: int=16,
+                    legend_cols: int=2):
         self._interpolate_xticks(self.minimum_ident_time, self.maximum_ident_time)
         self.ax.set_ylim(0, self.maximum_intensity * 1.25)
         if legend:
@@ -329,8 +344,8 @@ class ChromatogramArtist(ArtistBase):
         [t.set(fontsize=axis_font_size) for t in self.ax.get_xticklabels()]
         [t.set(fontsize=axis_font_size) for t in self.ax.get_yticklabels()]
 
-    def draw(self, label_function=None, legend=True, label_font_size=10, axis_label_font_size=16,
-             axis_font_size=18, legend_cols=2):
+    def draw(self, label_function=None, legend: bool=True, label_font_size: int=10,
+             axis_label_font_size: int=16, axis_font_size: int=18, legend_cols: int=2):
         if label_function is None:
             label_function = self.default_label_function
         for chroma in self.chromatograms:
