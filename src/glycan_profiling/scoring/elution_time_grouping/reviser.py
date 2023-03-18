@@ -394,7 +394,7 @@ class PeptideYUtilizationPreservingRevisionValidator(RevisionValidatorBase):
 class OxoniumIonRequiringUtilizationRevisionValidator(RevisionValidatorBase):
     scale: float
 
-    def __init__(self, scale=0.9, spectrum_match_builder=None, threshold_fn=always):
+    def __init__(self, scale=1.0, spectrum_match_builder=None, threshold_fn=always):
         super(OxoniumIonRequiringUtilizationRevisionValidator,
               self).__init__(spectrum_match_builder, threshold_fn)
         self.scale = scale
