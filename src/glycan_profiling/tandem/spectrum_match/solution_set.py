@@ -431,6 +431,14 @@ class SpectrumSolutionSet(ScanWrapperBase):
         self._target_map = None
         self._q_value = None
 
+    def is_ambiguous(self) -> bool:
+        seen = set()
+
+        for sm in self:
+            if sm.is_best_match:
+                seen.add(str(sm.target))
+        return len(seen) > 1
+
     def is_multiscore(self) -> bool:
         """Check whether this match has been produced by summarizing a multi-score match, rather than a single score match.
 

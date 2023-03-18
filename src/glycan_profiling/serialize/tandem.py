@@ -161,6 +161,13 @@ class SolutionSetBase(object):
         else:
             return sorted(self.spectrum_matches, key=lambda x: (x.score_set.convert()[0]), reverse=True)[0]
 
+    def is_ambiguous(self) -> bool:
+        seen = set()
+
+        for sm in self.spectrum_matches.filter_by(is_best_match=True).all():
+            seen.add(str(sm.target))
+        return len(seen) > 1
+
     @property
     def key(self) -> frozenset:
         scan_id = self.scan.id
