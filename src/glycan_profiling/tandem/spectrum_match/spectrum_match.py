@@ -6,10 +6,10 @@ from typing import Any, ClassVar, List, Tuple, Type,  Union, Optional, TYPE_CHEC
 import glycopeptidepy
 
 
-from glypy.utils import Enum, make_struct
+from glypy.utils import make_struct
 
 from ms_deisotope import DeconvolutedPeakSet, isotopic_shift
-from ms_deisotope.data_source import Scan, ProcessedScan
+from ms_deisotope.data_source import ProcessedScan
 from ms_deisotope.data_source.metadata import activation
 from glycan_profiling.chromatogram_tree.mass_shift import MassShiftBase
 
