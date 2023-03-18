@@ -155,10 +155,10 @@ class GlycanCompositionSignatureMatcher(GlycopeptideSpectrumMatcherBase):
         self._score = self._signature_ion_score()
         return self._score
 
-    def oxonium_ion_utilization(self):
+    def oxonium_ion_utilization(self, threshold: float=0.05):
         utilization = 0.0
         for signature, matched in self.expected_matches.items():
-            if matched is None or ((matched.intensity / self.maximum_intensity) < 0.01):
+            if matched is None or ((matched.intensity / self.maximum_intensity) < threshold):
                 comp = 10 * np.log10(1 - self.estimate_missing_ion_importance(signature))
                 if np.isnan(comp):
                     comp = -20
