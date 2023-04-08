@@ -11,7 +11,7 @@ from multiprocessing import Event, JoinableQueue
 
 from collections import defaultdict
 from operator import attrgetter
-from typing import Any, Callable, DefaultDict, Dict, List, Set, Type, Union
+from typing import Any, Callable, DefaultDict, Dict, List, Optional, Set, Type, Union
 
 from six import PY2
 
@@ -31,7 +31,6 @@ from ms_deisotope.output import ProcessedMSFileLoader
 from glycan_profiling.task import TaskBase, TaskExecutionSequence, Empty
 
 from glycan_profiling.structure.structure_loader import (
-    FragmentCachingGlycopeptide, DecoyFragmentCachingGlycopeptide,
     PeptideProteinRelation, LazyGlycopeptide)
 from glycan_profiling.structure.scan import ScanInformation, ScanInformationLoader
 from glycan_profiling.structure.lru import LRUMapping
@@ -232,6 +231,7 @@ def parse_float(value: str) -> float:
 
 
 try:
+    _parse_float = parse_float
     from glycan_profiling._c.tandem.tandem_scoring_helpers import parse_float
 except ImportError:
     pass
@@ -286,13 +286,14 @@ class JournalFileReader(TaskBase):
 
     glycopeptide_cache: LRUMapping
     mass_shift_map: Dict[str, MassShiftBase]
-    scan_loader: ScanInformationLoader
+    scan_loader: Optional[ScanInformationLoader]
     include_fdr: bool
 
     score_set_type: Type
     score_columns: List[str]
 
-    def __init__(self, path, cache_size=2 ** 16, mass_shift_map=None, scan_loader=None, include_fdr=False, score_set_type=None):
+    def __init__(self, path, cache_size=2 ** 16, mass_shift_map=None, scan_loader=None,
+                 include_fdr=False, score_set_type=None):
         if mass_shift_map is None:
             mass_shift_map = {Unmodified.name: Unmodified}
         else:
@@ -551,12 +552,13 @@ class JournalSetLoader(TaskBase):
     def _load_identifications_from_journal(self, journal_path, accumulator=None):
         if accumulator is None:
             accumulator = []
-        reader = enumerate(JournalFileReader(
-            journal_path,
-            scan_loader=ScanInformationLoader(
-                self.scan_loader),
+        reader = enumerate(
+            JournalFileReader(
+                journal_path,
+                scan_loader=self.scan_loader,
                 mass_shift_map=self.mass_shift_map,
-                **self.journal_reader_args), len(accumulator))
+                **self.journal_reader_args),
+            len(accumulator))
         i = float(len(accumulator))
         should_log = False
         for i, sol in reader:
