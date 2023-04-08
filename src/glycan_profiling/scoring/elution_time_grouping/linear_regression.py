@@ -4,8 +4,6 @@ a RANSAC-wrapper of it.
 import random
 import functools
 
-from collections import namedtuple
-
 import numpy as np
 from scipy import stats
 
