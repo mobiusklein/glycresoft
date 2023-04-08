@@ -2,9 +2,10 @@ import warnings
 import struct
 import logging
 
-from typing import Any, ClassVar, List, Tuple, Type,  Union, Optional, TYPE_CHECKING
-import glycopeptidepy
+from typing import Any, ClassVar, List, Tuple, Type,  Union, Optional, TYPE_CHECKING, Generic, TypeVar
+from enum import IntFlag
 
+import glycopeptidepy
 
 from glypy.utils import make_struct
 
@@ -228,7 +229,9 @@ class SpectrumMatchBase(_SpectrumMatchBase, ScanMatchManagingMixin):
             offset * neutron_offset) + self.mass_shift.mass
         return (observed - theoretical) / theoretical
 
-    def determine_precursor_offset(self, probing_range: int=3, include_error: bool=False) -> Union[int, Tuple[int, float]]:
+    def determine_precursor_offset(self,
+                                   probing_range: int=3,
+                                   include_error: bool=False) -> Union[int, Tuple[int, float]]:
         """Iteratively re-estimate what the actual offset to the precursor mass was.
 
         Parameters
@@ -303,7 +306,8 @@ class SpectrumMatcherBase(SpectrumMatchBase):
     spectrum: DeconvolutedPeakSet
     _score: float
 
-    def __init__(self, scan: ProcessedScan, target: Union[FragmentCachingGlycopeptide, Any], mass_shift: Optional[MassShiftBase]=None):
+    def __init__(self, scan: ProcessedScan, target: Union[FragmentCachingGlycopeptide, Any],
+                 mass_shift: Optional[MassShiftBase]=None):
         if mass_shift is None:
             mass_shift = Unmodified
         self.scan = scan
@@ -439,6 +443,39 @@ try:
     SpectrumMatcherBase.base_peak = base_peak
 except ImportError:
     pass
+
+
+class MatchFlags(IntFlag):
+    Unknown = 0
+    Valid = 1
+    Ambiguous = 2
+    BestMatch = 4
+
+
+F = TypeVar('F', bound=IntFlag)
+
+
+class FlagProperty(Generic[F]):
+    __slots__ = ('flag', )
+
+    flag: F
+
+    def __repr__(self):
+        return f"{self.__class__.__name__}({self.flag})"
+
+    def __init__(self, flag: F):
+        self.flag = flag
+
+    def __get__(self, obj, cls) -> bool:
+        if obj is None:
+            return self
+        return bool(obj.flags & self.flag)
+
+    def __set__(self, obj, value: bool):
+        if value:
+            obj.flags |= self.flag
+        else:
+            obj.flags &= ~self.flag
 
 
 class SpectrumMatch(SpectrumMatchBase):
@@ -837,6 +874,8 @@ class FDRSet(make_struct("FDRSet", ['total_q_value', 'peptide_q_value', 'glycan_
 
 
 try:
+    _PyScoreSet = ScoreSet
+    _PyFDRSet = FDRSet
     from glycan_profiling._c.tandem.spectrum_match import ScoreSet, FDRSet
     _has_c = True
 except ImportError:
