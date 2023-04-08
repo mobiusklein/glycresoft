@@ -2,10 +2,6 @@ import itertools
 from operator import attrgetter
 import numpy as np
 
-from glypy.structure.glycan_composition import (
-    FrozenMonosaccharideResidue,
-    Composition, from_iupac_lite)
-
 from glycopeptidepy.structure.glycan import GlycanCompositionProxy
 
 from glycan_profiling.structure import SpectrumGraph
@@ -14,9 +10,6 @@ from glycan_profiling.task import log_handle
 from glycan_profiling.tandem.oxonium_ions import single_signatures, compound_signatures
 
 from .base import GlycopeptideSpectrumMatcherBase
-
-
-_WATER = Composition("H2O")
 
 
 keyfn = attrgetter("intensity")
