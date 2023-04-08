@@ -90,18 +90,18 @@ class SpectrumMatchAnnotator(object):
                 spectrum_match.spectrum, key=lambda x: x.intensity
             ).intensity
 
-    def draw_all_peaks(self, color='black', alpha=0.5, **kwargs):
+    def draw_all_peaks(self, color='grey', alpha=0.5, **kwargs):
         draw_peaklist(
             self.spectrum_match.deconvoluted_peak_set,
-            alpha=0.3, color='grey', ax=self.ax, **kwargs)
+            alpha=0.3, color=color, ax=self.ax, **kwargs)
         try:
             draw_peaklist(
                 self.spectrum_match._sanitized_spectrum,
-                color='grey', ax=self.ax, alpha=0.5, **kwargs)
+                color=color, ax=self.ax, alpha=0.5, **kwargs)
         except AttributeError:
             pass
 
-    def add_summary_labels(self):
+    def add_summary_labels(self, x=0.95, y=0.9):
         prec_purity = self.spectrum_match.scan.annotations.get(
             'precursor purity')
         if prec_purity is not None:
@@ -116,11 +116,14 @@ class SpectrumMatchAnnotator(object):
             prec_z = str(prec_z)
 
         self.ax.text(
-            0.95, 0.9,
+            x, y,
             "Isolation Purity: %s\nPrec. Z: %s" % (
                 prec_purity,
                 prec_z),
-            transform=self.ax.transAxes, ha='right', color='darkslategrey')
+            transform=self.ax.transAxes,
+            ha='right',
+            color='darkslategrey'
+        )
 
     def label_peak(self, fragment, peak, fontsize=12, rotation=90, **kw):
         label = f"{fragment.name}"
@@ -166,7 +169,9 @@ class SpectrumMatchAnnotator(object):
             except AttributeError:
                 peak_color = ion_series_to_color.get(fragment.kind, color)
             if self.normalize:
-                peak = (peak.mz, peak.intensity / self.intensity_scale)
+                peak = peak.clone()
+                peak.intensity / self.intensity_scale
+                # peak = (peak.mz, peak.intensity / self.intensity_scale)
             draw_peaklist([peak], alpha=alpha, ax=self.ax, color=peak_color)
             self.label_peak(fragment, peak, fontsize=fontsize, **kwargs)
 
@@ -235,29 +240,28 @@ class SpectrumMatchAnnotator(object):
         return logo
 
     def _draw_mass_accuracy_plot(self, ax, error_tolerance=2e-5, **kwargs):
-        ion_series_to_color = kwargs.pop("ion_series_to_color", default_ion_series_to_color)
+        ion_series_to_color = kwargs.pop(
+            "ion_series_to_color", default_ion_series_to_color)
         match = self.spectrum_match
         ax.scatter(*zip(*[(pp.peak.mz, pp.mass_accuracy()) for pp in match.solution_map]),
-                   alpha=0.5, edgecolor='black', color=[
-                       ion_series_to_color[pp.fragment.series] for pp in match.solution_map])
+                alpha=0.5, edgecolor='black', color=[
+                    ion_series_to_color[pp.fragment.series] for pp in match.solution_map])
         limits = error_tolerance
         ax.set_ylim(-limits, limits)
         xlim = 0, max(match.deconvoluted_peak_set, key=lambda x: x.mz).mz + 100
-        ax.hlines(0, *xlim, linestyle='--')
-        ax.hlines(0, *xlim, linestyle='--')
-        ax.hlines(limits / 2, *xlim, linestyle='--', lw=0.5)
-        ax.hlines(-limits / 2, *xlim, linestyle='--', lw=0.5)
+        ax.hlines(0, *xlim, linestyle='--', color='black', lw=0.75)
+        ax.hlines(limits / 2, *xlim, linestyle='--', lw=0.5, color='black')
+        ax.hlines(-limits / 2, *xlim, linestyle='--', lw=0.5, color='black')
         ax.set_xlim(*xlim)
         labels = ax.get_yticks()
-        labels = ['%0.2f ppm' % (label * 1e6) for label in labels]
+        labels = ['%0.2g' % (label * 1e6) for label in labels]
         ax.set_yticklabels(labels)
-        ax.set_xlabel("m/z", fontsize=16)
-        ax.set_ylabel("Mass Accuracy", fontsize=16)
+        ax.set_xlabel("m/z", fontsize=10)
+        ax.set_ylabel("Mass Accuracy (PPM)", fontsize=10)
         return ax
 
     def __repr__(self):
-        return "{self.__class__.__name__}({self.spectrum_match})".format(
-            self=self)
+        return f"{self.__class__.__name__}({self.spectrum_match})"
 
 
 class TidySpectrumMatchAnnotator(SpectrumMatchAnnotator):
