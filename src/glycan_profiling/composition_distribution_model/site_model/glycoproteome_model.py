@@ -13,12 +13,16 @@ from glycan_profiling.structure.structure_loader import FragmentCachingGlycopept
 from glycan_profiling.tandem.spectrum_match import SpectrumMatchClassification as StructureClassification
 
 from .glycosite_model import MINIMUM, GlycosylationSiteModel
-from .glycoprotein_model import GlycoproteinSiteSpecificGlycomeModel, ReversedProteinSiteReflectionGlycoproteinSiteSpecificGlycomeModel
+from .glycoprotein_model import (
+    GlycoproteinSiteSpecificGlycomeModel,
+    ReversedProteinSiteReflectionGlycoproteinSiteSpecificGlycomeModel
+)
 
 
 class GlycoproteomeModelBase(object):
     __slots__ = ()
-    def score(self, glycopeptide: FragmentCachingGlycopeptide, glycan_composition: Optional[HashableGlycanComposition]=None) -> float:
+    def score(self, glycopeptide: FragmentCachingGlycopeptide,
+              glycan_composition: Optional[HashableGlycanComposition]=None) -> float:
         raise NotImplementedError()
 
     @classmethod
@@ -63,7 +67,8 @@ class GlycoproteomeModel(GlycoproteomeModelBase):
         glycoprotein_model = self.glycoprotein_models.get(protein_id)
         return glycoprotein_model
 
-    def score(self, glycopeptide: FragmentCachingGlycopeptide, glycan_composition: Optional[HashableGlycanComposition]=None) -> float:
+    def score(self, glycopeptide: FragmentCachingGlycopeptide,
+              glycan_composition: Optional[HashableGlycanComposition]=None) -> float:
         glycoprotein_model = self.find_model(glycopeptide)
         if glycoprotein_model is None:
             score = MINIMUM
@@ -107,7 +112,8 @@ class SubstringGlycoproteomeModel(GlycoproteomeModelBase):
                 out.append(self.sequence_to_model[case])
         return out
 
-    def score(self, glycopeptide: FragmentCachingGlycopeptide, glycan_composition: Optional[HashableGlycanComposition]=None) -> float:
+    def score(self, glycopeptide: FragmentCachingGlycopeptide,
+              glycan_composition: Optional[HashableGlycanComposition]=None) -> float:
         if glycan_composition is None:
             glycan_composition = glycopeptide.glycan_composition
         models = self.get_models(glycopeptide)
