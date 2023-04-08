@@ -3,12 +3,14 @@ import itertools
 import logging
 import gzip
 import io
-import array
 
 from numbers import Number
 from collections import defaultdict, namedtuple
 from functools import partial
-from typing import Any, Callable, ClassVar, DefaultDict, Dict, Iterator, List, Optional, Set, Tuple, Type, ClassVar, Union, OrderedDict
+from typing import (Any, Callable, ClassVar,
+                    DefaultDict, Dict, Iterator,
+                    List, Optional, Set, Tuple,
+                    Type, Union, OrderedDict)
 from multiprocessing import cpu_count
 from concurrent import futures
 
@@ -16,6 +18,11 @@ import numpy as np
 from scipy import stats
 
 import dill
+
+try:
+    from matplotlib import pyplot as plt
+except ImportError:
+    pass
 
 from glypy.utils import make_counter
 from glypy.structure.glycan_composition import HashableGlycanComposition, FrozenMonosaccharideResidue
@@ -25,10 +32,6 @@ from glycan_profiling.chromatogram_tree.chromatogram import Chromatogram, Chroma
 
 from glycan_profiling.database.composition_network.space import composition_distance, DistanceCache
 
-try:
-    from matplotlib import pyplot as plt
-except ImportError:
-    pass
 
 from ms_deisotope.peak_dependency_network.intervals import SpanningMixin
 
@@ -40,8 +43,13 @@ from glycan_profiling.scoring.base import ScoringFeatureBase
 from glycan_profiling.structure import FragmentCachingGlycopeptide
 from glycan_profiling.structure.structure_loader import GlycanCompositionDeltaCache
 
-from .structure import ChromatogramProxy, _get_apex_time, GlycopeptideChromatogramProxy, GlycoformAggregator, DeltaOverTimeFilter
-from .linear_regression import (WLSSolution, ransac, weighted_linear_regression_fit, prediction_interval, SMALL_ERROR, weighted_linear_regression_fit_ridge)
+from .structure import (
+    ChromatogramProxy, _get_apex_time, GlycopeptideChromatogramProxy,
+    GlycoformAggregator, DeltaOverTimeFilter)
+from .linear_regression import (
+    WLSSolution, ransac, weighted_linear_regression_fit,
+    prediction_interval, SMALL_ERROR,
+    weighted_linear_regression_fit_ridge)
 from .reviser import (IntervalModelReviser, IsotopeRule, AmmoniumMaskedRule,
                       AmmoniumUnmaskedRule, HexNAc2NeuAc2ToHex6AmmoniumRule,
                       IsotopeRule2, HexNAc2Fuc1NeuAc2ToHex7, PhosphateToSulfateRule,
@@ -53,7 +61,7 @@ from .reviser import (IntervalModelReviser, IsotopeRule, AmmoniumMaskedRule,
                       RevisionRuleList,
                       RuleBasedFDREstimator,
                       ResidualFDREstimator,
-                      ValidatedGlycome, IndexedValidatedGlycome)
+                      ValidatedGlycome)
 
 from . import reviser as libreviser
 
@@ -1039,7 +1047,9 @@ class ModelEnsemble(PeptideBackboneKeyedMixin, IntervalScoringMixin):
     def has_peptide(self, chromatogram: ChromatogramType) -> bool:
         return any(m.has_peptide(chromatogram) for m in self._models)
 
-    def estimate_query_point(self, glycopeptide: Union[str, PeptideSequence, ChromatogramType]) -> GlycopeptideChromatogramProxy:
+    def estimate_query_point(self,
+                             glycopeptide: Union[str, PeptideSequence, ChromatogramType]
+                            ) -> GlycopeptideChromatogramProxy:
         if isinstance(glycopeptide, str):
             key = str(PeptideSequence(glycopeptide).deglycosylate())
             glycopeptide = PeptideSequence(glycopeptide)
@@ -1072,7 +1082,8 @@ class ModelEnsemble(PeptideBackboneKeyedMixin, IntervalScoringMixin):
             interval = [iv + offset for iv in interval]
         return interval
 
-    def predict_interval(self, chromatogram: ChromatogramType, alpha=0.05, merge=True, check_peptide=True) -> np.ndarray:
+    def predict_interval(self, chromatogram: ChromatogramType, alpha: float=0.05,
+                         merge: bool=True, check_peptide: bool=True) -> np.ndarray:
         weights = []
         preds = []
         for mod, w in self._models_for(chromatogram):
@@ -1098,7 +1109,8 @@ class ModelEnsemble(PeptideBackboneKeyedMixin, IntervalScoringMixin):
             return avg
         return preds, weights
 
-    def predict(self, chromatogram: ChromatogramType, merge=True, check_peptide=True) -> Union[float, Tuple[np.ndarray, np.ndarray]]:
+    def predict(self, chromatogram: ChromatogramType, merge: bool=True,
+                check_peptide: bool=True) -> Union[float, Tuple[np.ndarray, np.ndarray]]:
         weights = []
         preds = []
         for mod, w in self._models_for(chromatogram):
@@ -1236,7 +1248,7 @@ class ModelEnsemble(PeptideBackboneKeyedMixin, IntervalScoringMixin):
             xval = np.array(xval)
             yval = np.array(yval)
             ci_width = np.array(ci_width)
-            line = ax.plot(xval, yval, label=factor, marker='.', color=c)
+            ax.plot(xval, yval, label=factor, marker='.', color=c)
             ax.fill_between(xval, yval - ci_width, yval + ci_width,
                             color=c, alpha=0.25)
         ax.set_xlabel("Time", size=14)
@@ -1389,9 +1401,10 @@ class EnsembleBuilder(TaskBase):
             group_widths[t] = best
         return group_widths
 
-    def _fit(self, i: int, point: float, members: List[GlycopeptideChromatogramProxy], point_members: List[List[GlycopeptideChromatogramProxy]],
-             predicate: Callable[[Any], bool], model_type: Callable[..., ElutionTimeFitter], regularize: bool = False,
-             resample: bool = False) -> Tuple[float, ElutionTimeFitter]:
+    def _fit(self, i: int, point: float, members: List[GlycopeptideChromatogramProxy],
+             point_members: List[List[GlycopeptideChromatogramProxy]],
+             predicate: Callable[[Any], bool], model_type: Callable[..., ElutionTimeFitter],
+             regularize: bool = False, resample: bool = False) -> Tuple[float, ElutionTimeFitter]:
         n = len(point_members)
         obs = list(filter(predicate, members))
         if not obs:
@@ -1412,13 +1425,15 @@ class EnsembleBuilder(TaskBase):
                 obs = sorted(filter(predicate, extra), key=lambda x: x.apex_time)
                 m = model_type(obs, self.aggregator.factors, regularize=regularize)
                 offset += 1
-            self.debug("... Borrowed %d observations from regions %d steps away for region centered on %0.3f (%d members, %r)" % (
+            self.debug(
+                "... Borrowed %d observations from regions %d steps away for region at %0.3f (%d members, %r)" % (
                 len(extra - set(members)), offset, point, len(members), m.data.shape))
 
         m = m.fit(resample=resample)
         return point, m
 
-    def fit(self, predicate: Optional[Callable[[Any], bool]]=None, model_type: Optional[Callable[..., ElutionTimeFitter]]=None,
+    def fit(self, predicate: Optional[Callable[[Any], bool]]=None,
+            model_type: Optional[Callable[..., ElutionTimeFitter]]=None,
             regularize: bool=False, resample: bool=False, n_workers: Optional[int]=None):
         if model_type is None:
             model_type = AbundanceWeightedPeptideFactorElutionTimeFitter
@@ -1600,7 +1615,7 @@ class LocalShiftGraph(object):
                     maybe_bad = not (comp_mean - (comp_sdev * 1.2) < params.mean < comp_mean + (comp_sdev * 1.2))
                     if maybe_bad and params.size < 3:
                         bad = True
-                except KeyError as err:
+                except KeyError:
                     # We don't have a component edge to support this composite edge, so we don't
                     # have enough information in the training data, so we're unable QC these edges.
                     # This is different from when we have a singular observation of any component,
@@ -1798,7 +1813,7 @@ def model_type_dispatch(self, chromatogams, factors=None, scale=1, transform=Non
         if model.data.shape[0] == 0:
             raise ValueError("No relative data points")
         return model
-    except (ValueError, AssertionError) as err:
+    except (ValueError, AssertionError):
         model = AbundanceWeightedPeptideFactorElutionTimeFitter(
             chromatogams, factors, scale, transform, width_range, regularize)
         return model
@@ -1816,7 +1831,7 @@ def model_type_dispatch_outlier_remove(self, chromatogams, factors=None, scale=1
         if model.data.shape[0] == 0:
             raise ValueError("No relative data points")
         return model
-    except (ValueError, AssertionError) as err:
+    except (ValueError, AssertionError):
         model = AbundanceWeightedPeptideFactorElutionTimeFitter(
             chromatogams, factors, scale, transform, width_range, regularize)
         return model
@@ -1912,7 +1927,7 @@ class GlycopeptideElutionTimeModelBuildingPipeline(TaskBase):
             n_rules_before = len(self.revision_rules)
             self.revision_rules = self.revision_rules.filter_defined(self.valid_glycans)
             n_rules_after = len(self.revision_rules)
-            self.log(f"Using {n_rules_after} revision rules.")
+            self.log(f"Using {n_rules_after} revision rules ({n_rules_before - n_rules_after} removed).")
 
     @property
     def current_model(self):
@@ -1949,7 +1964,8 @@ class GlycopeptideElutionTimeModelBuildingPipeline(TaskBase):
                     n_workers=self.n_workers)
         model = builder.merge()
         model.calibrate_prediction_interval(alpha=self.calibration_alpha)
-        self.log("... Calibrated Prediction Intervals: %0.3f-%0.3f" % (model.width_range.lower, model.width_range.upper))
+        self.log("... Calibrated Prediction Intervals: %0.3f-%0.3f" % (
+            model.width_range.lower, model.width_range.upper))
         return model
 
     def fit_model_with_revision(self, source, revision, regularize=False):
@@ -2011,7 +2027,9 @@ class GlycopeptideElutionTimeModelBuildingPipeline(TaskBase):
         nans = np.isnan(coverages)
         if nans.any():
             self.log("Encountered %d missing observations" % nans.sum())
-        return np.array(list(chromatograms))[np.where((coverages >= threshold) | nans | np.isclose(coverages, threshold))[0]]
+        return np.array(list(chromatograms))[
+            np.where((coverages >= threshold) | nans | np.isclose(coverages, threshold))[0]
+        ]
 
     def reweight(self, model, chromatograms, base_weight=0.2):
         reweighted = []
