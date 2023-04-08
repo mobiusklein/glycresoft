@@ -303,7 +303,10 @@ class MultiScoreSpectrumMatchSortingStrategy(SpectrumMatchSortingStrategy):
 
 
 class NOParsimonyMixin(object):
-    """Provides shared methods for a parsimony step re-ordering solutions when the top solution may be N-linked or O-linked."""
+    """
+    Provides shared methods for a parsimony step re-ordering solutions when the top
+    solution may be N-linked or O-linked.
+    """
 
     threshold_percentile: float
 
@@ -316,7 +319,8 @@ class NOParsimonyMixin(object):
     def get_target(self, solution):
         return solution.target
 
-    def hoist_equivalent_n_linked_solution(self, solution_set: Iterable[SpectrumMatch], maximize: bool=True) -> List[SpectrumMatch]:
+    def hoist_equivalent_n_linked_solution(self, solution_set: Iterable[SpectrumMatch],
+                                           maximize: bool=True) -> List[SpectrumMatch]:
         """Apply a parsimony step re-ordering solutions when the top solution may be N-linked or O-linked.
 
         The O-linked core motif is much simpler than the N-linked core, so it gets
@@ -440,7 +444,9 @@ class SpectrumSolutionSet(ScanWrapperBase):
         return len(seen) > 1
 
     def is_multiscore(self) -> bool:
-        """Check whether this match has been produced by summarizing a multi-score match, rather than a single score match.
+        """
+        Check whether this match has been produced by summarizing a multi-score match, rather
+        than a single score match.
 
         Returns
         -------
@@ -563,7 +569,8 @@ class SpectrumSolutionSet(ScanWrapperBase):
         solution.best_match = True
         best_solution_score = solution.score
         for solution in self:
-            if (abs(best_solution_score - solution.score) < 1e-3 or best_solution_score < solution.score) and solution.valid:
+            if (abs(best_solution_score - solution.score) < 1e-3 or
+                best_solution_score < solution.score) and solution.valid:
                 solution.best_match = True
             else:
                 solution.best_match = False
