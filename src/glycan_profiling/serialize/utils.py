@@ -2,11 +2,13 @@ import os
 from copy import copy
 from typing import Sequence
 from uuid import uuid4
+import warnings
 from sqlalchemy import create_engine, Table
 from sqlalchemy.exc import OperationalError, ProgrammingError
 from sqlalchemy.sql import ClauseElement
 from sqlalchemy.engine.url import make_url
 from sqlalchemy.engine.interfaces import Dialect
+from sqlalchemy.engine import Connection
 
 from sqlalchemy.orm.session import object_session
 from sqlalchemy.orm.exc import UnmappedInstanceError
@@ -311,3 +313,15 @@ def chunkiter(ids: Sequence, chunk_size: int=512):
     n = len(ids)
     for i in range(0, n + chunk_size, chunk_size):
         yield ids[i:i + chunk_size]
+
+
+def has_column(connection: Connection, tablename: str, column: str) -> bool:
+    if connection.dialect.driver in ("sqlite", "pysqlite"):
+        for col in connection.execute(f"PRAGMA table_info('{tablename}')").fetchall():
+            if col[1] == column:
+                return True
+        return False
+    else:
+        warnings.warn("Could not determine how to check if column exists!")
+        return False
+

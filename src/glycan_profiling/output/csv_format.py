@@ -2,11 +2,14 @@ import csv
 import logging
 
 from io import TextIOWrapper
+from typing import TYPE_CHECKING, Dict, Iterable, List, TextIO
 
 from six import PY2
 
 from glycan_profiling.task import TaskBase
 
+if TYPE_CHECKING:
+    from glycan_profiling.serialize import Analysis
 
 status_logger = logging.getLogger("glycresoft.status")
 
@@ -26,6 +29,10 @@ def csv_stream(outstream):
 class CSVSerializerBase(TaskBase):
     entity_label: str = "entities"
     log_interval: int = 100
+    outstream: TextIO
+    writer: csv.writer
+    delimiter: str
+    _entities_iterable: Iterable
 
     def __init__(self, outstream, entities_iterable, delimiter=','):
         self.outstream = outstream
@@ -42,16 +49,16 @@ class CSVSerializerBase(TaskBase):
         self.writer = csv.writer(self.outstream, delimiter=delimiter)
         self._entities_iterable = entities_iterable
 
-    def status_update(self, message):
+    def status_update(self, message: str):
         status_logger.info(message)
 
-    def writerows(self, iterable):
+    def writerows(self, iterable: Iterable[Iterable[str]]):
         self.writer.writerows(iterable)
 
-    def writerow(self, row):
+    def writerow(self, row: Iterable[str]):
         self.writer.writerow(row)
 
-    def get_header(self):
+    def get_header(self) -> List[str]:
         raise NotImplementedError()
 
     def convert_object(self, obj):
@@ -358,13 +365,19 @@ class GlycopeptideSpectrumMatchAnalysisCSVSerializer(CSVSerializerBase):
     entity_label = "glycopeptide spectrum matches"
     log_interval = 10000
 
-    def __init__(self, outstream, entities_iterable, protein_name_resolver, analysis, delimiter=','):
+    include_rank: bool
+    analysis: 'Analysis'
+    protein_name_resolver: Dict[int, str]
+
+    def __init__(self, outstream, entities_iterable, protein_name_resolver, analysis, delimiter=',',
+                 include_rank: bool=True):
         super(GlycopeptideSpectrumMatchAnalysisCSVSerializer, self).__init__(outstream, entities_iterable, delimiter)
         self.protein_name_resolver = protein_name_resolver
         self.analysis = analysis
+        self.include_rank = include_rank
 
     def get_header(self):
-        return [
+        names = [
             "glycopeptide",
             "neutral_mass",
             "mass_accuracy",
@@ -380,6 +393,9 @@ class GlycopeptideSpectrumMatchAnalysisCSVSerializer(CSVSerializerBase):
             "protein_name",
             "is_best_match",
         ]
+        if self.include_rank:
+            names.append("rank")
+        return names
 
     def convert_object(self, obj):
         try:
@@ -410,6 +426,12 @@ class GlycopeptideSpectrumMatchAnalysisCSVSerializer(CSVSerializerBase):
             self.protein_name_resolver[target.protein_relation.protein_id],
             obj.is_best_match,
         ]
+        if self.include_rank:
+            try:
+                rank = obj.rank
+            except AttributeError:
+                rank = -1
+            attribs.append(rank)
         return list(map(str, attribs))
 
 

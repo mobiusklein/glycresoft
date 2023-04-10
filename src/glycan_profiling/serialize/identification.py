@@ -210,7 +210,7 @@ class IdentifiedGlycopeptide(Base, IdentifiedStructure):
         expr = select([Glycopeptide.is_multiply_glycosylated()]).where(
             Glycopeptide.id == IdentifiedGlycopeptide.structure_id).label(
             "is_multiply_glycosylated")
-        return
+        return expr
 
     @property
     def glycan_composition(self):

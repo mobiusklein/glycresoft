@@ -494,8 +494,11 @@ class SpectrumMatch(SpectrumMatchBase):
 
     """
 
-    __slots__ = ['score', '_best_match', 'data_bundle',
-                 "q_value", 'id', 'valid', 'localizations']
+    __slots__ = [
+                 'score', '_best_match', 'data_bundle',
+                 'q_value', 'id', 'valid', 'localizations',
+                 'rank',
+                ]
 
     score: float
     q_value: float
@@ -509,9 +512,8 @@ class SpectrumMatch(SpectrumMatchBase):
     data_bundle: Optional[Any]
 
     def __init__(self, scan, target, score, best_match=False, data_bundle=None,
-                 q_value=None, id=None, mass_shift=None, valid=True, localizations=None):
-        # if data_bundle is None:
-        #     data_bundle = dict()
+                 q_value=None, id=None, mass_shift=None, valid=True,
+                 localizations=None, rank=0):
         super(SpectrumMatch, self).__init__(scan, target, mass_shift)
 
         self.score = score
@@ -521,6 +523,7 @@ class SpectrumMatch(SpectrumMatchBase):
         self.id = id
         self.valid = valid
         self.localizations = localizations
+        self.rank = rank
 
     @property
     def best_match(self) -> bool:
@@ -889,7 +892,7 @@ class MultiScoreSpectrumMatch(SpectrumMatch):
 
     def __init__(self, scan, target, score_set, best_match=False, data_bundle=None,
                  q_value_set=None, id=None, mass_shift=None, valid=True, match_type=None,
-                 localizations=None):
+                 localizations=None, rank=0):
         if q_value_set is None:
             q_value_set = FDRSet.default()
         else:
@@ -897,7 +900,7 @@ class MultiScoreSpectrumMatch(SpectrumMatch):
         self._q_value_set = None
         super(MultiScoreSpectrumMatch, self).__init__(
             scan, target, score_set[0], best_match, data_bundle, q_value_set[0],
-            id, mass_shift, valid=valid, localizations=localizations)
+            id, mass_shift, valid=valid, localizations=localizations, rank=rank)
         if isinstance(score_set, ScoreSet):
             self.score_set = score_set
         else:

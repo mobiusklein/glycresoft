@@ -13,6 +13,8 @@ from sqlalchemy.orm.session import Session
 from sqlalchemy.orm import Query
 
 from .base import Base
+from .migration import Migration
+from .tandem import GlycopeptideSpectrumMatch, GlycopeptideSpectrumMatchScoreSet
 
 
 ConnectFrom = Union[str,
@@ -47,6 +49,8 @@ def configure_connection(connection: ConnectFrom, create_tables=True):
             "Could not determine how to get a database connection from %r" % connection)
     if create_tables:
         Base.metadata.create_all(bind=eng)
+        Migration(eng, GlycopeptideSpectrumMatch).run()
+        Migration(eng, GlycopeptideSpectrumMatchScoreSet).run()
     return eng
 
 

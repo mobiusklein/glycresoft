@@ -21,9 +21,9 @@ def info(type, value, tb):
         click.secho("Running interactively, not starting debugger", fg='yellow')
         sys.__excepthook__(type, value, tb)
     else:
-        import ipdb
+        import pdb
         traceback.print_exception(type, value, tb)
-        ipdb.post_mortem(tb)
+        pdb.post_mortem(tb)
 
 
 def set_breakpoint_hook():

@@ -1,13 +1,13 @@
 import warnings
 
-from typing import Any, DefaultDict, Dict, List, Optional, Tuple
+from typing import Any, DefaultDict, Dict, List, Optional, Tuple, Deque
 
 from sqlalchemy import (
     Column, Numeric, Integer, String, ForeignKey, PickleType,
     Boolean, Table, select)
 from sqlalchemy.ext.declarative import declared_attr
 from sqlalchemy.orm import (
-    relationship, backref, object_session, deferred, synonym, Load)
+    relationship, backref, object_session, deferred, Load)
 from sqlalchemy.exc import OperationalError
 
 from glycan_profiling.tandem.spectrum_match import (
@@ -31,6 +31,11 @@ def convert_scan_to_record(scan):
         scan.ms_level, scan.precursor_information.convert())
 
 
+def needs_migration(colprop, default=None):
+    colprop.info['needs_migration'] = {'default': default}
+    return colprop
+
+
 class SpectrumMatchBase(BoundToAnalysis):
 
     score = Column(Numeric(12, 6, asdecimal=False), index=True)
@@ -45,7 +50,7 @@ class SpectrumMatchBase(BoundToAnalysis):
 
     @declared_attr
     def mass_shift_id(self):
-        return deferred(Column(Integer, ForeignKey(CompoundMassShift.id), index=True))
+        return needs_migration(Column(Integer, ForeignKey(CompoundMassShift.id), index=True))
 
     @declared_attr
     def mass_shift(self):
@@ -240,6 +245,7 @@ class GlycopeptideSpectrumSolutionSet(Base, SolutionSetBase, BoundToAnalysis):
     @classmethod
     def serialize(cls, obj: MemorySpectrumSolutionSet, session, scan_look_up_cache, mass_shift_cache, analysis_id,
                   cluster_id, is_decoy=False, *args, **kwargs):
+        obj.rank()
         gpsm = obj.best_solution()
         if gpsm is None:
             gpsm = obj[0]
@@ -416,8 +422,9 @@ class GlycopeptideSpectrumMatch(Base, SpectrumMatchBase):
         GlycopeptideSpectrumSolutionSet, backref=backref("spectrum_matches", lazy='dynamic'))
 
     q_value = Column(Numeric(8, 7, asdecimal=False), index=True)
-    is_decoy = Column(Boolean, index=True)
+    is_decoy = Column(Boolean)
     is_best_match = Column(Boolean, index=True)
+    rank = needs_migration(Column(Integer, default=0), 0)
 
     structure_id = Column(
         Integer, ForeignKey(Glycopeptide.id, ondelete='CASCADE'),
@@ -451,6 +458,7 @@ class GlycopeptideSpectrumMatch(Base, SpectrumMatchBase):
             is_decoy=is_decoy,
             analysis_id=analysis_id,
             score=obj.score,
+            rank=obj.rank,
             q_value=obj.q_value,
             solution_set_id=solution_set_id,
             is_best_match=obj.best_match,
@@ -482,6 +490,7 @@ class GlycopeptideSpectrumMatch(Base, SpectrumMatchBase):
                 is_decoy=is_decoy,
                 analysis_id=analysis_id,
                 score=obj.score,
+                rank=obj.rank,
                 q_value=obj.q_value,
                 solution_set_id=solution_set_id,
                 is_best_match=obj.best_match,
@@ -535,7 +544,8 @@ class GlycopeptideSpectrumMatch(Base, SpectrumMatchBase):
         scan_series = []
         mass_shift_series = []
         structure_series = []
-        is_best_match_series = []
+        is_best_match_series = Deque()
+        rank_series = Deque()
         score_map = {}
 
         for chunk in chunkiter(ids, chunk_size):
@@ -547,6 +557,7 @@ class GlycopeptideSpectrumMatch(Base, SpectrumMatchBase):
                 mass_shift_series.append(mass_shift_cache[self.mass_shift_id])
                 structure_series.append(self.structure_id)
                 is_best_match_series.append(self.is_best_match)
+                rank_series.append(self.rank)
                 score_map[self.id] = (self.score, self.q_value)
 
         scan_objects = MSScan.bulk_load(
@@ -564,11 +575,12 @@ class GlycopeptideSpectrumMatch(Base, SpectrumMatchBase):
 
         localization_map = LocalizationScore.bulk_load(session, ids, chunk_size=chunk_size)
 
-        for id, scan, structure, mass_shift, best_match in zip(id_series,
+        for id, scan, structure, mass_shift, best_match, rank in zip(id_series,
                                                                scan_objects,
                                                                structure_objects,
                                                                mass_shift_series,
-                                                               is_best_match_series):
+                                                               is_best_match_series,
+                                                               rank_series):
             localizations = localization_map[id]
             if id in score_sets_map:
                 score_set, fdr_set = score_sets_map[id]
@@ -579,13 +591,17 @@ class GlycopeptideSpectrumMatch(Base, SpectrumMatchBase):
                     best_match=best_match,
                     q_value_set=fdr_set,
                     mass_shift=mass_shift,
-                    localizations=localizations)
+                    localizations=localizations,
+                    rank=rank)
             else:
                 score, q_value = score_map[id]
                 out[id] = MemorySpectrumMatch(
                     scan, structure, score, best_match,
-                    q_value=q_value, id=id, mass_shift=mass_shift,
-                    localizations=localizations)
+                    q_value=q_value,
+                    id=id,
+                    mass_shift=mass_shift,
+                    localizations=localizations,
+                    rank=rank)
         return out
 
     def convert(self, mass_shift_cache=None, scan_cache=None, structure_cache=None, peptide_relation_cache=None):
@@ -889,7 +905,7 @@ class GlycopeptideSpectrumMatchScoreSet(Base):
     peptide_score = Column(Numeric(12, 6, asdecimal=False), index=False)
     glycan_score = Column(Numeric(12, 6, asdecimal=False), index=False)
     glycopeptide_score = Column(Numeric(12, 6, asdecimal=False), index=False)
-    glycan_coverage = deferred(Column(Numeric(8, 7, asdecimal=False), index=False))
+    glycan_coverage = needs_migration(Column(Numeric(8, 7, asdecimal=False), index=False), 0.0)
 
     total_q_value = Column(Numeric(8, 7, asdecimal=False), index=False)
     peptide_q_value = Column(Numeric(8, 7, asdecimal=False), index=False)

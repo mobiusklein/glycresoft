@@ -820,6 +820,11 @@ class SpectrumSolutionSet(ScanWrapperBase):
         scan_id = self.scan.id
         return frozenset([(scan_id, match.target.id) for match in self])
 
+    def rank(self):
+        for i, sm in enumerate(self, 1):
+            sm.rank = i
+        return self
+
 
 def close_to_or_greater_than(value: float, reference: float, delta: float=1e-3):
     return abs(value - reference) < delta or value > reference
