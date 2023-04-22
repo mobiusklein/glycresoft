@@ -16,7 +16,7 @@ class LogIntensityScorer(SignatureAwareCoverageScorer, MassAccuracyMixin):
     def __init__(self, scan, sequence, mass_shift=None, *args, **kwargs):
         super(LogIntensityScorer, self).__init__(scan, sequence, mass_shift, *args, **kwargs)
 
-    def calculate_score(self, error_tolerance=2e-5, peptide_weight=0.65, *args, **kwargs):
+    def calculate_score(self, error_tolerance=2e-5, peptide_weight=0.65, *args, **kwargs) -> float:
         glycan_weight = 1 - peptide_weight
         combo_score = self.peptide_score(error_tolerance, *args, **kwargs) * peptide_weight +\
                       self.glycan_score(error_tolerance, *args, **kwargs) * glycan_weight
@@ -25,7 +25,7 @@ class LogIntensityScorer(SignatureAwareCoverageScorer, MassAccuracyMixin):
         self._score = combo_score + mass_accuracy + signature_component
         return self._score
 
-    def calculate_peptide_score(self, error_tolerance=2e-5, peptide_coverage_weight=1.0, *args, **kwargs):
+    def calculate_peptide_score(self, error_tolerance=2e-5, peptide_coverage_weight=1.0, *args, **kwargs) -> float:
         total = 0
         series_set = {IonSeries.b, IonSeries.y, IonSeries.c, IonSeries.z}
         seen = set()
@@ -42,7 +42,7 @@ class LogIntensityScorer(SignatureAwareCoverageScorer, MassAccuracyMixin):
         return score
 
     def calculate_glycan_score(self, error_tolerance=2e-5, glycan_core_weight=0.4, glycan_coverage_weight=0.5,
-                               fragile_fucose=False, extended_glycan_search=False, *args, **kwargs):
+                               fragile_fucose=False, extended_glycan_search=False, *args, **kwargs) -> float:
         seen = set()
         series = IonSeries.stub_glycopeptide
         if not extended_glycan_search:
@@ -89,12 +89,13 @@ class LogIntensityScorer(SignatureAwareCoverageScorer, MassAccuracyMixin):
             return 0
         return score
 
-    def peptide_score(self, error_tolerance=2e-5, peptide_coverage_weight=1.0, *args, **kwargs):
+    def peptide_score(self, error_tolerance=2e-5, peptide_coverage_weight=1.0, *args, **kwargs) -> float:
         if self._peptide_score is None:
             self._peptide_score = self.calculate_peptide_score(error_tolerance, peptide_coverage_weight, *args, **kwargs)
         return self._peptide_score
 
-    def glycan_score(self, error_tolerance=2e-5, glycan_core_weight=0.4, glycan_coverage_weight=0.5, *args, **kwargs):
+    def glycan_score(self, error_tolerance=2e-5, glycan_core_weight=0.4, glycan_coverage_weight=0.5,
+                     *args, **kwargs) -> float:
         if self._glycan_score is None:
             self._glycan_score = self.calculate_glycan_score(
                 error_tolerance, glycan_core_weight, glycan_coverage_weight, *args, **kwargs)
