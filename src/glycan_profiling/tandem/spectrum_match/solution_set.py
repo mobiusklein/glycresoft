@@ -3,7 +3,7 @@
 Also includes methods for selecting which are worth keeping for downstream consideration.
 """
 import logging
-from typing import Iterable, Iterator, List, Dict, Any, Optional, Union
+from typing import Iterable, Iterator, List, Dict, Any, Optional, Type, Union, Sequence, TypeVar
 
 from ms_deisotope.data_source import ProcessedScan
 
@@ -15,6 +15,8 @@ from .spectrum_match import SpectrumMatch, SpectrumReference, ScanWrapperBase, M
 
 logger = logging.getLogger(__name__)
 
+MatchType = TypeVar('MatchType', bound=SpectrumMatch)
+
 
 class SpectrumMatchRetentionStrategyBase(object):
     """A method for filtering :class:`SpectrumMatch` objects out of a list according to a specific criterion.
@@ -24,11 +26,12 @@ class SpectrumMatchRetentionStrategyBase(object):
     threshold: object
         Some abstract threshold
     """
+    threshold: float
 
     def __init__(self, threshold):
         self.threshold = threshold
 
-    def filter_matches(self, solution_set):
+    def filter_matches(self, solution_set: 'SpectrumSolutionSet'):
         """Filter :class:`SpectrumMatch` objects from a list.
 
         Parameters
@@ -42,7 +45,7 @@ class SpectrumMatchRetentionStrategyBase(object):
         """
         raise NotImplementedError()
 
-    def __call__(self, solution_set):
+    def __call__(self, solution_set: 'SpectrumSolutionSet'):
         return self.filter_matches(solution_set)
 
     def __repr__(self):
@@ -397,7 +400,7 @@ multi_score_sorter = MultiScoreSpectrumMatchSortingStrategy()
 
 
 
-class SpectrumSolutionSet(ScanWrapperBase):
+class SpectrumSolutionSet(ScanWrapperBase, Sequence[MatchType]):
     """A collection of spectrum matches against a single scan with different structures.
 
     Implements the :class:`Sequence` interface.
@@ -412,13 +415,13 @@ class SpectrumSolutionSet(ScanWrapperBase):
         The best match's score
     """
 
-    spectrum_match_type = SpectrumMatch
-    default_selection_method = default_selection_method
+    spectrum_match_type: Type[MatchType] = SpectrumMatch
+    default_selection_method: SpectrumMatchRetentionMethod = default_selection_method
 
     scan: Union[ProcessedScan, SpectrumReference]
-    solutions: List[SpectrumMatch]
+    solutions: List[MatchType]
 
-    _target_map: Dict[Any, SpectrumMatch]
+    _target_map: Dict[Any, MatchType]
     _is_top_only: bool
     _is_sorted: bool
     _is_simplified: bool
@@ -496,7 +499,7 @@ class SpectrumSolutionSet(ScanWrapperBase):
             self._make_target_map()
         return target in self._target_map
 
-    def solution_for(self, target) -> SpectrumMatch:
+    def solution_for(self, target) -> MatchType:
         """Find the spectrum match from this set which corresponds to the provided `target` structure.
 
         Parameters
@@ -521,7 +524,7 @@ class SpectrumSolutionSet(ScanWrapperBase):
         """
         return self.best_solution().precursor_mass_accuracy()
 
-    def best_solution(self, reject_shifted=False, targets_ignored=None, require_valid=True) -> SpectrumMatch:
+    def best_solution(self, reject_shifted=False, targets_ignored=None, require_valid=True) -> MatchType:
         """The element in :attr:`solutions` which is the best match to :attr:`scan`, the match at position 0.
 
         If the collection is not sorted, :meth:`sort` will be called.
@@ -585,7 +588,7 @@ class SpectrumSolutionSet(ScanWrapperBase):
     def __getitem__(self, i):
         return self.solutions[i]
 
-    def __iter__(self) -> Iterator[SpectrumMatch]:
+    def __iter__(self) -> Iterator[MatchType]:
         return iter(self.solutions)
 
     def __len__(self):
@@ -617,7 +620,7 @@ class SpectrumSolutionSet(ScanWrapperBase):
         self._invalidate(False)
 
     def get_top_solutions(self, d=3, reject_shifted=False, targets_ignored=None,
-                          require_valid=True) -> List[SpectrumMatch]:
+                          require_valid=True) -> List[MatchType]:
         """Get all matches within `d` of the best solution.
 
         Parameters
@@ -767,7 +770,7 @@ class SpectrumSolutionSet(ScanWrapperBase):
             self.select_top()
         return self
 
-    def append(self, match: SpectrumMatch) -> 'SpectrumSolutionSet':
+    def append(self, match: MatchType) -> 'SpectrumSolutionSet':
         self._invalidate(True)
         self.solutions.append(match)
         self.sort()
@@ -776,18 +779,18 @@ class SpectrumSolutionSet(ScanWrapperBase):
             self.select_top()
         return self
 
-    def insert(self, position: int, match: SpectrumMatch, is_sorted=True):
+    def insert(self, position: int, match: MatchType, is_sorted=True):
         was_sorted = self._is_sorted
         self._invalidate(True)
         if is_sorted:
             self._is_sorted = was_sorted
         self.solutions.insert(position, match)
 
-    def remove(self, match: SpectrumMatch):
+    def remove(self, match: MatchType):
         self.solutions.remove(match)
 
-    def promote_to_best_match(self, match: SpectrumMatch, reject_shifted: bool=False,
-                              targets_ignored: Optional[List[Any]]=None):
+    def promote_to_best_match(self, match: MatchType, reject_shifted: bool=False,
+                              targets_ignored: Optional[List[Any]] = None) -> 'SpectrumSolutionSet':
         try:
             self.remove(match)
         except ValueError:
@@ -820,9 +823,31 @@ class SpectrumSolutionSet(ScanWrapperBase):
         scan_id = self.scan.id
         return frozenset([(scan_id, match.target.id) for match in self])
 
-    def rank(self):
-        for i, sm in enumerate(self, 1):
-            sm.rank = i
+    def rank(self) -> 'SpectrumSolutionSet':
+        """
+        Rank the spectrum matches in this solution set by their ordering and scores.
+
+        The best match receiving the lowest rank and successive matches receiving
+        higher ranks, the best rank being 1. Spectrum matches with scores that are
+        very close together will receive the same rank.
+
+        The score ranking process is only approximate because in some scenarios the
+        match ordering is overridden by external factors e.g. retention time, signature
+        ions, or adducts.
+
+        Returns
+        -------
+        SpectrumSolutionSet
+        """
+        if not self:
+            return self
+        current_rank = 0
+        current_score = float('inf')
+        for sm in self:
+            if abs(sm.score - current_score) >= 1e-3:
+                current_rank += 1
+                current_score = sm.score
+            sm.rank = current_rank
         return self
 
 
@@ -830,7 +855,7 @@ def close_to_or_greater_than(value: float, reference: float, delta: float=1e-3):
     return abs(value - reference) < delta or value > reference
 
 
-class MultiScoreSpectrumSolutionSet(SpectrumSolutionSet):
+class MultiScoreSpectrumSolutionSet(SpectrumSolutionSet[MultiScoreSpectrumMatch]):
     spectrum_match_type = MultiScoreSpectrumMatch
     default_selection_method = default_multiscore_selection_method
 
