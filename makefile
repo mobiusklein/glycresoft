@@ -29,7 +29,7 @@ pack-pyinstaller:
 
 install-dependencies:
 	pip install --upgrade pip setuptools wheel
-	pip install Cython --install-option="--no-cython-compile"
+	pip install Cython
 	pip install lxml pyteomics brain-isotopic-distribution
 	pip install --only-binary=numpy numpy
 	pip install --only-binary=scipy "scipy"
