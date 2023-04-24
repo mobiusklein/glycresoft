@@ -4,7 +4,6 @@ import os
 import shutil
 
 repos = [
-    "https://github.com/mobiusklein/pysqlite",
     "https://github.com/mobiusklein/glypy",
     "https://github.com/mobiusklein/glycopeptidepy",
     "https://github.com/mobiusklein/ms_deisotope",
