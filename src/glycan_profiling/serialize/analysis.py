@@ -71,7 +71,6 @@ class Analysis(Base, HasUniqueName, HasFiles, HasParameters, _AnalysisParameters
     sample_run_id: int = Column(Integer, ForeignKey(SampleRun.id, ondelete="CASCADE"), index=True)
     sample_run: SampleRun = relationship(SampleRun)
     analysis_type: str = Column(String(128))
-    # parameters = deferred(Column(MutableDict.as_mutable(DillType), default=LazyMutableMappingWrapper))
     status: str = Column(String(28))
 
     def __init__(self, **kwargs):

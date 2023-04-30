@@ -2,19 +2,23 @@ try:
     from collections.abc import MutableMapping
 except ImportError:
     from collections import MutableMapping
-from collections import namedtuple
 
 from functools import partial
+from typing import Any, Callable, Union
 import six
 from sqlalchemy import PickleType, Column
 from sqlalchemy.orm import deferred
 from sqlalchemy.ext.declarative import declared_attr
-from sqlalchemy.ext.mutable import MutableDict, Mutable
+from sqlalchemy.ext.mutable import Mutable
 
 import dill
 
 
-class LazyMutableMappingWrapper(Mutable, MutableMapping):
+class LazyMutableMappingWrapper(Mutable, MutableMapping[str, Any]):
+    _payload: bytes
+    _unpickler: Callable[[bytes], MutableMapping[str, Any]]
+    _object: MutableMapping[str, Any]
+
     def __init__(self, payload=None, unpickler=None, _object=None):
         if payload is None and _object is None:
             _object = PartiallySerializedMutableMapping()
@@ -55,10 +59,6 @@ class LazyMutableMappingWrapper(Mutable, MutableMapping):
         self._load()[key] = value
         self.changed()
 
-    def __delitem__(self, key):
-        del (self._load())[key]
-        self.changed()
-
     def setdefault(self, key, value):
         result = self._load().setdefault(key, value)
         self.changed()
@@ -93,7 +93,7 @@ class LazyMutableMappingWrapper(Mutable, MutableMapping):
     def __setstate__(self, state):
         try:
             (payload, unpickler, _object) = state
-        except:
+        except Exception:
             payload = None
             unpickler = None
             _object = state
@@ -126,6 +126,8 @@ class LazyMutableMappingWrapper(Mutable, MutableMapping):
 class MappingCell(object):
     __slots__ = ("value", "serialized")
 
+    value: Union[bytes, Any]
+    serialized: bool
     _dynamic_loading_threshold = 5e3
 
     def __init__(self, value, serialized=False):
@@ -167,7 +169,7 @@ class MappingCell(object):
             return self.copy().serialize().__reduce__()
 
 
-class PartiallySerializedMutableMapping(MutableMapping):
+class PartiallySerializedMutableMapping(MutableMapping[str, MappingCell]):
     def __init__(self, arg=None, **kwargs):
         self.store = {}
         self.update(arg, **kwargs)
@@ -196,6 +198,9 @@ class PartiallySerializedMutableMapping(MutableMapping):
             rep[key] = value._view_value()
         return repr(rep)
 
+    def _ipython_key_completions_(self):
+        return list(self.keys())
+
     def update(self, arg=None, **kwargs):
         if arg:
             if isinstance(arg, PartiallySerializedMutableMapping):
@@ -211,24 +216,6 @@ class PartiallySerializedMutableMapping(MutableMapping):
                 self.store[key] = value
             else:
                 self.store[key] = MappingCell(value)
-
-
-
-class AutoLoadPickle(object):
-    def __init__(self, payload):
-        self.payload = payload
-
-    def __call__(self):
-        return self.load()
-
-    def load(self):
-        try:
-            return dill.loads(self.payload)
-        except UnicodeDecodeError:
-            if six.PY3:
-                return dill.loads(self.payload, encoding='latin1')
-            else:
-                raise
 
 
 class _crossversion_dill(object):
