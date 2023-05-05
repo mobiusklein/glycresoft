@@ -1,4 +1,3 @@
-from email.policy import default
 import os
 from uuid import uuid4
 
@@ -7,7 +6,6 @@ import dill as pickle
 import click
 from glycan_profiling import serialize
 from glycan_profiling.cli.export import analysis_identifier_arg
-from glycan_profiling.cli.tools import analysis_identifier
 
 from glycan_profiling.serialize import (
     DatabaseBoundOperation,

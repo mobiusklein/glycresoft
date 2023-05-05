@@ -1,10 +1,6 @@
-try:
-    from collections.abc import MutableMapping
-except ImportError:
-    from collections import MutableMapping
 
 from functools import partial
-from typing import Any, Callable, Union
+from typing import Any, Callable, Union, MutableMapping
 import six
 from sqlalchemy import PickleType, Column
 from sqlalchemy.orm import deferred
