@@ -36,7 +36,6 @@ def set_breakpoint_hook():
 
 def main():
     freeze_support()
-    set_breakpoint_hook()
     if os.getenv("GLYCRESOFTDEBUG"):
         sys.excepthook = info
         click.secho("Running glycresoft with debugger", fg='yellow')
