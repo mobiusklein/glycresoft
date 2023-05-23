@@ -7,8 +7,8 @@ from typing import List, Optional, Tuple, Type, Union, Dict, Set
 from multiprocessing import Event, Manager
 from glycan_profiling.chromatogram_tree.mass_shift import MassShiftBase
 
-from ms_deisotope.data_source import ProcessedScan
-from ms_deisotope.output import ProcessedMzMLLoader
+from ms_deisotope.data_source import ProcessedScan, ProcessedRandomAccessScanSource
+# from ms_deisotope.output import ProcessedMSFileLoader
 
 from glycan_profiling.structure.scan import ScanStub
 from glycan_profiling.tandem.glycopeptide.scoring.base import GlycopeptideSpectrumMatcherBase
@@ -35,7 +35,34 @@ def IsTask(cls):
     return cls
 
 
-def workload_grouping(chunks: List[ProcessedScan], max_scans_per_workload: int=500, starting_index: int=0) -> Tuple[List[List[ProcessedScan]], int]:
+def workload_grouping(
+        chunks: List[List[ProcessedScan]],
+        max_scans_per_workload: int=500,
+        starting_index: int=0) -> Tuple[List[List[ProcessedScan]], int]:
+    """
+    Gather together precursor mass batches of tandem mass spectra into a unit
+    batch, starting from index ``starting_index``.
+
+    Parameters
+    ----------
+    chunks : List[List[:class:`~.ProcessedScan`]]
+        The precursor mass batched spectra
+    max_scans_per_workload : int
+        The total number of scans to include in a unit batch. This is a soft
+        upper bound, a unit batch may have more than this if the next precursor
+        mass batch is too large, but no additional batches will be added after
+        that.
+    starting_index : int
+        The offset into ``chunks`` to start collecting batches from
+
+    Returns
+    -------
+    unit_batch : List[List[:class:`~.ProcessedScan`]]
+        The batch of precursor mass batches
+    ending_index : int
+        The offset into ``chunks`` that the next round should
+        start from.
+    """
     workload = []
     total_scans_in_workload = 0
     i = starting_index
@@ -53,10 +80,11 @@ memory_debug = bool(os.environ.get("GLYCRESOFTDEBUGMEMORY"))
 
 
 class SpectrumBatcher(TaskExecutionSequence):
-    '''Break a big list of scans into precursor mass batched blocks of
+    """
+    Break a big list of scans into precursor mass batched blocks of
     spectrum groups with an approximate maximum size. Feeds raw workloads
     into the pipeline.
-    '''
+    """
     groups: List
     out_queue: Queue
     max_scans_per_workload: int
@@ -91,13 +119,14 @@ class SpectrumBatcher(TaskExecutionSequence):
 
 
 class BatchMapper(TaskExecutionSequence):
-    '''Wrap scan groups from :class:`SpectrumBatcher` in :class:`StructureMapper` tasks
+    """
+    Wrap scan groups from :class:`SpectrumBatcher` in :class:`StructureMapper` tasks
     and ships them to an appropriate work queue (usually another process).
 
     .. note::
         The StructureMapper could be applied with or without a database bound to it,
         and for an IPC consumer the database should not be bound, only labeled.
-    '''
+    """
 
     search_groups: List[List[ProcessedScan]]
     precursor_error_tolerance: float
@@ -158,7 +187,8 @@ class BatchMapper(TaskExecutionSequence):
 
 @IsTask
 class StructureMapper(TaskExecutionSequence):
-    """Map spectra against the database using a precursor filtering search strategy,
+    """
+    Map spectra against the database using a precursor filtering search strategy,
     generating a task graph of spectrum-structure-mass_shift relationships, a
     :class:`~.WorkloadManager` instance.
     """
@@ -183,7 +213,7 @@ class StructureMapper(TaskExecutionSequence):
         self.mass_shifts = mass_shifts
         self.precursor_error_tolerance = precursor_error_tolerance
 
-    def bind_scans(self, source):
+    def bind_scans(self, source: ProcessedRandomAccessScanSource):
         for group in self.chunk:
             for scan in group:
                 scan.bind(source)
@@ -207,7 +237,7 @@ class StructureMapper(TaskExecutionSequence):
             if total > 5000:
                 self.log("... Cache Performance: %d / %d (%0.2f%%)" % (hits, total, hits / float(total) * 100.0))
 
-    def _prepare_scan(self, scan: Union[ScanStub, ProcessedScan]):
+    def _prepare_scan(self, scan: Union[ScanStub, ProcessedScan]) -> ProcessedScan:
         try:
             return scan.convert()
         except AttributeError:
@@ -284,7 +314,7 @@ class MapperExecutor(TaskExecutionSequence):
 
     """
 
-    scan_loader: ProcessedMzMLLoader
+    scan_loader: ProcessedRandomAccessScanSource
     predictive_searchers: Dict[str, PredictiveGlycopeptideSearch]
 
     in_queue: Queue
@@ -422,7 +452,8 @@ class SpectrumMatcher(TaskExecutionSequence):
             if self.batch_label:
                 label = self.batch_label.title() + ' '
             self.log(
-                f"... {label}{max((self.group_i - 1), 0) * 100.0 / self.group_n:0.2f}% ({lo:0.2f}-{hi:0.2f}) {self.workload}")
+                f"... {label}{max((self.group_i - 1), 0) * 100.0 / self.group_n:0.2f}% "
+                f"({lo:0.2f}-{hi:0.2f}) {self.workload}")
 
 
         n_batches = len(batches)
@@ -456,7 +487,8 @@ class SpectrumMatcher(TaskExecutionSequence):
             label = ''
             if self.batch_label:
                 label = self.batch_label.title() + ' '
-            self.log(f"... Finished {label}{max(self.group_i - 1, 0) * 100.0 / self.group_n:0.2f}% ({lo:0.2f}-{hi:0.2f})")
+            self.log(f"... Finished {label}{max(self.group_i - 1, 0) * 100.0 / self.group_n:0.2f}%"
+                     f" ({lo:0.2f}-{hi:0.2f})")
         return target_solutions
 
     def run(self):
