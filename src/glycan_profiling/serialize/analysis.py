@@ -118,7 +118,7 @@ class Analysis(Base, HasUniqueName, HasFiles, HasParameters, _AnalysisParameters
         hypothesis_id = self.hypothesis_id
         if hypothesis_id is None:
             raise ValueError(
-                "Analysis is does not have a Hypothesis (analysis id: %r, name: %r)" % (
+                "Analysis does not have a Hypothesis (analysis id: %r, name: %r)" % (
                     self.id, self.name))
         session = object_session(self)
         if self.analysis_type == AnalysisTypeEnum.glycopeptide_lc_msms:
