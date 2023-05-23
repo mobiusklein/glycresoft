@@ -13,7 +13,7 @@ from queue import Queue
 
 
 from ms_deisotope.output.common import LCMSMSQueryInterfaceMixin
-from ms_deisotope.data_source import RandomAccessScanSource
+from ms_deisotope.data_source import ProcessedRandomAccessScanSource
 
 from glycan_profiling import serialize
 from glycan_profiling.serialize.hypothesis.hypothesis import GlycopeptideHypothesis
@@ -25,7 +25,7 @@ from glycan_profiling.tandem.spectrum_match.spectrum_match import MultiScoreSpec
 from glycan_profiling.task import (
     TaskBase, Pipeline,
     TaskExecutionSequence, MultiLock,
-    LoggingMixin, make_shared_memory_manager,
+    make_shared_memory_manager,
     IPCLoggingManager, LoggingHandlerToken)
 
 from glycan_profiling.chromatogram_tree import Unmodified, MassShift
@@ -83,7 +83,8 @@ def make_memory_database_proxy_resolver(path, n_glycan=None, o_glycan=None, hypo
             n_glycan = config['n_glycan']
     loader = PeptideDatabaseProxyLoader(path, n_glycan, o_glycan, hypothesis_id)
     # Make it possible to load the session here without loading the peptides
-    proxy = mass_collection.MassCollectionProxy(loader, loader.session_resolver, hypothesis_id, loader.hypothesis_resolver)
+    proxy = mass_collection.MassCollectionProxy(
+        loader, loader.session_resolver, hypothesis_id, loader.hypothesis_resolver)
     return proxy
 
 
@@ -213,9 +214,11 @@ def _determine_database_contents(path, hypothesis_id=1):
 
 def make_peptide_glycosylator(path, hypothesis_id: int = 1, target_peptide: bool=True) -> PeptideGlycosylator:
     peptide_db = make_memory_database_proxy_resolver(path, hypothesis_id=hypothesis_id)
-    gp_hypothesis: GlycopeptideHypothesis = peptide_db.session.query(GlycopeptideHypothesis).get(hypothesis_id)
+    gp_hypothesis: GlycopeptideHypothesis = peptide_db.session.query(
+        GlycopeptideHypothesis).get(hypothesis_id)
 
-    glycan_recs = GlycanCombinationRecord.from_hypothesis(peptide_db.session, gp_hypothesis.glycan_hypothesis_id)
+    glycan_recs = GlycanCombinationRecord.from_hypothesis(
+        peptide_db.session, gp_hypothesis.glycan_hypothesis_id)
 
     generator = PeptideGlycosylator(
         peptide_db,
@@ -280,7 +283,8 @@ class MultipartGlycopeptideIdentifier(SearchEngineBase):
     cache_seeds: Any
 
     tandem_scans: List[ScanStub]
-    scan_loader: Union[RandomAccessScanSource, LCMSMSQueryInterfaceMixin]
+    scan_loader: Union[ProcessedRandomAccessScanSource,
+                       LCMSMSQueryInterfaceMixin]
 
     n_processes: int
 
@@ -530,9 +534,10 @@ class MultipartGlycopeptideIdentifier(SearchEngineBase):
             total += branch.results_processed.value
         return total
 
-    def _load_identifications_from_journal(self, journal_path: os.PathLike,
-                                           total_solutions_count: int,
-                                           accumulator: Optional[List[MultiScoreSpectrumMatch]]=None) -> List[MultiScoreSpectrumMatch]:
+    def _load_identifications_from_journal(
+            self, journal_path: os.PathLike,
+            total_solutions_count: int,
+            accumulator: Optional[List[MultiScoreSpectrumMatch]]=None) -> List[MultiScoreSpectrumMatch]:
         if accumulator is None:
             accumulator = []
 
@@ -617,13 +622,14 @@ class MultipartGlycopeptideIdentifier(SearchEngineBase):
         cache.clear()
         return groups, estimator
 
-    def map_to_chromatograms(self,
-                             chromatograms: List[Chromatogram],
-                             tandem_identifications: List[MultiScoreSpectrumSolutionSet],
-                             precursor_error_tolerance: float=1e-5,
-                             threshold_fn: Callable[[SpectrumMatch], bool]=lambda x: x.q_value < 0.05,
-                             entity_chromatogram_type: Type[GlycopeptideChromatogram]=GlycopeptideChromatogram) -> Tuple[List[TandemAnnotatedChromatogram],
-                                                                                                                         List[TandemSolutionsWithoutChromatogram]]:
+    def map_to_chromatograms(
+            self,
+            chromatograms: List[Chromatogram],
+            tandem_identifications: List[MultiScoreSpectrumSolutionSet],
+            precursor_error_tolerance: float=1e-5,
+            threshold_fn: Callable[[SpectrumMatch], bool]=lambda x: x.q_value < 0.05,
+            entity_chromatogram_type: Type[GlycopeptideChromatogram]=GlycopeptideChromatogram
+            ) -> Tuple[List[TandemAnnotatedChromatogram], List[TandemSolutionsWithoutChromatogram]]:
         self.log("Mapping MS/MS Identifications onto Chromatograms")
         self.log("%d Chromatograms" % len(chromatograms))
         mapper = ChromatogramMSMSMapper(
@@ -638,24 +644,6 @@ class MultipartGlycopeptideIdentifier(SearchEngineBase):
         return mapper.chromatograms, mapper.orphans
 
 
-class SectionAnnouncer(LoggingMixin):
-    def __init__(self, message):
-        self.message = message
-
-    def acquire(self):
-        self.log(self.message)
-        return True
-
-    def release(self):
-        pass
-
-    def __enter__(self):
-        return self.acquire()
-
-    def __exit__(self, *args):
-        self.release()
-
-
 class IdentificationWorker(TaskExecutionSequence):
     name: str
     ipc_manager_address: Union[str, Tuple[str, int]]
@@ -666,7 +654,8 @@ class IdentificationWorker(TaskExecutionSequence):
     done_event: multiprocessing.Event
 
     journal_path: os.PathLike
-    scan_loader: Union[RandomAccessScanSource, LCMSMSQueryInterfaceMixin]
+    scan_loader: Union[ProcessedRandomAccessScanSource,
+                       LCMSMSQueryInterfaceMixin]
 
     target_predictive_search: PredictiveGlycopeptideSearch
     decoy_predictive_search: PredictiveGlycopeptideSearch
@@ -730,7 +719,8 @@ class IdentificationWorker(TaskExecutionSequence):
         if isinstance(self.scorer_type, (str, bytes)):
             self.scorer_type = pickle.loads(zlib.decompress(self.scorer_type))
         if isinstance(self.target_predictive_search, (str, bytes)):
-            self.target_predictive_search, self.decoy_predictive_search = pickle.loads(zlib.decompress(self.target_predictive_search))
+            self.target_predictive_search, self.decoy_predictive_search = pickle.loads(
+                zlib.decompress(self.target_predictive_search))
 
         oxonium_ion_index = OxoniumIndex()
         oxonium_ion_index.build_index(
@@ -751,7 +741,6 @@ class IdentificationWorker(TaskExecutionSequence):
         mapping_executor = SemaphoreBoundMapperExecutor(
             MultiLock([
                 lock,
-                # SectionAnnouncer("%r Matching Precursors" % (self, ))
             ]),
             OrderedDict([
                 ('target', self.target_predictive_search),
@@ -765,7 +754,6 @@ class IdentificationWorker(TaskExecutionSequence):
         matching_executor = SemaphoreBoundMatcherExecutor(
             MultiLock([
                 lock,
-                # SectionAnnouncer("%r Matching Spectra" % (self, ))
             ]),
             mapping_executor.out_queue,
             Queue(5),
