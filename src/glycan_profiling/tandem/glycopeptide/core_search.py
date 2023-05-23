@@ -1170,7 +1170,39 @@ class _adapt(object):
         pass
 
 
-class IndexedGlycanFilteringPeptideMassEstimator(GlycanFilteringPeptideMassEstimatorBase[PartialGlycanSolution], _adapt):
+class IndexedGlycanFilteringPeptideMassEstimator(GlycanFilteringPeptideMassEstimatorBase[PartialGlycanSolution],
+                                                 _adapt):
+    """
+    An inverted complement search index for quickly searching for estimating peptide backbone masses
+    and glycans to go with them.
+
+    Examples
+    --------
+
+    .. code-block:: python
+
+        from glycan_profiling.tandem.glycopeptide.core_search import (
+            GlycanCombinationRecord, IndexedGlycanFilteringPeptideMassEstimator)
+        from glycan_profiling import serialize
+
+        def make_glycan_index(db_path, glycan_hypothesis_id, product_error_tolerance: float=2e-5):
+            # Or any object that has a `session` attribute could be used instead of making one here
+            db_conn = serialize.DatabaseBoundOperation(db_path)
+            # This is the set of *all* glycan combinations for that hypothesis.
+            glycan_combinations = GlycanCombinationRecord.from_hypothesis(db_conn, glycan_hypothesis_id)
+            search_index = IndexedGlycanFilteringPeptideMassEstimator(
+                glycan_combinations, product_error_tolerance=product_error_tolerance)
+            return search_index
+
+        db_path = ... # magically get a database path
+        scan = ... # magically get a `ProcessedScan` to demonstrate on
+
+        search_index = make_glycan_index(db_path, 1)
+        peptide_backbone_mass_candidates = search_index.match(scan)
+        for rec in peptide_backbone_mass_candidates:
+            candidate_glycans = search_index.glycan_for_peptide_mass(scan, rec.peptide_mass)
+            print(rec, candidate_glycans)
+    """
     product_error_tolerance: float
     fragment_weight: float
     core_weight: float
