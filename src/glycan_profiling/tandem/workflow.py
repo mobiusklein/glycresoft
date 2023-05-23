@@ -1,12 +1,15 @@
-from typing import Optional, Sequence, Iterable
+from typing import Optional, Sequence, Iterable, TypeVar
 
 from glycan_profiling.task import TaskBase
 
-from .spectrum_match import SpectrumSolutionSet
+from .spectrum_match.solution_set import SpectrumSolutionSet
 from .target_decoy import TargetDecoySet
 
 
-def chunkiter(collection: Sequence, size: int=200) -> Iterable[Sequence]:
+T = TypeVar('T')
+
+
+def chunkiter(collection: Sequence[T], size: int=200) -> Iterable[Sequence[T]]:
     i = 0
     while collection[i:(i + size)]:
         yield collection[i:(i + size)]
