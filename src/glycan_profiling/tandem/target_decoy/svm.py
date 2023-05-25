@@ -174,6 +174,14 @@ class SVMModelBase(FDREstimatorBase):
         self.dataset = tda
         psms, labels, is_target = self._get_psms_labels(tda, self.train_fdr)
 
+        k = is_target.sum()
+        has_no_decoys = k == len(is_target)
+        has_no_targets = k == 0
+        if has_no_decoys or has_no_targets:
+            self.worse_than_score = True
+            self.proxy_dataset = self.dataset
+            return
+
         features = self.extract_features(psms)
         normalized_features = self.scaler.fit_transform(features)
         starting_labels = labels
@@ -205,7 +213,11 @@ class SVMModelBase(FDREstimatorBase):
 
     @property
     def weights(self):
-        return self.model.coef_
+        try:
+            return self.model.coef_
+        except AttributeError:
+            self.log("Model coefficients not yet fit")
+            return [[]]
 
     def plot(self, ax=None):
         if self.worse_than_score:

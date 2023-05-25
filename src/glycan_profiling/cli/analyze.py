@@ -146,7 +146,11 @@ def sample_path_arg(fn):
               cls=HiddenOption)
 @click.option("--isotope-probing-range", type=int, default=3, help=(
     "The maximum number of isotopic peak errors to allow when searching for untrusted precursor masses"))
-@click.option("-R", "--rare-signatures", is_flag=True, default=False, help="Look for rare signature ions when scoring glycan oxonium signature")
+@click.option("-R", "--rare-signatures", is_flag=True, default=False,
+              help="Look for rare signature ions when scoring glycan oxonium signature")
+@click.option("--retention-time-modeling/--no-retention-time-modeling", is_flag=True, default=True,
+              help=("Whether or not to model relative retention time to correct for common glycan"
+                    " composition errors."))
 def search_glycopeptide(context, database_connection, sample_path, hypothesis_identifier,
                         analysis_name, output_path=None, grouping_error_tolerance=1.5e-5, mass_error_tolerance=1e-5,
                         msn_mass_error_tolerance=2e-5, psm_fdr_threshold=0.05, peak_shape_scoring_model=None,
@@ -154,7 +158,10 @@ def search_glycopeptide(context, database_connection, sample_path, hypothesis_id
                         processes=4, workload_size=500, mass_shifts=None, export=None,
                         use_peptide_mass_filter=False, maximum_mass=float('inf'),
                         decoy_database_connection=None, fdr_correction='auto',
-                        isotope_probing_range=3, permute_decoy_glycan_fragments=False, rare_signatures=False):
+                        isotope_probing_range=3,
+                        permute_decoy_glycan_fragments=False,
+                        rare_signatures=False,
+                        retention_time_modeling=True):
     """Identify glycopeptide sequences from processed LC-MS/MS data. This algorithm requires a fully materialized
     cross-product database (the default), and uses a reverse-peptide decoy by default, evaluated on the total score.
 
@@ -219,7 +226,9 @@ def search_glycopeptide(context, database_connection, sample_path, hypothesis_id
             probing_range_for_missing_precursors=isotope_probing_range,
             permute_decoy_glycans=permute_decoy_glycan_fragments,
             rare_signatures=rare_signatures,
-            evaluation_kwargs=evaluation_kwargs)
+            model_retention_time=retention_time_modeling,
+            evaluation_kwargs=evaluation_kwargs
+        )
     else:
         analyzer = MzMLComparisonGlycopeptideLCMSMSAnalyzer(
             database_connection._original_connection,
@@ -244,7 +253,9 @@ def search_glycopeptide(context, database_connection, sample_path, hypothesis_id
             probing_range_for_missing_precursors=isotope_probing_range,
             permute_decoy_glycans=permute_decoy_glycan_fragments,
             rare_signatures=rare_signatures,
-            evaluation_kwargs=evaluation_kwargs)
+            model_retention_time=retention_time_modeling,
+            evaluation_kwargs=evaluation_kwargs
+        )
     analyzer.display_header()
     result = analyzer.start()
     gps, unassigned, target_decoy_set = result[:3]

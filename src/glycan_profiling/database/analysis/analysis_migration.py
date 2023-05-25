@@ -1,7 +1,9 @@
-from typing import DefaultDict, List, Sequence, Set, Tuple
-import warnings
+
 from collections import defaultdict
+from typing import DefaultDict, List, Optional, Sequence, Set, Tuple
+
 from glycan_profiling.structure.scan import ScanInformation
+from glycan_profiling.trace.extract import ChromatogramExtractor
 
 from glypy.composition import formula
 
@@ -26,7 +28,8 @@ from glycan_profiling.serialize import (
     AnalysisTypeEnum,
     ChromatogramSolutionMassShiftedToChromatogramSolution)
 
-from glycan_profiling.tandem.glycopeptide.identified_structure import IdentifiedGlycopeptide as MemoryIdentifiedGlycopeptide
+from glycan_profiling.tandem.glycopeptide.identified_structure import (
+    IdentifiedGlycopeptide as MemoryIdentifiedGlycopeptide)
 from glycan_profiling.scoring.chromatogram_solution import ChromatogramSolution
 
 from glycan_profiling.serialize.utils import toggle_indices
@@ -41,6 +44,7 @@ from glycan_profiling.serialize.spectrum import (
     PrecursorInformation)
 
 from ms_deisotope.data_source import ChargeNotProvided
+from ms_deisotope.output.common import SampleRun as MemorySampleRun
 
 def slurp(session, model, ids):
     ids = sorted(ids)
@@ -55,7 +59,8 @@ def slurp(session, model, ids):
     return results
 
 
-def fetch_scans_used_in_chromatogram(chromatogram_set: List[Chromatogram], extractor) -> List[ScanInformation]:
+def fetch_scans_used_in_chromatogram(chromatogram_set: List[Chromatogram],
+                                     extractor: ChromatogramExtractor) -> List[ScanInformation]:
     scan_ids = set()
     for chroma in chromatogram_set:
         scan_ids.update(chroma.scan_ids)
@@ -71,7 +76,8 @@ def fetch_scans_used_in_chromatogram(chromatogram_set: List[Chromatogram], extra
     return sorted(scans, key=lambda x: (x.ms_level, x.index))
 
 
-def fetch_glycan_compositions_from_chromatograms(chromatogram_set: Sequence[ChromatogramSolution], glycan_db: DatabaseBoundOperation) -> List[GlycanComposition]:
+def fetch_glycan_compositions_from_chromatograms(chromatogram_set: Sequence[ChromatogramSolution],
+                                                 glycan_db: DatabaseBoundOperation) -> List[GlycanComposition]:
     ids = set()
     for chroma in chromatogram_set:
         if chroma.composition:
@@ -83,7 +89,8 @@ def fetch_glycan_compositions_from_chromatograms(chromatogram_set: Sequence[Chro
     return glycan_compositions
 
 
-def update_glycan_chromatogram_composition_ids(hypothesis_migration, glycan_chromatograms: Sequence[ChromatogramSolution]):
+def update_glycan_chromatogram_composition_ids(hypothesis_migration,
+                                               glycan_chromatograms: Sequence[ChromatogramSolution]):
     mapping = dict()
     tandem_mapping = defaultdict(list)
     for chromatogram in glycan_chromatograms:
@@ -194,7 +201,16 @@ class SampleMigrator(DatabaseBoundOperation, TaskBase):
 
 
 class AnalysisMigrationBase(DatabaseBoundOperation, TaskBase):
-    def __init__(self, connection, analysis_name, sample_run, chromatogram_extractor):
+    sample_run: MemorySampleRun
+    chromatogram_extractor: ChromatogramExtractor
+
+    _seed_analysis_name: str
+    _analysis_serializer: Optional[AnalysisSerializer]
+    _sample_migrator: Optional[SampleMigrator]
+
+    def __init__(self, connection: str, analysis_name: str,
+                 sample_run: MemorySampleRun,
+                 chromatogram_extractor: ChromatogramExtractor):
         DatabaseBoundOperation.__init__(self, connection)
 
         self.sample_run = sample_run
@@ -208,12 +224,12 @@ class AnalysisMigrationBase(DatabaseBoundOperation, TaskBase):
     def analysis(self):
         return self._analysis_serializer.analysis
 
-    def set_analysis_type(self, type_string):
+    def set_analysis_type(self, type_string: str):
         self._analysis_serializer.analysis.analysis_type = type_string
         self._analysis_serializer.session.add(self.analysis)
         self._analysis_serializer.session.commit()
 
-    def set_parameters(self, parameters):
+    def set_parameters(self, parameters: dict):
         self._analysis_serializer.analysis.parameters = parameters
         self._analysis_serializer.session.add(self.analysis)
         self._analysis_serializer.commit()
@@ -265,6 +281,10 @@ class AnalysisMigrationBase(DatabaseBoundOperation, TaskBase):
 
 
 class GlycanCompositionChromatogramAnalysisSerializer(AnalysisMigrationBase):
+    _glycan_hypothesis_migrator: Optional[GlycanHypothesisMigrator]
+    glycan_db: DatabaseBoundOperation
+    chromatogram_set: ChromatogramFilter
+
     def __init__(self, connection, analysis_name, sample_run,
                  chromatogram_set, glycan_db,
                  chromatogram_extractor):
@@ -317,11 +337,12 @@ class GlycanCompositionChromatogramAnalysisSerializer(AnalysisMigrationBase):
     def _get_mass_shift_id(self, mass_shift):
         return self._analysis_serializer._mass_shift_cache.serialize(mass_shift).id
 
-    def express_mass_shift_relation(self, chromatogram):
+    def express_mass_shift_relation(self, chromatogram: Chromatogram):
         try:
             source_id = self._get_solution_db_id_by_reference(chromatogram.id)
         except KeyError as e:
-            print(e, "Not Registered", chromatogram)
+            self.error(
+                    f"Chromatogram not registered: {e} -> {chromatogram}")
         seen = set()
         for related_solution, mass_shift in self.locate_mass_shift_reference_solution(
                 chromatogram):
@@ -340,7 +361,8 @@ class GlycanCompositionChromatogramAnalysisSerializer(AnalysisMigrationBase):
                         "mass_shift_id": mass_shift_id
                     })
             except KeyError as e:
-                print(e, mass_shift, chromatogram)
+                self.error(
+                    f"Failed to express mass shift relation: {e} -> {mass_shift} @ {chromatogram}")
                 continue
 
     def create_analysis(self):
@@ -374,13 +396,7 @@ class GlycanCompositionChromatogramAnalysisSerializer(AnalysisMigrationBase):
 
         for chroma in self.chromatogram_set:
             if chroma.chromatogram.used_as_mass_shift:
-                # print("%r %d is used as an mass_shift (%r)" % (
-                #     chroma, chroma.id, chroma.chromatogram.used_as_mass_shift))
                 self.express_mass_shift_relation(chroma)
-            # elif chroma.mass_shifts and not (len(
-            #         chroma.mass_shifts) == 1 and chroma.mass_shifts[0].name == "Unmodified"):
-            #     print("%r %d has mass_shifts (%r)" % (
-            #         chroma, chroma.id, chroma.mass_shifts))
 
         self._analysis_serializer.commit()
 
@@ -445,9 +461,8 @@ class GlycopeptideMSMSAnalysisSerializer(AnalysisMigrationBase):
                 try:
                     value.id = hypothesis_migration.glycopeptide_id_map[value.id]
                 except KeyError:
-                    message = "Could not find a mapping from ID %r for %r in the new keyspace, reconstructing to recover..." % (
-                        value.id, value)
-                    self.log(message)
+                    self.log(f"Could not find a mapping from ID {value.id} for {value} "
+                              "in the new keyspace, reconstructing to recover...")
                     value.id = self._migrate_single_glycopeptide(value)
 
     @property
@@ -530,13 +545,14 @@ class GlycopeptideMSMSAnalysisSerializer(AnalysisMigrationBase):
                     self.log("Could not locate scan for ID %r" % (scan_id, ))
         return sorted(scans, key=lambda x: (x.ms_level, x.index))
 
-    def _get_glycan_combination_for_glycopeptide(self, glycopeptide_id):
+    def _get_glycan_combination_for_glycopeptide(self, glycopeptide_id: int) -> int:
         gc_comb_id = self.glycopeptide_db.query(
             Glycopeptide.glycan_combination_id).filter(
             Glycopeptide.id == glycopeptide_id)
         return gc_comb_id[0]
 
-    def fetch_glycan_compositions(self, glycopeptide_ids):
+    def fetch_glycan_compositions(self, glycopeptide_ids: Set[int]) -> Tuple[List[GlycanComposition],
+                                                                             List[GlycanCombination]]:
         glycan_compositions = dict()
         glycan_combinations = dict()
 
@@ -552,13 +568,13 @@ class GlycopeptideMSMSAnalysisSerializer(AnalysisMigrationBase):
             for composition in gc_comb.components:
                 glycan_compositions[composition.id] = composition
 
-        return glycan_compositions.values(), glycan_combinations.values()
+        return list(glycan_compositions.values()), list(glycan_combinations.values())
 
-    def _get_peptide_id_for_glycopeptide(self, glycopeptide_id):
+    def _get_peptide_id_for_glycopeptide(self, glycopeptide_id: int) -> int:
         db_glycopeptide = self.glycopeptide_db.query(Glycopeptide).get(glycopeptide_id)
         return db_glycopeptide.peptide_id
 
-    def fetch_peptides(self, glycopeptide_ids):
+    def fetch_peptides(self, glycopeptide_ids: Set[int]) -> List[Peptide]:
         peptides = set()
         for glycopeptide_id in glycopeptide_ids:
             peptide_id = self._get_peptide_id_for_glycopeptide(glycopeptide_id)
@@ -566,20 +582,16 @@ class GlycopeptideMSMSAnalysisSerializer(AnalysisMigrationBase):
 
         return slurp(self.glycopeptide_db, Peptide, peptides)
 
-    def fetch_proteins(self, peptide_set):
+    def fetch_proteins(self, peptide_set: List[Peptide]) -> List[Protein]:
         proteins = set()
         for peptide in peptide_set:
             proteins.add(peptide.protein_id)
         return slurp(self.glycopeptide_db, Protein, proteins)
 
-    def fetch_glycopeptides(self, glycopeptide_ids):
-        # return [
-        #     self.glycopeptide_db.query(
-        #         Glycopeptide).get(i) for i in glycopeptide_ids
-        # ]
+    def fetch_glycopeptides(self, glycopeptide_ids: Set[int]) -> List[Glycopeptide]:
         return slurp(self.glycopeptide_db, Glycopeptide, glycopeptide_ids)
 
-    def _migrate_single_glycopeptide(self, glycopeptide):
+    def _migrate_single_glycopeptide(self, glycopeptide: Glycopeptide) -> int:
         '''Stupendously slow if used in bulk, intended for recovering from cases where
         a single glycopeptide somehow slipped through the cracks.
         '''
@@ -616,13 +628,13 @@ class GlycopeptideMSMSAnalysisSerializer(AnalysisMigrationBase):
 
 
 class DynamicGlycopeptideMSMSAnalysisSerializer(GlycopeptideMSMSAnalysisSerializer):
-    def _get_glycan_combination_for_glycopeptide(self, glycopeptide_id):
+    def _get_glycan_combination_for_glycopeptide(self, glycopeptide_id) -> int:
         return glycopeptide_id.glycan_combination_id
 
-    def _get_peptide_id_for_glycopeptide(self, glycopeptide_id):
+    def _get_peptide_id_for_glycopeptide(self, glycopeptide_id) -> int:
         return glycopeptide_id.peptide_id
 
-    def fetch_glycopeptides(self, glycopeptide_ids):
+    def fetch_glycopeptides(self, glycopeptide_ids) -> List[Glycopeptide]:
         aggregate = dict()
         for gp in self._identified_glycopeptide_set:
             for solution_set in gp.spectrum_matches:
@@ -642,7 +654,7 @@ class DynamicGlycopeptideMSMSAnalysisSerializer(GlycopeptideMSMSAnalysisSerializ
             out.append(inst)
         return out
 
-    def _migrate_single_glycopeptide(self, glycopeptide):
+    def _migrate_single_glycopeptide(self, glycopeptide: Glycopeptide) -> int:
         inst = Glycopeptide(
             id=glycopeptide.id,
             peptide_id=glycopeptide.id.peptide_id,

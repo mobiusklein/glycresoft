@@ -1068,6 +1068,7 @@ class GlycopeptideLCMSMSAnalyzer(TaskBase):
 
         if target_decoy_set.target_count() == 0:
             self.log("No target matches were found.")
+            self.save_solutions([], [], extractor, database)
             return [], [], TargetDecoySet([], [])
 
         target_hits = self.rank_target_hits(searcher, target_decoy_set)
@@ -1315,7 +1316,7 @@ class GlycopeptideLCMSMSAnalyzer(TaskBase):
             return
         self.log("Saving Results To \"%s\"" % (self.database_connection,))
         analysis_saver = AnalysisSerializer(self.database_connection, self.sample_run_id, self.analysis_name)
-        analysis_saver.set_peak_lookup_table(chromatogram_extractor.peak_mapping)
+        analysis_saver.set_peak_lookup_table(chromatogram_extractor.peak_mapping if chromatogram_extractor else {})
         analysis_saver.set_analysis_type(AnalysisTypeEnum.glycopeptide_lc_msms.name)
         analysis_saver.set_parameters(
             self._build_analysis_saved_parameters(
@@ -1709,7 +1710,6 @@ class MultipartGlycopeptideLCMSMSAnalyzer(MzMLGlycopeptideLCMSMSAnalyzer):
         self.log(f"{len(training_examples)} training examples for localization")
 
         ptm_prophet = task.train_ptm_prophet(training_examples)
-        ptm_prophet.close_thread_pool()
         self.localization_model = task
 
         self.log("Scoring Site Localizations")
@@ -1875,7 +1875,8 @@ class MultipartGlycopeptideLCMSMSAnalyzer(MzMLGlycopeptideLCMSMSAnalyzer):
             "extended_glycan_search": self.extended_glycan_search,
             "glycosylation_site_models_path": self.glycosylation_site_models_path,
             "retention_time_model": self.retention_time_model,
-            "localization_model": self.localization_model.simplify(),
+            "localization_model": (self.localization_model.simplify()
+                                   if self.localization_model is not None else None),
             "peptide_masses_per_scan": self.peptide_masses_per_scan,
         })
         return result

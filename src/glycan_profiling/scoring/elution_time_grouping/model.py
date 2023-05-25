@@ -2139,8 +2139,8 @@ class GlycopeptideElutionTimeModelBuildingPipeline(TaskBase):
                 self.log("...... 5%: {:0.2f}    1%: {:0.2f}".format(t05, t01))
                 self.log("... Fitting relationship over time")
                 estimator.fit_over_time()
-        except ValueError:
-            logger.error("Unable to fit Residual FDR for RT Model", exc_info=True)
+        except ValueError as err:
+            logger.error("Unable to fit Residual FDR for RT Model: %s", err, exc_info=False)
             residual_fdr = None
         model.residual_fdr = residual_fdr
         return fitted_rules

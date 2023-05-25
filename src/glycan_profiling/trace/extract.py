@@ -1,6 +1,11 @@
 from collections import defaultdict
+from typing import Dict, Optional, Tuple, Union
+from ms_deisotope import DeconvolutedPeak
 
 import numpy as np
+
+from ms_deisotope.data_source import ProcessedRandomAccessScanSource
+from ms_deisotope.output.common import LCMSMSQueryInterfaceMixin
 
 from glycan_profiling.task import TaskBase
 from glycan_profiling.chromatogram_tree import (
@@ -11,6 +16,21 @@ from glycan_profiling.chromatogram_tree import (
 
 
 class ChromatogramExtractor(TaskBase):
+    peak_loader: Union[ProcessedRandomAccessScanSource, LCMSMSQueryInterfaceMixin]
+    truncate: bool
+
+    minimum_mass: float
+    minimum_intensity: float
+
+    grouping_tolerance: float
+    min_points: int
+    delta_rt: float
+
+    peak_mapping: Optional[Dict[Tuple, DeconvolutedPeak]]
+    chromatograms: Optional[ChromatogramForest]
+    base_peak_chromatogram: Optional[SimpleChromatogram]
+    total_ion_chromatogram: Optional[SimpleChromatogram]
+
     def __init__(self, peak_loader, truncate=False, minimum_mass=500, grouping_tolerance=1.5e-5,
                  minimum_intensity=250., min_points=3, delta_rt=0.25):
         self.peak_loader = peak_loader
@@ -36,10 +56,10 @@ class ChromatogramExtractor(TaskBase):
     def get_scan_header_by_id(self, scan_id):
         return self.peak_loader.get_scan_header_by_id(scan_id)
 
-    def get_index_information_by_scan_id(self, scan_id):
+    def get_index_information_by_scan_id(self, scan_id: str) -> dict:
         return self.peak_loader.get_index_information_by_scan_id(scan_id)
 
-    def scan_id_to_rt(self, scan_id):
+    def scan_id_to_rt(self, scan_id: str) -> float:
         return self.peak_loader.convert_scan_id_to_retention_time(scan_id)
 
     def load_peaks(self):

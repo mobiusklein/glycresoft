@@ -697,7 +697,8 @@ class MultiKDModel(PredictorBase):
 
     def close_thread_pool(self):
         if self.use_threads:
-            self.thread_pool.shutdown()
+            if self.thread_pool is not None:
+                self.thread_pool.shutdown()
             self.thread_pool =  None
             self.use_threads = False
 

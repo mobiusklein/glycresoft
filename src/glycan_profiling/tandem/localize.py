@@ -152,7 +152,8 @@ class ModificationLocalizationSearcher(TaskBase):
                         candidates.append(loc)
         return candidates
 
-    def train_ptm_prophet(self, training_instances: List[localize.PTMProphetEvaluator], maxiter: int = 150) -> MultiKDModel:
+    def train_ptm_prophet(self, training_instances: List[localize.PTMProphetEvaluator],
+                          maxiter: int = 150) -> MultiKDModel:
         o_scores = array('d')
         m_scores = array('d')
         for inst in training_instances:
@@ -186,6 +187,8 @@ class ModificationLocalizationSearcher(TaskBase):
             self.log(
                 f"The localization model failed to converge after {it} iterations ({delta})")
         self.model = prophet
+        if prophet is not None:
+            prophet.close_thread_pool()
         return prophet
 
     def _select_top_isoform_in_bin(self, sol: LocalizationGroup, prophet: Optional[MultiKDModel]=None):

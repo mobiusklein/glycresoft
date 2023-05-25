@@ -1154,9 +1154,10 @@ class ResidualFDREstimator(object):
             try:
                 fit_from_rt_model = self.fit_from_rt_model()
                 models.append(fit_from_rt_model)
-            except Exception:
+            except Exception as err:
+                show_traceback = str(err) != "No non-zero range in the posterior error distribution."
                 logger.error(
-                    "Failed to fit FDR from permutations", exc_info=True)
+                    "Failed to fit FDR from permutations: %r", err, exc_info=show_traceback)
         if models:
             models.sort(key=lambda x: x.width_at_half_max())
             model = models[0]
@@ -1246,7 +1247,10 @@ class PosteriorErrorToScore(object):
         Y = self.model.estimate_posterior_error_probability(self.domain)
         self.normalized_score = np.clip(
             1 - make_normalized_monotonic_bell(self.domain, Y, symmetric=symmetric), 0, 1)
-        lo, hi = np.where(self.normalized_score != 0)[0][[0, -1]]
+        support = np.where(self.normalized_score != 0)[0]
+        if len(support) == 0:
+            raise ValueError("No non-zero range in the posterior error distribution.")
+        lo, hi = support[[0, -1]]
         lo = max(lo - 5, 0)
         hi += 5
         self.domain = self.domain[lo:hi]
