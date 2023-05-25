@@ -132,7 +132,7 @@ class GlycanCombination(GlycanBase, Base):
         lazy='dynamic')
 
     def __iter__(self):
-        for composition, count in self.components.add_column(
+        for composition, count in self.components.add_columns(
                 GlycanCombinationGlycanComposition.c.count):
             i = 0
             while i < count:

@@ -65,7 +65,7 @@ class GlycopeptideHypothesisMigrator(DatabaseBoundOperation, TaskBase):
             hypothesis_id=self.hypothesis_id)
         self.glycan_combination_id_map[glycan_combination.id] = self._migrate(new_inst)
         component_acc = []
-        for component, count in glycan_combination.components.add_column(
+        for component, count in glycan_combination.components.add_columns(
                 GlycanCombinationGlycanComposition.c.count):
             new_component_id = self._glycan_hypothesis_migrator.glycan_composition_id_map[component.id]
             component_acc.append(
