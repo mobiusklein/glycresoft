@@ -103,7 +103,7 @@ class GlycopeptideHypothesisSerializerBase(DatabaseBoundOperation, HypothesisSer
         q = self.session.query(Peptide.id.distinct()).join(Protein).join(Protein.sites).filter(
             Peptide.spans(ProteinSite.location) &
             (ProteinSite.name == ProteinSite.N_GLYCOSYLATION) &
-            Protein.hypothesis_id == self._hypothesis_id).all()
+            (Protein.hypothesis_id == self._hypothesis_id)).all()
         return [i[0] for i in q]
 
     def peptide_ids(self):
