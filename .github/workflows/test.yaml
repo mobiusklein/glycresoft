@@ -26,7 +26,7 @@ jobs:
         pip install --only-binary=numpy,scipy numpy scipy -U
         pip install -r external-requirements.txt
         python pyinstaller/install-from-git.py
-        python setup.py develop # Avoid invoking build isolation
+        pip install -v . --no-build-isolation
     - name: Test with pytest
       run: |
         make test
