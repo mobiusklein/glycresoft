@@ -1,4 +1,4 @@
-!/usr/bin/env bash
+#!/usr/bin/env bash
 
 glycresoft build-hypothesis glycopeptide-fa -c "Carbamidomethyl (C)" \
     -v "Pyro-glu from Q (Q@N-term)" -v "Oxidation (M)" \

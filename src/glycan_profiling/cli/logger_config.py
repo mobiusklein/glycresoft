@@ -297,7 +297,11 @@ class LazyFile(object):
         if self.encoding is None:
             stream = open(file_name, self.mode)
         else:
-            stream = codecs.open(file_name, self.mode, self.encoding)
+            try:
+                stream = codecs.open(file_name, self.mode, self.encoding)
+            except LookupError:
+                print(f"!! Failed to look up encoding {self.encoding}, falling back to UTF-8")
+                stream = open(file_name, self.mode, encoding='utf8')
         self.name = file_name
         self._file = stream
         return self._file
