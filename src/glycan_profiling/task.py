@@ -7,6 +7,7 @@ import traceback
 import multiprocessing
 import threading
 
+from typing import Generic, TypeVar
 from logging.handlers import QueueHandler, QueueListener
 from multiprocessing.managers import SyncManager
 from datetime import datetime
@@ -18,6 +19,8 @@ from glycan_profiling.version import version
 
 
 logger = logging.getLogger("glycan_profiling.task")
+
+T = TypeVar("T")
 
 
 def display_version(print_fn):
@@ -472,11 +475,11 @@ class MultiLock(object):
         self.release()
 
 
-class TaskExecutionSequence(TaskBase):
+class TaskExecutionSequence(TaskBase, Generic[T]):
     """A task unit that executes in a separate thread or process.
     """
 
-    def __call__(self):
+    def __call__(self) -> T:
         result = None
         try:
             if self._running_in_process:
@@ -501,7 +504,7 @@ class TaskExecutionSequence(TaskBase):
         finally:
             return result
 
-    def run(self):
+    def run(self) -> T:
         raise NotImplementedError()
 
     def _get_repr_details(self):

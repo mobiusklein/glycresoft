@@ -1,9 +1,19 @@
 from collections import defaultdict
 
+from typing import Any, Dict, Generic, List, Tuple, TypeVar
+
 import numpy as np
 
+from ms_deisotope.data_source import ProcessedScan
 
-class MassWrapper(object):
+
+T = TypeVar('T')
+
+
+class MassWrapper(Generic[T]):
+    obj: T
+    mass: float
+
     def __init__(self, obj, mass):
         self.obj = obj
         self.mass = mass
@@ -13,7 +23,7 @@ class MassWrapper(object):
 
 
 class NodeBase(object):
-    def __init__(self, index):
+    def __init__(self, index: int):
         self.index = index
         self._hash = hash(self.index)
         self.edges = EdgeSet()
@@ -32,21 +42,22 @@ class NodeBase(object):
 
 
 class EdgeSet(object):
+    store: Dict[Tuple[NodeBase, NodeBase], 'GraphEdgeBase']
 
     def __init__(self, store=None):
         if store is None:
             store = dict()
         self.store = store
 
-    def edge_to(self, node1, node2):
+    def edge_to(self, node1: NodeBase, node2: NodeBase):
         if node2.index < node1.index:
             node1, node2 = node2, node1
         return self.store.get((node1, node2))
 
-    def add(self, edge):
+    def add(self, edge: 'GraphEdgeBase'):
         self.store[edge.node1, edge.node2] = edge
 
-    def remove(self, edge):
+    def remove(self, edge: 'GraphEdgeBase'):
         self.store.pop((edge.node1, edge.node2))
 
     def __len__(self):
@@ -85,6 +96,10 @@ class AnnotatedMultiEdgeSet(EdgeSet):
 class GraphEdgeBase(object):
     __slots__ = ["node1", "node2", "_hash", "_str", "indices"]
 
+    node1: NodeBase
+    node2: NodeBase
+    indices: Tuple[int, int]
+
     def __init__(self, node1, node2):
         self.node1 = node1
         self.node2 = node2
@@ -103,7 +118,7 @@ class GraphEdgeBase(object):
     def _make_str(self):
         return "GraphEdge(%s)" % ', '.join(map(str, (self.node1, self.node2)))
 
-    def __getitem__(self, key):
+    def __getitem__(self, key: NodeBase):
         if key == self.node1:
             return self.node2
         elif key == self.node2:
@@ -111,7 +126,7 @@ class GraphEdgeBase(object):
         else:
             raise KeyError(key)
 
-    def is_incoming(self, node):
+    def is_incoming(self, node: NodeBase):
         if node is self.node2:
             return True
         elif node is self.node1:
@@ -137,7 +152,7 @@ class GraphEdgeBase(object):
     def __reduce__(self):
         return self.__class__, (self.node1, self.node2,)
 
-    def copy_for(self, node1, node2):
+    def copy_for(self, node1: NodeBase, node2: NodeBase):
         return self.__class__(node1, node2,)
 
     def remove(self):
@@ -151,7 +166,12 @@ class GraphEdgeBase(object):
             pass
 
 
-class GraphBase(object):
+NodeT = TypeVar('NodeT', bound=NodeBase)
+
+class GraphBase(Generic[NodeT]):
+    edges: EdgeSet
+    nodes: List[NodeT]
+
     def __init__(self, edges=None):
         if edges is None:
             edges = EdgeSet()
@@ -170,12 +190,12 @@ class GraphBase(object):
 
     def adjacency_matrix(self):
         N = len(self)
-        A = np.zeros((N, N))
+        A = np.zeros((N, N), dtype=np.uint8)
         for edge in self.edges:
             A[edge.indices] = 1
         return A
 
-    def topological_sort(self, adjacency_matrix=None):
+    def topological_sort(self, adjacency_matrix: np.ndarray = None) -> List[NodeT]:
         if adjacency_matrix is None:
             adjacency_matrix = self.adjacency_matrix()
         else:
@@ -219,7 +239,7 @@ class GraphBase(object):
                 distances[node.index] = longest_path_so_far + 1
         return distances
 
-    def connected_components(self):
+    def connected_components(self) -> List[List[NodeT]]:
         pool = set(self.nodes)
         components = []
 
@@ -247,6 +267,8 @@ class GraphBase(object):
 
 
 class ScanNode(NodeBase):
+    scan: ProcessedScan
+
     def __init__(self, scan, index):
         self.scan = scan
         NodeBase.__init__(self, index)
@@ -284,7 +306,10 @@ class ScanGraphEdge(GraphEdgeBase):
         return self.__class__(node1, node2, self.annotation)
 
 
-class ScanGraph(GraphBase):
+class ScanGraph(GraphBase[ScanNode]):
+    scans: List[ProcessedScan]
+    node_map: Dict[str, ScanNode]
+
     def __init__(self, scans):
         GraphBase.__init__(self)
         self.scans = scans
@@ -292,10 +317,10 @@ class ScanGraph(GraphBase):
         self.node_map = {node.scan.id: node for node in self.nodes}
         self.edges = AnnotatedMultiEdgeSet()
 
-    def get_node_by_id(self, scan_id):
+    def get_node_by_id(self, scan_id: str):
         return self.node_map[scan_id]
 
-    def add_edge_between(self, scan_id1, scan_id2, annotation=None):
+    def add_edge_between(self, scan_id1: str, scan_id2: str, annotation=None):
         node1 = self.get_node_by_id(scan_id1)
         node2 = self.get_node_by_id(scan_id2)
         edge = ScanGraphEdge(node1, node2, annotation)

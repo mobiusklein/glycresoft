@@ -261,6 +261,7 @@ class GlycopeptideLCMSMSAnalysisCSVSerializer(CSVSerializerBase):
     def get_header(self):
         headers = [
             "glycopeptide",
+            "analysis",
             "neutral_mass",
             "mass_accuracy",
             "ms1_score",
@@ -296,6 +297,7 @@ class GlycopeptideLCMSMSAnalysisCSVSerializer(CSVSerializerBase):
             charge_states = (obj.tandem_solutions[0].scan.precursor_information.charge,)
         attribs = [
             str(obj.structure),
+            self.analysis.name,
             weighted_neutral_mass,
             (obj.structure.total_mass - weighted_neutral_mass) / weighted_neutral_mass,
             obj.ms1_score,
@@ -370,7 +372,7 @@ class GlycopeptideSpectrumMatchAnalysisCSVSerializer(CSVSerializerBase):
     protein_name_resolver: Dict[int, str]
 
     def __init__(self, outstream, entities_iterable, protein_name_resolver, analysis, delimiter=',',
-                 include_rank: bool=True):
+                 include_rank: bool = True):
         super(GlycopeptideSpectrumMatchAnalysisCSVSerializer, self).__init__(outstream, entities_iterable, delimiter)
         self.protein_name_resolver = protein_name_resolver
         self.analysis = analysis
@@ -379,6 +381,7 @@ class GlycopeptideSpectrumMatchAnalysisCSVSerializer(CSVSerializerBase):
     def get_header(self):
         names = [
             "glycopeptide",
+            "analysis",
             "neutral_mass",
             "mass_accuracy",
             "mass_shift_name",
@@ -411,6 +414,7 @@ class GlycopeptideSpectrumMatchAnalysisCSVSerializer(CSVSerializerBase):
         precursor_mass = precursor.neutral_mass
         attribs = [
             str(obj.target),
+            self.analysis.name,
             precursor_mass,
             ((target.total_mass + mass_shift_mass) -
              precursor_mass) / precursor_mass,

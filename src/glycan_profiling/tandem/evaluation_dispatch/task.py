@@ -1,17 +1,30 @@
 import os
-from collections import deque
+
+from typing import Any, Hashable, List, Mapping, Tuple, Optional, TypedDict, Union, Deque
 
 from glycan_profiling.task import TaskBase
+from glycan_profiling.chromatogram_tree.mass_shift import MassShift
 
 
 debug_mode = bool(os.environ.get("GLYCRESOFTDEBUG"))
+
+HitID = Hashable
+GroupID = Hashable
+DBHit = Any
+WorkItem = Tuple[DBHit, List[Tuple[str, MassShift]]]
+
+
+class WorkItemGroup(TypedDict):
+    work_orders: Mapping[HitID, WorkItem]
 
 
 class StructureSpectrumSpecificationBuilder(object):
     """Base class for building structure hit by spectrum specification
     """
 
-    def build_work_order(self, hit_id, hit_map, scan_hit_type_map, hit_to_scan):
+    def build_work_order(self, hit_id: HitID, hit_map: Mapping[HitID, DBHit],
+                         scan_hit_type_map: Mapping[Tuple[str, HitID], MassShift],
+                         hit_to_scan: Mapping[HitID, List[str]]) -> WorkItem:
         """Packs several task-defining data structures into a simple to unpack payload for
         sending over IPC to worker processes.
 
@@ -24,7 +37,7 @@ class StructureSpectrumSpecificationBuilder(object):
         hit_to_scan : dict
             Maps hit id to list of scan ids
         scan_hit_type_map : dict
-            Maps (hit id, scan id) to the type of mass shift
+            Maps (scan id, hit id) to the type of mass shift
             applied for this match
 
         Returns
@@ -44,7 +57,7 @@ class TaskSourceBase(StructureSpectrumSpecificationBuilder, TaskBase):
 
     batch_size = 10000
 
-    def add(self, item):
+    def add(self, item: Union[WorkItem, WorkItemGroup]):
         """Add ``item`` to the work stream
 
         Parameters
@@ -59,7 +72,9 @@ class TaskSourceBase(StructureSpectrumSpecificationBuilder, TaskBase):
         """
         return
 
-    def feed(self, hit_map, hit_to_scan, scan_hit_type_map):
+    def feed(self, hit_map: Mapping[HitID, str],
+             hit_to_scan: Mapping[HitID, List[str]],
+             scan_hit_type_map: Mapping[Tuple[str, HitID], MassShift]):
         """Push tasks onto the input queue feeding the worker
         processes.
 
@@ -120,7 +135,10 @@ class TaskSourceBase(StructureSpectrumSpecificationBuilder, TaskBase):
         self.join()
         return
 
-    def feed_groups(self, hit_map, hit_to_scan, scan_hit_type_map, hit_to_group):
+    def feed_groups(self, hit_map: Mapping[HitID, DBHit],
+                    hit_to_scan: Mapping[HitID, List[str]],
+                    scan_hit_type_map: Mapping[Tuple[HitID, str], MassShift],
+                    hit_to_group: Mapping[HitID, GroupID]):
         """Push task groups onto the input queue feeding the worker
         processes.
 
@@ -138,10 +156,9 @@ class TaskSourceBase(StructureSpectrumSpecificationBuilder, TaskBase):
         """
         i = 0
         j = 0
-        n = len(hit_to_group)
         seen = dict()
         for group_key, hit_keys in hit_to_group.items():
-            hit_group = {
+            hit_group: WorkItemGroup = {
                 "work_orders": {}
             }
             i += 1
@@ -178,7 +195,10 @@ class TaskSourceBase(StructureSpectrumSpecificationBuilder, TaskBase):
         self.join()
         return
 
-    def __call__(self, hit_map, hit_to_scan, scan_hit_type_map, hit_to_group=None):
+    def __call__(self, hit_map: Mapping[HitID, Any],
+                 hit_to_scan: Mapping[HitID, List[str]],
+                 scan_hit_type_map: Mapping[Tuple[HitID, str], MassShift],
+                 hit_to_group: Optional[Mapping[HitID, Any]]=None):
         if not hit_to_group:
             return self.feed(hit_map, hit_to_scan, scan_hit_type_map)
         else:
@@ -194,10 +214,12 @@ class TaskDeque(TaskSourceBase):
         The in-memory work queue
     """
 
-    def __init__(self):
-        self.queue = deque()
+    queue: Deque[Union[WorkItem, WorkItemGroup]]
 
-    def add(self, item):
+    def __init__(self):
+        self.queue = Deque()
+
+    def add(self, item: Union[WorkItemGroup, WorkItem]):
         self.queue.append(item)
 
     def pop(self):

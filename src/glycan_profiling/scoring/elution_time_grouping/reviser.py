@@ -728,7 +728,7 @@ AmmoniumUnmaskedNeuGcRule = RevisionRule(
     HashableGlycanComposition(Hex=2, Neu5Gc=-1),
     mass_shift_rule=MassShiftRule(Ammonium, -1), priority=1, name="Ammonium Unmasked NeuGc")
 
-# The correct glycan was incorrectly assigned identified because of an error in monoisotopic peak
+# The glycan was incorrectly assigned identified because of an error in monoisotopic peak
 # assignment.
 IsotopeRule = RevisionRule(HashableGlycanComposition(Fuc=-2, Neu5Ac=1), name="Isotope Error")
 IsotopeRule2 = RevisionRule(HashableGlycanComposition(Fuc=-4, Neu5Ac=2), name="Isotope Error 2")
@@ -749,6 +749,12 @@ HexNAc2NeuAc2ToHex6AmmoniumRule = ValidatingRevisionRule(
             x.glycan_composition[hexnac] == 2,
     name="Ammonium Masked followed by Large Mass Ambiguity")
 
+
+# Not yet in use, needs to be explored more. In practice, this cannot even be used
+# with such a small chromatographic shift (<= 0.5 minutes) on fucose and hexose.
+IsotopeAmmoniumFucToHex = RevisionRule(HashableGlycanComposition(Fuc=-1, Hex=1),
+                                       mass_shift_rule=MassShiftRule(Ammonium, 1),
+                                       name='Ammonium Isotope Error')
 
 # Not yet in use, needs to be explored more
 dHex2HexNAc2NeuAc1ToHex6AmmoniumRule = ValidatingRevisionRule(

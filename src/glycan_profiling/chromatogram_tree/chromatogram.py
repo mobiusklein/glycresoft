@@ -1,7 +1,7 @@
 from abc import ABCMeta
 from collections import defaultdict, Counter
 from operator import attrgetter
-from typing import List, Set
+from typing import Iterable, List, Optional, Set
 
 from six import add_metaclass
 
@@ -10,6 +10,8 @@ import numpy as np
 from glypy.utils import uid
 from glypy.structure.glycan_composition import HashableGlycanComposition
 
+from ms_deisotope import DeconvolutedPeak
+from ms_deisotope.data_source import ProcessedRandomAccessScanSource
 
 from .mass_shift import MassShiftBase, Unmodified
 from .utils import ArithmeticMapping
@@ -382,7 +384,7 @@ class Chromatogram(_TimeIntervalMethods):
     def __repr__(self):
         return "Chromatogram(%s, %0.4f)" % (self.composition, self.weighted_neutral_mass)
 
-    def split_sparse(self, delta_rt=1.):
+    def split_sparse(self, delta_rt: float=1.) -> List['Chromatogram']:
         chunks = []
         current_chunk = []
         last_rt = self.nodes[0].retention_time
@@ -414,14 +416,14 @@ class Chromatogram(_TimeIntervalMethods):
 
         return chunks
 
-    def truncate_before(self, time):
+    def truncate_before(self, time: float):
         _, i = self.nodes.find_time(time)
         if self.nodes[i].retention_time < time:
             i += 1
         self.nodes = ChromatogramTreeList(self.nodes[i:])
         self._invalidate()
 
-    def truncate_after(self, time):
+    def truncate_after(self, time: float):
         _, i = self.nodes.find_time(time)
         if self.nodes[i].retention_time < time:
             i += 1
@@ -436,15 +438,15 @@ class Chromatogram(_TimeIntervalMethods):
         c.created_at = self.created_at
         return c
 
-    def insert_node(self, node):
+    def insert_node(self, node: 'ChromatogramTreeNode'):
         self.nodes.insert_node(node)
         self._invalidate()
 
-    def insert(self, scan_id, peak, retention_time):
+    def insert(self, scan_id: str, peak: DeconvolutedPeak, retention_time: float):
         self.nodes.insert(retention_time, scan_id, [peak])
         self._invalidate()
 
-    def merge(self, other, node_type=Unmodified, skip_duplicate_nodes=False):
+    def merge(self, other: 'Chromatogram', node_type=Unmodified, skip_duplicate_nodes=False):
         if skip_duplicate_nodes:
             return self._merge_missing_only(other, node_type=node_type)
         new = self.clone()
@@ -455,7 +457,7 @@ class Chromatogram(_TimeIntervalMethods):
         new.created_at = "merge"
         return new
 
-    def deduct_node_type(self, node_type):
+    def deduct_node_type(self, node_type: MassShiftBase):
         new = self.clone()
         for node in new.nodes.unspool():
             if node.node_type == node_type:
@@ -465,7 +467,7 @@ class Chromatogram(_TimeIntervalMethods):
         new.invalidate()
         return new
 
-    def _merge_missing_only(self, other, node_type=Unmodified):
+    def _merge_missing_only(self, other: 'Chromatogram', node_type: MassShiftBase=Unmodified):
         new = self.clone()
         ids = set(node.node_id for node in new.nodes.unspool())
         for node in other.nodes.unspool_strip_children():
@@ -484,7 +486,21 @@ class Chromatogram(_TimeIntervalMethods):
         nodes.extend(zip(scan_ids, peaks, retention_times))
         return cls(composition, nodes)
 
-    def slice(self, start, end):
+    def slice(self, start: float, end: float):
+        """
+        Slice the chromatogram along the time dimension.
+
+        Parameters
+        ----------
+        start : float
+            The time to start from
+        end : float
+            The time to end at
+
+        Returns
+        -------
+        Chromatogram
+        """
         _, i = self.nodes.find_time(start)
         _, j = self.nodes.find_time(end)
         new = self.__class__(
@@ -493,8 +509,9 @@ class Chromatogram(_TimeIntervalMethods):
             used_as_mass_shift=list(self.used_as_mass_shift))
         return new
 
-    def bisect_mass_shift(self, mass_shift):
-        '''Split a chromatogram into two parts, one with the provided mass shift
+    def bisect_mass_shift(self, mass_shift: MassShiftBase):
+        """
+        Split a chromatogram into two parts, one with the provided mass shift
         and one without.
 
         This method does not try to deal with composite mass shifts, see :meth:`deducte_node_type`
@@ -515,7 +532,7 @@ class Chromatogram(_TimeIntervalMethods):
         See Also
         --------
         :meth:`deduct_node_type`
-        '''
+        """
         new_mass_shift = self.__class__(self.composition)
         new_no_mass_shift = self.__class__(self.composition)
         for node in self:
@@ -526,7 +543,7 @@ class Chromatogram(_TimeIntervalMethods):
                     new_no_mass_shift.insert_node(new_node)
         return new_mass_shift, new_no_mass_shift
 
-    def bisect_charge(self, charge):
+    def bisect_charge(self, charge: int):
         new_charge = self.__class__(self.composition)
         new_no_charge = self.__class__(self.composition)
         for node in self.nodes.unspool():
@@ -571,7 +588,7 @@ class Chromatogram(_TimeIntervalMethods):
     def elemental_composition(self):
         return None
 
-    def common_nodes(self, other):
+    def common_nodes(self, other: 'Chromatogram'):
         return self.nodes.common_nodes(other.nodes)
 
     @property
@@ -601,7 +618,7 @@ class Chromatogram(_TimeIntervalMethods):
         self.nodes.clear()
         self._invalidate()
 
-    def is_distinct(self, other):
+    def is_distinct(self, other: 'Chromatogram'):
         return not self.nodes.common_peaks(get_chromatogram(other).nodes)
 
     def integrate(self):
@@ -623,7 +640,7 @@ class ChromatogramTreeList(object):
         self._node_id_hash = None
         self._peak_hash = None
 
-    def find_time(self, retention_time):
+    def find_time(self, retention_time: float):
         if len(self.roots) == 0:
             raise EmptyListException()
         lo = 0
@@ -664,7 +681,7 @@ class ChromatogramTreeList(object):
             self._build_peak_hash()
         return self._peak_hash
 
-    def insert_node(self, node):
+    def insert_node(self, node: 'ChromatogramTreeNode'):
         self._invalidate()
         try:
             root, i = self.find_time(node.retention_time)
@@ -687,11 +704,11 @@ class ChromatogramTreeList(object):
         node = ChromatogramTreeNode(retention_time, scan_id, [], peaks, node_type)
         return self.insert_node(node)
 
-    def extend(self, iterable):
+    def extend(self, iterable: Iterable['ChromatogramTreeNode']):
         for scan_id, peaks, retention_time in iterable:
             self.insert(retention_time, scan_id, peaks)
 
-    def __getitem__(self, i):
+    def __getitem__(self, i) -> 'ChromatogramTreeNode':
         return self.roots[i]
 
     def __len__(self):
@@ -723,7 +740,7 @@ class ChromatogramTreeList(object):
                 stack.extend(node.children)
         return out_queue
 
-    def unspool_strip_children(self):
+    def unspool_strip_children(self) -> List['ChromatogramTreeNode']:
         out_queue = []
         for root in self:
             stack = [root]
@@ -751,6 +768,18 @@ class ChromatogramTreeNode(object):
                  '_most_abundant_member', '_neutral_mass', '_charge_states', '_has_msms',
                  'node_id', ]
 
+    retention_time: float
+    scan_id: str
+    children: List['ChromatogramTreeNode']
+    members: List[DeconvolutedPeak]
+    node_type: MassShiftBase
+    node_id: int
+
+    _most_abundant_member: Optional[DeconvolutedPeak]
+    _neutral_mass: float
+    _charge_states: Set[int]
+    _has_msms: Optional[bool]
+
     def __init__(self, retention_time=None, scan_id=None, children=None, members=None,
                  node_type=Unmodified):
         if children is None:
@@ -768,6 +797,28 @@ class ChromatogramTreeNode(object):
         self._recalculate()
         self._has_msms = None
         self.node_id = uid()
+
+    def as_ref(self):
+        return {
+            "scan_id": self.scan_id,
+            "node_id": self.node_id,
+            "peak_indices": [p.index.neutral_mass for p in self.members],
+            "node_type": self.node_type.name,
+            "children": [
+                node._as_ref() for node in self.children
+            ]
+        }
+
+    @classmethod
+    def from_ref(cls, ref: dict, scan_reader: ProcessedRandomAccessScanSource):
+        scan = scan_reader.get_scan_by_id(ref['scan_id'])
+        rt = scan.scan_time
+        members = [scan.deconvoluted_peak_set[i] for i in ref['peak_indices']]
+        node_type = MassShiftBase.get(ref['node_type'])
+        children = [cls.from_ref(child) for child in ref['children']]
+        node = cls(rt, ref['scan_id'], children, members, node_type)
+        node.node_id = ref['node_id']
+        return node
 
     def clone(self):
         node = ChromatogramTreeNode(

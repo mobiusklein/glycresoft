@@ -4,7 +4,13 @@ describe matches in bulk for serialization.
 import time
 from collections import defaultdict
 
+from typing import List, Mapping, Tuple, Any, Type
+
+from ms_deisotope.data_source import ProcessedScan
+
 from glycan_profiling.task import TaskBase
+
+from glycan_profiling.chromatogram_tree import MassShift
 
 from ..spectrum_match import SpectrumMatch, MultiScoreSpectrumMatch, ScoreSet
 from .task import TaskDeque
@@ -23,6 +29,9 @@ class SpectrumEvaluatorBase(object):
     solution_map: Mapping
         A mapping from (scan id, mass shift name) to the packaged match.
     """
+    scan_map: Mapping[str, ProcessedScan]
+    mass_shift_map: Mapping[str, MassShift]
+    solution_map: Mapping[Tuple[str, str], Any]
 
     def fetch_scan(self, key):
         return self.scan_map[key]
@@ -33,7 +42,8 @@ class SpectrumEvaluatorBase(object):
     def create_evaluation_context(self, group):
         return None
 
-    def evaluate(self, scan, structure, evaluation_context=None, *args, **kwargs):
+    def evaluate(self, scan: ProcessedScan, structure,
+                 evaluation_context=None, *args, **kwargs):
         """Evaluate the match between ``structure`` and ``scan``
 
         Parameters
@@ -162,6 +172,10 @@ class LocalSpectrumEvaluator(SpectrumEvaluatorBase, TaskBase):
 
     log_process_cycle = 5000
 
+    evaluator: SpectrumEvaluatorBase
+    evaluation_args: dict
+
+
     def __init__(self, evaluator, scan_map, mass_shift_map, solution_packer, evaluation_args=None):
         if evaluation_args is None:
             evaluation_args = dict()
@@ -188,7 +202,10 @@ class LocalSpectrumEvaluator(SpectrumEvaluatorBase, TaskBase):
         self.solution_map = dict()
         return package
 
-    def process(self, hit_map, hit_to_scan_map, scan_hit_type_map, hit_group_map=None):
+    def process(self, hit_map: Mapping[Any, Any],
+                hit_to_scan_map: Mapping[Any, List[str]],
+                scan_hit_type_map: Mapping[Tuple[str, Any], MassShift],
+                hit_group_map: Mapping[int, List[Any]] = None) -> Mapping[str, List]:
         deque_builder = TaskDeque()
         deque_builder(hit_map, hit_to_scan_map,
                       scan_hit_type_map, hit_group_map)
@@ -217,6 +234,17 @@ class LocalSpectrumEvaluator(SpectrumEvaluatorBase, TaskBase):
 
 
 class SequentialIdentificationProcessor(TaskBase):
+    evaluation_method: SpectrumEvaluatorBase
+    evaluation_args: dict
+
+    mass_shift_map: Mapping[str, MassShift]
+    structure_map: Mapping[Any, Any]
+    scan_map: Mapping[str, ProcessedScan]
+
+    solution_handler: 'SolutionHandler'
+    solution_handler_type: Type['SolutionHandler']
+
+
     def __init__(self, evaluator, mass_shift_map, evaluation_args=None, solution_handler_type=None):
         if evaluation_args is None:
             evaluation_args = dict()
@@ -239,7 +267,11 @@ class SequentialIdentificationProcessor(TaskBase):
             self.evaluation_args)
         return evaluator
 
-    def process(self, scan_map, hit_map, hit_to_scan_map, scan_hit_type_map, hit_group_map=None):
+    def process(self, scan_map: Mapping[str, ProcessedScan],
+                hit_map: Mapping[Any, Any],
+                hit_to_scan_map: Mapping[Any, List[str]],
+                scan_hit_type_map: Mapping[Tuple[str, Any], MassShift],
+                hit_group_map: Mapping[int, List[Any]] = None) -> Mapping[str, List]:
         self.structure_map = hit_map
         start_time = time.time()
         self.scan_map = self.solution_handler.scan_map = scan_map
@@ -300,7 +332,6 @@ class SolutionHandler(TaskBase):
             Maps (scan id, mass shift name) to score
         """
         self.counter += 1
-        j = 0
         for hit_spec, result_pack in score_map.items():
             scan_id, shift_type = hit_spec
             score = self.packer.unpack(result_pack)

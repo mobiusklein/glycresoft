@@ -1,10 +1,16 @@
 import os
+import functools
+
+from typing import List, Mapping, Optional, TYPE_CHECKING
+
+from glycan_profiling.chromatogram_tree.mass_shift import MassShift
+
 from ms_deisotope import isotopic_shift
+from ms_deisotope.data_source import ProcessedScan
 
 from glycan_profiling.task import TaskBase
 from glycan_profiling.chromatogram_tree import Unmodified
 
-import functools
 
 from .process_dispatcher import (
     IdentificationProcessDispatcher,
@@ -12,10 +18,15 @@ from .process_dispatcher import (
     MultiScoreSolutionHandler,
     MultiScoreSolutionPacker,
     SequentialIdentificationProcessor)
+
 from .workload import WorkloadManager, DEFAULT_WORKLOAD_MAX
 from .spectrum_match import (
     MultiScoreSpectrumSolutionSet,
     SpectrumSolutionSet)
+
+
+if TYPE_CHECKING:
+    from glycan_profiling.database.mass_collection import SearchableMassCollection
 
 
 def group_by_precursor_mass(scans, window_size=1.5e-5):
@@ -43,6 +54,15 @@ def group_by_precursor_mass(scans, window_size=1.5e-5):
 
 
 class TandemClusterEvaluatorBase(TaskBase):
+    tandem_cluster: List[ProcessedScan]
+    structure_database: "SearchableMassCollection"
+    verbose: bool
+    n_processes: int
+    mass_shifts: List[MassShift]
+    probing_range_for_missing_precursors: int
+    mass_shift_map: Mapping[str, MassShift]
+    batch_size: int
+    trust_precursor_fits: bool
 
     neutron_offset = isotopic_shift()
     solution_set_type = SpectrumSolutionSet
@@ -72,10 +92,11 @@ class TandemClusterEvaluatorBase(TaskBase):
     def _mark_batch(self):
         return self.structure_database.mark_batch()
 
-    def search_database_for_precursors(self, mass, precursor_error_tolerance=1e-5):
+    def search_database_for_precursors(self, mass: float, precursor_error_tolerance: float=1e-5):
         return self.structure_database.search_mass_ppm(mass, precursor_error_tolerance)
 
-    def find_precursor_candidates(self, scan, error_tolerance=1e-5, probing_range=0, mass_shift=None):
+    def find_precursor_candidates(self, scan: ProcessedScan, error_tolerance: float=1e-5,
+                                  probing_range: int=0, mass_shift: Optional[MassShift]=None):
         if mass_shift is None:
             mass_shift = Unmodified
         hits = []
@@ -87,7 +108,8 @@ class TandemClusterEvaluatorBase(TaskBase):
                     self.search_database_for_precursors(query_mass, error_tolerance)))
         return hits
 
-    def score_one(self, scan, precursor_error_tolerance=1e-5, mass_shifts=None, **kwargs):
+    def score_one(self, scan: ProcessedScan, precursor_error_tolerance=1e-5,
+                  mass_shifts: List[MassShift]=None, **kwargs) -> SpectrumSolutionSet:
         """Search one MSn scan against the database and score all candidate matches
 
         Parameters
@@ -128,7 +150,8 @@ class TandemClusterEvaluatorBase(TaskBase):
             scan, solutions).sort().select_top()
         return out
 
-    def score_all(self, precursor_error_tolerance=1e-5, simplify=False, **kwargs):
+    def score_all(self, precursor_error_tolerance: float=1e-5,
+                  simplify: bool=False, **kwargs) -> List[SpectrumSolutionSet]:
         """Search and score all scans in :attr:`tandem_cluster`
 
         Parameters
@@ -165,7 +188,7 @@ class TandemClusterEvaluatorBase(TaskBase):
                 case.select_top()
         return out
 
-    def evaluate(self, scan, structure, *args, **kwargs):
+    def evaluate(self, scan: ProcessedScan, structure, *args, **kwargs):
         """Computes the quality of the match between ``scan``
         and the component fragments of ``structure``.
 
@@ -189,7 +212,7 @@ class TandemClusterEvaluatorBase(TaskBase):
         """
         raise NotImplementedError()
 
-    def _map_scans_to_hits(self, scans, precursor_error_tolerance=1e-5):
+    def _map_scans_to_hits(self, scans: List[ProcessedScan], precursor_error_tolerance: float=1e-5) -> WorkloadManager:
         groups = group_by_precursor_mass(
             scans, precursor_error_tolerance * 1.5)
 
@@ -250,7 +273,8 @@ class TandemClusterEvaluatorBase(TaskBase):
             handler_tp = SolutionHandler
         return handler_tp
 
-    def _transform_matched_collection(self, solution_set_collection, *args, **kwargs):
+    def _transform_matched_collection(self, solution_set_collection: List[SpectrumSolutionSet],
+                                      *args, **kwargs) -> List[SpectrumSolutionSet]:
         '''This helper method can be used to re-write the target
         attribute of spectrm matches. By default, it is a no-op.
 
@@ -260,7 +284,7 @@ class TandemClusterEvaluatorBase(TaskBase):
         '''
         return solution_set_collection
 
-    def _evaluate_hit_groups_single_process(self, workload, *args, **kwargs):
+    def _evaluate_hit_groups_single_process(self, workload: WorkloadManager, *args, **kwargs) -> Mapping[str, List]:
         batch_size, scan_map, hit_map, hit_to_scan_map, scan_hit_type_map, hit_group_map = workload
         handler_tp = self._get_solution_handler()
         processor = SequentialIdentificationProcessor(
@@ -272,7 +296,9 @@ class TandemClusterEvaluatorBase(TaskBase):
                           scan_hit_type_map, hit_group_map)
         return processor.scan_solution_map
 
-    def collect_scan_solutions(self, scan_solution_map, scan_map, *args, **kwags):
+    def collect_scan_solutions(self, scan_solution_map: Mapping[str, List],
+                               scan_map: Mapping[str, ProcessedScan],
+                               *args, **kwags) -> List[SpectrumSolutionSet]:
         result_set = []
         for scan_id, solutions in scan_solution_map.items():
             if len(solutions) == 0:
@@ -291,7 +317,7 @@ class TandemClusterEvaluatorBase(TaskBase):
     def _worker_specification(self):
         raise NotImplementedError()
 
-    def _evaluate_hit_groups_multiple_processes(self, workload, **kwargs):
+    def _evaluate_hit_groups_multiple_processes(self, workload: WorkloadManager, **kwargs):
         batch_size, scan_map, hit_map, hit_to_scan, scan_hit_type_map, hit_group_map = workload
         worker_type, init_args = self._worker_specification
         handler_tp = self._get_solution_handler()
@@ -301,7 +327,7 @@ class TandemClusterEvaluatorBase(TaskBase):
             mass_shift_map=self.mass_shift_map, solution_handler_type=handler_tp)
         return dispatcher.process(scan_map, hit_map, hit_to_scan, scan_hit_type_map, hit_group_map)
 
-    def evaluate_hit_groups(self, batch, **kwargs):
+    def evaluate_hit_groups(self, batch, **kwargs) -> Mapping[str, List]:
         if self.n_processes == 1 or len(batch.hit_map) < 2500:
             return self._evaluate_hit_groups_single_process(
                 batch, **kwargs)
@@ -309,7 +335,8 @@ class TandemClusterEvaluatorBase(TaskBase):
             return self._evaluate_hit_groups_multiple_processes(
                 batch, **kwargs)
 
-    def score_bunch(self, scans, precursor_error_tolerance=1e-5, **kwargs):
+    def score_bunch(self, scans: List[ProcessedScan],
+                    precursor_error_tolerance: float=1e-5, **kwargs) -> List[SpectrumSolutionSet]:
         workload = self._map_scans_to_hits(
             scans, precursor_error_tolerance)
         solutions = []

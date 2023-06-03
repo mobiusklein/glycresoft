@@ -2,9 +2,10 @@ import os
 import time
 
 from queue import Empty, Full, Queue
-from typing import List, Optional, Tuple, Type, Union, Dict, Set
+from typing import List, Optional, Tuple, Type, Union, Dict, Set, TYPE_CHECKING
 
 from multiprocessing import Event, Manager
+
 from glycan_profiling.chromatogram_tree.mass_shift import MassShiftBase
 
 from ms_deisotope.data_source import ProcessedScan, ProcessedRandomAccessScanSource
@@ -26,6 +27,11 @@ from ...spectrum_match.solution_set import MultiScoreSpectrumSolutionSet
 from ..scoring import LogIntensityScorer
 from ..matcher import GlycopeptideMatcher
 
+if TYPE_CHECKING:
+    from multiprocessing.managers import SyncManager
+    from multiprocessing.synchronize import Event as MPEvent
+
+Full: Exception
 
 class MultiScoreGlycopeptideMatcher(GlycopeptideMatcher):
     solution_set_type = MultiScoreSpectrumSolutionSet
@@ -134,8 +140,8 @@ class BatchMapper(TaskExecutionSequence):
 
     in_queue: Queue
     out_queue: Dict[str, Queue]
-    in_done_event: Event
-    done_event: Event
+    in_done_event: MPEvent
+    done_event: MPEvent
 
     def __init__(self, search_groups, in_queue, out_queue, in_done_event,
                  precursor_error_tolerance=5e-6, mass_shifts=None):
@@ -186,7 +192,7 @@ class BatchMapper(TaskExecutionSequence):
 
 
 @IsTask
-class StructureMapper(TaskExecutionSequence):
+class StructureMapper(TaskExecutionSequence[WorkloadManager]):
     """
     Map spectra against the database using a precursor filtering search strategy,
     generating a task graph of spectrum-structure-mass_shift relationships, a
@@ -392,7 +398,7 @@ class SemaphoreBoundMapperExecutor(MapperExecutor):
 
 
 @IsTask
-class SpectrumMatcher(TaskExecutionSequence):
+class SpectrumMatcher(TaskExecutionSequence[List[MultiScoreSpectrumSolutionSet]]):
     """Actually execute the spectrum matching specified in a :class:`~.WorkloadManager`.
 
     .. note::
@@ -405,7 +411,7 @@ class SpectrumMatcher(TaskExecutionSequence):
     group_i: int
     group_n: int
     scorer_type: Type[GlycopeptideSpectrumMatcherBase]
-    ipc_manager: Manager
+    ipc_manager: SyncManager
     batch_label: Optional[str]
 
     n_processes: int
@@ -508,8 +514,9 @@ class MatcherExecutor(TaskExecutionSequence):
 
     in_queue: Queue
     out_queue: Queue
-    in_done_event: Event
-    done_event: Event
+    in_done_event: MPEvent
+    done_event: MPEvent
+    ipc_manager: SyncManager
 
     ipc_manager: Manager
     scorer_type: Type[GlycopeptideSpectrumMatcherBase]
@@ -541,7 +548,7 @@ class MatcherExecutor(TaskExecutionSequence):
         self.ipc_manager = ipc_manager
         self.cache_seeds = cache_seeds
 
-    def configure_task(self, matcher_task):
+    def configure_task(self, matcher_task: SpectrumMatcher):
         matcher_task.ipc_manager = self.ipc_manager
         matcher_task.n_processes = self.n_processes
         matcher_task.scorer_type = self.scorer_type
@@ -559,7 +566,7 @@ class MatcherExecutor(TaskExecutionSequence):
         has_work = True
         while has_work and not self.error_occurred():
             try:
-                matcher_task = self.in_queue.get(True, 3)
+                matcher_task: SpectrumMatcher = self.in_queue.get(True, 3)
                 solutions = self.execute_task(matcher_task)
                 while not self.error_occurred():
                     try:

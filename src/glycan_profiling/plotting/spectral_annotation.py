@@ -30,6 +30,36 @@ default_ion_series_to_color = {
 }
 
 
+monosaccharide_to_symbol = {
+    "Hex": "\u25CB",
+    "HexNAc": "\u25A1",
+    "Fuc": "\u25B3",
+    "dHex": "\u25B3",
+    "HexN": "\u25E9",
+    "NeuAc": "\u25C6",
+    "NeuGc": "\u25C7"
+}
+
+
+def format_stub_annotation(frag):
+    """
+    An amusing diversion with unicode, but impractical for
+    narrow spectrum plots.
+    """
+    stack = []
+    base = ['Hex', 'HexNAc']
+    for k in sorted(frag.glycosylation, key=lambda x: x.mass(), reverse=True):
+        if k not in base:
+            base.append(k)
+    for k in base:
+        v = frag.glycosylation[k]
+        if not v:
+            continue
+        stack.append(f" {monosaccharide_to_symbol[k]}{v}")
+    stack.append("Pep")
+    return '\n'.join(stack)
+
+
 if PY3:
     font_options = font_manager.FontProperties(
         family='sans serif')

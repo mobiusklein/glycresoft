@@ -1,6 +1,8 @@
 import os
 import time
 import traceback
+from typing import Any, List, Mapping, Tuple, Type
+
 
 try:
     import cPickle as pickle
@@ -21,12 +23,14 @@ except ImportError:
 
 from glypy.utils import uid
 
+from ms_deisotope.data_source import ProcessedScan
+
 from glycan_profiling.task import TaskBase
-from glycan_profiling.chromatogram_tree import Unmodified
+from glycan_profiling.chromatogram_tree import Unmodified, MassShift
 from glycan_profiling.structure import LRUMapping
 
 from .evaluation import SolutionHandler, LocalSpectrumEvaluator, SpectrumEvaluatorBase
-from .task import TaskQueueFeeder
+from .task import TaskQueueFeeder, DBHit, HitID, GroupID
 from .utils import SentinelToken, ProcessDispatcherState
 
 
@@ -84,6 +88,16 @@ class IdentificationProcessDispatcher(TaskBase):
     workers : list
         Container for created workers.
     """
+
+    solution_handler: SolutionHandler
+    state: ProcessDispatcherState
+    worker_type: Type['SpectrumIdentificationWorkerBase']
+
+    input_queue: JoinableQueue
+    output_queue: JoinableQueue
+
+    producer_thread_done_event: Event
+
 
     post_search_trailing_timeout = 1.5e2
     child_failure_timeout = 2.5e2
@@ -232,7 +246,9 @@ class IdentificationProcessDispatcher(TaskBase):
         self.log("... All Workers Done: %r (%d/%d), Error? %r" % (not worker_still_busy, j, i, self._has_remote_error))
         return not worker_still_busy
 
-    def build_work_order(self, hit_id, hit_map, scan_hit_type_map, hit_to_scan):
+    def build_work_order(self, hit_id: HitID, hit_map: Mapping[HitID, DBHit],
+                         scan_hit_type_map: Mapping[Tuple[str, HitID], MassShift],
+                         hit_to_scan: Mapping[HitID, List[str]]):
         """Packs several task-defining data structures into a simple to unpack payload for
         sending over IPC to worker processes.
 
@@ -350,8 +366,11 @@ class IdentificationProcessDispatcher(TaskBase):
             if self._result_buffer:
                 return self._result_buffer.popleft()
 
-
-    def process(self, scan_map, hit_map, hit_to_scan, scan_hit_type_map, hit_group_map=None):
+    def process(self, scan_map: Mapping[str, ProcessedScan],
+                hit_map: Mapping[HitID, DBHit],
+                hit_to_scan: Mapping[HitID, List[str]],
+                scan_hit_type_map: Mapping[Tuple[str, HitID], MassShift],
+                hit_group_map: Mapping[GroupID, List[HitID]]=None) -> Mapping[str, List]:
         """Evaluate all spectrum matches, spreading work among the worker
         process pool.
 
