@@ -140,8 +140,8 @@ class BatchMapper(TaskExecutionSequence):
 
     in_queue: Queue
     out_queue: Dict[str, Queue]
-    in_done_event: MPEvent
-    done_event: MPEvent
+    in_done_event: 'MPEvent'
+    done_event: 'MPEvent'
 
     def __init__(self, search_groups, in_queue, out_queue, in_done_event,
                  precursor_error_tolerance=5e-6, mass_shifts=None):
@@ -411,7 +411,7 @@ class SpectrumMatcher(TaskExecutionSequence[List[MultiScoreSpectrumSolutionSet]]
     group_i: int
     group_n: int
     scorer_type: Type[GlycopeptideSpectrumMatcherBase]
-    ipc_manager: SyncManager
+    ipc_manager: 'SyncManager'
     batch_label: Optional[str]
 
     n_processes: int
@@ -514,9 +514,9 @@ class MatcherExecutor(TaskExecutionSequence):
 
     in_queue: Queue
     out_queue: Queue
-    in_done_event: MPEvent
-    done_event: MPEvent
-    ipc_manager: SyncManager
+    in_done_event: 'MPEvent'
+    done_event: 'MPEvent'
+    ipc_manager: 'SyncManager'
 
     ipc_manager: Manager
     scorer_type: Type[GlycopeptideSpectrumMatcherBase]

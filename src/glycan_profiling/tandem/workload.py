@@ -457,7 +457,6 @@ class WorkloadManager(object):
 
 
 class WorkloadBatch(NamedTuple):
-    __slots__ = ()
 
     batch_size: int
     scan_map: Dict[str, ProcessedScan]
