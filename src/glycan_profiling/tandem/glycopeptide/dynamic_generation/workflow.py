@@ -24,7 +24,7 @@ from glycan_profiling.tandem.spectrum_match.spectrum_match import MultiScoreSpec
 
 from glycan_profiling.task import (
     TaskBase, Pipeline,
-    TaskExecutionSequence, MultiLock,
+    TaskExecutionSequence,
     make_shared_memory_manager,
     IPCLoggingManager, LoggingHandlerToken)
 
@@ -739,9 +739,7 @@ class IdentificationWorker(TaskExecutionSequence):
         self.decoy_predictive_search.signature_ion_index = signature_index
 
         mapping_executor = SemaphoreBoundMapperExecutor(
-            MultiLock([
-                lock,
-            ]),
+            lock,
             OrderedDict([
                 ('target', self.target_predictive_search),
                 ('decoy', self.decoy_predictive_search)
@@ -752,9 +750,7 @@ class IdentificationWorker(TaskExecutionSequence):
             self.input_done_event,
         )
         matching_executor = SemaphoreBoundMatcherExecutor(
-            MultiLock([
-                lock,
-            ]),
+            lock,
             mapping_executor.out_queue,
             Queue(5),
             mapping_executor.done_event,

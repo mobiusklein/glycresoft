@@ -478,14 +478,13 @@ class SpectrumMatcher(TaskExecutionSequence[List[MultiScoreSpectrumSolutionSet]]
             target_scan_solution_map = matcher.evaluate_hit_groups(
                 batch, **self.evaluation_kwargs)
 
-            # This method calls `select_top`, it might be a source of inconsistency?
             temp = matcher.collect_scan_solutions(
                 target_scan_solution_map, batch.scan_map)
             temp = [case for case in temp if len(case) > 0]
             for case in temp:
                 case.simplify()
                 # Don't run the select top filters for consistency. They seemed to
-                # influence reproducibility. Possibly because glycan decoys get dropped?
+                # influence reproducibility.
             target_solutions.extend(temp)
             batch.clear()
 

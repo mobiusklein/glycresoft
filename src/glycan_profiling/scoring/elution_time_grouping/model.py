@@ -3,6 +3,7 @@ import itertools
 import logging
 import gzip
 import io
+import array
 
 from numbers import Number
 from collections import defaultdict, namedtuple
@@ -1036,12 +1037,15 @@ class ModelEnsemble(PeptideBackboneKeyedMixin, IntervalScoringMixin):
         return list(self._models_for(chromatogram))
 
     def coverage_for(self, chromatogram: GlycopeptideChromatogramProxy) -> float:
-        refs = []
-        weights = []
+        refs = array.array('d')
+        weights = array.array('d')
         for mod, weight in self._models_for(chromatogram):
             refs.append(mod.has_peptide(chromatogram))
             weights.append(weight)
-        coverage = np.dot(refs, weights) / np.sum(weights)
+        if len(weights) == 0:
+            return 0
+        else:
+            coverage = np.dot(refs, weights) / np.sum(weights)
         return coverage
 
     def has_peptide(self, chromatogram: ChromatogramType) -> bool:
@@ -1478,7 +1482,7 @@ class LocalShiftGraph(object):
     key_cache: GlycanCompositionDeltaCache
     distance_cache: DistanceCache
     edges: DefaultDict[frozenset, List]
-    shift_to_delta: DefaultDict[str, List]
+    shift_to_delta: DefaultDict[str, List[Tuple[GlycopeptideChromatogramProxy, frozenset]]]
     groups: GlycoformAggregator
     key_cache: Dict
     delta_params: Dict[str, DeltaParam]
@@ -1542,17 +1546,20 @@ class LocalShiftGraph(object):
     def estimate_delta_distribution(self) -> Dict[str, DeltaParam]:
         params = {}
         for shift, delta_chroms in self.shift_to_delta.items():
-            apex_times = []
-            weights = []
+            apex_times = array.array('f')
+            weights = array.array('f')
             for rec, _key in delta_chroms:
                 apex_times.append(rec.apex_time)
-                weights.append(rec.total_signal)
+                weights.append(rec.total_signal if rec.total_signal > 1 else (1 + 1e-13))
 
             apex_times = np.array(apex_times)
             weights = np.log10(weights)
 
-            weighted_mean = np.dot(apex_times, weights) / weights.sum()
-            weighted_sdev = np.sqrt(weights.dot((apex_times - weighted_mean) ** 2) / (weights.sum() - 1))
+            W = weights.sum()
+            weighted_mean: float = np.dot(apex_times, weights) / W
+            weighted_sdev: float = np.sqrt(
+                weights.dot((apex_times - weighted_mean) ** 2) / (W - 1)
+            )
             if weighted_sdev > abs(weighted_mean):
                 tmp = weighted_sdev
                 weighted_sdev = max(abs(weighted_mean), 1.0)
@@ -1572,8 +1579,13 @@ class LocalShiftGraph(object):
             if len(ii) != len(apex_times):
                 apex_times = apex_times[ii]
                 weights = weights[ii]
-                weighted_mean = np.dot(apex_times, weights) / weights.sum()
-                weighted_sdev = np.sqrt(weights.dot((apex_times - weighted_mean) ** 2) / (weights.sum() - 1))
+                W = weights.sum()
+                if len(weights):
+                    weighted_mean = np.dot(apex_times, weights) / W
+                    weighted_sdev = np.sqrt(weights.dot((apex_times - weighted_mean) ** 2) / (W - 1))
+                else:
+                    weighted_mean = 0
+                    weighted_sdev = 1
 
             params[shift] = DeltaParam(weighted_mean, weighted_sdev, len(apex_times), apex_times, weights)
         return params

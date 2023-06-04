@@ -368,15 +368,17 @@ class GlycopeptideSpectrumMatchAnalysisCSVSerializer(CSVSerializerBase):
     log_interval = 10000
 
     include_rank: bool
+    include_group: bool
     analysis: 'Analysis'
     protein_name_resolver: Dict[int, str]
 
     def __init__(self, outstream, entities_iterable, protein_name_resolver, analysis, delimiter=',',
-                 include_rank: bool = True):
+                 include_rank: bool = True, include_group: bool = True):
         super(GlycopeptideSpectrumMatchAnalysisCSVSerializer, self).__init__(outstream, entities_iterable, delimiter)
         self.protein_name_resolver = protein_name_resolver
         self.analysis = analysis
         self.include_rank = include_rank
+        self.include_group = include_group
 
     def get_header(self):
         names = [
@@ -398,6 +400,8 @@ class GlycopeptideSpectrumMatchAnalysisCSVSerializer(CSVSerializerBase):
         ]
         if self.include_rank:
             names.append("rank")
+        if self.include_group:
+            names.append("group_id")
         return names
 
     def convert_object(self, obj):
@@ -436,6 +440,12 @@ class GlycopeptideSpectrumMatchAnalysisCSVSerializer(CSVSerializerBase):
             except AttributeError:
                 rank = -1
             attribs.append(rank)
+        if self.include_group:
+            try:
+                group = obj.solution_set.cluster_id
+            except AttributeError:
+                group = -1
+            attribs.append(group)
         return list(map(str, attribs))
 
 

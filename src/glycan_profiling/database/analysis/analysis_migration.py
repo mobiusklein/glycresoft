@@ -1,4 +1,6 @@
+import time
 
+from datetime import timedelta
 from collections import defaultdict
 from typing import DefaultDict, List, Optional, Sequence, Set, Tuple
 
@@ -472,6 +474,7 @@ class GlycopeptideMSMSAnalysisSerializer(AnalysisMigrationBase):
         ] + list(self._unassigned_chromatogram_set)
 
     def migrate_hypothesis(self):
+        start = time.time()
         self._glycopeptide_hypothesis_migrator = GlycopeptideHypothesisMigrator(
             self._original_connection)
         self._glycopeptide_hypothesis_migrator.migrate_hypothesis(
@@ -521,6 +524,8 @@ class GlycopeptideMSMSAnalysisSerializer(AnalysisMigrationBase):
         self._glycopeptide_hypothesis_migrator.migrate_glycopeptide_bulk(glycopeptides)
         index_toggler.create()
         self._glycopeptide_hypothesis_migrator.commit()
+        elapsed = timedelta(seconds=time.time()) - timedelta(seconds=start)
+        self.log(f"... Hypothesis migration time {elapsed}")
 
     def fetch_scans(self):
         scan_ids = set()
@@ -592,9 +597,10 @@ class GlycopeptideMSMSAnalysisSerializer(AnalysisMigrationBase):
         return slurp(self.glycopeptide_db, Glycopeptide, glycopeptide_ids)
 
     def _migrate_single_glycopeptide(self, glycopeptide: Glycopeptide) -> int:
-        '''Stupendously slow if used in bulk, intended for recovering from cases where
+        """
+        Stupendously slow if used in bulk, intended for recovering from cases where
         a single glycopeptide somehow slipped through the cracks.
-        '''
+        """
         gp = self.glycopeptide_db.query(Glycopeptide).get(id)
         self._glycopeptide_hypothesis_migrator.migrate_glycopeptide(gp)
         return self._glycopeptide_hypothesis_migrator.glycopeptide_id_map[glycopeptide.id]

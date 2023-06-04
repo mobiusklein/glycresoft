@@ -7,7 +7,7 @@ import traceback
 import multiprocessing
 import threading
 
-from typing import Generic, TypeVar
+from typing import Generic, List, Optional, TypeVar, Union
 from logging.handlers import QueueHandler, QueueListener
 from multiprocessing.managers import SyncManager
 from datetime import datetime
@@ -430,54 +430,8 @@ class TaskBase(LoggingMixin):
 log_handle = TaskBase()
 
 
-class MultiEvent(object):
-    def __init__(self, events):
-        self.events = list(events)
-
-    def set(self):
-        for event in self.events:
-            event.set()
-
-    def is_set(self):
-        for event in self.events:
-            result = event.is_set()
-            if not result:
-                return result
-        return True
-
-    def wait(self, *args, **kwargs):
-        result = True
-        for event in self.events:
-            result &= event.wait(*args, **kwargs)
-        return result
-
-    def clear(self):
-        for event in self.events:
-            event.clear()
-
-
-class MultiLock(object):
-    def __init__(self, locks):
-        self.locks = list(locks)
-
-    def acquire(self):
-        for lock in self.locks:
-            lock.acquire()
-
-    def release(self):
-        for lock in self.locks:
-            lock.release()
-
-    def __enter__(self):
-        return self.acquire()
-
-    def __exit__(self, *args):
-        self.release()
-
-
 class TaskExecutionSequence(TaskBase, Generic[T]):
-    """A task unit that executes in a separate thread or process.
-    """
+    """A task unit that executes in a separate thread or process."""
 
     def __call__(self) -> T:
         result = None
@@ -510,11 +464,11 @@ class TaskExecutionSequence(TaskBase, Generic[T]):
     def _get_repr_details(self):
         return ''
 
-    _thread = None
-    _running_in_process = False
-    _error_flag = None
+    _thread: Optional[Union[threading.Thread, multiprocessing.Process]] = None
+    _running_in_process: bool = False
+    _error_flag: Optional[threading.Event] = None
 
-    def error_occurred(self):
+    def error_occurred(self) -> bool:
         if self._error_flag is None:
             return False
         else:
@@ -530,7 +484,7 @@ class TaskExecutionSequence(TaskBase, Generic[T]):
         template = "{self.__class__.__name__}({details})"
         return template.format(self=self, details=self._get_repr_details())
 
-    def _make_event(self, provider=None):
+    def _make_event(self, provider=None) -> Union[threading.Event, multiprocessing.Event]:
         if provider is None:
             provider = threading
         return provider.Event()
@@ -538,7 +492,7 @@ class TaskExecutionSequence(TaskBase, Generic[T]):
     def _name_for_execution_sequence(self):
         return ("%s-%r" % (self.__class__.__name__, id(self)))
 
-    def start(self, process=False, daemon=False):
+    def start(self, process: bool=False, daemon: bool=False):
         if self._thread is not None:
             return self._thread
         if process:
@@ -558,7 +512,7 @@ class TaskExecutionSequence(TaskBase, Generic[T]):
         self._thread = t
         return t
 
-    def join(self, timeout=None):
+    def join(self, timeout: Optional[float]=None) -> bool:
         if self.error_occurred():
             return True
         try:
@@ -585,6 +539,9 @@ class TaskExecutionSequence(TaskBase, Generic[T]):
 
 
 class Pipeline(TaskExecutionSequence):
+    tasks: List[TaskExecutionSequence]
+    error_polling_rate: float
+
     def __init__(self, tasks, error_polling_rate=1.0):
         self.tasks = tasks
         self.error_polling_rate = error_polling_rate
@@ -593,7 +550,7 @@ class Pipeline(TaskExecutionSequence):
         for task in self:
             task.start(*args, **kwargs)
 
-    def join(self, timeout=None):
+    def join(self, timeout: Optional[float]=None):
         if timeout is not None:
             for task in self:
                 task.join(timeout)
@@ -620,7 +577,7 @@ class Pipeline(TaskExecutionSequence):
             alive += task.is_alive()
         return alive
 
-    def error_occurred(self):
+    def error_occurred(self) -> int:
         errors = 0
         for task in self.tasks:
             errors += task.error_occurred()
@@ -636,7 +593,7 @@ class Pipeline(TaskExecutionSequence):
     def __len__(self):
         return len(self.tasks)
 
-    def __getitem__(self, i):
+    def __getitem__(self, i: Union[int, slice]):
         return self.tasks[i]
 
     def add(self, task):

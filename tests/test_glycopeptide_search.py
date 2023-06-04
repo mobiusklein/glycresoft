@@ -24,8 +24,12 @@ class _GlycopeptideSearchToolBase:
         db = serialize.DatabaseBoundOperation(output_file)
         ref_db = serialize.DatabaseBoundOperation(self.classic_result_db)
 
-        for model_tp in [serialize.Glycopeptide, serialize.Peptide,
-                         serialize.Protein, serialize.GlycanComposition]:
+        for model_tp in [serialize.Glycopeptide,
+                         serialize.Peptide,
+                         serialize.Protein,
+                         serialize.GlycanComposition,
+                         serialize.GlycopeptideSpectrumSolutionSet,
+                         serialize.IdentifiedGlycopeptide]:
             assert db.query(model_tp).count() == ref_db.query(model_tp).count()
 
     def evaluate_indexed_search(self, result: Result, output_file: str):
@@ -33,10 +37,14 @@ class _GlycopeptideSearchToolBase:
         db = serialize.DatabaseBoundOperation(output_file)
         ref_db = serialize.DatabaseBoundOperation(self.indexed_result_db)
 
-        for model_tp in [serialize.Glycopeptide, serialize.Peptide,
-                         serialize.Protein, serialize.GlycanComposition]:
+        for model_tp in [serialize.Glycopeptide,
+                         serialize.Peptide,
+                         serialize.Protein,
+                         serialize.GlycanComposition,
+                         serialize.GlycopeptideSpectrumMatch,
+                         serialize.GlycopeptideSpectrumSolutionSet,
+                         serialize.IdentifiedGlycopeptide]:
             assert db.query(model_tp).count() == ref_db.query(model_tp).count()
-
 
     def test_classic_search(self):
         runner = CliRunner()

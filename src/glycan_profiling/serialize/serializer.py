@@ -1,5 +1,7 @@
+import time
+
 from collections import defaultdict
-from typing import Any, Dict, FrozenSet, List, Tuple
+from typing import Any, Dict, FrozenSet, Iterable, List, Tuple, TYPE_CHECKING
 from uuid import uuid4
 
 from sqlalchemy.orm import Query, aliased
@@ -41,6 +43,12 @@ from .tandem import (
 from .identification import (
     AmbiguousGlycopeptideGroup,
     IdentifiedGlycopeptide)
+
+
+if TYPE_CHECKING:
+    from glycan_profiling.tandem.glycopeptide.identified_structure import (
+        IdentifiedGlycopeptide as MemoryIdentifiedGlycopeptide
+    )
 
 
 class AnalysisSerializer(DatabaseBoundOperation, TaskBase):
@@ -234,23 +242,39 @@ class AnalysisSerializer(DatabaseBoundOperation, TaskBase):
             self.commit()
         return inst
 
-    def save_glycopeptide_identification(self, identification, commit=False):
+    def save_glycopeptide_identification(self, identification: 'MemoryIdentifiedGlycopeptide',
+                                         commit: bool=False):
+        _start_time = time.time()
         if identification.chromatogram is not None:
             chromatogram_solution = self.save_chromatogram_solution(
                 identification.chromatogram, commit=False)
             chromatogram_solution_id = chromatogram_solution.id
         else:
             chromatogram_solution_id = None
+        _chromatogram_saving_elapsed = time.time() - _start_time
 
         # Compute the cluster key to avoid duplicating the storage of duplicate matches
         cluster_key = GlycopeptideSpectrumCluster.compute_key(identification.tandem_solutions)
+        _cluster_key_elapsed = time.time() - (_chromatogram_saving_elapsed + _start_time)
         if cluster_key in self._tandem_cluster_cache:
             cluster = self._tandem_cluster_cache[cluster_key]
+            _cluster_serialized_elapsed = 0
         else:
             cluster = GlycopeptideSpectrumCluster.serialize(
                 identification, self.session, self._scan_id_map, self._mass_shift_cache,
                 analysis_id=self.analysis_id)
             self._tandem_cluster_cache[cluster_key] = cluster
+            _cluster_serialized_elapsed = time.time() - (_cluster_key_elapsed +
+                                                         _chromatogram_saving_elapsed + _start_time)
+
+        _total_elapsed = (_cluster_serialized_elapsed + _cluster_key_elapsed + _chromatogram_saving_elapsed)
+
+        if _total_elapsed > 5:
+            _cluster_size = sum(map(len, identification.tandem_solutions))
+            self.log(f"..... Saving {identification} took {_total_elapsed:0.2f} sec "
+                     f"(chromatogram {_chromatogram_saving_elapsed:0.2f}s of {len(identification.chromatogram)} nodes,"
+                     f" key {_cluster_key_elapsed:0.2f}s,"
+                     f" cluster {_cluster_serialized_elapsed:0.2f}s of {_cluster_size} entries)")
 
         cluster_id = cluster.id
 
@@ -260,16 +284,25 @@ class AnalysisSerializer(DatabaseBoundOperation, TaskBase):
             self.commit()
         return inst
 
-    def save_glycopeptide_identification_set(self, identification_set, commit=False):
+    def save_glycopeptide_identification_set(self, identification_set: Iterable['MemoryIdentifiedGlycopeptide'],
+                                             commit: bool=False):
         cache = defaultdict(list)
         no_chromatograms = []
         out = []
         n = len(identification_set)
         i = 0
+
+        chromatogram_node_counter = 0
+        gpsms_solution_counter = 0
         for case in identification_set:
             i += 1
             if i % 100 == 0:
-                self.log("%0.2f%% glycopeptides saved. (%d/%d), %r" % (i * 100. / n, i, n, case))
+                self.log(
+                    f"{i * 100. / n:0.2f}% glycopeptides saved. ({i}/{n}), {case} "
+                    f"({gpsms_solution_counter} solutions, {chromatogram_node_counter} XIC points)"
+                )
+            gpsms_solution_counter += sum(map(len, case.tandem_solutions))
+            chromatogram_node_counter += len(case.chromatogram) if case.chromatogram is not None else 0
             saved = self.save_glycopeptide_identification(case)
             if case.chromatogram is not None:
                 cache[case.chromatogram].append(saved)
