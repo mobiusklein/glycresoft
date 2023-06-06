@@ -78,7 +78,6 @@ class CSVSerializerBase(TaskBase):
         for i, row in enumerate(gen):
             if i % log_interval == 0 and i != 0:
                 self.status_update(f"Handled {i + 1} {entity_label}")
-                self.outstream.flush()
             self.writerow(row)
         self.status_update(f"Handled {i + 1} {entity_label}")
 
@@ -365,7 +364,7 @@ class MultiScoreGlycopeptideLCMSMSAnalysisCSVSerializer(GlycopeptideLCMSMSAnalys
 
 class GlycopeptideSpectrumMatchAnalysisCSVSerializer(CSVSerializerBase):
     entity_label = "glycopeptide spectrum matches"
-    log_interval = 10000
+    log_interval = 5000
 
     include_rank: bool
     include_group: bool
@@ -442,7 +441,7 @@ class GlycopeptideSpectrumMatchAnalysisCSVSerializer(CSVSerializerBase):
             attribs.append(rank)
         if self.include_group:
             try:
-                group = obj.solution_set.cluster_id
+                group = obj.cluster_id
             except AttributeError:
                 group = -1
             attribs.append(group)
