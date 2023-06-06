@@ -177,7 +177,7 @@ class AnalysisSerializer(DatabaseBoundOperation, TaskBase):
             node_peak_map=self._node_peak_map)
         if cluster_id is not None:
             self.session.execute(
-                GlycanCompositionChromatogramToGlycanCompositionSpectrumCluster.insert(), { # pylint: disable=no-value-for-parameter
+                GlycanCompositionChromatogramToGlycanCompositionSpectrumCluster.insert(), {
                     "chromatogram_id": result.id,
                     "cluster_id": cluster_id
                 })
@@ -206,7 +206,7 @@ class AnalysisSerializer(DatabaseBoundOperation, TaskBase):
             node_peak_map=self._node_peak_map)
         if cluster_id is not None:
             self.session.execute(
-                UnidentifiedChromatogramToUnidentifiedSpectrumCluster.insert(), {  # pylint: disable=no-value-for-parameter
+                UnidentifiedChromatogramToUnidentifiedSpectrumCluster.insert(), {
                     "chromatogram_id": result.id,
                     "cluster_id": cluster_id
                 })
@@ -294,14 +294,18 @@ class AnalysisSerializer(DatabaseBoundOperation, TaskBase):
 
         chromatogram_node_counter = 0
         gpsms_solution_counter = 0
+        spectra_counter = 0
         for case in identification_set:
             i += 1
             if i % 100 == 0:
                 self.log(
-                    f"{i * 100. / n:0.2f}% glycopeptides saved. ({i}/{n}), {case} "
-                    f"({gpsms_solution_counter} solutions, {chromatogram_node_counter} XIC points)"
+                    f"{i * 100. / n:0.2f}% glycopeptides saved. ({i}/{n}), {case.structure}:"
+                    f"MS2={case.ms2_score:0.2f}:{case.q_value:0.3f}, MS1={case.ms1_score:0.2f}:{case.total_signal:0.2e}"
+                    f"({spectra_counter} spectra, {gpsms_solution_counter} solutions, "
+                    f"{chromatogram_node_counter} XIC points)"
                 )
             gpsms_solution_counter += sum(map(len, case.tandem_solutions))
+            spectra_counter += len(case.tandem_solutions)
             chromatogram_node_counter += len(case.chromatogram) if case.chromatogram is not None else 0
             saved = self.save_glycopeptide_identification(case)
             if case.chromatogram is not None:
@@ -315,6 +319,8 @@ class AnalysisSerializer(DatabaseBoundOperation, TaskBase):
         for case in no_chromatograms:
             AmbiguousGlycopeptideGroup.serialize(
                 [case], self.session, analysis_id=self.analysis_id)
+        if commit:
+            self.commit()
         return out
 
     def commit(self):
