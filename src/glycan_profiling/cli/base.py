@@ -13,7 +13,8 @@ logger = logging.getLogger("glycresoft")
 
 @click.group(context_settings=CONTEXT_SETTINGS)
 @click.version_option(version.version)
-@click.option("-l", "--log-file", type=click.Path(writable=True), required=False, default=None, help="Path to write the log file to.")
+@click.option("-l", "--log-file", type=click.Path(writable=True), required=False,
+              default=None, help="Path to write the log file to.")
 def cli(log_file=None):
     if log_file is not None:
         click.echo(f"Logging to {log_file}")

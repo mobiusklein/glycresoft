@@ -1,4 +1,3 @@
-import io
 import os
 import re
 import sys
@@ -6,14 +5,11 @@ import uuid
 import codecs
 import logging
 import warnings
-import traceback
 import multiprocessing
 
-from typing import Dict, Optional
+from typing import Dict
 from logging import FileHandler
 from multiprocessing import current_process
-
-from six import PY2
 
 from stat import S_IRUSR, S_IWUSR, S_IXUSR, S_IRGRP, S_IWGRP, S_IROTH, S_IWOTH
 

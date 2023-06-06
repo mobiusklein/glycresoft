@@ -314,9 +314,10 @@ def glycopeptide_fa(context, fasta_file, database_connection, enzyme, missed_cle
 def glycopeptide_mzid(context, mzid_file, database_connection, name, occupied_glycosites, target_protein,
                       target_protein_re, processes, glycan_source, glycan_source_type, glycan_source_identifier,
                       reference_fasta, peptide_length_range=(5, 60)):
-    '''Constructs a glycopeptide hypothesis from a MzIdentML file of proteins and a
+    """
+    Constructs a glycopeptide hypothesis from a MzIdentML file of proteins and a
     collection of glycans.
-    '''
+    """
     proteins = validate_mzid_proteins(
         context, mzid_file, target_protein, target_protein_re)
     validate_glycan_source(context, database_connection,

@@ -2,7 +2,7 @@
 import math
 import logging
 
-from typing import Any, Callable, List, NamedTuple, Optional, Tuple
+from typing import Callable, List, NamedTuple, Optional, Tuple
 from collections import defaultdict, namedtuple
 
 import numpy as np
@@ -21,14 +21,15 @@ logger.addHandler(logging.NullHandler())
 
 
 class NearestValueLookUp(object):
-    '''A mapping-like object which simplifies
+    """
+    A mapping-like object which simplifies
     finding the value of a pair whose key is nearest
     to a given query.
 
     .. note::
         Queries exceeding the maximum key will return
         the maximum key's value.
-    '''
+    """
 
     def __init__(self, items):
         if isinstance(items, dict):
@@ -787,9 +788,10 @@ class GroupwiseTargetDecoyAnalyzer(FDREstimatorBase):
 
 
 class PeptideScoreTargetDecoyAnalyzer(TargetDecoyAnalyzer):
-    '''A :class:`TargetDecoyAnalyzer` subclass for directly
+    """
+    A :class:`TargetDecoyAnalyzer` subclass for directly
     handling :class:`~.MultiScoreSpectrumMatch` instances.
-    '''
+    """
 
     def get_score(self, spectrum_match):
         return spectrum_match.score_set.peptide_score

@@ -2,7 +2,7 @@ import os
 import re
 import traceback
 
-from typing import Mapping, Generic, TypeVar, Type, Union
+from typing import Mapping, TypeVar, Type, Union
 
 
 import pickle
@@ -365,7 +365,8 @@ def validate_glycopeptide_tandem_scoring_function(context, name):
                     if len(scorer) == 2 and isinstance(scorer[1], Mapping):
                         return scorer
                     else:
-                        raise TypeError("Unpickled scorer contained a tuple, but the second value was not a dictionary!")
+                        raise TypeError(
+                            "Unpickled scorer contained a tuple, but the second value was not a dictionary!")
         else:
             raise click.Abort("Could not recognize scoring function by name %r" % (name,))
 
@@ -469,7 +470,9 @@ class RelativeMassErrorParam(click.types.FloatParamType):
         value = super(RelativeMassErrorParam, self).convert(value, param, ctx)
         if value > 1e-3:
             click.secho(
-                "Translating {0} PPM -> {1}".format(param, value, value / 1e-6), fg='yellow')
+                f"Translating {value} PPM -> {value / 1e-6}",
+                fg='yellow'
+            )
             value /= 1e-6
         if value <= 0:
             self.fail("mass error value must be greater than 0.")

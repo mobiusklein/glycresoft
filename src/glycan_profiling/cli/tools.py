@@ -5,7 +5,6 @@ import threading
 import code
 import pprint
 
-from glycan_profiling import serialize
 from queue import Queue, Empty
 
 import click
@@ -14,7 +13,6 @@ import pkg_resources
 from glypy.structure.glycan_composition import HashableGlycanComposition
 from glycopeptidepy.io import fasta, uniprot
 from glycopeptidepy.structure.residue import UnknownAminoAcidException
-from glycopeptidepy.structure.sequence import find_n_glycosylation_sequons, find_o_glycosylation_sequons
 
 from .base import cli
 from .validators import RelativeMassErrorParam, get_by_name_or_id
@@ -513,16 +511,21 @@ def update_analysis_parameters(database_connection, analysis_identifier, paramet
     session.commit()
 
 
-@tools.command("summarize-glycopeptide-hypothesis", short_help="Show summary information about a glycopeptide hypothesis")
+@tools.command("summarize-glycopeptide-hypothesis",
+               short_help="Show summary information about a glycopeptide hypothesis")
 @database_connection
 @hypothesis_identifier(GlycopeptideHypothesis)
 def summarize_glycopeptide_hypothesis(database_connection, hypothesis_identifier):
     session = database_connection.session
     hypothesis = get_by_name_or_id(session, GlycopeptideHypothesis, hypothesis_identifier)
     gp_counts = session.query(Protein, func.count(Glycopeptide.id)).join(
-        Glycopeptide).group_by(Protein.id).filter(Protein.hypothesis_id == hypothesis.id).order_by(serialize.Protein.id).all()
+        Glycopeptide).group_by(Protein.id).filter(
+        Protein.hypothesis_id == hypothesis.id).order_by(
+        Protein.id).all()
     pept_counts = session.query(Protein, func.count(Peptide.id)).join(
-        Peptide).group_by(Protein.id).filter(Protein.hypothesis_id == hypothesis.id).order_by(serialize.Protein.id).all()
+        Peptide).group_by(Protein.id).filter(
+        Protein.hypothesis_id == hypothesis.id).order_by(
+        Protein.id).all()
 
     gc_count = session.query(GlycanClass.name, func.count(GlycanClass.id)).join(
         GlycanComposition.structure_classes).filter(GlycanComposition.hypothesis_id == hypothesis.id).group_by(

@@ -358,7 +358,9 @@ def search_glycopeptide(context, database_connection, sample_path, hypothesis_id
                     'ratio to filter MS/MS scans. Defaults to 0.05.'))
 @click.option("-P", "--peptide-masses-per-scan", type=int, default=60,
               help="The maximum number of peptide masses to consider per scan")
-def search_glycopeptide_multipart(context, database_connection, decoy_database_connection, sample_path,
+def search_glycopeptide_multipart(context, database_connection,
+                                  decoy_database_connection,
+                                  sample_path,
                                   target_hypothesis_identifier=1,
                                   decoy_hypothesis_identifier=1,
                                   analysis_name=None,
@@ -384,8 +386,12 @@ def search_glycopeptide_multipart(context, database_connection, decoy_database_c
                                   retention_time_modeling=True,
                                   oxonium_threshold: float=0.05,
                                   peptide_masses_per_scan: int=60):
-    '''
-    '''
+    """
+    Search preprocessed data for glycopeptide sequences scored for both peptide and glycan components.
+
+    This search strategy requires an explicit decoy database, like one created with the `--reverse`
+    flag from `glycopeptide-fa`.
+    """
     if fdr_estimation_strategy is None:
         fdr_estimation_strategy = GlycopeptideFDREstimationStrategy.multipart_gamma_gaussian_mixture
     else:
@@ -525,7 +531,8 @@ def search_glycopeptide_multipart(context, database_connection, decoy_database_c
               help=(
                   "Require a glycan/glycosite combination be observed in multiple samples to treat it as real."
                   " Defaults to False."))
-@click.option("-w", "--network-path", type=click.Path(exists=True, file_okay=True, dir_okay=False), required=False, default=None,
+@click.option("-w", "--network-path", type=click.Path(exists=True, file_okay=True, dir_okay=False), required=False,
+              default=None,
               help=("The path to a text file defining the glycan network and its neighborhoods, as produced by "
                     "`glycresfoft build-hypothesis glycan-network`, otherwise the default human N-glycan network "
                     "will be used with the glycans defined in `-g`."))
@@ -546,7 +553,7 @@ def fit_glycoproteome_model(context, analysis_path, output_path, glycopeptide_hy
         try:
             click.echo("Checking analysis %s:%s" %
                        (analysis_path, analysis_id))
-            analysis = get_by_name_or_id(database_connection, Analysis, analysis_id)
+            _analysis = get_by_name_or_id(database_connection, Analysis, analysis_id)
         except Exception:
             click.secho("Could not locate an Analysis in %r with identifier %r" %
                         (analysis_path, analysis_id), fg='yellow')

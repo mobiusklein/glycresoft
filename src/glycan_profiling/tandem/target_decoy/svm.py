@@ -5,7 +5,6 @@
 
 from typing import Any, Dict, List, Optional, Tuple
 
-from warnings import warn
 from array import ArrayType as Array
 
 import numpy as np
@@ -61,8 +60,8 @@ class SVMModelBase(FDREstimatorBase):
             tda = self._wrap_dataset(target_matches, decoy_matches)
             _, count = tda.get_count_for_fdr(self.train_fdr)
             if count < 100:
-                warn(f"Found {count} targets passing {self.train_fdr} FDR threshold, "
-                      "too few observations to fit a reliable model")
+                self.warn(f"Found {count} targets passing {self.train_fdr} FDR threshold, "
+                          "too few observations to fit a reliable model")
             self.fit(tda)
 
     def feature_names(self) ->  List[str]:
@@ -191,7 +190,7 @@ class SVMModelBase(FDREstimatorBase):
             observations = normalized_features[labels.astype(bool), :]
             target_labels_i = (labels[labels.astype(bool)] + 1) / 2
             if (target_labels_i == 1).sum() == 0 or (target_labels_i == 0).sum() == 0:
-                warn("Found only one observation class, cannot proceed with model fitting")
+                self.warn("Found only one observation class, cannot proceed with model fitting")
                 break
             model.fit(observations, target_labels_i)
 
@@ -242,7 +241,7 @@ class SVMModelBase(FDREstimatorBase):
 
     def score(self, spectrum_match: MultiScoreSpectrumMatch, assign=None):
         if assign:
-            warn("The assign argument is a no-op")
+            self.warn("The assign argument is a no-op")
         if self.worse_than_score:
             return self.dataset.score(spectrum_match, assign=False)
         x = self.extract_features([spectrum_match])
