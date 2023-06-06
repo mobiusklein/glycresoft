@@ -118,7 +118,11 @@ class GlycanCompositionGlyphs(object):
             glyphs.extend(glyph.shape_patches)
             glyph = glycan_symbol_grammar.draw_text(
                 self.ax, x, y - 0.17, r'$\times %d$' % count, center=False, fontsize=22)
-            glyph.set_lw(0)
+            if isinstance(glyph, tuple):
+                for g in glyph:
+                    g.set_lw(0)
+            else:
+                glyph.set_lw(0)
             x += 1.75
             glyphs.extend(glyph)
 
