@@ -546,6 +546,7 @@ class GlycopeptideSpectrumMatch(Base, SpectrumMatchBase):
         structure_series = []
         is_best_match_series = Deque()
         rank_series = Deque()
+        solution_set_id = Deque()
         score_map = {}
 
         for chunk in chunkiter(ids, chunk_size):
@@ -558,7 +559,18 @@ class GlycopeptideSpectrumMatch(Base, SpectrumMatchBase):
                 structure_series.append(self.structure_id)
                 is_best_match_series.append(self.is_best_match)
                 rank_series.append(self.rank)
+                solution_set_id.append(self.solution_set_id)
                 score_map[self.id] = (self.score, self.q_value)
+
+        solution_set_id_to_cluster_id = {}
+        uniq_set_ids = list(set(solution_set_id))
+        for chunk in chunkiter(uniq_set_ids, chunk_size):
+            res = session.execute(
+                select([GlycopeptideSpectrumSolutionSet.id,
+                        GlycopeptideSpectrumSolutionSet.cluster_id]).where(
+                GlycopeptideSpectrumSolutionSet.id.in_(chunk)))
+            for (ssid, clid) in res.fetchall():
+                solution_set_id_to_cluster_id[ssid] = clid
 
         scan_objects = MSScan.bulk_load(
             session, scan_series,
@@ -575,12 +587,14 @@ class GlycopeptideSpectrumMatch(Base, SpectrumMatchBase):
 
         localization_map = LocalizationScore.bulk_load(session, ids, chunk_size=chunk_size)
 
-        for id, scan, structure, mass_shift, best_match, rank in zip(id_series,
-                                                               scan_objects,
-                                                               structure_objects,
-                                                               mass_shift_series,
-                                                               is_best_match_series,
-                                                               rank_series):
+        for id, scan, structure, mass_shift, best_match, rank, sset_id in zip(
+                id_series,
+                scan_objects,
+                structure_objects,
+                mass_shift_series,
+                is_best_match_series,
+                rank_series,
+                solution_set_id):
             localizations = localization_map[id]
             if id in score_sets_map:
                 score_set, fdr_set = score_sets_map[id]
@@ -592,7 +606,9 @@ class GlycopeptideSpectrumMatch(Base, SpectrumMatchBase):
                     q_value_set=fdr_set,
                     mass_shift=mass_shift,
                     localizations=localizations,
-                    rank=rank)
+                    rank=rank,
+                    cluster_id=solution_set_id_to_cluster_id[sset_id]
+                )
             else:
                 score, q_value = score_map[id]
                 out[id] = MemorySpectrumMatch(
@@ -601,7 +617,9 @@ class GlycopeptideSpectrumMatch(Base, SpectrumMatchBase):
                     id=id,
                     mass_shift=mass_shift,
                     localizations=localizations,
-                    rank=rank)
+                    rank=rank,
+                    cluster_id=solution_set_id_to_cluster_id[sset_id]
+                )
         return out
 
     def convert(self, mass_shift_cache=None, scan_cache=None, structure_cache=None, peptide_relation_cache=None):
@@ -647,6 +665,10 @@ class GlycopeptideSpectrumMatch(Base, SpectrumMatchBase):
 
     def __repr__(self):
         return "DB" + repr(self.convert())
+
+    @property
+    def cluster_id(self):
+        return self.solution_set.cluster_id
 
 
 class GlycanCompositionSpectrumCluster(Base, SpectrumClusterBase, BoundToAnalysis):

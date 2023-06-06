@@ -60,7 +60,8 @@ class ScanMatchManagingMixin(ScanWrapperBase):
 
     @staticmethod
     def threshold_peaks(deconvoluted_peak_set, threshold_fn=lambda peak: True):
-        """Filter a deconvoluted peak set by a predicate function.
+        """
+        Filter a deconvoluted peak set by a predicate function.
 
         Parameters
         ----------
@@ -81,7 +82,8 @@ class ScanMatchManagingMixin(ScanWrapperBase):
         return deconvoluted_peak_set
 
     def is_hcd(self) -> bool:
-        """Check whether the MSn spectrum was fragmented using a collisional dissociation
+        """
+        Check whether the MSn spectrum was fragmented using a collisional dissociation
         mechanism or not.
 
         The result is cached on :attr:`scan`, so the interpretation does not need to be repeated.
@@ -115,7 +117,8 @@ class ScanMatchManagingMixin(ScanWrapperBase):
         return result
 
     def is_exd(self) -> bool:
-        """Check if the scan was dissociated using an E*x*D method.
+        """
+        Check if the scan was dissociated using an E*x*D method.
 
         This checks for ECD and ETD terms.
 
@@ -187,7 +190,8 @@ class _SpectrumMatchBase(object):
 
 
 class SpectrumMatchBase(_SpectrumMatchBase, ScanMatchManagingMixin):
-    """A base class for spectrum matches, a scored pairing between a structure
+    """
+    A base class for spectrum matches, a scored pairing between a structure
     and tandem mass spectrum.
 
     Attributes
@@ -201,17 +205,19 @@ class SpectrumMatchBase(_SpectrumMatchBase, ScanMatchManagingMixin):
         of the fragment masses.
 
     """
+
     __slots__ = []
 
     scan: ProcessedScan
     target: Any
     mass_shift: MassShiftBase
 
-    def _theoretical_mass(self):
+    def _theoretical_mass(self) -> float:
         return self.target.total_composition().mass
 
     def precursor_mass_accuracy(self, offset: int=0) -> float:
-        """Calculate the precursor mass accuracy in PPM, accounting for neutron offset
+        """
+        Calculate the precursor mass accuracy in PPM, accounting for neutron offset
         and mass shift.
 
         Parameters
@@ -232,7 +238,8 @@ class SpectrumMatchBase(_SpectrumMatchBase, ScanMatchManagingMixin):
     def determine_precursor_offset(self,
                                    probing_range: int=3,
                                    include_error: bool=False) -> Union[int, Tuple[int, float]]:
-        """Iteratively re-estimate what the actual offset to the precursor mass was.
+        """
+        Iteratively re-estimate what the actual offset to the precursor mass was.
 
         Parameters
         ----------
@@ -372,7 +379,8 @@ class SpectrumMatcherBase(SpectrumMatchBase):
 
     @classmethod
     def evaluate(cls, scan, target, *args, **kwargs):
-        """A high level method to construct a :class:`SpectrumMatcherBase`
+        """
+        A high level method to construct a :class:`SpectrumMatcherBase`
         instance over a scan and target, call :meth:`match`, and
         :meth:`calculate_score`.
 
@@ -410,7 +418,8 @@ class SpectrumMatcherBase(SpectrumMatchBase):
             self=self)
 
     def plot(self, ax=None, **kwargs):
-        """Plot the spectrum match, using the :class:`~.TidySpectrumMatchAnnotator`
+        """
+        Plot the spectrum match, using the :class:`~.TidySpectrumMatchAnnotator`
         algorithm.
 
         Parameters
@@ -479,7 +488,8 @@ class FlagProperty(Generic[F]):
 
 
 class SpectrumMatch(SpectrumMatchBase):
-    """Represent a summarized spectrum match, which has been calculated already.
+    """
+    Represent a summarized spectrum match, which has been calculated already.
 
     Attributes
     ----------
@@ -497,7 +507,7 @@ class SpectrumMatch(SpectrumMatchBase):
     __slots__ = [
                  'score', '_best_match', 'data_bundle',
                  'q_value', 'id', 'valid', 'localizations',
-                 'rank',
+                 'rank', 'cluster_id'
                 ]
 
     score: float
@@ -511,9 +521,12 @@ class SpectrumMatch(SpectrumMatchBase):
     localizations: Optional[List['LocalizationScore']]
     data_bundle: Optional[Any]
 
+    rank: Optional[int]
+    cluster_id: Optional[int]
+
     def __init__(self, scan, target, score, best_match=False, data_bundle=None,
                  q_value=None, id=None, mass_shift=None, valid=True,
-                 localizations=None, rank=0):
+                 localizations=None, rank=0, cluster_id=None):
         super(SpectrumMatch, self).__init__(scan, target, mass_shift)
 
         self.score = score
@@ -524,6 +537,7 @@ class SpectrumMatch(SpectrumMatchBase):
         self.valid = valid
         self.localizations = localizations
         self.rank = rank
+        self.cluster_id = cluster_id
 
     @property
     def best_match(self) -> bool:
@@ -702,13 +716,6 @@ class ModelTreeNode(object):
 
     def load_peaks(self, scan):
         return self.model.load_peaks(scan)
-
-
-# class SpectrumMatchClassification(Enum):
-#     target_peptide_target_glycan = 0
-#     target_peptide_decoy_glycan = 1
-#     decoy_peptide_target_glycan = 2
-#     decoy_peptide_decoy_glycan = decoy_peptide_target_glycan | target_peptide_decoy_glycan
 
 
 _ScoreSet = make_struct("ScoreSet", ['glycopeptide_score', 'peptide_score', 'glycan_score', 'glycan_coverage',
@@ -892,7 +899,7 @@ class MultiScoreSpectrumMatch(SpectrumMatch):
 
     def __init__(self, scan, target, score_set, best_match=False, data_bundle=None,
                  q_value_set=None, id=None, mass_shift=None, valid=True, match_type=None,
-                 localizations=None, rank=0):
+                 localizations=None, rank=0, cluster_id=None):
         if q_value_set is None:
             q_value_set = FDRSet.default()
         else:
@@ -900,7 +907,8 @@ class MultiScoreSpectrumMatch(SpectrumMatch):
         self._q_value_set = None
         super(MultiScoreSpectrumMatch, self).__init__(
             scan, target, score_set[0], best_match, data_bundle, q_value_set[0],
-            id, mass_shift, valid=valid, localizations=localizations, rank=rank)
+            id, mass_shift, valid=valid, localizations=localizations, rank=rank,
+            cluster_id=cluster_id)
         if isinstance(score_set, ScoreSet):
             self.score_set = score_set
         else:
@@ -929,12 +937,14 @@ class MultiScoreSpectrumMatch(SpectrumMatch):
         """
         return self.__class__(
             self.scan, self.target, self.score_set, self.best_match, self.data_bundle,
-            self.q_value_set, self.id, self.mass_shift, self.valid, self.match_type, self.localizations)
+            self.q_value_set, self.id, self.mass_shift, self.valid, self.match_type, self.localizations,
+            self.rank, self.cluster_id)
 
     def __reduce__(self):
         return self.__class__, (self.scan, self.target, self.score_set, self.best_match,
                                 self.data_bundle, self.q_value_set, self.id, self.mass_shift,
-                                self.valid, self.match_type.value, self.localizations)
+                                self.valid, self.match_type.value, self.localizations, self.rank,
+                                self.cluster_id)
 
     def pack(self):
         return (self.target.id, self.score_set.pack(), int(self.best_match),

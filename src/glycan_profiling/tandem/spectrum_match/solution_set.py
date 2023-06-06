@@ -19,7 +19,8 @@ MatchType = TypeVar('MatchType', bound=SpectrumMatch)
 
 
 class SpectrumMatchRetentionStrategyBase(object):
-    """A method for filtering :class:`SpectrumMatch` objects out of a list according to a specific criterion.
+    """
+    A method for filtering :class:`SpectrumMatch` objects out of a list according to a specific criterion.
 
     Attributes
     ----------
@@ -32,7 +33,8 @@ class SpectrumMatchRetentionStrategyBase(object):
         self.threshold = threshold
 
     def filter_matches(self, solution_set: 'SpectrumSolutionSet'):
-        """Filter :class:`SpectrumMatch` objects from a list.
+        """
+        Filter :class:`SpectrumMatch` objects from a list.
 
         Parameters
         ----------
@@ -53,7 +55,8 @@ class SpectrumMatchRetentionStrategyBase(object):
 
 
 class MinimumScoreRetentionStrategy(SpectrumMatchRetentionStrategyBase):
-    """Filtering :class:`~.SpectrumMatch` from a list if their :attr:`~.SpectrumMatch.score` < :attr:`threshold`.
+    """
+    Filtering :class:`~.SpectrumMatch` from a list if their :attr:`~.SpectrumMatch.score` < :attr:`threshold`.
 
     Parameters
     ----------
@@ -74,7 +77,8 @@ class MinimumScoreRetentionStrategy(SpectrumMatchRetentionStrategyBase):
 
 
 class MinimumMultiScoreRetentionStrategy(SpectrumMatchRetentionStrategyBase):
-    """A minimum score filtering strategy for multi-score matches.
+    """
+    A minimum score filtering strategy for multi-score matches.
 
     A strategy for filtering :class:`~.SpectrumMatch` from a list if
     their :attr:`~.SpectrumMatch.score_set` is less than :attr:`threshold`,
@@ -102,7 +106,8 @@ class MinimumMultiScoreRetentionStrategy(SpectrumMatchRetentionStrategyBase):
 
 
 class MaximumSolutionCountRetentionStrategy(SpectrumMatchRetentionStrategyBase):
-    """A strategy for filtering :class:`~.SpectrumMatch` from a list to retain the top :attr:`threshold` entries.
+    """
+    A strategy for filtering :class:`~.SpectrumMatch` from a list to retain the top :attr:`threshold` entries.
 
     This assumes that `solution_set` is sorted.
 
@@ -117,7 +122,8 @@ class MaximumSolutionCountRetentionStrategy(SpectrumMatchRetentionStrategyBase):
     """
 
     def group_solutions(self, solutions, threshold=1e-2):
-        """Group solutions which have scores that are very close to one-another so they are not arbitrarily truncated.
+        """
+        Group solutions which have scores that are very close to one-another so they are not arbitrarily truncated.
 
         Parameters
         ----------
@@ -153,7 +159,8 @@ class MaximumSolutionCountRetentionStrategy(SpectrumMatchRetentionStrategyBase):
 
 
 class TopScoringSolutionsRetentionStrategy(SpectrumMatchRetentionStrategyBase):
-    """Retain only solutions with :attr:`threshold` of the top score.
+    """
+    Retain only solutions with :attr:`threshold` of the top score.
 
     A strategy for filtering :class:`~.SpectrumMatch` from a list to retain
     those with scores that are within :attr:`threshold` of the highest score in
@@ -184,7 +191,8 @@ class TopScoringSolutionsRetentionStrategy(SpectrumMatchRetentionStrategyBase):
 
 
 class QValueRetentionStrategy(SpectrumMatchRetentionStrategyBase):
-    """Filtering :class:`~.SpectrumMatch` from a list if their :attr:`~.SpectrumMatch.q_value` < :attr:`threshold`.
+    """
+    Filtering :class:`~.SpectrumMatch` from a list if their :attr:`~.SpectrumMatch.q_value` < :attr:`threshold`.
 
     A strategy for filtering :class:`~.SpectrumMatch` from a list to retain
     those with q-value that are less than :attr:`threshold`.
@@ -208,7 +216,8 @@ class QValueRetentionStrategy(SpectrumMatchRetentionStrategyBase):
 
 
 class SpectrumMatchRetentionMethod(SpectrumMatchRetentionStrategyBase):
-    """Combine several :class:`SpectrumMatchRetentionStrategyBase` together.
+    """
+    Combine several :class:`SpectrumMatchRetentionStrategyBase` together.
 
     A collection of several :class:`SpectrumMatchRetentionStrategyBase`
     objects which are applied in order to iteratively filter out :class:`SpectrumMatch`
@@ -255,7 +264,8 @@ class SpectrumMatchSortingStrategy(object):
     """A base strategy for sorting spectrum matches to rank the best solution."""
 
     def key_function(self, spectrum_match: SpectrumMatch):
-        """Create the sorting key for the spectrum match.
+        """
+        Create the sorting key for the spectrum match.
 
         For consistency, the target's ``id`` attribute is used to order
         matches that have the same score so repeated searches with the same
@@ -268,7 +278,8 @@ class SpectrumMatchSortingStrategy(object):
         return (spectrum_match.valid, spectrum_match.score, spectrum_match.target.id)
 
     def sort(self, solution_set: 'SpectrumSolutionSet', maximize: bool = True) -> List[SpectrumMatch]:
-        """Perform the sorting step.
+        """
+        Perform the sorting step.
 
         Parameters
         ----------
@@ -284,7 +295,8 @@ class SpectrumMatchSortingStrategy(object):
         return sorted(solution_set, key=self.key_function, reverse=maximize)
 
     def __call__(self, solution_set: 'SpectrumSolutionSet', maximize: bool = True) -> List[SpectrumMatch]:
-        """Perform the sorting step.
+        """
+        Perform the sorting step.
 
         Parameters
         ----------
@@ -324,7 +336,8 @@ class NOParsimonyMixin(object):
 
     def hoist_equivalent_n_linked_solution(self, solution_set: Iterable[SpectrumMatch],
                                            maximize: bool=True) -> List[SpectrumMatch]:
-        """Apply a parsimony step re-ordering solutions when the top solution may be N-linked or O-linked.
+        """
+        Apply a parsimony step re-ordering solutions when the top solution may be N-linked or O-linked.
 
         The O-linked core motif is much simpler than the N-linked core, so it gets
         preferential treatment. This re-orders the matches so that the N-linked solution
@@ -379,7 +392,8 @@ class NOParsimonyMixin(object):
 
 
 class NOParsimonyMultiScoreSpectrumMatchSortingStrategy(NOParsimonyMixin, MultiScoreSpectrumMatchSortingStrategy):
-    """A sorting strategy that applies prefers N-glycans to O-glycans on the same peptide.
+    """
+    A sorting strategy that applies prefers N-glycans to O-glycans on the same peptide.
 
     It applies parsimony to selecting the top solution when
     an N-linked solution is more parsimonious than an O-linked solution.
@@ -401,7 +415,8 @@ multi_score_sorter = MultiScoreSpectrumMatchSortingStrategy()
 
 
 class SpectrumSolutionSet(ScanWrapperBase, Sequence[MatchType]):
-    """A collection of spectrum matches against a single scan with different structures.
+    """
+    A collection of spectrum matches against a single scan with different structures.
 
     Implements the :class:`Sequence` interface.
 
@@ -500,7 +515,8 @@ class SpectrumSolutionSet(ScanWrapperBase, Sequence[MatchType]):
         return target in self._target_map
 
     def solution_for(self, target) -> MatchType:
-        """Find the spectrum match from this set which corresponds to the provided `target` structure.
+        """
+        Find the spectrum match from this set which corresponds to the provided `target` structure.
 
         Parameters
         ----------
@@ -516,7 +532,8 @@ class SpectrumSolutionSet(ScanWrapperBase, Sequence[MatchType]):
         return self._target_map[target]
 
     def precursor_mass_accuracy(self):
-        """The precursor mass accuracy of the best match.
+        """
+        The precursor mass accuracy of the best match.
 
         Returns
         -------
@@ -525,7 +542,8 @@ class SpectrumSolutionSet(ScanWrapperBase, Sequence[MatchType]):
         return self.best_solution().precursor_mass_accuracy()
 
     def best_solution(self, reject_shifted=False, targets_ignored=None, require_valid=True) -> MatchType:
-        """The element in :attr:`solutions` which is the best match to :attr:`scan`, the match at position 0.
+        """
+        The element in :attr:`solutions` which is the best match to :attr:`scan`, the match at position 0.
 
         If the collection is not sorted, :meth:`sort` will be called.
 
@@ -595,7 +613,8 @@ class SpectrumSolutionSet(ScanWrapperBase, Sequence[MatchType]):
         return len(self.solutions)
 
     def simplify(self):
-        """Discard excess information in this collection to save space.
+        """
+        Discard excess information in this collection to save space.
 
         Converts :attr:`scan` to a :class:`~.SpectrumReference`, and
         converts all matches to :class:`~.SpectrumMatch`, discarding
@@ -621,7 +640,8 @@ class SpectrumSolutionSet(ScanWrapperBase, Sequence[MatchType]):
 
     def get_top_solutions(self, d=3, reject_shifted=False, targets_ignored=None,
                           require_valid=True) -> List[MatchType]:
-        """Get all matches within `d` of the best solution.
+        """
+        Get all matches within `d` of the best solution.
 
         Parameters
         ----------
@@ -662,7 +682,8 @@ class SpectrumSolutionSet(ScanWrapperBase, Sequence[MatchType]):
         return [x for x in self.solutions if (best_score - x.score) < d]
 
     def select_top(self, method=None) -> 'SpectrumSolutionSet':
-        """Filter spectrum matches in this collection in-place.
+        """
+        Filter spectrum matches in this collection in-place.
 
         If all the solutions would be filtered out, only the best solution
         will be kept.
@@ -697,7 +718,8 @@ class SpectrumSolutionSet(ScanWrapperBase, Sequence[MatchType]):
         return self
 
     def sort(self, maximize=True, method=None) -> 'SpectrumSolutionSet':
-        """Sort the spectrum matches in this solution set according to their score attribute.
+        """
+        Sort the spectrum matches in this solution set according to their score attribute.
 
         In the event of a tie, in order to enforce determistic behavior, this will also
         sort matches according to their target's id attribute.
@@ -721,7 +743,8 @@ class SpectrumSolutionSet(ScanWrapperBase, Sequence[MatchType]):
         return self
 
     def sort_by(self, sort_fn=None, maximize=True) -> 'SpectrumSolutionSet':
-        """Sort the spectrum matches in this solution set according to `sort_fn`.
+        """
+        Sort the spectrum matches in this solution set according to `sort_fn`.
 
         This method behaves the same way :meth:`sort` does, except instead of
         sorting on an intrinsic attribute it uses a callable. It uses the same
@@ -745,7 +768,8 @@ class SpectrumSolutionSet(ScanWrapperBase, Sequence[MatchType]):
         return self
 
     def sort_q_value(self) -> 'SpectrumSolutionSet':
-        """Sort the spectrum matches in this solution set according to their q_value attribute.
+        """
+        Sort the spectrum matches in this solution set according to their q_value attribute.
 
         In the event of a tie, in order to enforce determistic behavior, this will also
         sort matches according to their target's id attribute.
@@ -867,7 +891,8 @@ class MultiScoreSpectrumSolutionSet(SpectrumSolutionSet[MultiScoreSpectrumMatch]
     # don't count next-best decoys.
 
     def sort(self, maximize=True, method=None):
-        """Sort the spectrum matches in this solution set according to their score_set attribute.
+        """
+        Sort the spectrum matches in this solution set according to their score_set attribute.
 
         In the event of a tie, in order to enforce determistic behavior, this will also
         sort matches according to their target's id attribute.
@@ -924,7 +949,8 @@ class MultiScoreSpectrumSolutionSet(SpectrumSolutionSet[MultiScoreSpectrumMatch]
         return self
 
     def sort_q_value(self):
-        """Sort the spectrum matches in this solution set according to their q_value_set attribute.
+        """
+        Sort the spectrum matches in this solution set according to their q_value_set attribute.
 
         In the event of a tie, in order to enforce determistic behavior, this will also
         sort matches according to their target's id attribute.
@@ -943,7 +969,8 @@ class MultiScoreSpectrumSolutionSet(SpectrumSolutionSet[MultiScoreSpectrumMatch]
 
     @property
     def score_set(self):
-        """The best match's score set.
+        """
+        The best match's score set.
 
         Returns
         -------
@@ -953,7 +980,8 @@ class MultiScoreSpectrumSolutionSet(SpectrumSolutionSet[MultiScoreSpectrumMatch]
 
     @property
     def q_value_set(self):
-        """The best match's q-value set.
+        """
+        The best match's q-value set.
 
         Returns
         -------
