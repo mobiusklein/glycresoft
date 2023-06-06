@@ -13,6 +13,7 @@ from multiprocessing.managers import SyncManager
 from datetime import datetime
 
 from queue import Empty
+import warnings
 
 import six
 from glycan_profiling.version import version
@@ -241,15 +242,17 @@ class LoggingMixin(object):
     print_fn = printer
     debug_print_fn = debug_printer
     error_print_fn = printer
+    warn_print_fn = warnings.warn
 
     _debug_enabled = None
 
     @classmethod
     def log_with_logger(cls, logger):
-        LoggingMixin.logger_state = logger
-        LoggingMixin.print_fn = logger.info
-        LoggingMixin.debug_print_fn = logger.debug
-        LoggingMixin.error_print_fn = logger.error
+        cls.logger_state = logger
+        cls.print_fn = logger.info
+        cls.debug_print_fn = logger.debug
+        cls.error_print_fn = logger.error
+        cls.warn_print_fn = logger.warning
 
     @classmethod
     def log_to_stdout(cls):
@@ -257,6 +260,7 @@ class LoggingMixin(object):
         cls.print_fn = printer
         cls.debug_print_fn = debug_printer
         cls.error_print_fn = printer
+        cls.warn_print_fn = warnings.warn
 
     def log(self, *message):
         self.print_fn(u', '.join(map(ensure_text, message)), stacklevel=2)
@@ -270,6 +274,9 @@ class LoggingMixin(object):
             map(ensure_text, message)), stacklevel=2)
         if exception is not None:
             self.error_print_fn(traceback.format_exc())
+
+    def warn(self, *message, **kwargs):
+        self.warn_print_fn(u', '.join(map(ensure_text, message)), stacklevel=2)
 
     def ipc_logger(self, handler=None):
         if handler is None:
@@ -342,7 +349,8 @@ class TaskBase(LoggingMixin):
         display_version(self.log)
 
     def try_set_process_name(self, name=None):
-        """This helper method may be used to try to change a process's name
+        """
+        This helper method may be used to try to change a process's name
         in order to make discriminating which role a particular process is
         fulfilling. This uses a third-party utility library that may not behave
         the same way on all platforms, and therefore this is done for convenience
