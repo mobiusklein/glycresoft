@@ -97,10 +97,10 @@ class IdentifiedGlycopeptideDescriberBase(object):
             annotated_match_ax.get_xlabel(), fontsize=16)
 
         sequence_logo_plot = glycopeptide_match_logo(match, ax=figax())
-        xlim = list(sequence_logo_plot.get_xlim())
+        xlim = list(sequence_logo_plot.ax.get_xlim())
         xlim[0] += 1
 
-        sequence_logo_plot.set_xlim(xlim[0], xlim[1])
+        sequence_logo_plot.ax.set_xlim(xlim[0], xlim[1])
 
         spectrum_plot = png_plot(
             annotated_match_ax, svg_width="100%", bbox_inches='tight', height=3 * 1.5,
@@ -108,7 +108,7 @@ class IdentifiedGlycopeptideDescriberBase(object):
             img_width="100%",
             patchless=True)
         logo_plot = svg_plot(
-            sequence_logo_plot,
+            sequence_logo_plot.ax,
             svg_width="100%",
             img_width="100%",
             xml_transform=scale_fix_xml_transform,

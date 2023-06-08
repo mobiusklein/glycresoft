@@ -1413,7 +1413,7 @@ class MzMLGlycopeptideLCMSMSAnalyzer(GlycopeptideLCMSMSAnalyzer):
             "mass_shifts": self.mass_shifts,
             "use_peptide_mass_filter": self.use_peptide_mass_filter,
             "database": str(self.database_connection),
-            "search_strategy": 'target-internal-decoy-competition',
+            "search_strategy": GlycopeptideSearchStrategy.target_internal_decoy_competition.value,
             "trust_precursor_fits": self.trust_precursor_fits,
             "probing_range_for_missing_precursors": self.probing_range_for_missing_precursors,
             "scoring_model": self.peak_shape_scoring_model,
@@ -1541,7 +1541,7 @@ class MzMLComparisonGlycopeptideLCMSMSAnalyzer(MzMLGlycopeptideLCMSMSAnalyzer):
             "decoy_database_size": len(decoy_database),
             "decoy_database": str(self.decoy_database_connection),
             "decoy_correction_threshold": self.use_decoy_correction_threshold,
-            "search_strategy": 'target-decoy-competition',
+            "search_strategy": GlycopeptideSearchStrategy.target_decoy_competition.value
         })
         return result
 
@@ -1867,7 +1867,7 @@ class MultipartGlycopeptideLCMSMSAnalyzer(MzMLGlycopeptideLCMSMSAnalyzer):
         result.update({
             "target_database": str(self.database_connection),
             "decoy_database": str(self.decoy_database_connection),
-            "search_strategy": 'multipart-target-decoy-competition',
+            "search_strategy": GlycopeptideSearchStrategy.multipart_target_decoy_competition.value,
             "fdr_estimation_strategy": self.fdr_estimation_strategy,
             "fdr_estimator": self.fdr_estimator,
             "fragile_fucose": self.fragile_fucose,

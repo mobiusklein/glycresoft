@@ -254,6 +254,13 @@ class LoggingMixin(object):
         cls.error_print_fn = logger.error
         cls.warn_print_fn = logger.warning
 
+    def instance_log_with_logger(self, logger):
+        self.logger_state = logger
+        self.print_fn = logger.info
+        self.debug_print_fn = logger.debug
+        self.error_print_fn = logger.error
+        self.warn_print_fn = logger.warning
+
     @classmethod
     def log_to_stdout(cls):
         cls.logger_state = None
