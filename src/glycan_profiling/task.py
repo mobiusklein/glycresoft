@@ -141,6 +141,7 @@ class LoggingHandlerToken:
         handler = QueueHandler(self.queue)
         logger.addHandler(handler)
         logger.setLevel(logging.INFO)
+        LoggingMixin.log_with_logger(logger)
         TaskBase.log_with_logger(logger)
         self.configured = True
 

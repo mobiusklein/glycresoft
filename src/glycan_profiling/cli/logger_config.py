@@ -230,6 +230,8 @@ def configure_logging(level=None, log_file_name=None, log_file_mode=None):
     logging.captureWarnings(True)
 
     logger = logging.getLogger("glycresoft")
+    # We probably only need to register the base class but let's play it safe
+    task.LoggingMixin.log_with_logger(logger)
     task.TaskBase.log_with_logger(logger)
 
     make_status_logger()
