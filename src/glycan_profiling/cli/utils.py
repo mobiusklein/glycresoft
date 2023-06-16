@@ -8,6 +8,10 @@ class ctxstream(object):
     def flush(self):
         self.stream.flush()
 
+    def __getattr__(self, attrib: str):
+        attr = getattr(self.stream, attrib)
+        return attr
+
     def __enter__(self):
         return self
 
