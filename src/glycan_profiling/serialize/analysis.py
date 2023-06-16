@@ -20,26 +20,17 @@ from glycan_profiling.serialize.spectrum import SampleRun
 
 from glycan_profiling.serialize.hypothesis.generic import HasFiles
 from glycan_profiling.serialize.param import HasParameters
-from glypy.utils import Enum
 
 from ms_deisotope.data_source import ProcessedRandomAccessScanSource
 from ms_deisotope.output import ProcessedMSFileLoader
 
+from glycan_profiling.structure.enums import AnalysisTypeEnum, GlycopeptideSearchStrategy
 
 if TYPE_CHECKING:
     from glycan_profiling.composition_distribution_model.site_model.glycoproteome_model import GlycoproteomeModel
 
 
 DillType = partial(PickleType, pickler=dill)
-
-
-class AnalysisTypeEnum(Enum):
-    glycopeptide_lc_msms = 0
-    glycan_lc_ms = 1
-
-
-AnalysisTypeEnum.glycopeptide_lc_msms.add_name("Glycopeptide LC-MS/MS")
-AnalysisTypeEnum.glycan_lc_ms.add_name("Glycan LC-MS")
 
 
 class _AnalysisParametersProps:
@@ -82,6 +73,17 @@ class _AnalysisParametersProps:
     @property
     def retention_time_model(self):
         return self.parameters.get('retention_time_model')
+
+    @property
+    def search_strategy(self):
+        strategy_str = self.parameters.get('search_strategy')
+        strategy = GlycopeptideSearchStrategy[strategy_str]
+        return strategy
+
+    @property
+    def is_multiscore(self):
+        strategy = self.search_strategy
+        return strategy == GlycopeptideSearchStrategy.multipart_target_decoy_competition
 
 
 class Analysis(Base, HasUniqueName, HasFiles, HasParameters, _AnalysisParametersProps):

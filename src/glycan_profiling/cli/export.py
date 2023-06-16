@@ -217,6 +217,7 @@ def glycopeptide_identification(database_connection, analysis_identifier, output
             str(analysis.name), str(analysis.analysis_type)), fg='red', err=True)
         raise click.Abort()
     analysis_id = analysis.id
+    is_multiscore = analysis.is_multiscore
     if output_path is None:
         output_stream = ctxstream(click.get_binary_stream('stdout'))
     else:
@@ -241,9 +242,7 @@ def glycopeptide_identification(database_connection, analysis_identifier, output
                 IdentifiedGlycopeptide.analysis_id == analysis.id)
         protein_index = dict(query)
 
-        gpsm = session.query(GlycopeptideSpectrumMatch).filter(
-            GlycopeptideSpectrumMatch.analysis_id == analysis_id).first()
-        if gpsm.is_multiscore():
+        if is_multiscore:
             job_type = MultiScoreGlycopeptideLCMSMSAnalysisCSVSerializer
         else:
             job_type = GlycopeptideLCMSMSAnalysisCSVSerializer
@@ -290,6 +289,7 @@ def glycopeptide_spectrum_matches(database_connection, analysis_identifier, outp
             str(analysis.name), str(analysis.analysis_type)), fg='red', err=True)
         raise click.Abort()
     analysis_id = analysis.id
+    is_multiscore = analysis.is_multiscore
     start = time.monotonic()
     protein_query = session.query(Protein.id, Protein.name).join(Protein.glycopeptides).join(
         GlycopeptideSpectrumMatch).filter(
@@ -338,10 +338,7 @@ def glycopeptide_spectrum_matches(database_connection, analysis_identifier, outp
                 yield glycopeptide
             i += interval
 
-    gpsm = session.query(GlycopeptideSpectrumMatch).filter(
-        GlycopeptideSpectrumMatch.analysis_id == analysis_id).first()
-
-    if gpsm.is_multiscore():
+    if is_multiscore:
         job_type = MultiScoreGlycopeptideSpectrumMatchAnalysisCSVSerializer
     else:
         job_type = GlycopeptideSpectrumMatchAnalysisCSVSerializer
