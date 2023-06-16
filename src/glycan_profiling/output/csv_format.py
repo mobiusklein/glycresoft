@@ -75,11 +75,12 @@ class CSVSerializerBase(TaskBase):
         entity_label = self.entity_label
         log_interval = self.log_interval
         gen = (self.convert_object(entity) for entity in self._entities_iterable)
-        for i, row in enumerate(gen):
+        i = 0
+        for i, row in enumerate(gen, 1):
             if i % log_interval == 0 and i != 0:
-                self.status_update(f"Handled {i + 1} {entity_label}")
+                self.status_update(f"Handled {i} {entity_label}")
             self.writerow(row)
-        self.status_update(f"Handled {i + 1} {entity_label}")
+        self.status_update(f"Handled {i} {entity_label}")
         self.outstream.flush() # If the TextIOWrapper is buffering, we need to flush it here
 
 

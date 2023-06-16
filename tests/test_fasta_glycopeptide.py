@@ -233,7 +233,7 @@ class FastaGlycopeptideTests(unittest.TestCase):
 
         peptides_without_uniprot = 80
         peptides_with_uniprot = 88
-        peptides_with_uniprot_and_ragged_signal_peptide = 137
+        peptides_with_uniprot_and_ragged_signal_peptide = 140
 
         peptides_count = glycopeptide_builder.query(serialize.Peptide).count()
 
