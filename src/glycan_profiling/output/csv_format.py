@@ -80,6 +80,7 @@ class CSVSerializerBase(TaskBase):
                 self.status_update(f"Handled {i + 1} {entity_label}")
             self.writerow(row)
         self.status_update(f"Handled {i + 1} {entity_label}")
+        self.outstream.flush() # If the TextIOWrapper is buffering, we need to flush it here
 
 
 class GlycanHypothesisCSVSerializer(CSVSerializerBase):
@@ -106,7 +107,7 @@ class GlycanHypothesisCSVSerializer(CSVSerializerBase):
 class ImportableGlycanHypothesisCSVSerializer(CSVSerializerBase):
     def __init__(self, outstream, entities_iterable):
         super(ImportableGlycanHypothesisCSVSerializer, self).__init__(
-            outstream, entities_iterable, "\t")
+            outstream, entities_iterable, delimiter="\t")
 
     def get_header(self):
         return False
