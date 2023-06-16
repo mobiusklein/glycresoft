@@ -164,17 +164,20 @@ class GlycoproteomePriorAnnotator(object):
         self.target_model = target_model
         self.decoy_model = decoy_model
 
-    def select_model(self, glycopeptide: FragmentCachingGlycopeptide, structure_type: StructureClassification):
+    def select_model(self, glycopeptide: FragmentCachingGlycopeptide,
+                     structure_type: StructureClassification) -> GlycoproteomeModel:
         if structure_type & StructureClassification.decoy_peptide_target_glycan:
             return self.decoy_model
         else:
             return self.target_model
 
-    def score_glycan(self, glycopeptide, structure_type, model):
+    def score_glycan(self, glycopeptide: FragmentCachingGlycopeptide,
+                     structure_type: StructureClassification,
+                     model: GlycoproteomeModel) -> float:
         # Treat decoy glycans identical
         gc = glycopeptide.glycan_composition
         return model.score(glycopeptide, gc)
 
-    def score(self, glycopeptide, structure_type):
+    def score(self, glycopeptide: FragmentCachingGlycopeptide, structure_type: StructureClassification) -> float:
         model = self.select_model(glycopeptide, structure_type)
         return self.score_glycan(glycopeptide, structure_type, model)

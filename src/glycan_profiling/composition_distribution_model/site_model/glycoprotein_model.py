@@ -90,7 +90,7 @@ class GlycoproteinSiteSpecificGlycomeModel(object):
         return not self == other
 
     @property
-    def glycosylation_sites(self):
+    def glycosylation_sites(self) -> List[GlycosylationSiteModel]:
         return self._glycosylation_sites
 
     @glycosylation_sites.setter
@@ -98,7 +98,7 @@ class GlycoproteinSiteSpecificGlycomeModel(object):
         self._glycosylation_sites = sorted(
             glycosylation_sites or [], key=lambda x: x.position)
 
-    def __getitem__(self, i):
+    def __getitem__(self, i) -> GlycosylationSiteModel:
         return self.glycosylation_sites[i]
 
     def __len__(self):
@@ -131,7 +131,8 @@ class GlycoproteinSiteSpecificGlycomeModel(object):
         except ValueError:
             return None
 
-    def score(self, glycopeptide: FragmentCachingGlycopeptide, glycan_composition: Optional[HashableGlycanComposition]=None) -> float:
+    def score(self, glycopeptide: FragmentCachingGlycopeptide,
+              glycan_composition: Optional[HashableGlycanComposition]=None) -> float:
         if glycan_composition is None:
             glycan_composition = glycopeptide.glycan_composition
         pr = glycopeptide.protein_relation
@@ -158,7 +159,10 @@ class GlycoproteinSiteSpecificGlycomeModel(object):
             return MINIMUM
 
     @classmethod
-    def bind_to_hypothesis(cls, session, site_models: List[GlycosylationSiteModel], hypothesis_id: int=1, fuzzy: bool=True) -> Dict[int, 'GlycoproteinSiteSpecificGlycomeModel']:
+    def bind_to_hypothesis(cls, session,
+                           site_models: List[GlycosylationSiteModel],
+                           hypothesis_id: int=1,
+                           fuzzy: bool=True) -> Dict[int, 'GlycoproteinSiteSpecificGlycomeModel']:
         by_protein_name = defaultdict(list)
         for site in site_models:
             by_protein_name[site.protein_name].append(site)
@@ -189,8 +193,11 @@ class GlycoproteinSiteSpecificGlycomeModel(object):
         return template.format(self=self)
 
     @classmethod
-    def load(cls, fh: io.TextIOBase, session=None, hypothesis_id: int = 1, fuzzy: bool = True) -> Union[List['GlycoproteinSiteSpecificGlycomeModel'],
-                                                                                                        Dict[int, 'GlycoproteinSiteSpecificGlycomeModel']]:
+    def load(cls, fh: io.TextIOBase,
+             session=None,
+             hypothesis_id: int = 1,
+             fuzzy: bool = True) -> Union[List['GlycoproteinSiteSpecificGlycomeModel'],
+                                          Dict[int, 'GlycoproteinSiteSpecificGlycomeModel']]:
         site_models = GlycosylationSiteModel.load(fh)
         if session is not None:
             return cls.bind_to_hypothesis(session, site_models, hypothesis_id, fuzzy)
