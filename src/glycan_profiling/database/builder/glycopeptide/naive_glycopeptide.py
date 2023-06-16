@@ -86,13 +86,19 @@ class FastaGlycopeptideHypothesisSerializer(GlycopeptideHypothesisSerializerBase
     def protein_ids(self):
         return [i[0] for i in self.query(Protein.id).filter(Protein.hypothesis_id == self.hypothesis_id).all()]
 
-    def digest_proteins(self):
+    def _make_digestor(self):
         digestor = ProteinDigestor(
             self.protease, self.constant_modifications, self.variable_modifications,
-            self.max_missed_cleavages, min_length=self.peptide_length_range[0],
-            max_length=self.peptide_length_range[1], semispecific=self.semispecific,
+            self.max_missed_cleavages,
+            min_length=self.peptide_length_range[0],
+            max_length=self.peptide_length_range[1],
+            semispecific=self.semispecific,
             require_glycosylation_sites=self.require_glycosylation_sites,
             include_cysteine_n_glycosylation=self.include_cysteine_n_glycosylation)
+        return digestor
+
+    def digest_proteins(self):
+        digestor = self._make_digestor()
         i = 0
         j = 0
         protein_ids = self.protein_ids()
@@ -188,11 +194,7 @@ class MultipleProcessFastaGlycopeptideHypothesisSerializer(FastaGlycopeptideHypo
         self.n_processes = n_processes
 
     def digest_proteins(self):
-        digestor = ProteinDigestor(
-            self.protease, self.constant_modifications, self.variable_modifications,
-            self.max_missed_cleavages, semispecific=self.semispecific,
-            require_glycosylation_sites=self.require_glycosylation_sites,
-            include_cysteine_n_glycosylation=self.include_cysteine_n_glycosylation)
+        digestor = self._make_digestor()
         task = MultipleProcessProteinDigestor(
             self._original_connection,
             self.hypothesis_id,

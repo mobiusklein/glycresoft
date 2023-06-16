@@ -1183,6 +1183,7 @@ class Proteome(DatabaseBoundOperation, MzIdentMLProteomeExtraction):
         digestor = ProteinDigestor(
             self.enzymes[0], const_modifications,
             max_missed_cleavages=self.enzymes[0].used_missed_cleavages,
+            include_cysteine_n_glycosylation=self.include_cysteine_n_glycosylation,
             min_length=self.peptide_length_range[0],
             max_length=self.peptide_length_range[1])
         accumulator = []
