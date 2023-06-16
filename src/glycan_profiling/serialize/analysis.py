@@ -2,7 +2,7 @@ import re
 import os
 from functools import partial
 
-from typing import Optional
+from typing import Optional, TYPE_CHECKING
 
 from sqlalchemy import (
     Column, Numeric, Integer, String, ForeignKey, PickleType,
@@ -26,6 +26,10 @@ from ms_deisotope.data_source import ProcessedRandomAccessScanSource
 from ms_deisotope.output import ProcessedMSFileLoader
 
 
+if TYPE_CHECKING:
+    from glycan_profiling.composition_distribution_model.site_model.glycoproteome_model import GlycoproteomeModel
+
+
 DillType = partial(PickleType, pickler=dill)
 
 
@@ -45,6 +49,22 @@ class _AnalysisParametersProps:
             return None
         if os.path.exists(path):
             return ProcessedMSFileLoader(path)
+        return None
+
+    def glycosite_model_path(self) -> Optional['GlycoproteomeModel']:
+        from glycan_profiling.composition_distribution_model.site_model.glycoproteome_model import (
+            GlycoproteomeModel, GlycosylationSiteModel)
+
+        path = self.parameters.get('glycosylation_site_models_path')
+        if os.path.exists(path):
+            with open(path, 'rt', encoding='utf8') as fh:
+                site_models = GlycosylationSiteModel.load(fh)
+            target_model = GlycoproteomeModel.bind_to_hypothesis(
+                object_session(self),
+                site_models,
+                hypothesis_id=self.hypothesis_id,
+                fuzzy=True)
+            return target_model
         return None
 
     @property
