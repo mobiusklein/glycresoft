@@ -350,14 +350,14 @@ class MultiScoreGlycopeptideLCMSMSAnalysisCSVSerializer(GlycopeptideLCMSMSAnalys
         score_set = obj.score_set
         q_value_set = obj.q_value_set
         new_fields = [
-            score_set.glycopeptide_score,
-            score_set.peptide_score,
-            score_set.glycan_score,
-            score_set.glycan_coverage,
-            q_value_set.total_q_value,
-            q_value_set.peptide_q_value,
-            q_value_set.glycan_q_value,
-            q_value_set.glycopeptide_q_value,
+            score_set.glycopeptide_score if score_set is not None else "?",
+            score_set.peptide_score if score_set is not None else "?",
+            score_set.glycan_score if score_set is not None else "?",
+            score_set.glycan_coverage if score_set is not None else "?",
+            q_value_set.total_q_value if q_value_set is not None else "?",
+            q_value_set.peptide_q_value if q_value_set is not None else "?",
+            q_value_set.glycan_q_value if q_value_set is not None else "?",
+            q_value_set.glycopeptide_q_value if q_value_set is not None else "?",
             ';'.join(map(str, obj.localizations))
         ]
         fields.extend(map(str, new_fields))
