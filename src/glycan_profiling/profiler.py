@@ -1308,6 +1308,14 @@ class GlycopeptideLCMSMSAnalyzer(TaskBase):
             "extra_evaluation_kwargs": self.extra_msn_evaluation_kwargs,
         }
 
+    def _add_files_to_analysis(self):
+        for path in self.file_manager.dir():
+            if os.path.isdir(path):
+                continue
+            self.analysis.add_file(path, compress=True)
+        self.log("Cleaning up temporary files")
+        self.file_manager.clear()
+
     def save_solutions(self, identified_glycopeptides: List[IdentifiedGlycopeptide],
                        unassigned_chromatograms: ChromatogramFilter,
                        chromatogram_extractor: ChromatogramExtractor,
@@ -1340,10 +1348,7 @@ class GlycopeptideLCMSMSAnalyzer(TaskBase):
         analysis_saver.commit()
         self.analysis = analysis_saver.analysis
         self.analysis_id = analysis_saver.analysis_id
-        for path in self.file_manager.dir():
-            if os.path.isdir(path):
-                continue
-            self.analysis.add_file(path, compress=True)
+        self._add_files_to_analysis()
         analysis_saver.session.add(self.analysis)
         analysis_saver.commit()
 
@@ -1461,11 +1466,7 @@ class MzMLGlycopeptideLCMSMSAnalyzer(GlycopeptideLCMSMSAnalyzer):
 
         self.analysis = exporter.analysis
         self.analysis_id = exporter.analysis.id
-        for path in self.file_manager.dir():
-            if os.path.isdir(path):
-                continue
-            self.analysis.add_file(path, compress=True)
-
+        self._add_files_to_analysis()
         session = object_session(self.analysis)
         session.add(self.analysis)
         session.commit()
