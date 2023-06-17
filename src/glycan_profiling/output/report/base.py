@@ -40,6 +40,14 @@ mpl_params.update({
 status_logger = logging.getLogger("glycresoft.status")
 
 
+def _sanitize_savefig_kwargs(kwargs: dict):
+    keys = ["patchless", "img_width", "width", "height", "svg_width"]
+    for key in keys:
+        kwargs.pop(key, None)
+    return kwargs
+
+
+
 def render_plot(figure, **kwargs):
     if isinstance(figure, Axes):
         figure = figure.get_figure()
@@ -51,7 +59,7 @@ def render_plot(figure, **kwargs):
         figure.patch.set_alpha(0)
         figure.axes[0].patch.set_alpha(0)
     data_buffer = BytesIO()
-    figure.savefig(data_buffer, **kwargs)
+    figure.savefig(data_buffer, **_sanitize_savefig_kwargs(kwargs))
     plt.close(figure)
     return data_buffer
 
@@ -63,12 +71,14 @@ def xmlattrs(**kwargs):
 def png_plot(figure, img_width=None, img_height=None, xattrs=None, **kwargs):
     if xattrs is None:
         xattrs = dict()
+    kwargs.pop("svg_width", None)
     xml_attributes = dict(xattrs)
     if img_width is not None:
         xml_attributes['width'] = img_width
     if img_height is not None:
         xml_attributes['height'] = img_height
-    data_buffer = render_plot(figure, format='png', **kwargs)
+    data_buffer = render_plot(figure, format='png', **
+                              _sanitize_savefig_kwargs(kwargs))
     return (b"<img %s src='data:image/png;base64,%s'>" % (
         xmlattrs(**xml_attributes),
         base64.b64encode(data_buffer.getvalue())
@@ -87,7 +97,8 @@ def _strip_style(root):
 
 
 def svg_plot(figure, svg_width=None, xml_transform=None, **kwargs):
-    data_buffer = render_plot(figure, format='svg', **kwargs)
+    data_buffer = render_plot(figure, format='svg', **
+                              _sanitize_savefig_kwargs(kwargs))
     root = etree.fromstring(data_buffer.getvalue())
     root = _strip_style(root)
     if svg_width is not None:
