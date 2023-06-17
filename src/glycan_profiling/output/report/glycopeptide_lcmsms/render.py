@@ -81,7 +81,7 @@ class IdentifiedGlycopeptideDescriberBase(object):
             glycopeptide.structure.convert(),
             error_tolerance=self.analysis.parameters["fragment_error_tolerance"],
             mass_shift=mass_shift)
-        specmatch_artist = TidySpectrumMatchAnnotator(match, ax=figax())
+        specmatch_artist = TidySpectrumMatchAnnotator(match, ax=figax(dpi=120))
         specmatch_artist.draw(fontsize=10, pretty=True)
         specmatch_artist.add_summary_labels()
         annotated_match_ax = specmatch_artist.ax
@@ -90,11 +90,11 @@ class IdentifiedGlycopeptideDescriberBase(object):
         if len(scan_title) > 60:
             scan_title = '\n'.join(textwrap.wrap(scan_title, 60))
 
-        annotated_match_ax.set_title(scan_title, fontsize=18)
+        annotated_match_ax.set_title(scan_title, fontsize=16, y=1.05)
         annotated_match_ax.set_ylabel(
-            annotated_match_ax.get_ylabel(), fontsize=16)
+            annotated_match_ax.get_ylabel(), fontsize=14)
         annotated_match_ax.set_xlabel(
-            annotated_match_ax.get_xlabel(), fontsize=16)
+            annotated_match_ax.get_xlabel(), fontsize=14)
 
         sequence_logo_plot = glycopeptide_match_logo(match, ax=figax())
         xlim = list(sequence_logo_plot.ax.get_xlim())
@@ -106,7 +106,7 @@ class IdentifiedGlycopeptideDescriberBase(object):
             annotated_match_ax, svg_width="100%", bbox_inches='tight', height=3 * 1.5,
             width=8 * 1.5,
             img_width="100%",
-            patchless=True)
+            patchless=True, dpi=120)
         logo_plot = svg_plot(
             sequence_logo_plot.ax,
             svg_width="100%",
@@ -255,14 +255,14 @@ class GlycopeptideDatabaseSearchReportCreator(ReportCreatorBase, IdentifiedGlyco
         return svg.decode('utf8')
 
     def chromatogram_plot(self, glycopeptide):
-        ax = figax()
+        ax = figax(dpi=120)
         try:
             SmoothingChromatogramArtist(
                 glycopeptide, ax=ax, label_peaks=False,
-                colorizer=lambda x: "#48afd0").draw(legend=False)
-            ax.set_xlabel("Time (Minutes)", fontsize=16)
-            ax.set_ylabel("Relative Abundance", fontsize=16)
-            return png_plot(ax, bbox_inches='tight', img_height='100%', width=8)
+                colorizer=lambda x: "#48afd0").draw(legend=False, axis_font_size=12)
+            ax.set_xlabel("Time (Minutes)", fontsize=14)
+            ax.set_ylabel("Relative Abundance", fontsize=14)
+            return png_plot(ax, bbox_inches='tight', img_height='100%', width=8, dpi=120)
         except ValueError:
             return "<div style='text-align:center;'>No Chromatogram Found</div>"
 
