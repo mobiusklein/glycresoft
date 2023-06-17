@@ -277,6 +277,7 @@ class GlycopeptideLCMSMSAnalysisCSVSerializer(CSVSerializerBase):
             "peptide_start",
             "peptide_end",
             "protein_name",
+            "n_glycosylation_sites",
             "mass_shifts",
         ]
         if self.retention_time_model:
@@ -313,6 +314,9 @@ class GlycopeptideLCMSMSAnalysisCSVSerializer(CSVSerializerBase):
             obj.protein_relation.start_position,
             obj.protein_relation.end_position,
             self.protein_name_resolver[obj.protein_relation.protein_id],
+            ';'.join([
+                str(i + obj.start_position) for i in obj.structure.n_glycosylation_sites
+            ]),
             ';'.join([a.name for a in obj.mass_shifts]),
         ]
         if self.retention_time_model:
@@ -397,6 +401,7 @@ class GlycopeptideSpectrumMatchAnalysisCSVSerializer(CSVSerializerBase):
             "peptide_start",
             "peptide_end",
             "protein_name",
+            "n_glycosylation_sites",
             "is_best_match",
         ]
         if self.include_rank:
@@ -433,6 +438,10 @@ class GlycopeptideSpectrumMatchAnalysisCSVSerializer(CSVSerializerBase):
             target.protein_relation.start_position,
             target.protein_relation.end_position,
             self.protein_name_resolver[target.protein_relation.protein_id],
+            ';'.join([
+                str(i + obj.target.protein_relation.start_position)
+                for i in obj.target.n_glycosylation_sites
+            ]),
             obj.is_best_match,
         ]
         if self.include_rank:
