@@ -53,6 +53,7 @@ class _GlycopeptideSearchToolBase:
         "glycan_q_value",
         "glycopeptide_q_value",
         "localizations",
+        "n_glycosylation_sites",
     ]
 
     indexed_gpsm_csv_header = [
@@ -80,6 +81,7 @@ class _GlycopeptideSearchToolBase:
         "glycan_q_value",
         "glycopeptide_q_value",
         "localizations",
+        "n_glycosylation_sites",
     ]
 
     gp_csv_suffix = "-glycopeptides.csv"

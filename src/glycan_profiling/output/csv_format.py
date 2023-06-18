@@ -315,7 +315,7 @@ class GlycopeptideLCMSMSAnalysisCSVSerializer(CSVSerializerBase):
             obj.protein_relation.end_position,
             self.protein_name_resolver[obj.protein_relation.protein_id],
             ';'.join([
-                str(i + obj.start_position) for i in obj.structure.n_glycosylation_sites
+                str(i + obj.start_position) for i in obj.structure.n_glycan_sequon_sites
             ]),
             ';'.join([a.name for a in obj.mass_shifts]),
         ]
@@ -440,7 +440,7 @@ class GlycopeptideSpectrumMatchAnalysisCSVSerializer(CSVSerializerBase):
             self.protein_name_resolver[target.protein_relation.protein_id],
             ';'.join([
                 str(i + obj.target.protein_relation.start_position)
-                for i in obj.target.n_glycosylation_sites
+                for i in obj.target.n_glycan_sequon_sites
             ]),
             obj.is_best_match,
         ]

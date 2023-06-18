@@ -527,15 +527,15 @@ class Glycopeptide(PeptideBase, Base):
         return self._protein_relation
 
     @property
-    def n_glycosylation_sites(self):
+    def n_glycan_sequon_sites(self):
         return self.peptide.n_glycosylation_sites
 
     @property
-    def o_glycosylation_sites(self):
+    def o_glycan_sequon_sites(self):
         return self.peptide.o_glycosylation_sites
 
     @property
-    def gagylation_sites(self):
+    def glycosaminoglycan_sequon_sites(self):
         return self.peptide.gagylation_sites
 
     @property
