@@ -455,6 +455,9 @@ class GlycoformAggregator(Mapping):
     def __len__(self):
         return len(self.by_peptide)
 
+    def has_relative_pairs(self) -> bool:
+        return all(len(v) > 1 for k, v in self.by_peptide.items())
+
     def _deltas_for(self, monosaccharide: str, include_pairs: bool = False):
         deltas = []
         pairs = []

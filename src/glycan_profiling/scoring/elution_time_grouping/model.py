@@ -2301,7 +2301,12 @@ class GlycopeptideElutionTimeModelBuildingPipeline(TaskBase):
         self.log("Estimating summary statistics")
         model._compute_summary_statistics()
 
-        mean_error_from_interval = model.estimate_mean_error_from_interval()
+        try:
+            mean_error_from_interval = model.estimate_mean_error_from_interval()
+        except IndexError:
+            self.log("Unable to fit final model")
+            return None, all_records
+
         self.log("... Adding padding mean interval error: %0.3f" % (mean_error_from_interval, ))
         model.interval_padding = mean_error_from_interval
         self.log("Last revision")

@@ -1211,7 +1211,7 @@ class GlycopeptideLCMSMSAnalyzer(TaskBase):
         glycoform_agg, secondary_observations = self._split_chromatograms_by_observation_priority(
             scored_chromatograms, minimum_ms1_score=minimum_ms1_score)
 
-        if len(glycoform_agg) == 0:
+        if not glycoform_agg.has_relative_pairs():
             self.log("... Insufficient identifications for Retention Time Modeling")
             return scored_chromatograms, orphans
 
@@ -1245,6 +1245,9 @@ class GlycopeptideLCMSMSAnalyzer(TaskBase):
             n_workers=self.n_processes)
 
         rt_model, revisions = pipeline.run()
+        if rt_model is None:
+            self.retention_time_model = None
+            return scored_chromatograms, orphans
 
         self.retention_time_model = rt_model
         rt_model.drop_chromatograms()
@@ -1727,7 +1730,7 @@ class MultipartGlycopeptideLCMSMSAnalyzer(MzMLGlycopeptideLCMSMSAnalyzer):
         glycoform_agg, secondary_observations = self._split_chromatograms_by_observation_priority(
             scored_chromatograms, minimum_ms1_score=minimum_ms1_score)
 
-        if len(glycoform_agg) == 0:
+        if not glycoform_agg.has_relative_pairs():
             self.log("... Insufficient identifications for Retention Time Modeling")
             return scored_chromatograms, orphans
 
@@ -1759,6 +1762,9 @@ class MultipartGlycopeptideLCMSMSAnalyzer(MzMLGlycopeptideLCMSMSAnalyzer):
             n_workers=self.n_processes)
 
         rt_model, revisions = pipeline.run()
+        if rt_model is None:
+            self.retention_time_model = None
+            return scored_chromatograms, orphans
 
         self.retention_time_model = rt_model
         rt_model.drop_chromatograms()
