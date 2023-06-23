@@ -14,7 +14,6 @@ from typing import Dict, List, Optional, Tuple, Type, Union
 import numpy as np
 
 from glypy.structure.glycan_composition import GlycanComposition
-from glypy.utils import Enum
 from glypy.utils.enum import EnumValue
 
 try:
@@ -24,9 +23,15 @@ except ImportError:
 
 from glycan_profiling.task import TaskBase
 
+from glycan_profiling.structure.enums import GlycopeptideFDREstimationStrategy
 from glycan_profiling.tandem.spectrum_match.spectrum_match import FDRSet, MultiScoreSpectrumMatch, SpectrumMatch
 from glycan_profiling.tandem.spectrum_match.solution_set import MultiScoreSpectrumSolutionSet, SpectrumSolutionSet
-from glycan_profiling.tandem.target_decoy import NearestValueLookUp, PeptideScoreTargetDecoyAnalyzer, FDREstimatorBase, PeptideScoreSVMModel
+from glycan_profiling.tandem.target_decoy import (
+    NearestValueLookUp,
+    PeptideScoreTargetDecoyAnalyzer,
+    FDREstimatorBase,
+    PeptideScoreSVMModel
+)
 from glycan_profiling.tandem.glycopeptide.core_search import approximate_internal_size_of_glycan
 
 from .mixture import (
@@ -38,20 +43,6 @@ from .journal import SolutionSetGrouper
 
 def noop(*args, **kwargs):
     pass
-
-
-class GlycopeptideFDREstimationStrategy(Enum):
-    multipart_gamma_gaussian_mixture = 0
-    peptide_fdr = 1
-    glycan_fdr = 2
-    glycopeptide_fdr = 3
-    peptide_or_glycan = 4
-
-GlycopeptideFDREstimationStrategy.multipart_gamma_gaussian_mixture.add_name("multipart")
-GlycopeptideFDREstimationStrategy.multipart_gamma_gaussian_mixture.add_name("joint")
-GlycopeptideFDREstimationStrategy.peptide_fdr.add_name("peptide")
-GlycopeptideFDREstimationStrategy.glycan_fdr.add_name("glycan")
-GlycopeptideFDREstimationStrategy.peptide_or_glycan.add_name('any')
 
 
 def interpolate_from_zero(nearest_value_map: NearestValueLookUp, zero_value: float=1.0) -> NearestValueLookUp:
@@ -80,7 +71,7 @@ class FiniteMixtureModelFDREstimatorBase(FDREstimatorBase):
     def estimate_posterior_error_probability(self, X: np.ndarray) -> np.ndarray:
         return self.target_mixture.prior.score(X) * self.pi0 / self.target_mixture.score(X)
 
-    def get_count_for_fdr(self, q_value):
+    def get_count_for_fdr(self, q_value: float):
         target_scores = self.target_scores
         target_scores = np.sort(target_scores)
         fdr = np.sort(self.estimate_fdr())[::-1]
@@ -162,7 +153,9 @@ class FiniteMixtureModelFDREstimatorBase(FDREstimatorBase):
         ax2.set_xlim(-1, hi)
         return ax
 
-    def fit(self, max_components: int=10, max_target_components: Optional[int]=None, max_decoy_components: Optional[int]=None) -> NearestValueLookUp:
+    def fit(self, max_components: int=10,
+            max_target_components: Optional[int]=None,
+            max_decoy_components: Optional[int]=None) -> NearestValueLookUp:
         if not max_target_components:
             max_target_components = max_components
         if not max_decoy_components:
@@ -199,7 +192,8 @@ class FiniteMixtureModelFDREstimatorBase(FDREstimatorBase):
         fdr = fdr[::-1][np.searchsorted(X_[::-1], X)]
         return fdr
 
-    def _select_best_number_of_components(self, max_components: int, fitter: Type[MixtureBase],
+    def _select_best_number_of_components(self, max_components: int,
+                                          fitter: Type[MixtureBase],
                                           scores: np.ndarray, **kwargs) -> MixtureBase:
         models = []
         bics = []
@@ -407,7 +401,9 @@ class MultivariateMixtureModel(FDREstimatorBase):
         target = np.prod(target_series, axis=0)
         return (decoy / (decoy + target)).mean(), decoy, target
 
-    def _compute_overlap_probabilities(self, decoy_series: List[np.ndarray], target_series: List[np.ndarray], pi0s: List[float]) -> List[np.ndarray]:
+    def _compute_overlap_probabilities(self, decoy_series: List[np.ndarray],
+                                       target_series: List[np.ndarray],
+                                       pi0s: List[float]) -> List[np.ndarray]:
         mixed_terms = []
         for i, d in enumerate(decoy_series):
             for j, t in enumerate(target_series):
@@ -421,8 +417,9 @@ class MultivariateMixtureModel(FDREstimatorBase):
 
         decoy_series, target_series = self._compute_per_feature_probabilities(X)
         if correlated:
-            mixed_terms = self._compute_overlap_probabilities(
-                decoy_series, target_series, [m.pi0 for m in self])
+            # mixed_terms = self._compute_overlap_probabilities(
+            #     decoy_series, target_series, [m.pi0 for m in self])
+            raise NotImplementedError("Correlated features are not implemented")
 
         decoy = np.prod(decoy_series, axis=0)
         target = np.prod(target_series, axis=0)
@@ -564,7 +561,9 @@ class GlycopeptideFDREstimator(TaskBase):
 
     _peptide_fdr_estimator_type: Type[PeptideScoreTargetDecoyAnalyzer]
 
-    def __init__(self, groups, strategy=None, peptide_fdr_estimator=None):
+    def __init__(self, groups: 'SolutionSetGrouper',
+                 strategy: Optional[GlycopeptideFDREstimationStrategy] = None,
+                 peptide_fdr_estimator: Optional[Type[PeptideScoreTargetDecoyAnalyzer]] = None):
         if peptide_fdr_estimator is None:
             peptide_fdr_estimator = PeptideScoreTargetDecoyAnalyzer
         if strategy is None:
@@ -710,15 +709,17 @@ class GlycopeptideFDREstimator(TaskBase):
             gpsm.q_value_set = q_value_set
         return result_q_value_set
 
-
     def run(self):
         if self.strategy in (GlycopeptideFDREstimationStrategy.multipart_gamma_gaussian_mixture,
-                             GlycopeptideFDREstimationStrategy.glycan_fdr, GlycopeptideFDREstimationStrategy.peptide_or_glycan):
+                             GlycopeptideFDREstimationStrategy.glycan_fdr,
+                             GlycopeptideFDREstimationStrategy.peptide_or_glycan):
             self.fit_glycan_fdr()
         if self.strategy in (GlycopeptideFDREstimationStrategy.multipart_gamma_gaussian_mixture,
-                             GlycopeptideFDREstimationStrategy.peptide_fdr, GlycopeptideFDREstimationStrategy.peptide_or_glycan):
+                             GlycopeptideFDREstimationStrategy.peptide_fdr,
+                             GlycopeptideFDREstimationStrategy.peptide_or_glycan):
             self.fit_peptide_fdr()
-        if self.strategy in (GlycopeptideFDREstimationStrategy.multipart_gamma_gaussian_mixture, GlycopeptideFDREstimationStrategy.peptide_or_glycan):
+        if self.strategy in (GlycopeptideFDREstimationStrategy.multipart_gamma_gaussian_mixture,
+                             GlycopeptideFDREstimationStrategy.peptide_or_glycan):
             self.fit_glycopeptide_fdr()
         self.fit_total_fdr()
         return self.grouper

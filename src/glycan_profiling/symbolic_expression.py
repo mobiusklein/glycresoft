@@ -5,8 +5,7 @@ subtraction, multiplication, and division, and conditional operators greater
 than, less than equality, as well as compound & and | relationships.
 '''
 import re
-import ast
-import operator as op
+
 from numbers import Number
 
 from six import string_types as basestring, PY3

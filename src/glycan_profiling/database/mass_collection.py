@@ -1,8 +1,9 @@
 import operator
 import logging
 
-from typing import Callable, List, Optional, TypeVar, Generic, Sequence
+from typing import Callable, List, Optional, TypeVar, Generic
 from abc import ABCMeta, abstractmethod, abstractproperty
+from collections.abc import Sequence as SequenceABC
 
 try:
     from itertools import imap
@@ -88,6 +89,8 @@ class SearchableMassCollection(Generic[T]):
         # structures is to be searched. This hint
         # helps finalize any intermediary operations.
         pass
+
+SequenceABC.register(SearchableMassCollection)
 
 
 class MassDatabase(SearchableMassCollection[T]):
