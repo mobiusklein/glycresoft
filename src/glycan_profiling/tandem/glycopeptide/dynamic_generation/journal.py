@@ -514,7 +514,8 @@ class JournalSetLoader(TaskBase):
     """
 
     @classmethod
-    def from_analysis(cls, analysis, scan_loader=None, stub_wrapping=True):
+    def from_analysis(cls, analysis, scan_loader=None, stub_wrapping=True, score_set_type=None,
+                      **journal_reader_args):
         mass_shift_map = {
             m.name: m for m in analysis.parameters['mass_shifts']}
         if scan_loader is None:
@@ -524,7 +525,10 @@ class JournalSetLoader(TaskBase):
             stub_loader = ScanInformationLoader(scan_loader)
         else:
             stub_loader = scan_loader
-        return cls([f.open(raw=True) for f in analysis.files], stub_loader, mass_shift_map)
+        if score_set_type is None:
+            score_set_type = analysis.paramters['tandem_scoring_model'].get_score_set_type()
+        return cls([f.open(raw=True) for f in analysis.files], stub_loader, mass_shift_map,
+                   score_set_type=score_set_type, **journal_reader_args)
 
     def __init__(self, journal_files, scan_loader, mass_shift_map=None, **journal_reader_args):
         if mass_shift_map is None:
