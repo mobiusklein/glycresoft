@@ -29,10 +29,7 @@ from glycan_profiling.config import get_configuration
 
 
 from multiprocessing import Process, JoinableQueue
-try:
-    from Queue import Empty as QueueEmpty
-except ImportError:
-    from queue import Empty as QueueEmpty
+from queue import Empty as QueueEmpty
 
 
 logger = logging.getLogger("glycan_profiler.preprocessor")
@@ -111,7 +108,7 @@ class ScanIDYieldingProcess(Process):
                     "An error occurred while locating start scan", e)
                 self.loader.reset()
                 self.loader.make_iterator(grouped=True)
-            except AttributeError:
+            except AttributeError as e:
                 self.log_handler(
                     "The reader does not support random access, start time will be ignored", e)
                 self.loader.reset()
@@ -350,7 +347,7 @@ class ScanTransformingProcess(Process, ScanTransformMixin):
                     self.log_message("No isotopic clusters were extracted from scan %s (%r)" % (
                         e.scan_id, len(scan.peak_set)))
                     self.skip_scan(scan)
-                except EmptyScanError as e:
+                except EmptyScanError:
                     self.skip_scan(scan)
                 except Exception as e:
                     self.skip_scan(scan)
@@ -379,7 +376,7 @@ class ScanTransformingProcess(Process, ScanTransformMixin):
                 self.log_message("No isotopic clusters were extracted from scan %s (%r)" % (
                     e.scan_id, len(product_scan.peak_set)))
                 self.skip_scan(product_scan)
-            except EmptyScanError as e:
+            except EmptyScanError:
                 self.skip_scan(product_scan)
             except Exception as e:
                 self.skip_scan(product_scan)
