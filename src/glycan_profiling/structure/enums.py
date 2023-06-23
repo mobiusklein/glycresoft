@@ -21,3 +21,20 @@ class GlycopeptideSearchStrategy(Enum):
 
 AnalysisTypeEnum.glycopeptide_lc_msms.add_name("Glycopeptide LC-MS/MS")
 AnalysisTypeEnum.glycan_lc_ms.add_name("Glycan LC-MS")
+
+
+class GlycopeptideFDREstimationStrategy(Enum):
+    multipart_gamma_gaussian_mixture = 0
+    peptide_fdr = 1
+    glycan_fdr = 2
+    glycopeptide_fdr = 3
+    peptide_or_glycan = 4
+
+
+GlycopeptideFDREstimationStrategy.multipart_gamma_gaussian_mixture.add_name(
+    "multipart")
+GlycopeptideFDREstimationStrategy.multipart_gamma_gaussian_mixture.add_name(
+    "joint")
+GlycopeptideFDREstimationStrategy.peptide_fdr.add_name("peptide")
+GlycopeptideFDREstimationStrategy.glycan_fdr.add_name("glycan")
+GlycopeptideFDREstimationStrategy.peptide_or_glycan.add_name('any')
