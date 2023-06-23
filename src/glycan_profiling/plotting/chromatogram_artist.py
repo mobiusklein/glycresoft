@@ -278,7 +278,11 @@ class ChromatogramArtist(ArtistBase):
                     x0 = rt[i]
                     y0 = heights[i]
             # interpolate the height at the time coordinate
-            y = (y0 * (x1 - x) + y1 * (x - x0)) / (x1 - x0)
+            den = (x1 - x0)
+            if den == 0:
+                y = (y1 + y0) / 2
+            else:
+                y = (y0 * (x1 - x) + y1 * (x - x0)) / (x1 - x0)
             xs.append(x)
             ys.append(y)
         self.ax.scatter(xs, ys, marker='X', s=35, color=color)
