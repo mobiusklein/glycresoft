@@ -111,11 +111,11 @@ class MassShift(MassShiftBase):
     def __sub__(self, other):
         if other.composition == {}:
             return self
-        if self.composition == {}:
-            name = "-(%s)" % other.name
-            composition = -other.composition
-            tandem_composition = -other.tandem_composition
-            charge_carrier = -other.charge_carrier
+        # if self.composition == {}:
+        #     name = "-(%s)" % other.name
+        #     composition = -other.composition
+        #     tandem_composition = -other.tandem_composition
+        #     charge_carrier = -other.charge_carrier
         if self == other:
             return Unmodified
         if isinstance(other, CompoundMassShift):
