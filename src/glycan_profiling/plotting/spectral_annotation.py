@@ -3,6 +3,8 @@ from typing import TYPE_CHECKING, List, Optional
 import numpy as np
 
 from matplotlib import pyplot as plt, font_manager, axes
+from matplotlib import patheffects as path_effects
+
 
 from six import PY3
 
@@ -245,8 +247,12 @@ class SpectrumMatchAnnotator(object):
                 label = '-'.join(map(str, label))
             else:
                 label = str(label)
-            self.ax.text(midx, midy, label, fontsize=fontsize,
+            text = self.ax.text(midx, midy, label, fontsize=fontsize,
                          ha='center', va='bottom', rotation=rotation, clip_on=clip_on)
+            text.set_path_effects([
+                path_effects.Stroke(linewidth=0.5, foreground="white"),
+                path_effects.Normal(),
+            ])
 
     def draw(self, **kwargs):
         fontsize = kwargs.pop('fontsize', 9)
