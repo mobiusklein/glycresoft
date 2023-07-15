@@ -24,7 +24,7 @@ from glycan_profiling.chromatogram_tree.mass_shift import MassShift
 from glycan_profiling.serialize import GlycanCombination, GlycanTypes
 from glycan_profiling.database.disk_backed_database import PPMQueryInterval
 from glycan_profiling.chromatogram_tree import Unmodified
-from glycan_profiling.structure.denovo import MassWrapper, PathSet, PathFinder, Path
+from glycan_profiling.structure.denovo import PathSet, PathFinder, Path
 
 logger = logging.getLogger("glycresoft.core_search")
 
@@ -63,11 +63,12 @@ default_components = (hexnac, hexose, xylose, fucose,)
 
 
 class CoreMotifFinder(PathFinder):
+    minimum_peptide_mass: float
+
     def __init__(self, components=None, product_error_tolerance=1e-5, minimum_peptide_mass=350.):
         if components is None:
             components = default_components
-        self.components = list(map(MassWrapper, components))
-        self.product_error_tolerance = product_error_tolerance
+        super().__init__(components, product_error_tolerance, False)
         self.minimum_peptide_mass = minimum_peptide_mass
 
     def find_n_linked_core(self, groups: DefaultDict[Any, List], min_size=1):
@@ -85,7 +86,7 @@ class CoreMotifFinder(PathFinder):
                 expected = sequence[expected_i]
                 if expected == edge:
                     expected_i += 1
-                elif edge == fucose:
+                elif edge == fucose or edge == dhex:
                     continue
                 else:
                     break
@@ -156,8 +157,8 @@ class CoreMotifFinder(PathFinder):
                               query_mass: Optional[float] = None,
                               simplify: bool = True) -> Union[List[float], List[Tuple[float, List[Path]]]]:
         graph = self.build_graph(scan, mass_shift=mass_shift)
-        paths = self._init_paths(graph)
-        groups = self._aggregate_paths(paths)
+        paths = self.paths_from_graph(graph)
+        groups = self.aggregate_paths(paths)
 
         n_linked_paths = self.find_n_linked_core(groups)
         o_linked_paths = self.find_o_linked_core(groups)

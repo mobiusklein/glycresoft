@@ -218,6 +218,13 @@ def intensity_from_peak_indices(spectrum: Sequence[ms_deisotope.DeconvolutedPeak
 
 
 class PeakPairTransition(object):
+    start: ms_deisotope.DeconvolutedPeak
+    end: ms_deisotope.DeconvolutedPeak
+    annotation: Any
+    key: Tuple[int, int]
+
+    _hash: int
+
     def __init__(self, start, end, annotation):
         self.start = start
         self.end = end
