@@ -1,7 +1,7 @@
 import csv
 
 import io
-from typing import Any, Dict, Iterable, Iterator, List, Optional, Sequence, Mapping, Type
+from typing import Any, Dict, Iterable, Iterator, List, Optional, Sequence, Mapping
 from glycan_profiling.structure.structure_loader import GlycanCompositionDeltaCache
 
 import numpy as np
@@ -20,7 +20,7 @@ from glycan_profiling.structure import FragmentCachingGlycopeptide
 from ms_deisotope.peak_dependency_network.intervals import SpanningMixin, IntervalTreeNode
 
 from glycan_profiling.chromatogram_tree.utils import ArithmeticMapping
-from glycan_profiling.chromatogram_tree.mass_shift import MassShift, MassShiftBase, Unmodified
+from glycan_profiling.chromatogram_tree.mass_shift import MassShiftBase, Unmodified
 from glycan_profiling.chromatogram_tree.chromatogram import ChromatogramInterface
 
 from glycan_profiling.tandem.spectrum_match import SpectrumMatchBase
@@ -61,7 +61,8 @@ class ChromatogramProxy(object):
     weight: float
     kwargs: Dict[str, Any]
 
-    def __init__(self, weighted_neutral_mass, apex_time, total_signal, glycan_composition, source=None, mass_shifts=None, weight=1.0, **kwargs):
+    def __init__(self, weighted_neutral_mass, apex_time, total_signal, glycan_composition, source=None,
+                 mass_shifts=None, weight=1.0, **kwargs):
         if mass_shifts is None:
             mass_shifts = [Unmodified]
         self.weighted_neutral_mass = weighted_neutral_mass
@@ -456,7 +457,7 @@ class GlycoformAggregator(Mapping):
         return len(self.by_peptide)
 
     def has_relative_pairs(self) -> bool:
-        return all(len(v) > 1 for k, v in self.by_peptide.items())
+        return any(len(v) > 1 for k, v in self.by_peptide.items())
 
     def _deltas_for(self, monosaccharide: str, include_pairs: bool = False):
         deltas = []

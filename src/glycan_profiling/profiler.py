@@ -72,6 +72,7 @@ from glycan_profiling.tandem.chromatogram_mapping import (
     TandemSolutionsWithoutChromatogram,
     MS2RevisionValidator,
     SignalUtilizationMS2RevisionValidator,
+    RevisionSummary
 )
 
 from glycan_profiling.tandem import chromatogram_mapping
@@ -1186,17 +1187,28 @@ class GlycopeptideLCMSMSAnalyzer(TaskBase):
 
         self.log("... Updating best match assignments")
 
+        revisions_accepted: List[RevisionSummary] = []
         # Use side-effects to update the source chromatogram
         for revision in was_updated:
-            updater(revision)
+            revisions_accepted.append(updater(revision)[1])
 
         # Use side-effects to update the source not-chromatogram
         for revised_orphan in was_updated_orphans:
-            updater(revised_orphan)
+            revisions.append(updater(revised_orphan)[1])
 
         self.log("... Affirming best match assignments with RT model")
+        affirmed_results: List[RevisionSummary] = []
         for af in to_affirm:
-            updater.affirm_solution(af.source)
+            affirmed_results.append(updater.affirm_solution(af.source)[1])
+
+        accepted_revisions = sum(rev.accepted for rev in revisions_accepted)
+        affirmations_accepted = sum(rev.accepted for rev in affirmed_results)
+        self.log(
+            f"... Accepted {accepted_revisions}/{len(revisions_accepted)} "
+            f"({accepted_revisions * 100.0 / len(revisions_accepted):0.2f}%) revisions and "
+            f"affirmed {affirmations_accepted}/{len(affirmed_results)} "
+            f"({affirmations_accepted * 100.0 / len(affirmed_results):0.2f}%) existing results")
+
 
     def apply_retention_time_model(self, scored_chromatograms: Sequence[ChromatogramSolution],
                                    orphans: List[TandemSolutionsWithoutChromatogram],

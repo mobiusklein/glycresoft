@@ -5,7 +5,7 @@ from collections import defaultdict
 import numpy as np
 
 import ms_deisotope
-from glycopeptidepy.structure.fragment import FragmentBase, IonSeries
+from glycopeptidepy.structure.fragment import FragmentBase
 
 
 K = TypeVar("K")

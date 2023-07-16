@@ -1,5 +1,5 @@
 from typing import (Any, Callable, Dict, List, Optional, Set, Tuple, Type, Union,
-                    TYPE_CHECKING)
+                    TYPE_CHECKING, NamedTuple)
 
 import numpy as np
 
@@ -285,6 +285,44 @@ class SpectrumMatchInvalidatinCallback:
             return True
 
 
+class MatchMarkResult(NamedTuple):
+    targets: Set[TargetType]
+    match_count: int
+
+    def __add__(self, other: 'MatchMarkResult'):
+        if other is None:
+            return self
+        return self.__class__(
+            self.targets | other.targets,
+            self.match_count + other.match_count
+        )
+
+    @classmethod
+    def empty(cls):
+        return cls(set(), 0)
+
+
+InvalidationFilter = Callable[[SpectrumSolutionSet, SpectrumMatch], bool]
+
+
+class RevisionSummary(NamedTuple):
+    accepted: bool
+    rejected_matches: Optional[MatchMarkResult] = None
+    invalidated_matches: Optional[MatchMarkResult] = None
+
+    @property
+    def rejected_match_count(self):
+        if not self.rejected_matches:
+            return 0
+        return self.rejected_matches.match_count
+
+    @property
+    def invalidated_match_count(self):
+        if not self.invalidated_matches:
+            return 0
+        return self.invalidated_matches.match_count
+
+
 class SpectrumMatchUpdater(SpectrumMatchBackFiller):
     """Generate updates to :class:`TandemAnnotatedChromatogram` from chromatogram reviser like an RT predictor.
 
@@ -354,14 +392,17 @@ class SpectrumMatchUpdater(SpectrumMatchBackFiller):
                                          best_match: bool = False,
                                          valid: bool = False,
                                          reason: Optional[str] = None,
-                                         filter_fn: Optional[Callable[[SpectrumSolutionSet, SpectrumMatch], bool]] = None) -> Set[TargetType]:
+                                         filter_fn: Optional[InvalidationFilter] = None
+                                         ) -> MatchMarkResult:
 
         structures, spectrum_matches = self._find_identical_keys_and_matches(
             chromatogram, structure)
+        k = 0
         for sset, sm in spectrum_matches:
             if filter_fn and filter_fn(sset, sm):
                 self.debug(
-                    f"... NOT Marking {sm.scan_id} -> {sm.target} Valid = {valid}, Best Match = {best_match}; Reason: {reason}")
+                    f"... NOT Marking {sm.scan_id} -> {sm.target} Valid = {valid},"
+                    f" Best Match = {best_match}; Reason: {reason}")
                 continue
             self.debug(
                 f"... Marking {sm.scan_id} -> {sm.target} Valid = {valid}, Best Match = {best_match}; Reason: {reason}")
@@ -371,15 +412,18 @@ class SpectrumMatchUpdater(SpectrumMatchBackFiller):
             # and that would break any "promoted" solution whose score isn't
             # the top one.
             sset._invalidate(invalidate_order=False)
-        return structures
+            k += 1
+        return MatchMarkResult(structures, k)
 
-    def make_target_filter(self, target_to_find: TargetType) -> Callable[[SpectrumSolutionSet, SpectrumMatch], bool]:
+    def make_target_filter(self, target_to_find: TargetType) -> InvalidationFilter:
         filter_fn = SpectrumMatchInvalidatinCallback(
             target_to_find, self.threshold_fn)
 
         return filter_fn
 
-    def get_spectrum_solution_sets(self, revision: Union['TandemAnnotatedChromatogram', 'TandemSolutionsWithoutChromatogram', 'ChromatogramProxy'],
+    def get_spectrum_solution_sets(self, revision: Union['TandemAnnotatedChromatogram',
+                                                         'TandemSolutionsWithoutChromatogram',
+                                                         'ChromatogramProxy'],
                                    chromatogram: Optional['SpectrumMatchSolutionCollectionBase'] = None,
                                    invalidate_reference: bool = True):
         if chromatogram is None:
@@ -390,7 +434,7 @@ class SpectrumMatchUpdater(SpectrumMatchBackFiller):
         revised_structure = revision.structure
 
         if invalidate_reference:
-            reference_peptides = self.find_identical_peptides_and_mark(
+            reference_peptides, _count = self.find_identical_peptides_and_mark(
                 chromatogram,
                 reference,
                 reason=f"superceded by {revision.structure}")
@@ -495,28 +539,33 @@ class SpectrumMatchUpdater(SpectrumMatchBackFiller):
         if not match:
             self.log("... Failed to identify alternative %s for %s passing the threshold" % (
                 revised_structure, reference))
-            return chromatogram
+            return chromatogram, RevisionSummary(False, None, None)
 
         alternative_filter_fn = self.make_target_filter(revised_structure)
 
+        rejected_track = MatchMarkResult(set(), 0)
         for reject in rejected:
-            self.find_identical_peptides_and_mark(
+            marks = self.find_identical_peptides_and_mark(
                 chromatogram,
                 reject.solution,
                 reason=f"Rejecting {reject} in favor of {revised_structure}",
                 filter_fn=alternative_filter_fn)
+            rejected_track = rejected_track + marks
 
+        invalidated_track = MatchMarkResult(set(), 0)
         for invalid in invalidated:
-            self.find_identical_peptides_and_mark(
+            marks = self.find_identical_peptides_and_mark(
                 chromatogram,
                 invalid,
                 reason=f"... Invalidating {invalid} in favor of {revised_structure}",
                 filter_fn=alternative_filter_fn)
+            invalidated_track = invalidated_track + marks
 
-        self.find_identical_peptides_and_mark(
+        marks = self.find_identical_peptides_and_mark(
             chromatogram,
             reference,
             reason=f"superceded by {revision.structure}")
+        rejected_track = rejected_track + marks
 
         representers = chromatogram.filter_entries(match + keep)
         # When the input is a ChromatogramSolution, we have to explicitly
@@ -530,7 +579,7 @@ class SpectrumMatchUpdater(SpectrumMatchBackFiller):
         # This mutation is safe to call directly since it passes through the
         # universal __getattr__ wrapper
         chromatogram.assign_entity(match[0])
-        return chromatogram
+        return chromatogram, RevisionSummary(True, rejected_track, invalidated_track)
 
     def collect_matches(self,
                         chromatogram: 'TandemAnnotatedChromatogram',
@@ -612,24 +661,30 @@ class SpectrumMatchUpdater(SpectrumMatchBackFiller):
 
         filter_fn = self.make_target_filter(chromatogram.entity)
 
+        rejected_track = MatchMarkResult.empty()
         for reject in rejected:
-            self.find_identical_peptides_and_mark(
+            marks = self.find_identical_peptides_and_mark(
                 chromatogram,
                 reject.solution,
                 reason=f"Rejecting {reject} in favor of {chromatogram.entity}",
                 filter_fn=filter_fn
             )
+            rejected_track = rejected_track + marks
 
+        invalidated_track = MatchMarkResult.empty()
         for invalid in invalidated:
-            self.find_identical_peptides_and_mark(
+            marks = self.find_identical_peptides_and_mark(
                 chromatogram,
                 invalid,
                 reason=f"Invalidating {invalid} in favor of {chromatogram.entity}",
                 filter_fn=filter_fn
             )
+            invalidated_track = invalidated_track + marks
 
         if not match:
             self.log("... Failed to affirm %s @ %0.2f passing the threshold" % (
                 chromatogram.entity, getattr(chromatogram, "apex_time", -1)))
-
-        return chromatogram
+            affirmed = False
+        else:
+            affirmed = True
+        return chromatogram, RevisionSummary(affirmed, rejected_track, invalidated_track)
