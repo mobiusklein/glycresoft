@@ -1205,9 +1205,9 @@ class GlycopeptideLCMSMSAnalyzer(TaskBase):
         affirmations_accepted = sum(rev.accepted for rev in affirmed_results)
         self.log(
             f"... Accepted {accepted_revisions}/{len(revisions_accepted)} "
-            f"({accepted_revisions * 100.0 / len(revisions_accepted):0.2f}%) revisions and "
+            f"({accepted_revisions * 100.0 / (len(revisions_accepted) or 1):0.2f}%) revisions and "
             f"affirmed {affirmations_accepted}/{len(affirmed_results)} "
-            f"({affirmations_accepted * 100.0 / len(affirmed_results):0.2f}%) existing results")
+            f"({affirmations_accepted * 100.0 / (len(affirmed_results) or 1):0.2f}%) existing results")
 
 
     def apply_retention_time_model(self, scored_chromatograms: Sequence[ChromatogramSolution],
