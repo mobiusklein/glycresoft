@@ -112,7 +112,7 @@ class SVMModelBase(FDREstimatorBase):
 
     def _get_psms_labels(
         self, tda: TargetDecoyAnalyzer, fdr_threshold: float = None
-    ) -> Tuple[List[MultiScoreSpectrumMatch], NDArray[np.bool8], NDArray[np.bool8]]:
+    ) -> Tuple[List[MultiScoreSpectrumMatch], NDArray[np.bool_], NDArray[np.bool_]]:
         if fdr_threshold is None:
             fdr_threshold = self.train_fdr
         labels = Array('b')
