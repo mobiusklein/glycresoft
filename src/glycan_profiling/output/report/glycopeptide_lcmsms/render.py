@@ -28,7 +28,7 @@ from glycan_profiling.tandem.glycopeptide.scoring import LogIntensityScorer
 from glycan_profiling.plotting.entity_bar_chart import (
     AggregatedAbundanceArtist, BundledGlycanComposition)
 from glycan_profiling.output.report.base import (
-    svguri_plot, png_plot, ReportCreatorBase, svg_plot)
+    svguri_plot, png_plot, ReportCreatorBase, svg_plot, svg_optimizer)
 
 
 from ms_deisotope.output import ProcessedMSFileLoader
@@ -63,6 +63,23 @@ class IdentifiedGlycopeptideDescriberBase(object):
         self.retention_time_model = None
         self._make_scan_loader()
 
+    def chromatogram_plot(self, glycopeptide):
+        ax = figax(dpi=120, figsize=(6, 3.1))
+        try:
+            SmoothingChromatogramArtist(
+                glycopeptide, ax=ax, label_peaks=False,
+                colorizer=lambda x: "#48afd0").draw(legend=False, axis_font_size=10)
+            ax.set_xlabel("Time (Minutes)", fontsize=10)
+            ax.set_ylabel("Relative Abundance", fontsize=10)
+            ax.ticklabel_format(axis='y', scilimits=(1, 3))
+            return png_plot(ax, bbox_inches='tight', img_width='100%', width=8, dpi=160)
+        except ValueError:
+            return "<div style='text-align:center;'>No Chromatogram Found</div>"
+
+    def flex_panel(self, content):
+        wrapper = "<div class='flex-item centered'>{content}</div>"
+        return wrapper.format(content=content)
+
     def spectrum_match_info(self, glycopeptide):
         spectrum_match_ref = glycopeptide.best_spectrum_match
         scan_id = spectrum_match_ref.scan.scan_id
@@ -81,8 +98,8 @@ class IdentifiedGlycopeptideDescriberBase(object):
             glycopeptide.structure.convert(),
             error_tolerance=self.analysis.parameters["fragment_error_tolerance"],
             mass_shift=mass_shift)
-        specmatch_artist = TidySpectrumMatchAnnotator(match, ax=figax(dpi=120))
-        specmatch_artist.draw(fontsize=10, pretty=True)
+        specmatch_artist = TidySpectrumMatchAnnotator(match, ax=figax(dpi=160, figsize=(6, 3)))
+        specmatch_artist.draw(fontsize=8, pretty=True)
         specmatch_artist.add_summary_labels()
         annotated_match_ax = specmatch_artist.ax
 
@@ -90,30 +107,31 @@ class IdentifiedGlycopeptideDescriberBase(object):
         if len(scan_title) > 60:
             scan_title = '\n'.join(textwrap.wrap(scan_title, 60))
 
-        annotated_match_ax.set_title(scan_title, fontsize=16, y=1.05)
+        annotated_match_ax.set_title(scan_title, fontsize=11, y=1.05)
         annotated_match_ax.set_ylabel(
-            annotated_match_ax.get_ylabel(), fontsize=14)
+            annotated_match_ax.get_ylabel(), fontsize=10)
         annotated_match_ax.set_xlabel(
-            annotated_match_ax.get_xlabel(), fontsize=14)
+            annotated_match_ax.get_xlabel(), fontsize=10)
 
-        sequence_logo_plot = glycopeptide_match_logo(match, ax=figax())
-        xlim = list(sequence_logo_plot.ax.get_xlim())
-        xlim[0] += 1
+        sequence_logo_plot = glycopeptide_match_logo(
+            match, ax=figax(), annotation_options={"lw": 3, "v_step":0.15, "stroke_slope": 0.1})
 
-        sequence_logo_plot.ax.set_xlim(xlim[0], xlim[1])
-
-        spectrum_plot = png_plot(
+        spectrum_plot = svguri_plot(
             annotated_match_ax, svg_width="100%", bbox_inches='tight', height=3 * 1.5,
+            optimize=True,
             width=8 * 1.5,
             img_width="100%",
             patchless=True, dpi=120)
+        sequence_logo_plot.ax.figure.set_figheight(2.5)
+        sequence_logo_plot.ax.figure.set_figwidth(8)
         logo_plot = svg_plot(
             sequence_logo_plot.ax,
             svg_width="100%",
             img_width="100%",
-            xml_transform=scale_fix_xml_transform,
+            # xml_transform=scale_fix_xml_transform,
             bbox_inches='tight',
-            height=2, width=6 * 1.5, patchless=True).decode('utf8')
+            optimize=False,
+            height=1, width=6, patchless=True).decode('utf8')
         match.drop_peaks()
         return dict(
             spectrum_plot=spectrum_plot, logo_plot=logo_plot,
@@ -160,6 +178,7 @@ class GlycopeptideDatabaseSearchReportCreator(ReportCreatorBase, IdentifiedGlyco
         self.mzml_path = mzml_path
         self.scan_loader = None
         self.threshold = threshold
+        self._total_glycopeptides = None
         self.use_dynamic_display_mode = 0
         self.analysis = self.session.query(serialize.Analysis).get(self.analysis_id)
         self._resolve_hypothesis_id()
@@ -204,10 +223,13 @@ class GlycopeptideDatabaseSearchReportCreator(ReportCreatorBase, IdentifiedGlyco
                 "protein_name": protein_name,
                 "protein_id": protein_id,
             }
+        total_glycopeptides = 0
         for protein_name, protein_id, glycopeptide_count in matched_counts:
             entry = index[protein_id]
             entry['identified_glycopeptide_count'] = glycopeptide_count
+            total_glycopeptides += glycopeptide_count
             listing.append(entry)
+        self._total_glycopeptides = total_glycopeptides
         self.protein_index = sorted(listing, key=lambda x: x["identified_glycopeptide_count"], reverse=True)
         for protein_entry in self.protein_index:
             protein_entry['protein'] = self.session.query(Protein).get(protein_entry["protein_id"])
@@ -215,6 +237,7 @@ class GlycopeptideDatabaseSearchReportCreator(ReportCreatorBase, IdentifiedGlyco
 
     def iterglycoproteins(self):
         n = float(len(self.protein_index))
+
         for i, row in enumerate(self.protein_index, 1):
             protein = row['protein']
             glycopeptides = self.session.query(
@@ -252,23 +275,7 @@ class GlycopeptideDatabaseSearchReportCreator(ReportCreatorBase, IdentifiedGlyco
         layout = GlycoformLayout(glycoprotein, glycoprotein.identified_glycopeptides, ax=ax)
         layout.draw()
         svg = layout.to_svg(scale=2.0, height_padding_scale=1.1)
-        return svg.decode('utf8')
-
-    def chromatogram_plot(self, glycopeptide):
-        ax = figax(dpi=120)
-        try:
-            SmoothingChromatogramArtist(
-                glycopeptide, ax=ax, label_peaks=False,
-                colorizer=lambda x: "#48afd0").draw(legend=False, axis_font_size=12)
-            ax.set_xlabel("Time (Minutes)", fontsize=14)
-            ax.set_ylabel("Relative Abundance", fontsize=14)
-            return png_plot(ax, bbox_inches='tight', img_height='100%', width=8, dpi=120)
-        except ValueError:
-            return "<div style='text-align:center;'>No Chromatogram Found</div>"
-
-    def flex_panel(self, content):
-        wrapper = "<div class='flex-item centered'>{content}</div>"
-        return wrapper.format(content=content)
+        return svg_optimizer(svg.decode('utf8')).decode('utf8')
 
     def fdr_estimator_plot(self):
         fdr_estimator = self.fdr_estimator
@@ -318,7 +325,9 @@ class GlycopeptideDatabaseSearchReportCreator(ReportCreatorBase, IdentifiedGlyco
         self._glycopeptide_counter += 1
         if self._glycopeptide_counter % 15 == 0:
             self.status_update(
-                " ... %d glycopeptides handled" % (self._glycopeptide_counter,))
+                f" ... {self._glycopeptide_counter}/{self._total_glycopeptides} "
+                f"({self._glycopeptide_counter / self._total_glycopeptides * 100:0.2f}%) glycopeptides handled"
+            )
         return self._glycopeptide_counter
 
     def make_template_stream(self):

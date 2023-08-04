@@ -78,6 +78,7 @@
     flex-wrap: wrap;
     flex-flow: row wrap;
     align-content: flex-end;
+    align-items: center;
 }
 
 .flex-justify {

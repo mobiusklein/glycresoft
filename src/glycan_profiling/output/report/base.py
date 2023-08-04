@@ -1,3 +1,4 @@
+from typing import Any
 import urllib
 import logging
 import base64
@@ -68,7 +69,7 @@ def xmlattrs(**kwargs):
     return ' '.join("%s=\"%s\"" % kv for kv in kwargs.items()).encode('utf8')
 
 
-def png_plot(figure, img_width=None, img_height=None, xattrs=None, **kwargs):
+def png_plot(figure, img_width=None, img_height=None, xattrs=None, optimize: bool=False, **kwargs):
     if xattrs is None:
         xattrs = dict()
     kwargs.pop("svg_width", None)
@@ -85,9 +86,17 @@ def png_plot(figure, img_width=None, img_height=None, xattrs=None, **kwargs):
         )).decode('utf8')
 
 
-def svguri_plot(figure, **kwargs):
-    svg_string = svg_plot(figure, **kwargs)
-    return ("<img src='data:image/svg+xml;utf-8,%s'>" % quote(svg_string))
+def svguri_plot(figure, img_width=None, img_height=None, xattrs=None, optimize: bool=False, **kwargs):
+    if xattrs is None:
+        xattrs = dict()
+    xml_attributes = dict(xattrs)
+    if img_width is not None:
+        xml_attributes['width'] = img_width
+    if img_height is not None:
+        xml_attributes['height'] = img_height
+    svg_string = svg_plot(figure, optimize=optimize, **kwargs)
+    return ("<img %s src='data:image/svg+xml;utf-8,%s'>" % (xmlattrs(**xml_attributes).decode('utf8'),
+                                                            quote(svg_string)))
 
 
 def _strip_style(root):
@@ -96,10 +105,13 @@ def _strip_style(root):
     return root
 
 
-def svg_plot(figure, svg_width=None, xml_transform=None, **kwargs):
+def svg_plot(figure, svg_width=None, xml_transform=None, optimize: bool=False, **kwargs):
     data_buffer = render_plot(figure, format='svg', **
                               _sanitize_savefig_kwargs(kwargs))
-    root = etree.fromstring(data_buffer.getvalue())
+    if optimize:
+        root = etree.fromstring(svg_optimizer(data_buffer.getvalue()))
+    else:
+        root = etree.fromstring(data_buffer.getvalue())
     root = _strip_style(root)
     if svg_width is not None:
         root.attrib["width"] = svg_width
@@ -248,3 +260,33 @@ class ReportCreatorBase(TaskBase):
         self.prepare_environment()
         template_stream = self.make_template_stream()
         template_stream.dump(self.stream, encoding='utf-8')
+
+try:
+    from scour import scour
+
+    class _SVGOptimizer:
+        def __init__(self, **parameters):
+            self.parameters = parameters
+            self.scour_args = scour.generateDefaultOptions()
+            for k, v in parameters.items():
+                setattr(self.scour_args, k, v)
+
+        def __call__(self, xml_string: bytes) -> bytes:
+            return scour.scourString(xml_string, self.scour_args).encode('utf8')
+
+except ImportError:
+    class _SVGOptimizer:
+        def __init__(self, **parameters) -> None:
+            self.parameters = parameters
+
+        def __call__(self, xml_string: bytes) -> bytes:
+            return xml_string
+
+
+svg_optimizer = _SVGOptimizer(
+    strip_comments=True,
+    strip_ids=True,
+    shorten_ids=True,
+    remove_metadata=True,
+    indent_depth=0
+)
