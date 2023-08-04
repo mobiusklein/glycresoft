@@ -44,6 +44,7 @@ class _GlycopeptideSearchToolBase:
         "predicted_apex_interval_start",
         "predicted_apex_interval_end",
         "retention_time_score",
+        "group_id",
         "glycopeptide_score",
         "peptide_score",
         "glycan_score",
@@ -54,6 +55,7 @@ class _GlycopeptideSearchToolBase:
         "glycopeptide_q_value",
         "localizations",
         "n_glycosylation_sites",
+
     ]
 
     indexed_gpsm_csv_header = [
@@ -72,6 +74,7 @@ class _GlycopeptideSearchToolBase:
         "peptide_end",
         "protein_name",
         "is_best_match",
+        "is_precursor_fit",
         "rank",
         "group_id",
         "peptide_score",
