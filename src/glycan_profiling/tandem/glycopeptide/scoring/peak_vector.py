@@ -1,4 +1,4 @@
-from typing import List, DefaultDict
+from typing import DefaultDict, Dict, Tuple
 
 from array import ArrayType as array
 
@@ -47,7 +47,6 @@ class PeakFragmentVector(ScanMatchManagingMixin):
             self.build_for_series('c')
             self.build_for_series('z')
 
-
     def flatten(self):
         acc = array('d')
         for k, v in self.charge_vectors.items():
@@ -65,3 +64,61 @@ class PeakFragmentVector(ScanMatchManagingMixin):
             xx += x.dot(x)
             yy += y.dot(y)
         return xy / (np.sqrt(xx) * np.sqrt(yy))
+
+    def __repr__(self) -> str:
+        return f"{self.__class__.__name__}({self.target})"
+
+
+class GlycanPeakFragmentVector(ScanMatchManagingMixin):
+    scan: ProcessedScan
+    target: FragmentCachingGlycopeptide
+    error_tolerance: float
+    max_charge: int
+    fragment_map: Dict[Tuple[str, int], float]
+    total: float
+
+    def __init__(self, scan, target, error_tolerance: float=2e-5, max_charge: int = None):
+        super().__init__(scan, target)
+        if max_charge is None:
+            max_charge = self.precursor_information.charge
+        self.max_charge = max_charge
+        self.error_tolerance = error_tolerance
+        self.total = 0.0
+        self.fragment_map = {}
+        self.build()
+
+    def build(self):
+        total = 0.0
+        for frag in self.target.stub_fragments(extended=True, extended_fucosylation=True):
+            for peak in self.scan.deconvoluted_peak_set.all_peaks_for(frag.mass, self.error_tolerance):
+                key = str(frag.glycosylation), peak.charge
+                if key in self.fragment_map:
+                    self.fragment_map[key] += peak.intensity
+                else:
+                    self.fragment_map[key] = peak.intensity
+                total += peak.intensity
+        self.total = total
+
+    def correlate(self, other: 'GlycanPeakFragmentVector'):
+        xy = 0
+        xx = 0
+        yy = 0
+        keyspace = self.fragment_map.keys() | other.fragment_map.keys()
+        for k in keyspace:
+            x = self.fragment_map.get(k, 0)
+            y = other.fragment_map.get(k, 0)
+            xy += x * y
+            xx += x ** 2
+            yy += y ** 2
+        return xy / (np.sqrt(xx) * np.sqrt(yy))
+
+    def __repr__(self) -> str:
+        return f"{self.__class__.__name__}({self.target})"
+
+
+try:
+    from glycan_profiling._c.tandem.tandem_scoring_helpers import correlate_fragment_map
+
+    GlycanPeakFragmentVector.correlate = correlate_fragment_map
+except ImportError:
+    pass

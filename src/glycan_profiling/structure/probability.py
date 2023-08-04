@@ -166,7 +166,7 @@ class GaussianMixture(MixtureBase):
         return stats.norm.logpdf(X, self.mus[k], self.sigmas[k])
 
     @classmethod
-    def fit(cls, X: np.ndarray, n_components: int, maxiter: int=1000, tol: float=1e-5, deterministic: bool=True):
+    def fit(cls, X: np.ndarray, n_components: int, maxiter: int=1000, tol: float=1e-5, deterministic: bool=True) -> 'GaussianMixture':
         if not deterministic:
             mus = KMeans.fit(X, n_components).means
         else:
@@ -304,7 +304,7 @@ class _TruncatedNormalMixin(object):
 
 class TruncatedGaussianMixture(_TruncatedNormalMixin, GaussianMixture):
     @classmethod
-    def fit(cls, X, n_components, maxiter=1000, tol=1e-5, deterministic=True):
+    def fit(cls, X, n_components, maxiter=1000, tol=1e-5, deterministic=True) -> 'TruncatedGaussianMixture':
         if not deterministic:
             mus = KMeans.fit(X, n_components).means
         else:
@@ -346,9 +346,10 @@ class GammaMixtureBase(MixtureBase):
         return template.format(self=self)
 
     def _logpdf(self, X: np.ndarray, k: int) -> np.ndarray:
-        '''Computes the log-space density for `X` using the `k`th
+        """
+        Computes the log-space density for `X` using the `k`th
         component of the mixture
-        '''
+        """
         return stats.gamma.logpdf(X, a=self.shapes[k], scale=self.scales[k])
 
     def plot(self, ax=None, **kwargs):
@@ -367,7 +368,7 @@ class GammaMixtureBase(MixtureBase):
         ]
 
     @classmethod
-    def fit(cls, X: np.ndarray, n_components: int, maxiter: int=100, tol: float=1e-5, deterministic: bool=True):
+    def fit(cls, X: np.ndarray, n_components: int, maxiter: int=100, tol: float=1e-5, deterministic: bool=True) -> 'GammaMixtureBase':
         shapes, scales, weights = cls.initial_parameters(X, n_components, deterministic=deterministic)
         inst = cls(shapes, scales, weights)
         inst.estimate(X, maxiter=maxiter, tol=tol)
@@ -450,7 +451,7 @@ class GaussianMixtureWithPriorComponent(GaussianMixture):
             return super(GaussianMixtureWithPriorComponent, self)._logpdf(X, k)
 
     @classmethod
-    def fit(cls, X: np.ndarray, n_components: int, prior: MixtureBase, maxiter=1000, tol=1e-5, deterministic=True):
+    def fit(cls, X: np.ndarray, n_components: int, prior: MixtureBase, maxiter=1000, tol=1e-5, deterministic=True) -> 'GaussianMixtureWithPriorComponent':
         if not deterministic:
             mus = KMeans.fit(X, n_components).means
         else:
@@ -498,7 +499,7 @@ class GaussianMixtureWithPriorComponent(GaussianMixture):
 class TruncatedGaussianMixtureWithPriorComponent(_TruncatedNormalMixin, GaussianMixtureWithPriorComponent):
 
     @classmethod
-    def fit(cls, X, n_components, prior, maxiter=1000, tol=1e-5, deterministic=True):
+    def fit(cls, X, n_components, prior, maxiter=1000, tol=1e-5, deterministic=True) -> 'TruncatedGaussianMixtureWithPriorComponent':
         if not deterministic:
             mus = KMeans.fit(X, n_components).means
         else:
@@ -625,8 +626,7 @@ class KDModel(PredictorBase):
 
 
 class GaussianKDE(stats.gaussian_kde):
-    '''To control overriding methods, use a derived class
-    '''
+    '''To control overriding methods, use a derived class'''
     pass
 
 

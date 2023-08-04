@@ -248,7 +248,7 @@ class FragmentStroke:
         self._collection = None
 
     def has_annotations(self):
-        return bool(self.n_labels and self.c_labels)
+        return self.has_n_annotations() or self.has_c_annotations()
 
     def has_n_annotations(self):
         return bool(self.n_labels)
@@ -821,8 +821,9 @@ class SequenceGlyph(object):
 
 
 def glycopeptide_match_logo(glycopeptide_match, ax=None, color='red', glycosylated_color='forestgreen',
-                            return_artist: bool=True, **kwargs):
-    annotation_options: dict = kwargs.get("annotation_options", {})
+                            return_artist: bool=True, annotation_options: Optional[dict]=None, **kwargs):
+    if annotation_options is None:
+        annotation_options = {}
     annotation_options['color'] = color
     annotation_options['glycosylated_color'] = glycosylated_color
     kwargs['annotation_options'] = annotation_options

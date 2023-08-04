@@ -75,6 +75,10 @@ class _AnalysisParametersProps:
         return self.parameters.get('retention_time_model')
 
     @property
+    def fdr_estimator(self):
+        return self.parameters.get('fdr_estimator')
+
+    @property
     def search_strategy(self):
         strategy_str = self.parameters.get('search_strategy')
         strategy = GlycopeptideSearchStrategy[strategy_str]

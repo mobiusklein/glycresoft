@@ -411,7 +411,8 @@ def isclose(a, b, rtol=1e-05, atol=1e-08):
 
 
 class SolutionSetGrouper(TaskBase):
-    """Partition multi-score glycopeptide identificatins into groups
+    """
+    Partition multi-score glycopeptide identificatins into groups
     according to either glycopeptide target/decoy classification (:attr:`match_type_groups`)
     or by best match to a given scan and target/decoy classification (:attr:`exclusive_match_groups`)
 
@@ -526,7 +527,8 @@ class JournalSetLoader(TaskBase):
         else:
             stub_loader = scan_loader
         if score_set_type is None:
-            score_set_type = analysis.paramters['tandem_scoring_model'].get_score_set_type()
+            score_set_type = analysis.parameters[
+                'tandem_scoring_model'].get_score_set_type()
         return cls([f.open(raw=True) for f in analysis.files], stub_loader, mass_shift_map,
                    score_set_type=score_set_type, **journal_reader_args)
 

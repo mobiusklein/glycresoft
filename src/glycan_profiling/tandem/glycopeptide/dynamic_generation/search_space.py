@@ -930,7 +930,7 @@ class SharedCacheAwareDecoyFragmentCachingGlycopeptide(DecoyFragmentCachingGlyco
                     *args, **kwargs
                 )
             )
-        result = self._permute_stub_masses(result, kwargs, do_clone=do_clone)
+        result = self._permute_stub_masses(result, kwargs, do_clone=do_clone, min_shift_size=1)
         self.fragment_caches[key] = result
         return result
 

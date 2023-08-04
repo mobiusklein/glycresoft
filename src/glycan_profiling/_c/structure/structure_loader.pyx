@@ -312,7 +312,7 @@ cpdef list clone_stub_fragments(list stubs):
 
 
 @cython.boundscheck(False)
-cpdef list clone_and_shift_stub_fragments(list stubs, np.ndarray[float64_t, ndim=1] rand_deltas, bint do_clone=True):
+cpdef list clone_and_shift_stub_fragments(list stubs, np.ndarray[float64_t, ndim=1, mode='c'] rand_deltas, bint do_clone=True, int min_shift_size=1):
     cdef:
         size_t i, n, j
         list result
@@ -327,7 +327,7 @@ cpdef list clone_and_shift_stub_fragments(list stubs, np.ndarray[float64_t, ndim
         frag = <StubFragment>PyList_GET_ITEM(stubs, i)
         if do_clone:
             frag = <StubFragment>StubFragment.clone(frag)
-        if StubFragment.get_glycosylation_size(frag) > 1:
+        if min_shift_size == 0 or StubFragment.get_glycosylation_size(frag) > min_shift_size:
             delta = rand_deltas[j]
             j += 1
             frag.mass += delta

@@ -1052,3 +1052,40 @@ cpdef double fast_coarse_score(DeconvolutedPeakSet peak_set, _PeptideSequenceCor
                 peak = <DeconvolutedPeak>PyTuple_GET_ITEM(peaks, k)
                 acc += log10(peak.intensity)
     return acc
+
+
+@cython.binding(True)
+cpdef correlate_fragment_map(self, other):
+    cdef:
+        dict self_map, other_map
+        double x, y, xx, yy, xy
+        void* ptmp
+
+    self_map = self.fragment_map
+    other_map = other.fragment_map
+    xy = 0
+    xx = 0
+    yy = 0
+    keyspace = set(self_map) | set(other_map)
+    for k in keyspace:
+        ptmp = PyDict_GetItem(self_map, k)
+        if ptmp == NULL:
+            x = 0
+        else:
+            x = PyFloat_AsDouble(<object>ptmp)
+
+        ptmp = PyDict_GetItem(other_map, k)
+        if ptmp == NULL:
+            y = 0
+        else:
+            y = PyFloat_AsDouble(<object>ptmp)
+
+        xy += x * y
+        xx += x ** 2
+        yy += y ** 2
+    xx = sqrt(xx)
+    yy = sqrt(yy)
+    if xx == 0 or yy == 0:
+        return 0
+    return xy / (xx * yy)
+

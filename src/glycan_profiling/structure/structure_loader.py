@@ -530,7 +530,8 @@ class DecoyFragmentCachingGlycopeptide(FragmentCachingGlycopeptide):
             cls._random_shift_cache[key] = rand_deltas
             return rand_deltas
 
-    def _permute_stub_masses(self, stub_fragments: List[StubFragment], kwargs: Dict, do_clone: bool=False) -> List[StubFragment]:
+    def _permute_stub_masses(self, stub_fragments: List[StubFragment], kwargs: Dict, do_clone: bool=False,
+                             min_shift_size: int = 1) -> List[StubFragment]:
         random_low = kwargs.get('random_low', 1.0)
         random_high = kwargs.get("random_high", 30.0)
         n = len(stub_fragments)
@@ -539,19 +540,19 @@ class DecoyFragmentCachingGlycopeptide(FragmentCachingGlycopeptide):
             n, random_low, random_high)
 
         stub_fragments = self._clone_and_shift_stub_fragments(
-            stub_fragments, rand_deltas, do_clone)
+            stub_fragments, rand_deltas, do_clone, min_shift_size)
         return stub_fragments
 
     @staticmethod
     def _clone_and_shift_stub_fragments(stubs: List[StubFragment], rand_deltas: np.ndarray,
-                                        do_clone: bool=True) -> List[StubFragment]:
+                                        do_clone: bool=True, min_shift_size: int=1) -> List[StubFragment]:
         i = 0
         if do_clone:
             result = []
         for frag in stubs:
             if do_clone:
                 frag = frag.clone()
-            if frag.glycosylation_size > 1:
+            if frag.glycosylation_size > min_shift_size:
                 delta = rand_deltas[i]
                 i += 1
                 frag.mass += delta
@@ -573,7 +574,7 @@ class DecoyFragmentCachingGlycopeptide(FragmentCachingGlycopeptide):
                 # querying.
                 super(FragmentCachingGlycopeptide, self).stub_fragments( # pylint: disable=bad-super-call
                     *args, **kwargs))
-            result = self._permute_stub_masses(result, kwargs)
+            result = self._permute_stub_masses(result, kwargs, min_shift_size=1)
             self.fragment_caches[key] = result
             return result
 
@@ -601,7 +602,9 @@ class DecoyFragmentCachingGlycopeptide(FragmentCachingGlycopeptide):
 
 
 try:
-    from glycan_profiling._c.structure.structure_loader import clone_and_shift_stub_fragments as _clone_and_shift_stub_fragments
+    from glycan_profiling._c.structure.structure_loader import (
+        clone_and_shift_stub_fragments as _clone_and_shift_stub_fragments
+    )
     DecoyFragmentCachingGlycopeptide._clone_and_shift_stub_fragments = staticmethod(
         _clone_and_shift_stub_fragments)
 except ImportError:
