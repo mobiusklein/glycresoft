@@ -280,6 +280,8 @@ except ImportError:
             self.parameters = parameters
 
         def __call__(self, xml_string: bytes) -> bytes:
+            if isinstance(xml_string, str):
+                return xml_string.encode('utf8')
             return xml_string
 
 
