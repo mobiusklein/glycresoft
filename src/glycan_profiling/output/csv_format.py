@@ -2,7 +2,7 @@ import csv
 import logging
 
 from io import TextIOWrapper
-from typing import TYPE_CHECKING, Dict, Iterable, List, TextIO
+from typing import TYPE_CHECKING, Dict, Iterable, List, Mapping, TextIO
 
 from six import PY2
 
@@ -253,11 +253,17 @@ class GlycanLCMSAnalysisCSVSerializer(CSVSerializerBase):
 
 
 class GlycopeptideLCMSMSAnalysisCSVSerializer(CSVSerializerBase):
-    def __init__(self, outstream, entities_iterable, protein_name_resolver, analysis, delimiter=','):
+    analysis: 'Analysis'
+    protein_name_resolver: Mapping[int, str]
+    include_group: bool
+
+    def __init__(self, outstream, entities_iterable, protein_name_resolver, analysis, delimiter=',',
+                 include_group: bool=True):
         super(GlycopeptideLCMSMSAnalysisCSVSerializer, self).__init__(outstream, entities_iterable, delimiter)
         self.protein_name_resolver = protein_name_resolver
         self.analysis = analysis
         self.retention_time_model = analysis.parameters.get("retention_time_model")
+        self.include_group = include_group
 
     def get_header(self):
         headers = [
@@ -280,6 +286,8 @@ class GlycopeptideLCMSMSAnalysisCSVSerializer(CSVSerializerBase):
             "n_glycosylation_sites",
             "mass_shifts",
         ]
+        if self.include_group:
+            headers.append("group_id")
         if self.retention_time_model:
             headers.extend([
                 "predicted_apex_interval_start",
@@ -319,6 +327,10 @@ class GlycopeptideLCMSMSAnalysisCSVSerializer(CSVSerializerBase):
             ]),
             ';'.join([a.name for a in obj.mass_shifts]),
         ]
+        try:
+            attribs.append(obj.ambiguous_id)
+        except AttributeError:
+            attribs.append(-1)
         if self.retention_time_model:
             if obj.chromatogram:
                 rt_start, rt_end = self.retention_time_model.predict_interval(obj, 0.01)
@@ -403,6 +415,7 @@ class GlycopeptideSpectrumMatchAnalysisCSVSerializer(CSVSerializerBase):
             "protein_name",
             "n_glycosylation_sites",
             "is_best_match",
+            "is_precursor_fit",
         ]
         if self.include_rank:
             names.append("rank")
@@ -443,6 +456,7 @@ class GlycopeptideSpectrumMatchAnalysisCSVSerializer(CSVSerializerBase):
                 for i in obj.target.n_glycan_sequon_sites
             ]),
             obj.is_best_match,
+            not precursor.defaulted
         ]
         if self.include_rank:
             try:
