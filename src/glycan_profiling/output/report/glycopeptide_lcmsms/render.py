@@ -2,6 +2,7 @@ import os
 import textwrap
 
 from collections import OrderedDict
+from typing import Optional
 
 from glycopeptidepy.structure.glycan import GlycosylationType
 
@@ -14,6 +15,7 @@ from glycan_profiling.serialize import (
     func, MSScan, DatabaseBoundOperation)
 
 from glycan_profiling.chromatogram_tree import Unmodified
+from glycan_profiling.scoring.elution_time_grouping import ModelEnsemble as RetentionTimeEnsemble
 
 from glycan_profiling.plotting.glycan_visual_classification import (
     GlycanCompositionClassifierColorizer,
@@ -30,7 +32,7 @@ from glycan_profiling.plotting.entity_bar_chart import (
 from glycan_profiling.output.report.base import (
     svguri_plot, png_plot, ReportCreatorBase, svg_plot, svg_optimizer)
 
-
+from ms_deisotope.data_source import ProcessedRandomAccessScanSource
 from ms_deisotope.output import ProcessedMSFileLoader
 
 
@@ -54,7 +56,14 @@ def scale_fix_xml_transform(root):
 
 
 class IdentifiedGlycopeptideDescriberBase(object):
-    def __init__(self, database_path, analysis_id, mzml_path=None):
+    database_connection: DatabaseBoundOperation
+    analysis_id: int
+    analysis: serialize.Analysis
+    mzml_path: str
+    scan_loader: Optional[ProcessedRandomAccessScanSource]
+    retention_time_model: Optional[RetentionTimeEnsemble]
+
+    def __init__(self, database_path: str, analysis_id: int, mzml_path: Optional[str]=None):
         self.database_connection = DatabaseBoundOperation(database_path)
         self.analysis_id = analysis_id
         self.analysis = self.session.query(serialize.Analysis).get(self.analysis_id)
@@ -63,7 +72,7 @@ class IdentifiedGlycopeptideDescriberBase(object):
         self.retention_time_model = None
         self._make_scan_loader()
 
-    def chromatogram_plot(self, glycopeptide):
+    def chromatogram_plot(self, glycopeptide: serialize.IdentifiedGlycopeptide):
         ax = figax(dpi=120, figsize=(6, 3.1))
         try:
             SmoothingChromatogramArtist(
@@ -76,11 +85,11 @@ class IdentifiedGlycopeptideDescriberBase(object):
         except ValueError:
             return "<div style='text-align:center;'>No Chromatogram Found</div>"
 
-    def flex_panel(self, content):
+    def flex_panel(self, content: str):
         wrapper = "<div class='flex-item centered'>{content}</div>"
         return wrapper.format(content=content)
 
-    def spectrum_match_info(self, glycopeptide):
+    def spectrum_match_info(self, glycopeptide: serialize.IdentifiedGlycopeptide):
         spectrum_match_ref = glycopeptide.best_spectrum_match
         scan_id = spectrum_match_ref.scan.scan_id
         scan = self.scan_loader.get_scan_by_id(scan_id)
@@ -138,7 +147,7 @@ class IdentifiedGlycopeptideDescriberBase(object):
             precursor_mass_accuracy=match.precursor_mass_accuracy(),
             spectrum_match=match)
 
-    def format_rt_prediction_interval(self, glycopeptide):
+    def format_rt_prediction_interval(self, glycopeptide: serialize.IdentifiedGlycopeptide):
         iv = self.retention_time_model.predict_interval(glycopeptide, 0.01)
         return self.retention_time_model._truncate_interval(iv)
 
@@ -160,16 +169,20 @@ class IdentifiedGlycopeptideDescriberBase(object):
 
 class IdentifiedGlycopeptideDescriberWorker(IdentifiedGlycopeptideDescriberBase):
 
-    def __call__(self, glycopeptide_id):
+    def __call__(self, glycopeptide_id: int):
         glycopeptide = self._glycopeptide_from_id(glycopeptide_id)
         return self.spectrum_match_info(glycopeptide)
 
-    def _glycopeptide_from_id(self, glycopeptide_id):
+    def _glycopeptide_from_id(self, glycopeptide_id: int) -> serialize.IdentifiedGlycopeptide:
         return self.database_connection.query(
             IdentifiedGlycopeptide).get(glycopeptide_id)
 
 
 class GlycopeptideDatabaseSearchReportCreator(ReportCreatorBase, IdentifiedGlycopeptideDescriberBase):
+    threshold: float
+    use_dynamic_display_mode: int
+    hypothesis_id: int
+
     def __init__(self, database_path, analysis_id, stream=None, threshold=5,
                  mzml_path=None):
         super(GlycopeptideDatabaseSearchReportCreator, self).__init__(
@@ -253,7 +266,7 @@ class GlycopeptideDatabaseSearchReportCreator(ReportCreatorBase, IdentifiedGlyco
                     protein.name, i, n, (i / n * 100)))
             yield i, glycoprotein
 
-    def site_specific_abundance_plots(self, glycoprotein):
+    def site_specific_abundance_plots(self, glycoprotein: IdentifiedGlycoprotein):
         axes = OrderedDict()
         for glyco_type in glycoprotein.glycosylation_types:
             for site in sorted(glycoprotein.glycosylation_sites_for(glyco_type)):
@@ -321,7 +334,7 @@ class GlycopeptideDatabaseSearchReportCreator(ReportCreatorBase, IdentifiedGlyco
 
         return figures
 
-    def track_entry(self, glycopeptide):
+    def track_entry(self, glycopeptide: serialize.IdentifiedGlycopeptide):
         self._glycopeptide_counter += 1
         if self._glycopeptide_counter % 15 == 0:
             self.status_update(

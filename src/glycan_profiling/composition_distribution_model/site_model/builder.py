@@ -709,7 +709,7 @@ class MultiprocessingGlycoproteinSiteModelBuildingWorkflow(GlycoproteinSiteModel
                 if not is_done:
                     worker_still_busy = True
                     break
-            except (RemoteError, KeyError) as err:
+            except (RemoteError, KeyError):
                 worker_still_busy = True
                 self._has_remote_error = True
                 break

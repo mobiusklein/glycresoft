@@ -162,8 +162,11 @@ class GlycanCompositionGlyphs(object):
         if not self.patches:
             return self.x, self.y, self.xend, self.y
 
-        bbox = bbox_path(self.patches[0].get_path())
-        for patch in self.patches:
+        flat_patch_iter = (p for patch in self.patches for p in (
+            [patch] if not isinstance(patch, (tuple, list)) else patch))
+        first = next(flat_patch_iter)
+        bbox = bbox_path(first.get_path())
+        for patch in flat_patch_iter:
             bbox = bbox.expand(*bbox_path(patch.get_path()))
         return bbox
 

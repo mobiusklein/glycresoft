@@ -25,6 +25,8 @@ from glycan_profiling.tandem.ref import TargetReference, SpectrumReference
 
 if TYPE_CHECKING:
     from glycan_profiling.tandem.target_decoy.base import FDREstimatorBase
+    from glycan_profiling.plotting.spectral_annotation import TidySpectrumMatchAnnotator
+    from matplotlib.axes import Axes
 
 neutron_offset = isotopic_shift()
 
@@ -414,10 +416,9 @@ class SpectrumMatcherBase(SpectrumMatchBase):
         return self.__class__, (self.scan, self.target,), self.__getstate__()
 
     def __repr__(self):
-        return "{self.__class__.__name__}({self.scan_id}, {self.spectrum}, {self.target}, {self.score})".format(
-            self=self)
+        return f"{self.__class__.__name__}({self.scan_id}, {self.spectrum}, {self.target}, {self.score})"
 
-    def plot(self, ax=None, **kwargs):
+    def plot(self, ax: Optional['Axes']=None, **kwargs) -> 'TidySpectrumMatchAnnotator':
         """
         Plot the spectrum match, using the :class:`~.TidySpectrumMatchAnnotator`
         algorithm.
@@ -442,7 +443,7 @@ class SpectrumMatcherBase(SpectrumMatchBase):
         return ScoreSet
 
     @classmethod
-    def get_fdr_model_for_dimension(cls, label: str) -> 'FDREstimatorBase':
+    def get_fdr_model_for_dimension(cls, label: str) -> Optional[Type['FDREstimatorBase']]:
         if label == 'peptide':
             from glycan_profiling.tandem.target_decoy import PeptideScoreSVMModel
             return PeptideScoreSVMModel
