@@ -11,7 +11,7 @@ from multiprocessing import Event, JoinableQueue
 
 from collections import defaultdict
 from operator import attrgetter
-from typing import Any, Callable, DefaultDict, Dict, List, Optional, Set, Type, Union
+from typing import Any, Callable, DefaultDict, Dict, List, Optional, Set, Type, Union, TYPE_CHECKING, BinaryIO
 
 from six import PY2
 
@@ -41,6 +41,10 @@ from glycan_profiling.tandem.spectrum_match import (
     MultiScoreSpectrumMatch, MultiScoreSpectrumSolutionSet, ScoreSet, FDRSet)
 
 from .search_space import glycopeptide_key_t, StructureClassification
+
+if TYPE_CHECKING:
+    from glycan_profiling.serialize import Analysis, AnalysisDeserializer
+    from ms_deisotope.data_source import RandomAccessScanSource
 
 
 def _zstdopen(path, mode='w'):
@@ -469,7 +473,8 @@ class SolutionSetGrouper(TaskBase):
             by_scan_groups[group] = acc
         return by_scan_groups
 
-    def _exclusive(self, score_getter: Callable[[MultiScoreSpectrumMatch], float]=None, min_value: float=0) -> DefaultDict[Any, List[MultiScoreSpectrumMatch]]:
+    def _exclusive(self, score_getter: Callable[[MultiScoreSpectrumMatch], float]=None,
+                   min_value: float=0) -> DefaultDict[Any, List[MultiScoreSpectrumMatch]]:
         if score_getter is None:
             score_getter = attrgetter('score')
         groups = collectiontools.groupby(
@@ -480,7 +485,8 @@ class SolutionSetGrouper(TaskBase):
             top_score = score_getter(top_match)
             seen = set()
             for match in members:
-                if isclose(top_score, score_getter(match)) and score_getter(match) > 0 and match.match_type not in seen:
+                if (isclose(top_score, score_getter(match)) and score_getter(match) > min_value
+                    and match.match_type not in seen):
                     seen.add(match.match_type)
                     by_match_type[match.match_type].append(match)
         for _group_label, matches in by_match_type.items():
@@ -514,8 +520,17 @@ class JournalSetLoader(TaskBase):
     analysis's bundled journal file shards.
     """
 
+    journal_files: List[Union[BinaryIO, os.PathLike, str]]
+    journal_reader_args: Dict[str, Any]
+    scan_loader: Union['RandomAccessScanSource', ScanInformationLoader]
+    mass_shift_map: Dict[str, MassShiftBase]
+    solutions: List[MultiScoreSpectrumSolutionSet]
+
     @classmethod
-    def from_analysis(cls, analysis, scan_loader=None, stub_wrapping=True, score_set_type=None,
+    def from_analysis(cls, analysis: Union["Analysis", "AnalysisDeserializer"],
+                      scan_loader: Optional['RandomAccessScanSource']=None,
+                      stub_wrapping: bool=True,
+                      score_set_type: Optional[Type[ScoreSet]]=None,
                       **journal_reader_args):
         mass_shift_map = {
             m.name: m for m in analysis.parameters['mass_shifts']}
@@ -555,7 +570,8 @@ class JournalSetLoader(TaskBase):
             self.load()
         return iter(self.solutions)
 
-    def _load_identifications_from_journal(self, journal_path, accumulator=None):
+    def _load_identifications_from_journal(self, journal_path: Union[BinaryIO, os.PathLike, str],
+                                           accumulator: Optional[List[MultiScoreSpectrumSolutionSet]]=None):
         if accumulator is None:
             accumulator = []
         reader = enumerate(
