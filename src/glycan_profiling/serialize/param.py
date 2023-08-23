@@ -98,6 +98,12 @@ class LazyMutableMappingWrapper(Mutable, MutableMapping[str, Any]):
         self._object = PartiallySerializedMutableMapping()
         self.update(_object or {})
 
+    def unload(self):
+        for k, v in self._load().store.items():
+            if hasattr(v, 'serialized'):
+                if v.serialized:
+                    v.serialize()
+
     @classmethod
     def coerce(cls, key, value):
         """Convert plain dictionary to instance of this class."""
