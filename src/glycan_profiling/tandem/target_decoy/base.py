@@ -2,7 +2,7 @@
 import math
 import logging
 
-from typing import Callable, List, NamedTuple, Optional, Tuple
+from typing import Callable, List, NamedTuple, Optional, Sequence, Tuple, Union
 from collections import defaultdict, namedtuple
 
 import numpy as np
@@ -391,6 +391,18 @@ class TargetDecoyAnalyzer(FDREstimatorBase):
     n_targets_at: NearestValueLookUp
     n_decoys_at: NearestValueLookUp
 
+    targets: Sequence[SpectrumMatch]
+    decoys: Sequence[SpectrumMatch]
+
+    target_count: int
+    decoy_count: int
+
+    database_ratio: float
+    decoy_correction: float
+
+    target_weight: float
+    decoy_pseudocount: float
+
     def __init__(self, target_series, decoy_series, with_pit=False, decoy_correction=0, database_ratio=1.0,
                  target_weight=1.0, decoy_pseudocount=1.0):
         self.targets = target_series
@@ -417,8 +429,8 @@ class TargetDecoyAnalyzer(FDREstimatorBase):
         self.decoys = []
 
     def _calculate_thresholds(self):
-        self.n_targets_at = {}
-        self.n_decoys_at = {}
+        self.n_targets_at = NearestValueLookUp([])
+        self.n_decoys_at = NearestValueLookUp([])
 
         target_series = self.targets
         decoy_series = self.decoys
@@ -445,13 +457,16 @@ class TargetDecoyAnalyzer(FDREstimatorBase):
                 target_series, self.thresholds).counts_above_threshold
             self.n_decoys_at = ArrayScoreThresholdCounter(
                 decoy_series, self.thresholds).counts_above_threshold
+        else:
+            self.n_targets_at = NearestValueLookUp([])
+            self.n_decoys_at = NearestValueLookUp([])
 
     def n_decoys_above_threshold(self, threshold: float) -> int:
         try:
             if threshold > self.n_decoys_at.max_key():
                 return self.decoy_pseudocount + self.decoy_correction
             return self.n_decoys_at[threshold] + self.decoy_correction
-        except IndexError:
+        except (IndexError, KeyError):
             if len(self.n_decoys_at) == 0:
                 return self.decoy_correction
             else:
@@ -460,7 +475,7 @@ class TargetDecoyAnalyzer(FDREstimatorBase):
     def n_targets_above_threshold(self, threshold: float) -> int:
         try:
             return self.n_targets_at[threshold]
-        except IndexError:
+        except (IndexError, KeyError):
             if len(self.n_targets_at) == 0:
                 return 0
             else:
@@ -524,12 +539,26 @@ class TargetDecoyAnalyzer(FDREstimatorBase):
 
     def score_for_fdr(self, fdr_estimate: float) -> float:
         i = -1
+        n = len(self.q_value_map)
+        if n == 0:
+            return 0
         for _score, fdr in self.q_value_map.items:
             i += 1
             if fdr_estimate >= fdr:
-                cella = self.q_value_map.items[i]
-                cellb = self.q_value_map.items[i - 1]
-                cellc = self.q_value_map.items[i + 1]
+                if i < n:
+                    cella = self.q_value_map.items[i]
+                else:
+                    cella = ScoreCell(fdr_estimate, 0)
+
+                if i - 1 >= 0:
+                    cellb = self.q_value_map.items[i - 1]
+                else:
+                    cellb = ScoreCell(fdr_estimate, 0)
+
+                if i + 1 < n:
+                    cellc = self.q_value_map.items[i + 1]
+                else:
+                    cellc = ScoreCell(fdr_estimate, 0)
                 distance_a = abs(fdr_estimate - cella.value)
                 distance_b = abs(fdr_estimate - cellb.value)
                 distance_c = abs(fdr_estimate - cellc.value)
@@ -643,7 +672,10 @@ class TargetDecoyAnalyzer(FDREstimatorBase):
 
 class GroupwiseTargetDecoyAnalyzer(FDREstimatorBase):
     _grouping_labels = None
+    targets: Sequence[SpectrumMatch]
+    decoys: Sequence[SpectrumMatch]
 
+    groups: List[List[Tuple[List[SpectrumMatch], List[SpectrumMatch]]]]
     group_fits: List[TargetDecoyAnalyzer]
     grouping_functions: List[Callable[[SpectrumMatch], bool]]
     grouping_labels: List[str]
