@@ -1,4 +1,5 @@
-'''High level analytical pipeline implementations.
+'''
+High level analytical pipeline implementations.
 
 Each class is designed to encapsulate a single broad task, i.e.
 LC-MS/MS deconvolution or structure identification
@@ -11,9 +12,6 @@ from glycan_profiling.tandem.glycopeptide.dynamic_generation.journal import Solu
 
 import numpy as np
 
-import ms_peak_picker
-
-import ms_deisotope
 from ms_deisotope.output import ProcessedMSFileLoader
 from ms_deisotope.data_source import ProcessedRandomAccessScanSource
 from ms_deisotope.tools.deisotoper.workflow import SampleConsumer as _SampleConsumer

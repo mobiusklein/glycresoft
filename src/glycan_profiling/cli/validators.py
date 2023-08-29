@@ -9,16 +9,10 @@ import pickle
 
 from functools import partial
 
-from six import string_types as basestring
-
 import click
 
 from sqlalchemy.exc import OperationalError, ArgumentError
 from sqlalchemy.engine.url import _parse_rfc1738_args as parse_engine_uri
-from brainpy import periodic_table
-from ms_deisotope.averagine import (
-    Averagine, glycan as n_glycan_averagine, permethylated_glycan,
-    peptide, glycopeptide, heparin, heparan_sulfate)
 
 from glycan_profiling.serialize import (
     DatabaseBoundOperation, GlycanHypothesis, GlycopeptideHypothesis,
@@ -46,7 +40,6 @@ from glycopeptidepy.structure.modification import ModificationTable
 from glypy import Substituent, Composition
 
 glycan_source_validators = decoratordict()
-
 
 T = TypeVar('T')
 
@@ -179,7 +172,7 @@ validate_analysis_name = partial(validate_unique_name, klass=Analysis)
 def _resolve_protein_name_list(context, args):
     result = []
     for arg in args:
-        if isinstance(arg, basestring):
+        if isinstance(arg, str):
             if os.path.exists(arg) and os.path.isfile(arg):
                 with open(arg) as fh:
                     for line in fh:
@@ -248,54 +241,6 @@ def validate_derivatization(context, derivatization_string):
         raise click.Abort("Could not validate derivatization '%s'" % derivatization_string)
     else:
         return derivatization_string
-
-
-def validate_element(element):
-    valid = element in periodic_table
-    if not valid:
-        raise click.Abort("%r is not a valid element" % element)
-    return valid
-
-
-def parse_averagine_formula(formula):
-    if isinstance(formula, Averagine):
-        return formula
-    return Averagine({k: float(v) for k, v in re.findall(r"([A-Z][a-z]*)([0-9\.]*)", formula)
-                      if float(v or 0) > 0 and validate_element(k)})
-
-
-averagines = {
-    'glycan': n_glycan_averagine,
-    'permethylated-glycan': permethylated_glycan,
-    'peptide': peptide,
-    'glycopeptide': glycopeptide,
-    'heparin': heparin,
-    "heparan-sulfate": heparan_sulfate
-}
-
-
-def validate_averagine(averagine_string):
-    if isinstance(averagine_string, Averagine):
-        return averagine_string
-    if averagine_string in averagines:
-        return averagines[averagine_string]
-    else:
-        return parse_averagine_formula(averagine_string)
-
-
-class AveragineParamType(click.types.StringParamType):
-    name = "MODEL"
-
-    models = averagines
-
-    def convert(self, value, param, ctx):
-        return validate_averagine(value)
-
-    def get_metavar(self, param):
-        return '[%s]' % '|'.join(sorted(averagines.keys()))
-
-    def get_missing_message(self, param):
-        return 'Choose from %s, or provide a formula.' % ', '.join(self.choices)
 
 
 class SubstituentParamType(click.types.StringParamType):
