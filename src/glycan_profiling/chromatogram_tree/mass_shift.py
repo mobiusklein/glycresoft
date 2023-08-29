@@ -281,3 +281,9 @@ class MassShiftCollection(object):
             return self.mass_shifts[i]
         except (IndexError, TypeError):
             return self.mass_shift_map[i]
+
+    def __iter__(self):
+        return iter(self.mass_shifts)
+
+    def __len__(self):
+        return len(self.mass_shifts)
