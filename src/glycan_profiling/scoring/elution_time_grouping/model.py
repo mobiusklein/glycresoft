@@ -136,7 +136,9 @@ class ChromatgramFeatureizerBase(object):
     def _prepare_data_vector(self, chromatogram: ChromatogramType) -> np.ndarray:
         return np.array([1, chromatogram.weighted_neutral_mass, ])
 
-    def _prepare_data_matrix(self, mass_array) -> np.ndarray:
+    def _prepare_data_matrix(self, mass_array, chromatograms: Optional[List[ChromatogramType]]=None) -> np.ndarray:
+        if chromatograms is None:
+            chromatograms = self.chromatograms
         return np.vstack((
             np.ones(len(mass_array)),
             np.array(mass_array),
@@ -175,7 +177,7 @@ class LinearModelBase(PredictorBase, SpanningMixin):
         self.neutral_mass_array = np.array([
             x.weighted_neutral_mass for x in self.chromatograms
         ])
-        self.data = self._prepare_data_matrix(self.neutral_mass_array)
+        self.data = self._prepare_data_matrix(self.neutral_mass_array, self.chromatograms)
 
         self.apex_time_array = np.array([
             self._get_apex_time(x) for x in self.chromatograms
@@ -581,9 +583,11 @@ class FactorChromatogramFeatureizer(ChromatgramFeatureizerBase):
     def feature_names(self) -> List[str]:
         return ['intercept'] + self.factors
 
-    def _prepare_data_matrix(self, mass_array) -> np.ndarray:
+    def _prepare_data_matrix(self, mass_array, chromatograms: Optional[List[ChromatogramType]]=None) -> np.ndarray:
+        if chromatograms is None:
+            chromatograms = self.chromatograms
         return np.vstack([np.ones(len(mass_array)), ] + [
-            np.array([c.glycan_composition[f] for c in self.chromatograms])
+            np.array([c.glycan_composition[f] for c in chromatograms])
             for f in self.factors]).T
 
     def _prepare_data_vector(self, chromatogram: ChromatogramType, no_intercept=False) -> np.ndarray:
@@ -717,11 +721,14 @@ class PeptideBackboneKeyedMixin(object):
 
 class PeptideGroupChromatogramFeatureizer(FactorChromatogramFeatureizer, PeptideBackboneKeyedMixin):
 
-    def _prepare_data_matrix(self, mass_array: np.ndarray) -> np.ndarray:
+    def _prepare_data_matrix(self, mass_array: np.ndarray,
+                             chromatograms: Optional[List[ChromatogramType]]=None) -> np.ndarray:
+        if chromatograms is None:
+            chromatograms = self.chromatograms
         p = len(self._peptide_to_indicator)
-        n = len(self.chromatograms)
+        n = len(chromatograms)
         peptides = np.zeros((n, p + len(self.factors)))
-        for i, c in enumerate(self.chromatograms):
+        for i, c in enumerate(chromatograms):
             peptide_key = self.get_peptide_key(c)
             if peptide_key in self._peptide_to_indicator:
                 j = self._peptide_to_indicator[peptide_key]
@@ -1444,14 +1451,14 @@ class EnsembleBuilder(TaskBase):
         if predicate is None:
             predicate = bool
         if n_workers is None:
-            n_workers = cpu_count()
+            n_workers = min(cpu_count(), 3)
 
         models: OrderedDict[float, ElutionTimeFitter] = OrderedDict()
         point_members = list(self.centers.items())
 
         tasks: OrderedDict[float, futures.Future[Tuple[float,
                                                        ElutionTimeFitter]]] = OrderedDict()
-        with futures.ThreadPoolExecutor(min(n_workers, 3), thread_name_prefix="ElutionTimeModelFitter") as executor:
+        with futures.ThreadPoolExecutor(n_workers, thread_name_prefix="ElutionTimeModelFitter") as executor:
             for i, (point, members) in enumerate(point_members):
                 m: ElutionTimeFitter
 

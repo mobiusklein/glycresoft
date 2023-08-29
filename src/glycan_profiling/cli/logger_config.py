@@ -8,10 +8,12 @@ import warnings
 import multiprocessing
 
 from typing import Dict
-from logging import FileHandler
+from logging import FileHandler, LogRecord
 from multiprocessing import current_process
 
 from stat import S_IRUSR, S_IWUSR, S_IXUSR, S_IRGRP, S_IWGRP, S_IROTH, S_IWOTH
+
+from ms_deisotope.task.log_utils import LogUtilsMixin as _LogUtilsMixin
 
 from glycan_profiling import task
 from glycan_profiling.config import config_file
@@ -76,7 +78,7 @@ class ProcessAwareFormatter(logging.Formatter):
             if d['processName'] == "MainProcess":
                 d['maybeproc'] = ''
             else:
-                d['maybeproc'] = ":%s " % d['processName'].replace(
+                d['maybeproc'] = "| %s " % d['processName'].replace(
                     "Process", '')
         except KeyError:
             d['maybeproc'] = ''
@@ -149,8 +151,18 @@ class ColoringFormatter(logging.Formatter):
 DATE_FMT = "%H:%M:%S"
 
 
+class _LogFilter(logging.Filter):
+    """Filter out log messages from redundant logger helpers"""
+
+    def filter(self, record: LogRecord) -> bool:
+        if record.module == 'log_utils':
+            return False
+        return super().filter(record)
+
+
 def get_status_formatter():
-    status_terminal_format_string = "%(asctime)s %(name)s:%(levelname).1s - %(message)s"
+    status_terminal_format_string = '[%(asctime)s] %(levelname).1s | %(name)s | %(message)s'
+    # status_terminal_format_string = "%(asctime)s %(name)s:%(levelname).1s - %(message)s"
 
     if sys.stderr.isatty():
         terminal_formatter = ColoringFormatter(
@@ -173,7 +185,9 @@ def make_status_logger(name="glycresoft.status"):
 
 
 def get_main_process_formatter():
-    terminal_format_string = "%(asctime)s %(name)s:%(levelname).1s:%(filename)s:%(lineno)-4d %(maybeproc)s- %(message)s"
+    terminal_format_string = (
+        "[%(asctime)s] %(levelname).1s | %(name)s | %(filename)s:%(lineno)-4d%(maybeproc)s| %(message)s"
+    )
     if sys.stderr.isatty():
         fmt = ColoringFormatter(
             terminal_format_string, datefmt=DATE_FMT)
@@ -193,7 +207,7 @@ def make_main_process_logger(name=None, level="INFO"):
 
 def make_log_file_logger(log_file_name, log_file_mode, name=None, level="INFO"):
     file_fmter = ProcessAwareFormatter(
-        "%(asctime)s %(name)s:%(filename)s:%(lineno)-4d - %(levelname)s%(maybeproc)s - %(message)s",
+        "[%(asctime)s] %(levelname).1s | %(name)s | %(filename)s:%(lineno)-4d%(maybeproc)s | %(message)s",
         DATE_FMT)
     flex_handler = FlexibleFileHandler(log_file_name, mode=log_file_mode)
     flex_handler.setFormatter(file_fmter)
@@ -225,12 +239,16 @@ def configure_logging(level=None, log_file_name=None, log_file_mode=None):
         log_file_mode = "w"
     logging.getLogger().setLevel(level)
 
-    logger_to_silence = logging.getLogger("deconvolution_scan_processor")
-    logger_to_silence.propagate = False
+    log_filter = _LogFilter()
+
+    logger_to_silence = logging.getLogger("ms_deisotope")
+    logger_to_silence.setLevel(logging.INFO)
+    logger_to_silence.addFilter(log_filter)
     logging.captureWarnings(True)
 
     logger = logging.getLogger("glycresoft")
     # We probably only need to register the base class but let's play it safe
+    _LogUtilsMixin.log_with_logger(logger)
     task.LoggingMixin.log_with_logger(logger)
     task.TaskBase.log_with_logger(logger)
 

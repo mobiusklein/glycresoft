@@ -7,7 +7,7 @@ import traceback
 import multiprocessing
 import threading
 
-from typing import Generic, List, Optional, TypeVar, Union
+from typing import Any, Generic, List, Optional, TypeVar, Union
 from logging.handlers import QueueHandler, QueueListener
 from multiprocessing.managers import SyncManager
 from datetime import datetime
@@ -16,7 +16,9 @@ from queue import Empty
 import warnings
 
 import six
+
 from glycan_profiling.version import version
+
 
 
 logger = logging.getLogger("glycan_profiling.task")
@@ -133,12 +135,21 @@ class LoggingHandlerToken:
         if logger.parent is not None and logger.parent is not logger:
             self.clear_handlers(logger.parent)
 
+    def log(self, *args, **kwargs):
+        kwargs.setdefault('stacklevel', 2)
+        self.get_logger().info(*args, **kwargs)
+
+    def __call__(self, *args, **kwargs):
+        kwargs.setdefault('stacklevel', 3)
+        self.log(*args, **kwargs)
+
     def add_handler(self):
         if self.configured:
             return
         logger = self.get_logger()
         self.clear_handlers(logger)
         handler = QueueHandler(self.queue)
+        handler.setLevel(logging.INFO)
         logger.addHandler(handler)
         logger.setLevel(logging.INFO)
         LoggingMixin.log_with_logger(logger)
@@ -287,11 +298,12 @@ class LoggingMixin(object):
         self.warn_print_fn(u', '.join(map(ensure_text, message)), stacklevel=2)
 
     def ipc_logger(self, handler=None):
-        if handler is None:
-            def _default_closure_handler(message):
-                self.log(message)
-            handler = _default_closure_handler
-        return MessageSpooler(handler)
+        return IPCLoggingManager()
+        # if handler is None:
+        #     def _default_closure_handler(message):
+        #         self.log(message)
+        #     handler = _default_closure_handler
+        # return MessageSpooler(handler)
 
     def in_debug_mode(self):
         if self._debug_enabled is None:

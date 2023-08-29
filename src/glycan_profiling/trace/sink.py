@@ -1,8 +1,8 @@
-from glycan_profiling.scan_cache import NullScanCacheHandler
+from glycan_profiling.scan_cache import NullScanStorageHandler
 
 
 class ScanSink(object):
-    def __init__(self, scan_generator, cache_handler_type=NullScanCacheHandler):
+    def __init__(self, scan_generator, cache_handler_type=NullScanStorageHandler):
         self.scan_generator = scan_generator
         self.scan_store = None
         self._scan_store_type = cache_handler_type

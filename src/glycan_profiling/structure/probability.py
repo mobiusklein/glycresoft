@@ -74,7 +74,8 @@ class KMeans(object):
             x = x.reshape((-1, 1))
         delta = np.abs(self.means - x)
         score = 1 - delta
-        score /= score.sum(axis=1)[:, None]
+        norm = score.sum(axis=1)[:, None] + 1e-13
+        score /= norm
         return score
 
     def predict(self, x: Union[float, np.ndarray]) -> np.ndarray:

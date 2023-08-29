@@ -16,6 +16,7 @@ import ms_peak_picker
 import ms_deisotope
 from ms_deisotope.output import ProcessedMSFileLoader
 from ms_deisotope.data_source import ProcessedRandomAccessScanSource
+from ms_deisotope.tools.deisotoper.workflow import SampleConsumer as _SampleConsumer
 
 import glypy
 from glypy.utils import Enum
@@ -37,15 +38,11 @@ from glycan_profiling.serialize import (
     DatabaseScanDeserializer, AnalysisSerializer,
     AnalysisTypeEnum, object_session)
 
-from glycan_profiling.piped_deconvolve import (
-    ScanGenerator as PipedScanGenerator)
-
 from glycan_profiling.scoring import (
     ChromatogramSolution)
 from glycan_profiling.tandem.target_decoy.base import TargetDecoyAnalyzer
 
 from glycan_profiling.trace import (
-    ScanSink,
     ChromatogramExtractor,
     LogitSumChromatogramProcessor,
     LaplacianRegularizedChromatogramProcessor,
@@ -64,6 +61,8 @@ from glycan_profiling.scoring.elution_time_grouping import (
     CompoundRevisionValidator, ModelEnsemble as GlycopeptideElutionTimeModelEnsemble)
 
 from glycan_profiling.structure import ScanStub, ScanInformation
+
+from glycan_profiling.piped_deconvolve import ScanGenerator
 
 from glycan_profiling.tandem.chromatogram_mapping import (
     SpectrumMatchUpdater,
@@ -105,9 +104,6 @@ from glycan_profiling.tandem.glycan.scoring.signature_ion_scoring import Signatu
 
 from glycan_profiling.tandem.localize import EvaluatedSolutionBins, ScanLoadingModificationLocalizationSearcher
 
-from glycan_profiling.scan_cache import (
-    ThreadedMzMLScanCacheHandler)
-
 from glycan_profiling.task import TaskBase
 from glycan_profiling import serialize
 
@@ -117,149 +113,8 @@ from glycan_profiling.tandem.coelute import CoElutionAdductFinder
 debug_mode = bool(os.environ.get('GLYCRESOFTDEBUG', False))
 
 
-class SampleConsumer(TaskBase):
-    """Implements the LC-MS/MS sample deconvolution pipeline, taking an arbitrary
-    MS data file providing MS1 and MSn scans and produces a new mzML file with the
-    deisotoped and charge state deconvolved data from each spectrum in it.
-
-    Makes heavy use of :mod:`ms_deisotope` and :mod:`ms_peak_picker`
-    """
-
-    MS1_ISOTOPIC_PATTERN_WIDTH = 0.95
-    MS1_IGNORE_BELOW = 0.05
-    MSN_ISOTOPIC_PATTERN_WIDTH = 0.80
-    MSN_IGNORE_BELOW = 0.05
-
-    MS1_SCORE_THRESHOLD = 20.0
-    MSN_SCORE_THRESHOLD = 10.0
-
-    def __init__(self, ms_file,
-                 ms1_peak_picking_args=None, msn_peak_picking_args=None, ms1_deconvolution_args=None,
-                 msn_deconvolution_args=None, start_scan_id=None, end_scan_id=None, storage_path=None,
-                 sample_name=None, cache_handler_type=None, n_processes=5,
-                 extract_only_tandem_envelopes=False, ignore_tandem_scans=False,
-                 ms1_averaging=0, deconvolute=True):
-
-        if cache_handler_type is None:
-            cache_handler_type = ThreadedMzMLScanCacheHandler
-
-        self.ms_file = ms_file
-        self.storage_path = storage_path
-        self.sample_name = sample_name
-
-        self.n_processes = n_processes
-        self.cache_handler_type = cache_handler_type
-        self.extract_only_tandem_envelopes = extract_only_tandem_envelopes
-        self.ignore_tandem_scans = ignore_tandem_scans
-        self.ms1_averaging = ms1_averaging
-        self.ms1_processing_args = {
-            "peak_picking": ms1_peak_picking_args,
-        }
-        self.msn_processing_args = {
-            "peak_picking": msn_peak_picking_args,
-        }
-
-        self.deconvolute = deconvolute
-
-        if deconvolute:
-            self.ms1_processing_args["deconvolution"] = ms1_deconvolution_args
-            self.msn_processing_args["deconvolution"] = msn_deconvolution_args
-
-        n_helpers = max(self.n_processes - 1, 0)
-        self.scan_generator = PipedScanGenerator(
-            ms_file,
-            number_of_helpers=n_helpers,
-            ms1_peak_picking_args=ms1_peak_picking_args,
-            msn_peak_picking_args=msn_peak_picking_args,
-            ms1_deconvolution_args=ms1_deconvolution_args,
-            msn_deconvolution_args=msn_deconvolution_args,
-            extract_only_tandem_envelopes=extract_only_tandem_envelopes,
-            ignore_tandem_scans=ignore_tandem_scans,
-            ms1_averaging=ms1_averaging, deconvolute=deconvolute)
-
-        self.start_scan_id = start_scan_id
-        self.end_scan_id = end_scan_id
-
-        self.sample_run = None
-
-    @staticmethod
-    def default_processing_configuration(averagine=ms_deisotope.glycopeptide, msn_averagine=None):
-        """Create the default scan-level processing parameters for the pipeline if
-        not provided.
-
-        This function is mainly useful for testing and debugging as this information is usually
-        provided by the user.
-
-        Parameters
-        ----------
-        averagine : :class:`ms_deisotope.Averagine`, optional
-            The averagine model used for MS1 spectra (the default is ms_deisotope.glycopeptide)
-        msn_averagine : :class:`ms_deisotope.Averagine`, optional
-            The averagine model used for MSn spectra (the default is None, which will default to the
-            same as the MS1 model)
-
-        Returns
-        -------
-        :class:`tuple` of 4 :class:`dict`
-        """
-        if msn_averagine is None:
-            msn_averagine = averagine
-
-        ms1_peak_picking_args = {
-            "transforms": [
-                ms_peak_picker.scan_filter.FTICRBaselineRemoval(
-                    scale=5.0, window_length=2),
-                ms_peak_picker.scan_filter.SavitskyGolayFilter()
-            ]
-        }
-
-        ms1_deconvolution_args = {
-            "scorer": ms_deisotope.scoring.PenalizedMSDeconVFitter(20, 2.),
-            "max_missed_peaks": 3,
-            "averagine": averagine,
-            "truncate_after": SampleConsumer.MS1_ISOTOPIC_PATTERN_WIDTH,
-            "ignore_below": SampleConsumer.MS1_IGNORE_BELOW,
-            "deconvoluter_type": ms_deisotope.AveraginePeakDependenceGraphDeconvoluter
-        }
-
-        msn_peak_picking_args = {}
-
-        msn_deconvolution_args = {
-            "scorer": ms_deisotope.scoring.MSDeconVFitter(10),
-            "averagine": msn_averagine,
-            "max_missed_peaks": 1,
-            "truncate_after": SampleConsumer.MSN_ISOTOPIC_PATTERN_WIDTH,
-            "ignore_below": SampleConsumer.MSN_IGNORE_BELOW
-        }
-
-        return (ms1_peak_picking_args, msn_peak_picking_args,
-                ms1_deconvolution_args, msn_deconvolution_args)
-
-    def run(self):
-        self.log("Initializing Generator")
-        self.scan_generator.configure_iteration(self.start_scan_id, self.end_scan_id)
-        self.log("Setting Sink")
-        sink = ScanSink(self.scan_generator, self.cache_handler_type)
-        self.log("Initializing Cache")
-        sink.configure_cache(self.storage_path, self.sample_name, self.scan_generator)
-
-        self.log("Begin Processing")
-        last_scan_time = 0
-        last_scan_index = 0
-        i = 0
-        for scan in sink:
-            i += 1
-            if (scan.scan_time - last_scan_time > 1.0) or (i % 1000 == 0):
-                self.log("Processed %s (time: %f)" % (
-                    scan.id, scan.scan_time,))
-                if last_scan_index != 0:
-                    self.log("Count Since Last Log: %d" % (scan.index - last_scan_index,))
-                last_scan_time = scan.scan_time
-                last_scan_index = scan.index
-        self.log("Finished Recieving Scans")
-        sink.complete()
-        self.log("Completed Sample %s" % (self.sample_name,))
-        sink.commit()
+class SampleConsumer(TaskBase, _SampleConsumer):
+    scan_generator_cls = ScanGenerator
 
 
 class ChromatogramSummarizer(TaskBase):

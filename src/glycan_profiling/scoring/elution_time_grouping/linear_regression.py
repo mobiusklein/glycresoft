@@ -4,6 +4,8 @@ a RANSAC-wrapper of it.
 import random
 import functools
 
+from typing import Tuple, Optional
+
 import numpy as np
 from scipy import stats
 
@@ -14,6 +16,17 @@ class WLSSolution(object):
     '''
     __slots__ = ('yhat', 'parameters', 'data', 'weights', 'residuals',
                  'projection_matrix', 'rss', 'press', 'R2', 'variance_matrix')
+
+    yhat: np.ndarray
+    parameters: np.ndarray
+    data: Tuple[np.ndarray, np.ndarray]
+    weights: np.ndarray
+    residuals: np.ndarray
+    projection_matrix: np.ndarray
+    rss: float
+    press: float
+    R2: float
+    variance_matrix: np.ndarray
 
     def __init__(self, yhat, parameters, data, weights, residuals, projection_matrix, rss, press, R2, variance_matrix):
         self.yhat = yhat
@@ -28,11 +41,11 @@ class WLSSolution(object):
         self.variance_matrix = variance_matrix
 
     @property
-    def y(self):
+    def y(self) -> np.ndarray:
         return self.data[1]
 
     @property
-    def X(self):
+    def X(self) -> np.ndarray:
         return self.data[0]
 
     def __getstate__(self):
@@ -72,7 +85,7 @@ SMALL_ERROR = 1e-5
 T_ISF = functools.lru_cache(None)(stats.t.isf)
 
 
-def prepare_arrays_for_linear_fit(x, y, w=None):
+def prepare_arrays_for_linear_fit(x: np.ndarray, y: np.ndarray, w: Optional[np.ndarray]=None):
     """Prepare data for estimating parameter values using the
     weighted ordinary least squares method implemented in :func:`weighted_linear_regerssion_fit`
 
@@ -105,19 +118,29 @@ def prepare_arrays_for_linear_fit(x, y, w=None):
     return X, Y, W
 
 
-def weighted_linear_regression_fit_ridge(x, y, w=None, alpha=None, prepare=False):
+def weighted_linear_regression_fit_ridge(X: np.ndarray, y: np.ndarray,
+                                         w: Optional[np.ndarray]=None,
+                                         alpha: Optional[np.ndarray]=None,
+                                         prepare: bool=False) -> WLSSolution:
     if prepare:
-        x, y, w = prepare_arrays_for_linear_fit(x, y, w)
+        X, y, w = prepare_arrays_for_linear_fit(X, y, w)
     elif w is None:
         w = np.eye(y.shape[0])
     if alpha is None:
         alpha = 0.0
-    p = x.shape[1]
-    V = np.linalg.pinv(x.T.dot(w).dot(x) + np.eye(p) * alpha)
-    A = V.dot(x.T.dot(w))
-    B = A.dot(y)
-    H = x.dot(A)
-    yhat = x.dot(B)
+    elif isinstance(alpha, np.ndarray):
+        if alpha.ndim == 1:
+            alpha = np.diag(alpha)
+    else:
+        raise TypeError("Could not infer the format for alpha")
+
+    Xtw = X.T @ w
+    V = np.linalg.pinv((Xtw @ X) + alpha)
+    A = V @ Xtw
+    del Xtw
+    B = A @ y
+    H = X @ A
+    yhat = X @ B
     residuals = (y - yhat)
     leave_one_out_error = residuals / (1 - np.diag(H))
     press = (np.diag(w) * leave_one_out_error * leave_one_out_error).sum()
@@ -125,11 +148,12 @@ def weighted_linear_regression_fit_ridge(x, y, w=None, alpha=None, prepare=False
     tss = (y - y.mean())
     tss = (np.diag(w) * tss * tss).sum()
     return WLSSolution(
-        yhat, B, (x, y), w, residuals, H,
+        yhat, B, (X, y), w, residuals, H,
         rss, press, 1 - (rss / (tss)), V)
 
 
-def weighted_linear_regression_fit(x, y, w=None, prepare=False):
+def weighted_linear_regression_fit(X: np.ndarray, y: np.ndarray,
+                                   w: Optional[np.ndarray]=None, prepare: bool=False) -> WLSSolution:
     """Fit a linear model using weighted least squares.
 
     Parameters
@@ -148,14 +172,14 @@ def weighted_linear_regression_fit(x, y, w=None, prepare=False):
     WLSSolution
     """
     if prepare:
-        x, y, w = prepare_arrays_for_linear_fit(x, y, w)
+        X, y, w = prepare_arrays_for_linear_fit(X, y, w)
     elif w is None:
         w = np.eye(y.shape[0])
-    V = np.linalg.pinv(x.T.dot(w).dot(x))
-    A = V.dot(x.T.dot(w))
+    V = np.linalg.pinv(X.T.dot(w).dot(X))
+    A = V.dot(X.T.dot(w))
     B = A.dot(y)
-    H = x.dot(A)
-    yhat = x.dot(B)
+    H = X.dot(A)
+    yhat = X.dot(B)
     residuals = (y - yhat)
     leave_one_out_error = residuals / (1 - np.diag(H))
     press = (np.diag(w) * leave_one_out_error * leave_one_out_error).sum()
@@ -163,7 +187,7 @@ def weighted_linear_regression_fit(x, y, w=None, prepare=False):
     tss = (y - y.mean())
     tss = (np.diag(w) * tss * tss).sum()
     return WLSSolution(
-        yhat, B, (x, y), w, residuals, H,
+        yhat, B, (X, y), w, residuals, H,
         rss, press, 1 - (rss / (tss)), V)
 
 
@@ -259,15 +283,13 @@ def ransac(x, y, w=None, max_trials=100, regularize_alpha=None):
         X_inlier_best, y_inlier_best, w_inlier_best)
 
 
-def fitted_interval(solution, x0, y0, alpha=0.05):
+def fitted_interval(solution: WLSSolution, x0: np.ndarray,
+                    y0: np.ndarray, alpha: float=0.05) -> np.ndarray:
     n = len(solution.residuals)
     k = len(solution.parameters)
     df = n - k
     sigma2 = solution.rss / df
-    X = solution.data[0]
-    w = solution.weights
-
-    xtx_inv = np.linalg.pinv(X.T.dot(w).dot(X))
+    xtx_inv = solution.variance_matrix
     h = x0.dot(xtx_inv).dot(x0.T)
     if not np.isscalar(h):
         h = np.diag(h)

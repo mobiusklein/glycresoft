@@ -29,7 +29,8 @@ finally:
 from glycan_profiling import serialize
 
 from glycan_profiling.piped_deconvolve import (
-    ScanGenerator, ScanGeneratorBase)
+    ScanGenerator
+)
 
 from glycan_profiling.chromatogram_tree import (
     MassShift, CompoundMassShift, Chromatogram, ChromatogramTreeList,
@@ -52,7 +53,7 @@ from glycan_profiling.config.config_file import get_configuration
 get_configuration()
 
 __all__ = [
-    "ScanGenerator", "ScanGeneratorBase",
+    "ScanGenerator",
     "MassShift", "CompoundMassShift", "Chromatogram",
     "ChromatogramTreeNode", "ChromatogramTreeList",
     "ChromatogramInterface", "ChromatogramFilter",
