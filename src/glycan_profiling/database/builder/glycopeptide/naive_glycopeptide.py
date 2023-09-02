@@ -1,4 +1,5 @@
 
+from typing import Optional
 from glycan_profiling.serialize import func
 from glycan_profiling.serialize.hypothesis.peptide import (
     Peptide, Protein, ProteinSite, Glycopeptide)
@@ -33,10 +34,12 @@ class FastaGlycopeptideHypothesisSerializer(GlycopeptideHypothesisSerializerBase
                  max_missed_cleavages=2, max_glycosylation_events=1, semispecific=False,
                  max_variable_modifications=None, full_cross_product=True,
                  peptide_length_range=(5, 60), require_glycosylation_sites=True,
-                 use_uniprot=True, include_cysteine_n_glycosylation: bool=False):
+                 use_uniprot=True, include_cysteine_n_glycosylation: bool=False,
+                 uniprot_source_file: Optional[str]=None):
         GlycopeptideHypothesisSerializerBase.__init__(
             self, connection, hypothesis_name, glycan_hypothesis_id, full_cross_product,
-            use_uniprot=use_uniprot)
+            use_uniprot=use_uniprot,
+            uniprot_source_file=uniprot_source_file)
         self.fasta_file = fasta_file
         self.protease = protease
         self.constant_modifications = constant_modifications
@@ -62,6 +65,7 @@ class FastaGlycopeptideHypothesisSerializer(GlycopeptideHypothesisSerializerBase
             "peptide_length_range": self.peptide_length_range,
             "require_glycosylation_sites": self.require_glycosylation_sites,
             "include_cysteine_n_glycosylation": self.include_cysteine_n_glycosylation,
+            "uniprot_source_file": self.uniprot_source_file,
         }
         self.set_parameters(params)
 
@@ -127,7 +131,8 @@ class FastaGlycopeptideHypothesisSerializer(GlycopeptideHypothesisSerializerBase
             self.protein_ids(),
             self.constant_modifications,
             self.variable_modifications,
-            include_cysteine_n_glycosylation=self.include_cysteine_n_glycosylation)
+            include_cysteine_n_glycosylation=self.include_cysteine_n_glycosylation,
+            uniprot_source_file=self.uniprot_source_file)
         annotator.run()
         self.deduplicate_peptides()
 
@@ -176,6 +181,7 @@ class MultipleProcessFastaGlycopeptideHypothesisSerializer(FastaGlycopeptideHypo
                  max_variable_modifications=None, full_cross_product=True, peptide_length_range=(5, 60),
                  require_glycosylation_sites: bool=True, use_uniprot: bool=True,
                  include_cysteine_n_glycosylation: bool=False,
+                 uniprot_source_file: Optional[str]=None,
                  n_processes: int=4):
         super(MultipleProcessFastaGlycopeptideHypothesisSerializer, self).__init__(
             fasta_file, connection, glycan_hypothesis_id, hypothesis_name,
@@ -190,7 +196,8 @@ class MultipleProcessFastaGlycopeptideHypothesisSerializer(FastaGlycopeptideHypo
             peptide_length_range=peptide_length_range,
             require_glycosylation_sites=require_glycosylation_sites,
             use_uniprot=use_uniprot,
-            include_cysteine_n_glycosylation=include_cysteine_n_glycosylation)
+            include_cysteine_n_glycosylation=include_cysteine_n_glycosylation,
+            uniprot_source_file=uniprot_source_file)
         self.n_processes = n_processes
 
     def digest_proteins(self):

@@ -241,6 +241,9 @@ class FastaGlycopeptideTests(unittest.TestCase):
             post_cleavage = glycopeptide_builder.query(serialize.Peptide).filter(
                 serialize.Peptide.base_peptide_sequence == "DEASGIGPEEHFPEVPEIEPMGPVCPFR").first()
             self.assertIsNotNone(post_cleavage)
+            self.assertEqual(
+                len(glycopeptide_builder.query(serialize.Protein).first().annotations), 2
+            )
         elif peptides_count == peptides_without_uniprot:
             warnings.warn("Failed to communicate with UniProt, skip this test")
         else:

@@ -1,4 +1,5 @@
 import os
+from typing import Optional
 from glycan_profiling.serialize.hypothesis.peptide import (Peptide, Protein, Glycopeptide)
 
 from .common import (
@@ -15,12 +16,13 @@ class MzIdentMLGlycopeptideHypothesisSerializer(GlycopeptideHypothesisSerializer
 
     def __init__(self, mzid_path, connection, glycan_hypothesis_id, hypothesis_name=None,
                  target_proteins=None, max_glycosylation_events=1, reference_fasta=None,
-                 full_cross_product=True, peptide_length_range=(5, 60), use_uniprot=True):
+                 full_cross_product=True, peptide_length_range=(5, 60), use_uniprot=True,
+                 uniprot_source_file: Optional[str]=None):
         if target_proteins is None:
             target_proteins = []
         GlycopeptideHypothesisSerializerBase.__init__(
             self, connection, hypothesis_name, glycan_hypothesis_id,
-            full_cross_product, use_uniprot=use_uniprot)
+            full_cross_product, use_uniprot=use_uniprot, uniprot_source_file=uniprot_source_file)
         self.mzid_path = mzid_path
         self.reference_fasta = reference_fasta
         self.proteome = mzid_proteome.Proteome(
@@ -111,11 +113,13 @@ class MultipleProcessMzIdentMLGlycopeptideHypothesisSerializer(MzIdentMLGlycopep
 
     def __init__(self, mzid_path, connection, glycan_hypothesis_id, hypothesis_name=None,
                  target_proteins=None, max_glycosylation_events=1, reference_fasta=None,
-                 full_cross_product=True, n_processes=4, peptide_length_range=(5, 60)):
+                 full_cross_product=True, peptide_length_range=(5, 60),
+                 uniprot_source_file: Optional[str]=None,
+                 n_processes=4):
         super(MultipleProcessMzIdentMLGlycopeptideHypothesisSerializer, self).__init__(
             mzid_path, connection, glycan_hypothesis_id, hypothesis_name, target_proteins,
             max_glycosylation_events, reference_fasta, full_cross_product,
-            peptide_length_range)
+            peptide_length_range, uniprot_source_file=uniprot_source_file)
         self.n_processes = n_processes
         self.proteome.n_processes = n_processes
 
@@ -130,10 +134,12 @@ class MultipleProcessMzIdentMLGlycopeptideHypothesisSerializer(MzIdentMLGlycopep
 class MzIdentMLPeptideHypothesisSerializer(GlycopeptideHypothesisSerializerBase):
     def __init__(self, mzid_path, connection, hypothesis_name=None,
                  target_proteins=None, reference_fasta=None,
-                 include_baseline_peptides=False):
+                 include_baseline_peptides=False,
+                 uniprot_source_file: Optional[str] = None):
         if target_proteins is None:
             target_proteins = []
-        GlycopeptideHypothesisSerializerBase.__init__(self, connection, hypothesis_name, 0)
+        GlycopeptideHypothesisSerializerBase.__init__(
+            self, connection, hypothesis_name, 0, uniprot_source_file=uniprot_source_file)
         self.mzid_path = mzid_path
         self.reference_fasta = reference_fasta
         self.proteome = mzid_proteome.Proteome(

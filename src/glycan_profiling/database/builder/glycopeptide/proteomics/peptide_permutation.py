@@ -11,13 +11,13 @@ from ms_deisotope.peak_dependency_network.intervals import Interval, IntervalTre
 
 from glycopeptidepy import enzyme
 from .utils import slurp
-from .uniprot import (uniprot, get_uniprot_accession, UniprotProteinDownloader, Empty)
+from .uniprot import (uniprot, get_uniprot_accession, UniprotProteinDownloader, UniprotProteinXML, Empty)
 
 from glypy.composition import formula
 from glycopeptidepy.io import annotation
 from glycopeptidepy.structure import sequence, modification, residue
 from glycopeptidepy.structure.modification import ModificationRule
-from glycopeptidepy.algorithm import ModificationSiteAssignmentCombinator, PeptidoformGenerator
+from glycopeptidepy.algorithm import PeptidoformGenerator
 from glycopeptidepy import PeptideSequence
 
 from glycan_profiling.task import TaskBase
@@ -436,8 +436,9 @@ class ProteinSplitter(TaskBase):
                 accession = get_uniprot_accession(protein_obj.name)
                 if accession:
                     try:
-                        annot_sites |= self.get_split_sites_from_uniprot(accession)
-                        return self.split_protein(protein_obj, sorted(annot_sites))
+                        extra_sites, more_annots = self.get_split_sites_from_uniprot(accession)
+                        protein_obj.annotations = list(protein_obj.annotations) + list(more_annots)
+                        return self.split_protein(protein_obj, sorted(annot_sites | extra_sites))
                     except IOError:
                         return self.split_protein(protein_obj, annot_sites)
                 else:
@@ -499,7 +500,7 @@ class ProteinSplitter(TaskBase):
             self.error(f"Failed to obtain Uniprot Record for {accession!r}")
             return set()
         sites = self.get_split_sites_from_features(record)
-        return set(sites)
+        return set(sites), annotation.from_uniprot(record)
 
     def _make_split_expression(self, sites: List[int]) -> List:
         return [
@@ -598,7 +599,8 @@ class UniprotProteinAnnotator(TaskBase):
 
     def __init__(self, hypothesis_builder, protein_ids, constant_modifications,
                  variable_modifications, variable_signal_peptide=10,
-                 include_cysteine_n_glycosylation: bool=False):
+                 include_cysteine_n_glycosylation: bool=False,
+                 uniprot_source_file: Optional[str]=None):
         self.hypothesis_builder = hypothesis_builder
         self.protein_ids = protein_ids
         self.constant_modifications = constant_modifications
@@ -606,6 +608,7 @@ class UniprotProteinAnnotator(TaskBase):
         self.variable_signal_peptide = variable_signal_peptide
         self.session = hypothesis_builder.session
         self.include_cysteine_n_glycosylation = include_cysteine_n_glycosylation
+        self.uniprot_source_file = uniprot_source_file
 
     def query(self, *args, **kwargs):
         return self.session.query(*args, **kwargs)
@@ -624,10 +627,15 @@ class UniprotProteinAnnotator(TaskBase):
         protein_names = [self.query(Protein.name).filter(
             Protein.id == protein_id).first()[0] for protein_id in protein_ids]
         name_to_id = {n: i for n, i in zip(protein_names, protein_ids)}
-        uniprot_queue = UniprotProteinDownloader(
-            protein_names,
-            n_threads=getattr(self.hypothesis_builder, "n_processes", cpu_count() // 2) * 4)
-        uniprot_queue.start()
+        if self.uniprot_source_file is not None:
+            self.log(f"... Loading from local XML file {self.uniprot_source_file!r}")
+            uniprot_queue = UniprotProteinXML(self.uniprot_source_file, protein_names)
+        else:
+            self.log("... Loading from UniProt web service")
+            uniprot_queue = UniprotProteinDownloader(
+                protein_names,
+                n_threads=getattr(self.hypothesis_builder, "n_processes", cpu_count() // 2) * 4)
+            uniprot_queue.start()
         n = len(protein_ids)
         interval = int(min((n * 0.1) + 1, 1000))
         acc = []
@@ -645,23 +653,27 @@ class UniprotProteinAnnotator(TaskBase):
                     message = str(record)
                     # Many, many records that used to exist no longer do. We don't care if they are absent.
                     # if "Document is empty" not in message:
-                    self.log("... Skipping %s: %s" % (protein_name, message))
+                    self.log(f"... Skipping {protein_name}: {message}")
                     continue
                 if record is None and not protein.annotations:
-                    self.log("... Skipping %s: no record found" % (protein_name, ))
+                    self.log(f"... Skipping {protein_name}: no record found")
                     continue
                 if i % interval == 0:
-                    self.log("... %0.3f%% Complete (%d/%d). %d Peptides Produced." % (i * 100. / n, i, n, j))
+                    self.log(
+                        f"... {i * 100. / n:0.3f}% Complete ({i}/{n}). {j} Peptides Produced.")
 
                 if not isinstance(record, uniprot.UniProtProtein):
                     sites = None
                 else:
+                    protein.annotations = list(protein.annotations) + list(annotation.from_uniprot(record))
+                    self.session.add(protein)
                     sites = splitter.get_split_sites_from_features(record)
                 for peptide in splitter.handle_protein(protein, sites):
                     acc.append(peptide)
                     j += 1
                     if len(acc) > 100000:
-                        self.log("... %0.3f%% Complete (%d/%d). %d Peptides Produced." % (i * 100. / n, i, n, j))
+                        self.log(
+                            f"... {i * 100. / n:0.3f}% Complete ({i}/{n}). {j} Peptides Produced.")
                         self.session.bulk_save_objects(acc)
                         self.session.commit()
                         acc = []
@@ -672,23 +684,26 @@ class UniprotProteinAnnotator(TaskBase):
 
         leftover_ids = set(protein_ids) - seen
         if leftover_ids:
-            self.log("%d IDs not covered by queue" % (len(leftover_ids), ))
+            self.log(f"{len(leftover_ids)} IDs not covered by queue, sequentially querying UniProt")
 
         for protein_id in leftover_ids:
             i += 1
             protein = self.query(Protein).get(protein_id)
             if i % interval == 0:
-                self.log("... %0.3f%% Complete (%d/%d). %d Peptides Produced." % (i * 100. / n, i, n, j))
+                self.log(
+                    f"... {i * 100. / n:0.3f}% Complete ({i}/{n}). {j} Peptides Produced.")
             for peptide in splitter.handle_protein(protein):
                 acc.append(peptide)
                 j += 1
                 if len(acc) > 100000:
-                    self.log("... %0.3f%% Complete (%d/%d). %d Peptides Produced." % (i * 100. / n, i, n, j))
+                    self.log(
+                        f"... {i * 100. / n:0.3f}% Complete ({i}/{n}). {j} Peptides Produced.")
                     self.session.bulk_save_objects(acc)
                     self.session.commit()
                     acc = []
-        self.log("... %0.3f%% Complete (%d/%d). %d Peptides Produced." %
-                 (i * 100. / n, i, n, j))
+            self.session.add(protein)
+        self.log(
+            f"... {i * 100. / n:0.3f}% Complete ({i}/{n}). {j} Peptides Produced.")
         self.session.bulk_save_objects(acc)
         self.session.commit()
         acc = []

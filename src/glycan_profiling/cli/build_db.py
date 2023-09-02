@@ -238,11 +238,13 @@ def glycopeptide_hypothesis_common_options(cmd):
               help=("Do not require a glycosylation site when saving base peptides"))
 @click.option("-C", "--include-n-x-c-glycosylation", "include_cysteine_n_glycosylation", default=False, is_flag=True,
               help="Whether to support N-x-C in the N-glycosylation sequon")
+@click.option("-a", "--annotation-path", type=click.Path(exists=True), required=False,
+              default=None, help="The path to an annotation XML file from UniProt")
 def glycopeptide_fa(context, fasta_file, database_connection, enzyme, missed_cleavages, occupied_glycosites, name,
                     constant_modification, variable_modification, processes, glycan_source, glycan_source_type,
                     glycan_source_identifier=None, semispecific_digest=False, reverse=False, dry_run=False,
                     peptide_length_range=(5, 60), not_full_crossproduct=False, max_variable_modifications=4,
-                    retain_all_peptides=False, include_cysteine_n_glycosylation: bool=False):
+                    retain_all_peptides=False, include_cysteine_n_glycosylation: bool=False, annotation_path=None):
     '''Constructs a glycopeptide hypothesis from a FASTA file of proteins and a
     collection of glycans.
     '''
@@ -290,7 +292,8 @@ def glycopeptide_fa(context, fasta_file, database_connection, enzyme, missed_cle
         max_variable_modifications=max_variable_modifications,
         peptide_length_range=peptide_length_range,
         require_glycosylation_sites=not retain_all_peptides,
-        include_cysteine_n_glycosylation=include_cysteine_n_glycosylation)
+        include_cysteine_n_glycosylation=include_cysteine_n_glycosylation,
+        uniprot_source_file=annotation_path)
     builder.display_header()
     builder.start()
     return builder.hypothesis_id
@@ -311,9 +314,11 @@ def glycopeptide_fa(context, fasta_file, database_connection, enzyme, missed_cle
 @click.option("-R", "--reference-fasta", default=None, required=False,
               help=("When the full sequence for each protein is not embedded in the mzIdentML file and "
                     "the FASTA file used is not local."))
+@click.option("-a", "--annotation-path", type=click.Path(exists=True), required=False,
+              default=None, help="The path to an annotation XML file from UniProt")
 def glycopeptide_mzid(context, mzid_file, database_connection, name, occupied_glycosites, target_protein,
                       target_protein_re, processes, glycan_source, glycan_source_type, glycan_source_identifier,
-                      reference_fasta, peptide_length_range=(5, 60)):
+                      reference_fasta, peptide_length_range=(5, 60), annotation_path=None):
     """
     Constructs a glycopeptide hypothesis from a MzIdentML file of proteins and a
     collection of glycans.
@@ -342,7 +347,9 @@ def glycopeptide_mzid(context, mzid_file, database_connection, name, occupied_gl
         max_glycosylation_events=occupied_glycosites,
         reference_fasta=reference_fasta,
         n_processes=processes,
-        peptide_length_range=peptide_length_range)
+        peptide_length_range=peptide_length_range,
+        uniprot_source_file=annotation_path
+    )
     builder.display_header()
     builder.start()
     return builder.hypothesis_id

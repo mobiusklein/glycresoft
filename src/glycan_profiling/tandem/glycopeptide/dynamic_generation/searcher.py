@@ -1,4 +1,3 @@
-import os
 import time
 
 from queue import Empty, Full, Queue
@@ -79,10 +78,6 @@ def workload_grouping(
         total_scans_in_workload += len(chunk)
         i += 1
     return workload, i
-
-
-debug_mode = bool(os.environ.get("GLYCRESOFTDEBUG"))
-memory_debug = bool(os.environ.get("GLYCRESOFTDEBUGMEMORY"))
 
 
 class SpectrumBatcher(TaskExecutionSequence):

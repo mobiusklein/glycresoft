@@ -1,5 +1,5 @@
 import itertools
-from typing import Iterable
+from typing import Iterable, Optional
 from uuid import uuid4
 from collections import defaultdict, Counter
 from multiprocessing import Process, Queue, Event, RLock
@@ -56,7 +56,7 @@ class GlycopeptideHypothesisSerializerBase(DatabaseBoundOperation, HypothesisSer
         The uuid of the hypothesis to be constructed
     """
     def __init__(self, database_connection, hypothesis_name=None, glycan_hypothesis_id=None,
-                 full_cross_product=True, use_uniprot=True):
+                 full_cross_product=True, use_uniprot=True, uniprot_source_file: Optional[str]=None):
         DatabaseBoundOperation.__init__(self, database_connection)
         self._hypothesis_name = hypothesis_name
         self._hypothesis_id = None
@@ -65,6 +65,7 @@ class GlycopeptideHypothesisSerializerBase(DatabaseBoundOperation, HypothesisSer
         self.uuid = str(uuid4().hex)
         self.total_glycan_combination_count = -1
         self.use_uniprot = use_uniprot
+        self.uniprot_source_file = uniprot_source_file
         self.full_cross_product = full_cross_product
 
     def _construct_hypothesis(self):

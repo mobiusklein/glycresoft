@@ -988,7 +988,8 @@ class Proteome(DatabaseBoundOperation, MzIdentMLProteomeExtraction):
     def __init__(self, mzid_path, connection, hypothesis_id, include_baseline_peptides=True,
                  target_proteins=None, reference_fasta=None,
                  peptide_length_range=(5, 60), use_uniprot=True,
-                 include_cysteine_n_glycosylation: bool=False):
+                 include_cysteine_n_glycosylation: bool=False,
+                 uniprot_source_file: Optional[str]=None):
         DatabaseBoundOperation.__init__(self, connection)
         MzIdentMLProteomeExtraction.__init__(self, mzid_path, reference_fasta)
         if target_proteins is None:
@@ -1000,6 +1001,7 @@ class Proteome(DatabaseBoundOperation, MzIdentMLProteomeExtraction):
         self.use_uniprot = use_uniprot
         self.accession_map = {}
         self.include_cysteine_n_glycosylation = include_cysteine_n_glycosylation
+        self.uniprot_source_file = uniprot_source_file
 
     def _can_ignore_protein(self, name):
         if name not in self.target_proteins:
@@ -1219,7 +1221,13 @@ class Proteome(DatabaseBoundOperation, MzIdentMLProteomeExtraction):
         const_modifications = self.make_restricted_modification_rules(self.constant_modifications)
         protein_ids = self.retrieve_target_protein_ids()
 
-        annotator = UniprotProteinAnnotator(self, protein_ids, const_modifications, [])
+        annotator = UniprotProteinAnnotator(
+            self,
+            protein_ids,
+            const_modifications,
+            [],
+            uniprot_source_file=self.uniprot_source_file
+        )
         annotator.run()
 
     def remove_duplicates(self):

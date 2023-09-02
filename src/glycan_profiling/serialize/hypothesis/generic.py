@@ -5,10 +5,7 @@ import json
 from io import BytesIO
 from functools import total_ordering
 
-try:
-    import cPickle as pickle
-except ImportError:
-    import pickle
+import pickle
 
 from six import string_types as basestring
 

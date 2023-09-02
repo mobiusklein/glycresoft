@@ -3,9 +3,11 @@ import threading
 import multiprocessing
 
 from queue import Empty
-from typing import List
+from typing import IO, List, Dict, Deque, Union
 
 import urllib3
+from ms_deisotope.data_source._compression import get_opener
+
 from glycopeptidepy.io import uniprot, fasta
 from glycopeptidepy.io.utils import UniprotToPeffConverter
 
@@ -211,6 +213,46 @@ class UniprotProteinDownloader(UniprotSource):
 
     def get(self, blocking=True, timeout=3):
         return self.output_queue.get(blocking, timeout)
+
+
+class UniprotProteinXML(UniprotSource):
+    path: Union[str, IO]
+    store: Dict[str, List[uniprot.UniProtFeatureBase]]
+    queue: Deque[str]
+    done_event: threading.Event
+
+    def __init__(self, path: str, ids: List[str]):
+        self.path = path
+        self.store = {}
+        self.work = Deque(ids)
+        self.load()
+        self.done_event = threading.Event()
+
+    def join(self):
+        return
+
+    def load(self):
+        for rec in uniprot.iterparse(get_opener(self.path)):
+            features = rec.features
+            for acc in rec.accessions:
+                self.store[acc] = features
+
+    def fetch(self, accession_number: str):
+        accession = get_uniprot_accession(accession_number)
+        try:
+            features = self.store[accession]
+            return accession_number, features
+        except KeyError:
+            return accession_number, Exception(f"{accession_number!r} not found")
+
+    def get(self, *args, **kwargs):
+        if self.work:
+            acc = self.work.popleft()
+            if not self.work:
+                self.done_event.set()
+            return self.fetch(acc)
+        else:
+            raise Empty()
 
 
 class UniprotProteinSource(TaskBase):
