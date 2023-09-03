@@ -2,6 +2,7 @@ import os
 import sys
 import traceback
 import platform
+import logging
 
 from multiprocessing import freeze_support, set_start_method
 
@@ -37,10 +38,14 @@ def set_breakpoint_hook():
 
 def main():
     freeze_support()
-    if platform.system() == 'Windows' or platform.system() == "Darwin":
-        set_start_method("spawn")
-    else:
-        set_start_method("forkserver")
+    try:
+        if platform.system() == 'Windows' or platform.system() == "Darwin":
+            set_start_method("spawn")
+        else:
+            set_start_method("forkserver")
+    except Exception as err:
+        logging.getLogger().error("Failed to set multiprocessing start method: %s", err, exc_info=True)
+
     if os.getenv("GLYCRESOFTDEBUG"):
         sys.excepthook = info
         click.secho("Running glycresoft with debugger", fg='yellow')
