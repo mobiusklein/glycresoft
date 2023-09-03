@@ -8,7 +8,7 @@ from typing import IO, List, Dict, Deque, Union
 import urllib3
 from ms_deisotope.data_source._compression import get_opener
 
-from glycopeptidepy.io import uniprot, fasta
+from glycopeptidepy.io import uniprot, fasta, annotation
 from glycopeptidepy.io.utils import UniprotToPeffConverter
 
 from glycan_profiling.task import TaskBase
@@ -217,7 +217,7 @@ class UniprotProteinDownloader(UniprotSource):
 
 class UniprotProteinXML(UniprotSource):
     path: Union[str, IO]
-    store: Dict[str, List[uniprot.UniProtFeatureBase]]
+    store: annotation.AnnotationDatabase
     queue: Deque[str]
     done_event: threading.Event
 
@@ -232,10 +232,11 @@ class UniprotProteinXML(UniprotSource):
         return
 
     def load(self):
-        for rec in uniprot.iterparse(get_opener(self.path)):
-            features = rec.features
-            for acc in rec.accessions:
-                self.store[acc] = features
+        stream = get_opener(self.path)
+        if uniprot.is_uniprot_xml(stream):
+            self.store = annotation.AnnotationDatabase.from_uniprot_xml(stream)
+        else:
+            self.store = annotation.AnnotationDatabase.load(stream)
 
     def fetch(self, accession_number: str):
         accession = get_uniprot_accession(accession_number)

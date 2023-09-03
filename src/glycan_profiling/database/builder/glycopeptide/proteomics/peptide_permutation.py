@@ -3,7 +3,7 @@ import itertools
 
 from multiprocessing import Process, Queue, Event, cpu_count
 
-from typing import List, Optional, Set
+from typing import List, Optional, Set, Tuple
 
 from lxml.etree import XMLSyntaxError
 
@@ -437,6 +437,7 @@ class ProteinSplitter(TaskBase):
                 if accession:
                     try:
                         extra_sites, more_annots = self.get_split_sites_from_uniprot(accession)
+                        # Trigger SQLAlchemy mutable update via assignment instead of in-place updates
                         protein_obj.annotations = list(protein_obj.annotations) + list(more_annots)
                         return self.split_protein(protein_obj, sorted(annot_sites | extra_sites))
                     except IOError:
@@ -460,8 +461,10 @@ class ProteinSplitter(TaskBase):
 
     def get_split_sites_from_annotations(self, protein: Protein) -> Set[int]:
         annots = protein.annotations
-        if not annots:
-            return set()
+        split_sites = self._split_sites_from_annotations(annots)
+        return split_sites
+
+    def _split_sites_from_annotations(self, annots: annotation.AnnotationCollection) -> Set[int]:
         cleavable_annots = annots.cleavable()
         split_sites = set()
         for annot in cleavable_annots:
@@ -474,23 +477,14 @@ class ProteinSplitter(TaskBase):
             split_sites.remove(0)
         return split_sites
 
-    def get_split_sites_from_features(self, record) -> List[int]:
-        splittable_features = ("signal peptide", "propeptide", "initiator methionine",
-                               "peptide", "transit peptide")
-        split_sites = set()
-        for feature in record.features:
-            if feature.feature_type in splittable_features:
-                split_sites.add(feature.start)
-                split_sites.add(feature.end)
-                if self.variable_signal_peptide and feature.feature_type == "signal peptide":
-                    for i in range(1, self.variable_signal_peptide + 1):
-                        split_sites.add(feature.end + i)
+    def get_split_sites_from_features(self, record) -> Set[int]:
+        if isinstance(record, uniprot.UniProtProtein):
+            annots = annotation.from_uniprot(record)
+        elif isinstance(record, annotation.AnnotationCollection):
+            annots = record
+        return self._split_sites_from_annotations(annots)
 
-        if 0 in split_sites:
-            split_sites.remove(0)
-        return sorted(split_sites)
-
-    def get_split_sites_from_uniprot(self, accession: str) -> Set[int]:
+    def get_split_sites_from_uniprot(self, accession: str) -> Tuple[Set[int], annotation.AnnotationCollection]:
         try:
             record = uniprot.get(accession)
         except Exception as err:
@@ -500,7 +494,7 @@ class ProteinSplitter(TaskBase):
             self.error(f"Failed to obtain Uniprot Record for {accession!r}")
             return set()
         sites = self.get_split_sites_from_features(record)
-        return set(sites), annotation.from_uniprot(record)
+        return sites, annotation.from_uniprot(record)
 
     def _make_split_expression(self, sites: List[int]) -> List:
         return [
@@ -662,10 +656,13 @@ class UniprotProteinAnnotator(TaskBase):
                     self.log(
                         f"... {i * 100. / n:0.3f}% Complete ({i}/{n}). {j} Peptides Produced.")
 
-                if not isinstance(record, uniprot.UniProtProtein):
+                if not isinstance(record, (uniprot.UniProtProtein, annotation.AnnotationCollection)):
                     sites = None
                 else:
-                    protein.annotations = list(protein.annotations) + list(annotation.from_uniprot(record))
+                    if isinstance(record, uniprot.UniProtProtein):
+                        record = annotation.from_uniprot(record)
+                    # Trigger SQLAlchemy mutable update via assignment instead of in-place updates
+                    protein.annotations = list(protein.annotations) + list(record)
                     self.session.add(protein)
                     sites = splitter.get_split_sites_from_features(record)
                 for peptide in splitter.handle_protein(protein, sites):
