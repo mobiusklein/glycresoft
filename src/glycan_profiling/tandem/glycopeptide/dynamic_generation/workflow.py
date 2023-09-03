@@ -184,6 +184,7 @@ class PeptideDatabaseProxyLoader(TaskBase):
             elif filter_level == 0 and rec.has_glycosylation_sites():
                 peptides.append(rec)
         db.session.remove()
+        PeptideDatabaseRecord.unshare_sites(peptides)
         end = datetime.datetime.now()
         elapsed = (end - start).total_seconds()
         self.log("... %0.2f seconds elapsed. Loaded %d peptides" % (elapsed, len(peptides)))
@@ -306,7 +307,6 @@ class MultipartGlycopeptideIdentifier(SearchEngineBase):
                  fdr_estimation_strategy=None,
                  glycosylation_site_models_path=None,
                  cache_seeds=None,
-                 n_mapping_workers=1,
                  oxonium_threshold: float=0.05,
                  **kwargs):
         if fdr_estimation_strategy is None:

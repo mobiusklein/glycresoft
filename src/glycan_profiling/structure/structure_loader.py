@@ -761,6 +761,39 @@ except ImportError:
 class PeptideDatabaseRecord(PeptideDatabaseRecordBase):
     __slots__ = ()
 
+    id: Any
+    calculated_mass: float
+    modified_peptide_sequence: str
+    protein_id: int
+    start_position: int
+    end_position: int
+    hypothesis_id: int
+    n_glycosylation_sites: Tuple[int]
+    o_glycosylation_sites: Tuple[int]
+    gagylation_sites: Tuple[int]
+
+    @classmethod
+    def unshare_sites(cls, records: List['PeptideDatabaseRecord']):
+        site_share_cache = {}
+        for rec in records:
+            if rec.n_glycosylation_sites in site_share_cache:
+                rec.n_glycosylation_sites = site_share_cache[rec.n_glycosylation_sites]
+            else:
+                rec.n_glycosylation_sites = site_share_cache[rec.n_glycosylation_sites] = tuple(
+                    rec.n_glycosylation_sites)
+
+            if rec.o_glycosylation_sites in site_share_cache:
+                rec.o_glycosylation_sites = site_share_cache[rec.o_glycosylation_sites]
+            else:
+                rec.o_glycosylation_sites = site_share_cache[rec.o_glycosylation_sites] = tuple(
+                    rec.o_glycosylation_sites)
+
+            if rec.gagylation_sites in site_share_cache:
+                rec.gagylation_sites = site_share_cache[rec.gagylation_sites]
+            else:
+                rec.gagylation_sites = site_share_cache[rec.gagylation_sites] = tuple(
+                    rec.gagylation_sites)
+
     def __init__(self, id, calculated_mass, modified_peptide_sequence, protein_id, start_position, end_position,
                  hypothesis_id, n_glycosylation_sites, o_glycosylation_sites, gagylation_sites):
         self.id = id
