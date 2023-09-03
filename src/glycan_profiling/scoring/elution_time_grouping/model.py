@@ -117,7 +117,7 @@ class AbundanceWeightedMixin(object):
         if len(self.chromatograms) == 0:
             return np.diag(W)
         W /= W.max()
-        return np.diag(W)
+        return W
 
 
 class ChromatgramFeatureizerBase(object):
@@ -145,7 +145,7 @@ class ChromatgramFeatureizerBase(object):
         )).T
 
     def build_weight_matrix(self) -> np.ndarray:
-        return 1.0 / np.diag([x.weight for x in self.chromatograms])
+        return 1.0 / np.array([x.weight for x in self.chromatograms])
 
 
 class PredictorBase(object):
@@ -194,7 +194,10 @@ class LinearModelBase(PredictorBase, SpanningMixin):
         else:
             self.start = self.apex_time_array.min()
             self.end = self.apex_time_array.max()
-            d = np.diag(self.weight_matrix)
+            if self.weight_matrix.ndim > 1:
+                d = np.diag(self.weight_matrix)
+            else:
+                d = self.weight_matrix
             self.centroid = self.apex_time_array.dot(d) / d.sum()
 
     @property
@@ -284,7 +287,11 @@ class LinearModelBase(PredictorBase, SpanningMixin):
         likelihood = -np.log(rss) * n2
         # The likelihood constant
         likelihood -= (1 + np.log(np.pi / n2)) / n2
-        likelihood += 0.5 * np.sum(np.log(np.diag(self.weight_matrix)))
+        if self.weight_matrix.ndim > 1:
+            W = np.diag(self.weight_matrix)
+        else:
+            W = self.weight_matrix
+        likelihood += 0.5 * np.sum(np.log(W))
         return likelihood
 
     @property
@@ -292,9 +299,11 @@ class LinearModelBase(PredictorBase, SpanningMixin):
         x = self.data
         y = self.apex_time_array
         w = self.weight_matrix
+        if w.ndim > 1:
+            w = np.diag(w)
         yhat = x.dot(self.parameters)
         residuals = (y - yhat)
-        rss = (np.diag(w) * residuals * residuals).sum()
+        rss = (w * residuals * residuals).sum()
         return rss
 
     @property
@@ -302,8 +311,12 @@ class LinearModelBase(PredictorBase, SpanningMixin):
         return self.rss / (len(self.apex_time_array) - len(self.parameters) - 1.0)
 
     def parameter_significance(self) -> np.ndarray:
+        if self.weight_matrix.ndim > 1:
+            W = np.diag(self.weight_matrix)
+        else:
+            W = self.weight_matrix
         XtWX_inv = np.linalg.pinv(
-            (self.data.T.dot(self.weight_matrix).dot(self.data)))
+            ((self.data.T * W).dot(self.data)))
         # With unknown variance, use the mean squared error estimate
         sigma_params = np.sqrt(np.diag(self.mse * XtWX_inv))
         degrees_of_freedom = len(self.apex_time_array) - \
@@ -314,10 +327,14 @@ class LinearModelBase(PredictorBase, SpanningMixin):
         return p_value
 
     def parameter_confidence_interval(self, alpha=0.05) -> np.ndarray:
+        if self.weight_matrix.ndim > 1:
+            W = np.diag(self.weight_matrix)
+        else:
+            W = self.weight_matrix
         X = self.data
         sigma_params = np.sqrt(
             np.diag((self.mse) * np.linalg.pinv(
-                X.T.dot(self.weight_matrix).dot(X))))
+                (X.T * W).dot(X))))
         degrees_of_freedom = len(self.apex_time_array) - \
             len(self.parameters) - 1
         iv = stats.t.interval((1 - alpha) / 2., degrees_of_freedom)
@@ -328,11 +345,13 @@ class LinearModelBase(PredictorBase, SpanningMixin):
         x = self.data
         y = self.apex_time_array
         w = self.weight_matrix
+        if w.ndim > 1:
+            w = np.diag(w)
         yhat = x.dot(self.parameters)
         residuals = (y - yhat)
-        rss = (np.diag(w) * residuals * residuals).sum()
+        rss = (w * residuals * residuals).sum()
         tss = (y - y.mean())
-        tss = (np.diag(w) * tss * tss).sum()
+        tss = (w * tss * tss).sum()
         n = len(y)
         k = len(self.parameters)
         if adjust:
@@ -548,7 +567,8 @@ class ElutionTimeFitter(LinearModelBase, ChromatgramFeatureizerBase, ScoringFeat
     def plot_residuals(self, ax=None):
         if ax is None:
             _fig, ax = plt.subplots(1)
-        ax.scatter(self.apex_time_array, self.residuals, s=np.diag(self.weight_matrix) * 1000.0, alpha=0.25,
+        w = np.diag(self.weight_matrix) if self.weight_matrix.ndim > 1 else self.weight_matrix
+        ax.scatter(self.apex_time_array, self.residuals, s=w * 1000.0, alpha=0.25,
                    edgecolor='black')
         return ax
 
@@ -853,11 +873,13 @@ class PeptideFactorElutionTimeFitter(PeptideGroupChromatogramFeatureizer, Factor
         x = self.data
         y = self.apex_time_array
         w = self.weight_matrix
+        if w.ndim > 1:
+            w = np.diag(w)
         yhat = x.dot(self.parameters)
         residuals = (y - yhat)
-        rss_u = (np.diag(w) * residuals * residuals)
+        rss_u = (w * residuals * residuals)
         tss = (y - y.mean())
-        tss_u = (np.diag(w) * tss * tss)
+        tss_u = (w * tss * tss)
 
         mapping = {}
         for key, value in self._peptide_to_indicator.items():
@@ -887,7 +909,10 @@ class PeptideFactorElutionTimeFitter(PeptideGroupChromatogramFeatureizer, Factor
         group_label_map = {v: k for k, v in self._peptide_to_indicator.items()}
         preds = np.array(self.estimate)
         obs = np.array(self.apex_time_array)
-        weights = np.diag(self.weight_matrix)
+        if self.weight_matrix.ndim > 1:
+            weights = np.diag(self.weight_matrix)
+        else:
+            weights = self.weight_matrix
         for i in group_ids:
             mask = self.peptide_groups == i
             dv = preds[mask] - obs[mask]
@@ -917,7 +942,10 @@ class PeptideFactorElutionTimeFitter(PeptideGroupChromatogramFeatureizer, Factor
         group_label_map = {v: k for k, v in self._peptide_to_indicator.items()}
         preds = np.array(self.estimate)
         obs = np.array(self.apex_time_array)
-        weights = np.diag(self.weight_matrix)
+        if self.weight_matrix.ndim > 1:
+            weights = np.diag(self.weight_matrix)
+        else:
+            weights = self.weight_matrix
         for i in group_ids:
             mask = self.peptide_groups == i
             ax.scatter(
@@ -1451,7 +1479,7 @@ class EnsembleBuilder(TaskBase):
         if predicate is None:
             predicate = bool
         if n_workers is None:
-            n_workers = min(cpu_count(), 3)
+            n_workers = min(cpu_count(), 6)
 
         models: OrderedDict[float, ElutionTimeFitter] = OrderedDict()
         point_members = list(self.centers.items())

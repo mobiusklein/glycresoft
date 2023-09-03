@@ -112,7 +112,7 @@ def prepare_arrays_for_linear_fit(x: np.ndarray, y: np.ndarray, w: Optional[np.n
     X = np.vstack((np.ones(len(x)), np.array(x))).T
     Y = np.array(y)
     if w is None:
-        W = np.eye(Y.shape[0])
+        W = np.ones(Y.shape[0])
     else:
         W = np.array(w)
     return X, Y, W
@@ -125,7 +125,7 @@ def weighted_linear_regression_fit_ridge(X: np.ndarray, y: np.ndarray,
     if prepare:
         X, y, w = prepare_arrays_for_linear_fit(X, y, w)
     elif w is None:
-        w = np.eye(y.shape[0])
+        w = np.ones(y.shape[0])
     if alpha is None:
         alpha = 0.0
     elif isinstance(alpha, np.ndarray):
@@ -134,7 +134,10 @@ def weighted_linear_regression_fit_ridge(X: np.ndarray, y: np.ndarray,
     else:
         raise TypeError("Could not infer the format for alpha")
 
-    Xtw = X.T @ w
+    if w.ndim == 1:
+        Xtw = X.T * w
+    else:
+        Xtw = X.T @ w
     V = np.linalg.pinv((Xtw @ X) + alpha)
     A = V @ Xtw
     del Xtw
@@ -175,8 +178,12 @@ def weighted_linear_regression_fit(X: np.ndarray, y: np.ndarray,
         X, y, w = prepare_arrays_for_linear_fit(X, y, w)
     elif w is None:
         w = np.eye(y.shape[0])
-    V = np.linalg.pinv(X.T.dot(w).dot(X))
-    A = V.dot(X.T.dot(w))
+    if w.ndim == 1:
+        Xtw = X.T * w
+    else:
+        Xtw = X.T @ w
+    V = np.linalg.pinv(Xtw.dot(X))
+    A = V.dot(Xtw)
     B = A.dot(y)
     H = X.dot(A)
     yhat = X.dot(B)
