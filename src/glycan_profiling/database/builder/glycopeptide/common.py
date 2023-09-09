@@ -645,45 +645,42 @@ class MultipleProcessPeptideGlycosylator(TaskBase):
                     try:
                         waiting_batches = self.output_queue.qsize()
                         if waiting_batches > 10:
-                            self.create_barrier()
-                            self.log("... %d waiting sets." % (waiting_batches,))
-                            try:
-                                for _ in range(waiting_batches):
-                                    batch.extend(self.output_queue.get(True, 1))
-                                # check to see if any new work items have arrived while
-                                # we've been draining the queue
-                                waiting_batches = self.output_queue.qsize()
-                                if waiting_batches != 0:
-                                    # if so, while the barrier is up, let's write the batch
-                                    # to disk and then try to drain the queue again
-                                    i += len(batch)
-                                    try:
-                                        session.bulk_insert_mappings(Glycopeptide, batch, render_nulls=True)
-                                        session.commit()
-                                    except Exception:
-                                        session.rollback()
-                                        raise
-                                    batch = []
+                            with self.database_mutex:
+                                self.log("... %d waiting sets." % (waiting_batches,))
+                                try:
                                     for _ in range(waiting_batches):
-                                        batch.extend(self.output_queue.get_nowait())
-                            except QueueEmptyException:
-                                pass
-                            self.teardown_barrier()
+                                        batch.extend(self.output_queue.get(True, 1))
+                                    # check to see if any new work items have arrived while
+                                    # we've been draining the queue
+                                    waiting_batches = self.output_queue.qsize()
+                                    if waiting_batches != 0:
+                                        # if so, while the barrier is up, let's write the batch
+                                        # to disk and then try to drain the queue again
+                                        i += len(batch)
+                                        try:
+                                            session.bulk_insert_mappings(Glycopeptide, batch, render_nulls=True)
+                                            session.commit()
+                                        except Exception:
+                                            session.rollback()
+                                            raise
+                                        batch = []
+                                        for _ in range(waiting_batches):
+                                            batch.extend(self.output_queue.get_nowait())
+                                except QueueEmptyException:
+                                    pass
                     except NotImplementedError:
                         # platform does not support qsize()
                         pass
 
-                    self.create_barrier()
-                    i += len(batch)
+                    with self.database_mutex:
+                        i += len(batch)
 
-                    try:
-                        session.bulk_insert_mappings(Glycopeptide, batch, render_nulls=True)
-                        session.commit()
-                    except Exception:
-                        session.rollback()
-                        raise
-                    finally:
-                        self.teardown_barrier()
+                        try:
+                            session.bulk_insert_mappings(Glycopeptide, batch, render_nulls=True)
+                            session.commit()
+                        except Exception:
+                            session.rollback()
+                            raise
 
                     if (i - last) > self.chunk_size * 20:
                         self.log("... %d Glycopeptides Created" % (i,))
