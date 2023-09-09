@@ -597,12 +597,6 @@ class MultipleProcessPeptideGlycosylator(TaskBase):
         self.log("... All Peptides Dealt")
         self.dealt_done_event.set()
 
-    def create_barrier(self):
-        self.database_mutex.__enter__()
-
-    def teardown_barrier(self):
-        self.database_mutex.__exit__(None, None, None)
-
     def create_queue_feeder_thread(self, peptide_ids):
         queue_feeder = Thread(target=self.push_work_batches, args=(peptide_ids,))
         queue_feeder.daemon = True
