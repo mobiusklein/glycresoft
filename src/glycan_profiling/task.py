@@ -112,7 +112,10 @@ class IPCLoggingManager:
         self.listener.start()
 
     def stop(self):
-        self.listener.stop()
+        try:
+            self.listener.stop()
+        except AttributeError:
+            pass
 
 
 class LoggingHandlerToken:
@@ -299,11 +302,6 @@ class LoggingMixin(object):
 
     def ipc_logger(self, handler=None):
         return IPCLoggingManager()
-        # if handler is None:
-        #     def _default_closure_handler(message):
-        #         self.log(message)
-        #     handler = _default_closure_handler
-        # return MessageSpooler(handler)
 
     def in_debug_mode(self):
         if self._debug_enabled is None:

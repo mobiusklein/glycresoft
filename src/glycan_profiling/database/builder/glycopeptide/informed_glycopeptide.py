@@ -1,14 +1,11 @@
 import os
 from typing import Optional
-from glycan_profiling.serialize.hypothesis.peptide import (Peptide, Protein, Glycopeptide)
+from glycan_profiling.serialize.hypothesis.peptide import (Peptide, Glycopeptide)
 
 from .common import (
     GlycopeptideHypothesisSerializerBase, PeptideGlycosylator,
     MultipleProcessPeptideGlycosylator)
 from .proteomics import mzid_proteome
-
-
-from six import string_types as basestring
 
 
 class MzIdentMLGlycopeptideHypothesisSerializer(GlycopeptideHypothesisSerializerBase):
@@ -25,9 +22,7 @@ class MzIdentMLGlycopeptideHypothesisSerializer(GlycopeptideHypothesisSerializer
             full_cross_product, use_uniprot=use_uniprot, uniprot_source_file=uniprot_source_file)
         self.mzid_path = mzid_path
         self.reference_fasta = reference_fasta
-        self.proteome = mzid_proteome.Proteome(
-            mzid_path, self._original_connection, self.hypothesis_id,
-            target_proteins=target_proteins, reference_fasta=reference_fasta)
+        self._make_proteome(mzid_path, target_proteins, reference_fasta)
         self.target_proteins = target_proteins
         self.max_glycosylation_events = max_glycosylation_events
         self.peptide_length_range = peptide_length_range or (5, 60)
@@ -43,27 +38,16 @@ class MzIdentMLGlycopeptideHypothesisSerializer(GlycopeptideHypothesisSerializer
             "peptide_length_range": self.peptide_length_range
         })
 
+    def _make_proteome(self, mzid_path, target_proteins, reference_fasta):
+        self.proteome = mzid_proteome.Proteome(
+            mzid_path, self._original_connection, self.hypothesis_id,
+            target_proteins=target_proteins,
+            reference_fasta=reference_fasta,
+            use_uniprot=self.use_uniprot,
+            uniprot_source_file=self.uniprot_source_file
+        )
+
     def retrieve_target_protein_ids(self):
-        # if len(self.target_proteins) == 0:
-        #     return [
-        #         i[0] for i in
-        #         self.query(Protein.id).filter(
-        #             Protein.hypothesis_id == self.hypothesis_id).all()
-        #     ]
-        # else:
-        #     result = []
-        #     for target in self.target_proteins:
-        #         if isinstance(target, basestring):
-        #             match = self.query(Protein.id).filter(
-        #                 Protein.name == target,
-        #                 Protein.hypothesis_id == self.hypothesis_id).first()
-        #             if match:
-        #                 result.append(match[0])
-        #             else:
-        #                 self.log("Could not locate protein '%s'" % target)
-        #         elif isinstance(target, int):
-        #             result.append(target)
-        #     return result
         return self.proteome.retrieve_target_protein_ids()
 
     def peptide_ids(self):
@@ -129,6 +113,17 @@ class MultipleProcessMzIdentMLGlycopeptideHypothesisSerializer(MzIdentMLGlycopep
             glycan_combination_count=self.total_glycan_combination_count,
             n_processes=self.n_processes)
         dispatcher.process(self.peptide_ids())
+
+
+class ReversingMultipleProcessMzIdentMLGlycopeptideHypothesisSerializer(MultipleProcessMzIdentMLGlycopeptideHypothesisSerializer):
+    def _make_proteome(self, mzid_path, target_proteins, reference_fasta):
+        self.proteome = mzid_proteome.ReverseProteome(
+            mzid_path, self._original_connection, self.hypothesis_id,
+            target_proteins=target_proteins,
+            reference_fasta=reference_fasta,
+            use_uniprot=self.use_uniprot,
+            uniprot_source_file=self.uniprot_source_file
+        )
 
 
 class MzIdentMLPeptideHypothesisSerializer(GlycopeptideHypothesisSerializerBase):

@@ -3,6 +3,7 @@ import textwrap
 from io import BytesIO, TextIOWrapper
 
 from collections import OrderedDict
+from typing import Union
 
 from glycopeptidepy.io.fasta import FastaFileParser, FastaFileWriter, PEFFReader
 from glycopeptidepy.io.annotation import from_peff
@@ -35,7 +36,6 @@ def open_fasta(path: str):
         return PEFFProteinFastaFileParser(path)
     else:
         return ProteinFastaFileParser(path)
-
 
 
 class ProteinFastaFileWriter(FastaFileWriter):

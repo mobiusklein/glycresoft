@@ -29,6 +29,13 @@ from glycan_profiling.database.builder.glycopeptide.proteomics.remove_duplicate_
 from glycopeptidepy.structure.sequence import (
     _n_glycosylation, _o_glycosylation, _gag_linker_glycosylation)
 
+from glycopeptidepy.algorithm import reverse_sequence
+from glycopeptidepy.structure.sequence import (
+    find_n_glycosylation_sequons,
+    PeptideSequence
+)
+
+from glycopeptidepy.structure.residue import UnknownAminoAcidException
 
 _DEFAULT_GLYCAN_STEP_LIMIT = 15000
 
@@ -685,7 +692,7 @@ class MultipleProcessPeptideGlycosylator(TaskBase):
                     continue
 
             queue_feeder.join()
-            self.ipc_controller.stop()
+
             for worker in self.workers:
                 self.log("Joining Process %r (%s)" % (worker.pid, worker.is_alive()))
                 worker.join(10)
@@ -698,3 +705,29 @@ class MultipleProcessPeptideGlycosylator(TaskBase):
 
         self.log("All Work Done. Rebuilding Indices")
         index_controller.create()
+
+
+class ProteinReversingMixin:
+    def reverse_protein(self, protein: Protein) -> Protein:
+        original_sequence = protein.protein_sequence
+        n = len(original_sequence)
+        if "(" in protein.protein_sequence:
+            protein.protein_sequence = str(reverse_sequence(
+                protein.protein_sequence, suffix_len=0))
+
+        else:
+            protein.protein_sequence = protein.protein_sequence[::-1]
+        protein.hypothesis_id = self.hypothesis_id
+        sites = []
+        original_sequence = PeptideSequence(original_sequence)
+        try:
+            n_glycosites = find_n_glycosylation_sequons(
+                original_sequence,
+                include_cysteine=self.include_cysteine_n_glycosylation)
+            for n_glycosite in n_glycosites:
+                sites.append(
+                    ProteinSite(name=ProteinSite.N_GLYCOSYLATION, location=n - n_glycosite - 1))
+        except UnknownAminoAcidException:
+            pass
+        protein.sites.extend(sites)
+        return protein

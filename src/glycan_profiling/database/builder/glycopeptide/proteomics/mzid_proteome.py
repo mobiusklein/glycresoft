@@ -3,6 +3,7 @@ import re
 import operator
 import logging
 from collections import defaultdict
+from dataclasses import dataclass
 from typing import Any, DefaultDict, Dict, List, Mapping, Optional, Set, Tuple
 
 from six import string_types as basestring
@@ -16,6 +17,8 @@ from glycan_profiling.serialize import (
     Peptide, Protein, DatabaseBoundOperation)
 
 from glycan_profiling.task import TaskBase
+
+from ..common import ProteinReversingMixin
 
 from .mzid_parser import Parser
 from .peptide_permutation import (
@@ -452,18 +455,10 @@ class MzIdentMLPeptide(object):
         return sequence_copy
 
     def __repr__(self):
-        return "%s(%s, %s)" % (
-            self.__class__.__name__, self.peptide_sequence,
-            self.glycosite_candidates)
+        return f"{self.__class__.__name__}({self.peptide_sequence}, {self.glycosite_candidates})"
 
 
-class PeptideIdentification(MzIdentMLPeptide):
-    def __init__(self, peptide_dict, enzyme=None, constant_modifications=None,
-                 modification_translation_table=None, process=True):
-        super(PeptideIdentification, self).__init__(
-            peptide_dict, enzyme, constant_modifications, modification_translation_table,
-            process)
-
+class _EvidenceMixin:
     @property
     def score_type(self) -> Tuple[Optional[float], Optional[str]]:
         score = score_type = None
@@ -483,8 +478,13 @@ class PeptideIdentification(MzIdentMLPeptide):
             evidence_list = [x for sub in evidence_list for x in sub]
         return evidence_list
 
-    def __repr__(self):
-        return "PeptideIdentification(%s, %s)" % (self.peptide_sequence, self.glycosite_candidates)
+
+class PeptideIdentification(MzIdentMLPeptide, _EvidenceMixin):
+    def __init__(self, peptide_dict, enzyme=None, constant_modifications=None,
+                 modification_translation_table=None, process=True):
+        super(PeptideIdentification, self).__init__(
+            peptide_dict, enzyme, constant_modifications, modification_translation_table,
+            process)
 
 
 class ProteinStub(object):
@@ -494,6 +494,9 @@ class ProteinStub(object):
     n_glycan_sequon_sites: List[int]
     o_glycan_sequon_sites: List[int]
     glycosaminoglycan_sequon_sites: List[int]
+
+    def __len__(self):
+        return len(self.protein_sequence)
 
     def __init__(self, name, id, sequence, n_glycan_sequon_sites, o_glycan_sequon_sites,
                  glycosaminoglycan_sequon_sites):
@@ -516,7 +519,7 @@ class ProteinStub(object):
 
     def __repr__(self):
         trailer = self.protein_sequence[:10] + '...'
-        return "{self.__class__.__name__}({self.name!r}, {self.id}, {trailer!r})".format(self=self, trailer=trailer)
+        return f"{self.__class__.__name__}({self.name!r}, {self.id}, {trailer!r})"
 
 
 class ProteinStubLoaderBase(object):
@@ -643,7 +646,8 @@ class PeptideConverter(PeptideMapperBase):
     def get_protein(self, evidence):
         return self.protein_loader[evidence['accession']]
 
-    def pack_peptide(self, peptide_ident, start, end, score, score_type, parent_protein):
+    def pack_peptide(self, peptide_ident: PeptideIdentification, start: int, end: int, score: float,
+                     score_type: str, parent_protein: Protein):
         match = Peptide(
             calculated_mass=peptide_ident.peptide_sequence.mass,
             base_peptide_sequence=peptide_ident.base_sequence,
@@ -830,7 +834,7 @@ class MzIdentMLProteomeExtraction(TaskBase):
                 processed_enzymes.append(protease)
             else:
                 self.log("No protease information available: %r" % (enz,))
-        self.enzymes = processed_enzymes
+        self.enzymes = list(set(processed_enzymes))
 
     def load_modifications(self):
         self.parser.reset()
@@ -1011,6 +1015,15 @@ class Proteome(DatabaseBoundOperation, MzIdentMLProteomeExtraction):
             return True
         return False
 
+    def _make_protein_from_state(self, name: str, seq: str, state: dict):
+        p = Protein(
+            name=name,
+            protein_sequence=seq,
+            other=state,
+            hypothesis_id=self.hypothesis_id)
+        p._init_sites(self.include_cysteine_n_glycosylation)
+        return p
+
     def load_proteins(self):
         self.parser.reset()
         self._find_used_database()
@@ -1043,12 +1056,7 @@ class Proteome(DatabaseBoundOperation, MzIdentMLProteomeExtraction):
                     self.log("Multiple proteins with the name %r" % name)
                 continue
             try:
-                p = Protein(
-                    name=name,
-                    protein_sequence=seq,
-                    other=protein,
-                    hypothesis_id=self.hypothesis_id)
-                p._init_sites(self.include_cysteine_n_glycosylation)
+                p = self._make_protein_from_state(name, seq, protein)
                 session.add(p)
                 session.flush()
                 protein_map[name] = p
@@ -1061,6 +1069,14 @@ class Proteome(DatabaseBoundOperation, MzIdentMLProteomeExtraction):
                 continue
         session.commit()
         self._clear_protein_resolver()
+
+    def _make_peptide_converter(self, session, protein_filter: Set[int], enzyme: Protease, **kwargs):
+        return PeptideConverter(
+            session, self.hypothesis_id, enzyme,
+            self.constant_modifications,
+            self.modification_translation_table,
+            protein_filter=protein_filter,
+            protein_alias_map=self.accession_map, **kwargs)
 
     def load_spectrum_matches(self):
         self.parser.reset()
@@ -1075,12 +1091,8 @@ class Proteome(DatabaseBoundOperation, MzIdentMLProteomeExtraction):
 
         protein_filter = set(self.retrieve_target_protein_ids())
 
-        peptide_converter = PeptideConverter(
-            session, self.hypothesis_id, enzyme,
-            self.constant_modifications,
-            self.modification_translation_table,
-            protein_filter=protein_filter,
-            protein_alias_map=self.accession_map)
+        peptide_converter = self._make_peptide_converter(
+            session, protein_filter, enzyme)
 
         for spectrum_identification in self.parser.iterfind(
                 "SpectrumIdentificationItem", retrieve_refs=True, iterative=True):
@@ -1220,15 +1232,214 @@ class Proteome(DatabaseBoundOperation, MzIdentMLProteomeExtraction):
     def split_proteins(self):
         const_modifications = self.make_restricted_modification_rules(self.constant_modifications)
         protein_ids = self.retrieve_target_protein_ids()
-
-        annotator = UniprotProteinAnnotator(
-            self,
-            protein_ids,
-            const_modifications,
-            [],
-            uniprot_source_file=self.uniprot_source_file
-        )
-        annotator.run()
+        if self.use_uniprot:
+            annotator = UniprotProteinAnnotator(
+                self,
+                protein_ids,
+                const_modifications,
+                [],
+                uniprot_source_file=self.uniprot_source_file
+            )
+            annotator.run()
 
     def remove_duplicates(self):
         DeduplicatePeptides(self._original_connection, self.hypothesis_id).run()
+
+
+@dataclass
+class _PositionedPeptideFacade:
+    start_position: int
+    end_position: int
+    modified_peptide_sequence: str
+
+
+class ReverseMzIdentMLPeptide(MzIdentMLPeptide):
+    peptide_dict: Dict[str, Any]
+    insert_sites: List[Tuple[int, str]]
+    deleteion_sites: List[Tuple[int, str]]
+
+    modification_counter: int
+    missed_cleavages: Optional[int]
+
+    base_sequence: str
+    peptide_sequence: PeptideSequence
+    glycosite_candidates: List[int]
+
+    modification_translation_table: Dict[str, Modification]
+    enzyme: Optional[Protease]
+    mzid_id: Optional[str]
+
+    def __init__(self, peptide_dict, protein: Protein, enzyme=None, constant_modifications=None,
+                 modification_translation_table=None, process=True):
+        if modification_translation_table is None:
+            modification_translation_table = dict()
+        if constant_modifications is None:
+            constant_modifications = list()
+
+        facade = self.update_sequence(peptide_dict, protein)
+
+        self.peptide_dict = peptide_dict
+
+        self.insert_sites = []
+        self.deleteion_sites = []
+        self.modification_counter = 0
+        self.missed_cleavages = 0
+
+        self.base_sequence = peptide_dict["PeptideSequence"]
+        self.peptide_sequence = PeptideSequence(peptide_dict["PeptideSequence"])
+
+        self.glycosite_candidates = n_glycan_sequon_sites(facade, protein)
+
+        self.constant_modifications = constant_modifications
+        self.modification_translation_table = modification_translation_table
+        self.enzyme = enzyme
+        self.mzid_id = peptide_dict.get('id')
+
+        if process:
+            self.process()
+
+    def _reflect_position(self, position: int) -> int:
+        n = len(self.base_sequence)
+        return n - position
+
+    def update_sequence(self, peptide_dict: dict, protein: Protein):
+        seq = peptide_dict['PeptideSequence']
+        start = protein.protein_sequence[::-1].find(seq)
+        n = len(protein)
+        # Reflect the coordinates around the reversal point
+        end = n - start
+        start = end - len(seq)
+        seq = protein.protein_sequence[start + 1:end + 1]
+        peptide_dict['PeptideSequence'] = seq
+        return _PositionedPeptideFacade(start, end, seq)
+
+    def handle_substitutions(self):
+        if "SubstitutionModification" in self.peptide_dict:
+            subs = self.peptide_dict["SubstitutionModification"]
+            for sub in subs:
+                pos = sub['location'] - 1
+                pos = max(self._reflect_position(pos) - 2, 0)
+                replace = Residue(sub["replacementResidue"])
+                self.peptide_sequence.substitute(pos, replace)
+                self.modification_counter += 1
+
+    def add_modification(self, modification: Modification, position: int):
+        if position == -1:
+            targets = modification.rule.n_term_targets
+            for t in targets:
+                if t.position_modifier is not None and t.amino_acid_targets is None:
+                    break
+            else:
+                position += 1
+        if position == len(self.peptide_sequence):
+            targets = modification.rule.c_term_targets
+            for t in targets:
+                if t.position_modifier is not None and t.amino_acid_targets is None:
+                    break
+            else:
+                position -= 1
+        if position == -1:
+            self.peptide_sequence.n_term = modification
+        elif position == len(self.peptide_sequence):
+            self.peptide_sequence.c_term = modification
+        else:
+            new_position = max(self._reflect_position(position) - 2, 0)
+            self.peptide_sequence.add_modification(new_position, modification)
+
+    def add_insertion(self, site: int, symbol=None):
+        site = self._reflect_position(site)
+        self.insert_sites.append((site, symbol))
+
+    def add_deletion(self, site: int, symbol):
+        site = self._reflect_position(site)
+        self.deleteion_sites.append((site, symbol))
+
+    def __repr__(self):
+        return f"{self.__class__.__name__}({self.peptide_sequence}, {self.glycosite_candidates})"
+
+
+class ReversePeptideIdentification(ReverseMzIdentMLPeptide, _EvidenceMixin):
+    pass
+
+
+class ReversePeptideConverter(PeptideConverter):
+    def _get_evidence_list(self, peptide_dict: Dict[str, Any]) -> List[Dict[str, Any]]:
+        evidence_list = peptide_dict["PeptideEvidenceRef"]
+        # Flatten the evidence list if it has extra nesting because of alternative
+        # mzid parsing
+        if isinstance(evidence_list[0], list):
+            evidence_list = [x for sub in evidence_list for x in sub]
+        return evidence_list
+
+    def __init__(self, session, hypothesis_id, enzyme=None, constant_modifications=None,
+                 modification_translation_table=None, protein_filter=None,
+                 peptide_length_range=(5, 60),
+                 include_cysteine_n_glycosylation: bool = False,
+                 protein_alias_map: Optional[Dict[str, str]]=None):
+        super().__init__(
+            session, hypothesis_id, enzyme=enzyme, constant_modifications=constant_modifications,
+            modification_translation_table=modification_translation_table, protein_filter=protein_filter,
+            peptide_length_range=peptide_length_range,
+            include_cysteine_n_glycosylation=include_cysteine_n_glycosylation,
+            protein_alias_map=protein_alias_map
+        )
+
+    def handle_peptide_dict(self, peptide_dict: Dict[str, Any]):
+        evidence_list = self._get_evidence_list(peptide_dict)
+        for evidence in evidence_list:
+            if "skip" in evidence:
+                continue
+            if evidence.get("isDecoy", False):
+                continue
+
+            parent_protein = self.get_protein(evidence)
+            if parent_protein is None:
+                continue
+
+            peptide_ident = ReversePeptideIdentification(
+                peptide_dict,
+                parent_protein,
+                self.enzyme,
+                self.constant_modifications,
+                self.modification_translation_table
+            )
+
+            score, score_type = peptide_ident.score_type
+
+            start = evidence["start"] - 1
+            end = evidence["end"]
+            length = len(peptide_ident.base_sequence)
+            if not (self.peptide_length_range[0] <= length <= self.peptide_length_range[1]):
+                continue
+
+            sequence_copy = peptide_ident.original_sequence()
+            found = self.sequence_starts_at(sequence_copy, parent_protein)
+
+            if found != start:
+                start = found
+                end = start + length
+
+            match = self.pack_peptide(
+                peptide_ident, start, end, score, score_type, parent_protein)
+            self.add_to_group(match)
+            if self.has_occupied_glycosites(match):
+                cleared = self.clear_sites(match)
+                self.add_to_group(cleared)
+
+
+class ReverseProteome(Proteome, ProteinReversingMixin):
+    def _make_protein_from_state(self, name: str, seq: str, state: dict):
+        p = super()._make_protein_from_state(name, seq, state)
+        p.sites = []
+        self.reverse_protein(p)
+        return p
+
+    def _make_peptide_converter(self, session, protein_filter: Set[int], enzyme: Protease, **kwargs):
+        return ReversePeptideConverter(
+            session,
+            self.hypothesis_id,
+            enzyme=enzyme,
+            constant_modifications=self.constant_modifications,
+            modification_translation_table=self.modification_translation_table,
+            protein_filter=protein_filter,
+            protein_alias_map=self.accession_map, **kwargs)

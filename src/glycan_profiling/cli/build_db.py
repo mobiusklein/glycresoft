@@ -34,7 +34,8 @@ from glycan_profiling.database.builder.glycopeptide.naive_glycopeptide import (
     NonSavingMultipleProcessFastaGlycopeptideHypothesisSerializer)
 
 from glycan_profiling.database.builder.glycopeptide.informed_glycopeptide import (
-    MultipleProcessMzIdentMLGlycopeptideHypothesisSerializer)
+    MultipleProcessMzIdentMLGlycopeptideHypothesisSerializer,
+    ReversingMultipleProcessMzIdentMLGlycopeptideHypothesisSerializer)
 
 from glycan_profiling.database.builder.glycan import (
     TextFileGlycanHypothesisSerializer,
@@ -311,14 +312,18 @@ def glycopeptide_fa(context, fasta_file, database_connection, enzyme, missed_cle
 @click.option('-r', '--target-protein-re', multiple=True,
               help=('Specifies a regular expression to select proteins'
                     ' to be included by name. May be used many times.'))
-@click.option("-R", "--reference-fasta", default=None, required=False,
+@click.option("--reference-fasta", default=None, required=False,
               help=("When the full sequence for each protein is not embedded in the mzIdentML file and "
                     "the FASTA file used is not local."))
 @click.option("-a", "--annotation-path", type=click.Path(exists=True), required=False,
               default=None, help="The path to an annotation XML file from UniProt")
+@click.option("-R", "--reverse", default=False, is_flag=True, help='Reverse protein sequences')
+@click.option("-F", "--not-full-crossproduct", is_flag=True, help=(
+    "Do not produce full crossproduct. For when the search space is too large to enumerate, store, and load."))
 def glycopeptide_mzid(context, mzid_file, database_connection, name, occupied_glycosites, target_protein,
                       target_protein_re, processes, glycan_source, glycan_source_type, glycan_source_identifier,
-                      reference_fasta, peptide_length_range=(5, 60), annotation_path=None):
+                      reference_fasta, peptide_length_range=(5, 60), annotation_path=None, reverse=False,
+                      not_full_crossproduct=False):
     """
     Constructs a glycopeptide hypothesis from a MzIdentML file of proteins and a
     collection of glycans.
@@ -339,7 +344,11 @@ def glycopeptide_mzid(context, mzid_file, database_connection, name, occupied_gl
     glycan_hypothesis_id = _glycan_hypothesis_builders[
         glycan_source_type](database_connection, glycan_source, name, glycan_source_identifier)
 
-    builder = MultipleProcessMzIdentMLGlycopeptideHypothesisSerializer(
+    job_cls = MultipleProcessMzIdentMLGlycopeptideHypothesisSerializer
+    if reverse:
+        job_cls = ReversingMultipleProcessMzIdentMLGlycopeptideHypothesisSerializer
+
+    builder = job_cls(
         mzid_file, database_connection,
         glycan_hypothesis_id=glycan_hypothesis_id,
         hypothesis_name=name,
@@ -348,7 +357,8 @@ def glycopeptide_mzid(context, mzid_file, database_connection, name, occupied_gl
         reference_fasta=reference_fasta,
         n_processes=processes,
         peptide_length_range=peptide_length_range,
-        uniprot_source_file=annotation_path
+        uniprot_source_file=annotation_path,
+        full_cross_product=not not_full_crossproduct
     )
     builder.display_header()
     builder.start()

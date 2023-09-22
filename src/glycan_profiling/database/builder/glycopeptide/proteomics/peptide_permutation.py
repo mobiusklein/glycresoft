@@ -48,13 +48,13 @@ def span_test(site_list, start, end):
 
 
 def n_glycan_sequon_sites(peptide: Peptide, protein: Protein, use_local_sequence: bool=False,
-                          include_cysteine: bool = False):
+                          include_cysteine: bool = False, allow_modified=frozenset()):
     sites = set()
     sites |= set(site - peptide.start_position for site in span_test(
         protein.n_glycan_sequon_sites, peptide.start_position, peptide.end_position))
     if use_local_sequence:
         sites |= set(sequence.find_n_glycosylation_sequons(
-            peptide.modified_peptide_sequence, include_cysteine=include_cysteine))
+            peptide.modified_peptide_sequence, allow_modified=allow_modified, include_cysteine=include_cysteine))
     return sorted(sites)
 
 
