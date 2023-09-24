@@ -1,10 +1,9 @@
-from collections import defaultdict, OrderedDict
 import numbers as abc_numbers
+from typing import Callable, Dict, Iterable, List, Optional, OrderedDict, DefaultDict as defaultdict, TYPE_CHECKING, Set, Tuple
 
 import numpy as np
-from six import string_types as basestring
 
-from glypy.structure.glycan_composition import FrozenMonosaccharideResidue
+from glypy.structure.glycan_composition import FrozenMonosaccharideResidue, HashableGlycanComposition
 
 from ..glycan_composition_filter import GlycanCompositionFilter
 from ... import symbolic_expression
@@ -12,8 +11,13 @@ from ... import symbolic_expression
 from .space import CompositionSpace, n_glycan_distance
 from .rule import CompositionExpressionRule, CompositionRangeRule, CompositionRuleClassifier
 
+if TYPE_CHECKING:
+    from glycan_profiling.database.composition_network import CompositionGraph, CompositionGraphNode
+
 
 class NeighborhoodCollection(object):
+    neighborhoods: OrderedDict[str, CompositionRuleClassifier]
+
     def __init__(self, neighborhoods=None):
         if neighborhoods is None:
             neighborhoods = OrderedDict()
@@ -24,13 +28,13 @@ class NeighborhoodCollection(object):
             for item in neighborhoods:
                 self.add(item)
 
-    def add(self, classifier):
+    def add(self, classifier: CompositionRuleClassifier):
         self.neighborhoods[classifier.name] = classifier
 
-    def remove(self, key):
+    def remove(self, key: str):
         return self.neighborhoods.pop(key)
 
-    def update(self, iterable):
+    def update(self, iterable: Iterable[CompositionRuleClassifier]):
         for case in iterable:
             self.add(case)
 
@@ -54,7 +58,7 @@ class NeighborhoodCollection(object):
     def __ne__(self, other):
         return not (self == other)
 
-    def get_neighborhood(self, key):
+    def get_neighborhood(self, key: str) -> CompositionRuleClassifier:
         return self.neighborhoods[key]
 
     def __getitem__(self, key):
@@ -62,7 +66,7 @@ class NeighborhoodCollection(object):
             return self.get_neighborhood(key)
         except KeyError:
             if isinstance(key, abc_numbers.Number):
-                return self.neighborhoods.values()[key]
+                return tuple(self.neighborhoods.values())[key]
             else:
                 raise
 
@@ -70,7 +74,7 @@ class NeighborhoodCollection(object):
         return len(self.neighborhoods)
 
 
-def make_n_glycan_neighborhoods():
+def make_n_glycan_neighborhoods() -> NeighborhoodCollection:
     """Create broad N-glycan neighborhoods.
 
     This method is primarily designed for human-like N-glycan biosynthesis and does
@@ -134,7 +138,7 @@ def make_n_glycan_neighborhoods():
     return neighborhoods
 
 
-def make_mammalian_n_glycan_neighborhoods():
+def make_mammalian_n_glycan_neighborhoods() -> NeighborhoodCollection:
     """Create broad N-glycan neighborhoods allowing for mammalian N-glycans.
 
     This method deals with N-glycosyltransferases not found in humans (specifically Gal-alpha Gal)
@@ -199,7 +203,7 @@ def make_mammalian_n_glycan_neighborhoods():
     return neighborhoods
 
 
-def make_adjacency_neighborhoods(network):
+def make_adjacency_neighborhoods(network: "CompositionGraph"):
     space = CompositionSpace([node.composition for node in network])
 
     rules = []
@@ -219,6 +223,15 @@ _n_glycan_neighborhoods = make_n_glycan_neighborhoods()
 
 
 class NeighborhoodWalker(object):
+    network: "CompositionGraph"
+    neighborhoods: NeighborhoodCollection
+    distance_fn: Callable[[HashableGlycanComposition, HashableGlycanComposition], Tuple[int, float]]
+
+    symbols: symbolic_expression.SymbolSpace
+    filter_space: GlycanCompositionFilter
+
+    neighborhood_assignments: defaultdict["CompositionGraphNode", Set[str]]
+    neighborhood_maps: defaultdict[str, List["CompositionGraphNode"]]
 
     def __init__(self, network, neighborhoods=None, assign=True, distance_fn=n_glycan_distance):
         if neighborhoods is None:
@@ -277,7 +290,7 @@ class NeighborhoodWalker(object):
     def __getitem__(self, key):
         return self.neighborhood_assignments[key]
 
-    def query_neighborhood(self, neighborhood):
+    def query_neighborhood(self, neighborhood: CompositionRuleClassifier):
         query = None
         filters = []
         for rule in neighborhood.rules:
@@ -321,7 +334,8 @@ class NeighborhoodWalker(object):
             for neighborhood in self[node]:
                 self.neighborhood_maps[neighborhood].append(node)
 
-    def compute_belongingness(self, node, neighborhood, distance_cache=None):
+    def compute_belongingness(self, node: "CompositionGraphNode", neighborhood: CompositionRuleClassifier,
+                              distance_cache: Optional[Dict]=None) -> float:
         count = 0
         total_weight = 0
         distance_fn = self.distance_fn
@@ -345,7 +359,7 @@ class NeighborhoodWalker(object):
             return 0
         return total_weight / count
 
-    def build_belongingness_matrix(self):
+    def build_belongingness_matrix(self) -> np.ndarray:
         neighborhood_count = len(self.neighborhoods)
         belongingness_matrix = np.zeros(
             (len(self.network), neighborhood_count))

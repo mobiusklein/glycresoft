@@ -285,6 +285,7 @@ glycopeptide_tandem_scoring_functions = {
     "penalized_log_intensty": intensity_scorer.FullSignaturePenalizedLogIntensityScorer,
     "peptide_only_cw_binomial": coverage_weighted_binomial.StubIgnoringCoverageWeightedBinomialScorer,
     "log_intensity_v3": (intensity_scorer.LogIntensityScorerReweighted, {}),
+    "log_intensity_reweighted": (intensity_scorer.LogIntensityScorerReweighted, {}),
 }
 
 

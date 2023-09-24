@@ -10,6 +10,12 @@ import numpy as np
 from scipy import stats
 
 
+def is_square(x: np.ndarray):
+    if x.ndim == 2:
+        return x.shape[0] == x.shape[1]
+    return False
+
+
 class WLSSolution(object):
     '''A structured container for :func:`weighted_linear_regression_fit`
     output.
@@ -52,7 +58,9 @@ class WLSSolution(object):
         state = {}
         state['parameters'] = self.parameters
         state['data'] = self.data
-        state['weights'] = np.diag(self.weights)
+        if is_square(self.weights):
+            self.weights = np.diag(self.weights)
+        state['weights'] = self.weights
         # state['projection_matrix'] = self.projection_matrix
         state['projection_matrix'] = None
         state['rss'] = self.rss
@@ -65,7 +73,9 @@ class WLSSolution(object):
         X, y = state['data']
         self.parameters = state['parameters']
         self.data = state['data']
-        self.weights = np.diag(state['weights'])
+        self.weights = state['weights']
+        if is_square(self.weights):
+            self.weights = np.diag(self.weights)
         self.projection_matrix = state['projection_matrix']
         self.rss = state['rss']
         self.press = state['press']

@@ -1,14 +1,15 @@
-from glypy.structure.glycan_composition import FrozenMonosaccharideResidue
+from glypy.structure.glycan_composition import FrozenMonosaccharideResidue, HashableGlycanComposition
 
 from glycan_profiling.database.glycan_composition_filter import GlycanCompositionFilter
+
+from typing import List, Tuple
 
 _hexose = FrozenMonosaccharideResidue.from_iupac_lite("Hex")
 _hexnac = FrozenMonosaccharideResidue.from_iupac_lite("HexNAc")
 
 
-def composition_distance(c1, c2):
-    '''N-Dimensional Manhattan Distance or L1 Norm
-    '''
+def composition_distance(c1: HashableGlycanComposition, c2: HashableGlycanComposition) -> Tuple[int, float]:
+    """N-Dimensional Manhattan Distance or L1 Norm"""
     keys = set(c1) | set(c2)
     distance = 0.0
     try:
@@ -27,6 +28,7 @@ n_glycan_distance = composition_distance
 
 
 class CompositionSpace(object):
+    filter: GlycanCompositionFilter
 
     def __init__(self, members):
         self.filter = GlycanCompositionFilter(members)
@@ -35,7 +37,7 @@ class CompositionSpace(object):
     def monosaccharides(self):
         return self.filter.monosaccharides
 
-    def find_narrowly_related(self, composition, window=1):
+    def find_narrowly_related(self, composition: HashableGlycanComposition, window: int=1) -> List:
         partitions = []
         for i in range(len(self.monosaccharides)):
             j = 0

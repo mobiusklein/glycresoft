@@ -1,12 +1,5 @@
-try:
-    from StringIO import StringIO
-except ImportError:
-    from io import StringIO
-
-try:
-    basestring
-except NameError:
-    basestring = (str, bytes)
+from io import StringIO
+from typing import Union, Protocol
 
 from glycopeptidepy import HashableGlycanComposition
 from glycopeptidepy.utils import simple_repr
@@ -14,11 +7,21 @@ from glycopeptidepy.utils import simple_repr
 from glycan_profiling import symbolic_expression
 
 
+class HasGlycanComposition(Protocol):
+    glycan_composition: HashableGlycanComposition
+
+
+AsGlycanComposition = Union[HashableGlycanComposition, str, HasGlycanComposition]
+
+
 class CompositionRuleBase(object):
 
     __repr__ = simple_repr
 
-    def get_composition(self, obj):
+    def __call__(self, obj: AsGlycanComposition) -> bool:
+        raise NotImplementedError()
+
+    def get_composition(self, obj: AsGlycanComposition) -> symbolic_expression.GlycanSymbolContext:
         try:
             composition = obj.glycan_composition
         except AttributeError:
@@ -118,7 +121,7 @@ class CompositionRangeRule(CompositionRuleBase):
     def get_symbols(self):
         return self.expression.get_symbols()
 
-    def __call__(self, obj):
+    def __call__(self, obj: AsGlycanComposition) -> bool:
         composition = self.get_composition(obj)
         if composition.partially_defined(self.expression):
             if self.low is None:
@@ -177,7 +180,7 @@ class CompositionRatioRule(CompositionRuleBase):
     def get_symbols(self):
         return (self.numerator, self.denominator)
 
-    def __call__(self, obj):
+    def __call__(self, obj: AsGlycanComposition) -> bool:
         composition = self.get_composition(obj)
         val = composition[self.numerator]
         ref = composition[self.denominator]
@@ -217,7 +220,7 @@ class CompositionRuleClassifier(object):
     def __iter__(self):
         return iter(self.rules)
 
-    def __call__(self, obj):
+    def __call__(self, obj: AsGlycanComposition) -> bool:
         for rule in self:
             if not rule(obj):
                 return False

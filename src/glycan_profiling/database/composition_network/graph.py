@@ -5,8 +5,6 @@ from typing import Callable, Dict, List, Optional, Tuple, Union
 
 import numpy as np
 
-basestring = (str, bytes)
-
 from glypy.composition import composition_transform
 from glypy.structure.glycan_composition import FrozenMonosaccharideResidue, GlycanComposition
 
@@ -34,7 +32,7 @@ class CompositionNormalizer(object):
         self.cache = cache
 
     def _normalize_key(self, key: Union[str, GlycanCompositionProxy, GlycanComposition]) -> HashableGlycanComposition:
-        if isinstance(key, basestring):
+        if isinstance(key, str):
             key = HashableGlycanComposition.parse(key)
         return HashableGlycanComposition(
             {self._normalize_monosaccharide(k): v for k, v in key.items()})
@@ -45,8 +43,9 @@ class CompositionNormalizer(object):
             key = key.copy_underivatized()
         return key
 
-    def _get_solution(self, key: Union[HashableGlycanComposition, str, GlycanComposition, GlycanComposition]) -> HashableGlycanComposition:
-        if isinstance(key, (basestring, HashableGlycanComposition)):
+    def _get_solution(self, key: Union[HashableGlycanComposition, str,
+                                       GlycanComposition, GlycanCompositionProxy]) -> HashableGlycanComposition:
+        if isinstance(key, (str, HashableGlycanComposition)):
             try:
                 return self.cache[key]
             except KeyError:
@@ -529,7 +528,7 @@ class CompositionGraph(CompositionGraphBase):
         return self._composition_normalizer(composition)
 
     def __getitem__(self, key):
-        if isinstance(key, (basestring, GlycanComposition, GlycanCompositionProxy)):
+        if isinstance(key, (str, GlycanComposition, GlycanCompositionProxy)):
             key = self.normalize_composition(key)
             return self.node_map[key]
         # use the ABC Integral to catch all numerical types that could be used as an
