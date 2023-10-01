@@ -3,7 +3,7 @@ import threading
 import multiprocessing
 
 from queue import Empty
-from typing import IO, List, Dict, Deque, Union
+from typing import IO, List, Deque, Union
 
 import urllib3
 from ms_deisotope.data_source._compression import get_opener

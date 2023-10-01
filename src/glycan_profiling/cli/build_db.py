@@ -17,8 +17,7 @@ from glycan_profiling.cli.validators import (
     validate_mzid_proteins,
     GlycanHypothesisCopier,
     DatabaseConnectionParam,
-    SubstituentParamType,
-    synthesis_register)
+    SubstituentParamType)
 
 from glycan_profiling.cli.utils import ctxstream
 
@@ -60,6 +59,8 @@ from glycan_profiling.database.composition_network import (
     make_n_glycan_neighborhoods,
     make_adjacency_neighborhoods,
     make_mammalian_n_glycan_neighborhoods)
+
+from glycan_profiling.database.builder.glycan.synthesis import synthesis_register
 
 from glycopeptidepy.enzyme import enzyme_rules
 from glycopeptidepy.utils.collectiontools import decoratordict
