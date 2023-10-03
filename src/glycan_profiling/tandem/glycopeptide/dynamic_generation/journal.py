@@ -13,7 +13,6 @@ from collections import defaultdict
 from operator import attrgetter
 from typing import Any, Callable, DefaultDict, Dict, List, Optional, Set, Type, Union, TYPE_CHECKING, BinaryIO
 
-from six import PY2
 
 import numpy as np
 
@@ -49,30 +48,22 @@ if TYPE_CHECKING:
 
 def _zstdopen(path, mode='w'):
     handle = ZstdFile(path, mode=mode.replace('t', 'b'))
-    if not PY2:
-        return io.TextIOWrapper(handle, encoding='utf8')
-    return handle
+    return io.TextIOWrapper(handle, encoding='utf8')
 
 
 def _zstwrap(fh, mode='w'):
     handle = ZstdFile(fh, mode=mode)
-    if not PY2:
-        return io.TextIOWrapper(handle, encoding='utf8')
-    return handle
+    return io.TextIOWrapper(handle, encoding='utf8')
 
 
 def _gzopen(path, mode='w'):
     handle = gzip.open(path, mode=mode.replace('t', 'b'))
-    if not PY2:
-        return io.TextIOWrapper(handle, encoding='utf8')
-    return handle
+    return io.TextIOWrapper(handle, encoding='utf8')
 
 
 def _gzwrap(fh, mode='w'):
     handle = gzip.GzipFile(fileobj=fh, mode=mode)
-    if not PY2:
-        return io.TextIOWrapper(handle, encoding='utf8')
-    return handle
+    return io.TextIOWrapper(handle, encoding='utf8')
 
 
 if ZstdFile is None:
@@ -532,6 +523,9 @@ class JournalSetLoader(TaskBase):
                       stub_wrapping: bool=True,
                       score_set_type: Optional[Type[ScoreSet]]=None,
                       **journal_reader_args):
+        from glycan_profiling.serialize import AnalysisDeserializer
+        if isinstance(analysis, AnalysisDeserializer):
+            analysis = analysis.analysis
         mass_shift_map = {
             m.name: m for m in analysis.parameters['mass_shifts']}
         if scan_loader is None:
