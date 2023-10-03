@@ -370,7 +370,6 @@ class Peptide(PeptideBase, HasChemicalComposition, Base):
 
     sequence_length = Column(Integer)
 
-    peptide_modifications = Column(String(128))
     n_glycosylation_sites = Column(MutableList.as_mutable(JSONType))
     o_glycosylation_sites = Column(MutableList.as_mutable(JSONType))
     gagylation_sites = Column(MutableList.as_mutable(JSONType))

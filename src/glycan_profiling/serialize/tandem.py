@@ -23,17 +23,12 @@ from .hypothesis import Glycopeptide, GlycanComposition
 from .chromatogram import CompoundMassShift
 from .spectrum import (
     Base, MSScan)
-from .utils import chunkiter
+from .utils import chunkiter, needs_migration
 
 def convert_scan_to_record(scan):
     return ScanInformation(
         scan.scan_id, scan.index, scan.scan_time,
         scan.ms_level, scan.precursor_information.convert())
-
-
-def needs_migration(colprop, default=None):
-    colprop.info['needs_migration'] = {'default': default}
-    return colprop
 
 
 class SpectrumMatchBase(BoundToAnalysis):

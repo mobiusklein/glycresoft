@@ -325,3 +325,7 @@ def has_column(connection: Connection, tablename: str, column: str) -> bool:
         warnings.warn("Could not determine how to check if column exists!")
         return False
 
+
+def needs_migration(colprop, default=None):
+    colprop.info['needs_migration'] = {'default': default}
+    return colprop
