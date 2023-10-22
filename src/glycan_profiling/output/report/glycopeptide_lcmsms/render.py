@@ -166,6 +166,15 @@ class IdentifiedGlycopeptideDescriberBase(object):
                         self.database_connection._original_connection))
             self.scan_loader = ProcessedMSFileLoader(self.mzml_path)
 
+    def draw_glycoforms(self, glycoprotein: IdentifiedGlycoprotein) -> str:
+        ax = figax()
+        layout = GlycoformLayout(
+            glycoprotein, glycoprotein.identified_glycopeptides, ax=ax)
+        layout.draw()
+        svg = layout.to_svg(scale=2.0, height_padding_scale=1.1)
+        svg = svg_optimizer(svg.decode('utf8')).decode('utf8')
+        return svg
+
 
 class IdentifiedGlycopeptideDescriberWorker(IdentifiedGlycopeptideDescriberBase):
 
@@ -180,10 +189,12 @@ class IdentifiedGlycopeptideDescriberWorker(IdentifiedGlycopeptideDescriberBase)
 
 class GlycopeptideDatabaseSearchReportCreator(ReportCreatorBase, IdentifiedGlycopeptideDescriberBase):
     threshold: float
+    fdr_threshold: float
     use_dynamic_display_mode: int
     hypothesis_id: int
 
     def __init__(self, database_path, analysis_id, stream=None, threshold=5,
+                 fdr_threshold=1,
                  mzml_path=None):
         super(GlycopeptideDatabaseSearchReportCreator, self).__init__(
             database_path, analysis_id, stream)
@@ -191,6 +202,7 @@ class GlycopeptideDatabaseSearchReportCreator(ReportCreatorBase, IdentifiedGlyco
         self.mzml_path = mzml_path
         self.scan_loader = None
         self.threshold = threshold
+        self.fdr_threshold = fdr_threshold
         self._total_glycopeptides = None
         self.use_dynamic_display_mode = 0
         self.analysis = self.session.query(serialize.Analysis).get(self.analysis_id)
@@ -228,6 +240,7 @@ class GlycopeptideDatabaseSearchReportCreator(ReportCreatorBase, IdentifiedGlyco
             Protein.name, Protein.id, func.count(IdentifiedGlycopeptide.id)).join(Protein.glycopeptides).join(
             IdentifiedGlycopeptide, IdentifiedGlycopeptide.structure_id == Glycopeptide.id).group_by(Protein.id).filter(
             IdentifiedGlycopeptide.ms2_score > self.threshold,
+            IdentifiedGlycopeptide.q_value < self.fdr_threshold,
             IdentifiedGlycopeptide.analysis_id == self.analysis_id).all()
         listing = []
         index = {}
@@ -259,6 +272,7 @@ class GlycopeptideDatabaseSearchReportCreator(ReportCreatorBase, IdentifiedGlyco
                     IdentifiedGlycopeptide.analysis_id == self.analysis_id,
                     Glycopeptide.hypothesis_id == self.hypothesis_id,
                     IdentifiedGlycopeptide.ms2_score > self.threshold,
+                    IdentifiedGlycopeptide.q_value < self.fdr_threshold,
                     Protein.id == protein.id).all()
             glycoprotein = IdentifiedGlycoprotein(protein, glycopeptides)
             self.status_update(
@@ -283,12 +297,6 @@ class GlycopeptideDatabaseSearchReportCreator(ReportCreatorBase, IdentifiedGlyco
                 axes[site, glyco_type] = svguri_plot(ax, bbox_inches='tight')
         return axes
 
-    def draw_glycoforms(self, glycoprotein):
-        ax = figax()
-        layout = GlycoformLayout(glycoprotein, glycoprotein.identified_glycopeptides, ax=ax)
-        layout.draw()
-        svg = layout.to_svg(scale=2.0, height_padding_scale=1.1)
-        return svg_optimizer(svg.decode('utf8')).decode('utf8')
 
     def fdr_estimator_plot(self):
         fdr_estimator = self.fdr_estimator

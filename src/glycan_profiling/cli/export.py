@@ -233,7 +233,9 @@ def glycopeptide_identification(database_connection, analysis_identifier, output
                              mzml_path))
             job = GlycopeptideDatabaseSearchReportCreator(
                 database_connection._original_connection, analysis_id,
-                stream=output_stream, threshold=threshold,
+                stream=output_stream,
+                threshold=threshold,
+                fdr_threshold=fdr_threshold,
                 mzml_path=mzml_path)
             job.run()
     else:
