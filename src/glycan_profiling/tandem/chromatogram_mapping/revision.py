@@ -497,7 +497,7 @@ class SpectrumMatchUpdater(SpectrumMatchBackFiller):
                             f" RT score is {rt_score:0.3f}")
                     elif not np.isnan(alt_rt_score) and np.isnan(rt_score):
                         self.log(
-                            f"RT score alternateive {r.solution} is {alt_rt_score:0.3f}, reference"
+                            f"RT score alternative {r.solution} is {alt_rt_score:0.3f}, reference"
                             f" {structure} RT score is NaN")
                     # If either is NaN, this is always false, so we never invalidate a NaN-predicted case.
                     if (rt_score - alt_rt_score) > self.retention_time_delta:

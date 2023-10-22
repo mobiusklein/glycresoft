@@ -136,7 +136,7 @@ class ScanInformation(object):
 
     __slots__ = ("id", "index", "scan_time", "ms_level",
                  "precursor_information", "activation",
-                 "__weakref__")
+                 "title", "__weakref__")
 
     id: str
     index: int
@@ -144,18 +144,20 @@ class ScanInformation(object):
     ms_level: int
     precursor_information: PrecursorInformation
     activation: ActivationInformation
+    title: str
 
-    def __init__(self, scan_id, index, scan_time, ms_level, precursor_information, activation=None):
+    def __init__(self, scan_id, index, scan_time, ms_level, precursor_information, activation=None, title=None):
         self.id = scan_id
         self.index = index
         self.scan_time = scan_time
         self.ms_level = ms_level
         self.precursor_information = precursor_information
         self.activation = activation
+        self.title = title
 
     def __reduce__(self):
         return self.__class__, (self.id, self.index, self.scan_time, self.ms_level,
-                                self.precursor_information, self.activation)
+                                self.precursor_information, self.activation, self.title)
 
     @property
     def scan_id(self):
@@ -165,11 +167,11 @@ class ScanInformation(object):
     def from_scan(cls, scan):
         return cls(
             scan.scan_id, scan.index, scan.scan_time, scan.ms_level,
-            scan.precursor_information, scan.activation)
+            scan.precursor_information, scan.activation, scan.title)
 
     def __repr__(self):
         template = ("{self.__class__.__name__}({self.id}, {self.index}, {self.scan_time}, "
-                    "{self.ms_level}, {self.precursor_information}, {self.activation})")
+                    "{self.ms_level}, {self.precursor_information}, {self.activation}, {self.title})")
         return template.format(self=self)
 
 

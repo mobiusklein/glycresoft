@@ -1,4 +1,5 @@
 from collections import defaultdict
+from contextlib import contextmanager
 from typing import Dict, Optional, Tuple, Union
 from ms_deisotope import DeconvolutedPeak
 
@@ -50,10 +51,10 @@ class ChromatogramExtractor(TaskBase):
         self.base_peak_chromatogram = None
         self.total_ion_chromatogram = None
 
-    def get_scan_by_id(self, scan_id):
+    def get_scan_by_id(self, scan_id: str):
         return self.peak_loader.get_scan_by_id(scan_id)
 
-    def get_scan_header_by_id(self, scan_id):
+    def get_scan_header_by_id(self, scan_id: str):
         return self.peak_loader.get_scan_header_by_id(scan_id)
 
     def get_index_information_by_scan_id(self, scan_id: str) -> dict:
@@ -61,6 +62,14 @@ class ChromatogramExtractor(TaskBase):
 
     def scan_id_to_rt(self, scan_id: str) -> float:
         return self.peak_loader.convert_scan_id_to_retention_time(scan_id)
+
+    @contextmanager
+    def toggle_peak_loading(self):
+        if hasattr(self.peak_loader, 'toggle_peak_loading'):
+            with self.peak_loader.toggle_peak_loading():
+                yield
+        else:
+            yield
 
     def load_peaks(self):
         accumulated = self.peak_loader.ms1_peaks_above(min(500.0, self.minimum_mass), self.minimum_intensity)

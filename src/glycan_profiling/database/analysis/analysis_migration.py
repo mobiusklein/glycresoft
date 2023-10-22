@@ -73,8 +73,11 @@ def fetch_scans_used_in_chromatogram(chromatogram_set: List[Chromatogram],
             scan_ids.add(tsm.scan.precursor_information.precursor_scan_id)
 
     scans = []
-    for scan_id in scan_ids:
-        scans.append(extractor.get_scan_header_by_id(scan_id))
+    with extractor.toggle_peak_loading():
+        for scan_id in scan_ids:
+            scans.append(
+                ScanInformation.from_scan(extractor.get_scan_header_by_id(scan_id))
+            )
     return sorted(scans, key=lambda x: (x.ms_level, x.index))
 
 
@@ -530,24 +533,25 @@ class GlycopeptideMSMSAnalysisSerializer(AnalysisMigrationBase):
     def fetch_scans(self):
         scan_ids = set()
         precursor_ids = dict()
-        for glycopeptide in self._identified_glycopeptide_set:
-            if glycopeptide.chromatogram is not None:
-                scan_ids.update(glycopeptide.chromatogram.scan_ids)
-            for msms in glycopeptide.spectrum_matches:
-                scan_ids.add(msms.scan.id)
-                try:
-                    scan_ids.add(precursor_ids[msms.scan.id])
-                except KeyError:
-                    precursor_ids[msms.scan.id] = self.chromatogram_extractor.get_scan_header_by_id(
-                        msms.scan.id).precursor_information.precursor_scan_id
-                    scan_ids.add(precursor_ids[msms.scan.id])
-        scans = []
-        for scan_id in scan_ids:
-            if scan_id is not None:
-                try:
-                    scans.append(self.chromatogram_extractor.get_scan_header_by_id(scan_id))
-                except KeyError:
-                    self.log("Could not locate scan for ID %r" % (scan_id, ))
+        with self.chromatogram_extractor.toggle_peak_loading():
+            for glycopeptide in self._identified_glycopeptide_set:
+                if glycopeptide.chromatogram is not None:
+                    scan_ids.update(glycopeptide.chromatogram.scan_ids)
+                for msms in glycopeptide.spectrum_matches:
+                    scan_ids.add(msms.scan.id)
+                    try:
+                        scan_ids.add(precursor_ids[msms.scan.id])
+                    except KeyError:
+                        precursor_ids[msms.scan.id] = self.chromatogram_extractor.get_scan_header_by_id(
+                            msms.scan.id).precursor_information.precursor_scan_id
+                        scan_ids.add(precursor_ids[msms.scan.id])
+            scans = []
+            for scan_id in scan_ids:
+                if scan_id is not None:
+                    try:
+                        scans.append(ScanInformation.from_scan(self.chromatogram_extractor.get_scan_header_by_id(scan_id)))
+                    except KeyError:
+                        self.log("Could not locate scan for ID %r" % (scan_id, ))
         return sorted(scans, key=lambda x: (x.ms_level, x.index))
 
     def _get_glycan_combination_for_glycopeptide(self, glycopeptide_id: int) -> int:
