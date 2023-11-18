@@ -209,6 +209,7 @@ def glycan_composition_identification(database_connection, analysis_identifier, 
 def glycopeptide_identification(database_connection, analysis_identifier, output_path=None,
                                 report=False, mzml_path=None, threshold=0, fdr_threshold=1):
     """Write each distinct identified glycopeptide in CSV format"""
+    # logging.getLogger('sqlalchemy.engine').setLevel(logging.INFO)
     database_connection = DatabaseBoundOperation(database_connection)
     session = database_connection.session()  # pylint: disable=not-callable
     analysis = get_by_name_or_id(session, Analysis, analysis_identifier)
@@ -259,12 +260,11 @@ def glycopeptide_identification(database_connection, analysis_identifier, output
             if fdr_threshold < 1:
                 query = query.filter(IdentifiedGlycopeptide.q_value <= fdr_threshold)
             while True:
-                session.expire_all()
+                session.expunge_all()
                 chunk = query.slice(i, i + interval).all()
                 if len(chunk) == 0:
                     break
-                click.echo("Loading %d Entities" % (i + len(chunk)), err=True)
-                chunk = IdentifiedGlycopeptide.bulk_convert(chunk)
+                # chunk = IdentifiedGlycopeptide.bulk_convert(chunk)
                 for glycopeptide in chunk:
                     yield glycopeptide
                 i += interval

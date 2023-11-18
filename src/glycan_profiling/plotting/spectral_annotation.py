@@ -13,22 +13,22 @@ from ms_peak_picker.utils import draw_peaklist
 from ms_deisotope.data_source.scan.base import ChargeNotProvided
 from ms_deisotope.data_source import ProcessedScan
 
-from .sequence_fragment_logo import glycopeptide_match_logo
+from .sequence_fragment_logo import glycopeptide_match_logo, GlycopeptideStubFragmentGlyph, PeptideFragmentGlyph
 
 if TYPE_CHECKING:
     from glycan_profiling.tandem.spectrum_match.spectrum_match import SpectrumMatcherBase
 
 
 default_ion_series_to_color = {
-    "y": 'red',
-    'z': 'maroon',
-    "b": 'blue',
-    'c': 'navy',
-    'B': 'blue',
-    'Y': 'red',
-    'oxonium_ion': 'green',
-    'stub_glycopeptide': 'goldenrod',
-    'precursor': 'orange',
+    "y": "red",
+    "z": "maroon",
+    "b": "blue",
+    "c": "navy",
+    "B": "blue",
+    "Y": "red",
+    "oxonium_ion": "green",
+    "stub_glycopeptide": "goldenrod",
+    "precursor": "orange",
 }
 
 
@@ -39,7 +39,7 @@ monosaccharide_to_symbol = {
     "dHex": "\u25B3",
     "HexN": "\u25E9",
     "NeuAc": "\u25C6",
-    "NeuGc": "\u25C7"
+    "NeuGc": "\u25C7",
 }
 
 
@@ -49,7 +49,7 @@ def format_stub_annotation(frag):
     narrow spectrum plots.
     """
     stack = []
-    base = ['Hex', 'HexNAc']
+    base = ["Hex", "HexNAc"]
     for k in sorted(frag.glycosylation, key=lambda x: x.mass(), reverse=True):
         if k not in base:
             base.append(k)
@@ -59,16 +59,14 @@ def format_stub_annotation(frag):
             continue
         stack.append(f" {monosaccharide_to_symbol[k]}{v}")
     stack.append("Pep")
-    return '\n'.join(stack)
+    return "\n".join(stack)
 
 
 if PY3:
-    font_options = font_manager.FontProperties(
-        family='sans serif')
+    font_options = font_manager.FontProperties(family="sans serif")
     font_options.set_math_fontfamily("dejavusans")
 else:
-    font_options = font_manager.FontProperties(
-        family='sans serif')
+    font_options = font_manager.FontProperties(family="sans serif")
 
 
 unicode_superscript = {
@@ -83,12 +81,12 @@ unicode_superscript = {
     "8": "\u2078",
     "9": "\u2079",
     "+": "\u207A",
-    "-": "\u207B"
+    "-": "\u207B",
 }
 
 
 def encode_superscript(number: int) -> str:
-    return ''.join([unicode_superscript[c] for c in str(number)])
+    return "".join([unicode_superscript[c] for c in str(number)])
 
 
 class SpectrumMatchAnnotator(object):
@@ -100,61 +98,70 @@ class SpectrumMatchAnnotator(object):
     upshift: float
     peak_labels: List[plt.Text]
     intensity_scale: float
+    use_glyphs: bool
 
-    def __init__(self, spectrum_match: "SpectrumMatcherBase", ax: Optional[axes.Axes]=None,
-                 clip_labels: bool=True, usemathtext: bool=False, normalize: bool=False):
+    def __init__(
+        self,
+        spectrum_match: "SpectrumMatcherBase",
+        ax: Optional[axes.Axes] = None,
+        clip_labels: bool = True,
+        usemathtext: bool = False,
+        normalize: bool = False,
+        use_glyphs=False,
+    ):
         if ax is None:
             _, ax = plt.subplots(1)
         self.spectrum_match = spectrum_match
         self.ax = ax
         self.clip_labels = clip_labels
-        self.upper = max(
-            spectrum_match.spectrum, key=lambda x: x.intensity
-        ).intensity * 1.35
+        self.upper = max(spectrum_match.spectrum, key=lambda x: x.intensity).intensity * 1.35
         self.peak_labels = []
         self.upshift = 10
         self.sequence_logo = None
         self.usemathtext = usemathtext
         self.normalize = normalize
         self.intensity_scale = 1.0
+        self.use_glyphs = use_glyphs
         if self.normalize:
-            self.intensity_scale = max(
-                spectrum_match.spectrum, key=lambda x: x.intensity
-            ).intensity
+            self.intensity_scale = max(spectrum_match.spectrum, key=lambda x: x.intensity).intensity
+        self._compute_scale()
 
-    def draw_all_peaks(self, color='grey', alpha=0.5, **kwargs):
-        draw_peaklist(
-            self.spectrum_match.deconvoluted_peak_set,
-            alpha=0.3, color=color, ax=self.ax, **kwargs)
+    def _compute_scale(self):
+        peaks = self.spectrum_match.deconvoluted_peak_set
+        mzs = [p.mz for p in peaks]
+        if not mzs:
+            self.xscale = 1.0
+        else:
+            self.xscale = max(mzs) - min(mzs)
+        self.yscale = self.upper
+
+    def draw_all_peaks(self, color="grey", **kwargs):
+        draw_peaklist(self.spectrum_match.deconvoluted_peak_set, alpha=0.3, color=color, ax=self.ax, **kwargs)
         try:
-            draw_peaklist(
-                self.spectrum_match._sanitized_spectrum,
-                color=color, ax=self.ax, alpha=0.5, **kwargs)
+            draw_peaklist(self.spectrum_match._sanitized_spectrum, color=color, ax=self.ax, alpha=0.5, **kwargs)
         except AttributeError:
             pass
 
     def add_summary_labels(self, x=0.95, y=0.9):
-        prec_purity = self.spectrum_match.scan.annotations.get(
-            'precursor purity')
+        prec_purity = self.spectrum_match.scan.annotations.get("precursor purity")
         if prec_purity is not None:
             prec_purity = "%0.2f" % prec_purity
         else:
-            prec_purity = '-'
+            prec_purity = "-"
 
         prec_z = self.spectrum_match.precursor_information.charge
         if prec_z is None or prec_z == ChargeNotProvided:
-            prec_z = '-'
+            prec_z = "-"
         else:
             prec_z = str(prec_z)
 
         self.ax.text(
-            x, y,
-            "Isolation Purity: %s\nPrec. Z: %s" % (
-                prec_purity,
-                prec_z),
+            x,
+            y,
+            "Isolation Purity: %s\nPrec. Z: %s" % (prec_purity, prec_z),
             transform=self.ax.transAxes,
-            ha='right',
-            color='darkslategrey'
+            ha="right",
+            color="darkslategrey",
         )
 
     def label_peak(self, fragment, peak, fontsize=12, rotation=90, **kw):
@@ -169,26 +176,57 @@ class SpectrumMatchAnnotator(object):
         y = min(y + upshift, self.upper * 0.9)
 
         kw.setdefault("clip_on", self.clip_labels)
-        clip_on = kw['clip_on']
+        clip_on = kw["clip_on"]
 
-        text = self.ax.text(
-            peak.mz, y if not self.normalize else y / self.intensity_scale, label,
-            rotation=rotation,
-            va='bottom',
-            ha='center',
-            fontsize=fontsize,
-            fontproperties=font_options,
-            clip_on=clip_on,
-            parse_math=self.usemathtext
+        if self.use_glyphs and fragment.series == "stub_glycopeptide":
+            art = GlycopeptideStubFragmentGlyph(
+                peak.mz,
+                y if not self.normalize else y / self.intensity_scale,
+                self.ax,
+                fragment,
+                self.xscale,
+                self.yscale,
+                peak.charge,
+                size=fontsize * 2,
             )
-        self.peak_labels.append(text)
-        return text
+            art.render()
+            self.peak_labels.append(art)
+            return art
+        elif self.use_glyphs and fragment.series in ("b", "y", "c", "z"):
+            art = PeptideFragmentGlyph(
+                peak.mz,
+                y if not self.normalize else y / self.intensity_scale,
+                self.ax,
+                fragment,
+                self.xscale,
+                self.yscale,
+                peak.charge,
+                size=fontsize * 2,
+            )
+            art.render()
+            self.peak_labels.append(art)
+            return art
+        else:
+            text = self.ax.text(
+                peak.mz,
+                y if not self.normalize else y / self.intensity_scale,
+                label,
+                rotation=rotation,
+                va="bottom",
+                ha="center",
+                fontsize=fontsize,
+                fontproperties=font_options,
+                clip_on=clip_on,
+                parse_math=self.usemathtext,
+            )
+            self.peak_labels.append(text)
+            return text
 
     def format_axes(self):
         draw_peaklist([], self.ax, pretty=True)
         self.ax.set_ylim(0, self.upper)
 
-    def draw_matched_peaks(self, color='red', alpha=0.8, fontsize=12, ion_series_to_color=None, **kwargs):
+    def draw_matched_peaks(self, color="red", alpha=0.8, fontsize=12, ion_series_to_color=None, **kwargs):
         if ion_series_to_color is None:
             ion_series_to_color = {}
         try:
@@ -207,7 +245,7 @@ class SpectrumMatchAnnotator(object):
             draw_peaklist([peak], alpha=alpha, ax=self.ax, color=peak_color)
             self.label_peak(fragment, peak, fontsize=fontsize, **kwargs)
 
-    def draw_spectrum_graph(self, color='red', alpha=0.8, fontsize=12, **kwargs):
+    def draw_spectrum_graph(self, color="red", alpha=0.8, fontsize=12, **kwargs):
         try:
             graph = self.spectrum_match.spectrum_graph
         except AttributeError:
@@ -217,16 +255,14 @@ class SpectrumMatchAnnotator(object):
 
         for path in paths:
             for edge in path:
-                self.draw_peak_pair((edge.start, edge.end), color, alpha, fontsize,
-                                    label=edge.annotation, **kwargs)
+                self.draw_peak_pair((edge.start, edge.end), color, alpha, fontsize, label=edge.annotation, **kwargs)
 
-    def draw_peak_pair(self, pair, color='red', alpha=0.8, fontsize=12, label=None, rotation=45, **kwargs):
+    def draw_peak_pair(self, pair, color="red", alpha=0.8, fontsize=12, label=None, rotation=45, **kwargs):
         p1, p2 = pair
-        self.ax.plot((p1.mz, p2.mz), (p1.intensity, p2.intensity),
-                     color=color, alpha=alpha, **kwargs)
+        self.ax.plot((p1.mz, p2.mz), (p1.intensity, p2.intensity), color=color, alpha=alpha, **kwargs)
         kwargs.setdefault("clip_on", self.clip_labels)
-        clip_on = kwargs['clip_on']
-        draw_peaklist(pair, ax=self.ax, alpha=0.4, color='orange')
+        clip_on = kwargs["clip_on"]
+        draw_peaklist(pair, ax=self.ax, alpha=0.4, color="orange")
         if label:
             # pylint: disable=assignment-from-no-return
             midx = (p1.mz + p2.mz) / 2
@@ -244,26 +280,27 @@ class SpectrumMatchAnnotator(object):
             rotation = np.arccos(adj / hypot)
 
             if isinstance(label, (list, tuple)):
-                label = '-'.join(map(str, label))
+                label = "-".join(map(str, label))
             else:
                 label = str(label)
-            text = self.ax.text(midx, midy, label, fontsize=fontsize,
-                         ha='center', va='bottom', rotation=rotation, clip_on=clip_on)
-            text.set_path_effects([
-                path_effects.Stroke(linewidth=0.5, foreground="white"),
-                path_effects.Normal(),
-            ])
+            text = self.ax.text(
+                midx, midy, label, fontsize=fontsize, ha="center", va="bottom", rotation=rotation, clip_on=clip_on
+            )
+            text.set_path_effects(
+                [
+                    path_effects.Stroke(linewidth=0.5, foreground="white"),
+                    path_effects.Normal(),
+                ]
+            )
 
     def draw(self, **kwargs):
-        fontsize = kwargs.pop('fontsize', 9)
+        fontsize = kwargs.pop("fontsize", 9)
         rotation = kwargs.pop("rotation", 90)
         clip_labels = kwargs.pop("clip_labels", self.clip_labels)
         self.clip_labels = clip_labels
         ion_series_to_color = kwargs.pop("ion_series_to_color", default_ion_series_to_color)
         self.draw_all_peaks(**kwargs)
-        self.draw_matched_peaks(
-            fontsize=fontsize, ion_series_to_color=ion_series_to_color,
-            rotation=rotation, **kwargs)
+        self.draw_matched_peaks(fontsize=fontsize, ion_series_to_color=ion_series_to_color, rotation=rotation, **kwargs)
         self.draw_spectrum_graph(fontsize=fontsize, rotation=rotation / 2)
         self.format_axes()
         return self
@@ -276,21 +313,23 @@ class SpectrumMatchAnnotator(object):
         return logo
 
     def _draw_mass_accuracy_plot(self, ax, error_tolerance=2e-5, **kwargs):
-        ion_series_to_color = kwargs.pop(
-            "ion_series_to_color", default_ion_series_to_color)
+        ion_series_to_color = kwargs.pop("ion_series_to_color", default_ion_series_to_color)
         match = self.spectrum_match
-        ax.scatter(*zip(*[(pp.peak.mz, pp.mass_accuracy()) for pp in match.solution_map]),
-                alpha=0.5, edgecolor='black', color=[
-                    ion_series_to_color[pp.fragment.series] for pp in match.solution_map])
+        ax.scatter(
+            *zip(*[(pp.peak.mz, pp.mass_accuracy()) for pp in match.solution_map]),
+            alpha=0.5,
+            edgecolor="black",
+            color=[ion_series_to_color[pp.fragment.series] for pp in match.solution_map],
+        )
         limits = error_tolerance
         ax.set_ylim(-limits, limits)
         xlim = 0, max(match.deconvoluted_peak_set, key=lambda x: x.mz).mz + 100
-        ax.hlines(0, *xlim, linestyle='--', color='black', lw=0.75)
-        ax.hlines(limits / 2, *xlim, linestyle='--', lw=0.5, color='black')
-        ax.hlines(-limits / 2, *xlim, linestyle='--', lw=0.5, color='black')
+        ax.hlines(0, *xlim, linestyle="--", color="black", lw=0.75)
+        ax.hlines(limits / 2, *xlim, linestyle="--", lw=0.5, color="black")
+        ax.hlines(-limits / 2, *xlim, linestyle="--", lw=0.5, color="black")
         ax.set_xlim(*xlim)
         labels = ax.get_yticks()
-        labels = ['%0.2g' % (label * 1e6) for label in labels]
+        labels = ["%0.2g" % (label * 1e6) for label in labels]
         ax.set_yticklabels(labels)
         ax.set_xlabel("m/z", fontsize=10)
         ax.set_ylabel("Mass Accuracy (PPM)", fontsize=10)
@@ -303,7 +342,7 @@ class SpectrumMatchAnnotator(object):
 class TidySpectrumMatchAnnotator(SpectrumMatchAnnotator):
     def label_peak(self, fragment, peak, fontsize=12, rotation=90, **kw):
         min_intensity = 0.02 * (self.upper / 1.35)
-        if fragment.series == 'oxonium_ion':
+        if fragment.series == "oxonium_ion":
             if peak.intensity < min_intensity:
                 return
         super(TidySpectrumMatchAnnotator, self).label_peak(fragment, peak, fontsize, rotation, **kw)
@@ -312,8 +351,7 @@ class TidySpectrumMatchAnnotator(SpectrumMatchAnnotator):
 def normalize_scan(scan: ProcessedScan, factor=None):
     scan = scan.copy()
     scan.annotations.pop("peak_label_map", None)
-    scan.deconvoluted_peak_set = scan.deconvoluted_peak_set.__class__(
-        p.clone() for p in scan.deconvoluted_peak_set)
+    scan.deconvoluted_peak_set = scan.deconvoluted_peak_set.__class__(p.clone() for p in scan.deconvoluted_peak_set)
     bp = scan.base_peak()
     if factor is None:
         factor = bp.intensity / 1000
@@ -323,15 +361,19 @@ def normalize_scan(scan: ProcessedScan, factor=None):
 
 
 class MirrorSpectrumAnnotatorFacet(TidySpectrumMatchAnnotator):
-
-    def draw_all_peaks(self, color='black', alpha=0.5, mirror=False, **kwargs):
+    def draw_all_peaks(self, color="black", alpha=0.5, mirror=False, **kwargs):
         draw_peaklist(
-            self.spectrum_match.deconvoluted_peak_set if not mirror else [
-                [p.mz, -p.intensity] for p in self.spectrum_match.deconvoluted_peak_set
-            ],
-            alpha=0.3, color='grey', ax=self.ax, lw=0.75, **kwargs)
+            self.spectrum_match.deconvoluted_peak_set
+            if not mirror
+            else [[p.mz, -p.intensity] for p in self.spectrum_match.deconvoluted_peak_set],
+            alpha=0.3,
+            color="grey",
+            ax=self.ax,
+            lw=0.75,
+            **kwargs,
+        )
 
-    def draw_matched_peaks(self, color='red', alpha=0.8, fontsize=12, ion_series_to_color=None, mirror=False, **kwargs):
+    def draw_matched_peaks(self, color="red", alpha=0.8, fontsize=12, ion_series_to_color=None, mirror=False, **kwargs):
         if ion_series_to_color is None:
             ion_series_to_color = {}
         try:
@@ -344,18 +386,17 @@ class MirrorSpectrumAnnotatorFacet(TidySpectrumMatchAnnotator):
             except AttributeError:
                 peak_color = ion_series_to_color.get(fragment.kind, color)
             draw_peaklist(
-                [peak] if not mirror else [(peak.mz, -peak.intensity)],
-                alpha=alpha, ax=self.ax, color=peak_color)
-            self.label_peak(fragment, peak, fontsize=fontsize,
-                            mirror=mirror, **kwargs)
+                [peak] if not mirror else [(peak.mz, -peak.intensity)], alpha=alpha, ax=self.ax, color=peak_color
+            )
+            self.label_peak(fragment, peak, fontsize=fontsize, mirror=mirror, **kwargs)
 
     def base_peak_factor(self):
         return self.spectrum_match.scan.base_peak().intensity / 100
 
     def label_peak(self, fragment, peak, fontsize=12, rotation=90, mirror=False, **kw):
         label = "%s" % fragment.name
-        if fragment.series == 'oxonium_ion':
-            return ''
+        if fragment.series == "oxonium_ion":
+            return ""
         if peak.charge > 1:
             if self.usemathtext:
                 label += f"$^{peak.charge}$"
@@ -370,26 +411,32 @@ class MirrorSpectrumAnnotatorFacet(TidySpectrumMatchAnnotator):
             y = -y
 
         kw.setdefault("clip_on", self.clip_labels)
-        clip_on = kw['clip_on']
+        clip_on = kw["clip_on"]
 
         text = self.ax.text(
-            peak.mz, y, label, rotation=rotation, va='bottom' if not mirror else 'top',
-            ha='center', fontsize=fontsize, fontproperties=font_options,
-            clip_on=clip_on)
+            peak.mz,
+            y,
+            label,
+            rotation=rotation,
+            va="bottom" if not mirror else "top",
+            ha="center",
+            fontsize=fontsize,
+            fontproperties=font_options,
+            clip_on=clip_on,
+        )
         self.peak_labels.append(text)
         return text
 
     def draw(self, mirror=False, **kwargs):
-        fontsize = kwargs.pop('fontsize', 9)
+        fontsize = kwargs.pop("fontsize", 9)
         rotation = kwargs.pop("rotation", 90)
         clip_labels = kwargs.pop("clip_labels", self.clip_labels)
         self.clip_labels = clip_labels
-        ion_series_to_color = kwargs.pop(
-            "ion_series_to_color", default_ion_series_to_color)
+        ion_series_to_color = kwargs.pop("ion_series_to_color", default_ion_series_to_color)
         self.draw_all_peaks(mirror=mirror, **kwargs)
         self.draw_matched_peaks(
-            fontsize=fontsize, ion_series_to_color=ion_series_to_color,
-            rotation=rotation, mirror=mirror, **kwargs)
+            fontsize=fontsize, ion_series_to_color=ion_series_to_color, rotation=rotation, mirror=mirror, **kwargs
+        )
         self.draw_spectrum_graph(fontsize=fontsize, rotation=rotation / 2)
         self.format_axes()
         return self
@@ -403,6 +450,5 @@ def mirror_spectra(psm_a, psm_b):
     reflect.ax.set_ylim(-1500, 1200)
     ax = art.ax
     ax.set_yticks(np.arange(-1000, 1000 + 250, 250))
-    ax.set_yticklabels(map(lambda x: str(x) + '%',
-                           list(range(100, -25, -25)) + list(range(25, 125, 25))))
+    ax.set_yticklabels(map(lambda x: str(x) + "%", list(range(100, -25, -25)) + list(range(25, 125, 25))))
     return art.ax, art, reflect

@@ -715,6 +715,9 @@ class ChromatogramWrapper(object):
             raise MissingChromatogramError()
         return self.chromatogram
 
+    def has_chromatogram(self):
+        return self.chromatogram is None
+
     def integrate(self):
         return self._get_chromatogram().integrate()
 
@@ -838,7 +841,7 @@ class ChromatogramSolution(Base, BoundToAnalysis, ScoredChromatogram, Chromatogr
     composition_group_id = Column(Integer, ForeignKey(
         CompositionGroup.id, ondelete='CASCADE'), index=True)
 
-    chromatogram = relationship(Chromatogram, lazy='joined')
+    chromatogram = relationship(Chromatogram, lazy='select')
     composition_group = relationship(CompositionGroup)
 
     def get_chromatogram(self):

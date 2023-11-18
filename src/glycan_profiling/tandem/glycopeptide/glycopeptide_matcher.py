@@ -16,6 +16,8 @@ from ..temp_store import TempFileManager, SpectrumMatchStore
 from ..chromatogram_mapping import ChromatogramMSMSMapper
 from ..workflow import (format_identification_batch, chunkiter, SearchEngineBase)
 
+from ..oxonium_ions import OxoniumFilterReport, OxoniumFilterState
+
 from .matcher import (
     TargetDecoyInterleavingGlycopeptideMatcher,
     ComparisonGlycopeptideMatcher)
@@ -169,7 +171,7 @@ class GlycopeptideDatabaseSearchIdentifier(SearchEngineBase):
         if self.use_peptide_mass_filter:
             self._peptide_mass_filter = self._make_peptide_mass_filter(
                 kwargs.get("error_tolerance", 1e-5))
-
+        oxonium_report = OxoniumFilterReport()
         self.log("Writing Matches To %r" % (self.file_manager,))
         for scan_collection in chunkiter(self.tandem_scans, batch_size):
             count += len(scan_collection)
@@ -194,6 +196,7 @@ class GlycopeptideDatabaseSearchIdentifier(SearchEngineBase):
             # next iteration
             t = []
             d = []
+            oxonium_report.extend(evaluator.oxonium_ion_report)
 
         self.log('Search Done')
         target_hits.close()

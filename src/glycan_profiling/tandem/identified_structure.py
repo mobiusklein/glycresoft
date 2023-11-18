@@ -331,6 +331,9 @@ class IdentifiedStructure(object):
                 return sset
         raise KeyError(scan_id)
 
+    def has_chromatogram(self):
+        return self.chromatogram is not None
+
 ChromatogramInterface.register(IdentifiedStructure)
 
 

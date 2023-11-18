@@ -22,7 +22,7 @@ from glycan_profiling.structure.structure_loader import GlycanAwareGlycopeptideF
 
 from ..spectrum_evaluation import TandemClusterEvaluatorBase, DEFAULT_WORKLOAD_MAX
 from ..process_dispatcher import SpectrumIdentificationWorkerBase
-from ..oxonium_ions import gscore_scanner
+from ..oxonium_ions import gscore_scanner, OxoniumFilterState, OxoniumFilterReport
 
 
 class ParserClosure(object):
@@ -201,7 +201,9 @@ class SequenceReversingGlycanFragmentPermutingGlycopeptideMatcher(GlycopeptideMa
         return SequenceReversingCachingGlycopeptideParser
 
 
-class TargetDecoyInterleavingGlycopeptideMatcher(GlycopeptideSpectrumGroupEvaluatorMixin, PeptideMassFilteringDatabaseSearchMixin, TandemClusterEvaluatorBase):
+class TargetDecoyInterleavingGlycopeptideMatcher(GlycopeptideSpectrumGroupEvaluatorMixin,
+                                                 PeptideMassFilteringDatabaseSearchMixin,
+                                                 TandemClusterEvaluatorBase):
     '''Searches a single database against all spectra, where targets are
     database matches, and decoys are the reverse of the individual target
     glycopeptides.
@@ -246,6 +248,7 @@ class TargetDecoyInterleavingGlycopeptideMatcher(GlycopeptideSpectrumGroupEvalua
             probing_range_for_missing_precursors=probing_range_for_missing_precursors,
             mass_shifts=mass_shifts, peptide_mass_filter=peptide_mass_filter,
             trust_precursor_fits=trust_precursor_fits, cache_seeds=cache_seeds)
+        self.oxonium_ion_report = OxoniumFilterReport()
 
     def filter_for_oxonium_ions(self, error_tolerance=1e-5, **kwargs):
         keep = []
@@ -265,6 +268,14 @@ class TargetDecoyInterleavingGlycopeptideMatcher(GlycopeptideSpectrumGroupEvalua
             except Exception:
                 self.error("An error occurred while calculating the G-score for \"%s\"" % scan.id)
                 ratio = 0
+            self.oxonium_ion_report.append(
+                OxoniumFilterState(
+                    scan.id,
+                    ratio,
+                    ratio >= self.minimum_oxonium_ratio,
+                    frozenset()
+                )
+            )
             scan.oxonium_score = ratio
             if ratio >= self.minimum_oxonium_ratio:
                 keep.append(scan)

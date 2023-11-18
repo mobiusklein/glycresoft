@@ -1005,6 +1005,9 @@ class ChromatogramWrapper(_TimeIntervalMethods):
         except Exception:
             return False
 
+    def has_chromatogram(self):
+        return self.chromatogram is not None
+
     @property
     def nodes(self):
         return self.chromatogram.nodes

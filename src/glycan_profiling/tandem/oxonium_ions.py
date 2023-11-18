@@ -1,5 +1,8 @@
 from collections import defaultdict
-from typing import Any, DefaultDict, Dict, List, Tuple, Union
+from typing import Any, DefaultDict, Dict, FrozenSet, Iterable, List, Tuple, Union, MutableSequence
+from statistics import median
+
+from dataclasses import dataclass, field
 
 from glycopeptidepy import PeptideSequence
 from glycopeptidepy.structure.fragment import SimpleFragment
@@ -257,3 +260,60 @@ try:
 except ImportError:
     SignatureIonIndex = object
     SignatureIonIndexMatch = object
+
+
+@dataclass(frozen=True)
+class OxoniumFilterState:
+    scan_id: str
+    g_score: float = field(hash=False)
+    g_score_pass: bool
+    oxonium_ions: FrozenSet[str]
+
+
+@dataclass
+class OxoniumFilterReport(MutableSequence[OxoniumFilterState]):
+    records: List[OxoniumFilterState] = field(default_factory=list)
+
+    def copy(self):
+        return self.__class__(self.records.copy())
+
+    def __getitem__(self, i):
+        return self.records[i]
+
+    def __setitem__(self, i, v):
+        self.records[i] = v
+
+    def __delitem__(self, i):
+        del self.records[i]
+
+    def append(self, value: OxoniumFilterState):
+        self.records.append(value)
+
+    def extend(self, values: Iterable[OxoniumFilterState]):
+        self.records.extend(values)
+
+    def insert(self, index: int, value: OxoniumFilterState):
+        self.records.insert(index, value)
+
+    def __len__(self):
+        return len(self.records)
+
+    def __iter__(self):
+        return iter(self.records)
+
+    def prepare_report(self):
+        passing: List[OxoniumFilterState] = []
+        failing = []
+        passing_scores=  []
+        for rec in self:
+            if rec.g_score_pass:
+                passing.append(rec)
+                passing_scores.append(rec.g_score)
+            else:
+                failing.append(rec)
+        {
+            "n_passing": len(passing),
+            "n_failing": len(failing),
+            "passing_distribution": passing_scores,
+            "passing_median_score": median(passing_scores) if passing_scores else None
+        }

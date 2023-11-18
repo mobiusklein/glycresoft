@@ -8,6 +8,10 @@ from six import PY2
 
 from glycan_profiling.task import TaskBase
 
+from glycan_profiling.scoring.elution_time_grouping import (
+    GlycopeptideChromatogramProxy
+)
+
 if TYPE_CHECKING:
     from glycan_profiling.serialize import Analysis
 
@@ -297,14 +301,14 @@ class GlycopeptideLCMSMSAnalysisCSVSerializer(CSVSerializerBase):
         return headers
 
     def convert_object(self, obj):
-        try:
+        has_chrom = obj.has_chromatogram()
+        if has_chrom:
             weighted_neutral_mass = obj.weighted_neutral_mass
-        except Exception:
-            weighted_neutral_mass = obj.tandem_solutions[0].scan.precursor_information.neutral_mass
-        try:
             charge_states = obj.charge_states
-        except Exception:
+        else:
+            weighted_neutral_mass = obj.tandem_solutions[0].scan.precursor_information.neutral_mass
             charge_states = (obj.tandem_solutions[0].scan.precursor_information.charge,)
+
         attribs = [
             str(obj.structure),
             self.analysis.name,
@@ -314,9 +318,9 @@ class GlycopeptideLCMSMSAnalysisCSVSerializer(CSVSerializerBase):
             obj.ms2_score,
             obj.q_value,
             obj.total_signal,
-            obj.start_time if obj.chromatogram else '',
-            obj.end_time if obj.chromatogram else '',
-            obj.apex_time if obj.chromatogram else '',
+            obj.start_time if has_chrom else '',
+            obj.end_time if has_chrom else '',
+            obj.apex_time if has_chrom else '',
             ";".join(map(str, charge_states)),
             len(obj.spectrum_matches),
             obj.protein_relation.start_position,
@@ -332,9 +336,10 @@ class GlycopeptideLCMSMSAnalysisCSVSerializer(CSVSerializerBase):
         except AttributeError:
             attribs.append(-1)
         if self.retention_time_model:
-            if obj.chromatogram:
-                rt_start, rt_end = self.retention_time_model.predict_interval(obj, 0.01)
-                rt_score = self.retention_time_model.score_interval(obj, 0.01)
+            if has_chrom:
+                proxy = GlycopeptideChromatogramProxy.from_chromatogram(obj)
+                rt_start, rt_end = self.retention_time_model.predict_interval(proxy, 0.01)
+                rt_score = self.retention_time_model.score_interval(proxy, 0.01)
                 attribs.append(rt_start)
                 attribs.append(rt_end)
                 attribs.append(rt_score)

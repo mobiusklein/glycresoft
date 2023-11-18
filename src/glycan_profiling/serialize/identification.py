@@ -1,21 +1,18 @@
 from typing import Dict, Optional
-from sqlalchemy import (
-    Column, Numeric, Integer, ForeignKey, select)
+from sqlalchemy import Column, Numeric, Integer, ForeignKey, select
 from sqlalchemy.orm import relationship, backref, object_session
 from sqlalchemy.ext.declarative import declared_attr
 from sqlalchemy.ext.hybrid import hybrid_property, hybrid_method
 
 from glycan_profiling.serialize.analysis import BoundToAnalysis
 
-from glycan_profiling.serialize.chromatogram import (
-    ChromatogramSolution,
-    ChromatogramWrapper,
-    CompoundMassShift)
+from glycan_profiling.serialize.chromatogram import ChromatogramSolution, ChromatogramWrapper, CompoundMassShift, MissingChromatogramError
 
 from glycan_profiling.serialize.tandem import (
     GlycopeptideSpectrumCluster,
     GlycopeptideSpectrumMatch,
-    GlycopeptideSpectrumSolutionSet)
+    GlycopeptideSpectrumSolutionSet,
+)
 
 from glycan_profiling.serialize.hypothesis import Glycopeptide
 
@@ -23,8 +20,7 @@ from glycan_profiling.tandem.chromatogram_mapping import TandemAnnotatedChromato
 from glycan_profiling.chromatogram_tree import GlycopeptideChromatogram
 from glycan_profiling.chromatogram_tree.utils import ArithmeticMapping
 
-from glycan_profiling.serialize.base import (
-    Base)
+from glycan_profiling.serialize.base import Base
 
 
 class IdentifiedStructure(BoundToAnalysis, ChromatogramWrapper):
@@ -36,9 +32,12 @@ class IdentifiedStructure(BoundToAnalysis, ChromatogramWrapper):
     def chromatogram_solution_id(self):
         return Column(Integer, ForeignKey(ChromatogramSolution.id, ondelete="CASCADE"), index=True)
 
+    def has_chromatogram(self):
+        return self.chromatogram_solution_id is not None
+
     @declared_attr
     def chromatogram(self):
-        return relationship(ChromatogramSolution, lazy='joined')
+        return relationship(ChromatogramSolution, lazy="select")
 
     def get_chromatogram(self):
         return self.chromatogram.get_chromatogram()
@@ -95,9 +94,7 @@ class AmbiguousGlycopeptideGroup(Base, BoundToAnalysis):
 class IdentifiedGlycopeptide(Base, IdentifiedStructure):
     __tablename__ = "IdentifiedGlycopeptide"
 
-    structure_id = Column(
-        Integer, ForeignKey(Glycopeptide.id, ondelete='CASCADE'),
-        index=True)
+    structure_id = Column(Integer, ForeignKey(Glycopeptide.id, ondelete="CASCADE"), index=True)
 
     structure = relationship(Glycopeptide)
 
@@ -105,19 +102,13 @@ class IdentifiedGlycopeptide(Base, IdentifiedStructure):
     ms2_score = Column(Numeric(12, 6, asdecimal=False), index=True)
     q_value = Column(Numeric(8, 7, asdecimal=False), index=True)
 
-    spectrum_cluster_id = Column(
-        Integer,
-        ForeignKey(GlycopeptideSpectrumCluster.id, ondelete='CASCADE'),
-        index=True)
+    spectrum_cluster_id = Column(Integer, ForeignKey(GlycopeptideSpectrumCluster.id, ondelete="CASCADE"), index=True)
 
-    spectrum_cluster = relationship(GlycopeptideSpectrumCluster, backref=backref("owners", lazy='dynamic'))
+    spectrum_cluster = relationship(GlycopeptideSpectrumCluster, backref=backref("owners", lazy="dynamic"))
 
-    ambiguous_id = Column(Integer, ForeignKey(
-        AmbiguousGlycopeptideGroup.id, ondelete='CASCADE'), index=True)
+    ambiguous_id = Column(Integer, ForeignKey(AmbiguousGlycopeptideGroup.id, ondelete="CASCADE"), index=True)
 
-    shared_with = relationship(
-        AmbiguousGlycopeptideGroup, backref=backref(
-            "members", lazy='dynamic'))
+    shared_with = relationship(AmbiguousGlycopeptideGroup, backref=backref("members", lazy="dynamic"))
 
     @property
     def score_set(self):
@@ -157,7 +148,7 @@ class IdentifiedGlycopeptide(Base, IdentifiedStructure):
             return None
         return best_match.q_value_set
 
-    def is_multiscore(self):
+    def is_multiscore(self) -> bool:
         """Check whether this match collection has been produced by summarizing a multi-score
         match, rather than a single score match.
 
@@ -169,6 +160,11 @@ class IdentifiedGlycopeptide(Base, IdentifiedStructure):
 
     @property
     def _best_spectrum_match(self):
+        summary: IdentifiedGlycopeptideSummary = self._summary
+        if summary is not None and summary.best_spectrum_match_id is not None:
+            session = object_session(self)
+            return session.query(GlycopeptideSpectrumMatch).get(summary.best_spectrum_match_id)
+
         is_multiscore = self.is_multiscore()
         best_match = None
         if is_multiscore:
@@ -207,9 +203,11 @@ class IdentifiedGlycopeptide(Base, IdentifiedStructure):
 
     @is_multiply_glycosylated.expression
     def is_multiply_glycosylated(self):
-        expr = select([Glycopeptide.is_multiply_glycosylated()]).where(
-            Glycopeptide.id == IdentifiedGlycopeptide.structure_id).label(
-            "is_multiply_glycosylated")
+        expr = (
+            select([Glycopeptide.is_multiply_glycosylated()])
+            .where(Glycopeptide.id == IdentifiedGlycopeptide.structure_id)
+            .label("is_multiply_glycosylated")
+        )
         return expr
 
     @property
@@ -239,7 +237,17 @@ class IdentifiedGlycopeptide(Base, IdentifiedStructure):
         return self.spectrum_cluster.spectrum_solutions
 
     @classmethod
-    def serialize(cls, obj, session, chromatogram_solution_id, tandem_cluster_id, analysis_id, *args, **kwargs):
+    def serialize(
+        cls,
+        obj,
+        session,
+        chromatogram_solution_id,
+        tandem_cluster_id,
+        analysis_id,
+        build_summary: bool = False,
+        *args,
+        **kwargs,
+    ):
         inst = cls(
             chromatogram_solution_id=chromatogram_solution_id,
             spectrum_cluster_id=tandem_cluster_id,
@@ -247,7 +255,10 @@ class IdentifiedGlycopeptide(Base, IdentifiedStructure):
             q_value=obj.q_value,
             ms2_score=obj.ms2_score,
             ms1_score=obj.ms1_score,
-            structure_id=obj.structure.id)
+            structure_id=obj.structure.id,
+        )
+        if build_summary:
+            inst._build_summary()
         session.add(inst)
         session.flush()
         return inst
@@ -273,19 +284,22 @@ class IdentifiedGlycopeptide(Base, IdentifiedStructure):
         return chromatogram
 
     @classmethod
-    def bulk_convert(cls, iterable,
-                     expand_shared_with: bool=True,
-                     mass_shift_cache: Optional[Dict]=None,
-                     scan_cache: Optional[Dict]=None,
-                     structure_cache: Optional[Dict] = None,
-                     peptide_relation_cache: Optional[Dict] = None,
-                     shared_identification_cache: Optional[Dict] = None,
-                     min_q_value: float=0.2,
-                     *args, **kwargs):
+    def bulk_convert(
+        cls,
+        iterable,
+        expand_shared_with: bool = True,
+        mass_shift_cache: Optional[Dict] = None,
+        scan_cache: Optional[Dict] = None,
+        structure_cache: Optional[Dict] = None,
+        peptide_relation_cache: Optional[Dict] = None,
+        shared_identification_cache: Optional[Dict] = None,
+        min_q_value: float = 0.2,
+        *args,
+        **kwargs,
+    ):
         session = object_session(iterable[0])
         if mass_shift_cache is None:
-            mass_shift_cache = {m.id: m.convert()
-                                for m in session.query(CompoundMassShift).all()}
+            mass_shift_cache = {m.id: m.convert() for m in session.query(CompoundMassShift).all()}
         if scan_cache is None:
             scan_cache = {}
         if structure_cache is None:
@@ -295,32 +309,40 @@ class IdentifiedGlycopeptide(Base, IdentifiedStructure):
         if shared_identification_cache is None:
             shared_identification_cache = {}
         result = [
-            obj.convert(expand_shared_with=expand_shared_with,
-                        mass_shift_cache=mass_shift_cache,
-                        scan_cache=scan_cache,
-                        structure_cache=structure_cache,
-                        peptide_relation_cache=peptide_relation_cache,
-                        min_q_value=min_q_value,
-                        *args, **kwargs)
-            for obj in iterable]
+            obj.convert(
+                expand_shared_with=expand_shared_with,
+                mass_shift_cache=mass_shift_cache,
+                scan_cache=scan_cache,
+                structure_cache=structure_cache,
+                peptide_relation_cache=peptide_relation_cache,
+                min_q_value=min_q_value,
+                *args,
+                **kwargs,
+            )
+            for obj in iterable
+        ]
         return result
 
-    def convert(self, expand_shared_with: bool =True,
-                mass_shift_cache: Optional[Dict]=None,
-                scan_cache: Optional[Dict]=None,
-                structure_cache: Optional[Dict]=None,
-                peptide_relation_cache: Optional[Dict] = None,
-                shared_identification_cache: Optional[Dict] = None,
-                min_q_value: float = 0.2,
-                *args, **kwargs):
+    def convert(
+        self,
+        expand_shared_with: bool = True,
+        mass_shift_cache: Optional[Dict] = None,
+        scan_cache: Optional[Dict] = None,
+        structure_cache: Optional[Dict] = None,
+        peptide_relation_cache: Optional[Dict] = None,
+        shared_identification_cache: Optional[Dict] = None,
+        min_q_value: float = 0.2,
+        *args,
+        **kwargs,
+    ):
         # bind this name late to avoid circular import error
         from glycan_profiling.tandem.glycopeptide.identified_structure import (
-            IdentifiedGlycopeptide as MemoryIdentifiedGlycopeptide)
+            IdentifiedGlycopeptide as MemoryIdentifiedGlycopeptide,
+        )
 
         session = object_session(self)
         if mass_shift_cache is None:
-            mass_shift_cache = {m.id: m.convert()
-                                for m in session.query(CompoundMassShift).all()}
+            mass_shift_cache = {m.id: m.convert() for m in session.query(CompoundMassShift).all()}
         if shared_identification_cache is None:
             shared_identification_cache = dict()
         if scan_cache is None:
@@ -336,23 +358,28 @@ class IdentifiedGlycopeptide(Base, IdentifiedStructure):
                 if idgp.id in shared_identification_cache:
                     converted.append(shared_identification_cache[idgp.id])
                 else:
-                    tmp = idgp.convert(expand_shared_with=False,
-                                       mass_shift_cache=mass_shift_cache,
-                                       scan_cache=scan_cache,
-                                       structure_cache=structure_cache,
-                                       peptide_relation_cache=peptide_relation_cache,
-                                       shared_identification_cache=shared_identification_cache,
-                                       min_q_value=min_q_value, *args, **kwargs)
+                    tmp = idgp.convert(
+                        expand_shared_with=False,
+                        mass_shift_cache=mass_shift_cache,
+                        scan_cache=scan_cache,
+                        structure_cache=structure_cache,
+                        peptide_relation_cache=peptide_relation_cache,
+                        shared_identification_cache=shared_identification_cache,
+                        min_q_value=min_q_value,
+                        *args,
+                        **kwargs,
+                    )
                     shared_identification_cache[idgp.id] = tmp
                     converted.append(tmp)
             for i in range(len(stored)):
-                converted[i].shared_with = converted[:i] + converted[i + 1:]
+                converted[i].shared_with = converted[:i] + converted[i + 1 :]
             for i, member in enumerate(stored):
                 if member.id == self.id:
                     return converted[i]
         else:
             spectrum_matches = GlycopeptideSpectrumSolutionSet.bulk_load_from_clusters(
-                session, [self.spectrum_cluster_id],
+                session,
+                [self.spectrum_cluster_id],
                 mass_shift_cache=mass_shift_cache,
                 scan_cache=scan_cache,
                 structure_cache=structure_cache,
@@ -364,9 +391,11 @@ class IdentifiedGlycopeptide(Base, IdentifiedStructure):
                     structure, _ = structure_cache[self.structure_id]
                 else:
                     structure = Glycopeptide.bulk_load(
-                        session, [self.structure_id],
+                        session,
+                        [self.structure_id],
                         peptide_relation_cache=peptide_relation_cache,
-                        structure_cache=structure_cache)[0]
+                        structure_cache=structure_cache,
+                    )[0]
             else:
                 structure = self.structure.convert()
 
@@ -374,7 +403,8 @@ class IdentifiedGlycopeptide(Base, IdentifiedStructure):
             if chromatogram is not None:
                 chromatogram = self.chromatogram.convert(*args, **kwargs)
                 chromatogram.chromatogram = TandemAnnotatedChromatogram(
-                    chromatogram.chromatogram.clone(GlycopeptideChromatogram))
+                    chromatogram.chromatogram.clone(GlycopeptideChromatogram)
+                )
                 chromatogram.chromatogram.tandem_solutions.extend(spectrum_matches)
                 chromatogram.chromatogram.entity = structure
 
@@ -405,3 +435,93 @@ class IdentifiedGlycopeptide(Base, IdentifiedStructure):
             if sset.scan.scan_id == scan_id:
                 return sset
         raise KeyError(scan_id)
+
+    @declared_attr
+    def _summary(self):
+        return relationship("IdentifiedGlycopeptideSummary", lazy="joined", uselist=False)
+
+    @property
+    def total_signal(self):
+        summary = self._summary
+        if summary is not None:
+            return summary.total_signal
+        try:
+            return self.chromatogram.total_signal
+        except AttributeError:
+            return 0
+
+    @property
+    def apex_time(self):
+        summary = self._summary
+        if summary is not None and summary.apex_time is not None:
+            return summary.apex_time
+        return super().apex_time
+
+    @property
+    def start_time(self):
+        summary = self._summary
+        if summary is not None and summary.start_time is not None:
+            return summary.start_time
+        return super().start_time
+
+    @property
+    def end_time(self):
+        summary = self._summary
+        if summary is not None and summary.end_time is not None:
+            return summary.end_time
+        return super().end_time
+
+    @property
+    def weighted_neutral_mass(self):
+        summary = self._summary
+        if summary is not None and summary.weighted_neutral_mass is not None:
+            return summary.weighted_neutral_mass
+        return super().weighted_neutral_mass
+
+    def _build_summary(self):
+        if self._summary is not None:
+            return
+        session = object_session(self)
+
+        try:
+            apex_time = self.apex_time
+            total_signal = self.total_signal
+            start_time = self.start_time
+            end_time = self.end_time
+        except MissingChromatogramError:
+            apex_time = total_signal = start_time = end_time = None
+        best_spectrum_match_id = self.best_spectrum_match.id
+
+        summary = IdentifiedGlycopeptideSummary(
+            id=self.id,
+            weighted_neutral_mass=self.weighted_neutral_mass,
+            apex_time=apex_time,
+            total_signal=total_signal,
+            start_time=start_time,
+            end_time=end_time,
+            best_spectrum_match_id=best_spectrum_match_id,
+        )
+        session.add(summary)
+        return summary
+
+
+class IdentifiedGlycopeptideSummary(Base):
+    __tablename__ = "IdentifiedGlycopeptideSummary"
+
+    id = Column(Integer, ForeignKey(IdentifiedGlycopeptide.id), primary_key=True)
+
+    weighted_neutral_mass = Column(Numeric(12, 6, asdecimal=False), index=True)
+    apex_time = Column(Numeric(12, 6, asdecimal=False), index=True)
+    total_signal = Column(Numeric(12, 6, asdecimal=False), index=True)
+    start_time = Column(Numeric(12, 6, asdecimal=False), index=True)
+    end_time = Column(Numeric(12, 6, asdecimal=False), index=True)
+    best_spectrum_match_id = Column(
+        Integer, ForeignKey(GlycopeptideSpectrumMatch.id, ondelete="CASCADE"), index=True, nullable=True
+    )
+
+    def __repr__(self):
+        return (
+            f"{self.__class__.__name__}(id={self.id}, weighted_neutral_mass={self.weighted_neutral_mass}, apex_time={self.apex_time}, "
+            f"total_signal={self.total_signal}, start_time={self.start_time}, end_time={self.end_time}, "
+            f"best_spectrum_match_id={self.best_spectrum_match_id})"
+        )

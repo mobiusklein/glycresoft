@@ -5,8 +5,10 @@ import glypy
 
 import glycopeptidepy
 from glycopeptidepy.structure import sequence, modification, SequencePosition
+from glycopeptidepy.structure.modification import GlycanFragment
 from glycopeptidepy.structure.fragment import IonSeries
 from glycopeptidepy.utils import simple_repr
+from glycopeptidepy.utils.collectiontools import CountTable
 
 from glypy.plot import plot as draw_tree, SNFGNomenclature
 from glypy.plot.common import MonosaccharidePatch
@@ -16,14 +18,50 @@ from .colors import darken, cnames, hex2color, get_color
 import numpy as np
 
 from matplotlib import (
+    patheffects,
     pyplot as plt,
-    patches as mpatches,
+    patches as mpatch,
     textpath,
     font_manager,
     path as mpath,
     transforms as mtransform,
     collections as mcollection
 )
+
+
+def flatten(x):
+    return [xj for xi in x for xj in ([xi] if not isinstance(xi, (tuple, list)) else flatten(xi))]
+
+
+def centroid(path):
+    point = np.zeros_like(path.vertices[0])
+    c = 0.0
+    for p in path.vertices:
+        point += p
+        c += 1
+    return point / c
+
+
+# def apply_transform(t, ax, scale=(1, 1), translate=(0, 0)):
+#     cent = centroid(t.get_path())
+#     trans = mtransform.Affine2D().scale(*scale)
+#     new_cent = centroid(t.get_path().transformed(trans))
+#     shift = cent - new_cent
+#     trans.translate(*(shift + translate))
+#     trans += ax.transData
+#     t.set_transform(trans)
+def apply_transform(t: mpatch.PathPatch, ax, scale=(1, 1), translate=(0, 0), rotate_deg=None):
+    cent = centroid(t.get_path())
+    trans = mtransform.Affine2D()
+    if rotate_deg is not None:
+        trans.translate(*(-cent))
+        trans.rotate_deg(rotate_deg)
+        trans.translate(*(cent))
+    trans.scale(*scale)
+    new_cent = centroid(t.get_path().transformed(trans))
+    shift = cent - new_cent
+    trans.translate(*(shift + translate))
+    t.set_path(t.get_path().transformed(trans))
 
 
 font_options = font_manager.FontProperties(family='monospace')
@@ -92,7 +130,7 @@ class SequencePositionGlyph(object):
 
         tpath = textpath.TextPath(
             (self.x, self.y), symbol, size=self.options.get('size'), prop=font_options)
-        tpatch = mpatches.PathPatch(
+        tpatch = mpatch.PathPatch(
             tpath, color=color, lw=self.options.get('lw', 0), label=label)
         self._patch = tpatch
         ax.add_patch(tpatch)
@@ -103,12 +141,7 @@ class SequencePositionGlyph(object):
 
     def centroid(self):
         path = self._patch.get_path()
-        point = np.zeros_like(path.vertices[0])
-        c = 0.
-        for p in path.vertices:
-            point += p
-            c += 1
-        return point / c
+        return centroid(path)
 
     def bbox(self):
         return bbox_path(self._patch.get_path())
@@ -120,27 +153,36 @@ class GlycanCompositionGlyphs(object):
     x: float
     xend: float
     y: float
+    spacing: float
     options: Dict[str, Any]
 
     patches: List[MonosaccharidePatch]
+    layers: List[List[mpatch.PathPatch]]
 
-    def __init__(self, glycan_composition, x, y, ax, **kwargs):
+    def __init__(self, glycan_composition, x, y, ax, vertical=False, spacing: float = 1.0, **kwargs):
         self.glycan_composition = glycan_composition
         self.ax = ax
         self.x = x
         self.xend = x
         self.y = y
+        self.yend = y
+        self.vertical = vertical
         self.options = kwargs
         self.patches = []
+        self.layers = []
+        self.spacing = spacing
 
     def render(self):
         x = self.x
         y = self.y
         glyphs = []
+        layers = []
         for mono, count in self.glycan_composition.items():
-            glyph = glycan_symbol_grammar.draw(mono, x, y, ax=self.ax, scale=(0.4, 0.4))
-            x += 0.75
-            glyphs.extend(glyph.shape_patches)
+            layer = []
+            glyph = glycan_symbol_grammar.draw(
+                mono, x, y, ax=self.ax, scale=(0.4, 0.4))
+            x += (0.6 * self.spacing)
+            layer.extend(flatten(glyph.shape_patches))
             glyph = glycan_symbol_grammar.draw_text(
                 self.ax, x, y - 0.17, r'$\times %d$' % count, center=False, fontsize=22)
             if isinstance(glyph, tuple):
@@ -148,11 +190,20 @@ class GlycanCompositionGlyphs(object):
                     g.set_lw(0)
             else:
                 glyph.set_lw(0)
-            x += 1.75
-            glyphs.extend(glyph)
-
+            if self.vertical:
+                y += 1.0 * self.spacing
+                x -= (0.6 * self.spacing)
+            else:
+                x += 1.75
+            layer.extend(glyph)
+            layers.append(layer)
+            glyphs.extend(layer)
+        if self.vertical:
+            x += 0.95 + (0.6 * self.spacing)
         self.xend = x
+        self.yend = y
         self.patches = glyphs
+        self.layers = layers
 
     def set_transform(self, transform):
         for patch in self.patches:
@@ -169,6 +220,348 @@ class GlycanCompositionGlyphs(object):
         for patch in flat_patch_iter:
             bbox = bbox.expand(*bbox_path(patch.get_path()))
         return bbox
+
+
+class IonAnnotationGlyphBase:
+    x: float
+    y: float
+    ax: plt.Axes
+
+    xscale: float
+    yscale: float
+    charge: int
+
+    peptide_patch: mpatch.PathPatch
+    charge_patch: mpatch.PathPatch
+    patches: List[mpatch.PathPatch]
+    glycan_patch_layers: List[List[mpatch.PathPatch]]
+
+    size: int
+
+    base_size: int = 22
+
+
+    def __init__(self, x: float, y: float, ax: plt.Axes,
+                 xscale: float, yscale: float, charge: int,
+                 size: int=22):
+        self.x = x
+        self.y = y
+        self.ax = ax
+        self.charge = charge
+        self.xscale = xscale
+        self.yscale = yscale
+        self.patches = []
+        self.glycan_patch_layers = []
+        self.peptide_patch = None
+        self.charge_patch = None
+        self.size = size
+
+    def draw_charge_patch(self):
+        y = 0
+        for patch in [self.peptide_patch] + self.patches:
+            y = max(bbox_path(patch.get_path()).ymax, y)
+        if abs(self.charge) == 1:
+            return
+        if self.charge > 0:
+            label = f"+{self.charge}"
+        else:
+            label = str(self.charge)
+
+        (glyph, ) = glycan_symbol_grammar.draw_text(self.ax, -0.45, y + 0.1, label, center=False, fontsize=16)
+        p = glyph.get_path()
+        center = centroid(p)
+        p = p.transformed(
+            mtransform.Affine2D().translate(*-center)
+        ).transformed(
+            mtransform.Affine2D().scale(self.size / self.base_size)
+        ).transformed(
+            mtransform.Affine2D().translate(*center)
+        )
+        lower = bbox_path(p).ymin
+        upshift = (y - lower)
+        if upshift > 0:
+            upshift *= 2
+            p = p.transformed(
+                mtransform.Affine2D().translate(0, upshift)
+            )
+        glyph.set_path(p)
+        self.charge_patch = glyph
+
+    def get_glycan_composition(self):
+        frag = self.fragment
+
+        if frag.glycosylation:
+            return frag.glycosylation
+        else:
+            mods = CountTable()
+            for mod, v in frag.modification_dict.items():
+                if isinstance(mod, GlycanFragment):
+                    mods += mod.fragment.glycan_composition
+                elif glycopeptidepy.ModificationCategory.glycosylation in mod.categories:
+                    mods[glypy.MonosaccharideResidue.from_iupac_lite(mod.name)] += v
+            mods = glypy.GlycanComposition(mods)
+            return mods
+
+    def render(self):
+        raise NotImplementedError()
+
+    def bbox(self):
+        patches = [self.peptide_patch] + self.patches
+        if self.charge_patch:
+            patches.append(self.charge_patch)
+
+        flat_patch_iter = iter(patches)
+        first = next(flat_patch_iter)
+        bbox = bbox_path(first.get_path())
+        for patch in flat_patch_iter:
+            bbox = bbox.expand(*bbox_path(patch.get_path()))
+        return bbox
+
+
+class GlycopeptideStubFragmentGlyph(IonAnnotationGlyphBase):
+    fragment: glypy.GlycanComposition
+
+    def __init__(self, x: float, y: float, ax: plt.Axes,
+                 fragment: glycopeptidepy.StubFragment,
+                 xscale: float, yscale: float, charge: int,
+                 size: int=22):
+
+        super().__init__(
+            x, y, ax, xscale, yscale, charge, size
+        )
+        self.fragment = fragment
+
+    def draw_peptide_text(self):
+        x = 0
+        y = 0
+        if self.get_glycan_composition():
+            label = "peptide+"
+        else:
+            label = "peptide"
+        glyph = glycan_symbol_grammar.draw_text(self.ax, x, y, label, center=False, fontsize=self.base_size)
+        glyph = glyph[0]
+        path = glyph.get_path()
+        glyph.set_path(
+            path.transformed(
+                mtransform.Affine2D().scale(self.size / self.base_size)
+            ).transformed(
+                mtransform.Affine2D().rotate_deg(90)
+            ).transformed(
+                mtransform.Affine2D().translate(0, 0)
+            )
+        )
+        self.peptide_patch = glyph
+
+    def draw_glycan_composition(self):
+        y = bbox_path(self.peptide_patch.get_path()).ymax
+        art = GlycanCompositionGlyphs(
+            self.get_glycan_composition(), 0 - 0.70, y + (0.5 * self.size / self.base_size),
+            self.ax,
+            spacing=self.size / self.base_size,
+            vertical=True
+        )
+        art.render()
+        ytop = y
+        for layer in art.layers:
+            ybottom = None
+            for patch in layer:
+                p: mpath.Path = patch.get_path()
+                center = centroid(p)
+                p: mpath.Path = p.transformed(
+                    mtransform.Affine2D().translate(*-center)
+                ).transformed(
+                    mtransform.Affine2D().scale(self.size / self.base_size)
+                ).transformed(
+                    mtransform.Affine2D().translate(*center)
+                ).transformed(
+                    mtransform.Affine2D().scale(0.65, 1.0)
+                )
+                bb_next = bbox_path(p)
+                if ybottom is None:
+                    ybottom = bb_next.ymin
+                elif ybottom > bb_next.ymin:
+                    ybottom = bb_next.ymin
+                patch.set_path(p)
+
+            if ybottom <= ytop:
+                for patch in layer:
+                    p: mpath.Path = patch.get_path()
+                    p = p.transformed(
+                        mtransform.Affine2D().translate(0, (ytop - ybottom) + 0.01 * self.yscale)
+                    )
+                    patch.set_path(p)
+            for patch in layer:
+                p: mpath.Path = patch.get_path()
+                bb_next = bbox_path(p)
+                ytop = max(ytop, bb_next.ymax)
+            patch.set_path(p)
+        self.patches = art.patches
+        self.glycan_patch_layers = art.layers
+
+    def render(self):
+        self.draw_peptide_text()
+        self.draw_glycan_composition()
+        self.draw_charge_patch()
+
+        patches = [self.peptide_patch] + self.patches
+        if self.charge_patch:
+            patches.append(self.charge_patch)
+
+        for glyph in patches:
+            glyph.set_path(
+                glyph.get_path().transformed(
+                    mtransform.Affine2D().scale(self.xscale / 32, self.yscale / 24)
+                ).transformed(
+                    mtransform.Affine2D().translate(self.x + 0.15 * self.xscale / 32, self.y)
+                )
+            )
+            glyph.set_path_effects([
+                patheffects.Stroke(linewidth=0.5, foreground="white"),
+                patheffects.Normal(),
+            ])
+
+
+class PeptideFragmentGlyph(IonAnnotationGlyphBase):
+    fragment: glycopeptidepy.PeptideFragment
+
+    def __init__(self, x: float, y: float, ax: plt.Axes,
+                 fragment: glycopeptidepy.PeptideFragment,
+                 xscale: float, yscale: float, charge: int,
+                 size: int=22):
+        super().__init__(
+            x, y, ax, xscale, yscale, charge, size
+        )
+        self.fragment = fragment
+
+    def draw_peptide_text(self):
+        x = 0
+        y = 0
+        label = self.fragment.base_name()
+        glyph = glycan_symbol_grammar.draw_text(self.ax, x, y, label, center=False, fontsize=self.base_size)
+        glyph = glyph[0]
+        path = glyph.get_path()
+        bbox = bbox_path(path)
+        xc = (bbox.xmin + bbox.xmax) / 2
+        yc = (bbox.ymin + bbox.ymax) / 2
+        glyph.set_path(
+            path.transformed(
+                mtransform.Affine2D().scale(self.size / self.base_size)
+            ).transformed(
+                mtransform.Affine2D().translate(-xc, yc)
+            )
+        )
+        self.peptide_patch = glyph
+
+    def draw_glycan_composition(self):
+        gc = self.get_glycan_composition()
+        bb = bbox_path(self.peptide_patch.get_path())
+        y = bb.ymax
+        art = GlycanCompositionGlyphs(
+            gc,
+            0 - 0.70,
+            y + (0.5 * self.size / self.base_size),
+            self.ax,
+            vertical=True,
+            spacing=self.size / self.base_size
+        )
+        art.render()
+        ytop = y
+        for layer in art.layers:
+            ybottom = None
+            for patch in layer:
+                p: mpath.Path = patch.get_path()
+                center = centroid(p)
+                p: mpath.Path = p.transformed(
+                    mtransform.Affine2D().translate(*-center)
+                ).transformed(
+                    mtransform.Affine2D().scale(self.size / self.base_size)
+                ).transformed(
+                    mtransform.Affine2D().translate(*center)
+                ).transformed(
+                    mtransform.Affine2D().scale(0.65, 1)
+                )
+                bb_next = bbox_path(p)
+                if ybottom is None:
+                    ybottom = bb_next.ymin
+                elif ybottom > bb_next.ymin:
+                    ybottom = bb_next.ymin
+                patch.set_path(p)
+
+            if ybottom <= ytop:
+                for patch in layer:
+                    p: mpath.Path = patch.get_path()
+                    p = p.transformed(
+                        mtransform.Affine2D().translate(0, ytop - ybottom)
+                    )
+                    patch.set_path(p)
+            for patch in layer:
+                p: mpath.Path = patch.get_path()
+                bb_next = bbox_path(p)
+                ytop = max(ytop, bb_next.ymax)
+            patch.set_path(p)
+        self.patches = art.patches
+        self.glycan_path_layers = art.layers
+
+    def draw_charge_patch(self):
+        y = 0
+        for patch in [self.peptide_patch] + self.patches:
+            y = max(bbox_path(patch.get_path()).ymax, y)
+        if abs(self.charge) == 1:
+            return
+        if self.charge > 0:
+            label = f"+{self.charge}"
+        else:
+            label = str(self.charge)
+
+        (glyph, ) = glycan_symbol_grammar.draw_text(self.ax, -0.45, y + 0.1, label, center=False, fontsize=16)
+        p = glyph.get_path()
+        center = centroid(p)
+        p = p.transformed(
+            mtransform.Affine2D().translate(*-center)
+        ).transformed(
+            mtransform.Affine2D().scale(self.size / self.base_size)
+        ).transformed(
+            mtransform.Affine2D().translate(*center)
+        )
+        lower = bbox_path(p).ymin
+        upshift = (y - lower)
+        if upshift > 0:
+            upshift *= 2
+            p = p.transformed(
+                mtransform.Affine2D().translate(0, upshift)
+            )
+        glyph.set_path(p)
+        self.charge_patch = glyph
+
+    def render(self):
+        self.draw_peptide_text()
+        self.draw_glycan_composition()
+        self.draw_charge_patch()
+
+        patches = [self.peptide_patch] + self.patches
+        if self.charge_patch:
+            patches.append(self.charge_patch)
+
+        for i, glyph in enumerate(patches):
+            p = glyph.get_path()
+            p = (
+                p.transformed(
+                    mtransform.Affine2D().scale(self.xscale / 32, self.yscale / 24)
+                ).transformed(
+                    mtransform.Affine2D().translate(self.x + 0.25 * self.xscale / 32, self.y)
+                )
+            )
+            if i == 0:
+                bbox = bbox_path(p)
+                shift = (bbox.xmin - self.x) / 2
+                p = p.transformed(
+                    mtransform.Affine2D().translate(shift, 0)
+                )
+            glyph.set_path(p)
+            glyph.set_path_effects([
+                patheffects.Stroke(linewidth=0.5, foreground="white"),
+                patheffects.Normal(),
+            ])
 
 
 class FragmentStroke:
@@ -192,9 +585,9 @@ class FragmentStroke:
     c_colors: List[str]
     n_colors: List[str]
 
-    main_stroke: mpatches.PathPatch
-    c_strokes: List[mpatches.PathPatch]
-    n_strokes: List[mpatches.PathPatch]
+    main_stroke: mpatch.PathPatch
+    c_strokes: List[mpatch.PathPatch]
+    n_strokes: List[mpatch.PathPatch]
 
     use_collection: bool = True
     _collection: mcollection.PatchCollection
@@ -213,10 +606,10 @@ class FragmentStroke:
         n_colors=None,
         c_colors=None,
         ax=None,
-        v_step: float=0.2,
-        stroke_slope: float=0.2,
-        n_length: float=0.8,
-        c_length: float=0.8,
+        v_step: float = 0.2,
+        stroke_slope: float = 0.2,
+        n_length: float = 0.8,
+        c_length: float = 0.8,
         options: Dict[str, Any] = None,
         **kwargs
     ):
@@ -273,7 +666,7 @@ class FragmentStroke:
             [mpath.Path.MOVETO, mpath.Path.LINETO, mpath.Path.STOP],
         )
 
-        pp = mpatches.PathPatch(
+        pp = mpatch.PathPatch(
             p,
             facecolor=self.main_color,
             edgecolor=self.main_color,
@@ -293,12 +686,14 @@ class FragmentStroke:
             p = mpath.Path(
                 [
                     [self.x, self.top + v_step * (i - 1)],
-                    [self.x + self.c_length, self.top + v_step * (i - 1) + stroke_slope],
-                    [self.x + self.c_length, self.top + v_step * (i - 1) + stroke_slope],
+                    [self.x + self.c_length, self.top +
+                        v_step * (i - 1) + stroke_slope],
+                    [self.x + self.c_length, self.top +
+                        v_step * (i - 1) + stroke_slope],
                 ],
                 [mpath.Path.MOVETO, mpath.Path.LINETO, mpath.Path.STOP],
             )
-            pp = mpatches.PathPatch(
+            pp = mpatch.PathPatch(
                 p, facecolor=color, edgecolor=color, lw=self.options['lw'],
                 capstyle="round" if self.stroke_slope != 0 else 'projecting'
             )
@@ -314,13 +709,14 @@ class FragmentStroke:
             p = mpath.Path(
                 [
                     [self.x, self.bottom - v_step * (i - 1)],
-                    [self.x - self.n_length, self.bottom - v_step * (i - 1) - self.stroke_slope],
+                    [self.x - self.n_length, self.bottom -
+                        v_step * (i - 1) - self.stroke_slope],
                     [self.x - self.n_length, self.bottom -
                         v_step * (i - 1) - self.stroke_slope],
                 ],
                 [mpath.Path.MOVETO, mpath.Path.LINETO, mpath.Path.STOP],
             )
-            pp = mpatches.PathPatch(
+            pp = mpatch.PathPatch(
                 p, facecolor=color, edgecolor=color, lw=self.options['lw'],
                 capstyle="round" if self.stroke_slope != 0 else 'projecting'
             )
@@ -367,7 +763,7 @@ class FragmentStroke:
             # dy = (bbox.ymax - bbox.ymin) / 2 + 0.2 * (j - skipped)
             dy = (0.2) * (j - skipped)
             tpath = tpath.transformed(mtransform.Affine2D().translate(0, dy))
-            tpatch = mpatches.PathPatch(tpath, color="black", lw=0)
+            tpatch = mpatch.PathPatch(tpath, color="black", lw=0)
             if not self.use_collection:
                 self.ax.add_patch(tpatch)
             self.c_strokes.append(tpatch)
@@ -399,7 +795,7 @@ class FragmentStroke:
             dy = (bbox.ymax - bbox.ymin) + 0.16 * (j - skipped)
             tpath = tpath.transformed(mtransform.Affine2D().translate(0, -dy))
 
-            tpatch = mpatches.PathPatch(tpath, color="black", lw=0)
+            tpatch = mpatch.PathPatch(tpath, color="black", lw=0)
             if not self.use_collection:
                 self.ax.add_patch(tpatch)
             self.n_strokes.append(tpatch)
@@ -460,7 +856,8 @@ class SequenceGlyph(object):
         self.x = kwargs.get('x', 1)
         self.y = kwargs.get('y', 1)
         self.options = kwargs
-        self.next_at_height = dict(c_term=defaultdict(float), n_term=defaultdict(float))
+        self.next_at_height = dict(c_term=defaultdict(
+            float), n_term=defaultdict(float))
         self.label_fragments = label_fragments
         self.multi_tier_annotation = False
         self.draw_glycan = draw_glycan
@@ -473,7 +870,8 @@ class SequenceGlyph(object):
         for annot in self.annotations:
             annot.set_transform(transform + self.ax.transData)
         if self.draw_glycan:
-            self.glycan_composition_glyphs.set_transform(transform + self.ax.transData)
+            self.glycan_composition_glyphs.set_transform(
+                transform + self.ax.transData)
         return self
 
     def make_position_glyph(self, position, i, x, y, size, lw=0):
@@ -494,7 +892,8 @@ class SequenceGlyph(object):
         glyphs = self.sequence_position_glyphs = []
         i = 0
         for position in self.sequence:
-            glyph = self.make_position_glyph(position, i, x, y, size=size, lw=self.options.get("lw", 0))
+            glyph = self.make_position_glyph(
+                position, i, x, y, size=size, lw=self.options.get("lw", 0))
             glyph.render(ax)
             glyphs.append(glyph)
             x += size * self.step_coefficient
@@ -521,7 +920,7 @@ class SequenceGlyph(object):
     def draw_bar_at(self, index, height=0.25, color='red', **kwargs):
         x = self.next_between(index)
         y = self.y
-        rect = mpatches.Rectangle(
+        rect = mpatch.Rectangle(
             (x, y - height), 0.05, 1 + height, color=color, **kwargs)
         self.ax.add_patch(rect)
         self.annotations.append(rect)
@@ -545,7 +944,7 @@ class SequenceGlyph(object):
         if self.label_fragments:
             tpath = textpath.TextPath(
                 (label_x, label_y), label, size=size, prop=font_options)
-            tpatch = mpatches.PathPatch(
+            tpatch = mpatch.PathPatch(
                 tpath, color=color, lw=kwargs.get('lw'))
             self.ax.add_patch(tpatch)
             self.annotations.append(tpatch)
@@ -556,7 +955,7 @@ class SequenceGlyph(object):
         x = self.next_between(index)
         y = self.y - height
         length *= self.step_coefficient
-        rect = mpatches.Rectangle(
+        rect = mpatch.Rectangle(
             (x - length, y), length, 0.07, color=color, **kwargs)
         self.ax.add_patch(rect)
         self.annotations.append(rect)
@@ -578,18 +977,19 @@ class SequenceGlyph(object):
         if self.label_fragments:
             tpath = textpath.TextPath(
                 (label_x, label_y), label, size=size, prop=font_options)
-            tpatch = mpatches.PathPatch(
+            tpatch = mpatch.PathPatch(
                 tpath, color=color, lw=kwargs.get('lw'))
             self.ax.add_patch(tpatch)
             self.annotations.append(tpatch)
-            self.next_at_height['c_term'][index] = tpath.vertices[:, 1].max() + 0.1
+            self.next_at_height['c_term'][index] = tpath.vertices[:, 1].max(
+            ) + 0.1
 
     def draw_c_term_annotation(
             self, index, height=0., length=0.75, color='red', **kwargs):
         x = self.next_between(index)
         y = (self.y * 2) + height
         length *= self.step_coefficient
-        rect = mpatches.Rectangle((x, y), length, 0.07, color=color, **kwargs)
+        rect = mpatch.Rectangle((x, y), length, 0.07, color=color, **kwargs)
         self.ax.add_patch(rect)
         self.annotations.append(rect)
 
@@ -654,9 +1054,9 @@ class SequenceGlyph(object):
 
     def build_annotations(self,
                           fragments: List[glycopeptidepy.PeptideFragment]) -> Tuple[List[
-                                                            Tuple[glycopeptidepy.PeptideFragment, bool, str]
-                                                        ]
-                                                    ]:
+                              Tuple[glycopeptidepy.PeptideFragment, bool, str]
+                          ]
+    ]:
         index = {}
         for i in range(1, len(self.sequence)):
             for series in self.break_at(i):
@@ -720,7 +1120,8 @@ class SequenceGlyph(object):
                     if frag.is_glycosylated:
                         if not stroke.has_n_annotations():
                             stroke.add_n_label('', 'none')
-                        stroke.add_n_label(frag.base_name(), glycosylated_color)
+                        stroke.add_n_label(
+                            frag.base_name(), glycosylated_color)
                     else:
                         stroke.add_n_label(frag.base_name(), color)
                 else:
@@ -728,7 +1129,8 @@ class SequenceGlyph(object):
                     if frag.is_glycosylated:
                         if not stroke.has_c_annotations():
                             stroke.add_c_label('', 'none')
-                        stroke.add_c_label(frag.base_name(), glycosylated_color)
+                        stroke.add_c_label(
+                            frag.base_name(), glycosylated_color)
                     else:
                         stroke.add_c_label(frag.base_name(), color)
 
@@ -780,7 +1182,8 @@ class SequenceGlyph(object):
         for n_annot, is_glycosylated, key in n_annotations:
             label = key.split("+")[0]
             if label not in labeled:
-                self.draw_n_term_label(n_annot, label=label, height=heights_at[n_annot])
+                self.draw_n_term_label(
+                    n_annot, label=label, height=heights_at[n_annot])
                 labeled.add(label)
 
         kwargs_with_greater_height['height'] = kwargs.get("height", 0.25)
@@ -804,7 +1207,8 @@ class SequenceGlyph(object):
         for c_annot, is_glycosylated, key in c_annotations:
             label = key.split("+")[0]
             if label not in labeled:
-                self.draw_c_term_label(c_annot, label=label, height=heights_at[c_annot])
+                self.draw_c_term_label(
+                    c_annot, label=label, height=heights_at[c_annot])
                 labeled.add(label)
 
     @classmethod
@@ -824,7 +1228,7 @@ class SequenceGlyph(object):
 
 
 def glycopeptide_match_logo(glycopeptide_match, ax=None, color='red', glycosylated_color='forestgreen',
-                            return_artist: bool=True, annotation_options: Optional[dict]=None, **kwargs):
+                            return_artist: bool = True, annotation_options: Optional[dict] = None, **kwargs):
     if annotation_options is None:
         annotation_options = {}
     annotation_options['color'] = color
@@ -861,7 +1265,8 @@ def draw_proteoform(proteoform, width=60):
         width = n + 1
     # partion the protein sequence into chunks of width positions
     while i < n:
-        rows.append(glycopeptidepy.PeptideSequence.from_iterable(proteoform[i:i + width]))
+        rows.append(glycopeptidepy.PeptideSequence.from_iterable(
+            proteoform[i:i + width]))
         i += width
     # draw each row, starting from the last row and going up
     # so that if the current row has a glycan on it, we can
@@ -886,7 +1291,8 @@ def draw_proteoform(proteoform, width=60):
                 drawn_trees.append(dtree)
         # get the height of the tallest glycan
         if drawn_trees:
-            tree_height = max(dtree.extrema()[3] for dtree in drawn_trees) + 0.5
+            tree_height = max(dtree.extrema()[3]
+                              for dtree in drawn_trees) + 0.5
         else:
             tree_height = 0
         ymax = tree_height + 1

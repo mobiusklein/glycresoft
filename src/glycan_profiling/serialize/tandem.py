@@ -126,7 +126,7 @@ class SpectrumClusterBase(object):
                              structure_cache=structure_cache, **kwargs) for x in self.spectrum_solutions]
         return matches
 
-    def is_multiscore(self):
+    def is_multiscore(self) -> bool:
         """Check whether this match collection has been produced by summarizing a multi-score
         match, rather than a single score match.
 

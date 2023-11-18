@@ -42,7 +42,8 @@ from .tandem import (
 
 from .identification import (
     AmbiguousGlycopeptideGroup,
-    IdentifiedGlycopeptide)
+    IdentifiedGlycopeptide,
+    IdentifiedGlycopeptideSummary)
 
 
 if TYPE_CHECKING:
@@ -62,7 +63,6 @@ class AnalysisSerializer(DatabaseBoundOperation, TaskBase):
     _node_peak_map: Dict
     _scan_id_map: Dict[str, int]
     _chromatogram_solution_id_map: Dict
-    _solution_set_map: Dict[FrozenSet, SolutionSetBase]
     _tandem_cluster_cache: Dict[FrozenSet, SpectrumClusterBase]
 
     def __init__(self, connection, sample_run_id, analysis_name, analysis_id=None):
@@ -278,8 +278,46 @@ class AnalysisSerializer(DatabaseBoundOperation, TaskBase):
 
         cluster_id = cluster.id
 
+        best_match = identification.best_spectrum_match
+
         inst = IdentifiedGlycopeptide.serialize(
             identification, self.session, chromatogram_solution_id, cluster_id, analysis_id=self.analysis_id)
+
+        if identification.chromatogram is not None:
+            apex_time = identification.apex_time
+            total_signal = identification.total_signal
+            start_time = identification.start_time
+            end_time = identification.end_time
+            weighted_neutral_mass = identification.weighted_neutral_mass
+
+            best_spectrum_match_id = None
+            sset: GlycopeptideSpectrumSolutionSet = self.session.query(
+                GlycopeptideSpectrumSolutionSet).join(MSScan).filter(
+                MSScan.scan_id == best_match.scan_id,
+                GlycopeptideSpectrumSolutionSet.analysis_id == self.analysis_id
+            ).first()
+
+            if sset is not None:
+                db_best_match = sset.spectrum_matches.filter(
+                    GlycopeptideSpectrumMatch.structure_id == inst.structure_id
+                ).first()
+                if best_match is not None:
+                    best_spectrum_match_id = db_best_match.id
+
+            if best_spectrum_match_id is None:
+                self.log(f"Failed to resolve best spectrum match for {identification} in the database")
+
+            summary = IdentifiedGlycopeptideSummary(
+                id=inst.id,
+                weighted_neutral_mass=weighted_neutral_mass,
+                apex_time=apex_time,
+                total_signal=total_signal,
+                start_time=start_time,
+                end_time=end_time,
+                best_spectrum_match_id=best_spectrum_match_id,
+            )
+            self.session.add(summary)
+            self.session.flush()
         if commit:
             self.commit()
         return inst
