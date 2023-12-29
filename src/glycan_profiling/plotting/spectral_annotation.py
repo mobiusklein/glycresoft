@@ -13,7 +13,7 @@ from ms_peak_picker.utils import draw_peaklist
 from ms_deisotope.data_source.scan.base import ChargeNotProvided
 from ms_deisotope.data_source import ProcessedScan
 
-from .sequence_fragment_logo import glycopeptide_match_logo, GlycopeptideStubFragmentGlyph, PeptideFragmentGlyph
+from .sequence_fragment_logo import IonAnnotationGlyphBase, glycopeptide_match_logo, GlycopeptideStubFragmentGlyph, PeptideFragmentGlyph, OxoniumIonGlyph
 
 if TYPE_CHECKING:
     from glycan_profiling.tandem.spectrum_match.spectrum_match import SpectrumMatcherBase
@@ -122,11 +122,13 @@ class SpectrumMatchAnnotator(object):
         self.normalize = normalize
         self.intensity_scale = 1.0
         self.use_glyphs = use_glyphs
+        if self.use_glyphs:
+            self.upper = max(spectrum_match.spectrum, key=lambda x: x.intensity).intensity * 1.0
         if self.normalize:
             self.intensity_scale = max(spectrum_match.spectrum, key=lambda x: x.intensity).intensity
-        self._compute_scale()
+        self.compute_scale()
 
-    def _compute_scale(self):
+    def compute_scale(self):
         peaks = self.spectrum_match.deconvoluted_peak_set
         mzs = [p.mz for p in peaks]
         if not mzs:
@@ -173,7 +175,10 @@ class SpectrumMatchAnnotator(object):
                 label += encode_superscript(peak.charge)
         y = peak.intensity
         upshift = self.upshift
-        y = min(y + upshift, self.upper * 0.9)
+        if self.use_glyphs:
+            y = y + upshift
+        else:
+            y = min(y + upshift, self.upper * 0.9)
 
         kw.setdefault("clip_on", self.clip_labels)
         clip_on = kw["clip_on"]
@@ -206,6 +211,20 @@ class SpectrumMatchAnnotator(object):
             art.render()
             self.peak_labels.append(art)
             return art
+        elif self.use_glyphs and fragment.series == "oxonium_ion":
+            art = OxoniumIonGlyph(
+                peak.mz,
+                y if not self.normalize else y / self.intensity_scale,
+                self.ax,
+                fragment,
+                self.xscale,
+                self.yscale,
+                peak.charge,
+                size=fontsize * 2
+            )
+            art.render()
+            self.peak_labels.append(art)
+            return art
         else:
             text = self.ax.text(
                 peak.mz,
@@ -224,7 +243,13 @@ class SpectrumMatchAnnotator(object):
 
     def format_axes(self):
         draw_peaklist([], self.ax, pretty=True)
-        self.ax.set_ylim(0, self.upper)
+        bboxes = list(map(lambda x: x.bbox().ymax, filter(lambda x: isinstance(x, IonAnnotationGlyphBase), self.peak_labels)))
+        if bboxes:
+            upper = max(max(bboxes), self.upper)
+        else:
+            upper = self.upper
+
+        self.ax.set_ylim(0, upper)
 
     def draw_matched_peaks(self, color="red", alpha=0.8, fontsize=12, ion_series_to_color=None, **kwargs):
         if ion_series_to_color is None:

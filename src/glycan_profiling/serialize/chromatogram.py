@@ -1,17 +1,15 @@
 from array import array
-from collections import Counter, deque
+from collections import Counter
 
 import numpy as np
 
 from sqlalchemy import (
-    Column, Numeric, Integer, String, ForeignKey, PickleType,
-    Boolean, Table, func, select, join, alias, bindparam)
+    Column, Numeric, Integer, String, ForeignKey,
+    Table, select, join, alias, bindparam)
 from sqlalchemy.orm import relationship, backref, object_session, deferred
 from sqlalchemy.ext.associationproxy import association_proxy
 from sqlalchemy.orm.collections import attribute_mapped_collection
-from sqlalchemy.ext.declarative import declared_attr
 from sqlalchemy.ext import baked
-from sqlalchemy.exc import OperationalError
 
 from glycan_profiling.chromatogram_tree import (
     ChromatogramTreeNode as MemoryChromatogramTreeNode,
@@ -108,7 +106,7 @@ class MassShift(Base):
     def convert(self):
         try:
             tandem_composition = Composition(str(self.tandem_composition))
-        except:
+        except Exception:
             tandem_composition = None
         return MemoryMassShift(
             str(self.name), Composition(str(self.composition)), tandem_composition)

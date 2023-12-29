@@ -3,11 +3,11 @@ import warnings
 from typing import Any, DefaultDict, Dict, List, Optional, Tuple, Deque
 
 from sqlalchemy import (
-    Column, Numeric, Integer, String, ForeignKey, PickleType,
+    Column, Numeric, Integer, String, ForeignKey,
     Boolean, Table, select)
 from sqlalchemy.ext.declarative import declared_attr
 from sqlalchemy.orm import (
-    relationship, backref, object_session, deferred, Load)
+    relationship, backref, object_session, Load)
 from sqlalchemy.exc import OperationalError
 
 from glycan_profiling.tandem.spectrum_match import (

@@ -5,8 +5,8 @@ from functools import partial
 from typing import Optional, TYPE_CHECKING
 
 from sqlalchemy import (
-    Column, Numeric, Integer, String, ForeignKey, PickleType,
-    Boolean, Table, func)
+    Column, Integer, String, ForeignKey, PickleType,
+    func)
 
 from sqlalchemy.orm import relationship, backref, object_session
 from sqlalchemy.ext.declarative import declared_attr

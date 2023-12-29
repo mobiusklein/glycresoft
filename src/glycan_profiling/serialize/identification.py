@@ -2,7 +2,7 @@ from typing import Dict, Optional
 from sqlalchemy import Column, Numeric, Integer, ForeignKey, select
 from sqlalchemy.orm import relationship, backref, object_session
 from sqlalchemy.ext.declarative import declared_attr
-from sqlalchemy.ext.hybrid import hybrid_property, hybrid_method
+from sqlalchemy.ext.hybrid import hybrid_method
 
 from glycan_profiling.serialize.analysis import BoundToAnalysis
 

@@ -4,10 +4,9 @@ from collections import OrderedDict
 
 from typing import Any
 
-from sqlalchemy.ext.baked import bakery
 from sqlalchemy.ext.declarative import declared_attr
 from sqlalchemy.orm import (
-    relationship, backref, Query, validates,
+    relationship, backref, Query,
     deferred, object_session)
 from sqlalchemy.ext.hybrid import hybrid_property, hybrid_method
 from sqlalchemy import (

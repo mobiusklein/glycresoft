@@ -1,8 +1,7 @@
 from collections import Counter
 
 from sqlalchemy import (
-    Column, Numeric, Integer, String, ForeignKey, PickleType,
-    Boolean, Table, func)
+    Column, Integer, String, ForeignKey, PickleType, func)
 
 from sqlalchemy.orm import relationship, object_session
 from sqlalchemy.ext.declarative import declared_attr

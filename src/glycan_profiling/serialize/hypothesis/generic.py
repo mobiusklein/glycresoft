@@ -11,12 +11,12 @@ from six import string_types as basestring
 
 import sqlalchemy
 from sqlalchemy import (
-    Column, Numeric, Integer, String, ForeignKey,
+    Column, Integer, String, ForeignKey,
     PickleType, Boolean, Table, ForeignKeyConstraint,
     BLOB)
 
 from sqlalchemy.types import TypeDecorator
-from sqlalchemy.orm import relationship, backref, object_session, deferred
+from sqlalchemy.orm import relationship, deferred
 from sqlalchemy.ext.declarative import declared_attr
 from sqlalchemy.ext.mutable import MutableDict
 

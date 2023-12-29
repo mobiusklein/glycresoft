@@ -4,8 +4,7 @@ except ImportError:
     from sqlalchemy.ext.declarative import declarative_base
 
 from sqlalchemy import (
-    Column, Numeric, Integer, String, ForeignKey, PickleType,
-    Boolean)
+    Column, Numeric, String)
 from sqlalchemy.orm import validates
 from sqlalchemy.orm.session import object_session
 

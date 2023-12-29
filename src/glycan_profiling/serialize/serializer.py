@@ -1,7 +1,7 @@
 import time
 
 from collections import defaultdict
-from typing import Any, Dict, FrozenSet, Iterable, List, Tuple, TYPE_CHECKING
+from typing import Dict, FrozenSet, Iterable, List, Tuple, TYPE_CHECKING
 from uuid import uuid4
 
 from sqlalchemy.orm import Query, aliased
@@ -33,7 +33,6 @@ from .tandem import (
     GlycopeptideSpectrumMatch,
     GlycopeptideSpectrumSolutionSet,
     SpectrumClusterBase,
-    SolutionSetBase,
     GlycopeptideSpectrumCluster,
     GlycanCompositionSpectrumCluster,
     UnidentifiedSpectrumCluster,
