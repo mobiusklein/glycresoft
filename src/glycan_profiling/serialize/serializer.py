@@ -301,7 +301,8 @@ class AnalysisSerializer(DatabaseBoundOperation, TaskBase):
                     GlycopeptideSpectrumMatch.structure_id == inst.structure_id
                 ).first()
                 if best_match is not None:
-                    best_spectrum_match_id = db_best_match.id
+                    if db_best_match is not None:
+                        best_spectrum_match_id = db_best_match.id
 
             if best_spectrum_match_id is None:
                 self.log(f"Failed to resolve best spectrum match for {identification} in the database")
