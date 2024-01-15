@@ -197,8 +197,7 @@ class GlycanCompositionGlyphs(object):
             x += 0.6 * self.spacing
             layer.extend(flatten(glyph.shape_patches))
             glyph = glycan_symbol_grammar.draw_text(
-                self.ax, x, y - 0.17, r"$\times %d$" % count, center=False, fontsize=22,
-                zorder=100
+                self.ax, x, y - 0.17, r"$\times %d$" % count, center=False, fontsize=22, zorder=100, lw=0
             )
             if isinstance(glyph, tuple):
                 for g in glyph:
@@ -239,7 +238,6 @@ class GlycanCompositionGlyphs(object):
 
 
 class GlycanCompositionGlyphsOverlaid(GlycanCompositionGlyphs):
-
     def render(self):
         x = self.x
         y = self.y
@@ -251,8 +249,7 @@ class GlycanCompositionGlyphsOverlaid(GlycanCompositionGlyphs):
             # x += 0.6 * self.spacing
             layer.extend(flatten(glyph.shape_patches))
             glyph = glycan_symbol_grammar.draw_text(
-                self.ax, x - 0.15, y - 0.17, r"$%d$" % count, center=False, fontsize=22,
-                zorder=100
+                self.ax, x - 0.15, y - 0.17, r"$%d$" % count, center=False, fontsize=22, zorder=100, lw=0
             )
             if isinstance(glyph, tuple):
                 for g in glyph:
@@ -378,7 +375,9 @@ class IonAnnotationGlyphBase:
         else:
             label = str(self.charge)
 
-        (glyph,) = glycan_symbol_grammar.draw_text(self.ax, -0.45, y + 0.15, label, center=False, fontsize=16, zorder=100)
+        (glyph,) = glycan_symbol_grammar.draw_text(
+            self.ax, -0.45, y + 0.15, label, center=False, fontsize=16, zorder=100, lw=0
+        )
         p = glyph.get_path()
         center = centroid(p)
         p = (
@@ -399,12 +398,15 @@ class IonAnnotationGlyphBase:
 
         if frag.glycosylation:
             return frag.glycosylation
-        elif hasattr(frag, 'modification_dict'):
+        elif hasattr(frag, "modification_dict"):
             mods = CountTable()
             for mod, v in frag.modification_dict.items():
                 if isinstance(mod, GlycanFragment):
                     mods += mod.fragment.glycan_composition
-                elif (isinstance(mod, Modification) and glycopeptidepy.ModificationCategory.glycosylation in mod.rule.categories) or glycopeptidepy.ModificationCategory.glycosylation in mod.categories:
+                elif (
+                    isinstance(mod, Modification)
+                    and glycopeptidepy.ModificationCategory.glycosylation in mod.rule.categories
+                ) or glycopeptidepy.ModificationCategory.glycosylation in mod.categories:
                     mods[glypy.MonosaccharideResidue.from_iupac_lite(mod.name)] += v
             mods = glypy.GlycanComposition(mods)
             return mods
@@ -436,11 +438,7 @@ class IonAnnotationGlyphBase:
         self.x += x
         self.y += y
         for patch in self.get_all_patches():
-            patch.set_path(
-                patch.get_path().transformed(
-                    mtransform.Affine2D().translate(x, y)
-                )
-            )
+            patch.set_path(patch.get_path().transformed(mtransform.Affine2D().translate(x, y)))
 
 
 class GlycopeptideStubFragmentGlyph(IonAnnotationGlyphBase):
@@ -467,7 +465,9 @@ class GlycopeptideStubFragmentGlyph(IonAnnotationGlyphBase):
             label = "pep+"
         else:
             label = "pep"
-        glyph = glycan_symbol_grammar.draw_text(self.ax, x, y, label, center=False, fontsize=self.base_size, zorder=100)
+        glyph = glycan_symbol_grammar.draw_text(
+            self.ax, x, y, label, center=False, fontsize=self.base_size, zorder=100, lw=0
+        )
         glyph = glyph[0]
         path = glyph.get_path()
         glyph.set_path(
@@ -568,7 +568,6 @@ class OxoniumIonGlyph(IonAnnotationGlyphBase):
     def draw_glycan_composition(self):
         y = 0
         if len(self.fragment.monosaccharides) > 3:
-
             art = GlycanCompositionGlyphsOverlaid(
                 self.get_glycan_composition(),
                 -0.2,
@@ -634,7 +633,9 @@ class OxoniumIonGlyph(IonAnnotationGlyphBase):
             return
 
         label = self.fragment.chemical_shift.name
-        glyph = glycan_symbol_grammar.draw_text(self.ax, x, y, label, center=False, fontsize=self.base_size, zorder=100)
+        glyph = glycan_symbol_grammar.draw_text(
+            self.ax, x, y, label, center=False, fontsize=self.base_size, zorder=100, lw=0
+        )
         glyph = glyph[0]
         path = glyph.get_path()
         glyph.set_path(
@@ -727,7 +728,9 @@ class PeptideFragmentGlyph(IonAnnotationGlyphBase):
         x = 0
         y = 0
         label = self.fragment.base_name()
-        glyph = glycan_symbol_grammar.draw_text(self.ax, x, y, label, center=False, fontsize=self.base_size, zorder=100)
+        glyph = glycan_symbol_grammar.draw_text(
+            self.ax, x, y, label, center=False, fontsize=self.base_size, zorder=100, lw=0
+        )
         glyph = glyph[0]
         path = glyph.get_path()
         bbox = bbox_path(path)
@@ -796,7 +799,7 @@ class PeptideFragmentGlyph(IonAnnotationGlyphBase):
         else:
             label = str(self.charge)
 
-        (glyph,) = glycan_symbol_grammar.draw_text(self.ax, -0.2, y + 0.1, label, center=False, fontsize=16)
+        (glyph,) = glycan_symbol_grammar.draw_text(self.ax, -0.2, y + 0.1, label, center=False, fontsize=16, lw=0)
         p = glyph.get_path()
         center = centroid(p)
         p = (
@@ -823,9 +826,9 @@ class PeptideFragmentGlyph(IonAnnotationGlyphBase):
 
         for i, glyph in enumerate(patches):
             p = glyph.get_path()
-            p = p.transformed(mtransform.Affine2D().scale(self.xscale / self.xaspect, self.yscale / self.yaspect)).transformed(
-                mtransform.Affine2D().translate(self.x + 0.25 * self.xscale / self.xaspect, self.y)
-            )
+            p = p.transformed(
+                mtransform.Affine2D().scale(self.xscale / self.xaspect, self.yscale / self.yaspect)
+            ).transformed(mtransform.Affine2D().translate(self.x + 0.25 * self.xscale / self.xaspect, self.y))
             if i == 0:
                 bbox = bbox_path(p)
                 shift = (bbox.xmin - self.x) / 2
@@ -842,9 +845,7 @@ class PeptideFragmentGlyph(IonAnnotationGlyphBase):
         xoffset = self.x - centx
         for glyph in patches:
             p = glyph.get_path()
-            p = p.transformed(
-                mtransform.Affine2D().translate(xoffset, 0)
-            )
+            p = p.transformed(mtransform.Affine2D().translate(xoffset, 0))
             glyph.set_path(p)
 
 
