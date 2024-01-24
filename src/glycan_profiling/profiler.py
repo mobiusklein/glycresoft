@@ -617,6 +617,7 @@ class GlycopeptideLCMSMSAnalyzer(TaskBase):
 
         self.n_processes = n_processes
         self.file_manager = TempFileManager()
+        self.analysis_metadata = {}
 
     def make_peak_loader(self):
         peak_loader = DatabaseScanDeserializer(
@@ -1062,6 +1063,13 @@ class GlycopeptideLCMSMSAnalyzer(TaskBase):
             f"affirmed {affirmations_accepted}/{len(affirmed_results)} "
             f"({affirmations_accepted * 100.0 / (len(affirmed_results) or 1):0.2f}%) existing results")
 
+        self.analysis_metadata['retention_time_revisions'] = {
+            'accepted_revisions': accepted_revisions,
+            'revisions_proposed': len(revisions_accepted),
+            'accepted_affirmations': affirmations_accepted,
+            'affirmations_proposed': len(affirmed_results)
+        }
+
 
     def apply_retention_time_model(self, scored_chromatograms: Sequence[ChromatogramSolution],
                                    orphans: List[TandemSolutionsWithoutChromatogram],
@@ -1157,7 +1165,7 @@ class GlycopeptideLCMSMSAnalyzer(TaskBase):
                                          unassigned_chromatograms: ChromatogramFilter,
                                          chromatogram_extractor: ChromatogramExtractor,
                                          database):
-        return {
+        state = {
             "hypothesis_id": self.hypothesis_id,
             "sample_run_id": self.sample_run_id,
             "mass_error_tolerance": self.mass_error_tolerance,
@@ -1175,6 +1183,9 @@ class GlycopeptideLCMSMSAnalyzer(TaskBase):
             "retention_time_model": self.retention_time_model,
             "extra_evaluation_kwargs": self.extra_msn_evaluation_kwargs,
         }
+        state['additional_metadata'] = self.analysis_metadata
+        return state
+
 
     def _add_files_to_analysis(self):
         for path in self.file_manager.dir():
@@ -1271,7 +1282,7 @@ class MzMLGlycopeptideLCMSMSAnalyzer(GlycopeptideLCMSMSAnalyzer):
                                          unassigned_chromatograms: ChromatogramFilter,
                                          chromatogram_extractor: ChromatogramExtractor,
                                          database):
-        return {
+        state = {
             "hypothesis_id": self.hypothesis_id,
             "sample_run_id": self.sample_run_id,
             "sample_path": os.path.abspath(self.sample_path),
@@ -1298,6 +1309,8 @@ class MzMLGlycopeptideLCMSMSAnalyzer(GlycopeptideLCMSMSAnalyzer):
             "retention_time_model": self.retention_time_model,
             "extra_evaluation_kwargs": self.extra_msn_evaluation_kwargs,
         }
+        state['additional_metadata'] = self.analysis_metadata
+        return state
 
     def make_analysis_serializer(self, output_path, analysis_name: str,
                                  sample_run,

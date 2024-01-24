@@ -115,7 +115,7 @@ class LevelAwareColoredLogFormatter(ProcessAwareFormatter):
     def _patch_fmt(self, fmt: str, level_color: str) -> str:
         fmt = self._colorize_field(fmt, r"%\(asctime\)s", self.GREEN)
         fmt = self._colorize_field(fmt, r"%\(name\).*?s", self.BLUE)
-        fmt = self._colorize_field(fmt, r"%\(message\).*?s", self.GREY)
+        # fmt = self._colorize_field(fmt, r"%\(message\).*?s", self.GREY)
         if level_color:
             fmt = self._colorize_field(fmt, r"%\(levelname\).*?s", level_color)
         return fmt
