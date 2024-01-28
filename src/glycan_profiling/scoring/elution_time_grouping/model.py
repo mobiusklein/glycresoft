@@ -1345,7 +1345,9 @@ class ModelEnsemble(PeptideBackboneKeyedMixin, IntervalScoringMixin):
             apex_time = summary_values['apex_time_array'][i]
             proxies.append(
                 GlycopeptideChromatogramProxy(
-                    gp.total_mass, apex_time, 1.0, gc, mass_shifts=mass_shifts, structure=gp))
+                    gp.total_mass, apex_time, 1.0, gc, mass_shifts=mass_shifts, structure=gp
+                )
+            )
         return proxies
 
 
@@ -1837,7 +1839,15 @@ class LocalOutlierFilteringRelativeShiftFactorElutionTimeFitter(RelativeShiftFac
         return recs, groups
 
 
-def mask_in(full_set, incoming):
+def mask_in(full_set: List[GlycopeptideChromatogramProxy], incoming: List[GlycopeptideChromatogramProxy]) -> List[GlycopeptideChromatogramProxy]:
+    """
+    Replace the entries in ``full_set`` with the entries in ``incoming`` if their tags match,
+    otherwise use the original value.
+
+    Returns
+    -------
+    List[GlycopeptideChromatogramProxy]
+    """
     incoming_map = {i.tag: i for i in incoming}
     out = []
     for chrom in full_set:
@@ -1850,8 +1860,15 @@ def mask_in(full_set, incoming):
 
 # The self paramter is included as this function is later bound to a class directly
 # so it gets made into a method
-def model_type_dispatch(self, chromatogams, factors=None, scale=1, transform=None, width_range=None,
-                        regularize=False, key_cache=None, distance_cache=None, delta_cache=None):
+def model_type_dispatch(self, chromatogams: List[GlycopeptideChromatogramProxy],
+                        factors: Optional[List[str]]=None,
+                        scale: float=1,
+                        transform=None,
+                        width_range: Optional[IntervalRange]=None,
+                        regularize: bool=False,
+                        key_cache=None,
+                        distance_cache: Optional[DistanceCache]=None,
+                        delta_cache: Optional[GlycanCompositionDeltaCache]=None):
     try:
         model = RelativeShiftFactorElutionTimeFitter(
             chromatogams, factors, scale, transform, width_range, regularize,
@@ -1868,8 +1885,15 @@ def model_type_dispatch(self, chromatogams, factors=None, scale=1, transform=Non
 
 # The self paramter is included as this function is later bound to a class directly
 # so it gets made into a method
-def model_type_dispatch_outlier_remove(self, chromatogams, factors=None, scale=1, transform=None, width_range=None,
-                                       regularize=False, key_cache=None, distance_cache=None, delta_cache=None):
+def model_type_dispatch_outlier_remove(self, chromatogams: List[GlycopeptideChromatogramProxy],
+                                       factors: Optional[List[str]]=None,
+                                       scale: float=1,
+                                       transform=None,
+                                       width_range: Optional[IntervalRange]=None,
+                                       regularize: bool=False,
+                                       key_cache=None,
+                                       distance_cache: Optional[DistanceCache]=None,
+                                       delta_cache: Optional[GlycanCompositionDeltaCache]=None):
     try:
         model = LocalOutlierFilteringRelativeShiftFactorElutionTimeFitter(
             chromatogams, factors, scale, transform, width_range, regularize,
@@ -2100,9 +2124,11 @@ class GlycopeptideElutionTimeModelBuildingPipeline(TaskBase):
     def make_groups_from(self, chromatograms):
         return GlycoformAggregator(chromatograms).by_peptide.values()
 
-    def find_uncovered_group_members(self, chromatograms, coverages, min_size=2):
+    def find_uncovered_group_members(self, chromatograms, coverages, min_size=2, seen=None):
         recs = []
         for chrom, cov in zip(chromatograms, coverages):
+            if seen and chrom.tag in seen:
+                continue
             if not np.isclose(cov, 1.0) and len(self.aggregate[chrom]) > min_size:
                 recs.append(chrom)
         return recs
@@ -2243,14 +2269,14 @@ class GlycopeptideElutionTimeModelBuildingPipeline(TaskBase):
             coverage_threshold = (1.0 - (i * 1.0 / (k_scale * k)))
             covered_recs = self.subset_aggregate_by_coverage(
                 all_records, coverages, coverage_threshold)
-            new = set()
+
             if len(covered_recs) == len(last_covered):
                 self.log("No new observations added, skipping")
                 continue
-            else:
-                new = {c.tag for c in covered_recs} - \
-                    {c.tag for c in last_covered}
-                last_covered = covered_recs
+
+            new = {c.tag for c in covered_recs} - \
+                {c.tag for c in last_covered}
+            last_covered = covered_recs
             self.log("... Covering %d chromatograms at threshold %0.2f" % (
                 len(covered_recs), coverage_threshold))
             self.debug("... Added %d new tags" % len(new))
@@ -2269,10 +2295,15 @@ class GlycopeptideElutionTimeModelBuildingPipeline(TaskBase):
             coverage_threshold = (1.0 - (i * 1.0 / (k_scale * k)))
             covered_recs = self.subset_aggregate_by_coverage(
                 all_records, coverages, coverage_threshold)
-            extra_recs = self.find_uncovered_group_members(
-                all_records, coverages)
 
-            self.debug("... Added %d new tags" % len(new))
+            extra_recs = self.find_uncovered_group_members(
+                all_records,
+                coverages
+            )
+
+            self.debug(f"...... Found {len(covered_recs)} covered chromatograms")
+            self.debug(f"...... Found {len(extra_recs)} additional chromatograms")
+
             covered_recs = np.concatenate((covered_recs, extra_recs))
             covered_recs = self.reweight(model, covered_recs, base_weight=0.01)
 

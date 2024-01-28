@@ -14,7 +14,7 @@ from glycan_profiling.cli import (
 
 try:
     from glycresoft_app.cli import server
-except ImportError as e:
+except ImportError:
     pass
 
 
