@@ -5,6 +5,8 @@ Each class is designed to encapsulate a single broad task, i.e.
 LC-MS/MS deconvolution or structure identification
 '''
 import os
+import platform
+
 from collections import defaultdict
 from typing import Any, DefaultDict, Dict, List, Optional, Tuple, Type, Sequence
 from glycan_profiling.chromatogram_tree.mass_shift import MassShiftBase
@@ -617,7 +619,9 @@ class GlycopeptideLCMSMSAnalyzer(TaskBase):
 
         self.n_processes = n_processes
         self.file_manager = TempFileManager()
-        self.analysis_metadata = {}
+        self.analysis_metadata = {
+            "host_uname": platform.uname()._asdict()
+        }
 
     def make_peak_loader(self):
         peak_loader = DatabaseScanDeserializer(
