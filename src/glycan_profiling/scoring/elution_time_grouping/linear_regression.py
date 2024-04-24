@@ -9,6 +9,7 @@ from typing import Tuple, Optional
 import numpy as np
 from scipy import stats
 
+from glycan_profiling._c.scoring.elution_time_grouping import posprocess_linear_fit
 
 def is_square(x: np.ndarray):
     if x.ndim == 2:
@@ -148,6 +149,7 @@ def weighted_linear_regression_fit_ridge(X: np.ndarray, y: np.ndarray,
         Xtw = X.T * w
     else:
         Xtw = X.T @ w
+        w = np.ascontiguousarray(np.diag(w))
     V = np.linalg.pinv((Xtw @ X) + alpha)
     A = V @ Xtw
     del Xtw
@@ -155,11 +157,12 @@ def weighted_linear_regression_fit_ridge(X: np.ndarray, y: np.ndarray,
     H = X @ A
     yhat = X @ B
     residuals = (y - yhat)
-    leave_one_out_error = residuals / (1 - np.diag(H))
-    press = (np.diag(w) * leave_one_out_error * leave_one_out_error).sum()
-    rss = (np.diag(w) * residuals * residuals).sum()
-    tss = (y - y.mean())
-    tss = (np.diag(w) * tss * tss).sum()
+    # leave_one_out_error = residuals / (1 - np.diag(H))
+    # press = (np.diag(w) * leave_one_out_error * leave_one_out_error).sum()
+    # rss = (np.diag(w) * residuals * residuals).sum()
+    # tss = (y - y.mean())
+    # tss = (np.diag(w) * tss * tss).sum()
+    press, rss, tss = posprocess_linear_fit(y, residuals, w, np.ascontiguousarray(np.diag(H)))
     return WLSSolution(
         yhat, B, (X, y), w, residuals, H,
         rss, press, 1 - (rss / (tss)), V)
@@ -192,17 +195,19 @@ def weighted_linear_regression_fit(X: np.ndarray, y: np.ndarray,
         Xtw = X.T * w
     else:
         Xtw = X.T @ w
+        w = np.ascontiguousarray(np.diag(w))
     V = np.linalg.pinv(Xtw.dot(X))
     A = V.dot(Xtw)
     B = A.dot(y)
     H = X.dot(A)
     yhat = X.dot(B)
     residuals = (y - yhat)
-    leave_one_out_error = residuals / (1 - np.diag(H))
-    press = (np.diag(w) * leave_one_out_error * leave_one_out_error).sum()
-    rss = (np.diag(w) * residuals * residuals).sum()
-    tss = (y - y.mean())
-    tss = (np.diag(w) * tss * tss).sum()
+    # leave_one_out_error = residuals / (1 - np.diag(H))
+    # press = (np.diag(w) * leave_one_out_error * leave_one_out_error).sum()
+    # rss = (np.diag(w) * residuals * residuals).sum()
+    # tss = (y - y.mean())
+    # tss = (np.diag(w) * tss * tss).sum()
+    press, rss, tss = posprocess_linear_fit(y, residuals, w, np.ascontiguousarray(np.diag(H)))
     return WLSSolution(
         yhat, B, (X, y), w, residuals, H,
         rss, press, 1 - (rss / (tss)), V)

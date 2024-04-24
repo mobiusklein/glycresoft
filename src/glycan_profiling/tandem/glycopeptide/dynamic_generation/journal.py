@@ -416,8 +416,10 @@ class SolutionSetGrouper(TaskBase):
     spectrum_matches: List[MultiScoreSpectrumMatch]
     # The set of all scan IDs
     spectrum_ids: Set[str]
-    match_type_groups: Dict[StructureClassification,
-                            List[MultiScoreSpectrumMatch]]
+    # The set of all scan IDs where a target is the best match
+    target_owned_spectrum_ids: Set[str]
+    # The spectrum solution sets for each target classification group
+    match_type_groups: Dict[StructureClassification, List[MultiScoreSpectrumSolutionSet]]
     # The set of all spectrum matches that are the best scoring match for their scan in a specific
     # match type. This is used for FDR estimation.
     exclusive_match_groups: DefaultDict[StructureClassification,
@@ -426,7 +428,8 @@ class SolutionSetGrouper(TaskBase):
     def __init__(self, spectrum_matches):
         self.spectrum_matches = list(spectrum_matches)
         self.spectrum_ids = set()
-        self.match_type_groups = self._collect()
+        self.target_owned_spectrum_ids = set()
+        self.match_type_groups = self._collect(self.spectrum_matches)
         self.exclusive_match_groups = self._exclusive()
 
     def __getitem__(self, key):
@@ -446,11 +449,12 @@ class SolutionSetGrouper(TaskBase):
         acc.sort(key=lambda x: x.scan.id)
         return acc
 
-    def _collect(self) -> Dict[StructureClassification, List[MultiScoreSpectrumMatch]]:
+    def _collect(
+        self, spectrum_matches: List[MultiScoreSpectrumMatch]
+    ) -> Dict[StructureClassification, List[MultiScoreSpectrumSolutionSet]]:
 
         match_type_getter = attrgetter('match_type')
-        groups = collectiontools.groupby(
-            self.spectrum_matches, match_type_getter)
+        groups = collectiontools.groupby(spectrum_matches, match_type_getter)
         by_scan_groups = {}
         for group, members in groups.items():
             acc = []
@@ -464,14 +468,15 @@ class SolutionSetGrouper(TaskBase):
             by_scan_groups[group] = acc
         return by_scan_groups
 
-    def _exclusive(self, score_getter: Callable[[MultiScoreSpectrumMatch], float]=None,
-                   min_value: float=0) -> DefaultDict[Any, List[MultiScoreSpectrumMatch]]:
+    def _exclusive(
+        self, score_getter: Callable[[MultiScoreSpectrumMatch], float] = None, min_value: float = 0
+    ) -> DefaultDict[StructureClassification, List[MultiScoreSpectrumMatch]]:
         if score_getter is None:
             score_getter = attrgetter('score')
         groups = collectiontools.groupby(
             self.spectrum_matches, lambda x: x.scan.id)
         by_match_type = defaultdict(list)
-        for _scan_id, members in groups.items():
+        for scan_id, members in groups.items():
             top_match = max(members, key=score_getter)
             top_score = score_getter(top_match)
             seen = set()
@@ -480,6 +485,8 @@ class SolutionSetGrouper(TaskBase):
                     and match.match_type not in seen):
                     seen.add(match.match_type)
                     by_match_type[match.match_type].append(match)
+                    if match.match_type == StructureClassification.target_peptide_target_glycan:
+                        self.target_owned_spectrum_ids.add(scan_id)
         for _group_label, matches in by_match_type.items():
             matches.sort(key=lambda x: (x.scan.id, score_getter(x)))
         return by_match_type
@@ -487,7 +494,13 @@ class SolutionSetGrouper(TaskBase):
     @property
     def target_matches(self) -> List[MultiScoreSpectrumMatch]:
         try:
-            return self.match_type_groups[StructureClassification.target_peptide_target_glycan]
+            return list(
+                filter(
+                    lambda x: x.scan.id in self.target_owned_spectrum_ids,
+                    self.match_type_groups[StructureClassification.target_peptide_target_glycan]
+                )
+            )
+            # return self.match_type_groups[StructureClassification.target_peptide_target_glycan]
         except KeyError:
             return []
 
