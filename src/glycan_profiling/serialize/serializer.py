@@ -270,8 +270,9 @@ class AnalysisSerializer(DatabaseBoundOperation, TaskBase):
 
         if _total_elapsed > 5:
             _cluster_size = sum(map(len, identification.tandem_solutions))
+            _chromatogram_size = len(identification.chromatogram) if identification.chromatogram else 0
             self.log(f"..... Saving {identification} took {_total_elapsed:0.2f} sec "
-                     f"(chromatogram {_chromatogram_saving_elapsed:0.2f}s of {len(identification.chromatogram)} nodes,"
+                     f"(chromatogram {_chromatogram_saving_elapsed:0.2f}s of {_chromatogram_size} nodes,"
                      f" key {_cluster_key_elapsed:0.2f}s,"
                      f" cluster {_cluster_serialized_elapsed:0.2f}s of {_cluster_size} entries)")
 
