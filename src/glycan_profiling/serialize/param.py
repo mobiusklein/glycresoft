@@ -1,6 +1,6 @@
 
 from functools import partial
-from typing import Any, Callable, Union, MutableMapping
+from typing import Any, Callable, Optional, Union, MutableMapping
 import six
 from sqlalchemy import PickleType, Column
 from sqlalchemy.orm import deferred
@@ -8,16 +8,21 @@ from sqlalchemy.ext.declarative import declared_attr
 from sqlalchemy.ext.mutable import Mutable
 
 import dill
+import pyzstd
+
+from ms_deisotope.data_source._compression import starts_with_zstd_magic
 
 
 class LazyMutableMappingWrapper(Mutable, MutableMapping[str, Any]):
-    _payload: bytes
+    _payload: Optional[bytes]
     _unpickler: Callable[[bytes], MutableMapping[str, Any]]
     _object: MutableMapping[str, Any]
 
     def __init__(self, payload=None, unpickler=None, _object=None):
         if payload is None and _object is None:
             _object = PartiallySerializedMutableMapping()
+        if payload is not None and not starts_with_zstd_magic(payload):
+            payload = pyzstd.compress(payload)
         self._payload = payload
         self._unpickler = unpickler
         self._object = _object
@@ -25,7 +30,7 @@ class LazyMutableMappingWrapper(Mutable, MutableMapping[str, Any]):
     def _load(self):
         if self._object is not None:
             return self._object
-        self._object = self._unpickler.loads(self._payload)
+        self._object = self._unpickler.loads(pyzstd.decompress(self._payload))
         self._payload = None
         return self._object
 
@@ -135,6 +140,8 @@ class MappingCell(object):
     def __init__(self, value, serialized=False):
         self.value = value
         self.serialized = serialized
+        if serialized and isinstance(value, bytes) and not starts_with_zstd_magic(value):
+            self.value = pyzstd.compress(value)
 
     def _view_value(self):
         if self.serialized and len(self.value) < self._dynamic_loading_threshold:
@@ -149,7 +156,7 @@ class MappingCell(object):
 
     def serialize(self):
         if not self.serialized:
-            self.value = dill.dumps(self.value, 2)
+            self.value = pyzstd.compress(dill.dumps(self.value, 2))
             self.serialized = True
         return self
 
@@ -157,6 +164,8 @@ class MappingCell(object):
         if self.serialized:
             if isinstance(self.value, six.text_type):
                 self.value = self.value.encode('latin1')
+            if starts_with_zstd_magic(self.value):
+                self.value = pyzstd.decompress(self.value)
             self.value = dill.loads(self.value)
             self.serialized = False
         return self
@@ -218,6 +227,12 @@ class PartiallySerializedMutableMapping(MutableMapping[str, MappingCell]):
                 self.store[key] = value
             else:
                 self.store[key] = MappingCell(value)
+
+    def unload(self):
+        for k, v in self.items():
+            if hasattr(v, "serialized"):
+                if v.serialized:
+                    v.serialize()
 
 
 class _crossversion_dill(object):
