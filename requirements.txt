@@ -19,11 +19,11 @@ rdflib
 requests
 SPARQLWrapper
 
-ms_deisotope >= 0.0.36
+ms_deisotope >= 0.0.53
 glypy >= 1.0.6
-glycopeptidepy >= 0.0.25
-brain-isotopic-distribution>=1.5.8
-ms_peak_picker >= 0.1.35
-python-idzip>=0.3.2
+glycopeptidepy >= 0.0.26
+brain-isotopic-distribution >= 1.5.8
+ms_peak_picker >= 0.1.44
+python-idzip >= 0.3.2
 
 pyzstd
