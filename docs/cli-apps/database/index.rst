@@ -8,4 +8,6 @@ Database Building Tools
    Building a Glycan Hypothesis from a Text File <text-glycan>
    Building a Glycan Hypothesis from glySpace <glyspace-glycan>
 
+   Building a Glycan Composition Graph <glycan-networks>
+
    Building a Glycopeptide Hypothesis from a FASTA File <fasta-glycopeptide>

@@ -1,0 +1,20 @@
+[build-system]
+requires = ["setuptools",
+            "wheel",
+            "Cython",
+            "ms_deisotope >= 0.0.52",
+            "glypy >= 1.0.6",
+            "glycopeptidepy >= 0.0.26",
+            "numpy==1.23.2; python_version >= '3.10'",
+            "oldest-supported-numpy; python_version >= '3.8' and python_version < '3.10'",
+            "numpy==1.16.1; python_version <= '3.7' and python_version >= '3'",
+            "numpy==1.13.3; python_version=='2.7'",
+           ]
+
+[tool.ruff]
+target-version = "py38"
+line-length = 120
+extend-select = []
+
+[tool.ruff.pydocstyle]
+convention = "numpy"

@@ -1,9 +1,9 @@
 include requirements.txt
-recursive-include glycan_profiling/models/data *.json
-recursive-include glycan_profiling/output *.templ
-recursive-include glycan_profiling/output *.js
-recursive-include glycan_profiling/output *.css
-recursive-include glycan_profiling/database/prebuilt/data *
-recursive-include glycan_profiling/_c *.pxd
-recursive-include glycan_profiling/_c *.pyx
-recursive-include glycan_profiling/_c *.c
+recursive-include src/glycan_profiling/models/data *.json
+recursive-include src/glycan_profiling/output *.templ
+recursive-include src/glycan_profiling/output *.js
+recursive-include src/glycan_profiling/output *.css
+recursive-include src/glycan_profiling/database/prebuilt/data *
+recursive-include src/glycan_profiling/_c *.pxd
+recursive-include src/glycan_profiling/_c *.pyx
+recursive-include src/glycan_profiling/_c *.c

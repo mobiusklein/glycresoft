@@ -1,0 +1,173 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title></title>
+    <meta charset="utf-8">
+    <script type="text/javascript">
+        {% include "behaviors.js" %}
+    </script>
+    <style>
+        {% include "style.css" %}
+    </style>
+</head>
+<body>
+<div>
+    <div id='display-panel'>
+
+    </div>
+    <h2>
+        {{analysis.name}}
+    </h2>
+    <section id='parameters' class='flex-container'>
+        <div class='flex-item flex-padding'>
+            <b>MS<sup>1</sup> Mass Accuracy:</b> {{analysis.parameters.mass_error_tolerance * (10 ** 6)}} PPM<br>
+            <b>Grouping Tolerance:</b> {{analysis.parameters.grouping_error_tolerance * (10 ** 6)}} PPM<br>
+            <b>MS<sup>n</sup> Mass Accuracy:</b> {{analysis.parameters.fragment_error_tolerance * (10 ** 6)}} PPM<br>
+            <b>Minimum <code>q</code>-Value For Clustering:</b> {{analysis.parameters.psm_fdr_threshold}}<br>
+            <b>MS<sup>n</sup> Scoring Model:</b>
+            {%- if analysis.parameters.tandem_scoring_model is is_type %}
+                {{analysis.parameters.tandem_scoring_model.__name__}}
+            {%- else %}
+                {{analysis.parameters.tandem_scoring_model.__class__.__name__}}
+            {%- endif %}<br>
+            {% if 'fdr_estimation_strategy' in analysis.parameters %}
+                <b>FDR Strategy:</b> {{analysis.parameters.fdr_estimation_strategy.name}}
+            {% endif %}
+        </div>
+        <div class='flex-item flex-padding'>
+            <b>Glycopeptide Hypothesis:</b>
+            <a>{{hypothesis.name}}</a><br>
+            <ul>
+                {% if "fasta_file" in hypothesis.parameters %}
+                    <li><b>FASTA File:</b> {{hypothesis.parameters['fasta_file']}}</li>
+                {% elif "mzid_file" in hypothesis.parameters %}
+                    <li><b>mzIdentML File:</b> {{hypothesis.parameters['mzid_file']}}</li>
+                {% endif %}
+                {% if "enzymes" in hypothesis.parameters %}
+                    <li><b>Enzymes:</b> {{hypothesis.parameters['enzymes'] | unique | join(", ")}}</li>
+                {% endif %}
+                {% if 'constant_modifications' in hypothesis.parameters%}
+                    <li><b>Constant Modifications</b></li>
+                    <ul>
+                    {% for modrule in hypothesis.parameters['constant_modifications'] %}
+                        {% for rule_text in modrule | modification_specs %}
+                            <li>{{rule_text}}</li>
+                        {% endfor %}
+                    {% endfor %}
+                    </ul>
+                {% endif %}
+                {% if 'variable_modifications' in hypothesis.parameters%}
+                    <li><b>Variable Modifications</b></li>
+                    <ul>
+                    {% for modrule in hypothesis.parameters['variable_modifications'] %}
+                        {% for rule_text in modrule | modification_specs %}
+                            <li>{{rule_text}}</li>
+                        {% endfor %}
+                    {% endfor %}
+                    </ul>
+                {% endif %}
+            </ul>
+            <b>Sample Searched:</b>
+            <a>{{sample_run.name}}</a>
+        </div>
+    </section>
+    {% if renderer.fdr_estimator is not none %}
+    <section id='fdr-estimator-figures'>
+        <button class="accordion active-accordion">FDR Estimation</button>
+        <div class="accordion-panel flex-container">
+            {% for panel in renderer.fdr_estimator_plot() %}
+                {{panel | safe}}
+            {% endfor %}
+        </div>
+    </section>
+    {%- endif %}
+    {% if renderer.retention_time_model is not none %}
+    <section id='retention-time-model-figures'>
+        <button class="accordion active-accordion">Retention Time Model</button>
+        <div class="accordion-panel">
+            <div class='flex-container'>
+                <table id='rt-model-metrics-table'>
+                    <thead>
+                        <tr>
+                            <th>Width Range</th>
+                            <th>Mean Interval Error</th>
+                            <th>R<sup>2</sup></th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td>{{ "%0.3f" % renderer.retention_time_model.width_range.lower }} - {{ "%0.3f" % renderer.retention_time_model.width_range.upper }} minutes</td>
+                            <td>{{ "%0.3f" % renderer.retention_time_model.interval_padding }}</td>
+                            <td>{{ "%0.3f" % renderer.retention_time_model.R2() }}</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+            <div class="flex-container">
+                {% for panel in renderer.retention_time_model_plot() %}
+                    {{panel | safe}}
+                {% endfor %}
+            </div>
+        </div>
+    </section>
+    {%- endif %}
+    <section id='protein-table-container' class='flex-container'>
+        <table>
+            <thead>
+                <tr>
+                    <th>
+                        Protein
+                    </th>
+                    <th>
+                        Matched Glycopeptides
+                    </th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for row in protein_index %}
+                    <tr class='protein-table-row' data-protein-id='{{row.protein_id}}'>
+                        <td>
+                            {{row.protein_name}}
+                        </td>
+                        <td>
+                            {{row.identified_glycopeptide_count}}
+                        </td>
+                    </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </section>
+    <section id='glycoprotein-detail-list'>
+        {% for i, glycoprotein in glycoprotein_iterator %}
+            <div class='glycoprotein-entry-detail' id='detail-glycoprotein-{{glycoprotein.id}}'
+                 data-glycoprotein-index="{{i}}"
+                {% if use_dynamic_display_mode and i > 0 %}
+                     style='display: none;'
+                {% endif %}
+                >
+                <section>
+                {% include "protein-heading.templ" %}
+
+                {% if not use_dynamic_display_mode or (use_dynamic_display_mode and glycoprotein.identified_glycopeptides|length > 1) %}
+                    <div class='glycoform-pileup-container'>
+                        {{renderer.draw_glycoforms(glycoprotein)}}
+                    </div>
+                {% endif %}
+                {% include "glycopeptide-table.templ" %}
+                <div class='flex-container plot-grid'>
+                {% for site_type, axis in renderer.site_specific_abundance_plots(glycoprotein).items() %}
+                    <div class='flex-item'>
+                        {{axis|safe}}
+                    </div>
+                {% endfor %}
+                </div>
+                </section>
+                {% for glycopeptide in glycoprotein.identified_glycopeptides|sort(reverse=True, attribute='-q_value,ms2_score') %}
+                    {% include "glycopeptide-detail-entry.templ" %}
+                {% endfor %}
+            </div>
+        {% endfor %}
+    </section>
+</div>
+</body>
+</html>

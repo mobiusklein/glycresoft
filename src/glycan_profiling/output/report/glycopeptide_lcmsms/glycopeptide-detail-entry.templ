@@ -1,0 +1,156 @@
+{% set spectral_match_info=renderer.spectrum_match_info(glycopeptide) %}
+<section class='glycopeptide-detail-container' id='detail-glycopeptide-{{glycopeptide.id}}'
+         data-index="{{renderer.track_entry(glycopeptide)}}" data-structure="{{glycopeptide.structure}}">
+    <h3>{{glycopeptide.structure | glycopeptide_string}}</h3>
+    <div class="flex-container">
+        <div class='flex-item'>
+            <div class='glycopeptide-mass-entry-container'>
+                <span class='glycopeptide-mass-entry'>
+                    {% if glycopeptide.chromatogram %}
+                    <b>Mass: </b> {{"%0.4f"|format(
+                        glycopeptide.chromatogram.neutral_mass)}}
+                    {% else %}
+                    <b>Mass: </b> {{"%0.4f"|format(
+                        glycopeptide.tandem_solutions[0].scan.precursor_information.neutral_mass)}}
+                    {% endif %}
+                </span>
+                <span class='glycopeptide-mass-error'>
+                    ({{"%0.3e"|format(spectral_match_info.precursor_mass_accuracy)}})
+                </span>
+                <span class='glycopeptide-charge-list'>
+                    {% if glycopeptide.chromatogram %}
+                        <b>Charge States:</b> {{glycopeptide.charge_states|join(", ")}}
+                    {% endif %}
+                </span>
+            </div>
+            <div class='glycopeptide-coordinates-entry-container'>
+                <span class='glycopeptide-coordinates-entry'>
+                    <b>Start Position</b>: {{glycopeptide.start_position + 1}}
+                </span>
+                <span>
+                    <b>End Position</b>: {{glycopeptide.end_position + 1}}
+                </span>
+            </div>
+            <table class='glycopeptide-facet'>
+                {% if glycopeptide.is_multiscore() %}
+                    <thead>
+                        <tr>
+                            <th>Profile</br>Score</th>
+                            <th>Tandem</br>Score</th>
+                            <th>Peptide</br>Score</th>
+                            <th>Glycan</br>Score</th>
+                            <th>Joint</br>
+                                q-value</th>
+                            <th>Peptide</br>
+                                q-value</th>
+                            <th>Glycan&nbsp;</br>
+                                q-value</th>
+                            <th>Volume</th>
+                            <th>Spectrum</br>Matches</th>
+                            <th>{{"MS1</br>Apex Time"|safe if glycopeptide.chromatogram is not none else 'MSn<br/>Event Time'|safe}}</th>
+                            {% if self.retention_time_model is not none %}
+                            <th>RT Score (Interval)</th>
+                            {% endif %}
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td>{{"%0.4f"|format(glycopeptide.ms1_score)}}</td>
+                            <td>{{"%0.4f"|format(glycopeptide.ms2_score)}}</td>
+                            <td>{{"%0.4f"|format(glycopeptide.score_set.peptide_score)}}</td>
+                            <td>{{"%0.4f"|format(glycopeptide.score_set.glycan_score)}}</td>
+                            <td>{{"%0.4f"|format(glycopeptide.q_value)}}</td>
+                            <td>{{"%0.4f"|format(glycopeptide.q_value_set.peptide_q_value)}}</td>
+                            <td>{{"%0.4f"|format(glycopeptide.q_value_set.glycan_q_value)}}</td>
+                            <td>{{"%0.4e"|format(glycopeptide.total_signal) if glycopeptide.total_signal else "-"}}</td>
+                            <td>{{glycopeptide.spectrum_matches|length}}</td>
+                            <td>{{"%0.3f"|format(
+                                glycopeptide.apex_time if glycopeptide.chromatogram is not none else spectral_match_info.spectrum_match.scan_time)}}</td>
+                            {% if renderer.retention_time_model is not none %}
+                            <td>
+                                {% if glycopeptide.chromatogram is not none and renderer.retention_time_model.has_peptide(glycopeptide)%}
+                                {{"%0.3f"|format(renderer.retention_time_model.score_interval(glycopeptide, 0.01)) }}
+                                {{"(%0.3f-%0.3f)"| format(*renderer.format_rt_prediction_interval(glycopeptide)) }}
+                                {% else %}
+                                -
+                                {% endif %}
+                            </td>
+                            {% endif %}
+                        </tr>
+                    </tbody>
+                {% else %}
+                    <thead>
+                        <tr>
+                            <th>Profile Score</th>
+                            <th>MS2 Score</th>
+                            <th>TDA q-value</th>
+                            <th>Volume</th>
+                            <th>Spectrum Matches</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td>{{"%0.4f"|format(glycopeptide.ms1_score)}}</td>
+                            <td>{{"%0.4f"|format(glycopeptide.ms2_score)}}</td>
+                            <td>{{"%0.4f"|format(glycopeptide.q_value)}}</td>
+                            <td>{{"%0.4e"|format(glycopeptide.total_signal) if glycopeptide.total_signal else "-"}}</td>
+                            <td>{{glycopeptide.spectrum_matches|length}}</td>
+                        </tr>
+                    </tbody>
+                {% endif %}
+            </table>
+            {% if glycopeptide.localizations %}
+            <table class='glycopeptide-facet'>
+                <thead>
+                    <tr>
+                        <th>Position</th>
+                        <th>Modification</th>
+                        <th>Localization<br />Probability</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for loc in glycopeptide.localizations %}
+                    <tr>
+                        <td>
+                            {{loc.position}}
+                        </td>
+                        <td>
+                            {{loc.modification}}
+                        </td>
+                        <td>
+                            {{("%0.3g" % loc.score) if loc.score is not none else "-"}}
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+            {% endif %}
+            <div class='mass-shift-signal-fraction-container'>
+                {% if glycopeptide.chromatogram is not none %}
+                    <b>Adduct Signal Fractions</b>
+                    <ul class='mass-shift-signal-fraction-list' style='margin-top:0px;'>
+                    {% for mass_shift, fraction in glycopeptide.chromatogram.mass_shift_signal_fractions().items()|sort(attribute=1) %}
+                        <li class='mass_shift-signal-fraction-item' style='margin-left:10px;'>
+                            <b>{{mass_shift.name}}</b>: {{"%0.4e" % fraction}}
+                        </li>
+                    {% endfor %}
+                    </ul>
+                {% else %}
+                    <b>Adduct</b>: <b>{{spectral_match_info.spectrum_match.mass_shift.name}}</b>
+                {% endif %}
+            </div>
+        </div>
+        <div class='flex-item centered'>
+            {{spectral_match_info.logo_plot|safe}}
+        </div>
+    </div>
+    <div class='flex-container'>
+        <div class='flex-item centered'>
+            {{renderer.chromatogram_plot(glycopeptide)|safe}}
+        </div>
+        <div class='flex-item centered annotated-spectrum-container' data-scan-id="{{spectral_match_info.spectrum_match.scan.scan_id}}"
+             data-scan-time="{{spectral_match_info.spectrum_match.scan.scan_time}}">
+            {{spectral_match_info.spectrum_plot|safe}}
+        </div>
+    </div>
+</section>

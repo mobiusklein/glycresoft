@@ -1,21 +1,24 @@
 dill
 six
 
-sqlalchemy==1.3.23
+sqlalchemy < 1.4.0
 
 numpy
 scipy
 matplotlib
+scikit-learn
 
 pyteomics
 lxml
 
 click
 
-jinja2
+jinja2>=2.11.1
 
 rdflib
 requests
 SPARQLWrapper
 
 python-idzip>=0.3.2
+
+pyzstd

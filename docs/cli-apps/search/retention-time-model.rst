@@ -1,6 +1,16 @@
 Retention Time Modeling for Glycopeptide Identifications
 --------------------------------------------------------
 
+.. note::
+
+    This topic covers the stand-alone RT model described in
+    Klein, J., & Zaia, J. (2020). Relative Retention Time Estimation Improves N-Glycopeptide Identifications by LC–MS/MS. Journal of Proteome Research, 19(5), 2113–2121.
+    `https://doi.org/10.1021/acs.jproteome.0c00051 <https://doi.org/10.1021/acs.jproteome.0c00051>`_.
+
+    Another retention time modeling strategy was added to the glycopeptide search tools that is more robust and has more features. This is retained
+    purely for reference to that publication.
+
+
 GlycReSoft can use chromatographic retention time to refine glycan composition assignments
 to glycopeptides using related glycoforms as points of reference.
 

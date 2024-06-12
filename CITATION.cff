@@ -1,0 +1,135 @@
+# This CITATION.cff file was generated with cffinit.
+# Visit https://bit.ly/cffinit to generate yours today!
+# https://github.com/citation-file-format/citation-file-format/blob/main/schema-guide.md
+
+cff-version: 1.2.0
+title: GlycReSoft
+message: >-
+  If you use this software, please cite it using the
+  metadata from this file.
+type: software
+authors:
+  - given-names: Joshua
+    name-particle: A
+    family-names: Klein
+    email: jaklein@bu.edu
+    affiliation: 'Program for Bioinformatics, Boston University'
+    orcid: 'https://orcid.org/0000-0003-1279-6838'
+  - given-names: Joseph
+    family-names: Zaia
+    email: jzaia@bu.edu
+    affiliation: >-
+      Department of Biochemistry, Boston University
+      School of Medicine
+preferred-citation:
+  authors:
+      - given-names: Joshua
+        name-particle: A
+        family-names: Klein
+        email: jaklein@bu.edu
+        affiliation: 'Program for Bioinformatics, Boston University'
+        orcid: 'https://orcid.org/0000-0003-1279-6838'
+      - given-names: Joseph
+        family-names: Zaia
+        email: jzaia@bu.edu
+        affiliation: >-
+          Department of Biochemistry, Boston University
+          School of Medicine
+  title: >-
+        Relative Retention Time Estimation Improves
+        N-Glycopeptide Identifications by LC-MS/MS
+  type: article
+  doi: 10.1021/acs.jproteome.0c00051
+references:
+  - authors:
+    - given-names: Joshua
+      name-particle: A
+      family-names: Klein
+      email: jaklein@bu.edu
+      affiliation: 'Program for Bioinformatics, Boston University'
+      orcid: 'https://orcid.org/0000-0003-1279-6838'
+    - given-names: Joseph
+      family-names: Zaia
+      email: jzaia@bu.edu
+      affiliation: >-
+        Department of Biochemistry, Boston University
+        School of Medicine
+    title: >-
+        Relative Retention Time Estimation Improves
+        N-Glycopeptide Identifications by LC-MS/MS
+    type: article
+    doi: 10.1021/acs.jproteome.0c00051
+    journal: Journal of Proteome Research
+  - authors:
+    - given-names: Joshua
+      name-particle: A
+      family-names: Klein
+      email: jaklein@bu.edu
+      affiliation: 'Program for Bioinformatics, Boston University'
+      orcid: 'https://orcid.org/0000-0003-1279-6838'
+    - given-names: Le
+      family-names: Meng
+      affiliation: >-
+        Department of Biochemistry, Boston University
+        School of Medicine
+    - given-names: Joseph
+      family-names: Zaia
+      email: jzaia@bu.edu
+      affiliation: >-
+        Department of Biochemistry, Boston University
+        School of Medicine
+    title: >-
+      Deep Sequencing of Complex Proteoglycans: A
+      Novel Strategy for High Coverage and
+      Site-specific Identification of
+      Glycosaminoglycan-linked Peptides
+    journal: Molecular Cellular Proteomics
+    doi: 10.1074/mcp.RA118.000766
+    type: article
+  - authors:
+    - given-names: Joshua
+      name-particle: A
+      family-names: Klein
+      email: jaklein@bu.edu
+      affiliation: 'Program for Bioinformatics, Boston University'
+      orcid: 'https://orcid.org/0000-0003-1279-6838'
+    - given-names: Luis
+      family-names: Carvalho
+    - given-names: Joseph
+      family-names: Zaia
+      email: jzaia@bu.edu
+      affiliation: >-
+        Department of Biochemistry, Boston University
+        School of Medicine
+    title: >-
+      Application of network smoothing to glycan
+      LC-MS profiling
+    journal: Bioinformatics
+    year: 2018
+    doi: 10.1093/bioinformatics/bty397
+    type: article
+url: https://www.bumc.bu.edu/msr/glycresoft/
+repository: https://github.com/mobiusklein/glycresoft
+identifiers:
+  - type: doi
+    value: 10.1021/acs.jproteome.0c00051
+    description: >-
+      Relative Retention Time Estimation Improves
+      N-Glycopeptide Identifications by LC-MS/MS
+  - type: doi
+    value: 10.1074/mcp.RA118.000766
+    description: >-
+      Deep Sequencing of Complex Proteoglycans: A
+      Novel Strategy for High Coverage and
+      Site-specific Identification of
+      Glycosaminoglycan-linked Peptides
+  - type: doi
+    value: 10.1093/bioinformatics/bty397
+    description: >-
+      Application of network smoothing to glycan
+      LC-MS profiling
+keywords:
+  - mass spectrometry
+  - glycomics
+  - glycoproteomics
+license: Apache-2.0

@@ -1,0 +1,252 @@
+#lc-ms-overview img {
+    width: 50%;
+    margin-left: 24%;
+}
+
+#protein-table-container table {
+    width: 75%;
+    margin: 2% auto;
+    border-collapse: collapse;
+}
+
+#protein-table-container th, #protein-table-container td {
+    text-align: center;
+    border: lightgrey 1px solid;
+}
+
+#protein-table-container tbody tr:hover {
+    background: lightgrey;
+    cursor: pointer;
+}
+
+#rt-model-metrics-table {
+    width: 75%;
+    margin: 2% auto;
+    border-collapse: collapse;
+}
+
+#rt-model-metrics-table th, #rt-model-metrics-table td {
+    text-align: center;
+    border: lightgrey 1px solid;
+}
+
+.accordion {
+  background-color: #eee;
+  color: #444;
+  cursor: pointer;
+  padding: 0.5em;
+  margin-bottom: -2px;
+  width: 100%;
+  border: #eee solid 1px;
+  border-radius: 3px;
+  text-align: left;
+  outline: none;
+  font-size: 14px;
+  transition: 0.4s;
+}
+
+.active-accordion, .accordion:hover {
+  background-color: #ccc;
+}
+
+.accordion:after {
+  content: '\002B';
+  color: #777;
+  font-weight: bold;
+  float: right;
+  margin-left: 5px;
+}
+
+.active-accordion:after {
+  content: "\2212";
+}
+
+.accordion-panel {
+  padding: 0 18px;
+  background-color: white;
+  overflow: hidden;
+  transition: max-height 0.2s ease-out;
+}
+
+.centered {
+    text-align: center;
+}
+
+.flex-container {
+    display: flex;
+    flex-direction: row;
+    flex-wrap: wrap;
+    flex-flow: row wrap;
+    align-content: flex-end;
+    align-items: center;
+}
+
+.flex-justify {
+    justify-content: center;
+}
+
+.flex-left {
+    align-self: flex-start;
+}
+
+.flex-padding {
+    padding: 40px;
+}
+
+.flex-item {
+    flex: 1 0 0;
+}
+
+.flex-item-wide {
+    flex: 2 0 0;
+}
+
+.display-table td {
+    text-align: center;
+}
+
+.glycoprotein-entry-detail h3 {
+    text-align: center;
+}
+
+.glycoprotein-sequence {
+    max-height: 200px;
+    overflow-y: auto;
+}
+
+.glycosylation-site {
+    color: red;
+    font-weight: 600;
+}
+
+.fasta-entry {
+    font-size: 1em;
+}
+
+.fasta-entry .fasta-header {
+    font-size: 0.9rem;
+}
+
+
+.glycosylation-site-list table {
+    margin: 0 auto;
+}
+
+.glycosylation-site-list td, .glycosylation-site-list th {
+    padding: 5px;
+    text-align: center;
+}
+
+.glycoform-pileup-container {
+    padding: 20px;
+}
+
+.glycoform-pileup-container svg {
+    display: block;
+    margin-left: auto;
+    margin-right: auto;
+}
+
+.modification-chip {
+    padding-left:1px;
+    padding-right:2px;
+    border-radius:2px;
+}
+
+.monosaccharide-composition-name {
+    padding: 2px;
+    border-radius: 2px;
+    word-break: keep-all;
+    display: inline-block;
+    margin-top: 3px;
+}
+
+.glycopeptide-detail-table table {
+    margin: 0 auto;
+}
+
+.glycopeptide-detail-table tbody tr:hover {
+    background: lightgrey;
+    cursor: pointer;
+}
+
+.glycopeptide-detail-table table td, .glycopeptide-detail-table table th {
+    border: lightgrey 1px solid;
+}
+
+.glycopeptide-detail-table table {
+    border-collapse: collapse;
+}
+
+.glycopeptide-detail-table td, .glycopeptide-detail-table th {
+    font-size: 0.8rem;
+    padding: 3px;
+}
+
+.glycopeptide-facet {
+    padding: 3px;
+    font-size: 0.8rem;
+}
+
+.glycopeptide-facet td, .glycopeptide-facet th {
+    padding: 3px;
+    text-align: center;
+}
+
+.glycopeptide-mass-entry-container {
+
+}
+
+.glycopeptide-mass-entry {
+    padding: 3px;
+}
+
+.glycopeptide-mass-error {
+    padding: 3px;
+}
+
+.glycopeptide-charge-list {
+    padding: 3px;
+}
+
+.mass-shift-signal-fraction-container {
+    padding: 3px;
+}
+
+.glycopeptide-coordinates-entry-container {
+
+}
+
+.glycopeptide-coordinates-entry {
+    padding: 3px;
+}
+
+.plot-grid .flex-item {
+    text-align: center;
+}
+
+section {
+    border-bottom: 2px lightgray solid;
+    margin-bottom: 3px;
+    border-radius: 5px;
+}
+
+body {
+    margin: 20px;
+    font-family: sans-serif;
+}
+
+
+#display-panel {
+    z-index: 999;
+    width: 40%;
+    height: 175px;
+    position: fixed;
+    display: none;
+    background: rgba(255, 255, 255, 0.75);
+    border: solid lightgrey 1px;
+    border-radius: 3px;
+    bottom: 50px;
+    padding: 10px;
+}
+

@@ -1,8 +1,8 @@
-Glycopeptide Analysis Tutorial
-==============================
+High Energy Glycopeptide Search Tutorial
+========================================
 
 This tutorial will cover the steps involved in analyzing glycopeptide
-LC-MS/MS data.
+LC-MS/MS data acquired with a high collision energy.
 
 You can download the raw data we will analyze from `20150710_3um_AGP_001.mzML.gz <https://www.dropbox.com/s/lm0uc5q31aaju8s/20150710_3um_AGP_001.mzML.gz?dl=0>`_. Please download it and decompress it.
 
@@ -19,7 +19,7 @@ Meanwhile, we can begin setting up the hypothesis. This sample contains predomin
 glycopeptides, so we can start by downloading the AGP protein sequences from UniProt:
 
 .. code-block:: bash
-	
+
 	$ echo P19652 >> accession.txt
 	$ echo P02763 >> accession.txt
 	$ glycresoft tools download-uniprot -i accession.txt -o agp.fa

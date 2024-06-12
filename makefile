@@ -2,15 +2,15 @@ all: test
 
 
 dev:
-	python setup.py develop
+	pip install -e . --no-build-isolation -v
 
 
 test:
-	py.test -v  glycan_profiling --cov=glycan_profiling --cov-report=html -s -l -ra
+	py.test -v  tests --cov=glycan_profiling --cov-report=html -s -l -ra
 
 
 retest:
-	py.test -v  glycan_profiling --lf -l -ra
+	py.test -v  tests --lf -l -ra
 
 
 clean:
@@ -29,7 +29,7 @@ pack-pyinstaller:
 
 install-dependencies:
 	pip install --upgrade pip setuptools wheel
-	pip install Cython --install-option="--no-cython-compile"
+	pip install Cython
 	pip install lxml pyteomics brain-isotopic-distribution
 	pip install --only-binary=numpy numpy
 	pip install --only-binary=scipy "scipy"
@@ -42,7 +42,7 @@ update-docs:
 	git checkout gh-pages
 	git pull origin master
 	cd docs && make clean html
-	git add docs/_build/html
+	git add -f docs/_build/html
 	git commit -m "update docs"
 	git push origin gh-pages
 	git checkout master
