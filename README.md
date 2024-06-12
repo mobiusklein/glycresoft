@@ -1,9 +1,8 @@
-GlycReSoft
-----------
+# GlycReSoft
+
 Software for analyzing glycomics and glycoproteomics LC-MS/MS data
 
-Usage
-=====
+## Usage
 
 This package provides several command line tools, available under the name `glycresoft`.
 
@@ -18,15 +17,16 @@ Commands:
   tools             Odds and ends to help inspect data and diagnose issues
 ```
 
-Installing
-==========
+## Installing
 
-This program requires Python 3.8 or newer, last tested with Python 3.10. The simplest way to perform the installation is to use a virtual environment to isolate its dependencies. To install from source after cloning this repository:
+This program requires Python 3.8 or newer, last tested with Python 3.10. The simplest way to perform the installation is to use a virtual environment to isolate its dependencies. To install from source after cloning this repository. The dependencies are listed in `requirements.txt`. The build system requirements in `pyproject.toml`, which includes `numpy` and `Cython`. A C compiler compatible with your version of Python for your platform is also required.
 
 ```bash
 pip install -v .
 ```
+
 or alternatively to install certain dependencies from source
+
 ```bash
 make install-dependencies
 ```
@@ -44,9 +44,13 @@ This will install PyInstaller, a Python program which can package another Python
 
 When installing pre-compiled wheels from the package index, installation should take less than 5 minutes on a regular computer. Installing packages from source things may take up to 15 minutes.
 
-Usage
-=====
+## Usage
+
+The general CLI information, see the [Documentation](https://mobiusklein.github.io/glycresoft/docs/_build/html/index.html), or the command-level
+`--help` menu.
+
+### For Glycopeptides
 
 For a brief tutorial on the original high collision energy glycopeptide search tool, see the [Original Tutorial](https://mobiusklein.github.io/glycresoft/docs/_build/html/tutorials/glycoproteomics-tutorial.html).
 
-For a full tutorial on the stepped collision energy glycopeptide search tool, see
+For a tutorial on the stepped collision energy glycopeptide search tool, see the [SCE Tutorial](https://mobiusklein.github.io/glycresoft/docs/_build/html/tutorials/glycoproteomics-sce-tutorial.html).
