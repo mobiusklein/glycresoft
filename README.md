@@ -21,12 +21,14 @@ Commands:
 Installing
 ==========
 
-This program requires Python 3.8 or newer, last tested with Python 3.10. The simplest way to perform the installation is to use a virtual environment to isolate its dependencies. To install from source after cloning this repository:
+This program requires Python 3.8 or newer, last tested with Python 3.10. The simplest way to perform the installation is to use a virtual environment to isolate its dependencies. To install from source after cloning this repository. The dependencies are listed in `requirements.txt`. The build system requirements in `pyproject.toml`, which includes `numpy` and `Cython`. A C compiler compatible with your version of Python for your platform is also required.
 
 ```bash
 pip install -v .
 ```
+
 or alternatively to install certain dependencies from source
+
 ```bash
 make install-dependencies
 ```
@@ -49,4 +51,4 @@ Usage
 
 For a brief tutorial on the original high collision energy glycopeptide search tool, see the [Original Tutorial](https://mobiusklein.github.io/glycresoft/docs/_build/html/tutorials/glycoproteomics-tutorial.html).
 
-For a full tutorial on the stepped collision energy glycopeptide search tool, see
+For a full tutorial on the stepped collision energy glycopeptide search tool, see **TODO**.
