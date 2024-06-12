@@ -35,9 +35,9 @@ and ``-a "C-1H-2" 1`` to indicate up to three ammonium adducts and up to one
 incomplete permethylation, the program would search for
 
 +----------------------+----------------------+----------------------+----------------------+
-| 0 Ammonium, 0 C-1H-2 | 1 Ammonium, 0 C-1H-2 | 2 Ammonium, 0 C-1H-2 | 3 Ammonium, 0 C-1H-2 | 
+| 0 Ammonium, 0 C-1H-2 | 1 Ammonium, 0 C-1H-2 | 2 Ammonium, 0 C-1H-2 | 3 Ammonium, 0 C-1H-2 |
 +----------------------+----------------------+----------------------+----------------------+
-| 0 Ammonium, 1 C-1H-2 | 1 Ammonium, 1 C-1H-2 | 2 Ammonium, 1 C-1H-2 | 3 Ammonium, 1 C-1H-2 | 
+| 0 Ammonium, 1 C-1H-2 | 1 Ammonium, 1 C-1H-2 | 2 Ammonium, 1 C-1H-2 | 3 Ammonium, 1 C-1H-2 |
 +----------------------+----------------------+----------------------+----------------------+
 
 At this time, adduction models do not have any interaction with charge state.
@@ -47,7 +47,8 @@ Network Regularization
 ----------------------
 
 Apply network smoothing by laplacian regularization to the glycan composition identification
-scores. This procedure is described in detail in XXX. By default, the network used is simply
+scores. This procedure is described in detail in "Klein, J., Carvalho, L., & Zaia, J. (2018). Application of network smoothing to glycan LC-MS profiling.
+Bioinformatics, 34(20), 3511-3518. https://doi.org/10.1093/bioinformatics/bty397". By default, the network used is simply
 the full set of all glycan compositions in the hypothesis, with edges between compositions
 whose composition-distance is less than or equal to :math:`1` and with neighborhoods defined
 for *N*-glycans.

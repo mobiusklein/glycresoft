@@ -5,6 +5,7 @@ The end-goal of all of these tools is to be able to identify glycopeptides
 from experimental data. After you've constructed a glycopeptide database
 and deconvoluted an LC-MS/MS data file, you're ready to do just that.
 
+.. _search-glycopeptide:
 
 Traditional Database Search
 ----------------------------
@@ -22,6 +23,8 @@ Usage Example
          -o "agp-glycopepitdes-in-sample.db"
 
 
+.. _search-glycopeptide-multipart:
+
 Multi-component Database Search
 -------------------------------
 
@@ -34,3 +37,12 @@ Memory Consumption and Workload Size
 Extensive use of caching and work-sharing has been done to make searching enormous
 databases still tractable. If you find you are running out of memory during a search
 consider shrinking the ``-w`` parameter.
+
+
+.. _build-glycosite-model:
+
+Build a Glycosite Network Smoothing Model
+------------------------------------------
+
+.. click:: glycan_profiling.cli.analyze:fit_glycoproteome_model
+    :prog: glycresoft analyze fit-glycoproteome-smoothing-model

@@ -1,6 +1,7 @@
+.. _mzml_preprocess:
+
 LC-MS/MS Data Preprocessing and Deconvolution
 =============================================
-
 
 Convert raw mass spectral data files into deisotoped neutral mass peak lists
 written to a new **mzML** [Martens2011]_ file. For tandem mass spectra,
@@ -48,7 +49,7 @@ Builtin Models
 
     for name, model in AveragineParamType.models.items():
         rows.append((name, formula(model)))
-    
+
     print(as_rest_table(rows))
 
 
@@ -62,7 +63,7 @@ Signal Filters
 --------------
 
 Prior to picking peaks, the raw mass spectral signal may be filtered a number
-of ways. By default, a local noise reduction filter is applied, modulated by 
+of ways. By default, a local noise reduction filter is applied, modulated by
 ``-b`` and ``-bn`` options respectively. Other filers may be set using ``-r``
 and ``-rn``:
 

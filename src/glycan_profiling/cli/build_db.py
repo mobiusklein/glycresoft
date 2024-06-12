@@ -592,7 +592,7 @@ def glycan_network(context, database_connection, hypothesis_identifier, edge_str
     if output_path is None:
         output_stream = ctxstream(sys.stdout)
     else:
-        output_stream = open(output_path, 'wb')
+        output_stream = open(output_path, 'w')
     with output_stream:
         db = GlycanCompositionDiskBackedStructureDatabase(
             database_connection, hypothesis.id)

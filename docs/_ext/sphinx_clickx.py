@@ -37,7 +37,7 @@ def _get_usage(ctx):
     return formatter.getvalue().rstrip('\n')
 
 
-def _get_help_record(opt):
+def _get_help_record(ctx, opt):
     """Re-implementation of click.Opt.get_help_record.
 
     The variant of 'get_help_record' found in Click makes uses of slashes to
@@ -47,8 +47,7 @@ def _get_help_record(opt):
 
     [1] http://www.sphinx-doc.org/en/stable/domains.html#directive-option
     """
-
-    if opt.get_help_record(None) is None:
+    if opt.get_help_record(ctx) is None:
         return None
 
     def _write_opts(opts):
@@ -95,10 +94,10 @@ def _get_help_record(opt):
     return ', '.join(rv), help, ''.join(choices)
 
 
-def _format_option(opt):
+def _format_option(ctx, opt):
     """Format the output a `click.Option`."""
     is_multiple = opt.multiple
-    opt = _get_help_record(opt)
+    opt = _get_help_record(ctx, opt)
     if opt is None:
         return
     yield '.. option:: {}'.format(opt[0])
@@ -181,7 +180,7 @@ def _format_command(ctx, show_nested):
         yield ''
 
     for param in params:
-        for line in _format_option(param):
+        for line in _format_option(ctx, param):
             yield line
         yield ''
 
