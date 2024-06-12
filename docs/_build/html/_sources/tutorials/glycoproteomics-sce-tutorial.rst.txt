@@ -37,6 +37,8 @@ mzML without peak picking. Then run the MS deconvolution tool ``glycresoft mzml 
             MouseHeart-Z-T-${i}.$ext MouseHeart-Z-T-${i}.deconv.mzML
      done
 
+Depending upon the number of CPUs used, this may take 20-30 minutes per sample.
+
 Building the Search Space
 ~~~~~~~~~~~~~~~~~~~~~~~~~
 
@@ -86,6 +88,7 @@ and decoy database:
 
     export DECOY_DB=UP000000589_mouse_sp_only_glycoproteome.decoy.db
 
+The database build process should take between 5 and 10 minutes in total, depending upon UniProt's average response time.
 
 Searching the Data
 ~~~~~~~~~~~~~~~~~~
@@ -110,6 +113,9 @@ This will write both the complete results recorded a SQLite file as well as a mo
             $TARGET_DB $DECOY_DB \
             MouseHeart-Z-T-${i}.deconv.mzML
      done
+
+Depending upon the number of CPUs used, this may take 20-30 minutes per sample. Output files from a similar analysis are available as part of the
+supplementary data files for **TBD**.
 
 Build a Glycosite Smoothing Model
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -141,6 +147,8 @@ Then, we can run the glycosite smoothing model building workflow (:ref:`CLI Docu
         -P $TARGET_DB 1 \
         -o mouse-heart-heart-glycosite-models.json
 
+This may take between 10 and 20 minutes depending upon the number of CPUs used.
+
 Then we can re-analyze the dataset with the smoothing model:
 
 .. code-block:: bash
@@ -161,6 +169,7 @@ Then we can re-analyze the dataset with the smoothing model:
             MouseHeart-Z-T-${i}.deconv.mzML
      done
 
+This should take approximately the same amount of time as the original search.
 
 Build a Fragmentation Model
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -173,6 +182,8 @@ The first step is to export annotated MGF files from the identification results.
         glycresoft -l export-training-mgf-${i}.log glycopeptide-training-mgf \
             -o Mouse-Heart-${i}.training.mgf \
             Mouse-Heart-${i}.search.db 1
+
+This should take approximately 1-2 minutes or less per file.
 
 Then, ensure `glycopeptide_feature_learning <https://github.com/mobiusklein/glycopeptide_feature_learning>`_
 is installed. Now we can fit the fragmentation model:
@@ -187,3 +198,5 @@ is installed. Now we can fit the fragmentation model:
     $ glycopeptide-feature-learning compile-model ${MODEL_NAME}.json ${MODEL_NAME}.pkl
     $ # Evaluate the model fit
     $ glycopeptide-feature-learning calculate-correlation -t 20 $DATAFILES ./correlation.${MODEL_NAME}.pkl  ${MODEL_NAME}.pkl
+
+This should take approximately 15 minutes total.

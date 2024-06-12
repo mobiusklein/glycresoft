@@ -67,6 +67,7 @@ mzML without peak picking. Then run the MS deconvolution tool <code class="docut
 <span class="w"> </span><span class="k">done</span>
 </pre></div>
 </div>
+<p>Depending upon the number of CPUs used, this may take 20-30 minutes per sample.</p>
 </section>
 <section id="building-the-search-space">
 <h2>Building the Search Space<a class="headerlink" href="#building-the-search-space" title="Permalink to this heading">¶</a></h2>
@@ -108,6 +109,7 @@ consequently taking substantially less time.</p>
 <span class="nb">export</span><span class="w"> </span><span class="nv">DECOY_DB</span><span class="o">=</span>UP000000589_mouse_sp_only_glycoproteome.decoy.db
 </pre></div>
 </div>
+<p>The database build process should take between 5 and 10 minutes in total, depending upon UniProt’s average response time.</p>
 </section>
 <section id="searching-the-data">
 <h2>Searching the Data<a class="headerlink" href="#searching-the-data" title="Permalink to this heading">¶</a></h2>
@@ -129,6 +131,8 @@ consequently taking substantially less time.</p>
 <span class="w"> </span><span class="k">done</span>
 </pre></div>
 </div>
+<p>Depending upon the number of CPUs used, this may take 20-30 minutes per sample. Output files from a similar analysis are available as part of the
+supplementary data files for <strong>TBD</strong>.</p>
 </section>
 <section id="build-a-glycosite-smoothing-model">
 <h2>Build a Glycosite Smoothing Model<a class="headerlink" href="#build-a-glycosite-smoothing-model" title="Permalink to this heading">¶</a></h2>
@@ -155,6 +159,7 @@ $<span class="w"> </span>glycresoft<span class="w"> </span>build-hypothesis<span
 <span class="w">    </span>-o<span class="w"> </span>mouse-heart-heart-glycosite-models.json
 </pre></div>
 </div>
+<p>This may take between 10 and 20 minutes depending upon the number of CPUs used.</p>
 <p>Then we can re-analyze the dataset with the smoothing model:</p>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$<span class="w"> </span><span class="k">for</span><span class="w"> </span>i<span class="w"> </span><span class="k">in</span><span class="w"> </span><span class="m">1</span><span class="w"> </span><span class="m">2</span><span class="w"> </span><span class="m">3</span><span class="w"> </span><span class="m">4</span><span class="w"> </span><span class="m">5</span><span class="p">;</span><span class="w"> </span><span class="k">do</span>
 <span class="w">    </span>glycresoft<span class="w"> </span>-l<span class="w"> </span>search-smoothed-<span class="si">${</span><span class="nv">i</span><span class="si">}</span>.log<span class="w"> </span>analyze<span class="w"> </span>search-glycopeptide-multipart<span class="w"> </span><span class="se">\</span>
@@ -173,6 +178,7 @@ $<span class="w"> </span>glycresoft<span class="w"> </span>build-hypothesis<span
 <span class="w"> </span><span class="k">done</span>
 </pre></div>
 </div>
+<p>This should take approximately the same amount of time as the original search.</p>
 </section>
 <section id="build-a-fragmentation-model">
 <h2>Build a Fragmentation Model<a class="headerlink" href="#build-a-fragmentation-model" title="Permalink to this heading">¶</a></h2>
@@ -183,6 +189,7 @@ $<span class="w"> </span>glycresoft<span class="w"> </span>build-hypothesis<span
 <span class="w">        </span>Mouse-Heart-<span class="si">${</span><span class="nv">i</span><span class="si">}</span>.search.db<span class="w"> </span><span class="m">1</span>
 </pre></div>
 </div>
+<p>This should take approximately 1-2 minutes or less per file.</p>
 <p>Then, ensure <a class="reference external" href="https://github.com/mobiusklein/glycopeptide_feature_learning">glycopeptide_feature_learning</a>
 is installed. Now we can fit the fragmentation model:</p>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$<span class="w"> </span><span class="nv">DATAFILES</span><span class="o">=</span><span class="sb">`</span>ls<span class="w"> </span>Mouse-Heart-*.training.mgf<span class="sb">`</span>
@@ -195,6 +202,7 @@ $<span class="w"> </span><span class="c1"># Evaluate the model fit</span>
 $<span class="w"> </span>glycopeptide-feature-learning<span class="w"> </span>calculate-correlation<span class="w"> </span>-t<span class="w"> </span><span class="m">20</span><span class="w"> </span><span class="nv">$DATAFILES</span><span class="w"> </span>./correlation.<span class="si">${</span><span class="nv">MODEL_NAME</span><span class="si">}</span>.pkl<span class="w">  </span><span class="si">${</span><span class="nv">MODEL_NAME</span><span class="si">}</span>.pkl
 </pre></div>
 </div>
+<p>This should take approximately 15 minutes total.</p>
 </section>
 </section>
 
