@@ -1,28 +1,24 @@
+<!DOCTYPE html>
 
-<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
-  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
-
-<html xmlns="http://www.w3.org/1999/xhtml">
+<html lang="en">
   <head>
-    <meta http-equiv="X-UA-Compatible" content="IE=Edge" />
-    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
-    <title>Glycopeptide Analysis Tutorial &#8212; glycresoft  documentation</title>
-    <link rel="stylesheet" href="../_static/haiku.css" type="text/css" />
-    <link rel="stylesheet" href="../_static/pygments.css" type="text/css" />
-    <script type="text/javascript" id="documentation_options" data-url_root="../" src="../_static/documentation_options.js"></script>
-    <script type="text/javascript" src="../_static/jquery.js"></script>
-    <script type="text/javascript" src="../_static/underscore.js"></script>
-    <script type="text/javascript" src="../_static/doctools.js"></script>
-    <script type="text/javascript" src="../_static/language_data.js"></script>
-    <script async="async" type="text/javascript" src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.5/latest.js?config=TeX-AMS-MML_HTMLorMML"></script>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+
+    <title>High Energy Glycopeptide Search Tutorial &#8212; glycresoft  documentation</title>
+    <link rel="stylesheet" type="text/css" href="../_static/pygments.css?v=fa44fd50" />
+    <link rel="stylesheet" type="text/css" href="../_static/haiku.css?v=e7493be8" />
+    <script data-url_root="../" id="documentation_options" src="../_static/documentation_options.js?v=b3ba4146"></script>
+    <script src="../_static/doctools.js?v=888ff710"></script>
+    <script src="../_static/sphinx_highlight.js?v=4825356b"></script>
     <link rel="index" title="Index" href="../genindex.html" />
     <link rel="search" title="Search" href="../search.html" />
-    <link rel="next" title="Other Topics" href="../topics/index.html" />
+    <link rel="next" title="Multipart Score Glycopeptide Search Tutorial" href="glycoproteomics-sce-tutorial.html" />
     <link rel="prev" title="Tutorials" href="index.html" /> 
   </head><body>
-      <div class="header" role="banner"><img class="rightlogo" src="../_static/logo.png" alt="Logo" style='width:120px;'/><h1 class="heading"><a href="../index.html">
+      <div class="header" role="banner"><h1 class="heading"><a href="../index.html">
           <span>glycresoft  documentation</span></a></h1>
-        <h2 class="heading"><span>Glycopeptide Analysis Tutorial</span></h2>
+        <h2 class="heading"><span>High Energy Glycopeptide Search Tutorial</span></h2>
       </div>
       <div class="topnav" role="navigation" aria-label="top navigation">
       
@@ -31,22 +27,22 @@
         &#160;&#160;::&#160;&#160;
         <a class="uplink" href="../index.html">Contents</a>
         &#160;&#160;::&#160;&#160;
-        <a href="../topics/index.html">Other Topics</a>&#160;&#160;»
+        <a href="glycoproteomics-sce-tutorial.html">Multipart Score Glycopeptide Search Tutorial</a>&#160;&#160;»
         </p>
 
       </div>
       <div class="content">
         
         
-  <div class="section" id="glycopeptide-analysis-tutorial">
-<h1>Glycopeptide Analysis Tutorial<a class="headerlink" href="#glycopeptide-analysis-tutorial" title="Permalink to this headline">¶</a></h1>
+  <section id="high-energy-glycopeptide-search-tutorial">
+<h1>High Energy Glycopeptide Search Tutorial<a class="headerlink" href="#high-energy-glycopeptide-search-tutorial" title="Permalink to this heading">¶</a></h1>
 <p>This tutorial will cover the steps involved in analyzing glycopeptide
-LC-MS/MS data.</p>
+LC-MS/MS data acquired with a high collision energy.</p>
 <p>You can download the raw data we will analyze from <a class="reference external" href="https://www.dropbox.com/s/lm0uc5q31aaju8s/20150710_3um_AGP_001.mzML.gz?dl=0">20150710_3um_AGP_001.mzML.gz</a>. Please download it and decompress it.</p>
 <div class="literal-block-wrapper docutils container" id="id1">
 <div class="code-block-caption"><span class="caption-text">Deconvolution of Glycopeptide LC-MS/MS</span><a class="headerlink" href="#id1" title="Permalink to this code">¶</a></div>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$ glycresoft mzml preprocess -p <span class="m">6</span> -v -a glycopeptide -an peptide 20150710_3um_AGP_001.mzML<span class="se">\</span>
-         20150710_3um_AGP_001.preprocessed.mzML
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$<span class="w"> </span>glycresoft<span class="w"> </span>mzml<span class="w"> </span>preprocess<span class="w"> </span>-p<span class="w"> </span><span class="m">6</span><span class="w"> </span>-v<span class="w"> </span>-a<span class="w"> </span>glycopeptide<span class="w"> </span>-an<span class="w"> </span>peptide<span class="w"> </span>20150710_3um_AGP_001.mzML<span class="se">\</span>
+<span class="w">         </span>20150710_3um_AGP_001.preprocessed.mzML
 </pre></div>
 </div>
 </div>
@@ -54,9 +50,9 @@ LC-MS/MS data.</p>
 amount of time, on the order of one to two hours.</p>
 <p>Meanwhile, we can begin setting up the hypothesis. This sample contains predominantly AGP
 glycopeptides, so we can start by downloading the AGP protein sequences from UniProt:</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$ <span class="nb">echo</span> P19652 &gt;&gt; accession.txt
-$ <span class="nb">echo</span> P02763 &gt;&gt; accession.txt
-$ glycresoft tools download-uniprot -i accession.txt -o agp.fa
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$<span class="w"> </span><span class="nb">echo</span><span class="w"> </span>P19652<span class="w"> </span>&gt;&gt;<span class="w"> </span>accession.txt
+$<span class="w"> </span><span class="nb">echo</span><span class="w"> </span>P02763<span class="w"> </span>&gt;&gt;<span class="w"> </span>accession.txt
+$<span class="w"> </span>glycresoft<span class="w"> </span>tools<span class="w"> </span>download-uniprot<span class="w"> </span>-i<span class="w"> </span>accession.txt<span class="w"> </span>-o<span class="w"> </span>agp.fa
 </pre></div>
 </div>
 <p>Copy the following text into a file “combinatorial-rules.txt”</p>
@@ -75,7 +71,7 @@ HexNAc &gt; NeuAc + 1
 <p>Next, we’ll build the glycan hypothesis</p>
 <div class="literal-block-wrapper docutils container" id="id3">
 <div class="code-block-caption"><span class="caption-text">Build glycan hypothesis</span><a class="headerlink" href="#id3" title="Permalink to this code">¶</a></div>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$ glycresoft build-hypothesis glycan-combinatorial combinatorial-rules.txt glycans.db
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$<span class="w"> </span>glycresoft<span class="w"> </span>build-hypothesis<span class="w"> </span>glycan-combinatorial<span class="w"> </span>combinatorial-rules.txt<span class="w"> </span>glycans.db
 </pre></div>
 </div>
 </div>
@@ -83,10 +79,10 @@ HexNAc &gt; NeuAc + 1
 FASTA we downloaded earlier</p>
 <div class="literal-block-wrapper docutils container" id="id4">
 <div class="code-block-caption"><span class="caption-text">Build glycopeptide hypothesis</span><a class="headerlink" href="#id4" title="Permalink to this code">¶</a></div>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$ glycresoft build-hypothesis glycopeptide-fa -g glycans.db -s hypothesis -G <span class="m">1</span><span class="se">\</span>
-        -u <span class="m">1</span> -e trypsin -m <span class="m">1</span> -c <span class="s2">&quot;Carbamidomethyl (C)&quot;</span> -v <span class="s2">&quot;Deamidation (N)&quot;</span><span class="se">\</span>
-        -v <span class="s2">&quot;Pyro-glu from Q (Q@N-term)&quot;</span> -p <span class="m">4</span> -n <span class="s2">&quot;Alpha-1-acid Glycopeptide Hypothesis&quot;</span><span class="se">\</span>
-        agp.fa fasta-agp.db
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$<span class="w"> </span>glycresoft<span class="w"> </span>build-hypothesis<span class="w"> </span>glycopeptide-fa<span class="w"> </span>-g<span class="w"> </span>glycans.db<span class="w"> </span>-s<span class="w"> </span>hypothesis<span class="w"> </span>-G<span class="w"> </span><span class="m">1</span><span class="se">\</span>
+<span class="w">        </span>-u<span class="w"> </span><span class="m">1</span><span class="w"> </span>-e<span class="w"> </span>trypsin<span class="w"> </span>-m<span class="w"> </span><span class="m">1</span><span class="w"> </span>-c<span class="w"> </span><span class="s2">&quot;Carbamidomethyl (C)&quot;</span><span class="w"> </span>-v<span class="w"> </span><span class="s2">&quot;Deamidation (N)&quot;</span><span class="se">\</span>
+<span class="w">        </span>-v<span class="w"> </span><span class="s2">&quot;Pyro-glu from Q (Q@N-term)&quot;</span><span class="w"> </span>-p<span class="w"> </span><span class="m">4</span><span class="w"> </span>-n<span class="w"> </span><span class="s2">&quot;Alpha-1-acid Glycopeptide Hypothesis&quot;</span><span class="se">\</span>
+<span class="w">        </span>agp.fa<span class="w"> </span>fasta-agp.db
 </pre></div>
 </div>
 </div>
@@ -95,8 +91,8 @@ FASTA we downloaded earlier</p>
 run the database search:</p>
 <div class="literal-block-wrapper docutils container" id="id5">
 <div class="code-block-caption"><span class="caption-text">Database search process</span><a class="headerlink" href="#id5" title="Permalink to this code">¶</a></div>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$ glycresoft analyze search-glycopeptide fasta-agp.db 20150710_3um_AGP_001.preprocessed.mzML <span class="m">1</span><span class="se">\</span>
- -o agp-glycopepitdes-20150710_3um_AGP_001.db -p <span class="m">5</span>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$<span class="w"> </span>glycresoft<span class="w"> </span>analyze<span class="w"> </span>search-glycopeptide<span class="w"> </span>fasta-agp.db<span class="w"> </span>20150710_3um_AGP_001.preprocessed.mzML<span class="w"> </span><span class="m">1</span><span class="se">\</span>
+<span class="w"> </span>-o<span class="w"> </span>agp-glycopepitdes-20150710_3um_AGP_001.db<span class="w"> </span>-p<span class="w"> </span><span class="m">5</span>
 </pre></div>
 </div>
 </div>
@@ -105,12 +101,12 @@ run the database search:</p>
 for downstream analysis.</p>
 <div class="literal-block-wrapper docutils container" id="id6">
 <div class="code-block-caption"><span class="caption-text">CSV export</span><a class="headerlink" href="#id6" title="Permalink to this code">¶</a></div>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$ glycresoft <span class="nb">export</span> glycopeptide-identification agp-glycopepitdes-20150710_3um_AGP_001.db <span class="m">1</span><span class="se">\</span>
-  -o agp-glycopeptides.csv
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$<span class="w"> </span>glycresoft<span class="w"> </span><span class="nb">export</span><span class="w"> </span>glycopeptide-identification<span class="w"> </span>agp-glycopepitdes-20150710_3um_AGP_001.db<span class="w"> </span><span class="m">1</span><span class="se">\</span>
+<span class="w">  </span>-o<span class="w"> </span>agp-glycopeptides.csv
 </pre></div>
 </div>
 </div>
-</div>
+</section>
 
 
       </div>
@@ -121,14 +117,14 @@ for downstream analysis.</p>
         &#160;&#160;::&#160;&#160;
         <a class="uplink" href="../index.html">Contents</a>
         &#160;&#160;::&#160;&#160;
-        <a href="../topics/index.html">Other Topics</a>&#160;&#160;»
+        <a href="glycoproteomics-sce-tutorial.html">Multipart Score Glycopeptide Search Tutorial</a>&#160;&#160;»
         </p>
 
       </div>
 
     <div class="footer" role="contentinfo">
-        &#169; Copyright 2017, Joshua Klein.
-      Created using <a href="http://sphinx-doc.org/">Sphinx</a> 1.8.5.
+    &#169; Copyright 2024, Joshua Klein.
+      Created using <a href="https://www.sphinx-doc.org/">Sphinx</a> 7.1.2.
     </div>
   </body>
 </html>

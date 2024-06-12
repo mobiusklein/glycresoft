@@ -1,0 +1,220 @@
+<!DOCTYPE html>
+
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+
+    <title>Multipart Score Glycopeptide Search Tutorial &#8212; glycresoft  documentation</title>
+    <link rel="stylesheet" type="text/css" href="../_static/pygments.css?v=fa44fd50" />
+    <link rel="stylesheet" type="text/css" href="../_static/haiku.css?v=e7493be8" />
+    <script data-url_root="../" id="documentation_options" src="../_static/documentation_options.js?v=b3ba4146"></script>
+    <script src="../_static/doctools.js?v=888ff710"></script>
+    <script src="../_static/sphinx_highlight.js?v=4825356b"></script>
+    <link rel="index" title="Index" href="../genindex.html" />
+    <link rel="search" title="Search" href="../search.html" />
+    <link rel="next" title="Other Topics" href="../topics/index.html" />
+    <link rel="prev" title="High Energy Glycopeptide Search Tutorial" href="glycoproteomics-tutorial.html" /> 
+  </head><body>
+      <div class="header" role="banner"><h1 class="heading"><a href="../index.html">
+          <span>glycresoft  documentation</span></a></h1>
+        <h2 class="heading"><span>Multipart Score Glycopeptide Search Tutorial</span></h2>
+      </div>
+      <div class="topnav" role="navigation" aria-label="top navigation">
+      
+        <p>
+        «&#160;&#160;<a href="glycoproteomics-tutorial.html">High Energy Glycopeptide Search Tutorial</a>
+        &#160;&#160;::&#160;&#160;
+        <a class="uplink" href="../index.html">Contents</a>
+        &#160;&#160;::&#160;&#160;
+        <a href="../topics/index.html">Other Topics</a>&#160;&#160;»
+        </p>
+
+      </div>
+      <div class="content">
+        
+        
+  <section id="multipart-score-glycopeptide-search-tutorial">
+<h1>Multipart Score Glycopeptide Search Tutorial<a class="headerlink" href="#multipart-score-glycopeptide-search-tutorial" title="Permalink to this heading">¶</a></h1>
+<p>This tutorial will cover the steps involved in analyzing glycopeptide
+LC-MS/MS data acquired with stepped collision energy.</p>
+<section id="preparing-the-data">
+<h2>Preparing the Data<a class="headerlink" href="#preparing-the-data" title="Permalink to this heading">¶</a></h2>
+<p>To begin, please download the five Thermo .raw files from <a class="reference external" href="https://www.ebi.ac.uk/pride/archive/projects/PXD005413">PXD005413</a>:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="c1"># using wget and the PRIDE FTP location programmatically may work</span>
+$<span class="w"> </span><span class="k">for</span><span class="w"> </span>i<span class="w"> </span><span class="k">in</span><span class="w"> </span><span class="m">1</span><span class="w"> </span><span class="m">2</span><span class="w"> </span><span class="m">3</span><span class="w"> </span><span class="m">4</span><span class="w"> </span><span class="m">5</span><span class="p">;</span><span class="w"> </span><span class="k">do</span>
+<span class="w">    </span>wget<span class="w"> </span>ftp://ftp.pride.ebi.ac.uk/pride/data/archive/2017/09/PXD005413/MouseHeart-Z-T-<span class="si">${</span><span class="nv">i</span><span class="si">}</span>.raw
+<span class="w">  </span><span class="k">done</span>
+</pre></div>
+</div>
+<p>On Windows, you can directly process these files in the next step, but for other platforms, please convert them to
+mzML without peak picking. Then run the MS deconvolution tool <code class="docutils literal notranslate"><span class="pre">glycresoft</span> <span class="pre">mzml</span> <span class="pre">preprocess</span></code> <a class="reference internal" href="../cli-apps/search/mzml-preprocess.html#mzml-preprocess"><span class="std std-ref">CLI Documentation</span></a>.</p>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>Replace the <code class="docutils literal notranslate"><span class="pre">$CPUS</span></code> variable with the number of cores you want the program to use per command.</p>
+</div>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$<span class="w"> </span><span class="k">for</span><span class="w"> </span>i<span class="w"> </span><span class="k">in</span><span class="w"> </span><span class="m">1</span><span class="w"> </span><span class="m">2</span><span class="w"> </span><span class="m">3</span><span class="w"> </span><span class="m">4</span><span class="w"> </span><span class="m">5</span><span class="p">;</span><span class="w"> </span><span class="k">do</span>
+<span class="w">    </span>glycresoft<span class="w"> </span>-l<span class="w"> </span>preprocess-<span class="si">${</span><span class="nv">i</span><span class="si">}</span>.log<span class="w"> </span>mzml<span class="w"> </span>preprocess<span class="w"> </span><span class="se">\</span>
+<span class="w">        </span>-p<span class="w"> </span><span class="nv">$CPUS</span><span class="w"> </span><span class="se">\</span>
+<span class="w">        </span>-v<span class="w"> </span><span class="se">\</span>
+<span class="w">        </span>-b<span class="w"> </span><span class="m">0</span><span class="w"> </span><span class="se">\</span>
+<span class="w">        </span>-g<span class="w"> </span><span class="m">1</span><span class="w"> </span><span class="se">\</span>
+<span class="w">        </span>-a<span class="w"> </span>glycopeptide<span class="w"> </span><span class="se">\</span>
+<span class="w">        </span>-c<span class="w"> </span><span class="m">12</span><span class="w"> </span><span class="se">\</span>
+<span class="w">        </span>-an<span class="w"> </span>peptide<span class="w"> </span><span class="se">\</span>
+<span class="w">        </span>-tn<span class="w"> </span><span class="m">10</span><span class="w"> </span><span class="se">\</span>
+<span class="w">        </span>MouseHeart-Z-T-<span class="si">${</span><span class="nv">i</span><span class="si">}</span>.<span class="nv">$ext</span><span class="w"> </span>MouseHeart-Z-T-<span class="si">${</span><span class="nv">i</span><span class="si">}</span>.deconv.mzML
+<span class="w"> </span><span class="k">done</span>
+</pre></div>
+</div>
+</section>
+<section id="building-the-search-space">
+<h2>Building the Search Space<a class="headerlink" href="#building-the-search-space" title="Permalink to this heading">¶</a></h2>
+<p>Meanwhile, we need to prepare the database GlycReSoft will search. Please download the UniProt Mouse reference proteome and the glycan list:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>wget<span class="w"> </span><span class="s2">&quot;https://rest.uniprot.org/uniprotkb/stream?format=fasta&amp;query=%28%28proteome%3AUP000000589%29+AND+reviewed%3Dtrue%29&quot;</span><span class="w"> </span>-O<span class="w"> </span>UP000000589_mouse_reference_proteome_sp_only.fa
+wget<span class="w"> </span>--no-check-certificate<span class="w"> </span><span class="s2">&quot;https://raw.githubusercontent.com/mobiusklein/glycresoft/master/docs/tutorials/combined_mouse_nglycans.txt&quot;</span><span class="w"> </span>-O<span class="w"> </span>combined_mouse_nglycans.txt
+</pre></div>
+</div>
+<p>The multi-part scoring scheme requires a separate target database and decoy database, and does not fully materialize the crossproduct of peptides and glycans,
+dynamically computing them as needed at run time. Therefore we need to build the database twice, once for the targets and once for the decoys with the <code class="docutils literal notranslate"><span class="pre">--reverse</span></code>
+flag set, and we pass the <code class="docutils literal notranslate"><span class="pre">-F</span> <span class="pre">/</span> <span class="pre">--not-full-crossproduct</span></code> flag to both database build commands to prevent the crossproduct from being generated
+consequently taking substantially less time.</p>
+<p>We build the target database:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>glycresoft<span class="w"> </span>-l<span class="w"> </span>build-target-db.log<span class="w"> </span>build-hypothesis<span class="w"> </span>glycopeptide-fa<span class="w"> </span>-p<span class="w"> </span><span class="nv">$CPUS</span><span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>-g<span class="w"> </span>combined_mouse_nglycans.txt<span class="w"> </span>-s<span class="w"> </span>text<span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>-u<span class="w"> </span><span class="m">1</span><span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>-c<span class="w"> </span><span class="s2">&quot;Carbamidomethyl (C)&quot;</span><span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>-v<span class="w"> </span><span class="s2">&quot;Oxidation (M)&quot;</span><span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>-m<span class="w"> </span><span class="m">2</span><span class="w"> </span>-e<span class="w"> </span>trypsin<span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>-C<span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>-F<span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>UP000000589_mouse_reference_proteome_sp_only.fa<span class="w">  </span>UP000000589_mouse_sp_only_glycoproteome.db
+
+<span class="nb">export</span><span class="w"> </span><span class="nv">TARGET_DB</span><span class="o">=</span>UP000000589_mouse_sp_only_glycoproteome.db
+</pre></div>
+</div>
+<p>and decoy database:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>glycresoft<span class="w"> </span>-l<span class="w"> </span>build-decoy-db.log<span class="w"> </span>build-hypothesis<span class="w"> </span>glycopeptide-fa<span class="w"> </span>-p<span class="w"> </span><span class="nv">$CPUS</span><span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>-g<span class="w"> </span>combined_mouse_nglycans.txt<span class="w"> </span>-s<span class="w"> </span>text<span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>-u<span class="w"> </span><span class="m">1</span><span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>-c<span class="w"> </span><span class="s2">&quot;Carbamidomethyl (C)&quot;</span><span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>-v<span class="w"> </span><span class="s2">&quot;Oxidation (M)&quot;</span><span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>-m<span class="w"> </span><span class="m">2</span><span class="w"> </span>-e<span class="w"> </span>trypsin<span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>-C<span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>-F<span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>--reverse<span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>UP000000589_mouse_reference_proteome_sp_only.fa<span class="w">  </span>UP000000589_mouse_sp_only_glycoproteome.decoy.db
+
+<span class="nb">export</span><span class="w"> </span><span class="nv">DECOY_DB</span><span class="o">=</span>UP000000589_mouse_sp_only_glycoproteome.decoy.db
+</pre></div>
+</div>
+</section>
+<section id="searching-the-data">
+<h2>Searching the Data<a class="headerlink" href="#searching-the-data" title="Permalink to this heading">¶</a></h2>
+<p>Once the databases are built and the spectra have been preprocessed, we can run the search step (<a class="reference internal" href="../cli-apps/search/search-glycopeptide.html#search-glycopeptide-multipart"><span class="std std-ref">CLI Documentation</span></a>).</p>
+<p>This will write both the complete results recorded a SQLite file as well as a more easily readable CSV file of the glycopeptide spectrum matches.</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$<span class="w"> </span><span class="k">for</span><span class="w"> </span>i<span class="w"> </span><span class="k">in</span><span class="w"> </span><span class="m">1</span><span class="w"> </span><span class="m">2</span><span class="w"> </span><span class="m">3</span><span class="w"> </span><span class="m">4</span><span class="w"> </span><span class="m">5</span><span class="p">;</span><span class="w"> </span><span class="k">do</span>
+<span class="w">    </span>glycresoft<span class="w"> </span>-l<span class="w"> </span>search-<span class="si">${</span><span class="nv">i</span><span class="si">}</span>.log<span class="w"> </span>analyze<span class="w"> </span>search-glycopeptide-multipart<span class="w"> </span><span class="se">\</span>
+<span class="w">        </span>-p<span class="w"> </span><span class="nv">$CPUS</span><span class="w"> </span><span class="se">\</span>
+<span class="w">        </span>-w<span class="w"> </span><span class="m">500</span><span class="w"> </span><span class="se">\</span>
+<span class="w">        </span>-m<span class="w"> </span>5e-6<span class="w"> </span><span class="se">\</span>
+<span class="w">        </span>-mn<span class="w"> </span>2e-5<span class="w"> </span><span class="se">\</span>
+<span class="w">        </span>-s<span class="w"> </span>log_intensity_v3<span class="w"> </span><span class="se">\</span>
+<span class="w">        </span>-o<span class="w"> </span>Mouse-Heart-<span class="si">${</span><span class="nv">i</span><span class="si">}</span>.search.db<span class="w"> </span><span class="se">\</span>
+<span class="w">        </span>-M<span class="w"> </span><span class="se">\</span>
+<span class="w">        </span>-a<span class="w"> </span>Ammonium<span class="w"> </span><span class="m">2</span><span class="w"> </span><span class="se">\</span>
+<span class="w">        </span>--export<span class="w"> </span>psm-csv<span class="w"> </span><span class="se">\</span>
+<span class="w">        </span><span class="nv">$TARGET_DB</span><span class="w"> </span><span class="nv">$DECOY_DB</span><span class="w"> </span><span class="se">\</span>
+<span class="w">        </span>MouseHeart-Z-T-<span class="si">${</span><span class="nv">i</span><span class="si">}</span>.deconv.mzML
+<span class="w"> </span><span class="k">done</span>
+</pre></div>
+</div>
+</section>
+<section id="build-a-glycosite-smoothing-model">
+<h2>Build a Glycosite Smoothing Model<a class="headerlink" href="#build-a-glycosite-smoothing-model" title="Permalink to this heading">¶</a></h2>
+<p>To build a site-specific glycome network smoothing model, we need to build a graph first.
+(<a class="reference internal" href="../cli-apps/database/glycan-networks.html#build-glycan-graph"><span class="std std-ref">CLI Documentation for build-network</span></a>, <a class="reference internal" href="../cli-apps/database/glycan-networks.html#add-predefined-neighborhood-glycan-graph"><span class="std std-ref">CLI Documentation for add-prebuilt-neighborhoods</span></a>)</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$<span class="w"> </span>glycresoft<span class="w"> </span>build-hypothesis<span class="w"> </span>glycan-network<span class="w"> </span>build-network<span class="w"> </span><span class="nv">$TARGET_DB</span><span class="w"> </span><span class="m">1</span><span class="w"> </span>-o<span class="w"> </span>mouse_glycan_network.txt
+$<span class="w"> </span>glycresoft<span class="w"> </span>build-hypothesis<span class="w"> </span>glycan-network<span class="w"> </span>add-prebuilt-neighborhoods<span class="w"> </span>-n<span class="w"> </span>mammalian-n-glycan<span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>-i<span class="w"> </span>mouse_glycan_network.txt<span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>-o<span class="w"> </span>mouse_glycan_network.txt
+</pre></div>
+</div>
+<p>Then, we can run the glycosite smoothing model building workflow (<a class="reference internal" href="../cli-apps/search/search-glycopeptide.html#build-glycosite-model"><span class="std std-ref">CLI Documentation</span></a>):</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$<span class="w"> </span>glycresoft<span class="w"> </span>analyze<span class="w"> </span>fit-glycoproteome-smoothing-model<span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>-p<span class="w"> </span><span class="nv">$CPUS</span>
+<span class="w">    </span>-i<span class="w"> </span>Mouse-Heart-1.search.db<span class="w"> </span><span class="m">1</span><span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>-i<span class="w"> </span>Mouse-Heart-2.search.db<span class="w"> </span><span class="m">1</span><span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>-i<span class="w"> </span>Mouse-Heart-3.search.db<span class="w"> </span><span class="m">1</span><span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>-i<span class="w"> </span>Mouse-Heart-4.search.db<span class="w"> </span><span class="m">1</span><span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>-i<span class="w"> </span>Mouse-Heart-5.search.db<span class="w"> </span><span class="m">1</span><span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>-w<span class="w"> </span>mouse_glycan_network.txt<span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>-q<span class="w"> </span><span class="m">0</span>.01<span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>-g<span class="w"> </span><span class="nv">$TARGET_DB</span><span class="w"> </span><span class="m">1</span><span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>-P<span class="w"> </span><span class="nv">$TARGET_DB</span><span class="w"> </span><span class="m">1</span><span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>-o<span class="w"> </span>mouse-heart-heart-glycosite-models.json
+</pre></div>
+</div>
+<p>Then we can re-analyze the dataset with the smoothing model:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$<span class="w"> </span><span class="k">for</span><span class="w"> </span>i<span class="w"> </span><span class="k">in</span><span class="w"> </span><span class="m">1</span><span class="w"> </span><span class="m">2</span><span class="w"> </span><span class="m">3</span><span class="w"> </span><span class="m">4</span><span class="w"> </span><span class="m">5</span><span class="p">;</span><span class="w"> </span><span class="k">do</span>
+<span class="w">    </span>glycresoft<span class="w"> </span>-l<span class="w"> </span>search-smoothed-<span class="si">${</span><span class="nv">i</span><span class="si">}</span>.log<span class="w"> </span>analyze<span class="w"> </span>search-glycopeptide-multipart<span class="w"> </span><span class="se">\</span>
+<span class="w">        </span>-p<span class="w"> </span><span class="nv">$CPUS</span><span class="w"> </span><span class="se">\</span>
+<span class="w">        </span>-w<span class="w"> </span><span class="m">500</span><span class="w"> </span><span class="se">\</span>
+<span class="w">        </span>-m<span class="w"> </span>5e-6<span class="w"> </span><span class="se">\</span>
+<span class="w">        </span>-mn<span class="w"> </span>2e-5<span class="w"> </span><span class="se">\</span>
+<span class="w">        </span>-s<span class="w"> </span>log_intensity_v3<span class="w"> </span><span class="se">\</span>
+<span class="w">        </span>-o<span class="w"> </span>Mouse-Heart-<span class="si">${</span><span class="nv">i</span><span class="si">}</span>.search-smoothed.db<span class="w"> </span><span class="se">\</span>
+<span class="w">        </span>-M<span class="w"> </span><span class="se">\</span>
+<span class="w">        </span>-a<span class="w"> </span>Ammonium<span class="w"> </span><span class="m">2</span><span class="w"> </span><span class="se">\</span>
+<span class="w">        </span>--export<span class="w"> </span>psm-csv<span class="w"> </span><span class="se">\</span>
+<span class="w">        </span>-S<span class="w"> </span>mouse-heart-heart-glycosite-models.json<span class="w"> </span><span class="se">\</span>
+<span class="w">        </span><span class="nv">$TARGET_DB</span><span class="w"> </span><span class="nv">$DECOY_DB</span><span class="w"> </span><span class="se">\</span>
+<span class="w">        </span>MouseHeart-Z-T-<span class="si">${</span><span class="nv">i</span><span class="si">}</span>.deconv.mzML
+<span class="w"> </span><span class="k">done</span>
+</pre></div>
+</div>
+</section>
+<section id="build-a-fragmentation-model">
+<h2>Build a Fragmentation Model<a class="headerlink" href="#build-a-fragmentation-model" title="Permalink to this heading">¶</a></h2>
+<p>The first step is to export annotated MGF files from the identification results.</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$<span class="w"> </span><span class="k">for</span><span class="w"> </span>i<span class="w"> </span><span class="k">in</span><span class="w"> </span><span class="m">1</span><span class="w"> </span><span class="m">2</span><span class="w"> </span><span class="m">3</span><span class="w"> </span><span class="m">4</span><span class="w"> </span><span class="m">5</span><span class="p">;</span><span class="w"> </span><span class="k">do</span>
+<span class="w">    </span>glycresoft<span class="w"> </span>-l<span class="w"> </span>export-training-mgf-<span class="si">${</span><span class="nv">i</span><span class="si">}</span>.log<span class="w"> </span>glycopeptide-training-mgf<span class="w"> </span><span class="se">\</span>
+<span class="w">        </span>-o<span class="w"> </span>Mouse-Heart-<span class="si">${</span><span class="nv">i</span><span class="si">}</span>.training.mgf<span class="w"> </span><span class="se">\</span>
+<span class="w">        </span>Mouse-Heart-<span class="si">${</span><span class="nv">i</span><span class="si">}</span>.search.db<span class="w"> </span><span class="m">1</span>
+</pre></div>
+</div>
+<p>Then, ensure <a class="reference external" href="https://github.com/mobiusklein/glycopeptide_feature_learning">glycopeptide_feature_learning</a>
+is installed. Now we can fit the fragmentation model:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$<span class="w"> </span><span class="nv">DATAFILES</span><span class="o">=</span><span class="sb">`</span>ls<span class="w"> </span>Mouse-Heart-*.training.mgf<span class="sb">`</span>
+$<span class="w"> </span><span class="nv">MODEL_NAME</span><span class="o">=</span>mouse-heart-fragmodel
+$<span class="w"> </span><span class="c1"># Do the model training</span>
+$<span class="w"> </span>glycopeptide-feature-learning<span class="w"> </span>fit-model<span class="w"> </span>-t<span class="w"> </span><span class="m">20</span><span class="w"> </span><span class="nv">$DATAFILES</span><span class="w"> </span>-o<span class="w"> </span><span class="si">${</span><span class="nv">MODEL_NAME</span><span class="si">}</span>.json
+$<span class="w"> </span><span class="c1"># Convert the complete model into something easier for Python to read</span>
+$<span class="w"> </span>glycopeptide-feature-learning<span class="w"> </span>compile-model<span class="w"> </span><span class="si">${</span><span class="nv">MODEL_NAME</span><span class="si">}</span>.json<span class="w"> </span><span class="si">${</span><span class="nv">MODEL_NAME</span><span class="si">}</span>.pkl
+$<span class="w"> </span><span class="c1"># Evaluate the model fit</span>
+$<span class="w"> </span>glycopeptide-feature-learning<span class="w"> </span>calculate-correlation<span class="w"> </span>-t<span class="w"> </span><span class="m">20</span><span class="w"> </span><span class="nv">$DATAFILES</span><span class="w"> </span>./correlation.<span class="si">${</span><span class="nv">MODEL_NAME</span><span class="si">}</span>.pkl<span class="w">  </span><span class="si">${</span><span class="nv">MODEL_NAME</span><span class="si">}</span>.pkl
+</pre></div>
+</div>
+</section>
+</section>
+
+
+      </div>
+      <div class="bottomnav" role="navigation" aria-label="bottom navigation">
+      
+        <p>
+        «&#160;&#160;<a href="glycoproteomics-tutorial.html">High Energy Glycopeptide Search Tutorial</a>
+        &#160;&#160;::&#160;&#160;
+        <a class="uplink" href="../index.html">Contents</a>
+        &#160;&#160;::&#160;&#160;
+        <a href="../topics/index.html">Other Topics</a>&#160;&#160;»
+        </p>
+
+      </div>
+
+    <div class="footer" role="contentinfo">
+    &#169; Copyright 2024, Joshua Klein.
+      Created using <a href="https://www.sphinx-doc.org/">Sphinx</a> 7.1.2.
+    </div>
+  </body>
+</html>

@@ -1,26 +1,22 @@
+<!DOCTYPE html>
 
-<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
-  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
-
-<html xmlns="http://www.w3.org/1999/xhtml">
+<html lang="en">
   <head>
-    <meta http-equiv="X-UA-Compatible" content="IE=Edge" />
-    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+
     <title>Building a Glycan Hypothesis from glySpace &#8212; glycresoft  documentation</title>
-    <link rel="stylesheet" href="../../_static/haiku.css" type="text/css" />
-    <link rel="stylesheet" href="../../_static/pygments.css" type="text/css" />
-    <script type="text/javascript" id="documentation_options" data-url_root="../../" src="../../_static/documentation_options.js"></script>
-    <script type="text/javascript" src="../../_static/jquery.js"></script>
-    <script type="text/javascript" src="../../_static/underscore.js"></script>
-    <script type="text/javascript" src="../../_static/doctools.js"></script>
-    <script type="text/javascript" src="../../_static/language_data.js"></script>
-    <script async="async" type="text/javascript" src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.5/latest.js?config=TeX-AMS-MML_HTMLorMML"></script>
+    <link rel="stylesheet" type="text/css" href="../../_static/pygments.css?v=fa44fd50" />
+    <link rel="stylesheet" type="text/css" href="../../_static/haiku.css?v=e7493be8" />
+    <script data-url_root="../../" id="documentation_options" src="../../_static/documentation_options.js?v=b3ba4146"></script>
+    <script src="../../_static/doctools.js?v=888ff710"></script>
+    <script src="../../_static/sphinx_highlight.js?v=4825356b"></script>
     <link rel="index" title="Index" href="../../genindex.html" />
     <link rel="search" title="Search" href="../../search.html" />
-    <link rel="next" title="Building a Glycopeptide Hypothesis from a FASTA File" href="fasta-glycopeptide.html" />
+    <link rel="next" title="Glycome Network Definitions" href="glycan-networks.html" />
     <link rel="prev" title="Building a Glycan Hypothesis from a Text File" href="text-glycan.html" /> 
   </head><body>
-      <div class="header" role="banner"><img class="rightlogo" src="../../_static/logo.png" alt="Logo" style='width:120px;'/><h1 class="heading"><a href="../../index.html">
+      <div class="header" role="banner"><h1 class="heading"><a href="../../index.html">
           <span>glycresoft  documentation</span></a></h1>
         <h2 class="heading"><span>Building a Glycan Hypothesis from glySpace</span></h2>
       </div>
@@ -31,51 +27,51 @@
         &#160;&#160;::&#160;&#160;
         <a class="uplink" href="../../index.html">Contents</a>
         &#160;&#160;::&#160;&#160;
-        <a href="fasta-glycopeptide.html">Building a Glycopeptide Hypothesis from a FASTA File</a>&#160;&#160;»
+        <a href="glycan-networks.html">Glycome Network Definitions</a>&#160;&#160;»
         </p>
 
       </div>
       <div class="content">
         
         
-  <div class="section" id="building-a-glycan-hypothesis-from-glyspace">
-<span id="glyspace-glycan-hypothesis"></span><h1>Building a Glycan Hypothesis from glySpace<a class="headerlink" href="#building-a-glycan-hypothesis-from-glyspace" title="Permalink to this headline">¶</a></h1>
+  <section id="building-a-glycan-hypothesis-from-glyspace">
+<span id="glyspace-glycan-hypothesis"></span><h1>Building a Glycan Hypothesis from glySpace<a class="headerlink" href="#building-a-glycan-hypothesis-from-glyspace" title="Permalink to this heading">¶</a></h1>
 <p>The glycoinformatics community has developed a federation of
 databases called <cite>glySpace</cite>, which composes
 the “namespace of all glycan structures”. It uses semantic web
 technologies to describe and relate these entities, and gateways
-into <cite>glySpace</cite> such as <a class="reference internal" href="#glytoucan" id="id1">[GlyTouCan]</a>
+into <cite>glySpace</cite> such as <a class="reference internal" href="#glytoucan" id="id1"><span>[GlyTouCan]</span></a>
 provide query-able access to this data.</p>
 <p>You can build a glycan composition hypothesis from the set of annotated
 glycan structures in <cite>glySpace</cite> for N-glycans and O-glycans,
 with or without taxonomic filters.</p>
-<div class="section" id="glycresoft-build-hypothesis-glycan-glyspace">
-<h2>glycresoft build-hypothesis glycan-glyspace<a class="headerlink" href="#glycresoft-build-hypothesis-glycan-glyspace" title="Permalink to this headline">¶</a></h2>
-<div class="highlight-shell notranslate"><div class="highlight"><pre><span></span>glycresoft build-hypothesis glycan-glyspace <span class="o">[</span>OPTIONS<span class="o">]</span> DATABASE_CONNECTION
+<section id="glycresoft-build-hypothesis-glycan-glyspace">
+<h2>glycresoft build-hypothesis glycan-glyspace<a class="headerlink" href="#glycresoft-build-hypothesis-glycan-glyspace" title="Permalink to this heading">¶</a></h2>
+<div class="highlight-shell notranslate"><div class="highlight"><pre><span></span>glycresoft<span class="w"> </span>build-hypothesis<span class="w"> </span>glycan-glyspace<span class="w"> </span><span class="o">[</span>OPTIONS<span class="o">]</span><span class="w"> </span>DATABASE_CONNECTION
 </pre></div>
 </div>
 <p class="rubric">Options</p>
-<dl class="option">
-<dt id="cmdoption-glycresoft-build-hypothesis-glycan-glyspace-r">
-<code class="descname">-r</code><code class="descclassname"></code><code class="descclassname">, </code><code class="descname">--reduction</code><code class="descclassname"> &lt;string&gt;</code><a class="headerlink" href="#cmdoption-glycresoft-build-hypothesis-glycan-glyspace-r" title="Permalink to this definition">¶</a></dt>
+<dl class="std option">
+<dt class="sig sig-object std" id="cmdoption-glycresoft-build-hypothesis-glycan-glyspace-r">
+<span id="cmdoption-glycresoft-build-hypothesis-glycan-glyspace-reduction"></span><span class="sig-name descname"><span class="pre">-r</span></span><span class="sig-prename descclassname"></span><span class="sig-prename descclassname"><span class="pre">,</span> </span><span class="sig-name descname"><span class="pre">--reduction</span></span><span class="sig-prename descclassname"> <span class="pre">&lt;string&gt;</span></span><a class="headerlink" href="#cmdoption-glycresoft-build-hypothesis-glycan-glyspace-r" title="Permalink to this definition">¶</a></dt>
 <dd><p>Reducing end modification</p>
 </dd></dl>
 
-<dl class="option">
-<dt id="cmdoption-glycresoft-build-hypothesis-glycan-glyspace-d">
-<code class="descname">-d</code><code class="descclassname"></code><code class="descclassname">, </code><code class="descname">--derivatization</code><code class="descclassname"> &lt;string&gt;</code><a class="headerlink" href="#cmdoption-glycresoft-build-hypothesis-glycan-glyspace-d" title="Permalink to this definition">¶</a></dt>
+<dl class="std option">
+<dt class="sig sig-object std" id="cmdoption-glycresoft-build-hypothesis-glycan-glyspace-d">
+<span id="cmdoption-glycresoft-build-hypothesis-glycan-glyspace-derivatization"></span><span class="sig-name descname"><span class="pre">-d</span></span><span class="sig-prename descclassname"></span><span class="sig-prename descclassname"><span class="pre">,</span> </span><span class="sig-name descname"><span class="pre">--derivatization</span></span><span class="sig-prename descclassname"> <span class="pre">&lt;string&gt;</span></span><a class="headerlink" href="#cmdoption-glycresoft-build-hypothesis-glycan-glyspace-d" title="Permalink to this definition">¶</a></dt>
 <dd><p>Chemical derivatization to apply</p>
 </dd></dl>
 
-<dl class="option">
-<dt id="cmdoption-glycresoft-build-hypothesis-glycan-glyspace-n">
-<code class="descname">-n</code><code class="descclassname"></code><code class="descclassname">, </code><code class="descname">--name</code><code class="descclassname"> &lt;string&gt;</code><a class="headerlink" href="#cmdoption-glycresoft-build-hypothesis-glycan-glyspace-n" title="Permalink to this definition">¶</a></dt>
+<dl class="std option">
+<dt class="sig sig-object std" id="cmdoption-glycresoft-build-hypothesis-glycan-glyspace-n">
+<span id="cmdoption-glycresoft-build-hypothesis-glycan-glyspace-name"></span><span class="sig-name descname"><span class="pre">-n</span></span><span class="sig-prename descclassname"></span><span class="sig-prename descclassname"><span class="pre">,</span> </span><span class="sig-name descname"><span class="pre">--name</span></span><span class="sig-prename descclassname"> <span class="pre">&lt;string&gt;</span></span><a class="headerlink" href="#cmdoption-glycresoft-build-hypothesis-glycan-glyspace-n" title="Permalink to this definition">¶</a></dt>
 <dd><p>The name for the hypothesis to be created</p>
 </dd></dl>
 
-<dl class="option">
-<dt id="cmdoption-glycresoft-build-hypothesis-glycan-glyspace-m">
-<code class="descname">-m</code><code class="descclassname"></code><code class="descclassname">, </code><code class="descname">--motif-class</code><code class="descclassname"> &lt;choice&gt;</code><a class="headerlink" href="#cmdoption-glycresoft-build-hypothesis-glycan-glyspace-m" title="Permalink to this definition">¶</a></dt>
+<dl class="std option">
+<dt class="sig sig-object std" id="cmdoption-glycresoft-build-hypothesis-glycan-glyspace-m">
+<span id="cmdoption-glycresoft-build-hypothesis-glycan-glyspace-motif-class"></span><span class="sig-name descname"><span class="pre">-m</span></span><span class="sig-prename descclassname"></span><span class="sig-prename descclassname"><span class="pre">,</span> </span><span class="sig-name descname"><span class="pre">--motif-class</span></span><span class="sig-prename descclassname"> <span class="pre">&lt;choice&gt;</span></span><a class="headerlink" href="#cmdoption-glycresoft-build-hypothesis-glycan-glyspace-m" title="Permalink to this definition">¶</a></dt>
 <dd><p>Specify a glycan structure family to search for</p>
 <div class="line-block">
 <div class="line">Choices: [</div>
@@ -85,102 +81,102 @@ with or without taxonomic filters.</p>
 </div>
 </dd></dl>
 
-<dl class="option">
-<dt id="cmdoption-glycresoft-build-hypothesis-glycan-glyspace-t">
-<code class="descname">-t</code><code class="descclassname"></code><code class="descclassname">, </code><code class="descname">--target-taxon</code><code class="descclassname"> &lt;string&gt;</code><a class="headerlink" href="#cmdoption-glycresoft-build-hypothesis-glycan-glyspace-t" title="Permalink to this definition">¶</a></dt>
+<dl class="std option">
+<dt class="sig sig-object std" id="cmdoption-glycresoft-build-hypothesis-glycan-glyspace-t">
+<span id="cmdoption-glycresoft-build-hypothesis-glycan-glyspace-target-taxon"></span><span class="sig-name descname"><span class="pre">-t</span></span><span class="sig-prename descclassname"></span><span class="sig-prename descclassname"><span class="pre">,</span> </span><span class="sig-name descname"><span class="pre">--target-taxon</span></span><span class="sig-prename descclassname"> <span class="pre">&lt;string&gt;</span></span><a class="headerlink" href="#cmdoption-glycresoft-build-hypothesis-glycan-glyspace-t" title="Permalink to this definition">¶</a></dt>
 <dd><p>Only select structures annotated with this taxonomy</p>
 </dd></dl>
 
-<dl class="option">
-<dt id="cmdoption-glycresoft-build-hypothesis-glycan-glyspace-i">
-<code class="descname">-i</code><code class="descclassname"></code><code class="descclassname">, </code><code class="descname">--include-children</code><code class="descclassname"></code><a class="headerlink" href="#cmdoption-glycresoft-build-hypothesis-glycan-glyspace-i" title="Permalink to this definition">¶</a></dt>
+<dl class="std option">
+<dt class="sig sig-object std" id="cmdoption-glycresoft-build-hypothesis-glycan-glyspace-i">
+<span id="cmdoption-glycresoft-build-hypothesis-glycan-glyspace-include-children"></span><span class="sig-name descname"><span class="pre">-i</span></span><span class="sig-prename descclassname"></span><span class="sig-prename descclassname"><span class="pre">,</span> </span><span class="sig-name descname"><span class="pre">--include-children</span></span><span class="sig-prename descclassname"></span><a class="headerlink" href="#cmdoption-glycresoft-build-hypothesis-glycan-glyspace-i" title="Permalink to this definition">¶</a></dt>
 <dd><p>Include child taxa of –target-taxon. No effect otherwise.  [default: False]</p>
 </dd></dl>
 
-<dl class="option">
-<dt id="cmdoption-glycresoft-build-hypothesis-glycan-glyspace-s">
-<code class="descname">-s</code><code class="descclassname"></code><code class="descclassname">, </code><code class="descname">--detatch-substituent</code><code class="descclassname"> &lt;substituent&gt;</code><a class="headerlink" href="#cmdoption-glycresoft-build-hypothesis-glycan-glyspace-s" title="Permalink to this definition">¶</a></dt>
+<dl class="std option">
+<dt class="sig sig-object std" id="cmdoption-glycresoft-build-hypothesis-glycan-glyspace-s">
+<span id="cmdoption-glycresoft-build-hypothesis-glycan-glyspace-detatch-substituent"></span><span class="sig-name descname"><span class="pre">-s</span></span><span class="sig-prename descclassname"></span><span class="sig-prename descclassname"><span class="pre">,</span> </span><span class="sig-name descname"><span class="pre">--detatch-substituent</span></span><span class="sig-prename descclassname"> <span class="pre">&lt;substituent&gt;</span></span><a class="headerlink" href="#cmdoption-glycresoft-build-hypothesis-glycan-glyspace-s" title="Permalink to this definition">¶</a></dt>
 <dd><p>Substituent type to detatch from all monosaccharides (May specify more than once)</p>
 </dd></dl>
 
 <p class="rubric">Arguments</p>
-<dl class="option">
-<dt id="cmdoption-glycresoft-build-hypothesis-glycan-glyspace-arg-database-connection">
-<code class="descname">DATABASE_CONNECTION</code><code class="descclassname"></code><a class="headerlink" href="#cmdoption-glycresoft-build-hypothesis-glycan-glyspace-arg-database-connection" title="Permalink to this definition">¶</a></dt>
+<dl class="std option">
+<dt class="sig sig-object std" id="cmdoption-glycresoft-build-hypothesis-glycan-glyspace-arg-DATABASE_CONNECTION">
+<span class="sig-name descname"><span class="pre">DATABASE_CONNECTION</span></span><span class="sig-prename descclassname"></span><a class="headerlink" href="#cmdoption-glycresoft-build-hypothesis-glycan-glyspace-arg-DATABASE_CONNECTION" title="Permalink to this definition">¶</a></dt>
 <dd><p>Required argument
 &lt;string&gt; A connection URI for a database, or a path on the file system</p>
 </dd></dl>
 
-</div>
+</section>
 <p>For more information on reductions and derivatizations, please see <a class="reference external" href="todo">Glycan Modifications</a></p>
-<div class="section" id="usage-example">
-<h2>Usage Example<a class="headerlink" href="#usage-example" title="Permalink to this headline">¶</a></h2>
+<section id="usage-example">
+<h2>Usage Example<a class="headerlink" href="#usage-example" title="Permalink to this heading">¶</a></h2>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="c1"># Get all human N-glycans</span>
-$ glycresoft build-hypothesis glycan-glyspace -m n-linked -t <span class="m">9606</span> glyspace-glycans.db -n <span class="s2">&quot;Human N-Linked Glycans&quot;</span>
-Building Glycan Hypothesis Human N-Linked Glycans <span class="o">(</span><span class="m">2</span><span class="o">)</span>
-<span class="m">14</span>:35:34 - glycresoft:log:175 - INFO - Begin N Glycan Glyspace Hypothesis Serializer
-<span class="o">{</span><span class="s1">&#39;composition_cache&#39;</span>: None,
- <span class="s1">&#39;derivatization&#39;</span>: None,
- <span class="s1">&#39;engine&#39;</span>: Engine<span class="o">(</span>sqlite:///glyspace-glycans.db<span class="o">)</span>,
- <span class="s1">&#39;filter_functions&#39;</span>: <span class="o">[</span>TaxonomyFilter<span class="o">({</span><span class="s1">&#39;9606&#39;</span><span class="o">})]</span>,
- <span class="s1">&#39;loader&#39;</span>: None,
- <span class="s1">&#39;reduction&#39;</span>: None,
- <span class="s1">&#39;seen&#39;</span>: <span class="o">{}</span>,
- <span class="s1">&#39;simplify&#39;</span>: True,
- <span class="s1">&#39;start_time&#39;</span>: datetime.datetime<span class="o">(</span><span class="m">2017</span>, <span class="m">8</span>, <span class="m">31</span>, <span class="m">14</span>, <span class="m">35</span>, <span class="m">34</span>, <span class="m">164000</span><span class="o">)</span>,
- <span class="s1">&#39;status&#39;</span>: <span class="s1">&#39;started&#39;</span>,
- <span class="s1">&#39;transformer&#39;</span>: None,
- <span class="s1">&#39;uuid&#39;</span>: <span class="s1">&#39;471041e33f23485c9a570a5b4ea6e0d2&#39;</span><span class="o">}</span>
-<span class="m">14</span>:35:34 - glycresoft:log:175 - INFO - Querying GlySpace
-<span class="m">14</span>:35:54 - glycresoft:log:175 - INFO - Translating Response
-<span class="m">14</span>:36:19 - glycresoft:log:175 - INFO - Stored <span class="m">976</span> glycan structures and <span class="m">195</span> glycan compositions
-<span class="m">14</span>:38:24 - glycresoft:log:175 - INFO - Hypothesis Completed
-<span class="m">14</span>:38:24 - glycresoft:log:175 - INFO - End N Glycan Glyspace Hypothesis Serializer
-<span class="m">14</span>:38:24 - glycresoft:log:175 - INFO - Started at <span class="m">2017</span>-08-31 <span class="m">14</span>:35:34.164000.
-Ended at <span class="m">2017</span>-08-31 <span class="m">14</span>:38:24.535000.
-Total <span class="nb">time</span> elapsed: <span class="m">0</span>:02:50.371000
-NGlycanGlyspaceHypothesisSerializer completed successfully.
+$<span class="w"> </span>glycresoft<span class="w"> </span>build-hypothesis<span class="w"> </span>glycan-glyspace<span class="w"> </span>-m<span class="w"> </span>n-linked<span class="w"> </span>-t<span class="w"> </span><span class="m">9606</span><span class="w"> </span>glyspace-glycans.db<span class="w"> </span>-n<span class="w"> </span><span class="s2">&quot;Human N-Linked Glycans&quot;</span>
+Building<span class="w"> </span>Glycan<span class="w"> </span>Hypothesis<span class="w"> </span>Human<span class="w"> </span>N-Linked<span class="w"> </span>Glycans<span class="w"> </span><span class="o">(</span><span class="m">2</span><span class="o">)</span>
+<span class="m">14</span>:35:34<span class="w"> </span>-<span class="w"> </span>glycresoft:log:175<span class="w"> </span>-<span class="w"> </span>INFO<span class="w"> </span>-<span class="w"> </span>Begin<span class="w"> </span>N<span class="w"> </span>Glycan<span class="w"> </span>Glyspace<span class="w"> </span>Hypothesis<span class="w"> </span>Serializer
+<span class="o">{</span><span class="s1">&#39;composition_cache&#39;</span>:<span class="w"> </span>None,
+<span class="w"> </span><span class="s1">&#39;derivatization&#39;</span>:<span class="w"> </span>None,
+<span class="w"> </span><span class="s1">&#39;engine&#39;</span>:<span class="w"> </span>Engine<span class="o">(</span>sqlite:///glyspace-glycans.db<span class="o">)</span>,
+<span class="w"> </span><span class="s1">&#39;filter_functions&#39;</span>:<span class="w"> </span><span class="o">[</span>TaxonomyFilter<span class="o">({</span><span class="s1">&#39;9606&#39;</span><span class="o">})]</span>,
+<span class="w"> </span><span class="s1">&#39;loader&#39;</span>:<span class="w"> </span>None,
+<span class="w"> </span><span class="s1">&#39;reduction&#39;</span>:<span class="w"> </span>None,
+<span class="w"> </span><span class="s1">&#39;seen&#39;</span>:<span class="w"> </span><span class="o">{}</span>,
+<span class="w"> </span><span class="s1">&#39;simplify&#39;</span>:<span class="w"> </span>True,
+<span class="w"> </span><span class="s1">&#39;start_time&#39;</span>:<span class="w"> </span>datetime.datetime<span class="o">(</span><span class="m">2017</span>,<span class="w"> </span><span class="m">8</span>,<span class="w"> </span><span class="m">31</span>,<span class="w"> </span><span class="m">14</span>,<span class="w"> </span><span class="m">35</span>,<span class="w"> </span><span class="m">34</span>,<span class="w"> </span><span class="m">164000</span><span class="o">)</span>,
+<span class="w"> </span><span class="s1">&#39;status&#39;</span>:<span class="w"> </span><span class="s1">&#39;started&#39;</span>,
+<span class="w"> </span><span class="s1">&#39;transformer&#39;</span>:<span class="w"> </span>None,
+<span class="w"> </span><span class="s1">&#39;uuid&#39;</span>:<span class="w"> </span><span class="s1">&#39;471041e33f23485c9a570a5b4ea6e0d2&#39;</span><span class="o">}</span>
+<span class="m">14</span>:35:34<span class="w"> </span>-<span class="w"> </span>glycresoft:log:175<span class="w"> </span>-<span class="w"> </span>INFO<span class="w"> </span>-<span class="w"> </span>Querying<span class="w"> </span>GlySpace
+<span class="m">14</span>:35:54<span class="w"> </span>-<span class="w"> </span>glycresoft:log:175<span class="w"> </span>-<span class="w"> </span>INFO<span class="w"> </span>-<span class="w"> </span>Translating<span class="w"> </span>Response
+<span class="m">14</span>:36:19<span class="w"> </span>-<span class="w"> </span>glycresoft:log:175<span class="w"> </span>-<span class="w"> </span>INFO<span class="w"> </span>-<span class="w"> </span>Stored<span class="w"> </span><span class="m">976</span><span class="w"> </span>glycan<span class="w"> </span>structures<span class="w"> </span>and<span class="w"> </span><span class="m">195</span><span class="w"> </span>glycan<span class="w"> </span>compositions
+<span class="m">14</span>:38:24<span class="w"> </span>-<span class="w"> </span>glycresoft:log:175<span class="w"> </span>-<span class="w"> </span>INFO<span class="w"> </span>-<span class="w"> </span>Hypothesis<span class="w"> </span>Completed
+<span class="m">14</span>:38:24<span class="w"> </span>-<span class="w"> </span>glycresoft:log:175<span class="w"> </span>-<span class="w"> </span>INFO<span class="w"> </span>-<span class="w"> </span>End<span class="w"> </span>N<span class="w"> </span>Glycan<span class="w"> </span>Glyspace<span class="w"> </span>Hypothesis<span class="w"> </span>Serializer
+<span class="m">14</span>:38:24<span class="w"> </span>-<span class="w"> </span>glycresoft:log:175<span class="w"> </span>-<span class="w"> </span>INFO<span class="w"> </span>-<span class="w"> </span>Started<span class="w"> </span>at<span class="w"> </span><span class="m">2017</span>-08-31<span class="w"> </span><span class="m">14</span>:35:34.164000.
+Ended<span class="w"> </span>at<span class="w"> </span><span class="m">2017</span>-08-31<span class="w"> </span><span class="m">14</span>:38:24.535000.
+Total<span class="w"> </span><span class="nb">time</span><span class="w"> </span>elapsed:<span class="w"> </span><span class="m">0</span>:02:50.371000
+NGlycanGlyspaceHypothesisSerializer<span class="w"> </span>completed<span class="w"> </span>successfully.
 
 <span class="c1"># Get all human O-glycans</span>
-$ glycresoft build-hypothesis glyspace-glycan -m o-linked -t <span class="m">9606</span> glyspace-glycans.db -n <span class="s2">&quot;Human O-Linked Glycans&quot;</span>
-Building Glycan Hypothesis Human O-Linked Glycans
-<span class="m">15</span>:33:49 - glycresoft:log:175 - INFO - Begin O Glycan Glyspace Hypothesis Serializer
-<span class="o">{</span><span class="s1">&#39;composition_cache&#39;</span>: None,
- <span class="s1">&#39;derivatization&#39;</span>: None,
- <span class="s1">&#39;engine&#39;</span>: Engine<span class="o">(</span>sqlite:///glyspace-glycans.db<span class="o">)</span>,
- <span class="s1">&#39;filter_functions&#39;</span>: <span class="o">[</span>TaxonomyFilter<span class="o">({</span><span class="s1">&#39;9606&#39;</span><span class="o">})]</span>,
- <span class="s1">&#39;loader&#39;</span>: None,
- <span class="s1">&#39;reduction&#39;</span>: None,
- <span class="s1">&#39;seen&#39;</span>: <span class="o">{}</span>,
- <span class="s1">&#39;simplify&#39;</span>: True,
- <span class="s1">&#39;start_time&#39;</span>: datetime.datetime<span class="o">(</span><span class="m">2017</span>, <span class="m">8</span>, <span class="m">31</span>, <span class="m">15</span>, <span class="m">33</span>, <span class="m">49</span>, <span class="m">601000</span><span class="o">)</span>,
- <span class="s1">&#39;status&#39;</span>: <span class="s1">&#39;started&#39;</span>,
- <span class="s1">&#39;transformer&#39;</span>: None,
- <span class="s1">&#39;uuid&#39;</span>: <span class="s1">&#39;714d52c2525c499286f673e294672b9e&#39;</span><span class="o">}</span>
-<span class="m">15</span>:33:49 - glycresoft:log:175 - INFO - Querying GlySpace
-<span class="m">15</span>:33:55 - glycresoft:log:175 - INFO - Translating Response
-<span class="m">15</span>:34:01 - glycresoft:log:175 - INFO - Stored <span class="m">315</span> glycan structures and <span class="m">95</span> glycan compositions
-<span class="m">15</span>:34:01 - glycresoft:log:175 - INFO - Hypothesis Completed
-<span class="m">15</span>:34:01 - glycresoft:log:175 - INFO - End O Glycan Glyspace Hypothesis Serializer
-<span class="m">15</span>:34:01 - glycresoft:log:175 - INFO - Started at <span class="m">2017</span>-08-31 <span class="m">15</span>:33:49.601000.
-Ended at <span class="m">2017</span>-08-31 <span class="m">15</span>:34:01.737000.
-Total <span class="nb">time</span> elapsed: <span class="m">0</span>:00:12.136000
-OGlycanGlyspaceHypothesisSerializer completed successfully.
+$<span class="w"> </span>glycresoft<span class="w"> </span>build-hypothesis<span class="w"> </span>glyspace-glycan<span class="w"> </span>-m<span class="w"> </span>o-linked<span class="w"> </span>-t<span class="w"> </span><span class="m">9606</span><span class="w"> </span>glyspace-glycans.db<span class="w"> </span>-n<span class="w"> </span><span class="s2">&quot;Human O-Linked Glycans&quot;</span>
+Building<span class="w"> </span>Glycan<span class="w"> </span>Hypothesis<span class="w"> </span>Human<span class="w"> </span>O-Linked<span class="w"> </span>Glycans
+<span class="m">15</span>:33:49<span class="w"> </span>-<span class="w"> </span>glycresoft:log:175<span class="w"> </span>-<span class="w"> </span>INFO<span class="w"> </span>-<span class="w"> </span>Begin<span class="w"> </span>O<span class="w"> </span>Glycan<span class="w"> </span>Glyspace<span class="w"> </span>Hypothesis<span class="w"> </span>Serializer
+<span class="o">{</span><span class="s1">&#39;composition_cache&#39;</span>:<span class="w"> </span>None,
+<span class="w"> </span><span class="s1">&#39;derivatization&#39;</span>:<span class="w"> </span>None,
+<span class="w"> </span><span class="s1">&#39;engine&#39;</span>:<span class="w"> </span>Engine<span class="o">(</span>sqlite:///glyspace-glycans.db<span class="o">)</span>,
+<span class="w"> </span><span class="s1">&#39;filter_functions&#39;</span>:<span class="w"> </span><span class="o">[</span>TaxonomyFilter<span class="o">({</span><span class="s1">&#39;9606&#39;</span><span class="o">})]</span>,
+<span class="w"> </span><span class="s1">&#39;loader&#39;</span>:<span class="w"> </span>None,
+<span class="w"> </span><span class="s1">&#39;reduction&#39;</span>:<span class="w"> </span>None,
+<span class="w"> </span><span class="s1">&#39;seen&#39;</span>:<span class="w"> </span><span class="o">{}</span>,
+<span class="w"> </span><span class="s1">&#39;simplify&#39;</span>:<span class="w"> </span>True,
+<span class="w"> </span><span class="s1">&#39;start_time&#39;</span>:<span class="w"> </span>datetime.datetime<span class="o">(</span><span class="m">2017</span>,<span class="w"> </span><span class="m">8</span>,<span class="w"> </span><span class="m">31</span>,<span class="w"> </span><span class="m">15</span>,<span class="w"> </span><span class="m">33</span>,<span class="w"> </span><span class="m">49</span>,<span class="w"> </span><span class="m">601000</span><span class="o">)</span>,
+<span class="w"> </span><span class="s1">&#39;status&#39;</span>:<span class="w"> </span><span class="s1">&#39;started&#39;</span>,
+<span class="w"> </span><span class="s1">&#39;transformer&#39;</span>:<span class="w"> </span>None,
+<span class="w"> </span><span class="s1">&#39;uuid&#39;</span>:<span class="w"> </span><span class="s1">&#39;714d52c2525c499286f673e294672b9e&#39;</span><span class="o">}</span>
+<span class="m">15</span>:33:49<span class="w"> </span>-<span class="w"> </span>glycresoft:log:175<span class="w"> </span>-<span class="w"> </span>INFO<span class="w"> </span>-<span class="w"> </span>Querying<span class="w"> </span>GlySpace
+<span class="m">15</span>:33:55<span class="w"> </span>-<span class="w"> </span>glycresoft:log:175<span class="w"> </span>-<span class="w"> </span>INFO<span class="w"> </span>-<span class="w"> </span>Translating<span class="w"> </span>Response
+<span class="m">15</span>:34:01<span class="w"> </span>-<span class="w"> </span>glycresoft:log:175<span class="w"> </span>-<span class="w"> </span>INFO<span class="w"> </span>-<span class="w"> </span>Stored<span class="w"> </span><span class="m">315</span><span class="w"> </span>glycan<span class="w"> </span>structures<span class="w"> </span>and<span class="w"> </span><span class="m">95</span><span class="w"> </span>glycan<span class="w"> </span>compositions
+<span class="m">15</span>:34:01<span class="w"> </span>-<span class="w"> </span>glycresoft:log:175<span class="w"> </span>-<span class="w"> </span>INFO<span class="w"> </span>-<span class="w"> </span>Hypothesis<span class="w"> </span>Completed
+<span class="m">15</span>:34:01<span class="w"> </span>-<span class="w"> </span>glycresoft:log:175<span class="w"> </span>-<span class="w"> </span>INFO<span class="w"> </span>-<span class="w"> </span>End<span class="w"> </span>O<span class="w"> </span>Glycan<span class="w"> </span>Glyspace<span class="w"> </span>Hypothesis<span class="w"> </span>Serializer
+<span class="m">15</span>:34:01<span class="w"> </span>-<span class="w"> </span>glycresoft:log:175<span class="w"> </span>-<span class="w"> </span>INFO<span class="w"> </span>-<span class="w"> </span>Started<span class="w"> </span>at<span class="w"> </span><span class="m">2017</span>-08-31<span class="w"> </span><span class="m">15</span>:33:49.601000.
+Ended<span class="w"> </span>at<span class="w"> </span><span class="m">2017</span>-08-31<span class="w"> </span><span class="m">15</span>:34:01.737000.
+Total<span class="w"> </span><span class="nb">time</span><span class="w"> </span>elapsed:<span class="w"> </span><span class="m">0</span>:00:12.136000
+OGlycanGlyspaceHypothesisSerializer<span class="w"> </span>completed<span class="w"> </span>successfully.
 </pre></div>
 </div>
-</div>
-<div class="section" id="bibliography">
-<h2>Bibliography<a class="headerlink" href="#bibliography" title="Permalink to this headline">¶</a></h2>
-<table class="docutils citation" frame="void" id="glytoucan" rules="none">
-<colgroup><col class="label" /><col /></colgroup>
-<tbody valign="top">
-<tr><td class="label"><a class="fn-backref" href="#id1">[GlyTouCan]</a></td><td>Aoki-Kinoshita, K., Agravat, S., Aoki, N. P., Arpinar, S., Cummings, R. D., Fujita, A., … Narimatsu, H. (2015).
+</section>
+<section id="bibliography">
+<h2>Bibliography<a class="headerlink" href="#bibliography" title="Permalink to this heading">¶</a></h2>
+<div role="list" class="citation-list">
+<div class="citation" id="glytoucan" role="doc-biblioentry">
+<span class="label"><span class="fn-bracket">[</span><a role="doc-backlink" href="#id1">GlyTouCan</a><span class="fn-bracket">]</span></span>
+<p>Aoki-Kinoshita, K., Agravat, S., Aoki, N. P., Arpinar, S., Cummings, R. D., Fujita, A., … Narimatsu, H. (2015).
 GlyTouCan 1.0 – The international glycan structure repository. Nucleic Acids Research, gkv1041.
-<a class="reference external" href="https://doi.org/10.1093/nar/gkv1041">https://doi.org/10.1093/nar/gkv1041</a></td></tr>
-</tbody>
-</table>
+<a class="reference external" href="https://doi.org/10.1093/nar/gkv1041">https://doi.org/10.1093/nar/gkv1041</a></p>
 </div>
 </div>
+</section>
+</section>
 
 
       </div>
@@ -191,14 +187,14 @@ GlyTouCan 1.0 – The international glycan structure repository. Nucleic Acids R
         &#160;&#160;::&#160;&#160;
         <a class="uplink" href="../../index.html">Contents</a>
         &#160;&#160;::&#160;&#160;
-        <a href="fasta-glycopeptide.html">Building a Glycopeptide Hypothesis from a FASTA File</a>&#160;&#160;»
+        <a href="glycan-networks.html">Glycome Network Definitions</a>&#160;&#160;»
         </p>
 
       </div>
 
     <div class="footer" role="contentinfo">
-        &#169; Copyright 2017, Joshua Klein.
-      Created using <a href="http://sphinx-doc.org/">Sphinx</a> 1.8.5.
+    &#169; Copyright 2024, Joshua Klein.
+      Created using <a href="https://www.sphinx-doc.org/">Sphinx</a> 7.1.2.
     </div>
   </body>
 </html>

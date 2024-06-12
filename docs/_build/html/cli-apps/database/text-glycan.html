@@ -1,26 +1,22 @@
+<!DOCTYPE html>
 
-<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
-  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
-
-<html xmlns="http://www.w3.org/1999/xhtml">
+<html lang="en">
   <head>
-    <meta http-equiv="X-UA-Compatible" content="IE=Edge" />
-    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+
     <title>Building a Glycan Hypothesis from a Text File &#8212; glycresoft  documentation</title>
-    <link rel="stylesheet" href="../../_static/haiku.css" type="text/css" />
-    <link rel="stylesheet" href="../../_static/pygments.css" type="text/css" />
-    <script type="text/javascript" id="documentation_options" data-url_root="../../" src="../../_static/documentation_options.js"></script>
-    <script type="text/javascript" src="../../_static/jquery.js"></script>
-    <script type="text/javascript" src="../../_static/underscore.js"></script>
-    <script type="text/javascript" src="../../_static/doctools.js"></script>
-    <script type="text/javascript" src="../../_static/language_data.js"></script>
-    <script async="async" type="text/javascript" src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.5/latest.js?config=TeX-AMS-MML_HTMLorMML"></script>
+    <link rel="stylesheet" type="text/css" href="../../_static/pygments.css?v=fa44fd50" />
+    <link rel="stylesheet" type="text/css" href="../../_static/haiku.css?v=e7493be8" />
+    <script data-url_root="../../" id="documentation_options" src="../../_static/documentation_options.js?v=b3ba4146"></script>
+    <script src="../../_static/doctools.js?v=888ff710"></script>
+    <script src="../../_static/sphinx_highlight.js?v=4825356b"></script>
     <link rel="index" title="Index" href="../../genindex.html" />
     <link rel="search" title="Search" href="../../search.html" />
     <link rel="next" title="Building a Glycan Hypothesis from glySpace" href="glyspace-glycan.html" />
     <link rel="prev" title="Building a Combinatorial Glycan Hypothesis" href="combinatorial-glycan.html" /> 
   </head><body>
-      <div class="header" role="banner"><img class="rightlogo" src="../../_static/logo.png" alt="Logo" style='width:120px;'/><h1 class="heading"><a href="../../index.html">
+      <div class="header" role="banner"><h1 class="heading"><a href="../../index.html">
           <span>glycresoft  documentation</span></a></h1>
         <h2 class="heading"><span>Building a Glycan Hypothesis from a Text File</span></h2>
       </div>
@@ -38,8 +34,8 @@
       <div class="content">
         
         
-  <div class="section" id="building-a-glycan-hypothesis-from-a-text-file">
-<span id="text-glycan-hypothesis"></span><h1>Building a Glycan Hypothesis from a Text File<a class="headerlink" href="#building-a-glycan-hypothesis-from-a-text-file" title="Permalink to this headline">¶</a></h1>
+  <section id="building-a-glycan-hypothesis-from-a-text-file">
+<span id="text-glycan-hypothesis"></span><h1>Building a Glycan Hypothesis from a Text File<a class="headerlink" href="#building-a-glycan-hypothesis-from-a-text-file" title="Permalink to this heading">¶</a></h1>
 <p>When a comprehensive list of glycan compositions is available,
 you can translate them into a list encoded in <a class="reference external" href="../../topics/iupaclite.html">IUPAClite</a>
 with one composition per line. Lines may have the form</p>
@@ -51,84 +47,84 @@ with one composition per line. Lines may have the form</p>
 <p>where classifier is one of the recognized glycan composition classifiers
 such as <code class="docutils literal notranslate"><span class="pre">N-glycan</span></code>, <code class="docutils literal notranslate"><span class="pre">O-glycan</span></code>, or <code class="docutils literal notranslate"><span class="pre">GAG-linker</span></code>. For more information
 on glycan composition classifiers, please see <a class="reference external" href="todo">Glycan Composition Classes</a>.</p>
-<div class="section" id="glycresoft-build-hypothesis-glycan-text">
-<h2>glycresoft build-hypothesis glycan-text<a class="headerlink" href="#glycresoft-build-hypothesis-glycan-text" title="Permalink to this headline">¶</a></h2>
-<div class="highlight-shell notranslate"><div class="highlight"><pre><span></span>glycresoft build-hypothesis glycan-text <span class="o">[</span>OPTIONS<span class="o">]</span> TEXT_FILE
-                                        DATABASE_CONNECTION
+<section id="glycresoft-build-hypothesis-glycan-text">
+<h2>glycresoft build-hypothesis glycan-text<a class="headerlink" href="#glycresoft-build-hypothesis-glycan-text" title="Permalink to this heading">¶</a></h2>
+<div class="highlight-shell notranslate"><div class="highlight"><pre><span></span>glycresoft<span class="w"> </span>build-hypothesis<span class="w"> </span>glycan-text<span class="w"> </span><span class="o">[</span>OPTIONS<span class="o">]</span><span class="w"> </span>TEXT_FILE
+<span class="w">                                        </span>DATABASE_CONNECTION
 </pre></div>
 </div>
 <p class="rubric">Options</p>
-<dl class="option">
-<dt id="cmdoption-glycresoft-build-hypothesis-glycan-text-r">
-<code class="descname">-r</code><code class="descclassname"></code><code class="descclassname">, </code><code class="descname">--reduction</code><code class="descclassname"> &lt;string&gt;</code><a class="headerlink" href="#cmdoption-glycresoft-build-hypothesis-glycan-text-r" title="Permalink to this definition">¶</a></dt>
+<dl class="std option">
+<dt class="sig sig-object std" id="cmdoption-glycresoft-build-hypothesis-glycan-text-r">
+<span id="cmdoption-glycresoft-build-hypothesis-glycan-text-reduction"></span><span class="sig-name descname"><span class="pre">-r</span></span><span class="sig-prename descclassname"></span><span class="sig-prename descclassname"><span class="pre">,</span> </span><span class="sig-name descname"><span class="pre">--reduction</span></span><span class="sig-prename descclassname"> <span class="pre">&lt;string&gt;</span></span><a class="headerlink" href="#cmdoption-glycresoft-build-hypothesis-glycan-text-r" title="Permalink to this definition">¶</a></dt>
 <dd><p>Reducing end modification</p>
 </dd></dl>
 
-<dl class="option">
-<dt id="cmdoption-glycresoft-build-hypothesis-glycan-text-d">
-<code class="descname">-d</code><code class="descclassname"></code><code class="descclassname">, </code><code class="descname">--derivatization</code><code class="descclassname"> &lt;string&gt;</code><a class="headerlink" href="#cmdoption-glycresoft-build-hypothesis-glycan-text-d" title="Permalink to this definition">¶</a></dt>
+<dl class="std option">
+<dt class="sig sig-object std" id="cmdoption-glycresoft-build-hypothesis-glycan-text-d">
+<span id="cmdoption-glycresoft-build-hypothesis-glycan-text-derivatization"></span><span class="sig-name descname"><span class="pre">-d</span></span><span class="sig-prename descclassname"></span><span class="sig-prename descclassname"><span class="pre">,</span> </span><span class="sig-name descname"><span class="pre">--derivatization</span></span><span class="sig-prename descclassname"> <span class="pre">&lt;string&gt;</span></span><a class="headerlink" href="#cmdoption-glycresoft-build-hypothesis-glycan-text-d" title="Permalink to this definition">¶</a></dt>
 <dd><p>Chemical derivatization to apply</p>
 </dd></dl>
 
-<dl class="option">
-<dt id="cmdoption-glycresoft-build-hypothesis-glycan-text-n">
-<code class="descname">-n</code><code class="descclassname"></code><code class="descclassname">, </code><code class="descname">--name</code><code class="descclassname"> &lt;string&gt;</code><a class="headerlink" href="#cmdoption-glycresoft-build-hypothesis-glycan-text-n" title="Permalink to this definition">¶</a></dt>
+<dl class="std option">
+<dt class="sig sig-object std" id="cmdoption-glycresoft-build-hypothesis-glycan-text-n">
+<span id="cmdoption-glycresoft-build-hypothesis-glycan-text-name"></span><span class="sig-name descname"><span class="pre">-n</span></span><span class="sig-prename descclassname"></span><span class="sig-prename descclassname"><span class="pre">,</span> </span><span class="sig-name descname"><span class="pre">--name</span></span><span class="sig-prename descclassname"> <span class="pre">&lt;string&gt;</span></span><a class="headerlink" href="#cmdoption-glycresoft-build-hypothesis-glycan-text-n" title="Permalink to this definition">¶</a></dt>
 <dd><p>The name for the hypothesis to be created</p>
 </dd></dl>
 
 <p class="rubric">Arguments</p>
-<dl class="option">
-<dt id="cmdoption-glycresoft-build-hypothesis-glycan-text-arg-text-file">
-<code class="descname">TEXT_FILE</code><code class="descclassname"></code><a class="headerlink" href="#cmdoption-glycresoft-build-hypothesis-glycan-text-arg-text-file" title="Permalink to this definition">¶</a></dt>
+<dl class="std option">
+<dt class="sig sig-object std" id="cmdoption-glycresoft-build-hypothesis-glycan-text-arg-TEXT_FILE">
+<span class="sig-name descname"><span class="pre">TEXT_FILE</span></span><span class="sig-prename descclassname"></span><a class="headerlink" href="#cmdoption-glycresoft-build-hypothesis-glycan-text-arg-TEXT_FILE" title="Permalink to this definition">¶</a></dt>
 <dd><p>Required argument
 &lt;path&gt;</p>
 </dd></dl>
 
-<dl class="option">
-<dt id="cmdoption-glycresoft-build-hypothesis-glycan-text-arg-database-connection">
-<code class="descname">DATABASE_CONNECTION</code><code class="descclassname"></code><a class="headerlink" href="#cmdoption-glycresoft-build-hypothesis-glycan-text-arg-database-connection" title="Permalink to this definition">¶</a></dt>
+<dl class="std option">
+<dt class="sig sig-object std" id="cmdoption-glycresoft-build-hypothesis-glycan-text-arg-DATABASE_CONNECTION">
+<span class="sig-name descname"><span class="pre">DATABASE_CONNECTION</span></span><span class="sig-prename descclassname"></span><a class="headerlink" href="#cmdoption-glycresoft-build-hypothesis-glycan-text-arg-DATABASE_CONNECTION" title="Permalink to this definition">¶</a></dt>
 <dd><p>Required argument
 &lt;string&gt; A connection URI for a database, or a path on the file system</p>
 </dd></dl>
 
-</div>
+</section>
 <p>For more information on reductions and derivatizations, please see <a class="reference external" href="todo">Glycan Modifications</a></p>
-<div class="section" id="usage-example">
-<h2>Usage Example<a class="headerlink" href="#usage-example" title="Permalink to this headline">¶</a></h2>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$ head glycan-compositions.txt
-<span class="o">{</span>Hex:5<span class="p">;</span> HexNAc:4<span class="p">;</span> Neu5Ac:1<span class="o">}</span>  N-Glycan
-<span class="o">{</span>Hex:5<span class="p">;</span> HexNAc:4<span class="p">;</span> Neu5Ac:2<span class="o">}</span>  N-Glycan
-<span class="o">{</span>Fuc:1<span class="p">;</span> Hex:5<span class="p">;</span> HexNAc:4<span class="p">;</span> Neu5Ac:2<span class="o">}</span>  N-Glycan
-<span class="o">{</span>Fuc:2<span class="p">;</span> Hex:6<span class="p">;</span> HexNAc:5<span class="p">;</span> Neu5Ac:1<span class="o">}</span>  N-Glycan
-<span class="o">{</span>Fuc:1<span class="p">;</span> Hex:6<span class="p">;</span> HexNAc:5<span class="p">;</span> Neu5Ac:2<span class="o">}</span>  N-Glycan
+<section id="usage-example">
+<h2>Usage Example<a class="headerlink" href="#usage-example" title="Permalink to this heading">¶</a></h2>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$<span class="w"> </span>head<span class="w"> </span>glycan-compositions.txt
+<span class="o">{</span>Hex:5<span class="p">;</span><span class="w"> </span>HexNAc:4<span class="p">;</span><span class="w"> </span>Neu5Ac:1<span class="o">}</span><span class="w">  </span>N-Glycan
+<span class="o">{</span>Hex:5<span class="p">;</span><span class="w"> </span>HexNAc:4<span class="p">;</span><span class="w"> </span>Neu5Ac:2<span class="o">}</span><span class="w">  </span>N-Glycan
+<span class="o">{</span>Fuc:1<span class="p">;</span><span class="w"> </span>Hex:5<span class="p">;</span><span class="w"> </span>HexNAc:4<span class="p">;</span><span class="w"> </span>Neu5Ac:2<span class="o">}</span><span class="w">  </span>N-Glycan
+<span class="o">{</span>Fuc:2<span class="p">;</span><span class="w"> </span>Hex:6<span class="p">;</span><span class="w"> </span>HexNAc:5<span class="p">;</span><span class="w"> </span>Neu5Ac:1<span class="o">}</span><span class="w">  </span>N-Glycan
+<span class="o">{</span>Fuc:1<span class="p">;</span><span class="w"> </span>Hex:6<span class="p">;</span><span class="w"> </span>HexNAc:5<span class="p">;</span><span class="w"> </span>Neu5Ac:2<span class="o">}</span><span class="w">  </span>N-Glycan
 
-$ wc -l glycan-compositions.txt
-<span class="m">41</span> glycan-compositions.txt
+$<span class="w"> </span>wc<span class="w"> </span>-l<span class="w"> </span>glycan-compositions.txt
+<span class="m">41</span><span class="w"> </span>glycan-compositions.txt
 
-$ glycresoft build-hypothesis glycan-text glycan-compositions.txt glycan-list.db -n <span class="s2">&quot;N-Glycan short list&quot;</span>
-Building Glycan Hypothesis N-Glycan short list
-<span class="m">13</span>:51:54 - glycresoft:log:175 - INFO - Begin Text File Glycan Hypothesis Serializer
-<span class="o">{</span><span class="s1">&#39;derivatization&#39;</span>: None,
- <span class="s1">&#39;engine&#39;</span>: Engine<span class="o">(</span>sqlite:///glycan-list.db<span class="o">)</span>,
- <span class="s1">&#39;glycan_file&#39;</span>: u<span class="s1">&#39;glycan-compositions.txt&#39;</span>,
- <span class="s1">&#39;loader&#39;</span>: None,
- <span class="s1">&#39;reduction&#39;</span>: None,
- <span class="s1">&#39;start_time&#39;</span>: datetime.datetime<span class="o">(</span><span class="m">2017</span>, <span class="m">8</span>, <span class="m">31</span>, <span class="m">13</span>, <span class="m">51</span>, <span class="m">54</span>, <span class="m">636000</span><span class="o">)</span>,
- <span class="s1">&#39;status&#39;</span>: <span class="s1">&#39;started&#39;</span>,
- <span class="s1">&#39;transformer&#39;</span>: None,
- <span class="s1">&#39;uuid&#39;</span>: <span class="s1">&#39;10e06326097c41f4beeeddd8e17bbc0e&#39;</span><span class="o">}</span>
-<span class="m">13</span>:51:54 - glycresoft:log:175 - INFO - Loading Glycan Compositions from Stream <span class="k">for</span> GlycanHypothesis<span class="o">(</span><span class="nv">id</span><span class="o">=</span><span class="m">1</span>, <span class="nv">name</span><span class="o">=</span>N-Glycan short list<span class="o">)</span>
-<span class="m">13</span>:51:54 - glycresoft:log:175 - INFO - Generated <span class="m">41</span> glycan compositions
-<span class="m">13</span>:51:54 - glycresoft:log:175 - INFO - Hypothesis Completed
-<span class="m">13</span>:51:54 - glycresoft:log:175 - INFO - End Text File Glycan Hypothesis Serializer
-<span class="m">13</span>:51:54 - glycresoft:log:175 - INFO - Started at <span class="m">2017</span>-08-31 <span class="m">13</span>:51:54.636000.
-Ended at <span class="m">2017</span>-08-31 <span class="m">13</span>:51:54.761000.
-Total <span class="nb">time</span> elapsed: <span class="m">0</span>:00:00.125000
-TextFileGlycanHypothesisSerializer completed successfully.
+$<span class="w"> </span>glycresoft<span class="w"> </span>build-hypothesis<span class="w"> </span>glycan-text<span class="w"> </span>glycan-compositions.txt<span class="w"> </span>glycan-list.db<span class="w"> </span>-n<span class="w"> </span><span class="s2">&quot;N-Glycan short list&quot;</span>
+Building<span class="w"> </span>Glycan<span class="w"> </span>Hypothesis<span class="w"> </span>N-Glycan<span class="w"> </span>short<span class="w"> </span>list
+<span class="m">13</span>:51:54<span class="w"> </span>-<span class="w"> </span>glycresoft:log:175<span class="w"> </span>-<span class="w"> </span>INFO<span class="w"> </span>-<span class="w"> </span>Begin<span class="w"> </span>Text<span class="w"> </span>File<span class="w"> </span>Glycan<span class="w"> </span>Hypothesis<span class="w"> </span>Serializer
+<span class="o">{</span><span class="s1">&#39;derivatization&#39;</span>:<span class="w"> </span>None,
+<span class="w"> </span><span class="s1">&#39;engine&#39;</span>:<span class="w"> </span>Engine<span class="o">(</span>sqlite:///glycan-list.db<span class="o">)</span>,
+<span class="w"> </span><span class="s1">&#39;glycan_file&#39;</span>:<span class="w"> </span>u<span class="s1">&#39;glycan-compositions.txt&#39;</span>,
+<span class="w"> </span><span class="s1">&#39;loader&#39;</span>:<span class="w"> </span>None,
+<span class="w"> </span><span class="s1">&#39;reduction&#39;</span>:<span class="w"> </span>None,
+<span class="w"> </span><span class="s1">&#39;start_time&#39;</span>:<span class="w"> </span>datetime.datetime<span class="o">(</span><span class="m">2017</span>,<span class="w"> </span><span class="m">8</span>,<span class="w"> </span><span class="m">31</span>,<span class="w"> </span><span class="m">13</span>,<span class="w"> </span><span class="m">51</span>,<span class="w"> </span><span class="m">54</span>,<span class="w"> </span><span class="m">636000</span><span class="o">)</span>,
+<span class="w"> </span><span class="s1">&#39;status&#39;</span>:<span class="w"> </span><span class="s1">&#39;started&#39;</span>,
+<span class="w"> </span><span class="s1">&#39;transformer&#39;</span>:<span class="w"> </span>None,
+<span class="w"> </span><span class="s1">&#39;uuid&#39;</span>:<span class="w"> </span><span class="s1">&#39;10e06326097c41f4beeeddd8e17bbc0e&#39;</span><span class="o">}</span>
+<span class="m">13</span>:51:54<span class="w"> </span>-<span class="w"> </span>glycresoft:log:175<span class="w"> </span>-<span class="w"> </span>INFO<span class="w"> </span>-<span class="w"> </span>Loading<span class="w"> </span>Glycan<span class="w"> </span>Compositions<span class="w"> </span>from<span class="w"> </span>Stream<span class="w"> </span><span class="k">for</span><span class="w"> </span>GlycanHypothesis<span class="o">(</span><span class="nv">id</span><span class="o">=</span><span class="m">1</span>,<span class="w"> </span><span class="nv">name</span><span class="o">=</span>N-Glycan<span class="w"> </span>short<span class="w"> </span>list<span class="o">)</span>
+<span class="m">13</span>:51:54<span class="w"> </span>-<span class="w"> </span>glycresoft:log:175<span class="w"> </span>-<span class="w"> </span>INFO<span class="w"> </span>-<span class="w"> </span>Generated<span class="w"> </span><span class="m">41</span><span class="w"> </span>glycan<span class="w"> </span>compositions
+<span class="m">13</span>:51:54<span class="w"> </span>-<span class="w"> </span>glycresoft:log:175<span class="w"> </span>-<span class="w"> </span>INFO<span class="w"> </span>-<span class="w"> </span>Hypothesis<span class="w"> </span>Completed
+<span class="m">13</span>:51:54<span class="w"> </span>-<span class="w"> </span>glycresoft:log:175<span class="w"> </span>-<span class="w"> </span>INFO<span class="w"> </span>-<span class="w"> </span>End<span class="w"> </span>Text<span class="w"> </span>File<span class="w"> </span>Glycan<span class="w"> </span>Hypothesis<span class="w"> </span>Serializer
+<span class="m">13</span>:51:54<span class="w"> </span>-<span class="w"> </span>glycresoft:log:175<span class="w"> </span>-<span class="w"> </span>INFO<span class="w"> </span>-<span class="w"> </span>Started<span class="w"> </span>at<span class="w"> </span><span class="m">2017</span>-08-31<span class="w"> </span><span class="m">13</span>:51:54.636000.
+Ended<span class="w"> </span>at<span class="w"> </span><span class="m">2017</span>-08-31<span class="w"> </span><span class="m">13</span>:51:54.761000.
+Total<span class="w"> </span><span class="nb">time</span><span class="w"> </span>elapsed:<span class="w"> </span><span class="m">0</span>:00:00.125000
+TextFileGlycanHypothesisSerializer<span class="w"> </span>completed<span class="w"> </span>successfully.
 </pre></div>
 </div>
-</div>
-</div>
+</section>
+</section>
 
 
       </div>
@@ -145,8 +141,8 @@ TextFileGlycanHypothesisSerializer completed successfully.
       </div>
 
     <div class="footer" role="contentinfo">
-        &#169; Copyright 2017, Joshua Klein.
-      Created using <a href="http://sphinx-doc.org/">Sphinx</a> 1.8.5.
+    &#169; Copyright 2024, Joshua Klein.
+      Created using <a href="https://www.sphinx-doc.org/">Sphinx</a> 7.1.2.
     </div>
   </body>
 </html>

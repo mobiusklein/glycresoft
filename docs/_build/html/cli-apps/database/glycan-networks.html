@@ -1,0 +1,190 @@
+<!DOCTYPE html>
+
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+
+    <title>Glycome Network Definitions &#8212; glycresoft  documentation</title>
+    <link rel="stylesheet" type="text/css" href="../../_static/pygments.css?v=fa44fd50" />
+    <link rel="stylesheet" type="text/css" href="../../_static/haiku.css?v=e7493be8" />
+    <script data-url_root="../../" id="documentation_options" src="../../_static/documentation_options.js?v=b3ba4146"></script>
+    <script src="../../_static/doctools.js?v=888ff710"></script>
+    <script src="../../_static/sphinx_highlight.js?v=4825356b"></script>
+    <link rel="index" title="Index" href="../../genindex.html" />
+    <link rel="search" title="Search" href="../../search.html" />
+    <link rel="next" title="Building a Glycopeptide Hypothesis from a FASTA File" href="fasta-glycopeptide.html" />
+    <link rel="prev" title="Building a Glycan Hypothesis from glySpace" href="glyspace-glycan.html" /> 
+  </head><body>
+      <div class="header" role="banner"><h1 class="heading"><a href="../../index.html">
+          <span>glycresoft  documentation</span></a></h1>
+        <h2 class="heading"><span>Glycome Network Definitions</span></h2>
+      </div>
+      <div class="topnav" role="navigation" aria-label="top navigation">
+      
+        <p>
+        «&#160;&#160;<a href="glyspace-glycan.html">Building a Glycan Hypothesis from glySpace</a>
+        &#160;&#160;::&#160;&#160;
+        <a class="uplink" href="../../index.html">Contents</a>
+        &#160;&#160;::&#160;&#160;
+        <a href="fasta-glycopeptide.html">Building a Glycopeptide Hypothesis from a FASTA File</a>&#160;&#160;»
+        </p>
+
+      </div>
+      <div class="content">
+        
+        
+  <section id="glycome-network-definitions">
+<h1>Glycome Network Definitions<a class="headerlink" href="#glycome-network-definitions" title="Permalink to this heading">¶</a></h1>
+<p>The glycome network smoothing method presented in “Klein, J., Carvalho, L., &amp; Zaia, J. (2018). Application of network smoothing to glycan LC-MS profiling.
+Bioinformatics, 34(20), 3511-3518. <a class="reference external" href="https://doi.org/10.1093/bioinformatics/bty397">https://doi.org/10.1093/bioinformatics/bty397</a>” requires a network definition.</p>
+<section id="building-a-network">
+<span id="build-glycan-graph"></span><h2>Building a Network<a class="headerlink" href="#building-a-network" title="Permalink to this heading">¶</a></h2>
+<p>The first step is to build a network for a glycan list, embodied in a <code class="xref py py-class docutils literal notranslate"><span class="pre">GlycanHypothesis</span></code> in a database file.
+This produces a new text file defining the nodes of the network and builds edges between them.</p>
+<section id="glycresoft-build-hypothesis-glycan-network-build-network">
+<h3>glycresoft build-hypothesis glycan-network build-network<a class="headerlink" href="#glycresoft-build-hypothesis-glycan-network-build-network" title="Permalink to this heading">¶</a></h3>
+<div class="highlight-shell notranslate"><div class="highlight"><pre><span></span>glycresoft<span class="w"> </span>build-hypothesis<span class="w"> </span>glycan-network<span class="w"> </span>build-network<span class="w"> </span><span class="o">[</span>OPTIONS<span class="o">]</span>
+<span class="w">                                                         </span>DATABASE_CONNECTION
+<span class="w">                                                         </span>HYPOTHESIS_IDENTIFIER
+</pre></div>
+</div>
+<p class="rubric">Options</p>
+<dl class="std option">
+<dt class="sig sig-object std" id="cmdoption-glycresoft-build-hypothesis-glycan-network-build-network-o">
+<span id="cmdoption-glycresoft-build-hypothesis-glycan-network-build-network-output-path"></span><span class="sig-name descname"><span class="pre">-o</span></span><span class="sig-prename descclassname"></span><span class="sig-prename descclassname"><span class="pre">,</span> </span><span class="sig-name descname"><span class="pre">--output-path</span></span><span class="sig-prename descclassname"> <span class="pre">&lt;path&gt;</span></span><a class="headerlink" href="#cmdoption-glycresoft-build-hypothesis-glycan-network-build-network-o" title="Permalink to this definition">¶</a></dt>
+<dd><p>Path to write to instead of stdout</p>
+</dd></dl>
+
+<dl class="std option">
+<dt class="sig sig-object std" id="cmdoption-glycresoft-build-hypothesis-glycan-network-build-network-e">
+<span id="cmdoption-glycresoft-build-hypothesis-glycan-network-build-network-edge-strategy"></span><span class="sig-name descname"><span class="pre">-e</span></span><span class="sig-prename descclassname"></span><span class="sig-prename descclassname"><span class="pre">,</span> </span><span class="sig-name descname"><span class="pre">--edge-strategy</span></span><span class="sig-prename descclassname"> <span class="pre">&lt;choice&gt;</span></span><a class="headerlink" href="#cmdoption-glycresoft-build-hypothesis-glycan-network-build-network-e" title="Permalink to this definition">¶</a></dt>
+<dd><p>Strategy to use to decide when two nodes are connected by an edge  [default: manhattan]</p>
+<div class="line-block">
+<div class="line">Choices: [</div>
+<div class="line-block">
+<div class="line">manhattan]</div>
+</div>
+</div>
+</dd></dl>
+
+<p class="rubric">Arguments</p>
+<dl class="std option">
+<dt class="sig sig-object std" id="cmdoption-glycresoft-build-hypothesis-glycan-network-build-network-arg-DATABASE_CONNECTION">
+<span class="sig-name descname"><span class="pre">DATABASE_CONNECTION</span></span><span class="sig-prename descclassname"></span><a class="headerlink" href="#cmdoption-glycresoft-build-hypothesis-glycan-network-build-network-arg-DATABASE_CONNECTION" title="Permalink to this definition">¶</a></dt>
+<dd><p>Required argument
+&lt;string&gt; A connection URI for a database, or a path on the file system</p>
+</dd></dl>
+
+<dl class="std option">
+<dt class="sig sig-object std" id="cmdoption-glycresoft-build-hypothesis-glycan-network-build-network-arg-HYPOTHESIS_IDENTIFIER">
+<span class="sig-name descname"><span class="pre">HYPOTHESIS_IDENTIFIER</span></span><span class="sig-prename descclassname"></span><a class="headerlink" href="#cmdoption-glycresoft-build-hypothesis-glycan-network-build-network-arg-HYPOTHESIS_IDENTIFIER" title="Permalink to this definition">¶</a></dt>
+<dd><p>Required argument
+&lt;string&gt; The ID number or name of the glycan hypothesis to use</p>
+</dd></dl>
+
+</section>
+</section>
+<section id="adding-pre-defined-network-neighborhoods">
+<span id="add-predefined-neighborhood-glycan-graph"></span><h2>Adding Pre-Defined Network Neighborhoods<a class="headerlink" href="#adding-pre-defined-network-neighborhoods" title="Permalink to this heading">¶</a></h2>
+<p>Add pre-programmed neighborhood rules to a network, writing them out to a new text file.</p>
+<section id="glycresoft-build-hypothesis-glycan-network-add-prebuilt-neighborhoods">
+<h3>glycresoft build-hypothesis glycan-network add-prebuilt-neighborhoods<a class="headerlink" href="#glycresoft-build-hypothesis-glycan-network-add-prebuilt-neighborhoods" title="Permalink to this heading">¶</a></h3>
+<div class="highlight-shell notranslate"><div class="highlight"><pre><span></span>glycresoft<span class="w"> </span>build-hypothesis<span class="w"> </span>glycan-network<span class="w"> </span>add-prebuilt-neighborhoods<span class="w"> </span>
+<span class="w">    </span><span class="o">[</span>OPTIONS<span class="o">]</span>
+</pre></div>
+</div>
+<p class="rubric">Options</p>
+<dl class="std option">
+<dt class="sig sig-object std" id="cmdoption-glycresoft-build-hypothesis-glycan-network-add-prebuilt-neighborhoods-i">
+<span id="cmdoption-glycresoft-build-hypothesis-glycan-network-add-prebuilt-neighborhoods-input-path"></span><span class="sig-name descname"><span class="pre">-i</span></span><span class="sig-prename descclassname"></span><span class="sig-prename descclassname"><span class="pre">,</span> </span><span class="sig-name descname"><span class="pre">--input-path</span></span><span class="sig-prename descclassname"> <span class="pre">&lt;path&gt;</span></span><a class="headerlink" href="#cmdoption-glycresoft-build-hypothesis-glycan-network-add-prebuilt-neighborhoods-i" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="std option">
+<dt class="sig sig-object std" id="cmdoption-glycresoft-build-hypothesis-glycan-network-add-prebuilt-neighborhoods-o">
+<span id="cmdoption-glycresoft-build-hypothesis-glycan-network-add-prebuilt-neighborhoods-output-path"></span><span class="sig-name descname"><span class="pre">-o</span></span><span class="sig-prename descclassname"></span><span class="sig-prename descclassname"><span class="pre">,</span> </span><span class="sig-name descname"><span class="pre">--output-path</span></span><span class="sig-prename descclassname"> <span class="pre">&lt;path&gt;</span></span><a class="headerlink" href="#cmdoption-glycresoft-build-hypothesis-glycan-network-add-prebuilt-neighborhoods-o" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="std option">
+<dt class="sig sig-object std" id="cmdoption-glycresoft-build-hypothesis-glycan-network-add-prebuilt-neighborhoods-n">
+<span id="cmdoption-glycresoft-build-hypothesis-glycan-network-add-prebuilt-neighborhoods-name"></span><span class="sig-name descname"><span class="pre">-n</span></span><span class="sig-prename descclassname"></span><span class="sig-prename descclassname"><span class="pre">,</span> </span><span class="sig-name descname"><span class="pre">--name</span></span><span class="sig-prename descclassname"> <span class="pre">&lt;choice&gt;</span></span><a class="headerlink" href="#cmdoption-glycresoft-build-hypothesis-glycan-network-add-prebuilt-neighborhoods-n" title="Permalink to this definition">¶</a></dt>
+<dd><p>Set the neighborhood name  [required]</p>
+<div class="line-block">
+<div class="line">Choices: [</div>
+<div class="line-block">
+<div class="line">n-glycan; mammalian-n-glycan]</div>
+</div>
+</div>
+</dd></dl>
+
+</section>
+</section>
+<section id="adding-a-custom-network-neighborhood">
+<span id="add-custom-neighborhood-rule-glycan-graph"></span><h2>Adding a Custom Network Neighborhood<a class="headerlink" href="#adding-a-custom-network-neighborhood" title="Permalink to this heading">¶</a></h2>
+<p>Add a custom neighborhood to a network, writing them out to a new text file. A neighborhood is
+composed of one or more rule expressions.</p>
+<section id="glycresoft-build-hypothesis-glycan-network-add-neighborhood">
+<h3>glycresoft build-hypothesis glycan-network add-neighborhood<a class="headerlink" href="#glycresoft-build-hypothesis-glycan-network-add-neighborhood" title="Permalink to this heading">¶</a></h3>
+<div class="highlight-shell notranslate"><div class="highlight"><pre><span></span>glycresoft<span class="w"> </span>build-hypothesis<span class="w"> </span>glycan-network<span class="w"> </span>add-neighborhood<span class="w"> </span>
+<span class="w">    </span><span class="o">[</span>OPTIONS<span class="o">]</span>
+</pre></div>
+</div>
+<p class="rubric">Options</p>
+<dl class="std option">
+<dt class="sig sig-object std" id="cmdoption-glycresoft-build-hypothesis-glycan-network-add-neighborhood-i">
+<span id="cmdoption-glycresoft-build-hypothesis-glycan-network-add-neighborhood-input-path"></span><span class="sig-name descname"><span class="pre">-i</span></span><span class="sig-prename descclassname"></span><span class="sig-prename descclassname"><span class="pre">,</span> </span><span class="sig-name descname"><span class="pre">--input-path</span></span><span class="sig-prename descclassname"> <span class="pre">&lt;path&gt;</span></span><a class="headerlink" href="#cmdoption-glycresoft-build-hypothesis-glycan-network-add-neighborhood-i" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="std option">
+<dt class="sig sig-object std" id="cmdoption-glycresoft-build-hypothesis-glycan-network-add-neighborhood-o">
+<span id="cmdoption-glycresoft-build-hypothesis-glycan-network-add-neighborhood-output-path"></span><span class="sig-name descname"><span class="pre">-o</span></span><span class="sig-prename descclassname"></span><span class="sig-prename descclassname"><span class="pre">,</span> </span><span class="sig-name descname"><span class="pre">--output-path</span></span><span class="sig-prename descclassname"> <span class="pre">&lt;path&gt;</span></span><a class="headerlink" href="#cmdoption-glycresoft-build-hypothesis-glycan-network-add-neighborhood-o" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="std option">
+<dt class="sig sig-object std" id="cmdoption-glycresoft-build-hypothesis-glycan-network-add-neighborhood-n">
+<span id="cmdoption-glycresoft-build-hypothesis-glycan-network-add-neighborhood-name"></span><span class="sig-name descname"><span class="pre">-n</span></span><span class="sig-prename descclassname"></span><span class="sig-prename descclassname"><span class="pre">,</span> </span><span class="sig-name descname"><span class="pre">--name</span></span><span class="sig-prename descclassname"> <span class="pre">&lt;string&gt;</span></span><a class="headerlink" href="#cmdoption-glycresoft-build-hypothesis-glycan-network-add-neighborhood-n" title="Permalink to this definition">¶</a></dt>
+<dd><p>Set the neighborhood name  [required]</p>
+</dd></dl>
+
+<dl class="std option">
+<dt class="sig sig-object std" id="cmdoption-glycresoft-build-hypothesis-glycan-network-add-neighborhood-r">
+<span id="cmdoption-glycresoft-build-hypothesis-glycan-network-add-neighborhood-range-rule"></span><span class="sig-name descname"><span class="pre">-r</span></span><span class="sig-prename descclassname"></span><span class="sig-prename descclassname"><span class="pre">,</span> </span><span class="sig-name descname"><span class="pre">--range-rule</span></span><span class="sig-prename descclassname"> <span class="pre">&lt;string&gt;</span></span><a class="headerlink" href="#cmdoption-glycresoft-build-hypothesis-glycan-network-add-neighborhood-r" title="Permalink to this definition">¶</a></dt>
+<dd><p>Format: &lt;expression:str&gt; &lt;low:int&gt; &lt;high:int&gt; &lt;required:bool&gt; (May specify more than once)</p>
+</dd></dl>
+
+<dl class="std option">
+<dt class="sig sig-object std" id="cmdoption-glycresoft-build-hypothesis-glycan-network-add-neighborhood-e">
+<span id="cmdoption-glycresoft-build-hypothesis-glycan-network-add-neighborhood-expression-rule"></span><span class="sig-name descname"><span class="pre">-e</span></span><span class="sig-prename descclassname"></span><span class="sig-prename descclassname"><span class="pre">,</span> </span><span class="sig-name descname"><span class="pre">--expression-rule</span></span><span class="sig-prename descclassname"> <span class="pre">&lt;string&gt;</span></span><a class="headerlink" href="#cmdoption-glycresoft-build-hypothesis-glycan-network-add-neighborhood-e" title="Permalink to this definition">¶</a></dt>
+<dd><p>Format: &lt;bool-expression:str&gt; &lt;required:bool&gt; (May specify more than once)</p>
+</dd></dl>
+
+<dl class="std option">
+<dt class="sig sig-object std" id="cmdoption-glycresoft-build-hypothesis-glycan-network-add-neighborhood-a">
+<span id="cmdoption-glycresoft-build-hypothesis-glycan-network-add-neighborhood-ratio-rule"></span><span class="sig-name descname"><span class="pre">-a</span></span><span class="sig-prename descclassname"></span><span class="sig-prename descclassname"><span class="pre">,</span> </span><span class="sig-name descname"><span class="pre">--ratio-rule</span></span><span class="sig-prename descclassname"> <span class="pre">&lt;string&gt;</span></span><a class="headerlink" href="#cmdoption-glycresoft-build-hypothesis-glycan-network-add-neighborhood-a" title="Permalink to this definition">¶</a></dt>
+<dd><p>Format: &lt;numerator-expr:str&gt; &lt;denominator-expr:str&gt; &lt;threshold:float&gt; &lt;required:bool&gt; (May specify more than once)</p>
+</dd></dl>
+
+</section>
+</section>
+</section>
+
+
+      </div>
+      <div class="bottomnav" role="navigation" aria-label="bottom navigation">
+      
+        <p>
+        «&#160;&#160;<a href="glyspace-glycan.html">Building a Glycan Hypothesis from glySpace</a>
+        &#160;&#160;::&#160;&#160;
+        <a class="uplink" href="../../index.html">Contents</a>
+        &#160;&#160;::&#160;&#160;
+        <a href="fasta-glycopeptide.html">Building a Glycopeptide Hypothesis from a FASTA File</a>&#160;&#160;»
+        </p>
+
+      </div>
+
+    <div class="footer" role="contentinfo">
+    &#169; Copyright 2024, Joshua Klein.
+      Created using <a href="https://www.sphinx-doc.org/">Sphinx</a> 7.1.2.
+    </div>
+  </body>
+</html>

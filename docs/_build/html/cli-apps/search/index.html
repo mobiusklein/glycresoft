@@ -1,26 +1,22 @@
+<!DOCTYPE html>
 
-<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
-  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
-
-<html xmlns="http://www.w3.org/1999/xhtml">
+<html lang="en">
   <head>
-    <meta http-equiv="X-UA-Compatible" content="IE=Edge" />
-    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+
     <title>Search and Analysis Tools &#8212; glycresoft  documentation</title>
-    <link rel="stylesheet" href="../../_static/haiku.css" type="text/css" />
-    <link rel="stylesheet" href="../../_static/pygments.css" type="text/css" />
-    <script type="text/javascript" id="documentation_options" data-url_root="../../" src="../../_static/documentation_options.js"></script>
-    <script type="text/javascript" src="../../_static/jquery.js"></script>
-    <script type="text/javascript" src="../../_static/underscore.js"></script>
-    <script type="text/javascript" src="../../_static/doctools.js"></script>
-    <script type="text/javascript" src="../../_static/language_data.js"></script>
-    <script async="async" type="text/javascript" src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.5/latest.js?config=TeX-AMS-MML_HTMLorMML"></script>
+    <link rel="stylesheet" type="text/css" href="../../_static/pygments.css?v=fa44fd50" />
+    <link rel="stylesheet" type="text/css" href="../../_static/haiku.css?v=e7493be8" />
+    <script data-url_root="../../" id="documentation_options" src="../../_static/documentation_options.js?v=b3ba4146"></script>
+    <script src="../../_static/doctools.js?v=888ff710"></script>
+    <script src="../../_static/sphinx_highlight.js?v=4825356b"></script>
     <link rel="index" title="Index" href="../../genindex.html" />
     <link rel="search" title="Search" href="../../search.html" />
     <link rel="next" title="LC-MS/MS Data Preprocessing and Deconvolution" href="mzml-preprocess.html" />
     <link rel="prev" title="Building a Glycopeptide Hypothesis from a FASTA File" href="../database/fasta-glycopeptide.html" /> 
   </head><body>
-      <div class="header" role="banner"><img class="rightlogo" src="../../_static/logo.png" alt="Logo" style='width:120px;'/><h1 class="heading"><a href="../../index.html">
+      <div class="header" role="banner"><h1 class="heading"><a href="../../index.html">
           <span>glycresoft  documentation</span></a></h1>
         <h2 class="heading"><span>Search and Analysis Tools</span></h2>
       </div>
@@ -38,17 +34,44 @@
       <div class="content">
         
         
-  <div class="section" id="search-and-analysis-tools">
-<h1>Search and Analysis Tools<a class="headerlink" href="#search-and-analysis-tools" title="Permalink to this headline">¶</a></h1>
+  <section id="search-and-analysis-tools">
+<h1>Search and Analysis Tools<a class="headerlink" href="#search-and-analysis-tools" title="Permalink to this heading">¶</a></h1>
 <div class="toctree-wrapper compound">
 <ul>
-<li class="toctree-l1"><a class="reference internal" href="mzml-preprocess.html"> LC-MS/MS Data Preprocessing and Deconvolution</a></li>
-<li class="toctree-l1"><a class="reference internal" href="search-glycan.html"> Searching a Processed Sample with a Glycan Database</a></li>
-<li class="toctree-l1"><a class="reference internal" href="search-glycopeptide.html"> Searching a Processed Sample with a Glycopeptide Database</a></li>
-<li class="toctree-l1"><a class="reference internal" href="retention-time-model.html"> Modeling Glycopeptide Chromatographic Retention Times</a></li>
+<li class="toctree-l1"><a class="reference internal" href="mzml-preprocess.html"> LC-MS/MS Data Preprocessing and Deconvolution</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="mzml-preprocess.html#glycresoft-mzml-preprocess">glycresoft mzml preprocess</a></li>
+<li class="toctree-l2"><a class="reference internal" href="mzml-preprocess.html#usage-example">Usage example</a></li>
+<li class="toctree-l2"><a class="reference internal" href="mzml-preprocess.html#averagine-models">Averagine Models</a></li>
+<li class="toctree-l2"><a class="reference internal" href="mzml-preprocess.html#supported-file-formats">Supported File Formats</a></li>
+<li class="toctree-l2"><a class="reference internal" href="mzml-preprocess.html#signal-filters">Signal Filters</a></li>
+<li class="toctree-l2"><a class="reference internal" href="mzml-preprocess.html#output-information">Output Information</a></li>
+<li class="toctree-l2"><a class="reference internal" href="mzml-preprocess.html#bibliography">Bibliography</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="search-glycan.html"> Searching a Processed Sample with a Glycan Database</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="search-glycan.html#glycresoft-analyze-search-glycan">glycresoft analyze search-glycan</a></li>
+<li class="toctree-l2"><a class="reference internal" href="search-glycan.html#usage-example">Usage Example</a></li>
+<li class="toctree-l2"><a class="reference internal" href="search-glycan.html#adducts">Adducts</a></li>
+<li class="toctree-l2"><a class="reference internal" href="search-glycan.html#network-regularization">Network Regularization</a></li>
+<li class="toctree-l2"><a class="reference internal" href="search-glycan.html#ms-ms-signatures">MS/MS Signatures</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="search-glycopeptide.html"> Searching a Processed Sample with a Glycopeptide Database</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="search-glycopeptide.html#traditional-database-search">Traditional Database Search</a></li>
+<li class="toctree-l2"><a class="reference internal" href="search-glycopeptide.html#multi-component-database-search">Multi-component Database Search</a></li>
+<li class="toctree-l2"><a class="reference internal" href="search-glycopeptide.html#memory-consumption-and-workload-size">Memory Consumption and Workload Size</a></li>
+<li class="toctree-l2"><a class="reference internal" href="search-glycopeptide.html#build-a-glycosite-network-smoothing-model">Build a Glycosite Network Smoothing Model</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="retention-time-model.html"> (Deprecated) Modeling Glycopeptide Chromatographic Retention Times</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="retention-time-model.html#preparing-input-data">Preparing Input Data</a></li>
+<li class="toctree-l2"><a class="reference internal" href="retention-time-model.html#fitting-the-model">Fitting The Model</a></li>
+<li class="toctree-l2"><a class="reference internal" href="retention-time-model.html#re-using-a-fitted-model">Re-using A Fitted Model</a></li>
+</ul>
+</li>
 </ul>
 </div>
-</div>
+</section>
 
 
       </div>
@@ -65,8 +88,8 @@
       </div>
 
     <div class="footer" role="contentinfo">
-        &#169; Copyright 2017, Joshua Klein.
-      Created using <a href="http://sphinx-doc.org/">Sphinx</a> 1.8.5.
+    &#169; Copyright 2024, Joshua Klein.
+      Created using <a href="https://www.sphinx-doc.org/">Sphinx</a> 7.1.2.
     </div>
   </body>
 </html>

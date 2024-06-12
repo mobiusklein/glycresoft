@@ -1,26 +1,22 @@
+<!DOCTYPE html>
 
-<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
-  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
-
-<html xmlns="http://www.w3.org/1999/xhtml">
+<html lang="en">
   <head>
-    <meta http-equiv="X-UA-Compatible" content="IE=Edge" />
-    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+
     <title>Searching a Processed Sample with a Glycopeptide Database &#8212; glycresoft  documentation</title>
-    <link rel="stylesheet" href="../../_static/haiku.css" type="text/css" />
-    <link rel="stylesheet" href="../../_static/pygments.css" type="text/css" />
-    <script type="text/javascript" id="documentation_options" data-url_root="../../" src="../../_static/documentation_options.js"></script>
-    <script type="text/javascript" src="../../_static/jquery.js"></script>
-    <script type="text/javascript" src="../../_static/underscore.js"></script>
-    <script type="text/javascript" src="../../_static/doctools.js"></script>
-    <script type="text/javascript" src="../../_static/language_data.js"></script>
-    <script async="async" type="text/javascript" src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.5/latest.js?config=TeX-AMS-MML_HTMLorMML"></script>
+    <link rel="stylesheet" type="text/css" href="../../_static/pygments.css?v=fa44fd50" />
+    <link rel="stylesheet" type="text/css" href="../../_static/haiku.css?v=e7493be8" />
+    <script data-url_root="../../" id="documentation_options" src="../../_static/documentation_options.js?v=b3ba4146"></script>
+    <script src="../../_static/doctools.js?v=888ff710"></script>
+    <script src="../../_static/sphinx_highlight.js?v=4825356b"></script>
     <link rel="index" title="Index" href="../../genindex.html" />
     <link rel="search" title="Search" href="../../search.html" />
     <link rel="next" title="Retention Time Modeling for Glycopeptide Identifications" href="retention-time-model.html" />
     <link rel="prev" title="Searching a Processed Sample with a Glycan Database" href="search-glycan.html" /> 
   </head><body>
-      <div class="header" role="banner"><img class="rightlogo" src="../../_static/logo.png" alt="Logo" style='width:120px;'/><h1 class="heading"><a href="../../index.html">
+      <div class="header" role="banner"><h1 class="heading"><a href="../../index.html">
           <span>glycresoft  documentation</span></a></h1>
         <h2 class="heading"><span>Searching a Processed Sample with a Glycopeptide Database</span></h2>
       </div>
@@ -38,92 +34,97 @@
       <div class="content">
         
         
-  <div class="section" id="searching-a-processed-sample-with-a-glycopeptide-database">
-<h1>Searching a Processed Sample with a Glycopeptide Database<a class="headerlink" href="#searching-a-processed-sample-with-a-glycopeptide-database" title="Permalink to this headline">¶</a></h1>
+  <section id="searching-a-processed-sample-with-a-glycopeptide-database">
+<h1>Searching a Processed Sample with a Glycopeptide Database<a class="headerlink" href="#searching-a-processed-sample-with-a-glycopeptide-database" title="Permalink to this heading">¶</a></h1>
 <p>The end-goal of all of these tools is to be able to identify glycopeptides
 from experimental data. After you’ve constructed a glycopeptide database
 and deconvoluted an LC-MS/MS data file, you’re ready to do just that.</p>
-<div class="section" id="glycresoft-analyze-search-glycopeptide">
-<h2>glycresoft analyze search-glycopeptide<a class="headerlink" href="#glycresoft-analyze-search-glycopeptide" title="Permalink to this headline">¶</a></h2>
-<p>Identify glycopeptide sequences from processed LC-MS/MS data. This algorithm requires a fully materialized
-cross-product database (the default), and uses a reverse-peptide decoy by default, evaluated on the total score.</p>
+<section id="traditional-database-search">
+<span id="search-glycopeptide"></span><h2>Traditional Database Search<a class="headerlink" href="#traditional-database-search" title="Permalink to this heading">¶</a></h2>
+<section id="glycresoft-analyze-search-glycopeptide">
+<h3>glycresoft analyze search-glycopeptide<a class="headerlink" href="#glycresoft-analyze-search-glycopeptide" title="Permalink to this heading">¶</a></h3>
+<dl>
+<dt>Identify glycopeptide sequences from processed LC-MS/MS data. This algorithm requires a fully materialized</dt><dd><p>cross-product database (the default), and uses a reverse-peptide decoy by default, evaluated on the total score.</p>
 <p>For a search algorithm that applies separate FDR control on the peptide and the glycan, see
-<span class="xref std std-ref">search-glycopeptide-multipart</span></p>
-<div class="highlight-shell notranslate"><div class="highlight"><pre><span></span>glycresoft analyze search-glycopeptide <span class="o">[</span>OPTIONS<span class="o">]</span> DATABASE_CONNECTION
-                                       SAMPLE_PATH HYPOTHESIS_IDENTIFIER
+<a class="reference internal" href="#search-glycopeptide-multipart"><span class="std std-ref">Multi-component Database Search</span></a></p>
+</dd>
+</dl>
+<div class="highlight-shell notranslate"><div class="highlight"><pre><span></span>glycresoft<span class="w"> </span>analyze<span class="w"> </span>search-glycopeptide<span class="w"> </span><span class="o">[</span>OPTIONS<span class="o">]</span><span class="w"> </span>DATABASE_CONNECTION
+<span class="w">                                       </span>SAMPLE_PATH<span class="w"> </span>HYPOTHESIS_IDENTIFIER
 </pre></div>
 </div>
 <p class="rubric">Options</p>
-<dl class="option">
-<dt id="cmdoption-glycresoft-analyze-search-glycopeptide-m">
-<code class="descname">-m</code><code class="descclassname"></code><code class="descclassname">, </code><code class="descname">--mass-error-tolerance</code><code class="descclassname"> &lt;relative mass error&gt;</code><a class="headerlink" href="#cmdoption-glycresoft-analyze-search-glycopeptide-m" title="Permalink to this definition">¶</a></dt>
+<dl class="std option">
+<dt class="sig sig-object std" id="cmdoption-glycresoft-analyze-search-glycopeptide-m">
+<span id="cmdoption-glycresoft-analyze-search-glycopeptide-mass-error-tolerance"></span><span class="sig-name descname"><span class="pre">-m</span></span><span class="sig-prename descclassname"></span><span class="sig-prename descclassname"><span class="pre">,</span> </span><span class="sig-name descname"><span class="pre">--mass-error-tolerance</span></span><span class="sig-prename descclassname"> <span class="pre">&lt;relative</span> <span class="pre">mass</span> <span class="pre">error&gt;</span></span><a class="headerlink" href="#cmdoption-glycresoft-analyze-search-glycopeptide-m" title="Permalink to this definition">¶</a></dt>
 <dd><p>Mass accuracy constraint, in parts-per-million error, for matching MS^1 ions.  [default: 1e-05]</p>
 </dd></dl>
 
-<dl class="option">
-<dt id="cmdoption-glycresoft-analyze-search-glycopeptide-mn">
-<code class="descname">-mn</code><code class="descclassname"></code><code class="descclassname">, </code><code class="descname">--msn-mass-error-tolerance</code><code class="descclassname"> &lt;relative mass error&gt;</code><a class="headerlink" href="#cmdoption-glycresoft-analyze-search-glycopeptide-mn" title="Permalink to this definition">¶</a></dt>
+<dl class="std option">
+<dt class="sig sig-object std" id="cmdoption-glycresoft-analyze-search-glycopeptide-mn">
+<span id="cmdoption-glycresoft-analyze-search-glycopeptide-msn-mass-error-tolerance"></span><span class="sig-name descname"><span class="pre">-mn</span></span><span class="sig-prename descclassname"></span><span class="sig-prename descclassname"><span class="pre">,</span> </span><span class="sig-name descname"><span class="pre">--msn-mass-error-tolerance</span></span><span class="sig-prename descclassname"> <span class="pre">&lt;relative</span> <span class="pre">mass</span> <span class="pre">error&gt;</span></span><a class="headerlink" href="#cmdoption-glycresoft-analyze-search-glycopeptide-mn" title="Permalink to this definition">¶</a></dt>
 <dd><p>Mass accuracy constraint, in parts-per-million error, for matching MS^n ions.  [default: 2e-05]</p>
 </dd></dl>
 
-<dl class="option">
-<dt id="cmdoption-glycresoft-analyze-search-glycopeptide-g">
-<code class="descname">-g</code><code class="descclassname"></code><code class="descclassname">, </code><code class="descname">--grouping-error-tolerance</code><code class="descclassname"> &lt;relative mass error&gt;</code><a class="headerlink" href="#cmdoption-glycresoft-analyze-search-glycopeptide-g" title="Permalink to this definition">¶</a></dt>
+<dl class="std option">
+<dt class="sig sig-object std" id="cmdoption-glycresoft-analyze-search-glycopeptide-g">
+<span id="cmdoption-glycresoft-analyze-search-glycopeptide-grouping-error-tolerance"></span><span class="sig-name descname"><span class="pre">-g</span></span><span class="sig-prename descclassname"></span><span class="sig-prename descclassname"><span class="pre">,</span> </span><span class="sig-name descname"><span class="pre">--grouping-error-tolerance</span></span><span class="sig-prename descclassname"> <span class="pre">&lt;relative</span> <span class="pre">mass</span> <span class="pre">error&gt;</span></span><a class="headerlink" href="#cmdoption-glycresoft-analyze-search-glycopeptide-g" title="Permalink to this definition">¶</a></dt>
 <dd><p>Mass accuracy constraint, in parts-per-million error, for grouping chromatograms.  [default: 1.5e-05]</p>
 </dd></dl>
 
-<dl class="option">
-<dt id="cmdoption-glycresoft-analyze-search-glycopeptide-n">
-<code class="descname">-n</code><code class="descclassname"></code><code class="descclassname">, </code><code class="descname">--analysis-name</code><code class="descclassname"> &lt;string&gt;</code><a class="headerlink" href="#cmdoption-glycresoft-analyze-search-glycopeptide-n" title="Permalink to this definition">¶</a></dt>
+<dl class="std option">
+<dt class="sig sig-object std" id="cmdoption-glycresoft-analyze-search-glycopeptide-n">
+<span id="cmdoption-glycresoft-analyze-search-glycopeptide-analysis-name"></span><span class="sig-name descname"><span class="pre">-n</span></span><span class="sig-prename descclassname"></span><span class="sig-prename descclassname"><span class="pre">,</span> </span><span class="sig-name descname"><span class="pre">--analysis-name</span></span><span class="sig-prename descclassname"> <span class="pre">&lt;string&gt;</span></span><a class="headerlink" href="#cmdoption-glycresoft-analyze-search-glycopeptide-n" title="Permalink to this definition">¶</a></dt>
 <dd><p>Name for analysis to be performed.</p>
 </dd></dl>
 
-<dl class="option">
-<dt id="cmdoption-glycresoft-analyze-search-glycopeptide-q">
-<code class="descname">-q</code><code class="descclassname"></code><code class="descclassname">, </code><code class="descname">--psm-fdr-threshold</code><code class="descclassname"> &lt;float&gt;</code><a class="headerlink" href="#cmdoption-glycresoft-analyze-search-glycopeptide-q" title="Permalink to this definition">¶</a></dt>
+<dl class="std option">
+<dt class="sig sig-object std" id="cmdoption-glycresoft-analyze-search-glycopeptide-q">
+<span id="cmdoption-glycresoft-analyze-search-glycopeptide-psm-fdr-threshold"></span><span class="sig-name descname"><span class="pre">-q</span></span><span class="sig-prename descclassname"></span><span class="sig-prename descclassname"><span class="pre">,</span> </span><span class="sig-name descname"><span class="pre">--psm-fdr-threshold</span></span><span class="sig-prename descclassname"> <span class="pre">&lt;float&gt;</span></span><a class="headerlink" href="#cmdoption-glycresoft-analyze-search-glycopeptide-q" title="Permalink to this definition">¶</a></dt>
 <dd><p>Minimum FDR Threshold to use for filtering GPSMs when selecting identified glycopeptides  [default: 0.05]</p>
 </dd></dl>
 
-<dl class="option">
-<dt id="cmdoption-glycresoft-analyze-search-glycopeptide-s">
-<code class="descname">-s</code><code class="descclassname"></code><code class="descclassname">, </code><code class="descname">--tandem-scoring-model</code><code class="descclassname"> &lt;choice or&gt;</code><a class="headerlink" href="#cmdoption-glycresoft-analyze-search-glycopeptide-s" title="Permalink to this definition">¶</a></dt>
+<dl class="std option">
+<dt class="sig sig-object std" id="cmdoption-glycresoft-analyze-search-glycopeptide-s">
+<span id="cmdoption-glycresoft-analyze-search-glycopeptide-tandem-scoring-model"></span><span class="sig-name descname"><span class="pre">-s</span></span><span class="sig-prename descclassname"></span><span class="sig-prename descclassname"><span class="pre">,</span> </span><span class="sig-name descname"><span class="pre">--tandem-scoring-model</span></span><span class="sig-prename descclassname"> <span class="pre">&lt;choice</span> <span class="pre">or&gt;</span></span><a class="headerlink" href="#cmdoption-glycresoft-analyze-search-glycopeptide-s" title="Permalink to this definition">¶</a></dt>
 <dd><p>Select a scoring function to use for evaluating glycopeptide-spectrum matches  [default: coverage_weighted_binomial]</p>
 <div class="line-block">
 <div class="line">Choices: [</div>
 <div class="line-block">
-<div class="line">penalized_log_intensty; log_intensity; simple;</div>
-<div class="line">coverage_weighted_binomial; peptide_only_cw_binomial; binomial]</div>
+<div class="line">binomial; simple; coverage_weighted_binomial;</div>
+<div class="line">log_intensity; penalized_log_intensty; peptide_only_cw_binomial;</div>
+<div class="line">log_intensity_v3; log_intensity_reweighted]</div>
 </div>
 </div>
 </dd></dl>
 
-<dl class="option">
-<dt id="cmdoption-glycresoft-analyze-search-glycopeptide-x">
-<code class="descname">-x</code><code class="descclassname"></code><code class="descclassname">, </code><code class="descname">--oxonium-threshold</code><code class="descclassname"> &lt;float&gt;</code><a class="headerlink" href="#cmdoption-glycresoft-analyze-search-glycopeptide-x" title="Permalink to this definition">¶</a></dt>
+<dl class="std option">
+<dt class="sig sig-object std" id="cmdoption-glycresoft-analyze-search-glycopeptide-x">
+<span id="cmdoption-glycresoft-analyze-search-glycopeptide-oxonium-threshold"></span><span class="sig-name descname"><span class="pre">-x</span></span><span class="sig-prename descclassname"></span><span class="sig-prename descclassname"><span class="pre">,</span> </span><span class="sig-name descname"><span class="pre">--oxonium-threshold</span></span><span class="sig-prename descclassname"> <span class="pre">&lt;float&gt;</span></span><a class="headerlink" href="#cmdoption-glycresoft-analyze-search-glycopeptide-x" title="Permalink to this definition">¶</a></dt>
 <dd><p>Minimum HexNAc-derived oxonium ion abundance ratio to filter MS/MS scans. Defaults to 0.05.  [default: 0.05]</p>
 </dd></dl>
 
-<dl class="option">
-<dt id="cmdoption-glycresoft-analyze-search-glycopeptide-a">
-<code class="descname">-a</code><code class="descclassname"></code><code class="descclassname">, </code><code class="descname">--adduct</code><code class="descclassname"> &lt;string&gt;</code><a class="headerlink" href="#cmdoption-glycresoft-analyze-search-glycopeptide-a" title="Permalink to this definition">¶</a></dt>
+<dl class="std option">
+<dt class="sig sig-object std" id="cmdoption-glycresoft-analyze-search-glycopeptide-a">
+<span id="cmdoption-glycresoft-analyze-search-glycopeptide-adduct"></span><span class="sig-name descname"><span class="pre">-a</span></span><span class="sig-prename descclassname"></span><span class="sig-prename descclassname"><span class="pre">,</span> </span><span class="sig-name descname"><span class="pre">--adduct</span></span><span class="sig-prename descclassname"> <span class="pre">&lt;string&gt;</span></span><a class="headerlink" href="#cmdoption-glycresoft-analyze-search-glycopeptide-a" title="Permalink to this definition">¶</a></dt>
 <dd><p>Adducts to consider. Specify name or formula, and a multiplicity. (May specify more than once)</p>
 </dd></dl>
 
-<dl class="option">
-<dt id="cmdoption-glycresoft-analyze-search-glycopeptide-f">
-<code class="descname">-f</code><code class="descclassname"></code><code class="descclassname">, </code><code class="descname">--use-peptide-mass-filter</code><code class="descclassname"></code><a class="headerlink" href="#cmdoption-glycresoft-analyze-search-glycopeptide-f" title="Permalink to this definition">¶</a></dt>
+<dl class="std option">
+<dt class="sig sig-object std" id="cmdoption-glycresoft-analyze-search-glycopeptide-f">
+<span id="cmdoption-glycresoft-analyze-search-glycopeptide-use-peptide-mass-filter"></span><span class="sig-name descname"><span class="pre">-f</span></span><span class="sig-prename descclassname"></span><span class="sig-prename descclassname"><span class="pre">,</span> </span><span class="sig-name descname"><span class="pre">--use-peptide-mass-filter</span></span><span class="sig-prename descclassname"></span><a class="headerlink" href="#cmdoption-glycresoft-analyze-search-glycopeptide-f" title="Permalink to this definition">¶</a></dt>
 <dd><p>Filter putative spectrum matches by estimating the peptide backbone mass from the precursor mass and stub glycopeptide signature ions  [default: False]</p>
 </dd></dl>
 
-<dl class="option">
-<dt id="cmdoption-glycresoft-analyze-search-glycopeptide-p">
-<code class="descname">-p</code><code class="descclassname"></code><code class="descclassname">, </code><code class="descname">--processes</code><code class="descclassname"> &lt;int&gt;</code><a class="headerlink" href="#cmdoption-glycresoft-analyze-search-glycopeptide-p" title="Permalink to this definition">¶</a></dt>
+<dl class="std option">
+<dt class="sig sig-object std" id="cmdoption-glycresoft-analyze-search-glycopeptide-p">
+<span id="cmdoption-glycresoft-analyze-search-glycopeptide-processes"></span><span class="sig-name descname"><span class="pre">-p</span></span><span class="sig-prename descclassname"></span><span class="sig-prename descclassname"><span class="pre">,</span> </span><span class="sig-name descname"><span class="pre">--processes</span></span><span class="sig-prename descclassname"> <span class="pre">&lt;int&gt;</span></span><a class="headerlink" href="#cmdoption-glycresoft-analyze-search-glycopeptide-p" title="Permalink to this definition">¶</a></dt>
 <dd><p>Number of worker processes to use. Defaults to 4 or the number of CPUs, whichever is lower  [default: 4]</p>
 </dd></dl>
 
-<dl class="option">
-<dt id="cmdoption-glycresoft-analyze-search-glycopeptide-export">
-<code class="descname">--export</code><code class="descclassname"> &lt;choice&gt;</code><a class="headerlink" href="#cmdoption-glycresoft-analyze-search-glycopeptide-export" title="Permalink to this definition">¶</a></dt>
+<dl class="std option">
+<dt class="sig sig-object std" id="cmdoption-glycresoft-analyze-search-glycopeptide-export">
+<span class="sig-name descname"><span class="pre">--export</span></span><span class="sig-prename descclassname"> <span class="pre">&lt;choice&gt;</span></span><a class="headerlink" href="#cmdoption-glycresoft-analyze-search-glycopeptide-export" title="Permalink to this definition">¶</a></dt>
 <dd><p>export command to after search is complete (May specify more than once)</p>
 <div class="line-block">
 <div class="line">Choices: [</div>
@@ -133,142 +134,157 @@ cross-product database (the default), and uses a reverse-peptide decoy by defaul
 </div>
 </dd></dl>
 
-<dl class="option">
-<dt id="cmdoption-glycresoft-analyze-search-glycopeptide-o">
-<code class="descname">-o</code><code class="descclassname"></code><code class="descclassname">, </code><code class="descname">--output-path</code><code class="descclassname"> &lt;path&gt;</code><a class="headerlink" href="#cmdoption-glycresoft-analyze-search-glycopeptide-o" title="Permalink to this definition">¶</a></dt>
+<dl class="std option">
+<dt class="sig sig-object std" id="cmdoption-glycresoft-analyze-search-glycopeptide-o">
+<span id="cmdoption-glycresoft-analyze-search-glycopeptide-output-path"></span><span class="sig-name descname"><span class="pre">-o</span></span><span class="sig-prename descclassname"></span><span class="sig-prename descclassname"><span class="pre">,</span> </span><span class="sig-name descname"><span class="pre">--output-path</span></span><span class="sig-prename descclassname"> <span class="pre">&lt;path&gt;</span></span><a class="headerlink" href="#cmdoption-glycresoft-analyze-search-glycopeptide-o" title="Permalink to this definition">¶</a></dt>
 <dd><p>Path to write resulting analysis to.  [required]</p>
 </dd></dl>
 
-<dl class="option">
-<dt id="cmdoption-glycresoft-analyze-search-glycopeptide-w">
-<code class="descname">-w</code><code class="descclassname"></code><code class="descclassname">, </code><code class="descname">--workload-size</code><code class="descclassname"> &lt;int&gt;</code><a class="headerlink" href="#cmdoption-glycresoft-analyze-search-glycopeptide-w" title="Permalink to this definition">¶</a></dt>
+<dl class="std option">
+<dt class="sig sig-object std" id="cmdoption-glycresoft-analyze-search-glycopeptide-w">
+<span id="cmdoption-glycresoft-analyze-search-glycopeptide-workload-size"></span><span class="sig-name descname"><span class="pre">-w</span></span><span class="sig-prename descclassname"></span><span class="sig-prename descclassname"><span class="pre">,</span> </span><span class="sig-name descname"><span class="pre">--workload-size</span></span><span class="sig-prename descclassname"> <span class="pre">&lt;int&gt;</span></span><a class="headerlink" href="#cmdoption-glycresoft-analyze-search-glycopeptide-w" title="Permalink to this definition">¶</a></dt>
 <dd><p>Number of spectra to process at once  [default: 500]</p>
 </dd></dl>
 
-<dl class="option">
-<dt id="cmdoption-glycresoft-analyze-search-glycopeptide-save-intermediate-results">
-<code class="descname">--save-intermediate-results</code><code class="descclassname"> &lt;path&gt;</code><a class="headerlink" href="#cmdoption-glycresoft-analyze-search-glycopeptide-save-intermediate-results" title="Permalink to this definition">¶</a></dt>
+<dl class="std option">
+<dt class="sig sig-object std" id="cmdoption-glycresoft-analyze-search-glycopeptide-save-intermediate-results">
+<span class="sig-name descname"><span class="pre">--save-intermediate-results</span></span><span class="sig-prename descclassname"> <span class="pre">&lt;path&gt;</span></span><a class="headerlink" href="#cmdoption-glycresoft-analyze-search-glycopeptide-save-intermediate-results" title="Permalink to this definition">¶</a></dt>
 <dd><p>Save intermediate spectrum matches to a file</p>
 </dd></dl>
 
-<dl class="option">
-<dt id="cmdoption-glycresoft-analyze-search-glycopeptide-maximum-mass">
-<code class="descname">--maximum-mass</code><code class="descclassname"> &lt;float&gt;</code><a class="headerlink" href="#cmdoption-glycresoft-analyze-search-glycopeptide-maximum-mass" title="Permalink to this definition">¶</a></dt>
+<dl class="std option">
+<dt class="sig sig-object std" id="cmdoption-glycresoft-analyze-search-glycopeptide-maximum-mass">
+<span class="sig-name descname"><span class="pre">--maximum-mass</span></span><span class="sig-prename descclassname"> <span class="pre">&lt;float&gt;</span></span><a class="headerlink" href="#cmdoption-glycresoft-analyze-search-glycopeptide-maximum-mass" title="Permalink to this definition">¶</a></dt>
 <dd><p>[default: inf]</p>
 </dd></dl>
 
-<dl class="option">
-<dt id="cmdoption-glycresoft-analyze-search-glycopeptide-d">
-<code class="descname">-D</code><code class="descclassname"></code><code class="descclassname">, </code><code class="descname">--decoy-database-connection</code><code class="descclassname"> &lt;string&gt;</code><a class="headerlink" href="#cmdoption-glycresoft-analyze-search-glycopeptide-d" title="Permalink to this definition">¶</a></dt>
+<dl class="std option">
+<dt class="sig sig-object std" id="cmdoption-glycresoft-analyze-search-glycopeptide-D">
+<span id="cmdoption-glycresoft-analyze-search-glycopeptide-decoy-database-connection"></span><span class="sig-name descname"><span class="pre">-D</span></span><span class="sig-prename descclassname"></span><span class="sig-prename descclassname"><span class="pre">,</span> </span><span class="sig-name descname"><span class="pre">--decoy-database-connection</span></span><span class="sig-prename descclassname"> <span class="pre">&lt;string&gt;</span></span><a class="headerlink" href="#cmdoption-glycresoft-analyze-search-glycopeptide-D" title="Permalink to this definition">¶</a></dt>
 <dd><p>Provide an alternative hypothesis to draw decoy glycopeptides from instead of the simpler reversed-peptide decoy. This is especially necessary when the stub peptide+Y ions account for a large fraction of MS2 signal.</p>
 </dd></dl>
 
-<dl class="option">
-<dt id="cmdoption-glycresoft-analyze-search-glycopeptide-permute-decoy-glycan-fragments">
-<code class="descname">-G</code><code class="descclassname"></code><code class="descclassname">, </code><code class="descname">--permute-decoy-glycan-fragments</code><code class="descclassname"></code><a class="headerlink" href="#cmdoption-glycresoft-analyze-search-glycopeptide-permute-decoy-glycan-fragments" title="Permalink to this definition">¶</a></dt>
+<dl class="std option">
+<dt class="sig sig-object std" id="cmdoption-glycresoft-analyze-search-glycopeptide-G">
+<span id="cmdoption-glycresoft-analyze-search-glycopeptide-permute-decoy-glycan-fragments"></span><span class="sig-name descname"><span class="pre">-G</span></span><span class="sig-prename descclassname"></span><span class="sig-prename descclassname"><span class="pre">,</span> </span><span class="sig-name descname"><span class="pre">--permute-decoy-glycan-fragments</span></span><span class="sig-prename descclassname"></span><a class="headerlink" href="#cmdoption-glycresoft-analyze-search-glycopeptide-G" title="Permalink to this definition">¶</a></dt>
 <dd><p>Whether or not to permute decoy glycopeptides’ peptide+Y ions. The intact mass, peptide, and peptide+Y1 ions are unchanged.  [default: False]</p>
 </dd></dl>
 
-<dl class="option">
-<dt id="cmdoption-glycresoft-analyze-search-glycopeptide-isotope-probing-range">
-<code class="descname">--isotope-probing-range</code><code class="descclassname"> &lt;int&gt;</code><a class="headerlink" href="#cmdoption-glycresoft-analyze-search-glycopeptide-isotope-probing-range" title="Permalink to this definition">¶</a></dt>
+<dl class="std option">
+<dt class="sig sig-object std" id="cmdoption-glycresoft-analyze-search-glycopeptide-isotope-probing-range">
+<span class="sig-name descname"><span class="pre">--isotope-probing-range</span></span><span class="sig-prename descclassname"> <span class="pre">&lt;int&gt;</span></span><a class="headerlink" href="#cmdoption-glycresoft-analyze-search-glycopeptide-isotope-probing-range" title="Permalink to this definition">¶</a></dt>
 <dd><p>The maximum number of isotopic peak errors to allow when searching for untrusted precursor masses  [default: 3]</p>
 </dd></dl>
 
-<dl class="option">
-<dt id="cmdoption-glycresoft-analyze-search-glycopeptide-r">
-<code class="descname">-R</code><code class="descclassname"></code><code class="descclassname">, </code><code class="descname">--rare-signatures</code><code class="descclassname"></code><a class="headerlink" href="#cmdoption-glycresoft-analyze-search-glycopeptide-r" title="Permalink to this definition">¶</a></dt>
+<dl class="std option">
+<dt class="sig sig-object std" id="cmdoption-glycresoft-analyze-search-glycopeptide-R">
+<span id="cmdoption-glycresoft-analyze-search-glycopeptide-rare-signatures"></span><span class="sig-name descname"><span class="pre">-R</span></span><span class="sig-prename descclassname"></span><span class="sig-prename descclassname"><span class="pre">,</span> </span><span class="sig-name descname"><span class="pre">--rare-signatures</span></span><span class="sig-prename descclassname"></span><a class="headerlink" href="#cmdoption-glycresoft-analyze-search-glycopeptide-R" title="Permalink to this definition">¶</a></dt>
 <dd><p>Look for rare signature ions when scoring glycan oxonium signature  [default: False]</p>
 </dd></dl>
 
+<dl class="std option">
+<dt class="sig sig-object std" id="cmdoption-glycresoft-analyze-search-glycopeptide-retention-time-modeling">
+<span id="cmdoption-glycresoft-analyze-search-glycopeptide-no-retention-time-modeling"></span><span class="sig-name descname"><span class="pre">--retention-time-modeling</span></span><span class="sig-prename descclassname"></span><span class="sig-prename descclassname"><span class="pre">,</span> </span><span class="sig-name descname"><span class="pre">--no-retention-time-modeling</span></span><span class="sig-prename descclassname"></span><a class="headerlink" href="#cmdoption-glycresoft-analyze-search-glycopeptide-retention-time-modeling" title="Permalink to this definition">¶</a></dt>
+<dd><p>Whether or not to model relative retention time to correct for common glycan composition errors.  [default: True]</p>
+</dd></dl>
+
 <p class="rubric">Arguments</p>
-<dl class="option">
-<dt id="cmdoption-glycresoft-analyze-search-glycopeptide-arg-database-connection">
-<code class="descname">DATABASE_CONNECTION</code><code class="descclassname"></code><a class="headerlink" href="#cmdoption-glycresoft-analyze-search-glycopeptide-arg-database-connection" title="Permalink to this definition">¶</a></dt>
+<dl class="std option">
+<dt class="sig sig-object std" id="cmdoption-glycresoft-analyze-search-glycopeptide-arg-DATABASE_CONNECTION">
+<span class="sig-name descname"><span class="pre">DATABASE_CONNECTION</span></span><span class="sig-prename descclassname"></span><a class="headerlink" href="#cmdoption-glycresoft-analyze-search-glycopeptide-arg-DATABASE_CONNECTION" title="Permalink to this definition">¶</a></dt>
 <dd><p>Required argument
 &lt;databaseconnectionparam&gt; A connection URI for a database, or a path on the file system</p>
 </dd></dl>
 
-<dl class="option">
-<dt id="cmdoption-glycresoft-analyze-search-glycopeptide-arg-sample-path">
-<code class="descname">SAMPLE_PATH</code><code class="descclassname"></code><a class="headerlink" href="#cmdoption-glycresoft-analyze-search-glycopeptide-arg-sample-path" title="Permalink to this definition">¶</a></dt>
+<dl class="std option">
+<dt class="sig sig-object std" id="cmdoption-glycresoft-analyze-search-glycopeptide-arg-SAMPLE_PATH">
+<span class="sig-name descname"><span class="pre">SAMPLE_PATH</span></span><span class="sig-prename descclassname"></span><a class="headerlink" href="#cmdoption-glycresoft-analyze-search-glycopeptide-arg-SAMPLE_PATH" title="Permalink to this definition">¶</a></dt>
 <dd><p>Required argument
 &lt;path&gt; The path to the deconvoluted sample file</p>
 </dd></dl>
 
-<dl class="option">
-<dt id="cmdoption-glycresoft-analyze-search-glycopeptide-arg-hypothesis-identifier">
-<code class="descname">HYPOTHESIS_IDENTIFIER</code><code class="descclassname"></code><a class="headerlink" href="#cmdoption-glycresoft-analyze-search-glycopeptide-arg-hypothesis-identifier" title="Permalink to this definition">¶</a></dt>
+<dl class="std option">
+<dt class="sig sig-object std" id="cmdoption-glycresoft-analyze-search-glycopeptide-arg-HYPOTHESIS_IDENTIFIER">
+<span class="sig-name descname"><span class="pre">HYPOTHESIS_IDENTIFIER</span></span><span class="sig-prename descclassname"></span><a class="headerlink" href="#cmdoption-glycresoft-analyze-search-glycopeptide-arg-HYPOTHESIS_IDENTIFIER" title="Permalink to this definition">¶</a></dt>
 <dd><p>Required argument
 &lt;string&gt; The ID number or name of the glycopeptide hypothesis to use</p>
 </dd></dl>
 
-</div>
-<div class="section" id="usage-example">
-<h2>Usage Example<a class="headerlink" href="#usage-example" title="Permalink to this headline">¶</a></h2>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$ glycresoft analyze search-glycopeptide -m 5e-6 -mn 1e-5 fasta-glycopeptides.db path/to/processed/sample.mzML <span class="m">1</span><span class="se">\</span>
-     -o <span class="s2">&quot;agp-glycopepitdes-in-sample.db&quot;</span>
+</section>
+<section id="usage-example">
+<h3>Usage Example<a class="headerlink" href="#usage-example" title="Permalink to this heading">¶</a></h3>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$<span class="w"> </span>glycresoft<span class="w"> </span>analyze<span class="w"> </span>search-glycopeptide<span class="w"> </span>-m<span class="w"> </span>5e-6<span class="w"> </span>-mn<span class="w"> </span>1e-5<span class="w"> </span>fasta-glycopeptides.db<span class="w"> </span>path/to/processed/sample.mzML<span class="w"> </span><span class="m">1</span><span class="se">\</span>
+<span class="w">     </span>-o<span class="w"> </span><span class="s2">&quot;agp-glycopepitdes-in-sample.db&quot;</span>
 </pre></div>
 </div>
-<div class="section" id="glycresoft-analyze-search-glycopeptide-multipart">
-<h3>glycresoft analyze search-glycopeptide-multipart<a class="headerlink" href="#glycresoft-analyze-search-glycopeptide-multipart" title="Permalink to this headline">¶</a></h3>
-<div class="highlight-shell notranslate"><div class="highlight"><pre><span></span>glycresoft analyze search-glycopeptide-multipart <span class="o">[</span>OPTIONS<span class="o">]</span> DATABASE_CONNECTION
-                                                 DECOY_DATABASE_CONNECTION
-                                                 SAMPLE_PATH
+</section>
+</section>
+<section id="multi-component-database-search">
+<span id="search-glycopeptide-multipart"></span><h2>Multi-component Database Search<a class="headerlink" href="#multi-component-database-search" title="Permalink to this heading">¶</a></h2>
+<section id="glycresoft-analyze-search-glycopeptide-multipart">
+<h3>glycresoft analyze search-glycopeptide-multipart<a class="headerlink" href="#glycresoft-analyze-search-glycopeptide-multipart" title="Permalink to this heading">¶</a></h3>
+<blockquote>
+<div><p>Search preprocessed data for glycopeptide sequences scored for both peptide and glycan components.</p>
+<p>This search strategy requires an explicit decoy database, like one created with the <cite>–reverse</cite>
+flag from <cite>glycopeptide-fa</cite>.</p>
+</div></blockquote>
+<div class="highlight-shell notranslate"><div class="highlight"><pre><span></span>glycresoft<span class="w"> </span>analyze<span class="w"> </span>search-glycopeptide-multipart<span class="w"> </span><span class="o">[</span>OPTIONS<span class="o">]</span><span class="w"> </span>DATABASE_CONNECTION
+<span class="w">                                                 </span>DECOY_DATABASE_CONNECTION
+<span class="w">                                                 </span>SAMPLE_PATH
 </pre></div>
 </div>
 <p class="rubric">Options</p>
-<dl class="option">
-<dt id="cmdoption-glycresoft-analyze-search-glycopeptide-multipart-t">
-<code class="descname">-T</code><code class="descclassname"></code><code class="descclassname">, </code><code class="descname">--target-hypothesis-identifier</code><code class="descclassname"> &lt;int&gt;</code><a class="headerlink" href="#cmdoption-glycresoft-analyze-search-glycopeptide-multipart-t" title="Permalink to this definition">¶</a></dt>
+<dl class="std option">
+<dt class="sig sig-object std" id="cmdoption-glycresoft-analyze-search-glycopeptide-multipart-T">
+<span id="cmdoption-glycresoft-analyze-search-glycopeptide-multipart-target-hypothesis-identifier"></span><span class="sig-name descname"><span class="pre">-T</span></span><span class="sig-prename descclassname"></span><span class="sig-prename descclassname"><span class="pre">,</span> </span><span class="sig-name descname"><span class="pre">--target-hypothesis-identifier</span></span><span class="sig-prename descclassname"> <span class="pre">&lt;int&gt;</span></span><a class="headerlink" href="#cmdoption-glycresoft-analyze-search-glycopeptide-multipart-T" title="Permalink to this definition">¶</a></dt>
 <dd><p>The ID number or name of the glycopeptide hypothesis to use  [default: 1]</p>
 </dd></dl>
 
-<dl class="option">
-<dt id="cmdoption-glycresoft-analyze-search-glycopeptide-multipart-d">
-<code class="descname">-D</code><code class="descclassname"></code><code class="descclassname">, </code><code class="descname">--decoy-hypothesis-identifier</code><code class="descclassname"> &lt;int&gt;</code><a class="headerlink" href="#cmdoption-glycresoft-analyze-search-glycopeptide-multipart-d" title="Permalink to this definition">¶</a></dt>
+<dl class="std option">
+<dt class="sig sig-object std" id="cmdoption-glycresoft-analyze-search-glycopeptide-multipart-D">
+<span id="cmdoption-glycresoft-analyze-search-glycopeptide-multipart-decoy-hypothesis-identifier"></span><span class="sig-name descname"><span class="pre">-D</span></span><span class="sig-prename descclassname"></span><span class="sig-prename descclassname"><span class="pre">,</span> </span><span class="sig-name descname"><span class="pre">--decoy-hypothesis-identifier</span></span><span class="sig-prename descclassname"> <span class="pre">&lt;int&gt;</span></span><a class="headerlink" href="#cmdoption-glycresoft-analyze-search-glycopeptide-multipart-D" title="Permalink to this definition">¶</a></dt>
 <dd><p>The ID number or name of the glycopeptide hypothesis to use  [default: 1]</p>
 </dd></dl>
 
-<dl class="option">
-<dt id="cmdoption-glycresoft-analyze-search-glycopeptide-multipart-m">
-<code class="descname">-M</code><code class="descclassname"></code><code class="descclassname">, </code><code class="descname">--memory-database-index</code><code class="descclassname"></code><a class="headerlink" href="#cmdoption-glycresoft-analyze-search-glycopeptide-multipart-m" title="Permalink to this definition">¶</a></dt>
+<dl class="std option">
+<dt class="sig sig-object std" id="cmdoption-glycresoft-analyze-search-glycopeptide-multipart-M">
+<span id="cmdoption-glycresoft-analyze-search-glycopeptide-multipart-memory-database-index"></span><span class="sig-name descname"><span class="pre">-M</span></span><span class="sig-prename descclassname"></span><span class="sig-prename descclassname"><span class="pre">,</span> </span><span class="sig-name descname"><span class="pre">--memory-database-index</span></span><span class="sig-prename descclassname"></span><a class="headerlink" href="#cmdoption-glycresoft-analyze-search-glycopeptide-multipart-M" title="Permalink to this definition">¶</a></dt>
 <dd><p>Whether to load the entire peptide database into memory during spectrum mapping. Uses more memory but substantially accelerates the process  [default: False]</p>
 </dd></dl>
 
-<dl class="option">
-<dt id="cmdoption-glycresoft-analyze-search-glycopeptide-multipart-mass-error-tolerance">
-<code class="descname">-m</code><code class="descclassname"></code><code class="descclassname">, </code><code class="descname">--mass-error-tolerance</code><code class="descclassname"> &lt;relative mass error&gt;</code><a class="headerlink" href="#cmdoption-glycresoft-analyze-search-glycopeptide-multipart-mass-error-tolerance" title="Permalink to this definition">¶</a></dt>
+<dl class="std option">
+<dt class="sig sig-object std" id="cmdoption-glycresoft-analyze-search-glycopeptide-multipart-m">
+<span id="cmdoption-glycresoft-analyze-search-glycopeptide-multipart-mass-error-tolerance"></span><span class="sig-name descname"><span class="pre">-m</span></span><span class="sig-prename descclassname"></span><span class="sig-prename descclassname"><span class="pre">,</span> </span><span class="sig-name descname"><span class="pre">--mass-error-tolerance</span></span><span class="sig-prename descclassname"> <span class="pre">&lt;relative</span> <span class="pre">mass</span> <span class="pre">error&gt;</span></span><a class="headerlink" href="#cmdoption-glycresoft-analyze-search-glycopeptide-multipart-m" title="Permalink to this definition">¶</a></dt>
 <dd><p>Mass accuracy constraint, in parts-per-million error, for matching MS^1 ions.  [default: 1e-05]</p>
 </dd></dl>
 
-<dl class="option">
-<dt id="cmdoption-glycresoft-analyze-search-glycopeptide-multipart-mn">
-<code class="descname">-mn</code><code class="descclassname"></code><code class="descclassname">, </code><code class="descname">--msn-mass-error-tolerance</code><code class="descclassname"> &lt;relative mass error&gt;</code><a class="headerlink" href="#cmdoption-glycresoft-analyze-search-glycopeptide-multipart-mn" title="Permalink to this definition">¶</a></dt>
+<dl class="std option">
+<dt class="sig sig-object std" id="cmdoption-glycresoft-analyze-search-glycopeptide-multipart-mn">
+<span id="cmdoption-glycresoft-analyze-search-glycopeptide-multipart-msn-mass-error-tolerance"></span><span class="sig-name descname"><span class="pre">-mn</span></span><span class="sig-prename descclassname"></span><span class="sig-prename descclassname"><span class="pre">,</span> </span><span class="sig-name descname"><span class="pre">--msn-mass-error-tolerance</span></span><span class="sig-prename descclassname"> <span class="pre">&lt;relative</span> <span class="pre">mass</span> <span class="pre">error&gt;</span></span><a class="headerlink" href="#cmdoption-glycresoft-analyze-search-glycopeptide-multipart-mn" title="Permalink to this definition">¶</a></dt>
 <dd><p>Mass accuracy constraint, in parts-per-million error, for matching MS^n ions.  [default: 2e-05]</p>
 </dd></dl>
 
-<dl class="option">
-<dt id="cmdoption-glycresoft-analyze-search-glycopeptide-multipart-g">
-<code class="descname">-g</code><code class="descclassname"></code><code class="descclassname">, </code><code class="descname">--grouping-error-tolerance</code><code class="descclassname"> &lt;relative mass error&gt;</code><a class="headerlink" href="#cmdoption-glycresoft-analyze-search-glycopeptide-multipart-g" title="Permalink to this definition">¶</a></dt>
+<dl class="std option">
+<dt class="sig sig-object std" id="cmdoption-glycresoft-analyze-search-glycopeptide-multipart-g">
+<span id="cmdoption-glycresoft-analyze-search-glycopeptide-multipart-grouping-error-tolerance"></span><span class="sig-name descname"><span class="pre">-g</span></span><span class="sig-prename descclassname"></span><span class="sig-prename descclassname"><span class="pre">,</span> </span><span class="sig-name descname"><span class="pre">--grouping-error-tolerance</span></span><span class="sig-prename descclassname"> <span class="pre">&lt;relative</span> <span class="pre">mass</span> <span class="pre">error&gt;</span></span><a class="headerlink" href="#cmdoption-glycresoft-analyze-search-glycopeptide-multipart-g" title="Permalink to this definition">¶</a></dt>
 <dd><p>Mass accuracy constraint, in parts-per-million error, for grouping chromatograms.  [default: 1.5e-05]</p>
 </dd></dl>
 
-<dl class="option">
-<dt id="cmdoption-glycresoft-analyze-search-glycopeptide-multipart-n">
-<code class="descname">-n</code><code class="descclassname"></code><code class="descclassname">, </code><code class="descname">--analysis-name</code><code class="descclassname"> &lt;string&gt;</code><a class="headerlink" href="#cmdoption-glycresoft-analyze-search-glycopeptide-multipart-n" title="Permalink to this definition">¶</a></dt>
+<dl class="std option">
+<dt class="sig sig-object std" id="cmdoption-glycresoft-analyze-search-glycopeptide-multipart-n">
+<span id="cmdoption-glycresoft-analyze-search-glycopeptide-multipart-analysis-name"></span><span class="sig-name descname"><span class="pre">-n</span></span><span class="sig-prename descclassname"></span><span class="sig-prename descclassname"><span class="pre">,</span> </span><span class="sig-name descname"><span class="pre">--analysis-name</span></span><span class="sig-prename descclassname"> <span class="pre">&lt;string&gt;</span></span><a class="headerlink" href="#cmdoption-glycresoft-analyze-search-glycopeptide-multipart-n" title="Permalink to this definition">¶</a></dt>
 <dd><p>Name for analysis to be performed.</p>
 </dd></dl>
 
-<dl class="option">
-<dt id="cmdoption-glycresoft-analyze-search-glycopeptide-multipart-q">
-<code class="descname">-q</code><code class="descclassname"></code><code class="descclassname">, </code><code class="descname">--psm-fdr-threshold</code><code class="descclassname"> &lt;float&gt;</code><a class="headerlink" href="#cmdoption-glycresoft-analyze-search-glycopeptide-multipart-q" title="Permalink to this definition">¶</a></dt>
+<dl class="std option">
+<dt class="sig sig-object std" id="cmdoption-glycresoft-analyze-search-glycopeptide-multipart-q">
+<span id="cmdoption-glycresoft-analyze-search-glycopeptide-multipart-psm-fdr-threshold"></span><span class="sig-name descname"><span class="pre">-q</span></span><span class="sig-prename descclassname"></span><span class="sig-prename descclassname"><span class="pre">,</span> </span><span class="sig-name descname"><span class="pre">--psm-fdr-threshold</span></span><span class="sig-prename descclassname"> <span class="pre">&lt;float&gt;</span></span><a class="headerlink" href="#cmdoption-glycresoft-analyze-search-glycopeptide-multipart-q" title="Permalink to this definition">¶</a></dt>
 <dd><p>Minimum FDR Threshold to use for filtering GPSMs when selecting identified glycopeptides  [default: 0.05]</p>
 </dd></dl>
 
-<dl class="option">
-<dt id="cmdoption-glycresoft-analyze-search-glycopeptide-multipart-f">
-<code class="descname">-f</code><code class="descclassname"></code><code class="descclassname">, </code><code class="descname">--fdr-estimation-strategy</code><code class="descclassname"> &lt;choice&gt;</code><a class="headerlink" href="#cmdoption-glycresoft-analyze-search-glycopeptide-multipart-f" title="Permalink to this definition">¶</a></dt>
+<dl class="std option">
+<dt class="sig sig-object std" id="cmdoption-glycresoft-analyze-search-glycopeptide-multipart-f">
+<span id="cmdoption-glycresoft-analyze-search-glycopeptide-multipart-fdr-estimation-strategy"></span><span class="sig-name descname"><span class="pre">-f</span></span><span class="sig-prename descclassname"></span><span class="sig-prename descclassname"><span class="pre">,</span> </span><span class="sig-name descname"><span class="pre">--fdr-estimation-strategy</span></span><span class="sig-prename descclassname"> <span class="pre">&lt;choice&gt;</span></span><a class="headerlink" href="#cmdoption-glycresoft-analyze-search-glycopeptide-multipart-f" title="Permalink to this definition">¶</a></dt>
 <dd><p>The FDR estimation strategy to use. The joint estimate uses both peptide and glycan scores, peptide uses only peptide scores, glycan uses only glycan scores, and any uses the smallest FDR of the joint, peptide, and glycan estiamtes.  [default: joint]</p>
 <div class="line-block">
 <div class="line">Choices: [</div>
@@ -279,39 +295,40 @@ cross-product database (the default), and uses a reverse-peptide decoy by defaul
 </div>
 </dd></dl>
 
-<dl class="option">
-<dt id="cmdoption-glycresoft-analyze-search-glycopeptide-multipart-s">
-<code class="descname">-s</code><code class="descclassname"></code><code class="descclassname">, </code><code class="descname">--tandem-scoring-model</code><code class="descclassname"> &lt;choice or&gt;</code><a class="headerlink" href="#cmdoption-glycresoft-analyze-search-glycopeptide-multipart-s" title="Permalink to this definition">¶</a></dt>
+<dl class="std option">
+<dt class="sig sig-object std" id="cmdoption-glycresoft-analyze-search-glycopeptide-multipart-s">
+<span id="cmdoption-glycresoft-analyze-search-glycopeptide-multipart-tandem-scoring-model"></span><span class="sig-name descname"><span class="pre">-s</span></span><span class="sig-prename descclassname"></span><span class="sig-prename descclassname"><span class="pre">,</span> </span><span class="sig-name descname"><span class="pre">--tandem-scoring-model</span></span><span class="sig-prename descclassname"> <span class="pre">&lt;choice</span> <span class="pre">or&gt;</span></span><a class="headerlink" href="#cmdoption-glycresoft-analyze-search-glycopeptide-multipart-s" title="Permalink to this definition">¶</a></dt>
 <dd><p>Select a scoring function to use for evaluating glycopeptide-spectrum matches  [default: log_intensity]</p>
 <div class="line-block">
 <div class="line">Choices: [</div>
 <div class="line-block">
-<div class="line">log_intensity; simple; penalized_log_intensty]</div>
+<div class="line">log_intensity; simple; penalized_log_intensty;</div>
+<div class="line">log_intensity_v3]</div>
 </div>
 </div>
 </dd></dl>
 
-<dl class="option">
-<dt id="cmdoption-glycresoft-analyze-search-glycopeptide-multipart-y">
-<code class="descname">-y</code><code class="descclassname"></code><code class="descclassname">, </code><code class="descname">--glycan-score-threshold</code><code class="descclassname"> &lt;float&gt;</code><a class="headerlink" href="#cmdoption-glycresoft-analyze-search-glycopeptide-multipart-y" title="Permalink to this definition">¶</a></dt>
+<dl class="std option">
+<dt class="sig sig-object std" id="cmdoption-glycresoft-analyze-search-glycopeptide-multipart-y">
+<span id="cmdoption-glycresoft-analyze-search-glycopeptide-multipart-glycan-score-threshold"></span><span class="sig-name descname"><span class="pre">-y</span></span><span class="sig-prename descclassname"></span><span class="sig-prename descclassname"><span class="pre">,</span> </span><span class="sig-name descname"><span class="pre">--glycan-score-threshold</span></span><span class="sig-prename descclassname"> <span class="pre">&lt;float&gt;</span></span><a class="headerlink" href="#cmdoption-glycresoft-analyze-search-glycopeptide-multipart-y" title="Permalink to this definition">¶</a></dt>
 <dd><p>The minimum glycan score required to consider a peptide mass  [default: 1.0]</p>
 </dd></dl>
 
-<dl class="option">
-<dt id="cmdoption-glycresoft-analyze-search-glycopeptide-multipart-a">
-<code class="descname">-a</code><code class="descclassname"></code><code class="descclassname">, </code><code class="descname">--adduct</code><code class="descclassname"> &lt;string&gt;</code><a class="headerlink" href="#cmdoption-glycresoft-analyze-search-glycopeptide-multipart-a" title="Permalink to this definition">¶</a></dt>
+<dl class="std option">
+<dt class="sig sig-object std" id="cmdoption-glycresoft-analyze-search-glycopeptide-multipart-a">
+<span id="cmdoption-glycresoft-analyze-search-glycopeptide-multipart-adduct"></span><span class="sig-name descname"><span class="pre">-a</span></span><span class="sig-prename descclassname"></span><span class="sig-prename descclassname"><span class="pre">,</span> </span><span class="sig-name descname"><span class="pre">--adduct</span></span><span class="sig-prename descclassname"> <span class="pre">&lt;string&gt;</span></span><a class="headerlink" href="#cmdoption-glycresoft-analyze-search-glycopeptide-multipart-a" title="Permalink to this definition">¶</a></dt>
 <dd><p>Adducts to consider. Specify name or formula, and a multiplicity. (May specify more than once)</p>
 </dd></dl>
 
-<dl class="option">
-<dt id="cmdoption-glycresoft-analyze-search-glycopeptide-multipart-p">
-<code class="descname">-p</code><code class="descclassname"></code><code class="descclassname">, </code><code class="descname">--processes</code><code class="descclassname"> &lt;int&gt;</code><a class="headerlink" href="#cmdoption-glycresoft-analyze-search-glycopeptide-multipart-p" title="Permalink to this definition">¶</a></dt>
+<dl class="std option">
+<dt class="sig sig-object std" id="cmdoption-glycresoft-analyze-search-glycopeptide-multipart-p">
+<span id="cmdoption-glycresoft-analyze-search-glycopeptide-multipart-processes"></span><span class="sig-name descname"><span class="pre">-p</span></span><span class="sig-prename descclassname"></span><span class="sig-prename descclassname"><span class="pre">,</span> </span><span class="sig-name descname"><span class="pre">--processes</span></span><span class="sig-prename descclassname"> <span class="pre">&lt;int&gt;</span></span><a class="headerlink" href="#cmdoption-glycresoft-analyze-search-glycopeptide-multipart-p" title="Permalink to this definition">¶</a></dt>
 <dd><p>Number of worker processes to use. Defaults to 4 or the number of CPUs, whichever is lower  [default: 4]</p>
 </dd></dl>
 
-<dl class="option">
-<dt id="cmdoption-glycresoft-analyze-search-glycopeptide-multipart-export">
-<code class="descname">--export</code><code class="descclassname"> &lt;choice&gt;</code><a class="headerlink" href="#cmdoption-glycresoft-analyze-search-glycopeptide-multipart-export" title="Permalink to this definition">¶</a></dt>
+<dl class="std option">
+<dt class="sig sig-object std" id="cmdoption-glycresoft-analyze-search-glycopeptide-multipart-export">
+<span class="sig-name descname"><span class="pre">--export</span></span><span class="sig-prename descclassname"> <span class="pre">&lt;choice&gt;</span></span><a class="headerlink" href="#cmdoption-glycresoft-analyze-search-glycopeptide-multipart-export" title="Permalink to this definition">¶</a></dt>
 <dd><p>export command to after search is complete (May specify more than once)</p>
 <div class="line-block">
 <div class="line">Choices: [</div>
@@ -321,67 +338,153 @@ cross-product database (the default), and uses a reverse-peptide decoy by defaul
 </div>
 </dd></dl>
 
-<dl class="option">
-<dt id="cmdoption-glycresoft-analyze-search-glycopeptide-multipart-o">
-<code class="descname">-o</code><code class="descclassname"></code><code class="descclassname">, </code><code class="descname">--output-path</code><code class="descclassname"> &lt;path&gt;</code><a class="headerlink" href="#cmdoption-glycresoft-analyze-search-glycopeptide-multipart-o" title="Permalink to this definition">¶</a></dt>
+<dl class="std option">
+<dt class="sig sig-object std" id="cmdoption-glycresoft-analyze-search-glycopeptide-multipart-o">
+<span id="cmdoption-glycresoft-analyze-search-glycopeptide-multipart-output-path"></span><span class="sig-name descname"><span class="pre">-o</span></span><span class="sig-prename descclassname"></span><span class="sig-prename descclassname"><span class="pre">,</span> </span><span class="sig-name descname"><span class="pre">--output-path</span></span><span class="sig-prename descclassname"> <span class="pre">&lt;path&gt;</span></span><a class="headerlink" href="#cmdoption-glycresoft-analyze-search-glycopeptide-multipart-o" title="Permalink to this definition">¶</a></dt>
 <dd><p>Path to write resulting analysis to.  [required]</p>
 </dd></dl>
 
-<dl class="option">
-<dt id="cmdoption-glycresoft-analyze-search-glycopeptide-multipart-w">
-<code class="descname">-w</code><code class="descclassname"></code><code class="descclassname">, </code><code class="descname">--workload-size</code><code class="descclassname"> &lt;int&gt;</code><a class="headerlink" href="#cmdoption-glycresoft-analyze-search-glycopeptide-multipart-w" title="Permalink to this definition">¶</a></dt>
+<dl class="std option">
+<dt class="sig sig-object std" id="cmdoption-glycresoft-analyze-search-glycopeptide-multipart-w">
+<span id="cmdoption-glycresoft-analyze-search-glycopeptide-multipart-workload-size"></span><span class="sig-name descname"><span class="pre">-w</span></span><span class="sig-prename descclassname"></span><span class="sig-prename descclassname"><span class="pre">,</span> </span><span class="sig-name descname"><span class="pre">--workload-size</span></span><span class="sig-prename descclassname"> <span class="pre">&lt;int&gt;</span></span><a class="headerlink" href="#cmdoption-glycresoft-analyze-search-glycopeptide-multipart-w" title="Permalink to this definition">¶</a></dt>
 <dd><p>Number of spectra to process at once  [default: 100]</p>
 </dd></dl>
 
-<dl class="option">
-<dt id="cmdoption-glycresoft-analyze-search-glycopeptide-multipart-r">
-<code class="descname">-R</code><code class="descclassname"></code><code class="descclassname">, </code><code class="descname">--rare-signatures</code><code class="descclassname"></code><a class="headerlink" href="#cmdoption-glycresoft-analyze-search-glycopeptide-multipart-r" title="Permalink to this definition">¶</a></dt>
+<dl class="std option">
+<dt class="sig sig-object std" id="cmdoption-glycresoft-analyze-search-glycopeptide-multipart-R">
+<span id="cmdoption-glycresoft-analyze-search-glycopeptide-multipart-rare-signatures"></span><span class="sig-name descname"><span class="pre">-R</span></span><span class="sig-prename descclassname"></span><span class="sig-prename descclassname"><span class="pre">,</span> </span><span class="sig-name descname"><span class="pre">--rare-signatures</span></span><span class="sig-prename descclassname"></span><a class="headerlink" href="#cmdoption-glycresoft-analyze-search-glycopeptide-multipart-R" title="Permalink to this definition">¶</a></dt>
 <dd><p>Look for rare signature ions when scoring glycan oxonium signature  [default: False]</p>
 </dd></dl>
 
-<dl class="option">
-<dt id="cmdoption-glycresoft-analyze-search-glycopeptide-multipart-isotope-probing-range">
-<code class="descname">--isotope-probing-range</code><code class="descclassname"> &lt;int&gt;</code><a class="headerlink" href="#cmdoption-glycresoft-analyze-search-glycopeptide-multipart-isotope-probing-range" title="Permalink to this definition">¶</a></dt>
+<dl class="std option">
+<dt class="sig sig-object std" id="cmdoption-glycresoft-analyze-search-glycopeptide-multipart-retention-time-modeling">
+<span id="cmdoption-glycresoft-analyze-search-glycopeptide-multipart-no-retention-time-modeling"></span><span class="sig-name descname"><span class="pre">--retention-time-modeling</span></span><span class="sig-prename descclassname"></span><span class="sig-prename descclassname"><span class="pre">,</span> </span><span class="sig-name descname"><span class="pre">--no-retention-time-modeling</span></span><span class="sig-prename descclassname"></span><a class="headerlink" href="#cmdoption-glycresoft-analyze-search-glycopeptide-multipart-retention-time-modeling" title="Permalink to this definition">¶</a></dt>
+<dd><p>Whether or not to model relative retention time to correct for common glycan composition errors.  [default: True]</p>
+</dd></dl>
+
+<dl class="std option">
+<dt class="sig sig-object std" id="cmdoption-glycresoft-analyze-search-glycopeptide-multipart-isotope-probing-range">
+<span class="sig-name descname"><span class="pre">--isotope-probing-range</span></span><span class="sig-prename descclassname"> <span class="pre">&lt;int&gt;</span></span><a class="headerlink" href="#cmdoption-glycresoft-analyze-search-glycopeptide-multipart-isotope-probing-range" title="Permalink to this definition">¶</a></dt>
 <dd><p>The maximum number of isotopic peak errors to allow when searching for untrusted precursor masses  [default: 3]</p>
 </dd></dl>
 
-<dl class="option">
-<dt id="cmdoption-glycresoft-analyze-search-glycopeptide-multipart-glycoproteome-smoothing-model">
-<code class="descname">-S</code><code class="descclassname"></code><code class="descclassname">, </code><code class="descname">--glycoproteome-smoothing-model</code><code class="descclassname"> &lt;path&gt;</code><a class="headerlink" href="#cmdoption-glycresoft-analyze-search-glycopeptide-multipart-glycoproteome-smoothing-model" title="Permalink to this definition">¶</a></dt>
+<dl class="std option">
+<dt class="sig sig-object std" id="cmdoption-glycresoft-analyze-search-glycopeptide-multipart-S">
+<span id="cmdoption-glycresoft-analyze-search-glycopeptide-multipart-glycoproteome-smoothing-model"></span><span class="sig-name descname"><span class="pre">-S</span></span><span class="sig-prename descclassname"></span><span class="sig-prename descclassname"><span class="pre">,</span> </span><span class="sig-name descname"><span class="pre">--glycoproteome-smoothing-model</span></span><span class="sig-prename descclassname"> <span class="pre">&lt;path&gt;</span></span><a class="headerlink" href="#cmdoption-glycresoft-analyze-search-glycopeptide-multipart-S" title="Permalink to this definition">¶</a></dt>
 <dd><p>Path to a glycoproteome site-specific glycome model</p>
 </dd></dl>
 
+<dl class="std option">
+<dt class="sig sig-object std" id="cmdoption-glycresoft-analyze-search-glycopeptide-multipart-x">
+<span id="cmdoption-glycresoft-analyze-search-glycopeptide-multipart-oxonium-threshold"></span><span class="sig-name descname"><span class="pre">-x</span></span><span class="sig-prename descclassname"></span><span class="sig-prename descclassname"><span class="pre">,</span> </span><span class="sig-name descname"><span class="pre">--oxonium-threshold</span></span><span class="sig-prename descclassname"> <span class="pre">&lt;float&gt;</span></span><a class="headerlink" href="#cmdoption-glycresoft-analyze-search-glycopeptide-multipart-x" title="Permalink to this definition">¶</a></dt>
+<dd><p>Minimum HexNAc-derived oxonium ion abundance ratio to filter MS/MS scans. Defaults to 0.05.  [default: 0.05]</p>
+</dd></dl>
+
+<dl class="std option">
+<dt class="sig sig-object std" id="cmdoption-glycresoft-analyze-search-glycopeptide-multipart-P">
+<span id="cmdoption-glycresoft-analyze-search-glycopeptide-multipart-peptide-masses-per-scan"></span><span class="sig-name descname"><span class="pre">-P</span></span><span class="sig-prename descclassname"></span><span class="sig-prename descclassname"><span class="pre">,</span> </span><span class="sig-name descname"><span class="pre">--peptide-masses-per-scan</span></span><span class="sig-prename descclassname"> <span class="pre">&lt;int&gt;</span></span><a class="headerlink" href="#cmdoption-glycresoft-analyze-search-glycopeptide-multipart-P" title="Permalink to this definition">¶</a></dt>
+<dd><p>The maximum number of peptide masses to consider per scan  [default: 60]</p>
+</dd></dl>
+
 <p class="rubric">Arguments</p>
-<dl class="option">
-<dt id="cmdoption-glycresoft-analyze-search-glycopeptide-multipart-arg-database-connection">
-<code class="descname">DATABASE_CONNECTION</code><code class="descclassname"></code><a class="headerlink" href="#cmdoption-glycresoft-analyze-search-glycopeptide-multipart-arg-database-connection" title="Permalink to this definition">¶</a></dt>
+<dl class="std option">
+<dt class="sig sig-object std" id="cmdoption-glycresoft-analyze-search-glycopeptide-multipart-arg-DATABASE_CONNECTION">
+<span class="sig-name descname"><span class="pre">DATABASE_CONNECTION</span></span><span class="sig-prename descclassname"></span><a class="headerlink" href="#cmdoption-glycresoft-analyze-search-glycopeptide-multipart-arg-DATABASE_CONNECTION" title="Permalink to this definition">¶</a></dt>
 <dd><p>Required argument
 &lt;databaseconnectionparam&gt; A connection URI for a database, or a path on the file system</p>
 </dd></dl>
 
-<dl class="option">
-<dt id="cmdoption-glycresoft-analyze-search-glycopeptide-multipart-arg-decoy-database-connection">
-<code class="descname">DECOY_DATABASE_CONNECTION</code><code class="descclassname"></code><a class="headerlink" href="#cmdoption-glycresoft-analyze-search-glycopeptide-multipart-arg-decoy-database-connection" title="Permalink to this definition">¶</a></dt>
+<dl class="std option">
+<dt class="sig sig-object std" id="cmdoption-glycresoft-analyze-search-glycopeptide-multipart-arg-DECOY_DATABASE_CONNECTION">
+<span class="sig-name descname"><span class="pre">DECOY_DATABASE_CONNECTION</span></span><span class="sig-prename descclassname"></span><a class="headerlink" href="#cmdoption-glycresoft-analyze-search-glycopeptide-multipart-arg-DECOY_DATABASE_CONNECTION" title="Permalink to this definition">¶</a></dt>
 <dd><p>Required argument
 &lt;databaseconnectionparam&gt; A connection URI for a database, or a path on the file system</p>
 </dd></dl>
 
-<dl class="option">
-<dt id="cmdoption-glycresoft-analyze-search-glycopeptide-multipart-arg-sample-path">
-<code class="descname">SAMPLE_PATH</code><code class="descclassname"></code><a class="headerlink" href="#cmdoption-glycresoft-analyze-search-glycopeptide-multipart-arg-sample-path" title="Permalink to this definition">¶</a></dt>
+<dl class="std option">
+<dt class="sig sig-object std" id="cmdoption-glycresoft-analyze-search-glycopeptide-multipart-arg-SAMPLE_PATH">
+<span class="sig-name descname"><span class="pre">SAMPLE_PATH</span></span><span class="sig-prename descclassname"></span><a class="headerlink" href="#cmdoption-glycresoft-analyze-search-glycopeptide-multipart-arg-SAMPLE_PATH" title="Permalink to this definition">¶</a></dt>
 <dd><p>Required argument
 &lt;path&gt; The path to the deconvoluted sample file</p>
 </dd></dl>
 
-</div>
-</div>
-<div class="section" id="memory-consumption-and-workload-size">
-<h2>Memory Consumption and Workload Size<a class="headerlink" href="#memory-consumption-and-workload-size" title="Permalink to this headline">¶</a></h2>
+</section>
+</section>
+<section id="memory-consumption-and-workload-size">
+<h2>Memory Consumption and Workload Size<a class="headerlink" href="#memory-consumption-and-workload-size" title="Permalink to this heading">¶</a></h2>
 <p>Extensive use of caching and work-sharing has been done to make searching enormous
 databases still tractable. If you find you are running out of memory during a search
 consider shrinking the <code class="docutils literal notranslate"><span class="pre">-w</span></code> parameter.</p>
+</section>
+<section id="build-a-glycosite-network-smoothing-model">
+<span id="build-glycosite-model"></span><h2>Build a Glycosite Network Smoothing Model<a class="headerlink" href="#build-a-glycosite-network-smoothing-model" title="Permalink to this heading">¶</a></h2>
+<section id="glycresoft-analyze-fit-glycoproteome-smoothing-model">
+<h3>glycresoft analyze fit-glycoproteome-smoothing-model<a class="headerlink" href="#glycresoft-analyze-fit-glycoproteome-smoothing-model" title="Permalink to this heading">¶</a></h3>
+<div class="highlight-shell notranslate"><div class="highlight"><pre><span></span>glycresoft<span class="w"> </span>analyze<span class="w"> </span>fit-glycoproteome-smoothing-model<span class="w"> </span><span class="o">[</span>OPTIONS<span class="o">]</span>
+</pre></div>
 </div>
-</div>
+<p class="rubric">Options</p>
+<dl class="std option">
+<dt class="sig sig-object std" id="cmdoption-glycresoft-analyze-fit-glycoproteome-smoothing-model-p">
+<span id="cmdoption-glycresoft-analyze-fit-glycoproteome-smoothing-model-processes"></span><span class="sig-name descname"><span class="pre">-p</span></span><span class="sig-prename descclassname"></span><span class="sig-prename descclassname"><span class="pre">,</span> </span><span class="sig-name descname"><span class="pre">--processes</span></span><span class="sig-prename descclassname"> <span class="pre">&lt;int&gt;</span></span><a class="headerlink" href="#cmdoption-glycresoft-analyze-fit-glycoproteome-smoothing-model-p" title="Permalink to this definition">¶</a></dt>
+<dd><p>Number of worker processes to use. Defaults to 4 or the number of CPUs, whichever is lower  [default: 4]</p>
+</dd></dl>
+
+<dl class="std option">
+<dt class="sig sig-object std" id="cmdoption-glycresoft-analyze-fit-glycoproteome-smoothing-model-i">
+<span id="cmdoption-glycresoft-analyze-fit-glycoproteome-smoothing-model-analysis-path"></span><span class="sig-name descname"><span class="pre">-i</span></span><span class="sig-prename descclassname"></span><span class="sig-prename descclassname"><span class="pre">,</span> </span><span class="sig-name descname"><span class="pre">--analysis-path</span></span><span class="sig-prename descclassname"> <span class="pre">&lt;string&gt;</span></span><a class="headerlink" href="#cmdoption-glycresoft-analyze-fit-glycoproteome-smoothing-model-i" title="Permalink to this definition">¶</a></dt>
+<dd><p>[required] (May specify more than once)</p>
+</dd></dl>
+
+<dl class="std option">
+<dt class="sig sig-object std" id="cmdoption-glycresoft-analyze-fit-glycoproteome-smoothing-model-o">
+<span id="cmdoption-glycresoft-analyze-fit-glycoproteome-smoothing-model-output-path"></span><span class="sig-name descname"><span class="pre">-o</span></span><span class="sig-prename descclassname"></span><span class="sig-prename descclassname"><span class="pre">,</span> </span><span class="sig-name descname"><span class="pre">--output-path</span></span><span class="sig-prename descclassname"> <span class="pre">&lt;path&gt;</span></span><a class="headerlink" href="#cmdoption-glycresoft-analyze-fit-glycoproteome-smoothing-model-o" title="Permalink to this definition">¶</a></dt>
+<dd><p>[required]</p>
+</dd></dl>
+
+<dl class="std option">
+<dt class="sig sig-object std" id="cmdoption-glycresoft-analyze-fit-glycoproteome-smoothing-model-q">
+<span id="cmdoption-glycresoft-analyze-fit-glycoproteome-smoothing-model-fdr-threshold"></span><span class="sig-name descname"><span class="pre">-q</span></span><span class="sig-prename descclassname"></span><span class="sig-prename descclassname"><span class="pre">,</span> </span><span class="sig-name descname"><span class="pre">--fdr-threshold</span></span><span class="sig-prename descclassname"> <span class="pre">&lt;float&gt;</span></span><a class="headerlink" href="#cmdoption-glycresoft-analyze-fit-glycoproteome-smoothing-model-q" title="Permalink to this definition">¶</a></dt>
+<dd><p>The FDR threshold to apply when selecting identified glycopeptides  [default: 0.05]</p>
+</dd></dl>
+
+<dl class="std option">
+<dt class="sig sig-object std" id="cmdoption-glycresoft-analyze-fit-glycoproteome-smoothing-model-P">
+<span id="cmdoption-glycresoft-analyze-fit-glycoproteome-smoothing-model-glycopeptide-hypothesis"></span><span class="sig-name descname"><span class="pre">-P</span></span><span class="sig-prename descclassname"></span><span class="sig-prename descclassname"><span class="pre">,</span> </span><span class="sig-name descname"><span class="pre">--glycopeptide-hypothesis</span></span><span class="sig-prename descclassname"> <span class="pre">&lt;tuple&gt;</span></span><a class="headerlink" href="#cmdoption-glycresoft-analyze-fit-glycoproteome-smoothing-model-P" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="std option">
+<dt class="sig sig-object std" id="cmdoption-glycresoft-analyze-fit-glycoproteome-smoothing-model-g">
+<span id="cmdoption-glycresoft-analyze-fit-glycoproteome-smoothing-model-glycan-hypothesis"></span><span class="sig-name descname"><span class="pre">-g</span></span><span class="sig-prename descclassname"></span><span class="sig-prename descclassname"><span class="pre">,</span> </span><span class="sig-name descname"><span class="pre">--glycan-hypothesis</span></span><span class="sig-prename descclassname"> <span class="pre">&lt;tuple&gt;</span></span><a class="headerlink" href="#cmdoption-glycresoft-analyze-fit-glycoproteome-smoothing-model-g" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="std option">
+<dt class="sig sig-object std" id="cmdoption-glycresoft-analyze-fit-glycoproteome-smoothing-model-u">
+<span id="cmdoption-glycresoft-analyze-fit-glycoproteome-smoothing-model-unobserved-penalty-scale"></span><span class="sig-name descname"><span class="pre">-u</span></span><span class="sig-prename descclassname"></span><span class="sig-prename descclassname"><span class="pre">,</span> </span><span class="sig-name descname"><span class="pre">--unobserved-penalty-scale</span></span><span class="sig-prename descclassname"> <span class="pre">&lt;float&gt;</span></span><a class="headerlink" href="#cmdoption-glycresoft-analyze-fit-glycoproteome-smoothing-model-u" title="Permalink to this definition">¶</a></dt>
+<dd><p>A penalty to scale unobserved-but-suggested glycans by. Defaults to 1.0, no penalty.  [default: 1.0]</p>
+</dd></dl>
+
+<dl class="std option">
+<dt class="sig sig-object std" id="cmdoption-glycresoft-analyze-fit-glycoproteome-smoothing-model-a">
+<span id="cmdoption-glycresoft-analyze-fit-glycoproteome-smoothing-model-smoothing-limit"></span><span class="sig-name descname"><span class="pre">-a</span></span><span class="sig-prename descclassname"></span><span class="sig-prename descclassname"><span class="pre">,</span> </span><span class="sig-name descname"><span class="pre">--smoothing-limit</span></span><span class="sig-prename descclassname"> <span class="pre">&lt;float&gt;</span></span><a class="headerlink" href="#cmdoption-glycresoft-analyze-fit-glycoproteome-smoothing-model-a" title="Permalink to this definition">¶</a></dt>
+<dd><p>An upper bound on the network smoothness to use when estimating the posterior probability.  [default: 0.2]</p>
+</dd></dl>
+
+<dl class="std option">
+<dt class="sig sig-object std" id="cmdoption-glycresoft-analyze-fit-glycoproteome-smoothing-model-r">
+<span id="cmdoption-glycresoft-analyze-fit-glycoproteome-smoothing-model-require-multiple-observations"></span><span id="cmdoption-glycresoft-analyze-fit-glycoproteome-smoothing-model-no-require-multiple-observations"></span><span class="sig-name descname"><span class="pre">-r</span></span><span class="sig-prename descclassname"></span><span class="sig-prename descclassname"><span class="pre">,</span> </span><span class="sig-name descname"><span class="pre">--require-multiple-observations</span></span><span class="sig-prename descclassname"></span><span class="sig-prename descclassname"><span class="pre">,</span> </span><span class="sig-name descname"><span class="pre">--no-require-multiple-observations</span></span><span class="sig-prename descclassname"></span><a class="headerlink" href="#cmdoption-glycresoft-analyze-fit-glycoproteome-smoothing-model-r" title="Permalink to this definition">¶</a></dt>
+<dd><p>Require a glycan/glycosite combination be observed in multiple samples to treat it as real. Defaults to False.  [default: False]</p>
+</dd></dl>
+
+<dl class="std option">
+<dt class="sig sig-object std" id="cmdoption-glycresoft-analyze-fit-glycoproteome-smoothing-model-w">
+<span id="cmdoption-glycresoft-analyze-fit-glycoproteome-smoothing-model-network-path"></span><span class="sig-name descname"><span class="pre">-w</span></span><span class="sig-prename descclassname"></span><span class="sig-prename descclassname"><span class="pre">,</span> </span><span class="sig-name descname"><span class="pre">--network-path</span></span><span class="sig-prename descclassname"> <span class="pre">&lt;path&gt;</span></span><a class="headerlink" href="#cmdoption-glycresoft-analyze-fit-glycoproteome-smoothing-model-w" title="Permalink to this definition">¶</a></dt>
+<dd><p>The path to a text file defining the glycan network and its neighborhoods, as produced by <cite>glycresfoft build-hypothesis glycan-network</cite>, otherwise the default human N-glycan network will be used with the glycans defined in <cite>-g</cite>.</p>
+</dd></dl>
+
+</section>
+</section>
+</section>
 
 
       </div>
@@ -398,8 +501,8 @@ consider shrinking the <code class="docutils literal notranslate"><span class="p
       </div>
 
     <div class="footer" role="contentinfo">
-        &#169; Copyright 2017, Joshua Klein.
-      Created using <a href="http://sphinx-doc.org/">Sphinx</a> 1.8.5.
+    &#169; Copyright 2024, Joshua Klein.
+      Created using <a href="https://www.sphinx-doc.org/">Sphinx</a> 7.1.2.
     </div>
   </body>
 </html>

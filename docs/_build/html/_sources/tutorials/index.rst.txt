@@ -8,6 +8,6 @@ user interface.
 .. toctree::
    :maxdepth: 1
 
-   Glycoproteomics Tutorial <glycoproteomics-tutorial>
-
+   High Energy Glycopeptide Search Tutorial <glycoproteomics-tutorial>
+   Stepped Collision Energy Glycopeptide Search Tutorial <glycoproteomics-sce-tutorial>
 
