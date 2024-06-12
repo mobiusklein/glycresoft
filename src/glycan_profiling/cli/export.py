@@ -91,7 +91,7 @@ def glycan_hypothesis(database_connection, hypothesis_identifier, output_path=No
         task_type = ImportableGlycanHypothesisCSVSerializer
     else:
         task_type = GlycanHypothesisCSVSerializer
-    if output_path is None:
+    if output_path is None or output_path == '-':
         output_stream = ctxstream(sys.stdout)
     else:
         output_stream = open(output_path, 'wb')
@@ -122,7 +122,7 @@ def glycopeptide_hypothesis(database_connection, hypothesis_identifier, output_p
             for glycopeptide in chunk:
                 yield glycopeptide
             i += interval
-    if output_path is None:
+    if output_path is None or output_path == '-':
         output_stream = ctxstream(sys.stdout)
     else:
         output_stream = open(output_path, 'wb')
@@ -149,7 +149,7 @@ def glycan_composition_identification(database_connection, analysis_identifier, 
             str(analysis.name), str(analysis.analysis_type)), fg='red', err=True)
         raise click.Abort()
     analysis_id = analysis.id
-    if output_path is None:
+    if output_path is None or output_path == '-':
         output_stream = ctxstream(sys.stdout)
     else:
         output_stream = open(output_path, 'wb')
@@ -219,7 +219,7 @@ def glycopeptide_identification(database_connection, analysis_identifier, output
         raise click.Abort()
     analysis_id = analysis.id
     is_multiscore = analysis.is_multiscore
-    if output_path is None:
+    if output_path is None or output_path == '-':
         output_stream = ctxstream(click.get_binary_stream('stdout'))
     else:
         output_stream = open(output_path, 'wb')
@@ -345,7 +345,7 @@ def glycopeptide_spectrum_matches(database_connection, analysis_identifier, outp
     else:
         job_type = GlycopeptideSpectrumMatchAnalysisCSVSerializer
 
-    if output_path is None:
+    if output_path is None or output_path == '-':
         output_stream = ctxstream(click.get_binary_stream('stdout'))
     else:
         output_stream = open(output_path, 'wb')
@@ -413,7 +413,7 @@ def glycopeptide_training_mgf(database_connection, analysis_identifier, output_p
         click.secho("Analysis %r is of type %r." % (
             str(analysis.name), str(analysis.analysis_type)), fg='red', err=True)
         raise click.Abort()
-    if output_path is None:
+    if output_path is None or output_path == '-':
         output_stream = ctxstream(click.get_binary_stream('stdout'))
     else:
         output_stream = open(output_path, 'wb')
