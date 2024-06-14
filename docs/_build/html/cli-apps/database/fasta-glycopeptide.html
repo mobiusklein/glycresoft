@@ -7,7 +7,8 @@
 
     <title>Building a Glycopeptide Hypothesis from a FASTA File &#8212; glycresoft  documentation</title>
     <link rel="stylesheet" type="text/css" href="../../_static/pygments.css?v=fa44fd50" />
-    <link rel="stylesheet" type="text/css" href="../../_static/haiku.css?v=e7493be8" />
+    <link rel="stylesheet" type="text/css" href="../../_static/haiku.css?v=4d9aecc8" />
+    <link rel="stylesheet" type="text/css" href="../../_static/css/custom.css?v=29203c93" />
     <script data-url_root="../../" id="documentation_options" src="../../_static/documentation_options.js?v=b3ba4146"></script>
     <script src="../../_static/doctools.js?v=888ff710"></script>
     <script src="../../_static/sphinx_highlight.js?v=4825356b"></script>
@@ -32,7 +33,22 @@
 
       </div>
       <div class="content">
-        
+        <div id="toc">
+          <h3>Table Of Contents</h3>
+          <ul>
+<li><a class="reference internal" href="#">Building a Glycopeptide Hypothesis from a FASTA File</a><ul>
+<li><a class="reference internal" href="#glycresoft-build-hypothesis-glycopeptide-fa">glycresoft build-hypothesis glycopeptide-fa</a></li>
+<li><a class="reference internal" href="#usage-example">Usage Example</a><ul>
+<li><a class="reference internal" href="#supported-proteases">Supported Proteases</a></li>
+<li><a class="reference internal" href="#supported-modification-rules">Supported Modification Rules</a></li>
+<li><a class="reference internal" href="#uniprot-integration">UniProt Integration</a></li>
+</ul>
+</li>
+</ul>
+</li>
+</ul>
+
+        </div>
         
   <section id="building-a-glycopeptide-hypothesis-from-a-fasta-file">
 <h1>Building a Glycopeptide Hypothesis from a FASTA File<a class="headerlink" href="#building-a-glycopeptide-hypothesis-from-a-fasta-file" title="Permalink to this heading">¶</a></h1>
@@ -50,7 +66,7 @@ lacking a classification <strong>will not</strong> be considered.</p>
 </div>
 <p>The build process is computationally intensive, as such this tool will spawn
 several worker processes to share the load.</p>
-<section id="glycresoft-build-hypothesis-glycopeptide-fa">
+<section class="click-command-section" id="glycresoft-build-hypothesis-glycopeptide-fa">
 <h2>glycresoft build-hypothesis glycopeptide-fa<a class="headerlink" href="#glycresoft-build-hypothesis-glycopeptide-fa" title="Permalink to this heading">¶</a></h2>
 <dl class="simple">
 <dt>Constructs a glycopeptide hypothesis from a FASTA file of proteins and a</dt><dd><p>collection of glycans.</p>
@@ -173,7 +189,7 @@ several worker processes to share the load.</p>
 <dl class="std option">
 <dt class="sig sig-object std" id="cmdoption-glycresoft-build-hypothesis-glycopeptide-fa-a">
 <span id="cmdoption-glycresoft-build-hypothesis-glycopeptide-fa-annotation-path"></span><span class="sig-name descname"><span class="pre">-a</span></span><span class="sig-prename descclassname"></span><span class="sig-prename descclassname"><span class="pre">,</span> </span><span class="sig-name descname"><span class="pre">--annotation-path</span></span><span class="sig-prename descclassname"> <span class="pre">&lt;path&gt;</span></span><a class="headerlink" href="#cmdoption-glycresoft-build-hypothesis-glycopeptide-fa-a" title="Permalink to this definition">¶</a></dt>
-<dd><p>The path to an annotation XML file from UniProt</p>
+<dd><p>The path to an annotation XML file from UniProt, or ‘-’ to suppress annotations.</p>
 </dd></dl>
 
 <p class="rubric">Arguments</p>
@@ -347,15 +363,160 @@ hypotheses. The value of <code class="docutils literal notranslate"><span class=
 “Combinatorial Human N-Glycans”).</p>
 <section id="supported-proteases">
 <h3>Supported Proteases<a class="headerlink" href="#supported-proteases" title="Permalink to this heading">¶</a></h3>
-<div class="admonition error">
-<p class="admonition-title">Error</p>
-<p>Unable to execute python code at fasta-glycopeptide.rst:189:</p>
-<p>object of type ‘map’ has no len()</p>
-</div>
+<table class="docutils align-default">
+<thead>
+<tr class="row-odd"><th class="head"><p>Enzyme Name</p></th>
+<th class="head"><p>Recognized Pattern</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p>bnps-skatole</p></td>
+<td><p>W</p></td>
+</tr>
+<tr class="row-odd"><td><p>caspase 1</p></td>
+<td><p>(?&lt;=[FWYL]w[HAT])D(?=[^PEDQKR])</p></td>
+</tr>
+<tr class="row-even"><td><p>caspase 10</p></td>
+<td><p>(?&lt;=IEA)D</p></td>
+</tr>
+<tr class="row-odd"><td><p>caspase 2</p></td>
+<td><p>(?&lt;=DVA)D(?=[^PEDQKR])</p></td>
+</tr>
+<tr class="row-even"><td><p>caspase 3</p></td>
+<td><p>(?&lt;=DMQ)D(?=[^PEDQKR])</p></td>
+</tr>
+<tr class="row-odd"><td><p>caspase 4</p></td>
+<td><p>(?&lt;=LEV)D(?=[^PEDQKR])</p></td>
+</tr>
+<tr class="row-even"><td><p>caspase 5</p></td>
+<td><p>(?&lt;=[LW]EH)D</p></td>
+</tr>
+<tr class="row-odd"><td><p>caspase 6</p></td>
+<td><p>(?&lt;=VE[HI])D(?=[^PEDQKR])</p></td>
+</tr>
+<tr class="row-even"><td><p>caspase 7</p></td>
+<td><p>(?&lt;=DEV)D(?=[^PEDQKR])</p></td>
+</tr>
+<tr class="row-odd"><td><p>caspase 8</p></td>
+<td><p>(?&lt;=[IL]ET)D(?=[^PEDQKR])</p></td>
+</tr>
+<tr class="row-even"><td><p>caspase 9</p></td>
+<td><p>(?&lt;=LEH)D</p></td>
+</tr>
+<tr class="row-odd"><td><p>chymotrypsin</p></td>
+<td><p>(?&lt;=[FYWL])(?!P)</p></td>
+</tr>
+<tr class="row-even"><td><p>chymotrypsin high specificity</p></td>
+<td><p>([FY](?=[^P]))|(W(?=[^MP]))</p></td>
+</tr>
+<tr class="row-odd"><td><p>chymotrypsin low specificity</p></td>
+<td><p>([FLY](?=[^P]))|(W(?=[^MP]))|(M(?=[^PY]))|(H(?=[^DMPW]))</p></td>
+</tr>
+<tr class="row-even"><td><p>clostripain</p></td>
+<td><p>R</p></td>
+</tr>
+<tr class="row-odd"><td><p>cnbr</p></td>
+<td><p>M</p></td>
+</tr>
+<tr class="row-even"><td><p>enterokinase</p></td>
+<td><p>(?&lt;=[DE]{3})K</p></td>
+</tr>
+<tr class="row-odd"><td><p>factor xa</p></td>
+<td><p>(?&lt;=[AFGILTVM][DE]G)R</p></td>
+</tr>
+<tr class="row-even"><td><p>formic acid</p></td>
+<td><p>D</p></td>
+</tr>
+<tr class="row-odd"><td><p>glutamyl endopeptidase</p></td>
+<td><p>E</p></td>
+</tr>
+<tr class="row-even"><td><p>glu-c</p></td>
+<td><p>E</p></td>
+</tr>
+<tr class="row-odd"><td><p>granzyme b</p></td>
+<td><p>(?&lt;=IEP)D</p></td>
+</tr>
+<tr class="row-even"><td><p>hydroxylamine</p></td>
+<td><p>N(?=G)</p></td>
+</tr>
+<tr class="row-odd"><td><p>iodosobenzoic acid</p></td>
+<td><p>W</p></td>
+</tr>
+<tr class="row-even"><td><p>lys-c</p></td>
+<td><p>(?&lt;=K)(?!P)</p></td>
+</tr>
+<tr class="row-odd"><td><p>ntcb</p></td>
+<td><p>w(?=C)</p></td>
+</tr>
+<tr class="row-even"><td><p>pepsin ph1.3</p></td>
+<td><p>((?&lt;=[^HKR][^P])[^R](?=[FLWY][^P]))|((?&lt;=[^HKR][^P])[FLWY](?=w[^P]))</p></td>
+</tr>
+<tr class="row-odd"><td><p>pepsin ph2.0</p></td>
+<td><p>((?&lt;=[^HKR][^P])[^R](?=[FL][^P]))|((?&lt;=[^HKR][^P])[FL](?=w[^P]))</p></td>
+</tr>
+<tr class="row-even"><td><p>proline endopeptidase</p></td>
+<td><p>(?&lt;=[HKR])P(?=[^P])</p></td>
+</tr>
+<tr class="row-odd"><td><p>proteinase k</p></td>
+<td><p>[AEFILTVWY]</p></td>
+</tr>
+<tr class="row-even"><td><p>staphylococcal peptidase i</p></td>
+<td><p>(?&lt;=[^E])E</p></td>
+</tr>
+<tr class="row-odd"><td><p>thermolysin</p></td>
+<td><p>[^DE](?=[AFILMV])</p></td>
+</tr>
+<tr class="row-even"><td><p>thrombin</p></td>
+<td><p>((?&lt;=G)R(?=G))|((?&lt;=[AFGILTVM][AFGILTVWA]P)R(?=[^DE][^DE]))</p></td>
+</tr>
+<tr class="row-odd"><td><p>trypsin</p></td>
+<td><p>([KR](?=[^P]))|((?&lt;=W)K(?=P))|((?&lt;=M)R(?=P))</p></td>
+</tr>
+<tr class="row-even"><td><p>none</p></td>
+<td><p>^&amp;$</p></td>
+</tr>
+<tr class="row-odd"><td><p>trypchymo</p></td>
+<td><p>(?&lt;=[FYWLKR])(?!P)</p></td>
+</tr>
+<tr class="row-even"><td><p>trypsin/p</p></td>
+<td><p>(?&lt;=[KR])</p></td>
+</tr>
+<tr class="row-odd"><td><p>lys-c/p</p></td>
+<td><p>(?&lt;=K)</p></td>
+</tr>
+<tr class="row-even"><td><p>pepsina</p></td>
+<td><p>(?&lt;=[FL])</p></td>
+</tr>
+<tr class="row-odd"><td><p>v8-de</p></td>
+<td><p>(?&lt;=[BDEZ])(?!P)</p></td>
+</tr>
+<tr class="row-even"><td><p>v8-e</p></td>
+<td><p>(?&lt;=[EZ])(?!P)</p></td>
+</tr>
+<tr class="row-odd"><td><p>2-iodobenzoate</p></td>
+<td><p>(?&lt;=W)</p></td>
+</tr>
+<tr class="row-even"><td><p>arg-c</p></td>
+<td><p>(?&lt;=R)(?!P)</p></td>
+</tr>
+<tr class="row-odd"><td><p>asp-n_ambic</p></td>
+<td><p>(?=[DE])</p></td>
+</tr>
+<tr class="row-even"><td><p>asp-n</p></td>
+<td><p>(?=[BD])</p></td>
+</tr>
+<tr class="row-odd"><td><p>leukocyte elastase</p></td>
+<td><p>(?&lt;=[ALIV])(?!P)</p></td>
+</tr>
+<tr class="row-even"><td><p>alpha-lytic protease</p></td>
+<td><p>[TASV]</p></td>
+</tr>
+</tbody>
+</table>
 </section>
 <section id="supported-modification-rules">
 <h3>Supported Modification Rules<a class="headerlink" href="#supported-modification-rules" title="Permalink to this heading">¶</a></h3>
-<p><cite>glycresoft</cite> supports the full range of <a class="reference external" href="http://www.unimod.org/modifications_list.php?">UNIMOD</a>
+<p><code class="xref py py-mod docutils literal notranslate"><span class="pre">glycresoft</span></code> supports the full range of <a class="reference external" href="http://www.unimod.org/modifications_list.php?">UNIMOD</a>
 modification rules as well as some common alternative namings.</p>
 <p>To be more specific, you are able to override modification targets when you
 specify modification names by passing the permitted target rules enclosed in
@@ -363,11 +524,16 @@ parentheses following the modification name. For example “Deamidation (N)” w
 only target Asparagine residues, unlike the plain “Deamidation” rule which will
 target both Asparagine and Glutamine.</p>
 <p>For more information about supported post-translational modifications, please
-see <a class="reference external" href="todo">Peptide Modifications</a></p>
+see <a class="reference internal" href="../../topics/peptide-mods.html#peptide-modifications"><span class="std std-ref">Peptide Modifications</span></a>.</p>
 </section>
 <section id="uniprot-integration">
 <h3>UniProt Integration<a class="headerlink" href="#uniprot-integration" title="Permalink to this heading">¶</a></h3>
-<p>todo</p>
+<p>When GlycResoft digests a protein, it parses the definition line looking for accession code, and tries to guess
+if your definition contains a UniProt accession. If it thinks so, it will query UniProt’s web service or a local
+annotation file if provided for additional information. Currently, only additional cleavage sites are used to predict
+non-specific cleavage events at annotated locations. This is especially useful when a signal peptide cleavage site
+is relatively close to a glycosylation site.</p>
+<p>If you do not wish for annotations to be applied, pass <code class="docutils literal notranslate"><span class="pre">-</span></code> for <code class="docutils literal notranslate"><span class="pre">--annotation-path</span></code>.</p>
 </section>
 </section>
 </section>

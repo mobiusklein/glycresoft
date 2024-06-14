@@ -28,7 +28,7 @@ Usage Example
 Below is a basic example of how to use this tool
 
 .. code-block:: bash
-    
+
     # We'll build a simple glycopeptide hypothesis from just two glycoproteins, the
     # isoforms of Alpha-1-acid glycoprotein.
     $ cat agp.fa
@@ -197,14 +197,15 @@ Supported Proteases
 
     for name, pattern in expasy_rules.items():
         rows.append((name, pattern))
-    
+
     print(as_rest_table(rows))
+
 
 
 Supported Modification Rules
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-:title-reference:`glycresoft` supports the full range of `UNIMOD <http://www.unimod.org/modifications_list.php?>`_
+:mod:`glycresoft` supports the full range of `UNIMOD <http://www.unimod.org/modifications_list.php?>`_
 modification rules as well as some common alternative namings.
 
 To be more specific, you are able to override modification targets when you
@@ -214,10 +215,17 @@ only target Asparagine residues, unlike the plain "Deamidation" rule which will
 target both Asparagine and Glutamine.
 
 For more information about supported post-translational modifications, please
-see `Peptide Modifications <todo>`_
+see :ref:`Peptide Modifications <peptide_modifications>`.
 
 
 UniProt Integration
 ~~~~~~~~~~~~~~~~~~~
 
-todo
+When GlycResoft digests a protein, it parses the definition line looking for accession code, and tries to guess
+if your definition contains a UniProt accession. If it thinks so, it will query UniProt's web service or a local
+annotation file if provided for additional information. Currently, only additional cleavage sites are used to predict
+non-specific cleavage events at annotated locations. This is especially useful when a signal peptide cleavage site
+is relatively close to a glycosylation site.
+
+If you do not wish for annotations to be applied, pass ``-`` for ``--annotation-path``.
+

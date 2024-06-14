@@ -2,7 +2,7 @@ Search and Analysis Tools
 -------------------------
 
 .. toctree::
-   :maxdepth: 2
+   :maxdepth: 3
 
     LC-MS/MS Data Preprocessing and Deconvolution <mzml-preprocess>
     Searching a Processed Sample with a Glycan Database <search-glycan>

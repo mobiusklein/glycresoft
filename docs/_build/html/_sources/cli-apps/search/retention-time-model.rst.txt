@@ -1,5 +1,5 @@
-Retention Time Modeling for Glycopeptide Identifications
---------------------------------------------------------
+(Deprecated) Retention Time Modeling for Glycopeptide Identifications
+---------------------------------------------------------------------
 
 .. note::
 
