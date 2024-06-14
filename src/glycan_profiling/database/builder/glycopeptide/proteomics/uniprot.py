@@ -232,11 +232,14 @@ class UniprotProteinXML(UniprotSource):
         return
 
     def load(self):
-        stream = get_opener(self.path)
-        if uniprot.is_uniprot_xml(stream):
-            self.store = annotation.AnnotationDatabase.from_uniprot_xml(stream)
+        if self.path == '-':
+            self.store = annotation.AnnotationDatabase({})
         else:
-            self.store = annotation.AnnotationDatabase.load(stream)
+            stream = get_opener(self.path)
+            if uniprot.is_uniprot_xml(stream):
+                self.store = annotation.AnnotationDatabase.from_uniprot_xml(stream)
+            else:
+                self.store = annotation.AnnotationDatabase.load(stream)
 
     def fetch(self, accession_number: str):
         accession = get_uniprot_accession(accession_number)

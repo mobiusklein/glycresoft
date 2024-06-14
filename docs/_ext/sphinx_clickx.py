@@ -277,7 +277,7 @@ class ClickDirective(Directive):
             nodes.title(text=name),
             ids=[nodes.make_id(ctx.command_path)],
             names=[nodes.fully_normalize_name(ctx.command_path)])
-
+        section.attributes['classes'] = ['click-command-section']
         source_name = ctx.command_path
         result = statemachine.ViewList()
 

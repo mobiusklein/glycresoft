@@ -253,7 +253,7 @@ h1 {
 
 h2 {
     font-size: 1.2em;
-    font-weight: normal;
+    font-weight: bold;
     color: {{ theme_headingcolor }};
     border-bottom: dotted thin {{ title_block_color }};
     margin-top: 30px;
@@ -261,7 +261,7 @@ h2 {
 
 h3 {
     font-size: 1.1em;
-    font-weight: normal;
+    font-weight: bold;
     color: {{ theme_headingcolor }};
     margin-top: 30px;
 }

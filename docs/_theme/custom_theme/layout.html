@@ -52,12 +52,12 @@
       {{ nav() }}
       </div>
       <div class="content">
-        {#{%- if display_toc %}
+        {%- if display_toc %}
         <div id="toc">
           <h3>{{ _('Table Of Contents') }}</h3>
           {{ toc }}
         </div>
-        {%- endif %}#}
+        {%- endif %}
         {% block body %}{% endblock %}
       </div>
       <div class="bottomnav" role="navigation" aria-label="bottom navigation">

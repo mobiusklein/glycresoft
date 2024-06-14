@@ -2,11 +2,9 @@
 
 import sys
 from os.path import basename
+import traceback
 
-try:
-    from StringIO import StringIO
-except ImportError:
-    from io import StringIO
+from io import StringIO
 
 from docutils.parsers.rst import Directive
 from docutils import nodes, statemachine
@@ -29,11 +27,15 @@ class ExecDirective(Directive):
             self.state_machine.insert_input(lines, source)
             return []
         except Exception:
+            exc = traceback.format_exc()
             return [nodes.error(
                 None,
                 nodes.paragraph(text="Unable to execute python code at %s:%d:" % (
                     basename(source), self.lineno)),
-                nodes.paragraph(text=str(sys.exc_info()[1])))]
+                nodes.paragraph(text=str(sys.exc_info()[1]))),
+                nodes.paragraph(text=exc)
+            ]
+
         finally:
             sys.stdout = oldStdout
 
