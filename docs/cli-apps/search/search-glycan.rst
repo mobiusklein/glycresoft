@@ -28,7 +28,8 @@ Adducts
 
 Adducts are mass shifts that may represent alternative charge carriers
 such as formate or sodium, or chemical defects such as water loss or
-incomplete permethylation.
+incomplete permethylation. The software internally refers to these as
+"mass shifts".
 
 Adducts are considered combinatorially, so if you were to pass ``-a Ammonium 3``
 and ``-a "C-1H-2" 1`` to indicate up to three ammonium adducts and up to one

@@ -5,3 +5,4 @@ Other Topics
    :maxdepth: 1
 
    IUPAClite Glycan Syntax <iupaclite>
+   peptide-mods

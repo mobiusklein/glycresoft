@@ -31,6 +31,11 @@ Multi-component Database Search
 .. click:: glycan_profiling.cli.analyze:search_glycopeptide_multipart
     :prog: glycresoft analyze search-glycopeptide-multipart
 
+Usage Example
+~~~~~~~~~~~~~
+
+Please see the :ref:`SCE Tutorial for example usage <sce_glycopeptide_tutorial>`
+
 
 Memory Consumption and Workload Size
 ------------------------------------
@@ -46,3 +51,12 @@ Build a Glycosite Network Smoothing Model
 
 .. click:: glycan_profiling.cli.analyze:fit_glycoproteome_model
     :prog: glycresoft analyze fit-glycoproteome-smoothing-model
+
+
+Adducts
+-------
+
+Unlike the glycan search tool, the glycopeptide search tool does not apply combinatorial expansion of adducts.
+It will not mix mass shifts of different types together, so if both ``Ammonium 2`` and ``Na1H-1 1`` are specified,
+the algorithm will only search for 0, 1, or 2 ``Ammonium`` shifts and 0 or 1 ``Na1H-1`` shifts. This is in order to
+keep the search space tractable, but also in tested datasets, most multiply adducted ion species are low in abundance.

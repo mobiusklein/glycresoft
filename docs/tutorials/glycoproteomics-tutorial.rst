@@ -4,6 +4,9 @@ High Energy Glycopeptide Search Tutorial
 This tutorial will cover the steps involved in analyzing glycopeptide
 LC-MS/MS data acquired with a high collision energy.
 
+Preparing the Data
+~~~~~~~~~~~~~~~~~~
+
 You can download the raw data we will analyze from `20150710_3um_AGP_001.mzML.gz <https://www.dropbox.com/s/lm0uc5q31aaju8s/20150710_3um_AGP_001.mzML.gz?dl=0>`_. Please download it and decompress it.
 
 .. code-block:: bash
@@ -14,6 +17,9 @@ You can download the raw data we will analyze from `20150710_3um_AGP_001.mzML.gz
 
 This will deconvolute the LC-MS run, using six worker processes. This may take a significant
 amount of time, on the order of one to two hours.
+
+Building the Search Space
+~~~~~~~~~~~~~~~~~~~~~~~~~
 
 Meanwhile, we can begin setting up the hypothesis. This sample contains predominantly AGP
 glycopeptides, so we can start by downloading the AGP protein sequences from UniProt:
@@ -59,6 +65,8 @@ FASTA we downloaded earlier
 
 This task should take a few minutes at most.
 
+Search the Data
+~~~~~~~~~~~~~~~~
 
 Once both the glycopeptide hypothesis is built and the sample is deconvoluted, we can
 run the database search:

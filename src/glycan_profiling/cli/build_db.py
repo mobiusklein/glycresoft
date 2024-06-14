@@ -240,8 +240,8 @@ def glycopeptide_hypothesis_common_options(cmd):
               help=("Do not require a glycosylation site when saving base peptides"))
 @click.option("-C", "--include-n-x-c-glycosylation", "include_cysteine_n_glycosylation", default=False, is_flag=True,
               help="Whether to support N-x-C in the N-glycosylation sequon")
-@click.option("-a", "--annotation-path", type=click.Path(exists=True), required=False,
-              default=None, help="The path to an annotation XML file from UniProt")
+@click.option("-a", "--annotation-path", type=click.Path(exists=True, allow_dash=True), required=False,
+              default=None, help="The path to an annotation XML file from UniProt, or '-' to suppress annotations.")
 def glycopeptide_fa(context, fasta_file, database_connection, enzyme, missed_cleavages, occupied_glycosites, name,
                     constant_modification, variable_modification, processes, glycan_source, glycan_source_type,
                     glycan_source_identifier=None, semispecific_digest=False, reverse=False, dry_run=False,
@@ -316,8 +316,8 @@ def glycopeptide_fa(context, fasta_file, database_connection, enzyme, missed_cle
 @click.option("--reference-fasta", default=None, required=False,
               help=("When the full sequence for each protein is not embedded in the mzIdentML file and "
                     "the FASTA file used is not local."))
-@click.option("-a", "--annotation-path", type=click.Path(exists=True), required=False,
-              default=None, help="The path to an annotation XML file from UniProt")
+@click.option("-a", "--annotation-path", type=click.Path(exists=True, allow_dash=True), required=False,
+              default=None, help="The path to an annotation XML file from UniProt or '-' to suppress loading annotations")
 @click.option("-R", "--reverse", default=False, is_flag=True, help='Reverse protein sequences')
 @click.option("-F", "--not-full-crossproduct", is_flag=True, help=(
     "Do not produce full crossproduct. For when the search space is too large to enumerate, store, and load."))

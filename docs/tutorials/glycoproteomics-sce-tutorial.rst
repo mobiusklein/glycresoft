@@ -1,9 +1,12 @@
+.. _sce_glycopeptide_tutorial:
+
 Multipart Score Glycopeptide Search Tutorial
 ============================================
 
-This tutorial will cover the steps involved in analyzing glycopeptide
-LC-MS/MS data acquired with stepped collision energy.
-
+This tutorial will cover the steps involved in analyzing glycopeptide LC-MS/MS data acquired
+with stepped collision energy, a scenario where there are abundant peptide+Y fragmentats,
+especially for proteome scale search spaces, or otherwise when it is desirable to have an FDR
+estimated separately for the peptide and the glycan components of a glycopeptide.
 
 Preparing the Data
 ~~~~~~~~~~~~~~~~~~
@@ -199,4 +202,4 @@ is installed. Now we can fit the fragmentation model:
     $ # Evaluate the model fit
     $ glycopeptide-feature-learning calculate-correlation -t 20 $DATAFILES ./correlation.${MODEL_NAME}.pkl  ${MODEL_NAME}.pkl
 
-This should take approximately 15 minutes total.
+This should take approximately 10 minutes total.

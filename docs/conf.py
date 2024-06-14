@@ -108,8 +108,12 @@ html_theme_options = {}
 html_static_path = ['_static']
 html_logo = '_static/img/logo.png'
 
+html_css_files = [
+    "css/custom.css",
+]
+
 html_sidebars = {
-    '**': ['sidebar.html', 'localtoc.html', 'relations.html',
+    'sidebar': ['sidebar.html', 'localtoc.html', 'relations.html',
            'sourcelink.html', 'searchbox.html'],
 }
 

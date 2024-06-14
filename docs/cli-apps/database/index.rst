@@ -1,6 +1,12 @@
 Database Building Tools
 -----------------------
 
+:mod:`glycresoft` requires that a search space, called a "hypothesis", be pre-specified prior to searching it. This is done explicitly so that
+the database construction process is not repeated needlessly for multiple searches of the same space, and to allow slower
+data organization and indexing steps to run independent of the main search program.
+
+There are many different ways to build glycan and glycopeptide databases.
+
 .. toctree::
    :maxdepth: 1
 
