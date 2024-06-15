@@ -17,7 +17,7 @@
     <link rel="next" title="Building a Glycan Hypothesis from a Text File" href="text-glycan.html" />
     <link rel="prev" title="Database Building Tools" href="index.html" /> 
   </head><body>
-      <div class="header" role="banner"><h1 class="heading"><a href="../../index.html">
+      <div class="header" role="banner"><img class="rightlogo" src="../../_static/logo.png" alt="Logo" style='width:120px;'/><h1 class="heading"><a href="../../index.html">
           <span>glycresoft  documentation</span></a></h1>
         <h2 class="heading"><span>Building a Combinatorial Glycan Hypothesis</span></h2>
       </div>
@@ -53,7 +53,7 @@ combinatorial glycan composition hypothesis.</p>
 <p>A combinatorial glycan hypothesis is defined by a set of <code class="docutils literal notranslate"><span class="pre">component</span>
 <span class="pre">ranges</span></code> and a set of <code class="docutils literal notranslate"><span class="pre">algebraic</span> <span class="pre">constraints</span></code>.</p>
 <p>A <code class="docutils literal notranslate"><span class="pre">component</span> <span class="pre">range</span></code> is defined by a <code class="docutils literal notranslate"><span class="pre">component</span></code> residue such as a
-monossaccharide (or any entity which can be encoded with <a class="reference external" href="todo">IUPAClite</a>)
+monossaccharide (or any entity which can be encoded with <a class="reference internal" href="../../topics/iupaclite.html#iupaclite"><span class="std std-ref">IUPAClite Monosaccharide and Glycan Notation</span></a>)
 with a <code class="docutils literal notranslate"><span class="pre">minimum</span></code> count and a <code class="docutils literal notranslate"><span class="pre">maximum</span></code> count. Candidate glycan compositions will
 contain the <code class="docutils literal notranslate"><span class="pre">component</span></code> with every possible value in the range between <code class="docutils literal notranslate"><span class="pre">minimum</span></code>
 and <code class="docutils literal notranslate"><span class="pre">maximum</span></code></p>
@@ -72,7 +72,7 @@ following the format</p>
 &lt;component&gt;  &lt;minimum&gt;  &lt;maximum&gt;
 &lt;component&gt;  &lt;minimum&gt;  &lt;maximum&gt;
 ...
-; a blank line separates the component range rules from the constrains
+; a blank line separates the component range rules from the constraints
 
 &lt;expression&gt; &lt;operator&gt; &lt;expression&gt;
 &lt;expression&gt; &lt;operator&gt; &lt;expression&gt;
@@ -85,7 +85,7 @@ following the format</p>
 motifs, glycan compositions produced by this program are only checked for being N-glycans,
 and as such you cannot tag compositions O-glycans directly with this tool at this time. This
 restriction is wholly artificial and may be removed in the future. For more information
-on glycan composition classifiers, please see <a class="reference external" href="todo">Glycan Composition Classes</a></p>
+on glycan composition classifiers, please see <a class="reference internal" href="../../topics/glycan-classes.html#glycan-classes"><span class="std std-ref">Glycan Composition Classes</span></a>.</p>
 </div>
 <section class="click-command-section" id="glycresoft-build-hypothesis-glycan-combinatorial">
 <h2>glycresoft build-hypothesis glycan-combinatorial<a class="headerlink" href="#glycresoft-build-hypothesis-glycan-combinatorial" title="Permalink to this heading">¶</a></h2>

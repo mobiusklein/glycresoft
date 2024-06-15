@@ -20,20 +20,20 @@ Preparing Input Data
 The model fitting process uses a simplified representation of glycopeptide chromatograms
 which can be exported as a CSV file from a result database.
 
-.. click:: glycan_profiling.cli.export:glycopeptide_chromatogram_records
+.. click:: glycresoft.cli.export:glycopeptide_chromatogram_records
     :prog: glycresoft export glycopeptide-chromatogram-records
 
 
 Fitting The Model
 =================
 
-.. click:: glycan_profiling.cli.analyze:glycopeptide_retention_time_fit
+.. click:: glycresoft.cli.analyze:glycopeptide_retention_time_fit
     :prog: glycresoft analyze retention-time fit-glycopeptide-retention-time
 
 
 Re-using A Fitted Model
 =======================
 
-.. click:: glycan_profiling.cli.analyze:glycopeptide_retention_time_predict
+.. click:: glycresoft.cli.analyze:glycopeptide_retention_time_predict
     :prog: glycresoft analyze retention-time evaluate-glycopeptide-retention-time
 

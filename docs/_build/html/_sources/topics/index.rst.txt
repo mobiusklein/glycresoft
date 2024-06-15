@@ -6,3 +6,4 @@ Other Topics
 
    IUPAClite Glycan Syntax <iupaclite>
    peptide-mods
+   glycan-classes

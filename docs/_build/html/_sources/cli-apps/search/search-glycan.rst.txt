@@ -9,7 +9,7 @@ glycan hypothesis (see :ref:`Combinatorial <combinatorial-glycan-hypothesis>`,
 :ref:`Text <text-glycan-hypothesis>`, and :ref:`glySpace <glyspace-glycan-hypothesis>`
 glycan database construction methods).
 
-.. click:: glycan_profiling.cli.analyze:search_glycan
+.. click:: glycresoft.cli.analyze:search_glycan
     :prog: glycresoft analyze search-glycan
 
 
