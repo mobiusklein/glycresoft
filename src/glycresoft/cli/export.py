@@ -137,7 +137,7 @@ def glycopeptide_hypothesis(database_connection, hypothesis_identifier, output_p
 @analysis_identifier_arg("glycan")
 @click.option("-o", "--output-path", type=click.Path(), default=None, help='Path to write to instead of stdout')
 @click.option("-r", "--report", is_flag=True, help="Export an HTML report instead of a CSV")
-@click.option("-t", "--threshold", type=float, default=0)
+@click.option("-t", "--threshold", type=float, default=0, help="Minimum score threshold to include")
 def glycan_composition_identification(database_connection, analysis_identifier, output_path=None,
                                       threshold=0, report=False):
     """Write each glycan chromatogram in CSV format"""
@@ -406,6 +406,10 @@ def glycopeptide_mzidentml(database_connection, analysis_identifier, output_path
 @click.option("-t", "--threshold", type=float, default=None, help='Minimum MS2 score to export')
 def glycopeptide_training_mgf(database_connection, analysis_identifier, output_path=None,
                               mzml_path=None, threshold=None):
+    """
+    Export identified glycopeptide spectrum matches for model training as
+    an annotated MGF file.
+    """
     database_connection = DatabaseBoundOperation(database_connection)
     session = database_connection.session()  # pylint: disable=not-callable
     analysis = get_by_name_or_id(session, Analysis, analysis_identifier)
@@ -422,11 +426,16 @@ def glycopeptide_training_mgf(database_connection, analysis_identifier, output_p
             database_connection, analysis.id, output_stream, mzml_path, threshold).run()
 
 
-@export.command("identified-glycans-from-glycopeptides")
+@export.command("identified-glycans-from-glycopeptides", short_help="Export glycans on identified glycopeptides")
 @database_connection_arg
 @analysis_identifier_arg("glycopeptide")
 @click.option("-o", "--output-path", type=click.Path(), default=None, help='Path to write to instead of stdout')
 def export_identified_glycans_from_glycopeptides(database_connection, analysis_identifier, output_path):
+    """
+    Export the glycans attached to any identified glycopeptides.
+
+    The files are written in an importable format to be used to create a new glycan hypothesis.
+    """
     database_connection = DatabaseBoundOperation(database_connection)
     session = database_connection.session()  # pylint: disable=not-callable
     analysis = get_by_name_or_id(session, Analysis, analysis_identifier)
@@ -458,6 +467,11 @@ def export_identified_glycans_from_glycopeptides(database_connection, analysis_i
 @click.option("-m", '--mzml-path', type=click.Path(exists=True), default=None,
               help="Alternative path to find the source mzML file")
 def annotate_matched_spectra(database_connection, analysis_identifier, output_path, mzml_path=None):
+    """
+    Export graphical renderings of individual MS/MS assignments of glycopeptides to PDF.
+
+    The output file will contain one spectrum per PDF page.
+    """
     database_connection = DatabaseBoundOperation(database_connection)
     session = database_connection.session()  # pylint: disable=not-callable
     analysis = get_by_name_or_id(session, Analysis, analysis_identifier)
@@ -483,6 +497,12 @@ def annotate_matched_spectra(database_connection, analysis_identifier, output_pa
               help="Alternative path to find the source mzML file")
 @click.option("-t", "--fdr-threshold", type=float, default=0.05)
 def write_spectrum_library(database_connection, analysis_identifier, output_path, mzml_path=None, fdr_threshold=0.05):
+    """
+    Export individual MS/MS assignments of glycopeptides to CSV.
+
+    Each row corresponds to a single product ion match, partitioned by
+    scan ID. Unmatched peaks are ignored.
+    """
     database_connection = DatabaseBoundOperation(database_connection)
     session = database_connection.session()  # pylint: disable=not-callable
     analysis = get_by_name_or_id(session, Analysis, analysis_identifier)
