@@ -301,36 +301,53 @@ requirements = []
 with open("requirements.txt") as requirements_file:
     requirements.extend(requirements_file.readlines())
 
+try:
+    with open("README.md") as readme_file:
+        long_description = readme_file.read()
+except Exception as e:
+    print(e)
+    long_description = ""
+
 
 def run_setup(include_cext=True):
+
     setup(
-        name='glycresoft',
+        name="glycresoft",
         version=version,
-        packages=find_packages(where='src'),
+        packages=find_packages(where="src"),
         package_dir={"": "src"},
         include_package_data=True,
-        author=', '.join(["Joshua Klein"]),
-        author_email=["jaklein@bu.edu"],
+        author=", ".join(["Joshua Klein"]),
+        author_email="jaklein@bu.edu",
+        description="Glycan and Glycopeptide Mass Spectrometry Database Search Tool",
+        long_description=long_description,
+        long_description_content_type='text/markdown',
         entry_points={
-            'console_scripts': [
-                "glycresoft = glycresoft.cli.__main__:main"
-            ],
+            "console_scripts": ["glycresoft = glycresoft.cli.__main__:main"],
         },
         package_data={
             "glycresoft.models": ["src/glycresoft/models/data/*"],
             "glycresoft.database.prebuilt": ["src/glycresoft/database/prebuilt/data/*"],
             "glycresoft.output.report.glycan_lcms": ["src/glycresoft/output/report/glycan_lcms/*"],
-            "glycresoft.output.report.glycopeptide_lcmsms": [
-                "src/glycresoft/output/report/glycopeptide_lcmsms/*"]
+            "glycresoft.output.report.glycopeptide_lcmsms": ["src/glycresoft/output/report/glycopeptide_lcmsms/*"],
         },
         ext_modules=make_extensions() if include_cext else None,
         cmdclass=cmdclass,
         install_requires=requirements,
         classifiers=[
-            'Development Status :: 3 - Alpha',
-            'Intended Audience :: Science/Research',
-            'License :: OSI Approved :: BSD License',
-            'Topic :: Scientific/Engineering :: Bio-Informatics'])
+            "Development Status :: 3 - Alpha",
+            "Intended Audience :: Science/Research",
+            "License :: OSI Approved :: BSD License",
+            "Topic :: Scientific/Engineering :: Bio-Informatics",
+        ],
+        zip_safe=False,
+        python_requires=">3.8",
+        project_urls={
+            "Documentation": "https://mobiusklein.github.io/glycresoft",
+            "Source Code": "https://github.com/mobiusklein/glycresoft",
+            "Issue Tracker": "https://github.com/mobiusklein/glycresoft/issues",
+        },
+    )
 
 
 try:
