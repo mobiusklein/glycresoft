@@ -76,4 +76,4 @@ jobs:
           TWINE_USERNAME: __token__
         run: |
           ls -l dist/*
-          twine upload dist/*.whl dist/*.tar.gz
+          twine upload --skip-existing dist/*.whl dist/*.tar.gz
