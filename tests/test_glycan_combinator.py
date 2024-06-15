@@ -1,8 +1,8 @@
 import unittest
 import tempfile
 
-from glycan_profiling.database.builder.glycan import glycan_combinator, glycan_source
-from glycan_profiling.database.builder.glycopeptide.common import GlycopeptideHypothesisSerializerBase
+from glycresoft.database.builder.glycan import glycan_combinator, glycan_source
+from glycresoft.database.builder.glycopeptide.common import GlycopeptideHypothesisSerializerBase
 
 
 class GlycanCombinatoricsTests(unittest.TestCase):

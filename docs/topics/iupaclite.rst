@@ -1,3 +1,5 @@
+.. _iupaclite:
+
 IUPAClite Monosaccharide and Glycan Notation
 --------------------------------------------
 

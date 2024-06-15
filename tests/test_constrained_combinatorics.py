@@ -3,7 +3,7 @@ import tempfile
 
 from io import StringIO
 
-from glycan_profiling.database.builder.glycan import constrained_combinatorics
+from glycresoft.database.builder.glycan import constrained_combinatorics
 
 
 FILE_SOURCE = '''Hex 3 12

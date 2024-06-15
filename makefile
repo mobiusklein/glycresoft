@@ -6,7 +6,7 @@ dev:
 
 
 test:
-	py.test -v  tests --cov=glycan_profiling --cov-report=html -s -l -ra
+	py.test -v  tests --cov=glycresoft --cov-report=html -s -l -ra
 
 
 retest:

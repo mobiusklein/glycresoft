@@ -1,6 +1,6 @@
 import unittest
 
-from glycan_profiling.structure.structure_loader import (
+from glycresoft.structure.structure_loader import (
     FragmentCachingGlycopeptide, hashable_glycan_glycopeptide_parser,
     HashableGlycanComposition, GlycanCompositionWithOffsetProxy)
 

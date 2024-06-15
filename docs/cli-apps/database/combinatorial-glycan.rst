@@ -12,7 +12,7 @@ A combinatorial glycan hypothesis is defined by a set of ``component
 ranges`` and a set of ``algebraic constraints``.
 
 A ``component range`` is defined by a ``component`` residue such as a
-monossaccharide (or any entity which can be encoded with `IUPAClite <todo>`_)
+monossaccharide (or any entity which can be encoded with :ref:`IUPAClite`)
 with a ``minimum`` count and a ``maximum`` count. Candidate glycan compositions will
 contain the ``component`` with every possible value in the range between ``minimum``
 and ``maximum``
@@ -38,7 +38,7 @@ following the format
     <component>  <minimum>  <maximum>
     <component>  <minimum>  <maximum>
     ...
-    ; a blank line separates the component range rules from the constrains
+    ; a blank line separates the component range rules from the constraints
 
     <expression> <operator> <expression>
     <expression> <operator> <expression>
@@ -51,10 +51,10 @@ following the format
     motifs, glycan compositions produced by this program are only checked for being N-glycans,
     and as such you cannot tag compositions O-glycans directly with this tool at this time. This
     restriction is wholly artificial and may be removed in the future. For more information
-    on glycan composition classifiers, please see `Glycan Composition Classes <todo>`_
+    on glycan composition classifiers, please see :ref:`Glycan Composition Classes <glycan_classes>`.
 
 
-.. click:: glycan_profiling.cli.build_db:glycan_combinatorial
+.. click:: glycresoft.cli.build_db:glycan_combinatorial
     :prog: glycresoft build-hypothesis glycan-combinatorial
 
 For more information on reductions and derivatizations, please see `Glycan Modifications <todo>`_

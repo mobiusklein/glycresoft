@@ -3,7 +3,7 @@ import unittest
 
 import numpy as np
 
-from glycan_profiling.tandem import target_decoy
+from glycresoft.tandem import target_decoy
 from . import fixtures
 
 

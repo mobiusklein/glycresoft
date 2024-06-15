@@ -4,8 +4,8 @@ import traceback
 from lxml import html
 from click.testing import Result, CliRunner
 
-from glycan_profiling import serialize
-from glycan_profiling.cli.analyze import (
+from glycresoft import serialize
+from glycresoft.cli.analyze import (
     search_glycopeptide,
     search_glycopeptide_multipart,
 )

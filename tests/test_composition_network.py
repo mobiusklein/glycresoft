@@ -6,8 +6,8 @@ import pickle
 from textwrap import dedent
 from io import BytesIO
 
-from glycan_profiling.database import composition_network
-from glycan_profiling.database.builder.glycan import constrained_combinatorics
+from glycresoft.database import composition_network
+from glycresoft.database.builder.glycan import constrained_combinatorics
 
 compositions = [
     glypy.glycan_composition.FrozenGlycanComposition(HexNAc=2, Hex=i) for i in range(3, 10)

@@ -10,7 +10,7 @@ recalculate precursor ion monoisotopic peaks.
 This task is computationally intensive, and uses several collaborative processes
 to share the work.
 
-.. click:: glycan_profiling.cli.mzml:preprocess
+.. click:: glycresoft.cli.mzml:preprocess
     :prog: glycresoft mzml preprocess
 
 
@@ -37,7 +37,7 @@ Builtin Models
 
 .. exec::
 
-    from glycan_profiling.cli.validators import AveragineParamType
+    from glycresoft.cli.validators import AveragineParamType
     from rst_table import as_rest_table
 
     rows = [

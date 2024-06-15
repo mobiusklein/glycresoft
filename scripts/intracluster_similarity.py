@@ -5,7 +5,7 @@ from typing import Optional, DefaultDict, List, NamedTuple
 
 import click
 
-from glycan_profiling import serialize
+from glycresoft import serialize
 from ms_deisotope.clustering.scan_clustering import SpectrumCluster
 from ms_deisotope.output import ProcessedMSFileLoader
 from ms_deisotope.data_source import ProcessedScan

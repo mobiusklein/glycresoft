@@ -3,7 +3,7 @@ import unittest
 from glypy.composition import composition_transform
 from glypy.structure import glycan_composition
 
-from glycan_profiling import symbolic_expression
+from glycresoft import symbolic_expression
 
 
 class SymbolicExpressionTest(unittest.TestCase):

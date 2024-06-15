@@ -3,6 +3,12 @@
 Building a Glycan Hypothesis from glySpace
 ==========================================
 
+.. warning::
+
+    GlyCosmos has changed the graph structure such that these queries can no longer
+    function. This documentation is preserved for the future if they can be made to work.
+
+
 The glycoinformatics community has developed a federation of
 databases called :title-reference:`glySpace`, which composes
 the "namespace of all glycan structures". It uses semantic web
@@ -15,7 +21,7 @@ glycan structures in :title-reference:`glySpace` for N-glycans and O-glycans,
 with or without taxonomic filters.
 
 
-.. click:: glycan_profiling.cli.build_db:glyspace_glycan_hypothesis
+.. click:: glycresoft.cli.build_db:glyspace_glycan_hypothesis
     :prog: glycresoft build-hypothesis glycan-glyspace
 
 For more information on reductions and derivatizations, please see `Glycan Modifications <todo>`_

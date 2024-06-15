@@ -18,7 +18,7 @@ The build process is computationally intensive, as such this tool will spawn
 several worker processes to share the load.
 
 
-.. click:: glycan_profiling.cli.build_db:glycopeptide_fa
+.. click:: glycresoft.cli.build_db:glycopeptide_fa
     :prog: glycresoft build-hypothesis glycopeptide-fa
 
 

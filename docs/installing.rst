@@ -1,9 +1,8 @@
 Installation
 ------------
 
-To install :title-reference:`glycresoft`, you will need git, Python 2.7,
-a C compiler compatible with that Python version, Make, and the ability To
-install NumPy and SciPy. It is recommended that you create a virtual
+To install :title-reference:`glycresoft`, you will need git, Python 3.8, 3.9, or 3.10,
+a C compiler compatible with that Python version. It is recommended that you create a virtual
 environment for the purpose.
 
 1. git clone https://github.com/mobiusklein/glycresoft.git

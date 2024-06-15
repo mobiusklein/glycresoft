@@ -1,7 +1,7 @@
 import unittest
 import tempfile
 
-from glycan_profiling.database.builder.glycan import glycan_source
+from glycresoft.database.builder.glycan import glycan_source
 
 
 FILE_SOURCE = '''

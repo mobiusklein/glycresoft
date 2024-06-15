@@ -2,12 +2,12 @@ import unittest
 import tempfile
 import warnings
 
-from glycan_profiling.serialize.hypothesis.peptide import Peptide, Protein, Glycopeptide
-from glycan_profiling.database.builder.glycopeptide import naive_glycopeptide
-from glycan_profiling.database.builder.glycan import (
+from glycresoft.serialize.hypothesis.peptide import Peptide, Protein, Glycopeptide
+from glycresoft.database.builder.glycopeptide import naive_glycopeptide
+from glycresoft.database.builder.glycan import (
     TextFileGlycanHypothesisSerializer,
     CombinatorialGlycanHypothesisSerializer)
-from glycan_profiling import serialize
+from glycresoft import serialize
 from . import fixtures
 
 from .test_constrained_combinatorics import FILE_SOURCE as GLYCAN_RULE_FILE_SOURCE
