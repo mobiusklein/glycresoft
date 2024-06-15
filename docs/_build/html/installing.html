@@ -33,29 +33,55 @@
 
       </div>
       <div class="content">
+        <div id="toc">
+          <h3>Table Of Contents</h3>
+          <ul>
+<li><a class="reference internal" href="#">Installation</a><ul>
+<li><a class="reference internal" href="#installing-from-pypi">Installing from PyPI</a></li>
+<li><a class="reference internal" href="#installing-from-source">Installing From Source</a></li>
+<li><a class="reference internal" href="#for-pyinstaller">For PyInstaller</a></li>
+</ul>
+</li>
+</ul>
+
+        </div>
         
   <section id="installation">
 <h1>Installation<a class="headerlink" href="#installation" title="Permalink to this heading">¶</a></h1>
 <p>To install <cite>glycresoft</cite>, you will need git, Python 3.8, 3.9, or 3.10,
 a C compiler compatible with that Python version. It is recommended that you create a virtual
 environment for the purpose.</p>
-<ol class="arabic simple">
-<li><p>git clone <a class="reference external" href="https://github.com/mobiusklein/glycresoft.git">https://github.com/mobiusklein/glycresoft.git</a></p></li>
-<li><p>cd glycresoft</p></li>
-<li><p>make install-dependencies</p></li>
-</ol>
+<section id="installing-from-pypi">
+<h2>Installing from PyPI<a class="headerlink" href="#installing-from-pypi" title="Permalink to this heading">¶</a></h2>
+<p><a class="reference external" href="https://pypi.org/project/glycresoft/">glycresoft</a> can be installed from the Python Package Index (PyPI).</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="linenos">1</span>pip<span class="w"> </span>install<span class="w"> </span>-v<span class="w"> </span>glycresoft
+</pre></div>
+</div>
+</section>
+<section id="installing-from-source">
+<h2>Installing From Source<a class="headerlink" href="#installing-from-source" title="Permalink to this heading">¶</a></h2>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="linenos">1</span>git<span class="w"> </span>clone<span class="w"> </span>https://github.com/mobiusklein/glycresoft.git
+<span class="linenos">2</span><span class="nb">cd</span><span class="w"> </span>glycresoft
+<span class="linenos">3</span>make<span class="w"> </span>install-dependencies
+</pre></div>
+</div>
 <p>At this point the command line tool <code class="docutils literal notranslate"><span class="pre">glycresoft</span></code> will be available, and should
-be on your <code class="docutils literal notranslate"><span class="pre">PATH</span></code> tied to the current Python environment.</p>
+be on your <code class="docutils literal notranslate"><span class="pre">$PATH</span></code> tied to the current Python environment.</p>
+</section>
+<section id="for-pyinstaller">
+<h2>For PyInstaller<a class="headerlink" href="#for-pyinstaller" title="Permalink to this heading">¶</a></h2>
 <p>To build a bundled executable not tied to the active Python environment, follow these
 steps:</p>
-<ol class="arabic simple" start="4">
-<li><p>pip install PyInstaller</p></li>
-<li><p>make build-pyinstaller</p></li>
-<li><p>./pyinstall/dist/glycresoft-cli/glycresoft-cli -h</p></li>
-</ol>
-<p>Now, the compiled artefacts in ./pyinstaller/dist/glycresoft-cli can be relocated
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="linenos">1</span>pip<span class="w"> </span>install<span class="w"> </span>PyInstaller
+<span class="linenos">2</span><span class="nb">cd</span><span class="w"> </span>./pyinstaller/
+<span class="linenos">3</span>bash<span class="w"> </span>make-pyinstaller.sh
+<span class="linenos">4</span>./dist/glycresoft-cli/glycresoft-cli<span class="w"> </span>-h
+</pre></div>
+</div>
+<p>Now, the compiled artefacts in <code class="docutils literal notranslate"><span class="pre">pyinstaller/dist/glycresoft-cli</span></code> can be relocated
 and ran by anyone without needing to have a version of Python configured and
 installed.</p>
+</section>
 </section>
 
 

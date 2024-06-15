@@ -5,7 +5,7 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" /><meta name="viewport" content="width=device-width, initial-scale=1" />
 
-    <title>Exporting Glycopeptide Search Results &#8212; glycresoft  documentation</title>
+    <title>Export Glycopeptide Search Results &#8212; glycresoft  documentation</title>
     <link rel="stylesheet" type="text/css" href="../../_static/pygments.css?v=fa44fd50" />
     <link rel="stylesheet" type="text/css" href="../../_static/haiku.css?v=4d9aecc8" />
     <link rel="stylesheet" type="text/css" href="../../_static/css/custom.css?v=29203c93" />
@@ -14,12 +14,12 @@
     <script src="../../_static/sphinx_highlight.js?v=4825356b"></script>
     <link rel="index" title="Index" href="../../genindex.html" />
     <link rel="search" title="Search" href="../../search.html" />
-    <link rel="next" title="Tutorials" href="../../tutorials/index.html" />
+    <link rel="next" title="Export Glycan Search Results" href="export-glycan.html" />
     <link rel="prev" title="Output Files and Exporting" href="index.html" /> 
   </head><body>
       <div class="header" role="banner"><img class="rightlogo" src="../../_static/logo.png" alt="Logo" style='width:120px;'/><h1 class="heading"><a href="../../index.html">
           <span>glycresoft  documentation</span></a></h1>
-        <h2 class="heading"><span>Exporting Glycopeptide Search Results</span></h2>
+        <h2 class="heading"><span>Export Glycopeptide Search Results</span></h2>
       </div>
       <div class="topnav" role="navigation" aria-label="top navigation">
       
@@ -28,7 +28,7 @@
         &#160;&#160;::&#160;&#160;
         <a class="uplink" href="../../index.html">Contents</a>
         &#160;&#160;::&#160;&#160;
-        <a href="../../tutorials/index.html">Tutorials</a>&#160;&#160;»
+        <a href="export-glycan.html">Export Glycan Search Results</a>&#160;&#160;»
         </p>
 
       </div>
@@ -36,18 +36,21 @@
         <div id="toc">
           <h3>Table Of Contents</h3>
           <ul>
-<li><a class="reference internal" href="#">Exporting Glycopeptide Search Results</a><ul>
+<li><a class="reference internal" href="#">Export Glycopeptide Search Results</a><ul>
 <li><a class="reference internal" href="#glycresoft-export-glycopeptide-identification">glycresoft export glycopeptide-identification</a></li>
 <li><a class="reference internal" href="#glycresoft-export-glycopeptide-spectrum-matches">glycresoft export glycopeptide-spectrum-matches</a></li>
-<li><a class="reference internal" href="#glycresoft-export-mzid">glycresoft export mzid</a></li>
+<li><a class="reference internal" href="#glycresoft-export-glycopeptide-training-mgf">glycresoft export glycopeptide-training-mgf</a></li>
+<li><a class="reference internal" href="#glycresoft-export-identified-glycans-from-glycopeptides">glycresoft export identified-glycans-from-glycopeptides</a></li>
+<li><a class="reference internal" href="#glycresoft-export-annotate-matched-spectra">glycresoft export annotate-matched-spectra</a></li>
+<li><a class="reference internal" href="#glycresoft-export-write-csv-spectrum-library">glycresoft export write-csv-spectrum-library</a></li>
 </ul>
 </li>
 </ul>
 
         </div>
         
-  <section id="exporting-glycopeptide-search-results">
-<h1>Exporting Glycopeptide Search Results<a class="headerlink" href="#exporting-glycopeptide-search-results" title="Permalink to this heading">¶</a></h1>
+  <section id="export-glycopeptide-search-results">
+<h1>Export Glycopeptide Search Results<a class="headerlink" href="#export-glycopeptide-search-results" title="Permalink to this heading">¶</a></h1>
 <p><cite>glycresoft</cite> stores its search results
 in a SQLite3 database like the one it writes hypotheses
 into. This lets it search for results quickly, but the
@@ -151,51 +154,167 @@ several other formats which can be read by other tools.</p>
 </dd></dl>
 
 </section>
-<section class="click-command-section" id="glycresoft-export-mzid">
-<h2>glycresoft export mzid<a class="headerlink" href="#glycresoft-export-mzid" title="Permalink to this heading">¶</a></h2>
+<section class="click-command-section" id="glycresoft-export-glycopeptide-training-mgf">
+<h2>glycresoft export glycopeptide-training-mgf<a class="headerlink" href="#glycresoft-export-glycopeptide-training-mgf" title="Permalink to this heading">¶</a></h2>
 <blockquote>
-<div><p>Write identified glycopeptides as mzIdentML file, and associated MSn spectra
-to a paired mzML file if the matched data are available. If an mzML file is written
-it will also contain the extracted ion chromatograms for each glycopeptide with an
-extracted elution profile.</p>
+<div><p>Export identified glycopeptide spectrum matches for model training as
+an annotated MGF file.</p>
 </div></blockquote>
-<div class="highlight-shell notranslate"><div class="highlight"><pre><span></span>glycresoft<span class="w"> </span><span class="nb">export</span><span class="w"> </span>mzid<span class="w"> </span><span class="o">[</span>OPTIONS<span class="o">]</span><span class="w"> </span>DATABASE_CONNECTION<span class="w"> </span>ANALYSIS_IDENTIFIER
-<span class="w">                       </span>OUTPUT_PATH
+<div class="highlight-shell notranslate"><div class="highlight"><pre><span></span>glycresoft<span class="w"> </span><span class="nb">export</span><span class="w"> </span>glycopeptide-training-mgf<span class="w"> </span><span class="o">[</span>OPTIONS<span class="o">]</span><span class="w"> </span>DATABASE_CONNECTION
+<span class="w">                                            </span>ANALYSIS_IDENTIFIER
 </pre></div>
 </div>
 <p class="rubric">Options</p>
 <dl class="std option">
-<dt class="sig sig-object std" id="cmdoption-glycresoft-export-mzid-embed-protein-sequences">
-<span id="cmdoption-glycresoft-export-mzid-exclude-protein-sequences"></span><span class="sig-name descname"><span class="pre">--embed-protein-sequences</span></span><span class="sig-prename descclassname"></span><span class="sig-prename descclassname"><span class="pre">,</span> </span><span class="sig-name descname"><span class="pre">--exclude-protein-sequences</span></span><span class="sig-prename descclassname"></span><a class="headerlink" href="#cmdoption-glycresoft-export-mzid-embed-protein-sequences" title="Permalink to this definition">¶</a></dt>
-<dd><p>Include protein sequences in the output file  [default: True]</p>
+<dt class="sig sig-object std" id="cmdoption-glycresoft-export-glycopeptide-training-mgf-o">
+<span id="cmdoption-glycresoft-export-glycopeptide-training-mgf-output-path"></span><span class="sig-name descname"><span class="pre">-o</span></span><span class="sig-prename descclassname"></span><span class="sig-prename descclassname"><span class="pre">,</span> </span><span class="sig-name descname"><span class="pre">--output-path</span></span><span class="sig-prename descclassname"> <span class="pre">&lt;path&gt;</span></span><a class="headerlink" href="#cmdoption-glycresoft-export-glycopeptide-training-mgf-o" title="Permalink to this definition">¶</a></dt>
+<dd><p>Path to write to instead of stdout</p>
 </dd></dl>
 
 <dl class="std option">
-<dt class="sig sig-object std" id="cmdoption-glycresoft-export-mzid-m">
-<span id="cmdoption-glycresoft-export-mzid-mzml-path"></span><span class="sig-name descname"><span class="pre">-m</span></span><span class="sig-prename descclassname"></span><span class="sig-prename descclassname"><span class="pre">,</span> </span><span class="sig-name descname"><span class="pre">--mzml-path</span></span><span class="sig-prename descclassname"> <span class="pre">&lt;path&gt;</span></span><a class="headerlink" href="#cmdoption-glycresoft-export-mzid-m" title="Permalink to this definition">¶</a></dt>
+<dt class="sig sig-object std" id="cmdoption-glycresoft-export-glycopeptide-training-mgf-m">
+<span id="cmdoption-glycresoft-export-glycopeptide-training-mgf-mzml-path"></span><span class="sig-name descname"><span class="pre">-m</span></span><span class="sig-prename descclassname"></span><span class="sig-prename descclassname"><span class="pre">,</span> </span><span class="sig-name descname"><span class="pre">--mzml-path</span></span><span class="sig-prename descclassname"> <span class="pre">&lt;path&gt;</span></span><a class="headerlink" href="#cmdoption-glycresoft-export-glycopeptide-training-mgf-m" title="Permalink to this definition">¶</a></dt>
 <dd><p>Alternative path to find the source mzML file</p>
+</dd></dl>
+
+<dl class="std option">
+<dt class="sig sig-object std" id="cmdoption-glycresoft-export-glycopeptide-training-mgf-t">
+<span id="cmdoption-glycresoft-export-glycopeptide-training-mgf-threshold"></span><span class="sig-name descname"><span class="pre">-t</span></span><span class="sig-prename descclassname"></span><span class="sig-prename descclassname"><span class="pre">,</span> </span><span class="sig-name descname"><span class="pre">--threshold</span></span><span class="sig-prename descclassname"> <span class="pre">&lt;float&gt;</span></span><a class="headerlink" href="#cmdoption-glycresoft-export-glycopeptide-training-mgf-t" title="Permalink to this definition">¶</a></dt>
+<dd><p>Minimum MS2 score to export</p>
 </dd></dl>
 
 <p class="rubric">Arguments</p>
 <dl class="std option">
-<dt class="sig sig-object std" id="cmdoption-glycresoft-export-mzid-arg-DATABASE_CONNECTION">
-<span class="sig-name descname"><span class="pre">DATABASE_CONNECTION</span></span><span class="sig-prename descclassname"></span><a class="headerlink" href="#cmdoption-glycresoft-export-mzid-arg-DATABASE_CONNECTION" title="Permalink to this definition">¶</a></dt>
+<dt class="sig sig-object std" id="cmdoption-glycresoft-export-glycopeptide-training-mgf-arg-DATABASE_CONNECTION">
+<span class="sig-name descname"><span class="pre">DATABASE_CONNECTION</span></span><span class="sig-prename descclassname"></span><a class="headerlink" href="#cmdoption-glycresoft-export-glycopeptide-training-mgf-arg-DATABASE_CONNECTION" title="Permalink to this definition">¶</a></dt>
 <dd><p>Required argument
 &lt;databaseconnectionparam&gt; A connection URI for a database, or a path on the file system</p>
 </dd></dl>
 
 <dl class="std option">
-<dt class="sig sig-object std" id="cmdoption-glycresoft-export-mzid-arg-ANALYSIS_IDENTIFIER">
-<span class="sig-name descname"><span class="pre">ANALYSIS_IDENTIFIER</span></span><span class="sig-prename descclassname"></span><a class="headerlink" href="#cmdoption-glycresoft-export-mzid-arg-ANALYSIS_IDENTIFIER" title="Permalink to this definition">¶</a></dt>
+<dt class="sig sig-object std" id="cmdoption-glycresoft-export-glycopeptide-training-mgf-arg-ANALYSIS_IDENTIFIER">
+<span class="sig-name descname"><span class="pre">ANALYSIS_IDENTIFIER</span></span><span class="sig-prename descclassname"></span><a class="headerlink" href="#cmdoption-glycresoft-export-glycopeptide-training-mgf-arg-ANALYSIS_IDENTIFIER" title="Permalink to this definition">¶</a></dt>
 <dd><p>Required argument
 &lt;string&gt; The ID number or name of the glycopeptide analysis to use</p>
 </dd></dl>
 
+</section>
+<section class="click-command-section" id="glycresoft-export-identified-glycans-from-glycopeptides">
+<h2>glycresoft export identified-glycans-from-glycopeptides<a class="headerlink" href="#glycresoft-export-identified-glycans-from-glycopeptides" title="Permalink to this heading">¶</a></h2>
+<blockquote>
+<div><p>Export the glycans attached to any identified glycopeptides.</p>
+<p>The files are written in an importable format to be used to create a new glycan hypothesis.</p>
+</div></blockquote>
+<div class="highlight-shell notranslate"><div class="highlight"><pre><span></span>glycresoft<span class="w"> </span><span class="nb">export</span><span class="w"> </span>identified-glycans-from-glycopeptides<span class="w"> </span><span class="o">[</span>OPTIONS<span class="o">]</span>
+<span class="w">                                                        </span>DATABASE_CONNECTION
+<span class="w">                                                        </span>ANALYSIS_IDENTIFIER
+</pre></div>
+</div>
+<p class="rubric">Options</p>
 <dl class="std option">
-<dt class="sig sig-object std" id="cmdoption-glycresoft-export-mzid-arg-OUTPUT_PATH">
-<span class="sig-name descname"><span class="pre">OUTPUT_PATH</span></span><span class="sig-prename descclassname"></span><a class="headerlink" href="#cmdoption-glycresoft-export-mzid-arg-OUTPUT_PATH" title="Permalink to this definition">¶</a></dt>
+<dt class="sig sig-object std" id="cmdoption-glycresoft-export-identified-glycans-from-glycopeptides-o">
+<span id="cmdoption-glycresoft-export-identified-glycans-from-glycopeptides-output-path"></span><span class="sig-name descname"><span class="pre">-o</span></span><span class="sig-prename descclassname"></span><span class="sig-prename descclassname"><span class="pre">,</span> </span><span class="sig-name descname"><span class="pre">--output-path</span></span><span class="sig-prename descclassname"> <span class="pre">&lt;path&gt;</span></span><a class="headerlink" href="#cmdoption-glycresoft-export-identified-glycans-from-glycopeptides-o" title="Permalink to this definition">¶</a></dt>
+<dd><p>Path to write to instead of stdout</p>
+</dd></dl>
+
+<p class="rubric">Arguments</p>
+<dl class="std option">
+<dt class="sig sig-object std" id="cmdoption-glycresoft-export-identified-glycans-from-glycopeptides-arg-DATABASE_CONNECTION">
+<span class="sig-name descname"><span class="pre">DATABASE_CONNECTION</span></span><span class="sig-prename descclassname"></span><a class="headerlink" href="#cmdoption-glycresoft-export-identified-glycans-from-glycopeptides-arg-DATABASE_CONNECTION" title="Permalink to this definition">¶</a></dt>
 <dd><p>Required argument
-&lt;string&gt;</p>
+&lt;databaseconnectionparam&gt; A connection URI for a database, or a path on the file system</p>
+</dd></dl>
+
+<dl class="std option">
+<dt class="sig sig-object std" id="cmdoption-glycresoft-export-identified-glycans-from-glycopeptides-arg-ANALYSIS_IDENTIFIER">
+<span class="sig-name descname"><span class="pre">ANALYSIS_IDENTIFIER</span></span><span class="sig-prename descclassname"></span><a class="headerlink" href="#cmdoption-glycresoft-export-identified-glycans-from-glycopeptides-arg-ANALYSIS_IDENTIFIER" title="Permalink to this definition">¶</a></dt>
+<dd><p>Required argument
+&lt;string&gt; The ID number or name of the glycopeptide analysis to use</p>
+</dd></dl>
+
+</section>
+<section class="click-command-section" id="glycresoft-export-annotate-matched-spectra">
+<h2>glycresoft export annotate-matched-spectra<a class="headerlink" href="#glycresoft-export-annotate-matched-spectra" title="Permalink to this heading">¶</a></h2>
+<blockquote>
+<div><p>Export graphical renderings of individual MS/MS assignments of glycopeptides to PDF.</p>
+<p>The output file will contain one spectrum per PDF page.</p>
+</div></blockquote>
+<div class="highlight-shell notranslate"><div class="highlight"><pre><span></span>glycresoft<span class="w"> </span><span class="nb">export</span><span class="w"> </span>annotate-matched-spectra<span class="w"> </span><span class="o">[</span>OPTIONS<span class="o">]</span><span class="w"> </span>DATABASE_CONNECTION
+<span class="w">                                           </span>ANALYSIS_IDENTIFIER
+</pre></div>
+</div>
+<p class="rubric">Options</p>
+<dl class="std option">
+<dt class="sig sig-object std" id="cmdoption-glycresoft-export-annotate-matched-spectra-o">
+<span id="cmdoption-glycresoft-export-annotate-matched-spectra-output-path"></span><span class="sig-name descname"><span class="pre">-o</span></span><span class="sig-prename descclassname"></span><span class="sig-prename descclassname"><span class="pre">,</span> </span><span class="sig-name descname"><span class="pre">--output-path</span></span><span class="sig-prename descclassname"> <span class="pre">&lt;path&gt;</span></span><a class="headerlink" href="#cmdoption-glycresoft-export-annotate-matched-spectra-o" title="Permalink to this definition">¶</a></dt>
+<dd><p>Path to write to instead of stdout</p>
+</dd></dl>
+
+<dl class="std option">
+<dt class="sig sig-object std" id="cmdoption-glycresoft-export-annotate-matched-spectra-m">
+<span id="cmdoption-glycresoft-export-annotate-matched-spectra-mzml-path"></span><span class="sig-name descname"><span class="pre">-m</span></span><span class="sig-prename descclassname"></span><span class="sig-prename descclassname"><span class="pre">,</span> </span><span class="sig-name descname"><span class="pre">--mzml-path</span></span><span class="sig-prename descclassname"> <span class="pre">&lt;path&gt;</span></span><a class="headerlink" href="#cmdoption-glycresoft-export-annotate-matched-spectra-m" title="Permalink to this definition">¶</a></dt>
+<dd><p>Alternative path to find the source mzML file</p>
+</dd></dl>
+
+<p class="rubric">Arguments</p>
+<dl class="std option">
+<dt class="sig sig-object std" id="cmdoption-glycresoft-export-annotate-matched-spectra-arg-DATABASE_CONNECTION">
+<span class="sig-name descname"><span class="pre">DATABASE_CONNECTION</span></span><span class="sig-prename descclassname"></span><a class="headerlink" href="#cmdoption-glycresoft-export-annotate-matched-spectra-arg-DATABASE_CONNECTION" title="Permalink to this definition">¶</a></dt>
+<dd><p>Required argument
+&lt;databaseconnectionparam&gt; A connection URI for a database, or a path on the file system</p>
+</dd></dl>
+
+<dl class="std option">
+<dt class="sig sig-object std" id="cmdoption-glycresoft-export-annotate-matched-spectra-arg-ANALYSIS_IDENTIFIER">
+<span class="sig-name descname"><span class="pre">ANALYSIS_IDENTIFIER</span></span><span class="sig-prename descclassname"></span><a class="headerlink" href="#cmdoption-glycresoft-export-annotate-matched-spectra-arg-ANALYSIS_IDENTIFIER" title="Permalink to this definition">¶</a></dt>
+<dd><p>Required argument
+&lt;string&gt; The ID number or name of the glycopeptide analysis to use</p>
+</dd></dl>
+
+</section>
+<section class="click-command-section" id="glycresoft-export-write-csv-spectrum-library">
+<h2>glycresoft export write-csv-spectrum-library<a class="headerlink" href="#glycresoft-export-write-csv-spectrum-library" title="Permalink to this heading">¶</a></h2>
+<blockquote>
+<div><p>Export individual MS/MS assignments of glycopeptides to CSV.</p>
+<p>Each row corresponds to a single product ion match, partitioned by
+scan ID. Unmatched peaks are ignored.</p>
+</div></blockquote>
+<div class="highlight-shell notranslate"><div class="highlight"><pre><span></span>glycresoft<span class="w"> </span><span class="nb">export</span><span class="w"> </span>write-csv-spectrum-library<span class="w"> </span><span class="o">[</span>OPTIONS<span class="o">]</span><span class="w"> </span>DATABASE_CONNECTION
+<span class="w">                                             </span>ANALYSIS_IDENTIFIER
+</pre></div>
+</div>
+<p class="rubric">Options</p>
+<dl class="std option">
+<dt class="sig sig-object std" id="cmdoption-glycresoft-export-write-csv-spectrum-library-o">
+<span id="cmdoption-glycresoft-export-write-csv-spectrum-library-output-path"></span><span class="sig-name descname"><span class="pre">-o</span></span><span class="sig-prename descclassname"></span><span class="sig-prename descclassname"><span class="pre">,</span> </span><span class="sig-name descname"><span class="pre">--output-path</span></span><span class="sig-prename descclassname"> <span class="pre">&lt;path&gt;</span></span><a class="headerlink" href="#cmdoption-glycresoft-export-write-csv-spectrum-library-o" title="Permalink to this definition">¶</a></dt>
+<dd><p>Path to write to instead of stdout</p>
+</dd></dl>
+
+<dl class="std option">
+<dt class="sig sig-object std" id="cmdoption-glycresoft-export-write-csv-spectrum-library-m">
+<span id="cmdoption-glycresoft-export-write-csv-spectrum-library-mzml-path"></span><span class="sig-name descname"><span class="pre">-m</span></span><span class="sig-prename descclassname"></span><span class="sig-prename descclassname"><span class="pre">,</span> </span><span class="sig-name descname"><span class="pre">--mzml-path</span></span><span class="sig-prename descclassname"> <span class="pre">&lt;path&gt;</span></span><a class="headerlink" href="#cmdoption-glycresoft-export-write-csv-spectrum-library-m" title="Permalink to this definition">¶</a></dt>
+<dd><p>Alternative path to find the source mzML file</p>
+</dd></dl>
+
+<dl class="std option">
+<dt class="sig sig-object std" id="cmdoption-glycresoft-export-write-csv-spectrum-library-t">
+<span id="cmdoption-glycresoft-export-write-csv-spectrum-library-fdr-threshold"></span><span class="sig-name descname"><span class="pre">-t</span></span><span class="sig-prename descclassname"></span><span class="sig-prename descclassname"><span class="pre">,</span> </span><span class="sig-name descname"><span class="pre">--fdr-threshold</span></span><span class="sig-prename descclassname"> <span class="pre">&lt;float&gt;</span></span><a class="headerlink" href="#cmdoption-glycresoft-export-write-csv-spectrum-library-t" title="Permalink to this definition">¶</a></dt>
+<dd><p>[default: 0.05]</p>
+</dd></dl>
+
+<p class="rubric">Arguments</p>
+<dl class="std option">
+<dt class="sig sig-object std" id="cmdoption-glycresoft-export-write-csv-spectrum-library-arg-DATABASE_CONNECTION">
+<span class="sig-name descname"><span class="pre">DATABASE_CONNECTION</span></span><span class="sig-prename descclassname"></span><a class="headerlink" href="#cmdoption-glycresoft-export-write-csv-spectrum-library-arg-DATABASE_CONNECTION" title="Permalink to this definition">¶</a></dt>
+<dd><p>Required argument
+&lt;databaseconnectionparam&gt; A connection URI for a database, or a path on the file system</p>
+</dd></dl>
+
+<dl class="std option">
+<dt class="sig sig-object std" id="cmdoption-glycresoft-export-write-csv-spectrum-library-arg-ANALYSIS_IDENTIFIER">
+<span class="sig-name descname"><span class="pre">ANALYSIS_IDENTIFIER</span></span><span class="sig-prename descclassname"></span><a class="headerlink" href="#cmdoption-glycresoft-export-write-csv-spectrum-library-arg-ANALYSIS_IDENTIFIER" title="Permalink to this definition">¶</a></dt>
+<dd><p>Required argument
+&lt;string&gt; The ID number or name of the glycopeptide analysis to use</p>
 </dd></dl>
 
 </section>
@@ -210,7 +329,7 @@ extracted elution profile.</p>
         &#160;&#160;::&#160;&#160;
         <a class="uplink" href="../../index.html">Contents</a>
         &#160;&#160;::&#160;&#160;
-        <a href="../../tutorials/index.html">Tutorials</a>&#160;&#160;»
+        <a href="export-glycan.html">Export Glycan Search Results</a>&#160;&#160;»
         </p>
 
       </div>
