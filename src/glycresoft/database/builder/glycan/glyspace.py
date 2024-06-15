@@ -74,12 +74,12 @@ class GlycanCompositionSerializationCache(object):
 
 o_glycan_query = """
 SELECT DISTINCT ?saccharide ?glycoct ?taxon ?motif WHERE {
-    ?saccharide a glycan:saccharide .
+    ?saccharide a glycan:Saccharide .
     ?saccharide glycan:has_glycosequence ?sequence .
-    ?saccharide skos:exactMatch ?gdb .
-    ?gdb glycan:has_reference ?ref .
-    ?ref glycan:is_from_source ?source .
-    ?source glycan:has_taxon ?taxon
+    ?saccharide glycan:is_from_source ?taxon .
+    FILTER CONTAINS(str(?sequence), "glycoct") .
+    ?sequence glycan:has_sequence ?glycoct .
+    ?saccharide glycan:has_motif ?motif .
     FILTER CONTAINS(str(?sequence), "glycoct") .
     ?sequence glycan:has_sequence ?glycoct .
     ?saccharide glycan:has_motif ?motif .
@@ -91,12 +91,9 @@ SELECT DISTINCT ?saccharide ?glycoct ?taxon ?motif WHERE {
 
 restricted_o_glycan_query = """
 SELECT DISTINCT ?saccharide ?glycoct ?taxon ?motif WHERE {
-    ?saccharide a glycan:saccharide .
+    ?saccharide a glycan:Saccharide .
     ?saccharide glycan:has_glycosequence ?sequence .
-    ?saccharide skos:exactMatch ?gdb .
-    ?gdb glycan:has_reference ?ref .
-    ?ref glycan:is_from_source ?source .
-    ?source glycan:has_taxon ?taxon
+    ?saccharide glycan:is_from_source ?taxon .
     FILTER CONTAINS(str(?sequence), "glycoct") .
     ?sequence glycan:has_sequence ?glycoct .
     ?saccharide glycan:has_motif ?motif .
@@ -107,12 +104,9 @@ SELECT DISTINCT ?saccharide ?glycoct ?taxon ?motif WHERE {
 
 n_glycan_query = """
 SELECT DISTINCT ?saccharide ?glycoct ?taxon ?motif WHERE {
-    ?saccharide a glycan:saccharide .
+    ?saccharide a glycan:Saccharide .
     ?saccharide glycan:has_glycosequence ?sequence .
-    ?saccharide skos:exactMatch ?gdb .
-    ?gdb glycan:has_reference ?ref .
-    ?ref glycan:is_from_source ?source .
-    ?source glycan:has_taxon ?taxon
+    ?saccharide glycan:is_from_source ?taxon .
     FILTER CONTAINS(str(?sequence), "glycoct") .
     ?sequence glycan:has_sequence ?glycoct .
     ?saccharide glycan:has_motif ?motif .
@@ -312,7 +306,8 @@ class GlyspaceGlycanStructureHypothesisSerializerBase(GlycanHypothesisSerializer
 
     def translate_response(self, response):
         for name, glycosequence, taxon, motif in response:
-            taxon = parse_taxon(taxon)
+            breakpoint()
+            # taxon = parse_taxon(taxon)
             try:
                 structure = glycoct.loads(glycosequence, structure_class=NamedGlycan)
                 structure.name = name

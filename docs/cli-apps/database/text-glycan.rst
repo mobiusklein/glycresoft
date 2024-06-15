@@ -4,7 +4,7 @@ Building a Glycan Hypothesis from a Text File
 =============================================
 
 When a comprehensive list of glycan compositions is available,
-you can translate them into a list encoded in `IUPAClite <../../topics/iupaclite.html>`_
+you can translate them into a list encoded in :ref:`IUPAClite`
 with one composition per line. Lines may have the form
 
 .. code-block:: Text
@@ -15,10 +15,10 @@ with one composition per line. Lines may have the form
 
 where classifier is one of the recognized glycan composition classifiers
 such as ``N-glycan``, ``O-glycan``, or ``GAG-linker``. For more information
-on glycan composition classifiers, please see `Glycan Composition Classes <todo>`_.
+on glycan composition classifiers, please see :ref:`Glycan Composition Classes <glycan_classes>`.
 
 
-.. click:: glycan_profiling.cli.build_db:glycan_text
+.. click:: glycresoft.cli.build_db:glycan_text
     :prog: glycresoft build-hypothesis glycan-text
 
 For more information on reductions and derivatizations, please see `Glycan Modifications <todo>`_

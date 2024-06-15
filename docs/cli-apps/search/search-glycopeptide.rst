@@ -10,7 +10,7 @@ and deconvoluted an LC-MS/MS data file, you're ready to do just that.
 Traditional Database Search
 ----------------------------
 
-.. click:: glycan_profiling.cli.analyze:search_glycopeptide
+.. click:: glycresoft.cli.analyze:search_glycopeptide
     :prog: glycresoft analyze search-glycopeptide
 
 
@@ -28,7 +28,7 @@ Usage Example
 Multi-component Database Search
 -------------------------------
 
-.. click:: glycan_profiling.cli.analyze:search_glycopeptide_multipart
+.. click:: glycresoft.cli.analyze:search_glycopeptide_multipart
     :prog: glycresoft analyze search-glycopeptide-multipart
 
 Usage Example
@@ -49,7 +49,7 @@ consider shrinking the ``-w`` parameter.
 Build a Glycosite Network Smoothing Model
 ------------------------------------------
 
-.. click:: glycan_profiling.cli.analyze:fit_glycoproteome_model
+.. click:: glycresoft.cli.analyze:fit_glycoproteome_model
     :prog: glycresoft analyze fit-glycoproteome-smoothing-model
 
 

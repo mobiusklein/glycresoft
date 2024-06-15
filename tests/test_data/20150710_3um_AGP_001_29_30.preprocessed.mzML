@@ -119,7 +119,7 @@
           <cvParam accession="MS:1001508" cvRef="PSI-MS" name="Agilent MassHunter nativeID format" value=""/>
           <cvParam accession="MS:1001509" cvRef="PSI-MS" name="Agilent MassHunter format" value=""/>
         </sourceFile>
-        <sourceFile location="C:\Users\Joshua\Dev\glycresoft\glycan_profiling\test\test_data" name="20150710_3um_AGP_001_29_30.mzML" id="20150710_3um_AGP_001_29_30.mzML">
+        <sourceFile location="C:\Users\Joshua\Dev\glycresoft\glycresoft\test\test_data" name="20150710_3um_AGP_001_29_30.mzML" id="20150710_3um_AGP_001_29_30.mzML">
           <cvParam accession="MS:1001508" cvRef="PSI-MS" name="Agilent MassHunter nativeID format" value=""/>
           <cvParam accession="MS:1000584" cvRef="PSI-MS" name="mzML format" value=""/>
         </sourceFile>
