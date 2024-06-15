@@ -2,9 +2,9 @@ import unittest
 import tempfile
 
 
-from glycan_profiling import serialize
+from glycresoft import serialize
 
-from glycan_profiling.database.prebuilt import biosynthesis_human_n_linked
+from glycresoft.database.prebuilt import biosynthesis_human_n_linked
 
 
 class GlycanCombinatoricsTests(unittest.TestCase):

@@ -1,6 +1,6 @@
 import time
 import random
-from glycan_profiling.task import TaskExecutionSequence, Pipeline
+from glycresoft.task import TaskExecutionSequence, Pipeline
 
 class MyTask(TaskExecutionSequence):
     def __init__(self, threshold):

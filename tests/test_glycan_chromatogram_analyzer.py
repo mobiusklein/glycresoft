@@ -6,9 +6,9 @@ import os
 from . import fixtures
 from .test_constrained_combinatorics import (
     FILE_SOURCE)
-from glycan_profiling.profiler import MzMLGlycanChromatogramAnalyzer, GeneralScorer
-from glycan_profiling.database.builder.glycan import CombinatorialGlycanHypothesisSerializer
-from glycan_profiling.serialize import AnalysisDeserializer
+from glycresoft.profiler import MzMLGlycanChromatogramAnalyzer, GeneralScorer
+from glycresoft.database.builder.glycan import CombinatorialGlycanHypothesisSerializer
+from glycresoft.serialize import AnalysisDeserializer
 
 
 agp_glycomics_mzml = fixtures.get_test_data(

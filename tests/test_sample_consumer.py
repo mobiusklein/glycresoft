@@ -9,7 +9,7 @@ from ms_deisotope.output import ProcessedMSFileLoader
 
 import numpy as np
 
-from glycan_profiling.profiler import SampleConsumer
+from glycresoft.profiler import SampleConsumer
 
 from . import fixtures
 

@@ -4,18 +4,18 @@ from glycopeptidepy import Modification
 from glypy.structure.glycan_composition import HashableGlycanComposition
 
 from ms_deisotope.output import ProcessedMSFileLoader
-from glycan_profiling.tandem import oxonium_ions
+from glycresoft.tandem import oxonium_ions
 
 from .fixtures import get_test_data
 
-from glycan_profiling.tandem.glycopeptide.core_search import GlycanCombinationRecord
-from glycan_profiling.tandem.oxonium_ions import OxoniumIndex
-from glycan_profiling.structure import FragmentCachingGlycopeptide
+from glycresoft.tandem.glycopeptide.core_search import GlycanCombinationRecord
+from glycresoft.tandem.oxonium_ions import OxoniumIndex
+from glycresoft.structure import FragmentCachingGlycopeptide
 
-from glycan_profiling.tandem.glycopeptide.scoring import (
+from glycresoft.tandem.glycopeptide.scoring import (
     base, intensity_scorer, simple_score, binomial_score, coverage_weighted_binomial)
 
-from glycan_profiling.tandem.peptide.scoring.localize import PTMProphetEvaluator
+from glycresoft.tandem.peptide.scoring.localize import PTMProphetEvaluator
 
 
 class TestGlycopeptideScorers(unittest.TestCase):

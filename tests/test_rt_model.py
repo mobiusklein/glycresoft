@@ -4,9 +4,9 @@ import glycopeptidepy
 
 from glypy.structure.glycan_composition import HashableGlycanComposition
 
-from glycan_profiling.chromatogram_tree.mass_shift import Unmodified, Ammonium
-from glycan_profiling.scoring.elution_time_grouping.structure import ChromatogramProxy, GlycopeptideChromatogramProxy
-from glycan_profiling.scoring.elution_time_grouping.reviser import IsotopeRule
+from glycresoft.chromatogram_tree.mass_shift import Unmodified, Ammonium
+from glycresoft.scoring.elution_time_grouping.structure import ChromatogramProxy, GlycopeptideChromatogramProxy
+from glycresoft.scoring.elution_time_grouping.reviser import IsotopeRule
 
 
 class TestChromatogramProxy(unittest.TestCase):

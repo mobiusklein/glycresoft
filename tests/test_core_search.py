@@ -4,8 +4,8 @@ import glypy
 from glycopeptidepy import PeptideSequence
 from ms_deisotope.output import ProcessedMSFileLoader
 
-from glycan_profiling.tandem.glycopeptide import core_search
-from glycan_profiling.tandem.glycopeptide.core_search import (
+from glycresoft.tandem.glycopeptide import core_search
+from glycresoft.tandem.glycopeptide.core_search import (
     GlycanCombinationRecord, GlycanTypes, GlycanFilteringPeptideMassEstimator)
 
 from .fixtures import get_test_data
