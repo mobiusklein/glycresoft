@@ -321,7 +321,7 @@ def run_setup(include_cext=True):
         author_email="jaklein@bu.edu",
         description="Glycan and Glycopeptide Mass Spectrometry Database Search Tool",
         long_description=long_description,
-        long_description_content_type='text/markdown',
+        long_description_content_type="text/markdown",
         entry_points={
             "console_scripts": ["glycresoft = glycresoft.cli.__main__:main"],
         },
@@ -337,7 +337,7 @@ def run_setup(include_cext=True):
         classifiers=[
             "Development Status :: 3 - Alpha",
             "Intended Audience :: Science/Research",
-            "License :: OSI Approved :: BSD License",
+            "License :: OSI Approved :: Apache Software License",
             "Topic :: Scientific/Engineering :: Bio-Informatics",
         ],
         zip_safe=False,

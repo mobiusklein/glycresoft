@@ -3,7 +3,8 @@ six
 
 sqlalchemy < 1.4.0
 
-numpy>=1.22.0
+numpy>=2.0.0; python_version >= '3.9'
+numpy; python_version < '3.9'
 scipy
 matplotlib>=3.4.3
 scikit-learn
