@@ -14,6 +14,10 @@ from ms_peak_picker import search
 
 from .base import ScoringFeatureBase, epsilon
 
+try:
+    trapezoid = np.trapz
+except AttributeError:
+    trapezoid = np.trapezoid
 
 MIN_POINTS = 5
 MAX_POINTS = 2000
@@ -339,7 +343,7 @@ class ChromatogramShapeFitterBase(ScoringFeatureBase):
     def integrate(self):
         time = self.xs
         smoothed = self.compute_fitted()
-        return np.trapz(smoothed, time)
+        return trapezoid(smoothed, time)
 
 
 class ChromatogramShapeFitter(ChromatogramShapeFitterBase):

@@ -17,6 +17,11 @@ from .mass_shift import MassShiftBase, Unmodified
 from .utils import ArithmeticMapping
 
 
+try:
+    trapezoid = np.trapz
+except AttributeError:
+    trapezoid = np.trapezoid
+
 MIN_POINTS_FOR_CHARGE_STATE = 3
 intensity_getter = attrgetter("intensity")
 
@@ -232,7 +237,7 @@ class Chromatogram(_TimeIntervalMethods):
         values = np.array([
             node.total_intensity() for node in self.nodes
         ])
-        integrated = np.trapz(values, spacing)
+        integrated = trapezoid(values, spacing)
         return integrated
 
     @property
@@ -623,7 +628,7 @@ class Chromatogram(_TimeIntervalMethods):
 
     def integrate(self):
         time, intensity = self.as_arrays()
-        return np.trapz(intensity, time)
+        return trapezoid(intensity, time)
 
 
 class ChromatogramTreeList(object):

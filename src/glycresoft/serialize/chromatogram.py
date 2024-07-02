@@ -36,6 +36,11 @@ from .spectrum import (
 from glypy.composition.base import formula
 from glypy import Composition
 
+try:
+    trapezoid = np.trapz
+except AttributeError:
+    trapezoid = np.trapezoid
+
 
 bakery = baked.bakery()
 
@@ -672,7 +677,7 @@ class Chromatogram(Base, BoundToAnalysis):
 
     def integrate(self):
         time, intensity = self.as_arrays()
-        return np.trapz(intensity, time)
+        return trapezoid(intensity, time)
 
     @property
     def total_signal(self):
