@@ -23,24 +23,46 @@ authors:
       School of Medicine
 preferred-citation:
   authors:
-      - given-names: Joshua
-        name-particle: A
-        family-names: Klein
-        email: jaklein@bu.edu
-        affiliation: 'Program for Bioinformatics, Boston University'
-        orcid: 'https://orcid.org/0000-0003-1279-6838'
-      - given-names: Joseph
-        family-names: Zaia
-        email: jzaia@bu.edu
-        affiliation: >-
-          Department of Biochemistry, Boston University
-          School of Medicine
+    - given-names: Joshua
+      name-particle: A
+      family-names: Klein
+      email: jaklein@bu.edu
+      affiliation: 'Program for Bioinformatics, Boston University'
+      orcid: 'https://orcid.org/0000-0003-1279-6838'
+    - given-names: Luis
+      family-names: Carvalho
+    - given-names: Joseph
+      family-names: Zaia
+      email: jzaia@bu.edu
+      affiliation: >-
+        Department of Biochemistry, Boston University
+        School of Medicine
   title: >-
-        Relative Retention Time Estimation Improves
-        N-Glycopeptide Identifications by LC-MS/MS
+        Expanding N-glycopeptide identifications by modeling fragmentation, elution, and glycome connectivity
   type: article
-  doi: 10.1021/acs.jproteome.0c00051
+  doi: 10.1021/10.1038/s41467-024-50338-5
+  journal: Nature Communications
 references:
+  - authors:
+    - given-names: Joshua
+      name-particle: A
+      family-names: Klein
+      email: jaklein@bu.edu
+      affiliation: 'Program for Bioinformatics, Boston University'
+      orcid: 'https://orcid.org/0000-0003-1279-6838'
+    - given-names: Luis
+      family-names: Carvalho
+    - given-names: Joseph
+      family-names: Zaia
+      email: jzaia@bu.edu
+      affiliation: >-
+        Department of Biochemistry, Boston University
+        School of Medicine
+    title: >-
+        Expanding N-glycopeptide identifications by modeling fragmentation, elution, and glycome connectivity
+    type: article
+    doi: 10.1021/10.1038/s41467-024-50338-5
+    journal: Nature Communications
   - authors:
     - given-names: Joshua
       name-particle: A

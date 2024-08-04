@@ -1,9 +1,9 @@
 
-![GitHub Actions Workflow Status](https://img.shields.io/github/actions/workflow/status/mobiusklein/glycresoft/test.yaml?style=for-the-badge)
+![GitHub Actions Workflow Status](https://img.shields.io/github/actions/workflow/status/mobiusklein/glycresoft/test.yaml?style=for-the-badge) ![Documentation Link](https://img.shields.io/badge/docs-glycresoft-purple?style=for-the-badge&logo=readthedocs)
 
 # GlycReSoft
 
-Software for analyzing glycomics and glycoproteomics LC-MS/MS data
+Software for analyzing glycomics and glycoproteomics LC-MS/MS data.
 
 ## Usage
 
@@ -53,6 +53,13 @@ This will install PyInstaller, a Python program which can package another Python
 
 When installing pre-compiled wheels from the package index, installation should take less than 5 minutes on a regular computer. Installing packages from source things may take up to 15 minutes.
 
+For glycopeptide fragmentation modeling, please see [https://github.com/mobiusklein/glycopeptide_feature_learning](https://github.com/mobiusklein/glycopeptide_feature_learning).
+
+### GUI
+
+For a web-based graphical user interface, see [https://github.com/mobiusklein/glycresoft_app](https://github.com/mobiusklein/glycresoft_app).
+The wrapping desktop application: [https://github.com/mobiusklein/glycresoft_desktop](https://github.com/mobiusklein/glycresoft_desktop).
+
 ## Usage
 
 The general CLI information, see the [Documentation](https://mobiusklein.github.io/glycresoft/docs/_build/html/index.html), or the command-level
@@ -63,3 +70,9 @@ The general CLI information, see the [Documentation](https://mobiusklein.github.
 For a brief tutorial on the original high collision energy glycopeptide search tool, see the [Original Tutorial](https://mobiusklein.github.io/glycresoft/docs/_build/html/tutorials/glycoproteomics-tutorial.html).
 
 For a tutorial on the stepped collision energy glycopeptide search tool, see the [SCE Tutorial](https://mobiusklein.github.io/glycresoft/docs/_build/html/tutorials/glycoproteomics-sce-tutorial.html).
+
+## Citing
+
+If you used `glycresoft` in your research, please cite
+
+> Klein, J., Carvalho, L., & Zaia, J. (2024). Expanding N-glycopeptide identifications by modeling fragmentation, elution, and glycome connectivity. Nature Communications, 15(1), 6168. https://doi.org/10.1038/s41467-024-50338-5
