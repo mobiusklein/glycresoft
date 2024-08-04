@@ -14,9 +14,13 @@ from glycopeptidepy.structure.sequence import PeptideSequence
 from glycopeptidepy.structure.parser import sequence_tokenizer
 from glycopeptidepy.algorithm import reverse_preserve_sequon
 from glycopeptidepy.structure.glycan import HashableGlycanComposition, GlycanCompositionWithOffsetProxy
-from glycopeptidepy.structure.fragmentation_strategy import StubGlycopeptideStrategy
+from glycopeptidepy.structure.fragmentation_strategy import StubGlycopeptideStrategy, EXDFragmentationStrategy
 from glycopeptidepy.structure.fragment import SimpleFragment, FragmentBase, PeptideFragment, StubFragment
 
+try:
+    from glycopeptidepy.structure.fragmentation_strategy.peptide import CachingEXDFragmentationStrategy
+except ImportError:
+    CachingEXDFragmentationStrategy = EXDFragmentationStrategy
 
 from .lru import LRUCache
 
@@ -371,6 +375,9 @@ class FragmentCachingGlycopeptide(PeptideSequence):
         if key in self.fragment_caches:
             return self.fragment_caches[key]
         else:
+            strategy = kwargs.get('strategy')
+            if strategy == EXDFragmentationStrategy:
+                strategy = CachingEXDFragmentationStrategy
             result = list(super(FragmentCachingGlycopeptide, self).get_fragments(*args, **kwargs))
             self.fragment_caches[key] = result
             return result
