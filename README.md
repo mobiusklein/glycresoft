@@ -1,5 +1,5 @@
 
-![GitHub Actions Workflow Status](https://img.shields.io/github/actions/workflow/status/mobiusklein/glycresoft/test.yaml?style=for-the-badge) ![Documentation Link](https://img.shields.io/badge/docs-glycresoft-purple?style=for-the-badge&logo=readthedocs)
+[![GitHub Actions Workflow Status](https://img.shields.io/github/actions/workflow/status/mobiusklein/glycresoft/test.yaml?style=for-the-badge)](https://github.com/mobiusklein/glycresoft/actions/workflows/test.yaml) [![Documentation Link](https://img.shields.io/badge/docs-glycresoft-purple?style=for-the-badge&logo=readthedocs)](https://mobiusklein.github.io/glycresoft/)
 
 # GlycReSoft
 
