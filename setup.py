@@ -325,6 +325,7 @@ def run_setup(include_cext=True):
         entry_points={
             "console_scripts": ["glycresoft = glycresoft.cli.__main__:main"],
         },
+        extras_require={"fragmentation-modeling": ["glycopeptide-feature-learning"]},
         package_data={
             "glycresoft.models": ["src/glycresoft/models/data/*"],
             "glycresoft.database.prebuilt": ["src/glycresoft/database/prebuilt/data/*"],

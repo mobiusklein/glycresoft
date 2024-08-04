@@ -15,7 +15,12 @@ Installing from PyPI
 
     pip install -v glycresoft
 
+For glycopeptide fragmentation modeling, install `glycopeptide-feature-learning <https://pypi.org/project/glycopeptide-feature-learning/>`_
 
+.. code-block:: bash
+    :linenos:
+
+    pip install -v glycopeptide-feature-learning
 
 Installing From Source
 =======================
