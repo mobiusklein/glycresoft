@@ -3,8 +3,6 @@ import time
 from queue import Empty, Full, Queue
 from typing import List, Optional, Tuple, Type, Union, Dict, Set, TYPE_CHECKING
 
-from multiprocessing import Event, Manager
-
 from glycresoft.chromatogram_tree.mass_shift import MassShiftBase
 
 from ms_deisotope.data_source import ProcessedScan, ProcessedRandomAccessScanSource
@@ -320,8 +318,8 @@ class MapperExecutor(TaskExecutionSequence):
 
     in_queue: Queue
     out_queue: Queue
-    in_done_event: Event
-    done_event: Event
+    in_done_event: "MPEvent"
+    done_event: "MPEvent"
 
     def __init__(self, predictive_searchers, scan_loader, in_queue, out_queue, in_done_event):
         self.in_queue = in_queue
@@ -512,7 +510,6 @@ class MatcherExecutor(TaskExecutionSequence):
     done_event: 'MPEvent'
     ipc_manager: 'SyncManager'
 
-    ipc_manager: Manager
     scorer_type: Type[GlycopeptideSpectrumMatcherBase]
 
     n_processes: int

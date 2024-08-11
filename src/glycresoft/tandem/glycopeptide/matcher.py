@@ -1,15 +1,8 @@
-from collections import OrderedDict
-
+import pickle
 import threading
-try:
-    from Queue import Queue as ThreadQueue
-except ImportError:
-    from queue import Queue as ThreadQueue
 
-try:
-    import cPickle as pickle
-except ImportError:
-    import pickle
+from collections import OrderedDict
+from queue import Queue as ThreadQueue
 
 from glycresoft.chromatogram_tree import Unmodified
 
@@ -18,7 +11,7 @@ from glycresoft.structure import (
     SequenceReversingCachingGlycopeptideParser,
     FragmentCachingGlycopeptide,
     DecoyFragmentCachingGlycopeptide)
-from glycresoft.structure.structure_loader import GlycanAwareGlycopeptideFragmentCachingContext
+from glycresoft.structure.structure_loader import GlycanAwareGlycopeptideFragmentCachingContext, GlycopeptideFragmentCachingContext
 
 from ..spectrum_evaluation import TandemClusterEvaluatorBase, DEFAULT_WORKLOAD_MAX
 from ..process_dispatcher import SpectrumIdentificationWorkerBase
@@ -37,7 +30,7 @@ class ParserClosure(object):
 class GlycopeptideSpectrumGroupEvaluatorMixin(object):
     __slots__ = ()
 
-    def create_evaluation_context(self, subgroup):
+    def create_evaluation_context(self, subgroup) -> GlycopeptideFragmentCachingContext:
         return GlycanAwareGlycopeptideFragmentCachingContext()
 
     def construct_cache_subgroups(self, work_order):
