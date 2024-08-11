@@ -4,6 +4,9 @@ from uuid import uuid4
 import dill as pickle
 
 import click
+
+from ms_deisotope.data_source.metadata.sample import Sample
+
 from glycresoft import serialize
 from glycresoft.cli.export import analysis_identifier_arg
 
@@ -175,7 +178,10 @@ def search_glycopeptide(context, database_connection, sample_path, hypothesis_id
         os.remove(output_path)
     database_connection = DatabaseBoundOperation(database_connection)
     ms_data = ProcessedMSFileLoader(sample_path, use_index=False)
-    sample_run = ms_data.sample_run
+    try:
+        sample_run = ms_data.sample_run
+    except StopIteration:
+        sample_run = Sample(name=os.path.basename(sample_path).split('.')[0], id=str(uuid4()))
 
     try:
         hypothesis = get_by_name_or_id(
@@ -404,7 +410,10 @@ def search_glycopeptide_multipart(context, database_connection,
     database_connection = DatabaseBoundOperation(database_connection)
     decoy_database_connection = DatabaseBoundOperation(decoy_database_connection)
     ms_data = ProcessedMSFileLoader(sample_path, use_index=False)
-    sample_run = ms_data.sample_run
+    try:
+        sample_run = ms_data.sample_run
+    except StopIteration:
+        sample_run = Sample(name=os.path.basename(sample_path).split(".")[0], id=str(uuid4()))
 
     try:
         target_hypothesis = get_by_name_or_id(
@@ -718,7 +727,10 @@ def search_glycan(context, database_connection, sample_path,
 
     database_connection = DatabaseBoundOperation(database_connection)
     ms_data = ProcessedMSFileLoader(sample_path, use_index=False)
-    sample_run = ms_data.sample_run
+    try:
+        sample_run = ms_data.sample_run
+    except StopIteration:
+        sample_run = Sample(name=os.path.basename(sample_path).split(".")[0], id=str(uuid4()))
 
     try:
         hypothesis = get_by_name_or_id(
