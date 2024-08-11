@@ -1,16 +1,20 @@
 import math
-from typing import List, Mapping, Optional, Set, Tuple, Type
+from typing import List, Mapping, Optional, Set, Tuple, Type, Union
 
 
+from glycopeptidepy import PeptideSequence
 from glycopeptidepy.structure.fragment import ChemicalShift, IonSeries, FragmentBase
 from glycopeptidepy.structure.fragmentation_strategy import EXDFragmentationStrategy, HCDFragmentationStrategy, PeptideFragmentationStrategyBase
 
 from glycresoft.structure.fragment_match_map import FragmentMatchMap
+from glycresoft.structure.structure_loader import FragmentCachingGlycopeptide
 from ..core_search import glycan_side_group_count
 from ...spectrum_match import SpectrumMatcherBase, ModelTreeNode
 
 
 class GlycopeptideSpectrumMatcherBase(SpectrumMatcherBase):
+    target: Union[FragmentCachingGlycopeptide, PeptideSequence]
+
     _peptide_Y_ion_utilization: Optional[Tuple[float, int, int]] = None
     _glycan_score: Optional[float] = None
     _peptide_score: Optional[float] = None
