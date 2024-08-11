@@ -1,6 +1,6 @@
 import operator
 
-from collections import namedtuple
+from collections import defaultdict, namedtuple
 from functools import partial
 
 from typing import Any, Callable, ClassVar, Dict, Iterable, Type, Union, Optional, Tuple, List
@@ -17,12 +17,16 @@ from glycopeptidepy.structure.glycan import HashableGlycanComposition, GlycanCom
 from glycopeptidepy.structure.fragmentation_strategy import StubGlycopeptideStrategy, EXDFragmentationStrategy
 from glycopeptidepy.structure.fragment import SimpleFragment, FragmentBase, PeptideFragment, StubFragment
 
+from .lru import LRUCache
+
 try:
     from glycopeptidepy.structure.fragmentation_strategy.peptide import CachingEXDFragmentationStrategy
 except ImportError:
     CachingEXDFragmentationStrategy = EXDFragmentationStrategy
 
-from .lru import LRUCache
+CachingEXDFragmentationStrategy = EXDFragmentationStrategy
+
+
 
 
 class GlycanCompositionCache(Dict[str, HashableGlycanComposition]):
@@ -335,6 +339,8 @@ class FragmentCachingGlycopeptide(PeptideSequence):
     id: Union[int, Any]
     glycan_prior: float
 
+    _exd_glycan_channel = None
+
     def __init__(self, *args, **kwargs):
         kwargs.setdefault('parser_function', hashable_glycan_glycopeptide_parser)
         super(FragmentCachingGlycopeptide, self).__init__(*args, **kwargs)
@@ -370,14 +376,31 @@ class FragmentCachingGlycopeptide(PeptideSequence):
     def __ne__(self, other):
         return not self == other
 
+    def _make_exd_glycan_channel(self):
+        is_all_core = True
+        tokens = []
+        for i, g in self.glycosylation_manager.items():
+            if not g.rule.is_core:
+                is_all_core = False
+            tokens.append((i, str(g)))
+        tokens.sort()
+        if is_all_core:
+            tokens.append(str(self.glycan_composition))
+        return tuple(tokens)
+
     def get_fragments(self, *args, **kwargs) -> List[PeptideFragment]:  # pylint: disable=arguments-differ
+        strategy = kwargs.get('strategy')
+        if strategy == EXDFragmentationStrategy:
+            kwargs['strategy'] = CachingEXDFragmentationStrategy
+        if strategy is not None:
+            if issubclass(strategy, EXDFragmentationStrategy):
+                if self._exd_glycan_channel is None:
+                    self._exd_glycan_channel = self._make_exd_glycan_channel()
+                kwargs.setdefault("glycan_channel", self._exd_glycan_channel)
         key = self.fragment_caches.peptide_backbone_fragment_key(self, args, kwargs)
         if key in self.fragment_caches:
             return self.fragment_caches[key]
         else:
-            strategy = kwargs.get('strategy')
-            if strategy == EXDFragmentationStrategy:
-                strategy = CachingEXDFragmentationStrategy
             result = list(super(FragmentCachingGlycopeptide, self).get_fragments(*args, **kwargs))
             self.fragment_caches[key] = result
             return result
@@ -522,6 +545,28 @@ class CachingPeptideParser(CachingGlycopeptideParser):
         return KeyTuple(struct.id, struct.modified_peptide_sequence)
 
 
+class DecoyEXDFragmentationStrategy(CachingEXDFragmentationStrategy):
+    shared_composition_fragment_cache_ambiguous = defaultdict(dict)
+    shared_composition_fragment_combination_cache_ambiguous = defaultdict(
+        dict
+    )
+
+    def _get_glycan_composition_fragments(self, modification, series: str, position: int):
+        fragments = super()._get_glycan_composition_fragments(modification, series, position)
+        shifts = DecoyFragmentCachingGlycopeptide.get_random_shifts_for(
+            self.peptide.glycan.mass(),
+            len(fragments),
+            1.0,
+            30.0
+        )
+        shifted = []
+        for (frag, shift) in zip(fragments, shifts):
+            frag = frag.clone()
+            frag.mass += shift
+            shifted.append(frag)
+        return shifted
+
+
 class DecoyFragmentCachingGlycopeptide(FragmentCachingGlycopeptide):
     _random_shift_cache = dict()
 
@@ -568,6 +613,12 @@ class DecoyFragmentCachingGlycopeptide(FragmentCachingGlycopeptide):
         if do_clone:
             return result
         return stubs
+
+    def get_fragments(self, *args, **kwargs) -> List[PeptideFragment]:
+        strat = kwargs.get("strategy")
+        if strat is not None and issubclass(strat, EXDFragmentationStrategy):
+            kwargs['strategy'] = DecoyEXDFragmentationStrategy
+        return super().get_fragments(*args, **kwargs)
 
     def stub_fragments(self, *args, **kwargs):
         kwargs.setdefault("strategy", CachingStubGlycopeptideStrategy)
