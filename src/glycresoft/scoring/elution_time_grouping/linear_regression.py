@@ -162,7 +162,11 @@ def weighted_linear_regression_fit_ridge(X: np.ndarray, y: np.ndarray,
     # rss = (np.diag(w) * residuals * residuals).sum()
     # tss = (y - y.mean())
     # tss = (np.diag(w) * tss * tss).sum()
-    press, rss, tss = posprocess_linear_fit(y, residuals, w, np.ascontiguousarray(np.diag(H)))
+    diag_H = np.require(np.ascontiguousarray(np.diag(H)), requirements="W")
+    w = np.require(w, requirements="W")
+    press, rss, tss = posprocess_linear_fit(y, residuals, w, diag_H)
+    if tss == 0:
+        tss = 1e-16
     return WLSSolution(
         yhat, B, (X, y), w, residuals, H,
         rss, press, 1 - (rss / (tss)), V)
@@ -207,7 +211,9 @@ def weighted_linear_regression_fit(X: np.ndarray, y: np.ndarray,
     # rss = (np.diag(w) * residuals * residuals).sum()
     # tss = (y - y.mean())
     # tss = (np.diag(w) * tss * tss).sum()
-    press, rss, tss = posprocess_linear_fit(y, residuals, w, np.ascontiguousarray(np.diag(H)))
+    diag_H = np.require(np.ascontiguousarray(np.diag(H)), requirements='W')
+    w = np.require(w, requirements='W')
+    press, rss, tss = posprocess_linear_fit(y, residuals, w, diag_H)
     return WLSSolution(
         yhat, B, (X, y), w, residuals, H,
         rss, press, 1 - (rss / (tss)), V)
