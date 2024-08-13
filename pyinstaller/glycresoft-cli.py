@@ -35,13 +35,19 @@ from rdflib.plugins.stores import sparqlstore
 
 from glycresoft.cli.__main__ import main
 
-# from glycopeptide_feature_learning import (peak_relations, multinomial_regression, scoring)
-# from glycopeptide_feature_learning._c import (amino_acid_classification, approximation, model_types, peak_relations)
+# import the fallback name
+import glycan_profiling
+
+try:
+    from glycopeptide_feature_learning import (peak_relations, multinomial_regression, scoring)
+    from glycopeptide_feature_learning._c import (amino_acid_classification, approximation, model_types, peak_relations)
+except ImportError:
+    pass
 
 
 from glycresoft.cli.validators import strip_site_root
 
-sys.excepthook = strip_site_root
+# sys.excepthook = strip_site_root
 
 if __name__ == '__main__':
     multiprocessing.freeze_support()

@@ -119,6 +119,9 @@ class LazyMutableMappingWrapper(Mutable, MutableMapping[str, Any]):
                 return cls(None, None, value)
             elif isinstance(value, (str, bytes)):
                 return cls(value, dill.loads)
+            # We have an old `glycan_profiling` object
+            elif value.__class__.__name__ == cls.__name__:
+                return cls(value._payload, value._unpickler, value._object)
             return Mutable.coerce(key, value)
         else:
             return value
