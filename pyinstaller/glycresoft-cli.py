@@ -47,7 +47,7 @@ except ImportError:
 
 from glycresoft.cli.validators import strip_site_root
 
-# sys.excepthook = strip_site_root
+sys.excepthook = strip_site_root
 
 if __name__ == '__main__':
     multiprocessing.freeze_support()
