@@ -326,7 +326,7 @@ class GlycopeptideDatabaseSearchComparer(GlycopeptideDatabaseSearchIdentifier):
             [x.best_solution() for x in target_hits],
             [x.best_solution() for x in decoy_hits], *args, with_pit=with_pit,
             database_ratio=database_ratio, grouping_functions=grouping_fns,
-            grouping_labels=["Long Peptide", "Short Peptide"]
+            grouping_labels=["Long Peptide", "Short Peptide"],
             **kwargs)
 
         tda.q_values()
