@@ -6,6 +6,7 @@ from glycresoft.config.config_file import (
     add_user_substituent_rule, delete_config_dir)
 
 from glypy.composition import formula, Composition
+from glypy import Substituent
 
 from glycopeptidepy.structure.modification import (
     extract_targets_from_string, ModificationRule,
@@ -67,6 +68,15 @@ def substituent(name, composition, is_nh_derivatizable, can_nh_derivatize, attac
     click.echo("is_nh_derivatizable: %s" % (is_nh_derivatizable,))
     click.echo("can_nh_derivatize: %s" % (can_nh_derivatize,))
     click.echo("attachment_loss: %s" % (attachment_loss,))
+
+    rule = Substituent(
+        name,
+        composition=Composition(composition),
+        can_nh_derivatize=can_nh_derivatize,
+        attachment_composition=Composition(attachment_loss),
+    )
+
+    add_user_substituent_rule(rule)
 
 
 @config.command("clear-configuration")

@@ -1,5 +1,5 @@
 from glypy.structure.substituent import register as register_substituent_rule
-from glypy.composition import formula
+from glypy.composition import formula, Composition
 
 
 substituent_schema = {
@@ -23,9 +23,12 @@ def serialize_substituent_rule(substituent):
 
 def load_substituent_rule(rule_dict):
     return register_substituent_rule(
-        rule_dict['name'], rule_dict['composition'],
-        rule_dict['can_nh_derivatize'], rule_dict['is_nh_derivatizable'],
-        rule_dict['attachment_composition'])
+        rule_dict["name"],
+        Composition(rule_dict["composition"]),
+        rule_dict["can_nh_derivatize"],
+        rule_dict["is_nh_derivatizable"],
+        Composition(rule_dict["attachment_composition"]),
+    )
 
 
 def save_substituent_rule(substituent):
