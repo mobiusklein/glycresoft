@@ -221,10 +221,13 @@ def make_log_file_logger(log_file_name, log_file_mode, name=None, level="INFO"):
 
 def configure_logging(level=None, log_file_name=None, log_file_mode=None):
     global LOGGING_CONFIGURED
+    root_logger = logging.getLogger()
+    LOGGING_CONFIGURED = getattr(root_logger, "_glycresoft_logging_configured", False)
     # If we've already called this, don't repeat it
     if LOGGING_CONFIGURED:
         return
     else:
+        root_logger._glycresoft_logging_configured = True
         LOGGING_CONFIGURED = True
     if level is None:
         level = logging_levels.get(LOG_LEVEL, "INFO")
