@@ -12,7 +12,7 @@ from libc.math cimport log10, log, sqrt, exp
 import numpy as np
 cimport numpy as np
 np.import_array()
-from numpy.math cimport isnan, log2l
+from libc.math cimport isnan, log2l
 
 from ms_deisotope._c.peak_set cimport DeconvolutedPeak, DeconvolutedPeakSet
 

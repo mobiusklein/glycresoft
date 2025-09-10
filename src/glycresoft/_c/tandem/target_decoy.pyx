@@ -5,7 +5,7 @@ from cpython.list cimport PyList_GetItem
 cimport numpy as np
 import numpy as np
 np.import_array()
-from numpy.math cimport isnan
+from libc.math cimport isnan
 
 
 cdef class ScoreCell(object):

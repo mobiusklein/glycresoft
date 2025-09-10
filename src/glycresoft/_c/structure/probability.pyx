@@ -4,16 +4,9 @@ from libc cimport math
 cimport cython
 cimport numpy as np
 
-from numpy.math cimport PI
-from numpy.math cimport INFINITY
-from numpy.math cimport NAN
-from numpy cimport ndarray, int64_t, float64_t, intp_t
-
-import warnings
+from libc.math cimport M_PI as PI
 
 import numpy as np
-import scipy.stats, scipy.special
-
 
 ctypedef fused real:
     float
