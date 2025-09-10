@@ -5,13 +5,14 @@ cimport cython
 
 from cpython.object cimport PyObject
 from cpython.float cimport PyFloat_AsDouble
-from cpython.int cimport PyInt_AsLong, PyInt_FromLong
 from cpython.list cimport PyList_GET_SIZE, PyList_GET_ITEM, PyList_Append, PyList_Size, PyList_GetItem
 from cpython.tuple cimport PyTuple_GET_SIZE, PyTuple_GET_ITEM, PyTuple_Size, PyTuple_GetItem
 from cpython.dict cimport PyDict_GetItem, PyDict_SetItem, PyDict_Items, PyDict_Values
 from cpython.set cimport PySet_Add, PySet_GET_SIZE
 
 from libc cimport math
+
+from glycopeptidepy._c.compat cimport PyInt_AsLong, PyInt_FromLong
 
 import numpy as np
 cimport numpy as np

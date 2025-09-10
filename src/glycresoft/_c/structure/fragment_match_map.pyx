@@ -6,7 +6,8 @@ from cpython cimport PyObject
 from cpython cimport PyList_Append, PyList_Size, PyList_GetItem
 from cpython cimport PySet_Add
 from cpython cimport PyDict_GetItem, PyDict_SetItem, PyDict_Contains
-from cpython cimport PyInt_AsLong
+
+from glycopeptidepy._c.compat cimport PyInt_AsLong, PyInt_FromLong
 
 import numpy as np
 cimport numpy as np

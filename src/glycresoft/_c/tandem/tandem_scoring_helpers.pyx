@@ -5,7 +5,7 @@ from cpython cimport (
     PySet_Add, PySet_Contains,
     PyDict_GetItem, PyDict_SetItem, PyObject,
     PyFloat_FromDouble, PyFloat_AsDouble,
-    PyInt_AsLong)
+)
 
 from libc.math cimport log10, log, sqrt, exp
 

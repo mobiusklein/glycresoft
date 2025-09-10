@@ -9,7 +9,8 @@ from cpython.list cimport PyList_Size, PyList_GetItem, PyList_GET_ITEM
 from cpython.set cimport PySet_Discard, PySet_Add
 from cpython.dict cimport PyDict_GetItem, PyDict_SetItem, PyDict_DelItem, PyDict_Items, PyDict_Values
 from cpython.float cimport PyFloat_AsDouble
-from cpython.int cimport PyInt_AsLong
+
+from glycopeptidepy._c.compat cimport PyInt_AsLong, PyInt_FromLong
 
 from glypy.structure.glycan_composition import HashableGlycanComposition, FrozenMonosaccharideResidue
 

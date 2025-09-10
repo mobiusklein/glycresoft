@@ -4,9 +4,11 @@ from libc.stdlib cimport malloc, free
 
 from cpython cimport (
     PyTuple_GetItem, PyTuple_GET_ITEM, PyTuple_GET_SIZE,
-    PyInt_AsLong, PyFloat_AsDouble,
+    PyFloat_AsDouble,
     PyObject, PyDict_GetItem, PyDict_SetItem,
     PyList_GET_SIZE, PyList_GET_ITEM, PyDict_Next)
+
+from glycopeptidepy._c.compat cimport PyInt_AsLong, PyInt_FromLong
 
 from glypy._c.structure.glycan_composition cimport _CompositionBase
 from ms_deisotope._c.peak_set cimport DeconvolutedPeak, DeconvolutedPeakSet
