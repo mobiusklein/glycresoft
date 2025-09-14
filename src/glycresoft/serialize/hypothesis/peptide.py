@@ -1,6 +1,6 @@
 import re
 
-from collections import OrderedDict
+from collections import OrderedDict, defaultdict
 
 from typing import Any
 
@@ -230,6 +230,17 @@ class Protein(Base, AminoAcidSequenceWrapperBase):
         elif value is None:
             value = AnnotationCollection([])
         self.other['annotations'] = value
+
+    @classmethod
+    def build_site_cache(cls, session, ids, chunk_size: int = 512):
+        cache = defaultdict(lambda: defaultdict(list))
+        for chunk in chunkiter(ids, chunk_size):
+            vals = session.query(ProteinSite.name, ProteinSite.location, ProteinSite.protein_id).filter(
+                ProteinSite.protein_id.in_(chunk)
+            ).all()
+            for (site_type, site_index, prot_id) in vals:
+                cache[prot_id][site_type].append(site_index)
+        return cache
 
 
 class ProteinSite(Base):

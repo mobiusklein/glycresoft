@@ -256,18 +256,38 @@ class GlycanLCMSAnalysisCSVSerializer(CSVSerializerBase):
         return list(map(str, attribs))
 
 
-class GlycopeptideLCMSMSAnalysisCSVSerializer(CSVSerializerBase):
+class GlycositeMixin:
+    site_track_cache: Mapping[int, Mapping[str, List[int]]] = None
+
+    def get_n_glycosites(self, glycopeptide):
+        start = glycopeptide.protein_relation.start
+        protein_id = glycopeptide.protein_relation.protein_id
+        if not self.site_track_cache or protein_id not in self.site_track_cache:
+            sites = set(glycopeptide.n_glycan_sequon_sites)
+            for site, (_, mod) in glycopeptide.modified_residues():
+                if mod == "N-Glycosylation":
+                    if site not in sites:
+                        sites.add(site)
+            return sorted(i + start for i in sites)
+        else:
+            tracks = self.site_track_cache[protein_id]
+            sites = tracks.get("N-Glycosylation", [])
+            return [i for i in sites if i in glycopeptide.protein_relation]
+
+
+class GlycopeptideLCMSMSAnalysisCSVSerializer(CSVSerializerBase, GlycositeMixin):
     analysis: 'Analysis'
     protein_name_resolver: Mapping[int, str]
     include_group: bool
 
     def __init__(self, outstream, entities_iterable, protein_name_resolver, analysis, delimiter=',',
-                 include_group: bool=True):
+                 include_group: bool=True, site_track_cache=None):
         super(GlycopeptideLCMSMSAnalysisCSVSerializer, self).__init__(outstream, entities_iterable, delimiter)
         self.protein_name_resolver = protein_name_resolver
         self.analysis = analysis
         self.retention_time_model = analysis.parameters.get("retention_time_model")
         self.include_group = include_group
+        self.site_track_cache = site_track_cache
 
     def get_header(self):
         headers = [
@@ -327,7 +347,7 @@ class GlycopeptideLCMSMSAnalysisCSVSerializer(CSVSerializerBase):
             obj.protein_relation.end_position,
             self.protein_name_resolver[obj.protein_relation.protein_id],
             ';'.join([
-                str(i + obj.start_position) for i in obj.structure.n_glycan_sequon_sites
+                str(i + obj.start_position) for i in self.get_n_glycosites(obj.structure)
             ]),
             ';'.join([a.name for a in obj.mass_shifts]),
         ]
@@ -385,7 +405,10 @@ class MultiScoreGlycopeptideLCMSMSAnalysisCSVSerializer(GlycopeptideLCMSMSAnalys
         return fields
 
 
-class GlycopeptideSpectrumMatchAnalysisCSVSerializer(CSVSerializerBase):
+
+
+
+class GlycopeptideSpectrumMatchAnalysisCSVSerializer(CSVSerializerBase, GlycositeMixin):
     entity_label = "glycopeptide spectrum matches"
     log_interval = 5000
 
@@ -395,12 +418,13 @@ class GlycopeptideSpectrumMatchAnalysisCSVSerializer(CSVSerializerBase):
     protein_name_resolver: Dict[int, str]
 
     def __init__(self, outstream, entities_iterable, protein_name_resolver, analysis, delimiter=',',
-                 include_rank: bool = True, include_group: bool = True):
+                 include_rank: bool = True, include_group: bool = True, site_track_cache: dict=None):
         super(GlycopeptideSpectrumMatchAnalysisCSVSerializer, self).__init__(outstream, entities_iterable, delimiter)
         self.protein_name_resolver = protein_name_resolver
         self.analysis = analysis
         self.include_rank = include_rank
         self.include_group = include_group
+        self.site_track_cache = site_track_cache
 
     def get_header(self):
         names = [
@@ -426,6 +450,8 @@ class GlycopeptideSpectrumMatchAnalysisCSVSerializer(CSVSerializerBase):
             names.append("rank")
         if self.include_group:
             names.append("group_id")
+        names.append("precursor_scan_id")
+        names.append("precursor_activation")
         return names
 
     def convert_object(self, obj):
@@ -440,6 +466,16 @@ class GlycopeptideSpectrumMatchAnalysisCSVSerializer(CSVSerializerBase):
         scan = obj.scan
         precursor = scan.precursor_information
         precursor_mass = precursor.neutral_mass
+        precursor_id = None
+        try:
+            precursor_id = precursor.precursor_scan_id
+        except AttributeError as err:
+            self.error(f"Failed to resolve precursor id: {err}")
+        precursor_activation = None
+        try:
+            precursor_activation = str(scan.activation.method)
+        except AttributeError as err:
+            self.error(f"Failed to resolve precursor activation: {err}")
         attribs = [
             str(obj.target),
             self.analysis.name,
@@ -457,8 +493,8 @@ class GlycopeptideSpectrumMatchAnalysisCSVSerializer(CSVSerializerBase):
             target.protein_relation.end_position,
             self.protein_name_resolver[target.protein_relation.protein_id],
             ';'.join([
-                str(i + obj.target.protein_relation.start_position)
-                for i in obj.target.n_glycan_sequon_sites
+                str(i)
+                for i in self.get_n_glycosites(obj.target)
             ]),
             obj.is_best_match,
             not precursor.defaulted
@@ -475,6 +511,10 @@ class GlycopeptideSpectrumMatchAnalysisCSVSerializer(CSVSerializerBase):
             except AttributeError:
                 group = -1
             attribs.append(group)
+        attribs.extend([
+            precursor_id,
+            precursor_activation,
+        ])
         return list(map(str, attribs))
 
 

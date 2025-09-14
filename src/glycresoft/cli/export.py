@@ -317,6 +317,7 @@ def glycopeptide_spectrum_matches(database_connection, analysis_identifier, outp
         scan_cache = {}
         structure_cache = {}
         peptide_relation_cache = {}
+        protein_site_track_cache = {}
 
         status_logger.info("Reading spectrum matches")
         j = 0
@@ -335,6 +336,8 @@ def glycopeptide_spectrum_matches(database_connection, analysis_identifier, outp
             if not chunk:
                 break
             chunk = [x[1] for x in sorted(chunk.items())]
+            new_proteins = {x.target.protein_relation.protein_id for x in chunk} - set(protein_site_track_cache)
+            protein_site_track_cache.update(Protein.build_site_cache(session, list(new_proteins)))
             for glycopeptide in chunk:
                 j += 1
                 yield glycopeptide
