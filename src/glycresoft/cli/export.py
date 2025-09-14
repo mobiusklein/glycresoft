@@ -299,6 +299,8 @@ def glycopeptide_spectrum_matches(database_connection, analysis_identifier, outp
     status_logger.info("Loading protein index")
     protein_index = dict(protein_query.all())
 
+    protein_site_track_cache = {}
+
     def generate():
         i = 0
         interval = 100000
@@ -317,7 +319,6 @@ def glycopeptide_spectrum_matches(database_connection, analysis_identifier, outp
         scan_cache = {}
         structure_cache = {}
         peptide_relation_cache = {}
-        protein_site_track_cache = {}
 
         status_logger.info("Reading spectrum matches")
         j = 0
@@ -354,7 +355,7 @@ def glycopeptide_spectrum_matches(database_connection, analysis_identifier, outp
         output_stream = open(output_path, 'wb')
 
     with output_stream:
-        job = job_type(output_stream, generate(), protein_index, analysis)
+        job = job_type(output_stream, generate(), protein_index, analysis, site_track_cache=protein_site_track_cache)
         job.run()
 
     end = time.monotonic()
