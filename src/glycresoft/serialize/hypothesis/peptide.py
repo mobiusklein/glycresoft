@@ -239,10 +239,10 @@ class Protein(Base, AminoAcidSequenceWrapperBase):
             [
                 (
                     ProteinSite.name == ProteinSite.N_GLYCOSYLATION,
-                    ProteinSite.location + 3
+                    3
                 )
             ],
-            else_=ProteinSite.location + 1
+            else_=1
         )
 
         for chunk in chunkiter(ids, chunk_size):
