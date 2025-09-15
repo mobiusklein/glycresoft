@@ -268,16 +268,17 @@ class GlycositeMixin:
         start = glycopeptide.protein_relation.start
         protein_id = glycopeptide.protein_relation.protein_id
         if not self.site_track_cache or protein_id not in self.site_track_cache:
-            sites = set(glycopeptide.n_glycan_sequon_sites)
+            sites = set()
             seq = str(glycopeptide.strip_modifications())
-            for site, (_, mod) in glycopeptide.modified_residues():
-                if mod == "N-Glycosylation":
-                    sequon = seq[site:site + 3]
-                    i = start + site
-                    v = (i, sequon)
-                    if v not in sites:
-                        sites.add(v)
-            return sorted(i for i in sites)
+            for site, (_, mods) in glycopeptide.modified_residues():
+                for mod in mods:
+                    if mod == "N-Glycosylation":
+                        sequon = seq[site:site + 3]
+                        i = start + site
+                        v = (i, sequon)
+                        if v not in sites:
+                            sites.add(v)
+            return sorted(sites)
         else:
             tracks = self.site_track_cache[protein_id]
             sites = tracks.get("N-Glycosylation", [])

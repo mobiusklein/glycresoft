@@ -271,9 +271,15 @@ def glycopeptide_identification(database_connection, analysis_identifier, output
                 # chunk = IdentifiedGlycopeptide.bulk_convert(chunk)
                 for glycopeptide in chunk:
                     yield glycopeptide
+
                 i += interval
         with output_stream:
-            job = job_type(output_stream, generate(), protein_index, analysis)
+            job = job_type(
+                output_stream, generate(),
+                protein_index,
+                analysis,
+                site_track_cache=protein_site_track_cache,
+            )
             job.run()
 
 
