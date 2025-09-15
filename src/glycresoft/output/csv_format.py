@@ -299,7 +299,8 @@ class MissedCleavageMixin:
                 if not self.missed_cleavage_cache or i not in self.missed_cleavage_cache:
                     return ''
                 return self.missed_cleavage_cache[i]
-            except AttributeError:
+            except Exception as err:
+                self.error(f"Failed to retrieve missed cleavages: {err}")
                 return ''
 
 
