@@ -55,7 +55,7 @@ class _GlycopeptideSearchToolBase:
         "glycopeptide_q_value",
         "localizations",
         "n_glycosylation_sites",
-
+        "missed_cleavages",
     ]
 
     indexed_gpsm_csv_header = [
@@ -87,6 +87,7 @@ class _GlycopeptideSearchToolBase:
         "n_glycosylation_sites",
         "precursor_scan_id",
         "precursor_activation",
+        "missed_cleavages",
     ]
 
     gp_csv_suffix = "-glycopeptides.csv"

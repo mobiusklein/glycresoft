@@ -303,6 +303,15 @@ def glycopeptide_spectrum_matches(database_connection, analysis_identifier, outp
     status_logger.info("Loading protein index")
     protein_index = dict(protein_query.all())
 
+    # This could concievably use a lot of RAM and need an analysis constraint like `protein_index`, but
+    # the value is an integer, much smaller than the strings a name might be
+    missed_cleavage_cache = dict(
+        session.query(
+            serialize.Peptide.id,
+            serialize.Peptide.count_missed_cleavages
+        ).all()
+    )
+
     protein_site_track_cache = {}
 
     def generate():
@@ -359,7 +368,14 @@ def glycopeptide_spectrum_matches(database_connection, analysis_identifier, outp
         output_stream = open(output_path, 'wb')
 
     with output_stream:
-        job = job_type(output_stream, generate(), protein_index, analysis, site_track_cache=protein_site_track_cache)
+        job = job_type(
+            output_stream,
+            generate(),
+            protein_index,
+            analysis,
+            site_track_cache=protein_site_track_cache,
+            missed_cleavage_cache=missed_cleavage_cache,
+        )
         job.run()
 
     end = time.monotonic()

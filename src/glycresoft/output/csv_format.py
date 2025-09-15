@@ -2,7 +2,7 @@ import csv
 import logging
 
 from io import TextIOWrapper
-from typing import TYPE_CHECKING, Dict, Iterable, List, Mapping, TextIO, Tuple, Union
+from typing import TYPE_CHECKING, Any, Dict, Iterable, List, Mapping, TextIO, Tuple, Union
 
 from six import PY2
 
@@ -14,6 +14,7 @@ from glycresoft.scoring.elution_time_grouping import (
 
 from glycopeptidepy import PeptideSequence
 from glycresoft.serialize import Glycopeptide
+from glycresoft.structure.structure_loader import FragmentCachingGlycopeptide
 if TYPE_CHECKING:
     from glycresoft.serialize import Analysis
 
@@ -283,7 +284,26 @@ class GlycositeMixin:
             return [(i, sequon) for i, sequon in sites if i in glycopeptide.protein_relation]
 
 
-class GlycopeptideLCMSMSAnalysisCSVSerializer(CSVSerializerBase, GlycositeMixin):
+class MissedCleavageMixin:
+    missed_cleavage_cache: Mapping[int, int] = None
+
+    def get_missed_cleavages(self, glycopeptide: Union[Glycopeptide, FragmentCachingGlycopeptide]):
+        if isinstance(glycopeptide, Glycopeptide):
+            i = glycopeptide.peptide_id
+            if not self.missed_cleavage_cache or i not in self.missed_cleavage_cache:
+                return glycopeptide.peptide.count_missed_cleavages
+            return self.missed_cleavage_cache[i]
+        else:
+            try:
+                i = glycopeptide.protein_relation.peptide_id
+                if not self.missed_cleavage_cache or i not in self.missed_cleavage_cache:
+                    return ''
+                return self.missed_cleavage_cache[i]
+            except AttributeError:
+                return ''
+
+
+class GlycopeptideLCMSMSAnalysisCSVSerializer(CSVSerializerBase, GlycositeMixin, MissedCleavageMixin):
     analysis: 'Analysis'
     protein_name_resolver: Mapping[int, str]
     include_group: bool
@@ -340,7 +360,7 @@ class GlycopeptideLCMSMSAnalysisCSVSerializer(CSVSerializerBase, GlycositeMixin)
 
         missed_cleavages = ''
         try:
-            missed_cleavages = obj.structure.peptide.count_missed_cleavages
+            missed_cleavages = self.get_missed_cleavages(obj.structure)
         except Exception as err:
             self.error(f"Failed to retrieve missed cleavages: {err}")
 
@@ -419,7 +439,7 @@ class MultiScoreGlycopeptideLCMSMSAnalysisCSVSerializer(GlycopeptideLCMSMSAnalys
         return fields
 
 
-class GlycopeptideSpectrumMatchAnalysisCSVSerializer(CSVSerializerBase, GlycositeMixin):
+class GlycopeptideSpectrumMatchAnalysisCSVSerializer(CSVSerializerBase, GlycositeMixin, MissedCleavageMixin):
     entity_label = "glycopeptide spectrum matches"
     log_interval = 5000
 
@@ -429,13 +449,15 @@ class GlycopeptideSpectrumMatchAnalysisCSVSerializer(CSVSerializerBase, Glycosit
     protein_name_resolver: Dict[int, str]
 
     def __init__(self, outstream, entities_iterable, protein_name_resolver, analysis, delimiter=',',
-                 include_rank: bool = True, include_group: bool = True, site_track_cache: dict=None):
+                 include_rank: bool = True, include_group: bool = True, site_track_cache: dict=None,
+                 missed_cleavage_cache: dict=None):
         super(GlycopeptideSpectrumMatchAnalysisCSVSerializer, self).__init__(outstream, entities_iterable, delimiter)
         self.protein_name_resolver = protein_name_resolver
         self.analysis = analysis
         self.include_rank = include_rank
         self.include_group = include_group
         self.site_track_cache = site_track_cache
+        self.missed_cleavage_cache = missed_cleavage_cache
 
     def get_header(self):
         names = [
@@ -461,8 +483,11 @@ class GlycopeptideSpectrumMatchAnalysisCSVSerializer(CSVSerializerBase, Glycosit
             names.append("rank")
         if self.include_group:
             names.append("group_id")
-        names.append("precursor_scan_id")
-        names.append("precursor_activation")
+        names.extend([
+            "precursor_scan_id",
+            "precursor_activation",
+            "missed_cleavages"
+        ])
         return names
 
     def convert_object(self, obj):
@@ -521,6 +546,7 @@ class GlycopeptideSpectrumMatchAnalysisCSVSerializer(CSVSerializerBase, Glycosit
         attribs.extend([
             precursor_id,
             precursor_activation,
+            self.get_missed_cleavages(target)
         ])
         return list(map(str, attribs))
 
