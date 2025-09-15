@@ -289,19 +289,19 @@ class MissedCleavageMixin:
 
     def get_missed_cleavages(self, glycopeptide: Union[Glycopeptide, FragmentCachingGlycopeptide]):
         if isinstance(glycopeptide, Glycopeptide):
-            i = glycopeptide.peptide_id
+            i = glycopeptide.id
             if not self.missed_cleavage_cache or i not in self.missed_cleavage_cache:
                 return glycopeptide.peptide.count_missed_cleavages
             return self.missed_cleavage_cache[i]
         else:
             try:
-                i = glycopeptide.protein_relation.peptide_id
+                i = glycopeptide.id
                 if not self.missed_cleavage_cache or i not in self.missed_cleavage_cache:
-                    return ''
+                    return 0
                 return self.missed_cleavage_cache[i]
             except Exception as err:
                 self.error(f"Failed to retrieve missed cleavages: {err}")
-                return ''
+                return 0
 
 
 class GlycopeptideLCMSMSAnalysisCSVSerializer(CSVSerializerBase, GlycositeMixin, MissedCleavageMixin):

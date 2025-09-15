@@ -295,20 +295,30 @@ def glycopeptide_spectrum_matches(database_connection, analysis_identifier, outp
             str(analysis.name), str(analysis.analysis_type)), fg='red', err=True)
         raise click.Abort()
     analysis_id = analysis.id
+    hypothesis_id = analysis.hypothesis_id
     is_multiscore = analysis.is_multiscore
     start = time.monotonic()
-    protein_query = session.query(Protein.id, Protein.name).join(Protein.glycopeptides).join(
-        GlycopeptideSpectrumMatch).filter(
-            GlycopeptideSpectrumMatch.analysis_id == analysis.id)
+
     status_logger.info("Loading protein index")
+    protein_query = session.query(Protein.id, Protein.name).join(
+        Protein.glycopeptides
+    ).join(
+        GlycopeptideSpectrumMatch
+    ).filter(
+        Protein.hypothesis_id == hypothesis_id,
+        GlycopeptideSpectrumMatch.analysis_id == analysis.id
+    )
     protein_index = dict(protein_query.all())
 
     # This could concievably use a lot of RAM and need an analysis constraint like `protein_index`, but
     # the value is an integer, much smaller than the strings a name might be
     missed_cleavage_cache = dict(
         session.query(
-            serialize.Peptide.id,
+            serialize.Glycopeptide.id,
             serialize.Peptide.count_missed_cleavages
+        ).filter(
+            serialize.Peptide.count_missed_cleavages > 0,
+            serialize.Peptide.hypothesis_id == hypothesis_id
         ).all()
     )
 
