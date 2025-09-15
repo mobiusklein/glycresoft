@@ -316,7 +316,7 @@ def glycopeptide_spectrum_matches(database_connection, analysis_identifier, outp
         session.query(
             serialize.Glycopeptide.id,
             serialize.Peptide.count_missed_cleavages
-        ).filter(
+        ).join(serialize.Peptide).filter(
             serialize.Peptide.count_missed_cleavages > 0,
             serialize.Peptide.hypothesis_id == hypothesis_id
         ).all()
