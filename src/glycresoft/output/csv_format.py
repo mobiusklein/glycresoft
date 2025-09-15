@@ -268,15 +268,19 @@ class GlycositeMixin:
         protein_id = glycopeptide.protein_relation.protein_id
         if not self.site_track_cache or protein_id not in self.site_track_cache:
             sites = set(glycopeptide.n_glycan_sequon_sites)
+            seq = str(glycopeptide.strip_modifications())
             for site, (_, mod) in glycopeptide.modified_residues():
                 if mod == "N-Glycosylation":
-                    if site not in sites:
-                        sites.add(site)
-            return sorted(i + start for i in sites)
+                    sequon = seq[site:site + 3]
+                    i = start + site
+                    v = (i, sequon)
+                    if v not in sites:
+                        sites.add(v)
+            return sorted(i for i in sites)
         else:
             tracks = self.site_track_cache[protein_id]
             sites = tracks.get("N-Glycosylation", [])
-            return [i for i, _sequon in sites if i in glycopeptide.protein_relation]
+            return [(i, sequon) for i, sequon in sites if i in glycopeptide.protein_relation]
 
 
 class GlycopeptideLCMSMSAnalysisCSVSerializer(CSVSerializerBase, GlycositeMixin):
@@ -357,7 +361,7 @@ class GlycopeptideLCMSMSAnalysisCSVSerializer(CSVSerializerBase, GlycositeMixin)
             obj.protein_relation.start_position,
             obj.protein_relation.end_position,
             self.protein_name_resolver[obj.protein_relation.protein_id],
-            ";".join([str(i + obj.start_position) for i in self.get_n_glycosites(obj.structure)]),
+            ";".join([':'.join(map(str, i)) for i in self.get_n_glycosites(obj.structure)]),
             ";".join([a.name for a in obj.mass_shifts]),
             missed_cleavages,
         ]
@@ -487,8 +491,7 @@ class GlycopeptideSpectrumMatchAnalysisCSVSerializer(CSVSerializerBase, Glycosit
             str(obj.target),
             self.analysis.name,
             precursor_mass,
-            ((target.total_mass + mass_shift_mass) -
-             precursor_mass) / precursor_mass,
+            ((target.total_mass + mass_shift_mass) - precursor_mass) / precursor_mass,
             mass_shift_name,
             scan.scan_id,
             scan.scan_time,
@@ -499,12 +502,9 @@ class GlycopeptideSpectrumMatchAnalysisCSVSerializer(CSVSerializerBase, Glycosit
             target.protein_relation.start_position,
             target.protein_relation.end_position,
             self.protein_name_resolver[target.protein_relation.protein_id],
-            ';'.join([
-                str(i)
-                for i in self.get_n_glycosites(obj.target)
-            ]),
+            ";".join([":".join(map(str, i)) for i in self.get_n_glycosites(obj.target)]),
             obj.is_best_match,
-            not precursor.defaulted
+            not precursor.defaulted,
         ]
         if self.include_rank:
             try:

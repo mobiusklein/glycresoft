@@ -252,6 +252,7 @@ class Protein(Base, AminoAcidSequenceWrapperBase):
                 ProteinSite.protein_id,
                 func.substr(
                     Protein.protein_sequence,
+                    # SQL standard says start position is 1
                     ProteinSite.location + 1,
                     substr_expr
                 )
