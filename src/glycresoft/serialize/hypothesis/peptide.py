@@ -2,7 +2,7 @@ import re
 
 from collections import OrderedDict, defaultdict
 
-from typing import Any
+from typing import Any, List, Mapping, Tuple
 
 from sqlalchemy.ext.declarative import declared_attr
 from sqlalchemy.orm import (
@@ -11,7 +11,7 @@ from sqlalchemy.orm import (
 from sqlalchemy.ext.hybrid import hybrid_property, hybrid_method
 from sqlalchemy import (
     Column, Numeric, Integer, String, ForeignKey, PickleType,
-    Text, Index, select)
+    Text, Index, case, select, func)
 from sqlalchemy.ext.mutable import MutableDict, MutableList
 
 from glycresoft.serialize.base import (
@@ -232,14 +232,36 @@ class Protein(Base, AminoAcidSequenceWrapperBase):
         self.other['annotations'] = value
 
     @classmethod
-    def build_site_cache(cls, session, ids, chunk_size: int = 512):
+    def build_site_cache(cls, session, ids, chunk_size: int = 512) -> Mapping[int, Mapping[str, List[Tuple[int, str]]]]:
         cache = defaultdict(lambda: defaultdict(list))
+
+        substr_expr = case(
+            [
+                (
+                    ProteinSite.name == ProteinSite.N_GLYCOSYLATION,
+                    ProteinSite.location + 3
+                )
+            ],
+            else_=ProteinSite.location + 1
+        )
+
         for chunk in chunkiter(ids, chunk_size):
-            vals = session.query(ProteinSite.name, ProteinSite.location, ProteinSite.protein_id).filter(
+            vals = session.query(
+                ProteinSite.name,
+                ProteinSite.location,
+                ProteinSite.protein_id,
+                func.substr(
+                    Protein.protein_sequence,
+                    ProteinSite.location,
+                    substr_expr
+                )
+            ).join(cls).filter(
                 ProteinSite.protein_id.in_(chunk)
             ).all()
-            for (site_type, site_index, prot_id) in vals:
-                cache[prot_id][site_type].append(site_index)
+
+            for (site_type, site_index, prot_id, marker) in vals:
+                cache[prot_id][site_type].append((site_index, marker))
+
         return cache
 
 

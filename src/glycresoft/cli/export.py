@@ -250,6 +250,8 @@ def glycopeptide_identification(database_connection, analysis_identifier, output
         else:
             job_type = GlycopeptideLCMSMSAnalysisCSVSerializer
 
+        protein_site_track_cache = {}
+
         def generate():
             i = 0
             interval = 100
@@ -264,6 +266,8 @@ def glycopeptide_identification(database_connection, analysis_identifier, output
                 chunk = query.slice(i, i + interval).all()
                 if len(chunk) == 0:
                     break
+                new_proteins = {x.structure.protein_relation.protein_id for x in chunk} - set(protein_site_track_cache)
+                protein_site_track_cache.update(Protein.build_site_cache(session, list(new_proteins)))
                 # chunk = IdentifiedGlycopeptide.bulk_convert(chunk)
                 for glycopeptide in chunk:
                     yield glycopeptide

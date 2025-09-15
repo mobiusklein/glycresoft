@@ -2,7 +2,7 @@ import csv
 import logging
 
 from io import TextIOWrapper
-from typing import TYPE_CHECKING, Dict, Iterable, List, Mapping, TextIO
+from typing import TYPE_CHECKING, Dict, Iterable, List, Mapping, TextIO, Tuple, Union
 
 from six import PY2
 
@@ -12,6 +12,8 @@ from glycresoft.scoring.elution_time_grouping import (
     GlycopeptideChromatogramProxy
 )
 
+from glycopeptidepy import PeptideSequence
+from glycresoft.serialize import Glycopeptide
 if TYPE_CHECKING:
     from glycresoft.serialize import Analysis
 
@@ -257,9 +259,11 @@ class GlycanLCMSAnalysisCSVSerializer(CSVSerializerBase):
 
 
 class GlycositeMixin:
-    site_track_cache: Mapping[int, Mapping[str, List[int]]] = None
+    site_track_cache: Mapping[int, Mapping[str, List[Tuple[int, str]]]] = None
 
-    def get_n_glycosites(self, glycopeptide):
+    def get_n_glycosites(self, glycopeptide: Union[Glycopeptide, PeptideSequence]):
+        if isinstance(glycopeptide, Glycopeptide):
+            glycopeptide = glycopeptide.convert()
         start = glycopeptide.protein_relation.start
         protein_id = glycopeptide.protein_relation.protein_id
         if not self.site_track_cache or protein_id not in self.site_track_cache:
@@ -272,7 +276,7 @@ class GlycositeMixin:
         else:
             tracks = self.site_track_cache[protein_id]
             sites = tracks.get("N-Glycosylation", [])
-            return [i for i in sites if i in glycopeptide.protein_relation]
+            return [i for i, _sequon in sites if i in glycopeptide.protein_relation]
 
 
 class GlycopeptideLCMSMSAnalysisCSVSerializer(CSVSerializerBase, GlycositeMixin):
@@ -309,6 +313,7 @@ class GlycopeptideLCMSMSAnalysisCSVSerializer(CSVSerializerBase, GlycositeMixin)
             "protein_name",
             "n_glycosylation_sites",
             "mass_shifts",
+            "missed_cleavages",
         ]
         if self.include_group:
             headers.append("group_id")
@@ -329,6 +334,12 @@ class GlycopeptideLCMSMSAnalysisCSVSerializer(CSVSerializerBase, GlycositeMixin)
             weighted_neutral_mass = obj.tandem_solutions[0].scan.precursor_information.neutral_mass
             charge_states = (obj.tandem_solutions[0].scan.precursor_information.charge,)
 
+        missed_cleavages = ''
+        try:
+            missed_cleavages = obj.structure.peptide.count_missed_cleavages
+        except Exception as err:
+            self.error(f"Failed to retrieve missed cleavages: {err}")
+
         attribs = [
             str(obj.structure),
             self.analysis.name,
@@ -338,18 +349,17 @@ class GlycopeptideLCMSMSAnalysisCSVSerializer(CSVSerializerBase, GlycositeMixin)
             obj.ms2_score,
             obj.q_value,
             obj.total_signal,
-            obj.start_time if has_chrom else '',
-            obj.end_time if has_chrom else '',
-            obj.apex_time if has_chrom else '',
+            obj.start_time if has_chrom else "",
+            obj.end_time if has_chrom else "",
+            obj.apex_time if has_chrom else "",
             ";".join(map(str, charge_states)),
             len(obj.spectrum_matches),
             obj.protein_relation.start_position,
             obj.protein_relation.end_position,
             self.protein_name_resolver[obj.protein_relation.protein_id],
-            ';'.join([
-                str(i + obj.start_position) for i in self.get_n_glycosites(obj.structure)
-            ]),
-            ';'.join([a.name for a in obj.mass_shifts]),
+            ";".join([str(i + obj.start_position) for i in self.get_n_glycosites(obj.structure)]),
+            ";".join([a.name for a in obj.mass_shifts]),
+            missed_cleavages,
         ]
         try:
             attribs.append(obj.ambiguous_id)
@@ -403,9 +413,6 @@ class MultiScoreGlycopeptideLCMSMSAnalysisCSVSerializer(GlycopeptideLCMSMSAnalys
         ]
         fields.extend(map(str, new_fields))
         return fields
-
-
-
 
 
 class GlycopeptideSpectrumMatchAnalysisCSVSerializer(CSVSerializerBase, GlycositeMixin):
@@ -466,12 +473,12 @@ class GlycopeptideSpectrumMatchAnalysisCSVSerializer(CSVSerializerBase, Glycosit
         scan = obj.scan
         precursor = scan.precursor_information
         precursor_mass = precursor.neutral_mass
-        precursor_id = None
+        precursor_id = ''
         try:
             precursor_id = precursor.precursor_scan_id
         except AttributeError as err:
             self.error(f"Failed to resolve precursor id: {err}")
-        precursor_activation = None
+        precursor_activation = ''
         try:
             precursor_activation = str(scan.activation.method)
         except AttributeError as err:

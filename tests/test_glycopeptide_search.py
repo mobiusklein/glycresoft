@@ -85,6 +85,8 @@ class _GlycopeptideSearchToolBase:
         "glycopeptide_q_value",
         "localizations",
         "n_glycosylation_sites",
+        "precursor_scan_id",
+        "precursor_activation",
     ]
 
     gp_csv_suffix = "-glycopeptides.csv"
