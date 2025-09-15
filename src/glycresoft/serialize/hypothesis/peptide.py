@@ -252,7 +252,7 @@ class Protein(Base, AminoAcidSequenceWrapperBase):
                 ProteinSite.protein_id,
                 func.substr(
                     Protein.protein_sequence,
-                    ProteinSite.location,
+                    ProteinSite.location + 1,
                     substr_expr
                 )
             ).join(cls).filter(
